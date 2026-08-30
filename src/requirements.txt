@@ -1,0 +1,19 @@
+# Core web framework
+fastapi==0.115.0
+uvicorn[standard]==0.30.0
+
+# Database
+sqlalchemy==2.0.36
+psycopg[asyncio]==3.2.0
+
+# HTTP client
+requests==2.32.3
+
+# Environment variables
+python-dotenv==1.0.1
+
+# Development/testing
+pytest==8.3.2
+pytest-asyncio==0.24.0
+
+pydantic-settings==2.2.1
