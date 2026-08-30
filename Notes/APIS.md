@@ -16,6 +16,13 @@
 - https://steamdb.info/
 - might be usefull as well not a official steam thing but it has price history and other potentally usefull things
 - might also be more consistent the the unofficial storefront api
+### Game Apis
+HowLongToBeat
+RetroAchievements
+Steam
+Playstation
+Xbox
+Maybe Nintendo
 
 
 # Movies
