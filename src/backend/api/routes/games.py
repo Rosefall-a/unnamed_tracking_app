@@ -13,6 +13,8 @@ from app.database.base import run_transaction
 
 from app.database.session import get_db
 from app.database.models.game import Game, GameStatus
+from app.database.models.developer import Developer # Added developer model import
+from app.database.models.achievement import Achievement # Added achievement model import
 from app.api.schemas.game import GameCreate, GameRead, GameUpdate
 from app.helpers.save_game_asset import save_game_asset
 

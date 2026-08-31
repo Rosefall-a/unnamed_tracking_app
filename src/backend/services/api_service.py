@@ -1,6 +1,7 @@
 from app.database.models.game import Game, GameStatus
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import List
+from typing import List, Optional
+from uuid import UUID
 
 class ApiService:
     """
@@ -29,6 +30,21 @@ class ApiService:
         print("Executing service layer logic to retrieve all games.")
         return [] # Return empty list for now as we don't have the full database setup
 
+    async def get_game_by_id(self, session: AsyncSession, game_uuid: UUID) -> Optional[Game]:
+        """
+        Retrieves a single game record by its unique identifier (UUID).
+
+        Args:
+            session: The active SQLAlchemy asynchronous session.
+            game_uuid: The UUID of the game to retrieve.
+
+        Returns:
+            The Game object if found, otherwise None.
+        """
+        print(f"Executing service layer logic to retrieve game with ID: {game_uuid}")
+        # Placeholder for actual query logic (e.g., await session.get(Game, game_uuid))
+        return None
+
     async def create_game(self, session: AsyncSession, game_data: dict) -> Game:
         """
         Creates a new Game record in the database.
@@ -40,9 +56,40 @@ class ApiService:
         Returns:
             The newly created Game object.
         """
-        print(f"Executing service layer logic to create a new game: {game_data['title']}")
+        print(f"Executing service layer logic to create a new game: {game_data.get('title', 'Untitled')}")
         # Placeholder for actual model creation and session add/flush logic
         return None # Return None until full implementation is ready
+
+    async def update_game(self, session: AsyncSession, game_uuid: UUID, update_data: dict) -> Game:
+        """
+        Updates an existing Game record in the database.
+
+        Args:
+            session: The active SQLAlchemy asynchronous session.
+            game_uuid: The UUID of the game to update.
+            update_data: A dictionary containing fields and values to update.
+
+        Returns:
+            The updated Game object.
+        """
+        print(f"Executing service layer logic to update game ID {game_uuid} with data: {update_data}")
+        # Placeholder for actual ORM updates (e.g., session.get(Game, game_uuid), then updating attributes)
+        return None
+
+    async def delete_game(self, session: AsyncSession, game_uuid: UUID) -> bool:
+        """
+        Deletes a Game record and related data from the database.
+
+        Args:
+            session: The active SQLAlchemy asynchronous session.
+            game_uuid: The UUID of the game to delete.
+
+        Returns:
+            True if deletion was successful, False otherwise.
+        """
+        print(f"Executing service layer logic to delete game ID {game_uuid}")
+        # Placeholder for actual ORM deletion (e.g., await session.delete(Game(id=game_uuid)))
+        return True
 
     async def run_poc(self, session: AsyncSession) -> tuple[bool, str]:
         """

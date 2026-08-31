@@ -1,9 +1,11 @@
-from datetime import date
+from typing import List
 from uuid import UUID, uuid4
 from sqlalchemy import Boolean, DateTime, String, Text
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship # <-- Added relationship and fixed imports
 from app.database.base import Base
+from datetime import datetime
+
 
 class Achievement(Base):
     """Defines a specific achievement possible for a game."""

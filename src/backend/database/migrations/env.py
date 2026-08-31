@@ -8,6 +8,9 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 from app.core.config import settings
 from app.database.base import Base
 
+from importlib import import_module
+
+
 # Import every model module here so its table gets registered on
 # Base.metadata before autogenerate compares it against the database.
 # import app.database.models in the run_migrations_online function instead to avoid global side effects.

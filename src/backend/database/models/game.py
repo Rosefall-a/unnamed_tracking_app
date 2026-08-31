@@ -1,4 +1,4 @@
-from datetime import date, datetime, timezone
+from typing import List
 from decimal import Decimal
 from enum import Enum
 from uuid import UUID, uuid4
@@ -69,14 +69,14 @@ class Game(Base):
         nullable=True,
     )
 
-    release_date: Mapped[date | None] = mapped_column(
+    release_date: Mapped[Date | None] = mapped_column(
         Date,
         nullable=True,
     )
 
     # Foreign Key to Developer
     developer_id: Mapped[UUID | None] = mapped_column(ForeignKey("developers.id"), nullable=True)
-    developer: Mapped["Developer"] | None = relationship("Developer", back_populates="games") # Retaining this structure for now, as removing it may break intended functionality if the original was correct
+    developer: Mapped["Developer"] = relationship("Developer", back_populates="games") # Relationship attribute remains as is for now. The foreign key developer_id handles the link.
 
 
     publisher: Mapped[str | None] = mapped_column(
@@ -153,13 +153,13 @@ class Game(Base):
 
     achievements: Mapped[list["Achievement"]] = relationship(back_populates="game", cascade="all, delete-orphan")
 
-    created_at: Mapped[datetime] = mapped_column(
+    created_at: Mapped[DateTime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
         default=lambda: datetime.now(timezone.utc),
     )
 
-    updated_at: Mapped[datetime] = mapped_column(
+    updated_at: Mapped[DateTime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
         default=lambda: datetime.now(timezone.utc),

@@ -16,7 +16,7 @@ A clean, maintainable, well‑documented **backend API** and **frontend UI**, ea
 /
 ├── agents.md
 ├── README.md
-├── docker-compose.yml
+├── compose.yml
 ├── docs/
 ├── src/
 │   ├── backend/

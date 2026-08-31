@@ -2,38 +2,28 @@ import type { Game, GameStatus } from '../types/game'
 
 // backend base URL — set via VITE_API_BASE_URL in compose.yaml when running
 // in Docker; falls back to this for plain `npm run dev` outside a container
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8200'
+// Utility function to handle fetch responses that might not be JSON (e.g., an HTML error page).
+async function handleResponse<T>(response: Response, expectedJson: boolean): Promise<T | null> {
+  if (!response.ok) {
+    // Try to read response body as text for detailed error message
+    const errorMessage = await response.text();
+    throw new Error(
+      `API call failed with ${response.status} ${response.statusText}. Response details: ${errorMessage.substring(0, 200)}...`
+    );
+  }
 
-// The exact shape FastAPI sends — snake_case, matching the Python model
-// field-for-field. This is deliberately a separate type from `Game`:
-// nothing outside this file should ever see raw backend data directly.
-interface BackendGame {
-  id: string
-  title: string
-  sort_title: string
-  description: string | null
-  release_date: string | null
-  developer: string | null
-  publisher: string | null
-  status: string
-  priority: string | null
-  favorite: boolean
-  notes: string | null
-  resume_note: string | null
-  playtime_seconds: number
-  rating_story: number | string | null
-  rating_gameplay: number | string | null
-  rating_soundtrack: number | string | null
-  rating_overall: number | string | null
-  personal_rank: number | null
-  created_at: string
-  updated_at: string
+  if (expectedJson) {
+    // Attempt to parse as JSON
+    return (await response.json()) as T;
+  } else {
+    // Return text directly if not expecting JSON (e.g., fetching a file/note content)
+    return await response.text() as unknown as T;
+  }
 }
 
-// Pydantic can serialize a Decimal as either a JSON number or a string
-// depending on config — handle both rather than assume one
+// Utility function to map backend's raw data structure to the frontend's clean Game type.
 function toNumberOrNull(value: number | string | null): number | null {
-  return value === null ? null : Number(value)
+  return value === null ? null : Number(value);
 }
 
 export function mapBackendGame(raw: BackendGame): Game {

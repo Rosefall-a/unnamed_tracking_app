@@ -2,6 +2,8 @@ from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy.ext.asyncio import AsyncSession
 import contextlib
 from contextlib import asynccontextmanager # <-- This is the crucial import
+from importlib import import_module
+
 
 # Assuming get_db is imported from an established session utility location
 

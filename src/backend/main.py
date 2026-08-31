@@ -3,6 +3,7 @@ from fastapi import FastAPI, HTTPException
 import httpx
 from typing import Dict, Any
 from app.services.api_service import ApiService # Assuming the service file is structured here
+from uuid import UUID, uuid4
 
 # Initialize the API Service globally or in a startup event to manage connections efficiently
 api_service = ApiService() 
@@ -22,28 +23,40 @@ def health():
     """Basic endpoint to check API availability."""
     return {"status": "ok"}
 
-@app.get("/api/v1/games/")
-async def get_all_games_route():
-    """Fetches a list of all registered games from the database."""
+@app.get("/api/v1/games/{game_uuid}")
+async def get_single_game_route(game_uuid: UUID):
+    """Retrieves a single game record by its unique identifier (UUID)."""
     try:
-        # Use the dedicated service layer to handle connection and logic
-        game_list = api_service.get_all_games() 
-        if game_list is None:
-            raise HTTPException(status_code=404, detail="No games found or API error.")
-        return {"message": "Success", "games": game_list}
+        # Check if the game exists and fetch details using service layer
+        game = api_service.get_game_by_id(game_uuid) 
+        if not game:
+            raise HTTPException(status_code=404, detail=f"Game with UUID {game_uuid} not found.")
+        return {"message": "Success", "game": game}
     except Exception as e:
-         # Catch service layer errors (e.g., connection failure) and map them to HTTP exceptions
-         raise HTTPException(status_code=500, detail=f"Internal server error fetching games: {str(e)}")
+         # Catch service layer errors and map them to HTTP exceptions
+        raise HTTPException(status_code=500, detail=f"Internal server error fetching game details: {str(e)}")
 
-@app.post("/api/v1/games/")
-async def create_game_route(game_data: Dict[str, Any]):
-    """Creates a new game record in the system."""
+@app.put("/api/v1/games/{game_uuid}/") # Using PUT for full replacement update
+async def update_game_route(game_uuid: UUID, update_data: Dict[str, Any]):
+    """Updates an existing game record using the provided data."""
     try:
-        # Use the dedicated service layer for creation logic
-        created_game = api_service.create_game(game_data)
-        return {"message": "Game created successfully", "game_details": created_game}
+        # The service layer handles validation and merging of new data.
+        updated_game = api_service.update_game(game_uuid, update_data)
+        return {"message": "Game updated successfully", "game_details": updated_game}
     except Exception as e:
-         raise HTTPException(status_code=400, detail=f"Failed to create game: {str(e)}")
+         raise HTTPException(status_code=400, detail=f"Failed to update game: {str(e)}")
+
+@app.delete("/api/v1/games/{game_uuid}")
+async def delete_game_route(game_uuid: UUID):
+    """Deletes a game record and related data (like achievements)."""
+    try:
+        # The service layer must handle cascading deletes carefully
+        success = api_service.delete_game(game_uuid) 
+        if not success:
+            raise HTTPException(status_code=404, detail=f"Game with UUID {game_uuid} not found or could not be deleted.")
+        return {"message": "Game deleted successfully"}
+    except Exception as e:
+         raise HTTPException(status_code=500, detail=f"Internal server error deleting game: {str(e)}")
 
 
 @app.get("/api/poc-test")
