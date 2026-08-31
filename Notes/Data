@@ -13,11 +13,17 @@ Updated as new fields get added on the frontend side — see the change log at t
 |---|---|---|
 | `id` | string (UUID) | Primary identifier |
 | `title` | string | |
-| `coverColor` | — | **Frontend-only placeholder, not a real backend field.** Stands in for real cover artwork until that exists. Backend should eventually supply artwork some other way (e.g. a `coverUrl`, or multiple artwork slots per `DESIGN.md` §6.1) — not a color. |
+| `coverColor` | — | **Frontend-only placeholder, not a real backend field.** Stands in for real cover artwork until that exists. |
 | `status` | enum: `wishlist \| backlog \| playing \| paused \| completed \| mastered \| dropped` | |
 | `ratingOverall` | number \| null | `null` = not rated yet |
-| `achievementPercent` | number (0–100) | Could be computed server-side from the `achievements` list rather than stored as its own column — frontend doesn't care which, as long as the field is present |
+| `achievementPercent` | number (0–100) | Could be computed server-side from `achievements` rather than stored as its own column |
 | `achievements` | `Achievement[]` | See below |
+| `description` | string \| null | |
+| `developer` | string \| null | |
+| `publisher` | string \| null | |
+| `tags` | string[] | |
+| `playtimeMinutes` | number | **Known limitation, see "Multi-platform" note below** — currently one flat total per game |
+| `lastPlayedAt` | ISO timestamp string \| null | Full date + time (e.g. `"2026-08-28T20:15:47"`), not date-only. `null` = never played |
 
 ## Achievement
 
@@ -25,8 +31,20 @@ Updated as new fields get added on the frontend side — see the change log at t
 |---|---|---|
 | `id` | string | |
 | `name` | string | |
-| `unlockedAt` | ISO date string \| null | `null` = still locked. **Currently mock data on the frontend.** Real values need to come from a Steam/RetroAchievements sync — see `Notes/DESIGN.md` §6.6 (achievement tables) and §11.5 (the sync flow) |
+| `unlockedAt` | ISO timestamp string \| null | Full date + time, not date-only. `null` = still locked. **Currently mock data on the frontend** — real values need a Steam/RetroAchievements sync, see `Notes/DESIGN.md` §6.6, §11.5 |
+
+## Multi-platform support — not yet modeled, planned
+
+The app needs to support Xbox and PlayStation alongside Steam/PC, and the *same* game may be
+owned/played on more than one platform (e.g. Elden Ring on both PC and PS5) — as one game
+record, not duplicated top-level entries. Right now `Game.playtimeMinutes` and `lastPlayedAt`
+are flat totals on the game itself, which can't represent "143h on Steam, 12h on PS5"
+separately. This will need to become a `platforms: GamePlatform[]` list on `Game` instead,
+matching the `game_platforms` table already sketched in `Notes/DESIGN.md` §6.2 (platform name,
+playtime, completion %, owned format, etc.). Not built yet — recorded here so the backend
+schema doesn't need a redesign later.
 
 ## Change log
 
-- 2026-08-30 — initial version: `Game` + `Achievement` shapes, matching the frontend's mock data as of adding achievement-unlock-date sorting
+- 2026-08-30 — initial version: `Game` + `Achievement` shapes
+- 2026-08-30 — added `description`/`developer`/`publisher`/`tags`/`playtimeMinutes`/`lastPlayedAt`; `unlockedAt`/`lastPlayedAt` upgraded from date-only to full ISO timestamps; noted planned multi-platform support as not-yet-modeled
