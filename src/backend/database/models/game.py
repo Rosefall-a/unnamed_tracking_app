@@ -9,6 +9,12 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database.base import Base
 
+# Folder name rules: letters, digits, underscore, hyphen only — no spaces,
+# no path separators, no reserved filesystem characters. Adjust the
+# character class here and in schemas/game.py if you want to allow more.
+FOLDER_NAME_PATTERN = r"^[A-Za-z0-9_-]+$"
+FOLDER_NAME_MAX_LENGTH = 150
+
 
 class GameStatus(str, Enum):
     """Game status aligned with Playnite."""
@@ -22,7 +28,6 @@ class GameStatus(str, Enum):
     MASTERED = "MASTERED"
     
 
-
 class Game(Base):
     __tablename__ = "games"
 
@@ -34,6 +39,13 @@ class Game(Base):
         PG_UUID(as_uuid=True),
         primary_key=True,
         default=uuid4,
+    )
+
+
+    folder_location: Mapped[str | None] = mapped_column(
+        String(FOLDER_NAME_MAX_LENGTH),
+        unique=True,
+        nullable=False,
     )
 
     # ------------------------------------------------------------------
