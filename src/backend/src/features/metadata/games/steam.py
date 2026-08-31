@@ -26,7 +26,7 @@ def get_app_details(app_id: int, country: str = "us", currency: str = "USD") -> 
     Fetch full details for a single app (game/DLC/etc) by its Steam AppID.
     Returns the 'data' dict on success, or None if the app has no store page.
     """
-    params = {"appids": app_id, "cc": country, "l": "en"}
+    params: dict[str, str | int] = {"appids": app_id, "cc": country, "l": "en"}
     resp = SESSION.get(f"{BASE_URL}/appdetails", params=params, timeout=10)
     resp.raise_for_status()
     payload = resp.json()
