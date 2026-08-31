@@ -24,6 +24,9 @@ export interface Game {
   id: string
   title: string
   coverColor: string
+  // real placeholder image for the detail page's hero + blurred backdrop.
+  // temporary — will point at real IGDB artwork once that sync exists
+  coverImageUrl: string
   status: GameStatus
   ratingOverall: number | null
   achievementPercent: number
@@ -32,8 +35,10 @@ export interface Game {
   developer: string | null
   publisher: string | null
   series: string | null
-  // ISO timestamp — when this game was added to the tracker, not its real-world release date
   dateAdded: string | null
   tags: string[]
+  // capability/technical tags (Achievements, Co-op, Multiplayer...) — different from `tags`,
+  // which are genre/style descriptors
+  features: string[]
   platforms: GamePlatform[]
 }

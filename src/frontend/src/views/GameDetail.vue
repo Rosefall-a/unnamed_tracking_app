@@ -8,6 +8,16 @@ const route = useRoute()
 
 const game = computed(() => mockGames.find((g) => g.id === route.params.id))
 
+// most recent lastPlayedAt across every platform — computed, not stored,
+// so it can never drift out of sync with the per-platform data
+const recentActivity = computed(() => {
+  if (!game.value) return null
+  const dates = game.value.platforms
+    .map((p) => p.lastPlayedAt)
+    .filter((d): d is string => d !== null)
+  return dates.length > 0 ? dates.reduce((latest, d) => (d > latest ? d : latest)) : null
+})
+
 const tabs = ['Overview', 'Achievements', 'Screenshots', 'Clips', 'Saves', 'Docs', 'Notes', 'Stats'] as const
 const activeTab = ref<(typeof tabs)[number]>('Overview')
 
@@ -30,9 +40,12 @@ function formatPlaytime(minutes: number) {
 
 <template>
   <main v-if="game" class="detail">
-    <section class="hero" :style="{ backgroundColor: game.coverColor }">
-      <!-- .hero itself stays full-width so the color bleeds edge to edge;
-           this inner wrapper is what actually gets capped and centered -->
+    <!-- heavily blurred, dimmed copy of the cover image behind the whole page —
+         separate from the sharp version used in .hero itself -->
+    <div class="ambient-bg" :style="{ backgroundImage: `url(${game.coverImageUrl})` }"></div>
+
+    <section class="hero" :style="{ backgroundImage: `url(${game.coverImageUrl})` }">
+      <div class="hero-overlay"></div>
       <div class="hero-inner">
         <div class="hero-top">
           <h1>{{ game.title }}</h1>
@@ -41,6 +54,9 @@ function formatPlaytime(minutes: number) {
         <p class="meta">
           <span class="status">{{ game.status }}</span>
           <span v-if="game.ratingOverall !== null"> · ★ {{ game.ratingOverall.toFixed(1) }}</span>
+          <span v-if="game.platforms.length > 1">
+            · also on {{ game.platforms.slice(1).map((p) => p.platform).join(', ') }}
+          </span>
         </p>
       </div>
     </section>
@@ -61,9 +77,6 @@ function formatPlaytime(minutes: number) {
     <section v-if="activeTab === 'Overview'" class="overview">
       <div class="overview-main">
         <p v-if="game.description" class="description">{{ game.description }}</p>
-        <ul class="tags">
-          <li v-for="tag in game.tags" :key="tag">{{ tag }}</li>
-        </ul>
         <ul class="platforms">
           <li v-for="p in game.platforms" :key="p.platform">
             <span class="platform-name">{{ p.platform }}</span>
@@ -90,9 +103,21 @@ function formatPlaytime(minutes: number) {
           <span class="detail-value">{{ game.publisher ?? '—' }}</span>
         </div>
         <div class="detail-row">
-          <span class="detail-label">Date Added</span>
+          <span class="detail-label">Recent Activity</span>
           <span class="detail-value">
-            {{ game.dateAdded ? new Date(game.dateAdded).toLocaleDateString() : '—' }}
+            {{ recentActivity ? new Date(recentActivity).toLocaleDateString() : '—' }}
+          </span>
+        </div>
+        <div v-if="game.features.length" class="detail-row">
+          <span class="detail-label">Features</span>
+          <span class="feature-pills">
+            <span v-for="f in game.features" :key="f" class="feature-pill">{{ f }}</span>
+          </span>
+        </div>
+        <div v-if="game.tags.length" class="detail-row">
+          <span class="detail-label">Tags</span>
+          <span class="feature-pills">
+            <span v-for="tag in game.tags" :key="tag" class="feature-pill">{{ tag }}</span>
           </span>
         </div>
       </aside>
@@ -126,15 +151,44 @@ function formatPlaytime(minutes: number) {
 
 <style scoped>
 .detail {
+  position: relative;
   font-family: system-ui, sans-serif;
   color: #fff;
   min-height: 100vh;
   background: #121212;
+  overflow: hidden;
+}
+.ambient-bg {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  filter: blur(80px);
+  opacity: 0.25;
+  transform: scale(1.2);
+  z-index: 0;
+}
+.hero,
+.tabs,
+.overview,
+.achievements,
+.coming-soon {
+  position: relative;
+  z-index: 1;
 }
 .hero {
-  padding: 48px 24px;
+  background-size: cover;
+  background-position: center;
+  padding: 64px 24px 48px;
+}
+.hero-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(18, 18, 18, 0.15) 0%, rgba(18, 18, 18, 0.9) 100%);
 }
 .hero-inner {
+  position: relative;
+  z-index: 1;
   width: 100%;
   max-width: 1600px;
   margin: 0 auto;
@@ -149,13 +203,18 @@ function formatPlaytime(minutes: number) {
   margin: 0;
 }
 .edit-button {
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.25);
   color: #fff;
-  border: none;
-  border-radius: 6px;
-  padding: 6px 14px;
+  border-radius: 999px;
+  padding: 8px 20px;
   font-size: 13px;
+  font-weight: 600;
   cursor: pointer;
+  transition: background 0.15s ease;
+}
+.edit-button:hover {
+  background: rgba(255, 255, 255, 0.22);
 }
 .meta {
   text-transform: capitalize;
@@ -176,14 +235,20 @@ function formatPlaytime(minutes: number) {
   background: none;
   border: none;
   color: #999;
-  padding: 12px 14px;
+  padding: 10px 16px;
   font-size: 14px;
   cursor: pointer;
   border-bottom: 2px solid transparent;
+  border-radius: 6px 6px 0 0;
   white-space: nowrap;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+.tab:hover {
+  color: #ddd;
 }
 .tab.active {
   color: #fff;
+  background: rgba(245, 197, 24, 0.12);
   border-bottom-color: #f5c518;
 }
 .overview {
@@ -198,8 +263,10 @@ function formatPlaytime(minutes: number) {
   align-items: start;
 }
 .description {
-  margin: 0 0 12px;
+  margin: 0 0 16px;
   color: #ddd;
+  font-size: 17px;
+  line-height: 1.6;
 }
 .tags {
   list-style: none;
@@ -219,11 +286,12 @@ function formatPlaytime(minutes: number) {
   border: 1px solid #2a2a2a;
   border-radius: 8px;
   padding: 4px 16px;
+  background: rgba(0, 0, 0, 0.25);
 }
 .detail-row {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
   padding: 8px 0;
   font-size: 14px;
   border-bottom: 1px solid #202020;
@@ -236,6 +304,18 @@ function formatPlaytime(minutes: number) {
 }
 .detail-value {
   color: #fff;
+}
+.feature-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.feature-pill {
+  background: #2a2a2a;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  color: #ccc;
 }
 .platforms {
   list-style: none;
@@ -286,17 +366,11 @@ function formatPlaytime(minutes: number) {
   max-width: 1600px;
   margin: 0 auto;
   padding: 48px 24px;
-  box-sizing: border-box;
   color: #777;
   text-align: center;
 }
 .not-found {
   padding: 24px;
   color: #fff;
-}
-@media (max-width: 800px) {
-  .overview {
-    grid-template-columns: 1fr;
-  }
 }
 </style>

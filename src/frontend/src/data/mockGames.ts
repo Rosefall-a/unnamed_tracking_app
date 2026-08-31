@@ -5,6 +5,7 @@ export const mockGames: Game[] = [
     id: '1',
     title: 'Elden Ring',
     coverColor: '#5b3a29',
+    coverImageUrl: 'https://picsum.photos/seed/elden-ring/1600/500',
     status: 'playing',
     ratingOverall: 9.4,
     achievementPercent: 60,
@@ -21,6 +22,7 @@ export const mockGames: Game[] = [
     series: null,
     dateAdded: '2026-01-10T12:00:00',
     tags: ['Action RPG', 'Souls-like', 'Open World'],
+    features: ['Achievements', 'Controller Support', 'Cloud Saves'],
     platforms: [
       { platform: 'Steam', playtimeMinutes: 8580, completionPercent: 87, lastPlayedAt: '2026-08-28T20:15:47' },
       { platform: 'PS5', playtimeMinutes: 720, completionPercent: 4, lastPlayedAt: '2026-05-10T14:22:00' },
@@ -30,6 +32,7 @@ export const mockGames: Game[] = [
     id: '2',
     title: 'Hades',
     coverColor: '#7a1f2b',
+    coverImageUrl: 'https://picsum.photos/seed/hades-game/1600/500',
     status: 'mastered',
     ratingOverall: 9.1,
     achievementPercent: 100,
@@ -45,6 +48,7 @@ export const mockGames: Game[] = [
     series: null,
     dateAdded: '2026-02-20T12:00:00',
     tags: ['Roguelike', 'Action', 'Indie'],
+    features: ['Achievements', 'Controller Support', 'Cloud Saves'],
     platforms: [
       { platform: 'Xbox', playtimeMinutes: 5640, completionPercent: 100, lastPlayedAt: '2026-04-18T19:58:47' },
     ],
@@ -53,6 +57,7 @@ export const mockGames: Game[] = [
     id: '3',
     title: 'Hollow Knight',
     coverColor: '#22303c',
+    coverImageUrl: 'https://picsum.photos/seed/hollow-knight/1600/500',
     status: 'backlog',
     ratingOverall: null,
     achievementPercent: 0,
@@ -67,6 +72,7 @@ export const mockGames: Game[] = [
     series: null,
     dateAdded: '2026-08-20T12:00:00',
     tags: ['Metroidvania', 'Action', 'Indie'],
+    features: ['Achievements', 'Controller Support'],
     platforms: [
       { platform: 'PlayStation', playtimeMinutes: 0, completionPercent: null, lastPlayedAt: null },
     ],
