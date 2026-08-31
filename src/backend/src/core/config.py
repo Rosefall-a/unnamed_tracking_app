@@ -9,4 +9,4 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(extra="ignore")
 
 
-settings = Settings()
+settings = Settings()  # type: ignore[call-arg]  # Values are loaded from the environment.

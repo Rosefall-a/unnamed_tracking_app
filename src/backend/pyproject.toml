@@ -3,6 +3,7 @@ python_version = "3.12"
 mypy_path = "src"
 files = ["src"]
 ignore_missing_imports = true
+exclude = ["src/database/migrations/.*"]
 
 [tool.pylint.main]
 py-version = "3.12"
