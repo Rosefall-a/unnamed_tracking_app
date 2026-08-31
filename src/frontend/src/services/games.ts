@@ -105,21 +105,39 @@ export async function fetchGame(id: string): Promise<Game | null> {
   const raw: BackendGame = await response.json()
   return mapBackendGame(raw)
 }
+export interface GameLink {
+  label: string
+  url: string
+}
+
+export interface GameOwnership {
+  format: 'digital' | 'physical' | null
+  purchaseDate: string | null
+  price: number | null
+  condition: string | null
+}
+
 export interface NewGameInput {
   title: string
+  sortTitle: string | null
   folderLocation: string
   status: GameStatus
   description: string | null
   developer: string | null
   publisher: string | null
   series: string | null
+  releaseDate: string | null
   dateAdded: string | null
+  source: string | null
+  ageRating: string | null
   ratingOverall: number | null
   ratingStory: number | null
   ratingGameplay: number | null
   ratingSound: number | null
   tags: string[]
   features: string[]
+  links: GameLink[]
+  ownership: GameOwnership
 }
 
 export async function createGame(input: NewGameInput): Promise<Game> {
@@ -155,20 +173,31 @@ export async function createGame(input: NewGameInput): Promise<Game> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       title: input.title,
+      sort_title: input.sortTitle,
       folder_location: input.folderLocation,
       status: denormalizeStatus(input.status),
       description: input.description,
       developer: input.developer,
       publisher: input.publisher,
       series: input.series,
+      release_date: input.releaseDate,
+      source: input.source,
+      age_rating: input.ageRating,
       rating_overall: input.ratingOverall,
       rating_story: input.ratingStory,
       rating_gameplay: input.ratingGameplay,
       rating_soundtrack: input.ratingSound,
       tags: input.tags,
       features: input.features,
+      links: input.links,
+      ownership: input.ownership,
     }),
   })
+
+  if (response.status === 409) {
+    const body = await response.json()
+    throw new Error(body.detail?.message ?? 'A game with that folder name already exists.')
+  }
 
   if (!response.ok) {
     const message = await response.text()
