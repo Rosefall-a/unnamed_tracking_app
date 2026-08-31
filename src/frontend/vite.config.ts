@@ -8,7 +8,7 @@ export default defineConfig({
     host: true, // listen on 0.0.0.0 so the container's port mapping works
     proxy: {
       '/api': {
-        target: 'http://app:8000',
+        target: 'http://backend:8000',
         changeOrigin: true,
       },
     },
