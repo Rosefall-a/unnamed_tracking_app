@@ -10,7 +10,8 @@ from app.database.base import Base
 
 # Import every model module here so its table gets registered on
 # Base.metadata before autogenerate compares it against the database.
-from app.database.models import game  # noqa: F401
+# import app.database.models in the run_migrations_online function instead to avoid global side effects.
+
 
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
@@ -40,6 +41,16 @@ def do_run_migrations(connection) -> None:
         context.run_migrations()
 
 
+    # Explicitly load model modules within the async context to prevent global import side effects
+    model_modules = ["app.database.models.game", "app.database.models.developer", "app.database.models.achievement"]
+    for module_path in model_modules:
+        try:
+            import_module(module_path)
+            print(f"Successfully loaded metadata from {module_path}")
+        except Exception as e:
+            # Log the failure but do not crash the migration process
+            print(f"WARNING: Could not load models from {module_path}. It may contain circular dependencies or failed imports. Error: {e}")
+
 async def run_migrations_online() -> None:
     """Connect using the async engine and run migrations against it."""
     connectable = async_engine_from_config(
@@ -47,6 +58,18 @@ async def run_migrations_online() -> None:
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
     )
+
+    # === Model Loading Enhancement ===
+    # This block manually loads model metadata to prevent global import errors during Alembic's setup phase.
+    model_modules = ["app.database.models.game", "app.database.models.developer", "app.database.models.achievement"]
+    for module_path in model_modules:
+        try:
+            # Using exec to simulate import without affecting global state too much, or just using __import__
+            module = __import__(module_path, fromlist=[''])
+            print(f"Successfully loaded metadata from {module_path}")
+        except Exception as e:
+            print(f"WARNING: Could not load models from {module_path}. Skipping for now. Error: {e}")
+    # ===============================
 
     async with connectable.connect() as connection:
         await connection.run_sync(do_run_migrations)

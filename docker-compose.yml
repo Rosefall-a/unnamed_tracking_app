@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  # --- Database Service ---
+  db:
+    image: postgres:16-alpine
+    container_name: tracking_db
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    volumes:
+      # Persist the data directory for database state retention
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${DB_USERNAME}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # --- Backend API Service ---
+  app:
+    build:
+      context: .
+      dockerfile: dockerfile # References the Dockerfile in the current directory
+    container_name: tracking_api_service
+    restart: always
+    ports:
+      - "8000:8000"
+    environment:
+      # Pass database connection details to the application environment
+      DATABASE_URL: postgresql+asyncpg://${DB_USERNAME}:${DB_PASSWORD}@db:5432/${DB_NAME}
+    depends_on:
+      db:
+        condition: service_healthy # Wait until the DB is ready before starting the app
+    # Note: The actual startup/migration logic is handled by entrypoint.sh and Dockerfile ENTRYPOINT
+
+volumes:
+  postgres_data:

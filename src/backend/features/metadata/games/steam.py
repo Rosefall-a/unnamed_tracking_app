@@ -27,14 +27,20 @@ def get_app_details(app_id: int, country: str = "us", currency: str = "USD") -> 
     Returns the 'data' dict on success, or None if the app has no store page.
     """
     params = {"appids": app_id, "cc": country, "l": "en"}
-    resp = SESSION.get(f"{BASE_URL}/appdetails", params=params, timeout=10)
-    resp.raise_for_status()
-    payload = resp.json()
+    try:
+        params = {"appids": app_id, "cc": country, "l": "en"}
+        resp = SESSION.get(f"{BASE_URL}/appdetails", params=params, timeout=10)
+        resp.raise_for_status()
+        payload = resp.json()
 
-    app_data = payload.get(str(app_id))
-    if not app_data or not app_data.get("success"):
+        app_data = payload.get(str(app_id))
+        if not app_data or not app_data.get("success"):
+            return None
+        return app_data["data"]
+    except requests.exceptions.RequestException as e:
+        print(f"Error fetching details for AppID {app_id}: {e}")
+        # Return an explicit failure indicator instead of crashing the request
         return None
-    return app_data["data"]
 
 
 def get_app_details_bulk(app_ids: list[int], delay: float = 1.0) -> dict[int, dict]:

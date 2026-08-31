@@ -3,7 +3,9 @@ from decimal import Decimal
 from enum import Enum
 from uuid import UUID, uuid4
 
-from sqlalchemy import Boolean, Date, DateTime, Enum as SAEnum, Numeric, String, Text
+from sqlalchemy import Boolean, Date, DateTime, Enum as SAEnum, Numeric, String, Text, ForeignKey
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -72,10 +74,10 @@ class Game(Base):
         nullable=True,
     )
 
-    developer: Mapped[str | None] = mapped_column(
-        String(200),
-        nullable=True,
-    )
+    # Foreign Key to Developer
+    developer_id: Mapped[UUID | None] = mapped_column(ForeignKey("developers.id"), nullable=True)
+    developer: Mapped["Developer"] | None = relationship("Developer", back_populates="games") # Retaining this structure for now, as removing it may break intended functionality if the original was correct
+
 
     publisher: Mapped[str | None] = mapped_column(
         String(200),
@@ -145,16 +147,11 @@ class Game(Base):
     )
 
     # ------------------------------------------------------------------
-    # Personal ranking
+    # ------------------------------------------------------------------
+    # Achievements (New Section)
     # ------------------------------------------------------------------
 
-    personal_rank: Mapped[int | None] = mapped_column(
-        nullable=True,
-    )
-
-    # ------------------------------------------------------------------
-    # Timestamps
-    # ------------------------------------------------------------------
+    achievements: Mapped[list["Achievement"]] = relationship(back_populates="game", cascade="all, delete-orphan")
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

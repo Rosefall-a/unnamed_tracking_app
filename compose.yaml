@@ -8,6 +8,7 @@ services:
     ports:
       - "5432:5432"
     volumes:
+      # Use named volume for data persistence across restarts
       - pgdata:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
@@ -17,8 +18,9 @@ services:
   app:
     build:
       context: .
-      dockerfile: dockerfile
+      dockerfile: Dockerfile # Use the newly created Dockerfile
     environment:
+      # Pass connection details, relying on environment variables for security and flexibility
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       PYTHONUNBUFFERED: 1
     env_file:
@@ -26,8 +28,8 @@ services:
     ports:
       - "8200:8000"
     volumes:
+      # Mount code for development hot reloading (Use caution in production)
       - ./src/backend:/app/app
-      - ./data:/data
     stdin_open: true
     tty: true
     depends_on:
@@ -37,14 +39,13 @@ services:
   frontend:
     build:
       context: ./src/frontend
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile # Assuming frontend uses a separate Dockerfile
     env_file:
       - .env
-    #environment:
-    #  VITE_API_BASE_URL=http://localhost:5173/ #what is "vite"?
     ports:
       - "5173:5173"
     volumes:
+      # Mount code for development hot reloading
       - ./src/frontend:/app
       - /app/node_modules
     depends_on:

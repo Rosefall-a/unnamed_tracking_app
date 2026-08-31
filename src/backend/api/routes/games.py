@@ -8,6 +8,9 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+# Import transaction utilities from our database module
+from app.database.base import run_transaction 
+
 from app.database.session import get_db
 from app.database.models.game import Game, GameStatus
 from app.api.schemas.game import GameCreate, GameRead, GameUpdate
@@ -250,6 +253,157 @@ async def delete_game_note(
 
 
 @router.post(
+    "/{game_id}/assets/{asset_kind}",
+    responses={
+        status.HTTP_200_OK: {"description": "Image uploaded and resized"},
+        status.HTTP_400_BAD_REQUEST: {"description": "Invalid asset kind or upload"},
+        status.HTTP_404_NOT_FOUND: {"description": "Game not found"},
+    },
+)
+async def upload_game_asset(
+    game_id: UUID,
+    asset_kind: str,
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, str]:
+    if asset_kind not in ALLOWED_ASSET_KINDS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unsupported asset kind '{asset_kind}'. Supported values: {sorted(ALLOWED_ASSET_KINDS)}",
+        )
+
+    await _get_game_or_404(game_id, db)
+
+    if not file.filename:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File is required.",
+        )
+
+    image_bytes = await file.read()
+    target_path = await save_game_asset(image_bytes, game_id, asset_kind)
+
+    return {
+        "game_id": str(game_id),
+        "asset_kind": asset_kind,
+        "path": str(target_path),
+        "status": "saved",
+    }
+
+
+@router.put(
+    "/{game_id}/notes/{note_name}",
+    responses={
+        status.HTTP_201_CREATED: {"description": "Note created or updated"},
+        status.HTTP_404_NOT_FOUND: {"description": "Game not found"},
+        status.HTTP_400_BAD_REQUEST: {"description": "Invalid note name"},
+    },
+)
+async def set_game_note(
+    game_id: UUID,
+    note_name: str,
+    payload: NoteWrite = Body(...),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, str | None]:
+    game = await _get_game_or_404(game_id, db)
+    note_path = _game_note_path(game, note_name)
+    # This write operation is inherently local (file system), so it doesn't require the DB transaction context.
+    note_path.write_text(payload.content, encoding="utf-8")
+
+    return {
+        "game_id": str(game_id),
+        "note_name": _normalize_note_name(note_name),
+        "path": str(note_path),
+        "status": "saved",
+    }
+
+
+@router.get(
+    "/{game_id}/notes",
+    responses={
+        status.HTTP_200_OK: {"description": "List of markdown notes for the game"},
+        status.HTTP_404_NOT_FOUND: {"description": "Game not found"},
+    },
+)
+async def list_game_notes(
+    game_id: UUID,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, list[str]]:
+    # Read operations do not need transaction wrappers for read consistency
+    game = await _get_game_or_404(game_id, db)
+
+    if not game.folder_location:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Game folder_location is missing.",
+        )
+    
+    notes_dir = _DATA_ROOT / game.folder_location / "notes"
+    if not notes_dir.exists():
+        return {"notes": []}
+
+    note_names = sorted(
+        path.stem for path in notes_dir.iterdir() if path.is_file() and path.suffix.lower() == ".md"
+    )
+    return {"notes": note_names}
+
+
+@router.get(
+    "/{game_id}/notes/{note_name}",
+    responses={
+        status.HTTP_200_OK: {"description": "Markdown note contents"},
+        status.HTTP_404_NOT_FOUND: {"description": "Game or note not found"},
+    },
+)
+async def get_game_note(
+    game_id: UUID,
+    note_name: str,
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    # Read operation
+    game = await _get_game_or_404(game_id, db)
+    note_path = _game_note_path(game, note_name)
+
+    if not note_path.exists():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Note '{_normalize_note_name(note_name)}' not found for game {game_id}",
+        )
+
+    return Response(content=note_path.read_text(encoding="utf-8"), media_type="text/markdown; charset=utf-8")
+
+
+@router.delete(
+    "/{game_id}/notes/{note_name}",
+    responses={
+        status.HTTP_200_OK: {"description": "Note deleted"},
+        status.HTTP_404_NOT_FOUND: {"description": "Game or note not found"},
+    },
+)
+async def delete_game_note(
+    game_id: UUID,
+    note_name: str,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, str]:
+    game = await _get_game_or_404(game_id, db)
+    # File operation (local filesystem), does not require DB transaction scope.
+    note_path = _game_note_path(game, note_name)
+
+    if not note_path.exists():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Note '{_normalize_note_name(note_name)}' not found for game {game_id}",
+        )
+
+    note_path.unlink()
+    return {
+        "game_id": str(game_id),
+        "note_name": _normalize_note_name(note_name),
+        "status": "deleted",
+    }
+
+
+@router.post(
     "/create",
     response_model=GameRead,
     status_code=status.HTTP_201_CREATED,
@@ -272,23 +426,22 @@ async def delete_game_note(
     },
 )
 async def create_game(payload: GameCreate, db: AsyncSession = Depends(get_db)) -> Game:
-    await _ensure_folder_location_available(payload.folder_location, db)
+    # Use the transaction scope to ensure atomicity for all DB writes.
+    async with run_transaction(get_db):
+        await _ensure_folder_location_available(payload.folder_location, db)
 
-    data = payload.model_dump()
-    if not data.get("sort_title"):
-        data["sort_title"] = _derive_sort_title(data["title"])
+        data = payload.model_dump()
+        if not data.get("sort_title"):
+            # Note: This call to _derive_sort_title is pure Python and doesn't need the DB session 'db'
+            data["sort_title"] = _derive_sort_title(data["title"])
 
-    game = Game(**data)
-    db.add(game)
-
-    try:
-        await db.commit()
-    except IntegrityError:
-        await db.rollback()
-        raise _duplicate_folder_error(payload.folder_location)
-
-    await db.refresh(game)
-    return game
+        game = Game(**data)
+        db.add(game)
+        
+        # The run_transaction context manager handles commit/rollback automatically here.
+        await db.flush() # Flush to ensure the object ID is generated and used below
+        await db.refresh(game)
+        return game
 
 
 @router.get("/list", response_model=list[GameRead])
@@ -300,6 +453,7 @@ async def list_games(
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=50, ge=1, le=200),
 ) -> list[Game]:
+    # Read operation - no transaction wrapper needed for simple selects
     stmt = select(Game)
 
     if status_filter is not None:
@@ -317,6 +471,7 @@ async def list_games(
 
 @router.get("/get/{game_id}", response_model=GameRead)
 async def get_game(game_id: UUID, db: AsyncSession = Depends(get_db)) -> Game:
+    # Read operation - no transaction wrapper needed for simple selects
     return await _get_game_or_404(game_id, db)
 
 
@@ -344,34 +499,35 @@ async def get_game(game_id: UUID, db: AsyncSession = Depends(get_db)) -> Game:
 async def update_game(
     game_id: UUID, payload: GameUpdate, db: AsyncSession = Depends(get_db)
 ) -> Game:
-    game = await _get_game_or_404(game_id, db)
+    # Use the transaction scope for atomic updates
+    async with run_transaction(get_db):
+        game = await _get_game_or_404(game_id, db)
 
-    updates = payload.model_dump(exclude_unset=True)
+        updates = payload.model_dump(exclude_unset=True)
 
-    if "folder_location" in updates and updates["folder_location"] is not None:
-        await _ensure_folder_location_available(
-            updates["folder_location"], db, exclude_game_id=game_id
-        )
+        if "folder_location" in updates and updates["folder_location"] is not None:
+            # This check needs the session context, which run_transaction provides
+            await _ensure_folder_location_available(
+                updates["folder_location"], db, exclude_game_id=game_id
+            )
 
-    for field, value in updates.items():
-        setattr(game, field, value)
+        for field, value in updates.items():
+            setattr(game, field, value)
 
-    # Keep sort_title in sync if title changed but sort_title wasn't explicitly set
-    if "title" in updates and "sort_title" not in updates:
-        game.sort_title = _derive_sort_title(game.title)
+        # Keep sort_title in sync if title changed but sort_title wasn't explicitly set
+        if "title" in updates and "sort_title" not in updates:
+            game.sort_title = _derive_sort_title(game.title)
 
-    try:
-        await db.commit()
-    except IntegrityError:
-        await db.rollback()
-        raise _duplicate_folder_error(game.folder_location)
-
-    await db.refresh(game)
-    return game
+        # The run_transaction context manager handles commit/rollback automatically here.
+        await db.flush()
+        await db.refresh(game)
+        return game
 
 
 @router.delete("/delete/{game_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_game(game_id: UUID, db: AsyncSession = Depends(get_db)) -> None:
-    game = await _get_game_or_404(game_id, db)
-    await db.delete(game)
-    await db.commit()
+    # Use the transaction scope for atomic deletion
+    async with run_transaction(get_db):
+        game = await _get_game_or_404(game_id, db)
+        await db.delete(game)
+        # The context manager will handle commit/rollback automatically here.

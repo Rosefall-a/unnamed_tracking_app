@@ -22,3 +22,9 @@ pytest==8.3.2
 pytest-asyncio==0.24.0
 
 pydantic-settings==2.2.1
+
+# Database Drivers (assuming PostgreSQL)
+psycopg2-binary
+httpx
+# Type/Utility Libraries
+python-jose[cryptography]>=3.0.0

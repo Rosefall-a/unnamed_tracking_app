@@ -1,0 +1,19 @@
+reboot_system:
+  interlock_system:
+    points: 4
+    points_config:
+      - name: Point 1
+        action: check_status
+        required: true
+      - name: Point 2
+        action: verify_resources
+        required: true
+      - name: Point 3
+        action: confirm_user_input
+        required: true
+      - name: Point 4
+        action: execute_reboot
+        required: true
+  trigger:
+    condition: all_points_ok
+    delay: 5s
