@@ -15,9 +15,12 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code into app/ subdirectory
 COPY src/backend /app/app
 
+# Copy and prepare the entrypoint script
+COPY entrypoint.sh .
+RUN chmod +x entrypoint.sh
+
 # Expose port
 EXPOSE 8000
 
-# Run with uvicorn
-#CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
-CMD ["python", "-m", "app.main"]
+# On start: run pending migrations, then launch the app
+ENTRYPOINT ["./entrypoint.sh"]

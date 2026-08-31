@@ -5,6 +5,7 @@ uvicorn[standard]==0.30.0
 # Database
 sqlalchemy==2.0.36
 psycopg[asyncio]==3.2.0
+alembic==1.13.2
 
 # HTTP client
 requests==2.32.3

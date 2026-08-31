@@ -126,22 +126,8 @@ class Game(Base):
         nullable=True,
     )
 
-    rating_presentation: Mapped[Decimal | None] = mapped_column(
-        Numeric(4, 2),
-        nullable=True,
-    )
-
-    rating_enjoyment: Mapped[Decimal | None] = mapped_column(
-        Numeric(4, 2),
-        nullable=True,
-    )
 
     rating_overall: Mapped[Decimal | None] = mapped_column(
-        Numeric(4, 2),
-        nullable=True,
-    )
-
-    rating_confidence: Mapped[Decimal | None] = mapped_column(
         Numeric(4, 2),
         nullable=True,
     )
