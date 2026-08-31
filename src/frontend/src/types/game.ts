@@ -28,6 +28,7 @@ export interface Game {
   // real placeholder image for the detail page's hero + blurred backdrop.
   // temporary — will point at real IGDB artwork once that sync exists
   coverImageUrl: string
+  bannerImageUrl: string
   status: GameStatus
   ratingOverall: number | null
   ratingStory: number | null

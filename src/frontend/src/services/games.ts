@@ -1,4 +1,5 @@
 import type { Game, GameStatus } from '../types/game'
+import { mockGames } from '../data/mockGames'
 
 // The exact shape FastAPI sends — snake_case, matching the Python model
 // field-for-field. This is deliberately a separate type from `Game`:
@@ -45,6 +46,7 @@ export function mapBackendGame(raw: BackendGame): Game {
     // placeholders — the backend has no artwork yet
     coverColor: '#2a2a2a',
     coverImageUrl: `https://picsum.photos/seed/${raw.id}/1600/500`,
+    bannerImageUrl: `https://picsum.photos/seed/${raw.id}-banner/1600/500`,
     status: normalizeStatus(raw.status),
     ratingOverall: toNumberOrNull(raw.rating_overall),
     ratingStory: toNumberOrNull(raw.rating_story),
@@ -76,6 +78,9 @@ export function mapBackendGame(raw: BackendGame): Game {
 }
 
 export async function fetchGames(): Promise<Game[]> {
+  if (import.meta.env.VITE_USE_MOCK_DATA === 'true') {
+    return mockGames
+  }
   const response = await fetch('/api/game/list')
   if (!response.ok) {
     throw new Error(`Failed to fetch games: ${response.status} ${response.statusText}`)
@@ -85,6 +90,9 @@ export async function fetchGames(): Promise<Game[]> {
 }
 
 export async function fetchGame(id: string): Promise<Game | null> {
+  if (import.meta.env.VITE_USE_MOCK_DATA === 'true') {
+    return mockGames.find((g) => g.id === id) ?? null
+  }
   const response = await fetch(`/api/game/get/${id}`)
   if (response.status === 404) return null
   if (!response.ok) {

@@ -8,9 +8,10 @@ defineProps<{
 
 <template>
   <router-link :to="`/games/${game.id}`" class="game-card">
-    <div class="cover" :style="{ backgroundColor: game.coverColor }">
-      {{ game.title }}
-    </div>
+    <div
+      class="cover"
+      :style="{ backgroundColor: game.coverColor, backgroundImage: `url(${game.coverImageUrl})` }"
+    ></div>
     <div class="info">
       <h3 class="title">{{ game.title }}</h3>
       <div class="meta">
@@ -33,18 +34,14 @@ defineProps<{
   background: #1e1e1e;
   color: #fff;
   font-family: system-ui, sans-serif;
-  /* router-link renders as a real <a> tag, which is inline and underlined
-     by default — reset both so it still looks/behaves like a card */
   text-decoration: none;
 }
 .cover {
   height: 280px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 12px;
-  text-align: center;
-  font-weight: 600;
+  /* coverColor stays as the background underneath — if coverImageUrl
+     ever fails to load, the flat color still shows instead of blank white */
+  background-size: cover;
+  background-position: center;
 }
 .info {
   padding: 10px 12px;
