@@ -12,14 +12,14 @@ from app.database.base import Base
 
 class GameStatus(str, Enum):
     """Game status aligned with Playnite."""
-    ABANDONED = "abandoned"
-    NOT_PLAYED = "not played"
-    PLAN_TO_PLAY = "plan to play"
-    ON_HOLD = "on hold"
-    PLAYING = "playing"
-    PLAYED = "played"
-    BEATEN = "beaten"
-    COMPLETED = "completed"
+    DROPPED = "DROPPED"
+    WISHLIST = "WISHLIST"
+    BACKLOG = "BACKLOG"
+    ON_HOLD = "ON_HOLD"
+    PLAYING = "PLAYING"
+    PLAYED = "PLAYED"
+    BEATEN = "BEATEN"
+    MASTERED = "MASTERED"
     
 
 
