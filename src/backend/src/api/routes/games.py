@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.database.session import get_db
 from src.database.models.game import Game, GameStatus
 from src.api.schemas.game import GameCreate, GameRead, GameUpdate
-from src.helpers.save_game_asset import save_game_asset
+from src.helpers.save_game_asset import AssetKind, save_game_asset
 
 router = APIRouter(
     prefix="/api/game",
@@ -29,11 +29,6 @@ class NoteWrite(BaseModel):
     """Request body used to create or replace a game note."""
 
     content: str
-
-
-class AssetKind(str):
-    """String base for supported game asset types."""
-
 
 
 ALLOWED_ASSET_KINDS = {"key_art", "banner", "logo", "icon"}
@@ -117,7 +112,7 @@ async def _get_game_or_404(game_id: UUID, db: AsyncSession) -> Game:
 )
 async def upload_game_asset(
     game_id: UUID,
-    asset_kind: str,
+    asset_kind: AssetKind,
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, str]:
