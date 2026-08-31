@@ -10,6 +10,10 @@ alembic==1.13.2
 # HTTP client
 requests==2.32.3
 
+# Image processing
+Pillow==11.0.0
+python-multipart
+
 # Environment variables
 python-dotenv==1.0.1
 

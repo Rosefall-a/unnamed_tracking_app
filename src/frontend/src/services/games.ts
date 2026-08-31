@@ -159,3 +159,31 @@ export async function deleteGameNote(gameId: string, noteName: string): Promise<
 
   return await response.json()
 }
+
+export interface GameAssetUploadResponse {
+  game_id: string
+  asset_kind: string
+  path: string
+  status: string
+}
+
+export async function uploadGameAsset(
+  gameId: string,
+  assetKind: 'key_art' | 'banner' | 'logo' | 'icon',
+  file: File,
+): Promise<GameAssetUploadResponse> {
+  const formData = new FormData()
+  formData.append('file', file)
+
+  const response = await fetch(`${API_BASE_URL}/api/game/${gameId}/assets/${assetKind}`, {
+    method: 'POST',
+    body: formData,
+  })
+
+  if (!response.ok) {
+    const message = await response.text()
+    throw new Error(`Failed to upload ${assetKind}: ${response.status} ${response.statusText} ${message}`)
+  }
+
+  return await response.json()
+}
