@@ -8,9 +8,6 @@ const route = useRoute()
 
 const game = computed(() => mockGames.find((g) => g.id === route.params.id))
 
-// `as const` locks this to a tuple of exact string literals (not just string[]),
-// which is what lets `(typeof tabs)[number]` below derive the union type
-// 'Overview' | 'Achievements' | ... automatically, instead of writing it out by hand
 const tabs = ['Overview', 'Achievements', 'Screenshots', 'Clips', 'Saves', 'Docs', 'Notes', 'Stats'] as const
 const activeTab = ref<(typeof tabs)[number]>('Overview')
 
@@ -34,15 +31,18 @@ function formatPlaytime(minutes: number) {
 <template>
   <main v-if="game" class="detail">
     <section class="hero" :style="{ backgroundColor: game.coverColor }">
-      <div class="hero-top">
-        <h1>{{ game.title }}</h1>
-        <!-- no @click yet — nothing to save to until a backend exists -->
-        <button class="edit-button" type="button">Edit</button>
+      <!-- .hero itself stays full-width so the color bleeds edge to edge;
+           this inner wrapper is what actually gets capped and centered -->
+      <div class="hero-inner">
+        <div class="hero-top">
+          <h1>{{ game.title }}</h1>
+          <button class="edit-button" type="button">Edit</button>
+        </div>
+        <p class="meta">
+          <span class="status">{{ game.status }}</span>
+          <span v-if="game.ratingOverall !== null"> · ★ {{ game.ratingOverall.toFixed(1) }}</span>
+        </p>
       </div>
-      <p class="meta">
-        <span class="status">{{ game.status }}</span>
-        <span v-if="game.ratingOverall !== null"> · ★ {{ game.ratingOverall.toFixed(1) }}</span>
-      </p>
     </section>
 
     <nav class="tabs">
@@ -59,12 +59,24 @@ function formatPlaytime(minutes: number) {
     </nav>
 
     <section v-if="activeTab === 'Overview'" class="overview">
-      <p v-if="game.description" class="description">{{ game.description }}</p>
-      <ul class="tags">
-        <li v-for="tag in game.tags" :key="tag">{{ tag }}</li>
-      </ul>
+      <div class="overview-main">
+        <p v-if="game.description" class="description">{{ game.description }}</p>
+        <ul class="tags">
+          <li v-for="tag in game.tags" :key="tag">{{ tag }}</li>
+        </ul>
+        <ul class="platforms">
+          <li v-for="p in game.platforms" :key="p.platform">
+            <span class="platform-name">{{ p.platform }}</span>
+            <span>{{ formatPlaytime(p.playtimeMinutes) }}</span>
+            <span v-if="p.completionPercent !== null">{{ p.completionPercent }}%</span>
+            <span v-if="p.lastPlayedAt">
+              last played {{ new Date(p.lastPlayedAt).toLocaleDateString() }}
+            </span>
+          </li>
+        </ul>
+      </div>
 
-      <div class="details-panel">
+      <aside class="details-panel">
         <div class="detail-row">
           <span class="detail-label">Series</span>
           <span class="detail-value">{{ game.series ?? '—' }}</span>
@@ -83,18 +95,7 @@ function formatPlaytime(minutes: number) {
             {{ game.dateAdded ? new Date(game.dateAdded).toLocaleDateString() : '—' }}
           </span>
         </div>
-      </div>
-
-      <ul class="platforms">
-        <li v-for="p in game.platforms" :key="p.platform">
-          <span class="platform-name">{{ p.platform }}</span>
-          <span>{{ formatPlaytime(p.playtimeMinutes) }}</span>
-          <span v-if="p.completionPercent !== null">{{ p.completionPercent }}%</span>
-          <span v-if="p.lastPlayedAt">
-            last played {{ new Date(p.lastPlayedAt).toLocaleDateString() }}
-          </span>
-        </li>
-      </ul>
+      </aside>
     </section>
 
     <section v-else-if="activeTab === 'Achievements'" class="achievements">
@@ -133,6 +134,11 @@ function formatPlaytime(minutes: number) {
 .hero {
   padding: 48px 24px;
 }
+.hero-inner {
+  width: 100%;
+  max-width: 1600px;
+  margin: 0 auto;
+}
 .hero-top {
   display: flex;
   justify-content: space-between;
@@ -158,7 +164,11 @@ function formatPlaytime(minutes: number) {
 .tabs {
   display: flex;
   gap: 4px;
+  width: 100%;
+  max-width: 1600px;
+  margin: 0 auto;
   padding: 0 24px;
+  box-sizing: border-box;
   border-bottom: 1px solid #2a2a2a;
   overflow-x: auto;
 }
@@ -177,7 +187,15 @@ function formatPlaytime(minutes: number) {
   border-bottom-color: #f5c518;
 }
 .overview {
+  width: 100%;
+  max-width: 1600px;
+  margin: 0 auto;
   padding: 24px;
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: 1fr 280px;
+  gap: 24px;
+  align-items: start;
 }
 .description {
   margin: 0 0 12px;
@@ -201,11 +219,11 @@ function formatPlaytime(minutes: number) {
   border: 1px solid #2a2a2a;
   border-radius: 8px;
   padding: 4px 16px;
-  margin-bottom: 16px;
 }
 .detail-row {
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
+  gap: 2px;
   padding: 8px 0;
   font-size: 14px;
   border-bottom: 1px solid #202020;
@@ -237,7 +255,11 @@ function formatPlaytime(minutes: number) {
   min-width: 90px;
 }
 .achievements {
+  width: 100%;
+  max-width: 1600px;
+  margin: 0 auto;
   padding: 24px;
+  box-sizing: border-box;
 }
 .achievements-header {
   display: flex;
@@ -260,12 +282,21 @@ function formatPlaytime(minutes: number) {
   color: #fff;
 }
 .coming-soon {
+  width: 100%;
+  max-width: 1600px;
+  margin: 0 auto;
   padding: 48px 24px;
+  box-sizing: border-box;
   color: #777;
   text-align: center;
 }
 .not-found {
   padding: 24px;
   color: #fff;
+}
+@media (max-width: 800px) {
+  .overview {
+    grid-template-columns: 1fr;
+  }
 }
 </style>
