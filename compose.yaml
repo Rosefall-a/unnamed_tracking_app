@@ -5,8 +5,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
-    ports:
-      - "5432:5432"
+    
     volumes:
       - pgdata:/var/lib/postgresql
     healthcheck:
@@ -23,8 +22,6 @@ services:
       PYTHONUNBUFFERED: 1
     env_file:
       - .env
-    ports:
-      - "8200:8000"
     volumes:
       - ./src/backend/src:/app/app
       - ./data:/data
@@ -40,10 +37,8 @@ services:
       dockerfile: Dockerfile
     env_file:
       - .env
-    #environment:
-    #  VITE_API_BASE_URL=http://localhost:5173/ #what is "vite"?
     ports:
-      - "5173:5173"
+      - "5173:80"
     volumes:
       - ./src/frontend:/app
       - /app/node_modules

@@ -10,7 +10,7 @@ RUN npm install
 
 COPY . .
 
-EXPOSE 5173
+EXPOSE 80
 
 # --host 0.0.0.0 is required, not optional: Vite's dev server binds to
 # localhost only by default, which is invisible from outside the container
