@@ -32,6 +32,20 @@ services:
     depends_on:
       db:
         condition: service_healthy
+        
+  frontend:
+    build:
+      context: ./src/frontend
+      dockerfile: Dockerfile
+    environment:
+      VITE_API_BASE_URL: http://localhost:8200
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./src/frontend:/app
+      - /app/node_modules
+    depends_on:
+      - app
 
 volumes:
   pgdata:

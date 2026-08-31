@@ -4,6 +4,7 @@ export type GameStatus =
   | 'playing'
   | 'on hold'
   | 'beaten'
+  | 'played'
   | 'dropped'
   | 'mastered'
 
@@ -29,6 +30,9 @@ export interface Game {
   coverImageUrl: string
   status: GameStatus
   ratingOverall: number | null
+  ratingStory: number | null
+  ratingGameplay: number | null
+  ratingSound: number | null
   achievementPercent: number
   achievements: Achievement[]
   description: string | null

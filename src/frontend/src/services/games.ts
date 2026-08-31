@@ -1,0 +1,93 @@
+import type { Game, GameStatus } from '../types/game'
+
+// backend base URL — set via VITE_API_BASE_URL in compose.yaml when running
+// in Docker; falls back to this for plain `npm run dev` outside a container
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8200'
+
+// The exact shape FastAPI sends — snake_case, matching the Python model
+// field-for-field. This is deliberately a separate type from `Game`:
+// nothing outside this file should ever see raw backend data directly.
+interface BackendGame {
+  id: string
+  title: string
+  sort_title: string
+  description: string | null
+  release_date: string | null
+  developer: string | null
+  publisher: string | null
+  status: string
+  priority: string | null
+  favorite: boolean
+  notes: string | null
+  resume_note: string | null
+  playtime_seconds: number
+  rating_story: number | string | null
+  rating_gameplay: number | string | null
+  rating_soundtrack: number | string | null
+  rating_overall: number | string | null
+  personal_rank: number | null
+  created_at: string
+  updated_at: string
+}
+
+// Pydantic can serialize a Decimal as either a JSON number or a string
+// depending on config — handle both rather than assume one
+function toNumberOrNull(value: number | string | null): number | null {
+  return value === null ? null : Number(value)
+}
+
+export function mapBackendGame(raw: BackendGame): Game {
+  return {
+    id: raw.id,
+    title: raw.title,
+    // placeholders — the backend has no artwork yet
+    coverColor: '#2a2a2a',
+    coverImageUrl: `https://picsum.photos/seed/${raw.id}/1600/500`,
+    status: raw.status as GameStatus,
+    ratingOverall: toNumberOrNull(raw.rating_overall),
+    ratingStory: toNumberOrNull(raw.rating_story),
+    ratingGameplay: toNumberOrNull(raw.rating_gameplay),
+    ratingSound: toNumberOrNull(raw.rating_soundtrack),
+    // the backend has no achievements table yet
+    achievementPercent: 0,
+    achievements: [],
+    description: raw.description,
+    developer: raw.developer,
+    publisher: raw.publisher,
+    // no series field on the backend yet
+    series: null,
+    dateAdded: raw.created_at,
+    // no tags/features tables yet
+    tags: [],
+    features: [],
+    // the backend only tracks one flat playtime total, not per-platform —
+    // synthesize a single "PC" entry until real multi-platform support exists
+    platforms: [
+      {
+        platform: 'PC',
+        playtimeMinutes: Math.round(raw.playtime_seconds / 60),
+        completionPercent: null,
+        lastPlayedAt: null,
+      },
+    ],
+  }
+}
+
+export async function fetchGames(): Promise<Game[]> {
+  const response = await fetch(`${API_BASE_URL}/api/game/list`)
+  if (!response.ok) {
+    throw new Error(`Failed to fetch games: ${response.status} ${response.statusText}`)
+  }
+  const raw: BackendGame[] = await response.json()
+  return raw.map(mapBackendGame)
+}
+
+export async function fetchGame(id: string): Promise<Game | null> {
+  const response = await fetch(`${API_BASE_URL}/api/game/get/${id}`)
+  if (response.status === 404) return null
+  if (!response.ok) {
+    throw new Error(`Failed to fetch game ${id}: ${response.status} ${response.statusText}`)
+  }
+  const raw: BackendGame = await response.json()
+  return mapBackendGame(raw)
+}
