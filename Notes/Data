@@ -1,0 +1,32 @@
+# Frontend ↔ Backend Data Contract
+
+Living list of the data shapes the frontend expects from the backend API. Not a formal spec —
+just enough for the backend to build Pydantic models and routes against. Source of truth on the
+frontend side is `src/frontend/src/types/game.ts`; this file explains the *why* behind each
+field and flags anything that's still a frontend-only placeholder.
+
+Updated as new fields get added on the frontend side — see the change log at the bottom.
+
+## Game
+
+| Field | Type | Notes |
+|---|---|---|
+| `id` | string (UUID) | Primary identifier |
+| `title` | string | |
+| `coverColor` | — | **Frontend-only placeholder, not a real backend field.** Stands in for real cover artwork until that exists. Backend should eventually supply artwork some other way (e.g. a `coverUrl`, or multiple artwork slots per `DESIGN.md` §6.1) — not a color. |
+| `status` | enum: `wishlist \| backlog \| playing \| paused \| completed \| mastered \| dropped` | |
+| `ratingOverall` | number \| null | `null` = not rated yet |
+| `achievementPercent` | number (0–100) | Could be computed server-side from the `achievements` list rather than stored as its own column — frontend doesn't care which, as long as the field is present |
+| `achievements` | `Achievement[]` | See below |
+
+## Achievement
+
+| Field | Type | Notes |
+|---|---|---|
+| `id` | string | |
+| `name` | string | |
+| `unlockedAt` | ISO date string \| null | `null` = still locked. **Currently mock data on the frontend.** Real values need to come from a Steam/RetroAchievements sync — see `Notes/DESIGN.md` §6.6 (achievement tables) and §11.5 (the sync flow) |
+
+## Change log
+
+- 2026-08-30 — initial version: `Game` + `Achievement` shapes, matching the frontend's mock data as of adding achievement-unlock-date sorting

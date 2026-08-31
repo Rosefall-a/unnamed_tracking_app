@@ -7,7 +7,7 @@ defineProps<{
 </script>
 
 <template>
-  <article class="game-card">
+  <router-link :to="`/games/${game.id}`" class="game-card">
     <div class="cover" :style="{ backgroundColor: game.coverColor }">
       {{ game.title }}
     </div>
@@ -19,18 +19,23 @@ defineProps<{
           ★ {{ game.ratingOverall.toFixed(1) }}
         </span>
       </div>
+      <div class="achievements">🏆 {{ game.achievementPercent }}%</div>
     </div>
-  </article>
+  </router-link>
 </template>
 
 <style scoped>
 .game-card {
+  display: block;
   width: 200px;
   border-radius: 8px;
   overflow: hidden;
   background: #1e1e1e;
   color: #fff;
   font-family: system-ui, sans-serif;
+  /* router-link renders as a real <a> tag, which is inline and underlined
+     by default — reset both so it still looks/behaves like a card */
+  text-decoration: none;
 }
 .cover {
   height: 280px;
@@ -47,6 +52,7 @@ defineProps<{
 .title {
   margin: 0 0 6px;
   font-size: 14px;
+  color: #fff;
 }
 .meta {
   display: flex;
@@ -59,5 +65,10 @@ defineProps<{
 }
 .rating {
   color: #f5c518;
+}
+.achievements {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #8fd694;
 }
 </style>
