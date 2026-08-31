@@ -2,7 +2,7 @@ import re
 from pathlib import Path
 from uuid import UUID
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Query, Response, status
+from fastapi import APIRouter, Body, Depends, File, HTTPException, Query, Response, UploadFile, status
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database.session import get_db
 from app.database.models.game import Game, GameStatus
 from app.api.schemas.game import GameCreate, GameRead, GameUpdate
+from app.helpers.save_game_asset import save_game_asset
 
 router = APIRouter(
     prefix="/api/game",
@@ -24,6 +25,13 @@ _LEADING_ARTICLE = re.compile(r"^(a|an|the)\s+", flags=re.IGNORECASE)
 
 class NoteWrite(BaseModel):
     content: str
+
+
+class AssetKind(str):
+    pass
+
+
+ALLOWED_ASSET_KINDS = {"key_art", "banner", "logo", "icon"}
 
 
 def _derive_sort_title(title: str) -> str:
@@ -92,6 +100,45 @@ async def _get_game_or_404(game_id: UUID, db: AsyncSession) -> Game:
             detail=f"Game {game_id} not found",
         )
     return game
+
+
+@router.post(
+    "/{game_id}/assets/{asset_kind}",
+    responses={
+        status.HTTP_200_OK: {"description": "Image uploaded and resized"},
+        status.HTTP_400_BAD_REQUEST: {"description": "Invalid asset kind or upload"},
+        status.HTTP_404_NOT_FOUND: {"description": "Game not found"},
+    },
+)
+async def upload_game_asset(
+    game_id: UUID,
+    asset_kind: str,
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, str]:
+    if asset_kind not in ALLOWED_ASSET_KINDS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unsupported asset kind '{asset_kind}'. Supported values: {sorted(ALLOWED_ASSET_KINDS)}",
+        )
+
+    await _get_game_or_404(game_id, db)
+
+    if not file.filename:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File is required.",
+        )
+
+    image_bytes = await file.read()
+    target_path = await save_game_asset(image_bytes, game_id, asset_kind)
+
+    return {
+        "game_id": str(game_id),
+        "asset_kind": asset_kind,
+        "path": str(target_path),
+        "status": "saved",
+    }
 
 
 @router.put(
