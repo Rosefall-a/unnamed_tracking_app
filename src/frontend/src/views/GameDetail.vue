@@ -1,7 +1,13 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { fetchGame } from '../services/games'
+import {
+  deleteGameNote,
+  fetchGame,
+  fetchGameNote,
+  listGameNotes,
+  saveGameNote,
+} from '../services/games'
 import type { Achievement, Game } from '../types/game'
 
 const route = useRoute()
@@ -9,6 +15,14 @@ const route = useRoute()
 const game = ref<Game | null>(null)
 const loading = ref(true)
 const error = ref<string | null>(null)
+
+const noteNames = ref<string[]>([])
+const selectedNoteName = ref<string>('')
+const noteContent = ref('')
+const noteDraftName = ref('')
+const noteLoading = ref(false)
+const noteSaving = ref(false)
+const noteError = ref<string | null>(null)
 
 async function loadGame(id: string) {
   loading.value = true
@@ -22,9 +36,103 @@ async function loadGame(id: string) {
   }
 }
 
+async function loadNotes() {
+  if (!game.value) {
+    noteNames.value = []
+    selectedNoteName.value = ''
+    noteContent.value = ''
+    return
+  }
+
+  noteLoading.value = true
+  noteError.value = null
+
+  try {
+    const notes = await listGameNotes(game.value.id)
+    noteNames.value = notes
+    if (!selectedNoteName.value && notes.length > 0) {
+      await openNote(notes[0])
+    }
+    if (selectedNoteName.value && !notes.includes(selectedNoteName.value)) {
+      selectedNoteName.value = ''
+      noteContent.value = ''
+    }
+  } catch (err) {
+    noteError.value = err instanceof Error ? err.message : 'Failed to load notes'
+  } finally {
+    noteLoading.value = false
+  }
+}
+
+async function openNote(noteName: string) {
+  if (!game.value) return
+
+  selectedNoteName.value = noteName
+  noteDraftName.value = noteName
+  noteLoading.value = true
+  noteError.value = null
+
+  try {
+    noteContent.value = await fetchGameNote(game.value.id, noteName)
+  } catch (err) {
+    noteError.value = err instanceof Error ? err.message : 'Failed to load note'
+    noteContent.value = ''
+  } finally {
+    noteLoading.value = false
+  }
+}
+
+async function saveCurrentNote() {
+  if (!game.value) return
+
+  const noteName = selectedNoteName.value || noteDraftName.value.trim()
+  if (!noteName) {
+    noteError.value = 'Enter a note name first.'
+    return
+  }
+
+  noteSaving.value = true
+  noteError.value = null
+
+  try {
+    await saveGameNote(game.value.id, noteName, noteContent.value)
+    selectedNoteName.value = noteName
+    noteDraftName.value = noteName
+    await loadNotes()
+  } catch (err) {
+    noteError.value = err instanceof Error ? err.message : 'Failed to save note'
+  } finally {
+    noteSaving.value = false
+  }
+}
+
+async function deleteCurrentNote() {
+  if (!game.value || !selectedNoteName.value) return
+
+  noteSaving.value = true
+  noteError.value = null
+
+  try {
+    await deleteGameNote(game.value.id, selectedNoteName.value)
+    selectedNoteName.value = ''
+    noteDraftName.value = ''
+    noteContent.value = ''
+    await loadNotes()
+  } catch (err) {
+    noteError.value = err instanceof Error ? err.message : 'Failed to delete note'
+  } finally {
+    noteSaving.value = false
+  }
+}
+
 // re-fetches automatically if you ever navigate from one game's page
 // straight to another, not just on the first load
 watch(() => route.params.id as string, loadGame, { immediate: true })
+watch(() => game.value?.id, () => {
+  if (game.value) {
+    void loadNotes()
+  }
+})
 
 const recentActivity = computed(() => {
   if (!game.value) return null
@@ -170,6 +278,64 @@ function formatPlaytime(minutes: number) {
           {{ achievement.unlockedAt !== null ? '✓' : '○' }} {{ achievement.name }}
         </li>
       </ul>
+    </section>
+
+    <section v-else-if="activeTab === 'Notes'" class="notes-panel">
+      <div class="notes-layout">
+        <aside class="notes-sidebar">
+          <div class="notes-header-row">
+            <h2>Notes</h2>
+            <button type="button" class="small-button" @click="selectedNoteName = ''; noteDraftName = ''; noteContent = ''">
+              New
+            </button>
+          </div>
+
+          <label class="field">
+            <span>Note name</span>
+            <input
+              v-model="noteDraftName"
+              type="text"
+              placeholder="meeting-notes"
+              pattern="[A-Za-z0-9_-]+"
+            />
+          </label>
+
+          <button
+            type="button"
+            class="primary-button"
+            :disabled="noteSaving || !noteDraftName.trim()"
+            @click="selectedNoteName = noteDraftName.trim(); void saveCurrentNote()"
+          >
+            {{ selectedNoteName ? 'Save note' : 'Create note' }}
+          </button>
+
+          <ul class="notes-list" v-if="noteNames.length">
+            <li v-for="note in noteNames" :key="note">
+              <button type="button" class="note-item" :class="{ active: selectedNoteName === note }" @click="void openNote(note)">
+                {{ note }}
+              </button>
+            </li>
+          </ul>
+          <p v-else class="empty-state">No notes yet.</p>
+        </aside>
+
+        <div class="notes-editor">
+          <div class="notes-toolbar" v-if="selectedNoteName">
+            <span class="selected-note">{{ selectedNoteName }}</span>
+            <button type="button" class="danger-button" :disabled="noteSaving" @click="void deleteCurrentNote()">
+              Delete
+            </button>
+          </div>
+
+          <textarea
+            v-model="noteContent"
+            placeholder="Write markdown here…"
+            spellcheck="true"
+          ></textarea>
+
+          <div v-if="noteError" class="note-error">{{ noteError }}</div>
+        </div>
+      </div>
     </section>
 
     <section v-else class="coming-soon">
@@ -381,6 +547,142 @@ function formatPlaytime(minutes: number) {
 }
 .achievement-list li.unlocked {
   color: #fff;
+}
+.notes-panel {
+  width: 100%;
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 24px;
+  box-sizing: border-box;
+}
+.notes-layout {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  gap: 20px;
+  min-height: 520px;
+}
+.notes-sidebar,
+.notes-editor {
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid #2a2a2a;
+  border-radius: 12px;
+  padding: 16px;
+}
+.notes-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.notes-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.notes-header-row h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: #ddd;
+  font-size: 0.85rem;
+}
+.field input {
+  background: #111;
+  border: 1px solid #3a3a3a;
+  border-radius: 8px;
+  color: #fff;
+  padding: 10px 12px;
+}
+.primary-button,
+.small-button,
+.danger-button {
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: opacity 0.15s ease;
+}
+.primary-button {
+  background: #f5c518;
+  color: #111;
+  padding: 10px 12px;
+}
+.small-button {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  padding: 7px 10px;
+  font-size: 0.8rem;
+}
+.danger-button {
+  background: rgba(220, 38, 38, 0.18);
+  color: #fca5a5;
+  padding: 8px 10px;
+}
+.primary-button:disabled,
+.danger-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.notes-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.note-item {
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: 1px solid #2a2a2a;
+  border-radius: 8px;
+  padding: 8px 10px;
+  color: #ddd;
+  cursor: pointer;
+}
+.note-item.active {
+  background: rgba(245, 197, 24, 0.12);
+  border-color: rgba(245, 197, 24, 0.6);
+  color: #fff;
+}
+.empty-state {
+  color: #777;
+  margin: 0;
+}
+.notes-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.notes-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+.selected-note {
+  color: #fff;
+  font-weight: 600;
+}
+.notes-editor textarea {
+  width: 100%;
+  min-height: 420px;
+  box-sizing: border-box;
+  border: 1px solid #3a3a3a;
+  border-radius: 10px;
+  background: #111;
+  color: #f5f5f5;
+  resize: vertical;
+  padding: 14px;
+  font: inherit;
+}
+.note-error {
+  color: #fca5a5;
 }
 .coming-soon {
   width: 100%;

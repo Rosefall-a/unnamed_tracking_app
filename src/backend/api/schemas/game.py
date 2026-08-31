@@ -4,7 +4,11 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.database.models.game import GameStatus
+from app.database.models.game import (
+    FOLDER_NAME_MAX_LENGTH,
+    FOLDER_NAME_PATTERN,
+    GameStatus,
+)
 
 
 class GameBase(BaseModel):
@@ -15,6 +19,13 @@ class GameBase(BaseModel):
     release_date: date | None = None
     developer: str | None = Field(default=None, max_length=200)
     publisher: str | None = Field(default=None, max_length=200)
+
+    folder_location: str = Field(
+        min_length=1,
+        max_length=FOLDER_NAME_MAX_LENGTH,
+        pattern=FOLDER_NAME_PATTERN,
+        description="Folder name only — letters, digits, underscore, hyphen. No spaces or path separators.",
+    )
 
     status: GameStatus = GameStatus.BACKLOG
     priority: str | None = Field(default=None, max_length=20)
@@ -47,6 +58,13 @@ class GameUpdate(BaseModel):
     developer: str | None = Field(default=None, max_length=200)
     publisher: str | None = Field(default=None, max_length=200)
 
+    folder_location: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=FOLDER_NAME_MAX_LENGTH,
+        pattern=FOLDER_NAME_PATTERN,
+    )
+
     status: GameStatus | None = None
     priority: str | None = Field(default=None, max_length=20)
     favorite: bool | None = None
@@ -57,10 +75,7 @@ class GameUpdate(BaseModel):
     rating_story: Decimal | None = Field(default=None, ge=0, le=10)
     rating_gameplay: Decimal | None = Field(default=None, ge=0, le=10)
     rating_soundtrack: Decimal | None = Field(default=None, ge=0, le=10)
-    rating_presentation: Decimal | None = Field(default=None, ge=0, le=10)
-    rating_enjoyment: Decimal | None = Field(default=None, ge=0, le=10)
     rating_overall: Decimal | None = Field(default=None, ge=0, le=10)
-    rating_confidence: Decimal | None = Field(default=None, ge=0, le=10)
 
     personal_rank: int | None = None
 

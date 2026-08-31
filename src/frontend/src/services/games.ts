@@ -91,3 +91,71 @@ export async function fetchGame(id: string): Promise<Game | null> {
   const raw: BackendGame = await response.json()
   return mapBackendGame(raw)
 }
+
+export interface GameNoteListResponse {
+  notes: string[]
+}
+
+export interface GameNoteWritePayload {
+  content: string
+}
+
+export interface GameNoteActionResponse {
+  game_id: string
+  note_name: string
+  path?: string
+  status: 'saved' | 'deleted'
+}
+
+export async function listGameNotes(gameId: string): Promise<string[]> {
+  const response = await fetch(`${API_BASE_URL}/api/game/${gameId}/notes`)
+  if (!response.ok) {
+    throw new Error(`Failed to list notes for game ${gameId}: ${response.status} ${response.statusText}`)
+  }
+
+  const data: GameNoteListResponse = await response.json()
+  return data.notes ?? []
+}
+
+export async function fetchGameNote(gameId: string, noteName: string): Promise<string> {
+  const response = await fetch(`${API_BASE_URL}/api/game/${gameId}/notes/${noteName}`)
+  if (!response.ok) {
+    throw new Error(`Failed to fetch note ${noteName}: ${response.status} ${response.statusText}`)
+  }
+
+  return await response.text()
+}
+
+export async function saveGameNote(
+  gameId: string,
+  noteName: string,
+  content: string,
+): Promise<GameNoteActionResponse> {
+  const response = await fetch(`${API_BASE_URL}/api/game/${gameId}/notes/${noteName}`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ content }),
+  })
+
+  if (!response.ok) {
+    const message = await response.text()
+    throw new Error(`Failed to save note ${noteName}: ${response.status} ${response.statusText} ${message}`)
+  }
+
+  return await response.json()
+}
+
+export async function deleteGameNote(gameId: string, noteName: string): Promise<GameNoteActionResponse> {
+  const response = await fetch(`${API_BASE_URL}/api/game/${gameId}/notes/${noteName}`, {
+    method: 'DELETE',
+  })
+
+  if (!response.ok) {
+    const message = await response.text()
+    throw new Error(`Failed to delete note ${noteName}: ${response.status} ${response.statusText} ${message}`)
+  }
+
+  return await response.json()
+}

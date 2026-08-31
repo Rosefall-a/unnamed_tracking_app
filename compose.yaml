@@ -27,6 +27,7 @@ services:
       - "8200:8000"
     volumes:
       - ./src/backend:/app/app
+      - ./data:/data
     stdin_open: true
     tty: true
     depends_on:
