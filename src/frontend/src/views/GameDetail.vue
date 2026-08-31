@@ -77,16 +77,6 @@ function formatPlaytime(minutes: number) {
     <section v-if="activeTab === 'Overview'" class="overview">
       <div class="overview-main">
         <p v-if="game.description" class="description">{{ game.description }}</p>
-        <ul class="platforms">
-          <li v-for="p in game.platforms" :key="p.platform">
-            <span class="platform-name">{{ p.platform }}</span>
-            <span>{{ formatPlaytime(p.playtimeMinutes) }}</span>
-            <span v-if="p.completionPercent !== null">{{ p.completionPercent }}%</span>
-            <span v-if="p.lastPlayedAt">
-              last played {{ new Date(p.lastPlayedAt).toLocaleDateString() }}
-            </span>
-          </li>
-        </ul>
       </div>
 
       <aside class="details-panel">
@@ -103,10 +93,29 @@ function formatPlaytime(minutes: number) {
           <span class="detail-value">{{ game.publisher ?? '—' }}</span>
         </div>
         <div class="detail-row">
+          <span class="detail-label">Date Added</span>
+          <span class="detail-value">
+            {{ game.dateAdded ? new Date(game.dateAdded).toLocaleDateString() : '—' }}
+          </span>
+        </div>
+        <div class="detail-row">
           <span class="detail-label">Recent Activity</span>
           <span class="detail-value">
             {{ recentActivity ? new Date(recentActivity).toLocaleDateString() : '—' }}
           </span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">Platforms</span>
+          <ul class="platforms">
+            <li v-for="p in game.platforms" :key="p.platform">
+              <span class="platform-name">{{ p.platform }}</span>
+              <span>{{ formatPlaytime(p.playtimeMinutes) }}</span>
+              <span v-if="p.completionPercent !== null">{{ p.completionPercent }}%</span>
+              <span v-if="p.lastPlayedAt">
+                last played {{ new Date(p.lastPlayedAt).toLocaleDateString() }}
+              </span>
+            </li>
+          </ul>
         </div>
         <div v-if="game.features.length" class="detail-row">
           <span class="detail-label">Features</span>
@@ -263,24 +272,10 @@ function formatPlaytime(minutes: number) {
   align-items: start;
 }
 .description {
-  margin: 0 0 16px;
+  margin: 0;
   color: #ddd;
   font-size: 17px;
   line-height: 1.6;
-}
-.tags {
-  list-style: none;
-  display: flex;
-  gap: 8px;
-  padding: 0;
-  margin: 0 0 16px;
-  flex-wrap: wrap;
-}
-.tags li {
-  background: #2a2a2a;
-  padding: 4px 10px;
-  border-radius: 999px;
-  font-size: 12px;
 }
 .details-panel {
   border: 1px solid #2a2a2a;
@@ -321,18 +316,20 @@ function formatPlaytime(minutes: number) {
   list-style: none;
   padding: 0;
   margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 .platforms li {
   display: flex;
-  gap: 12px;
-  padding: 4px 0;
+  flex-direction: column;
+  gap: 2px;
   color: #999;
   font-size: 14px;
 }
 .platform-name {
   color: #fff;
   font-weight: 600;
-  min-width: 90px;
 }
 .achievements {
   width: 100%;

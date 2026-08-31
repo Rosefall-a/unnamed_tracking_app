@@ -2,10 +2,10 @@ export type GameStatus =
   | 'wishlist'
   | 'backlog'
   | 'playing'
-  | 'paused'
-  | 'completed'
-  | 'mastered'
+  | 'on hold'
+  | 'beaten'
   | 'dropped'
+  | 'mastered'
 
 export interface Achievement {
   id: string
