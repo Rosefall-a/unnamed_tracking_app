@@ -1,15 +1,31 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { mockGames } from '../data/mockGames'
-import type { Achievement } from '../types/game'
+import { fetchGame } from '../services/games'
+import type { Achievement, Game } from '../types/game'
 
 const route = useRoute()
 
-const game = computed(() => mockGames.find((g) => g.id === route.params.id))
+const game = ref<Game | null>(null)
+const loading = ref(true)
+const error = ref<string | null>(null)
 
-// most recent lastPlayedAt across every platform — computed, not stored,
-// so it can never drift out of sync with the per-platform data
+async function loadGame(id: string) {
+  loading.value = true
+  error.value = null
+  try {
+    game.value = await fetchGame(id)
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : 'Failed to load game'
+  } finally {
+    loading.value = false
+  }
+}
+
+// re-fetches automatically if you ever navigate from one game's page
+// straight to another, not just on the first load
+watch(() => route.params.id as string, loadGame, { immediate: true })
+
 const recentActivity = computed(() => {
   if (!game.value) return null
   const dates = game.value.platforms
@@ -39,7 +55,15 @@ function formatPlaytime(minutes: number) {
 </script>
 
 <template>
-  <main v-if="game" class="detail">
+<main v-if="loading" class="detail loading-state">
+  <p>Loading…</p>
+</main>
+
+<main v-else-if="error" class="detail error-state">
+  <p>{{ error }}</p>
+</main>
+
+<main v-else-if="game" class="detail">
     <!-- heavily blurred, dimmed copy of the cover image behind the whole page —
          separate from the sharp version used in .hero itself -->
     <div class="ambient-bg" :style="{ backgroundImage: `url(${game.coverImageUrl})` }"></div>
