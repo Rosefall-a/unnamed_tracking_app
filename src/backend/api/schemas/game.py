@@ -16,7 +16,7 @@ class GameBase(BaseModel):
     developer: str | None = Field(default=None, max_length=200)
     publisher: str | None = Field(default=None, max_length=200)
 
-    status: GameStatus = GameStatus.NOT_PLAYED
+    status: GameStatus = GameStatus.BACKLOG
     priority: str | None = Field(default=None, max_length=20)
     favorite: bool = False
     notes: str | None = None
