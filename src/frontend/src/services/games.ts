@@ -1,9 +1,5 @@
 import type { Game, GameStatus } from '../types/game'
 
-// backend base URL — set via VITE_API_BASE_URL in compose.yaml when running
-// in Docker; falls back to this for plain `npm run dev` outside a container
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8200'
-
 // The exact shape FastAPI sends — snake_case, matching the Python model
 // field-for-field. This is deliberately a separate type from `Game`:
 // nothing outside this file should ever see raw backend data directly.
@@ -36,6 +32,12 @@ function toNumberOrNull(value: number | string | null): number | null {
   return value === null ? null : Number(value)
 }
 
+// backend sends "ON_HOLD", "WISHLIST", etc. — frontend expects
+// 'on hold', 'wishlist' (lowercase, spaces not underscores)
+function normalizeStatus(raw: string): GameStatus {
+  return raw.toLowerCase().replace(/_/g, ' ') as GameStatus
+}
+
 export function mapBackendGame(raw: BackendGame): Game {
   return {
     id: raw.id,
@@ -43,7 +45,7 @@ export function mapBackendGame(raw: BackendGame): Game {
     // placeholders — the backend has no artwork yet
     coverColor: '#2a2a2a',
     coverImageUrl: `https://picsum.photos/seed/${raw.id}/1600/500`,
-    status: raw.status as GameStatus,
+    status: normalizeStatus(raw.status),
     ratingOverall: toNumberOrNull(raw.rating_overall),
     ratingStory: toNumberOrNull(raw.rating_story),
     ratingGameplay: toNumberOrNull(raw.rating_gameplay),
@@ -74,7 +76,7 @@ export function mapBackendGame(raw: BackendGame): Game {
 }
 
 export async function fetchGames(): Promise<Game[]> {
-  const response = await fetch(`${API_BASE_URL}/api/game/list`)
+  const response = await fetch('/api/game/list')
   if (!response.ok) {
     throw new Error(`Failed to fetch games: ${response.status} ${response.statusText}`)
   }
@@ -83,7 +85,7 @@ export async function fetchGames(): Promise<Game[]> {
 }
 
 export async function fetchGame(id: string): Promise<Game | null> {
-  const response = await fetch(`${API_BASE_URL}/api/game/get/${id}`)
+  const response = await fetch(`/api/game/get/${id}`)
   if (response.status === 404) return null
   if (!response.ok) {
     throw new Error(`Failed to fetch game ${id}: ${response.status} ${response.statusText}`)
@@ -108,7 +110,7 @@ export interface GameNoteActionResponse {
 }
 
 export async function listGameNotes(gameId: string): Promise<string[]> {
-  const response = await fetch(`${API_BASE_URL}/api/game/${gameId}/notes`)
+  const response = await fetch(`/api/game/${gameId}/notes`)
   if (!response.ok) {
     throw new Error(`Failed to list notes for game ${gameId}: ${response.status} ${response.statusText}`)
   }
@@ -118,7 +120,7 @@ export async function listGameNotes(gameId: string): Promise<string[]> {
 }
 
 export async function fetchGameNote(gameId: string, noteName: string): Promise<string> {
-  const response = await fetch(`${API_BASE_URL}/api/game/${gameId}/notes/${noteName}`)
+  const response = await fetch(`/api/game/${gameId}/notes/${noteName}`)
   if (!response.ok) {
     throw new Error(`Failed to fetch note ${noteName}: ${response.status} ${response.statusText}`)
   }
@@ -131,7 +133,7 @@ export async function saveGameNote(
   noteName: string,
   content: string,
 ): Promise<GameNoteActionResponse> {
-  const response = await fetch(`${API_BASE_URL}/api/game/${gameId}/notes/${noteName}`, {
+  const response = await fetch(`/api/game/${gameId}/notes/${noteName}`, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
@@ -148,7 +150,7 @@ export async function saveGameNote(
 }
 
 export async function deleteGameNote(gameId: string, noteName: string): Promise<GameNoteActionResponse> {
-  const response = await fetch(`${API_BASE_URL}/api/game/${gameId}/notes/${noteName}`, {
+  const response = await fetch(`/api/game/${gameId}/notes/${noteName}`, {
     method: 'DELETE',
   })
 
@@ -175,7 +177,7 @@ export async function uploadGameAsset(
   const formData = new FormData()
   formData.append('file', file)
 
-  const response = await fetch(`${API_BASE_URL}/api/game/${gameId}/assets/${assetKind}`, {
+  const response = await fetch(`/api/game/${gameId}/assets/${assetKind}`, {
     method: 'POST',
     body: formData,
   })
