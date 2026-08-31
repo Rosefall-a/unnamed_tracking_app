@@ -17,7 +17,7 @@ AssetKind = Literal["key_art", "banner", "logo", "icon"]
 
 ASSET_SIZES: dict[AssetKind, tuple[int, int]] = {
     "key_art": (600, 900),
-    "banner": (1920, 620),
+    "banner": (3840, 1240),
     "logo": (1024, 1024),
     "icon": (512, 512),
 }
