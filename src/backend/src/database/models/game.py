@@ -4,6 +4,7 @@ from enum import Enum
 from uuid import UUID, uuid4
 
 from sqlalchemy import Boolean, Date, DateTime, Enum as SAEnum, Numeric, String, Text
+from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -80,6 +81,23 @@ class Game(Base):
     publisher: Mapped[str | None] = mapped_column(
         String(200),
         nullable=True,
+    )
+
+    series: Mapped[str | None] = mapped_column(
+        String(200),
+        nullable=True,
+    )
+
+    tags: Mapped[list[str]] = mapped_column(
+        ARRAY(String),
+        nullable=False,
+        default=list,
+    )
+
+    features: Mapped[list[str]] = mapped_column(
+        ARRAY(String),
+        nullable=False,
+        default=list,
     )
 
     # ------------------------------------------------------------------

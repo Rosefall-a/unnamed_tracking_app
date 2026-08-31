@@ -19,6 +19,9 @@ class GameBase(BaseModel):
     release_date: date | None = None
     developer: str | None = Field(default=None, max_length=200)
     publisher: str | None = Field(default=None, max_length=200)
+    series: str | None = Field(default=None, max_length=200)
+    tags: list[str] = Field(default_factory=list)
+    features: list[str] = Field(default_factory=list)
 
     folder_location: str = Field(
         min_length=1,
@@ -57,6 +60,9 @@ class GameUpdate(BaseModel):
     release_date: date | None = None
     developer: str | None = Field(default=None, max_length=200)
     publisher: str | None = Field(default=None, max_length=200)
+    series: str | None = Field(default=None, max_length=200)
+    tags: list[str] | None = None
+    features: list[str] | None = None
 
     folder_location: str | None = Field(
         default=None,
