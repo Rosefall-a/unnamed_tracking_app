@@ -10,8 +10,14 @@ export type GameStatus =
 export interface Achievement {
   id: string
   name: string
-  // full ISO timestamp (date + time), e.g. "2026-06-02T19:14:03" — null means still locked
   unlockedAt: string | null
+}
+
+export interface GamePlatform {
+  platform: string
+  playtimeMinutes: number
+  completionPercent: number | null
+  lastPlayedAt: string | null
 }
 
 export interface Game {
@@ -25,8 +31,9 @@ export interface Game {
   description: string | null
   developer: string | null
   publisher: string | null
+  series: string | null
+  // ISO timestamp — when this game was added to the tracker, not its real-world release date
+  dateAdded: string | null
   tags: string[]
-  playtimeMinutes: number
-  // full ISO timestamp, e.g. "2026-08-28T20:15:47" — null means never played
-  lastPlayedAt: string | null
+  platforms: GamePlatform[]
 }

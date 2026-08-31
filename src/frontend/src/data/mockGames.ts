@@ -18,9 +18,13 @@ export const mockGames: Game[] = [
     description: 'A vast open-world dark fantasy RPG from FromSoftware and George R. R. Martin.',
     developer: 'FromSoftware',
     publisher: 'Bandai Namco',
+    series: null,
+    dateAdded: '2026-01-10T12:00:00',
     tags: ['Action RPG', 'Souls-like', 'Open World'],
-    playtimeMinutes: 8580,
-    lastPlayedAt: '2026-08-28T20:15:47',
+    platforms: [
+      { platform: 'Steam', playtimeMinutes: 8580, completionPercent: 87, lastPlayedAt: '2026-08-28T20:15:47' },
+      { platform: 'PS5', playtimeMinutes: 720, completionPercent: 4, lastPlayedAt: '2026-05-10T14:22:00' },
+    ],
   },
   {
     id: '2',
@@ -38,9 +42,12 @@ export const mockGames: Game[] = [
     description: 'A rogue-like dungeon crawler from Supergiant Games.',
     developer: 'Supergiant Games',
     publisher: 'Supergiant Games',
+    series: null,
+    dateAdded: '2026-02-20T12:00:00',
     tags: ['Roguelike', 'Action', 'Indie'],
-    playtimeMinutes: 5640,
-    lastPlayedAt: '2026-04-18T19:58:47',
+    platforms: [
+      { platform: 'Xbox', playtimeMinutes: 5640, completionPercent: 100, lastPlayedAt: '2026-04-18T19:58:47' },
+    ],
   },
   {
     id: '3',
@@ -57,8 +64,11 @@ export const mockGames: Game[] = [
     description: 'A challenging 2D action-adventure through a vast ruined kingdom.',
     developer: 'Team Cherry',
     publisher: 'Team Cherry',
+    series: null,
+    dateAdded: '2026-08-20T12:00:00',
     tags: ['Metroidvania', 'Action', 'Indie'],
-    playtimeMinutes: 0,
-    lastPlayedAt: null,
+    platforms: [
+      { platform: 'PlayStation', playtimeMinutes: 0, completionPercent: null, lastPlayedAt: null },
+    ],
   },
 ]

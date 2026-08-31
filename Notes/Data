@@ -21,9 +21,19 @@ Updated as new fields get added on the frontend side — see the change log at t
 | `description` | string \| null | |
 | `developer` | string \| null | |
 | `publisher` | string \| null | |
+| `series` | string \| null | `null` when the game isn't part of one |
+| `dateAdded` | ISO timestamp string \| null | When this game was added to the tracker — not its real-world release date |
 | `tags` | string[] | |
-| `playtimeMinutes` | number | **Known limitation, see "Multi-platform" note below** — currently one flat total per game |
-| `lastPlayedAt` | ISO timestamp string \| null | Full date + time (e.g. `"2026-08-28T20:15:47"`), not date-only. `null` = never played |
+| `platforms` | `GamePlatform[]` | See below. One game can have multiple entries (e.g. owned on both Steam and PS5) — this is the app's real answer to "duplicate games across platforms," not a separate game record per platform |
+
+## GamePlatform
+
+| Field | Type | Notes |
+|---|---|---|
+| `platform` | string | Free text (`"Steam"`, `"PS5"`, `"Xbox"`, `"Xbox Series X"`, etc.), not an enum — real platform names vary too much to lock down |
+| `playtimeMinutes` | number | |
+| `completionPercent` | number \| null | `null` when completion isn't tracked on that platform |
+| `lastPlayedAt` | ISO timestamp string \| null | `null` = never played on this platform |
 
 ## Achievement
 
@@ -31,20 +41,17 @@ Updated as new fields get added on the frontend side — see the change log at t
 |---|---|---|
 | `id` | string | |
 | `name` | string | |
-| `unlockedAt` | ISO timestamp string \| null | Full date + time, not date-only. `null` = still locked. **Currently mock data on the frontend** — real values need a Steam/RetroAchievements sync, see `Notes/DESIGN.md` §6.6, §11.5 |
+| `unlockedAt` | ISO timestamp string \| null | `null` = still locked. **Currently mock data on the frontend** — real values need a Steam/RetroAchievements sync, see `Notes/DESIGN.md` §6.6, §11.5 |
 
-## Multi-platform support — not yet modeled, planned
+## Scope note
 
-The app needs to support Xbox and PlayStation alongside Steam/PC, and the *same* game may be
-owned/played on more than one platform (e.g. Elden Ring on both PC and PS5) — as one game
-record, not duplicated top-level entries. Right now `Game.playtimeMinutes` and `lastPlayedAt`
-are flat totals on the game itself, which can't represent "143h on Steam, 12h on PS5"
-separately. This will need to become a `platforms: GamePlatform[]` list on `Game` instead,
-matching the `game_platforms` table already sketched in `Notes/DESIGN.md` §6.2 (platform name,
-playtime, completion %, owned format, etc.). Not built yet — recorded here so the backend
-schema doesn't need a redesign later.
+Movies, TV, and anime are **cut** from this project — games (and the archive of
+screenshots/clips/saves/documents attached to them) only. Everything else in `Notes/DESIGN.md`
+(achievements, cards, prestige, backlog/bounties, timeline, collections, stats) is still the
+long-term plan, just not all built yet.
 
 ## Change log
 
 - 2026-08-30 — initial version: `Game` + `Achievement` shapes
 - 2026-08-30 — added `description`/`developer`/`publisher`/`tags`/`playtimeMinutes`/`lastPlayedAt`; `unlockedAt`/`lastPlayedAt` upgraded from date-only to full ISO timestamps; noted planned multi-platform support as not-yet-modeled
+- 2026-08-31 — replaced flat `playtimeMinutes`/`lastPlayedAt` on `Game` with `platforms: GamePlatform[]`, adding real Xbox/PlayStation support and multi-platform ownership for one game; confirmed scope: movies/TV/anime cut, rest of `DESIGN.md` stays
