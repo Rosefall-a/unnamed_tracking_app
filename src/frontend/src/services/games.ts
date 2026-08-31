@@ -1,179 +1,61 @@
-import type { Game, GameStatus } from '../types/game'
+import type { Game, Achievement } from '../types/game'
+import { MOCK_GAMES } from '../data/mockGames'
 
-// backend base URL — set via VITE_API_BASE_URL in compose.yaml when running
-// in Docker; falls back to this for plain `npm run dev` outside a container
-// Utility function to handle fetch responses that might not be JSON (e.g., an HTML error page).
-async function handleResponse<T>(response: Response, expectedJson: boolean): Promise<T | null> {
+const USE_MOCK_DATA = true // Set to false when backend API is ready
+
+async function fetchJSON<T>(url: string, options?: RequestInit): Promise<T> {
+  const response = await fetch(url, options)
+
+  const contentType = response.headers.get('content-type') || ''
+  
+  // If the server returned HTML (e.g. 404 fallback page), catch it cleanly
+  if (contentType.includes('text/html')) {
+    throw new Error(`API endpoint returned HTML instead of JSON (${response.status} ${response.statusText}). Check backend routing.`)
+  }
+
   if (!response.ok) {
-    // Try to read response body as text for detailed error message
-    const errorMessage = await response.text();
-    throw new Error(
-      `API call failed with ${response.status} ${response.statusText}. Response details: ${errorMessage.substring(0, 200)}...`
-    );
+    throw new Error(`HTTP Error ${response.status}: ${response.statusText}`)
   }
 
-  if (expectedJson) {
-    // Attempt to parse as JSON
-    return (await response.json()) as T;
-  } else {
-    // Return text directly if not expecting JSON (e.g., fetching a file/note content)
-    return await response.text() as unknown as T;
+  return response.json() as Promise<T>
+}
+
+export async function fetchGame(id: string): Promise<Game> {
+  if (USE_MOCK_DATA) {
+    const game = MOCK_GAMES.find((g) => g.id === id)
+    if (!game) throw new Error('Game not found')
+    return game
   }
-}
-
-// Utility function to map backend's raw data structure to the frontend's clean Game type.
-function toNumberOrNull(value: number | string | null): number | null {
-  return value === null ? null : Number(value);
-}
-
-export function mapBackendGame(raw: BackendGame): Game {
-  return {
-    id: raw.id,
-    title: raw.title,
-    // placeholders — the backend has no artwork yet
-    coverColor: '#2a2a2a',
-    coverImageUrl: `https://picsum.photos/seed/${raw.id}/1600/500`,
-    status: raw.status as GameStatus,
-    ratingOverall: toNumberOrNull(raw.rating_overall),
-    ratingStory: toNumberOrNull(raw.rating_story),
-    ratingGameplay: toNumberOrNull(raw.rating_gameplay),
-    ratingSound: toNumberOrNull(raw.rating_soundtrack),
-    // the backend has no achievements table yet
-    achievementPercent: 0,
-    achievements: [],
-    description: raw.description,
-    developer: raw.developer,
-    publisher: raw.publisher,
-    // no series field on the backend yet
-    series: null,
-    dateAdded: raw.created_at,
-    // no tags/features tables yet
-    tags: [],
-    features: [],
-    // the backend only tracks one flat playtime total, not per-platform —
-    // synthesize a single "PC" entry until real multi-platform support exists
-    platforms: [
-      {
-        platform: 'PC',
-        playtimeMinutes: Math.round(raw.playtime_seconds / 60),
-        completionPercent: null,
-        lastPlayedAt: null,
-      },
-    ],
-  }
-}
-
-export async function fetchGames(): Promise<Game[]> {
-  const response = await fetch(`${API_BASE_URL}/api/game/list`)
-  if (!response.ok) {
-    throw new Error(`Failed to fetch games: ${response.status} ${response.statusText}`)
-  }
-  const raw: BackendGame[] = await response.json()
-  return raw.map(mapBackendGame)
-}
-
-export async function fetchGame(id: string): Promise<Game | null> {
-  const response = await fetch(`${API_BASE_URL}/api/game/get/${id}`)
-  if (response.status === 404) return null
-  if (!response.ok) {
-    throw new Error(`Failed to fetch game ${id}: ${response.status} ${response.statusText}`)
-  }
-  const raw: BackendGame = await response.json()
-  return mapBackendGame(raw)
-}
-
-export interface GameNoteListResponse {
-  notes: string[]
-}
-
-export interface GameNoteWritePayload {
-  content: string
-}
-
-export interface GameNoteActionResponse {
-  game_id: string
-  note_name: string
-  path?: string
-  status: 'saved' | 'deleted'
+  return fetchJSON<Game>(`/api/games/${id}`)
 }
 
 export async function listGameNotes(gameId: string): Promise<string[]> {
-  const response = await fetch(`${API_BASE_URL}/api/game/${gameId}/notes`)
-  if (!response.ok) {
-    throw new Error(`Failed to list notes for game ${gameId}: ${response.status} ${response.statusText}`)
+  if (USE_MOCK_DATA) {
+    return ['install-notes', 'boss-strategies', 'mods-list']
   }
-
-  const data: GameNoteListResponse = await response.json()
-  return data.notes ?? []
+  return fetchJSON<string[]>(`/api/games/${gameId}/notes`)
 }
 
 export async function fetchGameNote(gameId: string, noteName: string): Promise<string> {
-  const response = await fetch(`${API_BASE_URL}/api/game/${gameId}/notes/${noteName}`)
-  if (!response.ok) {
-    throw new Error(`Failed to fetch note ${noteName}: ${response.status} ${response.statusText}`)
+  if (USE_MOCK_DATA) {
+    return `# Notes for ${noteName}\n- Sample note content for testing.`
   }
-
-  return await response.text()
+  const data = await fetchJSON<{ content: string }>(`/api/games/${gameId}/notes/${noteName}`)
+  return data.content
 }
 
-export async function saveGameNote(
-  gameId: string,
-  noteName: string,
-  content: string,
-): Promise<GameNoteActionResponse> {
-  const response = await fetch(`${API_BASE_URL}/api/game/${gameId}/notes/${noteName}`, {
-    method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+export async function saveGameNote(gameId: string, noteName: string, content: string): Promise<void> {
+  if (USE_MOCK_DATA) return
+  await fetchJSON(`/api/games/${gameId}/notes/${noteName}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ content }),
   })
-
-  if (!response.ok) {
-    const message = await response.text()
-    throw new Error(`Failed to save note ${noteName}: ${response.status} ${response.statusText} ${message}`)
-  }
-
-  return await response.json()
 }
 
-export async function deleteGameNote(gameId: string, noteName: string): Promise<GameNoteActionResponse> {
-  const response = await fetch(`${API_BASE_URL}/api/game/${gameId}/notes/${noteName}`, {
+export async function deleteGameNote(gameId: string, noteName: string): Promise<void> {
+  if (USE_MOCK_DATA) return
+  await fetchJSON(`/api/games/${gameId}/notes/${noteName}`, {
     method: 'DELETE',
   })
-
-  if (!response.ok) {
-    const message = await response.text()
-    throw new Error(`Failed to delete note ${noteName}: ${response.status} ${response.statusText} ${message}`)
-  }
-
-  return await response.json()
-}
-
-export interface GameAssetUploadResponse {
-  game_id: string
-  asset_kind: string
-  path: string
-  status: string
-}
-
-export async function uploadGameAsset(
-  gameId: string,
-  assetKind: 'key_art' | 'banner' | 'logo' | 'icon',
-  file: File,
-): Promise<GameAssetUploadResponse> {
-  const formData = new FormData()
-  formData.append('file', file)
-
-  const response = await fetch(`${API_BASE_URL}/api/game/${gameId}/assets/${assetKind}`, {
-    method: 'POST',
-    body: formData,
-  })
-
-  if (!response.ok) {
-    const message = await response.text()
-    throw new Error(`Failed to upload ${assetKind}: ${response.status} ${response.statusText} ${message}`)
-  }
-
-  return await response.json()
 }

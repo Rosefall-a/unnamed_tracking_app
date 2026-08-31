@@ -1,18 +1,16 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import GameCard from '../components/GameCard.vue'
-import { fetchGames } from '../services/games'
 import type { Game } from '../types/game'
+import { MOCK_GAMES } from '../data/mockGames'
 
 const games = ref<Game[]>([])
 const loading = ref(true)
-const error = ref<string | null>(null)
 
 onMounted(async () => {
   try {
-    games.value = await fetchGames()
-  } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Failed to load games'
+    // Replace with backend fetch when API is operational
+    games.value = MOCK_GAMES
   } finally {
     loading.value = false
   }
@@ -20,30 +18,26 @@ onMounted(async () => {
 </script>
 
 <template>
-  <main class="library">
+  <div class="library">
     <h1>My Games</h1>
-    <p v-if="loading">Loading…</p>
-    <p v-else-if="error" class="error">{{ error }}</p>
-    <div v-else class="grid">
+    <div v-if="loading" class="loading">Loading library…</div>
+    <div v-else class="game-grid">
       <GameCard v-for="game in games" :key="game.id" :game="game" />
     </div>
-  </main>
+  </div>
 </template>
 
 <style scoped>
 .library {
   padding: 24px;
-  font-family: system-ui, sans-serif;
+  color: #fff;
   background: #121212;
   min-height: 100vh;
-  color: #fff;
 }
-.grid {
-  display: flex;
-  gap: 16px;
-  flex-wrap: wrap;
-}
-.error {
-  color: #f87171;
+.game-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 20px;
+  margin-top: 20px;
 }
 </style>

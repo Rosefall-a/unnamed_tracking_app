@@ -1,20 +1,10 @@
-export type GameStatus =
-  | 'wishlist'
-  | 'backlog'
-  | 'playing'
-  | 'on hold'
-  | 'beaten'
-  | 'played'
-  | 'dropped'
-  | 'mastered'
-
 export interface Achievement {
   id: string
   name: string
   unlockedAt: string | null
 }
 
-export interface GamePlatform {
+export interface PlatformInfo {
   platform: string
   playtimeMinutes: number
   completionPercent: number | null
@@ -24,25 +14,17 @@ export interface GamePlatform {
 export interface Game {
   id: string
   title: string
-  coverColor: string
-  // real placeholder image for the detail page's hero + blurred backdrop.
-  // temporary — will point at real IGDB artwork once that sync exists
-  coverImageUrl: string
-  status: GameStatus
+  status: string
+  coverImageUrl?: string
   ratingOverall: number | null
-  ratingStory: number | null
-  ratingGameplay: number | null
-  ratingSound: number | null
+  description?: string
+  series?: string
+  developer?: string
+  publisher?: string
+  dateAdded?: string
+  platforms: PlatformInfo[]
+  features: string[]
+  tags: string[]
   achievementPercent: number
   achievements: Achievement[]
-  description: string | null
-  developer: string | null
-  publisher: string | null
-  series: string | null
-  dateAdded: string | null
-  tags: string[]
-  // capability/technical tags (Achievements, Co-op, Multiplayer...) — different from `tags`,
-  // which are genre/style descriptors
-  features: string[]
-  platforms: GamePlatform[]
 }

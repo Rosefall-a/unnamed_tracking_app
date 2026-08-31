@@ -1,15 +1,22 @@
-import vue from '@vitejs/plugin-vue'
 import { defineConfig } from 'vite'
+import vue from '@vitejs/plugin-vue'
+import fileURLToPath from 'node:url'
 
-// https://vite.dev/config/
 export default defineConfig({
   plugins: [vue()],
+  resolve: {
+    alias: {
+      '@': fileURLToPath.fileURLToPath(new URL('./src', import.meta.url)),
+    },
+  },
   server: {
-    host: true, // listen on 0.0.0.0 so the container's port mapping works
+    host: '0.0.0.0',
+    port: 5173,
     proxy: {
       '/api': {
         target: 'http://app:8000',
         changeOrigin: true,
+        secure: false,
       },
     },
   },

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { RouterLink } from 'vue-router'
 import type { Game } from '../types/game'
 
 defineProps<{
@@ -7,68 +8,78 @@ defineProps<{
 </script>
 
 <template>
-  <router-link :to="`/games/${game.id}`" class="game-card">
-    <div class="cover" :style="{ backgroundColor: game.coverColor }">
-      {{ game.title }}
+  <RouterLink :to="`/game/${game.id}`" class="game-card">
+    <div 
+      class="cover" 
+      :style="{ backgroundImage: game.coverImageUrl ? `url(${game.coverImageUrl})` : 'none' }"
+    >
+      <span v-if="!game.coverImageUrl" class="no-cover">{{ game.title }}</span>
     </div>
     <div class="info">
       <h3 class="title">{{ game.title }}</h3>
       <div class="meta">
         <span class="status">{{ game.status }}</span>
-        <span v-if="game.ratingOverall !== null" class="rating">
-          ★ {{ game.ratingOverall.toFixed(1) }}
-        </span>
+        <span v-if="game.ratingOverall" class="rating">★ {{ game.ratingOverall.toFixed(1) }}</span>
       </div>
-      <div class="achievements">🏆 {{ game.achievementPercent }}%</div>
     </div>
-  </router-link>
+  </RouterLink>
 </template>
 
 <style scoped>
 .game-card {
-  display: block;
-  width: 200px;
+  display: flex;
+  flex-direction: column;
+  background: #1e1e1e;
+  border: 1px solid #2a2a2a;
   border-radius: 8px;
   overflow: hidden;
-  background: #1e1e1e;
-  color: #fff;
-  font-family: system-ui, sans-serif;
-  /* router-link renders as a real <a> tag, which is inline and underlined
-     by default — reset both so it still looks/behaves like a card */
   text-decoration: none;
+  color: inherit;
+  transition: transform 0.15s ease, border-color 0.15s ease;
 }
+
+.game-card:hover {
+  transform: translateY(-4px);
+  border-color: #f5c518;
+}
+
 .cover {
-  height: 280px;
+  height: 240px;
+  background-size: cover;
+  background-position: center;
+  background-color: #2a2a2a;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 12px;
   text-align: center;
+}
+
+.no-cover {
+  color: #777;
   font-weight: 600;
 }
+
 .info {
-  padding: 10px 12px;
+  padding: 12px;
 }
+
 .title {
-  margin: 0 0 6px;
-  font-size: 14px;
-  color: #fff;
+  margin: 0 0 8px;
+  font-size: 1rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
+
 .meta {
   display: flex;
   justify-content: space-between;
-  font-size: 12px;
+  font-size: 0.85rem;
   color: #aaa;
 }
-.status {
-  text-transform: capitalize;
-}
+
 .rating {
   color: #f5c518;
-}
-.achievements {
-  margin-top: 6px;
-  font-size: 12px;
-  color: #8fd694;
 }
 </style>
