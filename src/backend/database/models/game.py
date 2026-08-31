@@ -77,7 +77,7 @@ class Game(Base):
     status: Mapped[GameStatus] = mapped_column(
         SAEnum(GameStatus, native_enum=False, length=30),
         nullable=False,
-        default=GameStatus.NOT_PLAYED,
+        default=GameStatus.WISHLIST,
     )
 
     priority: Mapped[str | None] = mapped_column(
