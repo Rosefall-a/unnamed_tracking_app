@@ -1,13 +1,23 @@
 import type { Game } from '../types/game'
+import eldenRingCover from '../assets/covers/elden-ring.jpg'
+import hadesCover from '../assets/covers/hades.jpg'
+import hollowKnightCover from '../assets/covers/hollow-knight.jpg'
+import eldenRingBanner from '../assets/banners/elden-ring.jpg'
+import hadesBanner from '../assets/banners/hades.jpg'
+import hollowKnightBanner from '../assets/banners/hollow-knight.jpg'
 
 export const mockGames: Game[] = [
   {
     id: '1',
     title: 'Elden Ring',
     coverColor: '#5b3a29',
-    coverImageUrl: 'https://picsum.photos/seed/elden-ring/1600/500',
+    coverImageUrl: eldenRingCover,
+    bannerImageUrl: eldenRingBanner,
     status: 'playing',
     ratingOverall: 9.4,
+    ratingStory: 9.2,
+    ratingGameplay: 9.8,
+    ratingSound: 8.7,
     achievementPercent: 60,
     achievements: [
       { id: 'a1', name: 'Defeat Margit', unlockedAt: '2026-06-02T19:14:03' },
@@ -32,9 +42,13 @@ export const mockGames: Game[] = [
     id: '2',
     title: 'Hades',
     coverColor: '#7a1f2b',
-    coverImageUrl: 'https://picsum.photos/seed/hades-game/1600/500',
+    coverImageUrl: hadesCover,
+    bannerImageUrl: hadesBanner,
     status: 'mastered',
     ratingOverall: 9.1,
+    ratingStory: 8.9,
+    ratingGameplay: 9.6,
+    ratingSound: 9.3,
     achievementPercent: 100,
     achievements: [
       { id: 'b1', name: 'Escape the Underworld', unlockedAt: '2026-03-01T18:22:10' },
@@ -57,9 +71,13 @@ export const mockGames: Game[] = [
     id: '3',
     title: 'Hollow Knight',
     coverColor: '#22303c',
-    coverImageUrl: 'https://picsum.photos/seed/hollow-knight/1600/500',
+    coverImageUrl: hollowKnightCover, // Hollow Knight
+    bannerImageUrl: hollowKnightBanner,
     status: 'backlog',
     ratingOverall: null,
+    ratingStory: null,
+    ratingGameplay: null,
+    ratingSound: null,
     achievementPercent: 0,
     achievements: [
       { id: 'c1', name: 'Reach Dirtmouth', unlockedAt: null },

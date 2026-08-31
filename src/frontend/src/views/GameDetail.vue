@@ -174,24 +174,25 @@ function formatPlaytime(minutes: number) {
 <main v-else-if="game" class="detail">
     <!-- heavily blurred, dimmed copy of the cover image behind the whole page —
          separate from the sharp version used in .hero itself -->
-    <div class="ambient-bg" :style="{ backgroundImage: `url(${game.coverImageUrl})` }"></div>
+<div class="ambient-bg" :style="{ backgroundImage: `url(${game.bannerImageUrl})` }"></div>
 
-    <section class="hero" :style="{ backgroundImage: `url(${game.coverImageUrl})` }">
-      <div class="hero-overlay"></div>
-      <div class="hero-inner">
-        <div class="hero-top">
-          <h1>{{ game.title }}</h1>
-          <button class="edit-button" type="button">Edit</button>
-        </div>
-        <p class="meta">
-          <span class="status">{{ game.status }}</span>
-          <span v-if="game.ratingOverall !== null"> · ★ {{ game.ratingOverall.toFixed(1) }}</span>
-          <span v-if="game.platforms.length > 1">
-            · also on {{ game.platforms.slice(1).map((p) => p.platform).join(', ') }}
-          </span>
-        </p>
-      </div>
-    </section>
+<section class="hero" :style="{ backgroundImage: `url(${game.bannerImageUrl})` }">
+  <div class="hero-overlay"></div>
+  <div class="hero-inner">
+    <h1>{{ game.title }}</h1>
+    <div class="badges">
+      <span class="badge status-badge">{{ game.status }}</span>
+      <span v-if="game.ratingOverall !== null" class="badge rating-badge">
+        ★ {{ game.ratingOverall.toFixed(1) }}
+      </span>
+      <span v-if="game.platforms.length > 1" class="badge">
+        also on {{ game.platforms.slice(1).map((p) => p.platform).join(', ') }}
+      </span>
+      <span v-for="tag in game.tags" :key="tag" class="badge">{{ tag }}</span>
+    </div>
+    <button class="edit-button" type="button">Edit</button>
+  </div>
+</section>
 
     <nav class="tabs">
       <button
@@ -207,9 +208,28 @@ function formatPlaytime(minutes: number) {
     </nav>
 
     <section v-if="activeTab === 'Overview'" class="overview">
-      <div class="overview-main">
-        <p v-if="game.description" class="description">{{ game.description }}</p>
-      </div>
+<div class="overview-main">
+  <p v-if="game.description" class="description">{{ game.description }}</p>
+
+  <div class="rating-breakdown" v-if="game.ratingOverall !== null || game.ratingStory !== null || game.ratingGameplay !== null || game.ratingSound !== null">
+    <div v-if="game.ratingOverall !== null" class="rating-item">
+      <span class="rating-label">Overall</span>
+      <span class="rating-score">★ {{ game.ratingOverall.toFixed(1) }}</span>
+    </div>
+    <div v-if="game.ratingStory !== null" class="rating-item">
+      <span class="rating-label">Story</span>
+      <span class="rating-score">★ {{ game.ratingStory.toFixed(1) }}</span>
+    </div>
+    <div v-if="game.ratingGameplay !== null" class="rating-item">
+      <span class="rating-label">Gameplay</span>
+      <span class="rating-score">★ {{ game.ratingGameplay.toFixed(1) }}</span>
+    </div>
+    <div v-if="game.ratingSound !== null" class="rating-item">
+      <span class="rating-label">Sound</span>
+      <span class="rating-score">★ {{ game.ratingSound.toFixed(1) }}</span>
+    </div>
+  </div>
+</div>
 
       <aside class="details-panel">
         <div class="detail-row">
@@ -376,14 +396,17 @@ function formatPlaytime(minutes: number) {
   z-index: 1;
 }
 .hero {
+  position: relative;
   background-size: cover;
   background-position: center;
-  padding: 64px 24px 48px;
+  min-height: 420px;
+  display: flex;
+  align-items: flex-end;
 }
 .hero-overlay {
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, rgba(18, 18, 18, 0.15) 0%, rgba(18, 18, 18, 0.9) 100%);
+  background: linear-gradient(180deg, rgba(18, 18, 18, 0) 40%, rgba(18, 18, 18, 0.85) 85%, #121212 100%);
 }
 .hero-inner {
   position: relative;
@@ -391,15 +414,31 @@ function formatPlaytime(minutes: number) {
   width: 100%;
   max-width: 1600px;
   margin: 0 auto;
-}
-.hero-top {
+  padding: 0 24px 32px;
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 16px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 14px;
 }
-.hero-top h1 {
+.hero-inner h1 {
   margin: 0;
+  font-size: 2.6rem;
+}
+.badges {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.badge {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  padding: 4px 14px;
+  font-size: 13px;
+  text-transform: capitalize;
+  color: #ddd;
+}
+.rating-badge {
+  color: #f5c518;
 }
 .edit-button {
   background: rgba(255, 255, 255, 0.12);
@@ -466,6 +505,25 @@ function formatPlaytime(minutes: number) {
   color: #ddd;
   font-size: 17px;
   line-height: 1.6;
+}
+.rating-breakdown {
+  display: flex;
+  gap: 24px;
+  margin-top: 20px;
+}
+.rating-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.rating-label {
+  color: #999;
+  font-size: 13px;
+}
+.rating-score {
+  color: #f5c518;
+  font-size: 18px;
+  font-weight: 600;
 }
 .details-panel {
   border: 1px solid #2a2a2a;
