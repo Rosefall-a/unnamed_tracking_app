@@ -7,7 +7,7 @@ RETRY_DELAY=2
 echo "Applying database migrations..."
 
 attempt=1
-until alembic -c app/alembic.ini upgrade head; do
+until alembic -c alembic.ini upgrade head; do
   if [ "$attempt" -ge "$MAX_RETRIES" ]; then
     echo "Migrations failed after $MAX_RETRIES attempts. Exiting."
     exit 1

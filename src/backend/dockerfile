@@ -9,11 +9,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements and install Python dependencies
-COPY src/requirements.txt .
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code into app/ subdirectory
-COPY src/backend /app/app
+COPY src /app/app
+
+COPY alembic.ini /app/alembic.ini
 
 # Copy and prepare the entrypoint script
 COPY entrypoint.sh .
