@@ -1,12 +1,26 @@
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from decimal import Decimal
+from enum import Enum
 from uuid import UUID, uuid4
 
-from sqlalchemy import Boolean, Date, DateTime, Numeric, String, Text
+from sqlalchemy import Boolean, Date, DateTime, Enum as SAEnum, Numeric, String, Text
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.db.base import Base
+from app.database.base import Base
+
+
+class GameStatus(str, Enum):
+    """Game status aligned with Playnite."""
+    ABANDONED = "abandoned"
+    NOT_PLAYED = "not played"
+    PLAN_TO_PLAY = "plan to play"
+    ON_HOLD = "on hold"
+    PLAYING = "playing"
+    PLAYED = "played"
+    BEATEN = "beaten"
+    COMPLETED = "completed"
+    
 
 
 class Game(Base):
@@ -60,10 +74,10 @@ class Game(Base):
     # Personal library state
     # ------------------------------------------------------------------
 
-    status: Mapped[str] = mapped_column(
-        String(30),
+    status: Mapped[GameStatus] = mapped_column(
+        SAEnum(GameStatus, native_enum=False, length=30),
         nullable=False,
-        default="backlog",
+        default=GameStatus.NOT_PLAYED,
     )
 
     priority: Mapped[str | None] = mapped_column(
@@ -112,22 +126,8 @@ class Game(Base):
         nullable=True,
     )
 
-    rating_presentation: Mapped[Decimal | None] = mapped_column(
-        Numeric(4, 2),
-        nullable=True,
-    )
-
-    rating_enjoyment: Mapped[Decimal | None] = mapped_column(
-        Numeric(4, 2),
-        nullable=True,
-    )
 
     rating_overall: Mapped[Decimal | None] = mapped_column(
-        Numeric(4, 2),
-        nullable=True,
-    )
-
-    rating_confidence: Mapped[Decimal | None] = mapped_column(
         Numeric(4, 2),
         nullable=True,
     )
@@ -147,12 +147,12 @@ class Game(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
-        default=datetime.utcnow,
+        default=lambda: datetime.now(timezone.utc),
     )
 
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
     )
