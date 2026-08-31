@@ -1,0 +1,13 @@
+[tool.mypy]
+python_version = "3.12"
+mypy_path = "src"
+files = ["src"]
+ignore_missing_imports = true
+
+[tool.pylint.main]
+py-version = "3.12"
+source-roots = ["src"]
+ignore = ["__pycache__", "migrations"]
+
+[tool.pylint.format]
+max-line-length = 120

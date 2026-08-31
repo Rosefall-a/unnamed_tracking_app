@@ -3,6 +3,11 @@ docker compose down -v
 docker compose up -d build
 docker compose run -rm app
 
+# Backend checks
+cd src/backend
+mypy src
+pylint src
+
 
 # Database updates
 
