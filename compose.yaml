@@ -23,7 +23,7 @@ services:
     env_file:
       - .env
     volumes:
-      - ./src/backend/src:/app/app
+      - ./src/backend/src:/app/src
       - ./data:/data
     stdin_open: true
     tty: true

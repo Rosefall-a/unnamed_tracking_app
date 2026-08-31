@@ -1,7 +1,7 @@
 # running the api
 docker compose down -v
 docker compose up -d build
-docker compose run -rm app
+docker compose run --rm backend
 
 # Backend checks
 cd src/backend
@@ -12,5 +12,5 @@ pylint --rcfile=pyproject.toml src
 # Database updates
 
 ```bash
-docker compose exec app alembic -c app/alembic.ini revision --autogenerate -m "your changes here eg add playtime to game table"
+docker compose exec backend alembic -c alembic.ini revision --autogenerate -m "your changes here eg add playtime to game table"
 ```

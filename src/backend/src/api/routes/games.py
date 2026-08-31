@@ -10,10 +10,10 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database.session import get_db
-from app.database.models.game import Game, GameStatus
-from app.api.schemas.game import GameCreate, GameRead, GameUpdate
-from app.helpers.save_game_asset import save_game_asset
+from src.database.session import get_db
+from src.database.models.game import Game, GameStatus
+from src.api.schemas.game import GameCreate, GameRead, GameUpdate
+from src.helpers.save_game_asset import save_game_asset
 
 router = APIRouter(
     prefix="/api/game",

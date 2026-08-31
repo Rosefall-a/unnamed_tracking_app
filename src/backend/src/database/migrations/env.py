@@ -5,12 +5,12 @@ from alembic import context
 from sqlalchemy import pool
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
-from app.core.config import settings
-from app.database.base import Base
+from src.core.config import settings
+from src.database.base import Base
 
 # Import every model module here so its table gets registered on
 # Base.metadata before autogenerate compares it against the database.
-from app.database.models import game  # noqa: F401
+from src.database.models import game  # noqa: F401
 
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)

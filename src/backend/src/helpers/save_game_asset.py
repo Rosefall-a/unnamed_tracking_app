@@ -8,8 +8,8 @@ from uuid import UUID
 from PIL import Image
 from sqlalchemy import select
 
-from app.database.models.game import Game
-from app.database.session import SessionLocal
+from src.database.models.game import Game
+from src.database.session import SessionLocal
 
 DATA_ROOT = Path("/data/games")
 

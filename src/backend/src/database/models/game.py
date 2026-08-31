@@ -7,7 +7,7 @@ from sqlalchemy import Boolean, Date, DateTime, Enum as SAEnum, Numeric, String,
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.database.base import Base
+from src.database.base import Base
 
 # Folder name rules: letters, digits, underscore, hyphen only — no spaces,
 # no path separators, no reserved filesystem characters. Adjust the
