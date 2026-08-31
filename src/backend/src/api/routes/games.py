@@ -1,3 +1,5 @@
+"""API routes for managing games, notes, and game artwork."""
+
 import re
 from pathlib import Path
 from uuid import UUID
@@ -24,11 +26,14 @@ _LEADING_ARTICLE = re.compile(r"^(a|an|the)\s+", flags=re.IGNORECASE)
 
 
 class NoteWrite(BaseModel):
+    """Request body used to create or replace a game note."""
+
     content: str
 
 
 class AssetKind(str):
-    pass
+    """String base for supported game asset types."""
+
 
 
 ALLOWED_ASSET_KINDS = {"key_art", "banner", "logo", "icon"}
@@ -116,6 +121,7 @@ async def upload_game_asset(
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, str]:
+    """Upload and persist artwork for a game."""
     if asset_kind not in ALLOWED_ASSET_KINDS:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -155,6 +161,7 @@ async def set_game_note(
     payload: NoteWrite = Body(...),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, str | None]:
+    """Create or replace a markdown note for a game."""
     game = await _get_game_or_404(game_id, db)
     note_path = _game_note_path(game, note_name)
     note_path.write_text(payload.content, encoding="utf-8")
@@ -178,6 +185,7 @@ async def list_game_notes(
     game_id: UUID,
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, list[str]]:
+    """Return the markdown note names associated with a game."""
     game = await _get_game_or_404(game_id, db)
 
     if not game.folder_location:
@@ -208,6 +216,7 @@ async def get_game_note(
     note_name: str,
     db: AsyncSession = Depends(get_db),
 ) -> Response:
+    """Return the contents of one game note as markdown."""
     game = await _get_game_or_404(game_id, db)
     note_path = _game_note_path(game, note_name)
 
@@ -232,6 +241,7 @@ async def delete_game_note(
     note_name: str,
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, str]:
+    """Delete one markdown note from a game."""
     game = await _get_game_or_404(game_id, db)
     note_path = _game_note_path(game, note_name)
 
@@ -272,6 +282,7 @@ async def delete_game_note(
     },
 )
 async def create_game(payload: GameCreate, db: AsyncSession = Depends(get_db)) -> Game:
+    """Create a game after validating its folder location."""
     await _ensure_folder_location_available(payload.folder_location, db)
 
     data = payload.model_dump()
@@ -283,9 +294,9 @@ async def create_game(payload: GameCreate, db: AsyncSession = Depends(get_db)) -
 
     try:
         await db.commit()
-    except IntegrityError:
+    except IntegrityError as exc:
         await db.rollback()
-        raise _duplicate_folder_error(payload.folder_location)
+        raise _duplicate_folder_error(payload.folder_location) from exc
 
     await db.refresh(game)
     return game
@@ -300,6 +311,7 @@ async def list_games(
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=50, ge=1, le=200),
 ) -> list[Game]:
+    """Return games filtered by status, favorite flag, or title search."""
     stmt = select(Game)
 
     if status_filter is not None:
@@ -317,6 +329,7 @@ async def list_games(
 
 @router.get("/get/{game_id}", response_model=GameRead)
 async def get_game(game_id: UUID, db: AsyncSession = Depends(get_db)) -> Game:
+    """Return one game by ID."""
     return await _get_game_or_404(game_id, db)
 
 
@@ -344,6 +357,7 @@ async def get_game(game_id: UUID, db: AsyncSession = Depends(get_db)) -> Game:
 async def update_game(
     game_id: UUID, payload: GameUpdate, db: AsyncSession = Depends(get_db)
 ) -> Game:
+    """Update a game and keep its derived sort title synchronized."""
     game = await _get_game_or_404(game_id, db)
 
     updates = payload.model_dump(exclude_unset=True)
@@ -362,9 +376,9 @@ async def update_game(
 
     try:
         await db.commit()
-    except IntegrityError:
+    except IntegrityError as exc:
         await db.rollback()
-        raise _duplicate_folder_error(game.folder_location)
+        raise _duplicate_folder_error(game.folder_location) from exc
 
     await db.refresh(game)
     return game
@@ -372,6 +386,7 @@ async def update_game(
 
 @router.delete("/delete/{game_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_game(game_id: UUID, db: AsyncSession = Depends(get_db)) -> None:
+    """Delete a game by ID."""
     game = await _get_game_or_404(game_id, db)
     await db.delete(game)
     await db.commit()

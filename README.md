@@ -6,7 +6,7 @@ docker compose run -rm app
 # Backend checks
 cd src/backend
 mypy src
-pylint src
+pylint --rcfile=pyproject.toml src
 
 
 # Database updates
