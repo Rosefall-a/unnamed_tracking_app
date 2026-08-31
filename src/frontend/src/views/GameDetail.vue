@@ -178,6 +178,7 @@ function formatPlaytime(minutes: number) {
 
 <section class="hero" :style="{ backgroundImage: `url(${game.bannerImageUrl})` }">
   <div class="hero-overlay"></div>
+  <button class="edit-button" type="button">Edit</button>
   <div class="hero-inner">
     <h1>{{ game.title }}</h1>
     <div class="badges">
@@ -185,12 +186,11 @@ function formatPlaytime(minutes: number) {
       <span v-if="game.ratingOverall !== null" class="badge rating-badge">
         ★ {{ game.ratingOverall.toFixed(1) }}
       </span>
-      <span v-if="game.platforms.length > 1" class="badge">
-        also on {{ game.platforms.slice(1).map((p) => p.platform).join(', ') }}
+      <span v-if="game.dateAdded" class="badge">
+        {{ new Date(game.dateAdded).toLocaleDateString() }}
       </span>
-      <span v-for="tag in game.tags" :key="tag" class="badge">{{ tag }}</span>
+      <span v-if="game.platforms.length" class="badge">{{ game.platforms[0].platform }}</span>
     </div>
-    <button class="edit-button" type="button">Edit</button>
   </div>
 </section>
 
@@ -399,7 +399,7 @@ function formatPlaytime(minutes: number) {
   position: relative;
   background-size: cover;
   background-position: center;
-  min-height: 420px;
+  min-height: 360px;
   display: flex;
   align-items: flex-end;
 }
@@ -414,15 +414,16 @@ function formatPlaytime(minutes: number) {
   width: 100%;
   max-width: 1600px;
   margin: 0 auto;
-  padding: 0 24px 32px;
+  padding: 0 24px 28px;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 14px;
+  gap: 12px;
 }
 .hero-inner h1 {
   margin: 0;
-  font-size: 2.6rem;
+  font-size: 2.4rem;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.6);
 }
 .badges {
   display: flex;
@@ -441,7 +442,11 @@ function formatPlaytime(minutes: number) {
   color: #f5c518;
 }
 .edit-button {
-  background: rgba(255, 255, 255, 0.12);
+  position: absolute;
+  top: 20px;
+  right: 24px;
+  z-index: 2;
+  background: rgba(0, 0, 0, 0.5);
   border: 1px solid rgba(255, 255, 255, 0.25);
   color: #fff;
   border-radius: 999px;
@@ -449,10 +454,14 @@ function formatPlaytime(minutes: number) {
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.15s ease;
+  opacity: 0;
+  transition: opacity 0.2s ease, background 0.15s ease;
+}
+.hero:hover .edit-button {
+  opacity: 1;
 }
 .edit-button:hover {
-  background: rgba(255, 255, 255, 0.22);
+  background: rgba(0, 0, 0, 0.7);
 }
 .meta {
   text-transform: capitalize;
@@ -463,31 +472,33 @@ function formatPlaytime(minutes: number) {
   gap: 4px;
   width: 100%;
   max-width: 1600px;
-  margin: 0 auto;
-  padding: 0 24px;
+  margin: 16px auto 0;
+  padding: 8px 16px;
   box-sizing: border-box;
-  border-bottom: 1px solid #2a2a2a;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid #2a2a2a;
+  border-radius: 8px;
   overflow-x: auto;
 }
 .tab {
-  background: none;
+  background: rgba(255, 255, 255, 0.06);
   border: none;
-  color: #999;
-  padding: 10px 16px;
+  color: #ccc;
+  padding: 8px 18px;
   font-size: 14px;
+  font-weight: 500;
   cursor: pointer;
-  border-bottom: 2px solid transparent;
-  border-radius: 6px 6px 0 0;
+  border-radius: 999px;
   white-space: nowrap;
-  transition: color 0.15s ease, background 0.15s ease;
+  transition: background 0.15s ease, color 0.15s ease;
 }
 .tab:hover {
-  color: #ddd;
+  background: #3a3a3a;
+  color: #fff;
 }
 .tab.active {
-  color: #fff;
-  background: rgba(245, 197, 24, 0.12);
-  border-bottom-color: #f5c518;
+  background: #f5c518;
+  color: #121212;
 }
 .overview {
   width: 100%;
