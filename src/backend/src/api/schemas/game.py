@@ -4,7 +4,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.database.models.game import (
+from src.database.models.game import (
     FOLDER_NAME_MAX_LENGTH,
     FOLDER_NAME_PATTERN,
     GameStatus,

@@ -1,7 +1,7 @@
 # app/main.py
 from fastapi import FastAPI
 
-from app.api.routes import games
+from src.api.routes import games
 
 app = FastAPI(
     title="My API",

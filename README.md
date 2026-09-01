@@ -1,7 +1,12 @@
 # running the api
 docker compose down -v
 docker compose up -d build
-docker compose run -rm app
+docker compose run --rm backend
+
+# Backend checks
+cd src/backend
+mypy --config-file pyproject.toml src
+pylint --rcfile=pyproject.toml src
 
 
 # Database updates

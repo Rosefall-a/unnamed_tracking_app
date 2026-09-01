@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
-from app.core.config import settings
+from src.core.config import settings
 
 
 # The engine manages the connection pool to PostgreSQL.

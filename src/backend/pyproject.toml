@@ -1,0 +1,24 @@
+[tool.mypy]
+python_version = "3.12"
+mypy_path = "."
+files = ["src"]
+ignore_missing_imports = true
+explicit_package_bases = true
+exclude = ["src/database/migrations/.*"]
+
+[tool.pylint.main]
+py-version = "3.12"
+source-roots = ["src"]
+ignore = ["__pycache__", "migrations"]
+
+[tool.pylint.messages_control]
+disable = [
+	"import-error",
+]
+
+[tool.pylint.format]
+max-line-length = 120
+
+[tool.pylint.design]
+max-args = 6
+max-positional-arguments = 6
