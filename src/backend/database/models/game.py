@@ -2,6 +2,7 @@ from typing import List
 from decimal import Decimal
 from enum import Enum
 from uuid import UUID, uuid4
+from datetime import datetime, timezone
 
 from sqlalchemy import Boolean, Date, DateTime, Enum as SAEnum, Numeric, String, Text, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
@@ -77,6 +78,17 @@ class Game(Base):
     # Foreign Key to Developer
     developer_id: Mapped[UUID | None] = mapped_column(ForeignKey("developers.id"), nullable=True)
     developer: Mapped["Developer"] = relationship("Developer", back_populates="games") # Relationship attribute remains as is for now. The foreign key developer_id handles the link.
+
+    # External IDs and Metadata (NEW FIELDS)
+    steam_appid: Mapped[str | None] = mapped_column(
+        String(50), # Standard length for Steam AppID
+        unique=True,
+        index=True,
+        nullable=True,
+    )
+
+    platforms: Mapped[list["Platform"]] = relationship("Platform", secondary="game_platform", back_populates="games")
+    genres: Mapped[list["Genre"]] = relationship("Genre", secondary="game_genre", back_populates="games")
 
 
     publisher: Mapped[str | None] = mapped_column(

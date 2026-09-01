@@ -1,7 +1,7 @@
 import type { Game, Achievement } from '../types/game'
 import { MOCK_GAMES } from '../data/mockGames'
 
-const USE_MOCK_DATA = true // Set to false when backend API is ready
+const USE_MOCK_DATA = process.env.VITE_USE_MOCK_DATA === 'true' // Set to false when backend API is ready
 
 async function fetchJSON<T>(url: string, options?: RequestInit): Promise<T> {
   const response = await fetch(url, options)

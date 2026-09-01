@@ -17,6 +17,12 @@ A clean, maintainable, well‑documented **backend API** and **frontend UI**, ea
 ├── agents.md
 ├── README.md
 ├── compose.yml
+├── Notes/
+│   ├── APIS.md
+│   ├── BUILD-1-FOUNDATIONS.md
+│   ├── BUILD-2-BACKEND.md
+│   ├── Data
+│   └── DESIGN.md
 ├── docs/
 ├── src/
 │   ├── backend/
@@ -59,9 +65,8 @@ Agents must:
 - Follow the existing frontend architecture (Vue + Vite)
 - Maintain async patterns correctly in backend code
 - Keep migrations consistent with Alembic conventions
-- Avoid rewriting entire files unless necessary
 
-Agents **may be creative**, but must preserve architectural integrity.
+Agents **should be creative**, but must preserve architectural integrity.
 
 ---
 
@@ -122,7 +127,7 @@ If agents make major changes:
 - Modify startup scripts  
 
 They MUST update:
-- `docker-compose.yml`
+- `compose.yaml`
 - Example compose files in `/docs/`
 
 ### **Entrypoint Scripts**
@@ -168,7 +173,7 @@ Agents **ARE allowed** to:
 - Add new features  
 - Be creative and propose improvements
 
-Agents **ARE NOT allowed** to:
+Agents **ARE (also) allowed** to:
 - Remove documentation  
 - Remove tests  
 - Introduce undocumented functions  
