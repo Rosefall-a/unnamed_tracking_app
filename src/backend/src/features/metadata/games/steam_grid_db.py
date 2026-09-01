@@ -5,7 +5,7 @@ from typing import Any
 
 import requests
 
-from app.core.config import settings
+from src.core.config import settings
 
 
 class SteamGridDBError(RuntimeError):

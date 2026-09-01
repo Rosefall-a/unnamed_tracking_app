@@ -12,8 +12,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code into app/ subdirectory
-COPY src /app/app
+# Copy application code into src/ subdirectory
+COPY src /app/src
 
 COPY alembic.ini /app/alembic.ini
 

@@ -43,7 +43,7 @@ class Game(Base):
     )
 
 
-    folder_location: Mapped[str | None] = mapped_column(
+    folder_location: Mapped[str] = mapped_column(
         String(FOLDER_NAME_MAX_LENGTH),
         unique=True,
         nullable=False,

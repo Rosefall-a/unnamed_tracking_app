@@ -20,5 +20,8 @@ python-dotenv==1.0.1
 # Development/testing
 pytest==8.3.2
 pytest-asyncio==0.24.0
+mypy==1.17.1
+pylint==3.3.8
+types-requests==2.32.4.20250611
 
 pydantic-settings==2.2.1

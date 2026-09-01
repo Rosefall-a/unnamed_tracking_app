@@ -18,4 +18,4 @@ until alembic -c alembic.ini upgrade head; do
 done
 
 echo "Migrations applied. Starting application..."
-exec uvicorn app.main:app --host 0.0.0.0 --port 8000
+exec uvicorn src.main:app --host 0.0.0.0 --port 8000
