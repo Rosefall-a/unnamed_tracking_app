@@ -5,7 +5,7 @@ docker compose run --rm backend
 
 # Backend checks
 cd src/backend
-mypy src
+mypy --config-file pyproject.toml src
 pylint --rcfile=pyproject.toml src
 
 
