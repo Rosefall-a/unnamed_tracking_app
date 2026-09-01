@@ -35,4 +35,9 @@ jobs:
         run: mypy --config-file pyproject.toml src
 
       - name: Run pylint
-        run: pylint src
+        run: |
+          pylint src | tee pylint-output.txt
+          score=$(grep -oP 'Your code has been rated at \K[0-9.]+(?=/10)' pylint-output.txt)
+          echo "Pylint score: $score"
+          python -c "import sys; sys.exit(0 if float('$score') >= 9.0 else 1)"
+
