@@ -1,184 +1,114 @@
-Step 1: Understand the Current State
-Backend
-FastAPI App: Located in src/backend/src.
-Database Models: Located in src/backend/database.
-Services: Located in src/backend/services.
-Alembic Migrations: Managed via alembic.ini.
-Dependencies: Defined in pyproject.toml and requirements.txt.
-Frontend
-Vite Project: Located in src/frontend.
-Components: Located in src/frontend/src.
-Public Assets: Located in src/frontend/public.
-Configs: tsconfig.json, vite.config.ts.
-Docker
-compose.yaml: Orchestrates backend and frontend.
-example-docker-compose.yaml: Reference configuration.
-Scripts
-generate-the-.env.-please.sh: Creates environment files.
-Documentation
-Notes Directory: Contains multiple notes including:
-BUILD-1-FOUNDATIONS.md
-BUILD-2-BACKEND.md
-DESIGN.md
-APIS.md
-Data.md
-Step 2: Identify Missing and Partially Implemented Components
-Backend
-Missing:
+Status markers:
 
-Authentication and authorization mechanisms.
-Real-time features (e.g., websockets).
-Detailed error handling and logging.
-Partially Implemented:
+TODO — not started
 
-Basic CRUD operations for entities.
-Some API endpoints but lacking comprehensive coverage.
-Frontend
-Missing:
+IN‑PROGRESS — currently being worked on
 
-User authentication and authorization flows.
-Interactive forms and validation.
-Responsive design for mobile devices.
-Partially Implemented:
+DONE — completed
 
-Basic UI components (e.g., buttons, forms).
-Routing for navigation between pages.
-Database
-Missing:
+Phase 1 — Repository Understanding
+1.1 Review Repository Structure — TODO
+Backend: FastAPI app (src/backend/src), database models (src/backend/database), services (src/backend/services), Alembic migrations (alembic.ini), dependencies (pyproject.toml, requirements.txt).
+Frontend: Vite project (src/frontend), components (src/frontend/src), public assets (src/frontend/public), configs (tsconfig.json, vite.config.ts).
+Docker: compose.yaml, example-docker-compose.yaml.
+Scripts: generate-the-.env.-please.sh.
+Documentation: BUILD-1-FOUNDATIONS.md, BUILD-2-BACKEND.md, DESIGN.md, APIS.md, Data.md.
 
-Proper indexing and optimization.
-Constraints and data validations.
-Partially Implemented:
+1.2 Identify Missing & Partial Components — TODO
+Backend missing: auth, websockets, error handling.
+Frontend missing: auth flows, forms, responsive design.
+Database missing: indexing, constraints.
+Docker missing: CI/CD, production configs, optimized Dockerfiles.
+Tests missing: backend unit tests, integration tests, E2E tests.
+Docs missing: API docs, user guides.
 
-Basic schema definitions and relationships.
-Docker
-Missing:
+Phase 2 — Core Development
+2.1 CI/CD Pipeline Setup — TODO
+Create GitHub Actions workflow for CI.
 
-Detailed CI/CD pipeline.
-Production-ready configurations.
-Partially Implemented:
+Create GitHub Actions workflow for CD.
+Agent: devops
 
-Development environment setup with compose.yaml.
-Tests
-Missing:
+2.2 Production Docker Setup — TODO
+Update compose.yaml for production (backend, frontend, database).
 
-Unit tests for backend services.
-Integration tests between frontend and backend.
-End-to-end (E2E) tests using tools like Cypress or Selenium.
-Partially Implemented:
+Create backend Dockerfile (FastAPI + uvicorn).
 
-Some unit tests for database models.
-Documentation
-Missing:
+Create frontend Dockerfile (Vite build + nginx).
 
-Detailed API documentation.
-User guides and tutorials.
-Partially Implemented:
+Add .dockerignore files.
+Agent: devops
 
-Basic design notes and data schema descriptions.
-Step 3: Propose a Comprehensive Plan
-To complete the project, we will break it down into atomic tasks. This plan is designed to be executed in phases:
+2.3 Backend Authentication & Authorization — TODO
+Implement JWT auth.
 
-Phase 1: Setup and Configuration
-Set up CI/CD Pipeline
+Add role-based authorization.
+Agent: backend
 
-Create a GitHub Actions workflow for continuous integration.
-Configure a GitHub Actions workflow for continuous delivery.
-Create Production-Ready Docker Configurations
+2.4 Frontend Authentication & Authorization — TODO
+Integrate Redux Toolkit.
 
-Update compose.yaml to include production-ready configurations.
-Create a Dockerfile for the backend and frontend.
-Setup Backend Authentication and Authorization
+Implement auth flows (Supabase/Firebase).
+Agent: frontend
 
-Implement JWT-based authentication using libraries like fastapi-jwt-auth.
-Add roles-based authorization mechanisms.
-Setup Frontend User Authentication and Authorization
+Phase 3 — Database & API
+3.1 Database Indexing & Constraints — TODO
+Add constraints, validations, indexes.
+Agent: backend
 
-Integrate Redux Toolkit for state management.
-Implement user authentication flows using tools like React-Redux-Firebase or Supabase.
-Phase 2: Database and Data Modeling
-Optimize Database Indexing and Constraints
+3.2 API Documentation — TODO
+Add Swagger/OpenAPI docs.
+Agent: docs
 
-Review and optimize database schema definitions.
-Add constraints and data validations where necessary.
-Create Detailed API Documentation
+3.3 Real-Time Features (Optional) — TODO
+Implement websockets.
 
-Use tools like Swagger UI to generate and maintain API documentation.
-Document all endpoints, parameters, and response formats.
-Develop Real-Time Features (Optional)
+Add frontend websocket listeners.
+Agent: backend + frontend
 
-Implement websockets using a library like fastapi-websocket.
-Integrate real-time features in the frontend.
-Phase 3: Testing and Quality Assurance
-Implement Unit Tests for Backend Services
+Phase 4 — Testing & QA
+4.1 Backend Unit Tests — TODO
+Write pytest/unittest coverage.
+Agent: backend
 
-Write unit tests for all backend services.
-Use frameworks like pytest and unittest.
-Create Integration and E2E Tests
+4.2 Integration & E2E Tests — TODO
+Jest/Cypress tests.
 
-Develop integration tests between frontend and backend using tools like Jest and Cypress.
-Set up end-to-end testing pipelines in GitHub Actions.
-Refactor Code for Better Performance and Readability
+GitHub Actions E2E pipeline.
+Agent: frontend + devops
 
-Use performance profiling tools to identify bottlenecks.
-Refactor code for better readability and maintainability.
-Phase 4: Deployment
-Deploy Backend and Frontend
+4.3 Performance Refactoring — TODO
+Profile backend.
 
-Deploy the backend using a cloud service like AWS or Heroku.
-Deploy the frontend using Netlify or Vercel.
-Set Up Monitoring and Logging
+Refactor slow components.
+Agent: general + backend
 
-Integrate monitoring tools like Prometheus and Grafana.
-Set up logging for both frontend and backend.
-Step 4: Implement the Plan
-To execute this plan, we will use a combination of Read, Grep, and Task tools to gather more information and delegate tasks to appropriate agents.
+Phase 5 — Deployment & Monitoring
+5.1 Deployment (Docker) — TODO
+Build backend Docker image.
 
-Task 1: Setup CI/CD Pipeline
+Build frontend Docker image.
 
-Use the task tool to create a GitHub Actions workflow for continuous integration and delivery.
-Specify the agent type as devops.
-Task 2: Create Production-Ready Docker Configurations
+Deploy via Docker (AWS ECS, Heroku container registry, or similar).
+Agent: devops
 
-Use the bash tool to update compose.yaml with production-ready configurations.
-Use the write tool to create a Dockerfile for both backend and frontend.
-Task 3: Setup Backend Authentication and Authorization
+5.2 Monitoring & Logging — TODO
+Add Prometheus/Grafana.
 
-Use the skill tool to load the fastapi-auth skill.
-Follow the instructions provided by the skill to implement JWT-based authentication and roles-based authorization.
-Task 4: Setup Frontend User Authentication and Authorization
+Add structured logging.
+Agent: devops + backend
 
-Use the skill tool to load the react-auth skill.
-Follow the instructions provided by the skill to integrate user authentication flows in the frontend.
-Task 5: Optimize Database Indexing and Constraints
+Agent Instructions
+After completing each task:
 
-Use the bash tool to review and optimize database schema definitions.
-Use the write tool to add constraints and data validations where necessary.
-Task 6: Create Detailed API Documentation
+Mark the task as DONE.
 
-Use the skill tool to load the swagger-ui skill.
-Follow the instructions provided by the skill to generate and maintain API documentation.
-Task 7: Develop Real-Time Features (Optional)
+Add a short summary under the task.
 
-Use the skill tool to load the fastapi-websocket skill.
-Follow the instructions provided by the skill to implement websockets in both backend and frontend.
-Task 8: Implement Unit Tests for Backend Services
+Commit changes to a branch named:
 
-Use the bash tool to write unit tests for all backend services.
-Use the write tool to create a pytest configuration file.
-Task 9: Create Integration and E2E Tests
+Code
+agent/<task-id>
+Push ONLY that branch.
 
-Use the skill tool to load the jest-e2e skill.
-Follow the instructions provided by the skill to develop integration and end-to-end tests.
-Task 10: Refactor Code for Better Performance and Readability
-
-Use the bash tool to use performance profiling tools to identify bottlenecks.
-Use the edit tool to refactor code for better readability and maintainability.
-Task 11: Deploy Backend and Frontend
-
-Use the skill tool to load the deployment skill.
-Follow the instructions provided by the skill to deploy both frontend and backend.
-Task 12: Set Up Monitoring and Logging
-
-Use the skill tool to load the monitoring-logging skill.
-Follow the instructions provided by the skill to set up monitoring and logging.
+Move to the next task.

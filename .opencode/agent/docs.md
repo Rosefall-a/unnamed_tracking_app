@@ -2,7 +2,6 @@
 name: docs
 description: Use this agent when the task involves writing or improving documentation, READMEs, API docs, design notes, or developer guides.
 mode: subagent
-model: Qwen2.5-Coder-7B-Instruct
 reasoning: auto
 tools:
   read_file: true

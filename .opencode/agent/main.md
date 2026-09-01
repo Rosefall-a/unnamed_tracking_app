@@ -2,7 +2,6 @@
 name: main
 description: The primary coding agent for this repository. Use this agent when the user directly asks for coding help, repo analysis, planning, refactoring, documentation, tests, or DevOps tasks.
 mode: primary
-model: Qwen2.5-Coder-7B-Instruct
 reasoning: auto
 tools:
   read_file: true

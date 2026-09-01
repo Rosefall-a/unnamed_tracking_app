@@ -2,7 +2,6 @@
 name: devops
 description: Use this agent when the task involves Docker, docker-compose, CI/CD workflows, environment setup, or project automation.
 mode: subagent
-model: Qwen2.5-Coder-7B-Instruct
 reasoning: auto
 tools:
   read_file: true

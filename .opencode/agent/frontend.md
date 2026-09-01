@@ -2,7 +2,6 @@
 name: frontend
 description: Use this agent when the task involves TypeScript, Vite, UI components, frontend logic, or frontend tests.
 mode: subagent
-model: Qwen2.5-Coder-7B-Instruct
 reasoning: auto
 tools:
   read_file: true

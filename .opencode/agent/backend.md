@@ -2,7 +2,6 @@
 name: backend
 description: Use this agent when the task involves Python, FastAPI, database models, Alembic migrations, backend services, or API design.
 mode: subagent
-model: Qwen2.5-Coder-7B-Instruct
 reasoning: auto
 tools:
   read_file: true
