@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { createGame, updateGame, uploadGameAsset } from '../services/games'
-import type { GameLink, GameOwnership } from '../services/games'
 import type { Game, GameStatus } from '../types/game'
+import type { GameLink, GameOwnership } from '../types/game'
 
 const props = defineProps<{
   game?: Game | null
@@ -31,14 +31,14 @@ const activeTab = ref<(typeof tabs)[number]>('General')
 
 const title = ref(props.game?.title ?? '')
 const sortTitle = ref('')
-const folderLocation = ref('')
+const folderLocation = ref(props.game?.folderLocation ?? '')
 const status = ref<GameStatus>(props.game?.status ?? 'backlog')
 const developer = ref(props.game?.developer ?? '')
 const publisher = ref(props.game?.publisher ?? '')
 const series = ref(props.game?.series ?? '')
-const source = ref('')
-const ageRating = ref('')
-const releaseDate = ref('')
+const source = ref(props.game?.source ?? '')
+const ageRating = ref(props.game?.ageRating ?? '')
+const releaseDate = ref(props.game?.releaseDate ?? '')
 const dateAdded = ref(props.game?.dateAdded ?? new Date().toISOString().slice(0, 10))
 const description = ref(props.game?.description ?? '')
 
@@ -52,7 +52,7 @@ const featuresInput = ref(props.game?.features.join(', ') ?? '')
 const coverFile = ref<File | null>(null)
 const bannerFile = ref<File | null>(null)
 
-const links = ref<GameLink[]>([])
+const links = ref<GameLink[]>(props.game?.links ? [...props.game.links] : [])
 function addLink() {
   links.value.push({ label: '', url: '' })
 }
@@ -60,15 +60,17 @@ function removeLink(index: number) {
   links.value.splice(index, 1)
 }
 
-const ownershipFormat = ref<GameOwnership['format']>(null)
-const purchaseDate = ref('')
-const price = ref<number | null>(null)
-const condition = ref('')
+const ownershipFormat = ref<GameOwnership['format']>(props.game?.ownership.format ?? null)
+const purchaseDate = ref(props.game?.ownership.purchaseDate ?? '')
+const price = ref<number | null>(props.game?.ownership.price ?? null)
+const condition = ref(props.game?.ownership.condition ?? '')
 
 const saving = ref(false)
 const error = ref<string | null>(null)
 
-const folderTouched = ref(false)
+// when editing, the folder name is already real data — don't let the
+// title-blur auto-suggest silently overwrite it
+const folderTouched = ref(isEditing.value)
 function suggestFolderFromTitle() {
   if (folderTouched.value) return
   folderLocation.value = title.value
@@ -171,7 +173,8 @@ async function submit() {
         </button>
       </nav>
 
-      <form class="modal-body" @submit.prevent="submit">
+      <form class="modal-form" @submit.prevent="submit">
+  <div class="modal-body">
         <div v-if="activeTab === 'General'" class="tab-panel">
           <div class="field-row">
             <label class="field">
@@ -250,8 +253,8 @@ async function submit() {
 
         <div v-else-if="activeTab === 'Ratings & Tags'" class="tab-panel">
           <div class="field-row ratings-row">
-            <label class="field">
-              <span>Overall</span>
+           <label class="field">
+             <span>Atmosphere</span>
               <input v-model.number="ratingOverall" type="number" min="0" max="10" step="0.1" />
             </label>
             <label class="field">
@@ -337,14 +340,15 @@ async function submit() {
         </div>
 
         <div v-if="error" class="form-error">{{ error }}</div>
+      </div>
 
-        <div class="modal-actions">
-          <button type="button" class="secondary-button" @click="emit('close')">Cancel</button>
-          <button type="submit" class="primary-button" :disabled="saving">
-            {{ saving ? 'Saving…' : (isEditing ? 'Save Changes' : 'Add Game') }}
-          </button>
-        </div>
-      </form>
+      <div class="modal-actions">
+        <button type="button" class="secondary-button" @click="emit('close')">Cancel</button>
+        <button type="submit" class="primary-button" :disabled="saving">
+          {{ saving ? 'Saving…' : (isEditing ? 'Save Changes' : 'Add Game') }}
+        </button>
+      </div>
+    </form>
     </div>
   </div>
 </template>
@@ -427,8 +431,14 @@ async function submit() {
 }
 .modal-tab.active {
   color: #fff;
-  background: rgba(245, 197, 24, 0.1);
-  border-bottom-color: #f5c518;
+  background: rgba(214, 138, 52, 0.1);
+  border-bottom-color: #d68a34;
+}
+.modal-form {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
 }
 .modal-body {
   padding: 20px 22px;
@@ -437,6 +447,7 @@ async function submit() {
   gap: 14px;
   overflow-y: auto;
   flex: 1;
+  min-height: 0;
 }
 .tab-panel {
   display: flex;
@@ -467,7 +478,7 @@ async function submit() {
 .field select:focus,
 .field textarea:focus {
   outline: none;
-  border-color: #f5c518;
+  border-color: #d68a34;
 }
 .field-row {
   display: flex;
@@ -509,9 +520,9 @@ async function submit() {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
-  margin-top: 8px;
-  padding-top: 14px;
+  padding: 14px 22px;
   border-top: 1px solid #2a2a2a;
+  flex-shrink: 0;
 }
 .primary-button,
 .secondary-button {
@@ -524,7 +535,7 @@ async function submit() {
   transition: background 0.15s ease, transform 0.05s ease;
 }
 .primary-button {
-  background: #f5c518;
+  background: #d68a34;
   color: #111;
 }
 .primary-button:hover:not(:disabled) {

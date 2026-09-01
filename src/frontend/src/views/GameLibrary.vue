@@ -60,7 +60,7 @@ async function onGameCreated() {
   margin-bottom: 16px;
 }
 .add-button {
-  background: #f5c518;
+  background: #d68a34;
   color: #111;
   border: none;
   border-radius: 8px;

@@ -1,5 +1,5 @@
-import type { Game, GameStatus } from '../types/game'
 import { mockGames } from '../data/mockGames'
+import type { Game, GameStatus, GameLink, GameOwnership } from '../types/game'
 
 // The exact shape FastAPI sends — snake_case, matching the Python model
 // field-for-field. This is deliberately a separate type from `Game`:
@@ -25,6 +25,7 @@ interface BackendGame {
   personal_rank: number | null
   created_at: string
   updated_at: string
+  folder_location: string
 }
 
 // Pydantic can serialize a Decimal as either a JSON number or a string
@@ -65,6 +66,12 @@ export function mapBackendGame(raw: BackendGame): Game {
     // no series field on the backend yet
     series: null,
     dateAdded: raw.created_at,
+    folderLocation: raw.folder_location,
+    releaseDate: raw.release_date,
+    source: null,
+    ageRating: null,
+    links: [],
+    ownership: { format: null, purchaseDate: null, price: null, condition: null },
     // no tags/features tables yet
     tags: [],
     features: [],
@@ -104,17 +111,6 @@ export async function fetchGame(id: string): Promise<Game | null> {
   }
   const raw: BackendGame = await response.json()
   return mapBackendGame(raw)
-}
-export interface GameLink {
-  label: string
-  url: string
-}
-
-export interface GameOwnership {
-  format: 'digital' | 'physical' | null
-  purchaseDate: string | null
-  price: number | null
-  condition: string | null
 }
 
 export interface NewGameInput {
@@ -162,6 +158,12 @@ export async function createGame(input: NewGameInput): Promise<Game> {
       dateAdded: input.dateAdded,
       tags: input.tags,
       features: input.features,
+      folderLocation: input.folderLocation || null,
+      releaseDate: input.releaseDate,
+      source: input.source,
+      ageRating: input.ageRating,
+      links: input.links,
+      ownership: input.ownership,
       platforms: [],
     }
     mockGames.push(newGame)
@@ -238,6 +240,12 @@ export async function updateGame(id: string, input: NewGameInput): Promise<Game>
       series: input.series,
       dateAdded: input.dateAdded,
       tags: input.tags,
+      folderLocation: input.folderLocation || null,
+      releaseDate: input.releaseDate,
+      source: input.source,
+      ageRating: input.ageRating,
+      links: input.links,
+      ownership: input.ownership,
       features: input.features,
     }
     mockGames[index] = updated
@@ -301,7 +309,18 @@ export interface GameNoteActionResponse {
   status: 'saved' | 'deleted'
 }
 
+// per-game note storage for mock mode — resets on page reload, same as mockGames itself
+const mockNotesStore = new Map<string, Map<string, string>>()
+function getMockNoteMap(gameId: string): Map<string, string> {
+  if (!mockNotesStore.has(gameId)) mockNotesStore.set(gameId, new Map())
+  return mockNotesStore.get(gameId)!
+}
+
 export async function listGameNotes(gameId: string): Promise<string[]> {
+  if (import.meta.env.VITE_USE_MOCK_DATA === 'true') {
+    return Array.from(getMockNoteMap(gameId).keys())
+  }
+
   const response = await fetch(`/api/game/${gameId}/notes`)
   if (!response.ok) {
     throw new Error(`Failed to list notes for game ${gameId}: ${response.status} ${response.statusText}`)
@@ -312,6 +331,10 @@ export async function listGameNotes(gameId: string): Promise<string[]> {
 }
 
 export async function fetchGameNote(gameId: string, noteName: string): Promise<string> {
+  if (import.meta.env.VITE_USE_MOCK_DATA === 'true') {
+    return getMockNoteMap(gameId).get(noteName) ?? ''
+  }
+
   const response = await fetch(`/api/game/${gameId}/notes/${noteName}`)
   if (!response.ok) {
     throw new Error(`Failed to fetch note ${noteName}: ${response.status} ${response.statusText}`)
@@ -325,6 +348,11 @@ export async function saveGameNote(
   noteName: string,
   content: string,
 ): Promise<GameNoteActionResponse> {
+  if (import.meta.env.VITE_USE_MOCK_DATA === 'true') {
+    getMockNoteMap(gameId).set(noteName, content)
+    return { game_id: gameId, note_name: noteName, status: 'saved' }
+  }
+
   const response = await fetch(`/api/game/${gameId}/notes/${noteName}`, {
     method: 'PUT',
     headers: {
@@ -342,6 +370,11 @@ export async function saveGameNote(
 }
 
 export async function deleteGameNote(gameId: string, noteName: string): Promise<GameNoteActionResponse> {
+  if (import.meta.env.VITE_USE_MOCK_DATA === 'true') {
+    getMockNoteMap(gameId).delete(noteName)
+    return { game_id: gameId, note_name: noteName, status: 'deleted' }
+  }
+
   const response = await fetch(`/api/game/${gameId}/notes/${noteName}`, {
     method: 'DELETE',
   })

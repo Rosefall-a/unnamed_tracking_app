@@ -41,9 +41,27 @@ export interface Game {
   publisher: string | null
   series: string | null
   dateAdded: string | null
+  folderLocation: string | null
+  releaseDate: string | null
+  source: string | null
+  ageRating: string | null
+  links: GameLink[]
+  ownership: GameOwnership
   tags: string[]
   // capability/technical tags (Achievements, Co-op, Multiplayer...) — different from `tags`,
   // which are genre/style descriptors
   features: string[]
   platforms: GamePlatform[]
+}
+
+export interface GameLink {
+  label: string
+  url: string
+}
+
+export interface GameOwnership {
+  format: 'digital' | 'physical' | null
+  purchaseDate: string | null
+  price: number | null
+  condition: string | null
 }

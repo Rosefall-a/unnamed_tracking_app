@@ -61,7 +61,7 @@ defineProps<{
   text-transform: capitalize;
 }
 .rating {
-  color: #f5c518;
+  color: #d68a34;
 }
 .achievements {
   margin-top: 6px;
