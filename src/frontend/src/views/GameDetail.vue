@@ -17,7 +17,13 @@ const game = ref<Game | null>(null)
 const loading = ref(true)
 const error = ref<string | null>(null)
 const showEditModal = ref(false)
-
+const descriptionParagraphs = computed(() => {
+  if (!game.value?.description) return []
+  return game.value.description
+    .split('•')
+    .map((s) => s.trim())
+    .filter(Boolean)
+})
 const noteNames = ref<string[]>([])
 const noteMode = ref<'list' | 'editor'>('list')
 const editingNoteName = ref<string | null>(null)
@@ -240,7 +246,11 @@ function formatPlaytime(minutes: number) {
 
     <section v-if="activeTab === 'Overview'" class="overview">
 <div class="overview-main">
-  <p v-if="game.description" class="description">{{ game.description }}</p>
+<div v-if="descriptionParagraphs.length" class="description-wrap">
+  <p v-for="(section, i) in descriptionParagraphs" :key="i" class="description">
+    {{ section }}
+  </p>
+</div>
 
   <div class="rating-breakdown" v-if="game.ratingOverall !== null || game.ratingStory !== null || game.ratingGameplay !== null || game.ratingSound !== null">
     <div v-if="game.ratingOverall !== null" class="rating-item">
@@ -269,93 +279,96 @@ function formatPlaytime(minutes: number) {
 <aside class="details-panel">
   <h3 class="panel-title">Details</h3>
   <div class="detail-row">
+    <span class="detail-label">Developer</span>
+    <span class="detail-value">{{ game.developer ?? '—' }}</span>
+  </div>
+  <div class="detail-row">
+    <span class="detail-label">Publisher</span>
+    <span class="detail-value">{{ game.publisher ?? '—' }}</span>
+  </div>
+  <div class="detail-row">
     <span class="detail-label">Series</span>
-          <span class="detail-value">{{ game.series ?? '—' }}</span>
-        </div>
-        <div class="detail-row">
-          <span class="detail-label">Developer</span>
-          <span class="detail-value">{{ game.developer ?? '—' }}</span>
-        </div>
-        <div class="detail-row">
-          <span class="detail-label">Publisher</span>
-          <span class="detail-value">{{ game.publisher ?? '—' }}</span>
-        </div>
-        <div v-if="game.source" class="detail-row">
-          <span class="detail-label">Source</span>
-          <span class="detail-value">{{ game.source }}</span>
-        </div>
-        <div v-if="game.ageRating" class="detail-row">
-          <span class="detail-label">Age Rating</span>
-          <span class="detail-value">{{ game.ageRating }}</span>
-        </div>
-        <div class="detail-row">
-          <span class="detail-label">Date Added</span>
-          <span class="detail-value">
-            {{ game.dateAdded ? new Date(game.dateAdded).toLocaleDateString() : '—' }}
+    <span class="detail-value">{{ game.series ?? '—' }}</span>
+  </div>
+  <div v-if="game.releaseDate" class="detail-row">
+    <span class="detail-label">Release Date</span>
+    <span class="detail-value">{{ new Date(game.releaseDate).toLocaleDateString() }}</span>
+  </div>
+  <div class="detail-row">
+    <span class="detail-label">Date Added</span>
+    <span class="detail-value">
+      {{ game.dateAdded ? new Date(game.dateAdded).toLocaleDateString() : '—' }}
+    </span>
+  </div>
+  <div class="detail-row">
+    <span class="detail-label">Recent Activity</span>
+    <span class="detail-value">
+      {{ recentActivity ? new Date(recentActivity).toLocaleDateString() : '—' }}
+    </span>
+  </div>
+  <div class="detail-row">
+    <span class="detail-label">Platforms</span>
+    <ul class="platforms">
+      <li v-for="p in game.platforms" :key="p.platform" class="platform-row">
+        <div class="platform-line">
+          <span class="platform-name">{{ p.platform }}</span>
+          <span class="platform-meta">
+            {{ formatPlaytime(p.playtimeMinutes) }}<span v-if="p.completionPercent !== null"> · {{ p.completionPercent }}%</span>
           </span>
         </div>
-        <div v-if="game.releaseDate" class="detail-row">
-          <span class="detail-label">Release Date</span>
-          <span class="detail-value">{{ new Date(game.releaseDate).toLocaleDateString() }}</span>
+        <div v-if="p.lastPlayedAt" class="platform-last-played">
+          last played {{ new Date(p.lastPlayedAt).toLocaleDateString() }}
         </div>
-        <div class="detail-row">
-          <span class="detail-label">Recent Activity</span>
-          <span class="detail-value">
-            {{ recentActivity ? new Date(recentActivity).toLocaleDateString() : '—' }}
-          </span>
-        </div>
-        <div class="detail-row">
-          <span class="detail-label">Platforms</span>
-          <ul class="platforms">
-            <li v-for="p in game.platforms" :key="p.platform">
-              <span class="platform-name">{{ p.platform }}</span>
-              <span>{{ formatPlaytime(p.playtimeMinutes) }}</span>
-              <span v-if="p.completionPercent !== null">{{ p.completionPercent }}%</span>
-              <span v-if="p.lastPlayedAt">
-                last played {{ new Date(p.lastPlayedAt).toLocaleDateString() }}
-              </span>
-            </li>
-          </ul>
-        </div>
-        <div v-if="game.features.length" class="detail-row">
-          <span class="detail-label">Features</span>
-          <span class="feature-pills">
-            <span v-for="f in game.features" :key="f" class="feature-pill">{{ f }}</span>
-          </span>
-        </div>
-        <div v-if="game.tags.length" class="detail-row">
-          <span class="detail-label">Tags</span>
-          <span class="feature-pills">
-            <span v-for="tag in game.tags" :key="tag" class="feature-pill">{{ tag }}</span>
-          </span>
-        </div>
-        <div v-if="game.folderLocation" class="detail-row">
-          <span class="detail-label">Folder</span>
-          <span class="detail-value">{{ game.folderLocation }}</span>
-        </div>
-        <div v-if="game.links.length" class="detail-row">
-          <span class="detail-label">Links</span>
-          <ul class="links-list">
-            <li v-for="link in game.links" :key="link.url">
-              <a :href="link.url" target="_blank" rel="noopener noreferrer">{{ link.label }}</a>
-            </li>
-          </ul>
-        </div>
-        <div
-          v-if="game.ownership.format || game.ownership.purchaseDate || game.ownership.price !== null"
-          class="detail-row"
-        >
-          <span class="detail-label">Ownership</span>
-          <div class="ownership-info">
-            <span v-if="game.ownership.format" class="ownership-format">{{ game.ownership.format }}</span>
-            <span v-if="game.ownership.purchaseDate">
-              Purchased {{ new Date(game.ownership.purchaseDate).toLocaleDateString() }}
-            </span>
-            <span v-if="game.ownership.price !== null">${{ game.ownership.price.toFixed(2) }}</span>
-            <span v-if="game.ownership.condition">{{ game.ownership.condition }}</span>
-          </div>
-        </div>
-      </aside>
+      </li>
+    </ul>
+  </div>
+  <div v-if="game.tags.length" class="detail-row">
+    <span class="detail-label">Tags</span>
+    <span class="feature-pills">
+      <span v-for="tag in game.tags" :key="tag" class="feature-pill">{{ tag }}</span>
+    </span>
+  </div>
+  <div v-if="game.features.length" class="detail-row">
+    <span class="detail-label">Features</span>
+    <span class="feature-pills">
+      <span v-for="f in game.features" :key="f" class="feature-pill">{{ f }}</span>
+    </span>
+  </div>
+  <div v-if="game.source" class="detail-row">
+    <span class="detail-label">Source</span>
+    <span class="detail-value">{{ game.source }}</span>
+  </div>
+  <div v-if="game.ageRating" class="detail-row">
+    <span class="detail-label">Age Rating</span>
+    <span class="detail-value">{{ game.ageRating }}</span>
+  </div>
+  <div v-if="game.links.length" class="detail-row">
+    <span class="detail-label">Links</span>
+    <ul class="links-list">
+      <li v-for="link in game.links" :key="link.url">
+        <a :href="link.url" target="_blank" rel="noopener noreferrer">{{ link.label }}</a>
+      </li>
+    </ul>
+  </div>
+  <div
+    v-if="game.ownership.format || game.ownership.purchaseDate || game.ownership.price !== null"
+    class="detail-row"
+  >
+    <span class="detail-label">Ownership</span>
+    <div class="ownership-info">
+      <span v-if="game.ownership.format" class="ownership-format">{{ game.ownership.format }}</span>
+      <span v-if="game.ownership.purchaseDate">
+        Purchased {{ new Date(game.ownership.purchaseDate).toLocaleDateString() }}
+      </span>
+      <span v-if="game.ownership.price !== null">${{ game.ownership.price.toFixed(2) }}</span>
+      <span v-if="game.ownership.condition">{{ game.ownership.condition }}</span>
+    </div>
+  </div>
+  <div v-if="game.folderLocation" class="detail-row">
+    <span class="detail-label">Folder</span>
+    <span class="detail-value">{{ game.folderLocation }}</span>
+  </div>
+</aside>
     </section>
 
     <section v-else-if="activeTab === 'Achievements'" class="achievements">
@@ -470,8 +483,6 @@ function formatPlaytime(minutes: number) {
   transform: scale(1.2);
   z-index: 0;
 }
-.hero,
-.tabs,
 .overview {
   width: 100%;
   max-width: 1600px;
@@ -483,6 +494,9 @@ function formatPlaytime(minutes: number) {
   gap: 28px;
   align-items: start;
 }
+.hero,
+.tabs,
+.overview,
 .achievements,
 .notes-panel,
 .coming-soon {
@@ -512,7 +526,7 @@ function formatPlaytime(minutes: number) {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 12px;
+  gap: 18px;
 }
 .hero-inner h1 {
   margin: 0;
@@ -601,17 +615,42 @@ function formatPlaytime(minutes: number) {
   padding: 24px;
   box-sizing: border-box;
   display: grid;
-  grid-template-columns: 1fr 280px;
+  grid-template-columns: 1fr 340px;
   gap: 24px;
   align-items: start;
+}
+.description-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 720px;
+  padding-left: 16px;
+  border-left: 3px solid #d68a34;
 }
 .description {
   margin: 0;
   color: #ddd;
-  font-size: 17px;
+  font-size: 16px;
   line-height: 1.7;
-  padding-left: 16px;
-  border-left: 3px solid #d68a34;
+}
+.description.clamped {
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.description-toggle {
+  align-self: flex-start;
+  background: none;
+  border: none;
+  color: #d68a34;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  padding-left: 19px;
+}
+.description-toggle:hover {
+  text-decoration: underline;
 }
 .rating-breakdown {
   display: flex;
@@ -644,6 +683,7 @@ function formatPlaytime(minutes: number) {
   padding: 6px 18px 16px;
   background: rgba(0, 0, 0, 0.3);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  margin-right: -24px;
 }
 .panel-title {
   margin: 14px 0 6px;
@@ -688,18 +728,31 @@ function formatPlaytime(minutes: number) {
   margin: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
-.platforms li {
+.platform-row {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  color: #999;
+  gap: 1px;
+}
+.platform-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
   font-size: 14px;
 }
 .platform-name {
   color: #fff;
   font-weight: 600;
+}
+.platform-meta {
+  color: #999;
+  white-space: nowrap;
+}
+.platform-last-played {
+  color: #666;
+  font-size: 12px;
 }
 .links-list {
   list-style: none;
