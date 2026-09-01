@@ -38,6 +38,10 @@ function toNumberOrNull(value: number | string | null): number | null {
 function normalizeStatus(raw: string): GameStatus {
   return raw.toLowerCase().replace(/_/g, ' ') as GameStatus
 }
+// inverse of normalizeStatus — 'on hold' -> 'ON_HOLD'
+function denormalizeStatus(status: GameStatus): string {
+  return status.toUpperCase().replace(/ /g, '_')
+}
 
 export function mapBackendGame(raw: BackendGame): Game {
   return {
@@ -98,6 +102,79 @@ export async function fetchGame(id: string): Promise<Game | null> {
   if (!response.ok) {
     throw new Error(`Failed to fetch game ${id}: ${response.status} ${response.statusText}`)
   }
+  const raw: BackendGame = await response.json()
+  return mapBackendGame(raw)
+}
+export interface NewGameInput {
+  title: string
+  folderLocation: string
+  status: GameStatus
+  description: string | null
+  developer: string | null
+  publisher: string | null
+  series: string | null
+  dateAdded: string | null
+  ratingOverall: number | null
+  ratingStory: number | null
+  ratingGameplay: number | null
+  ratingSound: number | null
+  tags: string[]
+  features: string[]
+}
+
+export async function createGame(input: NewGameInput): Promise<Game> {
+  if (import.meta.env.VITE_USE_MOCK_DATA === 'true') {
+    const newGame: Game = {
+      id: crypto.randomUUID(),
+      title: input.title,
+      coverColor: '#2a2a2a',
+      coverImageUrl: `https://picsum.photos/seed/${input.title}/1200/1800`,
+      bannerImageUrl: `https://picsum.photos/seed/${input.title}-banner/1600/500`,
+      status: input.status,
+      ratingOverall: input.ratingOverall,
+      ratingStory: input.ratingStory,
+      ratingGameplay: input.ratingGameplay,
+      ratingSound: input.ratingSound,
+      achievementPercent: 0,
+      achievements: [],
+      description: input.description,
+      developer: input.developer,
+      publisher: input.publisher,
+      series: input.series,
+      dateAdded: input.dateAdded,
+      tags: input.tags,
+      features: input.features,
+      platforms: [],
+    }
+    mockGames.push(newGame)
+    return newGame
+  }
+
+  const response = await fetch('/api/game/create', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      title: input.title,
+      folder_location: input.folderLocation,
+      status: denormalizeStatus(input.status),
+      description: input.description,
+      developer: input.developer,
+      publisher: input.publisher,
+      series: input.series,
+      rating_overall: input.ratingOverall,
+      rating_story: input.ratingStory,
+      rating_gameplay: input.ratingGameplay,
+      rating_soundtrack: input.ratingSound,
+      tags: input.tags,
+      features: input.features,
+    }),
+  })
+
+  if (!response.ok) {
+    const message = await response.text()
+    throw new Error(`Failed to create game: ${response.status} ${response.statusText} ${message}`)
+  }
+
   const raw: BackendGame = await response.json()
   return mapBackendGame(raw)
 }
