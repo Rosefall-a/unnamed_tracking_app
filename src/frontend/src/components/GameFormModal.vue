@@ -1,13 +1,19 @@
 <script setup lang="ts">
-import { ref } from 'vue'
-import { createGame, uploadGameAsset } from '../services/games'
+import { ref, computed } from 'vue'
+import { createGame, updateGame, uploadGameAsset } from '../services/games'
 import type { GameLink, GameOwnership } from '../services/games'
-import type { GameStatus } from '../types/game'
+import type { Game, GameStatus } from '../types/game'
+
+const props = defineProps<{
+  game?: Game | null
+}>()
 
 const emit = defineEmits<{
   close: []
-  created: [gameId: string]
+  saved: [gameId: string]
 }>()
+
+const isEditing = computed(() => !!props.game)
 
 const statuses: GameStatus[] = [
   'wishlist',
@@ -23,25 +29,25 @@ const statuses: GameStatus[] = [
 const tabs = ['General', 'Ratings & Tags', 'Media', 'Links', 'Ownership'] as const
 const activeTab = ref<(typeof tabs)[number]>('General')
 
-const title = ref('')
+const title = ref(props.game?.title ?? '')
 const sortTitle = ref('')
 const folderLocation = ref('')
-const status = ref<GameStatus>('backlog')
-const developer = ref('')
-const publisher = ref('')
-const series = ref('')
+const status = ref<GameStatus>(props.game?.status ?? 'backlog')
+const developer = ref(props.game?.developer ?? '')
+const publisher = ref(props.game?.publisher ?? '')
+const series = ref(props.game?.series ?? '')
 const source = ref('')
 const ageRating = ref('')
 const releaseDate = ref('')
-const dateAdded = ref(new Date().toISOString().slice(0, 10))
-const description = ref('')
+const dateAdded = ref(props.game?.dateAdded ?? new Date().toISOString().slice(0, 10))
+const description = ref(props.game?.description ?? '')
 
-const ratingOverall = ref<number | null>(null)
-const ratingStory = ref<number | null>(null)
-const ratingGameplay = ref<number | null>(null)
-const ratingSound = ref<number | null>(null)
-const tagsInput = ref('')
-const featuresInput = ref('')
+const ratingOverall = ref<number | null>(props.game?.ratingOverall ?? null)
+const ratingStory = ref<number | null>(props.game?.ratingStory ?? null)
+const ratingGameplay = ref<number | null>(props.game?.ratingGameplay ?? null)
+const ratingSound = ref<number | null>(props.game?.ratingSound ?? null)
+const tagsInput = ref(props.game?.tags.join(', ') ?? '')
+const featuresInput = ref(props.game?.features.join(', ') ?? '')
 
 const coverFile = ref<File | null>(null)
 const bannerFile = ref<File | null>(null)
@@ -79,8 +85,13 @@ function onBannerFileChange(e: Event) {
 }
 
 async function submit() {
-  if (!title.value.trim() || !folderLocation.value.trim()) {
-    error.value = 'Title and folder name are required.'
+  if (!title.value.trim()) {
+    error.value = 'Title is required.'
+    activeTab.value = 'General'
+    return
+  }
+  if (!isEditing.value && !folderLocation.value.trim()) {
+    error.value = 'Folder name is required.'
     activeTab.value = 'General'
     return
   }
@@ -88,47 +99,51 @@ async function submit() {
   saving.value = true
   error.value = null
 
+  const input = {
+    title: title.value.trim(),
+    sortTitle: sortTitle.value.trim() || null,
+    folderLocation: folderLocation.value.trim(),
+    status: status.value,
+    description: description.value.trim() || null,
+    developer: developer.value.trim() || null,
+    publisher: publisher.value.trim() || null,
+    series: series.value.trim() || null,
+    releaseDate: releaseDate.value || null,
+    dateAdded: dateAdded.value || null,
+    source: source.value.trim() || null,
+    ageRating: ageRating.value.trim() || null,
+    ratingOverall: ratingOverall.value,
+    ratingStory: ratingStory.value,
+    ratingGameplay: ratingGameplay.value,
+    ratingSound: ratingSound.value,
+    tags: tagsInput.value.split(',').map((t) => t.trim()).filter(Boolean),
+    features: featuresInput.value.split(',').map((f) => f.trim()).filter(Boolean),
+    links: links.value.filter((l) => l.label.trim() && l.url.trim()),
+    ownership: {
+      format: ownershipFormat.value,
+      purchaseDate: purchaseDate.value || null,
+      price: price.value,
+      condition: condition.value.trim() || null,
+    },
+  }
+
   try {
-    const newGame = await createGame({
-      title: title.value.trim(),
-      sortTitle: sortTitle.value.trim() || null,
-      folderLocation: folderLocation.value.trim(),
-      status: status.value,
-      description: description.value.trim() || null,
-      developer: developer.value.trim() || null,
-      publisher: publisher.value.trim() || null,
-      series: series.value.trim() || null,
-      releaseDate: releaseDate.value || null,
-      dateAdded: dateAdded.value || null,
-      source: source.value.trim() || null,
-      ageRating: ageRating.value.trim() || null,
-      ratingOverall: ratingOverall.value,
-      ratingStory: ratingStory.value,
-      ratingGameplay: ratingGameplay.value,
-      ratingSound: ratingSound.value,
-      tags: tagsInput.value.split(',').map((t) => t.trim()).filter(Boolean),
-      features: featuresInput.value.split(',').map((f) => f.trim()).filter(Boolean),
-      links: links.value.filter((l) => l.label.trim() && l.url.trim()),
-      ownership: {
-        format: ownershipFormat.value,
-        purchaseDate: purchaseDate.value || null,
-        price: price.value,
-        condition: condition.value.trim() || null,
-      },
-    })
+    const savedGame = isEditing.value
+      ? await updateGame(props.game!.id, input)
+      : await createGame(input)
 
     if (import.meta.env.VITE_USE_MOCK_DATA !== 'true') {
       if (coverFile.value) {
-        await uploadGameAsset(newGame.id, 'key_art', coverFile.value)
+        await uploadGameAsset(savedGame.id, 'key_art', coverFile.value)
       }
       if (bannerFile.value) {
-        await uploadGameAsset(newGame.id, 'banner', bannerFile.value)
+        await uploadGameAsset(savedGame.id, 'banner', bannerFile.value)
       }
     }
 
-    emit('created', newGame.id)
+    emit('saved', savedGame.id)
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Failed to create game'
+    error.value = err instanceof Error ? err.message : 'Failed to save game'
   } finally {
     saving.value = false
   }
@@ -139,7 +154,7 @@ async function submit() {
   <div class="modal-backdrop" @click.self="emit('close')">
     <div class="modal">
       <div class="modal-header">
-        <h2>Add Game</h2>
+        <h2>{{ isEditing ? 'Edit Game' : 'Add Game' }}</h2>
         <button type="button" class="close-button" @click="emit('close')">✕</button>
       </div>
 
@@ -175,8 +190,9 @@ async function submit() {
               <input
                 v-model="folderLocation"
                 type="text"
-                required
+                :required="!isEditing"
                 pattern="[A-Za-z0-9_-]+"
+                :placeholder="isEditing ? 'leave blank to keep current' : ''"
                 @input="folderTouched = true"
               />
             </label>
@@ -273,7 +289,7 @@ async function submit() {
             <input type="file" accept="image/*" @change="onBannerFileChange" />
           </label>
           <p class="hint">
-            Images upload after the game is created, and only against a real backend — skipped
+            Images upload after the game is saved, and only against a real backend — skipped
             automatically while running on mock data.
           </p>
         </div>
@@ -325,7 +341,7 @@ async function submit() {
         <div class="modal-actions">
           <button type="button" class="secondary-button" @click="emit('close')">Cancel</button>
           <button type="submit" class="primary-button" :disabled="saving">
-            {{ saving ? 'Saving…' : 'Add Game' }}
+            {{ saving ? 'Saving…' : (isEditing ? 'Save Changes' : 'Add Game') }}
           </button>
         </div>
       </form>
@@ -337,7 +353,7 @@ async function submit() {
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.6);
+  background: rgba(0, 0, 0, 0.65);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -346,20 +362,24 @@ async function submit() {
 .modal {
   background: #1a1a1a;
   border: 1px solid #2a2a2a;
-  border-radius: 12px;
+  border-radius: 14px;
   width: 100%;
   max-width: 760px;
+  height: 640px;
   max-height: 88vh;
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
   color: #fff;
   font-family: system-ui, sans-serif;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
 }
 .modal-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 16px 20px;
+  padding: 18px 22px;
   border-bottom: 1px solid #2a2a2a;
+  flex-shrink: 0;
 }
 .modal-header h2 {
   margin: 0;
@@ -368,42 +388,61 @@ async function submit() {
 .close-button {
   background: none;
   border: none;
-  color: #aaa;
-  font-size: 16px;
+  color: #999;
+  font-size: 15px;
   cursor: pointer;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.close-button:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
 }
 .modal-tabs {
   display: flex;
   gap: 4px;
-  padding: 10px 16px 0;
+  padding: 12px 20px 0;
   border-bottom: 1px solid #2a2a2a;
+  flex-shrink: 0;
+  overflow-x: auto;
 }
 .modal-tab {
   background: none;
   border: none;
   color: #999;
-  padding: 8px 14px;
+  padding: 9px 16px;
   font-size: 13px;
+  font-weight: 500;
   cursor: pointer;
-  border-radius: 999px 999px 0 0;
+  border-radius: 8px 8px 0 0;
+  white-space: nowrap;
+  border-bottom: 2px solid transparent;
+  transition: color 0.15s ease, background 0.15s ease;
 }
 .modal-tab:hover {
   color: #ddd;
+  background: rgba(255, 255, 255, 0.05);
 }
 .modal-tab.active {
   color: #fff;
-  background: rgba(245, 197, 24, 0.12);
+  background: rgba(245, 197, 24, 0.1);
+  border-bottom-color: #f5c518;
 }
 .modal-body {
-  padding: 20px;
+  padding: 20px 22px;
   display: flex;
   flex-direction: column;
   gap: 14px;
+  overflow-y: auto;
+  flex: 1;
 }
 .tab-panel {
   display: flex;
   flex-direction: column;
   gap: 14px;
+  min-height: 380px;
 }
 .field {
   display: flex;
@@ -420,8 +459,15 @@ async function submit() {
   border: 1px solid #3a3a3a;
   border-radius: 8px;
   color: #fff;
-  padding: 8px 10px;
+  padding: 9px 11px;
   font: inherit;
+  transition: border-color 0.15s ease;
+}
+.field input:focus,
+.field select:focus,
+.field textarea:focus {
+  outline: none;
+  border-color: #f5c518;
 }
 .field-row {
   display: flex;
@@ -434,13 +480,17 @@ async function submit() {
   align-items: flex-end;
 }
 .remove-button {
-  background: rgba(220, 38, 38, 0.18);
+  background: rgba(220, 38, 38, 0.15);
   color: #fca5a5;
   border: none;
   border-radius: 8px;
-  padding: 8px 10px;
-  cursor: pointer;
+  width: 38px;
   height: 38px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.remove-button:hover {
+  background: rgba(220, 38, 38, 0.3);
 }
 .hint {
   color: #888;
@@ -450,24 +500,38 @@ async function submit() {
 .form-error {
   color: #fca5a5;
   font-size: 0.85rem;
+  background: rgba(220, 38, 38, 0.1);
+  border: 1px solid rgba(220, 38, 38, 0.3);
+  border-radius: 8px;
+  padding: 10px 12px;
 }
 .modal-actions {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
   margin-top: 8px;
+  padding-top: 14px;
+  border-top: 1px solid #2a2a2a;
 }
 .primary-button,
 .secondary-button {
   border: none;
   border-radius: 8px;
-  padding: 10px 18px;
+  padding: 10px 20px;
   font-weight: 600;
+  font-size: 0.9rem;
   cursor: pointer;
+  transition: background 0.15s ease, transform 0.05s ease;
 }
 .primary-button {
   background: #f5c518;
   color: #111;
+}
+.primary-button:hover:not(:disabled) {
+  background: #ffd83d;
+}
+.primary-button:active:not(:disabled) {
+  transform: scale(0.98);
 }
 .primary-button:disabled {
   opacity: 0.5;
@@ -476,5 +540,8 @@ async function submit() {
 .secondary-button {
   background: rgba(255, 255, 255, 0.08);
   color: #fff;
+}
+.secondary-button:hover {
+  background: rgba(255, 255, 255, 0.15);
 }
 </style>

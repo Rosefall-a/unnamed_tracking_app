@@ -9,12 +9,14 @@ import {
   saveGameNote,
 } from '../services/games'
 import type { Achievement, Game } from '../types/game'
+import GameFormModal from '../components/GameFormModal.vue'
 
 const route = useRoute()
 
 const game = ref<Game | null>(null)
 const loading = ref(true)
 const error = ref<string | null>(null)
+const showEditModal = ref(false)
 
 const noteNames = ref<string[]>([])
 const selectedNoteName = ref<string>('')
@@ -34,6 +36,11 @@ async function loadGame(id: string) {
   } finally {
     loading.value = false
   }
+}
+
+async function onGameSaved() {
+  showEditModal.value = false
+  await loadGame(route.params.id as string)
 }
 
 async function loadNotes() {
@@ -176,9 +183,11 @@ function formatPlaytime(minutes: number) {
          separate from the sharp version used in .hero itself -->
 <div class="ambient-bg" :style="{ backgroundImage: `url(${game.bannerImageUrl})` }"></div>
 
+<GameFormModal v-if="showEditModal" :game="game" @close="showEditModal = false" @saved="onGameSaved" />
+
 <section class="hero" :style="{ backgroundImage: `url(${game.bannerImageUrl})` }">
   <div class="hero-overlay"></div>
-  <button class="edit-button" type="button">Edit</button>
+  <button class="edit-button" type="button" @click="showEditModal = true">Edit</button>
   <div class="hero-inner">
     <h1>{{ game.title }}</h1>
     <div class="badges">

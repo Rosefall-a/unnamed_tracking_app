@@ -207,6 +207,84 @@ export async function createGame(input: NewGameInput): Promise<Game> {
   const raw: BackendGame = await response.json()
   return mapBackendGame(raw)
 }
+function stripEmpty<T extends Record<string, unknown>>(obj: T): Partial<T> {
+  const result: Partial<T> = {}
+  for (const key in obj) {
+    const value = obj[key]
+    const isEmpty =
+      value === null ||
+      value === '' ||
+      (Array.isArray(value) && value.length === 0)
+    if (!isEmpty) result[key] = value
+  }
+  return result
+}
+
+export async function updateGame(id: string, input: NewGameInput): Promise<Game> {
+  if (import.meta.env.VITE_USE_MOCK_DATA === 'true') {
+    const index = mockGames.findIndex((g) => g.id === id)
+    if (index === -1) throw new Error(`Game ${id} not found`)
+    const updated: Game = {
+      ...mockGames[index],
+      title: input.title,
+      status: input.status,
+      ratingOverall: input.ratingOverall,
+      ratingStory: input.ratingStory,
+      ratingGameplay: input.ratingGameplay,
+      ratingSound: input.ratingSound,
+      description: input.description,
+      developer: input.developer,
+      publisher: input.publisher,
+      series: input.series,
+      dateAdded: input.dateAdded,
+      tags: input.tags,
+      features: input.features,
+    }
+    mockGames[index] = updated
+    return updated
+  }
+
+  const body = stripEmpty({
+    title: input.title,
+    sort_title: input.sortTitle,
+    folder_location: input.folderLocation,
+    status: denormalizeStatus(input.status),
+    description: input.description,
+    developer: input.developer,
+    publisher: input.publisher,
+    series: input.series,
+    release_date: input.releaseDate,
+    source: input.source,
+    age_rating: input.ageRating,
+    rating_overall: input.ratingOverall,
+    rating_story: input.ratingStory,
+    rating_gameplay: input.ratingGameplay,
+    rating_soundtrack: input.ratingSound,
+    tags: input.tags,
+    features: input.features,
+    links: input.links,
+    ownership: input.ownership,
+  })
+
+  const response = await fetch(`/api/game/update/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+
+  if (response.status === 409) {
+    const errBody = await response.json()
+    throw new Error(errBody.detail?.message ?? 'A game with that folder name already exists.')
+  }
+
+  if (!response.ok) {
+    const message = await response.text()
+    throw new Error(`Failed to update game ${id}: ${response.status} ${response.statusText} ${message}`)
+  }
+
+  const raw: BackendGame = await response.json()
+  return mapBackendGame(raw)
+}
 
 export interface GameNoteListResponse {
   notes: string[]

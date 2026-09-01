@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import GameCard from '../components/GameCard.vue'
-import AddGameModal from '../components/AddGameModal.vue'
+import GameFormModal from '../components/GameFormModal.vue'
 import { fetchGames } from '../services/games'
 import type { Game } from '../types/game'
 
@@ -41,7 +41,7 @@ async function onGameCreated() {
       <GameCard v-for="game in games" :key="game.id" :game="game" />
     </div>
 
-    <AddGameModal v-if="showAddModal" @close="showAddModal = false" @created="onGameCreated" />
+    <GameFormModal v-if="showAddModal" @close="showAddModal = false" @saved="onGameCreated" />
   </main>
 </template>
 
