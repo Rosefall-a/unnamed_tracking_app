@@ -8,10 +8,20 @@ export type GameStatus =
   | 'dropped'
   | 'mastered'
 
+export type AchievementTier = 'bronze' | 'silver' | 'gold'
+
 export interface Achievement {
   id: string
   name: string
+  description?: string | null
   unlockedAt: string | null
+  hidden?: boolean
+  rarityPercent?: number | null
+  tierOverride?: AchievementTier | null
+  progressCurrent?: number | null
+  progressTarget?: number | null
+  notes?: string | null
+  media?: string[]
 }
 
 export interface GamePlatform {
