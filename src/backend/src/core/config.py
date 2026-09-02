@@ -12,6 +12,10 @@ class Settings(BaseSettings):
 
     DATABASE_URL: str
     STEAMGRIDDB_API_KEY: str | None = None
+    PRIMARY_USER_USERNAME: str
+    PRIMARY_USER_EMAIL: str
+    PRIMARY_USER_PASSWORD: str
+    AUTH_COOKIE_SECURE: bool = False
     DEBUG: bool = False
 
     model_config = SettingsConfigDict(extra="ignore")

@@ -141,6 +141,7 @@ class GameRead(GameBase):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
+    user_id: UUID
     sort_title: str
     created_at: int = Field(description="Unix timestamp in seconds when the game was created.")
     updated_at: int = Field(description="Unix timestamp in seconds when the game was last updated.")
