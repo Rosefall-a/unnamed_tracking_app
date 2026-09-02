@@ -1,8 +1,9 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
+from src.core.auth import get_current_user
 from src.helpers.currency_codes import CURRENCY_CODES
 
-router = APIRouter(prefix="/api", tags=["misc"])
+router = APIRouter(prefix="/api", tags=["misc"], dependencies=[Depends(get_current_user)])
 
 
 @router.get("/currency-codes")
