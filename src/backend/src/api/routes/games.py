@@ -6,20 +6,26 @@ from pathlib import Path
 from urllib.parse import urlparse
 from uuid import UUID
 
-import requests
-from fastapi import APIRouter, Body, Depends, File, HTTPException, Query, Response, UploadFile, status
-from fastapi.responses import FileResponse
+from fastapi import (
+    APIRouter,
+    Body,
+    Depends,
+    File,
+    HTTPException,
+    Query,
+    Response,
+    UploadFile,
+    status,
+)
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.database.session import get_db
-from src.database.models.game import Game, GameStatus
 from src.api.schemas.game import GameCreate, GameRead, GameUpdate
-from src.helpers.save_game_asset import AssetKind, create_game_folder, save_game_asset
-from src.helpers.save_game_asset import ASSET_FILENAMES
-from src.features.metadata.games.search import search_game_metadata
+from src.database.models.game import Game, GameStatus
+from src.database.session import get_db
+from src.helpers.save_game_asset import AssetKind, save_game_asset
 
 router = APIRouter(
     prefix="/api/game",
@@ -330,7 +336,9 @@ async def get_game_note(
             detail=f"Note '{_normalize_note_name(note_name)}' not found for game {game_id}",
         )
 
-    return Response(content=note_path.read_text(encoding="utf-8"), media_type="text/markdown; charset=utf-8")
+    return Response(
+        content=note_path.read_text(encoding="utf-8"), media_type="text/markdown; charset=utf-8"
+    )
 
 
 @router.delete(

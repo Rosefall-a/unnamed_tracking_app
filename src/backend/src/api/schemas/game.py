@@ -3,13 +3,13 @@ from decimal import Decimal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
-from src.helpers.currency_codes import CURRENCY_CODES
 
 from src.database.models.game import (
     FOLDER_NAME_MAX_LENGTH,
     FOLDER_NAME_PATTERN,
     GameStatus,
 )
+from src.helpers.currency_codes import CURRENCY_CODES
 
 
 class GameBase(BaseModel):
