@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import type { Game, GameStatus } from '../types/game'
 import { setFavorite, setStatus } from '../services/games'
+import { ref, computed, nextTick } from 'vue'
 
 const props = defineProps<{
   game: Game
@@ -21,6 +21,31 @@ const menuOpen = ref(false)
 const statusSubmenuOpen = ref(false)
 const localFavorite = ref(props.game.favorite)
 const favoriteSaving = ref(false)
+
+const menuTriggerRef = ref<HTMLElement | null>(null)
+const menuPosition = ref({ top: 0, left: 0 })
+
+function onWindowScroll() {
+  closeMenu()
+}
+
+async function toggleMenu() {
+  menuOpen.value = !menuOpen.value
+  if (menuOpen.value && menuTriggerRef.value) {
+    await nextTick()
+    const rect = menuTriggerRef.value.getBoundingClientRect()
+    menuPosition.value = { top: rect.bottom + 6, left: rect.right - 190 }
+    window.addEventListener('scroll', onWindowScroll, true)
+  } else {
+    window.removeEventListener('scroll', onWindowScroll, true)
+  }
+}
+
+function closeMenu() {
+  menuOpen.value = false
+  statusSubmenuOpen.value = false
+  window.removeEventListener('scroll', onWindowScroll, true)
+}
 
 const statuses: GameStatus[] = [
   'wishlist',
@@ -67,10 +92,6 @@ function copyFolderPath() {
   closeMenu()
 }
 
-function closeMenu() {
-  menuOpen.value = false
-  statusSubmenuOpen.value = false
-}
 </script>
 
 <template>
@@ -107,7 +128,7 @@ function closeMenu() {
   </svg>
 </button>
 
-<button type="button" class="menu-trigger" @click.stop="menuOpen = !menuOpen">
+<button type="button" class="menu-trigger" ref="menuTriggerRef" @click.stop="toggleMenu">
   <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
     <circle cx="5" cy="12" r="2" />
     <circle cx="12" cy="12" r="2" />
@@ -115,9 +136,10 @@ function closeMenu() {
   </svg>
 </button>
 
-      <div v-if="menuOpen" class="menu-backdrop" @click="closeMenu"></div>
-      <Transition name="menu-pop">
-        <div v-if="menuOpen" class="card-menu" @click.stop>
+<Teleport to="body">
+  <div v-if="menuOpen" class="menu-backdrop" @click="closeMenu"></div>
+  <Transition name="menu-pop">
+    <div v-if="menuOpen" class="card-menu" :style="{ top: menuPosition.top + 'px', left: menuPosition.left + 'px' }" @click.stop>
           <template v-if="!statusSubmenuOpen">
             <button type="button" class="menu-item" @click="openGame">Open</button>
             <div class="menu-divider"></div>
@@ -149,7 +171,8 @@ function closeMenu() {
             </button>
           </template>
         </div>
-      </Transition>
+            </Transition>
+    </Teleport>
     </div>
 
     <div class="card-info">
@@ -258,9 +281,7 @@ function closeMenu() {
   z-index: 20;
 }
 .card-menu {
-  position: absolute;
-  top: 42px;
-  right: 8px;
+  position: fixed;
   width: 190px;
   background: #1e1e1e;
   border: 1px solid #333;
