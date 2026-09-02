@@ -2,6 +2,7 @@
 
 import asyncio
 import re
+import shutil
 from pathlib import Path
 from urllib.parse import urlparse
 from uuid import UUID
@@ -39,7 +40,7 @@ router = APIRouter(
     dependencies=[Depends(get_current_user)],
 )
 
-_DATA_ROOT = Path("/data/games")
+_DATA_ROOT = Path("/data/users")
 _NOTE_NAME_PATTERN = re.compile(r"^[A-Za-z0-9_-]+$")
 _LEADING_ARTICLE = re.compile(r"^(a|an|the)\s+", flags=re.IGNORECASE)
 
@@ -94,7 +95,7 @@ async def get_game_asset(
         )
 
     game = await _get_game_or_404(game_id, db, current_user.id)
-    asset_path = _DATA_ROOT / game.folder_location / ASSET_FILENAMES[asset_kind]
+    asset_path = _DATA_ROOT / str(game.user_id) / "games" / game.folder_location / ASSET_FILENAMES[asset_kind]
     if not asset_path.is_file():
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -128,9 +129,10 @@ def _duplicate_folder_error(folder_name: str) -> HTTPException:
 async def _ensure_folder_location_available(
     folder_name: str,
     db: AsyncSession,
+    user_id: UUID,
     exclude_game_id: UUID | None = None,
 ) -> None:
-    stmt = select(Game.id).where(Game.folder_location == folder_name)
+    stmt = select(Game.id).where(Game.folder_location == folder_name, Game.user_id == user_id)
     if exclude_game_id is not None:
         stmt = stmt.where(Game.id != exclude_game_id)
 
@@ -161,7 +163,7 @@ def _game_note_path(game: Game, note_name: str) -> Path:
         )
 
     note_file_name = f"{_normalize_note_name(note_name)}.md"
-    note_dir = _DATA_ROOT / game.folder_location / "notes"
+    note_dir = _DATA_ROOT / str(game.user_id) / "games" / game.folder_location / "notes"
     note_dir.mkdir(parents=True, exist_ok=True)
     return note_dir / note_file_name
 
@@ -316,7 +318,7 @@ async def list_game_notes(
             detail="Game folder_location is missing.",
         )
 
-    notes_dir = _DATA_ROOT / game.folder_location / "notes"
+    notes_dir = _DATA_ROOT / str(game.user_id) / "games" / game.folder_location / "notes"
     if not notes_dir.exists():
         return {"notes": []}
 
@@ -413,7 +415,7 @@ async def create_game(
     current_user: User = Depends(get_current_user),
 ) -> Game:
     """Create a game after validating its folder location."""
-    await _ensure_folder_location_available(payload.folder_location, db)
+    await _ensure_folder_location_available(payload.folder_location, db, current_user.id)
 
     data = payload.model_dump()
     data["user_id"] = current_user.id
@@ -430,7 +432,7 @@ async def create_game(
         raise _duplicate_folder_error(payload.folder_location) from exc
 
     await db.refresh(game)
-    create_game_folder(game.folder_location)
+    create_game_folder(game.user_id, game.folder_location)
     return game
 
 
@@ -504,7 +506,7 @@ async def update_game(
 
     if "folder_location" in updates and updates["folder_location"] is not None:
         await _ensure_folder_location_available(
-            updates["folder_location"], db, exclude_game_id=game_id
+            updates["folder_location"], db, current_user.id, exclude_game_id=game_id
         )
 
     for field, value in updates.items():
@@ -532,5 +534,7 @@ async def delete_game(
 ) -> None:
     """Delete a game by ID."""
     game = await _get_game_or_404(game_id, db, current_user.id)
+    game_path = _DATA_ROOT / str(game.user_id) / "games" / game.folder_location
     await db.delete(game)
     await db.commit()
+    shutil.rmtree(game_path, ignore_errors=True)

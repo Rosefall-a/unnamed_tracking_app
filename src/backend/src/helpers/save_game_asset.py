@@ -11,7 +11,7 @@ from sqlalchemy import select
 from src.database.models.game import Game
 from src.database.session import SessionLocal
 
-DATA_ROOT = Path("/data/games")
+DATA_ROOT = Path("/data/users")
 
 AssetKind = Literal["key_art", "banner", "logo", "icon"]
 
@@ -30,9 +30,9 @@ ASSET_FILENAMES: dict[AssetKind, str] = {
 }
 
 
-def create_game_folder(folder_name: str) -> Path:
+def create_game_folder(user_id: UUID | str, folder_name: str) -> Path:
     """Create and return the persistent data directory for a game."""
-    folder_path = DATA_ROOT / folder_name
+    folder_path = DATA_ROOT / str(user_id) / "games" / folder_name
     folder_path.mkdir(parents=True, exist_ok=True)
     (folder_path / "notes").mkdir(exist_ok=True)
     (folder_path / "screenshots").mkdir(exist_ok=True)
@@ -57,14 +57,14 @@ def _resize_to_fit(image: Image.Image, width: int, height: int) -> Image.Image:
     return resized
 
 
-async def get_game_folder(game_id: UUID | str) -> str:
+async def get_game_folder(game_id: UUID | str) -> tuple[UUID, str]:
     async with SessionLocal() as session:
         game = await session.scalar(select(Game).where(Game.id == str(game_id)))
         if game is None:
             raise ValueError(f"Game not found for id: {game_id}")
         if not game.folder_location:
             raise ValueError(f"Game {game_id} is missing folder_location")
-        return game.folder_location
+        return game.user_id, game.folder_location
 
 
 async def save_game_asset(
@@ -80,8 +80,8 @@ async def save_game_asset(
     if asset_kind not in ASSET_SIZES:
         raise ValueError(f"Unsupported asset kind: {asset_kind}")
 
-    folder_name = await get_game_folder(game_id)
-    output_dir = create_game_folder(folder_name)
+    user_id, folder_name = await get_game_folder(game_id)
+    output_dir = create_game_folder(user_id, folder_name)
 
     width, height = ASSET_SIZES[asset_kind]
     image_obj = _load_image_bytes(image)
