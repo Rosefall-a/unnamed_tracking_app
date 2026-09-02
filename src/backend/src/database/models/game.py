@@ -1,28 +1,26 @@
 import time
-from datetime import date, datetime, timezone
+from datetime import date
 from decimal import Decimal
 from enum import Enum
 from uuid import UUID, uuid4
 
 from sqlalchemy import (
+    BigInteger,
     Boolean,
     Date,
-    DateTime,
-    Enum as SAEnum,
     ForeignKey,
     Numeric,
     String,
     Text,
 )
+from sqlalchemy import (
+    Enum as SAEnum,
+)
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import BigInteger
-from pydantic import BaseModel, field_validator
-
 
 from src.database.base import Base
-from src.helpers.currency_codes import CURRENCY_CODES
 
 # Folder name rules: letters, digits, underscore, hyphen only — no spaces,
 # no path separators, no reserved filesystem characters. Adjust the
@@ -40,7 +38,7 @@ class GameStatus(str, Enum):
     PLAYED = "PLAYED"
     BEATEN = "BEATEN"
     MASTERED = "MASTERED"
-    
+
 
 class Game(Base):
     __tablename__ = "games"
@@ -179,7 +177,7 @@ class Game(Base):
         String(3),                                                    # Should always be uppercase
         nullable=True,
     )
-    
+
 
     physical_condition: Mapped[str | None] = mapped_column(
         String(200),

@@ -8,7 +8,6 @@ from sqlalchemy.ext.asyncio import (
 
 from src.core.config import settings
 
-
 # The engine manages the connection pool to PostgreSQL.
 engine = create_async_engine(
     settings.DATABASE_URL,

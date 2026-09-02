@@ -13,8 +13,8 @@ Endpoints used here:
 """
 
 import time
-import requests
 
+import requests
 
 BASE_URL = "https://store.steampowered.com/api"
 SESSION = requests.Session()
@@ -130,5 +130,3 @@ def print_app_details(details: dict) -> None:
     movies = details.get("movies", [])
     if movies:
         print(f"Trailers/movies: {len(movies)} available")
-
-
