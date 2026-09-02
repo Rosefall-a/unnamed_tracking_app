@@ -57,6 +57,8 @@ export interface Game {
   ageRating: string | null
   links: GameLink[]
   ownership: GameOwnership
+  favorite: boolean
+  collections: string[]
   tags: string[]
   // capability/technical tags (Achievements, Co-op, Multiplayer...) — different from `tags`,
   // which are genre/style descriptors
