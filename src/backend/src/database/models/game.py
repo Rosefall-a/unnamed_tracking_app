@@ -1,14 +1,30 @@
-from datetime import date, datetime, timezone
+import time
+from datetime import date
 from decimal import Decimal
 from enum import Enum
+from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
-from sqlalchemy import Boolean, Date, DateTime, Enum as SAEnum, Numeric, String, Text
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    Date,
+    ForeignKey,
+    Numeric,
+    String,
+    Text,
+)
+from sqlalchemy import (
+    Enum as SAEnum,
+)
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.database.base import Base
+
+if TYPE_CHECKING:
+    from src.database.models.user import User
 
 # Folder name rules: letters, digits, underscore, hyphen only — no spaces,
 # no path separators, no reserved filesystem characters. Adjust the
@@ -19,6 +35,7 @@ FOLDER_NAME_MAX_LENGTH = 150
 
 class GameStatus(str, Enum):
     """Game status aligned with Playnite."""
+
     DROPPED = "DROPPED"
     WISHLIST = "WISHLIST"
     BACKLOG = "BACKLOG"
@@ -27,7 +44,7 @@ class GameStatus(str, Enum):
     PLAYED = "PLAYED"
     BEATEN = "BEATEN"
     MASTERED = "MASTERED"
-    
+
 
 class Game(Base):
     __tablename__ = "games"
@@ -42,6 +59,13 @@ class Game(Base):
         default=uuid4,
     )
 
+    user_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("users.id"),
+        nullable=False,
+        index=True,
+    )
+    user: Mapped["User"] = relationship()
 
     folder_location: Mapped[str] = mapped_column(
         String(FOLDER_NAME_MAX_LENGTH),
@@ -100,6 +124,21 @@ class Game(Base):
         default=list,
     )
 
+    age_rating: Mapped[str | None] = mapped_column(
+        String(20),
+        nullable=True,
+    )
+
+    links: Mapped[list["GameLink"]] = relationship(
+        back_populates="game",
+        cascade="all, delete-orphan",
+    )
+
+    source: Mapped[str | None] = mapped_column(  # source (string — e.g. "Steam", "GOG", "physical")
+        String(50),
+        nullable=True,
+    )
+
     # ------------------------------------------------------------------
     # Personal library state
     # ------------------------------------------------------------------
@@ -127,7 +166,7 @@ class Game(Base):
     )
 
     resume_note: Mapped[str | None] = mapped_column(
-        String(2_000),
+        String(2000),
         nullable=True,
     )
 
@@ -135,7 +174,29 @@ class Game(Base):
         nullable=False,
         default=0,
     )
+    # ownership ({ format: "digital" | "physical", purchase_date, price, condition })
 
+    purchase_date: Mapped[int | None] = (
+        mapped_column(  # Unix timestamp, midnight = no time set just date
+            BigInteger,
+            nullable=True,
+        )
+    )
+
+    purchase_price: Mapped[Decimal | None] = mapped_column(
+        Numeric(12, 2),
+        nullable=True,
+    )
+
+    purchase_price_currency_code: Mapped[str | None] = mapped_column(  # ISO 4217 currency code
+        String(3),  # Should always be uppercase
+        nullable=True,
+    )
+
+    physical_condition: Mapped[str | None] = mapped_column(
+        String(200),
+        nullable=True,
+    )
 
     # ------------------------------------------------------------------
     # Ratings
@@ -156,7 +217,6 @@ class Game(Base):
         nullable=True,
     )
 
-
     rating_overall: Mapped[Decimal | None] = mapped_column(
         Numeric(4, 2),
         nullable=True,
@@ -174,15 +234,48 @@ class Game(Base):
     # Timestamps
     # ------------------------------------------------------------------
 
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
+    created_at: Mapped[int] = mapped_column(
+        BigInteger,
         nullable=False,
-        default=lambda: datetime.now(timezone.utc),
+        default=time.time,
     )
 
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
+    updated_at: Mapped[int] = mapped_column(
+        BigInteger,
         nullable=False,
-        default=lambda: datetime.now(timezone.utc),
-        onupdate=lambda: datetime.now(timezone.utc),
+        default=time.time,
+        onupdate=time.time,
+    )
+
+
+##########################
+#          Links         #
+##########################
+
+
+class GameLink(Base):
+    __tablename__ = "game_links"
+
+    id: Mapped[int] = mapped_column(
+        primary_key=True,
+    )
+
+    game_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("games.id"),
+        nullable=False,
+    )
+
+    label: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+    )
+
+    url: Mapped[str] = mapped_column(
+        String(2_048),
+        nullable=False,
+    )
+
+    game: Mapped["Game"] = relationship(
+        back_populates="links",
     )
