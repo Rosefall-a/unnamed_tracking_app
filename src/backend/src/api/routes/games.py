@@ -1,9 +1,12 @@
 """API routes for managing games, notes, and game artwork."""
 
+import asyncio
 import re
 from pathlib import Path
+from urllib.parse import urlparse
 from uuid import UUID
 
+import requests
 from fastapi import (
     APIRouter,
     Body,
@@ -15,6 +18,8 @@ from fastapi import (
     UploadFile,
     status,
 )
+from fastapi.responses import FileResponse
+
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -23,7 +28,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.api.schemas.game import GameCreate, GameRead, GameUpdate
 from src.database.models.game import Game, GameStatus
 from src.database.session import get_db
-from src.helpers.save_game_asset import AssetKind, save_game_asset
+from src.features.metadata.games.search import search_game_metadata
+from src.helpers.save_game_asset import ASSET_FILENAMES, AssetKind, create_game_folder, save_game_asset
 
 router = APIRouter(
     prefix="/api/game",
@@ -41,7 +47,61 @@ class NoteWrite(BaseModel):
     content: str
 
 
+class MetadataSearchResponse(BaseModel):
+    query: str
+    providers: list[str]
+    provider_errors: list[str] = []
+    results: list[dict]
+
+
+class AssetUrlRequest(BaseModel):
+    url: str
+
+
 ALLOWED_ASSET_KINDS = {"key_art", "banner", "logo", "icon"}
+
+
+@router.get("/metadata/search", response_model=MetadataSearchResponse)
+async def search_metadata(
+    query: str = Query(..., min_length=2, max_length=100),
+    limit: int = Query(default=8, ge=1, le=20),
+) -> dict:
+    """Search external providers for data that can prefill a new game."""
+    try:
+        return await asyncio.to_thread(search_game_metadata, query.strip(), limit)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Metadata providers could not be reached: {exc}",
+        ) from exc
+
+
+@router.get("/{game_id}/assets/{asset_kind}", response_class=FileResponse)
+async def get_game_asset(
+    game_id: UUID,
+    asset_kind: AssetKind,
+    db: AsyncSession = Depends(get_db),
+) -> FileResponse:
+    """Return a stored PNG asset for a game."""
+    if asset_kind not in ALLOWED_ASSET_KINDS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unsupported asset kind '{asset_kind}'. Supported values: {sorted(ALLOWED_ASSET_KINDS)}",
+        )
+
+    game = await _get_game_or_404(game_id, db)
+    asset_path = _DATA_ROOT / game.folder_location / ASSET_FILENAMES[asset_kind]
+    if not asset_path.is_file():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Asset '{asset_kind}' has not been uploaded for game {game_id}.",
+        )
+
+    return FileResponse(
+        asset_path,
+        media_type="image/png",
+        headers={"Cache-Control": "no-store, max-age=0"},
+    )
 
 
 def _derive_sort_title(title: str) -> str:
@@ -148,6 +208,55 @@ async def upload_game_asset(
         "game_id": str(game_id),
         "asset_kind": asset_kind,
         "path": str(target_path),
+        "status": "saved",
+    }
+
+
+@router.post(
+    "/{game_id}/assets/{asset_kind}/from-url",
+    responses={
+        status.HTTP_200_OK: {"description": "Image downloaded and resized"},
+        status.HTTP_400_BAD_REQUEST: {"description": "Invalid URL or image"},
+        status.HTTP_404_NOT_FOUND: {"description": "Game not found"},
+    },
+)
+async def download_game_asset(
+    game_id: UUID,
+    asset_kind: AssetKind,
+    payload: AssetUrlRequest,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, str]:
+    """Download an image URL and persist it as a normalized game asset."""
+    if asset_kind not in ALLOWED_ASSET_KINDS:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Unsupported asset kind '{asset_kind}'.")
+
+    await _get_game_or_404(game_id, db)
+    parsed_url = urlparse(payload.url)
+    if parsed_url.scheme not in {"http", "https"} or not parsed_url.netloc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Image URL must use http or https.")
+
+    try:
+        response = await asyncio.to_thread(requests.get, payload.url, timeout=20)
+        response.raise_for_status()
+    except requests.RequestException as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Could not download image: {exc}") from exc
+
+    content_type = response.headers.get("content-type", "").split(";", 1)[0].lower()
+    if not content_type.startswith("image/"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="URL did not return an image.")
+    image_bytes = response.content
+    if len(image_bytes) > 15 * 1024 * 1024:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Image is larger than the 15 MB limit.")
+
+    try:
+        output_path = await save_game_asset(image_bytes, game_id, asset_kind)
+    except (OSError, ValueError) as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Could not save image: {exc}") from exc
+
+    return {
+        "game_id": str(game_id),
+        "asset_kind": asset_kind,
+        "path": str(output_path),
         "status": "saved",
     }
 
@@ -306,6 +415,7 @@ async def create_game(payload: GameCreate, db: AsyncSession = Depends(get_db)) -
         raise _duplicate_folder_error(payload.folder_location) from exc
 
     await db.refresh(game)
+    create_game_folder(game.folder_location)
     return game
 
 

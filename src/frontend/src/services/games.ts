@@ -50,8 +50,8 @@ export function mapBackendGame(raw: BackendGame): Game {
     title: raw.title,
     // placeholders — the backend has no artwork yet
     coverColor: '#2a2a2a',
-    coverImageUrl: `https://picsum.photos/seed/${raw.id}/1600/500`,
-    bannerImageUrl: `https://picsum.photos/seed/${raw.id}-banner/1600/500`,
+    coverImageUrl: `/api/game/${raw.id}/assets/key_art`,
+    bannerImageUrl: `/api/game/${raw.id}/assets/banner`,
     status: normalizeStatus(raw.status),
     ratingOverall: toNumberOrNull(raw.rating_overall),
     ratingStory: toNumberOrNull(raw.rating_story),
@@ -111,6 +111,39 @@ export async function fetchGame(id: string): Promise<Game | null> {
   }
   const raw: BackendGame = await response.json()
   return mapBackendGame(raw)
+}
+
+export interface MetadataSearchResult {
+  provider: string
+  provider_id: string
+  title: string
+  description: string | null
+  release_date: string | null
+  developer: string | null
+  publisher: string | null
+  age_rating: string | null
+  tags: string[]
+  features: string[]
+  links: GameLink[]
+  key_art_url: string | null
+  key_art_urls: string[]
+  banner_url: string | null
+  banner_urls: string[]
+  logo_url: string | null
+  logo_urls: string[]
+  icon_url: string | null
+  icon_urls: string[]
+}
+
+export async function searchGameMetadata(query: string): Promise<MetadataSearchResult[]> {
+  if (import.meta.env.VITE_USE_MOCK_DATA === 'true') return []
+  const response = await fetch(`/api/game/metadata/search?query=${encodeURIComponent(query)}`)
+  if (!response.ok) {
+    const message = await response.text()
+    throw new Error(`Metadata search failed: ${response.status} ${message}`)
+  }
+  const payload: { results: MetadataSearchResult[] } = await response.json()
+  return payload.results
 }
 
 export interface NewGameInput {

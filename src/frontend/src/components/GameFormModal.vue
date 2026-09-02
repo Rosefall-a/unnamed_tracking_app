@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { createGame, updateGame, uploadGameAsset } from '../services/games'
+import { createGame, searchGameMetadata, updateGame, uploadGameAsset } from '../services/games'
+import type { MetadataSearchResult } from '../services/games'
 import type { Game, GameStatus } from '../types/game'
 import type { GameLink, GameOwnership } from '../types/game'
 
@@ -67,6 +68,49 @@ const condition = ref(props.game?.ownership.condition ?? '')
 
 const saving = ref(false)
 const error = ref<string | null>(null)
+const metadataQuery = ref('')
+const metadataResults = ref<MetadataSearchResult[]>([])
+const searchingMetadata = ref(false)
+const metadataMessage = ref<string | null>(null)
+
+async function searchMetadata() {
+  if (metadataQuery.value.trim().length < 2) {
+    metadataMessage.value = 'Enter at least two characters to search.'
+    return
+  }
+  searchingMetadata.value = true
+  metadataMessage.value = null
+  try {
+    metadataResults.value = await searchGameMetadata(metadataQuery.value.trim())
+    if (!metadataResults.value.length) metadataMessage.value = 'No games found.'
+  } catch (err) {
+    metadataMessage.value = err instanceof Error ? err.message : 'Metadata search failed.'
+  } finally {
+    searchingMetadata.value = false
+  }
+}
+
+function applyMetadata(result: MetadataSearchResult) {
+  title.value = result.title
+  sortTitle.value = ''
+  folderLocation.value = result.title
+    .trim()
+    .replace(/[^A-Za-z0-9_-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+  folderTouched.value = false
+  description.value = result.description ?? ''
+  developer.value = result.developer ?? ''
+  publisher.value = result.publisher ?? ''
+  ageRating.value = result.age_rating ?? ''
+  releaseDate.value = result.release_date ?? ''
+  source.value = result.provider
+  tagsInput.value = result.tags.join(', ')
+  featuresInput.value = result.features.join(', ')
+  links.value = result.links.map((link) => ({ ...link }))
+  metadataResults.value = []
+  metadataQuery.value = result.title
+  metadataMessage.value = `Prefilled from ${result.provider}. Review the fields before saving.`
+}
 
 // when editing, the folder name is already real data — don't let the
 // title-blur auto-suggest silently overwrite it
@@ -176,6 +220,37 @@ async function submit() {
       <form class="modal-form" @submit.prevent="submit">
   <div class="modal-body">
         <div v-if="activeTab === 'General'" class="tab-panel">
+          <div v-if="!isEditing" class="metadata-search">
+            <div class="search-heading">
+              <strong>Find game metadata</strong>
+              <span>Search external providers and choose a match to prefill this form.</span>
+            </div>
+            <div class="search-row">
+              <input
+                v-model="metadataQuery"
+                type="search"
+                placeholder="Search by game title"
+                @keyup.enter="searchMetadata"
+              />
+              <button type="button" class="secondary-button" :disabled="searchingMetadata" @click="searchMetadata">
+                {{ searchingMetadata ? 'Searching…' : 'Search' }}
+              </button>
+            </div>
+            <div v-if="metadataResults.length" class="metadata-results">
+              <button
+                v-for="result in metadataResults"
+                :key="`${result.provider}-${result.provider_id}`"
+                type="button"
+                class="metadata-result"
+                @click="applyMetadata(result)"
+              >
+                <span>{{ result.title }}</span>
+                <small>{{ result.provider }}<span v-if="result.release_date"> · {{ result.release_date.slice(0, 4) }}</span></small>
+              </button>
+            </div>
+            <p v-if="metadataMessage" class="hint">{{ metadataMessage }}</p>
+          </div>
+
           <div class="field-row">
             <label class="field">
               <span>Title</span>
@@ -454,6 +529,54 @@ async function submit() {
   flex-direction: column;
   gap: 14px;
   min-height: 380px;
+}
+.metadata-search {
+  border: 1px solid #3a3a3a;
+  border-radius: 8px;
+  padding: 12px;
+  background: #151515;
+}
+.search-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-bottom: 10px;
+}
+.search-heading span,
+.metadata-result small {
+  color: #999;
+  font-size: 0.78rem;
+}
+.search-row {
+  display: flex;
+  gap: 8px;
+}
+.search-row input {
+  flex: 1;
+  min-width: 0;
+}
+.metadata-results {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+}
+.metadata-result {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  width: 100%;
+  padding: 9px 10px;
+  text-align: left;
+  color: #fff;
+  background: #202020;
+  border: 1px solid #3a3a3a;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.metadata-result:hover {
+  border-color: #d68a34;
+  background: #282828;
 }
 .field {
   display: flex;

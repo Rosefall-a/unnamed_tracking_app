@@ -96,9 +96,7 @@ class SteamGridDBClient:
         if not query or not query.strip():
             return []
 
-        payload = self._request(
-            "GET", "/search/autocomplete", params={"term": query.strip(), "limit": limit}
-        )
+        payload = self._request("GET", f"/search/autocomplete/{query.strip()}", params={"limit": limit})
         results = payload.get("data") or payload.get("results") or []
         if not isinstance(results, list):
             return []
@@ -121,7 +119,14 @@ class SteamGridDBClient:
         if dimensions:
             params["dimensions"] = dimensions
 
-        payload = self._request("GET", f"/grids/game/{game_id}", params=params)
+        image_type_aliases = {"grids": "grid", "heroes": "hero", "logos": "logo", "icons": "icon"}
+        normalized_type = image_type_aliases.get(image_type, image_type)
+        endpoint_types = {"grid": "grids", "hero": "heroes", "logo": "logos", "icon": "icons"}
+        endpoint = endpoint_types.get(normalized_type)
+        if endpoint is None:
+            raise ValueError(f"Unsupported SteamGridDB image type: {image_type}")
+
+        payload = self._request("GET", f"/{endpoint}/game/{game_id}", params=params)
         data = payload.get("data") or payload.get("results") or []
 
         if not isinstance(data, list):
@@ -129,7 +134,9 @@ class SteamGridDBClient:
 
         images: list[SteamGridDBImage] = []
         for item in data:
-            if image_type and item.get("type") and item.get("type") != image_type:
+            returned_type = str(item.get("type") or "").rstrip("s")
+            requested_type = image_type.rstrip("s")
+            if requested_type and returned_type and returned_type != requested_type:
                 continue
             images.append(SteamGridDBImage.from_api_payload(item))
 
@@ -149,4 +156,4 @@ class SteamGridDBClient:
         return self.get_game_images(int(game_id), image_type=image_type, **kwargs)
 
 
-client = SteamGridDBClient()
+client: SteamGridDBClient | None = None
