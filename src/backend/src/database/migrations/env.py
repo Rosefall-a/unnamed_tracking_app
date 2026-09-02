@@ -12,6 +12,7 @@ from src.database.base import Base
 # Base.metadata before autogenerate compares it against the database.
 from src.database.models import game  # noqa: F401
 from src.database.models import user  # noqa: F401
+from src.database.models import auth  # noqa: F401
 
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)

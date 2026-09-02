@@ -2,6 +2,7 @@ import time
 from datetime import date
 from decimal import Decimal
 from enum import Enum
+from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
 from sqlalchemy import (
@@ -21,6 +22,9 @@ from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.database.base import Base
+
+if TYPE_CHECKING:
+    from src.database.models.user import User
 
 # Folder name rules: letters, digits, underscore, hyphen only — no spaces,
 # no path separators, no reserved filesystem characters. Adjust the
@@ -54,6 +58,14 @@ class Game(Base):
         primary_key=True,
         default=uuid4,
     )
+
+    user_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("users.id"),
+        nullable=False,
+        index=True,
+    )
+    user: Mapped["User"] = relationship()
 
     folder_location: Mapped[str] = mapped_column(
         String(FOLDER_NAME_MAX_LENGTH),

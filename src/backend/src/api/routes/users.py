@@ -9,12 +9,14 @@ from fastapi.responses import FileResponse
 from PIL import Image, UnidentifiedImageError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.auth import get_current_user
 from src.database.models.user import User
 from src.database.session import get_db
 
 router = APIRouter(
     prefix="/api/user",
     tags=["user"],
+    dependencies=[Depends(get_current_user)],
 )
 
 _USER_DATA_ROOT = Path("/data/user")
@@ -32,6 +34,19 @@ async def _get_user_or_404(user_id: UUID, db: AsyncSession) -> User:
     return user
 
 
+async def _get_authorized_user(
+    user_id: UUID,
+    db: AsyncSession,
+    current_user: User,
+) -> User:
+    if current_user.id != user_id and not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have access to this user's profile.",
+        )
+    return await _get_user_or_404(user_id, db)
+
+
 def _profile_path(user_id: UUID) -> Path:
     return _USER_DATA_ROOT / str(user_id) / _PROFILE_FILENAME
 
@@ -41,9 +56,10 @@ async def upload_profile_picture(
     user_id: UUID,
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> dict[str, str]:
     """Validate and save a user's profile picture as profile.png."""
-    await _get_user_or_404(user_id, db)
+    await _get_authorized_user(user_id, db, current_user)
 
     image_bytes = await file.read()
     if not image_bytes:
@@ -96,9 +112,10 @@ async def upload_profile_picture(
 async def get_profile_picture(
     user_id: UUID,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> FileResponse:
     """Return the user's stored profile picture."""
-    await _get_user_or_404(user_id, db)
+    await _get_authorized_user(user_id, db, current_user)
     target_path = _profile_path(user_id)
     if not target_path.is_file():
         raise HTTPException(
