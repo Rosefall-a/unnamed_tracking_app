@@ -1,4 +1,4 @@
-"""your changes here eg add playtime to game table
+"""added misc data entries
 
 Revision ID: 98357cb173a4
 Revises: e2ef918c2669

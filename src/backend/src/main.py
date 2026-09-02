@@ -1,8 +1,8 @@
 # app/main.py
 from fastapi import FastAPI
 
-from src.api.routes import games
-from src.api.routes.utils.misc import router as misc_router
+from src.api.routes import games, movies
+from src.api.routes.utils import misc as utils_misc
 
 app = FastAPI(
     title="My API",
@@ -12,7 +12,8 @@ app = FastAPI(
 )
 
 app.include_router(games.router)
-app.include_router(misc_router)
+app.include_router(movies.router)
+app.include_router(utils_misc.router)
 
 
 @app.get("/health")
