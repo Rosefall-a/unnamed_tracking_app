@@ -6,6 +6,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 from uuid import UUID
 
+import requests
 from fastapi import (
     APIRouter,
     Body,
@@ -17,6 +18,8 @@ from fastapi import (
     UploadFile,
     status,
 )
+from fastapi.responses import FileResponse
+
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -25,7 +28,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.api.schemas.game import GameCreate, GameRead, GameUpdate
 from src.database.models.game import Game, GameStatus
 from src.database.session import get_db
-from src.helpers.save_game_asset import AssetKind, save_game_asset
+from src.features.metadata.games.search import search_game_metadata
+from src.helpers.save_game_asset import ASSET_FILENAMES, AssetKind, create_game_folder, save_game_asset
 
 router = APIRouter(
     prefix="/api/game",
