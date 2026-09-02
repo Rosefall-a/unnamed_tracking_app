@@ -9,6 +9,9 @@ mypy --config-file pyproject.toml src
 pylint --rcfile=pyproject.toml src
 
 
+## recommended vscode extensions
+- ruff by charliermarsh
+
 # Database updates
 
 ```bash
