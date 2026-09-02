@@ -28,8 +28,10 @@ from src.database.base import Base
 FOLDER_NAME_PATTERN = r"^[A-Za-z0-9_-]+$"
 FOLDER_NAME_MAX_LENGTH = 150
 
+
 class GameStatus(str, Enum):
     """Game status aligned with Playnite."""
+
     DROPPED = "DROPPED"
     WISHLIST = "WISHLIST"
     BACKLOG = "BACKLOG"
@@ -52,7 +54,6 @@ class Game(Base):
         primary_key=True,
         default=uuid4,
     )
-
 
     folder_location: Mapped[str] = mapped_column(
         String(FOLDER_NAME_MAX_LENGTH),
@@ -121,7 +122,7 @@ class Game(Base):
         cascade="all, delete-orphan",
     )
 
-    source: Mapped[str | None] = mapped_column( # source (string — e.g. "Steam", "GOG", "physical")
+    source: Mapped[str | None] = mapped_column(  # source (string — e.g. "Steam", "GOG", "physical")
         String(50),
         nullable=True,
     )
@@ -161,11 +162,13 @@ class Game(Base):
         nullable=False,
         default=0,
     )
-    #ownership ({ format: "digital" | "physical", purchase_date, price, condition })
+    # ownership ({ format: "digital" | "physical", purchase_date, price, condition })
 
-    purchase_date: Mapped[int | None] = mapped_column( # Unix timestamp, midnight = no time set just date
-        BigInteger,
-        nullable=True,
+    purchase_date: Mapped[int | None] = (
+        mapped_column(  # Unix timestamp, midnight = no time set just date
+            BigInteger,
+            nullable=True,
+        )
     )
 
     purchase_price: Mapped[Decimal | None] = mapped_column(
@@ -173,21 +176,15 @@ class Game(Base):
         nullable=True,
     )
 
-    purchase_price_currency_code: Mapped[str | None] = mapped_column( # ISO 4217 currency code
-        String(3),                                                    # Should always be uppercase
+    purchase_price_currency_code: Mapped[str | None] = mapped_column(  # ISO 4217 currency code
+        String(3),  # Should always be uppercase
         nullable=True,
     )
-
 
     physical_condition: Mapped[str | None] = mapped_column(
         String(200),
         nullable=True,
     )
-
-
-
-
-
 
     # ------------------------------------------------------------------
     # Ratings
@@ -207,7 +204,6 @@ class Game(Base):
         Numeric(4, 2),
         nullable=True,
     )
-
 
     rating_overall: Mapped[Decimal | None] = mapped_column(
         Numeric(4, 2),
@@ -240,12 +236,10 @@ class Game(Base):
     )
 
 
-
-
-
 ##########################
 #          Links         #
 ##########################
+
 
 class GameLink(Base):
     __tablename__ = "game_links"

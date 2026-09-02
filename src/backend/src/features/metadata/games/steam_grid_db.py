@@ -44,7 +44,9 @@ class SteamGridDBClient:
 
     BASE_URL = "https://www.steamgriddb.com/api/v2"
 
-    def __init__(self, api_key: str | None = None, *, session: requests.Session | None = None) -> None:
+    def __init__(
+        self, api_key: str | None = None, *, session: requests.Session | None = None
+    ) -> None:
         self.api_key = api_key or settings.STEAMGRIDDB_API_KEY
         if not self.api_key:
             raise SteamGridDBError(
@@ -74,7 +76,9 @@ class SteamGridDBClient:
                 payload = response.json()
             except ValueError:
                 payload = {"message": response.text}
-            raise SteamGridDBError(f"SteamGridDB request failed ({response.status_code}): {payload}")
+            raise SteamGridDBError(
+                f"SteamGridDB request failed ({response.status_code}): {payload}"
+            )
 
         try:
             payload = response.json()
@@ -82,7 +86,9 @@ class SteamGridDBClient:
             raise SteamGridDBError(f"SteamGridDB returned invalid JSON for {path}") from exc
 
         if not isinstance(payload, dict):
-            raise SteamGridDBError(f"SteamGridDB returned an unexpected result for {path}: {payload!r}")
+            raise SteamGridDBError(
+                f"SteamGridDB returned an unexpected result for {path}: {payload!r}"
+            )
 
         return payload
 
@@ -90,7 +96,9 @@ class SteamGridDBClient:
         if not query or not query.strip():
             return []
 
-        payload = self._request("GET", "/search/autocomplete", params={"term": query.strip(), "limit": limit})
+        payload = self._request(
+            "GET", "/search/autocomplete", params={"term": query.strip(), "limit": limit}
+        )
         results = payload.get("data") or payload.get("results") or []
         if not isinstance(results, list):
             return []
@@ -127,7 +135,9 @@ class SteamGridDBClient:
 
         return images
 
-    def fetch_images_for_game(self, query: str, image_type: str = "grids", **kwargs: Any) -> list[SteamGridDBImage]:
+    def fetch_images_for_game(
+        self, query: str, image_type: str = "grids", **kwargs: Any
+    ) -> list[SteamGridDBImage]:
         result = self.get_game_by_name(query)
         if result is None:
             raise SteamGridDBError(f"No SteamGridDB match found for: {query!r}")
