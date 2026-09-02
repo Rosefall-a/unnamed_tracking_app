@@ -2,8 +2,9 @@ name: Ruff Format
 
 on:
   pull_request:
-  push:
-    branches: ["**"]
+    branches:
+      - main
+      - dev
 
 permissions:
   contents: write
