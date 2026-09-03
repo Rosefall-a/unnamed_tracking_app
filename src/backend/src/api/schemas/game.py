@@ -30,8 +30,10 @@ class GameBase(BaseModel):
     series: str | None = Field(default=None, max_length=200)
     tags: list[str] = Field(default_factory=list)
     features: list[str] = Field(default_factory=list)
+    genre: list[str] = Field(default_factory=list)
     source: str | None = Field(default=None, max_length=50)
     age_rating: str | None = Field(default=None, max_length=20)
+    how_long_to_beat: int | None = Field(default=None)
 
     folder_location: str = Field(
         min_length=1,
@@ -46,6 +48,7 @@ class GameBase(BaseModel):
     notes: str | None = None
     resume_note: str | None = Field(default=None, max_length=2_000)
     playtime_seconds: int = Field(default=0, ge=0)
+    took_to_beat: int | None = Field(default=None)
     platforms: list[GamePlatformData] = Field(default_factory=list)
 
     purchase_date: int | None = Field(
@@ -96,8 +99,10 @@ class GameUpdate(BaseModel):
     series: str | None = Field(default=None, max_length=200)
     tags: list[str] | None = None
     features: list[str] | None = None
+    genre: list[str] | None = None
     source: str | None = Field(default=None, max_length=50)
     age_rating: str | None = Field(default=None, max_length=20)
+    how_long_to_beat: int | None = None
 
     folder_location: str | None = Field(
         default=None,
@@ -112,6 +117,7 @@ class GameUpdate(BaseModel):
     notes: str | None = None
     resume_note: str | None = Field(default=None, max_length=2_000)
     playtime_seconds: int | None = Field(default=None, ge=0)
+    took_to_beat: int | None = None
     platforms: list[GamePlatformData] | None = None
 
     purchase_date: int | None = Field(

@@ -7,6 +7,7 @@ from uuid import UUID, uuid4
 
 from sqlalchemy import (
     BigInteger,
+    Integer,
     Boolean,
     Date,
     ForeignKey,
@@ -139,6 +140,17 @@ class Game(Base):
         nullable=True,
     )
 
+    how_long_to_beat: Mapped[int | None] = mapped_column( # Stored in seconds
+        Integer,
+        nullable=True
+    )
+
+    genre: Mapped[list[str]] = mapped_column(
+        ARRAY(String),
+        nullable=False,
+        default=list,
+    )
+
     # ------------------------------------------------------------------
     # Personal library state
     # ------------------------------------------------------------------
@@ -173,6 +185,11 @@ class Game(Base):
     playtime_seconds: Mapped[int] = mapped_column(
         nullable=False,
         default=0,
+    )
+
+    took_to_beat: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True
     )
 
     platforms: Mapped[list["GamePlatform"]] = relationship(
