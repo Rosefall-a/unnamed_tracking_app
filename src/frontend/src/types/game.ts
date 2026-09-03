@@ -8,10 +8,20 @@ export type GameStatus =
   | 'dropped'
   | 'mastered'
 
+export type AchievementTier = 'bronze' | 'silver' | 'gold'
+
 export interface Achievement {
   id: string
   name: string
+  description?: string | null
   unlockedAt: string | null
+  hidden?: boolean
+  rarityPercent?: number | null
+  tierOverride?: AchievementTier | null
+  progressCurrent?: number | null
+  progressTarget?: number | null
+  notes?: string | null
+  media?: string[]
 }
 
 export interface GamePlatform {
@@ -47,6 +57,8 @@ export interface Game {
   ageRating: string | null
   links: GameLink[]
   ownership: GameOwnership
+  favorite: boolean
+  collections: string[]
   tags: string[]
   // capability/technical tags (Achievements, Co-op, Multiplayer...) — different from `tags`,
   // which are genre/style descriptors

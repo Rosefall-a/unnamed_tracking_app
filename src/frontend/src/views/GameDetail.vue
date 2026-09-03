@@ -8,7 +8,7 @@ import {
   listGameNotes,
   saveGameNote,
 } from '../services/games'
-import type { Achievement, Game } from '../types/game'
+import type { Achievement, AchievementTier, Game } from '../types/game'
 import GameFormModal from '../components/GameFormModal.vue'
 
 const route = useRoute()
@@ -17,13 +17,7 @@ const game = ref<Game | null>(null)
 const loading = ref(true)
 const error = ref<string | null>(null)
 const showEditModal = ref(false)
-const descriptionParagraphs = computed(() => {
-  if (!game.value?.description) return []
-  return game.value.description
-    .split('•')
-    .map((s) => s.trim())
-    .filter(Boolean)
-})
+
 const noteNames = ref<string[]>([])
 const noteMode = ref<'list' | 'editor'>('list')
 const editingNoteName = ref<string | null>(null)
@@ -32,6 +26,28 @@ const draftContent = ref('')
 const noteLoading = ref(false)
 const noteSaving = ref(false)
 const noteError = ref<string | null>(null)
+
+interface DescriptionSection {
+  header: string | null
+  body: string
+}
+
+const descriptionSections = computed<DescriptionSection[]>(() => {
+  if (!game.value?.description) return []
+  return game.value.description
+    .split('•')
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((section) => {
+      const colonIndex = section.indexOf(':')
+      // only treat it as a header if the colon shows up early — a colon
+      // buried deep in a long sentence isn't a header boundary
+      if (colonIndex > 0 && colonIndex < 80) {
+        return { header: section.slice(0, colonIndex).trim(), body: section.slice(colonIndex + 1).trim() }
+      }
+      return { header: null, body: section }
+    })
+})
 
 const hasDraft = computed(
   () => editingNoteName.value === null && (draftName.value.trim() !== '' || draftContent.value.trim() !== '')
@@ -189,6 +205,36 @@ function sortedAchievements(achievements: Achievement[]) {
   })
 }
 
+function deriveTier(achievement: Achievement): AchievementTier {
+  if (achievement.tierOverride) return achievement.tierOverride
+  const rarity = achievement.rarityPercent
+  if (rarity === null || rarity === undefined) return 'bronze'
+  if (rarity <= 20) return 'gold'
+  if (rarity <= 50) return 'silver'
+  return 'bronze'
+}
+
+const isPlatinumEarned = computed(
+  () =>
+    !!game.value &&
+    game.value.achievements.length > 0 &&
+    game.value.achievements.every((a) => a.unlockedAt !== null),
+)
+
+const trophyCounts = computed(() => {
+  const counts = { bronze: 0, silver: 0, gold: 0 }
+  if (!game.value) return counts
+  for (const a of game.value.achievements) {
+    if (a.unlockedAt !== null) counts[deriveTier(a)]++
+  }
+  return counts
+})
+
+function formatUnlockedAt(dateStr: string) {
+  const d = new Date(dateStr)
+  return `${d.toLocaleDateString()} ${d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
+}
+
 function formatPlaytime(minutes: number) {
   if (minutes === 0) return 'Not played yet'
   const hours = Math.floor(minutes / 60)
@@ -246,10 +292,11 @@ function formatPlaytime(minutes: number) {
 
     <section v-if="activeTab === 'Overview'" class="overview">
 <div class="overview-main">
-<div v-if="descriptionParagraphs.length" class="description-wrap">
-  <p v-for="(section, i) in descriptionParagraphs" :key="i" class="description">
-    {{ section }}
-  </p>
+<div v-if="descriptionSections.length" class="description-wrap">
+  <div v-for="(section, i) in descriptionSections" :key="i" class="description-section">
+    <h4 v-if="section.header" class="description-heading">{{ section.header }}</h4>
+    <p class="description">{{ section.body }}</p>
+  </div>
 </div>
 
   <div class="rating-breakdown" v-if="game.ratingOverall !== null || game.ratingStory !== null || game.ratingGameplay !== null || game.ratingSound !== null">
@@ -371,21 +418,80 @@ function formatPlaytime(minutes: number) {
 </aside>
     </section>
 
-    <section v-else-if="activeTab === 'Achievements'" class="achievements">
-      <div class="achievements-header">
-        <h2>Achievements</h2>
-        <span class="percent">{{ game.achievementPercent }}%</span>
-      </div>
-      <ul class="achievement-list">
-        <li
-          v-for="achievement in sortedAchievements(game.achievements)"
-          :key="achievement.id"
-          :class="{ unlocked: achievement.unlockedAt !== null }"
+<section v-else-if="activeTab === 'Achievements'" class="achievements">
+  <div class="achievements-header">
+    <h2>Achievements</h2>
+    <span class="percent">{{ game.achievementPercent }}%</span>
+  </div>
+
+  <div class="trophy-summary">
+    <div class="trophy-count">
+      <span class="trophy-badge trophy-badge-platinum" :class="{ dim: !isPlatinumEarned }"></span>
+      <span>{{ isPlatinumEarned ? 1 : 0 }}</span>
+    </div>
+    <div class="trophy-count">
+      <span class="trophy-badge trophy-badge-gold"></span>
+      <span>{{ trophyCounts.gold }}</span>
+    </div>
+    <div class="trophy-count">
+      <span class="trophy-badge trophy-badge-silver"></span>
+      <span>{{ trophyCounts.silver }}</span>
+    </div>
+    <div class="trophy-count">
+      <span class="trophy-badge trophy-badge-bronze"></span>
+      <span>{{ trophyCounts.bronze }}</span>
+    </div>
+  </div>
+
+  <ul class="achievement-list">
+    <li v-for="achievement in sortedAchievements(game.achievements)" :key="achievement.id">
+      <router-link
+        :to="{ name: 'achievement-detail', params: { gameId: game.id, achievementId: achievement.id } }"
+        class="achievement-row"
+        :class="{ unlocked: achievement.unlockedAt !== null }"
+      >
+        <div
+          class="achievement-icon"
+          :style="achievement.hidden && achievement.unlockedAt === null ? {} : { backgroundImage: `url(${game.coverImageUrl})` }"
         >
-          {{ achievement.unlockedAt !== null ? '✓' : '○' }} {{ achievement.name }}
-        </li>
-      </ul>
-    </section>
+          <span
+            class="achievement-badge"
+            :class="achievement.unlockedAt !== null ? `badge-${deriveTier(achievement)}` : 'badge-locked'"
+          >
+            <template v-if="achievement.hidden && achievement.unlockedAt === null">?</template>
+          </span>
+        </div>
+
+        <div class="achievement-info">
+          <template v-if="achievement.hidden && achievement.unlockedAt === null">
+            <span class="achievement-name">Hidden Trophy</span>
+            <span class="achievement-description">Unlock this achievement to reveal it.</span>
+          </template>
+          <template v-else>
+            <span class="achievement-name">{{ achievement.name }}</span>
+            <span v-if="achievement.description" class="achievement-description">{{ achievement.description }}</span>
+          </template>
+
+          <div v-if="achievement.unlockedAt !== null" class="achievement-unlocked-at">
+            Unlocked {{ formatUnlockedAt(achievement.unlockedAt) }}
+          </div>
+          <div
+            v-else-if="achievement.progressCurrent != null && achievement.progressTarget"
+            class="achievement-progress"
+          >
+            <div class="progress-bar">
+              <div
+                class="progress-fill"
+                :style="{ width: `${Math.min(100, (achievement.progressCurrent / achievement.progressTarget) * 100)}%` }"
+              ></div>
+            </div>
+            <span class="progress-label">{{ achievement.progressCurrent }} / {{ achievement.progressTarget }}</span>
+          </div>
+        </div>
+      </router-link>
+    </li>
+  </ul>
+</section>
 
     <section v-else-if="activeTab === 'Notes'" class="notes-panel">
       <div v-if="noteMode === 'list'" class="notes-list-view">
@@ -474,7 +580,7 @@ function formatPlaytime(minutes: number) {
   overflow: hidden;
 }
 .ambient-bg {
-  position: absolute;
+  position: fixed;
   inset: 0;
   background-size: cover;
   background-position: center;
@@ -633,6 +739,17 @@ function formatPlaytime(minutes: number) {
   font-size: 16px;
   line-height: 1.7;
 }
+.description-section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.description-heading {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: #fff;
+}
 .description.clamped {
   display: -webkit-box;
   -webkit-line-clamp: 4;
@@ -782,12 +899,149 @@ function formatPlaytime(minutes: number) {
   color: #fff;
   font-weight: 600;
 }
-.achievements {
-  width: 100%;
-  max-width: 1600px;
-  margin: 0 auto;
-  padding: 24px;
-  box-sizing: border-box;
+.trophy-summary {
+  display: flex;
+  gap: 20px;
+  margin: 16px 0 24px;
+}
+.trophy-count {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #ccc;
+  font-size: 14px;
+  font-weight: 600;
+}
+.trophy-badge {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.trophy-badge-bronze {
+  background: #b06a35;
+  border: 2px solid #7a4a25;
+}
+.trophy-badge-silver {
+  background: #b8b8b8;
+  border: 2px solid #7a7a7a;
+}
+.trophy-badge-gold {
+  background: #d4af37;
+  border: 2px solid #9a7a1a;
+}
+.trophy-badge-platinum {
+  background: #a8b8c8;
+  border: 2px solid #6a7a8a;
+}
+.trophy-badge.dim {
+  background: #2a2a2a;
+  border-color: #3a3a3a;
+}
+.achievement-list {
+  list-style: none;
+  padding: 0;
+  margin-top: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.achievement-row {
+  display: flex;
+  gap: 14px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid #232323;
+  border-radius: 10px;
+  align-items: center;
+  text-decoration: none;
+  color: inherit;
+}
+.achievement-icon {
+  position: relative;
+  width: 56px;
+  height: 56px;
+  border-radius: 10px;
+  background-size: cover;
+  background-position: center;
+  background-color: #1a1a1a;
+  flex-shrink: 0;
+}
+.achievement-row:not(.unlocked) .achievement-icon {
+  filter: grayscale(100%) brightness(0.5);
+}
+.achievement-badge {
+  position: absolute;
+  bottom: -6px;
+  right: -6px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: #1a1a1a;
+  border: 2px solid #121212;
+}
+.badge-bronze {
+  background: #b06a35;
+}
+.badge-silver {
+  background: #b8b8b8;
+}
+.badge-gold {
+  background: #d4af37;
+}
+.badge-locked {
+  background: #3a3a3a;
+  color: #888;
+}
+.achievement-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.achievement-name {
+  color: #fff;
+  font-weight: 600;
+  font-size: 15px;
+}
+.achievement-row:not(.unlocked) .achievement-name {
+  color: #999;
+}
+.achievement-description {
+  color: #999;
+  font-size: 13px;
+}
+.achievement-unlocked-at {
+  color: #d68a34;
+  font-size: 12px;
+  margin-top: 4px;
+}
+.achievement-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+.progress-bar {
+  flex: 1;
+  max-width: 160px;
+  height: 6px;
+  background: #2a2a2a;
+  border-radius: 3px;
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  background: #d68a34;
+}
+.progress-label {
+  color: #999;
+  font-size: 12px;
+  white-space: nowrap;
 }
 .achievements-header {
   display: flex;
@@ -801,13 +1055,6 @@ function formatPlaytime(minutes: number) {
   list-style: none;
   padding: 0;
   margin-top: 16px;
-}
-.achievement-list li {
-  padding: 6px 0;
-  color: #777;
-}
-.achievement-list li.unlocked {
-  color: #fff;
 }
 .notes-panel {
   width: 100%;
