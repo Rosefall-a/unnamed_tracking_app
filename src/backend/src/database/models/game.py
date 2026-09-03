@@ -174,6 +174,11 @@ class Game(Base):
         nullable=False,
         default=0,
     )
+
+    platforms: Mapped[list["GamePlatform"]] = relationship(
+        back_populates="game",
+        cascade="all, delete-orphan",
+    )
     # ownership ({ format: "digital" | "physical", purchase_date, price, condition })
 
     purchase_date: Mapped[int | None] = (
@@ -279,3 +284,20 @@ class GameLink(Base):
     game: Mapped["Game"] = relationship(
         back_populates="links",
     )
+
+
+class GamePlatform(Base):
+    __tablename__ = "game_platforms"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    game_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("games.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    platform: Mapped[str] = mapped_column(String(50), nullable=False)
+    playtime_seconds: Mapped[int] = mapped_column(nullable=False, default=0)
+    completion_percent: Mapped[Decimal | None] = mapped_column(Numeric(5, 2), nullable=True)
+    last_played_at: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+
+    game: Mapped["Game"] = relationship(back_populates="platforms")

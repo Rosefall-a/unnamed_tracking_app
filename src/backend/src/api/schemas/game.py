@@ -2,13 +2,20 @@ from datetime import date
 from decimal import Decimal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
 
 from src.database.models.game import (
     FOLDER_NAME_MAX_LENGTH,
     FOLDER_NAME_PATTERN,
     GameStatus,
 )
+
+
+class GamePlatformData(BaseModel):
+    platform: str = Field(min_length=1, max_length=50)
+    playtime_seconds: int = Field(default=0, ge=0)
+    completion_percent: Decimal | None = Field(default=None, ge=0, le=100)
+    last_played_at: int | None = Field(default=None, ge=0)
 from src.helpers.currency_codes import CURRENCY_CODES
 
 
@@ -39,6 +46,7 @@ class GameBase(BaseModel):
     notes: str | None = None
     resume_note: str | None = Field(default=None, max_length=2_000)
     playtime_seconds: int = Field(default=0, ge=0)
+    platforms: list[GamePlatformData] = Field(default_factory=list)
 
     purchase_date: int | None = Field(
         default=None,
@@ -104,6 +112,7 @@ class GameUpdate(BaseModel):
     notes: str | None = None
     resume_note: str | None = Field(default=None, max_length=2_000)
     playtime_seconds: int | None = Field(default=None, ge=0)
+    platforms: list[GamePlatformData] | None = None
 
     purchase_date: int | None = Field(
         default=None,
@@ -145,3 +154,11 @@ class GameRead(GameBase):
     sort_title: str
     created_at: int = Field(description="Unix timestamp in seconds when the game was created.")
     updated_at: int = Field(description="Unix timestamp in seconds when the game was last updated.")
+
+    @computed_field
+    @property
+    def total_playtime_seconds(self) -> int:
+        """Sum of platform playtimes, or the stored game total when no platforms exist."""
+        if self.platforms:
+            return sum(platform.playtime_seconds for platform in self.platforms)
+        return self.playtime_seconds

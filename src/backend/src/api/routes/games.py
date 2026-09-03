@@ -25,9 +25,10 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from src.api.schemas.game import GameCreate, GameRead, GameUpdate
-from src.database.models.game import Game, GameStatus
+from src.database.models.game import Game, GamePlatform, GameStatus
 from src.database.models.user import User
 from src.database.session import get_db
 from src.core.auth import get_current_user
@@ -169,7 +170,11 @@ def _game_note_path(game: Game, note_name: str) -> Path:
 
 
 async def _get_game_or_404(game_id: UUID, db: AsyncSession, user_id: UUID) -> Game:
-    game = await db.scalar(select(Game).where(Game.id == game_id, Game.user_id == user_id))
+    game = await db.scalar(
+        select(Game)
+        .options(selectinload(Game.platforms))
+        .where(Game.id == game_id, Game.user_id == user_id)
+    )
     if game is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -419,10 +424,14 @@ async def create_game(
 
     data = payload.model_dump()
     data["user_id"] = current_user.id
+    platform_data = data.pop("platforms", [])
+    if platform_data:
+        data["playtime_seconds"] = sum(platform["playtime_seconds"] for platform in platform_data)
     if not data.get("sort_title"):
         data["sort_title"] = _derive_sort_title(data["title"])
 
     game = Game(**data)
+    game.platforms = [GamePlatform(**platform) for platform in platform_data]
     db.add(game)
 
     try:
@@ -447,7 +456,7 @@ async def list_games(
     limit: int = Query(default=50, ge=1, le=200),
 ) -> list[Game]:
     """Return games filtered by status, favorite flag, or title search."""
-    stmt = select(Game).where(Game.user_id == current_user.id)
+    stmt = select(Game).options(selectinload(Game.platforms)).where(Game.user_id == current_user.id)
 
     if status_filter is not None:
         stmt = stmt.where(Game.status == status_filter)
@@ -503,6 +512,9 @@ async def update_game(
     game = await _get_game_or_404(game_id, db, current_user.id)
 
     updates = payload.model_dump(exclude_unset=True)
+    platform_data = updates.pop("platforms", None)
+    if platform_data is not None:
+        updates["playtime_seconds"] = sum(platform["playtime_seconds"] for platform in platform_data)
 
     if "folder_location" in updates and updates["folder_location"] is not None:
         await _ensure_folder_location_available(
@@ -511,6 +523,9 @@ async def update_game(
 
     for field, value in updates.items():
         setattr(game, field, value)
+
+    if platform_data is not None:
+        game.platforms = [GamePlatform(**platform) for platform in platform_data]
 
     # Keep sort_title in sync if title changed but sort_title wasn't explicitly set
     if "title" in updates and "sort_title" not in updates:
