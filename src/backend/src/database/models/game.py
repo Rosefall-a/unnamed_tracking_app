@@ -1,28 +1,30 @@
 import time
-from datetime import date, datetime, timezone
+from datetime import date
 from decimal import Decimal
 from enum import Enum
+from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
 from sqlalchemy import (
+    BigInteger,
     Boolean,
     Date,
-    DateTime,
-    Enum as SAEnum,
     ForeignKey,
     Numeric,
     String,
     Text,
 )
+from sqlalchemy import (
+    Enum as SAEnum,
+)
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import BigInteger
-from pydantic import BaseModel, field_validator
-
 
 from src.database.base import Base
-from src.helpers.currency_codes import CURRENCY_CODES
+
+if TYPE_CHECKING:
+    from src.database.models.user import User
 
 # Folder name rules: letters, digits, underscore, hyphen only — no spaces,
 # no path separators, no reserved filesystem characters. Adjust the
@@ -30,8 +32,10 @@ from src.helpers.currency_codes import CURRENCY_CODES
 FOLDER_NAME_PATTERN = r"^[A-Za-z0-9_-]+$"
 FOLDER_NAME_MAX_LENGTH = 150
 
+
 class GameStatus(str, Enum):
     """Game status aligned with Playnite."""
+
     DROPPED = "DROPPED"
     WISHLIST = "WISHLIST"
     BACKLOG = "BACKLOG"
@@ -40,7 +44,7 @@ class GameStatus(str, Enum):
     PLAYED = "PLAYED"
     BEATEN = "BEATEN"
     MASTERED = "MASTERED"
-    
+
 
 class Game(Base):
     __tablename__ = "games"
@@ -55,6 +59,13 @@ class Game(Base):
         default=uuid4,
     )
 
+    user_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("users.id"),
+        nullable=False,
+        index=True,
+    )
+    user: Mapped["User"] = relationship()
 
     folder_location: Mapped[str] = mapped_column(
         String(FOLDER_NAME_MAX_LENGTH),
@@ -123,7 +134,7 @@ class Game(Base):
         cascade="all, delete-orphan",
     )
 
-    source: Mapped[str | None] = mapped_column( # source (string — e.g. "Steam", "GOG", "physical")
+    source: Mapped[str | None] = mapped_column(  # source (string — e.g. "Steam", "GOG", "physical")
         String(50),
         nullable=True,
     )
@@ -163,11 +174,13 @@ class Game(Base):
         nullable=False,
         default=0,
     )
-    #ownership ({ format: "digital" | "physical", purchase_date, price, condition })
+    # ownership ({ format: "digital" | "physical", purchase_date, price, condition })
 
-    purchase_date: Mapped[int | None] = mapped_column( # Unix timestamp, midnight = no time set just date
-        BigInteger,
-        nullable=True,
+    purchase_date: Mapped[int | None] = (
+        mapped_column(  # Unix timestamp, midnight = no time set just date
+            BigInteger,
+            nullable=True,
+        )
     )
 
     purchase_price: Mapped[Decimal | None] = mapped_column(
@@ -175,21 +188,15 @@ class Game(Base):
         nullable=True,
     )
 
-    purchase_price_currency_code: Mapped[str | None] = mapped_column( # ISO 4217 currency code
-        String(3),                                                    # Should always be uppercase
+    purchase_price_currency_code: Mapped[str | None] = mapped_column(  # ISO 4217 currency code
+        String(3),  # Should always be uppercase
         nullable=True,
     )
-    
 
     physical_condition: Mapped[str | None] = mapped_column(
         String(200),
         nullable=True,
     )
-
-
-
-
-
 
     # ------------------------------------------------------------------
     # Ratings
@@ -209,7 +216,6 @@ class Game(Base):
         Numeric(4, 2),
         nullable=True,
     )
-
 
     rating_overall: Mapped[Decimal | None] = mapped_column(
         Numeric(4, 2),
@@ -242,12 +248,10 @@ class Game(Base):
     )
 
 
-
-
-
 ##########################
 #          Links         #
 ##########################
+
 
 class GameLink(Base):
     __tablename__ = "game_links"

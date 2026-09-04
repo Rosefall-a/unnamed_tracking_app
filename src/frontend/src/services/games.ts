@@ -50,8 +50,8 @@ export function mapBackendGame(raw: BackendGame): Game {
     title: raw.title,
     // placeholders — the backend has no artwork yet
     coverColor: '#2a2a2a',
-    coverImageUrl: `https://picsum.photos/seed/${raw.id}/1600/500`,
-    bannerImageUrl: `https://picsum.photos/seed/${raw.id}-banner/1600/500`,
+    coverImageUrl: `/api/game/${raw.id}/assets/key_art`,
+    bannerImageUrl: `/api/game/${raw.id}/assets/banner`,
     status: normalizeStatus(raw.status),
     ratingOverall: toNumberOrNull(raw.rating_overall),
     ratingStory: toNumberOrNull(raw.rating_story),
@@ -75,6 +75,8 @@ export function mapBackendGame(raw: BackendGame): Game {
     // no tags/features tables yet
     tags: [],
     features: [],
+    favorite: raw.favorite,
+    collections: [],
     // the backend only tracks one flat playtime total, not per-platform —
     // synthesize a single "PC" entry until real multi-platform support exists
     platforms: [
@@ -113,6 +115,39 @@ export async function fetchGame(id: string): Promise<Game | null> {
   return mapBackendGame(raw)
 }
 
+export interface MetadataSearchResult {
+  provider: string
+  provider_id: string
+  title: string
+  description: string | null
+  release_date: string | null
+  developer: string | null
+  publisher: string | null
+  age_rating: string | null
+  tags: string[]
+  features: string[]
+  links: GameLink[]
+  key_art_url: string | null
+  key_art_urls: string[]
+  banner_url: string | null
+  banner_urls: string[]
+  logo_url: string | null
+  logo_urls: string[]
+  icon_url: string | null
+  icon_urls: string[]
+}
+
+export async function searchGameMetadata(query: string): Promise<MetadataSearchResult[]> {
+  if (import.meta.env.VITE_USE_MOCK_DATA === 'true') return []
+  const response = await fetch(`/api/game/metadata/search?query=${encodeURIComponent(query)}`)
+  if (!response.ok) {
+    const message = await response.text()
+    throw new Error(`Metadata search failed: ${response.status} ${message}`)
+  }
+  const payload: { results: MetadataSearchResult[] } = await response.json()
+  return payload.results
+}
+
 export interface NewGameInput {
   title: string
   sortTitle: string | null
@@ -134,6 +169,8 @@ export interface NewGameInput {
   features: string[]
   links: GameLink[]
   ownership: GameOwnership
+  favorite: boolean
+  collections: string[]
 }
 
 export async function createGame(input: NewGameInput): Promise<Game> {
@@ -165,6 +202,8 @@ export async function createGame(input: NewGameInput): Promise<Game> {
       links: input.links,
       ownership: input.ownership,
       platforms: [],
+      favorite: input.favorite,
+      collections: input.collections,
     }
     mockGames.push(newGame)
     return newGame
@@ -178,6 +217,7 @@ export async function createGame(input: NewGameInput): Promise<Game> {
       sort_title: input.sortTitle,
       folder_location: input.folderLocation,
       status: denormalizeStatus(input.status),
+      favorite: input.favorite,
       description: input.description,
       developer: input.developer,
       publisher: input.publisher,
@@ -257,6 +297,7 @@ export async function updateGame(id: string, input: NewGameInput): Promise<Game>
     sort_title: input.sortTitle,
     folder_location: input.folderLocation,
     status: denormalizeStatus(input.status),
+    favorite: input.favorite,
     description: input.description,
     developer: input.developer,
     publisher: input.publisher,
@@ -413,4 +454,77 @@ export async function uploadGameAsset(
   }
 
   return await response.json()
+}
+export async function setFavorite(gameId: string, favorite: boolean): Promise<Game> {
+  if (import.meta.env.VITE_USE_MOCK_DATA === 'true') {
+    const index = mockGames.findIndex((g) => g.id === gameId)
+    if (index === -1) throw new Error(`Game ${gameId} not found`)
+    mockGames[index] = { ...mockGames[index], favorite }
+    return mockGames[index]
+  }
+
+  const response = await fetch(`/api/game/update/${gameId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ favorite }),
+  })
+
+  if (!response.ok) {
+    const message = await response.text()
+    throw new Error(`Failed to update favorite: ${response.status} ${response.statusText} ${message}`)
+  }
+
+  const raw: BackendGame = await response.json()
+  return mapBackendGame(raw)
+}
+
+export async function setStatus(gameId: string, status: GameStatus): Promise<Game> {
+  if (import.meta.env.VITE_USE_MOCK_DATA === 'true') {
+    const index = mockGames.findIndex((g) => g.id === gameId)
+    if (index === -1) throw new Error(`Game ${gameId} not found`)
+    mockGames[index] = { ...mockGames[index], status }
+    return mockGames[index]
+  }
+
+  const response = await fetch(`/api/game/update/${gameId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status: denormalizeStatus(status) }),
+  })
+
+  if (!response.ok) {
+    const message = await response.text()
+    throw new Error(`Failed to update status: ${response.status} ${response.statusText} ${message}`)
+  }
+
+  const raw: BackendGame = await response.json()
+  return mapBackendGame(raw)
+}
+
+export async function addGameToCollection(gameId: string, collectionName: string): Promise<Game> {
+  if (import.meta.env.VITE_USE_MOCK_DATA === 'true') {
+    const index = mockGames.findIndex((g) => g.id === gameId)
+    if (index === -1) throw new Error(`Game ${gameId} not found`)
+    const existing = mockGames[index].collections
+    const collections = existing.includes(collectionName) ? existing : [...existing, collectionName]
+    mockGames[index] = { ...mockGames[index], collections }
+    return mockGames[index]
+  }
+
+  // no backend column for collections yet — nothing to persist against
+  throw new Error('Collections are not supported by the backend yet.')
+}
+
+export async function deleteGame(gameId: string): Promise<void> {
+  if (import.meta.env.VITE_USE_MOCK_DATA === 'true') {
+    const index = mockGames.findIndex((g) => g.id === gameId)
+    if (index !== -1) mockGames.splice(index, 1)
+    return
+  }
+
+  const response = await fetch(`/api/game/delete/${gameId}`, { method: 'DELETE' })
+  if (!response.ok && response.status !== 204) {
+    const message = await response.text()
+    throw new Error(`Failed to delete game ${gameId}: ${response.status} ${response.statusText} ${message}`)
+  }
 }

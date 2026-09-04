@@ -30,6 +30,15 @@ ASSET_FILENAMES: dict[AssetKind, str] = {
 }
 
 
+def create_game_folder(folder_name: str) -> Path:
+    """Create and return the persistent data directory for a game."""
+    folder_path = DATA_ROOT / folder_name
+    folder_path.mkdir(parents=True, exist_ok=True)
+    (folder_path / "notes").mkdir(exist_ok=True)
+    (folder_path / "screenshots").mkdir(exist_ok=True)
+    return folder_path
+
+
 def _load_image_bytes(image: bytes | str | Path | Image.Image) -> Image.Image:
     if isinstance(image, Image.Image):
         return image.convert("RGBA")
@@ -72,8 +81,7 @@ async def save_game_asset(
         raise ValueError(f"Unsupported asset kind: {asset_kind}")
 
     folder_name = await get_game_folder(game_id)
-    output_dir = DATA_ROOT / folder_name
-    output_dir.mkdir(parents=True, exist_ok=True)
+    output_dir = create_game_folder(folder_name)
 
     width, height = ASSET_SIZES[asset_kind]
     image_obj = _load_image_bytes(image)
