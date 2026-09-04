@@ -151,6 +151,11 @@ class Game(Base):
         default=list,
     )
 
+    region: Mapped[str | None] = mapped_column(  # e.g. "NA", "PAL", "JP", "Global"
+        String(50),
+        nullable=True,
+    )
+
     # ------------------------------------------------------------------
     # Personal library state
     # ------------------------------------------------------------------
@@ -172,6 +177,12 @@ class Game(Base):
         default=False,
     )
 
+    hidden: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+    )
+
     notes: Mapped[str | None] = mapped_column(
         Text,
         nullable=True,
@@ -187,6 +198,12 @@ class Game(Base):
         default=0,
     )
 
+    play_count: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=0,
+    )
+
     took_to_beat: Mapped[int | None] = mapped_column(
         Integer,
         nullable=True
@@ -197,6 +214,11 @@ class Game(Base):
         cascade="all, delete-orphan",
     )
     # ownership ({ format: "digital" | "physical", purchase_date, price, condition })
+
+    screenshots: Mapped[list["Screenshot"]] = relationship(
+        back_populates="game",
+        cascade="all, delete-orphan",
+    )
 
     purchase_date: Mapped[int | None] = (
         mapped_column(  # Unix timestamp, midnight = no time set just date
@@ -318,3 +340,86 @@ class GamePlatform(Base):
     last_played_at: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
 
     game: Mapped["Game"] = relationship(back_populates="platforms")
+
+
+##########################
+#       Screenshots      #
+##########################
+
+# Screenshot name rules: if the caller doesn't supply one, we fall back to
+# the original upload filename (minus extension), and if that's not usable
+# either, to "<upload date>-<short unique id>". See save_game_screenshot.py.
+SCREENSHOT_NAME_MAX_LENGTH = 255
+
+
+class Screenshot(Base):
+    __tablename__ = "screenshots"
+
+    id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid4,
+    )
+
+    game_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("games.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    name: Mapped[str] = mapped_column(
+        String(SCREENSHOT_NAME_MAX_LENGTH),
+        nullable=False,
+    )
+
+    original_filename: Mapped[str | None] = mapped_column(  # filename as uploaded, kept for reference
+        String(255),
+        nullable=True,
+    )
+
+    extension: Mapped[str] = mapped_column(  # e.g. ".png", ".jpg" — the on-disk file is "<id><extension>"
+        String(10),
+        nullable=False,
+    )
+
+    content_type: Mapped[str | None] = mapped_column(  # e.g. "image/png"
+        String(100),
+        nullable=True,
+    )
+
+    tags: Mapped[list[str]] = mapped_column(
+        ARRAY(String),
+        nullable=False,
+        default=list,
+    )
+
+    file_size_bytes: Mapped[int] = mapped_column(
+        BigInteger,
+        nullable=False,
+    )
+
+    width: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+    )
+
+    height: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+    )
+
+    created_at: Mapped[int] = mapped_column(  # also serves as "upload date"
+        BigInteger,
+        nullable=False,
+        default=time.time,
+    )
+
+    updated_at: Mapped[int] = mapped_column(
+        BigInteger,
+        nullable=False,
+        default=time.time,
+        onupdate=time.time,
+    )
+
+    game: Mapped["Game"] = relationship(back_populates="screenshots")

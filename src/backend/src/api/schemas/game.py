@@ -31,6 +31,7 @@ class GameBase(BaseModel):
     tags: list[str] = Field(default_factory=list)
     features: list[str] = Field(default_factory=list)
     genre: list[str] = Field(default_factory=list)
+    region: str | None = Field(default=None, max_length=50)
     source: str | None = Field(default=None, max_length=50)
     age_rating: str | None = Field(default=None, max_length=20)
     how_long_to_beat: int | None = Field(default=None)
@@ -45,9 +46,11 @@ class GameBase(BaseModel):
     status: GameStatus = GameStatus.BACKLOG
     priority: str | None = Field(default=None, max_length=20)
     favorite: bool = False
+    hidden: bool = False
     notes: str | None = None
     resume_note: str | None = Field(default=None, max_length=2_000)
     playtime_seconds: int = Field(default=0, ge=0)
+    play_count: int = Field(default=0, ge=0)
     took_to_beat: int | None = Field(default=None)
     platforms: list[GamePlatformData] = Field(default_factory=list)
 
@@ -100,6 +103,7 @@ class GameUpdate(BaseModel):
     tags: list[str] | None = None
     features: list[str] | None = None
     genre: list[str] | None = None
+    region: str | None = Field(default=None, max_length=50)
     source: str | None = Field(default=None, max_length=50)
     age_rating: str | None = Field(default=None, max_length=20)
     how_long_to_beat: int | None = None
@@ -114,9 +118,11 @@ class GameUpdate(BaseModel):
     status: GameStatus | None = None
     priority: str | None = Field(default=None, max_length=20)
     favorite: bool | None = None
+    hidden: bool | None = None
     notes: str | None = None
     resume_note: str | None = Field(default=None, max_length=2_000)
     playtime_seconds: int | None = Field(default=None, ge=0)
+    play_count: int | None = Field(default=None, ge=0)
     took_to_beat: int | None = None
     platforms: list[GamePlatformData] | None = None
 

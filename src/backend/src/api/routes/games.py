@@ -5,7 +5,7 @@ import re
 import shutil
 from pathlib import Path
 from urllib.parse import urlparse
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import requests
 from fastapi import (
@@ -13,6 +13,7 @@ from fastapi import (
     Body,
     Depends,
     File,
+    Form,
     HTTPException,
     Query,
     Response,
@@ -21,6 +22,7 @@ from fastapi import (
 )
 from fastapi.responses import FileResponse
 
+from PIL import UnidentifiedImageError
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -28,12 +30,21 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from src.api.schemas.game import GameCreate, GameRead, GameUpdate
-from src.database.models.game import Game, GamePlatform, GameStatus
+from src.api.schemas.screenshot import ScreenshotRead, ScreenshotUpdate
+from src.database.models.game import Game, GamePlatform, GameStatus, Screenshot
 from src.database.models.user import User
 from src.database.session import get_db
 from src.core.auth import get_current_user
 from src.features.metadata.games.search import search_game_metadata
 from src.helpers.save_game_asset import ASSET_FILENAMES, AssetKind, create_game_folder, save_game_asset
+from src.helpers.save_game_screenshot import (
+    MAX_SCREENSHOT_BYTES,
+    derive_extension,
+    derive_screenshot_name,
+    screenshot_file_path,
+    save_screenshot_file,
+    validate_and_measure_image,
+)
 
 router = APIRouter(
     prefix="/api/game",
@@ -183,6 +194,33 @@ async def _get_game_or_404(game_id: UUID, db: AsyncSession, user_id: UUID) -> Ga
     return game
 
 
+async def _get_screenshot_or_404(
+    game_id: UUID, screenshot_id: UUID, db: AsyncSession, user_id: UUID
+) -> tuple[Game, Screenshot]:
+    game = await _get_game_or_404(game_id, db, user_id)
+    screenshot = await db.scalar(
+        select(Screenshot).where(Screenshot.id == screenshot_id, Screenshot.game_id == game_id)
+    )
+    if screenshot is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Screenshot {screenshot_id} not found for game {game_id}",
+        )
+    return game, screenshot
+
+
+def _parse_tags(raw_tags: str | None) -> list[str]:
+    """Parse a comma-separated tags form field into a clean, de-duplicated list."""
+    if not raw_tags:
+        return []
+    seen: dict[str, None] = {}
+    for tag in raw_tags.split(","):
+        cleaned = tag.strip()
+        if cleaned:
+            seen.setdefault(cleaned, None)
+    return list(seen.keys())
+
+
 @router.post(
     "/{game_id}/assets/{asset_kind}",
     responses={
@@ -272,6 +310,181 @@ async def download_game_asset(
         "path": str(output_path),
         "status": "saved",
     }
+
+
+@router.post(
+    "/{game_id}/screenshots",
+    response_model=ScreenshotRead,
+    status_code=status.HTTP_201_CREATED,
+    responses={
+        status.HTTP_400_BAD_REQUEST: {"description": "Invalid or oversized image"},
+        status.HTTP_404_NOT_FOUND: {"description": "Game not found"},
+    },
+)
+async def upload_game_screenshot(
+    game_id: UUID,
+    file: UploadFile = File(...),
+    name: str | None = Form(default=None, max_length=255, description="Optional display name."),
+    tags: str | None = Form(default=None, description="Comma-separated tags."),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Screenshot:
+    """Upload a screenshot for a game.
+
+    If `name` isn't given, it falls back to the original filename (without its
+    extension), and if that isn't usable either, to "<upload date>-<short id>".
+    """
+    game = await _get_game_or_404(game_id, db, current_user.id)
+
+    if not file.filename:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="File is required.")
+
+    image_bytes = await file.read()
+    if not image_bytes:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="File is empty.")
+    if len(image_bytes) > MAX_SCREENSHOT_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Image is larger than the {MAX_SCREENSHOT_BYTES // (1024 * 1024)} MB limit.",
+        )
+
+    try:
+        width, height = validate_and_measure_image(image_bytes)
+    except UnidentifiedImageError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="File is not a valid image.") from exc
+
+    screenshot = Screenshot(
+        id=uuid4(),
+        game_id=game.id,
+        name=derive_screenshot_name(name, file.filename),
+        original_filename=file.filename,
+        extension=derive_extension(file.filename, file.content_type),
+        content_type=file.content_type,
+        tags=_parse_tags(tags),
+        file_size_bytes=len(image_bytes),
+        width=width,
+        height=height,
+    )
+
+    save_screenshot_file(image_bytes, game.user_id, game.folder_location, screenshot.id, screenshot.extension)
+
+    db.add(screenshot)
+    await db.commit()
+    await db.refresh(screenshot)
+    return screenshot
+
+
+@router.get(
+    "/{game_id}/screenshots",
+    response_model=list[ScreenshotRead],
+    responses={status.HTTP_404_NOT_FOUND: {"description": "Game not found"}},
+)
+async def list_game_screenshots(
+    game_id: UUID,
+    tag: str | None = Query(default=None, description="Filter to screenshots with this tag."),
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=100, ge=1, le=500),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> list[Screenshot]:
+    """List screenshot metadata for a game, newest first."""
+    await _get_game_or_404(game_id, db, current_user.id)
+
+    stmt = select(Screenshot).where(Screenshot.game_id == game_id)
+    if tag:
+        stmt = stmt.where(Screenshot.tags.any(tag))
+    stmt = stmt.order_by(Screenshot.created_at.desc()).offset(skip).limit(limit)
+
+    result = await db.execute(stmt)
+    return list(result.scalars().all())
+
+
+@router.get(
+    "/{game_id}/screenshots/{screenshot_id}",
+    response_model=ScreenshotRead,
+    responses={status.HTTP_404_NOT_FOUND: {"description": "Game or screenshot not found"}},
+)
+async def get_game_screenshot(
+    game_id: UUID,
+    screenshot_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Screenshot:
+    """Return metadata for one screenshot."""
+    _, screenshot = await _get_screenshot_or_404(game_id, screenshot_id, db, current_user.id)
+    return screenshot
+
+
+@router.get(
+    "/{game_id}/screenshots/{screenshot_id}/file",
+    response_class=FileResponse,
+    responses={status.HTTP_404_NOT_FOUND: {"description": "Game, screenshot, or file not found"}},
+)
+async def get_game_screenshot_file(
+    game_id: UUID,
+    screenshot_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> FileResponse:
+    """Return the raw screenshot image."""
+    game, screenshot = await _get_screenshot_or_404(game_id, screenshot_id, db, current_user.id)
+    file_path = screenshot_file_path(game.user_id, game.folder_location, screenshot.id, screenshot.extension)
+
+    if not file_path.is_file():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Screenshot file missing on disk for {screenshot_id}.",
+        )
+
+    return FileResponse(
+        file_path,
+        media_type=screenshot.content_type or "application/octet-stream",
+        headers={"Cache-Control": "no-store, max-age=0"},
+    )
+
+
+@router.patch(
+    "/{game_id}/screenshots/{screenshot_id}",
+    response_model=ScreenshotRead,
+    responses={status.HTTP_404_NOT_FOUND: {"description": "Game or screenshot not found"}},
+)
+async def update_game_screenshot(
+    game_id: UUID,
+    screenshot_id: UUID,
+    payload: ScreenshotUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Screenshot:
+    """Rename a screenshot and/or replace its tags."""
+    _, screenshot = await _get_screenshot_or_404(game_id, screenshot_id, db, current_user.id)
+
+    updates = payload.model_dump(exclude_unset=True)
+    for field, value in updates.items():
+        setattr(screenshot, field, value)
+
+    await db.commit()
+    await db.refresh(screenshot)
+    return screenshot
+
+
+@router.delete(
+    "/{game_id}/screenshots/{screenshot_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses={status.HTTP_404_NOT_FOUND: {"description": "Game or screenshot not found"}},
+)
+async def delete_game_screenshot(
+    game_id: UUID,
+    screenshot_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> None:
+    """Delete a screenshot's row and its file on disk."""
+    game, screenshot = await _get_screenshot_or_404(game_id, screenshot_id, db, current_user.id)
+    file_path = screenshot_file_path(game.user_id, game.folder_location, screenshot.id, screenshot.extension)
+
+    await db.delete(screenshot)
+    await db.commit()
+    file_path.unlink(missing_ok=True)
 
 
 @router.put(
