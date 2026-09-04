@@ -1,25 +1,47 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import {
+  deleteGame,
   deleteGameNote,
   fetchGame,
   fetchGameNote,
   listGameNotes,
   saveGameNote,
+  setFavorite,
 } from '../services/games'
 import type { Achievement, AchievementTier, Game } from '../types/game'
 import GameFormModal from '../components/GameFormModal.vue'
+import CollectionPickerModal from '../components/CollectionPickerModal.vue'
+import { computeScore } from '../utils/scoring'
+import { currentUser } from '../state/auth'
+import { marked } from 'marked'
+import DOMPurify from 'dompurify'
 
 const route = useRoute()
+const router = useRouter()
+
+function goBackToLibrary() {
+  if (window.history.length > 1) {
+    router.back()
+  } else {
+    router.push('/games')
+  }
+}
 
 const game = ref<Game | null>(null)
 const loading = ref(true)
 const error = ref<string | null>(null)
 const showEditModal = ref(false)
 
+const deleting = ref(false)
+const deleteError = ref<string | null>(null)
+const showDeleteConfirm = ref(false)
+
 const noteNames = ref<string[]>([])
-const noteMode = ref<'list' | 'editor'>('list')
+const noteMode = ref<'list' | 'view' | 'editor'>('list')
+const viewingNoteName = ref<string | null>(null)
+const viewingNoteContent = ref('')
 const editingNoteName = ref<string | null>(null)
 const draftName = ref('')
 const draftContent = ref('')
@@ -27,68 +49,13 @@ const noteLoading = ref(false)
 const noteSaving = ref(false)
 const noteError = ref<string | null>(null)
 
-interface DescriptionSection {
-  header: string | null
-  body: string
-}
-
-const descriptionSections = computed<DescriptionSection[]>(() => {
-  if (!game.value?.description) return []
-  return game.value.description
-    .split('•')
-    .map((s) => s.trim())
-    .filter(Boolean)
-    .map((section) => {
-      const colonIndex = section.indexOf(':')
-      // only treat it as a header if the colon shows up early — a colon
-      // buried deep in a long sentence isn't a header boundary
-      if (colonIndex > 0 && colonIndex < 80) {
-        return { header: section.slice(0, colonIndex).trim(), body: section.slice(colonIndex + 1).trim() }
-      }
-      return { header: null, body: section }
-    })
-})
-
 const hasDraft = computed(
-  () => editingNoteName.value === null && (draftName.value.trim() !== '' || draftContent.value.trim() !== '')
+  () => editingNoteName.value === null && (draftName.value.trim() !== '' || draftContent.value.trim() !== ''),
 )
 
-async function loadGame(id: string) {
-  loading.value = true
-  error.value = null
-  try {
-    game.value = await fetchGame(id)
-  } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Failed to load game'
-  } finally {
-    loading.value = false
-  }
-}
-
-async function onGameSaved() {
-  showEditModal.value = false
-  await loadGame(route.params.id as string)
-}
-
-async function loadNotes() {
-  if (!game.value) {
-    noteNames.value = []
-    return
-  }
-  noteLoading.value = true
-  noteError.value = null
-  try {
-    noteNames.value = await listGameNotes(game.value.id)
-  } catch (err) {
-    noteError.value = err instanceof Error ? err.message : 'Failed to load notes'
-  } finally {
-    noteLoading.value = false
-  }
-}
+const renderedNoteHtml = computed(() => marked.parse(viewingNoteContent.value || '') as string)
 
 function startNewNote() {
-  // resumes whatever was already typed if there's an unsaved draft,
-  // otherwise starts blank
   if (!hasDraft.value) {
     draftName.value = ''
     draftContent.value = ''
@@ -97,15 +64,14 @@ function startNewNote() {
   noteMode.value = 'editor'
 }
 
-async function editNote(noteName: string) {
+async function viewNote(noteName: string) {
   if (!game.value) return
-  editingNoteName.value = noteName
-  draftName.value = noteName
+  viewingNoteName.value = noteName
   noteLoading.value = true
   noteError.value = null
   try {
-    draftContent.value = await fetchGameNote(game.value.id, noteName)
-    noteMode.value = 'editor'
+    viewingNoteContent.value = await fetchGameNote(game.value.id, noteName)
+    noteMode.value = 'view'
   } catch (err) {
     noteError.value = err instanceof Error ? err.message : 'Failed to load note'
   } finally {
@@ -113,14 +79,23 @@ async function editNote(noteName: string) {
   }
 }
 
+function editFromView() {
+  if (!viewingNoteName.value) return
+  editingNoteName.value = viewingNoteName.value
+  draftName.value = viewingNoteName.value
+  draftContent.value = viewingNoteContent.value
+  noteMode.value = 'editor'
+}
+
 function backToList() {
   noteMode.value = 'list'
+  viewingNoteName.value = null
 }
 
 async function saveDraft() {
   if (!game.value) return
-  const name = draftName.value.trim()
-  if (!name) {
+  const newName = draftName.value.trim()
+  if (!newName) {
     noteError.value = 'Enter a note name first.'
     return
   }
@@ -129,7 +104,12 @@ async function saveDraft() {
   noteError.value = null
 
   try {
-    await saveGameNote(game.value.id, name, draftContent.value)
+    await saveGameNote(game.value.id, newName, draftContent.value)
+    // renaming an existing note — the backend has no rename endpoint,
+    // so simulate it by creating the new name and deleting the old one
+    if (editingNoteName.value && editingNoteName.value !== newName) {
+      await deleteGameNote(game.value.id, editingNoteName.value)
+    }
     editingNoteName.value = null
     draftName.value = ''
     draftContent.value = ''
@@ -150,17 +130,94 @@ async function deleteNote(noteName: string) {
 
   try {
     await deleteGameNote(game.value.id, noteName)
-    if (editingNoteName.value === noteName) {
-      editingNoteName.value = null
-      draftName.value = ''
-      draftContent.value = ''
+    if (viewingNoteName.value === noteName || editingNoteName.value === noteName) {
       noteMode.value = 'list'
+      viewingNoteName.value = null
+      editingNoteName.value = null
     }
     await loadNotes()
   } catch (err) {
     noteError.value = err instanceof Error ? err.message : 'Failed to delete note'
   } finally {
     noteSaving.value = false
+  }
+}
+
+// Steam's "About This Game" section is rich HTML (headers, screenshots,
+// gifs) — sanitize it instead of stripping it down to plain text so that
+// content survives
+const descriptionHtml = computed(() => {
+  if (!game.value?.description) return ''
+  return DOMPurify.sanitize(game.value.description)
+})
+
+async function loadGame(id: string) {
+  loading.value = true
+  error.value = null
+  try {
+    game.value = await fetchGame(id)
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : 'Failed to load game'
+  } finally {
+    loading.value = false
+  }
+}
+
+async function onGameSaved() {
+  showEditModal.value = false
+  await loadGame(route.params.id as string)
+}
+
+async function toggleFavorite() {
+  if (!game.value) return
+  const next = !game.value.favorite
+  game.value.favorite = next
+  try {
+    await setFavorite(game.value.id, next)
+  } catch {
+    game.value.favorite = !next
+  }
+}
+
+const showCollectionPicker = ref(false)
+
+async function onCollectionAdded() {
+  await loadGame(route.params.id as string)
+}
+
+function onDeleteFromModal() {
+  showEditModal.value = false
+  deleteError.value = null
+  showDeleteConfirm.value = true
+}
+
+async function confirmDelete() {
+  if (!game.value) return
+  deleting.value = true
+  deleteError.value = null
+  try {
+    await deleteGame(game.value.id)
+    router.push('/games')
+  } catch (err) {
+    deleteError.value = err instanceof Error ? err.message : 'Failed to delete game'
+  } finally {
+    deleting.value = false
+  }
+}
+
+async function loadNotes() {
+  if (!game.value) {
+    noteNames.value = []
+    return
+  }
+  noteLoading.value = true
+  noteError.value = null
+  try {
+    noteNames.value = await listGameNotes(game.value.id)
+  } catch (err) {
+    noteError.value = err instanceof Error ? err.message : 'Failed to load notes'
+  } finally {
+    noteLoading.value = false
   }
 }
 
@@ -181,17 +238,7 @@ const recentActivity = computed(() => {
   return dates.length > 0 ? dates.reduce((latest, d) => (d > latest ? d : latest)) : null
 })
 
-const tally = computed(() => {
-  if (!game.value) return null
-  const values = [
-    game.value.ratingOverall,
-    game.value.ratingStory,
-    game.value.ratingGameplay,
-    game.value.ratingSound,
-  ].filter((v): v is number => v !== null)
-  if (values.length === 0) return null
-  return { sum: values.reduce((a, b) => a + b, 0), max: values.length * 10 }
-})
+const tally = computed(() => (game.value ? computeScore(game.value) : null))
 
 const tabs = ['Overview', 'Achievements', 'Screenshots', 'Clips', 'Saves', 'Docs', 'Notes', 'Stats'] as const
 const activeTab = ref<(typeof tabs)[number]>('Overview')
@@ -257,11 +304,73 @@ function formatPlaytime(minutes: number) {
          separate from the sharp version used in .hero itself -->
 <div class="ambient-bg" :style="{ backgroundImage: `url(${game.bannerImageUrl})` }"></div>
 
-<GameFormModal v-if="showEditModal" :game="game" @close="showEditModal = false" @saved="onGameSaved" />
+<button type="button" class="back-arrow-button" title="Back" @click="goBackToLibrary">
+  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M19 12H5" />
+    <path d="M12 19l-7-7 7-7" />
+  </svg>
+</button>
+
+<div v-if="currentUser" class="profile-chip">
+  <span class="profile-name">{{ currentUser.username }}</span>
+  <div class="profile-avatar">{{ currentUser.username.slice(0, 2).toUpperCase() }}</div>
+</div>
+
+<GameFormModal
+  v-if="showEditModal"
+  :game="game"
+  @close="showEditModal = false"
+  @saved="onGameSaved"
+  @delete="onDeleteFromModal"
+/>
+
+<CollectionPickerModal
+  v-if="showCollectionPicker"
+  :game="game"
+  @close="showCollectionPicker = false"
+  @added="onCollectionAdded"
+/>
+
+<div v-if="showDeleteConfirm" class="confirm-backdrop" @click.self="showDeleteConfirm = false">
+  <div class="confirm-dialog">
+    <h3>Delete {{ game.title }}?</h3>
+    <p>This can't be undone.</p>
+    <div v-if="deleteError" class="confirm-error">{{ deleteError }}</div>
+    <div class="confirm-actions">
+      <button type="button" class="secondary-button" @click="showDeleteConfirm = false">Cancel</button>
+      <button type="button" class="danger-button" :disabled="deleting" @click="confirmDelete">
+        {{ deleting ? 'Deleting…' : 'Delete' }}
+      </button>
+    </div>
+  </div>
+</div>
 
 <section class="hero" :style="{ backgroundImage: `url(${game.bannerImageUrl})` }">
   <div class="hero-overlay"></div>
-  <button class="edit-button" type="button" @click="showEditModal = true">Edit</button>
+  <div class="hero-actions">
+    <button
+      class="hero-icon-button"
+      type="button"
+      title="Add to collection"
+      @click="showCollectionPicker = true"
+    >
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+      </svg>
+    </button>
+    <button
+      class="hero-icon-button"
+      :class="{ active: game.favorite }"
+      type="button"
+      :title="game.favorite ? 'Remove from favorites' : 'Add to favorites'"
+      @click="toggleFavorite"
+    >
+      <svg viewBox="0 0 24 24" width="16" height="16" :fill="game.favorite ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.8 1-1a5.5 5.5 0 0 0 0-7.6z" />
+      </svg>
+    </button>
+    <button class="edit-button" type="button" @click="showEditModal = true">Edit</button>
+  </div>
   <div class="hero-inner">
     <h1>{{ game.title }}</h1>
     <div class="badges">
@@ -292,11 +401,8 @@ function formatPlaytime(minutes: number) {
 
     <section v-if="activeTab === 'Overview'" class="overview">
 <div class="overview-main">
-<div v-if="descriptionSections.length" class="description-wrap">
-  <div v-for="(section, i) in descriptionSections" :key="i" class="description-section">
-    <h4 v-if="section.header" class="description-heading">{{ section.header }}</h4>
-    <p class="description">{{ section.body }}</p>
-  </div>
+<div v-if="descriptionHtml" class="description-wrap">
+  <div class="description-html" v-html="descriptionHtml"></div>
 </div>
 
   <div class="rating-breakdown" v-if="game.ratingOverall !== null || game.ratingStory !== null || game.ratingGameplay !== null || game.ratingSound !== null">
@@ -317,7 +423,7 @@ function formatPlaytime(minutes: number) {
       <span class="rating-score">★ {{ game.ratingSound.toFixed(1) }}</span>
     </div>
     <div v-if="tally" class="rating-item">
-      <span class="rating-label">Tally</span>
+      <span class="rating-label">Score</span>
       <span class="rating-score">{{ tally.sum.toFixed(1) }}</span>
     </div>
   </div>
@@ -389,6 +495,22 @@ function formatPlaytime(minutes: number) {
     <span class="detail-label">Age Rating</span>
     <span class="detail-value">{{ game.ageRating }}</span>
   </div>
+  <div v-if="game.timeToBeatHours" class="detail-row">
+    <span class="detail-label">Time to Beat</span>
+    <span class="detail-value">{{ game.timeToBeatHours }}h</span>
+  </div>
+  <div v-if="game.region" class="detail-row">
+    <span class="detail-label">Region</span>
+    <span class="detail-value">{{ game.region }}</span>
+  </div>
+  <div v-if="game.language" class="detail-row">
+    <span class="detail-label">Language</span>
+    <span class="detail-value">{{ game.language }}</span>
+  </div>
+  <div v-if="game.achievementsProvider" class="detail-row">
+    <span class="detail-label">Achievement Tracking</span>
+    <span class="detail-value">{{ game.achievementsProvider === 'retroachievements' ? 'RetroAchievements' : 'Native' }}</span>
+  </div>
   <div v-if="game.links.length" class="detail-row">
     <span class="detail-label">Links</span>
     <ul class="links-list">
@@ -407,7 +529,9 @@ function formatPlaytime(minutes: number) {
       <span v-if="game.ownership.purchaseDate">
         Purchased {{ new Date(game.ownership.purchaseDate).toLocaleDateString() }}
       </span>
-      <span v-if="game.ownership.price !== null">${{ game.ownership.price.toFixed(2) }}</span>
+      <span v-if="game.ownership.price !== null">
+        {{ game.ownership.priceCurrency ?? 'USD' }} {{ game.ownership.price.toFixed(2) }}
+      </span>
       <span v-if="game.ownership.condition">{{ game.ownership.condition }}</span>
     </div>
   </div>
@@ -493,72 +617,75 @@ function formatPlaytime(minutes: number) {
   </ul>
 </section>
 
-    <section v-else-if="activeTab === 'Notes'" class="notes-panel">
-      <div v-if="noteMode === 'list'" class="notes-list-view">
-        <div class="notes-header-row">
-          <h2>Notes</h2>
-          <button type="button" class="primary-button" @click="startNewNote">
-            {{ hasDraft ? 'Continue Draft' : 'New Note' }}
+<section v-else-if="activeTab === 'Notes'" class="notes-panel">
+  <div v-if="noteMode === 'list'" class="notes-list-view">
+    <div class="notes-header-row">
+      <h2>Notes</h2>
+      <button type="button" class="primary-button" @click="startNewNote">
+        {{ hasDraft ? 'Continue Draft' : 'New Note' }}
+      </button>
+    </div>
+
+    <div v-if="noteError" class="note-error">{{ noteError }}</div>
+
+    <p v-if="noteLoading" class="empty-state">Loading…</p>
+    <p v-else-if="!noteNames.length" class="empty-state">No notes yet.</p>
+    <ul v-else class="notes-list">
+      <li v-for="note in noteNames" :key="note" class="notes-list-row" @click="void viewNote(note)">
+        <span class="note-name">{{ note }}</span>
+        <div class="notes-list-actions">
+          <button type="button" class="danger-button" :disabled="noteSaving" @click.stop="void deleteNote(note)">
+            Delete
           </button>
         </div>
-
-        <div v-if="noteError" class="note-error">{{ noteError }}</div>
-
-        <p v-if="noteLoading" class="empty-state">Loading…</p>
-        <p v-else-if="!noteNames.length" class="empty-state">No notes yet.</p>
-        <ul v-else class="notes-list">
-<li v-for="note in noteNames" :key="note" class="notes-list-row" @click="void editNote(note)">
-  <span class="note-name">{{ note }}</span>
-  <div class="notes-list-actions">
-    <button type="button" class="small-button" @click.stop="void editNote(note)">Edit</button>
-    <button type="button" class="danger-button" :disabled="noteSaving" @click.stop="void deleteNote(note)">
-      Delete
-    </button>
+      </li>
+    </ul>
   </div>
-</li>
-        </ul>
+
+  <div v-else-if="noteMode === 'view'" class="notes-editor">
+    <div class="notes-editor-card">
+      <div class="notes-toolbar">
+        <button type="button" class="small-button" @click="backToList">← Back</button>
+        <span class="selected-note">{{ viewingNoteName }}</span>
+        <button type="button" class="small-button" @click="editFromView">Edit</button>
       </div>
 
-      <div v-else class="notes-editor">
-  <div class="notes-editor-card">
-    <div class="notes-toolbar">
-          <button type="button" class="small-button" @click="backToList">← Back</button>
-          <span class="selected-note">{{ editingNoteName ?? 'New note' }}</span>
-        </div>
+      <div v-if="noteLoading" class="empty-state">Loading…</div>
+      <div v-else class="note-rendered" v-html="renderedNoteHtml"></div>
 
-        <label class="field">
-          <span>Note name</span>
-          <input
-            v-model="draftName"
-            type="text"
-            placeholder="meeting-notes"
-            pattern="[A-Za-z0-9_-]+"
-            :disabled="editingNoteName !== null"
-          />
-        </label>
+      <div v-if="noteError" class="note-error">{{ noteError }}</div>
+    </div>
+  </div>
 
-        <textarea
-          v-model="draftContent"
-          placeholder="Write markdown here…"
-          spellcheck="true"
-        ></textarea>
-
-        <div v-if="noteError" class="note-error">{{ noteError }}</div>
-
-        <div class="notes-editor-actions">
-          <button type="button" class="small-button" @click="backToList">Cancel</button>
-          <button
-            type="button"
-            class="primary-button"
-            :disabled="noteSaving || !draftName.trim()"
-            @click="void saveDraft()"
-          >
-            {{ noteSaving ? 'Saving…' : 'Save' }}
-          </button>
-        </div>
+  <div v-else class="notes-editor">
+    <div class="notes-editor-card">
+      <div class="notes-toolbar">
+        <button type="button" class="small-button" @click="backToList">← Back</button>
       </div>
+
+      <label class="field">
+        <span>Note name</span>
+        <input v-model="draftName" type="text" placeholder="meeting-notes" pattern="[A-Za-z0-9_-]+" />
+      </label>
+
+      <textarea v-model="draftContent" placeholder="Write markdown here…" spellcheck="true"></textarea>
+
+      <div v-if="noteError" class="note-error">{{ noteError }}</div>
+
+      <div class="notes-editor-actions">
+        <button type="button" class="small-button" @click="backToList">Cancel</button>
+        <button
+          type="button"
+          class="primary-button"
+          :disabled="noteSaving || !draftName.trim()"
+          @click="void saveDraft()"
+        >
+          {{ noteSaving ? 'Saving…' : 'Save' }}
+        </button>
       </div>
-    </section>
+    </div>
+  </div>
+</section>
 
     <section v-else class="coming-soon">
       <p>{{ activeTab }} coming soon.</p>
@@ -588,17 +715,6 @@ function formatPlaytime(minutes: number) {
   opacity: 0.25;
   transform: scale(1.2);
   z-index: 0;
-}
-.overview {
-  width: 100%;
-  max-width: 1600px;
-  margin: 0 auto;
-  padding: 24px;
-  box-sizing: border-box;
-  display: grid;
-  grid-template-columns: 1fr 300px;
-  gap: 28px;
-  align-items: start;
 }
 .hero,
 .tabs,
@@ -655,11 +771,96 @@ function formatPlaytime(minutes: number) {
 .rating-badge {
   color: #d68a34;
 }
-.edit-button {
+.back-arrow-button {
+  position: fixed;
+  top: 16px;
+  left: 62px;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(20, 20, 20, 0.55);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 100;
+  transition: background 0.15s ease;
+}
+.back-arrow-button:hover {
+  background: rgba(40, 40, 40, 0.85);
+}
+.profile-chip {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(20, 20, 20, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  border-radius: 999px;
+  padding: 6px 6px 6px 16px;
+}
+.profile-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #d68a34;
+  color: #111;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+}
+.profile-name {
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+}
+.hero-actions {
   position: absolute;
-  top: 20px;
+  bottom: 20px;
   right: 24px;
   z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+.hero:hover .hero-actions {
+  opacity: 1;
+}
+.hero-icon-button {
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  color: #fff;
+  border-radius: 50%;
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.hero-icon-button:hover {
+  background: rgba(0, 0, 0, 0.7);
+}
+.hero-icon-button.active {
+  color: #d68a34;
+  border-color: rgba(214, 138, 52, 0.5);
+}
+.edit-button {
   background: rgba(0, 0, 0, 0.5);
   border: 1px solid rgba(255, 255, 255, 0.25);
   color: #fff;
@@ -668,11 +869,7 @@ function formatPlaytime(minutes: number) {
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
-  opacity: 0;
-  transition: opacity 0.2s ease, background 0.15s ease;
-}
-.hero:hover .edit-button {
-  opacity: 1;
+  transition: background 0.15s ease;
 }
 .edit-button:hover {
   background: rgba(0, 0, 0, 0.7);
@@ -733,41 +930,36 @@ function formatPlaytime(minutes: number) {
   padding-left: 16px;
   border-left: 3px solid #d68a34;
 }
-.description {
-  margin: 0;
+.description-html {
   color: #ddd;
   font-size: 16px;
   line-height: 1.7;
 }
-.description-section {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+.description-html :deep(img),
+.description-html :deep(video) {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+  margin: 10px 0;
+  display: block;
 }
-.description-heading {
-  margin: 0;
+.description-html :deep(h1),
+.description-html :deep(h2),
+.description-html :deep(h3) {
+  margin: 18px 0 6px;
   font-size: 15px;
   font-weight: 700;
   color: #fff;
 }
-.description.clamped {
-  display: -webkit-box;
-  -webkit-line-clamp: 4;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+.description-html :deep(p) {
+  margin: 0 0 12px;
 }
-.description-toggle {
-  align-self: flex-start;
-  background: none;
-  border: none;
+.description-html :deep(a) {
   color: #d68a34;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  padding-left: 19px;
 }
-.description-toggle:hover {
-  text-decoration: underline;
+.description-html :deep(ul) {
+  padding-left: 20px;
+  margin: 0 0 12px;
 }
 .rating-breakdown {
   display: flex;
@@ -1051,11 +1243,6 @@ function formatPlaytime(minutes: number) {
 .percent {
   color: #d68a34;
 }
-.achievement-list {
-  list-style: none;
-  padding: 0;
-  margin-top: 16px;
-}
 .notes-panel {
   width: 100%;
   max-width: 1600px;
@@ -1224,6 +1411,84 @@ function formatPlaytime(minutes: number) {
 }
 .not-found {
   padding: 24px;
+  color: #fff;
+}
+.note-rendered {
+  color: #ddd;
+  line-height: 1.6;
+  font-size: 14px;
+}
+.note-rendered :deep(h1),
+.note-rendered :deep(h2),
+.note-rendered :deep(h3) {
+  color: #fff;
+  margin: 16px 0 8px;
+}
+.note-rendered :deep(p) {
+  margin: 0 0 10px;
+}
+.note-rendered :deep(a) {
+  color: #d68a34;
+}
+.note-rendered :deep(code) {
+  background: #111;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 13px;
+}
+.note-rendered :deep(pre) {
+  background: #111;
+  padding: 12px;
+  border-radius: 8px;
+  overflow-x: auto;
+}
+.note-rendered :deep(ul),
+.note-rendered :deep(ol) {
+  padding-left: 20px;
+  margin: 0 0 10px;
+}
+.confirm-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 60;
+}
+.confirm-dialog {
+  background: #1a1a1a;
+  border: 1px solid #2a2a2a;
+  border-radius: 12px;
+  padding: 22px;
+  width: 100%;
+  max-width: 360px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+}
+.confirm-dialog h3 {
+  margin: 0 0 8px;
+}
+.confirm-dialog p {
+  margin: 0 0 16px;
+  color: #aaa;
+  font-size: 14px;
+}
+.confirm-error {
+  color: #fca5a5;
+  font-size: 13px;
+  margin-bottom: 12px;
+}
+.confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+.confirm-actions .secondary-button,
+.confirm-actions .danger-button {
+  padding: 10px 18px;
+}
+.secondary-button {
+  background: rgba(255, 255, 255, 0.08);
   color: #fff;
 }
 </style>

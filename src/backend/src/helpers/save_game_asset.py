@@ -36,6 +36,7 @@ def create_game_folder(folder_name: str) -> Path:
     folder_path.mkdir(parents=True, exist_ok=True)
     (folder_path / "notes").mkdir(exist_ok=True)
     (folder_path / "screenshots").mkdir(exist_ok=True)
+    (folder_path / "clips").mkdir(exist_ok=True)
     return folder_path
 
 

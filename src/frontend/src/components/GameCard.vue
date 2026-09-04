@@ -3,6 +3,7 @@ import { useRouter } from 'vue-router'
 import type { Game, GameStatus } from '../types/game'
 import { setFavorite, setStatus } from '../services/games'
 import { ref, computed, nextTick } from 'vue'
+import { computeScore } from '../utils/scoring'
 
 const props = defineProps<{
   game: Game
@@ -10,12 +11,13 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   edit: [game: Game]
-  delete: [game: Game]
   'add-to-collection': [game: Game]
   hover: [coverUrl: string | null]
 }>()
 
 const router = useRouter()
+
+const score = computed(() => computeScore(props.game))
 
 const menuOpen = ref(false)
 const statusSubmenuOpen = ref(false)
@@ -98,7 +100,7 @@ function copyFolderPath() {
 <div class="game-card-wrap" @mouseenter="emit('hover', game.bannerImageUrl || game.coverImageUrl)">
     <div class="game-card" :class="{ 'menu-open': menuOpen }">
       <div class="cover" @click="openGame">
-        <img class="cover-image" :src="game.coverImageUrl" :alt="game.title" />
+        <img class="cover-image" :src="game.coverImageUrl" alt="" />
       </div>
 
 <button type="button" class="collection-button" @click.stop="emit('add-to-collection', game)">
@@ -151,10 +153,6 @@ function copyFolderPath() {
             <button type="button" class="menu-item disabled" disabled>Add Clip</button>
             <div class="menu-divider"></div>
             <button type="button" class="menu-item" @click="copyFolderPath">Copy Folder Path</button>
-            <div class="menu-divider"></div>
-            <button type="button" class="menu-item destructive" @click="emit('delete', game); closeMenu()">
-              Delete
-            </button>
           </template>
           <template v-else>
             <button type="button" class="menu-item back" @click="statusSubmenuOpen = false">← Back</button>
@@ -179,7 +177,7 @@ function copyFolderPath() {
       <h3 class="title">{{ game.title }}</h3>
       <div class="meta-row">
         <span class="status">{{ game.status }}</span>
-        <span v-if="game.ratingOverall !== null" class="rating">★ {{ game.ratingOverall.toFixed(1) }}</span>
+        <span v-if="score" class="rating">★ {{ score.sum.toFixed(1) }}</span>
         <span v-if="game.achievementPercent > 0" class="achievements">🏆 {{ game.achievementPercent }}%</span>
       </div>
     </div>
@@ -189,6 +187,8 @@ function copyFolderPath() {
 <style scoped>
 .game-card-wrap {
   width: 200px;
+  flex-shrink: 0;
+  min-width: 0;
 }
 .game-card {
   position: relative;
@@ -207,7 +207,9 @@ function copyFolderPath() {
 .cover {
   position: relative;
   width: 100%;
-  height: 280px;
+  /* 2:3 — matches SteamGridDB's Steam-vertical grid size (600x900) so
+     cover art fills the box instead of getting cropped by object-fit */
+  aspect-ratio: 2 / 3;
   border-radius: 10px;
   overflow: hidden;
   cursor: pointer;

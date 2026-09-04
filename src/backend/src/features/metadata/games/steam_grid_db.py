@@ -108,6 +108,17 @@ class SteamGridDBClient:
             return None
         return results[0]
 
+    def get_game_by_steam_appid(self, steam_app_id: int) -> dict[str, Any] | None:
+        """Look up the exact SteamGridDB game linked to a Steam app ID.
+
+        Far more reliable than name search — a name match for e.g. "Baldur's
+        Gate 3" can just as easily return a fan toolkit or a DLC bundle that
+        happens to rank first; the ID is unambiguous.
+        """
+        payload = self._request("GET", f"/games/steam/{steam_app_id}")
+        data = payload.get("data")
+        return data if isinstance(data, dict) else None
+
     def get_game_images(
         self,
         game_id: int | str,

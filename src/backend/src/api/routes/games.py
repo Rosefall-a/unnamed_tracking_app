@@ -25,12 +25,16 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.api.routes.settings import get_or_create_scan_settings
 from src.api.schemas.game import GameCreate, GameRead, GameUpdate
 from src.database.models.game import Game, GameStatus
 from src.database.models.user import User
+from src.database.models.user_scan_settings import UserScanSettings
 from src.database.session import get_db
 from src.core.auth import get_current_user
+from src.core.config import settings
 from src.features.metadata.games.search import search_game_metadata
+from src.helpers.media import MediaKind, classify_media, list_media, media_subdir, save_media_bytes
 from src.helpers.save_game_asset import ASSET_FILENAMES, AssetKind, create_game_folder, save_game_asset
 
 router = APIRouter(
@@ -53,6 +57,7 @@ class NoteWrite(BaseModel):
 class MetadataSearchResponse(BaseModel):
     query: str
     providers: list[str]
+    steamgriddb_configured: bool = False
     provider_errors: list[str] = []
     results: list[dict]
 
@@ -64,14 +69,45 @@ class AssetUrlRequest(BaseModel):
 ALLOWED_ASSET_KINDS = {"key_art", "banner", "logo", "icon"}
 
 
+def _scan_settings_to_preferences(scan_settings: UserScanSettings) -> dict:
+    return {
+        "provider_order": scan_settings.provider_order,
+        "save_developer": scan_settings.save_developer,
+        "save_publisher": scan_settings.save_publisher,
+        "save_series": scan_settings.save_series,
+        "save_tags": scan_settings.save_tags,
+        "save_features": scan_settings.save_features,
+        "save_description": scan_settings.save_description,
+        "save_age_rating": scan_settings.save_age_rating,
+        "save_release_date": scan_settings.save_release_date,
+        "save_time_to_beat": scan_settings.save_time_to_beat,
+    }
+
+
 @router.get("/metadata/search", response_model=MetadataSearchResponse)
 async def search_metadata(
     query: str = Query(..., min_length=2, max_length=100),
     limit: int = Query(default=8, ge=1, le=20),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> dict:
-    """Search external providers for data that can prefill a new game."""
+    """Search external providers for data that can prefill a new game.
+
+    SteamGridDB art is only included if the requesting user has their own
+    key saved (Settings) — there's no app-wide fallback key. Provider order
+    and which fields get saved come from the user's scan settings.
+    """
+    scan_settings = await get_or_create_scan_settings(current_user.id, db)
+    preferences = _scan_settings_to_preferences(scan_settings)
     try:
-        return await asyncio.to_thread(search_game_metadata, query.strip(), limit)
+        return await asyncio.to_thread(
+            search_game_metadata,
+            query.strip(),
+            limit,
+            current_user.steamgriddb_api_key,
+            preferences,
+            current_user,
+        )
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
@@ -206,7 +242,18 @@ async def upload_game_asset(
             detail="File is required.",
         )
 
+    content_type = (file.content_type or "").split(";", 1)[0].lower()
+    if not content_type.startswith("image/"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="File must be an image.")
+
     image_bytes = await file.read()
+    max_bytes = settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024
+    if len(image_bytes) > max_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Image is larger than the {settings.MAX_UPLOAD_SIZE_MB} MB limit.",
+        )
+
     target_path = await save_game_asset(image_bytes, game_id, asset_kind)
 
     return {
@@ -251,8 +298,12 @@ async def download_game_asset(
     if not content_type.startswith("image/"):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="URL did not return an image.")
     image_bytes = response.content
-    if len(image_bytes) > 15 * 1024 * 1024:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Image is larger than the 15 MB limit.")
+    max_bytes = settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024
+    if len(image_bytes) > max_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Image is larger than the {settings.MAX_UPLOAD_SIZE_MB} MB limit.",
+        )
 
     try:
         output_path = await save_game_asset(image_bytes, game_id, asset_kind)
@@ -265,6 +316,94 @@ async def download_game_asset(
         "path": str(output_path),
         "status": "saved",
     }
+
+
+@router.post("/{game_id}/screenshots")
+async def upload_game_screenshots(
+    game_id: UUID,
+    files: list[UploadFile] = File(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict[str, list[dict]]:
+    """Bulk upload — accepts any mix of images and videos in one request.
+    Images are sorted into the game's screenshots folder, videos into its
+    clips folder; anything else is rejected per-file (the rest still save)."""
+    game = await _get_game_or_404(game_id, db, current_user.id)
+    if not game.folder_location:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Game folder_location is missing.")
+
+    max_bytes = settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024
+    results: list[dict] = []
+    for file in files:
+        kind = classify_media(file.content_type, file.filename or "")
+        if kind is None:
+            results.append({"filename": file.filename, "status": "rejected", "reason": "Unsupported file type."})
+            continue
+
+        data = await file.read()
+        if len(data) > max_bytes:
+            results.append(
+                {"filename": file.filename, "status": "rejected", "reason": f"Larger than {settings.MAX_UPLOAD_SIZE_MB} MB."}
+            )
+            continue
+
+        dest_dir = _DATA_ROOT / game.folder_location / media_subdir(kind)
+        saved_path = save_media_bytes(data, dest_dir, file.filename or "file")
+        results.append({"filename": saved_path.name, "status": "saved", "kind": kind})
+
+    return {"results": results}
+
+
+@router.get("/{game_id}/screenshots")
+async def list_game_screenshots(
+    game_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict[str, list[dict]]:
+    game = await _get_game_or_404(game_id, db, current_user.id)
+    if not game.folder_location:
+        return {"media": []}
+
+    game_dir = _DATA_ROOT / game.folder_location
+    media = [
+        {"filename": name, "kind": "screenshot", "url": f"/api/game/{game_id}/screenshots/screenshot/{name}"}
+        for name in list_media(game_dir / "screenshots")
+    ] + [
+        {"filename": name, "kind": "clip", "url": f"/api/game/{game_id}/screenshots/clip/{name}"}
+        for name in list_media(game_dir / "clips")
+    ]
+    return {"media": media}
+
+
+@router.get("/{game_id}/screenshots/{kind}/{filename}", response_class=FileResponse)
+async def get_game_screenshot(
+    game_id: UUID,
+    kind: MediaKind,
+    filename: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> FileResponse:
+    game = await _get_game_or_404(game_id, db, current_user.id)
+    path = _DATA_ROOT / (game.folder_location or "") / media_subdir(kind) / Path(filename).name
+    if not path.is_file():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Media file not found.")
+    return FileResponse(path)
+
+
+@router.delete("/{game_id}/screenshots/{kind}/{filename}")
+async def delete_game_screenshot(
+    game_id: UUID,
+    kind: MediaKind,
+    filename: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict[str, str]:
+    game = await _get_game_or_404(game_id, db, current_user.id)
+    path = _DATA_ROOT / (game.folder_location or "") / media_subdir(kind) / Path(filename).name
+    if not path.is_file():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Media file not found.")
+    path.unlink()
+    return {"status": "deleted", "filename": filename}
 
 
 @router.put(

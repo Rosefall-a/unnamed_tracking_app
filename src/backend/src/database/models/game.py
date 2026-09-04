@@ -129,6 +129,11 @@ class Game(Base):
         nullable=True,
     )
 
+    time_to_beat_hours: Mapped[Decimal | None] = mapped_column(
+        Numeric(6, 1),
+        nullable=True,
+    )
+
     links: Mapped[list["GameLink"]] = relationship(
         back_populates="game",
         cascade="all, delete-orphan",

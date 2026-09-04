@@ -25,6 +25,7 @@ class GameBase(BaseModel):
     features: list[str] = Field(default_factory=list)
     source: str | None = Field(default=None, max_length=50)
     age_rating: str | None = Field(default=None, max_length=20)
+    time_to_beat_hours: Decimal | None = Field(default=None, ge=0)
 
     folder_location: str = Field(
         min_length=1,
@@ -90,6 +91,7 @@ class GameUpdate(BaseModel):
     features: list[str] | None = None
     source: str | None = Field(default=None, max_length=50)
     age_rating: str | None = Field(default=None, max_length=20)
+    time_to_beat_hours: Decimal | None = Field(default=None, ge=0)
 
     folder_location: str | None = Field(
         default=None,

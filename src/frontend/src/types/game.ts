@@ -10,6 +10,10 @@ export type GameStatus =
 
 export type AchievementTier = 'bronze' | 'silver' | 'gold'
 
+// where a game's achievement tracking comes from — 'retroachievements' means
+// synced via retroachievements.org, common for emulated/retro platforms
+export type AchievementsProvider = 'native' | 'retroachievements' | null
+
 export interface Achievement {
   id: string
   name: string
@@ -55,6 +59,10 @@ export interface Game {
   releaseDate: string | null
   source: string | null
   ageRating: string | null
+  timeToBeatHours: number | null
+  region: string | null
+  language: string | null
+  achievementsProvider: AchievementsProvider
   links: GameLink[]
   ownership: GameOwnership
   favorite: boolean
@@ -75,5 +83,6 @@ export interface GameOwnership {
   format: 'digital' | 'physical' | null
   purchaseDate: string | null
   price: number | null
+  priceCurrency: string | null
   condition: string | null
 }

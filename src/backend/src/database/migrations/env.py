@@ -13,6 +13,7 @@ from src.database.base import Base
 from src.database.models import game  # noqa: F401
 from src.database.models import user  # noqa: F401
 from src.database.models import auth  # noqa: F401
+from src.database.models import user_scan_settings  # noqa: F401
 
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)

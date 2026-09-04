@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { createGame, searchGameMetadata, updateGame, uploadGameAsset } from '../services/games'
+import { attachGameAssetFromUrl, createGame, searchGameMetadata, updateGame, uploadGameAsset } from '../services/games'
 import type { MetadataSearchResult } from '../services/games'
-import type { Game, GameStatus } from '../types/game'
+import type { Game, GameStatus, AchievementsProvider } from '../types/game'
 import type { GameLink, GameOwnership } from '../types/game'
+import { currentUser } from '../state/auth'
 
 const props = defineProps<{
   game?: Game | null
@@ -12,6 +13,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   close: []
   saved: [gameId: string]
+  delete: [gameId: string]
 }>()
 
 const isEditing = computed(() => !!props.game)
@@ -39,6 +41,10 @@ const publisher = ref(props.game?.publisher ?? '')
 const series = ref(props.game?.series ?? '')
 const source = ref(props.game?.source ?? '')
 const ageRating = ref(props.game?.ageRating ?? '')
+const timeToBeatHours = ref(props.game?.timeToBeatHours != null ? String(props.game.timeToBeatHours) : '')
+const region = ref(props.game?.region ?? '')
+const language = ref(props.game?.language ?? '')
+const achievementsProvider = ref<AchievementsProvider>(props.game?.achievementsProvider ?? null)
 const releaseDate = ref(props.game?.releaseDate ?? '')
 const dateAdded = ref(props.game?.dateAdded ?? new Date().toISOString().slice(0, 10))
 const description = ref(props.game?.description ?? '')
@@ -64,6 +70,7 @@ function removeLink(index: number) {
 const ownershipFormat = ref<GameOwnership['format']>(props.game?.ownership.format ?? null)
 const purchaseDate = ref(props.game?.ownership.purchaseDate ?? '')
 const price = ref<number | null>(props.game?.ownership.price ?? null)
+const priceCurrency = ref(props.game?.ownership.priceCurrency ?? 'USD')
 const condition = ref(props.game?.ownership.condition ?? '')
 
 const saving = ref(false)
@@ -72,6 +79,16 @@ const metadataQuery = ref('')
 const metadataResults = ref<MetadataSearchResult[]>([])
 const searchingMetadata = ref(false)
 const metadataMessage = ref<string | null>(null)
+const steamgriddbConfigured = ref(false)
+
+// picked from the selected metadata result — attached to the game as real
+// assets once it's actually saved (see submit())
+const pickedKeyArtUrl = ref<string | null>(null)
+const pickedBannerUrl = ref<string | null>(null)
+const keyArtCandidates = ref<string[]>([])
+const bannerCandidates = ref<string[]>([])
+
+const hasSteamgriddbKey = computed(() => !!currentUser.value?.steamgriddb_api_key)
 
 async function searchMetadata() {
   if (metadataQuery.value.trim().length < 2) {
@@ -81,7 +98,9 @@ async function searchMetadata() {
   searchingMetadata.value = true
   metadataMessage.value = null
   try {
-    metadataResults.value = await searchGameMetadata(metadataQuery.value.trim())
+    const response = await searchGameMetadata(metadataQuery.value.trim())
+    metadataResults.value = response.results
+    steamgriddbConfigured.value = response.steamgriddb_configured
     if (!metadataResults.value.length) metadataMessage.value = 'No games found.'
   } catch (err) {
     metadataMessage.value = err instanceof Error ? err.message : 'Metadata search failed.'
@@ -102,11 +121,16 @@ function applyMetadata(result: MetadataSearchResult) {
   developer.value = result.developer ?? ''
   publisher.value = result.publisher ?? ''
   ageRating.value = result.age_rating ?? ''
+  timeToBeatHours.value = result.time_to_beat_hours != null ? String(result.time_to_beat_hours) : timeToBeatHours.value
   releaseDate.value = result.release_date ?? ''
   source.value = result.provider
   tagsInput.value = result.tags.join(', ')
   featuresInput.value = result.features.join(', ')
   links.value = result.links.map((link) => ({ ...link }))
+  pickedKeyArtUrl.value = result.key_art_url
+  pickedBannerUrl.value = result.banner_url
+  keyArtCandidates.value = result.key_art_urls
+  bannerCandidates.value = result.banner_urls
   metadataResults.value = []
   metadataQuery.value = result.title
   metadataMessage.value = `Prefilled from ${result.provider}. Review the fields before saving.`
@@ -158,6 +182,10 @@ async function submit() {
     dateAdded: dateAdded.value || null,
     source: source.value.trim() || null,
     ageRating: ageRating.value.trim() || null,
+    timeToBeatHours: timeToBeatHours.value.trim() ? Number(timeToBeatHours.value) : null,
+    region: region.value.trim() || null,
+    language: language.value.trim() || null,
+    achievementsProvider: achievementsProvider.value,
     ratingOverall: ratingOverall.value,
     ratingStory: ratingStory.value,
     ratingGameplay: ratingGameplay.value,
@@ -169,8 +197,11 @@ async function submit() {
       format: ownershipFormat.value,
       purchaseDate: purchaseDate.value || null,
       price: price.value,
+      priceCurrency: price.value !== null ? priceCurrency.value.trim().toUpperCase() || 'USD' : null,
       condition: condition.value.trim() || null,
     },
+    favorite: props.game?.favorite ?? false,
+    collections: props.game?.collections ?? [],
   }
 
   try {
@@ -179,11 +210,16 @@ async function submit() {
       : await createGame(input)
 
     if (import.meta.env.VITE_USE_MOCK_DATA !== 'true') {
+      // an explicitly-chosen file always wins over the metadata-suggested art
       if (coverFile.value) {
         await uploadGameAsset(savedGame.id, 'key_art', coverFile.value)
+      } else if (pickedKeyArtUrl.value) {
+        await attachGameAssetFromUrl(savedGame.id, 'key_art', pickedKeyArtUrl.value)
       }
       if (bannerFile.value) {
         await uploadGameAsset(savedGame.id, 'banner', bannerFile.value)
+      } else if (pickedBannerUrl.value) {
+        await attachGameAssetFromUrl(savedGame.id, 'banner', pickedBannerUrl.value)
       }
     }
 
@@ -220,11 +256,17 @@ async function submit() {
       <form class="modal-form" @submit.prevent="submit">
   <div class="modal-body">
         <div v-if="activeTab === 'General'" class="tab-panel">
-          <div v-if="!isEditing" class="metadata-search">
+          <div class="metadata-search">
             <div class="search-heading">
               <strong>Find game metadata</strong>
               <span>Search external providers and choose a match to prefill this form.</span>
             </div>
+            <p v-if="!hasSteamgriddbKey" class="steamgriddb-hint">
+              Add your own SteamGridDB API key in
+              <router-link to="/settings" @click="emit('close')">Settings</router-link>
+              to also pull real cover and hero art automatically — without it, only Steam's own
+              (often lower-quality) images are used.
+            </p>
             <div class="search-row">
               <input
                 v-model="metadataQuery"
@@ -315,6 +357,24 @@ async function submit() {
             </label>
           </div>
 
+          <div class="field-row">
+            <label class="field">
+              <span>Time to Beat (hours)</span>
+              <input v-model="timeToBeatHours" type="number" min="0" step="0.5" placeholder="e.g. 12.5" />
+            </label>
+          </div>
+
+          <div class="field-row">
+            <label class="field">
+              <span>Region</span>
+              <input v-model="region" type="text" placeholder="NA, PAL, JP..." />
+            </label>
+            <label class="field">
+              <span>Language</span>
+              <input v-model="language" type="text" placeholder="English, Japanese..." />
+            </label>
+          </div>
+
           <label class="field">
             <span>Date added to library</span>
             <input v-model="dateAdded" type="date" />
@@ -355,6 +415,15 @@ async function submit() {
             <span>Features (comma separated)</span>
             <input v-model="featuresInput" type="text" placeholder="Achievements, Cloud Saves" />
           </label>
+
+          <label class="field">
+            <span>Achievement Tracking</span>
+            <select v-model="achievementsProvider">
+              <option :value="null">None</option>
+              <option value="native">Native</option>
+              <option value="retroachievements">RetroAchievements</option>
+            </select>
+          </label>
         </div>
 
         <div v-else-if="activeTab === 'Media'" class="tab-panel">
@@ -362,13 +431,48 @@ async function submit() {
             <span>Cover image (portrait)</span>
             <input type="file" accept="image/*" @change="onCoverFileChange" />
           </label>
+
+          <div v-if="keyArtCandidates.length > 1" class="media-candidates">
+            <span class="candidates-label">Or pick from metadata search</span>
+            <div class="candidates-grid">
+              <button
+                v-for="url in keyArtCandidates"
+                :key="url"
+                type="button"
+                class="candidate-thumb"
+                :class="{ active: pickedKeyArtUrl === url }"
+                @click="pickedKeyArtUrl = url; coverFile = null"
+              >
+                <img :src="url" alt="" />
+              </button>
+            </div>
+          </div>
+
           <label class="field">
             <span>Banner image (landscape)</span>
             <input type="file" accept="image/*" @change="onBannerFileChange" />
           </label>
+
+          <div v-if="bannerCandidates.length > 1" class="media-candidates">
+            <span class="candidates-label">Or pick from metadata search</span>
+            <div class="candidates-grid banner-grid">
+              <button
+                v-for="url in bannerCandidates"
+                :key="url"
+                type="button"
+                class="candidate-thumb banner-thumb"
+                :class="{ active: pickedBannerUrl === url }"
+                @click="pickedBannerUrl = url; bannerFile = null"
+              >
+                <img :src="url" alt="" />
+              </button>
+            </div>
+          </div>
+
           <p class="hint">
             Images upload after the game is saved, and only against a real backend — skipped
-            automatically while running on mock data.
+            automatically while running on mock data. A file you choose above always wins over a
+            metadata pick.
           </p>
         </div>
 
@@ -406,6 +510,10 @@ async function submit() {
               <span>Price</span>
               <input v-model.number="price" type="number" min="0" step="0.01" />
             </label>
+            <label class="field">
+              <span>Currency</span>
+              <input v-model="priceCurrency" type="text" placeholder="USD" maxlength="3" />
+            </label>
           </div>
 
           <label v-if="ownershipFormat === 'physical'" class="field">
@@ -418,6 +526,15 @@ async function submit() {
       </div>
 
       <div class="modal-actions">
+        <button
+          v-if="isEditing"
+          type="button"
+          class="danger-button"
+          @click="emit('delete', props.game!.id)"
+        >
+          Delete Game
+        </button>
+        <div class="modal-actions-spacer"></div>
         <button type="button" class="secondary-button" @click="emit('close')">Cancel</button>
         <button type="submit" class="primary-button" :disabled="saving">
           {{ saving ? 'Saving…' : (isEditing ? 'Save Changes' : 'Add Game') }}
@@ -547,6 +664,24 @@ async function submit() {
   color: #999;
   font-size: 0.78rem;
 }
+.steamgriddb-hint {
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  background: rgba(214, 138, 52, 0.1);
+  border: 1px solid rgba(214, 138, 52, 0.3);
+  border-radius: 8px;
+  color: #ddd;
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+.steamgriddb-hint a {
+  color: #d68a34;
+  font-weight: 600;
+  text-decoration: none;
+}
+.steamgriddb-hint a:hover {
+  text-decoration: underline;
+}
 .search-row {
   display: flex;
   gap: 8px;
@@ -631,6 +766,45 @@ async function submit() {
   font-size: 0.8rem;
   margin: 0;
 }
+.media-candidates {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: -6px;
+}
+.candidates-label {
+  color: #999;
+  font-size: 0.78rem;
+}
+.candidates-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.candidate-thumb {
+  width: 60px;
+  height: 90px;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 6px;
+  overflow: hidden;
+  cursor: pointer;
+  background: #111;
+  flex-shrink: 0;
+}
+.candidate-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.candidate-thumb.active {
+  border-color: #d68a34;
+}
+.banner-thumb {
+  width: 120px;
+  height: 45px;
+}
 .form-error {
   color: #fca5a5;
   font-size: 0.85rem;
@@ -641,11 +815,28 @@ async function submit() {
 }
 .modal-actions {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
   gap: 10px;
   padding: 14px 22px;
   border-top: 1px solid #2a2a2a;
   flex-shrink: 0;
+}
+.modal-actions-spacer {
+  flex: 1;
+}
+.danger-button {
+  background: rgba(220, 38, 38, 0.15);
+  color: #fca5a5;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 20px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.danger-button:hover {
+  background: rgba(220, 38, 38, 0.3);
 }
 .primary-button,
 .secondary-button {

@@ -333,3 +333,18 @@ html {
     border-right-color: var(--border);
   }
 }
+
+/* Settings > User Interface > compact mode — a modest, low-risk spacing
+   reduction on the highest-traffic layout spots (card grids/rows, page
+   padding), not a full density system across every component. */
+html.compact .grid,
+html.compact .shelf {
+  gap: 10px !important;
+}
+html.compact .library,
+html.compact .home {
+  padding-top: 64px !important;
+}
+html.compact .card-info {
+  padding-top: 6px !important;
+}
