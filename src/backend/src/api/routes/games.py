@@ -31,7 +31,7 @@ from sqlalchemy.orm import selectinload
 
 from src.api.schemas.game import GameCreate, GameRead, GameUpdate
 from src.api.schemas.screenshot import ScreenshotRead, ScreenshotUpdate
-from src.database.models.game import Game, GamePlatform, GameStatus, Screenshot
+from src.database.models.game import Game, GamePlatform, GameStatus, Screenshot, ScreenshotTag
 from src.database.models.user import User
 from src.database.session import get_db
 from src.core.auth import get_current_user
@@ -221,6 +221,27 @@ def _parse_tags(raw_tags: str | None) -> list[str]:
     return list(seen.keys())
 
 
+async def _get_or_create_tags(db: AsyncSession, user_id: UUID, tag_names: list[str]) -> list[ScreenshotTag]:
+    """Resolve tag names to ScreenshotTag rows, creating any that don't exist yet for this user."""
+    if not tag_names:
+        return []
+
+    existing = await db.scalars(
+        select(ScreenshotTag).where(ScreenshotTag.user_id == user_id, ScreenshotTag.name.in_(tag_names))
+    )
+    by_name = {tag.name: tag for tag in existing}
+
+    tags: list[ScreenshotTag] = []
+    for name in tag_names:
+        tag = by_name.get(name)
+        if tag is None:
+            tag = ScreenshotTag(user_id=user_id, name=name)
+            db.add(tag)
+            by_name[name] = tag
+        tags.append(tag)
+    return tags
+
+
 @router.post(
     "/{game_id}/assets/{asset_kind}",
     responses={
@@ -360,7 +381,7 @@ async def upload_game_screenshot(
         original_filename=file.filename,
         extension=derive_extension(file.filename, file.content_type),
         content_type=file.content_type,
-        tags=_parse_tags(tags),
+        tags=await _get_or_create_tags(db, current_user.id, _parse_tags(tags)),
         file_size_bytes=len(image_bytes),
         width=width,
         height=height,
@@ -369,7 +390,14 @@ async def upload_game_screenshot(
     save_screenshot_file(image_bytes, game.user_id, game.folder_location, screenshot.id, screenshot.extension)
 
     db.add(screenshot)
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError as exc:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Could not save screenshot tags due to a conflicting write; please retry.",
+        ) from exc
     await db.refresh(screenshot)
     return screenshot
 
@@ -392,7 +420,7 @@ async def list_game_screenshots(
 
     stmt = select(Screenshot).where(Screenshot.game_id == game_id)
     if tag:
-        stmt = stmt.where(Screenshot.tags.any(tag))
+        stmt = stmt.where(Screenshot.tags.any(ScreenshotTag.name == tag))
     stmt = stmt.order_by(Screenshot.created_at.desc()).offset(skip).limit(limit)
 
     result = await db.execute(stmt)
@@ -459,10 +487,20 @@ async def update_game_screenshot(
     _, screenshot = await _get_screenshot_or_404(game_id, screenshot_id, db, current_user.id)
 
     updates = payload.model_dump(exclude_unset=True)
+    tag_names = updates.pop("tags", None)
     for field, value in updates.items():
         setattr(screenshot, field, value)
+    if tag_names is not None:
+        screenshot.tags = await _get_or_create_tags(db, current_user.id, tag_names)
 
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError as exc:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Could not save screenshot tags due to a conflicting write; please retry.",
+        ) from exc
     await db.refresh(screenshot)
     return screenshot
 

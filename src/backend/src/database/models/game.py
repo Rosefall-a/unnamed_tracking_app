@@ -9,11 +9,14 @@ from sqlalchemy import (
     BigInteger,
     Integer,
     Boolean,
+    Column,
     Date,
     ForeignKey,
     Numeric,
     String,
+    Table,
     Text,
+    UniqueConstraint,
 )
 from sqlalchemy import (
     Enum as SAEnum,
@@ -373,16 +376,6 @@ class Screenshot(Base):
         nullable=False,
     )
 
-    hidden: Mapped[bool] = mapped_column(
-        Boolean,
-        default=False,
-    )
-
-    public: Mapped[bool] = mapped_column(# should indicate if the screenshot is publicly visible
-            Boolean,
-            default=False,
-        )
-
     original_filename: Mapped[str | None] = mapped_column(  # filename as uploaded, kept for reference
         String(255),
         nullable=True,
@@ -398,10 +391,11 @@ class Screenshot(Base):
         nullable=True,
     )
 
-    tags: Mapped[list[str]] = mapped_column(
-        ARRAY(String),
-        nullable=False,
-        default=list,
+    tags: Mapped[list["ScreenshotTag"]] = relationship(
+        secondary="screenshot_tag_links",
+        back_populates="screenshots",
+        order_by="ScreenshotTag.name",
+        lazy="selectin",
     )
 
     file_size_bytes: Mapped[int] = mapped_column(
@@ -433,3 +427,65 @@ class Screenshot(Base):
     )
 
     game: Mapped["Game"] = relationship(back_populates="screenshots")
+
+
+##########################
+#     Screenshot Tags    #
+##########################
+
+# Many-to-many: a tag is scoped to a user (not a single game) and can be
+# reused across every screenshot that user owns, across all their games.
+screenshot_tag_links = Table(
+    "screenshot_tag_links",
+    Base.metadata,
+    Column(
+        "screenshot_id",
+        PG_UUID(as_uuid=True),
+        ForeignKey("screenshots.id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    Column(
+        "tag_id",
+        PG_UUID(as_uuid=True),
+        ForeignKey("screenshot_tags.id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+)
+
+
+class ScreenshotTag(Base):
+    """A reusable, per-user tag. Renaming or deleting one applies everywhere it's attached."""
+
+    __tablename__ = "screenshot_tags"
+    __table_args__ = (
+        UniqueConstraint("user_id", "name", name="uq_screenshot_tags_user_id_name"),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid4,
+    )
+
+    user_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    name: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+    )
+
+    created_at: Mapped[int] = mapped_column(
+        BigInteger,
+        nullable=False,
+        default=time.time,
+    )
+
+    screenshots: Mapped[list["Screenshot"]] = relationship(
+        secondary=screenshot_tag_links,
+        back_populates="tags",
+    )
