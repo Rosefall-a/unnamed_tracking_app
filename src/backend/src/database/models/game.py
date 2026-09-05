@@ -373,6 +373,16 @@ class Screenshot(Base):
         nullable=False,
     )
 
+    hidden: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+    )
+
+    public: Mapped[bool] = mapped_column(# should indicate if the screenshot is publicly visible
+            Boolean,
+            default=False,
+        )
+
     original_filename: Mapped[str | None] = mapped_column(  # filename as uploaded, kept for reference
         String(255),
         nullable=True,
