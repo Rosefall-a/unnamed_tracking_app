@@ -72,6 +72,11 @@ function iconPath(id: string): string {
   width: 220px;
   flex-shrink: 0;
 }
+@media (max-width: 760px) {
+  .settings-nav {
+    width: 100%;
+  }
+}
 .settings-nav-group {
   display: flex;
   flex-direction: column;

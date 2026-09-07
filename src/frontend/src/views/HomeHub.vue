@@ -7,6 +7,8 @@ import { fetchGames, deleteGame } from '../services/games'
 import CollectionPickerModal from '../components/CollectionPickerModal.vue'
 import type { Game } from '../types/game'
 import { currentUser } from '../state/auth'
+import { fetchBounties } from '../services/bounties'
+import type { Bounty } from '../services/bounties'
 
 const router = useRouter()
 
@@ -87,6 +89,24 @@ window.addEventListener('resize', updateAllShelfArrows)
 onUnmounted(() => window.removeEventListener('resize', updateAllShelfArrows))
 
 onMounted(loadGames)
+
+// --- Bounties: self-set goals inside a game, full list lives at /bounties
+const activeBounties = ref<Bounty[]>([])
+const bountiesLoading = ref(true)
+
+async function loadBounties() {
+  bountiesLoading.value = true
+  try {
+    activeBounties.value = await fetchBounties({ status: 'active' })
+  } catch {
+    // no points, no stakes — a failed fetch just means the widget shows
+    // nothing today, not worth surfacing an error for
+    activeBounties.value = []
+  } finally {
+    bountiesLoading.value = false
+  }
+}
+onMounted(loadBounties)
 
 function openEditModal(game: Game) {
   editingGame.value = game
@@ -220,7 +240,24 @@ function scrollShelf(e: MouseEvent, dir: 1 | -1) {
           </div>
         </button>
 
-        <div class="widget-card goals-widget disabled">
+        <router-link
+          v-if="activeBounties.length"
+          to="/bounties"
+          class="widget-card bounty-widget"
+        >
+          <svg class="widget-icon" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="9" />
+            <circle cx="12" cy="12" r="5" />
+            <circle cx="12" cy="12" r="1" fill="currentColor" stroke="none" />
+          </svg>
+          <div class="bounty-body">
+            <span class="widget-title">{{ activeBounties.length }} active {{ activeBounties.length === 1 ? 'bounty' : 'bounties' }}</span>
+            <span class="widget-subtitle" v-for="b in activeBounties.slice(0, 2)" :key="b.id">
+              {{ b.title }}{{ b.game_title ? ` — ${b.game_title}` : '' }}
+            </span>
+          </div>
+        </router-link>
+        <router-link v-else-if="!bountiesLoading" to="/bounties" class="widget-card goals-widget">
           <svg class="widget-icon" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="12" r="9" />
             <circle cx="12" cy="12" r="5" />
@@ -228,9 +265,9 @@ function scrollShelf(e: MouseEvent, dir: 1 | -1) {
           </svg>
           <div>
             <span class="widget-title">Goals & bounties</span>
-            <span class="widget-subtitle">Coming soon</span>
+            <span class="widget-subtitle">Set a goal for one of your games</span>
           </div>
-        </div>
+        </router-link>
       </section>
 
       <p v-if="loading">Loading…</p>
@@ -322,7 +359,7 @@ function scrollShelf(e: MouseEvent, dir: 1 | -1) {
           </div>
         </section>
         <p v-if="!collectionGroups.length" class="empty-row">
-          No collections yet — use a card's collection button to start one.
+          No collections yet: use a card's collection button to start one.
         </p>
       </template>
 
@@ -501,9 +538,24 @@ function scrollShelf(e: MouseEvent, dir: 1 | -1) {
   border-color: #3a3a3a;
   transform: translateY(-2px);
 }
-.widget-card.disabled {
-  cursor: not-allowed;
-  opacity: 0.55;
+.bounty-widget {
+  max-width: 340px;
+  text-decoration: none;
+  color: inherit;
+}
+.bounty-widget:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: #3a3a3a;
+  transform: translateY(-2px);
+}
+.bounty-body {
+  flex: 1;
+  min-width: 0;
+}
+.bounty-body .widget-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .widget-icon {
   color: #d68a34;

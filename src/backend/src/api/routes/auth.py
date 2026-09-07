@@ -67,7 +67,9 @@ class PsnConnectRequest(BaseModel):
 class UserProfileUpdateRequest(BaseModel):
     username: str | None = Field(default=None, min_length=1, max_length=100)
     email: str | None = Field(default=None, min_length=3, max_length=320)
-    current_password: str = Field(min_length=1)
+    # only required when actually setting a new password — everything else
+    # here (username/email/steamgriddb key) doesn't need it
+    current_password: str | None = Field(default=None, min_length=1)
     new_password: str | None = Field(default=None, min_length=1)
     steamgriddb_api_key: str | None = Field(default=None, max_length=64)
 
@@ -134,8 +136,12 @@ async def update_current_user(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, str | bool | None]:
-    if not verify_password(payload.current_password, user.password_hash):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Current password is incorrect.")
+    if payload.new_password is not None:
+        if not payload.current_password or not verify_password(payload.current_password, user.password_hash):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Current password is required to set a new password.",
+            )
 
     if payload.username is not None:
         user.username = payload.username.strip()
@@ -174,14 +180,21 @@ async def connect_psn(
     """Validate a PSN npsso token against Sony's OAuth flow before persisting
     it — never store a token that doesn't actually work."""
     try:
-        await asyncio.to_thread(PSNClient(payload.npsso_token).validate)
+        result = await asyncio.to_thread(PSNClient(payload.npsso_token).validate)
     except PSNError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
     user.psn_npsso_token = encrypt_secret(payload.npsso_token)
     user.psn_validated_at = int(time.time())
+    user.psn_online_id = result.get("profile_name")
+    user.psn_avatar_url = result.get("avatar_url")
     await db.commit()
-    return {"status": "connected", "validated_at": user.psn_validated_at}
+    return {
+        "status": "connected",
+        "validated_at": user.psn_validated_at,
+        "display_name": user.psn_online_id,
+        "avatar_url": user.psn_avatar_url,
+    }
 
 
 @router.delete("/me/psn")
@@ -191,16 +204,23 @@ async def disconnect_psn(
 ) -> dict[str, str]:
     user.psn_npsso_token = None
     user.psn_validated_at = None
+    user.psn_online_id = None
+    user.psn_avatar_url = None
     await db.commit()
     return {"status": "disconnected"}
 
 
 @router.get("/me/psn/status")
-async def psn_status(user: User = Depends(get_current_user)) -> dict[str, bool | int | None]:
+async def psn_status(user: User = Depends(get_current_user)) -> dict[str, bool | int | str | None]:
     """Never echoes the token itself — connected/validated_at only. Does not
     re-validate against Sony on every call; reconnect (POST /me/psn) to
     re-check a token that may have expired."""
-    return {"connected": user.psn_npsso_token is not None, "validated_at": user.psn_validated_at}
+    return {
+        "connected": user.psn_npsso_token is not None,
+        "validated_at": user.psn_validated_at,
+        "display_name": user.psn_online_id,
+        "avatar_url": user.psn_avatar_url,
+    }
 
 
 @router.get("/users")

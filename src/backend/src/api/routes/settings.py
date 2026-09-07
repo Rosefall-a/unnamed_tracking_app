@@ -5,23 +5,31 @@ frontend needs to display (e.g. upload limits)."""
 import asyncio
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.api.schemas.appearance_settings import AppearanceSettingsRead, AppearanceSettingsUpdate
 from src.api.schemas.scan_settings import ScanSettingsRead, ScanSettingsUpdate
-from src.core.auth import get_current_user
+from src.core.auth import get_current_admin, get_current_user
 from src.core.config import settings
 from src.core.crypto import decrypt_secret, encrypt_secret
+from src.database.models.app_integration_settings import AppIntegrationSettings
+from src.database.models.game import Game
 from src.database.models.user import User
+from src.database.models.user_appearance_settings import UserAppearanceSettings
 from src.database.models.user_scan_settings import UserScanSettings
 from src.database.session import get_db
+from src.features.metadata.games import steam
 from src.features.metadata.games.giant_bomb import GiantBombClient, GiantBombError
 from src.features.metadata.games.gog import GOGClient, GOGError
 from src.features.metadata.games.retroachievements import RetroAchievementsClient, RetroAchievementsError
 from src.features.metadata.games.screenscraper import ScreenScraperClient, ScreenScraperError
+from src.features.metadata.games.steam import SteamLibraryError
 from src.features.metadata.games.xbox import XboxClient, XboxError
+from src.helpers.save_badge_image import badge_image_path, delete_badge_image, save_badge_image
 
 router = APIRouter(
     prefix="/api/settings",
@@ -31,22 +39,44 @@ router = APIRouter(
 
 # provider key -> [(payload field name, User column name, is Fernet-encrypted)]
 PROVIDER_FIELD_MAP: dict[str, list[tuple[str, str, bool]]] = {
-    "RetroAchievements": [("api_key", "retroachievements_api_key", False)],
+    "Steam": [("steam_id", "steam_id", False), ("api_key", "steam_api_key", False)],
+    "RetroAchievements": [
+        ("api_key", "retroachievements_api_key", False),
+        ("username", "retroachievements_username", False),
+    ],
     "GiantBomb": [("api_key", "giantbomb_api_key", False)],
     "ScreenScraper": [("ssid", "screenscraper_ssid", False), ("sspassword", "screenscraper_sspassword", True)],
     "Xbox": [("client_id", "xbox_client_id", False), ("client_secret", "xbox_client_secret", True)],
     "GOG": [("refresh_token", "gog_refresh_token", True)],
 }
 
-_ProviderClientError = (RetroAchievementsError, GiantBombError, ScreenScraperError, XboxError, GOGError)
+_ProviderClientError = (SteamLibraryError, RetroAchievementsError, GiantBombError, ScreenScraperError, XboxError, GOGError)
 
 
 def _validate_provider(provider: str, user: User) -> dict:
     """Builds the right client for `provider` from the user's stored
     credentials and calls its `.validate()`. Raises one of
     `_ProviderClientError` on failure."""
+    if provider == "Steam":
+        if not user.steam_id or not user.steam_api_key:
+            raise SteamLibraryError("Steam ID and API key are both required.")
+        games = steam.get_owned_games(user.steam_id, user.steam_api_key)
+        summary = steam.get_player_summary(user.steam_id, user.steam_api_key)
+        return {
+            "validated": True,
+            "games_found": len(games),
+            "persona_name": summary.get("personaname"),
+            "avatar_url": summary.get("avatarfull"),
+        }
     if provider == "RetroAchievements":
-        return RetroAchievementsClient(user.retroachievements_api_key or "").validate()
+        client = RetroAchievementsClient(user.retroachievements_api_key or "")
+        result = client.validate()
+        if user.retroachievements_username:
+            summary = client.get_user_summary(user.retroachievements_username)
+            result["avatar_url"] = (
+                f"https://media.retroachievements.org{summary['UserPic']}" if summary.get("UserPic") else None
+            )
+        return result
     if provider == "GiantBomb":
         return GiantBombClient(user.giantbomb_api_key or "").validate()
     if provider == "ScreenScraper":
@@ -84,6 +114,19 @@ async def get_or_create_scan_settings(user_id: UUID, db: AsyncSession) -> UserSc
     return scan_settings
 
 
+async def get_or_create_app_integration_settings(db: AsyncSession) -> AppIntegrationSettings:
+    """Exactly one row for the whole deployment — created lazily, on first
+    access, same as get_or_create_scan_settings but with no user_id since
+    this isn't per-user."""
+    row = await db.scalar(select(AppIntegrationSettings).limit(1))
+    if row is None:
+        row = AppIntegrationSettings()
+        db.add(row)
+        await db.commit()
+        await db.refresh(row)
+    return row
+
+
 @router.get("/scan", response_model=ScanSettingsRead)
 async def get_scan_settings(
     db: AsyncSession = Depends(get_db),
@@ -109,6 +152,101 @@ async def update_scan_settings(
     return scan_settings
 
 
+async def get_or_create_appearance_settings(user_id: UUID, db: AsyncSession) -> UserAppearanceSettings:
+    """Every user gets an appearance-settings row lazily, same pattern as
+    get_or_create_scan_settings."""
+    appearance = await db.scalar(select(UserAppearanceSettings).where(UserAppearanceSettings.user_id == user_id))
+    if appearance is None:
+        appearance = UserAppearanceSettings(user_id=user_id)
+        db.add(appearance)
+        await db.commit()
+        await db.refresh(appearance)
+    return appearance
+
+
+def _appearance_to_read(appearance: UserAppearanceSettings) -> dict:
+    result = AppearanceSettingsRead.model_validate(appearance).model_dump(mode="json")
+    if appearance.completion_badge_image_url:
+        result["completion_badge_image_url"] = "/api/settings/appearance/badge-image"
+    return result
+
+
+@router.get("/appearance")
+async def get_appearance_settings(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Return the caller's completion-badge appearance preferences."""
+    appearance = await get_or_create_appearance_settings(current_user.id, db)
+    return _appearance_to_read(appearance)
+
+
+@router.put("/appearance")
+async def update_appearance_settings(
+    payload: AppearanceSettingsUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Update the caller's completion-badge appearance preferences."""
+    appearance = await get_or_create_appearance_settings(current_user.id, db)
+    for field, value in payload.model_dump(exclude_unset=True).items():
+        setattr(appearance, field, value)
+    await db.commit()
+    await db.refresh(appearance)
+    return _appearance_to_read(appearance)
+
+
+@router.post("/appearance/badge-image")
+async def upload_badge_image(
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Upload a custom completion-badge image (used by the ribbon/corner_badge
+    styles instead of the built-in trophy icon)."""
+    content_type = (file.content_type or "").lower()
+    if not content_type.startswith("image/"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="File must be an image.")
+    data = await file.read()
+    max_bytes = settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024
+    if len(data) > max_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Image is larger than the {settings.MAX_UPLOAD_SIZE_MB} MB limit.",
+        )
+    try:
+        save_badge_image(data, current_user.id)
+    except (OSError, ValueError) as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Could not save image: {exc}") from exc
+
+    appearance = await get_or_create_appearance_settings(current_user.id, db)
+    appearance.completion_badge_image_url = "set"
+    await db.commit()
+    await db.refresh(appearance)
+    return _appearance_to_read(appearance)
+
+
+@router.delete("/appearance/badge-image")
+async def delete_badge_image_route(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    delete_badge_image(current_user.id)
+    appearance = await get_or_create_appearance_settings(current_user.id, db)
+    appearance.completion_badge_image_url = None
+    await db.commit()
+    await db.refresh(appearance)
+    return _appearance_to_read(appearance)
+
+
+@router.get("/appearance/badge-image", response_class=FileResponse)
+async def get_badge_image(current_user: User = Depends(get_current_user)) -> FileResponse:
+    path = badge_image_path(current_user.id)
+    if not path.is_file():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No custom badge image uploaded.")
+    return FileResponse(path, media_type="image/png", headers={"Cache-Control": "private, max-age=3600"})
+
+
 @router.get("/upload-limits")
 async def get_upload_limits() -> dict[str, int]:
     """Read-only — the effective max upload size, set server-wide via
@@ -117,7 +255,10 @@ async def get_upload_limits() -> dict[str, int]:
 
 
 @router.get("/provider-credentials")
-async def get_provider_credentials(current_user: User = Depends(get_current_user)) -> dict[str, dict]:
+async def get_provider_credentials(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict[str, dict]:
     """Status for every per-user metadata-provider credential, plus the two
     app-wide-only providers (IGDB, and ScreenScraper's server half) for
     display purposes. Does not re-validate against each provider on every
@@ -125,16 +266,62 @@ async def get_provider_credentials(current_user: User = Depends(get_current_user
     Settings page load. Save (PUT) is the only place a fresh "connected"
     vs "error" state gets surfaced; this just reports whether credentials
     are present."""
+    # non-secret identifiers (never passwords/keys/tokens) are safe to echo
+    # back so a field the user already saved shows filled, not blank
+    _SAFE_TO_DISPLAY_FIELDS = {"steam_id", "username", "ssid", "client_id"}
+
     result: dict[str, dict] = {}
     for provider, field_map in PROVIDER_FIELD_MAP.items():
         configured = all(getattr(current_user, column) for _, column, _ in field_map)
         result[provider] = {"status": "configured" if configured else "not_configured"}
+        saved_fields = {
+            payload_field: getattr(current_user, column)
+            for payload_field, column, _ in field_map
+            if payload_field in _SAFE_TO_DISPLAY_FIELDS and getattr(current_user, column)
+        }
+        if saved_fields:
+            result[provider]["fields"] = saved_fields
+    app_integrations = await get_or_create_app_integration_settings(db)
     result["IGDB"] = {
-        "status": "configured" if (settings.IGDB_CLIENT_ID and settings.IGDB_CLIENT_SECRET) else "not_configured",
+        "status": "configured"
+        if (app_integrations.igdb_client_id and app_integrations.igdb_client_secret)
+        else "not_configured",
     }
     result["ScreenScraper"]["app_configured"] = bool(
         settings.SCREENSCRAPER_DEVID and settings.SCREENSCRAPER_DEVPASSWORD
     )
+
+    # library-sync providers also report how much has actually been pulled
+    # in — a persistent "N games, last synced ..." beats a toast that
+    # disappears the moment you navigate away. `library_games` counts every
+    # game currently attributed to that source (however it got there);
+    # `last_synced_at` is the real timestamp of the last successful sync
+    # run (not derived from Game.updated_at, which unrelated metadata-search
+    # edits would also touch and make "last synced" lie).
+    sync_timestamp_columns = {
+        "Steam": current_user.steam_library_synced_at,
+        "RetroAchievements": current_user.retroachievements_library_synced_at,
+        "PlayStation": current_user.psn_library_synced_at,
+    }
+    for provider, last_synced in sync_timestamp_columns.items():
+        count = await db.scalar(
+            select(func.count(Game.id)).where(Game.user_id == current_user.id, Game.source == provider)
+        )
+        result.setdefault(provider, {"status": "not_configured"})
+        result[provider]["library_games"] = count
+        result[provider]["last_synced_at"] = last_synced
+
+    # display identity — who's actually connected, not just a green dot
+    if current_user.steam_persona_name or current_user.steam_avatar_url:
+        result["Steam"]["display_name"] = current_user.steam_persona_name
+        result["Steam"]["avatar_url"] = current_user.steam_avatar_url
+    if current_user.retroachievements_username:
+        result["RetroAchievements"]["display_name"] = current_user.retroachievements_username
+        result["RetroAchievements"]["avatar_url"] = current_user.retroachievements_avatar_url
+    if current_user.psn_online_id:
+        result["PlayStation"]["display_name"] = current_user.psn_online_id
+        result["PlayStation"]["avatar_url"] = current_user.psn_avatar_url
+
     return result
 
 
@@ -148,6 +335,49 @@ async def save_provider_credentials(
     field_map = PROVIDER_FIELD_MAP.get(provider)
     if field_map is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Unknown provider: {provider}")
+
+    # Steam has two boxes but doesn't care which value lands in which one —
+    # a Web API key has a fixed, unambiguous shape (32 hex chars), so if it
+    # ended up in the profile-ID box (or vice versa) this just swaps them
+    # before anything tries to use them. A blank box means "leave it
+    # alone", not "clear it" — saving just one field (e.g. adding the API
+    # key in a second pass) must never wipe out the other one that's
+    # already saved.
+    if provider == "Steam":
+        steam_id_input = (payload.fields.get("steam_id") or "").strip()
+        api_key_input = (payload.fields.get("api_key") or "").strip()
+        if steam_id_input and api_key_input:
+            if steam.looks_like_api_key(steam_id_input) and not steam.looks_like_api_key(api_key_input):
+                steam_id_input, api_key_input = api_key_input, steam_id_input
+
+        if steam_id_input:
+            current_user.steam_id = steam_id_input
+        if api_key_input:
+            current_user.steam_api_key = api_key_input
+        await db.commit()
+
+        if not current_user.steam_id or not current_user.steam_api_key:
+            missing = "profile ID" if not current_user.steam_id else "API key"
+            return {"provider": provider, "status": "saved", "detail": f"Saved: now add your {missing} to connect."}
+
+        try:
+            resolved = await asyncio.to_thread(steam.resolve_steam_id, current_user.steam_id, current_user.steam_api_key)
+        except SteamLibraryError as exc:
+            return {"provider": provider, "status": "error", "detail": str(exc)}
+        if resolved != current_user.steam_id:
+            current_user.steam_id = resolved
+            await db.commit()
+
+        try:
+            result = await asyncio.to_thread(_validate_provider, provider, current_user)
+        except _ProviderClientError as exc:
+            return {"provider": provider, "status": "error", "detail": str(exc)}
+        connected = result.get("validated", True)
+        if connected:
+            current_user.steam_persona_name = result.get("persona_name")
+            current_user.steam_avatar_url = result.get("avatar_url")
+            await db.commit()
+        return {"provider": provider, "status": "connected" if connected else "saved", "detail": None}
 
     for payload_field, column, encrypted in field_map:
         value = payload.fields.get(payload_field)
@@ -163,6 +393,9 @@ async def save_provider_credentials(
         return {"provider": provider, "status": "error", "detail": str(exc)}
 
     connected = result.get("validated", True)
+    if connected and provider == "RetroAchievements":
+        current_user.retroachievements_avatar_url = result.get("avatar_url")
+        await db.commit()
     return {"provider": provider, "status": "connected" if connected else "saved", "detail": None}
 
 
@@ -178,5 +411,66 @@ async def delete_provider_credentials(
 
     for _, column, _ in field_map:
         setattr(current_user, column, None)
+    if provider == "Steam":
+        current_user.steam_persona_name = None
+        current_user.steam_avatar_url = None
+    if provider == "RetroAchievements":
+        current_user.retroachievements_avatar_url = None
     await db.commit()
     return {"provider": provider, "status": "not_configured"}
+
+
+class AppIntegrationSettingsRequest(BaseModel):
+    igdb_client_id: str | None = None
+    igdb_client_secret: str | None = None
+
+
+@router.get("/app-integrations")
+async def get_app_integrations(
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(get_current_admin),
+) -> dict:
+    """Deployment-wide (not per-user) integration credentials — admin-only,
+    entered through Settings rather than baked into .env, so a self-hosted
+    copy of this app never ships with someone else's API keys. The client
+    id is safe to echo back (it's not a secret); the client secret never
+    is, same rule as every other Fernet-encrypted credential here."""
+    del admin
+    row = await get_or_create_app_integration_settings(db)
+    return {
+        "igdb_client_id": row.igdb_client_id,
+        "igdb_configured": bool(row.igdb_client_id and row.igdb_client_secret),
+    }
+
+
+@router.put("/app-integrations")
+async def update_app_integrations(
+    payload: AppIntegrationSettingsRequest,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(get_current_admin),
+) -> dict:
+    del admin
+    row = await get_or_create_app_integration_settings(db)
+    updates = payload.model_dump(exclude_unset=True)
+    if "igdb_client_id" in updates:
+        row.igdb_client_id = updates["igdb_client_id"] or None
+    if "igdb_client_secret" in updates:
+        row.igdb_client_secret = encrypt_secret(updates["igdb_client_secret"]) if updates["igdb_client_secret"] else None
+    await db.commit()
+    return {
+        "igdb_client_id": row.igdb_client_id,
+        "igdb_configured": bool(row.igdb_client_id and row.igdb_client_secret),
+    }
+
+
+@router.delete("/app-integrations")
+async def delete_app_integrations(
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(get_current_admin),
+) -> dict:
+    del admin
+    row = await get_or_create_app_integration_settings(db)
+    row.igdb_client_id = None
+    row.igdb_client_secret = None
+    await db.commit()
+    return {"igdb_client_id": None, "igdb_configured": False}

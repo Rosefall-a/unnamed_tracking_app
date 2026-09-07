@@ -112,7 +112,7 @@ async function toggleAdmin(user: AdminUser) {
               </span>
             </td>
             <td class="joined">
-              {{ user.created_at ? new Date(user.created_at * 1000).toLocaleDateString() : '—' }}
+              {{ user.created_at ? new Date(user.created_at * 1000).toLocaleDateString() : 'N/A' }}
             </td>
             <td class="actions">
               <button
@@ -164,7 +164,7 @@ async function toggleAdmin(user: AdminUser) {
     <div v-if="deletingUser" class="confirm-backdrop" @click.self="deletingUser = null">
       <div class="confirm-dialog">
         <h3>Delete {{ deletingUser.username }}?</h3>
-        <p>This can't be undone — their data folder is removed too.</p>
+        <p>This can't be undone: their data folder is removed too.</p>
         <div v-if="deleteError" class="form-error">{{ deleteError }}</div>
         <div class="confirm-actions">
           <button type="button" class="secondary-button" @click="deletingUser = null">Cancel</button>

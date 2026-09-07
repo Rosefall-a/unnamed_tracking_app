@@ -1,5 +1,6 @@
 from datetime import date
 from decimal import Decimal
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -10,6 +11,21 @@ from src.database.models.game import (
     GameStatus,
 )
 from src.helpers.currency_codes import CURRENCY_CODES
+
+# a game's relationship to its parent_game_id — plain strings on the DB
+# side (see database/models/game.py), but validated against a known set
+# here so a typo doesn't silently create a new, slightly-different kind.
+# Adding a new value is a code change here, never a migration.
+GameRelationshipType = Literal[
+    "mod", "modpack", "expansion", "dlc", "standalone_expansion", "total_conversion"
+]
+
+
+class GameLinkSchema(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    label: str = Field(min_length=1, max_length=50)
+    url: str = Field(min_length=1, max_length=2_048)
 
 
 class GameBase(BaseModel):
@@ -23,7 +39,11 @@ class GameBase(BaseModel):
     series: str | None = Field(default=None, max_length=200)
     tags: list[str] = Field(default_factory=list)
     features: list[str] = Field(default_factory=list)
+    collections: list[str] = Field(default_factory=list)
+    links: list[GameLinkSchema] = Field(default_factory=list)
     source: str | None = Field(default=None, max_length=50)
+    parent_game_id: UUID | None = None
+    relationship_type: GameRelationshipType | None = None
     age_rating: str | None = Field(default=None, max_length=20)
     time_to_beat_hours: Decimal | None = Field(default=None, ge=0)
 
@@ -37,6 +57,14 @@ class GameBase(BaseModel):
     status: GameStatus = GameStatus.BACKLOG
     priority: str | None = Field(default=None, max_length=20)
     favorite: bool = False
+    profiles_enabled: bool = Field(
+        default=False,
+        description="Per-game opt-in for the account/profile switcher (Notes checklist + Screenshots scoping).",
+    )
+    osrs_stats_enabled: bool = Field(
+        default=False,
+        description="Per-game opt-in for OSRS-specific account features (WiseOldMan sync, skill/boss icons).",
+    )
     notes: str | None = None
     resume_note: str | None = Field(default=None, max_length=2_000)
     playtime_seconds: int = Field(default=0, ge=0)
@@ -49,6 +77,11 @@ class GameBase(BaseModel):
     purchase_price: Decimal | None = Field(default=None, ge=0)
     purchase_price_currency_code: str | None = Field(default=None, max_length=3)
     physical_condition: str | None = Field(default=None, max_length=200)
+    completion_date: int | None = Field(
+        default=None,
+        ge=0,
+        description="Unix timestamp in seconds — when this game was first 100%-completed (Mastered).",
+    )
 
     rating_story: Decimal | None = Field(default=None, ge=0, le=10)
     rating_gameplay: Decimal | None = Field(default=None, ge=0, le=10)
@@ -89,9 +122,17 @@ class GameUpdate(BaseModel):
     series: str | None = Field(default=None, max_length=200)
     tags: list[str] | None = None
     features: list[str] | None = None
+    collections: list[str] | None = None
+    links: list[GameLinkSchema] | None = None
     source: str | None = Field(default=None, max_length=50)
     age_rating: str | None = Field(default=None, max_length=20)
     time_to_beat_hours: Decimal | None = Field(default=None, ge=0)
+    # NULL clears the relationship — a distinct "clear the parent" signal
+    # needs a sentinel elsewhere, but for a modpack/DLC entry no one clears
+    # its parent without renaming its relationship_type too, so treating
+    # unset-vs-null the normal partial-update way (exclude_unset) is fine
+    parent_game_id: UUID | None = None
+    relationship_type: GameRelationshipType | None = None
 
     folder_location: str | None = Field(
         default=None,
@@ -103,6 +144,8 @@ class GameUpdate(BaseModel):
     status: GameStatus | None = None
     priority: str | None = Field(default=None, max_length=20)
     favorite: bool | None = None
+    profiles_enabled: bool | None = None
+    osrs_stats_enabled: bool | None = None
     notes: str | None = None
     resume_note: str | None = Field(default=None, max_length=2_000)
     playtime_seconds: int | None = Field(default=None, ge=0)
@@ -115,6 +158,11 @@ class GameUpdate(BaseModel):
     purchase_price: Decimal | None = Field(default=None, ge=0)
     purchase_price_currency_code: str | None = Field(default=None, max_length=3)
     physical_condition: str | None = Field(default=None, max_length=200)
+    completion_date: int | None = Field(
+        default=None,
+        ge=0,
+        description="Unix timestamp in seconds — when this game was first 100%-completed (Mastered).",
+    )
 
     rating_story: Decimal | None = Field(default=None, ge=0, le=10)
     rating_gameplay: Decimal | None = Field(default=None, ge=0, le=10)
@@ -137,6 +185,26 @@ class GameUpdate(BaseModel):
         return value
 
 
+class GameBulkUpdate(BaseModel):
+    """Apply the same field values to many games at once. Deliberately a
+    narrower field set than GameUpdate — title/folder_location/notes/
+    playtime/purchase info/ratings are per-game by nature and excluded so a
+    bulk edit can't accidentally stamp one game's specifics onto many
+    others. Only fields explicitly set here are touched; a field left unset
+    leaves every selected game's existing value alone (same partial-update
+    semantics as the single-game PATCH)."""
+
+    game_ids: list[UUID] = Field(min_length=1, max_length=500)
+    status: GameStatus | None = None
+    favorite: bool | None = None
+    developer: str | None = Field(default=None, max_length=200)
+    publisher: str | None = Field(default=None, max_length=200)
+    series: str | None = Field(default=None, max_length=200)
+    age_rating: str | None = Field(default=None, max_length=20)
+    tags: list[str] | None = None
+    features: list[str] | None = None
+
+
 class GameRead(GameBase):
     """Full representation returned to clients."""
 
@@ -147,3 +215,14 @@ class GameRead(GameBase):
     sort_title: str
     created_at: int = Field(description="Unix timestamp in seconds when the game was created.")
     updated_at: int = Field(description="Unix timestamp in seconds when the game was last updated.")
+    last_played_at: int | None = Field(
+        default=None, description="Unix timestamp in seconds — set by a library sync, never user-editable."
+    )
+    stale_since: int | None = Field(
+        default=None,
+        description=(
+            "Unix timestamp in seconds since a library sync last noticed this game missing from the "
+            "account's owned-games list. NULL means currently present (or never synced). Never causes "
+            "deletion by itself — set for the user to review."
+        ),
+    )

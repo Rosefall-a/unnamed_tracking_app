@@ -46,6 +46,46 @@ class RetroAchievementsClient:
             raise RetroAchievementsError("Unexpected response validating the API key.")
         return {"validated": True}
 
+    def get_user_summary(self, username: str) -> dict[str, Any]:
+        """The account's public profile pic, shown in Settings so a
+        connected RetroAchievements account reads as "who", not just a
+        green dot. Best-effort — returns {} rather than raising if the
+        username itself is wrong (the API key can still be valid)."""
+        if not username.strip():
+            return {}
+        try:
+            payload = self._get("API_GetUserProfile.php", u=username)
+        except RetroAchievementsError:
+            return {}
+        return payload if isinstance(payload, dict) else {}
+
+    def get_user_games(self, username: str) -> list[dict[str, Any]]:
+        """Every game the user has any tracked progress on — RetroAchievements
+        has no separate "owned games" concept from "games with progress",
+        since ROMs aren't purchased/licensed through the site."""
+        if not username.strip():
+            raise RetroAchievementsError("No RetroAchievements username provided.")
+        payload = self._get("API_GetUserCompletedGames.php", u=username)
+        if not isinstance(payload, list):
+            raise RetroAchievementsError("Unexpected response listing the user's games.")
+        # the endpoint returns one row per (game, hardcore/softcore) — dedupe
+        # by game id, keeping the richer (hardcore) row when both exist
+        by_game_id: dict[str, dict[str, Any]] = {}
+        for entry in payload:
+            game_id = str(entry.get("GameID", ""))
+            if not game_id:
+                continue
+            if game_id not in by_game_id or entry.get("HardcoreMode") == "1":
+                by_game_id[game_id] = entry
+        return list(by_game_id.values())
+
+    def get_game_progress(self, username: str, game_id: str) -> dict[str, Any]:
+        """Full achievement list for one game plus this user's unlock state."""
+        payload = self._get("API_GetGameInfoAndUserProgress.php", u=username, g=game_id)
+        if not isinstance(payload, dict):
+            raise RetroAchievementsError("Unexpected response fetching game progress.")
+        return payload
+
     def search_games(self, query: str, limit: int = 8) -> list[dict[str, Any]]:
         """RetroAchievements has no free-text game search endpoint — the
         practical approach used by community tools is to pull each

@@ -6,6 +6,7 @@ import SettingsNav from '../components/settings/SettingsNav.vue'
 import type { SettingsGroup } from '../components/settings/SettingsNav.vue'
 import ProfileSection from '../components/settings/ProfileSection.vue'
 import InterfaceSection from '../components/settings/InterfaceSection.vue'
+import AppearanceSection from '../components/settings/AppearanceSection.vue'
 import UploadSection from '../components/settings/UploadSection.vue'
 import LibraryManagementSection from '../components/settings/LibraryManagementSection.vue'
 import ScanSettingsSection from '../components/settings/ScanSettingsSection.vue'
@@ -31,6 +32,7 @@ const groups = computed<SettingsGroup[]>(() => {
       sections: [
         { id: 'profile', label: 'Profile' },
         { id: 'interface', label: 'User Interface' },
+        { id: 'appearance', label: 'Appearance' },
       ],
     },
     {
@@ -81,6 +83,7 @@ const activeSection = ref('profile')
         <div class="settings-card">
           <ProfileSection v-if="activeSection === 'profile'" />
           <InterfaceSection v-else-if="activeSection === 'interface'" />
+          <AppearanceSection v-else-if="activeSection === 'appearance'" />
           <UploadSection v-else-if="activeSection === 'upload'" />
           <LibraryManagementSection v-else-if="activeSection === 'library'" />
           <ScanSettingsSection v-else-if="activeSection === 'scan'" />
@@ -90,7 +93,7 @@ const activeSection = ref('profile')
           <ComingSoonSection
             v-else-if="activeSection === 'export'"
             title="Export / Import"
-            description="Export your library to a portable file and import it back — for backups or moving to a new server."
+            description="Export your library to a portable file and import it back: for backups or moving to a new server."
             :planned-features="[
               'Full library export to a single portable file',
               'Import from a previous export',
@@ -100,7 +103,7 @@ const activeSection = ref('profile')
           <ComingSoonSection
             v-else-if="activeSection === 'tasks' && currentUser?.is_admin"
             title="Tasks"
-            description="Schedule recurring jobs, run by an in-process scheduler — no extra server required."
+            description="Schedule recurring jobs, run by an in-process scheduler: no extra server required."
             :planned-features="[
               'Scheduled metadata refreshes',
               'Automatic library rescans',
@@ -173,5 +176,19 @@ const activeSection = ref('profile')
   border: 1px solid #2a2a2a;
   border-radius: 14px;
   padding: 32px;
+}
+
+/* the nav's own fixed width never shrank on a narrow viewport, so the row
+   just overflowed the page horizontally instead of the card ever getting a
+   chance to use its min-width:0: stacking nav above content is the
+   standard settings-page mobile pattern */
+@media (max-width: 760px) {
+  .settings-body {
+    flex-direction: column;
+  }
+  .settings-card {
+    width: 100%;
+    padding: 20px;
+  }
 }
 </style>

@@ -9,6 +9,7 @@ from sqlalchemy import case, extract, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.auth import get_current_user
+from src.database.models.bounty import Bounty, BountyPointTransaction
 from src.database.models.game import Game
 from src.database.models.user import User
 from src.database.session import get_db
@@ -25,12 +26,28 @@ def _folder_size_bytes(folder_location: str | None) -> int:
     if not game_dir.is_dir():
         return 0
     total = 0
-    for path in game_dir.rglob("*"):
+    for path in game_dir.iterdir():
+        # world_map is BlueMap's rendered tile cache (see features/world_map/
+        # bluemap.py) — thousands of small regenerable files per world, not
+        # content the user actually uploaded. One heavily-rendered world was
+        # enough to push this endpoint's total walk time past 80 seconds by
+        # itself (12k+ files in one folder vs. ~1.2k across the other 181
+        # games combined), so it's excluded rather than counted as "storage
+        # used".
+        if path.name == "world_map" and path.is_dir():
+            continue
         if path.is_file():
             try:
                 total += path.stat().st_size
             except OSError:
                 continue
+        elif path.is_dir():
+            for sub in path.rglob("*"):
+                if sub.is_file():
+                    try:
+                        total += sub.stat().st_size
+                    except OSError:
+                        continue
     return total
 
 
@@ -97,6 +114,15 @@ async def get_stats_overview(
     format_case = case((Game.physical_condition.is_not(None), "Physical"), else_="Digital")
     format_stmt = select(format_case, func.count(Game.id)).where(user_filter).group_by(format_case)
 
+    bounty_filter = Bounty.user_id == current_user.id
+    bounties_completed_stmt = select(func.count()).where(bounty_filter, Bounty.status == "completed")
+    bounties_hard_stmt = select(func.count()).where(
+        bounty_filter, Bounty.status == "completed", Bounty.difficulty.in_(["hard", "extreme"])
+    )
+    bounty_points_stmt = select(func.coalesce(func.sum(BountyPointTransaction.amount), 0)).where(
+        BountyPointTransaction.user_id == current_user.id
+    )
+
     # NOTE: a single AsyncSession can't run concurrent statements — these
     # run sequentially, not via asyncio.gather, despite all being cheap
     # aggregate queries that would otherwise be a good gather() candidate.
@@ -110,6 +136,9 @@ async def get_stats_overview(
     top_tags_result = await db.execute(top_tags_stmt)
     release_year_result = await db.execute(release_year_stmt)
     format_result = await db.execute(format_stmt)
+    bounties_completed = await db.scalar(bounties_completed_stmt)
+    bounties_hard_completed = await db.scalar(bounties_hard_stmt)
+    bounty_points_total = await db.scalar(bounty_points_stmt)
 
     total_games, favorite_count, total_playtime_seconds, total_spent, average_rating = totals_result.one()
 
@@ -148,4 +177,7 @@ async def get_stats_overview(
             {"label": str(int(year)), "count": count} for year, count in release_year_result.all()
         ],
         "format_breakdown": [{"label": label, "count": count} for label, count in format_result.all()],
+        "bounties_completed": int(bounties_completed or 0),
+        "bounties_hard_completed": int(bounties_hard_completed or 0),
+        "bounty_points_total": int(bounty_points_total or 0),
     }

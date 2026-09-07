@@ -4,8 +4,9 @@ import { fetchUploadLimits } from '../../services/settings'
 import { fetchGames } from '../../services/games'
 import type { Game } from '../../types/game'
 import { uploadToInbox, listInbox, deleteInboxMedia, assignInboxMedia } from '../../services/media'
-import type { MediaItem } from '../../services/media'
-import { startTask, completeTask, errorTask } from '../../state/taskProgress'
+import type { InboxMediaItem } from '../../services/media'
+import { startTask, updateTask, completeTask, errorTask, addFeedItem, setTaskRetry } from '../../state/taskProgress'
+import { refreshInboxCount } from '../../state/inbox'
 
 const maxUploadSizeMb = ref<number | null>(null)
 
@@ -27,7 +28,7 @@ onMounted(async () => {
   }
 })
 
-const inboxMedia = ref<MediaItem[]>([])
+const inboxMedia = ref<InboxMediaItem[]>([])
 const loadingInbox = ref(true)
 const inboxError = ref<string | null>(null)
 
@@ -41,6 +42,7 @@ async function loadInbox() {
   } finally {
     loadingInbox.value = false
   }
+  void refreshInboxCount()
 }
 onMounted(loadInbox)
 
@@ -59,28 +61,42 @@ async function onFilesSelected(e: Event) {
   uploading.value = true
   uploadSummary.value = null
   uploadError.value = null
-  const taskId = startTask(`Uploading ${files.length} file${files.length === 1 ? '' : 's'}`, files.length)
-  try {
-    const results = await uploadToInbox(files)
-    const saved = results.filter((r) => r.status === 'saved').length
-    const rejected = results.filter((r) => r.status === 'rejected')
-    uploadSummary.value = `${saved} uploaded${rejected.length ? `, ${rejected.length} skipped (unsupported file type or too large)` : ''}.`
-    completeTask(taskId, uploadSummary.value)
-    await loadInbox()
-  } catch (err) {
-    uploadError.value = err instanceof Error ? err.message : 'Upload failed'
-    errorTask(taskId, uploadError.value)
-  } finally {
-    uploading.value = false
-    input.value = ''
+  input.value = ''
+  // real byte-level progress against the actual upload (not a fake jump to
+  // 100%) — see uploadToInbox/uploadFiles in services/media.ts
+  const taskId = startTask(`Uploading ${files.length} file${files.length === 1 ? '' : 's'}`, 100)
+
+  const attempt = async () => {
+    try {
+      const results = await uploadToInbox(files, (fraction, speedLabel) => updateTask(taskId, Math.round(fraction * 100), undefined, speedLabel))
+      const saved = results.filter((r) => r.status === 'saved')
+      const rejected = results.filter((r) => r.status === 'rejected')
+      uploadSummary.value = `${saved.length} uploaded${rejected.length ? `, ${rejected.length} rejected` : ''}.`
+      for (const r of results) {
+        addFeedItem(taskId, r.status === 'saved' ? `${r.filename} uploaded` : `${r.filename}: ${r.reason ?? 'rejected'}`)
+      }
+      if (saved.length === 0 && rejected.length > 0) {
+        errorTask(taskId, uploadSummary.value)
+      } else {
+        completeTask(taskId, uploadSummary.value)
+      }
+      await loadInbox()
+    } catch (err) {
+      uploadError.value = err instanceof Error ? err.message : 'Upload failed'
+      errorTask(taskId, uploadError.value)
+      setTaskRetry(taskId, () => void attempt())
+    } finally {
+      uploading.value = false
+    }
   }
+  await attempt()
 }
 
 const selected = ref<Set<string>>(new Set())
-function itemKey(item: MediaItem) {
+function itemKey(item: InboxMediaItem) {
   return `${item.kind}:${item.filename}`
 }
-function toggleSelected(item: MediaItem) {
+function toggleSelected(item: InboxMediaItem) {
   const key = itemKey(item)
   if (selected.value.has(key)) selected.value.delete(key)
   else selected.value.add(key)
@@ -111,7 +127,7 @@ async function assignSelected() {
   }
 }
 
-async function removeItem(item: MediaItem) {
+async function removeItem(item: InboxMediaItem) {
   try {
     await deleteInboxMedia(item.kind, item.filename)
     await loadInbox()
@@ -125,7 +141,7 @@ async function removeItem(item: MediaItem) {
   <section class="settings-section">
     <h2>Upload</h2>
     <p class="section-hint">
-      Bulk-upload screenshots and clips without picking a game first — drop in everything at
+      Bulk-upload screenshots and clips without picking a game first: drop in everything at
       once, then group and assign them below. Images become screenshots, videos become clips
       automatically.
       <template v-if="maxUploadSizeMb">Each file must be under {{ maxUploadSizeMb }} MB.</template>

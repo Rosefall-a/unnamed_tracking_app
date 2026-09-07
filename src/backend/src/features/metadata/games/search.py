@@ -7,11 +7,11 @@ from typing import TYPE_CHECKING, Any, Callable, Literal
 
 from src.core.config import settings
 from src.core.crypto import decrypt_secret
-from src.features.metadata.games import steam
-from src.features.metadata.games.giant_bomb import GiantBombClient, GiantBombError
+from src.features.metadata.games import gog, steam
+from src.features.metadata.games.giant_bomb import GiantBombClient
 from src.features.metadata.games.hltb import HLTBClient, HLTBError
-from src.features.metadata.games.igdb import IGDBClient, IGDBError
-from src.features.metadata.games.retroachievements import RetroAchievementsClient, RetroAchievementsError
+from src.features.metadata.games.igdb import IGDBClient
+from src.features.metadata.games.retroachievements import RetroAchievementsClient
 from src.features.metadata.games.screenscraper import ScreenScraperClient, ScreenScraperError
 from src.features.metadata.games.steam_grid_db import SteamGridDBClient, SteamGridDBError
 
@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 def _parse_release_date(value: Any) -> str | None:
     if not isinstance(value, str) or not value.strip():
         return None
-    for date_format in ("%d %b, %Y", "%b %d, %Y", "%Y", "%Y-%m-%d"):
+    for date_format in ("%d %b, %Y", "%b %d, %Y", "%Y", "%Y-%m-%d", "%Y.%m.%d"):
         try:
             return datetime.strptime(value.strip(), date_format).date().isoformat()
         except ValueError:
@@ -41,6 +41,7 @@ def _blank_result(provider: str, provider_id: str, title: str) -> dict[str, Any]
         "release_date": None,
         "developer": None,
         "publisher": None,
+        "series": None,
         "age_rating": None,
         "tags": [],
         "features": [],
@@ -78,11 +79,22 @@ def _steam_result(item: dict[str, Any], details: dict[str, Any] | None) -> dict[
             "tags": genres,
             "features": features,
             "links": [{"label": "Steam Store", "url": f"https://store.steampowered.com/app/{app_id}/"}],
-            "key_art_url": details.get("header_image") or item.get("tiny_image"),
-            "banner_url": details.get("background_raw") or details.get("header_image"),
+            # no art here — data providers only provide data; art comes
+            # exclusively from image providers (SteamGridDB/ScreenScraper)
         }
     )
     return result
+
+
+def _friendly_provider_error(name: str, message: str) -> str:
+    """A 429 (or a provider's own "rate limit"/"too many requests" wording)
+    reads as just another opaque failure otherwise — worth calling out
+    specifically since the fix ("wait a bit") is different from a real
+    outage or bad credentials."""
+    lowered = message.lower()
+    if "429" in message or "rate limit" in lowered or "too many requests" in lowered:
+        return f"{name}: rate limited by the provider, try again in a few minutes."
+    return f"{name}: {message}"
 
 
 def _titles_match(a: str, b: str) -> bool:
@@ -120,6 +132,11 @@ def _merge_or_append(results: list[dict[str, Any]], candidate: dict[str, Any]) -
 class ProviderContext:
     user: "User | None"
     steamgriddb_api_key: str | None
+    # deployment-wide (not per-user) IGDB app credentials — see
+    # database/models/app_integration_settings.py; resolved by the caller
+    # (which has DB access) and passed in, same pattern as steamgriddb_api_key
+    igdb_client_id: str | None = None
+    igdb_client_secret: str | None = None
 
 
 ProviderRun = Callable[[str, int, ProviderContext, list[dict[str, Any]]], list[dict[str, Any]] | None]
@@ -153,7 +170,7 @@ def _run_steam(query: str, limit: int, ctx: ProviderContext, existing: list[dict
 
 
 def _run_steamgriddb(query: str, limit: int, ctx: ProviderContext, existing: list[dict[str, Any]]) -> None:
-    del query, limit
+    del limit
     assert ctx.steamgriddb_api_key  # guarded by `available`
     client = SteamGridDBClient(api_key=ctx.steamgriddb_api_key)
     for result in existing:
@@ -161,6 +178,25 @@ def _run_steamgriddb(query: str, limit: int, ctx: ProviderContext, existing: lis
             _add_steamgriddb_art(result, client)
         except (SteamGridDBError, TypeError, ValueError):
             continue
+
+    # An exact-title consumer (the frontend's manual "Refresh Metadata")
+    # only ever applies a result whose title matches the query exactly —
+    # if every existing entry is some other, unrelated title (e.g. GOG's
+    # fuzzy catalog search returning junk for "gtnh"), that's effectively
+    # the same as `existing` being empty for this game. This is the common
+    # case for a manually-added Minecraft modpack (e.g. "GTNH"), which has
+    # no real Steam/IGDB/GiantBomb listing — SteamGridDB covers plenty of
+    # these on its own, so it shouldn't need another provider to have
+    # found the *right* title first.
+    if any(_titles_match(r["title"], query) for r in existing):
+        return
+    try:
+        standalone = _blank_result("SteamGridDB", "", query)
+        _add_steamgriddb_art(standalone, client)
+    except (SteamGridDBError, TypeError, ValueError):
+        return
+    if standalone.get("key_art_url") or standalone.get("banner_url"):
+        existing.append(standalone)
 
 
 def _add_steamgriddb_art(result: dict[str, Any], client: SteamGridDBClient) -> None:
@@ -218,8 +254,9 @@ def _add_steamgriddb_art(result: dict[str, Any], client: SteamGridDBClient) -> N
 
 
 def _run_igdb(query: str, limit: int, ctx: ProviderContext, existing: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    del ctx, existing
-    client = IGDBClient(client_id=settings.IGDB_CLIENT_ID, client_secret=settings.IGDB_CLIENT_SECRET)
+    del existing
+    assert ctx.igdb_client_id and ctx.igdb_client_secret  # guarded by `available`
+    client = IGDBClient(client_id=ctx.igdb_client_id, client_secret=ctx.igdb_client_secret)
     found: list[dict[str, Any]] = []
     for game in client.search(query, limit=limit):
         result = _blank_result("IGDB", str(game.get("id", "")), game.get("name", ""))
@@ -229,8 +266,8 @@ def _run_igdb(query: str, limit: int, ctx: ProviderContext, existing: list[dict[
                 "release_date": _parse_release_date(game.get("release_date")),
                 "developer": game.get("developer"),
                 "publisher": game.get("publisher"),
+                "series": game.get("series"),
                 "tags": game.get("genres") or [],
-                "key_art_url": game.get("cover_url"),
                 "links": [{"label": "IGDB", "url": game["url"]}] if game.get("url") else [],
             }
         )
@@ -250,7 +287,6 @@ def _run_retroachievements(
         result.update(
             {
                 "tags": [game["console"]] if game.get("console") else [],
-                "key_art_url": game.get("image_icon_url"),
                 "links": [{"label": "RetroAchievements", "url": game["url"]}] if game.get("url") else [],
             }
         )
@@ -271,8 +307,27 @@ def _run_giant_bomb(
             {
                 "description": game.get("deck"),
                 "release_date": _parse_release_date(game.get("original_release_date")),
-                "key_art_url": game.get("image_url"),
                 "links": [{"label": "Giant Bomb", "url": game["url"]}] if game.get("url") else [],
+            }
+        )
+        found.append(result)
+    return found
+
+
+def _run_gog(query: str, limit: int, ctx: ProviderContext, existing: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    del ctx, existing
+    found: list[dict[str, Any]] = []
+    for product in gog.search(query, limit=limit):
+        product_id = str(product.get("id", ""))
+        result = _blank_result("GOG", product_id, product.get("title", ""))
+        result.update(
+            {
+                "description": gog.get_description(product_id) if product_id else None,
+                "release_date": _parse_release_date(product.get("releaseDate")),
+                "developer": ", ".join(product.get("developers", [])) or None,
+                "publisher": ", ".join(product.get("publishers", [])) or None,
+                "tags": [g["name"] for g in product.get("genres", []) if g.get("name")],
+                "links": [{"label": "GOG", "url": f"https://www.gog.com/game/{product['slug']}"}] if product.get("slug") else [],
             }
         )
         found.append(result)
@@ -322,7 +377,7 @@ PROVIDERS: dict[str, ProviderSpec] = {
         "SteamGridDB", "enrichment", lambda ctx: bool(ctx.steamgriddb_api_key), _run_steamgriddb
     ),
     "IGDB": ProviderSpec(
-        "IGDB", "primary", lambda ctx: bool(settings.IGDB_CLIENT_ID and settings.IGDB_CLIENT_SECRET), _run_igdb
+        "IGDB", "primary", lambda ctx: bool(ctx.igdb_client_id and ctx.igdb_client_secret), _run_igdb
     ),
     "RetroAchievements": ProviderSpec(
         "RetroAchievements",
@@ -346,6 +401,7 @@ PROVIDERS: dict[str, ProviderSpec] = {
         _run_screenscraper,
     ),
     "HowLongToBeat": ProviderSpec("HowLongToBeat", "enrichment", lambda ctx: True, _run_hltb),
+    "GOG": ProviderSpec("GOG", "primary", lambda ctx: True, _run_gog),
 }
 
 # fields a user can opt out of saving from a metadata search result — the
@@ -360,18 +416,30 @@ _GATED_FIELDS: dict[str, tuple[str, Any]] = {
     "age_rating": ("save_age_rating", None),
     "release_date": ("save_release_date", None),
     "time_to_beat_hours": ("save_time_to_beat", None),
+    "key_art_url": ("save_key_art", None),
+    "key_art_urls": ("save_key_art", []),
+    "banner_url": ("save_banner", None),
+    "banner_urls": ("save_banner", []),
+    "logo_url": ("save_logo", None),
+    "logo_urls": ("save_logo", []),
+    "icon_url": ("save_icon", None),
+    "icon_urls": ("save_icon", []),
 }
-DEFAULT_PROVIDER_ORDER = [
-    "Steam",
-    "IGDB",
-    "GiantBomb",
-    "RetroAchievements",
-    "SteamGridDB",
-    "ScreenScraper",
-    "HowLongToBeat",
-]
+# which providers belong to which order list — strictly separated so a data
+# provider never contributes art and an image provider never contributes
+# data, regardless of what a caller passes in `provider_order`/
+# `image_provider_order` (each list is still filtered down to its own set)
+DATA_PROVIDER_NAMES = {"Steam", "IGDB", "GiantBomb", "GOG", "RetroAchievements", "HowLongToBeat"}
+IMAGE_PROVIDER_NAMES = {"SteamGridDB", "ScreenScraper"}
+
+# "best of category first" — see user_scan_settings.py's identical constant
+# for the reasoning; kept in sync manually since these are two intentionally
+# separate modules (backend model defaults vs. search-time fallback)
+DEFAULT_PROVIDER_ORDER = ["IGDB", "GiantBomb", "GOG", "Steam", "RetroAchievements", "HowLongToBeat"]
+DEFAULT_IMAGE_PROVIDER_ORDER = ["SteamGridDB", "ScreenScraper"]
 DEFAULT_PREFERENCES: dict[str, Any] = {
     "provider_order": DEFAULT_PROVIDER_ORDER,
+    "image_provider_order": DEFAULT_IMAGE_PROVIDER_ORDER,
     **{flag: True for flag, _ in _GATED_FIELDS.values()},
 }
 
@@ -389,33 +457,59 @@ def search_game_metadata(
     steamgriddb_api_key: str | None = None,
     preferences: dict[str, Any] | None = None,
     user: "User | None" = None,
+    igdb_client_id: str | None = None,
+    igdb_client_secret: str | None = None,
 ) -> dict[str, Any]:
     """Search configured providers and return normalized creation-form data.
 
     `preferences` (from UserScanSettings) drives which providers run and in
-    what order (`provider_order`), and which normalized fields survive into
-    the result (`save_<field>` toggles). Each provider in `PROVIDERS` is
-    either "primary" (produces base results, merged by title into existing
-    ones) or "enrichment" (layers data — usually art — onto results already
-    found, a no-op if nothing exists yet to enrich). A provider missing its
-    credentials is silently skipped, not an error — `steamgriddb_configured`
-    stays as the one explicit flag the frontend already depends on for its
-    "add a key" prompt; new providers surface their configured-ness via
+    what order, and which normalized fields survive into the result
+    (`save_<field>` toggles). Two independent orderings exist, strictly
+    separated by content — a data provider never contributes art and an
+    image provider never contributes data, regardless of list membership:
+    `provider_order` sequences the data providers (Steam, IGDB, GiantBomb,
+    RetroAchievements — all "primary", building the base result rows — plus
+    HowLongToBeat, "enrichment" by mechanism but data by content) and
+    `image_provider_order` separately sequences the two art-only enrichment
+    providers (SteamGridDB, ScreenScraper). Splitting these matters because
+    SteamGridDB and ScreenScraper can both contribute the same art fields
+    when both are configured — without an explicit order between them,
+    whichever finishes its thread first would "win" that field
+    non-deterministically. A provider missing its credentials is silently
+    skipped, not an error — `steamgriddb_configured` stays as the one
+    explicit flag the frontend already depends on for its "add a key"
+    prompt; new providers surface their configured-ness via
     `GET /api/settings/provider-credentials` instead.
     """
     preferences = preferences or DEFAULT_PREFERENCES
     provider_order = preferences.get("provider_order") or DEFAULT_PROVIDER_ORDER
-    ctx = ProviderContext(user=user, steamgriddb_api_key=steamgriddb_api_key)
+    image_provider_order = preferences.get("image_provider_order") or DEFAULT_IMAGE_PROVIDER_ORDER
+    ctx = ProviderContext(
+        user=user,
+        steamgriddb_api_key=steamgriddb_api_key,
+        igdb_client_id=igdb_client_id,
+        igdb_client_secret=igdb_client_secret,
+    )
 
     results: list[dict[str, Any]] = []
     provider_errors: list[str] = []
     providers_used: list[str] = []
 
-    available_specs = [
-        PROVIDERS[name] for name in provider_order if PROVIDERS.get(name) and PROVIDERS[name].available(ctx)
-    ]
-    primary_specs = [spec for spec in available_specs if spec.kind == "primary"]
-    enrichment_specs = [spec for spec in available_specs if spec.kind == "enrichment"]
+    def _specs_for(order: list[str], names: set[str], kind: str) -> list[ProviderSpec]:
+        return [
+            PROVIDERS[name]
+            for name in order
+            if name in names and PROVIDERS.get(name) and PROVIDERS[name].kind == kind and PROVIDERS[name].available(ctx)
+        ]
+
+    primary_specs = _specs_for(provider_order, DATA_PROVIDER_NAMES, "primary")
+    # data-content enrichment (HowLongToBeat) keeps provider_order's
+    # priority; image-content enrichment (SteamGridDB/ScreenScraper) uses
+    # image_provider_order instead — concatenated so both groups still run
+    # together in one pass, each respecting its own list's order
+    enrichment_specs = _specs_for(provider_order, DATA_PROVIDER_NAMES, "enrichment") + _specs_for(
+        image_provider_order, IMAGE_PROVIDER_NAMES, "enrichment"
+    )
 
     # Primary providers are independent of each other (none reads another's
     # results), so they're the real bottleneck when run one at a time —
@@ -433,7 +527,7 @@ def search_game_metadata(
         with ThreadPoolExecutor(max_workers=len(primary_specs)) as executor:
             for spec, outcome, error in executor.map(_call_primary, primary_specs):
                 if error is not None:
-                    provider_errors.append(f"{spec.name}: {error}")
+                    provider_errors.append(_friendly_provider_error(spec.name, error))
                     continue
                 if outcome:
                     for candidate in outcome:
@@ -465,7 +559,7 @@ def search_game_metadata(
                 provider_errors.append(f"{spec.name}: timed out after {ENRICHMENT_TIMEOUT_SECONDS}s")
                 continue
             except Exception as exc:  # noqa: BLE001 — one provider's failure shouldn't sink the search
-                provider_errors.append(f"{spec.name}: {exc}")
+                provider_errors.append(_friendly_provider_error(spec.name, str(exc)))
                 continue
             providers_used.append(spec.name)
         executor.shutdown(wait=False)

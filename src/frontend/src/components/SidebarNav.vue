@@ -1,8 +1,11 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { logout } from '../services/auth'
 import { currentUser } from '../state/auth'
+import { inboxCount, refreshInboxCount } from '../state/inbox'
+
+onMounted(refreshInboxCount)
 
 const route = useRoute()
 const open = ref(false)
@@ -101,6 +104,24 @@ async function handleLogout() {
           <span>Collections</span>
         </router-link>
       </div>
+
+      <router-link to="/inbox" class="sidebar-item" :class="{ active: isActive('/inbox') }" @click="close">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M22 12h-6l-2 3h-4l-2-3H2" />
+          <path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />
+        </svg>
+        <span>Inbox</span>
+        <span v-if="inboxCount" class="inbox-badge">{{ inboxCount }}</span>
+      </router-link>
+
+      <router-link to="/bounties" class="sidebar-item" :class="{ active: isActive('/bounties') }" @click="close">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9" />
+          <circle cx="12" cy="12" r="5" />
+          <circle cx="12" cy="12" r="1" fill="currentColor" stroke="none" />
+        </svg>
+        <span>Bounties</span>
+      </router-link>
 
       <div class="sidebar-item disabled">
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -292,6 +313,20 @@ async function handleLogout() {
   background: rgba(255, 255, 255, 0.06);
   padding: 2px 6px;
   border-radius: 999px;
+}
+.inbox-badge {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 700;
+  color: #111;
+  background: #d68a34;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .sidebar-spacer {
   flex: 1;

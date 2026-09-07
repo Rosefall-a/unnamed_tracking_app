@@ -1,6 +1,13 @@
 <script setup lang="ts">
 import { tasks, dismissTask } from '../state/taskProgress'
 
+function retry(task: (typeof tasks)[number]) {
+  task.retry?.()
+  task.status = 'running'
+  task.detail = undefined
+  task.done = 0
+}
+
 function percent(done: number, total: number): number {
   if (total <= 0) return 0
   return Math.min(100, Math.round((done / total) * 100))
@@ -23,12 +30,29 @@ function percent(done: number, total: number): number {
           </button>
         </div>
         <div class="task-toast-track">
-          <div class="task-toast-fill" :style="{ width: percent(task.done, task.total) + '%' }"></div>
+          <div
+            class="task-toast-fill"
+            :class="{ indeterminate: task.indeterminate && task.status === 'running' }"
+            :style="task.indeterminate ? {} : { width: percent(task.done, task.total) + '%' }"
+          ></div>
         </div>
         <div class="task-toast-meta">
-          <span v-if="task.status === 'running'">{{ task.done }} / {{ task.total }}</span>
+          <span v-if="task.status === 'running'">
+            {{ task.indeterminate ? 'Working…' : `${task.done} / ${task.total}` }}
+            <span v-if="task.speedLabel" class="task-toast-speed">· {{ task.speedLabel }}</span>
+          </span>
           <span v-else-if="task.status === 'done'">{{ task.detail || 'Done' }}</span>
           <span v-else class="task-toast-error">{{ task.detail || 'Failed' }}</span>
+        </div>
+        <button v-if="task.status === 'error' && task.retry" type="button" class="task-toast-retry" @click="retry(task)">
+          Retry
+        </button>
+        <div v-if="task.feed.length" class="task-toast-feed">
+          <TransitionGroup name="feed-item" tag="div" class="task-toast-feed-inner">
+            <div v-for="entry in task.feed.slice(-6)" :key="entry.id" class="feed-line">
+              {{ entry.text }}
+            </div>
+          </TransitionGroup>
         </div>
       </div>
     </div>
@@ -99,11 +123,68 @@ function percent(done: number, total: number): number {
 .task-toast.error .task-toast-fill {
   background: #f87171;
 }
+.task-toast-fill.indeterminate {
+  width: 40% !important;
+  animation: task-toast-scan 1.1s ease-in-out infinite;
+}
+@keyframes task-toast-scan {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(250%);
+  }
+}
 .task-toast-meta {
   font-size: 0.76rem;
   color: #999;
 }
 .task-toast-error {
   color: #fca5a5;
+}
+.task-toast-speed {
+  color: #777;
+}
+.task-toast-retry {
+  margin-top: 8px;
+  background: rgba(220, 38, 38, 0.12);
+  border: 1px solid rgba(220, 38, 38, 0.35);
+  color: #fca5a5;
+  border-radius: 6px;
+  padding: 5px 10px;
+  font-size: 0.76rem;
+  cursor: pointer;
+}
+.task-toast-retry:hover {
+  background: rgba(220, 38, 38, 0.2);
+}
+.task-toast-feed {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #232323;
+  /* bounded by task.feed.slice(-6) in the template, not by clipping height
+     here: a fixed max-height + overflow:hidden was cutting lines off
+     mid-character whenever the real rendered height came out a few pixels
+     taller than the guessed value (padding/gap rounding, font metrics) */
+}
+.task-toast-feed-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.feed-line {
+  font-size: 0.72rem;
+  line-height: 1.4;
+  color: #aaa;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.feed-item-enter-active {
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+.feed-item-enter-from {
+  opacity: 0;
+  transform: translateY(4px);
 }
 </style>

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { currentUser, checkAuth } from '../../state/auth'
 import { updateProfile, uploadProfilePicture, profilePictureUrl } from '../../services/auth'
 
@@ -19,12 +19,21 @@ const saving = ref(false)
 const saveError = ref<string | null>(null)
 const saveSuccess = ref(false)
 
+// otherwise "Profile updated." keeps showing after a successful save even
+// once the user starts typing something new — reading as if the in-progress
+// edit was already saved. Only username/email, not the password fields —
+// saveProfile() itself clears those right after a successful save, and
+// watching them here would stomp saveSuccess back to false in that same tick.
+watch([username, email], () => {
+  saveSuccess.value = false
+})
+
 const uploading = ref(false)
 const uploadError = ref<string | null>(null)
 
 async function saveProfile() {
-  if (!currentPassword.value) {
-    saveError.value = 'Enter your current password to make changes.'
+  if (newPassword.value && !currentPassword.value) {
+    saveError.value = 'Enter your current password to set a new one.'
     return
   }
 
@@ -36,7 +45,7 @@ async function saveProfile() {
     await updateProfile({
       username: username.value.trim() || undefined,
       email: email.value.trim() || undefined,
-      currentPassword: currentPassword.value,
+      currentPassword: currentPassword.value || undefined,
       newPassword: newPassword.value || undefined,
     })
     await checkAuth()
@@ -51,7 +60,8 @@ async function saveProfile() {
 }
 
 async function onAvatarFileChange(e: Event) {
-  const file = (e.target as HTMLInputElement).files?.[0]
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
   if (!file || !currentUser.value) return
 
   uploading.value = true
@@ -65,6 +75,9 @@ async function onAvatarFileChange(e: Event) {
     uploadError.value = err instanceof Error ? err.message : 'Failed to upload picture'
   } finally {
     uploading.value = false
+    // without this, re-picking the same file after a failed upload fires
+    // no 'change' event at all (the input's value never actually changed)
+    input.value = ''
   }
 }
 </script>
@@ -110,8 +123,8 @@ async function onAvatarFileChange(e: Event) {
         <input v-model="newPassword" type="password" autocomplete="new-password" />
       </label>
 
-      <label class="field">
-        <span>Current password (required to save)</span>
+      <label v-if="newPassword" class="field">
+        <span>Current password (required to set a new one)</span>
         <input v-model="currentPassword" type="password" autocomplete="current-password" required />
       </label>
 

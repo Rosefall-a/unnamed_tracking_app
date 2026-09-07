@@ -107,7 +107,7 @@ function createAndAdd() {
             {{ name }}
           </button>
           <p v-if="!filteredNames.length && (!query.trim() || exactMatch)" class="picker-empty">
-            {{ availableNames.length ? 'No matches.' : 'No collections yet — type a name to create one.' }}
+            {{ availableNames.length ? 'No matches.' : 'No collections yet: type a name to create one.' }}
           </p>
         </template>
       </div>

@@ -34,7 +34,7 @@ watch(compactMode, (enabled) => {
   <section class="settings-section">
     <h2>User Interface</h2>
     <p class="section-hint">
-      These are the defaults used the next time you open the Games page — they don't change
+      These are the defaults used the next time you open the Games page: they don't change
       anything on a page you already have open.
     </p>
 
@@ -57,7 +57,7 @@ watch(compactMode, (enabled) => {
     </div>
 
     <ToggleButton v-model="compactMode" label="Compact mode">
-      <strong>Compact mode</strong> — tighter spacing across the app
+      <strong>Compact mode</strong>: tighter spacing across the app
     </ToggleButton>
   </section>
 </template>

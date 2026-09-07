@@ -49,7 +49,8 @@ export async function fetchCurrentUser(): Promise<CurrentUser | null> {
 export interface UpdateProfilePayload {
     username?: string
     email?: string
-    currentPassword: string
+    // only required when newPassword is set
+    currentPassword?: string
     newPassword?: string
     steamgriddbApiKey?: string
 }

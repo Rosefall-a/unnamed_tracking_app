@@ -36,4 +36,4 @@ def decrypt_secret(ciphertext: str) -> str:
     try:
         return _fernet().decrypt(ciphertext.encode()).decode()
     except InvalidToken as exc:
-        raise RuntimeError("Could not decrypt stored secret — SECRET_KEY may have changed.") from exc
+        raise RuntimeError("Could not decrypt stored secret: SECRET_KEY may have changed.") from exc

@@ -34,13 +34,16 @@ function saveManualCollections() {
   localStorage.setItem(MANUAL_COLLECTIONS_KEY, JSON.stringify(manualCollectionNames.value))
 }
 
+const createError = ref<string | null>(null)
+
 function createCollection() {
+  createError.value = null
   const name = window.prompt('Name your new collection:')
   if (!name || !name.trim()) return
   const trimmed = name.trim()
   const alreadyExists = collectionSummaries.value.some((c) => c.name.toLowerCase() === trimmed.toLowerCase())
   if (alreadyExists) {
-    window.alert(`"${trimmed}" already exists.`)
+    createError.value = `"${trimmed}" already exists.`
     return
   }
   manualCollectionNames.value.push(trimmed)
@@ -116,6 +119,8 @@ function openCollection(name: string) {
         </div>
       </div>
 
+      <p v-if="createError" class="error create-error">{{ createError }}</p>
+
       <p v-if="loading">Loading…</p>
       <p v-else-if="error" class="error">{{ error }}</p>
 
@@ -130,7 +135,7 @@ function openCollection(name: string) {
           />
         </div>
         <p v-else class="empty-row">
-          No collections yet — create one above, or use a game's collection button to start one.
+          No collections yet: create one above, or use a game's collection button to start one.
         </p>
       </template>
     </div>
@@ -258,5 +263,13 @@ function openCollection(name: string) {
 }
 .error {
   color: #f87171;
+}
+.create-error {
+  font-size: 13px;
+  background: rgba(220, 38, 38, 0.1);
+  border: 1px solid rgba(220, 38, 38, 0.3);
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin-bottom: 16px;
 }
 </style>

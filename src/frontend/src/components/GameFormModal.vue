@@ -1,14 +1,27 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { attachGameAssetFromUrl, createGame, searchGameMetadata, updateGame, uploadGameAsset } from '../services/games'
+import { ref, computed, onMounted, watch } from 'vue'
+import { attachGameAssetFromUrl, createGame, fetchGames, searchGameMetadata, updateGame, uploadGameAsset } from '../services/games'
 import type { MetadataSearchResult } from '../services/games'
-import type { Game, GameStatus, AchievementsProvider } from '../types/game'
+import type { Game, GameStatus, AchievementsProvider, GameRelationshipType } from '../types/game'
 import type { GameLink, GameOwnership } from '../types/game'
 import { currentUser } from '../state/auth'
 
 const props = defineProps<{
   game?: Game | null
 }>()
+
+// for the "parent game" picker — fetched here rather than threaded as a
+// prop through every place this modal is opened from (GameLibrary,
+// GameDetail, CollectionDetail, HomeHub), so it works consistently
+// regardless of caller
+const availableParentGames = ref<Game[]>([])
+onMounted(async () => {
+  try {
+    availableParentGames.value = (await fetchGames()).filter((g) => g.id !== props.game?.id)
+  } catch {
+    // parent picker just stays empty — not worth failing the whole form
+  }
+})
 
 const emit = defineEmits<{
   close: []
@@ -39,6 +52,16 @@ const status = ref<GameStatus>(props.game?.status ?? 'backlog')
 const developer = ref(props.game?.developer ?? '')
 const publisher = ref(props.game?.publisher ?? '')
 const series = ref(props.game?.series ?? '')
+const parentGameId = ref(props.game?.parentGameId ?? '')
+const relationshipType = ref<GameRelationshipType | ''>(props.game?.relationshipType ?? '')
+const RELATIONSHIP_TYPE_OPTIONS: { value: GameRelationshipType; label: string }[] = [
+  { value: 'mod', label: 'Mod' },
+  { value: 'modpack', label: 'Modpack' },
+  { value: 'expansion', label: 'Expansion' },
+  { value: 'dlc', label: 'DLC' },
+  { value: 'standalone_expansion', label: 'Standalone expansion' },
+  { value: 'total_conversion', label: 'Total conversion' },
+]
 const source = ref(props.game?.source ?? '')
 const ageRating = ref(props.game?.ageRating ?? '')
 const timeToBeatHours = ref(props.game?.timeToBeatHours != null ? String(props.game.timeToBeatHours) : '')
@@ -48,6 +71,11 @@ const achievementsProvider = ref<AchievementsProvider>(props.game?.achievementsP
 const releaseDate = ref(props.game?.releaseDate ?? '')
 const dateAdded = ref(props.game?.dateAdded ?? new Date().toISOString().slice(0, 10))
 const description = ref(props.game?.description ?? '')
+const profilesEnabled = ref(props.game?.profilesEnabled ?? false)
+const osrsStatsEnabled = ref(props.game?.osrsStatsEnabled ?? false)
+watch(profilesEnabled, (enabled) => {
+  if (!enabled) osrsStatsEnabled.value = false
+})
 
 const ratingOverall = ref<number | null>(props.game?.ratingOverall ?? null)
 const ratingStory = ref<number | null>(props.game?.ratingStory ?? null)
@@ -69,6 +97,7 @@ function removeLink(index: number) {
 
 const ownershipFormat = ref<GameOwnership['format']>(props.game?.ownership.format ?? null)
 const purchaseDate = ref(props.game?.ownership.purchaseDate ?? '')
+const completionDate = ref(props.game?.completionDate ?? '')
 const price = ref<number | null>(props.game?.ownership.price ?? null)
 const priceCurrency = ref(props.game?.ownership.priceCurrency ?? 'USD')
 const condition = ref(props.game?.ownership.condition ?? '')
@@ -80,6 +109,7 @@ const metadataResults = ref<MetadataSearchResult[]>([])
 const searchingMetadata = ref(false)
 const metadataMessage = ref<string | null>(null)
 const steamgriddbConfigured = ref(false)
+const providerWarnings = ref<string[]>([])
 
 // picked from the selected metadata result — attached to the game as real
 // assets once it's actually saved (see submit())
@@ -97,10 +127,12 @@ async function searchMetadata() {
   }
   searchingMetadata.value = true
   metadataMessage.value = null
+  providerWarnings.value = []
   try {
     const response = await searchGameMetadata(metadataQuery.value.trim())
     metadataResults.value = response.results
     steamgriddbConfigured.value = response.steamgriddb_configured
+    providerWarnings.value = response.provider_errors ?? []
     if (!metadataResults.value.length) metadataMessage.value = 'No games found.'
   } catch (err) {
     metadataMessage.value = err instanceof Error ? err.message : 'Metadata search failed.'
@@ -178,8 +210,11 @@ async function submit() {
     developer: developer.value.trim() || null,
     publisher: publisher.value.trim() || null,
     series: series.value.trim() || null,
+    parentGameId: parentGameId.value || null,
+    relationshipType: parentGameId.value ? relationshipType.value || null : null,
     releaseDate: releaseDate.value || null,
     dateAdded: dateAdded.value || null,
+    completionDate: completionDate.value || null,
     source: source.value.trim() || null,
     ageRating: ageRating.value.trim() || null,
     timeToBeatHours: timeToBeatHours.value.trim() ? Number(timeToBeatHours.value) : null,
@@ -202,6 +237,8 @@ async function submit() {
     },
     favorite: props.game?.favorite ?? false,
     collections: props.game?.collections ?? [],
+    profilesEnabled: profilesEnabled.value,
+    osrsStatsEnabled: osrsStatsEnabled.value,
   }
 
   try {
@@ -264,7 +301,7 @@ async function submit() {
             <p v-if="!hasSteamgriddbKey" class="steamgriddb-hint">
               Add your own SteamGridDB API key in
               <router-link to="/settings" @click="emit('close')">Settings</router-link>
-              to also pull real cover and hero art automatically — without it, only Steam's own
+              to also pull real cover and hero art automatically: without it, only Steam's own
               (often lower-quality) images are used.
             </p>
             <div class="search-row">
@@ -291,6 +328,9 @@ async function submit() {
               </button>
             </div>
             <p v-if="metadataMessage" class="hint">{{ metadataMessage }}</p>
+            <ul v-if="providerWarnings.length" class="provider-warnings">
+              <li v-for="warning in providerWarnings" :key="warning">{{ warning }}</li>
+            </ul>
           </div>
 
           <div class="field-row">
@@ -343,6 +383,43 @@ async function submit() {
             <label class="field">
               <span>Source</span>
               <input v-model="source" type="text" placeholder="Steam, GOG, physical..." />
+            </label>
+          </div>
+
+          <div class="field-row">
+            <label class="field">
+              <span>Parent game</span>
+              <select v-model="parentGameId">
+                <option value="">None: this is its own game</option>
+                <option v-for="g in availableParentGames" :key="g.id" :value="g.id">{{ g.title }}</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Relationship</span>
+              <select v-model="relationshipType" :disabled="!parentGameId">
+                <option value="">N/A</option>
+                <option v-for="opt in RELATIONSHIP_TYPE_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="field-row">
+            <label class="checkbox-field">
+              <input v-model="profilesEnabled" type="checkbox" />
+              <span>
+                Track multiple accounts on this game
+                <small>Adds an account switcher with its own checklist and media for each account — useful for any game with multiple characters/accounts, not just OSRS.</small>
+              </span>
+            </label>
+          </div>
+
+          <div v-if="profilesEnabled" class="field-row">
+            <label class="checkbox-field">
+              <input v-model="osrsStatsEnabled" type="checkbox" />
+              <span>
+                Use OSRS stats (WiseOldMan)
+                <small>Adds skill/boss syncing from wiseoldman.net, real skill icons, and dated stat history to each account. Only makes sense for Old School RuneScape.</small>
+              </span>
             </label>
           </div>
 
@@ -470,7 +547,7 @@ async function submit() {
           </div>
 
           <p class="hint">
-            Images upload after the game is saved, and only against a real backend — skipped
+            Images upload after the game is saved, and only against a real backend: skipped
             automatically while running on mock data. A file you choose above always wins over a
             metadata pick.
           </p>
@@ -505,6 +582,10 @@ async function submit() {
             <label class="field">
               <span>Purchase date</span>
               <input v-model="purchaseDate" type="date" />
+            </label>
+            <label class="field">
+              <span>100% completion date</span>
+              <input v-model="completionDate" type="date" />
             </label>
             <label class="field">
               <span>Price</span>
@@ -721,6 +802,32 @@ async function submit() {
   color: #ccc;
   flex: 1;
 }
+.checkbox-field {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 0.85rem;
+  color: #ccc;
+  flex: 1;
+  cursor: pointer;
+}
+.checkbox-field input[type='checkbox'] {
+  margin-top: 3px;
+  width: 16px;
+  height: 16px;
+  accent-color: #d68a34;
+  flex-shrink: 0;
+}
+.checkbox-field span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.checkbox-field small {
+  color: #888;
+  font-size: 0.75rem;
+  font-weight: 400;
+}
 .field input,
 .field select,
 .field textarea {
@@ -765,6 +872,18 @@ async function submit() {
   color: #888;
   font-size: 0.8rem;
   margin: 0;
+}
+.provider-warnings {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.provider-warnings li {
+  color: #f0b458;
+  font-size: 0.78rem;
 }
 .media-candidates {
   display: flex;

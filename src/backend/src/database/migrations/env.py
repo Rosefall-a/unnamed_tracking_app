@@ -14,6 +14,17 @@ from src.database.models import game  # noqa: F401
 from src.database.models import user  # noqa: F401
 from src.database.models import auth  # noqa: F401
 from src.database.models import user_scan_settings  # noqa: F401
+from src.database.models import achievement  # noqa: F401
+from src.database.models import user_appearance_settings  # noqa: F401
+from src.database.models import game_archive  # noqa: F401
+from src.database.models import media_item  # noqa: F401
+from src.database.models import inbox_item  # noqa: F401
+from src.database.models import game_file_item  # noqa: F401
+from src.database.models import game_profile  # noqa: F401
+from src.database.models import game_checklist_item  # noqa: F401
+from src.database.models import app_integration_settings  # noqa: F401
+from src.database.models import game_profile_stat_snapshot  # noqa: F401
+from src.database.models import bounty  # noqa: F401
 
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)

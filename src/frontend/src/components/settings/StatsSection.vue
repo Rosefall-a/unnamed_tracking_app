@@ -59,6 +59,17 @@ function maxCount(entries: { count: number }[]): number {
   return Math.max(1, ...entries.map((e) => e.count))
 }
 
+// "completed" is deliberately narrow (beaten/mastered only, not "played" —
+// too ambiguous whether that means finished or just started) so this
+// number stays defensible rather than a vibes-based guess
+const completionRate = computed(() => {
+  if (!stats.value || !stats.value.total_games) return null
+  const completed = (stats.value.status_breakdown ?? [])
+    .filter((e) => e.label.toLowerCase() === 'beaten' || e.label.toLowerCase() === 'mastered')
+    .reduce((sum, e) => sum + e.count, 0)
+  return Math.round((completed / stats.value.total_games) * 100)
+})
+
 const statusBreakdown = computed(() => stats.value?.status_breakdown ?? [])
 const sourceBreakdown = computed(() => stats.value?.source_breakdown ?? [])
 const timeline = computed(() => stats.value?.recently_added ?? [])
@@ -71,7 +82,7 @@ const formatBreakdown = computed(() => stats.value?.format_breakdown ?? [])
 <template>
   <section class="settings-section">
     <h2>Server Stats</h2>
-    <p class="section-hint">A live snapshot of your library — computed on every visit, nothing cached.</p>
+    <p class="section-hint">A live snapshot of your library: computed on every visit, nothing cached.</p>
 
     <p v-if="loading">Loading…</p>
     <p v-else-if="error" class="form-error">{{ error }}</p>
@@ -98,8 +109,24 @@ const formatBreakdown = computed(() => stats.value?.format_breakdown ?? [])
           <span class="tile-label">Total spent</span>
         </div>
         <div class="tile">
-          <span class="tile-value">{{ stats.average_rating != null ? stats.average_rating.toFixed(1) : '—' }}</span>
+          <span class="tile-value">{{ stats.average_rating != null ? stats.average_rating.toFixed(1) : 'N/A' }}</span>
           <span class="tile-label">Average rating</span>
+        </div>
+        <div class="tile">
+          <span class="tile-value">{{ completionRate != null ? `${completionRate}%` : 'N/A' }}</span>
+          <span class="tile-label">Completed (beaten/mastered)</span>
+        </div>
+        <div class="tile">
+          <span class="tile-value">{{ stats.bounties_completed }}</span>
+          <span class="tile-label">Bounties completed</span>
+        </div>
+        <div class="tile">
+          <span class="tile-value">{{ stats.bounty_points_total }}</span>
+          <span class="tile-label">Bounty points earned</span>
+        </div>
+        <div class="tile">
+          <span class="tile-value">{{ stats.bounties_hard_completed }}</span>
+          <span class="tile-label">Hard+ challenges completed</span>
         </div>
       </div>
 

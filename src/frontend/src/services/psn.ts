@@ -1,6 +1,8 @@
 export interface PsnStatus {
   connected: boolean
   validated_at: number | null
+  display_name?: string | null
+  avatar_url?: string | null
 }
 
 let mockStatus: PsnStatus = { connected: false, validated_at: null }
@@ -34,7 +36,7 @@ export async function connectPsn(npssoToken: string): Promise<PsnStatus> {
     throw new Error(body?.detail ?? `Failed to connect PlayStation account: ${response.status} ${response.statusText}`)
   }
   const result = await response.json()
-  return { connected: true, validated_at: result.validated_at }
+  return { connected: true, validated_at: result.validated_at, display_name: result.display_name, avatar_url: result.avatar_url }
 }
 
 export async function disconnectPsn(): Promise<void> {

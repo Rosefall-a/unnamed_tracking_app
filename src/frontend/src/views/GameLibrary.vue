@@ -1,10 +1,14 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useWindowVirtualizer } from '@tanstack/vue-virtual'
 import GameCard from '../components/GameCard.vue'
+import SkeletonBlock from '../components/SkeletonBlock.vue'
 import GameFormModal from '../components/GameFormModal.vue'
+import BulkEditModal from '../components/BulkEditModal.vue'
 import FilterCombobox from '../components/FilterCombobox.vue'
-import { fetchGames, deleteGame, setFavorite } from '../services/games'
+import { fetchGames, deleteGame, setFavorite, fetchAchievementsSummary } from '../services/games'
+import { takeLibraryScroll } from '../state/libraryScroll'
 import CollectionPickerModal from '../components/CollectionPickerModal.vue'
 import { computeScore } from '../utils/scoring'
 import DOMPurify from 'dompurify'
@@ -33,6 +37,38 @@ const deleteError = ref<string | null>(null)
 
 const viewMode = ref<ViewMode>((localStorage.getItem('gameLibraryViewMode') as ViewMode) || 'cards')
 const selectedGame = ref<Game | null>(null)
+
+// bulk-edit selection — separate from `selectedGame` (the detail-view
+// preview pick), this tracks a multi-game checkbox selection for the
+// bulk-edit toolbar/modal
+const selectMode = ref(false)
+const selectedIds = ref<Set<string>>(new Set())
+const showBulkEditModal = ref(false)
+
+function toggleSelectMode() {
+  selectMode.value = !selectMode.value
+  if (!selectMode.value) selectedIds.value = new Set()
+}
+
+function toggleSelect(game: Game) {
+  const next = new Set(selectedIds.value)
+  if (next.has(game.id)) next.delete(game.id)
+  else next.add(game.id)
+  selectedIds.value = next
+}
+
+function clearSelection() {
+  selectedIds.value = new Set()
+}
+
+async function onBulkEditSaved(count: number) {
+  showBulkEditModal.value = false
+  selectMode.value = false
+  selectedIds.value = new Set()
+  bulkEditResultCount.value = count
+  await loadGames()
+}
+const bulkEditResultCount = ref<number | null>(null)
 
 // Steam's "About This Game" section is rich HTML (headers, screenshots,
 // gifs) — sanitize it instead of dumping the raw tags as text
@@ -147,6 +183,14 @@ function clearAdvancedFilters() {
   favoritesOnly.value = false
   achievementsFilter.value = 'all'
   retroAchievementsOnly.value = false
+}
+
+function clearAllFilters() {
+  searchQuery.value = ''
+  statusFilter.value = 'all'
+  platformFilter.value = 'all'
+  genreFilter.value = 'all'
+  clearAdvancedFilters()
 }
 
 // arriving from a Collections-page card click (?collection=Name) —
@@ -271,6 +315,19 @@ async function loadGames() {
   loading.value = true
   try {
     games.value = await fetchGames()
+    // best-effort — a failed summary fetch just means no completion badges,
+    // not a broken library page
+    try {
+      const summary = await fetchAchievementsSummary()
+      for (const game of games.value) {
+        const entry = summary[game.id]
+        if (!entry) continue
+        game.achievementTotal = entry.total
+        game.achievementPercent = entry.total ? Math.round((entry.unlocked / entry.total) * 100) : 0
+      }
+    } catch {
+      // ignore
+    }
     if (viewMode.value === 'detail' && !selectedGame.value && games.value.length) {
       selectedGame.value = games.value[0]
     }
@@ -281,13 +338,76 @@ async function loadGames() {
   }
 }
 
-onMounted(loadGames)
+onMounted(async () => {
+  await loadGames()
+  // the page has no real height until games render, so restoring scroll
+  // before that just gets clamped back to ~0 — wait for the grid/list to
+  // actually paint, then scroll for real. The position itself was captured
+  // by a router guard (state/libraryScroll.ts), not onUnmounted here —
+  // that runs before any DOM change from the navigation, so it's reliably
+  // the position the user was actually looking at when they left.
+  await nextTick()
+  const y = takeLibraryScroll()
+  if (y > 0) window.scrollTo(0, y)
+})
 
 // filters are only remembered while you stay on this page — leaving it
 // (any other route) wipes them so the next visit starts from a clean slate
 onUnmounted(() => {
   localStorage.removeItem(FILTERS_KEY)
 })
+
+// --- Keyboard shortcuts ------------------------------------------------
+// "/" focuses search (common convention — GitHub, Linear, etc.), "n" opens
+// Add Game, Escape backs out of whatever's active. All disabled while
+// typing in a field or while a modal/dialog is open, so they never hijack
+// normal typing or double-fire on top of a dialog's own Escape handling.
+const searchInputRef = ref<HTMLInputElement | null>(null)
+function isTypingTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false
+  const tag = target.tagName
+  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable
+}
+function anyModalOpen(): boolean {
+  return (
+    showFormModal.value ||
+    !!deletingGame.value ||
+    showBulkEditModal.value ||
+    !!collectionPickerGame.value
+  )
+}
+function onGlobalKeydown(e: KeyboardEvent) {
+  if (anyModalOpen()) return
+  if (e.key === 'Escape') {
+    if (isTypingTarget(e.target) && (e.target as HTMLElement) === searchInputRef.value) {
+      searchQuery.value = ''
+      searchInputRef.value?.blur()
+    } else if (showAdvancedFilters.value) {
+      showAdvancedFilters.value = false
+    } else if (selectMode.value) {
+      toggleSelectMode()
+    }
+    return
+  }
+  if (isTypingTarget(e.target)) return
+  if (e.key === '/') {
+    e.preventDefault()
+    searchInputRef.value?.focus()
+  } else if (e.key === 'n') {
+    e.preventDefault()
+    openAddModal()
+  } else if ((e.key === 'j' || e.key === 'ArrowDown') && viewMode.value === 'detail') {
+    e.preventDefault()
+    const idx = selectedGame.value ? filteredGames.value.findIndex((g) => g.id === selectedGame.value?.id) : -1
+    if (idx < filteredGames.value.length - 1) selectedGame.value = filteredGames.value[idx + 1]
+  } else if ((e.key === 'k' || e.key === 'ArrowUp') && viewMode.value === 'detail') {
+    e.preventDefault()
+    const idx = selectedGame.value ? filteredGames.value.findIndex((g) => g.id === selectedGame.value?.id) : -1
+    if (idx > 0) selectedGame.value = filteredGames.value[idx - 1]
+  }
+}
+onMounted(() => window.addEventListener('keydown', onGlobalKeydown))
+onUnmounted(() => window.removeEventListener('keydown', onGlobalKeydown))
 
 function openAddModal() {
   editingGame.value = null
@@ -359,7 +479,7 @@ function gameTotalMinutes(game: Game): number {
 
 function totalPlaytime(game: Game): string {
   const minutes = gameTotalMinutes(game)
-  if (minutes === 0) return '—'
+  if (minutes === 0) return 'N/A'
   const hours = Math.floor(minutes / 60)
   return `${hours}h`
 }
@@ -410,9 +530,9 @@ const filteredGames = computed(() => {
     result = result.filter((g) => g.favorite)
   }
   if (achievementsFilter.value === 'has') {
-    result = result.filter((g) => g.achievements.length > 0)
+    result = result.filter((g) => g.achievementTotal > 0)
   } else if (achievementsFilter.value === 'none') {
-    result = result.filter((g) => g.achievements.length === 0)
+    result = result.filter((g) => g.achievementTotal === 0)
   }
   if (retroAchievementsOnly.value) {
     result = result.filter((g) => g.achievementsProvider === 'retroachievements')
@@ -437,6 +557,50 @@ const filteredGames = computed(() => {
 
   return result
 })
+
+const hasAnyGames = computed(() => games.value.length > 0)
+const isEmpty = computed(() => !loading.value && !error.value && filteredGames.value.length === 0)
+
+// virtualized cards grid — with 150+ games each rendering a real <img> plus
+// hover/transform effects, mounting every card at once was the actual
+// source of the reported lag, so virtualizing by row is exact: each virtual
+// "item" is one row of up to CARD_COLUMNS cards, positioned with a single
+// translateY rather than scrolling real DOM. estimateSize is a rough guess
+// corrected immediately per-row by measureElement (actual row height
+// depends on container width via the aspect-ratio cover, so it can't be
+// hardcoded). CARD_COLUMNS itself tracks viewport width — a fixed column
+// count regardless of screen size used to crush every card into an
+// unreadable ~35px sliver on a phone; the grid's inline
+// grid-template-columns reads this same computed value, so the JS slicing
+// and the CSS layout can never disagree about how many cards are per row.
+const viewportWidth = ref(window.innerWidth)
+function onResize() {
+  viewportWidth.value = window.innerWidth
+}
+onMounted(() => window.addEventListener('resize', onResize))
+onUnmounted(() => window.removeEventListener('resize', onResize))
+
+const CARD_COLUMNS = computed(() => {
+  const w = viewportWidth.value
+  if (w < 480) return 2
+  if (w < 700) return 3
+  if (w < 900) return 4
+  if (w < 1150) return 6
+  if (w < 1400) return 8
+  return 10
+})
+const cardRowCount = computed(() => Math.ceil(filteredGames.value.length / CARD_COLUMNS.value))
+const rowVirtualizer = useWindowVirtualizer(
+  computed(() => ({
+    count: cardRowCount.value,
+    estimateSize: () => 330,
+    overscan: 3,
+  })),
+)
+function cardsInRow(rowIndex: number): Game[] {
+  const start = rowIndex * CARD_COLUMNS.value
+  return filteredGames.value.slice(start, start + CARD_COLUMNS.value)
+}
 </script>
 
 <template>
@@ -458,7 +622,13 @@ const filteredGames = computed(() => {
       <div class="header-row">
         <h1>Games</h1>
         <div class="header-actions">
-          <input v-model="searchQuery" type="text" class="search-input" placeholder="Search games…" />
+          <input
+            ref="searchInputRef"
+            v-model="searchQuery"
+            type="text"
+            class="search-input"
+            placeholder="Search games… (/)"
+          />
           <select v-model="statusFilter" class="filter-select">
             <option v-for="s in statusOptions" :key="s" :value="s">
               {{ s === 'all' ? 'All statuses' : s }}
@@ -532,8 +702,43 @@ const filteredGames = computed(() => {
             <span v-if="advancedFilterCount" class="advanced-count">{{ advancedFilterCount }}</span>
           </button>
 
+          <button
+            type="button"
+            class="advanced-toggle"
+            :class="{ active: selectMode }"
+            @click="toggleSelectMode"
+          >
+            {{ selectMode ? 'Cancel Select' : 'Select' }}
+          </button>
+
           <button type="button" class="add-button" @click="openAddModal">+ Add Game</button>
         </div>
+      </div>
+
+      <div v-if="selectMode" class="bulk-toolbar">
+        <span>{{ selectedIds.size }} selected</span>
+        <button
+          type="button"
+          class="small-button"
+          :disabled="filteredGames.length === 0"
+          @click="selectedIds = new Set(filteredGames.map((g) => g.id))"
+        >
+          Select all ({{ filteredGames.length }})
+        </button>
+        <button type="button" class="small-button" :disabled="!selectedIds.size" @click="clearSelection">
+          Clear
+        </button>
+        <button
+          type="button"
+          class="primary-button"
+          :disabled="!selectedIds.size"
+          @click="showBulkEditModal = true"
+        >
+          Bulk Edit
+        </button>
+      </div>
+      <div v-if="bulkEditResultCount !== null" class="form-success bulk-success">
+        Updated {{ bulkEditResultCount }} game{{ bulkEditResultCount === 1 ? '' : 's' }}.
       </div>
 
       <div v-if="showAdvancedFilters" class="advanced-panel">
@@ -596,19 +801,52 @@ const filteredGames = computed(() => {
         </div>
       </div>
 
-      <p v-if="loading">Loading…</p>
+      <div v-if="loading" class="skeleton-grid" :style="{ gridTemplateColumns: `repeat(${CARD_COLUMNS}, 1fr)` }">
+        <div v-for="i in 20" :key="i" class="skeleton-card">
+          <SkeletonBlock height="150px" radius="8px" />
+          <SkeletonBlock height="14px" width="80%" />
+          <SkeletonBlock height="11px" width="50%" />
+        </div>
+      </div>
       <p v-else-if="error" class="error">{{ error }}</p>
 
+      <div v-else-if="isEmpty" class="empty-state">
+        <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="5" width="18" height="14" rx="2" />
+          <path d="M3 9h18" />
+          <path d="M8 13h.01M12 13h.01M16 13h.01" />
+        </svg>
+        <h3>{{ hasAnyGames ? 'No games match your filters' : 'Your library is empty' }}</h3>
+        <p>{{ hasAnyGames ? 'Try clearing or adjusting your filters.' : 'Add your first game to get started.' }}</p>
+        <button v-if="hasAnyGames" type="button" class="secondary-button" @click="clearAllFilters">Clear filters</button>
+        <button v-else type="button" class="primary-button" @click="openAddModal">+ Add Game</button>
+      </div>
+
       <template v-else>
-        <div v-if="viewMode === 'cards'" class="grid">
-          <GameCard
-            v-for="game in filteredGames"
-            :key="game.id"
-            :game="game"
-            @hover="setHoverImage"
-            @edit="openEditModal"
-            @add-to-collection="handleAddToCollection"
-          />
+        <div v-if="viewMode === 'cards'" class="grid-virtual-container" :style="{ height: rowVirtualizer.getTotalSize() + 'px' }">
+          <div
+            v-for="virtualRow in rowVirtualizer.getVirtualItems()"
+            :key="virtualRow.index"
+            :ref="(el) => rowVirtualizer.measureElement(el as HTMLElement)"
+            :data-index="virtualRow.index"
+            class="grid-row"
+            :style="{
+              transform: `translateY(${virtualRow.start}px)`,
+              gridTemplateColumns: `repeat(${CARD_COLUMNS}, 1fr)`,
+            }"
+          >
+            <GameCard
+              v-for="game in cardsInRow(virtualRow.index)"
+              :key="game.id"
+              :game="game"
+              :select-mode="selectMode"
+              :selected="selectedIds.has(game.id)"
+              @hover="setHoverImage"
+              @edit="openEditModal"
+              @add-to-collection="handleAddToCollection"
+              @toggle-select="toggleSelect"
+            />
+          </div>
         </div>
 
         <div v-else-if="viewMode === 'list'" class="list-view">
@@ -624,22 +862,32 @@ const filteredGames = computed(() => {
             <span class="list-release">Released</span>
             <span class="list-actions-spacer"></span>
           </div>
-          <div v-for="game in filteredGames" :key="game.id" class="list-row" @click="openGame(game)">
+          <div
+            v-for="game in filteredGames"
+            :key="game.id"
+            class="list-row"
+            @click="selectMode ? toggleSelect(game) : openGame(game)"
+          >
+            <div v-if="selectMode" class="list-checkbox" :class="{ checked: selectedIds.has(game.id) }" @click.stop="toggleSelect(game)">
+              <svg v-if="selectedIds.has(game.id)" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M20 6L9 17l-5-5" />
+              </svg>
+            </div>
             <img class="list-cover" :src="game.coverImageUrl" alt="" />
             <span class="list-title">{{ game.title }}</span>
             <span class="list-status"><span class="status-pill">{{ game.status }}</span></span>
-            <span class="list-genre">{{ game.tags[0] ?? '—' }}</span>
-            <span class="list-platform">{{ game.platforms[0]?.platform ?? '—' }}</span>
+            <span class="list-genre">{{ game.tags[0] ?? 'N/A' }}</span>
+            <span class="list-platform">{{ game.platforms[0]?.platform ?? 'N/A' }}</span>
             <span class="list-score">
               <template v-if="computeScore(game)">★ {{ computeScore(game)!.sum.toFixed(1) }}</template>
-              <template v-else>—</template>
+              <template v-else>N/A</template>
             </span>
             <span class="list-playtime">{{ totalPlaytime(game) }}</span>
             <span class="list-last-played">
-              {{ gameLastPlayed(game) ? new Date(gameLastPlayed(game)!).toLocaleDateString() : '—' }}
+              {{ gameLastPlayed(game) ? new Date(gameLastPlayed(game)!).toLocaleDateString() : 'N/A' }}
             </span>
             <span class="list-release">
-              {{ game.releaseDate ? new Date(game.releaseDate).toLocaleDateString() : '—' }}
+              {{ game.releaseDate ? new Date(game.releaseDate).toLocaleDateString() : 'N/A' }}
             </span>
             <div class="list-actions">
               <button type="button" class="small-button" @click.stop="openEditModal(game)">Edit</button>
@@ -730,7 +978,7 @@ const filteredGames = computed(() => {
                     <span class="preview-detail-label">Platforms</span>
                     <div class="preview-platforms">
                       <div v-for="p in selectedGame.platforms" :key="p.platform">
-                        {{ p.platform }} — {{ Math.round(p.playtimeMinutes / 60) }}h
+                        {{ p.platform }}: {{ Math.round(p.playtimeMinutes / 60) }}h
                         <span v-if="p.completionPercent !== null">· {{ p.completionPercent }}%</span>
                       </div>
                     </div>
@@ -767,7 +1015,7 @@ const filteredGames = computed(() => {
                   >
                     <span class="preview-detail-label">Ownership</span>
                     <span>
-                      {{ selectedGame.ownership.format ?? '—' }}
+                      {{ selectedGame.ownership.format ?? 'N/A' }}
                       <span v-if="selectedGame.ownership.price !== null">
                         · {{ selectedGame.ownership.priceCurrency ?? 'USD' }} {{ selectedGame.ownership.price.toFixed(2) }}
                       </span>
@@ -828,10 +1076,17 @@ const filteredGames = computed(() => {
         @added="onCollectionAdded"
       />
 
+      <BulkEditModal
+        v-if="showBulkEditModal"
+        :game-ids="Array.from(selectedIds)"
+        @close="showBulkEditModal = false"
+        @saved="onBulkEditSaved"
+      />
+
       <div v-if="deletingGame" class="confirm-backdrop" @click.self="deletingGame = null">
         <div class="confirm-dialog">
           <h3>Delete {{ deletingGame.title }}?</h3>
-          <p>This can't be undone.</p>
+          <p>Moved to trash, recoverable for 7 days from Settings, then purged for good.</p>
           <div v-if="deleteError" class="confirm-error">{{ deleteError }}</div>
           <div class="confirm-actions">
             <button type="button" class="secondary-button" @click="deletingGame = null">Cancel</button>
@@ -1021,12 +1276,21 @@ const filteredGames = computed(() => {
 /* fixed 10-per-row grid — column width only depends on the container, never
    on how many games there are, so adding one more game just starts filling
    the next row instead of resizing every existing card */
-.grid {
+.grid-virtual-container {
+  position: relative;
+  width: 100%;
+}
+.grid-row {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
   display: grid;
   grid-template-columns: repeat(10, 1fr);
   gap: 16px;
+  padding-bottom: 16px;
 }
-.grid :deep(.game-card-wrap) {
+.grid-row :deep(.game-card-wrap) {
   width: auto;
   min-width: 0;
 }
@@ -1056,6 +1320,49 @@ const filteredGames = computed(() => {
   color: #d68a34;
   border-color: rgba(214, 138, 52, 0.5);
   background: rgba(214, 138, 52, 0.1);
+}
+.bulk-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(214, 138, 52, 0.08);
+  border: 1px solid rgba(214, 138, 52, 0.3);
+  border-radius: 10px;
+  padding: 12px 16px;
+  margin-bottom: 20px;
+  color: #d68a34;
+  font-size: 13px;
+  font-weight: 600;
+}
+.bulk-toolbar .primary-button {
+  margin-left: auto;
+}
+.form-success.bulk-success {
+  color: #86efac;
+  font-size: 13px;
+  background: rgba(34, 197, 94, 0.1);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin-bottom: 20px;
+}
+.list-checkbox {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  border: 2px solid #4a4a4a;
+  background: rgba(0, 0, 0, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #111;
+  flex-shrink: 0;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.list-checkbox.checked {
+  background: #d68a34;
+  border-color: #d68a34;
 }
 .advanced-count {
   background: #d68a34;
@@ -1146,6 +1453,40 @@ const filteredGames = computed(() => {
 
 .error {
   color: #f87171;
+}
+
+.skeleton-grid {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  gap: 16px;
+}
+.skeleton-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 8px;
+  padding: 80px 20px;
+  color: #777;
+}
+.empty-state svg {
+  color: #444;
+  margin-bottom: 10px;
+}
+.empty-state h3 {
+  margin: 0;
+  color: #ccc;
+  font-size: 1.05rem;
+}
+.empty-state p {
+  margin: 0 0 10px;
+  font-size: 13.5px;
 }
 
 /* List view */
@@ -1541,5 +1882,62 @@ const filteredGames = computed(() => {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
+}
+
+/* Mobile — the list view's per-column widths and the detail view's fixed
+   260px/1fr split were both designed against a desktop-width container and
+   had never been checked below it: list rows squeezed the title (the one
+   thing you actually need to read) to zero width, and the detail split
+   crushed the preview pane to an unreadable sliver. List scrolls
+   horizontally instead of losing the title; detail stacks into one column
+   with a shorter, horizontally-scrolling game strip above the preview. */
+@media (max-width: 760px) {
+  .list-view {
+    overflow-x: auto;
+  }
+  .list-header,
+  .list-row {
+    min-width: 640px;
+  }
+  .list-title {
+    /* flex:1's default flex-basis:0% let this shrink all the way to 0 —
+       invisible: once the row's other fixed-width columns took priority.
+       A real floor forces the row to actually grow past the viewport
+       (triggering the horizontal scroll above) instead of hiding the one
+       thing worth reading. */
+    min-width: 140px;
+  }
+  .detail-view {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+    height: auto;
+  }
+  .detail-list {
+    flex-direction: row;
+    overflow-x: auto;
+    overflow-y: hidden;
+    height: auto;
+    padding-bottom: 6px;
+  }
+  .detail-list-item {
+    flex-direction: column;
+    text-align: center;
+    width: 84px;
+    flex-shrink: 0;
+  }
+  .detail-list-item span {
+    font-size: 11px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    width: 100%;
+  }
+  .library.locked {
+    height: auto;
+    overflow-y: visible;
+  }
+  .library.locked .content {
+    height: auto;
+  }
 }
 </style>

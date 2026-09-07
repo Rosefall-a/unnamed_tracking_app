@@ -29,6 +29,9 @@ export interface StatsOverview {
   top_tags: StatsBreakdownEntry[]
   release_year_breakdown: StatsBreakdownEntry[]
   format_breakdown: StatsBreakdownEntry[]
+  bounties_completed: number
+  bounties_hard_completed: number
+  bounty_points_total: number
 }
 
 const MOCK_STATS: StatsOverview = {
@@ -46,6 +49,9 @@ const MOCK_STATS: StatsOverview = {
   top_tags: [],
   release_year_breakdown: [],
   format_breakdown: [],
+  bounties_completed: 0,
+  bounties_hard_completed: 0,
+  bounty_points_total: 0,
 }
 
 export async function fetchStatsOverview(): Promise<StatsOverview> {

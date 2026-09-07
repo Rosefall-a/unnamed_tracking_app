@@ -4,20 +4,38 @@ import type { Game, GameStatus } from '../types/game'
 import { setFavorite, setStatus } from '../services/games'
 import { ref, computed, nextTick } from 'vue'
 import { computeScore } from '../utils/scoring'
+import { appearanceSettings } from '../state/appearance'
 
 const props = defineProps<{
   game: Game
+  selectMode?: boolean
+  selected?: boolean
 }>()
 
 const emit = defineEmits<{
   edit: [game: Game]
   'add-to-collection': [game: Game]
   hover: [coverUrl: string | null]
+  'toggle-select': [game: Game]
 }>()
 
 const router = useRouter()
 
 const score = computed(() => computeScore(props.game))
+
+// completion-badge appearance — customized in Settings > Appearance,
+// shared across every card via state/appearance.ts rather than fetched
+// per-card
+const isMastered = computed(() => props.game.status === 'mastered')
+const badgeStyle = computed(() => appearanceSettings.value?.completion_badge_style ?? 'none')
+const badgeColor = computed(() => appearanceSettings.value?.completion_badge_color ?? '#e5e4e2')
+const badgePlacement = computed(() => appearanceSettings.value?.completion_badge_placement ?? 'top-right')
+const badgeImageUrl = computed(() => appearanceSettings.value?.completion_badge_image_url ?? null)
+const showBadge = computed(() => isMastered.value && badgeStyle.value !== 'none')
+const badgeCardStyle = computed(() => {
+  if (!showBadge.value || (badgeStyle.value !== 'glow' && badgeStyle.value !== 'border')) return {}
+  return { '--badge-color': badgeColor.value }
+})
 
 const menuOpen = ref(false)
 const statusSubmenuOpen = ref(false)
@@ -61,6 +79,10 @@ const statuses: GameStatus[] = [
 ]
 
 function openGame() {
+  if (props.selectMode) {
+    emit('toggle-select', props.game)
+    return
+  }
   router.push(`/games/${props.game.id}`)
 }
 
@@ -98,45 +120,78 @@ function copyFolderPath() {
 
 <template>
 <div class="game-card-wrap" @mouseenter="emit('hover', game.bannerImageUrl || game.coverImageUrl)">
-    <div class="game-card" :class="{ 'menu-open': menuOpen }">
+    <div
+      class="game-card"
+      :class="{ 'menu-open': menuOpen, 'select-mode': selectMode, [`badge-${badgeStyle}`]: showBadge }"
+      :style="badgeCardStyle"
+    >
       <div class="cover" @click="openGame">
         <img class="cover-image" :src="game.coverImageUrl" alt="" />
+        <div v-if="selectMode" class="select-checkbox" :class="{ checked: selected }">
+          <svg v-if="selected" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20 6L9 17l-5-5" />
+          </svg>
+        </div>
+
+        <div
+          v-if="game.staleSince && !selectMode"
+          class="stale-indicator"
+          :title="`No longer seen in your ${game.source ?? 'account'} library as of the last sync.`"
+        >
+          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 9v4M12 17h.01M10.3 3.9L2.5 17a1.6 1.6 0 0 0 1.4 2.4h16.2a1.6 1.6 0 0 0 1.4-2.4L13.7 3.9a1.6 1.6 0 0 0-2.8 0z" />
+          </svg>
+        </div>
+
+        <div
+          v-if="showBadge && (badgeStyle === 'ribbon' || badgeStyle === 'corner_badge')"
+          class="completion-badge"
+          :class="[badgeStyle, badgePlacement]"
+          :style="{ '--badge-color': badgeColor }"
+        >
+          <img v-if="badgeImageUrl" :src="badgeImageUrl" alt="" class="completion-badge-image" />
+          <svg v-else viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+            <path d="M12 2l2.4 6.6L21 9l-5 4.6L17.4 21 12 17.3 6.6 21 8 13.6 3 9l6.6-.4z" />
+          </svg>
+        </div>
+
+        <div v-if="!selectMode" class="cover-actions">
+          <button type="button" class="collection-button" @click.stop="emit('add-to-collection', game)">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+            </svg>
+          </button>
+
+          <button
+            type="button"
+            class="favorite-button"
+            :class="{ active: localFavorite }"
+            :disabled="favoriteSaving"
+            @click.stop="toggleFavorite"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              width="15"
+              height="15"
+              :fill="localFavorite ? 'currentColor' : 'none'"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.8 1-1a5.5 5.5 0 0 0 0-7.6z" />
+            </svg>
+          </button>
+
+          <button type="button" class="menu-trigger" ref="menuTriggerRef" @click.stop="toggleMenu">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor">
+              <circle cx="5" cy="12" r="2" />
+              <circle cx="12" cy="12" r="2" />
+              <circle cx="19" cy="12" r="2" />
+            </svg>
+          </button>
+        </div>
       </div>
-
-<button type="button" class="collection-button" @click.stop="emit('add-to-collection', game)">
-  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
-  </svg>
-</button>
-
-<button
-  type="button"
-  class="favorite-button"
-  :class="{ active: localFavorite }"
-  :disabled="favoriteSaving"
-  @click.stop="toggleFavorite"
->
-  <svg
-    viewBox="0 0 24 24"
-    width="16"
-    height="16"
-    :fill="localFavorite ? 'currentColor' : 'none'"
-    stroke="currentColor"
-    stroke-width="2"
-    stroke-linecap="round"
-    stroke-linejoin="round"
-  >
-    <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.8 1-1a5.5 5.5 0 0 0 0-7.6z" />
-  </svg>
-</button>
-
-<button type="button" class="menu-trigger" ref="menuTriggerRef" @click.stop="toggleMenu">
-  <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
-    <circle cx="5" cy="12" r="2" />
-    <circle cx="12" cy="12" r="2" />
-    <circle cx="19" cy="12" r="2" />
-  </svg>
-</button>
 
 <Teleport to="body">
   <div v-if="menuOpen" class="menu-backdrop" @click="closeMenu"></div>
@@ -204,6 +259,70 @@ function copyFolderPath() {
   box-shadow: 0 24px 56px rgba(0, 0, 0, 0.5);
   z-index: 10;
 }
+
+/* completion badge — "glow"/"border" style the whole card (via --badge-color,
+   set inline from Settings > Appearance); "ribbon"/"corner_badge" are
+   positioned elements inside .cover instead, see .completion-badge below */
+.game-card.badge-glow {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--badge-color) 55%, transparent),
+    0 0 22px 2px color-mix(in srgb, var(--badge-color) 45%, transparent);
+}
+.game-card.badge-glow:hover,
+.game-card.badge-glow.menu-open {
+  box-shadow: 0 0 0 1px var(--badge-color), 0 0 32px 6px color-mix(in srgb, var(--badge-color) 65%, transparent),
+    0 24px 56px rgba(0, 0, 0, 0.5);
+}
+.game-card.badge-border {
+  box-shadow: 0 0 0 2px var(--badge-color);
+}
+.game-card.badge-border:hover,
+.game-card.badge-border.menu-open {
+  box-shadow: 0 0 0 2px var(--badge-color), 0 24px 56px rgba(0, 0, 0, 0.5);
+}
+.completion-badge {
+  position: absolute;
+  z-index: 3;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--badge-color);
+  pointer-events: none;
+}
+.completion-badge.top-left {
+  top: 8px;
+  left: 8px;
+}
+.completion-badge.top-right {
+  top: 8px;
+  right: 8px;
+}
+.completion-badge.bottom-left {
+  bottom: 8px;
+  left: 8px;
+}
+.completion-badge.bottom-right {
+  bottom: 8px;
+  right: 8px;
+}
+.completion-badge.corner_badge {
+  background: rgba(20, 20, 20, 0.55);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--badge-color) 60%, transparent);
+}
+.completion-badge.ribbon {
+  width: 46px;
+  height: 46px;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.5));
+}
+.completion-badge-image {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
 .cover {
   position: relative;
   width: 100%;
@@ -221,13 +340,58 @@ function copyFolderPath() {
   object-fit: cover;
   display: block;
 }
+.select-checkbox {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  border: 2px solid rgba(255, 255, 255, 0.6);
+  background: rgba(20, 20, 20, 0.55);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #111;
+  z-index: 3;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.select-checkbox.checked {
+  background: #d68a34;
+  border-color: #d68a34;
+}
+.stale-indicator {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: rgba(220, 38, 38, 0.85);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  z-index: 3;
+}
+.cover-actions {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  z-index: 3;
+}
 .favorite-button,
 .collection-button,
 .menu-trigger {
-  position: absolute;
-  top: 8px;
-  width: 30px;
-  height: 30px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   border: 1px solid rgba(255, 255, 255, 0.14);
   background: rgba(20, 20, 20, 0.55);
@@ -240,10 +404,9 @@ function copyFolderPath() {
   align-items: center;
   justify-content: center;
   opacity: 0;
-  transform: translateY(-4px);
+  transform: translateY(4px);
   transition: opacity 0.2s ease, transform 0.2s ease, background 0.15s ease, color 0.15s ease,
     border-color 0.15s ease;
-  z-index: 3;
 }
 .game-card:hover .favorite-button,
 .game-card:hover .collection-button,
@@ -254,18 +417,7 @@ function copyFolderPath() {
   opacity: 1;
   transform: translateY(0);
 }
-.collection-button {
-  right: 78px;
-}
-.favorite-button {
-  right: 44px;
-}
-.menu-trigger {
-  right: 8px;
-}
 .favorite-button.active {
-  opacity: 1;
-  transform: translateY(0);
   color: #ff6f91;
   border-color: rgba(255, 111, 145, 0.4);
   background: rgba(224, 86, 122, 0.18);
@@ -275,7 +427,7 @@ function copyFolderPath() {
 .collection-button:hover {
   background: rgba(40, 40, 40, 0.85);
   border-color: rgba(255, 255, 255, 0.3);
-  transform: translateY(0) scale(1.08);
+  transform: translateY(0) scale(1.1);
 }
 .menu-backdrop {
   position: fixed;

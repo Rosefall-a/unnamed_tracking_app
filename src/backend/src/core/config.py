@@ -21,11 +21,18 @@ class Settings(BaseSettings):
     # PSN npsso token) — required, no default, so a deploy can't silently run unsafe
     SECRET_KEY: str
     MAX_UPLOAD_SIZE_MB: int = 15
+    # video clips (and soundtrack files) are routinely far bigger than a
+    # screenshot or cover-art upload — sharing MAX_UPLOAD_SIZE_MB with those
+    # meant every real clip silently exceeded 15MB and got rejected
+    MAX_CLIP_SIZE_MB: int = 500
+    # world saves and modpacks are routinely hundreds of MB to a few GB
+    MAX_WORLD_SAVE_SIZE_MB: int = 2000
 
     # App-registered dev credentials, shared across all users on this server
-    # (not a personal login) — same tier as STEAMGRIDDB_API_KEY's fallback.
-    IGDB_CLIENT_ID: str | None = None
-    IGDB_CLIENT_SECRET: str | None = None
+    # (not a personal login). IGDB moved to the DB-backed
+    # AppIntegrationSettings singleton (admin-entered through Settings, see
+    # api/routes/settings.py) instead of .env — a downloaded copy of this
+    # app must never ship with someone else's credentials baked in.
     SCREENSCRAPER_DEVID: str | None = None
     SCREENSCRAPER_DEVPASSWORD: str | None = None
 

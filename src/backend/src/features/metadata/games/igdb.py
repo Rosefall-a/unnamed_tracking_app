@@ -66,7 +66,7 @@ class IGDBClient:
             f'search "{safe_query}"; '
             "fields name,summary,first_release_date,url,cover.url,genres.name,"
             "involved_companies.company.name,involved_companies.developer,"
-            "involved_companies.publisher; "
+            "involved_companies.publisher,collection.name,franchises.name; "
             f"limit {limit};"
         )
         try:
@@ -109,6 +109,13 @@ class IGDBClient:
                 cover_url = "https:" + cover_url.replace("t_thumb", "t_cover_big") if cover_url.startswith("//") else cover_url
 
             release_ts = game.get("first_release_date")
+            # IGDB's "collection" (e.g. "Dark Souls Collection") is the
+            # closest match to a series grouping; a franchise name is a
+            # reasonable fallback when a game has no collection set
+            series = (game.get("collection") or {}).get("name")
+            if not series:
+                franchises = game.get("franchises") or []
+                series = franchises[0].get("name") if franchises else None
             results.append(
                 {
                     "id": game.get("id"),
@@ -119,6 +126,7 @@ class IGDBClient:
                     ),
                     "developer": developer,
                     "publisher": publisher,
+                    "series": series,
                     "genres": [g["name"] for g in game.get("genres", []) if g.get("name")],
                     "cover_url": cover_url,
                     "url": f"https://www.igdb.com/games/{game['id']}" if game.get("id") else None,

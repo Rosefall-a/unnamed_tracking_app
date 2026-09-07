@@ -10,9 +10,11 @@ from sqlalchemy import (
     Boolean,
     Date,
     ForeignKey,
+    Index,
     Numeric,
     String,
     Text,
+    text,
 )
 from sqlalchemy import (
     Enum as SAEnum,
@@ -48,6 +50,17 @@ class GameStatus(str, Enum):
 
 class Game(Base):
     __tablename__ = "games"
+    __table_args__ = (
+        # a plain unique constraint would block reusing a deleted game's
+        # folder name for the full 7-day trash window — this only enforces
+        # uniqueness among games that are actually active
+        Index(
+            "ix_games_folder_location_active",
+            "folder_location",
+            unique=True,
+            postgresql_where=text("deleted_at IS NULL"),
+        ),
+    )
 
     # ------------------------------------------------------------------
     # Identity
@@ -69,9 +82,13 @@ class Game(Base):
 
     folder_location: Mapped[str] = mapped_column(
         String(FOLDER_NAME_MAX_LENGTH),
-        unique=True,
         nullable=False,
     )
+
+    # set instead of actually deleting the row — see features/trash/sweep.py,
+    # which purges the row and moves the on-disk folder to trash for good
+    # after 7 days. NULL means active/not deleted.
+    deleted_at: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
 
     # ------------------------------------------------------------------
     # Basic metadata
@@ -124,6 +141,15 @@ class Game(Base):
         default=list,
     )
 
+    # collection names this game belongs to — plain names, same shape as
+    # tags/features, not a join table. A collection with zero games still
+    # only exists client-side (localStorage) until a game is added to it.
+    collections: Mapped[list[str]] = mapped_column(
+        ARRAY(String),
+        nullable=False,
+        default=list,
+    )
+
     age_rating: Mapped[str | None] = mapped_column(
         String(20),
         nullable=True,
@@ -134,15 +160,75 @@ class Game(Base):
         nullable=True,
     )
 
+    # eager (selectin, not the default lazy) — unlike every other
+    # relationship on this model, GameRead serializes `links` straight into
+    # the API response, and a lazy load can't run once the async session
+    # that produced the row is out of the request's await context
     links: Mapped[list["GameLink"]] = relationship(
         back_populates="game",
         cascade="all, delete-orphan",
+        lazy="selectin",
     )
 
     source: Mapped[str | None] = mapped_column(  # source (string — e.g. "Steam", "GOG", "physical")
         String(50),
         nullable=True,
     )
+
+    # a library-sync provider's own stable id for this game (Steam appid,
+    # RetroAchievements GameID, PSN npCommunicationId) — NULL for
+    # manually-added/search-added games. A title alone isn't a stable
+    # identity: Steam occasionally reports a different display name for the
+    # same appid across calls (e.g. briefly appending "- GOTY Edition"),
+    # which was creating duplicate rows for the same real game on re-sync.
+    external_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+
+    # epoch seconds a library sync (Steam/RetroAchievements/PlayStation)
+    # first noticed this game missing from the account's current
+    # owned-games/library pull; NULL means either not synced from an
+    # account or still present there. Never causes a deletion or an
+    # overwrite by itself — a sync only sets/clears this flag so the user
+    # can review and decide (uninstalled vs. refunded vs. temporarily
+    # delisted are all indistinguishable from the API alone).
+    stale_since: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+
+    # per-game opt-in for the account/profile switcher (Notes checklist +
+    # Screenshots gallery scoping) — off by default since most games never
+    # need more than one account; a multi-account game like OSRS turns it
+    # on for just that game instead of a global setting cluttering every
+    # other game's page.
+    profiles_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
+    # a second, independent opt-in — accounts/profiles work for any game
+    # (checklist + media grouping, no game-specific assumptions), but the
+    # WiseOldMan sync/stat-icon/skill-boss-grouping UI on the Stats card is
+    # OSRS-specific and would be nonsense noise on every other game's
+    # accounts. Off by default, same as profiles_enabled.
+    osrs_stats_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
+    # ------------------------------------------------------------------
+    # Modpack / mod / DLC / expansion relationships
+    # ------------------------------------------------------------------
+    # A generic self-referential tree, not a boolean is_modded — "modded"
+    # and "DLC/expansion" are related but distinct concepts (GTNH is a
+    # MODPACK of Minecraft; Phantom Liberty is an EXPANSION of Cyberpunk
+    # 2077), and a title can have several of these off the same base game.
+    # Each variant (a modpack, a DLC, a total conversion...) is its own
+    # full Game row — not a sub-object — so saves/achievements/screenshots
+    # already scope correctly to it via their existing game_id FK, with no
+    # separate "configuration" layer needed. relationship_type is a plain
+    # string, not a hard DB enum: new relationship kinds should never need
+    # a migration, just a code change to the allowed set in the schema.
+    parent_game_id: Mapped[UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("games.id", ondelete="SET NULL"), nullable=True
+    )
+    # "mod" | "modpack" | "expansion" | "dlc" | "standalone_expansion" |
+    # "total_conversion" — meaningless (should be NULL) when parent_game_id
+    # is NULL, i.e. for a base/standalone game
+    relationship_type: Mapped[str | None] = mapped_column(String(30), nullable=True)
+
+    parent_game: Mapped["Game | None"] = relationship(remote_side=[id], back_populates="child_games")
+    child_games: Mapped[list["Game"]] = relationship(back_populates="parent_game")
 
     # ------------------------------------------------------------------
     # Personal library state
@@ -179,6 +265,15 @@ class Game(Base):
         nullable=False,
         default=0,
     )
+    # epoch seconds — populated from Steam's rtime_last_played during a
+    # library sync; NULL when unknown (manually-added games, or a provider
+    # that doesn't report this, e.g. RetroAchievements/PSN today)
+    last_played_at: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    # epoch seconds (midnight = no time set, just a date — same convention
+    # as purchase_date below) — set automatically the first time a game's
+    # status transitions to Mastered (see update_game/library_sync.py), but
+    # user-editable too in case that auto-set date needs correcting
+    completion_date: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     # ownership ({ format: "digital" | "physical", purchase_date, price, condition })
 
     purchase_date: Mapped[int | None] = (

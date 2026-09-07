@@ -26,7 +26,7 @@ class XboxClient:
         if not self.client_id or not self.client_secret:
             raise XboxError("Both a client ID and client secret are required.")
         if not _GUID_PATTERN.match(self.client_id.strip()):
-            raise XboxError("That doesn't look like an Azure AD application (client) ID — expected a GUID.")
+            raise XboxError("That doesn't look like an Azure AD application (client) ID: expected a GUID.")
         # Cannot verify the secret without a full OAuth consent redirect —
         # accepted as "saved", not "connected". See module docstring.
         return {"validated": False, "saved": True}

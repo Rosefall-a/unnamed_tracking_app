@@ -9,15 +9,15 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from src.database.base import Base
 
-DEFAULT_PROVIDER_ORDER = [
-    "Steam",
-    "IGDB",
-    "GiantBomb",
-    "RetroAchievements",
-    "SteamGridDB",
-    "ScreenScraper",
-    "HowLongToBeat",
-]
+# default ordering is "best of category first" — IGDB and GiantBomb are the
+# broadest, most consistently populated general databases; GOG's public
+# catalog is also solid and needs no key; Steam is accurate but
+# store-page-only; RetroAchievements is excellent but retro-only;
+# HowLongToBeat contributes a single field, so it's least useful to check
+# first. SteamGridDB's library and curation (community-rated, purpose-built
+# for cover art) beats ScreenScraper's narrower retro-focused art.
+DEFAULT_PROVIDER_ORDER = ["IGDB", "GiantBomb", "GOG", "Steam", "RetroAchievements", "HowLongToBeat"]
+DEFAULT_IMAGE_PROVIDER_ORDER = ["SteamGridDB", "ScreenScraper"]
 
 
 class UserScanSettings(Base):
@@ -40,6 +40,12 @@ class UserScanSettings(Base):
     provider_order: Mapped[list[str]] = mapped_column(
         JSON, nullable=False, default=lambda: list(DEFAULT_PROVIDER_ORDER)
     )
+    # separate priority order for the image/art layer — SteamGridDB and
+    # ScreenScraper can both contribute the same art fields, so this decides
+    # which one wins, independent of the data-field provider_order above
+    image_provider_order: Mapped[list[str]] = mapped_column(
+        JSON, nullable=False, default=lambda: list(DEFAULT_IMAGE_PROVIDER_ORDER)
+    )
     save_developer: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     save_publisher: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     save_series: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
@@ -49,6 +55,15 @@ class UserScanSettings(Base):
     save_age_rating: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     save_release_date: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     save_time_to_beat: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    save_key_art: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    save_banner: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    save_logo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    save_icon: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    # {provider name: epoch seconds} — last time that provider actually
+    # returned a result during a search (games.py's search_metadata route
+    # updates this after each call), so Scan Settings can show "last used"
+    # instead of a bare on/off toggle with no history
+    provider_last_used: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
     created_at: Mapped[int] = mapped_column(BigInteger, nullable=False, default=time.time)
     updated_at: Mapped[int] = mapped_column(
         BigInteger,
