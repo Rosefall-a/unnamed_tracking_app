@@ -169,7 +169,7 @@ class GameRead(GameBase):
 
     @computed_field
     @property
-    def total_playtime_seconds(self) -> int:
+    def total_playtime_seconds(self) -> int:# type: ignore[prop-decorator]
         """Sum of platform playtimes, or the stored game total when no platforms exist."""
         if self.platforms:
             return sum(platform.playtime_seconds for platform in self.platforms)

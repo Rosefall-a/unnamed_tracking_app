@@ -691,7 +691,7 @@ async def create_game(
         await db.rollback()
         raise _duplicate_folder_error(payload.folder_location) from exc
 
-    await db.refresh(game)
+    await db.refresh(game, attribute_names=["platforms"])
     create_game_folder(game.user_id, game.folder_location)
     return game
 
@@ -788,7 +788,7 @@ async def update_game(
         await db.rollback()
         raise _duplicate_folder_error(game.folder_location) from exc
 
-    await db.refresh(game)
+    await db.refresh(game, attribute_names=["platforms"])
     return game
 
 

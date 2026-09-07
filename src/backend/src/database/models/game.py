@@ -284,16 +284,15 @@ class Game(Base):
     created_at: Mapped[int] = mapped_column(
         BigInteger,
         nullable=False,
-        default=time.time,
+        default=lambda: int(time.time()),
     )
 
     updated_at: Mapped[int] = mapped_column(
         BigInteger,
         nullable=False,
-        default=time.time,
-        onupdate=time.time,
+        default=lambda: int(time.time()),
+        onupdate=lambda: int(time.time()),
     )
-
 
 ##########################
 #          Links         #
@@ -416,14 +415,14 @@ class Screenshot(Base):
     created_at: Mapped[int] = mapped_column(  # also serves as "upload date"
         BigInteger,
         nullable=False,
-        default=time.time,
+        default=lambda: int(time.time()),
     )
 
     updated_at: Mapped[int] = mapped_column(
         BigInteger,
         nullable=False,
-        default=time.time,
-        onupdate=time.time,
+        default=lambda: int(time.time()),
+        onupdate=lambda: int(time.time()),
     )
 
     game: Mapped["Game"] = relationship(back_populates="screenshots")
@@ -482,7 +481,7 @@ class ScreenshotTag(Base):
     created_at: Mapped[int] = mapped_column(
         BigInteger,
         nullable=False,
-        default=time.time,
+        default=lambda: int(time.time()),
     )
 
     screenshots: Mapped[list["Screenshot"]] = relationship(
