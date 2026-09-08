@@ -169,7 +169,7 @@ class GameRead(GameBase):
     created_at: int = Field(description="Unix timestamp in seconds when the game was created.")
     updated_at: int = Field(description="Unix timestamp in seconds when the game was last updated.")
 
-    @computed_field# type: ignore[prop-decorator]
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def total_playtime_seconds(self) -> int:
         """Sum of platform playtimes, or the stored game total when no platforms exist."""
