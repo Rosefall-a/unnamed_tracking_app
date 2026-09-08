@@ -143,9 +143,8 @@ class Game(Base):
         nullable=True,
     )
 
-    how_long_to_beat: Mapped[int | None] = mapped_column( # Stored in seconds
-        Integer,
-        nullable=True
+    how_long_to_beat: Mapped[int | None] = mapped_column(  # Stored in seconds
+        Integer, nullable=True
     )
 
     genre: Mapped[list[str]] = mapped_column(
@@ -207,10 +206,7 @@ class Game(Base):
         default=0,
     )
 
-    took_to_beat: Mapped[int | None] = mapped_column(
-        Integer,
-        nullable=True
-    )
+    took_to_beat: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     platforms: Mapped[list["GamePlatform"]] = relationship(
         back_populates="game",
@@ -294,6 +290,7 @@ class Game(Base):
         onupdate=lambda: int(time.time()),
     )
 
+
 ##########################
 #          Links         #
 ##########################
@@ -375,14 +372,18 @@ class Screenshot(Base):
         nullable=False,
     )
 
-    original_filename: Mapped[str | None] = mapped_column(  # filename as uploaded, kept for reference
-        String(255),
-        nullable=True,
+    original_filename: Mapped[str | None] = (
+        mapped_column(  # filename as uploaded, kept for reference
+            String(255),
+            nullable=True,
+        )
     )
 
-    extension: Mapped[str] = mapped_column(  # e.g. ".png", ".jpg" — the on-disk file is "<id><extension>"
-        String(10),
-        nullable=False,
+    extension: Mapped[str] = (
+        mapped_column(  # e.g. ".png", ".jpg" — the on-disk file is "<id><extension>"
+            String(10),
+            nullable=False,
+        )
     )
 
     content_type: Mapped[str | None] = mapped_column(  # e.g. "image/png"
@@ -456,9 +457,7 @@ class ScreenshotTag(Base):
     """A reusable, per-user tag. Renaming or deleting one applies everywhere it's attached."""
 
     __tablename__ = "screenshot_tags"
-    __table_args__ = (
-        UniqueConstraint("user_id", "name", name="uq_screenshot_tags_user_id_name"),
-    )
+    __table_args__ = (UniqueConstraint("user_id", "name", name="uq_screenshot_tags_user_id_name"),)
 
     id: Mapped[UUID] = mapped_column(
         PG_UUID(as_uuid=True),

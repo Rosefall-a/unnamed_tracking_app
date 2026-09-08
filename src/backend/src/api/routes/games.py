@@ -36,7 +36,12 @@ from src.database.models.user import User
 from src.database.session import get_db
 from src.core.auth import get_current_user
 from src.features.metadata.games.search import search_game_metadata
-from src.helpers.save_game_asset import ASSET_FILENAMES, AssetKind, create_game_folder, save_game_asset
+from src.helpers.save_game_asset import (
+    ASSET_FILENAMES,
+    AssetKind,
+    create_game_folder,
+    save_game_asset,
+)
 from src.helpers.save_game_screenshot import (
     MAX_SCREENSHOT_BYTES,
     derive_extension,
@@ -107,7 +112,13 @@ async def get_game_asset(
         )
 
     game = await _get_game_or_404(game_id, db, current_user.id)
-    asset_path = _DATA_ROOT / str(game.user_id) / "games" / game.folder_location / ASSET_FILENAMES[asset_kind]
+    asset_path = (
+        _DATA_ROOT
+        / str(game.user_id)
+        / "games"
+        / game.folder_location
+        / ASSET_FILENAMES[asset_kind]
+    )
     if not asset_path.is_file():
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -221,13 +232,17 @@ def _parse_tags(raw_tags: str | None) -> list[str]:
     return list(seen.keys())
 
 
-async def _get_or_create_tags(db: AsyncSession, user_id: UUID, tag_names: list[str]) -> list[ScreenshotTag]:
+async def _get_or_create_tags(
+    db: AsyncSession, user_id: UUID, tag_names: list[str]
+) -> list[ScreenshotTag]:
     """Resolve tag names to ScreenshotTag rows, creating any that don't exist yet for this user."""
     if not tag_names:
         return []
 
     existing = await db.scalars(
-        select(ScreenshotTag).where(ScreenshotTag.user_id == user_id, ScreenshotTag.name.in_(tag_names))
+        select(ScreenshotTag).where(
+            ScreenshotTag.user_id == user_id, ScreenshotTag.name.in_(tag_names)
+        )
     )
     by_name = {tag.name: tag for tag in existing}
 
@@ -300,30 +315,43 @@ async def download_game_asset(
 ) -> dict[str, str]:
     """Download an image URL and persist it as a normalized game asset."""
     if asset_kind not in ALLOWED_ASSET_KINDS:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Unsupported asset kind '{asset_kind}'.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unsupported asset kind '{asset_kind}'.",
+        )
 
     await _get_game_or_404(game_id, db, current_user.id)
     parsed_url = urlparse(payload.url)
     if parsed_url.scheme not in {"http", "https"} or not parsed_url.netloc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Image URL must use http or https.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Image URL must use http or https."
+        )
 
     try:
         response = await asyncio.to_thread(requests.get, payload.url, timeout=20)
         response.raise_for_status()
     except requests.RequestException as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Could not download image: {exc}") from exc
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=f"Could not download image: {exc}"
+        ) from exc
 
     content_type = response.headers.get("content-type", "").split(";", 1)[0].lower()
     if not content_type.startswith("image/"):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="URL did not return an image.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="URL did not return an image."
+        )
     image_bytes = response.content
     if len(image_bytes) > 15 * 1024 * 1024:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Image is larger than the 15 MB limit.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Image is larger than the 15 MB limit."
+        )
 
     try:
         output_path = await save_game_asset(image_bytes, game_id, asset_kind)
     except (OSError, ValueError) as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Could not save image: {exc}") from exc
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=f"Could not save image: {exc}"
+        ) from exc
 
     return {
         "game_id": str(game_id),
@@ -372,7 +400,9 @@ async def upload_game_screenshot(
     try:
         width, height = validate_and_measure_image(image_bytes)
     except UnidentifiedImageError as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="File is not a valid image.") from exc
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="File is not a valid image."
+        ) from exc
 
     screenshot = Screenshot(
         id=uuid4(),
@@ -387,7 +417,9 @@ async def upload_game_screenshot(
         height=height,
     )
 
-    save_screenshot_file(image_bytes, game.user_id, game.folder_location, screenshot.id, screenshot.extension)
+    save_screenshot_file(
+        image_bytes, game.user_id, game.folder_location, screenshot.id, screenshot.extension
+    )
 
     db.add(screenshot)
     try:
@@ -456,7 +488,9 @@ async def get_game_screenshot_file(
 ) -> FileResponse:
     """Return the raw screenshot image."""
     game, screenshot = await _get_screenshot_or_404(game_id, screenshot_id, db, current_user.id)
-    file_path = screenshot_file_path(game.user_id, game.folder_location, screenshot.id, screenshot.extension)
+    file_path = screenshot_file_path(
+        game.user_id, game.folder_location, screenshot.id, screenshot.extension
+    )
 
     if not file_path.is_file():
         raise HTTPException(
@@ -518,7 +552,9 @@ async def delete_game_screenshot(
 ) -> None:
     """Delete a screenshot's row and its file on disk."""
     game, screenshot = await _get_screenshot_or_404(game_id, screenshot_id, db, current_user.id)
-    file_path = screenshot_file_path(game.user_id, game.folder_location, screenshot.id, screenshot.extension)
+    file_path = screenshot_file_path(
+        game.user_id, game.folder_location, screenshot.id, screenshot.extension
+    )
 
     await db.delete(screenshot)
     await db.commit()
@@ -765,7 +801,9 @@ async def update_game(
     updates = payload.model_dump(exclude_unset=True)
     platform_data = updates.pop("platforms", None)
     if platform_data is not None:
-        updates["playtime_seconds"] = sum(platform["playtime_seconds"] for platform in platform_data)
+        updates["playtime_seconds"] = sum(
+            platform["playtime_seconds"] for platform in platform_data
+        )
 
     if "folder_location" in updates and updates["folder_location"] is not None:
         await _ensure_folder_location_available(

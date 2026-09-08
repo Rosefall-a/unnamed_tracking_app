@@ -27,7 +27,9 @@ def screenshots_dir(user_id: UUID | str, folder_name: str) -> Path:
     return DATA_ROOT / str(user_id) / "games" / folder_name / "screenshots"
 
 
-def screenshot_file_path(user_id: UUID | str, folder_name: str, screenshot_id: UUID | str, extension: str) -> Path:
+def screenshot_file_path(
+    user_id: UUID | str, folder_name: str, screenshot_id: UUID | str, extension: str
+) -> Path:
     return screenshots_dir(user_id, folder_name) / f"{screenshot_id}{extension}"
 
 

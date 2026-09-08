@@ -5,6 +5,7 @@ Revises: f3a9c2e14d77
 Create Date: 2026-09-04 00:00:00.000000
 
 """
+
 import time
 from typing import Sequence, Union
 from uuid import uuid4
@@ -14,8 +15,8 @@ from alembic import op
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = '7b1e4f9c2a63'
-down_revision: Union[str, None] = 'f3a9c2e14d77'
+revision: str = "7b1e4f9c2a63"
+down_revision: Union[str, None] = "f3a9c2e14d77"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -68,7 +69,9 @@ def upgrade() -> None:
             tag_id = tag_id_cache.get(cache_key)
             if tag_id is None:
                 existing = connection.execute(
-                    sa.text("SELECT id FROM screenshot_tags WHERE user_id = :user_id AND name = :name"),
+                    sa.text(
+                        "SELECT id FROM screenshot_tags WHERE user_id = :user_id AND name = :name"
+                    ),
                     {"user_id": row.user_id, "name": name},
                 ).fetchone()
                 if existing:
@@ -80,7 +83,12 @@ def upgrade() -> None:
                             "INSERT INTO screenshot_tags (id, user_id, name, created_at) "
                             "VALUES (:id, :user_id, :name, :created_at)"
                         ),
-                        {"id": tag_id, "user_id": row.user_id, "name": name, "created_at": int(time.time())},
+                        {
+                            "id": tag_id,
+                            "user_id": row.user_id,
+                            "name": name,
+                            "created_at": int(time.time()),
+                        },
                     )
                 tag_id_cache[cache_key] = tag_id
 

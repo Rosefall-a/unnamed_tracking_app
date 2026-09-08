@@ -16,6 +16,8 @@ class GamePlatformData(BaseModel):
     playtime_seconds: int = Field(default=0, ge=0)
     completion_percent: Decimal | None = Field(default=None, ge=0, le=100)
     last_played_at: int | None = Field(default=None, ge=0)
+
+
 from src.helpers.currency_codes import CURRENCY_CODES
 
 
@@ -169,7 +171,7 @@ class GameRead(GameBase):
 
     @computed_field
     @property
-    def total_playtime_seconds(self) -> int:# type: ignore[prop-decorator]
+    def total_playtime_seconds(self) -> int:  # type: ignore[prop-decorator]
         """Sum of platform playtimes, or the stored game total when no platforms exist."""
         if self.platforms:
             return sum(platform.playtime_seconds for platform in self.platforms)

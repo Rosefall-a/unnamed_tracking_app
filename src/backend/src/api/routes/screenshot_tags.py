@@ -12,7 +12,11 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.schemas.screenshot import ScreenshotTagRead, ScreenshotTagUpdate, ScreenshotTagWithCount
+from src.api.schemas.screenshot import (
+    ScreenshotTagRead,
+    ScreenshotTagUpdate,
+    ScreenshotTagWithCount,
+)
 from src.core.auth import get_current_user
 from src.database.models.game import ScreenshotTag, screenshot_tag_links
 from src.database.models.user import User
@@ -61,7 +65,8 @@ async def list_tags(
     )
     result = await db.execute(stmt)
     return [
-        ScreenshotTagWithCount(id=tag.id, name=tag.name, screenshot_count=count) for tag, count in result.all()
+        ScreenshotTagWithCount(id=tag.id, name=tag.name, screenshot_count=count)
+        for tag, count in result.all()
     ]
 
 

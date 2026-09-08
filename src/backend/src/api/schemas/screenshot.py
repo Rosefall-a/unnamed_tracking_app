@@ -40,7 +40,9 @@ class ScreenshotRead(BaseModel):
     width: int | None
     height: int | None
     created_at: int = Field(description="Unix timestamp in seconds — also the upload date.")
-    updated_at: int = Field(description="Unix timestamp in seconds when the screenshot was last updated.")
+    updated_at: int = Field(
+        description="Unix timestamp in seconds when the screenshot was last updated."
+    )
 
 
 class ScreenshotTagUpdate(BaseModel):

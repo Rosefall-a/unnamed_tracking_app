@@ -66,12 +66,18 @@ class UserProfileUpdateRequest(BaseModel):
 
 
 @router.post("/login")
-async def login(payload: LoginRequest, response: Response, db: AsyncSession = Depends(get_db)) -> dict[str, str]:
+async def login(
+    payload: LoginRequest, response: Response, db: AsyncSession = Depends(get_db)
+) -> dict[str, str]:
     identifier = payload.username_or_email.strip()
     user = await db.scalar(
         select(User).where((User.username == identifier) | (User.email == identifier.lower()))
     )
-    if user is None or not user.is_active or not verify_password(payload.password, user.password_hash):
+    if (
+        user is None
+        or not user.is_active
+        or not verify_password(payload.password, user.password_hash)
+    ):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials.")
 
     session_token = secrets.token_urlsafe(32)
@@ -107,7 +113,12 @@ async def logout(
 
 @router.get("/me")
 async def current_user(user: User = Depends(get_current_user)) -> dict[str, str | bool]:
-    return {"id": str(user.id), "username": user.username, "email": user.email, "is_admin": user.is_admin}
+    return {
+        "id": str(user.id),
+        "username": user.username,
+        "email": user.email,
+        "is_admin": user.is_admin,
+    }
 
 
 @router.patch("/me")
@@ -117,7 +128,9 @@ async def update_current_user(
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, str | bool]:
     if not verify_password(payload.current_password, user.password_hash):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Current password is incorrect.")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Current password is incorrect."
+        )
 
     if payload.username is not None:
         user.username = payload.username.strip()
@@ -127,16 +140,25 @@ async def update_current_user(
         user.password_hash = hash_password(payload.new_password)
 
     if not user.username or not user.email:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Username and email are required.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Username and email are required."
+        )
 
     try:
         await db.commit()
         await db.refresh(user)
     except IntegrityError as exc:
         await db.rollback()
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Username or email already exists.") from exc
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="Username or email already exists."
+        ) from exc
 
-    return {"id": str(user.id), "username": user.username, "email": user.email, "is_admin": user.is_admin}
+    return {
+        "id": str(user.id),
+        "username": user.username,
+        "email": user.email,
+        "is_admin": user.is_admin,
+    }
 
 
 @router.get("/users")
@@ -147,7 +169,12 @@ async def list_users(
     del admin
     users = await db.scalars(select(User).order_by(User.username))
     return [
-        {"id": str(user.id), "username": user.username, "email": user.email, "is_admin": user.is_admin}
+        {
+            "id": str(user.id),
+            "username": user.username,
+            "email": user.email,
+            "is_admin": user.is_admin,
+        }
         for user in users
     ]
 
@@ -159,7 +186,15 @@ async def create_user_api_key(
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, str | list[str]]:
     api_key, key_prefix, key_hash = create_api_key()
-    db.add(UserApiKey(user_id=user.id, name=payload.name, key_prefix=key_prefix, key_hash=key_hash, scopes=payload.scopes))
+    db.add(
+        UserApiKey(
+            user_id=user.id,
+            name=payload.name,
+            key_prefix=key_prefix,
+            key_hash=key_hash,
+            scopes=payload.scopes,
+        )
+    )
     await db.commit()
     return {
         "api_key": api_key,
@@ -196,7 +231,9 @@ async def create_user(
     username = payload.username.strip()
     email = payload.email.strip().lower()
     if not username or not email:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Username and email are required.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Username and email are required."
+        )
 
     user = User(
         username=username,
@@ -211,9 +248,16 @@ async def create_user(
         await db.refresh(user)
     except IntegrityError as exc:
         await db.rollback()
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Username or email already exists.") from exc
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="Username or email already exists."
+        ) from exc
 
-    return {"id": str(user.id), "username": user.username, "email": user.email, "is_admin": user.is_admin}
+    return {
+        "id": str(user.id),
+        "username": user.username,
+        "email": user.email,
+        "is_admin": user.is_admin,
+    }
 
 
 @router.delete("/users/{user_id}")
@@ -225,10 +269,17 @@ async def delete_user(
     user = await db.scalar(select(User).where(User.id == user_id))
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
-    if user.username == settings.PRIMARY_USER_USERNAME or user.email == settings.PRIMARY_USER_EMAIL.lower():
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="The primary user cannot be deleted.")
+    if (
+        user.username == settings.PRIMARY_USER_USERNAME
+        or user.email == settings.PRIMARY_USER_EMAIL.lower()
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="The primary user cannot be deleted."
+        )
     if user.id == admin.id:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="You cannot delete your own account.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="You cannot delete your own account."
+        )
 
     await db.delete(user)
     await db.commit()

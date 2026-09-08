@@ -23,8 +23,12 @@ def _steam_result(item: dict[str, Any], details: dict[str, Any] | None) -> dict[
     details = details or {}
     app_id = int(str(item.get("id") or details.get("steam_appid")))
     title = details.get("name") or item.get("name") or ""
-    genres = [entry["description"] for entry in details.get("genres", []) if entry.get("description")]
-    features = [entry["description"] for entry in details.get("categories", []) if entry.get("description")]
+    genres = [
+        entry["description"] for entry in details.get("genres", []) if entry.get("description")
+    ]
+    features = [
+        entry["description"] for entry in details.get("categories", []) if entry.get("description")
+    ]
     required_age = details.get("required_age")
     return {
         "provider": "Steam",
@@ -57,10 +61,12 @@ def _add_steamgriddb_art(result: dict[str, Any], client: SteamGridDBClient) -> s
         game_id = match.get("id") or match.get("game_id")
         if game_id is None:
             return "SteamGridDB returned a match without a game ID."
-        result["links"].append({
-            "label": "SteamGridDB",
-            "url": f"https://www.steamgriddb.com/game/{game_id}",
-        })
+        result["links"].append(
+            {
+                "label": "SteamGridDB",
+                "url": f"https://www.steamgriddb.com/game/{game_id}",
+            }
+        )
         image_fields = {
             "grids": ("key_art_urls", "key_art_url"),
             "heroes": ("banner_urls", "banner_url"),
