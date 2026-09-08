@@ -5,6 +5,7 @@ files = ["src"]
 ignore_missing_imports = true
 explicit_package_bases = true
 exclude = ["src/database/migrations/.*"]
+plugins = ["pydantic.mypy"]
 
 [tool.pylint.main]
 py-version = "3.12"
