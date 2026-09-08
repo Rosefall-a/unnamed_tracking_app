@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { fetchScanSettings, updateScanSettings } from '../../services/settings'
 import type { DataProvider, ImageProvider } from '../../services/settings'
 import ToggleButton from './ToggleButton.vue'
@@ -74,6 +74,33 @@ onMounted(async () => {
     loading.value = false
   }
 })
+
+// same as Profile/Appearance: without this, "Scan settings saved." keeps
+// showing after a save even once the user starts changing something else,
+// reading as if the new change was already saved
+watch(
+  [
+    providerOrder,
+    imageProviderOrder,
+    saveDeveloper,
+    savePublisher,
+    saveSeries,
+    saveTags,
+    saveFeatures,
+    saveDescription,
+    saveAgeRating,
+    saveReleaseDate,
+    saveTimeToBeat,
+    saveKeyArt,
+    saveBanner,
+    saveLogo,
+    saveIcon,
+  ],
+  () => {
+    saveSuccess.value = false
+  },
+  { deep: true },
+)
 
 function reorder<T>(list: T[], index: number, direction: -1 | 1): T[] | null {
   const target = index + direction

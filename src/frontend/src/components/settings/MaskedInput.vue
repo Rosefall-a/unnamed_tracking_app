@@ -12,7 +12,7 @@ const emit = defineEmits<{
 
 const focused = ref(false)
 
-// shows the first/last few characters and masks the middle — enough to
+// shows the first/last few characters and masks the middle, enough to
 // recognize which key is saved at a glance without exposing the whole
 // thing; the raw value is only ever shown while the field is focused
 function mask(value: string): string {

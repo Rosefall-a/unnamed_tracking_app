@@ -24,7 +24,7 @@ const statuses: GameStatus[] = [
   'mastered',
 ]
 
-// each field is opt-in via its own checkbox — leaving one unchecked means
+// each field is opt-in via its own checkbox, leaving one unchecked means
 // "don't touch this field on any selected game", never "clear it"
 const apply = reactive({
   status: false,

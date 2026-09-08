@@ -1,4 +1,4 @@
-// strictly separated — a data provider never contributes art and an image
+// strictly separated, a data provider never contributes art and an image
 // provider never contributes data (see backend search.py)
 export type DataProvider = 'Steam' | 'IGDB' | 'RetroAchievements' | 'GiantBomb' | 'GOG' | 'HowLongToBeat'
 export type ImageProvider = 'SteamGridDB' | 'ScreenScraper'
@@ -22,7 +22,7 @@ export interface ScanSettings {
   save_banner: boolean
   save_logo: boolean
   save_icon: boolean
-  // {provider name: epoch seconds} — last time that provider actually
+  // {provider name: epoch seconds}, last time that provider actually
   // returned a result during a search; read-only, not part of ScanSettingsUpdate
   provider_last_used: Record<string, number>
   created_at: number
@@ -183,7 +183,7 @@ export async function deleteProviderCredentials(provider: string): Promise<void>
   }
 }
 
-// Deployment-wide (not per-user) integration credentials — admin-only.
+// Deployment-wide (not per-user) integration credentials, admin-only.
 // An IGDB/Twitch developer app is registered once per self-hosted
 // instance and entered here, not baked into .env, so a downloaded copy of
 // this app never ships with someone else's credentials.

@@ -8,7 +8,7 @@ const props = defineProps<{
   item: MediaItem
   achievements: Achievement[]
   showGameTitle?: boolean
-  // only passed when the game has "Track multiple accounts" enabled — lets
+  // only passed when the game has "Track multiple accounts" enabled, lets
   // an already-uploaded screenshot be moved to a different account after
   // the fact instead of only being assignable at upload time
   profiles?: GameProfile[]
@@ -71,7 +71,16 @@ function linkedAchievementName(): string | null {
           {{ profiles.find((p) => p.id === item.profile_id)?.name ?? 'Unknown account' }}
         </span>
         <span v-for="tag in item.tags" :key="tag" class="tag-chip">{{ tag }}</span>
-        <span v-if="linkedAchievementName()" class="tag-chip achievement-chip">🏆 {{ linkedAchievementName() }}</span>
+        <span v-if="linkedAchievementName()" class="tag-chip achievement-chip">
+          <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M8 4h8v5a4 4 0 0 1-8 0z" />
+            <path d="M8 4H5a2 2 0 0 0 0 4h1.5M16 4h3a2 2 0 0 1 0 4h-1.5" />
+            <path d="M12 13v3" />
+            <path d="M9 20h6" />
+            <path d="M10 16.5h4l.8 3.5H9.2z" />
+          </svg>
+          {{ linkedAchievementName() }}
+        </span>
       </div>
       <button type="button" class="edit-toggle" @click="toggleExpanded">{{ expanded ? 'Close' : 'Edit' }}</button>
     </div>
@@ -189,8 +198,15 @@ function linkedAchievementName(): string | null {
   font-size: 0.68rem;
 }
 .achievement-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
   background: rgba(214, 138, 52, 0.16);
   color: #d68a34;
+}
+.achievement-chip svg {
+  flex-shrink: 0;
+  opacity: 0.85;
 }
 .account-tag-chip {
   background: rgba(255, 255, 255, 0.14);

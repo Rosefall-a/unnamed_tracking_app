@@ -5,14 +5,23 @@ import type { Game } from '../types/game'
 const props = defineProps<{
   name: string
   games: Game[]
+  isSmart?: boolean
 }>()
 
 const emit = defineEmits<{
   open: [name: string]
+  delete: []
 }>()
 
 const covers = computed(() => props.games.slice(0, 4).map((g) => g.coverImageUrl))
 const emptySlots = computed(() => Math.max(0, 4 - covers.value.length))
+
+// nesting is a pure naming convention, "Parent/Child", not a separate
+// data model, since collections have no backend row to hang real
+// parent/child structure off in the first place
+const slashIndex = computed(() => props.name.indexOf('/'))
+const parentLabel = computed(() => (slashIndex.value === -1 ? null : props.name.slice(0, slashIndex.value)))
+const displayName = computed(() => (slashIndex.value === -1 ? props.name : props.name.slice(slashIndex.value + 1)))
 </script>
 
 <template>
@@ -28,11 +37,20 @@ const emptySlots = computed(() => Math.max(0, 4 - covers.value.length))
           ></div>
           <div v-for="i in emptySlots" :key="`empty-${i}`" class="cover-cell empty"></div>
         </div>
+        <span v-if="isSmart" class="smart-badge" title="Auto-updates based on a rule">⚡ Auto</span>
+        <button
+          v-if="isSmart"
+          type="button"
+          class="smart-delete"
+          title="Delete this smart collection"
+          @click.stop="emit('delete')"
+        >✕</button>
       </div>
     </div>
 
     <div class="card-info">
-      <h3 class="title">{{ name }}</h3>
+      <span v-if="parentLabel" class="parent-eyebrow">{{ parentLabel }} ›</span>
+      <h3 class="title">{{ displayName }}</h3>
       <div class="meta-row">
         <span class="status">{{ games.length }} game{{ games.length === 1 ? '' : 's' }}</span>
       </div>
@@ -55,6 +73,43 @@ const emptySlots = computed(() => Math.max(0, 4 - covers.value.length))
 .collection-card-wrap:hover .collection-card {
   transform: scale(1.07) translateY(-4px);
   box-shadow: 0 24px 56px rgba(0, 0, 0, 0.5);
+}
+.smart-badge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 2;
+  background: rgba(20, 20, 20, 0.75);
+  backdrop-filter: blur(4px);
+  border: 1px solid rgba(214, 138, 52, 0.5);
+  color: #d68a34;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 999px;
+}
+.smart-delete {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(20, 20, 20, 0.75);
+  backdrop-filter: blur(4px);
+  color: #ccc;
+  font-size: 11px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.collection-card-wrap:hover .smart-delete {
+  opacity: 1;
+}
+.smart-delete:hover {
+  color: #fca5a5;
 }
 .cover {
   position: relative;
@@ -84,6 +139,14 @@ const emptySlots = computed(() => Math.max(0, 4 - covers.value.length))
 }
 .card-info {
   padding: 10px 2px 0;
+}
+.parent-eyebrow {
+  display: block;
+  color: #777;
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 2px;
 }
 .title {
   margin: 0 0 2px;

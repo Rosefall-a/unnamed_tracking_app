@@ -2,6 +2,8 @@
 import { useRoute } from 'vue-router'
 import SidebarNav from './components/SidebarNav.vue'
 import TaskProgressToast from './components/TaskProgressToast.vue'
+import ShortcutsHelp from './components/ShortcutsHelp.vue'
+import CommandPalette from './components/CommandPalette.vue'
 import { authChecked } from './state/auth'
 
 const route = useRoute()
@@ -12,6 +14,8 @@ const route = useRoute()
     <SidebarNav v-if="route.path !== '/login'" />
     <router-view />
     <TaskProgressToast />
+    <ShortcutsHelp v-if="route.path !== '/login'" />
+    <CommandPalette v-if="route.path !== '/login'" />
   </template>
   <main v-else class="app-loading">
     <p>Loading…</p>

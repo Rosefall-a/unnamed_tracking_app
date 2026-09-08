@@ -10,7 +10,7 @@ const props = defineProps<{
   game?: Game | null
 }>()
 
-// for the "parent game" picker — fetched here rather than threaded as a
+// for the "parent game" picker, fetched here rather than threaded as a
 // prop through every place this modal is opened from (GameLibrary,
 // GameDetail, CollectionDetail, HomeHub), so it works consistently
 // regardless of caller
@@ -19,7 +19,7 @@ onMounted(async () => {
   try {
     availableParentGames.value = (await fetchGames()).filter((g) => g.id !== props.game?.id)
   } catch {
-    // parent picker just stays empty — not worth failing the whole form
+    // parent picker just stays empty, not worth failing the whole form
   }
 })
 
@@ -111,7 +111,7 @@ const metadataMessage = ref<string | null>(null)
 const steamgriddbConfigured = ref(false)
 const providerWarnings = ref<string[]>([])
 
-// picked from the selected metadata result — attached to the game as real
+// picked from the selected metadata result, attached to the game as real
 // assets once it's actually saved (see submit())
 const pickedKeyArtUrl = ref<string | null>(null)
 const pickedBannerUrl = ref<string | null>(null)
@@ -168,7 +168,7 @@ function applyMetadata(result: MetadataSearchResult) {
   metadataMessage.value = `Prefilled from ${result.provider}. Review the fields before saving.`
 }
 
-// when editing, the folder name is already real data — don't let the
+// when editing, the folder name is already real data, don't let the
 // title-blur auto-suggest silently overwrite it
 const folderTouched = ref(isEditing.value)
 function suggestFolderFromTitle() {
@@ -180,10 +180,16 @@ function suggestFolderFromTitle() {
 }
 
 function onCoverFileChange(e: Event) {
-  coverFile.value = (e.target as HTMLInputElement).files?.[0] ?? null
+  const input = e.target as HTMLInputElement
+  coverFile.value = input.files?.[0] ?? null
+  // otherwise clearing the pick (e.g. picking a metadata candidate instead)
+  // and then re-selecting the same file from disk fires no 'change' event
+  input.value = ''
 }
 function onBannerFileChange(e: Event) {
-  bannerFile.value = (e.target as HTMLInputElement).files?.[0] ?? null
+  const input = e.target as HTMLInputElement
+  bannerFile.value = input.files?.[0] ?? null
+  input.value = ''
 }
 
 async function submit() {
@@ -408,7 +414,7 @@ async function submit() {
               <input v-model="profilesEnabled" type="checkbox" />
               <span>
                 Track multiple accounts on this game
-                <small>Adds an account switcher with its own checklist and media for each account — useful for any game with multiple characters/accounts, not just OSRS.</small>
+                <small>Adds an account switcher with its own checklist and media for each account, useful for any game with multiple characters/accounts, not just OSRS.</small>
               </span>
             </label>
           </div>

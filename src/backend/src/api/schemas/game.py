@@ -223,6 +223,18 @@ class GameRead(GameBase):
         description=(
             "Unix timestamp in seconds since a library sync last noticed this game missing from the "
             "account's owned-games list. NULL means currently present (or never synced). Never causes "
-            "deletion by itself — set for the user to review."
+            "deletion by itself, set for the user to review."
         ),
     )
+
+
+class GameFieldChangeRead(BaseModel):
+    """One row of a game's metadata history."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    field_name: str
+    old_value: str | None
+    new_value: str | None
+    changed_at: int = Field(description="Unix timestamp in seconds.")

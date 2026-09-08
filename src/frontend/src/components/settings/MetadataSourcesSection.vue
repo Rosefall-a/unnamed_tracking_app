@@ -20,7 +20,7 @@ import { syncLibrary } from '../../services/librarySync'
 import type { LibrarySyncProvider } from '../../services/librarySync'
 import { startTask, completeTask, errorTask, addFeedItem } from '../../state/taskProgress'
 
-// small colored monogram badge per provider — no real logos bundled, so a
+// small colored monogram badge per provider, no real logos bundled, so a
 // distinct brand-ish color + short mark stands in, RomM-style icon tile
 interface CardVisual {
   bg: string
@@ -28,7 +28,7 @@ interface CardVisual {
   mark: string
 }
 // short one-liner shown on every tile so the grid stays scannable without
-// hovering — the fuller description still lives in the `title` tooltip
+// hovering, the fuller description still lives in the `title` tooltip
 const SHORT_DESC: Record<string, string> = {
   Steam: 'Public store data, no key needed',
   SteamGridDB: 'Cover art & hero banners',
@@ -57,7 +57,7 @@ const VISUALS: Record<string, CardVisual> = {
   HowLongToBeat: { bg: '#1f1f1f', fg: '#d1d5db', mark: 'HL' },
 }
 
-// which cards are expanded to show their configure form — collapsed by
+// which cards are expanded to show their configure form, collapsed by
 // default so the grid stays a dense, scannable wall of tiles
 const expanded = reactive<Record<string, boolean>>({})
 function toggleExpanded(key: string) {
@@ -85,7 +85,7 @@ async function saveSteamgriddbKey() {
   }
 }
 
-// IGDB — deployment-wide, admin-only credentials (not per-user, see
+// IGDB, deployment-wide, admin-only credentials (not per-user, see
 // database/models/app_integration_settings.py). Non-admins never see the
 // form, only whether it's configured.
 const isAdmin = ref(currentUser.value?.is_admin ?? false)
@@ -292,7 +292,7 @@ const cardError = reactive<Record<string, string | null>>({})
 const cardInfo = reactive<Record<string, string | null>>({})
 const credentialsLoading = ref(true)
 
-// must be ready before first render — the template binds
+// must be ready before first render, the template binds
 // fieldValues[card.key][field.key] immediately, not just after mount
 for (const key of Object.keys(PROVIDER_CARDS)) {
   fieldValues[key] = {}
@@ -313,7 +313,7 @@ onMounted(async () => {
 })
 
 // a password-type field that's already saved gets a placeholder instead of
-// its real value (never echoed back) — still communicates "this is filled"
+// its real value (never echoed back), still communicates "this is filled"
 function passwordPlaceholder(key: string, fieldKey: string, label: string): string {
   const status = credentialStatus[key]?.status
   const alreadySaved = status === 'connected' || status === 'saved' || status === 'configured'
@@ -381,7 +381,7 @@ const LIBRARY_SYNC_LABELS: Record<LibrarySyncProvider, string> = {
 
 async function handleSyncLibrary(provider: LibrarySyncProvider) {
   librarySyncing[provider] = true
-  // indeterminate — the backend is one all-at-once request with no
+  // indeterminate, the backend is one all-at-once request with no
   // per-game signal until it resolves, so there's nothing real to show as
   // a fraction while it's in flight
   const taskId = startTask(`Syncing ${LIBRARY_SYNC_LABELS[provider]} library`, 1, { indeterminate: true })
@@ -406,7 +406,7 @@ async function handleSyncLibrary(provider: LibrarySyncProvider) {
   }
 }
 
-// only claims "synced" once a library sync has actually run — a game
+// only claims "synced" once a library sync has actually run, a game
 // count alone (e.g. from manually-added Steam games) doesn't mean that
 function formatLastSynced(status: ProviderCredentialStatus | undefined): string | null {
   if (!status?.last_synced_at) return null
@@ -420,7 +420,7 @@ function formatLastSynced(status: ProviderCredentialStatus | undefined): string 
   return `${count} game${count === 1 ? '' : 's'} · synced ${when}`
 }
 
-// HowLongToBeat — a real toggle now, not just informational. "Enabled"
+// HowLongToBeat, a real toggle now, not just informational. "Enabled"
 // means "HowLongToBeat" is present in the user's scan provider_order.
 const hltbEnabled = ref(false)
 const hltbLoading = ref(true)

@@ -2,6 +2,7 @@
 from the caller's own library, no caching/background jobs."""
 
 import asyncio
+import time
 from pathlib import Path
 
 from fastapi import APIRouter, Depends
@@ -9,8 +10,10 @@ from sqlalchemy import case, extract, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.auth import get_current_user
+from src.database.models.achievement import Achievement
 from src.database.models.bounty import Bounty, BountyPointTransaction
 from src.database.models.game import Game
+from src.database.models.game_field_change import GameFieldChange
 from src.database.models.user import User
 from src.database.session import get_db
 
@@ -180,4 +183,49 @@ async def get_stats_overview(
         "bounties_completed": int(bounties_completed or 0),
         "bounties_hard_completed": int(bounties_hard_completed or 0),
         "bounty_points_total": int(bounty_points_total or 0),
+    }
+
+
+@router.get("/weekly-digest")
+async def get_weekly_digest(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Counts for "the last 7 days" across a few tables the Home Hub recap
+    can't reach client-side (achievements and metadata changes both need a
+    per-game fetch there, an aggregate query here is much cheaper)."""
+    week_ago = int(time.time()) - 7 * 86_400
+    user_filter = Game.user_id == current_user.id
+
+    games_played_stmt = select(func.count(Game.id)).where(
+        user_filter, Game.last_played_at.is_not(None), Game.last_played_at >= week_ago
+    )
+    games_added_stmt = select(func.count(Game.id)).where(user_filter, Game.created_at >= week_ago)
+    achievements_stmt = (
+        select(func.count(Achievement.id))
+        .join(Game, Achievement.game_id == Game.id)
+        .where(user_filter, Achievement.unlocked_at.is_not(None), Achievement.unlocked_at >= week_ago)
+    )
+    metadata_changes_stmt = (
+        select(func.count(GameFieldChange.id))
+        .join(Game, GameFieldChange.game_id == Game.id)
+        .where(user_filter, GameFieldChange.changed_at >= week_ago)
+    )
+    bounties_stmt = select(func.count(Bounty.id)).where(
+        Bounty.user_id == current_user.id, Bounty.status == "completed", Bounty.completed_at >= week_ago
+    )
+
+    games_played = await db.scalar(games_played_stmt)
+    games_added = await db.scalar(games_added_stmt)
+    achievements_unlocked = await db.scalar(achievements_stmt)
+    metadata_changes = await db.scalar(metadata_changes_stmt)
+    bounties_completed = await db.scalar(bounties_stmt)
+
+    return {
+        "period_start": week_ago,
+        "games_played": int(games_played or 0),
+        "games_added": int(games_added or 0),
+        "achievements_unlocked": int(achievements_unlocked or 0),
+        "metadata_changes": int(metadata_changes or 0),
+        "bounties_completed": int(bounties_completed or 0),
     }

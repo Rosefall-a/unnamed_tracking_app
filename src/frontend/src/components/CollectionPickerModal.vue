@@ -28,7 +28,7 @@ onMounted(async () => {
       const manual: string[] = raw ? JSON.parse(raw) : []
       manual.forEach((n) => set.add(n))
     } catch {
-      // ignore — manual collections are a nice-to-have, not required here
+      // ignore, manual collections are a nice-to-have, not required here
     }
     allNames.value = Array.from(set).sort()
   } finally {
@@ -45,7 +45,7 @@ const filteredNames = computed(() => {
 })
 
 const exactMatch = computed(() =>
-  allNames.value.some((n) => n.toLowerCase() === query.value.trim().toLowerCase()),
+  allNames.value.find((n) => n.toLowerCase() === query.value.trim().toLowerCase()) ?? null,
 )
 
 async function pick(name: string) {
@@ -79,7 +79,7 @@ function createAndAdd() {
         class="picker-input"
         placeholder="Search or create a collection…"
         autofocus
-        @keyup.enter="!exactMatch && query.trim() ? createAndAdd() : undefined"
+        @keyup.enter="exactMatch ? pick(exactMatch) : query.trim() ? createAndAdd() : undefined"
       />
 
       <div v-if="error" class="picker-error">{{ error }}</div>

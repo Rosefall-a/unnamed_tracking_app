@@ -9,10 +9,10 @@ import type {
   GameRelationshipType,
 } from '../types/game'
 
-// The exact shape FastAPI sends — snake_case, matching the Python model
+// The exact shape FastAPI sends, snake_case, matching the Python model
 // field-for-field. This is deliberately a separate type from `Game`:
 // nothing outside this file should ever see raw backend data directly.
-interface BackendGame {
+export interface BackendGame {
   id: string
   title: string
   sort_title: string
@@ -57,7 +57,7 @@ interface BackendGame {
 }
 
 // Pydantic can serialize a Decimal as either a JSON number or a string
-// depending on config — handle both rather than assume one
+// depending on config, handle both rather than assume one
 function toNumberOrNull(value: number | string | null): number | null {
   return value === null ? null : Number(value)
 }
@@ -75,12 +75,12 @@ function dateInputToUnixSeconds(dateStr: string | null): number | null {
   return Math.floor(new Date(dateStr).getTime() / 1000)
 }
 
-// backend sends "ON_HOLD", "WISHLIST", etc. — frontend expects
+// backend sends "ON_HOLD", "WISHLIST", etc., frontend expects
 // 'on hold', 'wishlist' (lowercase, spaces not underscores)
 function normalizeStatus(raw: string): GameStatus {
   return raw.toLowerCase().replace(/_/g, ' ') as GameStatus
 }
-// inverse of normalizeStatus — 'on hold' -> 'ON_HOLD'
+// inverse of normalizeStatus, 'on hold' -> 'ON_HOLD'
 function denormalizeStatus(status: GameStatus): string {
   return status.toUpperCase().replace(/ /g, '_')
 }
@@ -89,7 +89,7 @@ export function mapBackendGame(raw: BackendGame): Game {
   return {
     id: raw.id,
     title: raw.title,
-    // placeholders — the backend has no artwork yet
+    // placeholders, the backend has no artwork yet
     coverColor: '#2a2a2a',
     coverImageUrl: `/api/game/${raw.id}/assets/key_art`,
     bannerImageUrl: `/api/game/${raw.id}/assets/banner`,
@@ -99,7 +99,7 @@ export function mapBackendGame(raw: BackendGame): Game {
     ratingGameplay: toNumberOrNull(raw.rating_gameplay),
     ratingSound: toNumberOrNull(raw.rating_soundtrack),
     // real per-game counts come from a separate bulk summary call
-    // (fetchAchievementsSummary) merged in by GameLibrary.vue — a single
+    // (fetchAchievementsSummary) merged in by GameLibrary.vue, a single
     // game's full achievement list is fetched separately (GameDetail.vue)
     achievementPercent: 0,
     achievementTotal: 0,
@@ -111,6 +111,7 @@ export function mapBackendGame(raw: BackendGame): Game {
     parentGameId: raw.parent_game_id,
     relationshipType: raw.relationship_type,
     dateAdded: unixSecondsToIso(raw.created_at),
+    resumeNote: raw.resume_note,
     lastPlayedAt: unixSecondsToIso(raw.last_played_at),
     staleSince: unixSecondsToIso(raw.stale_since),
     profilesEnabled: raw.profiles_enabled,
@@ -126,7 +127,7 @@ export function mapBackendGame(raw: BackendGame): Game {
     achievementsProvider: null,
     links: raw.links,
     ownership: {
-      // no backend column for digital-vs-physical — inferred from whether
+      // no backend column for digital-vs-physical, inferred from whether
       // a physical condition was recorded, otherwise left unset
       format: raw.physical_condition ? 'physical' : null,
       purchaseDate: unixSecondsToDateInput(raw.purchase_date),
@@ -139,7 +140,7 @@ export function mapBackendGame(raw: BackendGame): Game {
     favorite: raw.favorite,
     collections: raw.collections,
     // the backend only tracks one flat playtime total, not real per-platform
-    // data — synthesize a single entry labeled by where the game actually
+    // data, synthesize a single entry labeled by where the game actually
     // came from (Steam/GOG/PlayStation/etc.), falling back to "PC" only for
     // manually-added games with no known source
     platforms: [
@@ -153,7 +154,7 @@ export function mapBackendGame(raw: BackendGame): Game {
   }
 }
 
-// /api/game/list caps a single page at 200 — page through until a page
+// /api/game/list caps a single page at 200, page through until a page
 // comes back short, otherwise only the first 50 (the endpoint's default)
 // ever reached the library view once a synced library grew past that.
 const GAMES_PAGE_SIZE = 200
@@ -187,6 +188,38 @@ interface BackendAchievement {
   unlocked_at: number | null
 }
 
+export interface FieldChange {
+  id: string
+  fieldName: string
+  oldValue: string | null
+  newValue: string | null
+  changedAt: string
+}
+interface BackendFieldChange {
+  id: string
+  field_name: string
+  old_value: string | null
+  new_value: string | null
+  changed_at: number
+}
+export async function fetchGameFieldChanges(id: string): Promise<FieldChange[]> {
+  if (import.meta.env.VITE_USE_MOCK_DATA === 'true') {
+    return []
+  }
+  const response = await fetch(`/api/game/${id}/field-changes`, { credentials: 'include' })
+  if (!response.ok) {
+    throw new Error(`Failed to fetch metadata history: ${response.status} ${response.statusText}`)
+  }
+  const raw: BackendFieldChange[] = await response.json()
+  return raw.map((c) => ({
+    id: c.id,
+    fieldName: c.field_name,
+    oldValue: c.old_value,
+    newValue: c.new_value,
+    changedAt: unixSecondsToIso(c.changed_at) as string,
+  }))
+}
+
 export async function fetchGameAchievements(id: string): Promise<Achievement[]> {
   if (import.meta.env.VITE_USE_MOCK_DATA === 'true') {
     return []
@@ -209,7 +242,7 @@ export interface AchievementsSummaryEntry {
   unlocked: number
 }
 
-// one grouped query for every game's {total, unlocked} counts — used to
+// one grouped query for every game's {total, unlocked} counts, used to
 // show a completion badge on library/card views without an N+1 request
 // per game (fetchGameAchievements above is for the single-game detail page)
 export async function fetchAchievementsSummary(): Promise<Record<string, AchievementsSummaryEntry>> {
@@ -236,7 +269,7 @@ export async function fetchGame(id: string): Promise<Game | null> {
   return mapBackendGame(raw)
 }
 
-// every game whose parentGameId points at this one — e.g. Minecraft's
+// every game whose parentGameId points at this one, e.g. Minecraft's
 // variants list showing GTNH, Vanilla, Create Pack, etc.
 export async function fetchGameVariants(id: string): Promise<Game[]> {
   if (import.meta.env.VITE_USE_MOCK_DATA === 'true') {
@@ -304,17 +337,17 @@ export interface RefreshMetadataOutcome {
 
 export interface RefreshMetadataOptions {
   // re-fetch description/developer/publisher/release date/age rating/tags/
-  // features — always a full refresh, replacing whatever's already there.
+  // features, always a full refresh, replacing whatever's already there.
   // Unlike art, text has no "did a person put this here on purpose" case:
   // it's either provider data or something you typed in the edit form, and
   // a refresh is explicitly asking for the provider's current answer. (A
   // fresh result that comes back blank still never blanks an existing
-  // value — see mergeField below — that's a "provider didn't have this
+  // value, see mergeField below, that's a "provider didn't have this
   // field" case, not a "the truth is now blank" case.)
   updateText: boolean
   // fetch cover + banner art for games that currently have none
   fillMissingArt: boolean
-  // replace art even on games that already have some — off by default since
+  // replace art even on games that already have some, off by default since
   // this is the one setting that can actually destroy something you set
   // deliberately (a manually-uploaded cover, art from an earlier refresh)
   overwriteExistingArt: boolean
@@ -326,7 +359,7 @@ export const DEFAULT_REFRESH_OPTIONS: RefreshMetadataOptions = {
   overwriteExistingArt: false,
 }
 
-// never actively replaces an existing value with a blank fresh one — the
+// never actively replaces an existing value with a blank fresh one, the
 // bug this exists to fix: refreshing metadata could wipe out a field the
 // user had set/edited just because this particular search result didn't
 // happen to include it
@@ -343,7 +376,7 @@ async function gameAssetExists(gameId: string, assetKind: 'key_art' | 'banner'):
 }
 
 // Steam's storefront search routinely includes ™/® in the marketing title
-// (e.g. "Apex Legends™") while a library-synced game's title rarely does —
+// (e.g. "Apex Legends™") while a library-synced game's title rarely does,
 // comparing raw strings silently failed the exact-match gate below for a
 // large fraction of perfectly normal titles.
 function normalizeTitleForMatch(title: string): string {
@@ -353,7 +386,7 @@ function normalizeTitleForMatch(title: string): string {
 // Re-pulls metadata for one game from Steam (+ SteamGridDB art data) and
 // applies whichever pieces `options` asks for. Only applies anything when a
 // result's title matches the game's current title exactly (case-insensitive)
-// — a fuzzy/no match is reported back rather than guessing. Never touches
+//, a fuzzy/no match is reported back rather than guessing. Never touches
 // notes (a wholly separate API this never calls). Image behavior is fully
 // opt-in per `options`: by default a currently-blank slot can be filled in,
 // but nothing already set is replaced unless overwriteExistingArt is on.
@@ -372,7 +405,7 @@ export async function refreshGameMetadata(
 
     if (options.updateText) {
       // text is always a full refresh (see RefreshMetadataOptions.updateText)
-      // — mergeField/mergeArr still refuse to blank a field the fresh
+      //, mergeField/mergeArr still refuse to blank a field the fresh
       // result simply didn't have, they just always prefer fresh when it's
       // there
       const overwrite = true
@@ -395,7 +428,7 @@ export async function refreshGameMetadata(
         releaseDate: mergeField(game.releaseDate, match.release_date, overwrite),
         dateAdded: game.dateAdded,
         completionDate: game.completionDate,
-        // never touched by a metadata refresh — this is "how the game got
+        // never touched by a metadata refresh, this is "how the game got
         // into the library" (Steam sync, GOG sync, manual...), not "which
         // provider happened to match this search," and overwriting it here
         // used to silently break the library-sync game counts in Settings
@@ -442,7 +475,7 @@ export async function refreshGameMetadata(
 
 export interface RefreshMetadataPreview {
   status: RefreshMetadataResult
-  // human-readable field names that would actually change — computed the
+  // human-readable field names that would actually change, computed the
   // same way refreshGameMetadata would apply them, but nothing is written
   changedFields: string[]
   wouldAddKeyArt: boolean
@@ -451,7 +484,7 @@ export interface RefreshMetadataPreview {
 
 // Read-only dry run of refreshGameMetadata: same search + same exact-title
 // match + same merge logic, but never calls updateGame/attachGameAssetFromUrl
-// — used to show "this is what refreshing would actually change" before the
+//, used to show "this is what refreshing would actually change" before the
 // user commits to a real bulk refresh.
 export async function previewGameMetadataRefresh(
   game: Game,
@@ -556,6 +589,7 @@ export async function createGame(input: NewGameInput): Promise<Game> {
       parentGameId: input.parentGameId,
       relationshipType: input.relationshipType,
       dateAdded: input.dateAdded,
+      resumeNote: null,
       lastPlayedAt: null,
       staleSince: null,
       profilesEnabled: input.profilesEnabled,
@@ -753,7 +787,7 @@ export interface GameNoteActionResponse {
   status: 'saved' | 'deleted'
 }
 
-// per-game note storage for mock mode — resets on page reload, same as mockGames itself
+// per-game note storage for mock mode, resets on page reload, same as mockGames itself
 const mockNotesStore = new Map<string, Map<string, string>>()
 function getMockNoteMap(gameId: string): Map<string, string> {
   if (!mockNotesStore.has(gameId)) mockNotesStore.set(gameId, new Map())
@@ -906,6 +940,59 @@ export async function setFavorite(gameId: string, favorite: boolean): Promise<Ga
   return mapBackendGame(raw)
 }
 
+export async function setResumeNote(gameId: string, resumeNote: string | null): Promise<Game> {
+  if (import.meta.env.VITE_USE_MOCK_DATA === 'true') {
+    const index = mockGames.findIndex((g) => g.id === gameId)
+    if (index === -1) throw new Error(`Game ${gameId} not found`)
+    mockGames[index] = { ...mockGames[index], resumeNote }
+    return mockGames[index]
+  }
+
+  const response = await fetch(`/api/game/update/${gameId}`, {
+    method: 'PATCH',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ resume_note: resumeNote }),
+  })
+
+  if (!response.ok) {
+    const message = await response.text()
+    throw new Error(`Failed to save resume note: ${response.status} ${response.statusText} ${message}`)
+  }
+
+  const raw: BackendGame = await response.json()
+  return mapBackendGame(raw)
+}
+
+export async function setPlaytimeSeconds(gameId: string, playtimeSeconds: number): Promise<Game> {
+  if (import.meta.env.VITE_USE_MOCK_DATA === 'true') {
+    const index = mockGames.findIndex((g) => g.id === gameId)
+    if (index === -1) throw new Error(`Game ${gameId} not found`)
+    mockGames[index] = {
+      ...mockGames[index],
+      platforms: mockGames[index].platforms.map((p, i) =>
+        i === 0 ? { ...p, playtimeMinutes: Math.round(playtimeSeconds / 60) } : p,
+      ),
+    }
+    return mockGames[index]
+  }
+
+  const response = await fetch(`/api/game/update/${gameId}`, {
+    method: 'PATCH',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ playtime_seconds: playtimeSeconds }),
+  })
+
+  if (!response.ok) {
+    const message = await response.text()
+    throw new Error(`Failed to update playtime: ${response.status} ${response.statusText} ${message}`)
+  }
+
+  const raw: BackendGame = await response.json()
+  return mapBackendGame(raw)
+}
+
 export async function setStatus(gameId: string, status: GameStatus): Promise<Game> {
   if (import.meta.env.VITE_USE_MOCK_DATA === 'true') {
     const index = mockGames.findIndex((g) => g.id === gameId)
@@ -930,7 +1017,7 @@ export async function setStatus(gameId: string, status: GameStatus): Promise<Gam
   return mapBackendGame(raw)
 }
 
-// Deliberately narrower than NewGameInput/GameUpdate — title, folder,
+// Deliberately narrower than NewGameInput/GameUpdate, title, folder,
 // notes, playtime, purchase info, and ratings are per-game by nature and
 // excluded so a bulk edit can't stamp one game's specifics onto many others.
 export interface BulkEditFields {
@@ -987,7 +1074,7 @@ export async function bulkUpdateGames(gameIds: string[], fields: BulkEditFields)
 }
 
 // PATCHes `collections` directly rather than going through updateGame's
-// NewGameInput/stripEmpty path — stripEmpty treats an empty array as "leave
+// NewGameInput/stripEmpty path, stripEmpty treats an empty array as "leave
 // untouched", which would make removing a game's last collection silently
 // no-op.
 async function patchCollections(gameId: string, collections: string[]): Promise<Game> {
@@ -1052,7 +1139,7 @@ export async function deleteGame(gameId: string): Promise<void> {
   }
 }
 
-// deleteGame is a soft-delete (see the backend route) — restorable for 7
+// deleteGame is a soft-delete (see the backend route), restorable for 7
 // days via these, same pattern as game archives/inbox media
 export interface TrashedGame {
   id: string

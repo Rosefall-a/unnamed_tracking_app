@@ -9,6 +9,8 @@ type SortBy = 'name' | 'recent' | 'rating' | 'playtime'
 const defaultViewMode = ref<ViewMode>((localStorage.getItem('gameLibraryViewMode') as ViewMode) || 'cards')
 const defaultSort = ref<SortBy>((localStorage.getItem('gameLibraryDefaultSort') as SortBy) || 'name')
 const compactMode = ref(localStorage.getItem('compactMode') === 'true')
+const weeklyDigestEnabled = ref(localStorage.getItem('weeklyDigestEnabled') !== 'false')
+const highContrastMode = ref(localStorage.getItem('highContrastMode') === 'true')
 
 const viewModeOptions = [
   { value: 'cards', label: 'Cards' },
@@ -27,6 +29,11 @@ watch(defaultSort, (sort) => localStorage.setItem('gameLibraryDefaultSort', sort
 watch(compactMode, (enabled) => {
   localStorage.setItem('compactMode', String(enabled))
   document.documentElement.classList.toggle('compact', enabled)
+})
+watch(weeklyDigestEnabled, (enabled) => localStorage.setItem('weeklyDigestEnabled', String(enabled)))
+watch(highContrastMode, (enabled) => {
+  localStorage.setItem('highContrastMode', String(enabled))
+  document.documentElement.classList.toggle('high-contrast', enabled)
 })
 </script>
 
@@ -58,6 +65,16 @@ watch(compactMode, (enabled) => {
 
     <ToggleButton v-model="compactMode" label="Compact mode">
       <strong>Compact mode</strong>: tighter spacing across the app
+    </ToggleButton>
+
+    <ToggleButton v-model="weeklyDigestEnabled" label="Weekly digest">
+      <strong>Weekly digest</strong>: a "this week" recap card on the Home Hub showing games
+      played, achievements unlocked, and metadata changes over the last 7 days
+    </ToggleButton>
+
+    <ToggleButton v-model="highContrastMode" label="High contrast">
+      <strong>High contrast</strong>: brighter secondary text, stronger borders, and a bolder
+      keyboard focus ring across the app
     </ToggleButton>
   </section>
 </template>

@@ -65,3 +65,33 @@ export async function fetchStatsOverview(): Promise<StatsOverview> {
   }
   return await response.json()
 }
+
+export interface WeeklyDigest {
+  period_start: number
+  games_played: number
+  games_added: number
+  achievements_unlocked: number
+  metadata_changes: number
+  bounties_completed: number
+}
+
+const MOCK_WEEKLY_DIGEST: WeeklyDigest = {
+  period_start: 0,
+  games_played: 0,
+  games_added: 0,
+  achievements_unlocked: 0,
+  metadata_changes: 0,
+  bounties_completed: 0,
+}
+
+export async function fetchWeeklyDigest(): Promise<WeeklyDigest> {
+  if (import.meta.env.VITE_USE_MOCK_DATA === 'true') {
+    return { ...MOCK_WEEKLY_DIGEST }
+  }
+
+  const response = await fetch('/api/stats/weekly-digest', { credentials: 'include' })
+  if (!response.ok) {
+    throw new Error(`Failed to fetch weekly digest: ${response.status} ${response.statusText}`)
+  }
+  return await response.json()
+}

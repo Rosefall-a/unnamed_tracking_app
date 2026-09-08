@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { currentUser } from '../state/auth'
 import SettingsNav from '../components/settings/SettingsNav.vue'
 import type { SettingsGroup } from '../components/settings/SettingsNav.vue'
@@ -13,9 +13,11 @@ import ScanSettingsSection from '../components/settings/ScanSettingsSection.vue'
 import MetadataSourcesSection from '../components/settings/MetadataSourcesSection.vue'
 import AdminSection from '../components/settings/AdminSection.vue'
 import StatsSection from '../components/settings/StatsSection.vue'
+import ExportImportSection from '../components/settings/ExportImportSection.vue'
 import ComingSoonSection from '../components/settings/ComingSoonSection.vue'
 
 const router = useRouter()
+const route = useRoute()
 
 function goBack() {
   if (window.history.length > 1) {
@@ -47,7 +49,7 @@ const groups = computed<SettingsGroup[]>(() => {
       sections: [
         { id: 'scan', label: 'Scan Settings' },
         { id: 'sources', label: 'Metadata/API' },
-        { id: 'export', label: 'Export / Import', comingSoon: true },
+        { id: 'export', label: 'Export / Import' },
       ],
     },
   ]
@@ -63,7 +65,10 @@ const groups = computed<SettingsGroup[]>(() => {
   return result
 })
 
-const activeSection = ref('profile')
+// lets other pages (the command palette) deep-link to a section, e.g.
+// /settings?section=scan, Settings itself never writes this back to the
+// URL, so switching sections the normal way doesn't touch history
+const activeSection = ref((route.query.section as string) || 'profile')
 </script>
 
 <template>
@@ -90,16 +95,7 @@ const activeSection = ref('profile')
           <MetadataSourcesSection v-else-if="activeSection === 'sources'" />
           <AdminSection v-else-if="activeSection === 'admin' && currentUser?.is_admin" />
           <StatsSection v-else-if="activeSection === 'stats'" />
-          <ComingSoonSection
-            v-else-if="activeSection === 'export'"
-            title="Export / Import"
-            description="Export your library to a portable file and import it back: for backups or moving to a new server."
-            :planned-features="[
-              'Full library export to a single portable file',
-              'Import from a previous export',
-              'Selective export (by collection, status, or tag)',
-            ]"
-          />
+          <ExportImportSection v-else-if="activeSection === 'export'" />
           <ComingSoonSection
             v-else-if="activeSection === 'tasks' && currentUser?.is_admin"
             title="Tasks"

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch, onUnmounted } from 'vue'
+import { computed, ref, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   deleteGame,
@@ -7,11 +7,21 @@ import {
   fetchGame,
   fetchGameVariants,
   fetchGameAchievements,
+  fetchGameFieldChanges,
   fetchGameNote,
+  fetchGames,
   listGameNotes,
   saveGameNote,
   setFavorite,
+  setResumeNote,
+  setPlaytimeSeconds,
 } from '../services/games'
+import type { FieldChange } from '../services/games'
+import { listCardsForGame, createCard } from '../services/cards'
+import type { Card } from '../types/card'
+import { fetchBounties } from '../services/bounties'
+import type { Bounty } from '../services/bounties'
+import { peekAdjacentGameId } from '../state/libraryNav'
 import {
   uploadGameScreenshots,
   listGameScreenshots,
@@ -156,7 +166,7 @@ async function saveDraft() {
 
   try {
     await saveGameNote(game.value.id, newName, draftContent.value)
-    // renaming an existing note — the backend has no rename endpoint,
+    // renaming an existing note, the backend has no rename endpoint,
     // so simulate it by creating the new name and deleting the old one
     if (editingNoteName.value && editingNoteName.value !== newName) {
       await deleteGameNote(game.value.id, editingNoteName.value)
@@ -195,14 +205,14 @@ async function deleteNote(noteName: string) {
 }
 
 // Steam's "About This Game" section is rich HTML (headers, screenshots,
-// gifs) — sanitize it instead of stripping it down to plain text so that
+// gifs), sanitize it instead of stripping it down to plain text so that
 // content survives
 const descriptionHtml = computed(() => {
   if (!game.value?.description) return ''
   return DOMPurify.sanitize(game.value.description)
 })
 
-// resolved separately from game.value.parentGameId (which is only an id) —
+// resolved separately from game.value.parentGameId (which is only an id),
 // see loadGame()
 const parentGameTitle = ref<string | null>(null)
 const RELATIONSHIP_LABELS: Record<string, string> = {
@@ -214,18 +224,18 @@ const RELATIONSHIP_LABELS: Record<string, string> = {
   total_conversion: 'Total Conversion',
 }
 
-// games whose parentGameId points at this one — e.g. Minecraft's page
+// games whose parentGameId points at this one, e.g. Minecraft's page
 // listing GTNH, Vanilla, Create Pack as variants of itself. The reverse of
 // the parent-breadcrumb link above.
 const variants = ref<Game[]>([])
 
 // --- Profiles (e.g. separate OSRS accounts) --------------------------------
 // shared across the Notes checklist and the Screenshots/Clips/Soundtrack
-// gallery — one "which account am I looking at" selector, not two — so a
+// gallery, one "which account am I looking at" selector, not two, so a
 // game with several accounts doesn't need everything dug through together.
 const profiles = ref<GameProfile[]>([])
 const profilesLoadedFor = ref<string | null>(null)
-// null = "General" (unscoped) — the default, matching how most games (no
+// null = "General" (unscoped), the default, matching how most games (no
 // multi-account concept) never need to touch this at all
 const activeProfileId = ref<string | null>(null)
 const newProfileName = ref('')
@@ -286,7 +296,7 @@ async function removeProfile(profile: GameProfile) {
 }
 
 // --- Accounts tab: selected account's note/stats/WiseOldMan sync -----------
-// null activeProfileId means the sidebar's "General" entry — there's no
+// null activeProfileId means the sidebar's "General" entry, there's no
 // GameProfile row for that, so note/stats/WiseOldMan simply don't apply
 const selectedProfile = computed(() => profiles.value.find((p) => p.id === activeProfileId.value) ?? null)
 
@@ -317,7 +327,7 @@ interface StatRow {
   value: string
 }
 const statRows = ref<StatRow[]>([])
-// display mode by default (a clean read-only grid) — editing mode swaps in
+// display mode by default (a clean read-only grid), editing mode swaps in
 // the raw label/value rows, entered explicitly rather than always showing
 // 30+ input pairs for an account with a full WiseOldMan sync
 const editingStats = ref(false)
@@ -407,7 +417,7 @@ async function loadStatHistory() {
   try {
     statHistory.value = await fetchProfileStatHistory(game.value.id, selectedProfile.value.id)
   } catch {
-    // history is a nice-to-have alongside the live stats — not worth
+    // history is a nice-to-have alongside the live stats, not worth
     // failing the whole Stats card over
   } finally {
     statHistoryLoading.value = false
@@ -421,12 +431,12 @@ function formatSnapshotDate(epochSeconds: number): string {
   return new Date(epochSeconds * 1000).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
 }
 
-// "on this day" gains — each snapshot compared against the next-older one
+// "on this day" gains, each snapshot compared against the next-older one
 // in the list (statHistory is newest-first) using the raw xp/kc integers,
 // not the display-string levels (a single level can span tens of
 // thousands of XP, so diffing levels would be meaningless). A manually-
 // edited snapshot has empty xp/kc, so it simply contributes no gain lines
-// — nothing to divide by zero on, just nothing to show.
+//, nothing to divide by zero on, just nothing to show.
 const statGains = computed<Record<string, string[]>>(() => {
   const gains: Record<string, string[]> = {}
   const list = statHistory.value
@@ -477,7 +487,7 @@ const bossStats = computed(() =>
   Object.entries(selectedProfile.value?.stats ?? {}).filter(([, value]) => value.endsWith(' KC')),
 )
 
-// real OSRS Wiki icons for skills/Overall/Combat — the wiki's own
+// real OSRS Wiki icons for skills/Overall/Combat, the wiki's own
 // "<Name>_icon.png" naming is reliable for these (verified: 22/23 skills
 // match directly, "Runecrafting" is the one renamed in-game to
 // "Runecraft"). Boss/activity icons on the same wiki follow no reliable
@@ -497,7 +507,7 @@ watch(activeProfileId, () => {
   accountMediaCategory.value = null
 })
 const accountMediaByKind = computed(() => mediaItems.value.filter((m) => m.kind === accountMediaKind.value))
-// distinct tags present among this account's items of the current kind —
+// distinct tags present among this account's items of the current kind,
 // e.g. "Levelups"/"Quests"/"Achievement diary" for OSRS screenshots, built
 // from whatever tags you've actually used rather than a fixed list
 const accountMediaCategories = computed(() => {
@@ -526,7 +536,7 @@ const checklistProgress = computed(() => {
   return { done: real.filter((i) => i.done).length, total: real.length }
 })
 
-// groups the flat, already-ordered list into sections at each header row —
+// groups the flat, already-ordered list into sections at each header row,
 // a header just being another row in the same sort order, not a separate
 // table, keeps "move an item above/below a header" a plain reorder
 interface ChecklistSection {
@@ -545,7 +555,7 @@ const checklistSections = computed<ChecklistSection[]>(() => {
   return sections.filter((s) => s.header !== null || s.items.length > 0)
 })
 
-// collapsed section state — per game, remembered across visits
+// collapsed section state, per game, remembered across visits
 const collapsedSections = ref<Set<string>>(new Set())
 function collapsedStorageKey(gameId: string) {
   return `checklist-collapsed-${gameId}`
@@ -564,7 +574,7 @@ function saveCollapsedSections() {
   try {
     localStorage.setItem(collapsedStorageKey(game.value.id), JSON.stringify([...collapsedSections.value]))
   } catch {
-    // best-effort — a checklist with no persisted collapse state just
+    // best-effort, a checklist with no persisted collapse state just
     // starts fully expanded next time, not worth failing over
   }
 }
@@ -684,7 +694,7 @@ async function removeChecklistItem(item: ChecklistItem) {
   }
 }
 
-// the Accounts tab's sidebar selection — reload that account's checklist
+// the Accounts tab's sidebar selection, reload that account's checklist
 // and media whenever it changes
 watch(activeProfileId, () => {
   if (activeTab.value !== 'Accounts') return
@@ -698,7 +708,7 @@ async function loadGame(id: string) {
   try {
     const fetched = await fetchGame(id)
     // the route can change again while this was in flight (fast
-    // click-through on the parent breadcrumb or a variant card) — a
+    // click-through on the parent breadcrumb or a variant card), a
     // slower response for the game we've already navigated away from
     // must not overwrite the newer one that may have already loaded
     if (route.params.id !== id) return
@@ -713,13 +723,15 @@ async function loadGame(id: string) {
           ? Math.round((achievements.filter((a) => a.unlockedAt !== null).length / achievements.length) * 100)
           : 0
       } catch {
-        // achievements are a nice-to-have overlay — a failure here
+        // achievements are a nice-to-have overlay, a failure here
         // shouldn't block the rest of the game page from rendering
       }
       mediaItems.value = []
       mediaLoadedFor.value = null
       mediaTrash.value = []
       showMediaTrash.value = false
+      fieldChanges.value = []
+      fieldChangesError.value = null
       docsFiles.value = []
       modpackFiles.value = []
       filesLoaded.value = { doc: null, modpack: null }
@@ -772,7 +784,7 @@ async function loadGame(id: string) {
           const parent = await fetchGame(game.value.parentGameId)
           parentGameTitle.value = parent?.title ?? null
         } catch {
-          // breadcrumb just doesn't show a name — not worth failing the page
+          // breadcrumb just doesn't show a name, not worth failing the page
         }
       }
 
@@ -780,8 +792,10 @@ async function loadGame(id: string) {
       try {
         variants.value = await fetchGameVariants(id)
       } catch {
-        // variants section just doesn't show — not worth failing the page
+        // variants section just doesn't show, not worth failing the page
       }
+
+      void loadRelatedBounties(id)
     }
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'Failed to load game'
@@ -794,6 +808,114 @@ async function onGameSaved() {
   showEditModal.value = false
   await loadGame(route.params.id as string)
 }
+
+// --- resume note ("where I left off") ---------------------------------
+const resumeNoteDraft = ref('')
+const resumeNoteEditing = ref(false)
+const resumeNoteSaving = ref(false)
+const resumeNoteError = ref<string | null>(null)
+watch(
+  () => game.value?.id,
+  () => {
+    resumeNoteDraft.value = game.value?.resumeNote ?? ''
+    resumeNoteEditing.value = false
+    resumeNoteError.value = null
+  },
+)
+function startEditResumeNote() {
+  resumeNoteDraft.value = game.value?.resumeNote ?? ''
+  resumeNoteEditing.value = true
+}
+async function saveResumeNote() {
+  if (!game.value) return
+  resumeNoteSaving.value = true
+  resumeNoteError.value = null
+  try {
+    const trimmed = resumeNoteDraft.value.trim() || null
+    const updated = await setResumeNote(game.value.id, trimmed)
+    game.value.resumeNote = updated.resumeNote
+    resumeNoteEditing.value = false
+  } catch (err) {
+    resumeNoteError.value = err instanceof Error ? err.message : 'Failed to save note'
+  } finally {
+    resumeNoteSaving.value = false
+  }
+}
+
+// --- quick playtime logging --------------------------------------------
+const loggingPlaytime = ref(false)
+async function logPlaytime(minutes: number) {
+  if (!game.value || loggingPlaytime.value) return
+  loggingPlaytime.value = true
+  try {
+    const currentSeconds = game.value.platforms.reduce((sum, p) => sum + p.playtimeMinutes * 60, 0)
+    const updated = await setPlaytimeSeconds(game.value.id, currentSeconds + minutes * 60)
+    game.value.platforms = updated.platforms
+    game.value.lastPlayedAt = updated.lastPlayedAt
+  } catch {
+    // the button just doesn't reflect the change, not worth a whole error banner for this
+  } finally {
+    loggingPlaytime.value = false
+  }
+}
+
+// --- similar games in the library, by shared tags -----------------------
+// fetched once per page visit (not per-game), cheap enough at this
+// library's scale and avoids a second heavier endpoint just for this
+const libraryGames = ref<Game[]>([])
+async function loadLibraryForSimilar() {
+  try {
+    libraryGames.value = await fetchGames()
+  } catch {
+    // similar-games section just doesn't show, not worth failing the page
+  }
+}
+onMounted(() => void loadLibraryForSimilar())
+
+const similarGames = computed(() => {
+  if (!game.value || !libraryGames.value.length) return []
+  const tagSet = new Set(game.value.tags)
+  if (!tagSet.size) return []
+  return libraryGames.value
+    .filter((g) => g.id !== game.value!.id)
+    .map((g) => ({ game: g, shared: g.tags.filter((t) => tagSet.has(t)).length }))
+    .filter((e) => e.shared > 0)
+    .sort((a, b) => b.shared - a.shared)
+    .slice(0, 8)
+    .map((e) => e.game)
+})
+
+// --- related bounty(ies) targeting this game ----------------------------
+const relatedBounties = ref<Bounty[]>([])
+async function loadRelatedBounties(gameId: string) {
+  try {
+    const active = await fetchBounties({ status: 'active' })
+    relatedBounties.value = active.filter((b) => b.game_id === gameId)
+  } catch {
+    relatedBounties.value = []
+  }
+}
+
+// --- J/K next/prev game, mirroring the library grid's own shortcut -------
+function isTypingTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false
+  const tag = target.tagName
+  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable
+}
+function onDetailKeydown(e: KeyboardEvent) {
+  if (isTypingTarget(e.target)) return
+  if (showEditModal.value || showDeleteConfirm.value || showCollectionPicker.value) return
+  if (!game.value) return
+  if (e.key === 'j' || e.key === 'k') {
+    const nextId = peekAdjacentGameId(game.value.id, e.key === 'j' ? 1 : -1)
+    if (nextId) {
+      e.preventDefault()
+      router.push(`/games/${nextId}`)
+    }
+  }
+}
+window.addEventListener('keydown', onDetailKeydown)
+onUnmounted(() => window.removeEventListener('keydown', onDetailKeydown))
 
 async function toggleFavorite() {
   if (!game.value) return
@@ -897,11 +1019,13 @@ const tabs = [
   'Notes',
   'Accounts',
   'Stats',
+  'History',
+  'Collector Card',
 ] as const
 const activeTab = ref<(typeof tabs)[number]>('Overview')
 
 // World Map only makes sense for Minecraft (BlueMap is Minecraft-specific)
-// — checks this game's own title, and its parent's if it's a mod/modpack
+//, checks this game's own title, and its parent's if it's a mod/modpack
 // variant (e.g. "GregTech: New Horizons" has no "Minecraft" in its own
 // title, but its parent breadcrumb does).
 const isMinecraftGame = computed(() => {
@@ -909,17 +1033,22 @@ const isMinecraftGame = computed(() => {
   const parentTitle = parentGameTitle.value ?? ''
   return /minecraft/i.test(title) || /minecraft/i.test(parentTitle)
 })
+const isCompletedGame = computed(
+  () => game.value?.status === 'beaten' || game.value?.status === 'mastered',
+)
 const visibleTabs = computed(() =>
   tabs.filter(
     (tab) =>
-      (tab !== 'World Map' || isMinecraftGame.value) && (tab !== 'Accounts' || game.value?.profilesEnabled),
+      (tab !== 'World Map' || isMinecraftGame.value) &&
+      (tab !== 'Accounts' || game.value?.profilesEnabled) &&
+      (tab !== 'Collector Card' || isCompletedGame.value),
   ),
 )
 
 // Screenshots/Clips/Soundtrack/Saves/Docs/World Map all share the same
 // RomM-style layout: a small View/Upload sidebar instead of the dropzone
 // always sitting at the top. One shared ref is enough since only one of
-// these panels is ever visible at a time — reset to 'view' on every tab
+// these panels is ever visible at a time, reset to 'view' on every tab
 // switch so leaving a panel mid-upload-mode doesn't leak into the next one.
 const panelMode = ref<'view' | 'upload'>('view')
 watch(activeTab, () => {
@@ -988,7 +1117,7 @@ watch(activeTab, (tab) => {
   }
 })
 
-// media is scoped to an account only from within the Accounts tab — the
+// media is scoped to an account only from within the Accounts tab, the
 // plain Screenshots/Clips/Soundtrack tabs upload unscoped, same as any
 // game without accounts enabled
 function reloadMediaForCurrentTab() {
@@ -1101,7 +1230,7 @@ async function saveMediaItem(
     const index = mediaItems.value.findIndex((m) => m.id === item.id)
     if (index !== -1) mediaItems.value[index] = updated
     // the item may have just moved out of the Accounts tab's currently
-    // selected scope (or into it) — refetch so the gallery reflects that
+    // selected scope (or into it), refetch so the gallery reflects that
     if (activeTab.value === 'Accounts' && (activeProfileId.value !== null || profileId !== null)) {
       await reloadMediaForCurrentTab()
     }
@@ -1111,7 +1240,7 @@ async function saveMediaItem(
 }
 
 // --- Docs / Modpack ---------------------------------------------------------
-// generic flat-file attachments (any format) — Saves/World Save moved to
+// generic flat-file attachments (any format), Saves/World Save moved to
 // named, versioned archives below; docs/modpacks stay simple since
 // naming/history doesn't add much for a single manual or modpack zip
 type FlatFileKind = Extract<GameFileKind, 'doc' | 'modpack'>
@@ -1152,7 +1281,79 @@ watch(activeTab, (tab) => {
     void refreshWorldMaps()
     void refreshWorldTrash()
   }
+  if (tab === 'History') {
+    void loadFieldChanges()
+  }
+  if (tab === 'Collector Card') {
+    void loadGameCards()
+  }
 })
+
+// --- metadata history: which fields a manual edit or a metadata
+// search/refresh actually changed, and when (see FIELD_CHANGE_TRACKED_FIELDS
+// in api/routes/games.py for exactly which fields are tracked) -----------
+const gameCards = ref<Card[]>([])
+const gameCardsLoading = ref(false)
+const creatingCard = ref(false)
+const cardTabError = ref<string | null>(null)
+async function loadGameCards() {
+  if (!game.value) return
+  gameCardsLoading.value = true
+  try {
+    gameCards.value = await listCardsForGame(game.value.id)
+  } finally {
+    gameCardsLoading.value = false
+  }
+}
+async function createCardForGame() {
+  if (!game.value) return
+  creatingCard.value = true
+  cardTabError.value = null
+  try {
+    const card = await createCard({ gameId: game.value.id })
+    router.push(`/cards/${card.id}`)
+  } catch (err) {
+    cardTabError.value = err instanceof Error ? err.message : 'Failed to create card'
+  } finally {
+    creatingCard.value = false
+  }
+}
+
+const fieldChanges = ref<FieldChange[]>([])
+const fieldChangesLoading = ref(false)
+const fieldChangesError = ref<string | null>(null)
+async function loadFieldChanges() {
+  if (!game.value) return
+  fieldChangesLoading.value = true
+  fieldChangesError.value = null
+  try {
+    fieldChanges.value = await fetchGameFieldChanges(game.value.id)
+  } catch (err) {
+    fieldChangesError.value = err instanceof Error ? err.message : 'Failed to load history'
+  } finally {
+    fieldChangesLoading.value = false
+  }
+}
+const FIELD_CHANGE_LABELS: Record<string, string> = {
+  developer: 'Developer',
+  publisher: 'Publisher',
+  series: 'Series',
+  tags: 'Tags',
+  features: 'Features',
+  description: 'Description',
+  age_rating: 'Age rating',
+  release_date: 'Release date',
+  time_to_beat_hours: 'Time to beat',
+}
+function formatFieldChangeDate(iso: string): string {
+  return new Date(iso).toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+}
 
 async function onGameFilesSelected(files: File[], kind: FlatFileKind) {
   if (!files.length || !game.value) return
@@ -1405,7 +1606,7 @@ async function onDeleteVersion(archive: GameArchiveData, version: ArchiveVersion
 }
 
 // --- World Map (BlueMap render of a world_save archive) --------------------
-// a game (e.g. a modpack) can have several worlds — one card, many worlds —
+// a game (e.g. a modpack) can have several worlds, one card, many worlds,
 // each named, versioned, rendered, and viewed independently
 const worldMaps = ref<WorldMapEntry[]>([])
 const worldMapsLoaded = ref(false)
@@ -1427,14 +1628,14 @@ async function refreshWorldMaps() {
     worldMapsLoaded.value = true
     const anyRendering = worldMaps.value.some((w) => w.status === 'rendering')
     if (anyRendering && !worldMapPollTimer) {
-      // no push mechanism for a background render — poll every few
+      // no push mechanism for a background render, poll every few
       // seconds only while at least one world is actually in flight
       worldMapPollTimer = setInterval(refreshWorldMaps, 4000)
     } else if (!anyRendering) {
       stopWorldMapPolling()
     }
   } catch {
-    // list just doesn't update this tick — not worth surfacing an error
+    // list just doesn't update this tick, not worth surfacing an error
     // for a polling request
   }
 }
@@ -1589,7 +1790,7 @@ function formatPlaytime(minutes: number) {
 </main>
 
 <main v-else-if="game" class="detail">
-    <!-- heavily blurred, dimmed copy of the cover image behind the whole page —
+    <!-- heavily blurred, dimmed copy of the cover image behind the whole page,
          separate from the sharp version used in .hero itself -->
 <div class="ambient-bg" :style="{ backgroundImage: `url(${game.bannerImageUrl})` }"></div>
 
@@ -1676,6 +1877,22 @@ function formatPlaytime(minutes: number) {
         {{ new Date(game.dateAdded).toLocaleDateString() }}
       </span>
       <span v-if="game.platforms.length" class="badge">{{ game.platforms[0].platform }}</span>
+      <button
+        v-if="game.achievementTotal > 0"
+        type="button"
+        class="badge achievement-progress-badge"
+        title="Jump to Achievements"
+        @click="activeTab = 'Achievements'"
+      >
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M8 4h8v5a4 4 0 0 1-8 0z" />
+          <path d="M8 4H5a2 2 0 0 0 0 4h1.5M16 4h3a2 2 0 0 1 0 4h-1.5" />
+          <path d="M12 13v3" />
+          <path d="M9 20h6" />
+          <path d="M10 16.5h4l.8 3.5H9.2z" />
+        </svg>
+        {{ game.achievementPercent }}%
+      </button>
       <span
         v-if="game.staleSince"
         class="badge stale-badge"
@@ -1702,6 +1919,45 @@ function formatPlaytime(minutes: number) {
 
     <section v-if="activeTab === 'Overview'" class="overview">
 <div class="overview-main">
+
+<div v-if="relatedBounties.length" class="related-bounties">
+  <router-link v-for="b in relatedBounties" :key="b.id" to="/bounties" class="related-bounty-card">
+    <span class="related-bounty-icon">🎯</span>
+    <span class="related-bounty-body">
+      <span class="related-bounty-title">{{ b.title }}</span>
+      <span class="related-bounty-meta">
+        Active bounty on this game<span v-if="b.difficulty"> · {{ b.difficulty }}</span><span v-if="b.points_reward"> · {{ b.points_reward }} pts</span>
+      </span>
+    </span>
+  </router-link>
+</div>
+
+<div class="resume-note-card">
+  <div class="resume-note-header">
+    <h3>Where I left off</h3>
+    <button v-if="!resumeNoteEditing" type="button" class="text-button" @click="startEditResumeNote">
+      {{ game.resumeNote ? 'Edit' : '+ Add note' }}
+    </button>
+  </div>
+  <template v-if="resumeNoteEditing">
+    <textarea
+      v-model="resumeNoteDraft"
+      class="resume-note-textarea"
+      rows="3"
+      placeholder="e.g. Just beat the third boss, about to start the desert region…"
+    ></textarea>
+    <div v-if="resumeNoteError" class="form-error-inline">{{ resumeNoteError }}</div>
+    <div class="resume-note-actions">
+      <button type="button" class="secondary-button" @click="resumeNoteEditing = false">Cancel</button>
+      <button type="button" class="primary-button" :disabled="resumeNoteSaving" @click="saveResumeNote">
+        {{ resumeNoteSaving ? 'Saving…' : 'Save' }}
+      </button>
+    </div>
+  </template>
+  <p v-else-if="game.resumeNote" class="resume-note-text">{{ game.resumeNote }}</p>
+  <p v-else class="resume-note-empty">Nothing noted yet. Jot down what to do next time you pick this up.</p>
+</div>
+
 <div v-if="descriptionHtml" class="description-wrap">
   <div class="description-html" v-html="descriptionHtml"></div>
 </div>
@@ -1718,6 +1974,16 @@ function formatPlaytime(minutes: number) {
     </router-link>
   </div>
 </div>
+
+  <div v-if="similarGames.length" class="similar-games-section">
+    <h3 class="variants-heading">Similar games in your library</h3>
+    <div class="variants-row">
+      <router-link v-for="g in similarGames" :key="g.id" :to="`/games/${g.id}`" class="variant-card">
+        <img :src="g.coverImageUrl" alt="" class="variant-cover" />
+        <span class="variant-title">{{ g.title }}</span>
+      </router-link>
+    </div>
+  </div>
 
   <div class="rating-breakdown" v-if="game.ratingOverall !== null || game.ratingStory !== null || game.ratingGameplay !== null || game.ratingSound !== null">
     <div v-if="game.ratingOverall !== null" class="rating-item">
@@ -1788,6 +2054,15 @@ function formatPlaytime(minutes: number) {
         </div>
       </li>
     </ul>
+    <button
+      type="button"
+      class="text-button log-playtime-button"
+      :disabled="loggingPlaytime"
+      title="Log a session just played, without editing the total by hand"
+      @click="logPlaytime(30)"
+    >
+      + Log 30 min just played
+    </button>
   </div>
   <div v-if="game.tags.length" class="detail-row">
     <span class="detail-label">Tags</span>
@@ -2157,7 +2432,7 @@ function formatPlaytime(minutes: number) {
           :accept="accountMediaKind === 'screenshot' ? 'image/*' : accountMediaKind === 'clip' ? 'video/*' : 'audio/*'"
           :uploading="uploadingMedia"
           :title="`Drop ${accountMediaKind}s here`"
-          :hint="`Drag and drop, or click to browse — tagged to ${selectedProfile ? selectedProfile.name : 'General'}`"
+          :hint="`Drag and drop, or click to browse, tagged to ${selectedProfile ? selectedProfile.name : 'General'}`"
           @files-selected="onMediaFilesSelected"
           @drop-error="onDropError"
         />
@@ -2214,7 +2489,7 @@ function formatPlaytime(minutes: number) {
         <div v-if="womError" class="note-error">{{ womError }}</div>
 
         <p v-if="!editingStats && !Object.keys(selectedProfile.stats).length" class="empty-state small">
-          No stats yet — add one manually{{ game.osrsStatsEnabled ? ', or sync from WiseOldMan above' : '' }}.
+          No stats yet, add one manually{{ game.osrsStatsEnabled ? ', or sync from WiseOldMan above' : '' }}.
         </p>
         <template v-else-if="!editingStats && game.osrsStatsEnabled">
           <div v-if="headlineStats.length" class="stat-grid headline">
@@ -2281,7 +2556,7 @@ function formatPlaytime(minutes: number) {
         <div v-if="showStatHistory">
           <p v-if="statHistoryLoading" class="empty-state small">Loading…</p>
           <p v-else-if="!statHistory.length" class="empty-state small">
-            No history yet — it builds up automatically every time you sync or save stats.
+            No history yet, it builds up automatically every time you sync or save stats.
           </p>
           <template v-else>
             <ul class="stat-history-list">
@@ -2691,6 +2966,59 @@ function formatPlaytime(minutes: number) {
       </div>
     </section>
 
+    <section v-else-if="activeTab === 'History'" class="history-panel">
+      <h2>Metadata History</h2>
+      <p v-if="fieldChangesLoading" class="empty-state">Loading…</p>
+      <p v-else-if="fieldChangesError" class="empty-state">{{ fieldChangesError }}</p>
+      <p v-else-if="!fieldChanges.length" class="empty-state">
+        No metadata changes yet. Edits from the game form or a metadata refresh show up here.
+      </p>
+      <ul v-else class="history-list">
+        <li v-for="change in fieldChanges" :key="change.id" class="history-entry">
+          <div class="history-entry-head">
+            <span class="history-field">{{ FIELD_CHANGE_LABELS[change.fieldName] || change.fieldName }}</span>
+            <span class="history-date">{{ formatFieldChangeDate(change.changedAt) }}</span>
+          </div>
+          <div class="history-values">
+            <span class="history-old">{{ change.oldValue || 'Empty' }}</span>
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M5 12h14" />
+              <path d="M13 6l6 6-6 6" />
+            </svg>
+            <span class="history-new">{{ change.newValue || 'Empty' }}</span>
+          </div>
+        </li>
+      </ul>
+    </section>
+
+    <section v-else-if="activeTab === 'Collector Card'" class="card-tab-panel">
+      <h2>Collector Card</h2>
+      <p v-if="gameCardsLoading" class="empty-state">Loading…</p>
+      <template v-else-if="gameCards.length">
+        <p class="empty-state">
+          {{ gameCards.length === 1 ? '1 card' : `${gameCards.length} cards` }} for {{ game.title }}.
+        </p>
+        <div class="card-links">
+          <button
+            v-for="c in gameCards"
+            :key="c.id"
+            type="button"
+            class="card-open-btn"
+            @click="router.push(`/cards/${c.id}`)"
+          >
+            View card #{{ String(c.archiveNumber ?? 0).padStart(3, '0') }}
+          </button>
+        </div>
+      </template>
+      <template v-else>
+        <p class="empty-state">No card generated yet for {{ game.title }}.</p>
+        <p v-if="cardTabError" class="empty-state error">{{ cardTabError }}</p>
+        <button type="button" class="card-open-btn" :disabled="creatingCard" @click="createCardForGame">
+          {{ creatingCard ? 'Creating…' : 'Create card' }}
+        </button>
+      </template>
+    </section>
+
     <section v-else class="coming-soon">
       <p>{{ activeTab }} coming soon.</p>
     </section>
@@ -2798,7 +3126,8 @@ function formatPlaytime(minutes: number) {
   text-transform: uppercase;
   letter-spacing: 0.03em;
 }
-.variants-section {
+.variants-section,
+.similar-games-section {
   margin-bottom: 24px;
 }
 .variants-heading {
@@ -2866,6 +3195,23 @@ function formatPlaytime(minutes: number) {
   background: rgba(220, 38, 38, 0.18);
   color: #fca5a5;
   text-transform: none;
+}
+.achievement-progress-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: none;
+  cursor: pointer;
+  font: inherit;
+  text-transform: none;
+}
+.achievement-progress-badge svg {
+  flex-shrink: 0;
+  opacity: 0.85;
+}
+.achievement-progress-badge:hover {
+  background: rgba(214, 138, 52, 0.22);
+  color: #d68a34;
 }
 .back-arrow-button {
   position: fixed;
@@ -2985,7 +3331,16 @@ function formatPlaytime(minutes: number) {
   background: rgba(0, 0, 0, 0.25);
   border: 1px solid #2a2a2a;
   border-radius: 8px;
+  /* a screen too narrow for every tab scrolls the bar instead of silently
+     clipping the later ones, this was previously invisible rather than
+     reachable at all below ~840px wide */
   overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  overflow-x: auto;
+}
+.tabs::-webkit-scrollbar {
+  display: none;
 }
 .tab {
   background: rgba(255, 255, 255, 0.06);
@@ -2997,6 +3352,7 @@ function formatPlaytime(minutes: number) {
   cursor: pointer;
   border-radius: 999px;
   white-space: nowrap;
+  flex-shrink: 0;
   transition: background 0.15s ease, color 0.15s ease;
 }
 .tab:hover {
@@ -3017,6 +3373,140 @@ function formatPlaytime(minutes: number) {
   grid-template-columns: 1fr 340px;
   gap: 24px;
   align-items: start;
+}
+@media (max-width: 860px) {
+  /* the details sidebar has real, sometimes long content (platforms,
+     ownership, links), stacking it below the description keeps it
+     reachable instead of squeezed into a column with no room */
+  .overview {
+    grid-template-columns: 1fr;
+    padding: 16px;
+  }
+  .details-panel {
+    margin-right: 0;
+  }
+  /* grid items default to min-width:auto (their content's natural size),
+     without overriding it, a single wide descendant anywhere inside these
+     two (a media row, a long link, a table) forces the "1fr" track back
+     out to that descendant's width instead of actually shrinking to fit */
+  .overview-main,
+  .details-panel {
+    min-width: 0;
+  }
+}
+.text-button {
+  background: none;
+  border: none;
+  color: #d68a34;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+}
+.text-button:hover {
+  text-decoration: underline;
+}
+.text-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.form-error-inline {
+  color: #fca5a5;
+  font-size: 12.5px;
+  margin: 6px 0;
+}
+.log-playtime-button {
+  display: block;
+  margin-top: 10px;
+}
+.related-bounties {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 720px;
+  margin-bottom: 18px;
+}
+.related-bounty-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(214, 138, 52, 0.08);
+  border: 1px solid rgba(214, 138, 52, 0.3);
+  border-radius: 10px;
+  padding: 12px 16px;
+  text-decoration: none;
+  transition: background 0.15s ease;
+}
+.related-bounty-card:hover {
+  background: rgba(214, 138, 52, 0.15);
+}
+.related-bounty-icon {
+  font-size: 18px;
+  flex-shrink: 0;
+}
+.related-bounty-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.related-bounty-title {
+  color: #fff;
+  font-weight: 600;
+  font-size: 14px;
+}
+.related-bounty-meta {
+  color: #d6a878;
+  font-size: 12px;
+  text-transform: capitalize;
+}
+.resume-note-card {
+  max-width: 720px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid #2a2a2a;
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin-bottom: 20px;
+}
+.resume-note-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.resume-note-header h3 {
+  margin: 0;
+  font-size: 14px;
+  color: #fff;
+}
+.resume-note-text {
+  color: #ddd;
+  font-size: 13.5px;
+  line-height: 1.6;
+  margin: 0;
+  white-space: pre-wrap;
+}
+.resume-note-empty {
+  color: #777;
+  font-size: 13px;
+  margin: 0;
+}
+.resume-note-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  background: #111;
+  border: 1px solid #3a3a3a;
+  border-radius: 8px;
+  color: #f5f5f5;
+  padding: 10px 12px;
+  font: inherit;
+  font-size: 13.5px;
+  resize: vertical;
+}
+.resume-note-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 10px;
 }
 .description-wrap {
   display: flex;
@@ -4014,11 +4504,45 @@ function formatPlaytime(minutes: number) {
   text-align: center;
 }
 
-/* Screenshots / Clips / Saves / Docs / Stats */
+.card-tab-panel {
+  width: 100%;
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 24px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 14px;
+}
+.card-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.empty-state.error {
+  color: #fca5a5;
+}
+.card-open-btn {
+  background: #d68a34;
+  color: #121212;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 18px;
+  font-weight: 700;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+.card-open-btn:hover {
+  opacity: 0.9;
+}
+
+/* Screenshots / Clips / Saves / Docs / Stats / History */
 .media-panel,
 .files-panel,
 .world-map-panel,
-.stats-panel {
+.stats-panel,
+.history-panel {
   width: 100%;
   max-width: 1600px;
   margin: 0 auto;
@@ -4036,12 +4560,60 @@ function formatPlaytime(minutes: number) {
   flex: 1;
   min-width: 0;
 }
-.stats-panel h2 {
+.stats-panel h2,
+.history-panel h2 {
   margin: 0;
   font-size: 1.1rem;
 }
-.stats-panel h2 {
+.stats-panel h2,
+.history-panel h2 {
   margin-bottom: 16px;
+}
+.history-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.history-entry {
+  background: #1a1a1a;
+  border: 1px solid #2a2a2a;
+  border-radius: 10px;
+  padding: 12px 16px;
+}
+.history-entry-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+.history-field {
+  font-weight: 600;
+  color: #ccc;
+}
+.history-date {
+  color: #777;
+  font-size: 0.8rem;
+}
+.history-values {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+}
+.history-values svg {
+  flex-shrink: 0;
+  color: #666;
+}
+.history-old {
+  color: #999;
+  text-decoration: line-through;
+  text-decoration-color: #444;
+}
+.history-new {
+  color: #d68a34;
 }
 .upload-label {
   display: inline-flex;

@@ -15,7 +15,7 @@ onMounted(async () => {
     const limits = await fetchUploadLimits()
     maxUploadSizeMb.value = limits.max_upload_size_mb
   } catch {
-    // non-critical — the upload flow below still works without this number
+    // non-critical, the upload flow below still works without this number
   }
 })
 
@@ -44,7 +44,7 @@ async function loadInbox() {
   try {
     inboxMedia.value = await listInbox()
     // a partially-failed bulk action can leave `selected` pointing at items
-    // that got assigned/deleted and are gone from this fresh list — drop
+    // that got assigned/deleted and are gone from this fresh list, drop
     // those rather than let the selection count lie
     pruneSelectionToCurrentItems()
   } catch (err) {
@@ -73,7 +73,7 @@ async function onFilesSelected(e: Event) {
   uploadError.value = null
   input.value = ''
   // real byte-level progress against the actual upload (not a fake jump to
-  // 100%) — see uploadToInbox/uploadFiles in services/media.ts
+  // 100%), see uploadToInbox/uploadFiles in services/media.ts
   const taskId = startTask(`Uploading ${files.length} file${files.length === 1 ? '' : 's'}`, 100)
 
   const attempt = async () => {
@@ -137,7 +137,7 @@ async function assignSelected() {
   } catch (err) {
     assignError.value = err instanceof Error ? err.message : 'Failed to assign media'
   } finally {
-    // always reload, not just on the success path — a failure partway
+    // always reload, not just on the success path, a failure partway
     // through the loop still assigned some items, so the list needs to
     // reflect that rather than keep showing them as still unassigned
     await loadInbox()
@@ -174,7 +174,7 @@ async function deleteSelected() {
   } catch (err) {
     deleteError.value = err instanceof Error ? err.message : 'Failed to delete media'
   } finally {
-    // always reload, not just on the success path — see assignSelected
+    // always reload, not just on the success path, see assignSelected
     await loadInbox()
     await refreshTrash()
     deleting.value = false

@@ -42,14 +42,14 @@ export function normalizePlatformFamily(raw: string): string {
     return PLATFORM_FAMILY_MAP[key] ?? raw.trim()
 }
 
-// Shown in the platform filter by default — the systems most libraries
+// Shown in the platform filter by default, the systems most libraries
 // actually revolve around. Kept short on purpose so the dropdown isn't a wall
 // of consoles before anyone's typed anything.
 export const PLATFORM_OPTIONS = ['PC', 'PlayStation', 'Xbox', 'Nintendo']
 
 // Only surfaced once the user starts typing (see FilterCombobox's
-// extraOptions) — retro/less-common systems are searchable without cluttering
-// the default list. Anything typed that isn't here still works —
+// extraOptions), retro/less-common systems are searchable without cluttering
+// the default list. Anything typed that isn't here still works,
 // normalizePlatformFamily just passes it through unchanged.
 export const RETRO_PLATFORM_OPTIONS = [
     'Arcade',

@@ -4,8 +4,11 @@ import { useRoute, useRouter } from 'vue-router'
 import { logout } from '../services/auth'
 import { currentUser } from '../state/auth'
 import { inboxCount, refreshInboxCount } from '../state/inbox'
+import { notifications, notificationsLoaded, refreshNotifications } from '../state/notifications'
 
 onMounted(refreshInboxCount)
+onMounted(refreshNotifications)
+const notificationsExpanded = ref(false)
 
 const route = useRoute()
 const open = ref(false)
@@ -15,6 +18,7 @@ function isActive(path: string) {
 }
 
 const gamesExpanded = ref(isActive('/games') || isActive('/collections'))
+const cardsExpanded = ref(isActive('/cards') || isActive('/sets'))
 
 const isMockData = import.meta.env.VITE_USE_MOCK_DATA === 'true'
 
@@ -38,6 +42,7 @@ async function handleLogout() {
       <line x1="3" y1="12" x2="21" y2="12" />
       <line x1="3" y1="18" x2="21" y2="18" />
     </svg>
+    <span v-if="notifications.length" class="menu-toggle-dot"></span>
   </button>
 
   <Transition name="sidebar-backdrop">
@@ -102,6 +107,86 @@ async function handleLogout() {
             <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
           </svg>
           <span>Collections</span>
+        </router-link>
+      </div>
+
+      <div class="sidebar-parent-row" :class="{ active: isActive('/cards') && !isActive('/sets') }">
+        <router-link to="/cards" class="sidebar-item sidebar-parent-link" @click="close">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="4" width="18" height="16" rx="2" />
+            <path d="M3 10h18" />
+            <circle cx="8" cy="7" r="1" fill="currentColor" stroke="none" />
+          </svg>
+          <span>Cards</span>
+        </router-link>
+        <button
+          type="button"
+          class="sidebar-expand-toggle"
+          :class="{ expanded: cardsExpanded }"
+          :title="cardsExpanded ? 'Collapse' : 'Expand'"
+          @click="cardsExpanded = !cardsExpanded"
+        >
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 18l6-6-6-6" />
+          </svg>
+        </button>
+      </div>
+
+      <div v-if="cardsExpanded" class="sidebar-subitems">
+        <router-link to="/cards" class="sidebar-item sidebar-subitem" :class="{ active: isActive('/cards') }" @click="close">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="4" width="18" height="16" rx="2" />
+            <path d="M3 10h18" />
+          </svg>
+          <span>All Cards</span>
+        </router-link>
+        <router-link to="/sets" class="sidebar-item sidebar-subitem" :class="{ active: isActive('/sets') }" @click="close">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="7" height="7" rx="1" />
+            <rect x="14" y="3" width="7" height="7" rx="1" />
+            <rect x="3" y="14" width="7" height="7" rx="1" />
+            <rect x="14" y="14" width="7" height="7" rx="1" />
+          </svg>
+          <span>Sets</span>
+        </router-link>
+      </div>
+
+      <div class="sidebar-parent-row">
+        <button type="button" class="sidebar-item sidebar-parent-link notification-toggle" @click="notificationsExpanded = !notificationsExpanded">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+            <path d="M13.7 21a2 2 0 0 1-3.4 0" />
+          </svg>
+          <span>Notifications</span>
+          <span v-if="notifications.length" class="inbox-badge">{{ notifications.length }}</span>
+        </button>
+        <button
+          type="button"
+          class="sidebar-expand-toggle"
+          :class="{ expanded: notificationsExpanded }"
+          :title="notificationsExpanded ? 'Collapse' : 'Expand'"
+          @click="notificationsExpanded = !notificationsExpanded"
+        >
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 18l6-6-6-6" />
+          </svg>
+        </button>
+      </div>
+      <div v-if="notificationsExpanded" class="sidebar-subitems">
+        <p v-if="!notificationsLoaded" class="notification-empty">Loading…</p>
+        <p v-else-if="!notifications.length" class="notification-empty">Nothing to flag right now.</p>
+        <router-link
+          v-for="n in notifications"
+          :key="n.id"
+          :to="n.to"
+          class="notification-row"
+          @click="close"
+        >
+          <span class="notification-dot" :class="n.kind"></span>
+          <span class="notification-text">
+            <span class="notification-title">{{ n.title }}</span>
+            <span class="notification-detail">{{ n.detail }}</span>
+          </span>
         </router-link>
       </div>
 
@@ -175,6 +260,16 @@ async function handleLogout() {
 }
 .menu-toggle:hover {
   background: rgba(40, 40, 40, 0.85);
+}
+.menu-toggle-dot {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #d68a34;
+  border: 2px solid #121212;
 }
 .sidebar-backdrop {
   position: fixed;
@@ -313,6 +408,61 @@ async function handleLogout() {
   background: rgba(255, 255, 255, 0.06);
   padding: 2px 6px;
   border-radius: 999px;
+}
+.notification-toggle {
+  background: none;
+  border: none;
+  width: 100%;
+  font: inherit;
+  text-align: left;
+}
+.notification-empty {
+  color: #666;
+  font-size: 12.5px;
+  padding: 6px 8px;
+  margin: 0;
+}
+.notification-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 7px 8px;
+  border-radius: 6px;
+  text-decoration: none;
+  color: inherit;
+  font-size: 13px;
+}
+.notification-row:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+.notification-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  margin-top: 5px;
+  flex-shrink: 0;
+}
+.notification-dot.deadline {
+  background: #f87171;
+}
+.notification-dot.suggested {
+  background: #d68a34;
+}
+.notification-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.notification-title {
+  color: #eee;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.notification-detail {
+  color: #888;
+  font-size: 11.5px;
 }
 .inbox-badge {
   margin-left: auto;

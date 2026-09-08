@@ -15,7 +15,7 @@ onMounted(async () => {
     const limits = await fetchUploadLimits()
     maxUploadSizeMb.value = limits.max_upload_size_mb
   } catch {
-    // non-critical — the upload flow below still works without this number
+    // non-critical, the upload flow below still works without this number
   }
 })
 
@@ -63,7 +63,7 @@ async function onFilesSelected(e: Event) {
   uploadError.value = null
   input.value = ''
   // real byte-level progress against the actual upload (not a fake jump to
-  // 100%) — see uploadToInbox/uploadFiles in services/media.ts
+  // 100%), see uploadToInbox/uploadFiles in services/media.ts
   const taskId = startTask(`Uploading ${files.length} file${files.length === 1 ? '' : 's'}`, 100)
 
   const attempt = async () => {

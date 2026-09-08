@@ -33,7 +33,7 @@ export interface UploadResult {
   reason?: string
 }
 
-// XMLHttpRequest, not fetch — fetch has no upload-progress event at all, so
+// XMLHttpRequest, not fetch, fetch has no upload-progress event at all, so
 // a multi-file batch upload's progress bar was purely cosmetic (jumping
 // straight from 0 to 100 when the single request finally resolved). XHR's
 // upload.onprogress gives real byte-level progress against the actual
@@ -104,7 +104,7 @@ export async function listGameScreenshots(
   return body.media
 }
 
-// soft-delete — moves to trash, restorable for 7 days (see below)
+// soft-delete, moves to trash, restorable for 7 days (see below)
 export async function deleteGameScreenshot(gameId: string, kind: MediaKind, filename: string): Promise<void> {
   if (import.meta.env.VITE_USE_MOCK_DATA === 'true') return
   const response = await fetch(`/api/game/${gameId}/screenshots/${kind}/${encodeURIComponent(filename)}`, {
@@ -152,7 +152,7 @@ export async function updateMediaItem(gameId: string, mediaId: string, payload: 
   return await response.json()
 }
 
-// library-wide gallery — every already-assigned media item across every
+// library-wide gallery, every already-assigned media item across every
 // game, optionally filtered
 export async function fetchAllMedia(filters: { kind?: MediaKind; tag?: string; gameId?: string } = {}): Promise<MediaItem[]> {
   if (import.meta.env.VITE_USE_MOCK_DATA === 'true') return []
@@ -165,7 +165,7 @@ export async function fetchAllMedia(filters: { kind?: MediaKind; tag?: string; g
   return await response.json()
 }
 
-// distinct from MediaItem — an inbox item has no id/tags/note (those only
+// distinct from MediaItem, an inbox item has no id/tags/note (those only
 // exist once it's assigned to a game and becomes a real MediaItem row)
 export interface InboxMediaItem {
   filename: string
@@ -205,7 +205,7 @@ export async function fetchInboxTrash(): Promise<TrashedInboxItem[]> {
   return body.media
 }
 
-// soft-delete — moves to trash, restorable for 7 days (see restoreInboxMedia)
+// soft-delete, moves to trash, restorable for 7 days (see restoreInboxMedia)
 export async function deleteInboxMedia(kind: MediaKind, filename: string): Promise<void> {
   if (import.meta.env.VITE_USE_MOCK_DATA === 'true') return
   const response = await fetch(`/api/media/inbox/${kind}/${encodeURIComponent(filename)}`, {
@@ -267,7 +267,7 @@ export async function listGameFiles(gameId: string, kind: GameFileKind): Promise
   return body.files
 }
 
-// soft-delete — moves to trash, restorable for 7 days (see below)
+// soft-delete, moves to trash, restorable for 7 days (see below)
 export async function deleteGameFile(gameId: string, kind: GameFileKind, filename: string): Promise<void> {
   if (import.meta.env.VITE_USE_MOCK_DATA === 'true') return
   const response = await fetch(`/api/game/${gameId}/files/${kind}/${encodeURIComponent(filename)}`, {

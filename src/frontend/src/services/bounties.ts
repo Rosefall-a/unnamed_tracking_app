@@ -1,4 +1,4 @@
-// Bounties — personal goals and challenges. Independent from
+// Bounties, personal goals and challenges. Independent from
 // Achievements/Mastery/Cards/Prestige, but a bounty may optionally target
 // a game, a specific achievement, or a named collection to compute its
 // own progress automatically.

@@ -20,8 +20,8 @@ const saveError = ref<string | null>(null)
 const saveSuccess = ref(false)
 
 // otherwise "Profile updated." keeps showing after a successful save even
-// once the user starts typing something new — reading as if the in-progress
-// edit was already saved. Only username/email, not the password fields —
+// once the user starts typing something new, reading as if the in-progress
+// edit was already saved. Only username/email, not the password fields,
 // saveProfile() itself clears those right after a successful save, and
 // watching them here would stomp saveSuccess back to false in that same tick.
 watch([username, email], () => {

@@ -1,4 +1,4 @@
-// Named sub-scopes within one game (e.g. separate OSRS accounts) — lets
+// Named sub-scopes within one game (e.g. separate OSRS accounts), lets
 // checklist items and screenshots be filtered down to one account instead
 // of mixing every account's stuff together.
 
@@ -72,13 +72,13 @@ export async function syncProfileWiseOldMan(gameId: string, profileId: string, u
   return await response.json()
 }
 
-// a dated copy of a profile's stats — written automatically on every sync
+// a dated copy of a profile's stats, written automatically on every sync
 // or manual edit, so progression can be shown over time
 export interface StatSnapshot {
   id: string
   recorded_at: number
   stats: Record<string, string>
-  // raw integers (WiseOldMan syncs only — empty on a manually-edited
+  // raw integers (WiseOldMan syncs only, empty on a manually-edited
   // snapshot) used to compute an accurate day-to-day gain instead of
   // diffing level numbers, which can each span tens of thousands of XP
   xp: Record<string, number>
@@ -93,7 +93,7 @@ export async function fetchProfileStatHistory(gameId: string, profileId: string)
   return body.snapshots
 }
 
-// soft-delete — restorable for 7 days, same as every other trash-backed delete
+// soft-delete, restorable for 7 days, same as every other trash-backed delete
 export async function deleteGameProfile(gameId: string, profileId: string): Promise<void> {
   const response = await fetch(`/api/game/${gameId}/profiles/${profileId}`, {
     method: 'DELETE',
@@ -161,7 +161,7 @@ export async function createChecklistItem(
   return await response.json()
 }
 
-// sends the full new order for one scope (profile_id) in one call — used
+// sends the full new order for one scope (profile_id) in one call, used
 // by both an up/down-arrow swap and (later) drag-and-drop, so there's only
 // one "here's the new order" API instead of a different one per gesture
 export async function reorderChecklist(gameId: string, profileId: string | null, itemIds: string[]): Promise<void> {

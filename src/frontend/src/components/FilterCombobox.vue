@@ -6,7 +6,7 @@ const props = defineProps<{
   options: string[]
   placeholder: string
   allLabel?: string
-  // A second, larger pool only searched once the user starts typing — keeps
+  // A second, larger pool only searched once the user starts typing, keeps
   // the default dropdown short while still making everything findable.
   extraOptions?: string[]
   extraLabel?: string

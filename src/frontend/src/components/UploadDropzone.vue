@@ -45,12 +45,12 @@ function onDrop(e: DragEvent) {
   dragDepth = 0
   dragging.value = false
 
-  // Dropping a folder (not a file) is a real, easy mistake here — e.g. a
-  // Minecraft world save's own folder, un-zipped — and some browsers
+  // Dropping a folder (not a file) is a real, easy mistake here, e.g. a
+  // Minecraft world save's own folder, un-zipped, and some browsers
   // return it via dataTransfer.files as a 0-byte/empty entry, or omit it
   // from .files entirely. Either way the drop silently did nothing before
   // this check: no request, no error, nothing. webkitGetAsEntry is
-  // non-standard in name only — Chrome/Edge/Firefox/Safari all support it.
+  // non-standard in name only, Chrome/Edge/Firefox/Safari all support it.
   const items = e.dataTransfer?.items
   if (items?.length) {
     for (const item of Array.from(items)) {

@@ -1,7 +1,7 @@
 import { createSpeedTracker } from '../utils/uploadSpeed'
 
-// Named, versioned save archives — "Main World", "Pre-Nether-Update
-// Backup", etc. — replacing the old convention of a save being just one
+// Named, versioned save archives, "Main World", "Pre-Nether-Update
+// Backup", etc., replacing the old convention of a save being just one
 // anonymous uploaded file. kind is 'save' or 'world_save'; docs/modpacks
 // stay on the simpler flat file system in services/media.ts.
 export type ArchiveKind = 'save' | 'world_save'
@@ -24,7 +24,7 @@ export interface GameArchiveData {
 }
 
 // real byte-level progress via XHR, same reasoning as uploadFiles in
-// services/media.ts — fetch has no upload-progress event at all
+// services/media.ts, fetch has no upload-progress event at all
 function uploadWithProgress(
   url: string,
   method: 'POST' | 'PATCH',

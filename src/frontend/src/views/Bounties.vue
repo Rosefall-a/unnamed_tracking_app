@@ -50,6 +50,10 @@ const DIFFICULTY_LABELS: Record<BountyDifficulty, string> = {
   extreme: 'Extreme',
 }
 const AUTOMATIC_TYPES: BountyType[] = ['completion', 'mastery', 'achievement', 'collection']
+// there's no real scoring engine here, points are freeform per bounty,
+// this is purely a suggested scale so difficulty picks translate to
+// *something* consistent instead of a blank "just guess a number" field
+const SUGGESTED_POINTS: Record<BountyDifficulty, number> = { easy: 50, normal: 100, hard: 200, extreme: 400 }
 const OBJECTIVE_KIND_LABELS: Record<ObjectiveKind, string> = { checkbox: 'Checkbox', numeric: 'Numeric', achievement: 'Achievement' }
 const EVIDENCE_KIND_LABELS: Record<EvidenceKind, string> = {
   screenshot: '📸 Screenshot',
@@ -115,15 +119,130 @@ function formatDate(epochSeconds: number) {
 function deadlineLabel(b: Bounty): string | null {
   if (!b.target_date) return null
   const daysLeft = Math.ceil((b.target_date - Date.now() / 1000) / 86400)
-  if (daysLeft < 0) return `Overdue — was due ${formatDate(b.target_date)}`
+  if (daysLeft < 0) return `Overdue, was due ${formatDate(b.target_date)}`
   if (daysLeft === 0) return 'Due today'
   return `${daysLeft} day${daysLeft === 1 ? '' : 's'} remaining`
+}
+
+// --- streak: consecutive weeks (Mon-Sun) with at least one bounty
+// completed, counting back from the current week ------------------------
+function weekStart(unixSeconds: number): number {
+  const d = new Date(unixSeconds * 1000)
+  const isoDay = (d.getDay() + 6) % 7 // Monday = 0
+  d.setHours(0, 0, 0, 0)
+  d.setDate(d.getDate() - isoDay)
+  return d.getTime()
+}
+const bountyStreakWeeks = computed(() => {
+  const weeks = new Set(
+    bounties.value.filter((b) => b.completed_at !== null).map((b) => weekStart(b.completed_at as number)),
+  )
+  if (!weeks.size) return 0
+  const oneWeek = 7 * 86_400_000
+  let cursor = weekStart(Math.floor(Date.now() / 1000))
+  let streak = 0
+  while (weeks.has(cursor)) {
+    streak++
+    cursor -= oneWeek
+  }
+  return streak
+})
+
+// --- shareable completion card: a hand-drawn canvas image, downloaded
+// straight from the browser, no server round-trip, no image library ------
+function shareBountyCard(b: Bounty) {
+  const canvas = document.createElement('canvas')
+  canvas.width = 1000
+  canvas.height = 560
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return
+
+  const bg = ctx.createLinearGradient(0, 0, canvas.width, canvas.height)
+  bg.addColorStop(0, '#1a1408')
+  bg.addColorStop(1, '#121212')
+  ctx.fillStyle = bg
+  ctx.fillRect(0, 0, canvas.width, canvas.height)
+
+  ctx.strokeStyle = '#d68a34'
+  ctx.lineWidth = 3
+  ctx.strokeRect(24, 24, canvas.width - 48, canvas.height - 48)
+
+  ctx.fillStyle = '#d68a34'
+  ctx.font = '700 22px system-ui, sans-serif'
+  ctx.fillText('BOUNTY COMPLETE', 64, 110)
+
+  ctx.fillStyle = '#ffffff'
+  ctx.font = '700 52px system-ui, sans-serif'
+  wrapText(ctx, b.title, 64, 200, canvas.width - 128, 60)
+
+  const metaY = 360
+  ctx.fillStyle = '#d68a34'
+  ctx.font = '600 26px system-ui, sans-serif'
+  const metaParts = [TYPE_LABELS[b.type]]
+  if (b.difficulty) metaParts.push(DIFFICULTY_LABELS[b.difficulty])
+  if (b.game_title) metaParts.push(b.game_title)
+  ctx.fillText(metaParts.join('   ·   '), 64, metaY)
+
+  if (b.points_reward) {
+    ctx.fillStyle = '#ffffff'
+    ctx.font = '700 26px system-ui, sans-serif'
+    ctx.fillText(`+${b.points_reward} pts`, 64, metaY + 50)
+  }
+
+  ctx.fillStyle = '#999999'
+  ctx.font = '400 18px system-ui, sans-serif'
+  const completedLabel = b.completed_at ? formatDate(b.completed_at) : formatDate(b.created_at)
+  ctx.fillText(`Completed ${completedLabel}`, 64, canvas.height - 60)
+
+  const link = document.createElement('a')
+  link.download = `${b.title.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}-bounty.png`
+  link.href = canvas.toDataURL('image/png')
+  link.click()
+}
+function wrapText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, maxWidth: number, lineHeight: number) {
+  const words = text.split(' ')
+  let line = ''
+  let curY = y
+  for (const word of words) {
+    const test = line ? `${line} ${word}` : word
+    if (ctx.measureText(test).width > maxWidth && line) {
+      ctx.fillText(line, x, curY)
+      line = word
+      curY += lineHeight
+    } else {
+      line = test
+    }
+  }
+  ctx.fillText(line, x, curY)
 }
 
 // --- random bounty --------------------------------------------------
 const randomProposal = ref<BountyProposal | null>(null)
 const randomLoading = ref(false)
 const randomAccepting = ref(false)
+
+// a couple of alternative suggestions alongside the main pick, the
+// backend only has a single-proposal endpoint, so this calls it a few
+// extra times and keeps whatever comes back distinct from the main one,
+// rather than only ever offering accept-this-or-reroll
+function proposalKey(p: BountyProposal): string {
+  return `${p.type}:${p.game_id}:${p.title}`
+}
+const suggestionAlternatives = ref<BountyProposal[]>([])
+async function loadSuggestionAlternatives() {
+  const seen = new Set(randomProposal.value ? [proposalKey(randomProposal.value)] : [])
+  const results: BountyProposal[] = []
+  for (let i = 0; i < 5 && results.length < 2; i++) {
+    const p = await fetchRandomBountyProposal()
+    if (!p) break
+    const key = proposalKey(p)
+    if (!seen.has(key)) {
+      seen.add(key)
+      results.push(p)
+    }
+  }
+  suggestionAlternatives.value = results
+}
 
 async function loadRandomProposal() {
   randomLoading.value = true
@@ -133,6 +252,24 @@ async function loadRandomProposal() {
     randomProposal.value = null
   } finally {
     randomLoading.value = false
+  }
+  void loadSuggestionAlternatives()
+}
+
+async function acceptAlternative(proposal: BountyProposal) {
+  randomAccepting.value = true
+  try {
+    const created = await createBounty({
+      title: proposal.title,
+      type: proposal.type,
+      game_id: proposal.game_id,
+      points_reward: proposal.points_reward,
+    })
+    bounties.value = [created, ...bounties.value]
+    suggestionAlternatives.value = suggestionAlternatives.value.filter((p) => proposalKey(p) !== proposalKey(proposal))
+    statusFilter.value = 'active'
+  } finally {
+    randomAccepting.value = false
   }
 }
 
@@ -173,8 +310,8 @@ const formError = ref('')
 const gameAchievements = ref<Achievement[]>([])
 const loadingAchievements = ref(false)
 
-watch(newGameId, async (gameId) => {
-  if (newType.value !== 'achievement' || !gameId) {
+watch([newType, newGameId], async ([type, gameId]) => {
+  if (type !== 'achievement' || !gameId) {
     gameAchievements.value = []
     return
   }
@@ -183,11 +320,6 @@ watch(newGameId, async (gameId) => {
     gameAchievements.value = await fetchGameAchievements(gameId)
   } finally {
     loadingAchievements.value = false
-  }
-})
-watch(newType, (type) => {
-  if (type === 'achievement' && newGameId.value) {
-    fetchGameAchievements(newGameId.value).then((a) => (gameAchievements.value = a))
   }
 })
 
@@ -327,6 +459,9 @@ function openObjectiveForm(b: Bounty) {
   objTarget.value = null
   objAchievementId.value = ''
   objError.value = ''
+  // otherwise a bounty with no game (or a different game) keeps showing the
+  // previously opened bounty's achievement list
+  objAchievements.value = []
   if (b.game_id) fetchGameAchievements(b.game_id).then((a) => (objAchievements.value = a))
 }
 
@@ -396,6 +531,8 @@ function openEvidenceForm(b: Bounty) {
   evUrl.value = ''
   evMediaId.value = ''
   evError.value = ''
+  // same as objAchievements above, avoid showing the previous bounty's media
+  evMediaOptions.value = []
   if (b.game_id) listGameScreenshots(b.game_id).then((m) => (evMediaOptions.value = m))
 }
 
@@ -496,9 +633,12 @@ async function togglePoints() {
     <div class="page-header">
       <div>
         <h1>Bounties</h1>
-        <p class="subtitle">Personal goals and challenges — no points required, but they're there if you want them.</p>
+        <p class="subtitle">Personal goals and challenges, no points required, but they're there if you want them.</p>
       </div>
       <div class="header-actions">
+        <span v-if="bountyStreakWeeks > 0" class="streak-pill" :title="`${bountyStreakWeeks} consecutive week${bountyStreakWeeks === 1 ? '' : 's'} with a bounty completed`">
+          🔥 {{ bountyStreakWeeks }} week{{ bountyStreakWeeks === 1 ? '' : 's' }}
+        </span>
         <button type="button" class="points-toggle" @click="togglePoints">🏅 {{ showPoints ? 'Hide' : 'Points' }}</button>
         <button type="button" class="add-button" @click="openAddForm">+ New Bounty</button>
       </div>
@@ -517,14 +657,29 @@ async function togglePoints() {
     </div>
 
     <div v-if="randomProposal" class="random-bounty-card">
-      <div class="random-bounty-label">🎲 RANDOM BOUNTY</div>
-      <div class="random-bounty-body">
-        <span class="random-bounty-title">{{ randomProposal.title }}</span>
-        <span class="random-bounty-sub">{{ TYPE_LABELS[randomProposal.type] }} · {{ randomProposal.game_title }} · +{{ randomProposal.points_reward }} pts</span>
+      <div class="random-bounty-main">
+        <div class="random-bounty-label">🎲 RANDOM BOUNTY</div>
+        <div class="random-bounty-body">
+          <span class="random-bounty-title">{{ randomProposal.title }}</span>
+          <span class="random-bounty-sub">{{ TYPE_LABELS[randomProposal.type] }} · {{ randomProposal.game_title }} · +{{ randomProposal.points_reward }} pts</span>
+        </div>
+        <div class="random-bounty-actions">
+          <button type="button" class="save-btn" :disabled="randomAccepting" @click="acceptRandomProposal">Accept</button>
+          <button type="button" class="cancel-btn" :disabled="randomLoading" @click="loadRandomProposal">Reroll</button>
+        </div>
       </div>
-      <div class="random-bounty-actions">
-        <button type="button" class="save-btn" :disabled="randomAccepting" @click="acceptRandomProposal">Accept</button>
-        <button type="button" class="cancel-btn" :disabled="randomLoading" @click="loadRandomProposal">Reroll</button>
+      <div v-if="suggestionAlternatives.length" class="random-bounty-alts">
+        <span class="random-bounty-alts-label">Or:</span>
+        <button
+          v-for="alt in suggestionAlternatives"
+          :key="proposalKey(alt)"
+          type="button"
+          class="random-bounty-alt"
+          :disabled="randomAccepting"
+          @click="acceptAlternative(alt)"
+        >
+          {{ alt.title }} <span class="random-bounty-alt-pts">+{{ alt.points_reward }}</span>
+        </button>
       </div>
     </div>
 
@@ -614,6 +769,13 @@ async function togglePoints() {
             <button type="button" class="action-btn abandon" :disabled="actionPending === b.id" title="Abandon" @click="doAction(b, 'abandon')">✕</button>
           </template>
           <button
+            v-if="b.status === 'completed'"
+            type="button"
+            class="action-btn share"
+            title="Save a shareable image"
+            @click="shareBountyCard(b)"
+          >⇩</button>
+          <button
             v-if="b.status !== 'completed'"
             type="button"
             class="action-btn delete"
@@ -630,7 +792,7 @@ async function togglePoints() {
             <h4>Objectives</h4>
             <button v-if="b.status === 'active'" type="button" class="mini-btn" @click="openObjectiveForm(b)">+ Add</button>
           </div>
-          <div v-if="b.objectives.length === 0" class="empty-state small">No objectives — this is a simple goal.</div>
+          <div v-if="b.objectives.length === 0" class="empty-state small">No objectives, this is a simple goal.</div>
           <div v-else class="objective-list">
             <div v-for="o in b.objectives" :key="o.id" class="objective-row">
               <input
@@ -655,7 +817,7 @@ async function togglePoints() {
             </select>
             <input v-if="objKind === 'numeric'" v-model.number="objTarget" class="field-input" type="number" min="1" placeholder="Target (e.g. 10)" />
             <select v-if="objKind === 'achievement'" v-model="objAchievementId" class="field-input" :disabled="!b.game_id">
-              <option value="">— pick achievement —</option>
+              <option value="">Select an achievement…</option>
               <option v-for="a in objAchievements" :key="a.id" :value="a.id">{{ a.name }}</option>
             </select>
             <p v-if="objError" class="form-error small">{{ objError }}</p>
@@ -689,7 +851,7 @@ async function togglePoints() {
             <textarea v-if="evKind === 'note'" v-model="evText" class="field-input" rows="2" placeholder="Write a note"></textarea>
             <input v-if="evKind === 'link'" v-model="evUrl" class="field-input" type="text" placeholder="https://…" />
             <select v-if="['screenshot', 'clip', 'document'].includes(evKind)" v-model="evMediaId" class="field-input" :disabled="!b.game_id || evMediaOptions.length === 0">
-              <option value="">{{ evMediaOptions.length === 0 ? 'No media in this game\'s gallery yet' : '— pick a file —' }}</option>
+              <option value="">{{ evMediaOptions.length === 0 ? 'No media in this game\'s gallery yet' : 'Select a file…' }}</option>
               <option v-for="m in evMediaOptions" :key="m.id" :value="m.id">{{ m.filename }}</option>
             </select>
             <p v-if="evError" class="form-error small">{{ evError }}</p>
@@ -740,14 +902,14 @@ async function togglePoints() {
         <label v-if="needsGame || newType === 'challenge' || newType === 'watch'" class="field-label">
           Target Game{{ needsGame ? '' : ' (optional)' }}
           <select v-model="newGameId" class="field-input">
-            <option value="">— none —</option>
+            <option value="">None</option>
             <option v-for="g in games" :key="g.id" :value="g.id">{{ g.title }}</option>
           </select>
         </label>
 
         <label v-if="newType === 'achievement'" class="field-label">Target Achievement
           <select v-model="newAchievementId" class="field-input" :disabled="loadingAchievements || gameAchievements.length === 0">
-            <option value="">{{ loadingAchievements ? 'Loading…' : '— pick one —' }}</option>
+            <option value="">{{ loadingAchievements ? 'Loading…' : 'Select one…' }}</option>
             <option v-for="a in gameAchievements" :key="a.id" :value="a.id">{{ a.name }}{{ a.unlockedAt ? ' (already unlocked)' : '' }}</option>
           </select>
         </label>
@@ -759,19 +921,31 @@ async function togglePoints() {
           </datalist>
         </label>
 
-        <label v-if="!isAutomatic" class="field-label">Progress Target (optional — numeric goals like "10 games")
+        <label v-if="!isAutomatic" class="field-label">Progress Target (optional, numeric goals like "10 games")
           <input v-model.number="newProgressTarget" class="field-input" type="number" min="1" placeholder="e.g. 10" />
         </label>
 
         <label class="field-label">Difficulty (optional)
           <select v-model="newDifficulty" class="field-input">
-            <option value="">— none —</option>
+            <option value="">None</option>
             <option v-for="(label, key) in DIFFICULTY_LABELS" :key="key" :value="key">{{ label }}</option>
           </select>
         </label>
 
         <label class="field-label">Points Reward
           <input v-model.number="newPoints" class="field-input" type="number" min="0" />
+          <span class="field-hint">
+            Points are entirely up to you, a rough scale to stay consistent:
+            <button
+              v-for="(pts, key) in SUGGESTED_POINTS"
+              :key="key"
+              type="button"
+              class="points-suggestion"
+              @click="newPoints = pts"
+            >
+              {{ DIFFICULTY_LABELS[key] }} {{ pts }}
+            </button>
+          </span>
         </label>
 
         <label class="field-label">Deadline (optional)
@@ -892,13 +1066,66 @@ h1 {
 }
 .random-bounty-card {
   display: flex;
-  align-items: center;
-  gap: 14px;
+  flex-direction: column;
+  gap: 10px;
   background: linear-gradient(135deg, rgba(214, 138, 52, 0.14), #161616);
   border: 1px solid #d68a34;
   border-radius: 10px;
   padding: 14px 16px;
   margin-bottom: 18px;
+}
+.random-bounty-main {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.random-bounty-alts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(214, 138, 52, 0.25);
+}
+.random-bounty-alts-label {
+  color: #999;
+  font-size: 12px;
+}
+.random-bounty-alt {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid #2a2a2a;
+  color: #eee;
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.random-bounty-alt:hover:not(:disabled) {
+  border-color: #d68a34;
+  color: #d68a34;
+}
+.random-bounty-alt:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.random-bounty-alt-pts {
+  color: #d68a34;
+  font-weight: 700;
+}
+.streak-pill {
+  display: flex;
+  align-items: center;
+  background: rgba(214, 138, 52, 0.14);
+  border: 1px solid rgba(214, 138, 52, 0.35);
+  color: #d68a34;
+  border-radius: 999px;
+  padding: 9px 14px;
+  font-size: 12.5px;
+  font-weight: 700;
+  white-space: nowrap;
 }
 .random-bounty-label {
   color: #d68a34;
@@ -1302,6 +1529,10 @@ h1 {
   border-color: #d68a34;
   color: #d68a34;
 }
+.action-btn.share:hover:not(:disabled) {
+  border-color: #d68a34;
+  color: #d68a34;
+}
 .confirm-backdrop {
   position: fixed;
   inset: 0;
@@ -1344,6 +1575,28 @@ h1 {
   padding: 8px 10px;
   font-size: 13px;
   font-family: inherit;
+}
+.field-hint {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  color: #777;
+  font-size: 11px;
+  margin-top: 2px;
+}
+.points-suggestion {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid #2a2a2a;
+  color: #ccc;
+  border-radius: 999px;
+  padding: 3px 9px;
+  font-size: 10.5px;
+  cursor: pointer;
+}
+.points-suggestion:hover {
+  border-color: #d68a34;
+  color: #d68a34;
 }
 .form-error {
   color: #e05252;

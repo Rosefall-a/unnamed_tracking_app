@@ -73,14 +73,29 @@ async function confirmDeleteUser() {
   }
 }
 
+const togglingAdminId = ref<string | null>(null)
+
 async function toggleAdmin(user: AdminUser) {
+  togglingAdminId.value = user.id
   try {
     const updated = await setUserAdmin(user.id, !user.is_admin)
     const index = users.value.findIndex((u) => u.id === user.id)
     if (index !== -1) users.value[index] = updated
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'Failed to update user'
+  } finally {
+    togglingAdminId.value = null
   }
+}
+
+function openCreateForm() {
+  // clear any leftover values/error from a previous cancelled/failed attempt
+  newUsername.value = ''
+  newEmail.value = ''
+  newPassword.value = ''
+  newIsAdmin.value = false
+  createError.value = null
+  showCreateForm.value = true
 }
 </script>
 
@@ -118,7 +133,7 @@ async function toggleAdmin(user: AdminUser) {
               <button
                 type="button"
                 class="small-button"
-                :disabled="user.id === currentUser?.id"
+                :disabled="user.id === currentUser?.id || togglingAdminId === user.id"
                 @click="toggleAdmin(user)"
               >
                 {{ user.is_admin ? 'Demote' : 'Promote' }}
@@ -127,7 +142,7 @@ async function toggleAdmin(user: AdminUser) {
                 type="button"
                 class="small-button danger"
                 :disabled="user.id === currentUser?.id"
-                @click="deletingUser = user"
+                @click="deletingUser = user; deleteError = null"
               >
                 Delete
               </button>
@@ -136,7 +151,11 @@ async function toggleAdmin(user: AdminUser) {
         </tbody>
       </table>
 
-      <button type="button" class="secondary-button" @click="showCreateForm = !showCreateForm">
+      <button
+        type="button"
+        class="secondary-button"
+        @click="showCreateForm ? (showCreateForm = false) : openCreateForm()"
+      >
         {{ showCreateForm ? 'Cancel' : '+ Create user' }}
       </button>
 

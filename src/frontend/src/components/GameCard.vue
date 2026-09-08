@@ -2,7 +2,7 @@
 import { useRouter } from 'vue-router'
 import type { Game, GameStatus } from '../types/game'
 import { setFavorite, setStatus } from '../services/games'
-import { ref, computed, nextTick } from 'vue'
+import { ref, computed, nextTick, onUnmounted } from 'vue'
 import { computeScore } from '../utils/scoring'
 import { appearanceSettings } from '../state/appearance'
 
@@ -10,20 +10,21 @@ const props = defineProps<{
   game: Game
   selectMode?: boolean
   selected?: boolean
+  keyboardFocused?: boolean
 }>()
 
 const emit = defineEmits<{
   edit: [game: Game]
   'add-to-collection': [game: Game]
   hover: [coverUrl: string | null]
-  'toggle-select': [game: Game]
+  'toggle-select': [game: Game, shiftKey: boolean]
 }>()
 
 const router = useRouter()
 
 const score = computed(() => computeScore(props.game))
 
-// completion-badge appearance — customized in Settings > Appearance,
+// completion-badge appearance, customized in Settings > Appearance,
 // shared across every card via state/appearance.ts rather than fetched
 // per-card
 const isMastered = computed(() => props.game.status === 'mastered')
@@ -67,6 +68,13 @@ function closeMenu() {
   window.removeEventListener('scroll', onWindowScroll, true)
 }
 
+// the grid this card lives in is virtualized, a card can be destroyed
+// while its menu is still open, which would otherwise leak this listener
+// on window forever (one per off-screen unmount)
+onUnmounted(() => {
+  window.removeEventListener('scroll', onWindowScroll, true)
+})
+
 const statuses: GameStatus[] = [
   'wishlist',
   'backlog',
@@ -78,9 +86,9 @@ const statuses: GameStatus[] = [
   'mastered',
 ]
 
-function openGame() {
+function openGame(e?: MouseEvent) {
   if (props.selectMode) {
-    emit('toggle-select', props.game)
+    emit('toggle-select', props.game, e?.shiftKey ?? false)
     return
   }
   router.push(`/games/${props.game.id}`)
@@ -104,9 +112,75 @@ async function chooseStatus(status: GameStatus) {
     await setStatus(props.game.id, status)
     props.game.status = status
   } catch {
-    // silently ignore — card just keeps showing the old status
+    // silently ignore, card just keeps showing the old status
   }
   closeMenu()
+}
+
+// a quick at-a-glance read on a card without opening it: never launched at
+// all, vs. picked up again recently, anything in between just stays quiet
+const totalPlaytimeMinutes = computed(() => props.game.platforms.reduce((sum, p) => sum + p.playtimeMinutes, 0))
+const activityDot = computed<'never' | 'recent' | null>(() => {
+  if (totalPlaytimeMinutes.value === 0) return 'never'
+  if (props.game.lastPlayedAt) {
+    const daysSince = (Date.now() - new Date(props.game.lastPlayedAt).getTime()) / 86_400_000
+    if (daysSince <= 14) return 'recent'
+  }
+  return null
+})
+
+// short plain-text synopsis for the hover preview, game.description can be
+// rich HTML (Steam's "About This Game"), so strip tags rather than render
+// markup inside a small overlay
+const previewSynopsis = computed(() => {
+  const raw = props.game.description?.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim() ?? ''
+  if (!raw) return ''
+  return raw.length > 140 ? raw.slice(0, 140).trimEnd() + '…' : raw
+})
+const lastPlayedLabel = computed(() => {
+  if (!props.game.lastPlayedAt) return 'Not played yet'
+  return `Last played ${new Date(props.game.lastPlayedAt).toLocaleDateString()}`
+})
+function formatPlaytime(minutes: number): string {
+  if (minutes === 0) return 'No playtime logged'
+  const hours = Math.floor(minutes / 60)
+  const mins = minutes % 60
+  return hours > 0 ? `${hours}h${mins > 0 ? ` ${mins}m` : ''} played` : `${mins}m played`
+}
+
+// swipe gestures, a touch-only mirror of the desktop hover actions, which
+// obviously never appear on a device with no cursor to hover with
+const touchStartX = ref(0)
+const touchStartY = ref(0)
+const swiping = ref(false)
+const SWIPE_THRESHOLD = 60
+function onTouchStart(e: TouchEvent) {
+  if (props.selectMode) return
+  touchStartX.value = e.touches[0].clientX
+  touchStartY.value = e.touches[0].clientY
+  swiping.value = false
+}
+function onTouchMove(e: TouchEvent) {
+  if (props.selectMode) return
+  const dx = e.touches[0].clientX - touchStartX.value
+  const dy = e.touches[0].clientY - touchStartY.value
+  // only claim the gesture once it's clearly more horizontal than
+  // vertical, otherwise a normal vertical scroll gets hijacked
+  if (!swiping.value && Math.abs(dx) > 16 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+    swiping.value = true
+  }
+  if (swiping.value) e.preventDefault()
+}
+function onTouchEnd(e: TouchEvent) {
+  if (!swiping.value) return
+  swiping.value = false
+  const dx = e.changedTouches[0].clientX - touchStartX.value
+  if (Math.abs(dx) < SWIPE_THRESHOLD) return
+  if (dx > 0) {
+    void toggleFavorite()
+  } else if (menuTriggerRef.value) {
+    toggleMenu()
+  }
 }
 
 function copyFolderPath() {
@@ -122,10 +196,16 @@ function copyFolderPath() {
 <div class="game-card-wrap" @mouseenter="emit('hover', game.bannerImageUrl || game.coverImageUrl)">
     <div
       class="game-card"
-      :class="{ 'menu-open': menuOpen, 'select-mode': selectMode, [`badge-${badgeStyle}`]: showBadge }"
+      :class="{ 'menu-open': menuOpen, 'select-mode': selectMode, [`badge-${badgeStyle}`]: showBadge, 'keyboard-focused': keyboardFocused }"
       :style="badgeCardStyle"
     >
-      <div class="cover" @click="openGame">
+      <div
+        class="cover"
+        @click="openGame($event)"
+        @touchstart="onTouchStart"
+        @touchmove="onTouchMove"
+        @touchend="onTouchEnd"
+      >
         <img class="cover-image" :src="game.coverImageUrl" alt="" />
         <div v-if="selectMode" class="select-checkbox" :class="{ checked: selected }">
           <svg v-if="selected" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
@@ -153,6 +233,18 @@ function copyFolderPath() {
           <svg v-else viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
             <path d="M12 2l2.4 6.6L21 9l-5 4.6L17.4 21 12 17.3 6.6 21 8 13.6 3 9l6.6-.4z" />
           </svg>
+        </div>
+
+        <div
+          v-if="activityDot && !selectMode"
+          class="activity-dot"
+          :class="activityDot"
+          :title="activityDot === 'never' ? 'Never launched' : 'Played in the last 2 weeks'"
+        ></div>
+
+        <div v-if="!selectMode && previewSynopsis" class="hover-preview">
+          <p class="hover-preview-synopsis">{{ previewSynopsis }}</p>
+          <p class="hover-preview-meta">{{ formatPlaytime(totalPlaytimeMinutes) }} · {{ lastPlayedLabel }}</p>
         </div>
 
         <div v-if="!selectMode" class="cover-actions">
@@ -233,7 +325,16 @@ function copyFolderPath() {
       <div class="meta-row">
         <span class="status">{{ game.status }}</span>
         <span v-if="score" class="rating">★ {{ score.sum.toFixed(1) }}</span>
-        <span v-if="game.achievementPercent > 0" class="achievements">🏆 {{ game.achievementPercent }}%</span>
+        <span v-if="game.achievementPercent > 0" class="achievements">
+          <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M8 4h8v5a4 4 0 0 1-8 0z" />
+            <path d="M8 4H5a2 2 0 0 0 0 4h1.5M16 4h3a2 2 0 0 1 0 4h-1.5" />
+            <path d="M12 13v3" />
+            <path d="M9 20h6" />
+            <path d="M10 16.5h4l.8 3.5H9.2z" />
+          </svg>
+          {{ game.achievementPercent }}%
+        </span>
       </div>
     </div>
   </div>
@@ -259,8 +360,12 @@ function copyFolderPath() {
   box-shadow: 0 24px 56px rgba(0, 0, 0, 0.5);
   z-index: 10;
 }
+.game-card.keyboard-focused .cover {
+  outline: 3px solid #d68a34;
+  outline-offset: 3px;
+}
 
-/* completion badge — "glow"/"border" style the whole card (via --badge-color,
+/* completion badge, "glow"/"border" style the whole card (via --badge-color,
    set inline from Settings > Appearance); "ribbon"/"corner_badge" are
    positioned elements inside .cover instead, see .completion-badge below */
 .game-card.badge-glow {
@@ -326,7 +431,7 @@ function copyFolderPath() {
 .cover {
   position: relative;
   width: 100%;
-  /* 2:3 — matches SteamGridDB's Steam-vertical grid size (600x900) so
+  /* 2:3, matches SteamGridDB's Steam-vertical grid size (600x900) so
      cover art fills the box instead of getting cropped by object-fit */
   aspect-ratio: 2 / 3;
   border-radius: 10px;
@@ -361,6 +466,50 @@ function copyFolderPath() {
 .select-checkbox.checked {
   background: #d68a34;
   border-color: #d68a34;
+}
+.hover-preview {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 26px 10px 10px;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.92) 40%, rgba(0, 0, 0, 0.5) 75%, transparent);
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity 0.18s ease, transform 0.18s ease;
+  transition-delay: 0.15s;
+  pointer-events: none;
+}
+.game-card:hover .hover-preview {
+  opacity: 1;
+  transform: translateY(0);
+}
+.hover-preview-synopsis {
+  margin: 0 0 6px;
+  color: #eee;
+  font-size: 11px;
+  line-height: 1.45;
+}
+.hover-preview-meta {
+  margin: 0;
+  color: #d68a34;
+  font-size: 10.5px;
+  font-weight: 600;
+}
+.activity-dot {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.55);
+}
+.activity-dot.never {
+  background: #6a6a6a;
+}
+.activity-dot.recent {
+  background: #4ade80;
 }
 .stale-indicator {
   position: absolute;
@@ -517,5 +666,14 @@ function copyFolderPath() {
 }
 .meta-row .rating {
   color: #d68a34;
+}
+.meta-row .achievements {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.meta-row .achievements svg {
+  flex-shrink: 0;
+  opacity: 0.75;
 }
 </style>

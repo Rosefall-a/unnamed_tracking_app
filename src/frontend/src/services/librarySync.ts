@@ -2,7 +2,7 @@ export interface LibrarySyncResult {
   games_added: number
   games_updated: number
   achievements_synced: number
-  // every title the sync touched, in the order it processed them — used to
+  // every title the sync touched, in the order it processed them, used to
   // animate a completion feed once the (single, all-at-once) request
   // resolves. Not truly live during the request itself; the backend has no
   // streaming endpoint for this yet.

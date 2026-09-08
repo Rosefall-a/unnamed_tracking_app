@@ -12,7 +12,7 @@ import type { Game } from '../../types/game'
 import ToggleButton from './ToggleButton.vue'
 import { startTask, updateTask, completeTask, errorTask, addFeedItem } from '../../state/taskProgress'
 
-// how many games are refreshed in parallel at once — high enough to be a
+// how many games are refreshed in parallel at once, high enough to be a
 // real speedup, low enough not to hammer external metadata APIs or exceed
 // the browser's ~6 connections-per-origin cap (each in-flight game can hold
 // a search + patch + 2 asset-check requests briefly, so this stays well
@@ -75,7 +75,7 @@ function describeOptions(options: RefreshMetadataOptions): string[] {
 }
 
 // --- Dry run: shows exactly which games would actually change before any
-// real write happens — the old flow committed on a single generic
+// real write happens, the old flow committed on a single generic
 // window.confirm with no visibility into whether a refresh would even do
 // anything different from what's already there. ------------------------
 interface PreviewEntry {
@@ -139,7 +139,7 @@ async function previewRefresh() {
 async function applyPreviewedRefresh() {
   showPreviewDialog.value = false
   const options = currentOptions()
-  // only the games the preview actually flagged as changing — the button
+  // only the games the preview actually flagged as changing, the button
   // itself is labeled "Apply to N games" using this same count, so applying
   // to every previewed game (including no-match/already-up-to-date/error
   // ones) would silently do more than what was shown and confirmed
@@ -179,7 +179,7 @@ async function applyPreviewedRefresh() {
   }
 }
 
-// duplicate folder_location scan — entirely client-side against the already
+// duplicate folder_location scan, entirely client-side against the already
 // fetched game list, no new backend endpoint needed
 const scanningDuplicates = ref(false)
 const duplicateGroups = ref<{ folderLocation: string; titles: string[] }[]>([])

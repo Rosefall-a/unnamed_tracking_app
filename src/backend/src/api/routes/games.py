@@ -30,9 +30,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.routes.settings import get_or_create_app_integration_settings, get_or_create_scan_settings
 from src.core.crypto import decrypt_secret
-from src.api.schemas.game import GameBulkUpdate, GameCreate, GameRead, GameUpdate
+from src.api.schemas.game import GameBulkUpdate, GameCreate, GameFieldChangeRead, GameRead, GameUpdate
 from src.database.models.achievement import Achievement
 from src.database.models.game import Game, GameLink, GameStatus
+from src.database.models.game_field_change import GameFieldChange
 from src.database.models.game_file_item import GameFileItem
 from src.database.models.game_profile import GameProfile
 from src.database.models.game_profile_stat_snapshot import GameProfileStatSnapshot
@@ -185,6 +186,50 @@ async def get_game_asset(
 def _derive_sort_title(title: str) -> str:
     """'The Witcher 3' -> 'witcher 3' so articles don't affect sort order."""
     return _LEADING_ARTICLE.sub("", title).strip().lower()
+
+
+# the same set a metadata search/refresh is allowed to overwrite (see the
+# scan-settings save_* toggles in ScanSettingsSection.vue). A field outside
+# this set (folder_location, favorite, playtime, ...) isn't "metadata" in
+# that sense, so history only tracks what a provider could plausibly have
+# changed underneath the user
+FIELD_CHANGE_TRACKED_FIELDS = {
+    "developer",
+    "publisher",
+    "series",
+    "tags",
+    "features",
+    "description",
+    "age_rating",
+    "release_date",
+    "time_to_beat_hours",
+}
+
+
+def _field_change_value_to_text(value: object) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, list):
+        return ", ".join(str(v) for v in value) if value else None
+    return str(value)
+
+
+def _record_field_changes(game: Game, updates: dict, db: AsyncSession) -> None:
+    now = int(time.time())
+    for field in FIELD_CHANGE_TRACKED_FIELDS & updates.keys():
+        old_text = _field_change_value_to_text(getattr(game, field))
+        new_text = _field_change_value_to_text(updates[field])
+        if old_text == new_text:
+            continue
+        db.add(
+            GameFieldChange(
+                game_id=game.id,
+                field_name=field,
+                old_value=old_text,
+                new_value=new_text,
+                changed_at=now,
+            )
+        )
 
 
 def _duplicate_folder_error(folder_name: str) -> HTTPException:
@@ -1542,6 +1587,8 @@ async def update_game(
         new_links = updates.pop("links") or []
         game.links = [GameLink(label=link["label"], url=link["url"]) for link in new_links]
 
+    _record_field_changes(game, updates, db)
+
     for field, value in updates.items():
         setattr(game, field, value)
 
@@ -1563,6 +1610,24 @@ async def update_game(
 
     await db.refresh(game)
     return game
+
+
+@router.get("/{game_id}/field-changes", response_model=list[GameFieldChangeRead])
+async def list_field_changes(
+    game_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> list[GameFieldChange]:
+    """Most-recent-first metadata history for one game."""
+    await _get_game_or_404(game_id, db, current_user.id)
+    stmt = (
+        select(GameFieldChange)
+        .where(GameFieldChange.game_id == game_id)
+        .order_by(GameFieldChange.changed_at.desc())
+        .limit(100)
+    )
+    result = await db.execute(stmt)
+    return list(result.scalars().all())
 
 
 @router.patch("/bulk-update")
