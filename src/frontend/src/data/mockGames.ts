@@ -38,6 +38,8 @@ export const mockGames: Game[] = [
     links: [],
     ownership: { format: 'digital', purchaseDate: null, price: null, condition: null },
     tags: ['Action RPG', 'Souls-like', 'Open World'],
+    favorite: false,
+    collections: [],
     features: ['Achievements', 'Controller Support', 'Cloud Saves'],
     platforms: [
       { platform: 'Steam', playtimeMinutes: 8580, completionPercent: 87, lastPlayedAt: '2026-08-28T20:15:47' },
@@ -74,6 +76,8 @@ export const mockGames: Game[] = [
     links: [],
     ownership: { format: 'digital', purchaseDate: null, price: null, condition: null },
     tags: ['Roguelike', 'Action', 'Indie'],
+    favorite: false,
+    collections: [],
     features: ['Achievements', 'Controller Support', 'Cloud Saves'],
     platforms: [
       { platform: 'Xbox', playtimeMinutes: 5640, completionPercent: 100, lastPlayedAt: '2026-04-18T19:58:47' },
@@ -108,6 +112,8 @@ export const mockGames: Game[] = [
     links: [],
     ownership: { format: 'digital', purchaseDate: null, price: null, condition: null },
     tags: ['Metroidvania', 'Action', 'Indie'],
+    favorite: false,
+    collections: [],
     features: ['Achievements', 'Controller Support'],
     platforms: [
       { platform: 'PlayStation', playtimeMinutes: 0, completionPercent: null, lastPlayedAt: null },
