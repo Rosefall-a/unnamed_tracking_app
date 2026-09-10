@@ -5,7 +5,7 @@ on:
   pull_request:
 
 jobs:
-  frontend:
+  frontend-checks:
     name: Frontend
     runs-on: ubuntu-latest
 
