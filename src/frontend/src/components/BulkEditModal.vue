@@ -1,28 +1,28 @@
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
-import { bulkUpdateGames } from '../services/games'
-import type { BulkEditFields } from '../services/games'
-import type { GameStatus } from '../types/game'
+import { reactive, ref } from "vue";
+import { bulkUpdateGames } from "../services/games";
+import type { BulkEditFields } from "../services/games";
+import type { GameStatus } from "../types/game";
 
 const props = defineProps<{
-  gameIds: string[]
-}>()
+  gameIds: string[];
+}>();
 
 const emit = defineEmits<{
-  close: []
-  saved: [count: number]
-}>()
+  close: [];
+  saved: [count: number];
+}>();
 
 const statuses: GameStatus[] = [
-  'wishlist',
-  'backlog',
-  'playing',
-  'on hold',
-  'beaten',
-  'played',
-  'dropped',
-  'mastered',
-]
+  "wishlist",
+  "backlog",
+  "playing",
+  "on hold",
+  "beaten",
+  "played",
+  "dropped",
+  "mastered",
+];
 
 // each field is opt-in via its own checkbox, leaving one unchecked means
 // "don't touch this field on any selected game", never "clear it"
@@ -35,46 +35,55 @@ const apply = reactive({
   ageRating: false,
   tags: false,
   features: false,
-})
+});
 
-const statusValue = ref<GameStatus>('backlog')
-const favoriteValue = ref(true)
-const developerValue = ref('')
-const publisherValue = ref('')
-const seriesValue = ref('')
-const ageRatingValue = ref('')
-const tagsValue = ref('')
-const featuresValue = ref('')
+const statusValue = ref<GameStatus>("backlog");
+const favoriteValue = ref(true);
+const developerValue = ref("");
+const publisherValue = ref("");
+const seriesValue = ref("");
+const ageRatingValue = ref("");
+const tagsValue = ref("");
+const featuresValue = ref("");
 
-const saving = ref(false)
-const error = ref<string | null>(null)
+const saving = ref(false);
+const error = ref<string | null>(null);
 
-const anyFieldChecked = () => Object.values(apply).some(Boolean)
+const anyFieldChecked = () => Object.values(apply).some(Boolean);
 
 async function submit() {
   if (!anyFieldChecked()) {
-    error.value = 'Check at least one field to apply.'
-    return
+    error.value = "Check at least one field to apply.";
+    return;
   }
-  saving.value = true
-  error.value = null
+  saving.value = true;
+  error.value = null;
   try {
-    const fields: BulkEditFields = {}
-    if (apply.status) fields.status = statusValue.value
-    if (apply.favorite) fields.favorite = favoriteValue.value
-    if (apply.developer) fields.developer = developerValue.value.trim() || null
-    if (apply.publisher) fields.publisher = publisherValue.value.trim() || null
-    if (apply.series) fields.series = seriesValue.value.trim() || null
-    if (apply.ageRating) fields.ageRating = ageRatingValue.value.trim() || null
-    if (apply.tags) fields.tags = tagsValue.value.split(',').map((t) => t.trim()).filter(Boolean)
-    if (apply.features) fields.features = featuresValue.value.split(',').map((t) => t.trim()).filter(Boolean)
+    const fields: BulkEditFields = {};
+    if (apply.status) fields.status = statusValue.value;
+    if (apply.favorite) fields.favorite = favoriteValue.value;
+    if (apply.developer) fields.developer = developerValue.value.trim() || null;
+    if (apply.publisher) fields.publisher = publisherValue.value.trim() || null;
+    if (apply.series) fields.series = seriesValue.value.trim() || null;
+    if (apply.ageRating) fields.ageRating = ageRatingValue.value.trim() || null;
+    if (apply.tags)
+      fields.tags = tagsValue.value
+        .split(",")
+        .map((t) => t.trim())
+        .filter(Boolean);
+    if (apply.features)
+      fields.features = featuresValue.value
+        .split(",")
+        .map((t) => t.trim())
+        .filter(Boolean);
 
-    const count = await bulkUpdateGames(props.gameIds, fields)
-    emit('saved', count)
+    const count = await bulkUpdateGames(props.gameIds, fields);
+    emit("saved", count);
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Failed to bulk-update games'
+    error.value =
+      err instanceof Error ? err.message : "Failed to bulk-update games";
   } finally {
-    saving.value = false
+    saving.value = false;
   }
 }
 </script>
@@ -83,15 +92,21 @@ async function submit() {
   <div class="modal-backdrop" @click.self="emit('close')">
     <div class="modal">
       <div class="modal-header">
-        <h2>Bulk Edit: {{ gameIds.length }} game{{ gameIds.length === 1 ? '' : 's' }}</h2>
-        <button type="button" class="close-button" @click="emit('close')">✕</button>
+        <h2>
+          Bulk Edit: {{ gameIds.length }} game{{
+            gameIds.length === 1 ? "" : "s"
+          }}
+        </h2>
+        <button type="button" class="close-button" @click="emit('close')">
+          ✕
+        </button>
       </div>
 
       <form class="modal-form" @submit.prevent="submit">
         <div class="modal-body">
           <p class="hint">
-            Check a field to apply it to every selected game: an unchecked field is left
-            exactly as-is on all of them.
+            Check a field to apply it to every selected game: an unchecked field
+            is left exactly as-is on all of them.
           </p>
 
           <div class="field-row">
@@ -99,7 +114,11 @@ async function submit() {
               <input v-model="apply.status" type="checkbox" />
               <span>Status</span>
             </label>
-            <select v-model="statusValue" class="field-input" :disabled="!apply.status">
+            <select
+              v-model="statusValue"
+              class="field-input"
+              :disabled="!apply.status"
+            >
               <option v-for="s in statuses" :key="s" :value="s">{{ s }}</option>
             </select>
           </div>
@@ -109,7 +128,11 @@ async function submit() {
               <input v-model="apply.favorite" type="checkbox" />
               <span>Favorite</span>
             </label>
-            <select v-model="favoriteValue" class="field-input" :disabled="!apply.favorite">
+            <select
+              v-model="favoriteValue"
+              class="field-input"
+              :disabled="!apply.favorite"
+            >
               <option :value="true">Mark as favorite</option>
               <option :value="false">Remove from favorites</option>
             </select>
@@ -120,7 +143,13 @@ async function submit() {
               <input v-model="apply.developer" type="checkbox" />
               <span>Developer</span>
             </label>
-            <input v-model="developerValue" type="text" class="field-input" :disabled="!apply.developer" placeholder="Developer name" />
+            <input
+              v-model="developerValue"
+              type="text"
+              class="field-input"
+              :disabled="!apply.developer"
+              placeholder="Developer name"
+            />
           </div>
 
           <div class="field-row">
@@ -128,7 +157,13 @@ async function submit() {
               <input v-model="apply.publisher" type="checkbox" />
               <span>Publisher</span>
             </label>
-            <input v-model="publisherValue" type="text" class="field-input" :disabled="!apply.publisher" placeholder="Publisher name" />
+            <input
+              v-model="publisherValue"
+              type="text"
+              class="field-input"
+              :disabled="!apply.publisher"
+              placeholder="Publisher name"
+            />
           </div>
 
           <div class="field-row">
@@ -136,7 +171,13 @@ async function submit() {
               <input v-model="apply.series" type="checkbox" />
               <span>Series</span>
             </label>
-            <input v-model="seriesValue" type="text" class="field-input" :disabled="!apply.series" placeholder="Franchise name" />
+            <input
+              v-model="seriesValue"
+              type="text"
+              class="field-input"
+              :disabled="!apply.series"
+              placeholder="Franchise name"
+            />
           </div>
 
           <div class="field-row">
@@ -144,7 +185,13 @@ async function submit() {
               <input v-model="apply.ageRating" type="checkbox" />
               <span>Age Rating</span>
             </label>
-            <input v-model="ageRatingValue" type="text" class="field-input" :disabled="!apply.ageRating" placeholder="e.g. 17+" />
+            <input
+              v-model="ageRatingValue"
+              type="text"
+              class="field-input"
+              :disabled="!apply.ageRating"
+              placeholder="e.g. 17+"
+            />
           </div>
 
           <div class="field-row">
@@ -179,9 +226,15 @@ async function submit() {
         </div>
 
         <div class="modal-footer">
-          <button type="button" class="secondary-button" @click="emit('close')">Cancel</button>
+          <button type="button" class="secondary-button" @click="emit('close')">
+            Cancel
+          </button>
           <button type="submit" class="primary-button" :disabled="saving">
-            {{ saving ? 'Applying…' : `Apply to ${gameIds.length} game${gameIds.length === 1 ? '' : 's'}` }}
+            {{
+              saving
+                ? "Applying…"
+                : `Apply to ${gameIds.length} game${gameIds.length === 1 ? "" : "s"}`
+            }}
           </button>
         </div>
       </form>
@@ -233,7 +286,9 @@ async function submit() {
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
 }
 .close-button:hover {
   background: rgba(255, 255, 255, 0.1);

@@ -1,16 +1,19 @@
 <script setup lang="ts">
 withDefaults(
   defineProps<{
-    width?: string
-    height?: string
-    radius?: string
+    width?: string;
+    height?: string;
+    radius?: string;
   }>(),
-  { width: '100%', height: '16px', radius: '6px' },
-)
+  { width: "100%", height: "16px", radius: "6px" },
+);
 </script>
 
 <template>
-  <div class="skeleton-block" :style="{ width, height, borderRadius: radius }"></div>
+  <div
+    class="skeleton-block"
+    :style="{ width, height, borderRadius: radius }"
+  ></div>
 </template>
 
 <style scoped>

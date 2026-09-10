@@ -1,215 +1,265 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-import { fetchUploadLimits } from '../services/settings'
-import { fetchGames } from '../services/games'
-import type { Game } from '../types/game'
-import { uploadToInbox, listInbox, deleteInboxMedia, assignInboxMedia, fetchInboxTrash, restoreInboxMedia } from '../services/media'
-import type { InboxMediaItem, TrashedInboxItem } from '../services/media'
-import { startTask, updateTask, completeTask, errorTask, addFeedItem, setTaskRetry } from '../state/taskProgress'
-import { refreshInboxCount } from '../state/inbox'
+import { ref, computed, onMounted } from "vue";
+import { fetchUploadLimits } from "../services/settings";
+import { fetchGames } from "../services/games";
+import type { Game } from "../types/game";
+import {
+  uploadToInbox,
+  listInbox,
+  deleteInboxMedia,
+  assignInboxMedia,
+  fetchInboxTrash,
+  restoreInboxMedia,
+} from "../services/media";
+import type { InboxMediaItem, TrashedInboxItem } from "../services/media";
+import {
+  startTask,
+  updateTask,
+  completeTask,
+  errorTask,
+  addFeedItem,
+  setTaskRetry,
+} from "../state/taskProgress";
+import { refreshInboxCount } from "../state/inbox";
 
-const maxUploadSizeMb = ref<number | null>(null)
+const maxUploadSizeMb = ref<number | null>(null);
 
 onMounted(async () => {
   try {
-    const limits = await fetchUploadLimits()
-    maxUploadSizeMb.value = limits.max_upload_size_mb
+    const limits = await fetchUploadLimits();
+    maxUploadSizeMb.value = limits.max_upload_size_mb;
   } catch {
     // non-critical, the upload flow below still works without this number
   }
-})
+});
 
-const games = ref<Game[]>([])
+const games = ref<Game[]>([]);
 onMounted(async () => {
   try {
-    games.value = await fetchGames()
+    games.value = await fetchGames();
   } catch {
     // game picker just stays empty; assign still shows an error if attempted
   }
-})
+});
 
-const inboxMedia = ref<InboxMediaItem[]>([])
-const loadingInbox = ref(true)
-const inboxError = ref<string | null>(null)
+const inboxMedia = ref<InboxMediaItem[]>([]);
+const loadingInbox = ref(true);
+const inboxError = ref<string | null>(null);
 
 function pruneSelectionToCurrentItems() {
-  const currentKeys = new Set(inboxMedia.value.map(itemKey))
-  const pruned = new Set([...selected.value].filter((key) => currentKeys.has(key)))
-  if (pruned.size !== selected.value.size) selected.value = pruned
+  const currentKeys = new Set(inboxMedia.value.map(itemKey));
+  const pruned = new Set(
+    [...selected.value].filter((key) => currentKeys.has(key)),
+  );
+  if (pruned.size !== selected.value.size) selected.value = pruned;
 }
 
 async function loadInbox() {
-  loadingInbox.value = true
-  inboxError.value = null
+  loadingInbox.value = true;
+  inboxError.value = null;
   try {
-    inboxMedia.value = await listInbox()
+    inboxMedia.value = await listInbox();
     // a partially-failed bulk action can leave `selected` pointing at items
     // that got assigned/deleted and are gone from this fresh list, drop
     // those rather than let the selection count lie
-    pruneSelectionToCurrentItems()
+    pruneSelectionToCurrentItems();
   } catch (err) {
-    inboxError.value = err instanceof Error ? err.message : 'Failed to load inbox'
+    inboxError.value =
+      err instanceof Error ? err.message : "Failed to load inbox";
   } finally {
-    loadingInbox.value = false
+    loadingInbox.value = false;
   }
-  void refreshInboxCount()
+  void refreshInboxCount();
 }
-onMounted(loadInbox)
+onMounted(loadInbox);
 
-const screenshots = computed(() => inboxMedia.value.filter((m) => m.kind === 'screenshot'))
-const clips = computed(() => inboxMedia.value.filter((m) => m.kind === 'clip'))
+const screenshots = computed(() =>
+  inboxMedia.value.filter((m) => m.kind === "screenshot"),
+);
+const clips = computed(() => inboxMedia.value.filter((m) => m.kind === "clip"));
 
-const uploading = ref(false)
-const uploadSummary = ref<string | null>(null)
-const uploadError = ref<string | null>(null)
+const uploading = ref(false);
+const uploadSummary = ref<string | null>(null);
+const uploadError = ref<string | null>(null);
 
 async function onFilesSelected(e: Event) {
-  const input = e.target as HTMLInputElement
-  const files = Array.from(input.files ?? [])
-  if (!files.length) return
+  const input = e.target as HTMLInputElement;
+  const files = Array.from(input.files ?? []);
+  if (!files.length) return;
 
-  uploading.value = true
-  uploadSummary.value = null
-  uploadError.value = null
-  input.value = ''
+  uploading.value = true;
+  uploadSummary.value = null;
+  uploadError.value = null;
+  input.value = "";
   // real byte-level progress against the actual upload (not a fake jump to
   // 100%), see uploadToInbox/uploadFiles in services/media.ts
-  const taskId = startTask(`Uploading ${files.length} file${files.length === 1 ? '' : 's'}`, 100)
+  const taskId = startTask(
+    `Uploading ${files.length} file${files.length === 1 ? "" : "s"}`,
+    100,
+  );
 
   const attempt = async () => {
     try {
-      const results = await uploadToInbox(files, (fraction, speedLabel) => updateTask(taskId, Math.round(fraction * 100), undefined, speedLabel))
-      const saved = results.filter((r) => r.status === 'saved')
-      const rejected = results.filter((r) => r.status === 'rejected')
-      uploadSummary.value = `${saved.length} uploaded${rejected.length ? `, ${rejected.length} rejected` : ''}.`
+      const results = await uploadToInbox(files, (fraction, speedLabel) =>
+        updateTask(taskId, Math.round(fraction * 100), undefined, speedLabel),
+      );
+      const saved = results.filter((r) => r.status === "saved");
+      const rejected = results.filter((r) => r.status === "rejected");
+      uploadSummary.value = `${saved.length} uploaded${rejected.length ? `, ${rejected.length} rejected` : ""}.`;
       for (const r of results) {
-        addFeedItem(taskId, r.status === 'saved' ? `${r.filename} uploaded` : `${r.filename}: ${r.reason ?? 'rejected'}`)
+        addFeedItem(
+          taskId,
+          r.status === "saved"
+            ? `${r.filename} uploaded`
+            : `${r.filename}: ${r.reason ?? "rejected"}`,
+        );
       }
       if (saved.length === 0 && rejected.length > 0) {
-        errorTask(taskId, uploadSummary.value)
+        errorTask(taskId, uploadSummary.value);
       } else {
-        completeTask(taskId, uploadSummary.value)
+        completeTask(taskId, uploadSummary.value);
       }
-      await loadInbox()
+      await loadInbox();
     } catch (err) {
-      uploadError.value = err instanceof Error ? err.message : 'Upload failed'
-      errorTask(taskId, uploadError.value)
-      setTaskRetry(taskId, () => void attempt())
+      uploadError.value = err instanceof Error ? err.message : "Upload failed";
+      errorTask(taskId, uploadError.value);
+      setTaskRetry(taskId, () => void attempt());
     } finally {
-      uploading.value = false
+      uploading.value = false;
     }
-  }
-  await attempt()
+  };
+  await attempt();
 }
 
-const selected = ref<Set<string>>(new Set())
+const selected = ref<Set<string>>(new Set());
 function itemKey(item: { kind: string; filename: string }) {
-  return `${item.kind}:${item.filename}`
+  return `${item.kind}:${item.filename}`;
 }
 function toggleSelected(item: InboxMediaItem) {
-  const key = itemKey(item)
-  if (selected.value.has(key)) selected.value.delete(key)
-  else selected.value.add(key)
-  selected.value = new Set(selected.value)
+  const key = itemKey(item);
+  if (selected.value.has(key)) selected.value.delete(key);
+  else selected.value.add(key);
+  selected.value = new Set(selected.value);
 }
-const selectedCount = computed(() => selected.value.size)
-const allSelected = computed(() => inboxMedia.value.length > 0 && selectedCount.value === inboxMedia.value.length)
+const selectedCount = computed(() => selected.value.size);
+const allSelected = computed(
+  () =>
+    inboxMedia.value.length > 0 &&
+    selectedCount.value === inboxMedia.value.length,
+);
 
 function toggleSelectAll() {
-  selected.value = allSelected.value ? new Set() : new Set(inboxMedia.value.map(itemKey))
+  selected.value = allSelected.value
+    ? new Set()
+    : new Set(inboxMedia.value.map(itemKey));
 }
 
-const assignTargetGameId = ref('')
-const assigning = ref(false)
-const assignError = ref<string | null>(null)
+const assignTargetGameId = ref("");
+const assigning = ref(false);
+const assignError = ref<string | null>(null);
 
 async function assignSelected() {
-  if (!assignTargetGameId.value || !selected.value.size) return
-  assigning.value = true
-  assignError.value = null
+  if (!assignTargetGameId.value || !selected.value.size) return;
+  assigning.value = true;
+  assignError.value = null;
   try {
-    const items = inboxMedia.value.filter((m) => selected.value.has(itemKey(m)))
+    const items = inboxMedia.value.filter((m) =>
+      selected.value.has(itemKey(m)),
+    );
     for (const item of items) {
-      await assignInboxMedia(item.kind, item.filename, assignTargetGameId.value)
+      await assignInboxMedia(
+        item.kind,
+        item.filename,
+        assignTargetGameId.value,
+      );
     }
-    selected.value = new Set()
-    assignTargetGameId.value = ''
+    selected.value = new Set();
+    assignTargetGameId.value = "";
   } catch (err) {
-    assignError.value = err instanceof Error ? err.message : 'Failed to assign media'
+    assignError.value =
+      err instanceof Error ? err.message : "Failed to assign media";
   } finally {
     // always reload, not just on the success path, a failure partway
     // through the loop still assigned some items, so the list needs to
     // reflect that rather than keep showing them as still unassigned
-    await loadInbox()
-    assigning.value = false
+    await loadInbox();
+    assigning.value = false;
   }
 }
 
-const deleting = ref(false)
-const deleteError = ref<string | null>(null)
-const confirmingBulkDelete = ref(false)
+const deleting = ref(false);
+const deleteError = ref<string | null>(null);
+const confirmingBulkDelete = ref(false);
 
 async function removeItem(item: InboxMediaItem) {
-  deleteError.value = null
+  deleteError.value = null;
   try {
-    await deleteInboxMedia(item.kind, item.filename)
-    selected.value.delete(itemKey(item))
-    await loadInbox()
-    await refreshTrash()
+    await deleteInboxMedia(item.kind, item.filename);
+    selected.value.delete(itemKey(item));
+    await loadInbox();
+    await refreshTrash();
   } catch (err) {
-    deleteError.value = err instanceof Error ? err.message : 'Failed to delete media'
+    deleteError.value =
+      err instanceof Error ? err.message : "Failed to delete media";
   }
 }
 
 async function deleteSelected() {
-  confirmingBulkDelete.value = false
-  if (!selected.value.size) return
-  deleting.value = true
-  deleteError.value = null
+  confirmingBulkDelete.value = false;
+  if (!selected.value.size) return;
+  deleting.value = true;
+  deleteError.value = null;
   try {
-    const items = inboxMedia.value.filter((m) => selected.value.has(itemKey(m)))
+    const items = inboxMedia.value.filter((m) =>
+      selected.value.has(itemKey(m)),
+    );
     for (const item of items) {
-      await deleteInboxMedia(item.kind, item.filename)
+      await deleteInboxMedia(item.kind, item.filename);
     }
   } catch (err) {
-    deleteError.value = err instanceof Error ? err.message : 'Failed to delete media'
+    deleteError.value =
+      err instanceof Error ? err.message : "Failed to delete media";
   } finally {
     // always reload, not just on the success path, see assignSelected
-    await loadInbox()
-    await refreshTrash()
-    deleting.value = false
+    await loadInbox();
+    await refreshTrash();
+    deleting.value = false;
   }
 }
 
 function formatItemDate(unixSeconds: number): string {
-  return new Date(unixSeconds * 1000).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+  return new Date(unixSeconds * 1000).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+  });
 }
 
 // --- Trash: soft-deleted inbox items stay recoverable for 7 days before
 // the background sweep purges them for good (features/trash/sweep.py) ----
-const inboxTrash = ref<TrashedInboxItem[]>([])
-const showTrash = ref(false)
+const inboxTrash = ref<TrashedInboxItem[]>([]);
+const showTrash = ref(false);
 
 async function refreshTrash() {
   try {
-    inboxTrash.value = await fetchInboxTrash()
+    inboxTrash.value = await fetchInboxTrash();
   } catch {
     // trash listing failing silently isn't worth blocking the main view
   }
 }
-onMounted(refreshTrash)
+onMounted(refreshTrash);
 
 function daysUntil(unixSeconds: number): number {
-  return Math.max(0, Math.ceil((unixSeconds - Date.now() / 1000) / 86400))
+  return Math.max(0, Math.ceil((unixSeconds - Date.now() / 1000) / 86400));
 }
 
 async function restoreItem(item: TrashedInboxItem) {
   try {
-    await restoreInboxMedia(item.kind, item.filename)
-    await loadInbox()
-    await refreshTrash()
+    await restoreInboxMedia(item.kind, item.filename);
+    await loadInbox();
+    await refreshTrash();
   } catch (err) {
-    deleteError.value = err instanceof Error ? err.message : 'Failed to restore media'
+    deleteError.value =
+      err instanceof Error ? err.message : "Failed to restore media";
   }
 }
 </script>
@@ -220,18 +270,35 @@ async function restoreItem(item: TrashedInboxItem) {
       <div>
         <h1>Inbox</h1>
         <p class="section-hint">
-          Drop in screenshots and clips without picking a game first: sort them into games
-          whenever you get to it. Images become screenshots, videos become clips automatically.
-          <template v-if="maxUploadSizeMb">Each file must be under {{ maxUploadSizeMb }} MB.</template>
+          Drop in screenshots and clips without picking a game first: sort them
+          into games whenever you get to it. Images become screenshots, videos
+          become clips automatically.
+          <template v-if="maxUploadSizeMb"
+            >Each file must be under {{ maxUploadSizeMb }} MB.</template
+          >
         </p>
       </div>
-      <span class="unassigned-count">{{ inboxMedia.length }} item{{ inboxMedia.length === 1 ? '' : 's' }} unassigned</span>
+      <span class="unassigned-count"
+        >{{ inboxMedia.length }} item{{
+          inboxMedia.length === 1 ? "" : "s"
+        }}
+        unassigned</span
+      >
     </div>
 
     <label class="upload-dropzone">
-      <input type="file" multiple accept="image/*,video/*" hidden @change="onFilesSelected" :disabled="uploading" />
+      <input
+        type="file"
+        multiple
+        accept="image/*,video/*"
+        hidden
+        @change="onFilesSelected"
+        :disabled="uploading"
+      />
       <span v-if="uploading">Uploading…</span>
-      <span v-else>Click to choose files (images and videos, any number at once)</span>
+      <span v-else
+        >Click to choose files (images and videos, any number at once)</span
+      >
     </label>
 
     <div v-if="uploadSummary" class="form-success">{{ uploadSummary }}</div>
@@ -240,19 +307,38 @@ async function restoreItem(item: TrashedInboxItem) {
     <div class="inbox-divider"></div>
 
     <div class="inbox-toolbar">
-      <button type="button" class="secondary-button" :disabled="!inboxMedia.length" @click="toggleSelectAll">
-        {{ allSelected ? 'Deselect all' : 'Select all' }}
+      <button
+        type="button"
+        class="secondary-button"
+        :disabled="!inboxMedia.length"
+        @click="toggleSelectAll"
+      >
+        {{ allSelected ? "Deselect all" : "Select all" }}
       </button>
       <div v-if="selectedCount" class="assign-bar">
         <select v-model="assignTargetGameId">
-          <option value="" disabled>Assign {{ selectedCount }} selected to…</option>
-          <option v-for="game in games" :key="game.id" :value="game.id">{{ game.title }}</option>
+          <option value="" disabled>
+            Assign {{ selectedCount }} selected to…
+          </option>
+          <option v-for="game in games" :key="game.id" :value="game.id">
+            {{ game.title }}
+          </option>
         </select>
-        <button type="button" class="secondary-button" :disabled="!assignTargetGameId || assigning" @click="assignSelected">
-          {{ assigning ? 'Assigning…' : 'Assign' }}
+        <button
+          type="button"
+          class="secondary-button"
+          :disabled="!assignTargetGameId || assigning"
+          @click="assignSelected"
+        >
+          {{ assigning ? "Assigning…" : "Assign" }}
         </button>
-        <button type="button" class="danger-button" :disabled="deleting" @click="confirmingBulkDelete = true">
-          {{ deleting ? 'Deleting…' : `Delete (${selectedCount})` }}
+        <button
+          type="button"
+          class="danger-button"
+          :disabled="deleting"
+          @click="confirmingBulkDelete = true"
+        >
+          {{ deleting ? "Deleting…" : `Delete (${selectedCount})` }}
         </button>
       </div>
     </div>
@@ -262,26 +348,55 @@ async function restoreItem(item: TrashedInboxItem) {
     <p v-if="loadingInbox">Loading…</p>
     <p v-else-if="inboxError" class="form-error">{{ inboxError }}</p>
     <template v-else>
-      <p v-if="!inboxMedia.length" class="empty-hint">Nothing waiting to be sorted: dropped files with no game picked land here.</p>
+      <p v-if="!inboxMedia.length" class="empty-hint">
+        Nothing waiting to be sorted: dropped files with no game picked land
+        here.
+      </p>
 
       <div v-if="screenshots.length" class="media-group">
         <span class="media-group-label">Screenshots</span>
         <div class="media-grid">
-          <div v-for="item in screenshots" :key="itemKey(item)" class="media-item">
+          <div
+            v-for="item in screenshots"
+            :key="itemKey(item)"
+            class="media-item"
+          >
             <div
               class="media-thumb"
               :class="{ selected: selected.has(itemKey(item)) }"
               @click="toggleSelected(item)"
             >
-              <div class="select-check" :class="{ checked: selected.has(itemKey(item)) }">
-                <svg v-if="selected.has(itemKey(item))" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+              <div
+                class="select-check"
+                :class="{ checked: selected.has(itemKey(item)) }"
+              >
+                <svg
+                  v-if="selected.has(itemKey(item))"
+                  viewBox="0 0 24 24"
+                  width="12"
+                  height="12"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="3"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
                   <path d="M20 6L9 17l-5-5" />
                 </svg>
               </div>
               <img :src="item.url" alt="" />
-              <button type="button" class="remove-button" title="Delete" @click.stop="removeItem(item)">✕</button>
+              <button
+                type="button"
+                class="remove-button"
+                title="Delete"
+                @click.stop="removeItem(item)"
+              >
+                ✕
+              </button>
             </div>
-            <span class="media-date">{{ formatItemDate(item.created_at) }}</span>
+            <span class="media-date">{{
+              formatItemDate(item.created_at)
+            }}</span>
           </div>
         </div>
       </div>
@@ -295,41 +410,91 @@ async function restoreItem(item: TrashedInboxItem) {
               :class="{ selected: selected.has(itemKey(item)) }"
               @click="toggleSelected(item)"
             >
-              <div class="select-check" :class="{ checked: selected.has(itemKey(item)) }">
-                <svg v-if="selected.has(itemKey(item))" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+              <div
+                class="select-check"
+                :class="{ checked: selected.has(itemKey(item)) }"
+              >
+                <svg
+                  v-if="selected.has(itemKey(item))"
+                  viewBox="0 0 24 24"
+                  width="12"
+                  height="12"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="3"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
                   <path d="M20 6L9 17l-5-5" />
                 </svg>
               </div>
               <video :src="item.url" muted></video>
               <span class="clip-badge">▶</span>
-              <button type="button" class="remove-button" title="Delete" @click.stop="removeItem(item)">✕</button>
+              <button
+                type="button"
+                class="remove-button"
+                title="Delete"
+                @click.stop="removeItem(item)"
+              >
+                ✕
+              </button>
             </div>
-            <span class="media-date">{{ formatItemDate(item.created_at) }}</span>
+            <span class="media-date">{{
+              formatItemDate(item.created_at)
+            }}</span>
           </div>
         </div>
       </div>
 
       <div v-if="inboxTrash.length" class="trash-section">
-        <button type="button" class="trash-toggle" @click="showTrash = !showTrash">
-          {{ showTrash ? '▾' : '▸' }} Recently deleted ({{ inboxTrash.length }})
+        <button
+          type="button"
+          class="trash-toggle"
+          @click="showTrash = !showTrash"
+        >
+          {{ showTrash ? "▾" : "▸" }} Recently deleted ({{ inboxTrash.length }})
         </button>
         <ul v-if="showTrash" class="trash-list">
           <li v-for="item in inboxTrash" :key="itemKey(item)" class="trash-row">
-            <span class="trash-name">{{ item.filename.split('_').slice(1).join('_') }}</span>
-            <span class="trash-meta">purges in {{ daysUntil(item.purge_at) }}d</span>
-            <button type="button" class="secondary-button" @click="restoreItem(item)">Restore</button>
+            <span class="trash-name">{{
+              item.filename.split("_").slice(1).join("_")
+            }}</span>
+            <span class="trash-meta"
+              >purges in {{ daysUntil(item.purge_at) }}d</span
+            >
+            <button
+              type="button"
+              class="secondary-button"
+              @click="restoreItem(item)"
+            >
+              Restore
+            </button>
           </li>
         </ul>
       </div>
     </template>
 
-    <div v-if="confirmingBulkDelete" class="confirm-backdrop" @click.self="confirmingBulkDelete = false">
+    <div
+      v-if="confirmingBulkDelete"
+      class="confirm-backdrop"
+      @click.self="confirmingBulkDelete = false"
+    >
       <div class="confirm-dialog">
-        <h3>Delete {{ selectedCount }} item{{ selectedCount === 1 ? '' : 's' }}?</h3>
+        <h3>
+          Delete {{ selectedCount }} item{{ selectedCount === 1 ? "" : "s" }}?
+        </h3>
         <p>Moved to trash: recoverable for 7 days, then purged for good.</p>
         <div class="confirm-actions">
-          <button type="button" class="secondary-button" @click="confirmingBulkDelete = false">Cancel</button>
-          <button type="button" class="danger-button" @click="deleteSelected">Delete</button>
+          <button
+            type="button"
+            class="secondary-button"
+            @click="confirmingBulkDelete = false"
+          >
+            Cancel
+          </button>
+          <button type="button" class="danger-button" @click="deleteSelected">
+            Delete
+          </button>
         </div>
       </div>
     </div>
@@ -379,7 +544,9 @@ async function restoreItem(item: TrashedInboxItem) {
   color: #999;
   font-size: 0.9rem;
   cursor: pointer;
-  transition: border-color 0.15s ease, color 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    color 0.15s ease;
 }
 .upload-dropzone:hover {
   border-color: #d68a34;

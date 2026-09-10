@@ -1,109 +1,120 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
-import SegmentedControl from './SegmentedControl.vue'
+import { ref, computed, onMounted, watch } from "vue";
+import SegmentedControl from "./SegmentedControl.vue";
 import {
   fetchAppearanceSettings,
   updateAppearanceSettings,
   uploadBadgeImage,
   deleteBadgeImage,
-} from '../../services/appearanceSettings'
-import type { BadgeStyle, BadgePlacement } from '../../services/appearanceSettings'
-import { loadAppearanceSettings } from '../../state/appearance'
+} from "../../services/appearanceSettings";
+import type {
+  BadgeStyle,
+  BadgePlacement,
+} from "../../services/appearanceSettings";
+import { loadAppearanceSettings } from "../../state/appearance";
 
-const loading = ref(true)
-const saving = ref(false)
-const error = ref<string | null>(null)
-const saveSuccess = ref(false)
+const loading = ref(true);
+const saving = ref(false);
+const error = ref<string | null>(null);
+const saveSuccess = ref(false);
 
-const style = ref<BadgeStyle>('glow')
-const color = ref('#e5e4e2')
-const placement = ref<BadgePlacement>('top-right')
-const imageUrl = ref<string | null>(null)
+const style = ref<BadgeStyle>("glow");
+const color = ref("#e5e4e2");
+const placement = ref<BadgePlacement>("top-right");
+const imageUrl = ref<string | null>(null);
 
 const styleOptions = [
-  { value: 'none', label: 'Off' },
-  { value: 'glow', label: 'Glow' },
-  { value: 'border', label: 'Border' },
-  { value: 'ribbon', label: 'Ribbon' },
-  { value: 'corner_badge', label: 'Corner badge' },
-]
+  { value: "none", label: "Off" },
+  { value: "glow", label: "Glow" },
+  { value: "border", label: "Border" },
+  { value: "ribbon", label: "Ribbon" },
+  { value: "corner_badge", label: "Corner badge" },
+];
 const placementOptions = [
-  { value: 'top-left', label: 'Top left' },
-  { value: 'top-right', label: 'Top right' },
-  { value: 'bottom-left', label: 'Bottom left' },
-  { value: 'bottom-right', label: 'Bottom right' },
-]
+  { value: "top-left", label: "Top left" },
+  { value: "top-right", label: "Top right" },
+  { value: "bottom-left", label: "Bottom left" },
+  { value: "bottom-right", label: "Bottom right" },
+];
 
-const usesPlacement = computed(() => style.value === 'ribbon' || style.value === 'corner_badge')
-const usesImage = computed(() => style.value === 'ribbon' || style.value === 'corner_badge')
+const usesPlacement = computed(
+  () => style.value === "ribbon" || style.value === "corner_badge",
+);
+const usesImage = computed(
+  () => style.value === "ribbon" || style.value === "corner_badge",
+);
 
 onMounted(async () => {
   try {
-    const settings = await fetchAppearanceSettings()
-    style.value = settings.completion_badge_style
-    color.value = settings.completion_badge_color
-    placement.value = settings.completion_badge_placement
-    imageUrl.value = settings.completion_badge_image_url
+    const settings = await fetchAppearanceSettings();
+    style.value = settings.completion_badge_style;
+    color.value = settings.completion_badge_color;
+    placement.value = settings.completion_badge_placement;
+    imageUrl.value = settings.completion_badge_image_url;
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Failed to load appearance settings'
+    error.value =
+      err instanceof Error ? err.message : "Failed to load appearance settings";
   } finally {
-    loading.value = false
+    loading.value = false;
   }
-})
+});
 
 async function save() {
-  saving.value = true
-  error.value = null
-  saveSuccess.value = false
+  saving.value = true;
+  error.value = null;
+  saveSuccess.value = false;
   try {
     await updateAppearanceSettings({
       completion_badge_style: style.value,
       completion_badge_color: color.value,
       completion_badge_placement: placement.value,
-    })
-    await loadAppearanceSettings()
-    saveSuccess.value = true
+    });
+    await loadAppearanceSettings();
+    saveSuccess.value = true;
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Failed to save appearance settings'
+    error.value =
+      err instanceof Error ? err.message : "Failed to save appearance settings";
   } finally {
-    saving.value = false
+    saving.value = false;
   }
 }
 
 watch([style, color, placement], () => {
-  saveSuccess.value = false
-})
+  saveSuccess.value = false;
+});
 
-const uploading = ref(false)
+const uploading = ref(false);
 async function onImageSelected(e: Event) {
-  const input = e.target as HTMLInputElement
-  const file = input.files?.[0]
-  if (!file) return
-  uploading.value = true
-  error.value = null
+  const input = e.target as HTMLInputElement;
+  const file = input.files?.[0];
+  if (!file) return;
+  uploading.value = true;
+  error.value = null;
   try {
-    const settings = await uploadBadgeImage(file)
-    imageUrl.value = settings.completion_badge_image_url
-    await loadAppearanceSettings()
+    const settings = await uploadBadgeImage(file);
+    imageUrl.value = settings.completion_badge_image_url;
+    await loadAppearanceSettings();
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Failed to upload badge image'
+    error.value =
+      err instanceof Error ? err.message : "Failed to upload badge image";
   } finally {
-    uploading.value = false
-    input.value = ''
+    uploading.value = false;
+    input.value = "";
   }
 }
 
 async function removeImage() {
-  uploading.value = true
-  error.value = null
+  uploading.value = true;
+  error.value = null;
   try {
-    await deleteBadgeImage()
-    imageUrl.value = null
-    await loadAppearanceSettings()
+    await deleteBadgeImage();
+    imageUrl.value = null;
+    await loadAppearanceSettings();
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Failed to remove badge image'
+    error.value =
+      err instanceof Error ? err.message : "Failed to remove badge image";
   } finally {
-    uploading.value = false
+    uploading.value = false;
   }
 }
 </script>
@@ -112,15 +123,19 @@ async function removeImage() {
   <section class="settings-section">
     <h2>Appearance</h2>
     <p class="section-hint">
-      How a 100%-complete (Mastered) game's card is highlighted in your library. Changes apply
-      everywhere that card renders once saved.
+      How a 100%-complete (Mastered) game's card is highlighted in your library.
+      Changes apply everywhere that card renders once saved.
     </p>
 
     <p v-if="loading">Loading…</p>
     <template v-else>
       <div class="field">
         <span>Badge style</span>
-        <SegmentedControl :model-value="style" :options="styleOptions" @update:model-value="style = $event as BadgeStyle" />
+        <SegmentedControl
+          :model-value="style"
+          :options="styleOptions"
+          @update:model-value="style = $event as BadgeStyle"
+        />
       </div>
 
       <div v-if="style !== 'none'" class="field">
@@ -142,18 +157,44 @@ async function removeImage() {
 
       <div v-if="usesImage" class="field">
         <span>Custom badge image</span>
-        <p class="field-sublabel">Optional: replaces the default trophy icon. A small square/round image works best.</p>
+        <p class="field-sublabel">
+          Optional: replaces the default trophy icon. A small square/round image
+          works best.
+        </p>
         <div class="image-row">
-          <div class="image-preview" :style="imageUrl ? { backgroundImage: `url(${imageUrl})` } : {}">
-            <svg v-if="!imageUrl" viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-              <path d="M12 2l2.4 6.6L21 9l-5 4.6L17.4 21 12 17.3 6.6 21 8 13.6 3 9l6.6-.4z" />
+          <div
+            class="image-preview"
+            :style="imageUrl ? { backgroundImage: `url(${imageUrl})` } : {}"
+          >
+            <svg
+              v-if="!imageUrl"
+              viewBox="0 0 24 24"
+              width="18"
+              height="18"
+              fill="currentColor"
+            >
+              <path
+                d="M12 2l2.4 6.6L21 9l-5 4.6L17.4 21 12 17.3 6.6 21 8 13.6 3 9l6.6-.4z"
+              />
             </svg>
           </div>
           <label class="secondary-button upload-label">
-            {{ uploading ? 'Uploading…' : 'Upload image' }}
-            <input type="file" accept="image/*" class="hidden-input" :disabled="uploading" @change="onImageSelected" />
+            {{ uploading ? "Uploading…" : "Upload image" }}
+            <input
+              type="file"
+              accept="image/*"
+              class="hidden-input"
+              :disabled="uploading"
+              @change="onImageSelected"
+            />
           </label>
-          <button v-if="imageUrl" type="button" class="secondary-button" :disabled="uploading" @click="removeImage">
+          <button
+            v-if="imageUrl"
+            type="button"
+            class="secondary-button"
+            :disabled="uploading"
+            @click="removeImage"
+          >
             Remove
           </button>
         </div>
@@ -168,10 +209,27 @@ async function removeImage() {
             :style="{ '--badge-color': color }"
           >
             <div class="preview-cover">
-              <div v-if="usesPlacement" class="preview-badge" :class="[style, placement]">
-                <img v-if="imageUrl" :src="imageUrl" alt="" class="preview-badge-image" />
-                <svg v-else viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
-                  <path d="M12 2l2.4 6.6L21 9l-5 4.6L17.4 21 12 17.3 6.6 21 8 13.6 3 9l6.6-.4z" />
+              <div
+                v-if="usesPlacement"
+                class="preview-badge"
+                :class="[style, placement]"
+              >
+                <img
+                  v-if="imageUrl"
+                  :src="imageUrl"
+                  alt=""
+                  class="preview-badge-image"
+                />
+                <svg
+                  v-else
+                  viewBox="0 0 24 24"
+                  width="14"
+                  height="14"
+                  fill="currentColor"
+                >
+                  <path
+                    d="M12 2l2.4 6.6L21 9l-5 4.6L17.4 21 12 17.3 6.6 21 8 13.6 3 9l6.6-.4z"
+                  />
                 </svg>
               </div>
             </div>
@@ -181,10 +239,17 @@ async function removeImage() {
       </div>
 
       <div v-if="error" class="form-error">{{ error }}</div>
-      <div v-if="saveSuccess" class="form-success">Appearance settings saved.</div>
+      <div v-if="saveSuccess" class="form-success">
+        Appearance settings saved.
+      </div>
 
-      <button type="button" class="primary-button" :disabled="saving" @click="save">
-        {{ saving ? 'Saving…' : 'Save' }}
+      <button
+        type="button"
+        class="primary-button"
+        :disabled="saving"
+        @click="save"
+      >
+        {{ saving ? "Saving…" : "Save" }}
       </button>
     </template>
   </section>
@@ -290,7 +355,8 @@ async function removeImage() {
   text-align: center;
 }
 .preview-card.badge-glow {
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--badge-color) 55%, transparent),
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--badge-color) 55%, transparent),
     0 0 22px 2px color-mix(in srgb, var(--badge-color) 45%, transparent);
 }
 .preview-card.badge-border {

@@ -1,16 +1,16 @@
 <script setup lang="ts">
 withDefaults(
   defineProps<{
-    modelValue: boolean
-    label: string
-    disabled?: boolean
+    modelValue: boolean;
+    label: string;
+    disabled?: boolean;
   }>(),
   { disabled: false },
-)
+);
 
 const emit = defineEmits<{
-  'update:modelValue': [value: boolean]
-}>()
+  "update:modelValue": [value: boolean];
+}>();
 </script>
 
 <template>
@@ -24,7 +24,9 @@ const emit = defineEmits<{
     @click="emit('update:modelValue', !modelValue)"
   >
     <span class="toggle-track"><span class="toggle-knob"></span></span>
-    <span class="toggle-label"><slot>{{ label }}</slot></span>
+    <span class="toggle-label"
+      ><slot>{{ label }}</slot></span
+    >
   </button>
 </template>
 

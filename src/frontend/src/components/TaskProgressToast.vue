@@ -1,23 +1,28 @@
 <script setup lang="ts">
-import { tasks, dismissTask } from '../state/taskProgress'
+import { tasks, dismissTask } from "../state/taskProgress";
 
 function retry(task: (typeof tasks)[number]) {
-  task.retry?.()
-  task.status = 'running'
-  task.detail = undefined
-  task.done = 0
+  task.retry?.();
+  task.status = "running";
+  task.detail = undefined;
+  task.done = 0;
 }
 
 function percent(done: number, total: number): number {
-  if (total <= 0) return 0
-  return Math.min(100, Math.round((done / total) * 100))
+  if (total <= 0) return 0;
+  return Math.min(100, Math.round((done / total) * 100));
 }
 </script>
 
 <template>
   <Teleport to="body">
     <div v-if="tasks.length" class="task-toast-stack">
-      <div v-for="task in tasks" :key="task.id" class="task-toast" :class="task.status">
+      <div
+        v-for="task in tasks"
+        :key="task.id"
+        class="task-toast"
+        :class="task.status"
+      >
         <div class="task-toast-header">
           <span class="task-toast-label">{{ task.label }}</span>
           <button
@@ -32,24 +37,51 @@ function percent(done: number, total: number): number {
         <div class="task-toast-track">
           <div
             class="task-toast-fill"
-            :class="{ indeterminate: task.indeterminate && task.status === 'running' }"
-            :style="task.indeterminate ? {} : { width: percent(task.done, task.total) + '%' }"
+            :class="{
+              indeterminate: task.indeterminate && task.status === 'running',
+            }"
+            :style="
+              task.indeterminate
+                ? {}
+                : { width: percent(task.done, task.total) + '%' }
+            "
           ></div>
         </div>
         <div class="task-toast-meta">
           <span v-if="task.status === 'running'">
-            {{ task.indeterminate ? 'Working…' : `${task.done} / ${task.total}` }}
-            <span v-if="task.speedLabel" class="task-toast-speed">· {{ task.speedLabel }}</span>
+            {{
+              task.indeterminate ? "Working…" : `${task.done} / ${task.total}`
+            }}
+            <span v-if="task.speedLabel" class="task-toast-speed"
+              >· {{ task.speedLabel }}</span
+            >
           </span>
-          <span v-else-if="task.status === 'done'">{{ task.detail || 'Done' }}</span>
-          <span v-else class="task-toast-error">{{ task.detail || 'Failed' }}</span>
+          <span v-else-if="task.status === 'done'">{{
+            task.detail || "Done"
+          }}</span>
+          <span v-else class="task-toast-error">{{
+            task.detail || "Failed"
+          }}</span>
         </div>
-        <button v-if="task.status === 'error' && task.retry" type="button" class="task-toast-retry" @click="retry(task)">
+        <button
+          v-if="task.status === 'error' && task.retry"
+          type="button"
+          class="task-toast-retry"
+          @click="retry(task)"
+        >
           Retry
         </button>
         <div v-if="task.feed.length" class="task-toast-feed">
-          <TransitionGroup name="feed-item" tag="div" class="task-toast-feed-inner">
-            <div v-for="entry in task.feed.slice(-6)" :key="entry.id" class="feed-line">
+          <TransitionGroup
+            name="feed-item"
+            tag="div"
+            class="task-toast-feed-inner"
+          >
+            <div
+              v-for="entry in task.feed.slice(-6)"
+              :key="entry.id"
+              class="feed-line"
+            >
               {{ entry.text }}
             </div>
           </TransitionGroup>
@@ -181,7 +213,9 @@ function percent(done: number, total: number): number {
   text-overflow: ellipsis;
 }
 .feed-item-enter-active {
-  transition: opacity 0.25s ease, transform 0.25s ease;
+  transition:
+    opacity 0.25s ease,
+    transform 0.25s ease;
 }
 .feed-item-enter-from {
   opacity: 0;

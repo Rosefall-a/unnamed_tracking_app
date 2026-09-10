@@ -1,27 +1,33 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import type { Game } from '../types/game'
+import { computed } from "vue";
+import type { Game } from "../types/game";
 
 const props = defineProps<{
-  name: string
-  games: Game[]
-  isSmart?: boolean
-}>()
+  name: string;
+  games: Game[];
+  isSmart?: boolean;
+}>();
 
 const emit = defineEmits<{
-  open: [name: string]
-  delete: []
-}>()
+  open: [name: string];
+  delete: [];
+}>();
 
-const covers = computed(() => props.games.slice(0, 4).map((g) => g.coverImageUrl))
-const emptySlots = computed(() => Math.max(0, 4 - covers.value.length))
+const covers = computed(() =>
+  props.games.slice(0, 4).map((g) => g.coverImageUrl),
+);
+const emptySlots = computed(() => Math.max(0, 4 - covers.value.length));
 
 // nesting is a pure naming convention, "Parent/Child", not a separate
 // data model, since collections have no backend row to hang real
 // parent/child structure off in the first place
-const slashIndex = computed(() => props.name.indexOf('/'))
-const parentLabel = computed(() => (slashIndex.value === -1 ? null : props.name.slice(0, slashIndex.value)))
-const displayName = computed(() => (slashIndex.value === -1 ? props.name : props.name.slice(slashIndex.value + 1)))
+const slashIndex = computed(() => props.name.indexOf("/"));
+const parentLabel = computed(() =>
+  slashIndex.value === -1 ? null : props.name.slice(0, slashIndex.value),
+);
+const displayName = computed(() =>
+  slashIndex.value === -1 ? props.name : props.name.slice(slashIndex.value + 1),
+);
 </script>
 
 <template>
@@ -35,16 +41,27 @@ const displayName = computed(() => (slashIndex.value === -1 ? props.name : props
             class="cover-cell"
             :style="{ backgroundImage: `url(${cover})` }"
           ></div>
-          <div v-for="i in emptySlots" :key="`empty-${i}`" class="cover-cell empty"></div>
+          <div
+            v-for="i in emptySlots"
+            :key="`empty-${i}`"
+            class="cover-cell empty"
+          ></div>
         </div>
-        <span v-if="isSmart" class="smart-badge" title="Auto-updates based on a rule">⚡ Auto</span>
+        <span
+          v-if="isSmart"
+          class="smart-badge"
+          title="Auto-updates based on a rule"
+          >⚡ Auto</span
+        >
         <button
           v-if="isSmart"
           type="button"
           class="smart-delete"
           title="Delete this smart collection"
           @click.stop="emit('delete')"
-        >✕</button>
+        >
+          ✕
+        </button>
       </div>
     </div>
 
@@ -52,7 +69,9 @@ const displayName = computed(() => (slashIndex.value === -1 ? props.name : props
       <span v-if="parentLabel" class="parent-eyebrow">{{ parentLabel }} ›</span>
       <h3 class="title">{{ displayName }}</h3>
       <div class="meta-row">
-        <span class="status">{{ games.length }} game{{ games.length === 1 ? '' : 's' }}</span>
+        <span class="status"
+          >{{ games.length }} game{{ games.length === 1 ? "" : "s" }}</span
+        >
       </div>
     </div>
   </div>
@@ -67,7 +86,9 @@ const displayName = computed(() => (slashIndex.value === -1 ? props.name : props
   position: relative;
   width: 100%;
   border-radius: 10px;
-  transition: transform 0.32s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+  transition:
+    transform 0.32s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.32s cubic-bezier(0.22, 1, 0.36, 1);
   will-change: transform;
 }
 .collection-card-wrap:hover .collection-card {

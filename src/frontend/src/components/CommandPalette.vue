@@ -1,203 +1,230 @@
 <script setup lang="ts">
-import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
-import { fetchGames } from '../services/games'
-import { fetchBounties } from '../services/bounties'
-import type { Game } from '../types/game'
-import type { Bounty } from '../services/bounties'
-import { isCommandPaletteOpen } from '../state/commandPalette'
-import { smartCollections } from '../state/smartCollections'
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from "vue";
+import { useRouter } from "vue-router";
+import { fetchGames } from "../services/games";
+import { fetchBounties } from "../services/bounties";
+import type { Game } from "../types/game";
+import type { Bounty } from "../services/bounties";
+import { isCommandPaletteOpen } from "../state/commandPalette";
+import { smartCollections } from "../state/smartCollections";
 
-const router = useRouter()
+const router = useRouter();
 
-const open = isCommandPaletteOpen
-const query = ref('')
-const inputRef = ref<HTMLInputElement | null>(null)
+const open = isCommandPaletteOpen;
+const query = ref("");
+const inputRef = ref<HTMLInputElement | null>(null);
 
 // fetched lazily on first open, then reused for the rest of the session,
 // this is a jump-to tool, not a live search index, so a slightly stale
 // list (a game added a minute ago) is an acceptable tradeoff for not
 // re-fetching the whole library every keystroke
-let gamesCache: Game[] | null = null
-let bountiesCache: Bounty[] | null = null
-const loaded = ref(false)
+let gamesCache: Game[] | null = null;
+let bountiesCache: Bounty[] | null = null;
+const loaded = ref(false);
 
 async function ensureLoaded() {
-  if (loaded.value) return
+  if (loaded.value) return;
   try {
-    const [games, bounties] = await Promise.all([fetchGames(), fetchBounties()])
-    gamesCache = games
-    bountiesCache = bounties
+    const [games, bounties] = await Promise.all([
+      fetchGames(),
+      fetchBounties(),
+    ]);
+    gamesCache = games;
+    bountiesCache = bounties;
   } catch {
-    gamesCache = gamesCache ?? []
-    bountiesCache = bountiesCache ?? []
+    gamesCache = gamesCache ?? [];
+    bountiesCache = bountiesCache ?? [];
   } finally {
-    loaded.value = true
+    loaded.value = true;
   }
 }
 
 interface Result {
-  key: string
-  kind: 'game' | 'collection' | 'bounty' | 'page'
-  label: string
-  sublabel?: string
-  action: () => void
+  key: string;
+  kind: "game" | "collection" | "bounty" | "page";
+  label: string;
+  sublabel?: string;
+  action: () => void;
 }
 
 const SETTINGS_SHORTCUTS: { label: string; section: string }[] = [
-  { label: 'Profile', section: 'profile' },
-  { label: 'User Interface', section: 'interface' },
-  { label: 'Appearance', section: 'appearance' },
-  { label: 'Upload', section: 'upload' },
-  { label: 'Library Management', section: 'library' },
-  { label: 'Scan Settings', section: 'scan' },
-  { label: 'Metadata/API', section: 'sources' },
-  { label: 'Server Stats', section: 'stats' },
-  { label: 'Export / Import', section: 'export' },
-]
+  { label: "Profile", section: "profile" },
+  { label: "User Interface", section: "interface" },
+  { label: "Appearance", section: "appearance" },
+  { label: "Upload", section: "upload" },
+  { label: "Library Management", section: "library" },
+  { label: "Scan Settings", section: "scan" },
+  { label: "Metadata/API", section: "sources" },
+  { label: "Server Stats", section: "stats" },
+  { label: "Export / Import", section: "export" },
+];
 
 const PAGE_SHORTCUTS: { label: string; to: string }[] = [
-  { label: 'Home', to: '/' },
-  { label: 'Games', to: '/games' },
-  { label: 'Collections', to: '/collections' },
-  { label: 'Bounties', to: '/bounties' },
-  { label: 'Inbox', to: '/inbox' },
-]
+  { label: "Home", to: "/" },
+  { label: "Games", to: "/games" },
+  { label: "Collections", to: "/collections" },
+  { label: "Bounties", to: "/bounties" },
+  { label: "Inbox", to: "/inbox" },
+];
 
 const collectionNames = computed(() => {
-  const set = new Set<string>()
-  for (const g of gamesCache ?? []) for (const c of g.collections) set.add(c)
-  for (const c of smartCollections.value) set.add(c.name)
-  return [...set].sort()
-})
+  const set = new Set<string>();
+  for (const g of gamesCache ?? []) for (const c of g.collections) set.add(c);
+  for (const c of smartCollections.value) set.add(c.name);
+  return [...set].sort();
+});
 
 const results = computed<Result[]>(() => {
-  const q = query.value.trim().toLowerCase()
-  const out: Result[] = []
+  const q = query.value.trim().toLowerCase();
+  const out: Result[] = [];
 
   if (!q) {
     for (const p of PAGE_SHORTCUTS) {
-      out.push({ key: 'page:' + p.to, kind: 'page', label: p.label, action: () => go(p.to) })
+      out.push({
+        key: "page:" + p.to,
+        kind: "page",
+        label: p.label,
+        action: () => go(p.to),
+      });
     }
-    return out
+    return out;
   }
 
-  const games = (gamesCache ?? []).filter((g) => g.title.toLowerCase().includes(q)).slice(0, 6)
+  const games = (gamesCache ?? [])
+    .filter((g) => g.title.toLowerCase().includes(q))
+    .slice(0, 6);
   for (const g of games) {
     out.push({
-      key: 'game:' + g.id,
-      kind: 'game',
+      key: "game:" + g.id,
+      kind: "game",
       label: g.title,
       sublabel: g.status,
       action: () => go(`/games/${g.id}`),
-    })
+    });
   }
 
-  const collections = collectionNames.value.filter((c) => c.toLowerCase().includes(q)).slice(0, 4)
+  const collections = collectionNames.value
+    .filter((c) => c.toLowerCase().includes(q))
+    .slice(0, 4);
   for (const c of collections) {
     out.push({
-      key: 'collection:' + c,
-      kind: 'collection',
+      key: "collection:" + c,
+      kind: "collection",
       label: c,
-      sublabel: 'Collection',
+      sublabel: "Collection",
       action: () => go(`/collections/${encodeURIComponent(c)}`),
-    })
+    });
   }
 
-  const bounties = (bountiesCache ?? []).filter((b) => b.title.toLowerCase().includes(q)).slice(0, 4)
+  const bounties = (bountiesCache ?? [])
+    .filter((b) => b.title.toLowerCase().includes(q))
+    .slice(0, 4);
   for (const b of bounties) {
     out.push({
-      key: 'bounty:' + b.id,
-      kind: 'bounty',
+      key: "bounty:" + b.id,
+      kind: "bounty",
       label: b.title,
       sublabel: b.status,
-      action: () => go('/bounties'),
-    })
+      action: () => go("/bounties"),
+    });
   }
 
   for (const s of SETTINGS_SHORTCUTS) {
     if (s.label.toLowerCase().includes(q)) {
       out.push({
-        key: 'settings:' + s.section,
-        kind: 'page',
+        key: "settings:" + s.section,
+        kind: "page",
         label: s.label,
-        sublabel: 'Settings',
+        sublabel: "Settings",
         action: () => go(`/settings?section=${s.section}`),
-      })
+      });
     }
   }
   for (const p of PAGE_SHORTCUTS) {
     if (p.label.toLowerCase().includes(q)) {
-      out.push({ key: 'page:' + p.to, kind: 'page', label: p.label, action: () => go(p.to) })
+      out.push({
+        key: "page:" + p.to,
+        kind: "page",
+        label: p.label,
+        action: () => go(p.to),
+      });
     }
   }
 
-  return out.slice(0, 20)
-})
+  return out.slice(0, 20);
+});
 
-const activeIndex = ref(0)
+const activeIndex = ref(0);
 watch(results, () => {
-  activeIndex.value = 0
-})
+  activeIndex.value = 0;
+});
 
 function go(to: string) {
-  close()
-  router.push(to)
+  close();
+  router.push(to);
 }
 
 function close() {
-  open.value = false
-  query.value = ''
+  open.value = false;
+  query.value = "";
 }
 
 async function openPalette() {
-  open.value = true
-  void ensureLoaded()
-  await nextTick()
-  inputRef.value?.focus()
+  open.value = true;
+  void ensureLoaded();
+  await nextTick();
+  inputRef.value?.focus();
 }
 
 function isTypingTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false
-  const tag = target.tagName
-  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable
+  if (!(target instanceof HTMLElement)) return false;
+  const tag = target.tagName;
+  return (
+    tag === "INPUT" ||
+    tag === "TEXTAREA" ||
+    tag === "SELECT" ||
+    target.isContentEditable
+  );
 }
 
 function onGlobalKeydown(e: KeyboardEvent) {
-  const isMeta = e.metaKey || e.ctrlKey
-  if (isMeta && e.key.toLowerCase() === 'k') {
-    e.preventDefault()
-    if (open.value) close()
-    else void openPalette()
-    return
+  const isMeta = e.metaKey || e.ctrlKey;
+  if (isMeta && e.key.toLowerCase() === "k") {
+    e.preventDefault();
+    if (open.value) close();
+    else void openPalette();
+    return;
   }
-  if (!open.value) return
-  if (e.key === 'Escape') {
-    close()
-  } else if (e.key === 'ArrowDown') {
-    e.preventDefault()
-    activeIndex.value = Math.min(activeIndex.value + 1, results.value.length - 1)
-  } else if (e.key === 'ArrowUp') {
-    e.preventDefault()
-    activeIndex.value = Math.max(activeIndex.value - 1, 0)
-  } else if (e.key === 'Enter') {
-    e.preventDefault()
-    results.value[activeIndex.value]?.action()
-  } else if (e.key === 'Tab' && !isTypingTarget(e.target)) {
+  if (!open.value) return;
+  if (e.key === "Escape") {
+    close();
+  } else if (e.key === "ArrowDown") {
+    e.preventDefault();
+    activeIndex.value = Math.min(
+      activeIndex.value + 1,
+      results.value.length - 1,
+    );
+  } else if (e.key === "ArrowUp") {
+    e.preventDefault();
+    activeIndex.value = Math.max(activeIndex.value - 1, 0);
+  } else if (e.key === "Enter") {
+    e.preventDefault();
+    results.value[activeIndex.value]?.action();
+  } else if (e.key === "Tab" && !isTypingTarget(e.target)) {
     // no-op, the palette owns focus while open
-    e.preventDefault()
+    e.preventDefault();
   }
 }
 
-onMounted(() => window.addEventListener('keydown', onGlobalKeydown))
-onUnmounted(() => window.removeEventListener('keydown', onGlobalKeydown))
+onMounted(() => window.addEventListener("keydown", onGlobalKeydown));
+onUnmounted(() => window.removeEventListener("keydown", onGlobalKeydown));
 
-const KIND_ICON: Record<Result['kind'], string> = {
-  game: '🎮',
-  collection: '📁',
-  bounty: '🎯',
-  page: '→',
-}
+const KIND_ICON: Record<Result["kind"], string> = {
+  game: "🎮",
+  collection: "📁",
+  bounty: "🎯",
+  page: "→",
+};
 </script>
 
 <template>
@@ -224,7 +251,9 @@ const KIND_ICON: Record<Result['kind'], string> = {
         >
           <span class="palette-item-icon">{{ KIND_ICON[r.kind] }}</span>
           <span class="palette-item-label">{{ r.label }}</span>
-          <span v-if="r.sublabel" class="palette-item-sub">{{ r.sublabel }}</span>
+          <span v-if="r.sublabel" class="palette-item-sub">{{
+            r.sublabel
+          }}</span>
         </button>
       </div>
       <div class="palette-footer">

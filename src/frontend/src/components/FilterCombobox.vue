@@ -1,60 +1,62 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch } from "vue";
 
 const props = defineProps<{
-  modelValue: string
-  options: string[]
-  placeholder: string
-  allLabel?: string
+  modelValue: string;
+  options: string[];
+  placeholder: string;
+  allLabel?: string;
   // A second, larger pool only searched once the user starts typing, keeps
   // the default dropdown short while still making everything findable.
-  extraOptions?: string[]
-  extraLabel?: string
-}>()
-const emit = defineEmits<{ 'update:modelValue': [value: string] }>()
+  extraOptions?: string[];
+  extraLabel?: string;
+}>();
+const emit = defineEmits<{ "update:modelValue": [value: string] }>();
 
-const query = ref('')
-const open = ref(false)
-const inputRef = ref<HTMLInputElement | null>(null)
+const query = ref("");
+const open = ref(false);
+const inputRef = ref<HTMLInputElement | null>(null);
 
-const displayLabel = computed(() => (props.modelValue === 'all' ? (props.allLabel ?? 'All') : props.modelValue))
+const displayLabel = computed(() =>
+  props.modelValue === "all" ? (props.allLabel ?? "All") : props.modelValue,
+);
 
 watch(
   () => props.modelValue,
   () => {
-    query.value = ''
+    query.value = "";
   },
-)
+);
 
 const filteredOptions = computed(() => {
-  const q = query.value.trim().toLowerCase()
-  if (!q) return props.options
-  return props.options.filter((o) => o.toLowerCase().includes(q))
-})
+  const q = query.value.trim().toLowerCase();
+  if (!q) return props.options;
+  return props.options.filter((o) => o.toLowerCase().includes(q));
+});
 
 const filteredExtraOptions = computed(() => {
-  const q = query.value.trim().toLowerCase()
-  if (!q || !props.extraOptions) return []
-  return props.extraOptions.filter((o) => o.toLowerCase().includes(q))
-})
+  const q = query.value.trim().toLowerCase();
+  if (!q || !props.extraOptions) return [];
+  return props.extraOptions.filter((o) => o.toLowerCase().includes(q));
+});
 
 function select(value: string) {
-  emit('update:modelValue', value)
-  query.value = ''
-  open.value = false
-  inputRef.value?.blur()
+  emit("update:modelValue", value);
+  query.value = "";
+  open.value = false;
+  inputRef.value?.blur();
 }
 
 function onFocus() {
-  open.value = true
-  query.value = ''
+  open.value = true;
+  query.value = "";
 }
 
 function onBlur() {
   setTimeout(() => {
-    open.value = false
-    query.value = ''
-  }, 150)
+    open.value = false;
+    query.value = "";
+  }, 150);
 }
 </script>
 
@@ -71,8 +73,12 @@ function onBlur() {
       @blur="onBlur"
     />
     <div v-if="open" class="combobox-menu">
-      <button type="button" class="combobox-option" @mousedown.prevent="select('all')">
-        {{ allLabel ?? 'All' }}
+      <button
+        type="button"
+        class="combobox-option"
+        @mousedown.prevent="select('all')"
+      >
+        {{ allLabel ?? "All" }}
       </button>
       <button
         v-for="opt in filteredOptions"
@@ -84,7 +90,9 @@ function onBlur() {
       >
         {{ opt }}
       </button>
-      <div v-if="filteredExtraOptions.length" class="combobox-group-label">{{ extraLabel ?? 'More' }}</div>
+      <div v-if="filteredExtraOptions.length" class="combobox-group-label">
+        {{ extraLabel ?? "More" }}
+      </div>
       <button
         v-for="opt in filteredExtraOptions"
         :key="opt"
@@ -95,7 +103,12 @@ function onBlur() {
       >
         {{ opt }}
       </button>
-      <div v-if="!filteredOptions.length && !filteredExtraOptions.length" class="combobox-empty">No matches</div>
+      <div
+        v-if="!filteredOptions.length && !filteredExtraOptions.length"
+        class="combobox-empty"
+      >
+        No matches
+      </div>
     </div>
   </div>
 </template>

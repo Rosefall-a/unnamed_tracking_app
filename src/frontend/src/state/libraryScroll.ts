@@ -4,12 +4,12 @@
 // onUnmounted fires, the outgoing route's content may already have started
 // shifting, so window.scrollY isn't reliably the position the user was
 // actually looking at.
-let savedScrollY = 0
+let savedScrollY = 0;
 
 export function saveLibraryScroll(y: number): void {
-  savedScrollY = y
+  savedScrollY = y;
 }
 
 export function takeLibraryScroll(): number {
-  return savedScrollY
+  return savedScrollY;
 }

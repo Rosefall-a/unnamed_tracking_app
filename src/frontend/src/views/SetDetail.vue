@@ -1,57 +1,69 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import { fetchSet, deleteSet, updateSet } from '../services/set'
-import { fetchGames } from '../services/games'
-import type { CardSetDetail } from '../types/set'
-import type { Game } from '../types/game'
+import { ref, computed, onMounted } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import { fetchSet, deleteSet, updateSet } from "../services/set";
+import { fetchGames } from "../services/games";
+import type { CardSetDetail } from "../types/set";
+import type { Game } from "../types/game";
 
-const route = useRoute()
-const router = useRouter()
-const setId = route.params.id as string
+const route = useRoute();
+const router = useRouter();
+const setId = route.params.id as string;
 
-const set = ref<CardSetDetail | null>(null)
-const games = ref<Game[]>([])
-const loading = ref(true)
-const error = ref<string | null>(null)
+const set = ref<CardSetDetail | null>(null);
+const games = ref<Game[]>([]);
+const loading = ref(true);
+const error = ref<string | null>(null);
 
-const gameById = computed(() => new Map(games.value.map((g) => [g.id, g])))
+const gameById = computed(() => new Map(games.value.map((g) => [g.id, g])));
 
 async function load() {
-  loading.value = true
+  loading.value = true;
   try {
-    const [s, g] = await Promise.all([fetchSet(setId), fetchGames()])
-    set.value = s
-    games.value = g
+    const [s, g] = await Promise.all([fetchSet(setId), fetchGames()]);
+    set.value = s;
+    games.value = g;
   } catch (e) {
-    error.value = e instanceof Error ? e.message : 'Failed to load set.'
+    error.value = e instanceof Error ? e.message : "Failed to load set.";
   } finally {
-    loading.value = false
+    loading.value = false;
   }
 }
 
 async function handleDelete() {
-  if (!set.value) return
-  if (!confirm(`Delete set "${set.value.name}"? Cards in it are just unassigned, not deleted.`)) return
-  await deleteSet(setId)
-  router.push('/sets')
+  if (!set.value) return;
+  if (
+    !confirm(
+      `Delete set "${set.value.name}"? Cards in it are just unassigned, not deleted.`,
+    )
+  )
+    return;
+  await deleteSet(setId);
+  router.push("/sets");
 }
 
 async function editTarget() {
-  if (!set.value) return
-  const input = prompt('Total cards expected for this set (blank for unknown):', String(set.value.targetTotal ?? ''))
-  if (input === null) return
-  const target = input.trim() === '' ? null : Number(input)
-  await updateSet(setId, { targetTotal: Number.isFinite(target) ? target : null })
-  await load()
+  if (!set.value) return;
+  const input = prompt(
+    "Total cards expected for this set (blank for unknown):",
+    String(set.value.targetTotal ?? ""),
+  );
+  if (input === null) return;
+  const target = input.trim() === "" ? null : Number(input);
+  await updateSet(setId, {
+    targetTotal: Number.isFinite(target) ? target : null,
+  });
+  await load();
 }
 
-onMounted(load)
+onMounted(load);
 </script>
 
 <template>
   <main class="set-detail-page">
-    <button type="button" class="back-btn" @click="router.push('/sets')">&larr; Sets</button>
+    <button type="button" class="back-btn" @click="router.push('/sets')">
+      &larr; Sets
+    </button>
 
     <p v-if="loading" class="empty-state">Loading…</p>
     <p v-else-if="error" class="empty-state error">{{ error }}</p>
@@ -61,16 +73,27 @@ onMounted(load)
         <div>
           <h1>{{ set.name }}</h1>
           <p class="progress">
-            {{ set.targetTotal ? `${set.cardCount} / ${set.targetTotal} cards` : `${set.cardCount} cards` }}
-            <button type="button" class="link-btn" @click="editTarget">edit target</button>
+            {{
+              set.targetTotal
+                ? `${set.cardCount} / ${set.targetTotal} cards`
+                : `${set.cardCount} cards`
+            }}
+            <button type="button" class="link-btn" @click="editTarget">
+              edit target
+            </button>
           </p>
         </div>
-        <button type="button" class="danger-button" @click="handleDelete">Delete set</button>
+        <button type="button" class="danger-button" @click="handleDelete">
+          Delete set
+        </button>
       </div>
 
       <div v-if="set.isComplete" class="complete-banner">
         <span class="complete-glow"></span>
-        <span>SET COMPLETE &mdash; {{ set.cardCount }} / {{ set.targetTotal }}</span>
+        <span
+          >SET COMPLETE &mdash; {{ set.cardCount }} /
+          {{ set.targetTotal }}</span
+        >
       </div>
 
       <p v-if="!set.cards.length" class="empty-state">
@@ -84,8 +107,12 @@ onMounted(load)
           class="card-tile"
           @click="router.push(`/cards/${c.id}`)"
         >
-          <span class="card-tile-title">{{ gameById.get(c.gameId)?.title ?? 'Unknown game' }}</span>
-          <span class="card-tile-num">#{{ String(c.archiveNumber ?? 0).padStart(3, '0') }}</span>
+          <span class="card-tile-title">{{
+            gameById.get(c.gameId)?.title ?? "Unknown game"
+          }}</span>
+          <span class="card-tile-num"
+            >#{{ String(c.archiveNumber ?? 0).padStart(3, "0") }}</span
+          >
         </button>
       </div>
     </template>
@@ -170,7 +197,11 @@ h1 {
 .complete-glow {
   position: absolute;
   inset: 0;
-  background: radial-gradient(ellipse at center, rgba(214, 138, 52, 0.25), transparent 70%);
+  background: radial-gradient(
+    ellipse at center,
+    rgba(214, 138, 52, 0.25),
+    transparent 70%
+  );
   pointer-events: none;
 }
 .cards-grid {

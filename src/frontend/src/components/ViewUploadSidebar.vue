@@ -1,6 +1,6 @@
 <script setup lang="ts">
-defineProps<{ modelValue: 'view' | 'upload' }>()
-defineEmits<{ 'update:modelValue': ['view' | 'upload'] }>()
+defineProps<{ modelValue: "view" | "upload" }>();
+defineEmits<{ "update:modelValue": ["view" | "upload"] }>();
 </script>
 
 <template>
@@ -11,7 +11,16 @@ defineEmits<{ 'update:modelValue': ['view' | 'upload'] }>()
       :class="{ active: modelValue === 'view' }"
       @click="$emit('update:modelValue', 'view')"
     >
-      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <svg
+        viewBox="0 0 24 24"
+        width="15"
+        height="15"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
         <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
         <circle cx="12" cy="12" r="3" />
       </svg>
@@ -23,7 +32,16 @@ defineEmits<{ 'update:modelValue': ['view' | 'upload'] }>()
       :class="{ active: modelValue === 'upload' }"
       @click="$emit('update:modelValue', 'upload')"
     >
-      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <svg
+        viewBox="0 0 24 24"
+        width="15"
+        height="15"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
         <path d="M12 3v12" />
         <path d="M7 8l5-5 5 5" />
         <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
@@ -54,7 +72,9 @@ defineEmits<{ 'update:modelValue': ['view' | 'upload'] }>()
   font-weight: 600;
   text-align: left;
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
 }
 .vu-item:hover {
   background: rgba(255, 255, 255, 0.06);

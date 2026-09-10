@@ -1,212 +1,250 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import { useWindowVirtualizer } from '@tanstack/vue-virtual'
-import GameCard from '../components/GameCard.vue'
-import SkeletonBlock from '../components/SkeletonBlock.vue'
-import GameFormModal from '../components/GameFormModal.vue'
-import BulkEditModal from '../components/BulkEditModal.vue'
-import FilterCombobox from '../components/FilterCombobox.vue'
-import { fetchGames, deleteGame, setFavorite, fetchAchievementsSummary, addGameToCollection } from '../services/games'
-import { takeLibraryScroll } from '../state/libraryScroll'
-import { setLibraryNavOrder } from '../state/libraryNav'
-import { isCommandPaletteOpen } from '../state/commandPalette'
-import CollectionPickerModal from '../components/CollectionPickerModal.vue'
-import { computeScore } from '../utils/scoring'
-import DOMPurify from 'dompurify'
-import { normalizePlatformFamily, PLATFORM_OPTIONS, RETRO_PLATFORM_OPTIONS } from '../utils/platforms'
-import { GENRE_OPTIONS } from '../utils/genres'
-import type { Game, GameStatus } from '../types/game'
-import { currentUser } from '../state/auth'
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import { useWindowVirtualizer } from "@tanstack/vue-virtual";
+import GameCard from "../components/GameCard.vue";
+import SkeletonBlock from "../components/SkeletonBlock.vue";
+import GameFormModal from "../components/GameFormModal.vue";
+import BulkEditModal from "../components/BulkEditModal.vue";
+import FilterCombobox from "../components/FilterCombobox.vue";
+import {
+  fetchGames,
+  deleteGame,
+  setFavorite,
+  fetchAchievementsSummary,
+  addGameToCollection,
+} from "../services/games";
+import { takeLibraryScroll } from "../state/libraryScroll";
+import { setLibraryNavOrder } from "../state/libraryNav";
+import { isCommandPaletteOpen } from "../state/commandPalette";
+import CollectionPickerModal from "../components/CollectionPickerModal.vue";
+import { computeScore } from "../utils/scoring";
+import DOMPurify from "dompurify";
+import {
+  normalizePlatformFamily,
+  PLATFORM_OPTIONS,
+  RETRO_PLATFORM_OPTIONS,
+} from "../utils/platforms";
+import { GENRE_OPTIONS } from "../utils/genres";
+import type { Game, GameStatus } from "../types/game";
+import { currentUser } from "../state/auth";
 
-type ViewMode = 'cards' | 'list' | 'detail' | 'shelves'
-type SortBy = 'name' | 'recent' | 'rating' | 'playtime' | 'neglected'
-type AchievementsFilter = 'all' | 'has' | 'none'
-type MissingFilter = 'none' | 'playtime' | 'rating' | 'tags' | 'description'
-type CardDensity = 'compact' | 'cozy' | 'large'
+type ViewMode = "cards" | "list" | "detail" | "shelves";
+type SortBy = "name" | "recent" | "rating" | "playtime" | "neglected";
+type AchievementsFilter = "all" | "has" | "none";
+type MissingFilter = "none" | "playtime" | "rating" | "tags" | "description";
+type CardDensity = "compact" | "cozy" | "large";
 
-const router = useRouter()
-const route = useRoute()
+const router = useRouter();
+const route = useRoute();
 
-const games = ref<Game[]>([])
-const loading = ref(true)
-const error = ref<string | null>(null)
+const games = ref<Game[]>([]);
+const loading = ref(true);
+const error = ref<string | null>(null);
 
-const showFormModal = ref(false)
-const editingGame = ref<Game | null>(null)
+const showFormModal = ref(false);
+const editingGame = ref<Game | null>(null);
 
-const deletingGame = ref<Game | null>(null)
-const deleting = ref(false)
-const deleteError = ref<string | null>(null)
+const deletingGame = ref<Game | null>(null);
+const deleting = ref(false);
+const deleteError = ref<string | null>(null);
 
-const viewMode = ref<ViewMode>((localStorage.getItem('gameLibraryViewMode') as ViewMode) || 'cards')
-const selectedGame = ref<Game | null>(null)
+const viewMode = ref<ViewMode>(
+  (localStorage.getItem("gameLibraryViewMode") as ViewMode) || "cards",
+);
+const selectedGame = ref<Game | null>(null);
 // keyboard focus within the Cards grid (arrow keys + Enter), separate from
 // selectedGame, which is only for the "List + preview" split view
-const gridFocusIndex = ref<number | null>(null)
+const gridFocusIndex = ref<number | null>(null);
 
 // bulk-edit selection, separate from `selectedGame` (the detail-view
 // preview pick), this tracks a multi-game checkbox selection for the
 // bulk-edit toolbar/modal
-const selectMode = ref(false)
-const selectedIds = ref<Set<string>>(new Set())
-const showBulkEditModal = ref(false)
+const selectMode = ref(false);
+const selectedIds = ref<Set<string>>(new Set());
+const showBulkEditModal = ref(false);
 
 // one-time nudge toward bulk edit, gone for good the first time it's
 // dismissed or the feature is actually used, not re-shown once discovered
-const BULK_EDIT_HINT_KEY = 'seenBulkEditHint'
-const showBulkEditHint = ref(localStorage.getItem(BULK_EDIT_HINT_KEY) !== 'true')
+const BULK_EDIT_HINT_KEY = "seenBulkEditHint";
+const showBulkEditHint = ref(
+  localStorage.getItem(BULK_EDIT_HINT_KEY) !== "true",
+);
 function dismissBulkEditHint() {
-  showBulkEditHint.value = false
+  showBulkEditHint.value = false;
   try {
-    localStorage.setItem(BULK_EDIT_HINT_KEY, 'true')
+    localStorage.setItem(BULK_EDIT_HINT_KEY, "true");
   } catch {
     // worst case it just shows again next visit, not worth failing over
   }
 }
 
 function toggleSelectMode() {
-  selectMode.value = !selectMode.value
-  if (!selectMode.value) selectedIds.value = new Set()
+  selectMode.value = !selectMode.value;
+  if (!selectMode.value) selectedIds.value = new Set();
   // otherwise "Updated N games." from a previous bulk edit keeps showing
   // through an unrelated later selection
-  bulkEditResultCount.value = null
+  bulkEditResultCount.value = null;
 }
 
 // shift-click extends from whichever card was last clicked, so selecting a
 // long run doesn't mean toggling every card individually
-let lastToggledId: string | null = null
+let lastToggledId: string | null = null;
 function toggleSelect(game: Game, shiftKey = false) {
-  const next = new Set(selectedIds.value)
+  const next = new Set(selectedIds.value);
   if (shiftKey && lastToggledId) {
-    const ids = filteredGames.value.map((g) => g.id)
-    const from = ids.indexOf(lastToggledId)
-    const to = ids.indexOf(game.id)
+    const ids = filteredGames.value.map((g) => g.id);
+    const from = ids.indexOf(lastToggledId);
+    const to = ids.indexOf(game.id);
     if (from !== -1 && to !== -1) {
-      const [start, end] = from < to ? [from, to] : [to, from]
-      for (const id of ids.slice(start, end + 1)) next.add(id)
-      selectedIds.value = next
-      lastToggledId = game.id
-      return
+      const [start, end] = from < to ? [from, to] : [to, from];
+      for (const id of ids.slice(start, end + 1)) next.add(id);
+      selectedIds.value = next;
+      lastToggledId = game.id;
+      return;
     }
   }
-  if (next.has(game.id)) next.delete(game.id)
-  else next.add(game.id)
-  selectedIds.value = next
-  lastToggledId = game.id
+  if (next.has(game.id)) next.delete(game.id);
+  else next.add(game.id);
+  selectedIds.value = next;
+  lastToggledId = game.id;
 }
 
 function clearSelection() {
-  selectedIds.value = new Set()
+  selectedIds.value = new Set();
 }
 
 async function onBulkEditSaved(count: number) {
-  showBulkEditModal.value = false
-  selectMode.value = false
-  selectedIds.value = new Set()
-  bulkEditResultCount.value = count
-  await loadGames()
+  showBulkEditModal.value = false;
+  selectMode.value = false;
+  selectedIds.value = new Set();
+  bulkEditResultCount.value = count;
+  await loadGames();
 }
-const bulkEditResultCount = ref<number | null>(null)
+const bulkEditResultCount = ref<number | null>(null);
 
 // bulk-add selected games to a collection, a keyboard/click alternative to
 // dragging cards onto a collection, which this codebase has no drag-and-drop
 // library to build (see the arrow-based reorder in CollectionDetail.vue for
 // the same tradeoff elsewhere)
-const bulkAddingToCollection = ref(false)
+const bulkAddingToCollection = ref(false);
 async function bulkAddToCollection() {
-  if (!selectedIds.value.size) return
-  const name = window.prompt(`Add ${selectedIds.value.size} selected game(s) to which collection?`)
-  if (!name || !name.trim()) return
-  const trimmed = name.trim()
-  bulkAddingToCollection.value = true
+  if (!selectedIds.value.size) return;
+  const name = window.prompt(
+    `Add ${selectedIds.value.size} selected game(s) to which collection?`,
+  );
+  if (!name || !name.trim()) return;
+  const trimmed = name.trim();
+  bulkAddingToCollection.value = true;
   try {
-    await Promise.all([...selectedIds.value].map((id) => addGameToCollection(id, trimmed)))
-    bulkEditResultCount.value = selectedIds.value.size
-    selectMode.value = false
-    selectedIds.value = new Set()
-    await loadGames()
+    await Promise.all(
+      [...selectedIds.value].map((id) => addGameToCollection(id, trimmed)),
+    );
+    bulkEditResultCount.value = selectedIds.value.size;
+    selectMode.value = false;
+    selectedIds.value = new Set();
+    await loadGames();
   } finally {
-    bulkAddingToCollection.value = false
+    bulkAddingToCollection.value = false;
   }
 }
 
 // Steam's "About This Game" section is rich HTML (headers, screenshots,
 // gifs), sanitize it instead of dumping the raw tags as text
 const selectedGameDescriptionHtml = computed(() => {
-  if (!selectedGame.value?.description) return ''
-  return DOMPurify.sanitize(selectedGame.value.description)
-})
+  if (!selectedGame.value?.description) return "";
+  return DOMPurify.sanitize(selectedGame.value.description);
+});
 
 // filters persist across visits (localStorage) so they don't silently reset
 // every time you navigate away and back
-const FILTERS_KEY = 'gameLibraryFilters'
+const FILTERS_KEY = "gameLibraryFilters";
 interface PersistedFilters {
-  searchQuery: string
-  statusFilter: GameStatus | 'all'
-  platformFilter: string
-  genreFilter: string
-  sortBy: SortBy
-  showAdvancedFilters: boolean
-  franchiseFilter: string
-  collectionFilter: string
-  companyFilter: string
-  ageRatingFilter: string
-  regionFilter: string
-  languageFilter: string
-  metadataProviderFilter: string
-  favoritesOnly: boolean
-  achievementsFilter: AchievementsFilter
-  retroAchievementsOnly: boolean
-  missingFilter: MissingFilter
-  tagsFilter: string[]
+  searchQuery: string;
+  statusFilter: GameStatus | "all";
+  platformFilter: string;
+  genreFilter: string;
+  sortBy: SortBy;
+  showAdvancedFilters: boolean;
+  franchiseFilter: string;
+  collectionFilter: string;
+  companyFilter: string;
+  ageRatingFilter: string;
+  regionFilter: string;
+  languageFilter: string;
+  metadataProviderFilter: string;
+  favoritesOnly: boolean;
+  achievementsFilter: AchievementsFilter;
+  retroAchievementsOnly: boolean;
+  missingFilter: MissingFilter;
+  tagsFilter: string[];
 }
 function loadPersistedFilters(): Partial<PersistedFilters> {
   try {
-    const raw = localStorage.getItem(FILTERS_KEY)
-    return raw ? JSON.parse(raw) : {}
+    const raw = localStorage.getItem(FILTERS_KEY);
+    return raw ? JSON.parse(raw) : {};
   } catch {
-    return {}
+    return {};
   }
 }
-const persisted = loadPersistedFilters()
+const persisted = loadPersistedFilters();
 
-const searchQuery = ref(persisted.searchQuery ?? '')
-const statusFilter = ref<GameStatus | 'all'>(persisted.statusFilter ?? 'all')
-const platformFilter = ref<string>(persisted.platformFilter ?? 'all')
-const genreFilter = ref<string>(persisted.genreFilter ?? 'all')
+const searchQuery = ref(persisted.searchQuery ?? "");
+const statusFilter = ref<GameStatus | "all">(persisted.statusFilter ?? "all");
+const platformFilter = ref<string>(persisted.platformFilter ?? "all");
+const genreFilter = ref<string>(persisted.genreFilter ?? "all");
 const sortBy = ref<SortBy>(
-  persisted.sortBy ?? (localStorage.getItem('gameLibraryDefaultSort') as SortBy) ?? 'name',
-)
+  persisted.sortBy ??
+    (localStorage.getItem("gameLibraryDefaultSort") as SortBy) ??
+    "name",
+);
 
-const showAdvancedFilters = ref(persisted.showAdvancedFilters ?? false)
-const franchiseFilter = ref<string>(persisted.franchiseFilter ?? 'all')
-const collectionFilter = ref<string>(persisted.collectionFilter ?? 'all')
-const companyFilter = ref<string>(persisted.companyFilter ?? 'all')
-const ageRatingFilter = ref<string>(persisted.ageRatingFilter ?? 'all')
-const regionFilter = ref<string>(persisted.regionFilter ?? 'all')
-const languageFilter = ref<string>(persisted.languageFilter ?? 'all')
-const metadataProviderFilter = ref<string>(persisted.metadataProviderFilter ?? 'all')
-const favoritesOnly = ref(persisted.favoritesOnly ?? false)
-const achievementsFilter = ref<AchievementsFilter>(persisted.achievementsFilter ?? 'all')
-const retroAchievementsOnly = ref(persisted.retroAchievementsOnly ?? false)
-const missingFilter = ref<MissingFilter>(persisted.missingFilter ?? 'none')
+const showAdvancedFilters = ref(persisted.showAdvancedFilters ?? false);
+const franchiseFilter = ref<string>(persisted.franchiseFilter ?? "all");
+const collectionFilter = ref<string>(persisted.collectionFilter ?? "all");
+const companyFilter = ref<string>(persisted.companyFilter ?? "all");
+const ageRatingFilter = ref<string>(persisted.ageRatingFilter ?? "all");
+const regionFilter = ref<string>(persisted.regionFilter ?? "all");
+const languageFilter = ref<string>(persisted.languageFilter ?? "all");
+const metadataProviderFilter = ref<string>(
+  persisted.metadataProviderFilter ?? "all",
+);
+const favoritesOnly = ref(persisted.favoritesOnly ?? false);
+const achievementsFilter = ref<AchievementsFilter>(
+  persisted.achievementsFilter ?? "all",
+);
+const retroAchievementsOnly = ref(persisted.retroAchievementsOnly ?? false);
+const missingFilter = ref<MissingFilter>(persisted.missingFilter ?? "none");
 // multi-select, OR'd together, layered on top of the single-pick Genre
 // combobox above rather than replacing it, so the common "just one genre"
 // case stays a quick single click
-const tagsFilter = ref<string[]>(persisted.tagsFilter ?? [])
+const tagsFilter = ref<string[]>(persisted.tagsFilter ?? []);
 function toggleTagFilter(tag: string) {
   tagsFilter.value = tagsFilter.value.includes(tag)
     ? tagsFilter.value.filter((t) => t !== tag)
-    : [...tagsFilter.value, tag]
+    : [...tagsFilter.value, tag];
 }
 
 watch(
   [
-    searchQuery, statusFilter, platformFilter, genreFilter, sortBy, showAdvancedFilters,
-    franchiseFilter, collectionFilter, companyFilter, ageRatingFilter, regionFilter,
-    languageFilter, metadataProviderFilter, favoritesOnly, achievementsFilter, retroAchievementsOnly,
-    missingFilter, tagsFilter,
+    searchQuery,
+    statusFilter,
+    platformFilter,
+    genreFilter,
+    sortBy,
+    showAdvancedFilters,
+    franchiseFilter,
+    collectionFilter,
+    companyFilter,
+    ageRatingFilter,
+    regionFilter,
+    languageFilter,
+    metadataProviderFilter,
+    favoritesOnly,
+    achievementsFilter,
+    retroAchievementsOnly,
+    missingFilter,
+    tagsFilter,
   ],
   () => {
     const toSave: PersistedFilters = {
@@ -228,91 +266,94 @@ watch(
       retroAchievementsOnly: retroAchievementsOnly.value,
       missingFilter: missingFilter.value,
       tagsFilter: tagsFilter.value,
-    }
-    localStorage.setItem(FILTERS_KEY, JSON.stringify(toSave))
+    };
+    localStorage.setItem(FILTERS_KEY, JSON.stringify(toSave));
   },
   { deep: true },
-)
+);
 
 // recent searches, shown when the search box gets focus while empty, so
 // getting back to a search you ran a minute ago doesn't mean retyping it
-const RECENT_SEARCHES_KEY = 'gameLibraryRecentSearches'
-const MAX_RECENT_SEARCHES = 6
+const RECENT_SEARCHES_KEY = "gameLibraryRecentSearches";
+const MAX_RECENT_SEARCHES = 6;
 function loadRecentSearches(): string[] {
   try {
-    const raw = localStorage.getItem(RECENT_SEARCHES_KEY)
-    return raw ? JSON.parse(raw) : []
+    const raw = localStorage.getItem(RECENT_SEARCHES_KEY);
+    return raw ? JSON.parse(raw) : [];
   } catch {
-    return []
+    return [];
   }
 }
-const recentSearches = ref<string[]>(loadRecentSearches())
-const showRecentSearches = ref(false)
+const recentSearches = ref<string[]>(loadRecentSearches());
+const showRecentSearches = ref(false);
 function commitSearchToRecent() {
-  const q = searchQuery.value.trim()
-  if (!q) return
-  const next = [q, ...recentSearches.value.filter((s) => s.toLowerCase() !== q.toLowerCase())].slice(
-    0,
-    MAX_RECENT_SEARCHES,
-  )
-  recentSearches.value = next
+  const q = searchQuery.value.trim();
+  if (!q) return;
+  const next = [
+    q,
+    ...recentSearches.value.filter((s) => s.toLowerCase() !== q.toLowerCase()),
+  ].slice(0, MAX_RECENT_SEARCHES);
+  recentSearches.value = next;
   try {
-    localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(next))
+    localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(next));
   } catch {
     // best-effort, recent searches just don't persist, not worth failing over
   }
 }
 function pickRecentSearch(q: string) {
-  searchQuery.value = q
-  showRecentSearches.value = false
+  searchQuery.value = q;
+  showRecentSearches.value = false;
 }
 function removeRecentSearch(q: string) {
-  recentSearches.value = recentSearches.value.filter((s) => s !== q)
+  recentSearches.value = recentSearches.value.filter((s) => s !== q);
   try {
-    localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(recentSearches.value))
+    localStorage.setItem(
+      RECENT_SEARCHES_KEY,
+      JSON.stringify(recentSearches.value),
+    );
   } catch {
     // same as above
   }
 }
 
 const advancedFilterCount = computed(() => {
-  let count = 0
-  if (franchiseFilter.value !== 'all') count++
-  if (collectionFilter.value !== 'all') count++
-  if (companyFilter.value !== 'all') count++
-  if (ageRatingFilter.value !== 'all') count++
-  if (regionFilter.value !== 'all') count++
-  if (languageFilter.value !== 'all') count++
-  if (metadataProviderFilter.value !== 'all') count++
-  if (favoritesOnly.value) count++
-  if (achievementsFilter.value !== 'all') count++
-  if (retroAchievementsOnly.value) count++
-  if (missingFilter.value !== 'none') count++
-  if (tagsFilter.value.length) count++
-  return count
-})
+  let count = 0;
+  if (franchiseFilter.value !== "all") count++;
+  if (collectionFilter.value !== "all") count++;
+  if (companyFilter.value !== "all") count++;
+  if (ageRatingFilter.value !== "all") count++;
+  if (regionFilter.value !== "all") count++;
+  if (languageFilter.value !== "all") count++;
+  if (metadataProviderFilter.value !== "all") count++;
+  if (favoritesOnly.value) count++;
+  if (achievementsFilter.value !== "all") count++;
+  if (retroAchievementsOnly.value) count++;
+  if (missingFilter.value !== "none") count++;
+  if (tagsFilter.value.length) count++;
+  return count;
+});
 
 function clearAdvancedFilters() {
-  franchiseFilter.value = 'all'
-  collectionFilter.value = 'all'
-  companyFilter.value = 'all'
-  ageRatingFilter.value = 'all'
-  regionFilter.value = 'all'
-  languageFilter.value = 'all'
-  metadataProviderFilter.value = 'all'
-  favoritesOnly.value = false
-  achievementsFilter.value = 'all'
-  retroAchievementsOnly.value = false
-  missingFilter.value = 'none'
-  tagsFilter.value = []
+  franchiseFilter.value = "all";
+  collectionFilter.value = "all";
+  companyFilter.value = "all";
+  ageRatingFilter.value = "all";
+  regionFilter.value = "all";
+  languageFilter.value = "all";
+  metadataProviderFilter.value = "all";
+  favoritesOnly.value = false;
+  achievementsFilter.value = "all";
+  retroAchievementsOnly.value = false;
+  missingFilter.value = "none";
+  tagsFilter.value = [];
 }
 
 function clearAllFilters() {
-  searchQuery.value = ''
-  statusFilter.value = 'all'
-  platformFilter.value = 'all'
-  genreFilter.value = 'all'
-  clearAdvancedFilters()
+  searchQuery.value = "";
+  statusFilter.value = "all";
+  platformFilter.value = "all";
+  genreFilter.value = "all";
+  clearAdvancedFilters();
 }
 
 // saved filter presets, a named snapshot of the filter *values*, not a
@@ -320,21 +361,21 @@ function clearAllFilters() {
 // whatever the library looks like right now (the same "Smart Collection"
 // effect, with no separate live-updating machinery needed)
 interface FilterPreset {
-  name: string
-  filters: Omit<PersistedFilters, 'searchQuery' | 'showAdvancedFilters'>
+  name: string;
+  filters: Omit<PersistedFilters, "searchQuery" | "showAdvancedFilters">;
 }
-const PRESETS_KEY = 'gameLibraryFilterPresets'
+const PRESETS_KEY = "gameLibraryFilterPresets";
 function loadPresets(): FilterPreset[] {
   try {
-    const raw = localStorage.getItem(PRESETS_KEY)
-    return raw ? JSON.parse(raw) : []
+    const raw = localStorage.getItem(PRESETS_KEY);
+    return raw ? JSON.parse(raw) : [];
   } catch {
-    return []
+    return [];
   }
 }
-const filterPresets = ref<FilterPreset[]>(loadPresets())
-const showPresetsMenu = ref(false)
-function currentFilterValues(): FilterPreset['filters'] {
+const filterPresets = ref<FilterPreset[]>(loadPresets());
+const showPresetsMenu = ref(false);
+function currentFilterValues(): FilterPreset["filters"] {
   return {
     statusFilter: statusFilter.value,
     platformFilter: platformFilter.value,
@@ -352,46 +393,49 @@ function currentFilterValues(): FilterPreset['filters'] {
     retroAchievementsOnly: retroAchievementsOnly.value,
     missingFilter: missingFilter.value,
     tagsFilter: [...tagsFilter.value],
-  }
+  };
 }
 function saveCurrentAsPreset() {
-  const name = window.prompt('Name this filter combo:')
-  if (!name || !name.trim()) return
-  const trimmed = name.trim()
-  const next = [...filterPresets.value.filter((p) => p.name !== trimmed), { name: trimmed, filters: currentFilterValues() }]
-  filterPresets.value = next
+  const name = window.prompt("Name this filter combo:");
+  if (!name || !name.trim()) return;
+  const trimmed = name.trim();
+  const next = [
+    ...filterPresets.value.filter((p) => p.name !== trimmed),
+    { name: trimmed, filters: currentFilterValues() },
+  ];
+  filterPresets.value = next;
   try {
-    localStorage.setItem(PRESETS_KEY, JSON.stringify(next))
+    localStorage.setItem(PRESETS_KEY, JSON.stringify(next));
   } catch {
     // best-effort, the preset just won't survive a reload
   }
-  showPresetsMenu.value = false
+  showPresetsMenu.value = false;
 }
 function applyPreset(preset: FilterPreset) {
-  statusFilter.value = preset.filters.statusFilter
-  platformFilter.value = preset.filters.platformFilter
-  genreFilter.value = preset.filters.genreFilter
-  sortBy.value = preset.filters.sortBy
-  franchiseFilter.value = preset.filters.franchiseFilter
-  collectionFilter.value = preset.filters.collectionFilter
-  companyFilter.value = preset.filters.companyFilter
-  ageRatingFilter.value = preset.filters.ageRatingFilter
-  regionFilter.value = preset.filters.regionFilter
-  languageFilter.value = preset.filters.languageFilter
-  metadataProviderFilter.value = preset.filters.metadataProviderFilter
-  favoritesOnly.value = preset.filters.favoritesOnly
-  achievementsFilter.value = preset.filters.achievementsFilter
-  retroAchievementsOnly.value = preset.filters.retroAchievementsOnly
-  missingFilter.value = preset.filters.missingFilter
-  tagsFilter.value = [...(preset.filters.tagsFilter ?? [])]
-  showAdvancedFilters.value = true
-  showPresetsMenu.value = false
+  statusFilter.value = preset.filters.statusFilter;
+  platformFilter.value = preset.filters.platformFilter;
+  genreFilter.value = preset.filters.genreFilter;
+  sortBy.value = preset.filters.sortBy;
+  franchiseFilter.value = preset.filters.franchiseFilter;
+  collectionFilter.value = preset.filters.collectionFilter;
+  companyFilter.value = preset.filters.companyFilter;
+  ageRatingFilter.value = preset.filters.ageRatingFilter;
+  regionFilter.value = preset.filters.regionFilter;
+  languageFilter.value = preset.filters.languageFilter;
+  metadataProviderFilter.value = preset.filters.metadataProviderFilter;
+  favoritesOnly.value = preset.filters.favoritesOnly;
+  achievementsFilter.value = preset.filters.achievementsFilter;
+  retroAchievementsOnly.value = preset.filters.retroAchievementsOnly;
+  missingFilter.value = preset.filters.missingFilter;
+  tagsFilter.value = [...(preset.filters.tagsFilter ?? [])];
+  showAdvancedFilters.value = true;
+  showPresetsMenu.value = false;
 }
 function deletePreset(name: string) {
-  const next = filterPresets.value.filter((p) => p.name !== name)
-  filterPresets.value = next
+  const next = filterPresets.value.filter((p) => p.name !== name);
+  filterPresets.value = next;
   try {
-    localStorage.setItem(PRESETS_KEY, JSON.stringify(next))
+    localStorage.setItem(PRESETS_KEY, JSON.stringify(next));
   } catch {
     // same as above
   }
@@ -399,193 +443,210 @@ function deletePreset(name: string) {
 
 // arriving from a Collections-page card click (?collection=Name),
 // pre-apply that filter and surface the panel so it's clear why it's active
-const queryCollection = route.query.collection
-if (typeof queryCollection === 'string' && queryCollection) {
-  collectionFilter.value = queryCollection
-  showAdvancedFilters.value = true
+const queryCollection = route.query.collection;
+if (typeof queryCollection === "string" && queryCollection) {
+  collectionFilter.value = queryCollection;
+  showAdvancedFilters.value = true;
 }
 
-const statusOptions: (GameStatus | 'all')[] = [
-  'all',
-  'wishlist',
-  'backlog',
-  'playing',
-  'on hold',
-  'beaten',
-  'played',
-  'dropped',
-  'mastered',
-]
+const statusOptions: (GameStatus | "all")[] = [
+  "all",
+  "wishlist",
+  "backlog",
+  "playing",
+  "on hold",
+  "beaten",
+  "played",
+  "dropped",
+  "mastered",
+];
 
 // arriving from a Home Hub row link (?status=playing, ?sort=recent)
-const queryStatus = route.query.status
-if (typeof queryStatus === 'string' && statusOptions.includes(queryStatus as GameStatus | 'all')) {
-  statusFilter.value = queryStatus as GameStatus | 'all'
+const queryStatus = route.query.status;
+if (
+  typeof queryStatus === "string" &&
+  statusOptions.includes(queryStatus as GameStatus | "all")
+) {
+  statusFilter.value = queryStatus as GameStatus | "all";
 }
-const querySort = route.query.sort
-if (typeof querySort === 'string' && ['name', 'recent', 'rating', 'playtime', 'neglected'].includes(querySort)) {
-  sortBy.value = querySort as SortBy
+const querySort = route.query.sort;
+if (
+  typeof querySort === "string" &&
+  ["name", "recent", "rating", "playtime", "neglected"].includes(querySort)
+) {
+  sortBy.value = querySort as SortBy;
 }
 // arriving from Server Stats' tag chart (?tag=Name)
-const queryTag = route.query.tag
-if (typeof queryTag === 'string' && queryTag) {
-  genreFilter.value = queryTag
+const queryTag = route.query.tag;
+if (typeof queryTag === "string" && queryTag) {
+  genreFilter.value = queryTag;
 }
 
 const platformOptions = computed(() => {
-  const set = new Set<string>(PLATFORM_OPTIONS)
+  const set = new Set<string>(PLATFORM_OPTIONS);
   games.value.forEach((g) =>
     g.platforms.forEach((p) => {
-      const family = normalizePlatformFamily(p.platform)
-      if (PLATFORM_OPTIONS.includes(family)) set.add(family)
+      const family = normalizePlatformFamily(p.platform);
+      if (PLATFORM_OPTIONS.includes(family)) set.add(family);
     }),
-  )
-  return Array.from(set).sort()
-})
+  );
+  return Array.from(set).sort();
+});
 
 const platformExtraOptions = computed(() => {
-  const set = new Set<string>(RETRO_PLATFORM_OPTIONS)
+  const set = new Set<string>(RETRO_PLATFORM_OPTIONS);
   games.value.forEach((g) =>
     g.platforms.forEach((p) => {
-      const family = normalizePlatformFamily(p.platform)
-      if (!PLATFORM_OPTIONS.includes(family)) set.add(family)
+      const family = normalizePlatformFamily(p.platform);
+      if (!PLATFORM_OPTIONS.includes(family)) set.add(family);
     }),
-  )
-  return Array.from(set).sort()
-})
+  );
+  return Array.from(set).sort();
+});
 
 const genreOptions = computed(() => {
-  const set = new Set<string>(GENRE_OPTIONS)
-  games.value.forEach((g) => g.tags.forEach((t) => set.add(t)))
-  return Array.from(set).sort()
-})
+  const set = new Set<string>(GENRE_OPTIONS);
+  games.value.forEach((g) => g.tags.forEach((t) => set.add(t)));
+  return Array.from(set).sort();
+});
 
 function uniqueValues(pick: (g: Game) => string | null): string[] {
-  const set = new Set<string>()
+  const set = new Set<string>();
   games.value.forEach((g) => {
-    const value = pick(g)
-    if (value) set.add(value)
-  })
-  return Array.from(set).sort()
+    const value = pick(g);
+    if (value) set.add(value);
+  });
+  return Array.from(set).sort();
 }
 
-const franchiseOptions = computed(() => uniqueValues((g) => g.series))
+const franchiseOptions = computed(() => uniqueValues((g) => g.series));
 const collectionOptions = computed(() => {
-  const set = new Set<string>()
-  games.value.forEach((g) => g.collections.forEach((c) => set.add(c)))
-  return Array.from(set).sort()
-})
+  const set = new Set<string>();
+  games.value.forEach((g) => g.collections.forEach((c) => set.add(c)));
+  return Array.from(set).sort();
+});
 const companyOptions = computed(() => {
-  const set = new Set<string>()
+  const set = new Set<string>();
   games.value.forEach((g) => {
-    if (g.developer) set.add(g.developer)
-    if (g.publisher) set.add(g.publisher)
-  })
-  return Array.from(set).sort()
-})
-const ageRatingOptions = computed(() => uniqueValues((g) => g.ageRating))
-const regionOptions = computed(() => uniqueValues((g) => g.region))
-const languageOptions = computed(() => uniqueValues((g) => g.language))
-const metadataProviderOptions = computed(() => uniqueValues((g) => g.source))
+    if (g.developer) set.add(g.developer);
+    if (g.publisher) set.add(g.publisher);
+  });
+  return Array.from(set).sort();
+});
+const ageRatingOptions = computed(() => uniqueValues((g) => g.ageRating));
+const regionOptions = computed(() => uniqueValues((g) => g.region));
+const languageOptions = computed(() => uniqueValues((g) => g.language));
+const metadataProviderOptions = computed(() => uniqueValues((g) => g.source));
 
 function setView(mode: ViewMode) {
-  viewMode.value = mode
-  localStorage.setItem('gameLibraryViewMode', mode)
-  if (mode === 'detail' && !selectedGame.value && games.value.length) {
-    selectedGame.value = games.value[0]
+  viewMode.value = mode;
+  localStorage.setItem("gameLibraryViewMode", mode);
+  if (mode === "detail" && !selectedGame.value && games.value.length) {
+    selectedGame.value = games.value[0];
   }
 }
 
 const bgLayers = ref<{ url: string | null; visible: boolean }[]>([
   { url: null, visible: false },
   { url: null, visible: false },
-])
-const activeLayer = ref(0)
+]);
+const activeLayer = ref(0);
 
 // only crossfade once the cursor has settled on a card briefly, gliding
 // across many cards shouldn't flicker the ambient background
-let hoverDebounceTimer: ReturnType<typeof setTimeout> | null = null
+let hoverDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
 function setHoverImage(url: string | null) {
-  if (hoverDebounceTimer) clearTimeout(hoverDebounceTimer)
+  if (hoverDebounceTimer) clearTimeout(hoverDebounceTimer);
   hoverDebounceTimer = setTimeout(() => {
     if (url === null) {
-      bgLayers.value[activeLayer.value].visible = false
-      return
+      bgLayers.value[activeLayer.value].visible = false;
+      return;
     }
-    const nextLayer = activeLayer.value === 0 ? 1 : 0
-    bgLayers.value[nextLayer] = { url, visible: true }
-    bgLayers.value[activeLayer.value].visible = false
-    activeLayer.value = nextLayer
-  }, 400)
+    const nextLayer = activeLayer.value === 0 ? 1 : 0;
+    bgLayers.value[nextLayer] = { url, visible: true };
+    bgLayers.value[activeLayer.value].visible = false;
+    activeLayer.value = nextLayer;
+  }, 400);
 }
 
 // guards against a slower, earlier loadGames() call overwriting a newer
 // one's result, loadGames is re-triggered from many places (save, delete,
 // collection changes) that can overlap
-let loadGamesToken = 0
+let loadGamesToken = 0;
 
 async function loadGames() {
-  const token = ++loadGamesToken
-  loading.value = true
+  const token = ++loadGamesToken;
+  loading.value = true;
   try {
-    const fetched = await fetchGames()
-    if (token !== loadGamesToken) return
-    games.value = fetched
+    const fetched = await fetchGames();
+    if (token !== loadGamesToken) return;
+    games.value = fetched;
     // best-effort, a failed summary fetch just means no completion badges,
     // not a broken library page
     try {
-      const summary = await fetchAchievementsSummary()
-      if (token !== loadGamesToken) return
+      const summary = await fetchAchievementsSummary();
+      if (token !== loadGamesToken) return;
       for (const game of games.value) {
-        const entry = summary[game.id]
-        if (!entry) continue
-        game.achievementTotal = entry.total
-        game.achievementPercent = entry.total ? Math.round((entry.unlocked / entry.total) * 100) : 0
+        const entry = summary[game.id];
+        if (!entry) continue;
+        game.achievementTotal = entry.total;
+        game.achievementPercent = entry.total
+          ? Math.round((entry.unlocked / entry.total) * 100)
+          : 0;
       }
     } catch {
       // ignore
     }
-    if (viewMode.value === 'detail' && !selectedGame.value && games.value.length) {
-      selectedGame.value = games.value[0]
+    if (
+      viewMode.value === "detail" &&
+      !selectedGame.value &&
+      games.value.length
+    ) {
+      selectedGame.value = games.value[0];
     }
   } catch (err) {
-    if (token !== loadGamesToken) return
-    error.value = err instanceof Error ? err.message : 'Failed to load games'
+    if (token !== loadGamesToken) return;
+    error.value = err instanceof Error ? err.message : "Failed to load games";
   } finally {
-    if (token === loadGamesToken) loading.value = false
+    if (token === loadGamesToken) loading.value = false;
   }
 }
 
 onMounted(async () => {
-  await loadGames()
+  await loadGames();
   // the page has no real height until games render, so restoring scroll
   // before that just gets clamped back to ~0, wait for the grid/list to
   // actually paint, then scroll for real. The position itself was captured
   // by a router guard (state/libraryScroll.ts), not onUnmounted here,
   // that runs before any DOM change from the navigation, so it's reliably
   // the position the user was actually looking at when they left.
-  await nextTick()
-  const y = takeLibraryScroll()
-  if (y > 0) window.scrollTo(0, y)
-})
+  await nextTick();
+  const y = takeLibraryScroll();
+  if (y > 0) window.scrollTo(0, y);
+});
 
 // filters are only remembered while you stay on this page, leaving it
 // (any other route) wipes them so the next visit starts from a clean slate
 onUnmounted(() => {
-  localStorage.removeItem(FILTERS_KEY)
-})
+  localStorage.removeItem(FILTERS_KEY);
+});
 
 // --- Keyboard shortcuts ------------------------------------------------
 // "/" focuses search (common convention, GitHub, Linear, etc.), "n" opens
 // Add Game, Escape backs out of whatever's active. All disabled while
 // typing in a field or while a modal/dialog is open, so they never hijack
 // normal typing or double-fire on top of a dialog's own Escape handling.
-const searchInputRef = ref<HTMLInputElement | null>(null)
+const searchInputRef = ref<HTMLInputElement | null>(null);
 function isTypingTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false
-  const tag = target.tagName
-  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable
+  if (!(target instanceof HTMLElement)) return false;
+  const tag = target.tagName;
+  return (
+    tag === "INPUT" ||
+    tag === "TEXTAREA" ||
+    tag === "SELECT" ||
+    target.isContentEditable
+  );
 }
 function anyModalOpen(): boolean {
   return (
@@ -594,332 +655,469 @@ function anyModalOpen(): boolean {
     showBulkEditModal.value ||
     !!collectionPickerGame.value ||
     isCommandPaletteOpen.value
-  )
+  );
 }
 function onGlobalKeydown(e: KeyboardEvent) {
-  if (anyModalOpen()) return
-  if (e.key === 'Escape') {
-    if (isTypingTarget(e.target) && (e.target as HTMLElement) === searchInputRef.value) {
-      searchQuery.value = ''
-      searchInputRef.value?.blur()
+  if (anyModalOpen()) return;
+  if (e.key === "Escape") {
+    if (
+      isTypingTarget(e.target) &&
+      (e.target as HTMLElement) === searchInputRef.value
+    ) {
+      searchQuery.value = "";
+      searchInputRef.value?.blur();
     } else if (showAdvancedFilters.value) {
-      showAdvancedFilters.value = false
+      showAdvancedFilters.value = false;
     } else if (selectMode.value) {
-      toggleSelectMode()
+      toggleSelectMode();
     }
-    return
+    return;
   }
-  if (isTypingTarget(e.target)) return
-  if (e.key === '/') {
-    e.preventDefault()
-    searchInputRef.value?.focus()
-  } else if (e.key === 'n') {
-    e.preventDefault()
-    openAddModal()
-  } else if ((e.key === 'j' || e.key === 'ArrowDown') && viewMode.value === 'detail') {
-    e.preventDefault()
-    const idx = selectedGame.value ? filteredGames.value.findIndex((g) => g.id === selectedGame.value?.id) : -1
-    if (idx < filteredGames.value.length - 1) selectedGame.value = filteredGames.value[idx + 1]
-  } else if ((e.key === 'k' || e.key === 'ArrowUp') && viewMode.value === 'detail') {
-    e.preventDefault()
-    const idx = selectedGame.value ? filteredGames.value.findIndex((g) => g.id === selectedGame.value?.id) : -1
-    if (idx > 0) selectedGame.value = filteredGames.value[idx - 1]
-  } else if (/^[a-z]$/i.test(e.key) && viewMode.value === 'cards') {
+  if (isTypingTarget(e.target)) return;
+  if (e.key === "/") {
+    e.preventDefault();
+    searchInputRef.value?.focus();
+  } else if (e.key === "n") {
+    e.preventDefault();
+    openAddModal();
+  } else if (
+    (e.key === "j" || e.key === "ArrowDown") &&
+    viewMode.value === "detail"
+  ) {
+    e.preventDefault();
+    const idx = selectedGame.value
+      ? filteredGames.value.findIndex((g) => g.id === selectedGame.value?.id)
+      : -1;
+    if (idx < filteredGames.value.length - 1)
+      selectedGame.value = filteredGames.value[idx + 1];
+  } else if (
+    (e.key === "k" || e.key === "ArrowUp") &&
+    viewMode.value === "detail"
+  ) {
+    e.preventDefault();
+    const idx = selectedGame.value
+      ? filteredGames.value.findIndex((g) => g.id === selectedGame.value?.id)
+      : -1;
+    if (idx > 0) selectedGame.value = filteredGames.value[idx - 1];
+  } else if (/^[a-z]$/i.test(e.key) && viewMode.value === "cards") {
     // 'n' is already claimed by "Add Game" above
-    if (e.key.toLowerCase() === 'n') return
-    const letter = e.key.toLowerCase()
-    const index = filteredGames.value.findIndex((g) => g.title.trim()[0]?.toLowerCase() === letter)
+    if (e.key.toLowerCase() === "n") return;
+    const letter = e.key.toLowerCase();
+    const index = filteredGames.value.findIndex(
+      (g) => g.title.trim()[0]?.toLowerCase() === letter,
+    );
     if (index !== -1) {
-      e.preventDefault()
-      gridFocusIndex.value = index
-      rowVirtualizer.value.scrollToIndex(Math.floor(index / CARD_COLUMNS.value), { align: 'start' })
+      e.preventDefault();
+      gridFocusIndex.value = index;
+      rowVirtualizer.value.scrollToIndex(
+        Math.floor(index / CARD_COLUMNS.value),
+        { align: "start" },
+      );
     }
   } else if (
-    viewMode.value === 'cards' &&
+    viewMode.value === "cards" &&
     !selectMode.value &&
-    ['ArrowRight', 'ArrowLeft', 'ArrowUp', 'ArrowDown'].includes(e.key)
+    ["ArrowRight", "ArrowLeft", "ArrowUp", "ArrowDown"].includes(e.key)
   ) {
-    const count = filteredGames.value.length
-    if (!count) return
-    e.preventDefault()
-    let idx = gridFocusIndex.value ?? 0
-    if (e.key === 'ArrowRight') idx = Math.min(idx + 1, count - 1)
-    else if (e.key === 'ArrowLeft') idx = Math.max(idx - 1, 0)
-    else if (e.key === 'ArrowDown') idx = Math.min(idx + CARD_COLUMNS.value, count - 1)
-    else if (e.key === 'ArrowUp') idx = Math.max(idx - CARD_COLUMNS.value, 0)
-    gridFocusIndex.value = idx
-    rowVirtualizer.value.scrollToIndex(Math.floor(idx / CARD_COLUMNS.value), { align: 'auto' })
-  } else if (e.key === 'Enter' && viewMode.value === 'cards' && gridFocusIndex.value !== null) {
-    const game = filteredGames.value[gridFocusIndex.value]
+    const count = filteredGames.value.length;
+    if (!count) return;
+    e.preventDefault();
+    let idx = gridFocusIndex.value ?? 0;
+    if (e.key === "ArrowRight") idx = Math.min(idx + 1, count - 1);
+    else if (e.key === "ArrowLeft") idx = Math.max(idx - 1, 0);
+    else if (e.key === "ArrowDown")
+      idx = Math.min(idx + CARD_COLUMNS.value, count - 1);
+    else if (e.key === "ArrowUp") idx = Math.max(idx - CARD_COLUMNS.value, 0);
+    gridFocusIndex.value = idx;
+    rowVirtualizer.value.scrollToIndex(Math.floor(idx / CARD_COLUMNS.value), {
+      align: "auto",
+    });
+  } else if (
+    e.key === "Enter" &&
+    viewMode.value === "cards" &&
+    gridFocusIndex.value !== null
+  ) {
+    const game = filteredGames.value[gridFocusIndex.value];
     if (game) {
-      e.preventDefault()
-      router.push(`/games/${game.id}`)
+      e.preventDefault();
+      router.push(`/games/${game.id}`);
     }
   }
 }
-onMounted(() => window.addEventListener('keydown', onGlobalKeydown))
-onUnmounted(() => window.removeEventListener('keydown', onGlobalKeydown))
+onMounted(() => window.addEventListener("keydown", onGlobalKeydown));
+onUnmounted(() => window.removeEventListener("keydown", onGlobalKeydown));
 
 function openAddModal() {
-  editingGame.value = null
-  showFormModal.value = true
+  editingGame.value = null;
+  showFormModal.value = true;
 }
 
 function openEditModal(game: Game) {
-  editingGame.value = game
-  showFormModal.value = true
+  editingGame.value = game;
+  showFormModal.value = true;
 }
 
 async function onGameSaved() {
-  showFormModal.value = false
-  editingGame.value = null
-  await loadGames()
+  showFormModal.value = false;
+  editingGame.value = null;
+  await loadGames();
 }
 
 function onDeleteFromModal(gameId: string) {
-  const game = games.value.find((g) => g.id === gameId)
-  showFormModal.value = false
-  editingGame.value = null
-  if (game) requestDelete(game)
+  const game = games.value.find((g) => g.id === gameId);
+  showFormModal.value = false;
+  editingGame.value = null;
+  if (game) requestDelete(game);
 }
 
 function requestDelete(game: Game) {
-  deletingGame.value = game
-  deleteError.value = null
+  deletingGame.value = game;
+  deleteError.value = null;
 }
 
 async function toggleFavorite(game: Game) {
-  const next = !game.favorite
-  game.favorite = next
+  const next = !game.favorite;
+  game.favorite = next;
   try {
-    await setFavorite(game.id, next)
+    await setFavorite(game.id, next);
   } catch {
-    game.favorite = !next
+    game.favorite = !next;
   }
 }
 
-const collectionPickerGame = ref<Game | null>(null)
+const collectionPickerGame = ref<Game | null>(null);
 
 function handleAddToCollection(game: Game) {
-  collectionPickerGame.value = game
+  collectionPickerGame.value = game;
 }
 
 async function onCollectionAdded() {
-  await loadGames()
+  await loadGames();
 }
 
 async function confirmDelete() {
-  if (!deletingGame.value) return
-  deleting.value = true
-  deleteError.value = null
+  if (!deletingGame.value) return;
+  deleting.value = true;
+  deleteError.value = null;
   try {
-    await deleteGame(deletingGame.value.id)
-    if (selectedGame.value?.id === deletingGame.value.id) selectedGame.value = null
-    deletingGame.value = null
-    await loadGames()
+    await deleteGame(deletingGame.value.id);
+    if (selectedGame.value?.id === deletingGame.value.id)
+      selectedGame.value = null;
+    deletingGame.value = null;
+    await loadGames();
   } catch (err) {
-    deleteError.value = err instanceof Error ? err.message : 'Failed to delete game'
+    deleteError.value =
+      err instanceof Error ? err.message : "Failed to delete game";
   } finally {
-    deleting.value = false
+    deleting.value = false;
   }
 }
 
 function gameTotalMinutes(game: Game): number {
-  return game.platforms.reduce((sum, p) => sum + p.playtimeMinutes, 0)
+  return game.platforms.reduce((sum, p) => sum + p.playtimeMinutes, 0);
 }
 
 function totalPlaytime(game: Game): string {
-  const minutes = gameTotalMinutes(game)
-  if (minutes === 0) return 'N/A'
-  const hours = Math.floor(minutes / 60)
-  return `${hours}h`
+  const minutes = gameTotalMinutes(game);
+  if (minutes === 0) return "N/A";
+  const hours = Math.floor(minutes / 60);
+  return `${hours}h`;
 }
 
 function gameLastPlayed(game: Game): string | null {
-  const dates = game.platforms.map((p) => p.lastPlayedAt).filter((d): d is string => d !== null)
-  return dates.length ? dates.reduce((latest, d) => (d > latest ? d : latest)) : null
+  const dates = game.platforms
+    .map((p) => p.lastPlayedAt)
+    .filter((d): d is string => d !== null);
+  return dates.length
+    ? dates.reduce((latest, d) => (d > latest ? d : latest))
+    : null;
 }
 
 function openGame(game: Game) {
-  router.push(`/games/${game.id}`)
+  router.push(`/games/${game.id}`);
 }
 
 const filteredGames = computed(() => {
-  let result = games.value
+  let result = games.value;
 
-  if (statusFilter.value !== 'all') {
-    result = result.filter((g) => g.status === statusFilter.value)
+  if (statusFilter.value !== "all") {
+    result = result.filter((g) => g.status === statusFilter.value);
   }
-  if (platformFilter.value !== 'all') {
-    result = result.filter((g) => g.platforms.some((p) => normalizePlatformFamily(p.platform) === platformFilter.value))
+  if (platformFilter.value !== "all") {
+    result = result.filter((g) =>
+      g.platforms.some(
+        (p) => normalizePlatformFamily(p.platform) === platformFilter.value,
+      ),
+    );
   }
-  if (genreFilter.value !== 'all') {
-    result = result.filter((g) => g.tags.includes(genreFilter.value))
+  if (genreFilter.value !== "all") {
+    result = result.filter((g) => g.tags.includes(genreFilter.value));
   }
-  if (franchiseFilter.value !== 'all') {
-    result = result.filter((g) => g.series === franchiseFilter.value)
+  if (franchiseFilter.value !== "all") {
+    result = result.filter((g) => g.series === franchiseFilter.value);
   }
-  if (collectionFilter.value !== 'all') {
-    result = result.filter((g) => g.collections.includes(collectionFilter.value))
+  if (collectionFilter.value !== "all") {
+    result = result.filter((g) =>
+      g.collections.includes(collectionFilter.value),
+    );
   }
-  if (companyFilter.value !== 'all') {
-    result = result.filter((g) => g.developer === companyFilter.value || g.publisher === companyFilter.value)
+  if (companyFilter.value !== "all") {
+    result = result.filter(
+      (g) =>
+        g.developer === companyFilter.value ||
+        g.publisher === companyFilter.value,
+    );
   }
-  if (ageRatingFilter.value !== 'all') {
-    result = result.filter((g) => g.ageRating === ageRatingFilter.value)
+  if (ageRatingFilter.value !== "all") {
+    result = result.filter((g) => g.ageRating === ageRatingFilter.value);
   }
-  if (regionFilter.value !== 'all') {
-    result = result.filter((g) => g.region === regionFilter.value)
+  if (regionFilter.value !== "all") {
+    result = result.filter((g) => g.region === regionFilter.value);
   }
-  if (languageFilter.value !== 'all') {
-    result = result.filter((g) => g.language === languageFilter.value)
+  if (languageFilter.value !== "all") {
+    result = result.filter((g) => g.language === languageFilter.value);
   }
-  if (metadataProviderFilter.value !== 'all') {
-    result = result.filter((g) => g.source === metadataProviderFilter.value)
+  if (metadataProviderFilter.value !== "all") {
+    result = result.filter((g) => g.source === metadataProviderFilter.value);
   }
   if (favoritesOnly.value) {
-    result = result.filter((g) => g.favorite)
+    result = result.filter((g) => g.favorite);
   }
-  if (achievementsFilter.value === 'has') {
-    result = result.filter((g) => g.achievementTotal > 0)
-  } else if (achievementsFilter.value === 'none') {
-    result = result.filter((g) => g.achievementTotal === 0)
+  if (achievementsFilter.value === "has") {
+    result = result.filter((g) => g.achievementTotal > 0);
+  } else if (achievementsFilter.value === "none") {
+    result = result.filter((g) => g.achievementTotal === 0);
   }
   if (retroAchievementsOnly.value) {
-    result = result.filter((g) => g.achievementsProvider === 'retroachievements')
+    result = result.filter(
+      (g) => g.achievementsProvider === "retroachievements",
+    );
   }
-  if (missingFilter.value === 'playtime') {
-    result = result.filter((g) => gameTotalMinutes(g) === 0)
-  } else if (missingFilter.value === 'rating') {
-    result = result.filter((g) => g.ratingOverall === null)
-  } else if (missingFilter.value === 'tags') {
-    result = result.filter((g) => g.tags.length === 0)
-  } else if (missingFilter.value === 'description') {
-    result = result.filter((g) => !g.description)
+  if (missingFilter.value === "playtime") {
+    result = result.filter((g) => gameTotalMinutes(g) === 0);
+  } else if (missingFilter.value === "rating") {
+    result = result.filter((g) => g.ratingOverall === null);
+  } else if (missingFilter.value === "tags") {
+    result = result.filter((g) => g.tags.length === 0);
+  } else if (missingFilter.value === "description") {
+    result = result.filter((g) => !g.description);
   }
   if (tagsFilter.value.length) {
-    result = result.filter((g) => g.tags.some((t) => tagsFilter.value.includes(t)))
+    result = result.filter((g) =>
+      g.tags.some((t) => tagsFilter.value.includes(t)),
+    );
   }
 
-  const q = searchQuery.value.trim().toLowerCase()
+  const q = searchQuery.value.trim().toLowerCase();
   if (q) {
-    result = result.filter((g) => fuzzyTitleMatch(g.title, q))
+    result = result.filter((g) => fuzzyTitleMatch(g.title, q));
   }
 
   result = [...result].sort((a, b) => {
-    if (sortBy.value === 'name') return a.title.localeCompare(b.title)
-    if (sortBy.value === 'recent') return (b.dateAdded ?? '').localeCompare(a.dateAdded ?? '')
-    if (sortBy.value === 'rating') {
-      const scoreA = computeScore(a)?.sum ?? -1
-      const scoreB = computeScore(b)?.sum ?? -1
-      return scoreB - scoreA
+    if (sortBy.value === "name") return a.title.localeCompare(b.title);
+    if (sortBy.value === "recent")
+      return (b.dateAdded ?? "").localeCompare(a.dateAdded ?? "");
+    if (sortBy.value === "rating") {
+      const scoreA = computeScore(a)?.sum ?? -1;
+      const scoreB = computeScore(b)?.sum ?? -1;
+      return scoreB - scoreA;
     }
-    if (sortBy.value === 'playtime') return gameTotalMinutes(b) - gameTotalMinutes(a)
+    if (sortBy.value === "playtime")
+      return gameTotalMinutes(b) - gameTotalMinutes(a);
     // never-played games sort first (most neglected), then oldest-last-played first
-    if (sortBy.value === 'neglected') return (gameLastPlayed(a) ?? '').localeCompare(gameLastPlayed(b) ?? '')
-    return 0
-  })
+    if (sortBy.value === "neglected")
+      return (gameLastPlayed(a) ?? "").localeCompare(gameLastPlayed(b) ?? "");
+    return 0;
+  });
 
-  return result
-})
+  return result;
+});
 
 // keeps GameDetail.vue's J/K next/prev shortcut in sync with whatever
 // order the library is actually showing right now (filters + sort applied)
-watch(filteredGames, (list) => setLibraryNavOrder(list.map((g) => g.id)), { immediate: true })
+watch(filteredGames, (list) => setLibraryNavOrder(list.map((g) => g.id)), {
+  immediate: true,
+});
 // stale keyboard focus (pointing at a game that scrolled out of the
 // filtered results) is worse than none, drop it whenever the list changes
 watch(filteredGames, () => {
-  gridFocusIndex.value = null
-})
+  gridFocusIndex.value = null;
+});
 
-const hasAnyGames = computed(() => games.value.length > 0)
-const isEmpty = computed(() => !loading.value && !error.value && filteredGames.value.length === 0)
+const hasAnyGames = computed(() => games.value.length > 0);
+const isEmpty = computed(
+  () => !loading.value && !error.value && filteredGames.value.length === 0,
+);
 
 // zero-result search suggestions, a cheap edit-distance check against
 // every known title, not a real fuzzy-search index, but enough to catch
 // the common case of a typo
 function levenshtein(a: string, b: string): number {
-  const dp: number[][] = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)])
-  for (let j = 0; j <= b.length; j++) dp[0][j] = j
+  const dp: number[][] = Array.from({ length: a.length + 1 }, (_, i) => [
+    i,
+    ...Array(b.length).fill(0),
+  ]);
+  for (let j = 0; j <= b.length; j++) dp[0][j] = j;
   for (let i = 1; i <= a.length; i++) {
     for (let j = 1; j <= b.length; j++) {
       dp[i][j] =
         a[i - 1] === b[j - 1]
           ? dp[i - 1][j - 1]
-          : 1 + Math.min(dp[i - 1][j - 1], dp[i - 1][j], dp[i][j - 1])
+          : 1 + Math.min(dp[i - 1][j - 1], dp[i - 1][j], dp[i][j - 1]);
     }
   }
-  return dp[a.length][b.length]
+  return dp[a.length][b.length];
 }
 
 // exact substring always wins first (cheap, predictable); only falls back to
 // edit-distance against individual title words for queries long enough that
 // a couple of typos won't produce false positives against short titles
 function fuzzyTitleMatch(title: string, q: string): boolean {
-  const lowerTitle = title.toLowerCase()
-  if (lowerTitle.includes(q)) return true
-  if (q.length < 4) return false
-  const threshold = Math.max(1, Math.floor(q.length * 0.34))
-  return lowerTitle.split(/\s+/).some((word) => levenshtein(q, word) <= threshold)
+  const lowerTitle = title.toLowerCase();
+  if (lowerTitle.includes(q)) return true;
+  if (q.length < 4) return false;
+  const threshold = Math.max(1, Math.floor(q.length * 0.34));
+  return lowerTitle
+    .split(/\s+/)
+    .some((word) => levenshtein(q, word) <= threshold);
 }
 
 const searchSuggestions = computed(() => {
-  const q = searchQuery.value.trim().toLowerCase()
-  if (!q || filteredGames.value.length > 0 || games.value.length === 0) return []
-  return games.value
-    .map((g) => ({ title: g.title, distance: levenshtein(q, g.title.toLowerCase()) }))
-    // scaled to query length, a short typo-prone query needs a tighter
-    // tolerance than a long title, or everything "matches"
-    .filter((g) => g.distance <= Math.max(2, Math.ceil(q.length * 0.4)))
-    .sort((a, b) => a.distance - b.distance)
-    .slice(0, 3)
-    .map((g) => g.title)
-})
+  const q = searchQuery.value.trim().toLowerCase();
+  if (!q || filteredGames.value.length > 0 || games.value.length === 0)
+    return [];
+  return (
+    games.value
+      .map((g) => ({
+        title: g.title,
+        distance: levenshtein(q, g.title.toLowerCase()),
+      }))
+      // scaled to query length, a short typo-prone query needs a tighter
+      // tolerance than a long title, or everything "matches"
+      .filter((g) => g.distance <= Math.max(2, Math.ceil(q.length * 0.4)))
+      .sort((a, b) => a.distance - b.distance)
+      .slice(0, 3)
+      .map((g) => g.title)
+  );
+});
 
 // active-filter pills shown above the grid, each entry's clear() resets
 // just that one filter, so the whole set doesn't have to be visible only
 // inside the dropdowns to know (or undo) what's currently applied
 const activeFilterPills = computed(() => {
-  const pills: { key: string; label: string; clear: () => void }[] = []
-  if (statusFilter.value !== 'all') pills.push({ key: 'status', label: statusFilter.value, clear: () => (statusFilter.value = 'all') })
-  if (platformFilter.value !== 'all') pills.push({ key: 'platform', label: platformFilter.value, clear: () => (platformFilter.value = 'all') })
-  if (genreFilter.value !== 'all') pills.push({ key: 'genre', label: genreFilter.value, clear: () => (genreFilter.value = 'all') })
-  if (franchiseFilter.value !== 'all') pills.push({ key: 'franchise', label: franchiseFilter.value, clear: () => (franchiseFilter.value = 'all') })
-  if (collectionFilter.value !== 'all') pills.push({ key: 'collection', label: collectionFilter.value, clear: () => (collectionFilter.value = 'all') })
-  if (companyFilter.value !== 'all') pills.push({ key: 'company', label: companyFilter.value, clear: () => (companyFilter.value = 'all') })
-  if (ageRatingFilter.value !== 'all') pills.push({ key: 'age', label: ageRatingFilter.value, clear: () => (ageRatingFilter.value = 'all') })
-  if (regionFilter.value !== 'all') pills.push({ key: 'region', label: regionFilter.value, clear: () => (regionFilter.value = 'all') })
-  if (languageFilter.value !== 'all') pills.push({ key: 'language', label: languageFilter.value, clear: () => (languageFilter.value = 'all') })
-  if (metadataProviderFilter.value !== 'all') pills.push({ key: 'provider', label: metadataProviderFilter.value, clear: () => (metadataProviderFilter.value = 'all') })
-  if (favoritesOnly.value) pills.push({ key: 'favorites', label: '★ Favorites', clear: () => (favoritesOnly.value = false) })
-  if (achievementsFilter.value !== 'all') {
+  const pills: { key: string; label: string; clear: () => void }[] = [];
+  if (statusFilter.value !== "all")
     pills.push({
-      key: 'achievements',
-      label: achievementsFilter.value === 'has' ? 'Has achievements' : 'No achievements',
-      clear: () => (achievementsFilter.value = 'all'),
-    })
+      key: "status",
+      label: statusFilter.value,
+      clear: () => (statusFilter.value = "all"),
+    });
+  if (platformFilter.value !== "all")
+    pills.push({
+      key: "platform",
+      label: platformFilter.value,
+      clear: () => (platformFilter.value = "all"),
+    });
+  if (genreFilter.value !== "all")
+    pills.push({
+      key: "genre",
+      label: genreFilter.value,
+      clear: () => (genreFilter.value = "all"),
+    });
+  if (franchiseFilter.value !== "all")
+    pills.push({
+      key: "franchise",
+      label: franchiseFilter.value,
+      clear: () => (franchiseFilter.value = "all"),
+    });
+  if (collectionFilter.value !== "all")
+    pills.push({
+      key: "collection",
+      label: collectionFilter.value,
+      clear: () => (collectionFilter.value = "all"),
+    });
+  if (companyFilter.value !== "all")
+    pills.push({
+      key: "company",
+      label: companyFilter.value,
+      clear: () => (companyFilter.value = "all"),
+    });
+  if (ageRatingFilter.value !== "all")
+    pills.push({
+      key: "age",
+      label: ageRatingFilter.value,
+      clear: () => (ageRatingFilter.value = "all"),
+    });
+  if (regionFilter.value !== "all")
+    pills.push({
+      key: "region",
+      label: regionFilter.value,
+      clear: () => (regionFilter.value = "all"),
+    });
+  if (languageFilter.value !== "all")
+    pills.push({
+      key: "language",
+      label: languageFilter.value,
+      clear: () => (languageFilter.value = "all"),
+    });
+  if (metadataProviderFilter.value !== "all")
+    pills.push({
+      key: "provider",
+      label: metadataProviderFilter.value,
+      clear: () => (metadataProviderFilter.value = "all"),
+    });
+  if (favoritesOnly.value)
+    pills.push({
+      key: "favorites",
+      label: "★ Favorites",
+      clear: () => (favoritesOnly.value = false),
+    });
+  if (achievementsFilter.value !== "all") {
+    pills.push({
+      key: "achievements",
+      label:
+        achievementsFilter.value === "has"
+          ? "Has achievements"
+          : "No achievements",
+      clear: () => (achievementsFilter.value = "all"),
+    });
   }
-  if (retroAchievementsOnly.value) pills.push({ key: 'retro', label: 'RetroAchievements tracked', clear: () => (retroAchievementsOnly.value = false) })
-  if (missingFilter.value !== 'none') {
-    const labels: Record<Exclude<MissingFilter, 'none'>, string> = {
-      playtime: 'No playtime logged',
-      rating: 'No rating',
-      tags: 'No tags',
-      description: 'No description',
-    }
-    pills.push({ key: 'missing', label: labels[missingFilter.value], clear: () => (missingFilter.value = 'none') })
+  if (retroAchievementsOnly.value)
+    pills.push({
+      key: "retro",
+      label: "RetroAchievements tracked",
+      clear: () => (retroAchievementsOnly.value = false),
+    });
+  if (missingFilter.value !== "none") {
+    const labels: Record<Exclude<MissingFilter, "none">, string> = {
+      playtime: "No playtime logged",
+      rating: "No rating",
+      tags: "No tags",
+      description: "No description",
+    };
+    pills.push({
+      key: "missing",
+      label: labels[missingFilter.value],
+      clear: () => (missingFilter.value = "none"),
+    });
   }
   for (const tag of tagsFilter.value) {
-    pills.push({ key: 'tag:' + tag, label: tag, clear: () => toggleTagFilter(tag) })
+    pills.push({
+      key: "tag:" + tag,
+      label: tag,
+      clear: () => toggleTagFilter(tag),
+    });
   }
-  return pills
-})
+  return pills;
+});
 
 // card density, a coarse 3-step alternative to CARD_COLUMNS' fixed
 // viewport breakpoints, layered on top rather than replacing them so the
 // grid still adapts sensibly across screen sizes at every density
-const cardDensity = ref<CardDensity>((localStorage.getItem('gameLibraryDensity') as CardDensity) || 'cozy')
-watch(cardDensity, (d) => localStorage.setItem('gameLibraryDensity', d))
+const cardDensity = ref<CardDensity>(
+  (localStorage.getItem("gameLibraryDensity") as CardDensity) || "cozy",
+);
+watch(cardDensity, (d) => localStorage.setItem("gameLibraryDensity", d));
 
 // virtualized cards grid, with 150+ games each rendering a real <img> plus
 // hover/transform effects, mounting every card at once was the actual
@@ -933,74 +1131,80 @@ watch(cardDensity, (d) => localStorage.setItem('gameLibraryDensity', d))
 // unreadable ~35px sliver on a phone; the grid's inline
 // grid-template-columns reads this same computed value, so the JS slicing
 // and the CSS layout can never disagree about how many cards are per row.
-const viewportWidth = ref(window.innerWidth)
+const viewportWidth = ref(window.innerWidth);
 function onResize() {
-  viewportWidth.value = window.innerWidth
-  if (viewMode.value === 'shelves') updateAllShelfArrows()
+  viewportWidth.value = window.innerWidth;
+  if (viewMode.value === "shelves") updateAllShelfArrows();
 }
-onMounted(() => window.addEventListener('resize', onResize))
-onUnmounted(() => window.removeEventListener('resize', onResize))
+onMounted(() => window.addEventListener("resize", onResize));
+onUnmounted(() => window.removeEventListener("resize", onResize));
 
 const CARD_COLUMNS = computed(() => {
-  const w = viewportWidth.value
-  let base: number
-  if (w < 480) base = 2
-  else if (w < 700) base = 3
-  else if (w < 900) base = 4
-  else if (w < 1150) base = 6
-  else if (w < 1400) base = 8
-  else base = 10
-  if (cardDensity.value === 'compact') return Math.round(base * 1.35)
-  if (cardDensity.value === 'large') return Math.max(1, Math.round(base * 0.6))
-  return base
-})
-const cardRowCount = computed(() => Math.ceil(filteredGames.value.length / CARD_COLUMNS.value))
+  const w = viewportWidth.value;
+  let base: number;
+  if (w < 480) base = 2;
+  else if (w < 700) base = 3;
+  else if (w < 900) base = 4;
+  else if (w < 1150) base = 6;
+  else if (w < 1400) base = 8;
+  else base = 10;
+  if (cardDensity.value === "compact") return Math.round(base * 1.35);
+  if (cardDensity.value === "large") return Math.max(1, Math.round(base * 0.6));
+  return base;
+});
+const cardRowCount = computed(() =>
+  Math.ceil(filteredGames.value.length / CARD_COLUMNS.value),
+);
 const rowVirtualizer = useWindowVirtualizer(
   computed(() => ({
     count: cardRowCount.value,
     estimateSize: () => 330,
     overscan: 3,
   })),
-)
+);
 function cardsInRow(rowIndex: number): Game[] {
-  const start = rowIndex * CARD_COLUMNS.value
-  return filteredGames.value.slice(start, start + CARD_COLUMNS.value)
+  const start = rowIndex * CARD_COLUMNS.value;
+  return filteredGames.value.slice(start, start + CARD_COLUMNS.value);
 }
 
 // "Shelves" view, Home Hub's grouped-row layout, applied to the whole
 // (filtered) library instead of just Continue Playing/Recently Added
 const sourceShelves = computed(() => {
-  const map = new Map<string, Game[]>()
+  const map = new Map<string, Game[]>();
   for (const g of filteredGames.value) {
-    const key = g.source || 'Other'
-    if (!map.has(key)) map.set(key, [])
-    map.get(key)!.push(g)
+    const key = g.source || "Other";
+    if (!map.has(key)) map.set(key, []);
+    map.get(key)!.push(g);
   }
-  return [...map.entries()].sort((a, b) => b[1].length - a[1].length).map(([name, list]) => ({ name, games: list }))
-})
+  return [...map.entries()]
+    .sort((a, b) => b[1].length - a[1].length)
+    .map(([name, list]) => ({ name, games: list }));
+});
 function scrollShelf(e: MouseEvent, dir: 1 | -1) {
-  const wrap = (e.currentTarget as HTMLElement).closest('.shelf-wrap')
-  const shelf = wrap?.querySelector('.shelf') as HTMLElement | null
-  if (!shelf) return
-  shelf.scrollBy({ left: dir * shelf.clientWidth * 0.9, behavior: 'smooth' })
+  const wrap = (e.currentTarget as HTMLElement).closest(".shelf-wrap");
+  const shelf = wrap?.querySelector(".shelf") as HTMLElement | null;
+  if (!shelf) return;
+  shelf.scrollBy({ left: dir * shelf.clientWidth * 0.9, behavior: "smooth" });
 }
 // same arrow-visibility pattern as Home Hub's shelves, only shown once
 // there's actually somewhere left to scroll
 function updateShelfArrows(shelf: HTMLElement) {
-  const wrap = shelf.closest('.shelf-wrap')
-  if (!wrap) return
-  const left = wrap.querySelector('.shelf-arrow.left')
-  const right = wrap.querySelector('.shelf-arrow.right')
-  const maxScroll = shelf.scrollWidth - shelf.clientWidth
-  left?.classList.toggle('can-scroll', shelf.scrollLeft > 4)
-  right?.classList.toggle('can-scroll', shelf.scrollLeft < maxScroll - 4)
+  const wrap = shelf.closest(".shelf-wrap");
+  if (!wrap) return;
+  const left = wrap.querySelector(".shelf-arrow.left");
+  const right = wrap.querySelector(".shelf-arrow.right");
+  const maxScroll = shelf.scrollWidth - shelf.clientWidth;
+  left?.classList.toggle("can-scroll", shelf.scrollLeft > 4);
+  right?.classList.toggle("can-scroll", shelf.scrollLeft < maxScroll - 4);
 }
 function updateAllShelfArrows() {
-  document.querySelectorAll<HTMLElement>('.shelves-view .shelf').forEach(updateShelfArrows)
+  document
+    .querySelectorAll<HTMLElement>(".shelves-view .shelf")
+    .forEach(updateShelfArrows);
 }
 watch(viewMode, (mode) => {
-  if (mode === 'shelves') nextTick(updateAllShelfArrows)
-})
+  if (mode === "shelves") nextTick(updateAllShelfArrows);
+});
 </script>
 
 <template>
@@ -1015,7 +1219,9 @@ watch(viewMode, (mode) => {
 
     <div v-if="currentUser" class="profile-chip">
       <span class="profile-name">{{ currentUser.username }}</span>
-      <div class="profile-avatar">{{ currentUser.username.slice(0, 2).toUpperCase() }}</div>
+      <div class="profile-avatar">
+        {{ currentUser.username.slice(0, 2).toUpperCase() }}
+      </div>
     </div>
 
     <div class="content">
@@ -1030,11 +1236,18 @@ watch(viewMode, (mode) => {
               class="search-input"
               placeholder="Search games… (/)"
               @focus="showRecentSearches = true"
-              @blur="showRecentSearches = false; commitSearchToRecent()"
+              @blur="
+                showRecentSearches = false;
+                commitSearchToRecent();
+              "
               @keydown.enter="commitSearchToRecent"
             />
             <div
-              v-if="showRecentSearches && !searchQuery.trim() && recentSearches.length"
+              v-if="
+                showRecentSearches &&
+                !searchQuery.trim() &&
+                recentSearches.length
+              "
               class="recent-searches-dropdown"
             >
               <div class="recent-searches-label">Recent searches</div>
@@ -1046,13 +1259,17 @@ watch(viewMode, (mode) => {
                 @mousedown.prevent="pickRecentSearch(q)"
               >
                 <span>{{ q }}</span>
-                <span class="recent-search-remove" @mousedown.prevent.stop="removeRecentSearch(q)">✕</span>
+                <span
+                  class="recent-search-remove"
+                  @mousedown.prevent.stop="removeRecentSearch(q)"
+                  >✕</span
+                >
               </button>
             </div>
           </div>
           <select v-model="statusFilter" class="filter-select">
             <option v-for="s in statusOptions" :key="s" :value="s">
-              {{ s === 'all' ? 'All statuses' : s }}
+              {{ s === "all" ? "All statuses" : s }}
             </option>
           </select>
           <FilterCombobox
@@ -1063,7 +1280,12 @@ watch(viewMode, (mode) => {
             placeholder="Platform"
             all-label="All platforms"
           />
-          <FilterCombobox v-model="genreFilter" :options="genreOptions" placeholder="Genre" all-label="All genres" />
+          <FilterCombobox
+            v-model="genreFilter"
+            :options="genreOptions"
+            placeholder="Genre"
+            all-label="All genres"
+          />
           <select v-model="sortBy" class="filter-select">
             <option value="name">Name</option>
             <option value="recent">Recently added</option>
@@ -1072,9 +1294,13 @@ watch(viewMode, (mode) => {
             <option value="neglected">Neglected (least recently played)</option>
           </select>
 
-          <div v-if="viewMode === 'cards'" class="density-toggle" title="Card size">
+          <div
+            v-if="viewMode === 'cards'"
+            class="density-toggle"
+            title="Card size"
+          >
             <button
-              v-for="d in (['compact', 'cozy', 'large'] as CardDensity[])"
+              v-for="d in ['compact', 'cozy', 'large'] as CardDensity[]"
               :key="d"
               type="button"
               class="density-button"
@@ -1082,7 +1308,7 @@ watch(viewMode, (mode) => {
               :title="d"
               @click="cardDensity = d"
             >
-              {{ d === 'compact' ? 'S' : d === 'cozy' ? 'M' : 'L' }}
+              {{ d === "compact" ? "S" : d === "cozy" ? "M" : "L" }}
             </button>
           </div>
 
@@ -1094,7 +1320,16 @@ watch(viewMode, (mode) => {
               title="Cards"
               @click="setView('cards')"
             >
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <svg
+                viewBox="0 0 24 24"
+                width="16"
+                height="16"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
                 <rect x="3" y="3" width="8" height="8" rx="1" />
                 <rect x="13" y="3" width="8" height="8" rx="1" />
                 <rect x="3" y="13" width="8" height="8" rx="1" />
@@ -1108,7 +1343,16 @@ watch(viewMode, (mode) => {
               title="List"
               @click="setView('list')"
             >
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <svg
+                viewBox="0 0 24 24"
+                width="16"
+                height="16"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
                 <line x1="4" y1="6" x2="20" y2="6" />
                 <line x1="4" y1="12" x2="20" y2="12" />
                 <line x1="4" y1="18" x2="20" y2="18" />
@@ -1121,7 +1365,16 @@ watch(viewMode, (mode) => {
               title="List + preview"
               @click="setView('detail')"
             >
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <svg
+                viewBox="0 0 24 24"
+                width="16"
+                height="16"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
                 <rect x="3" y="3" width="7" height="18" rx="1" />
                 <rect x="13" y="3" width="8" height="18" rx="1" />
               </svg>
@@ -1133,7 +1386,16 @@ watch(viewMode, (mode) => {
               title="Shelves (by source)"
               @click="setView('shelves')"
             >
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <svg
+                viewBox="0 0 24 24"
+                width="16"
+                height="16"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
                 <line x1="4" y1="6" x2="20" y2="6" />
                 <line x1="4" y1="12" x2="20" y2="12" />
                 <line x1="4" y1="18" x2="20" y2="18" />
@@ -1149,11 +1411,17 @@ watch(viewMode, (mode) => {
             @click="showAdvancedFilters = !showAdvancedFilters"
           >
             Advanced Filters
-            <span v-if="advancedFilterCount" class="advanced-count">{{ advancedFilterCount }}</span>
+            <span v-if="advancedFilterCount" class="advanced-count">{{
+              advancedFilterCount
+            }}</span>
           </button>
 
           <div class="presets-wrap">
-            <button type="button" class="advanced-toggle" @click="showPresetsMenu = !showPresetsMenu">
+            <button
+              type="button"
+              class="advanced-toggle"
+              @click="showPresetsMenu = !showPresetsMenu"
+            >
               Presets
             </button>
             <div v-if="showPresetsMenu" class="presets-dropdown">
@@ -1165,10 +1433,20 @@ watch(viewMode, (mode) => {
                 @click="applyPreset(p)"
               >
                 <span>{{ p.name }}</span>
-                <span class="preset-remove" @click.stop="deletePreset(p.name)">✕</span>
+                <span class="preset-remove" @click.stop="deletePreset(p.name)"
+                  >✕</span
+                >
               </button>
-              <p v-if="!filterPresets.length" class="preset-empty">No saved presets yet.</p>
-              <button type="button" class="preset-save" @click="saveCurrentAsPreset">+ Save current filters</button>
+              <p v-if="!filterPresets.length" class="preset-empty">
+                No saved presets yet.
+              </p>
+              <button
+                type="button"
+                class="preset-save"
+                @click="saveCurrentAsPreset"
+              >
+                + Save current filters
+              </button>
             </div>
           </div>
 
@@ -1177,17 +1455,31 @@ watch(viewMode, (mode) => {
               type="button"
               class="advanced-toggle"
               :class="{ active: selectMode }"
-              @click="toggleSelectMode(); dismissBulkEditHint()"
+              @click="
+                toggleSelectMode();
+                dismissBulkEditHint();
+              "
             >
-              {{ selectMode ? 'Cancel Select' : 'Select' }}
+              {{ selectMode ? "Cancel Select" : "Select" }}
             </button>
             <div v-if="showBulkEditHint" class="first-use-hint">
-              <span>Select games, then bulk-edit their status, tags, or collections all at once.</span>
-              <button type="button" class="first-use-hint-dismiss" @click="dismissBulkEditHint">Got it</button>
+              <span
+                >Select games, then bulk-edit their status, tags, or collections
+                all at once.</span
+              >
+              <button
+                type="button"
+                class="first-use-hint-dismiss"
+                @click="dismissBulkEditHint"
+              >
+                Got it
+              </button>
             </div>
           </div>
 
-          <button type="button" class="add-button" @click="openAddModal">+ Add Game</button>
+          <button type="button" class="add-button" @click="openAddModal">
+            + Add Game
+          </button>
         </div>
       </div>
 
@@ -1201,7 +1493,12 @@ watch(viewMode, (mode) => {
         >
           Select all ({{ filteredGames.length }})
         </button>
-        <button type="button" class="small-button" :disabled="!selectedIds.size" @click="clearSelection">
+        <button
+          type="button"
+          class="small-button"
+          :disabled="!selectedIds.size"
+          @click="clearSelection"
+        >
           Clear
         </button>
         <button
@@ -1210,7 +1507,7 @@ watch(viewMode, (mode) => {
           :disabled="!selectedIds.size || bulkAddingToCollection"
           @click="bulkAddToCollection"
         >
-          {{ bulkAddingToCollection ? 'Adding…' : 'Add to Collection' }}
+          {{ bulkAddingToCollection ? "Adding…" : "Add to Collection" }}
         </button>
         <button
           type="button"
@@ -1221,38 +1518,78 @@ watch(viewMode, (mode) => {
           Bulk Edit
         </button>
       </div>
-      <div v-if="bulkEditResultCount !== null" class="form-success bulk-success">
-        Updated {{ bulkEditResultCount }} game{{ bulkEditResultCount === 1 ? '' : 's' }}.
+      <div
+        v-if="bulkEditResultCount !== null"
+        class="form-success bulk-success"
+      >
+        Updated {{ bulkEditResultCount }} game{{
+          bulkEditResultCount === 1 ? "" : "s"
+        }}.
       </div>
 
       <div v-if="showAdvancedFilters" class="advanced-panel">
         <div class="advanced-field">
           <label>Franchise</label>
-          <FilterCombobox v-model="franchiseFilter" :options="franchiseOptions" placeholder="Franchise" all-label="All franchises" />
+          <FilterCombobox
+            v-model="franchiseFilter"
+            :options="franchiseOptions"
+            placeholder="Franchise"
+            all-label="All franchises"
+          />
         </div>
         <div class="advanced-field">
           <label>Collection</label>
-          <FilterCombobox v-model="collectionFilter" :options="collectionOptions" placeholder="Collection" all-label="All collections" />
+          <FilterCombobox
+            v-model="collectionFilter"
+            :options="collectionOptions"
+            placeholder="Collection"
+            all-label="All collections"
+          />
         </div>
         <div class="advanced-field">
           <label>Company</label>
-          <FilterCombobox v-model="companyFilter" :options="companyOptions" placeholder="Company" all-label="All companies" />
+          <FilterCombobox
+            v-model="companyFilter"
+            :options="companyOptions"
+            placeholder="Company"
+            all-label="All companies"
+          />
         </div>
         <div class="advanced-field">
           <label>Age Rating</label>
-          <FilterCombobox v-model="ageRatingFilter" :options="ageRatingOptions" placeholder="Age rating" all-label="All ratings" />
+          <FilterCombobox
+            v-model="ageRatingFilter"
+            :options="ageRatingOptions"
+            placeholder="Age rating"
+            all-label="All ratings"
+          />
         </div>
         <div class="advanced-field">
           <label>Region</label>
-          <FilterCombobox v-model="regionFilter" :options="regionOptions" placeholder="Region" all-label="All regions" />
+          <FilterCombobox
+            v-model="regionFilter"
+            :options="regionOptions"
+            placeholder="Region"
+            all-label="All regions"
+          />
         </div>
         <div class="advanced-field">
           <label>Language</label>
-          <FilterCombobox v-model="languageFilter" :options="languageOptions" placeholder="Language" all-label="All languages" />
+          <FilterCombobox
+            v-model="languageFilter"
+            :options="languageOptions"
+            placeholder="Language"
+            all-label="All languages"
+          />
         </div>
         <div class="advanced-field">
           <label>Metadata Provider</label>
-          <FilterCombobox v-model="metadataProviderFilter" :options="metadataProviderOptions" placeholder="Provider" all-label="All providers" />
+          <FilterCombobox
+            v-model="metadataProviderFilter"
+            :options="metadataProviderOptions"
+            placeholder="Provider"
+            all-label="All providers"
+          />
         </div>
         <div class="advanced-field">
           <label>Achievements</label>
@@ -1304,7 +1641,12 @@ watch(viewMode, (mode) => {
           >
             Has RetroAchievements tracking
           </button>
-          <button type="button" class="clear-advanced" :disabled="!advancedFilterCount" @click="clearAdvancedFilters">
+          <button
+            type="button"
+            class="clear-advanced"
+            :disabled="!advancedFilterCount"
+            @click="clearAdvancedFilters"
+          >
             Clear advanced filters
           </button>
         </div>
@@ -1321,10 +1663,20 @@ watch(viewMode, (mode) => {
         >
           {{ pill.label }} <span class="filter-pill-x">✕</span>
         </button>
-        <button type="button" class="filter-pill-clear-all" @click="clearAllFilters">Clear all</button>
+        <button
+          type="button"
+          class="filter-pill-clear-all"
+          @click="clearAllFilters"
+        >
+          Clear all
+        </button>
       </div>
 
-      <div v-if="loading" class="skeleton-grid" :style="{ gridTemplateColumns: `repeat(${CARD_COLUMNS}, 1fr)` }">
+      <div
+        v-if="loading"
+        class="skeleton-grid"
+        :style="{ gridTemplateColumns: `repeat(${CARD_COLUMNS}, 1fr)` }"
+      >
         <div v-for="i in 20" :key="i" class="skeleton-card">
           <SkeletonBlock height="150px" radius="8px" />
           <SkeletonBlock height="14px" width="80%" />
@@ -1334,13 +1686,34 @@ watch(viewMode, (mode) => {
       <p v-else-if="error" class="error">{{ error }}</p>
 
       <div v-else-if="isEmpty" class="empty-state">
-        <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+        <svg
+          viewBox="0 0 24 24"
+          width="48"
+          height="48"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.4"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
           <rect x="3" y="5" width="18" height="14" rx="2" />
           <path d="M3 9h18" />
           <path d="M8 13h.01M12 13h.01M16 13h.01" />
         </svg>
-        <h3>{{ hasAnyGames ? 'No games match your filters' : 'Your library is empty' }}</h3>
-        <p>{{ hasAnyGames ? 'Try clearing or adjusting your filters.' : 'Add your first game to get started.' }}</p>
+        <h3>
+          {{
+            hasAnyGames
+              ? "No games match your filters"
+              : "Your library is empty"
+          }}
+        </h3>
+        <p>
+          {{
+            hasAnyGames
+              ? "Try clearing or adjusting your filters."
+              : "Add your first game to get started."
+          }}
+        </p>
         <div v-if="searchSuggestions.length" class="search-suggestions">
           <span>Did you mean:</span>
           <button
@@ -1353,19 +1726,41 @@ watch(viewMode, (mode) => {
             {{ s }}
           </button>
         </div>
-        <button v-if="hasAnyGames" type="button" class="secondary-button" @click="clearAllFilters">Clear filters</button>
+        <button
+          v-if="hasAnyGames"
+          type="button"
+          class="secondary-button"
+          @click="clearAllFilters"
+        >
+          Clear filters
+        </button>
         <template v-else>
-          <button type="button" class="primary-button" @click="openAddModal">+ Add Game</button>
+          <button type="button" class="primary-button" @click="openAddModal">
+            + Add Game
+          </button>
           <ul class="empty-hint-list">
-            <li>Add a game manually, or connect Steam/GOG/PlayStation in Settings to sync a library</li>
-            <li>Drop screenshots or files into the Inbox and assign them to a game later</li>
-            <li>Set up a Bounty once you've added a few games, for a lightweight goal to work toward</li>
+            <li>
+              Add a game manually, or connect Steam/GOG/PlayStation in Settings
+              to sync a library
+            </li>
+            <li>
+              Drop screenshots or files into the Inbox and assign them to a game
+              later
+            </li>
+            <li>
+              Set up a Bounty once you've added a few games, for a lightweight
+              goal to work toward
+            </li>
           </ul>
         </template>
       </div>
 
       <template v-else>
-        <div v-if="viewMode === 'cards'" class="grid-virtual-container" :style="{ height: rowVirtualizer.getTotalSize() + 'px' }">
+        <div
+          v-if="viewMode === 'cards'"
+          class="grid-virtual-container"
+          :style="{ height: rowVirtualizer.getTotalSize() + 'px' }"
+        >
           <div
             v-for="virtualRow in rowVirtualizer.getVirtualItems()"
             :key="virtualRow.index"
@@ -1383,7 +1778,9 @@ watch(viewMode, (mode) => {
               :game="game"
               :select-mode="selectMode"
               :selected="selectedIds.has(game.id)"
-              :keyboard-focused="gridFocusIndex === virtualRow.index * CARD_COLUMNS + colIndex"
+              :keyboard-focused="
+                gridFocusIndex === virtualRow.index * CARD_COLUMNS + colIndex
+              "
               @hover="setHoverImage"
               @edit="openEditModal"
               @add-to-collection="handleAddToCollection"
@@ -1395,13 +1792,41 @@ watch(viewMode, (mode) => {
         <div v-else-if="viewMode === 'list'" class="list-view">
           <div v-if="filteredGames.length" class="list-header">
             <span class="list-header-spacer"></span>
-            <button type="button" class="list-title sortable" :class="{ active: sortBy === 'name' }" @click="sortBy = 'name'">Name</button>
+            <button
+              type="button"
+              class="list-title sortable"
+              :class="{ active: sortBy === 'name' }"
+              @click="sortBy = 'name'"
+            >
+              Name
+            </button>
             <span class="list-status">Status</span>
             <span class="list-genre">Genre</span>
             <span class="list-platform">Platform</span>
-            <button type="button" class="list-score sortable" :class="{ active: sortBy === 'rating' }" @click="sortBy = 'rating'">Rating</button>
-            <button type="button" class="list-playtime sortable" :class="{ active: sortBy === 'playtime' }" @click="sortBy = 'playtime'">Playtime</button>
-            <button type="button" class="list-last-played sortable" :class="{ active: sortBy === 'neglected' }" @click="sortBy = 'neglected'">Last played</button>
+            <button
+              type="button"
+              class="list-score sortable"
+              :class="{ active: sortBy === 'rating' }"
+              @click="sortBy = 'rating'"
+            >
+              Rating
+            </button>
+            <button
+              type="button"
+              class="list-playtime sortable"
+              :class="{ active: sortBy === 'playtime' }"
+              @click="sortBy = 'playtime'"
+            >
+              Playtime
+            </button>
+            <button
+              type="button"
+              class="list-last-played sortable"
+              :class="{ active: sortBy === 'neglected' }"
+              @click="sortBy = 'neglected'"
+            >
+              Last played
+            </button>
             <span class="list-release">Released</span>
             <span class="list-actions-spacer"></span>
           </div>
@@ -1411,36 +1836,80 @@ watch(viewMode, (mode) => {
             class="list-row"
             @click="selectMode ? toggleSelect(game) : openGame(game)"
           >
-            <div v-if="selectMode" class="list-checkbox" :class="{ checked: selectedIds.has(game.id) }" @click.stop="toggleSelect(game)">
-              <svg v-if="selectedIds.has(game.id)" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+            <div
+              v-if="selectMode"
+              class="list-checkbox"
+              :class="{ checked: selectedIds.has(game.id) }"
+              @click.stop="toggleSelect(game)"
+            >
+              <svg
+                v-if="selectedIds.has(game.id)"
+                viewBox="0 0 24 24"
+                width="12"
+                height="12"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="3"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
                 <path d="M20 6L9 17l-5-5" />
               </svg>
             </div>
             <img class="list-cover" :src="game.coverImageUrl" alt="" />
             <span class="list-title">{{ game.title }}</span>
-            <span class="list-status"><span class="status-pill">{{ game.status }}</span></span>
-            <span class="list-genre">{{ game.tags[0] ?? 'N/A' }}</span>
-            <span class="list-platform">{{ game.platforms[0]?.platform ?? 'N/A' }}</span>
+            <span class="list-status"
+              ><span class="status-pill">{{ game.status }}</span></span
+            >
+            <span class="list-genre">{{ game.tags[0] ?? "N/A" }}</span>
+            <span class="list-platform">{{
+              game.platforms[0]?.platform ?? "N/A"
+            }}</span>
             <span class="list-score">
-              <template v-if="computeScore(game)">★ {{ computeScore(game)!.sum.toFixed(1) }}</template>
+              <template v-if="computeScore(game)"
+                >★ {{ computeScore(game)!.sum.toFixed(1) }}</template
+              >
               <template v-else>N/A</template>
             </span>
             <span class="list-playtime">{{ totalPlaytime(game) }}</span>
             <span class="list-last-played">
-              {{ gameLastPlayed(game) ? new Date(gameLastPlayed(game)!).toLocaleDateString() : 'N/A' }}
+              {{
+                gameLastPlayed(game)
+                  ? new Date(gameLastPlayed(game)!).toLocaleDateString()
+                  : "N/A"
+              }}
             </span>
             <span class="list-release">
-              {{ game.releaseDate ? new Date(game.releaseDate).toLocaleDateString() : 'N/A' }}
+              {{
+                game.releaseDate
+                  ? new Date(game.releaseDate).toLocaleDateString()
+                  : "N/A"
+              }}
             </span>
             <div class="list-actions">
-              <button type="button" class="small-button" @click.stop="openEditModal(game)">Edit</button>
+              <button
+                type="button"
+                class="small-button"
+                @click.stop="openEditModal(game)"
+              >
+                Edit
+              </button>
               <button
                 type="button"
                 class="icon-button"
                 title="Add to collection"
                 @click.stop="handleAddToCollection(game)"
               >
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <svg
+                  viewBox="0 0 24 24"
+                  width="16"
+                  height="16"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
                   <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
                 </svg>
               </button>
@@ -1448,11 +1917,24 @@ watch(viewMode, (mode) => {
                 type="button"
                 class="icon-button"
                 :class="{ active: game.favorite }"
-                :title="game.favorite ? 'Remove from favorites' : 'Add to favorites'"
+                :title="
+                  game.favorite ? 'Remove from favorites' : 'Add to favorites'
+                "
                 @click.stop="toggleFavorite(game)"
               >
-                <svg viewBox="0 0 24 24" width="16" height="16" :fill="game.favorite ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.8 1-1a5.5 5.5 0 0 0 0-7.6z" />
+                <svg
+                  viewBox="0 0 24 24"
+                  width="16"
+                  height="16"
+                  :fill="game.favorite ? 'currentColor' : 'none'"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path
+                    d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.8 1-1a5.5 5.5 0 0 0 0-7.6z"
+                  />
                 </svg>
               </button>
             </div>
@@ -1460,14 +1942,28 @@ watch(viewMode, (mode) => {
         </div>
 
         <div v-else-if="viewMode === 'shelves'" class="shelves-view">
-          <section v-for="shelf in sourceShelves" :key="shelf.name" class="shelf-row">
+          <section
+            v-for="shelf in sourceShelves"
+            :key="shelf.name"
+            class="shelf-row"
+          >
             <div class="shelf-row-header">
               <h2>{{ shelf.name }}</h2>
               <span class="shelf-row-count">{{ shelf.games.length }}</span>
             </div>
             <div class="shelf-wrap">
-              <button type="button" class="shelf-arrow left" @click="scrollShelf($event, -1)" aria-label="Scroll left">‹</button>
-              <div class="shelf" @scroll="updateShelfArrows($event.target as HTMLElement)">
+              <button
+                type="button"
+                class="shelf-arrow left"
+                @click="scrollShelf($event, -1)"
+                aria-label="Scroll left"
+              >
+                ‹
+              </button>
+              <div
+                class="shelf"
+                @scroll="updateShelfArrows($event.target as HTMLElement)"
+              >
                 <GameCard
                   v-for="game in shelf.games"
                   :key="game.id"
@@ -1476,7 +1972,14 @@ watch(viewMode, (mode) => {
                   @add-to-collection="handleAddToCollection"
                 />
               </div>
-              <button type="button" class="shelf-arrow right" @click="scrollShelf($event, 1)" aria-label="Scroll right">›</button>
+              <button
+                type="button"
+                class="shelf-arrow right"
+                @click="scrollShelf($event, 1)"
+                aria-label="Scroll right"
+              >
+                ›
+              </button>
             </div>
           </section>
         </div>
@@ -1497,18 +2000,32 @@ watch(viewMode, (mode) => {
           </div>
 
           <Transition name="preview-fade" mode="out-in">
-            <div v-if="selectedGame" :key="selectedGame.id" class="detail-preview">
-              <div class="preview-banner" :style="{ backgroundImage: `url(${selectedGame.bannerImageUrl})` }">
+            <div
+              v-if="selectedGame"
+              :key="selectedGame.id"
+              class="detail-preview"
+            >
+              <div
+                class="preview-banner"
+                :style="{
+                  backgroundImage: `url(${selectedGame.bannerImageUrl})`,
+                }"
+              >
                 <div class="preview-banner-overlay"></div>
               </div>
               <div class="preview-info">
                 <h2>{{ selectedGame.title }}</h2>
                 <div class="preview-meta">
                   <span class="preview-badge">{{ selectedGame.status }}</span>
-                  <span v-if="computeScore(selectedGame)" class="preview-badge score">
+                  <span
+                    v-if="computeScore(selectedGame)"
+                    class="preview-badge score"
+                  >
                     ★ {{ computeScore(selectedGame)!.sum.toFixed(1) }}
                   </span>
-                  <span class="preview-badge">{{ totalPlaytime(selectedGame) }}</span>
+                  <span class="preview-badge">{{
+                    totalPlaytime(selectedGame)
+                  }}</span>
                 </div>
                 <div class="preview-details">
                   <div v-if="selectedGame.developer" class="preview-detail-row">
@@ -1531,36 +2048,71 @@ watch(viewMode, (mode) => {
                     <span class="preview-detail-label">Age Rating</span>
                     <span>{{ selectedGame.ageRating }}</span>
                   </div>
-                  <div v-if="selectedGame.releaseDate" class="preview-detail-row">
+                  <div
+                    v-if="selectedGame.releaseDate"
+                    class="preview-detail-row"
+                  >
                     <span class="preview-detail-label">Released</span>
-                    <span>{{ new Date(selectedGame.releaseDate).toLocaleDateString() }}</span>
+                    <span>{{
+                      new Date(selectedGame.releaseDate).toLocaleDateString()
+                    }}</span>
                   </div>
                   <div v-if="selectedGame.dateAdded" class="preview-detail-row">
                     <span class="preview-detail-label">Added</span>
-                    <span>{{ new Date(selectedGame.dateAdded).toLocaleDateString() }}</span>
+                    <span>{{
+                      new Date(selectedGame.dateAdded).toLocaleDateString()
+                    }}</span>
                   </div>
-                  <div v-if="selectedGame.platforms.length" class="preview-detail-row">
+                  <div
+                    v-if="selectedGame.platforms.length"
+                    class="preview-detail-row"
+                  >
                     <span class="preview-detail-label">Platforms</span>
                     <div class="preview-platforms">
-                      <div v-for="p in selectedGame.platforms" :key="p.platform">
-                        {{ p.platform }}: {{ Math.round(p.playtimeMinutes / 60) }}h
-                        <span v-if="p.completionPercent !== null">· {{ p.completionPercent }}%</span>
+                      <div
+                        v-for="p in selectedGame.platforms"
+                        :key="p.platform"
+                      >
+                        {{ p.platform }}:
+                        {{ Math.round(p.playtimeMinutes / 60) }}h
+                        <span v-if="p.completionPercent !== null"
+                          >· {{ p.completionPercent }}%</span
+                        >
                       </div>
                     </div>
                   </div>
-                  <div v-if="selectedGame.tags.length" class="preview-detail-row">
+                  <div
+                    v-if="selectedGame.tags.length"
+                    class="preview-detail-row"
+                  >
                     <span class="preview-detail-label">Tags</span>
                     <span class="preview-pills">
-                      <span v-for="tag in selectedGame.tags" :key="tag" class="preview-pill">{{ tag }}</span>
+                      <span
+                        v-for="tag in selectedGame.tags"
+                        :key="tag"
+                        class="preview-pill"
+                        >{{ tag }}</span
+                      >
                     </span>
                   </div>
-                  <div v-if="selectedGame.features.length" class="preview-detail-row">
+                  <div
+                    v-if="selectedGame.features.length"
+                    class="preview-detail-row"
+                  >
                     <span class="preview-detail-label">Features</span>
                     <span class="preview-pills">
-                      <span v-for="f in selectedGame.features" :key="f" class="preview-pill">{{ f }}</span>
+                      <span
+                        v-for="f in selectedGame.features"
+                        :key="f"
+                        class="preview-pill"
+                        >{{ f }}</span
+                      >
                     </span>
                   </div>
-                  <div v-if="selectedGame.links.length" class="preview-detail-row">
+                  <div
+                    v-if="selectedGame.links.length"
+                    class="preview-detail-row"
+                  >
                     <span class="preview-detail-label">Links</span>
                     <div class="preview-links">
                       <a
@@ -1575,54 +2127,103 @@ watch(viewMode, (mode) => {
                     </div>
                   </div>
                   <div
-                    v-if="selectedGame.ownership.format || selectedGame.ownership.price !== null"
+                    v-if="
+                      selectedGame.ownership.format ||
+                      selectedGame.ownership.price !== null
+                    "
                     class="preview-detail-row"
                   >
                     <span class="preview-detail-label">Ownership</span>
                     <span>
-                      {{ selectedGame.ownership.format ?? 'N/A' }}
+                      {{ selectedGame.ownership.format ?? "N/A" }}
                       <span v-if="selectedGame.ownership.price !== null">
-                        · {{ selectedGame.ownership.priceCurrency ?? 'USD' }} {{ selectedGame.ownership.price.toFixed(2) }}
+                        · {{ selectedGame.ownership.priceCurrency ?? "USD" }}
+                        {{ selectedGame.ownership.price.toFixed(2) }}
                       </span>
                     </span>
                   </div>
-                  <div v-if="selectedGame.folderLocation" class="preview-detail-row">
+                  <div
+                    v-if="selectedGame.folderLocation"
+                    class="preview-detail-row"
+                  >
                     <span class="preview-detail-label">Folder</span>
                     <span>{{ selectedGame.folderLocation }}</span>
                   </div>
                 </div>
-                <div v-if="selectedGameDescriptionHtml" class="preview-description-html" v-html="selectedGameDescriptionHtml"></div>
+                <div
+                  v-if="selectedGameDescriptionHtml"
+                  class="preview-description-html"
+                  v-html="selectedGameDescriptionHtml"
+                ></div>
                 <div class="preview-actions">
-                  <button type="button" class="primary-button" @click="openGame(selectedGame)">
+                  <button
+                    type="button"
+                    class="primary-button"
+                    @click="openGame(selectedGame)"
+                  >
                     Open Full Page
                   </button>
-                  <button type="button" class="secondary-button" @click="openEditModal(selectedGame)">Edit</button>
+                  <button
+                    type="button"
+                    class="secondary-button"
+                    @click="openEditModal(selectedGame)"
+                  >
+                    Edit
+                  </button>
                   <button
                     type="button"
                     class="icon-button"
                     title="Add to collection"
                     @click="handleAddToCollection(selectedGame)"
                   >
-                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                      <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+                    <svg
+                      viewBox="0 0 24 24"
+                      width="16"
+                      height="16"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <path
+                        d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"
+                      />
                     </svg>
                   </button>
                   <button
                     type="button"
                     class="icon-button"
                     :class="{ active: selectedGame.favorite }"
-                    :title="selectedGame.favorite ? 'Remove from favorites' : 'Add to favorites'"
+                    :title="
+                      selectedGame.favorite
+                        ? 'Remove from favorites'
+                        : 'Add to favorites'
+                    "
                     @click="toggleFavorite(selectedGame)"
                   >
-                    <svg viewBox="0 0 24 24" width="16" height="16" :fill="selectedGame.favorite ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                      <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.8 1-1a5.5 5.5 0 0 0 0-7.6z" />
+                    <svg
+                      viewBox="0 0 24 24"
+                      width="16"
+                      height="16"
+                      :fill="selectedGame.favorite ? 'currentColor' : 'none'"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <path
+                        d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.8 1-1a5.5 5.5 0 0 0 0-7.6z"
+                      />
                     </svg>
                   </button>
                 </div>
               </div>
             </div>
           </Transition>
-          <p v-if="!selectedGame" class="empty-row">Select a game to preview it.</p>
+          <p v-if="!selectedGame" class="empty-row">
+            Select a game to preview it.
+          </p>
         </div>
       </template>
 
@@ -1648,15 +2249,33 @@ watch(viewMode, (mode) => {
         @saved="onBulkEditSaved"
       />
 
-      <div v-if="deletingGame" class="confirm-backdrop" @click.self="deletingGame = null">
+      <div
+        v-if="deletingGame"
+        class="confirm-backdrop"
+        @click.self="deletingGame = null"
+      >
         <div class="confirm-dialog">
           <h3>Delete {{ deletingGame.title }}?</h3>
-          <p>Moved to trash, recoverable for 7 days from Settings, then purged for good.</p>
+          <p>
+            Moved to trash, recoverable for 7 days from Settings, then purged
+            for good.
+          </p>
           <div v-if="deleteError" class="confirm-error">{{ deleteError }}</div>
           <div class="confirm-actions">
-            <button type="button" class="secondary-button" @click="deletingGame = null">Cancel</button>
-            <button type="button" class="danger-button" :disabled="deleting" @click="confirmDelete">
-              {{ deleting ? 'Deleting…' : 'Delete' }}
+            <button
+              type="button"
+              class="secondary-button"
+              @click="deletingGame = null"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              class="danger-button"
+              :disabled="deleting"
+              @click="confirmDelete"
+            >
+              {{ deleting ? "Deleting…" : "Delete" }}
             </button>
           </div>
         </div>
@@ -2154,7 +2773,9 @@ watch(viewMode, (mode) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
 }
 .view-toggle-button:hover {
   color: #fff;
@@ -2213,7 +2834,10 @@ watch(viewMode, (mode) => {
   display: flex;
   align-items: center;
   gap: 8px;
-  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
 }
 .advanced-toggle:hover {
   color: #fff;
@@ -2261,7 +2885,9 @@ watch(viewMode, (mode) => {
   color: #111;
   flex-shrink: 0;
   cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
 }
 .list-checkbox.checked {
   background: #d68a34;
@@ -2351,7 +2977,10 @@ watch(viewMode, (mode) => {
   font-size: 12.5px;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
 }
 .toggle-chip:hover {
   border-color: #4a4a4a;
@@ -2467,7 +3096,11 @@ watch(viewMode, (mode) => {
   border: 1px solid #232323;
   border-radius: 10px;
   cursor: pointer;
-  transition: background 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+  transition:
+    background 0.15s ease,
+    transform 0.15s ease,
+    box-shadow 0.15s ease,
+    border-color 0.15s ease;
 }
 .list-row:hover {
   background: rgba(255, 255, 255, 0.06);
@@ -2553,7 +3186,9 @@ watch(viewMode, (mode) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
 }
 .icon-button:hover {
   background: rgba(255, 255, 255, 0.14);
@@ -2594,7 +3229,10 @@ watch(viewMode, (mode) => {
   cursor: pointer;
   color: #ccc;
   text-align: left;
-  transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    transform 0.15s ease;
 }
 .detail-list-item:hover {
   background: rgba(255, 255, 255, 0.05);
@@ -2631,7 +3269,11 @@ watch(viewMode, (mode) => {
 .preview-banner-overlay {
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, rgba(18, 18, 18, 0) 40%, rgba(18, 18, 18, 0.95) 100%);
+  background: linear-gradient(
+    180deg,
+    rgba(18, 18, 18, 0) 40%,
+    rgba(18, 18, 18, 0.95) 100%
+  );
 }
 .preview-info {
   padding: 20px;

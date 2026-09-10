@@ -1,80 +1,98 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import { currentUser } from '../state/auth'
-import SettingsNav from '../components/settings/SettingsNav.vue'
-import type { SettingsGroup } from '../components/settings/SettingsNav.vue'
-import ProfileSection from '../components/settings/ProfileSection.vue'
-import InterfaceSection from '../components/settings/InterfaceSection.vue'
-import AppearanceSection from '../components/settings/AppearanceSection.vue'
-import UploadSection from '../components/settings/UploadSection.vue'
-import LibraryManagementSection from '../components/settings/LibraryManagementSection.vue'
-import ScanSettingsSection from '../components/settings/ScanSettingsSection.vue'
-import MetadataSourcesSection from '../components/settings/MetadataSourcesSection.vue'
-import AdminSection from '../components/settings/AdminSection.vue'
-import StatsSection from '../components/settings/StatsSection.vue'
-import ExportImportSection from '../components/settings/ExportImportSection.vue'
-import ComingSoonSection from '../components/settings/ComingSoonSection.vue'
+import { computed, ref } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import { currentUser } from "../state/auth";
+import SettingsNav from "../components/settings/SettingsNav.vue";
+import type { SettingsGroup } from "../components/settings/SettingsNav.vue";
+import ProfileSection from "../components/settings/ProfileSection.vue";
+import InterfaceSection from "../components/settings/InterfaceSection.vue";
+import AppearanceSection from "../components/settings/AppearanceSection.vue";
+import UploadSection from "../components/settings/UploadSection.vue";
+import LibraryManagementSection from "../components/settings/LibraryManagementSection.vue";
+import ScanSettingsSection from "../components/settings/ScanSettingsSection.vue";
+import MetadataSourcesSection from "../components/settings/MetadataSourcesSection.vue";
+import AdminSection from "../components/settings/AdminSection.vue";
+import StatsSection from "../components/settings/StatsSection.vue";
+import ExportImportSection from "../components/settings/ExportImportSection.vue";
+import ComingSoonSection from "../components/settings/ComingSoonSection.vue";
 
-const router = useRouter()
-const route = useRoute()
+const router = useRouter();
+const route = useRoute();
 
 function goBack() {
   if (window.history.length > 1) {
-    router.back()
+    router.back();
   } else {
-    router.push('/')
+    router.push("/");
   }
 }
 
 const groups = computed<SettingsGroup[]>(() => {
   const result: SettingsGroup[] = [
     {
-      label: 'Account',
+      label: "Account",
       sections: [
-        { id: 'profile', label: 'Profile' },
-        { id: 'interface', label: 'User Interface' },
-        { id: 'appearance', label: 'Appearance' },
+        { id: "profile", label: "Profile" },
+        { id: "interface", label: "User Interface" },
+        { id: "appearance", label: "Appearance" },
       ],
     },
     {
-      label: 'Library',
+      label: "Library",
       sections: [
-        { id: 'upload', label: 'Upload' },
-        { id: 'library', label: 'Library Management' },
+        { id: "upload", label: "Upload" },
+        { id: "library", label: "Library Management" },
       ],
     },
     {
-      label: 'Metadata',
+      label: "Metadata",
       sections: [
-        { id: 'scan', label: 'Scan Settings' },
-        { id: 'sources', label: 'Metadata/API' },
-        { id: 'export', label: 'Export / Import' },
+        { id: "scan", label: "Scan Settings" },
+        { id: "sources", label: "Metadata/API" },
+        { id: "export", label: "Export / Import" },
       ],
     },
-  ]
+  ];
 
   const systemSections = [
-    ...(currentUser.value?.is_admin ? [{ id: 'admin', label: 'Admin' }] : []),
-    { id: 'stats', label: 'Server Stats' },
-    ...(currentUser.value?.is_admin ? [{ id: 'tasks', label: 'Tasks', comingSoon: true }] : []),
-    ...(currentUser.value?.is_admin ? [{ id: 'logs', label: 'Logs', comingSoon: true }] : []),
-  ]
-  result.push({ label: 'System', sections: systemSections })
+    ...(currentUser.value?.is_admin ? [{ id: "admin", label: "Admin" }] : []),
+    { id: "stats", label: "Server Stats" },
+    ...(currentUser.value?.is_admin
+      ? [{ id: "tasks", label: "Tasks", comingSoon: true }]
+      : []),
+    ...(currentUser.value?.is_admin
+      ? [{ id: "logs", label: "Logs", comingSoon: true }]
+      : []),
+  ];
+  result.push({ label: "System", sections: systemSections });
 
-  return result
-})
+  return result;
+});
 
 // lets other pages (the command palette) deep-link to a section, e.g.
 // /settings?section=scan, Settings itself never writes this back to the
 // URL, so switching sections the normal way doesn't touch history
-const activeSection = ref((route.query.section as string) || 'profile')
+const activeSection = ref((route.query.section as string) || "profile");
 </script>
 
 <template>
   <main class="settings-page">
-    <button type="button" class="back-arrow-button" title="Back" @click="goBack">
-      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <button
+      type="button"
+      class="back-arrow-button"
+      title="Back"
+      @click="goBack"
+    >
+      <svg
+        viewBox="0 0 24 24"
+        width="18"
+        height="18"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
         <path d="M19 12H5" />
         <path d="M12 19l-7-7 7-7" />
       </svg>
@@ -93,7 +111,9 @@ const activeSection = ref((route.query.section as string) || 'profile')
           <LibraryManagementSection v-else-if="activeSection === 'library'" />
           <ScanSettingsSection v-else-if="activeSection === 'scan'" />
           <MetadataSourcesSection v-else-if="activeSection === 'sources'" />
-          <AdminSection v-else-if="activeSection === 'admin' && currentUser?.is_admin" />
+          <AdminSection
+            v-else-if="activeSection === 'admin' && currentUser?.is_admin"
+          />
           <StatsSection v-else-if="activeSection === 'stats'" />
           <ExportImportSection v-else-if="activeSection === 'export'" />
           <ComingSoonSection

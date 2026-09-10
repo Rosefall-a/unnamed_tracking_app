@@ -1,19 +1,29 @@
 <script setup lang="ts">
 withDefaults(
   defineProps<{
-    title: string
-    description: string
-    plannedFeatures?: string[]
+    title: string;
+    description: string;
+    plannedFeatures?: string[];
   }>(),
   { plannedFeatures: () => [] },
-)
+);
 </script>
 
 <template>
   <section class="settings-section">
     <h2>{{ title }}</h2>
     <div class="coming-soon">
-      <svg class="coming-soon-icon" viewBox="0 0 24 24" width="64" height="64" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
+      <svg
+        class="coming-soon-icon"
+        viewBox="0 0 24 24"
+        width="64"
+        height="64"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
         <circle cx="12" cy="12" r="9" />
         <path d="M12 8v4l2.5 2.5" />
       </svg>
@@ -83,7 +93,7 @@ withDefaults(
   min-width: 260px;
 }
 .planned-list li::before {
-  content: '→ ';
+  content: "→ ";
   color: #d68a34;
 }
 </style>

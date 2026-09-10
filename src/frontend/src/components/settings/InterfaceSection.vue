@@ -1,48 +1,62 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
-import SegmentedControl from './SegmentedControl.vue'
-import ToggleButton from './ToggleButton.vue'
+import { ref, watch } from "vue";
+import SegmentedControl from "./SegmentedControl.vue";
+import ToggleButton from "./ToggleButton.vue";
 
-type ViewMode = 'cards' | 'list' | 'detail'
-type SortBy = 'name' | 'recent' | 'rating' | 'playtime'
+type ViewMode = "cards" | "list" | "detail";
+type SortBy = "name" | "recent" | "rating" | "playtime";
 
-const defaultViewMode = ref<ViewMode>((localStorage.getItem('gameLibraryViewMode') as ViewMode) || 'cards')
-const defaultSort = ref<SortBy>((localStorage.getItem('gameLibraryDefaultSort') as SortBy) || 'name')
-const compactMode = ref(localStorage.getItem('compactMode') === 'true')
-const weeklyDigestEnabled = ref(localStorage.getItem('weeklyDigestEnabled') !== 'false')
-const highContrastMode = ref(localStorage.getItem('highContrastMode') === 'true')
+const defaultViewMode = ref<ViewMode>(
+  (localStorage.getItem("gameLibraryViewMode") as ViewMode) || "cards",
+);
+const defaultSort = ref<SortBy>(
+  (localStorage.getItem("gameLibraryDefaultSort") as SortBy) || "name",
+);
+const compactMode = ref(localStorage.getItem("compactMode") === "true");
+const weeklyDigestEnabled = ref(
+  localStorage.getItem("weeklyDigestEnabled") !== "false",
+);
+const highContrastMode = ref(
+  localStorage.getItem("highContrastMode") === "true",
+);
 
 const viewModeOptions = [
-  { value: 'cards', label: 'Cards' },
-  { value: 'list', label: 'List' },
-  { value: 'detail', label: 'List + preview' },
-]
+  { value: "cards", label: "Cards" },
+  { value: "list", label: "List" },
+  { value: "detail", label: "List + preview" },
+];
 const sortOptions = [
-  { value: 'name', label: 'Name' },
-  { value: 'recent', label: 'Recently added' },
-  { value: 'rating', label: 'Rating' },
-  { value: 'playtime', label: 'Most played' },
-]
+  { value: "name", label: "Name" },
+  { value: "recent", label: "Recently added" },
+  { value: "rating", label: "Rating" },
+  { value: "playtime", label: "Most played" },
+];
 
-watch(defaultViewMode, (mode) => localStorage.setItem('gameLibraryViewMode', mode))
-watch(defaultSort, (sort) => localStorage.setItem('gameLibraryDefaultSort', sort))
+watch(defaultViewMode, (mode) =>
+  localStorage.setItem("gameLibraryViewMode", mode),
+);
+watch(defaultSort, (sort) =>
+  localStorage.setItem("gameLibraryDefaultSort", sort),
+);
 watch(compactMode, (enabled) => {
-  localStorage.setItem('compactMode', String(enabled))
-  document.documentElement.classList.toggle('compact', enabled)
-})
-watch(weeklyDigestEnabled, (enabled) => localStorage.setItem('weeklyDigestEnabled', String(enabled)))
+  localStorage.setItem("compactMode", String(enabled));
+  document.documentElement.classList.toggle("compact", enabled);
+});
+watch(weeklyDigestEnabled, (enabled) =>
+  localStorage.setItem("weeklyDigestEnabled", String(enabled)),
+);
 watch(highContrastMode, (enabled) => {
-  localStorage.setItem('highContrastMode', String(enabled))
-  document.documentElement.classList.toggle('high-contrast', enabled)
-})
+  localStorage.setItem("highContrastMode", String(enabled));
+  document.documentElement.classList.toggle("high-contrast", enabled);
+});
 </script>
 
 <template>
   <section class="settings-section">
     <h2>User Interface</h2>
     <p class="section-hint">
-      These are the defaults used the next time you open the Games page: they don't change
-      anything on a page you already have open.
+      These are the defaults used the next time you open the Games page: they
+      don't change anything on a page you already have open.
     </p>
 
     <div class="field">
@@ -68,13 +82,14 @@ watch(highContrastMode, (enabled) => {
     </ToggleButton>
 
     <ToggleButton v-model="weeklyDigestEnabled" label="Weekly digest">
-      <strong>Weekly digest</strong>: a "this week" recap card on the Home Hub showing games
-      played, achievements unlocked, and metadata changes over the last 7 days
+      <strong>Weekly digest</strong>: a "this week" recap card on the Home Hub
+      showing games played, achievements unlocked, and metadata changes over the
+      last 7 days
     </ToggleButton>
 
     <ToggleButton v-model="highContrastMode" label="High contrast">
-      <strong>High contrast</strong>: brighter secondary text, stronger borders, and a bolder
-      keyboard focus ring across the app
+      <strong>High contrast</strong>: brighter secondary text, stronger borders,
+      and a bolder keyboard focus ring across the app
     </ToggleButton>
   </section>
 </template>

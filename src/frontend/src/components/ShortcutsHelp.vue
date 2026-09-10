@@ -1,55 +1,72 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted } from "vue";
 
-const open = ref(false)
+const open = ref(false);
 
 function isTypingTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false
-  const tag = target.tagName
-  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable
+  if (!(target instanceof HTMLElement)) return false;
+  const tag = target.tagName;
+  return (
+    tag === "INPUT" ||
+    tag === "TEXTAREA" ||
+    tag === "SELECT" ||
+    target.isContentEditable
+  );
 }
 
 function onKeydown(e: KeyboardEvent) {
-  if (e.key === 'Escape' && open.value) {
-    open.value = false
-    return
+  if (e.key === "Escape" && open.value) {
+    open.value = false;
+    return;
   }
-  if (isTypingTarget(e.target)) return
-  if (e.key === '?') {
-    e.preventDefault()
-    open.value = !open.value
+  if (isTypingTarget(e.target)) return;
+  if (e.key === "?") {
+    e.preventDefault();
+    open.value = !open.value;
   }
 }
 
-onMounted(() => window.addEventListener('keydown', onKeydown))
-onUnmounted(() => window.removeEventListener('keydown', onKeydown))
+onMounted(() => window.addEventListener("keydown", onKeydown));
+onUnmounted(() => window.removeEventListener("keydown", onKeydown));
 
 const GROUPS = [
   {
-    title: 'Library',
+    title: "Library",
     shortcuts: [
-      { keys: '/', label: 'Focus search' },
-      { keys: 'n', label: 'Add a game' },
-      { keys: 'j / k or ↓ / ↑', label: 'Move selection (List + preview view)' },
-      { keys: '← ↑ → ↓, Enter', label: 'Move focus between cards, open the focused one (Cards view)' },
-      { keys: 'a–z', label: "Jump to the first game starting with that letter (Cards view)" },
-      { keys: 'Esc', label: 'Clear search, close panels' },
+      { keys: "/", label: "Focus search" },
+      { keys: "n", label: "Add a game" },
+      { keys: "j / k or ↓ / ↑", label: "Move selection (List + preview view)" },
+      {
+        keys: "← ↑ → ↓, Enter",
+        label: "Move focus between cards, open the focused one (Cards view)",
+      },
+      {
+        keys: "a–z",
+        label: "Jump to the first game starting with that letter (Cards view)",
+      },
+      { keys: "Esc", label: "Clear search, close panels" },
     ],
   },
   {
-    title: 'Game page',
+    title: "Game page",
     shortcuts: [
-      { keys: 'j / k', label: 'Next / previous game (from the library you came from)' },
+      {
+        keys: "j / k",
+        label: "Next / previous game (from the library you came from)",
+      },
     ],
   },
   {
-    title: 'Anywhere',
+    title: "Anywhere",
     shortcuts: [
-      { keys: 'Ctrl/Cmd + K', label: 'Jump to a game, collection, bounty, or settings section' },
-      { keys: '?', label: 'Show this list' },
+      {
+        keys: "Ctrl/Cmd + K",
+        label: "Jump to a game, collection, bounty, or settings section",
+      },
+      { keys: "?", label: "Show this list" },
     ],
   },
-]
+];
 </script>
 
 <template>
@@ -57,7 +74,9 @@ const GROUPS = [
     <div class="shortcuts-dialog">
       <div class="shortcuts-header">
         <h2>Keyboard shortcuts</h2>
-        <button type="button" class="close-button" @click="open = false">✕</button>
+        <button type="button" class="close-button" @click="open = false">
+          ✕
+        </button>
       </div>
       <div v-for="group in GROUPS" :key="group.title" class="shortcuts-group">
         <h3>{{ group.title }}</h3>

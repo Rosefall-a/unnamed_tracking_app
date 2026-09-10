@@ -61,9 +61,9 @@ function onMediaFileChange(e: Event) {
 }
 
 function removeMedia(index: number) {
-  const url = achievement.value?.media?.[index]
-  if (url) URL.revokeObjectURL(url)
-  achievement.value?.media?.splice(index, 1)
+  const url = achievement.value?.media?.[index];
+  if (url) URL.revokeObjectURL(url);
+  achievement.value?.media?.splice(index, 1);
 }
 
 function formatUnlockedAt(dateStr: string) {

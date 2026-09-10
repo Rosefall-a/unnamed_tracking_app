@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { useRoute } from 'vue-router'
-import SidebarNav from './components/SidebarNav.vue'
-import TaskProgressToast from './components/TaskProgressToast.vue'
-import ShortcutsHelp from './components/ShortcutsHelp.vue'
-import CommandPalette from './components/CommandPalette.vue'
-import { authChecked } from './state/auth'
+import { useRoute } from "vue-router";
+import SidebarNav from "./components/SidebarNav.vue";
+import TaskProgressToast from "./components/TaskProgressToast.vue";
+import ShortcutsHelp from "./components/ShortcutsHelp.vue";
+import CommandPalette from "./components/CommandPalette.vue";
+import { authChecked } from "./state/auth";
 
-const route = useRoute()
+const route = useRoute();
 </script>
 
 <template>

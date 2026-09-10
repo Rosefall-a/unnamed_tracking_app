@@ -1,23 +1,29 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
-import { currentUser, checkAuth } from '../../state/auth'
-import { updateProfile, uploadProfilePicture, profilePictureUrl } from '../../services/auth'
+import { ref, computed, watch } from "vue";
+import { currentUser, checkAuth } from "../../state/auth";
+import {
+  updateProfile,
+  uploadProfilePicture,
+  profilePictureUrl,
+} from "../../services/auth";
 
-const isMock = computed(() => currentUser.value?.id === 'mock')
+const isMock = computed(() => currentUser.value?.id === "mock");
 
-const cacheBust = ref(Date.now())
+const cacheBust = ref(Date.now());
 const avatarUrl = computed(() =>
-  currentUser.value ? `${profilePictureUrl(currentUser.value.id)}?t=${cacheBust.value}` : '',
-)
-const avatarFailed = ref(false)
+  currentUser.value
+    ? `${profilePictureUrl(currentUser.value.id)}?t=${cacheBust.value}`
+    : "",
+);
+const avatarFailed = ref(false);
 
-const username = ref(currentUser.value?.username ?? '')
-const email = ref(currentUser.value?.email ?? '')
-const currentPassword = ref('')
-const newPassword = ref('')
-const saving = ref(false)
-const saveError = ref<string | null>(null)
-const saveSuccess = ref(false)
+const username = ref(currentUser.value?.username ?? "");
+const email = ref(currentUser.value?.email ?? "");
+const currentPassword = ref("");
+const newPassword = ref("");
+const saving = ref(false);
+const saveError = ref<string | null>(null);
+const saveSuccess = ref(false);
 
 // otherwise "Profile updated." keeps showing after a successful save even
 // once the user starts typing something new, reading as if the in-progress
@@ -25,21 +31,21 @@ const saveSuccess = ref(false)
 // saveProfile() itself clears those right after a successful save, and
 // watching them here would stomp saveSuccess back to false in that same tick.
 watch([username, email], () => {
-  saveSuccess.value = false
-})
+  saveSuccess.value = false;
+});
 
-const uploading = ref(false)
-const uploadError = ref<string | null>(null)
+const uploading = ref(false);
+const uploadError = ref<string | null>(null);
 
 async function saveProfile() {
   if (newPassword.value && !currentPassword.value) {
-    saveError.value = 'Enter your current password to set a new one.'
-    return
+    saveError.value = "Enter your current password to set a new one.";
+    return;
   }
 
-  saving.value = true
-  saveError.value = null
-  saveSuccess.value = false
+  saving.value = true;
+  saveError.value = null;
+  saveSuccess.value = false;
 
   try {
     await updateProfile({
@@ -47,37 +53,39 @@ async function saveProfile() {
       email: email.value.trim() || undefined,
       currentPassword: currentPassword.value || undefined,
       newPassword: newPassword.value || undefined,
-    })
-    await checkAuth()
-    currentPassword.value = ''
-    newPassword.value = ''
-    saveSuccess.value = true
+    });
+    await checkAuth();
+    currentPassword.value = "";
+    newPassword.value = "";
+    saveSuccess.value = true;
   } catch (err) {
-    saveError.value = err instanceof Error ? err.message : 'Failed to update profile'
+    saveError.value =
+      err instanceof Error ? err.message : "Failed to update profile";
   } finally {
-    saving.value = false
+    saving.value = false;
   }
 }
 
 async function onAvatarFileChange(e: Event) {
-  const input = e.target as HTMLInputElement
-  const file = input.files?.[0]
-  if (!file || !currentUser.value) return
+  const input = e.target as HTMLInputElement;
+  const file = input.files?.[0];
+  if (!file || !currentUser.value) return;
 
-  uploading.value = true
-  uploadError.value = null
+  uploading.value = true;
+  uploadError.value = null;
 
   try {
-    await uploadProfilePicture(currentUser.value.id, file)
-    avatarFailed.value = false
-    cacheBust.value = Date.now()
+    await uploadProfilePicture(currentUser.value.id, file);
+    avatarFailed.value = false;
+    cacheBust.value = Date.now();
   } catch (err) {
-    uploadError.value = err instanceof Error ? err.message : 'Failed to upload picture'
+    uploadError.value =
+      err instanceof Error ? err.message : "Failed to upload picture";
   } finally {
-    uploading.value = false
+    uploading.value = false;
     // without this, re-picking the same file after a failed upload fires
     // no 'change' event at all (the input's value never actually changed)
-    input.value = ''
+    input.value = "";
   }
 }
 </script>
@@ -95,14 +103,21 @@ async function onAvatarFileChange(e: Event) {
         @error="avatarFailed = true"
       />
       <div v-else class="avatar-fallback">
-        {{ (currentUser?.username ?? '?').slice(0, 2).toUpperCase() }}
+        {{ (currentUser?.username ?? "?").slice(0, 2).toUpperCase() }}
       </div>
 
       <label v-if="!isMock" class="upload-label">
-        <input type="file" accept="image/*" @change="onAvatarFileChange" hidden />
-        {{ uploading ? 'Uploading…' : 'Change picture' }}
+        <input
+          type="file"
+          accept="image/*"
+          @change="onAvatarFileChange"
+          hidden
+        />
+        {{ uploading ? "Uploading…" : "Change picture" }}
       </label>
-      <p v-if="isMock" class="mock-note">Profile pictures aren't available in mock mode.</p>
+      <p v-if="isMock" class="mock-note">
+        Profile pictures aren't available in mock mode.
+      </p>
     </div>
 
     <div v-if="uploadError" class="form-error">{{ uploadError }}</div>
@@ -120,19 +135,28 @@ async function onAvatarFileChange(e: Event) {
 
       <label class="field">
         <span>New password (optional)</span>
-        <input v-model="newPassword" type="password" autocomplete="new-password" />
+        <input
+          v-model="newPassword"
+          type="password"
+          autocomplete="new-password"
+        />
       </label>
 
       <label v-if="newPassword" class="field">
         <span>Current password (required to set a new one)</span>
-        <input v-model="currentPassword" type="password" autocomplete="current-password" required />
+        <input
+          v-model="currentPassword"
+          type="password"
+          autocomplete="current-password"
+          required
+        />
       </label>
 
       <div v-if="saveError" class="form-error">{{ saveError }}</div>
       <div v-if="saveSuccess" class="form-success">Profile updated.</div>
 
       <button type="submit" class="primary-button" :disabled="saving">
-        {{ saving ? 'Saving…' : 'Save changes' }}
+        {{ saving ? "Saving…" : "Save changes" }}
       </button>
     </form>
   </section>

@@ -1,235 +1,280 @@
 <script setup lang="ts">
-import { computed, ref, onMounted, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import GameCard from '../components/GameCard.vue'
-import GameFormModal from '../components/GameFormModal.vue'
-import CollectionPickerModal from '../components/CollectionPickerModal.vue'
-import { fetchGames, deleteGame, removeGameFromCollection } from '../services/games'
-import type { Game } from '../types/game'
-import { currentUser } from '../state/auth'
-import { findSmartCollectionByName, matchesSmartCollection, describeSmartCollection, removeSmartCollection } from '../state/smartCollections'
+import { computed, ref, onMounted, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import GameCard from "../components/GameCard.vue";
+import GameFormModal from "../components/GameFormModal.vue";
+import CollectionPickerModal from "../components/CollectionPickerModal.vue";
+import {
+  fetchGames,
+  deleteGame,
+  removeGameFromCollection,
+} from "../services/games";
+import type { Game } from "../types/game";
+import { currentUser } from "../state/auth";
+import {
+  findSmartCollectionByName,
+  matchesSmartCollection,
+  describeSmartCollection,
+  removeSmartCollection,
+} from "../state/smartCollections";
 
-const route = useRoute()
-const router = useRouter()
+const route = useRoute();
+const router = useRouter();
 
-const games = ref<Game[]>([])
-const loading = ref(true)
-const error = ref<string | null>(null)
+const games = ref<Game[]>([]);
+const loading = ref(true);
+const error = ref<string | null>(null);
 
-const showFormModal = ref(false)
-const editingGame = ref<Game | null>(null)
+const showFormModal = ref(false);
+const editingGame = ref<Game | null>(null);
 
-const deletingGame = ref<Game | null>(null)
-const deleting = ref(false)
-const deleteError = ref<string | null>(null)
+const deletingGame = ref<Game | null>(null);
+const deleting = ref(false);
+const deleteError = ref<string | null>(null);
 
-const collectionName = computed(() => decodeURIComponent(route.params.name as string))
+const collectionName = computed(() =>
+  decodeURIComponent(route.params.name as string),
+);
 // same "Parent/Child" naming convention as CollectionCard.vue
 const nestedParent = computed(() => {
-  const idx = collectionName.value.indexOf('/')
-  return idx === -1 ? null : collectionName.value.slice(0, idx)
-})
+  const idx = collectionName.value.indexOf("/");
+  return idx === -1 ? null : collectionName.value.slice(0, idx);
+});
 const collectionDisplayName = computed(() => {
-  const idx = collectionName.value.indexOf('/')
-  return idx === -1 ? collectionName.value : collectionName.value.slice(idx + 1)
-})
+  const idx = collectionName.value.indexOf("/");
+  return idx === -1
+    ? collectionName.value
+    : collectionName.value.slice(idx + 1);
+});
 
 // custom display order, collections have no order of their own on the
 // backend (games.collections is just a flat tag), so this lives alongside
 // the cover pick below, keyed the same way
-const ORDER_KEY = 'collectionGameOrder'
+const ORDER_KEY = "collectionGameOrder";
 function loadOrders(): Record<string, string[]> {
   try {
-    const raw = localStorage.getItem(ORDER_KEY)
-    return raw ? JSON.parse(raw) : {}
+    const raw = localStorage.getItem(ORDER_KEY);
+    return raw ? JSON.parse(raw) : {};
   } catch {
-    return {}
+    return {};
   }
 }
 function saveOrder(order: string[]) {
-  const orders = loadOrders()
-  orders[collectionName.value] = order
+  const orders = loadOrders();
+  orders[collectionName.value] = order;
   try {
-    localStorage.setItem(ORDER_KEY, JSON.stringify(orders))
+    localStorage.setItem(ORDER_KEY, JSON.stringify(orders));
   } catch {
     // best-effort, falls back to natural order next time
   }
 }
 
-const gameOrder = ref<string[] | null>(loadOrders()[collectionName.value] ?? null)
+const gameOrder = ref<string[] | null>(
+  loadOrders()[collectionName.value] ?? null,
+);
 watch(collectionName, (name) => {
-  gameOrder.value = loadOrders()[name] ?? null
-})
+  gameOrder.value = loadOrders()[name] ?? null;
+});
 
-const smartRule = computed(() => findSmartCollectionByName(collectionName.value))
+const smartRule = computed(() =>
+  findSmartCollectionByName(collectionName.value),
+);
 
 const collectionGames = computed(() => {
   const members = smartRule.value
     ? games.value.filter((g) => matchesSmartCollection(g, smartRule.value!))
-    : games.value.filter((g) => g.collections.includes(collectionName.value))
-  if (smartRule.value || !gameOrder.value) return members
-  const byId = new Map(members.map((g) => [g.id, g]))
-  const ordered: Game[] = []
+    : games.value.filter((g) => g.collections.includes(collectionName.value));
+  if (smartRule.value || !gameOrder.value) return members;
+  const byId = new Map(members.map((g) => [g.id, g]));
+  const ordered: Game[] = [];
   for (const id of gameOrder.value) {
-    const g = byId.get(id)
+    const g = byId.get(id);
     if (g) {
-      ordered.push(g)
-      byId.delete(id)
+      ordered.push(g);
+      byId.delete(id);
     }
   }
   // any member not in the saved order (newly added since) goes at the end
-  return [...ordered, ...byId.values()]
-})
+  return [...ordered, ...byId.values()];
+});
 
-const reorderMode = ref(false)
+const reorderMode = ref(false);
 function moveGame(index: number, direction: -1 | 1) {
-  const target = index + direction
-  if (target < 0 || target >= collectionGames.value.length) return
-  const next = collectionGames.value.map((g) => g.id)
-  ;[next[index], next[target]] = [next[target], next[index]]
-  gameOrder.value = next
-  saveOrder(next)
+  const target = index + direction;
+  if (target < 0 || target >= collectionGames.value.length) return;
+  const next = collectionGames.value.map((g) => g.id);
+  [next[index], next[target]] = [next[target], next[index]];
+  gameOrder.value = next;
+  saveOrder(next);
 }
 
 // which game's cover represents this collection on the Collections grid,
 // keyed by collection name, alongside manualCollections' own localStorage
 // entry, since collections have no backend row of their own to hang this off
-const COLLECTION_COVER_KEY = 'collectionCoverPicks'
+const COLLECTION_COVER_KEY = "collectionCoverPicks";
 function loadCoverPicks(): Record<string, string> {
   try {
-    const raw = localStorage.getItem(COLLECTION_COVER_KEY)
-    return raw ? JSON.parse(raw) : {}
+    const raw = localStorage.getItem(COLLECTION_COVER_KEY);
+    return raw ? JSON.parse(raw) : {};
   } catch {
-    return {}
+    return {};
   }
 }
-const coverPickedGameId = ref<string | null>(loadCoverPicks()[collectionName.value] ?? null)
+const coverPickedGameId = ref<string | null>(
+  loadCoverPicks()[collectionName.value] ?? null,
+);
 function setCoverPick(gameId: string) {
-  const picks = loadCoverPicks()
-  if (gameId) picks[collectionName.value] = gameId
-  else delete picks[collectionName.value]
+  const picks = loadCoverPicks();
+  if (gameId) picks[collectionName.value] = gameId;
+  else delete picks[collectionName.value];
   try {
-    localStorage.setItem(COLLECTION_COVER_KEY, JSON.stringify(picks))
+    localStorage.setItem(COLLECTION_COVER_KEY, JSON.stringify(picks));
   } catch {
     // best-effort, the collection just falls back to its default cover collage
   }
-  coverPickedGameId.value = gameId || null
+  coverPickedGameId.value = gameId || null;
 }
 
 async function loadGames() {
-  loading.value = true
+  loading.value = true;
   try {
-    games.value = await fetchGames()
+    games.value = await fetchGames();
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Failed to load games'
+    error.value = err instanceof Error ? err.message : "Failed to load games";
   } finally {
-    loading.value = false
+    loading.value = false;
   }
 }
 
-onMounted(loadGames)
+onMounted(loadGames);
 
 function openEditModal(game: Game) {
-  editingGame.value = game
-  showFormModal.value = true
+  editingGame.value = game;
+  showFormModal.value = true;
 }
 
 async function onGameSaved() {
-  showFormModal.value = false
-  editingGame.value = null
-  await loadGames()
+  showFormModal.value = false;
+  editingGame.value = null;
+  await loadGames();
 }
 
 function onDeleteFromModal(gameId: string) {
-  const game = games.value.find((g) => g.id === gameId)
-  showFormModal.value = false
-  editingGame.value = null
-  if (game) requestDelete(game)
+  const game = games.value.find((g) => g.id === gameId);
+  showFormModal.value = false;
+  editingGame.value = null;
+  if (game) requestDelete(game);
 }
 
 function requestDelete(game: Game) {
-  deletingGame.value = game
-  deleteError.value = null
+  deletingGame.value = game;
+  deleteError.value = null;
 }
 
 async function confirmDelete() {
-  if (!deletingGame.value) return
-  deleting.value = true
-  deleteError.value = null
+  if (!deletingGame.value) return;
+  deleting.value = true;
+  deleteError.value = null;
   try {
-    await deleteGame(deletingGame.value.id)
-    deletingGame.value = null
-    await loadGames()
+    await deleteGame(deletingGame.value.id);
+    deletingGame.value = null;
+    await loadGames();
   } catch (err) {
-    deleteError.value = err instanceof Error ? err.message : 'Failed to delete game'
+    deleteError.value =
+      err instanceof Error ? err.message : "Failed to delete game";
   } finally {
-    deleting.value = false
+    deleting.value = false;
   }
 }
 
-const collectionPickerGame = ref<Game | null>(null)
+const collectionPickerGame = ref<Game | null>(null);
 
 function handleAddToCollection(game: Game) {
-  collectionPickerGame.value = game
+  collectionPickerGame.value = game;
 }
 
 async function onCollectionAdded() {
-  await loadGames()
+  await loadGames();
 }
 
 function goBack() {
   if (window.history.length > 1) {
-    router.back()
+    router.back();
   } else {
-    router.push('/collections')
+    router.push("/collections");
   }
 }
 
 function deleteSmartRule() {
-  if (!smartRule.value) return
-  if (!window.confirm(`Delete the smart collection "${collectionName.value}"? This only removes the rule, no games are affected.`)) return
-  removeSmartCollection(smartRule.value.id)
-  router.push('/collections')
+  if (!smartRule.value) return;
+  if (
+    !window.confirm(
+      `Delete the smart collection "${collectionName.value}"? This only removes the rule, no games are affected.`,
+    )
+  )
+    return;
+  removeSmartCollection(smartRule.value.id);
+  router.push("/collections");
 }
 
-const deletingCollection = ref(false)
-const deleteCollectionError = ref<string | null>(null)
+const deletingCollection = ref(false);
+const deleteCollectionError = ref<string | null>(null);
 
 async function deleteCollection() {
-  if (!window.confirm(`Delete "${collectionName.value}"? This removes it from every game.`)) return
-  deletingCollection.value = true
-  deleteCollectionError.value = null
+  if (
+    !window.confirm(
+      `Delete "${collectionName.value}"? This removes it from every game.`,
+    )
+  )
+    return;
+  deletingCollection.value = true;
+  deleteCollectionError.value = null;
   try {
     for (const game of collectionGames.value) {
-      await removeGameFromCollection(game.id, collectionName.value)
+      await removeGameFromCollection(game.id, collectionName.value);
     }
     try {
-      const raw = localStorage.getItem('manualCollections')
-      const names: string[] = raw ? JSON.parse(raw) : []
+      const raw = localStorage.getItem("manualCollections");
+      const names: string[] = raw ? JSON.parse(raw) : [];
       localStorage.setItem(
-        'manualCollections',
+        "manualCollections",
         JSON.stringify(names.filter((n) => n !== collectionName.value)),
-      )
+      );
     } catch {
       // non-critical, manual-collections cleanup is best-effort
     }
-    router.push('/collections')
+    router.push("/collections");
   } catch (err) {
-    deleteCollectionError.value = err instanceof Error ? err.message : 'Failed to delete collection'
+    deleteCollectionError.value =
+      err instanceof Error ? err.message : "Failed to delete collection";
     // some games may have already been removed from the collection before
     // the failure, refresh so the list reflects what actually happened
     // server-side instead of showing the stale pre-delete membership
-    await loadGames()
+    await loadGames();
   } finally {
-    deletingCollection.value = false
+    deletingCollection.value = false;
   }
 }
 </script>
 
 <template>
   <main class="collection-detail">
-    <button type="button" class="back-arrow-button" title="Back" @click="goBack">
-      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <button
+      type="button"
+      class="back-arrow-button"
+      title="Back"
+      @click="goBack"
+    >
+      <svg
+        viewBox="0 0 24 24"
+        width="18"
+        height="18"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
         <path d="M19 12H5" />
         <path d="M12 19l-7-7 7-7" />
       </svg>
@@ -237,17 +282,33 @@ async function deleteCollection() {
 
     <div v-if="currentUser" class="profile-chip">
       <span class="profile-name">{{ currentUser.username }}</span>
-      <div class="profile-avatar">{{ currentUser.username.slice(0, 2).toUpperCase() }}</div>
+      <div class="profile-avatar">
+        {{ currentUser.username.slice(0, 2).toUpperCase() }}
+      </div>
     </div>
 
     <div class="content">
       <div class="header-row">
         <h1>
-          <router-link v-if="nestedParent" :to="`/collections/${encodeURIComponent(nestedParent)}`" class="parent-crumb">{{ nestedParent }} ›</router-link>
+          <router-link
+            v-if="nestedParent"
+            :to="`/collections/${encodeURIComponent(nestedParent)}`"
+            class="parent-crumb"
+            >{{ nestedParent }} ›</router-link
+          >
           {{ collectionDisplayName }}
         </h1>
-        <span class="count-badge">{{ collectionGames.length }} game{{ collectionGames.length === 1 ? '' : 's' }}</span>
-        <span v-if="smartRule" class="smart-rule-badge" :title="describeSmartCollection(smartRule)">⚡ {{ describeSmartCollection(smartRule) }}</span>
+        <span class="count-badge"
+          >{{ collectionGames.length }} game{{
+            collectionGames.length === 1 ? "" : "s"
+          }}</span
+        >
+        <span
+          v-if="smartRule"
+          class="smart-rule-badge"
+          :title="describeSmartCollection(smartRule)"
+          >⚡ {{ describeSmartCollection(smartRule) }}</span
+        >
         <div class="header-spacer"></div>
         <template v-if="!smartRule">
           <label v-if="collectionGames.length" class="cover-pick-field">
@@ -258,7 +319,9 @@ async function deleteCollection() {
               @change="setCoverPick(($event.target as HTMLSelectElement).value)"
             >
               <option value="">First game (default)</option>
-              <option v-for="g in collectionGames" :key="g.id" :value="g.id">{{ g.title }}</option>
+              <option v-for="g in collectionGames" :key="g.id" :value="g.id">
+                {{ g.title }}
+              </option>
             </select>
           </label>
           <button
@@ -268,30 +331,61 @@ async function deleteCollection() {
             :class="{ active: reorderMode }"
             @click="reorderMode = !reorderMode"
           >
-            {{ reorderMode ? 'Done reordering' : 'Reorder' }}
+            {{ reorderMode ? "Done reordering" : "Reorder" }}
           </button>
-          <button type="button" class="danger-button" :disabled="deletingCollection" @click="deleteCollection">
-            {{ deletingCollection ? 'Deleting…' : 'Delete Collection' }}
+          <button
+            type="button"
+            class="danger-button"
+            :disabled="deletingCollection"
+            @click="deleteCollection"
+          >
+            {{ deletingCollection ? "Deleting…" : "Delete Collection" }}
           </button>
         </template>
-        <button v-else type="button" class="danger-button" @click="deleteSmartRule">Delete Rule</button>
+        <button
+          v-else
+          type="button"
+          class="danger-button"
+          @click="deleteSmartRule"
+        >
+          Delete Rule
+        </button>
       </div>
       <p v-if="smartRule" class="smart-hint">
-        This collection updates automatically, games are added or removed here as your library changes, not managed by hand.
+        This collection updates automatically, games are added or removed here
+        as your library changes, not managed by hand.
       </p>
-      <p v-if="deleteCollectionError" class="error">{{ deleteCollectionError }}</p>
+      <p v-if="deleteCollectionError" class="error">
+        {{ deleteCollectionError }}
+      </p>
 
       <p v-if="loading">Loading…</p>
       <p v-else-if="error" class="error">{{ error }}</p>
 
       <template v-else>
         <ol v-if="reorderMode && collectionGames.length" class="reorder-list">
-          <li v-for="(game, index) in collectionGames" :key="game.id" class="reorder-item">
+          <li
+            v-for="(game, index) in collectionGames"
+            :key="game.id"
+            class="reorder-item"
+          >
             <img :src="game.coverImageUrl" alt="" class="reorder-thumb" />
             <span class="reorder-title">{{ game.title }}</span>
             <div class="reorder-arrows">
-              <button type="button" :disabled="index === 0" @click="moveGame(index, -1)">↑</button>
-              <button type="button" :disabled="index === collectionGames.length - 1" @click="moveGame(index, 1)">↓</button>
+              <button
+                type="button"
+                :disabled="index === 0"
+                @click="moveGame(index, -1)"
+              >
+                ↑
+              </button>
+              <button
+                type="button"
+                :disabled="index === collectionGames.length - 1"
+                @click="moveGame(index, 1)"
+              >
+                ↓
+              </button>
             </div>
           </li>
         </ol>
@@ -322,15 +416,30 @@ async function deleteCollection() {
         @delete="onDeleteFromModal"
       />
 
-      <div v-if="deletingGame" class="confirm-backdrop" @click.self="deletingGame = null">
+      <div
+        v-if="deletingGame"
+        class="confirm-backdrop"
+        @click.self="deletingGame = null"
+      >
         <div class="confirm-dialog">
           <h3>Delete {{ deletingGame.title }}?</h3>
           <p>This can't be undone.</p>
           <div v-if="deleteError" class="confirm-error">{{ deleteError }}</div>
           <div class="confirm-actions">
-            <button type="button" class="secondary-button" @click="deletingGame = null">Cancel</button>
-            <button type="button" class="danger-button" :disabled="deleting" @click="confirmDelete">
-              {{ deleting ? 'Deleting…' : 'Delete' }}
+            <button
+              type="button"
+              class="secondary-button"
+              @click="deletingGame = null"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              class="danger-button"
+              :disabled="deleting"
+              @click="confirmDelete"
+            >
+              {{ deleting ? "Deleting…" : "Delete" }}
             </button>
           </div>
         </div>

@@ -1,33 +1,33 @@
 <script setup lang="ts">
-import { ref } from 'vue'
-import { useRouter } from 'vue-router'
-import { login } from '../services/auth'
-import { checkAuth } from '../state/auth'
+import { ref } from "vue";
+import { useRouter } from "vue-router";
+import { login } from "../services/auth";
+import { checkAuth } from "../state/auth";
 
-const router = useRouter()
+const router = useRouter();
 
-const usernameOrEmail = ref('')
-const password = ref('')
-const error = ref<string | null>(null)
-const loading = ref(false)
+const usernameOrEmail = ref("");
+const password = ref("");
+const error = ref<string | null>(null);
+const loading = ref(false);
 
 async function submit() {
   if (!usernameOrEmail.value.trim() || !password.value) {
-    error.value = 'Enter your username/email and password.'
-    return
+    error.value = "Enter your username/email and password.";
+    return;
   }
 
-  loading.value = true
-  error.value = null
+  loading.value = true;
+  error.value = null;
 
   try {
-    await login(usernameOrEmail.value.trim(), password.value)
-    await checkAuth()
-    router.push('/')
+    await login(usernameOrEmail.value.trim(), password.value);
+    await checkAuth();
+    router.push("/");
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Login failed'
+    error.value = err instanceof Error ? err.message : "Login failed";
   } finally {
-    loading.value = false
+    loading.value = false;
   }
 }
 </script>
@@ -43,18 +43,28 @@ async function submit() {
 
       <label class="field">
         <span>Username or email</span>
-        <input v-model="usernameOrEmail" type="text" autocomplete="username" required />
+        <input
+          v-model="usernameOrEmail"
+          type="text"
+          autocomplete="username"
+          required
+        />
       </label>
 
       <label class="field">
         <span>Password</span>
-        <input v-model="password" type="password" autocomplete="current-password" required />
+        <input
+          v-model="password"
+          type="password"
+          autocomplete="current-password"
+          required
+        />
       </label>
 
       <div v-if="error" class="login-error">{{ error }}</div>
 
       <button type="submit" class="login-button" :disabled="loading">
-        {{ loading ? 'Signing in…' : 'Sign in' }}
+        {{ loading ? "Signing in…" : "Sign in" }}
       </button>
     </form>
   </main>
@@ -72,11 +82,15 @@ async function submit() {
   overflow: hidden;
 }
 .login-page::before {
-  content: '';
+  content: "";
   position: absolute;
   width: 600px;
   height: 600px;
-  background: radial-gradient(circle, rgba(214, 138, 52, 0.18) 0%, transparent 70%);
+  background: radial-gradient(
+    circle,
+    rgba(214, 138, 52, 0.18) 0%,
+    transparent 70%
+  );
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);

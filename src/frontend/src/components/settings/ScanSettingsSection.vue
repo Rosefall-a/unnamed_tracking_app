@@ -1,79 +1,90 @@
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
-import { fetchScanSettings, updateScanSettings } from '../../services/settings'
-import type { DataProvider, ImageProvider } from '../../services/settings'
-import ToggleButton from './ToggleButton.vue'
+import { ref, onMounted, watch } from "vue";
+import { fetchScanSettings, updateScanSettings } from "../../services/settings";
+import type { DataProvider, ImageProvider } from "../../services/settings";
+import ToggleButton from "./ToggleButton.vue";
 
 const DATA_PROVIDER_LABELS: Record<DataProvider, string> = {
-  Steam: 'Steam',
-  IGDB: 'IGDB',
-  GiantBomb: 'Giant Bomb',
-  GOG: 'GOG',
-  RetroAchievements: 'RetroAchievements',
-  HowLongToBeat: 'HowLongToBeat (time to beat only)',
-}
+  Steam: "Steam",
+  IGDB: "IGDB",
+  GiantBomb: "Giant Bomb",
+  GOG: "GOG",
+  RetroAchievements: "RetroAchievements",
+  HowLongToBeat: "HowLongToBeat (time to beat only)",
+};
 const IMAGE_PROVIDER_LABELS: Record<ImageProvider, string> = {
-  SteamGridDB: 'SteamGridDB',
-  ScreenScraper: 'ScreenScraper',
-}
+  SteamGridDB: "SteamGridDB",
+  ScreenScraper: "ScreenScraper",
+};
 
-const loading = ref(true)
-const saving = ref(false)
-const error = ref<string | null>(null)
-const saveSuccess = ref(false)
+const loading = ref(true);
+const saving = ref(false);
+const error = ref<string | null>(null);
+const saveSuccess = ref(false);
 
-const providerOrder = ref<DataProvider[]>(['IGDB', 'GiantBomb', 'GOG', 'Steam', 'RetroAchievements', 'HowLongToBeat'])
-const imageProviderOrder = ref<ImageProvider[]>(['SteamGridDB', 'ScreenScraper'])
-const saveDeveloper = ref(true)
-const savePublisher = ref(true)
-const saveSeries = ref(true)
-const saveTags = ref(true)
-const saveFeatures = ref(true)
-const saveDescription = ref(true)
-const saveAgeRating = ref(true)
-const saveReleaseDate = ref(true)
-const saveTimeToBeat = ref(true)
-const saveKeyArt = ref(true)
-const saveBanner = ref(true)
-const saveLogo = ref(true)
-const saveIcon = ref(true)
-const providerLastUsed = ref<Record<string, number>>({})
+const providerOrder = ref<DataProvider[]>([
+  "IGDB",
+  "GiantBomb",
+  "GOG",
+  "Steam",
+  "RetroAchievements",
+  "HowLongToBeat",
+]);
+const imageProviderOrder = ref<ImageProvider[]>([
+  "SteamGridDB",
+  "ScreenScraper",
+]);
+const saveDeveloper = ref(true);
+const savePublisher = ref(true);
+const saveSeries = ref(true);
+const saveTags = ref(true);
+const saveFeatures = ref(true);
+const saveDescription = ref(true);
+const saveAgeRating = ref(true);
+const saveReleaseDate = ref(true);
+const saveTimeToBeat = ref(true);
+const saveKeyArt = ref(true);
+const saveBanner = ref(true);
+const saveLogo = ref(true);
+const saveIcon = ref(true);
+const providerLastUsed = ref<Record<string, number>>({});
 
 function lastUsedLabel(provider: string): string {
-  const at = providerLastUsed.value[provider]
-  if (!at) return 'never used'
-  const seconds = Date.now() / 1000 - at
-  if (seconds < 60) return 'used just now'
-  if (seconds < 3600) return `used ${Math.round(seconds / 60)}m ago`
-  if (seconds < 86400) return `used ${Math.round(seconds / 3600)}h ago`
-  return `used ${Math.round(seconds / 86400)}d ago`
+  const at = providerLastUsed.value[provider];
+  if (!at) return "never used";
+  const seconds = Date.now() / 1000 - at;
+  if (seconds < 60) return "used just now";
+  if (seconds < 3600) return `used ${Math.round(seconds / 60)}m ago`;
+  if (seconds < 86400) return `used ${Math.round(seconds / 3600)}h ago`;
+  return `used ${Math.round(seconds / 86400)}d ago`;
 }
 
 onMounted(async () => {
   try {
-    const settings = await fetchScanSettings()
-    providerOrder.value = settings.provider_order
-    imageProviderOrder.value = settings.image_provider_order
-    saveDeveloper.value = settings.save_developer
-    savePublisher.value = settings.save_publisher
-    saveSeries.value = settings.save_series
-    saveTags.value = settings.save_tags
-    saveFeatures.value = settings.save_features
-    saveDescription.value = settings.save_description
-    saveAgeRating.value = settings.save_age_rating
-    saveReleaseDate.value = settings.save_release_date
-    saveTimeToBeat.value = settings.save_time_to_beat
-    saveKeyArt.value = settings.save_key_art
-    saveBanner.value = settings.save_banner
-    saveLogo.value = settings.save_logo
-    saveIcon.value = settings.save_icon
-    providerLastUsed.value = settings.provider_last_used
+    const settings = await fetchScanSettings();
+    providerOrder.value = settings.provider_order;
+    imageProviderOrder.value = settings.image_provider_order;
+    saveDeveloper.value = settings.save_developer;
+    savePublisher.value = settings.save_publisher;
+    saveSeries.value = settings.save_series;
+    saveTags.value = settings.save_tags;
+    saveFeatures.value = settings.save_features;
+    saveDescription.value = settings.save_description;
+    saveAgeRating.value = settings.save_age_rating;
+    saveReleaseDate.value = settings.save_release_date;
+    saveTimeToBeat.value = settings.save_time_to_beat;
+    saveKeyArt.value = settings.save_key_art;
+    saveBanner.value = settings.save_banner;
+    saveLogo.value = settings.save_logo;
+    saveIcon.value = settings.save_icon;
+    providerLastUsed.value = settings.provider_last_used;
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Failed to load scan settings'
+    error.value =
+      err instanceof Error ? err.message : "Failed to load scan settings";
   } finally {
-    loading.value = false
+    loading.value = false;
   }
-})
+});
 
 // same as Profile/Appearance: without this, "Scan settings saved." keeps
 // showing after a save even once the user starts changing something else,
@@ -97,33 +108,33 @@ watch(
     saveIcon,
   ],
   () => {
-    saveSuccess.value = false
+    saveSuccess.value = false;
   },
   { deep: true },
-)
+);
 
 function reorder<T>(list: T[], index: number, direction: -1 | 1): T[] | null {
-  const target = index + direction
-  if (target < 0 || target >= list.length) return null
-  const next = [...list]
-  ;[next[index], next[target]] = [next[target], next[index]]
-  return next
+  const target = index + direction;
+  if (target < 0 || target >= list.length) return null;
+  const next = [...list];
+  [next[index], next[target]] = [next[target], next[index]];
+  return next;
 }
 
 function moveDataProvider(index: number, direction: -1 | 1) {
-  const next = reorder(providerOrder.value, index, direction)
-  if (next) providerOrder.value = next
+  const next = reorder(providerOrder.value, index, direction);
+  if (next) providerOrder.value = next;
 }
 
 function moveImageProvider(index: number, direction: -1 | 1) {
-  const next = reorder(imageProviderOrder.value, index, direction)
-  if (next) imageProviderOrder.value = next
+  const next = reorder(imageProviderOrder.value, index, direction);
+  if (next) imageProviderOrder.value = next;
 }
 
 async function save() {
-  saving.value = true
-  error.value = null
-  saveSuccess.value = false
+  saving.value = true;
+  error.value = null;
+  saveSuccess.value = false;
   try {
     await updateScanSettings({
       provider_order: providerOrder.value,
@@ -141,12 +152,13 @@ async function save() {
       save_banner: saveBanner.value,
       save_logo: saveLogo.value,
       save_icon: saveIcon.value,
-    })
-    saveSuccess.value = true
+    });
+    saveSuccess.value = true;
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Failed to save scan settings'
+    error.value =
+      err instanceof Error ? err.message : "Failed to save scan settings";
   } finally {
-    saving.value = false
+    saving.value = false;
   }
 }
 </script>
@@ -155,8 +167,8 @@ async function save() {
   <section class="settings-section">
     <h2>Scan Settings</h2>
     <p class="section-hint">
-      Controls how future metadata searches behave: which provider is checked first, and
-      which fields a search result is allowed to save onto a game.
+      Controls how future metadata searches behave: which provider is checked
+      first, and which fields a search result is allowed to save onto a game.
     </p>
 
     <p v-if="loading">Loading…</p>
@@ -164,16 +176,37 @@ async function save() {
       <div class="provider-order-row">
         <div class="field-block">
           <span class="field-label">Data provider order</span>
-          <p class="field-sublabel">Which provider's text/data fields win when more than one has a match.</p>
+          <p class="field-sublabel">
+            Which provider's text/data fields win when more than one has a
+            match.
+          </p>
           <ol class="provider-list">
-            <li v-for="(provider, index) in providerOrder" :key="provider" class="provider-item">
+            <li
+              v-for="(provider, index) in providerOrder"
+              :key="provider"
+              class="provider-item"
+            >
               <span class="provider-item-label">
                 {{ DATA_PROVIDER_LABELS[provider] }}
-                <small class="provider-last-used">{{ lastUsedLabel(provider) }}</small>
+                <small class="provider-last-used">{{
+                  lastUsedLabel(provider)
+                }}</small>
               </span>
               <div class="provider-arrows">
-                <button type="button" :disabled="index === 0" @click="moveDataProvider(index, -1)">↑</button>
-                <button type="button" :disabled="index === providerOrder.length - 1" @click="moveDataProvider(index, 1)">↓</button>
+                <button
+                  type="button"
+                  :disabled="index === 0"
+                  @click="moveDataProvider(index, -1)"
+                >
+                  ↑
+                </button>
+                <button
+                  type="button"
+                  :disabled="index === providerOrder.length - 1"
+                  @click="moveDataProvider(index, 1)"
+                >
+                  ↓
+                </button>
               </div>
             </li>
           </ol>
@@ -181,15 +214,29 @@ async function save() {
 
         <div class="field-block">
           <span class="field-label">Image provider order</span>
-          <p class="field-sublabel">Which provider's art wins when more than one has art.</p>
+          <p class="field-sublabel">
+            Which provider's art wins when more than one has art.
+          </p>
           <ol class="provider-list">
-            <li v-for="(provider, index) in imageProviderOrder" :key="provider" class="provider-item">
+            <li
+              v-for="(provider, index) in imageProviderOrder"
+              :key="provider"
+              class="provider-item"
+            >
               <span class="provider-item-label">
                 {{ IMAGE_PROVIDER_LABELS[provider] }}
-                <small class="provider-last-used">{{ lastUsedLabel(provider) }}</small>
+                <small class="provider-last-used">{{
+                  lastUsedLabel(provider)
+                }}</small>
               </span>
               <div class="provider-arrows">
-                <button type="button" :disabled="index === 0" @click="moveImageProvider(index, -1)">↑</button>
+                <button
+                  type="button"
+                  :disabled="index === 0"
+                  @click="moveImageProvider(index, -1)"
+                >
+                  ↑
+                </button>
                 <button
                   type="button"
                   :disabled="index === imageProviderOrder.length - 1"
@@ -206,8 +253,8 @@ async function save() {
       <div class="field-block">
         <span class="field-label">Images to save from a search result</span>
         <p class="field-sublabel">
-          Turn an image type off to leave it untouched by search/refresh: useful if you keep
-          your own art for something and don't want it overwritten.
+          Turn an image type off to leave it untouched by search/refresh: useful
+          if you keep your own art for something and don't want it overwritten.
         </p>
         <div class="refresh-options">
           <ToggleButton v-model="saveKeyArt" label="Key art">
@@ -228,8 +275,9 @@ async function save() {
       <div class="field-block">
         <span class="field-label">Data to save from a search result</span>
         <p class="field-sublabel">
-          Turn a field off to leave it untouched by search/refresh: useful if you keep your
-          own values for something and don't want them overwritten.
+          Turn a field off to leave it untouched by search/refresh: useful if
+          you keep your own values for something and don't want them
+          overwritten.
         </p>
         <div class="refresh-options">
           <ToggleButton v-model="saveDeveloper" label="Developer">
@@ -245,10 +293,12 @@ async function save() {
             <strong>Tags</strong>: Steam genre tags (RPG, Strategy, etc.)
           </ToggleButton>
           <ToggleButton v-model="saveFeatures" label="Features">
-            <strong>Features</strong>: Steam categories (Co-op, Controller support, etc.)
+            <strong>Features</strong>: Steam categories (Co-op, Controller
+            support, etc.)
           </ToggleButton>
           <ToggleButton v-model="saveDescription" label="Description">
-            <strong>Description</strong>: the "About This Game" text and screenshots
+            <strong>Description</strong>: the "About This Game" text and
+            screenshots
           </ToggleButton>
           <ToggleButton v-model="saveAgeRating" label="Age rating">
             <strong>Age rating</strong>: e.g. "17+"
@@ -265,8 +315,13 @@ async function save() {
       <div v-if="error" class="form-error">{{ error }}</div>
       <div v-if="saveSuccess" class="form-success">Scan settings saved.</div>
 
-      <button type="button" class="primary-button" :disabled="saving" @click="save">
-        {{ saving ? 'Saving…' : 'Save' }}
+      <button
+        type="button"
+        class="primary-button"
+        :disabled="saving"
+        @click="save"
+      >
+        {{ saving ? "Saving…" : "Save" }}
       </button>
     </template>
   </section>

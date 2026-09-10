@@ -7,20 +7,21 @@
 // services/cards.ts's generatePrestigeChallenge), and whether the card is
 // actually prestiged is derived from that bounty's status, never stored
 // here.
-export type CardRarity = 'common' | 'uncommon' | 'rare' | 'legendary' | 'mythic'
-export type CardStatus = 'draft' | 'approved' | 'printed' | 'archived'
+export type CardRarity =
+  "common" | "uncommon" | "rare" | "legendary" | "mythic";
+export type CardStatus = "draft" | "approved" | "printed" | "archived";
 
 export interface Card {
-  id: string
-  gameId: string
-  archiveNumber: number | null
-  setId: string | null
-  rarity: CardRarity | null
-  bountyId: string | null
-  cardCustomization: CardCustomization | null
-  status: CardStatus
-  createdAt: string
-  updatedAt: string
+  id: string;
+  gameId: string;
+  archiveNumber: number | null;
+  setId: string | null;
+  rarity: CardRarity | null;
+  bountyId: string | null;
+  cardCustomization: CardCustomization | null;
+  status: CardStatus;
+  createdAt: string;
+  updatedAt: string;
 }
 
 // Everything a user can pick on the Collector Card designer that isn't
@@ -28,60 +29,61 @@ export interface Card {
 // (cards.card_customization) so a new customization knob is a
 // frontend-only change, never a migration.
 
-export type CardFrontTemplate = 'classic' | 'borderless' | 'ornate' | 'minimal' | 'bordered'
-export type CardBackTemplate = 'emblem' | 'collector' | 'record'
-export type CardAccent = 'gold' | 'silver' | 'bronze' | 'copper' | 'rose'
-export type CardBorderColor = 'black' | 'white' | 'accent'
-export type CardFace = 'dark' | 'parchment'
-export type CardTitlePosition = 'top' | 'bottom'
-export type PrestigeVariant = 'foil' | 'engraved' | 'ceremonial' | 'minimal'
+export type CardFrontTemplate =
+  "classic" | "borderless" | "ornate" | "minimal" | "bordered";
+export type CardBackTemplate = "emblem" | "collector" | "record";
+export type CardAccent = "gold" | "silver" | "bronze" | "copper" | "rose";
+export type CardBorderColor = "black" | "white" | "accent";
+export type CardFace = "dark" | "parchment";
+export type CardTitlePosition = "top" | "bottom";
+export type PrestigeVariant = "foil" | "engraved" | "ceremonial" | "minimal";
 
 export interface CardCustomization {
-  frontTemplate: CardFrontTemplate
-  backTemplate: CardBackTemplate
-  titlePosition: CardTitlePosition
-  accent: CardAccent
-  borderColor: CardBorderColor
-  cardFace: CardFace
-  prestigeVariant: PrestigeVariant
+  frontTemplate: CardFrontTemplate;
+  backTemplate: CardBackTemplate;
+  titlePosition: CardTitlePosition;
+  accent: CardAccent;
+  borderColor: CardBorderColor;
+  cardFace: CardFace;
+  prestigeVariant: PrestigeVariant;
   // primary symbol (type line, collector line, back medallion)
-  symbol: string
+  symbol: string;
   // optional second symbol, combined as a small badge on the back
   // medallion only — 'none' means no badge
-  symbol2: string
+  symbol2: string;
   // tilts the primary symbol wherever it's shown, degrees
-  symbolRotation: number
+  symbolRotation: number;
   // a data: URI of an uploaded image, overrides the built-in symbol (and
   // its rotation) everywhere it appears when set
-  customSymbol: string | null
+  customSymbol: string | null;
   // a data: URI overriding the game's own cover art for this card
   // specifically — null means use the game's real cover image
-  customArt: string | null
+  customArt: string | null;
   // the achievement you actually want remembered, not just whichever one
   // unlocked last — free text since it's about which one mattered, not a
   // lookup into the game's real achievement list
-  memorableAchievement: string
+  memorableAchievement: string;
   // a short personal note for the back, why this one mattered — distinct
   // from Game.notes (that's general library notes, this is the card's own)
-  personalNote: string
+  personalNote: string;
 }
 
 export const DEFAULT_CARD_CUSTOMIZATION: CardCustomization = {
-  frontTemplate: 'classic',
-  backTemplate: 'emblem',
-  titlePosition: 'top',
-  accent: 'gold',
-  borderColor: 'black',
-  cardFace: 'dark',
-  prestigeVariant: 'foil',
-  symbol: 'star',
-  symbol2: 'none',
+  frontTemplate: "classic",
+  backTemplate: "emblem",
+  titlePosition: "top",
+  accent: "gold",
+  borderColor: "black",
+  cardFace: "dark",
+  prestigeVariant: "foil",
+  symbol: "star",
+  symbol2: "none",
   symbolRotation: 0,
   customSymbol: null,
   customArt: null,
-  memorableAchievement: '',
-  personalNote: '',
-}
+  memorableAchievement: "",
+  personalNote: "",
+};
 
 // The full icon library — pick one for the type line and collector line,
 // optionally combine a second as a small badge on the back medallion, or
@@ -93,7 +95,8 @@ export const CARD_SYMBOLS: Record<string, string> = {
   hex: '<path d="M12 2l8 5v10l-8 5-8-5V7z"/>',
   compass:
     '<circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M15 9l-2 6-6 2 2-6z"/>',
-  shield: '<path d="M12 2l8 3.5v6c0 5-3.4 8.4-8 10.5-4.6-2.1-8-5.5-8-10.5v-6z"/>',
+  shield:
+    '<path d="M12 2l8 3.5v6c0 5-3.4 8.4-8 10.5-4.6-2.1-8-5.5-8-10.5v-6z"/>',
   circle: '<circle cx="12" cy="12" r="8.5"/>',
   crown: '<path d="M3 18h18l-1.5-9-4.5 3.5L12 5l-3 7.5L4.5 12.5z"/>',
   dagger: '<path d="M11 2h2v11h3l-4 9-4-9h3z"/>',
@@ -111,9 +114,26 @@ export const CARD_SYMBOLS: Record<string, string> = {
   helm: '<path d="M12 2C7.6 2 4 5.4 4 9.6v2.5c0 1.3.5 2.5 1.3 3.4L6.4 21h2.1l.6-2.6h5.8l.6 2.6h2.1l1.1-5.5c.8-.9 1.3-2.1 1.3-3.4V9.6C20 5.4 16.4 2 12 2z" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8 11h8M9 14h6" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linecap="round"/>',
   swordscross:
     '<path d="M4 4l16 16M20 4L4 20" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round"/><path d="M8.5 8.5l2 2M15.5 8.5l-2 2M8.5 15.5l2-2M15.5 15.5l-2-2" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round"/>',
-}
+};
 
 export const CARD_SYMBOL_ORDER = [
-  'star', 'diamond', 'hex', 'compass', 'shield', 'circle', 'crown', 'dagger', 'laurel',
-  'flame', 'mountain', 'moon', 'feather', 'key', 'book', 'anchor', 'banner', 'helm', 'swordscross',
-]
+  "star",
+  "diamond",
+  "hex",
+  "compass",
+  "shield",
+  "circle",
+  "crown",
+  "dagger",
+  "laurel",
+  "flame",
+  "mountain",
+  "moon",
+  "feather",
+  "key",
+  "book",
+  "anchor",
+  "banner",
+  "helm",
+  "swordscross",
+];

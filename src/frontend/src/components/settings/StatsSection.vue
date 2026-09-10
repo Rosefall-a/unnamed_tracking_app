@@ -1,126 +1,145 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-import { fetchStatsOverview } from '../../services/stats'
-import type { StatsOverview } from '../../services/stats'
-import { fetchGames } from '../../services/games'
-import type { Game } from '../../types/game'
-import SegmentedControl from './SegmentedControl.vue'
+import { ref, computed, onMounted } from "vue";
+import { fetchStatsOverview } from "../../services/stats";
+import type { StatsOverview } from "../../services/stats";
+import { fetchGames } from "../../services/games";
+import type { Game } from "../../types/game";
+import SegmentedControl from "./SegmentedControl.vue";
 
-const stats = ref<StatsOverview | null>(null)
-const loading = ref(true)
-const error = ref<string | null>(null)
+const stats = ref<StatsOverview | null>(null);
+const loading = ref(true);
+const error = ref<string | null>(null);
 
 onMounted(async () => {
   try {
-    stats.value = await fetchStatsOverview()
+    stats.value = await fetchStatsOverview();
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Failed to load stats'
+    error.value = err instanceof Error ? err.message : "Failed to load stats";
   } finally {
-    loading.value = false
+    loading.value = false;
   }
-})
+});
 
 // backlog burn-down, the aggregate stats endpoint has no month-by-month
 // completion history, so this pulls the raw game list once and estimates
 // pace from completionDate (set when a game first hits Mastered, the
 // only "finished" timestamp that exists on a game, so a library that
 // finishes games via "Beaten" without ever hitting 100% won't show a rate)
-const libraryForBurnDown = ref<Game[]>([])
+const libraryForBurnDown = ref<Game[]>([]);
 onMounted(async () => {
   try {
-    libraryForBurnDown.value = await fetchGames()
+    libraryForBurnDown.value = await fetchGames();
   } catch {
-    libraryForBurnDown.value = []
+    libraryForBurnDown.value = [];
   }
-})
+});
 const burnDown = computed(() => {
-  const backlogCount = libraryForBurnDown.value.filter((g) => g.status === 'backlog').length
-  if (!backlogCount) return null
-  const sixMonthsAgo = Date.now() - 180 * 86_400_000
+  const backlogCount = libraryForBurnDown.value.filter(
+    (g) => g.status === "backlog",
+  ).length;
+  if (!backlogCount) return null;
+  const sixMonthsAgo = Date.now() - 180 * 86_400_000;
   const recentCompletions = libraryForBurnDown.value.filter(
-    (g) => g.completionDate && new Date(g.completionDate).getTime() >= sixMonthsAgo,
-  ).length
-  const perMonth = recentCompletions / 6
+    (g) =>
+      g.completionDate && new Date(g.completionDate).getTime() >= sixMonthsAgo,
+  ).length;
+  const perMonth = recentCompletions / 6;
   return {
     backlogCount,
     monthsEstimate: perMonth > 0 ? Math.ceil(backlogCount / perMonth) : null,
-  }
-})
+  };
+});
 
-const statusView = ref('chart')
-const sourceView = ref('chart')
-const timelineView = ref('chart')
-const ratingView = ref('chart')
-const tagsView = ref('chart')
-const yearView = ref('chart')
-const formatView = ref('chart')
+const statusView = ref("chart");
+const sourceView = ref("chart");
+const timelineView = ref("chart");
+const ratingView = ref("chart");
+const tagsView = ref("chart");
+const yearView = ref("chart");
+const formatView = ref("chart");
 const viewOptions = [
-  { value: 'chart', label: 'Chart' },
-  { value: 'list', label: 'List' },
-]
+  { value: "chart", label: "Chart" },
+  { value: "list", label: "List" },
+];
 
 // purchase_price isn't currency-tagged on the backend (it's summed across
 // whatever currencies were entered per-game), so this is a plain number,
 // not a localized currency string that would imply a single currency
 function formatSpent(amount: number): string {
-  return amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  return amount.toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
 }
 
 function formatPlaytime(seconds: number): string {
-  const hours = Math.floor(seconds / 3600)
-  if (hours < 1) return `${Math.round(seconds / 60)}m`
-  return `${hours.toLocaleString()}h`
+  const hours = Math.floor(seconds / 3600);
+  if (hours < 1) return `${Math.round(seconds / 60)}m`;
+  return `${hours.toLocaleString()}h`;
 }
 
 function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`
-  const units = ['KB', 'MB', 'GB', 'TB']
-  let value = bytes
-  let unitIndex = -1
+  if (bytes < 1024) return `${bytes} B`;
+  const units = ["KB", "MB", "GB", "TB"];
+  let value = bytes;
+  let unitIndex = -1;
   do {
-    value /= 1024
-    unitIndex++
-  } while (value >= 1024 && unitIndex < units.length - 1)
-  return `${value.toFixed(1)} ${units[unitIndex]}`
+    value /= 1024;
+    unitIndex++;
+  } while (value >= 1024 && unitIndex < units.length - 1);
+  return `${value.toFixed(1)} ${units[unitIndex]}`;
 }
 
 function maxCount(entries: { count: number }[]): number {
-  return Math.max(1, ...entries.map((e) => e.count))
+  return Math.max(1, ...entries.map((e) => e.count));
 }
 
 // "completed" is deliberately narrow (beaten/mastered only, not "played",
 // too ambiguous whether that means finished or just started) so this
 // number stays defensible rather than a vibes-based guess
 const completionRate = computed(() => {
-  if (!stats.value || !stats.value.total_games) return null
+  if (!stats.value || !stats.value.total_games) return null;
   const completed = (stats.value.status_breakdown ?? [])
-    .filter((e) => e.label.toLowerCase() === 'beaten' || e.label.toLowerCase() === 'mastered')
-    .reduce((sum, e) => sum + e.count, 0)
-  return Math.round((completed / stats.value.total_games) * 100)
-})
+    .filter(
+      (e) =>
+        e.label.toLowerCase() === "beaten" ||
+        e.label.toLowerCase() === "mastered",
+    )
+    .reduce((sum, e) => sum + e.count, 0);
+  return Math.round((completed / stats.value.total_games) * 100);
+});
 
 // only meaningful once there's both real spend and real playtime behind
 // it, otherwise a library that's mostly free games would show a
 // misleadingly tiny (or divide-by-zero) number
 const costPerHour = computed(() => {
-  if (!stats.value || stats.value.total_spent <= 0 || stats.value.total_playtime_seconds < 3600) return null
-  const hours = stats.value.total_playtime_seconds / 3600
-  return stats.value.total_spent / hours
-})
+  if (
+    !stats.value ||
+    stats.value.total_spent <= 0 ||
+    stats.value.total_playtime_seconds < 3600
+  )
+    return null;
+  const hours = stats.value.total_playtime_seconds / 3600;
+  return stats.value.total_spent / hours;
+});
 
-const statusBreakdown = computed(() => stats.value?.status_breakdown ?? [])
-const sourceBreakdown = computed(() => stats.value?.source_breakdown ?? [])
-const timeline = computed(() => stats.value?.recently_added ?? [])
-const ratingHistogram = computed(() => stats.value?.rating_histogram ?? [])
-const topTags = computed(() => stats.value?.top_tags ?? [])
-const releaseYearBreakdown = computed(() => stats.value?.release_year_breakdown ?? [])
-const formatBreakdown = computed(() => stats.value?.format_breakdown ?? [])
+const statusBreakdown = computed(() => stats.value?.status_breakdown ?? []);
+const sourceBreakdown = computed(() => stats.value?.source_breakdown ?? []);
+const timeline = computed(() => stats.value?.recently_added ?? []);
+const ratingHistogram = computed(() => stats.value?.rating_histogram ?? []);
+const topTags = computed(() => stats.value?.top_tags ?? []);
+const releaseYearBreakdown = computed(
+  () => stats.value?.release_year_breakdown ?? [],
+);
+const formatBreakdown = computed(() => stats.value?.format_breakdown ?? []);
 </script>
 
 <template>
   <section class="settings-section">
     <h2>Server Stats</h2>
-    <p class="section-hint">A live snapshot of your library: computed on every visit, nothing cached.</p>
+    <p class="section-hint">
+      A live snapshot of your library: computed on every visit, nothing cached.
+    </p>
 
     <p v-if="loading">Loading…</p>
     <p v-else-if="error" class="form-error">{{ error }}</p>
@@ -135,11 +154,15 @@ const formatBreakdown = computed(() => stats.value?.format_breakdown ?? [])
           <span class="tile-label">Favorites</span>
         </div>
         <div class="tile">
-          <span class="tile-value">{{ formatPlaytime(stats.total_playtime_seconds) }}</span>
+          <span class="tile-value">{{
+            formatPlaytime(stats.total_playtime_seconds)
+          }}</span>
           <span class="tile-label">Total playtime</span>
         </div>
         <div class="tile">
-          <span class="tile-value">{{ formatBytes(stats.storage_used_bytes) }}</span>
+          <span class="tile-value">{{
+            formatBytes(stats.storage_used_bytes)
+          }}</span>
           <span class="tile-label">Storage used</span>
         </div>
         <div class="tile">
@@ -147,15 +170,23 @@ const formatBreakdown = computed(() => stats.value?.format_breakdown ?? [])
           <span class="tile-label">Total spent</span>
         </div>
         <div class="tile">
-          <span class="tile-value">{{ stats.average_rating != null ? stats.average_rating.toFixed(1) : 'N/A' }}</span>
+          <span class="tile-value">{{
+            stats.average_rating != null
+              ? stats.average_rating.toFixed(1)
+              : "N/A"
+          }}</span>
           <span class="tile-label">Average rating</span>
         </div>
         <div class="tile">
-          <span class="tile-value">{{ costPerHour != null ? formatSpent(costPerHour) : 'N/A' }}</span>
+          <span class="tile-value">{{
+            costPerHour != null ? formatSpent(costPerHour) : "N/A"
+          }}</span>
           <span class="tile-label">Cost per hour played</span>
         </div>
         <div class="tile">
-          <span class="tile-value">{{ completionRate != null ? `${completionRate}%` : 'N/A' }}</span>
+          <span class="tile-value">{{
+            completionRate != null ? `${completionRate}%` : "N/A"
+          }}</span>
           <span class="tile-label">Completed (beaten/mastered)</span>
         </div>
         <div class="tile">
@@ -175,12 +206,22 @@ const formatBreakdown = computed(() => stats.value?.format_breakdown ?? [])
       <div v-if="burnDown" class="burn-down-card">
         <span class="burn-down-count">{{ burnDown.backlogCount }}</span>
         <div class="burn-down-body">
-          <span class="burn-down-title">game{{ burnDown.backlogCount === 1 ? '' : 's' }} in your backlog</span>
+          <span class="burn-down-title"
+            >game{{ burnDown.backlogCount === 1 ? "" : "s" }} in your
+            backlog</span
+          >
           <span class="burn-down-estimate">
             <template v-if="burnDown.monthsEstimate">
-              At your last 6 months' pace, roughly {{ burnDown.monthsEstimate }} month{{ burnDown.monthsEstimate === 1 ? '' : 's' }} to clear it
+              At your last 6 months' pace, roughly
+              {{ burnDown.monthsEstimate }} month{{
+                burnDown.monthsEstimate === 1 ? "" : "s"
+              }}
+              to clear it
             </template>
-            <template v-else>No games marked Mastered in the last 6 months, not enough data for a pace estimate</template>
+            <template v-else
+              >No games marked Mastered in the last 6 months, not enough data
+              for a pace estimate</template
+            >
           </span>
         </div>
       </div>
@@ -190,19 +231,31 @@ const formatBreakdown = computed(() => stats.value?.format_breakdown ?? [])
           <h3>Status</h3>
           <SegmentedControl v-model="statusView" :options="viewOptions" />
         </div>
-        <div v-if="!statusBreakdown.length" class="empty-hint">No games yet.</div>
+        <div v-if="!statusBreakdown.length" class="empty-hint">
+          No games yet.
+        </div>
         <div v-else-if="statusView === 'chart'" class="bar-chart">
-          <div v-for="entry in statusBreakdown" :key="entry.label" class="bar-row">
+          <div
+            v-for="entry in statusBreakdown"
+            :key="entry.label"
+            class="bar-row"
+          >
             <span class="bar-label">{{ entry.label }}</span>
             <div class="bar-track">
-              <div class="bar-fill" :style="{ width: (entry.count / maxCount(statusBreakdown)) * 100 + '%' }"></div>
+              <div
+                class="bar-fill"
+                :style="{
+                  width: (entry.count / maxCount(statusBreakdown)) * 100 + '%',
+                }"
+              ></div>
             </div>
             <span class="bar-count">{{ entry.count }}</span>
           </div>
         </div>
         <ul v-else class="plain-list">
           <li v-for="entry in statusBreakdown" :key="entry.label">
-            <span>{{ entry.label }}</span><span>{{ entry.count }}</span>
+            <span>{{ entry.label }}</span
+            ><span>{{ entry.count }}</span>
           </li>
         </ul>
       </div>
@@ -212,19 +265,31 @@ const formatBreakdown = computed(() => stats.value?.format_breakdown ?? [])
           <h3>Source</h3>
           <SegmentedControl v-model="sourceView" :options="viewOptions" />
         </div>
-        <div v-if="!sourceBreakdown.length" class="empty-hint">No games yet.</div>
+        <div v-if="!sourceBreakdown.length" class="empty-hint">
+          No games yet.
+        </div>
         <div v-else-if="sourceView === 'chart'" class="bar-chart">
-          <div v-for="entry in sourceBreakdown" :key="entry.label" class="bar-row">
+          <div
+            v-for="entry in sourceBreakdown"
+            :key="entry.label"
+            class="bar-row"
+          >
             <span class="bar-label">{{ entry.label }}</span>
             <div class="bar-track">
-              <div class="bar-fill" :style="{ width: (entry.count / maxCount(sourceBreakdown)) * 100 + '%' }"></div>
+              <div
+                class="bar-fill"
+                :style="{
+                  width: (entry.count / maxCount(sourceBreakdown)) * 100 + '%',
+                }"
+              ></div>
             </div>
             <span class="bar-count">{{ entry.count }}</span>
           </div>
         </div>
         <ul v-else class="plain-list">
           <li v-for="entry in sourceBreakdown" :key="entry.label">
-            <span>{{ entry.label }}</span><span>{{ entry.count }}</span>
+            <span>{{ entry.label }}</span
+            ><span>{{ entry.count }}</span>
           </li>
         </ul>
       </div>
@@ -239,25 +304,35 @@ const formatBreakdown = computed(() => stats.value?.format_breakdown ?? [])
           <div v-for="entry in timeline" :key="entry.month" class="bar-row">
             <span class="bar-label">{{ entry.month }}</span>
             <div class="bar-track">
-              <div class="bar-fill" :style="{ width: (entry.count / maxCount(timeline)) * 100 + '%' }"></div>
+              <div
+                class="bar-fill"
+                :style="{
+                  width: (entry.count / maxCount(timeline)) * 100 + '%',
+                }"
+              ></div>
             </div>
             <span class="bar-count">{{ entry.count }}</span>
           </div>
         </div>
         <ul v-else class="plain-list">
           <li v-for="entry in timeline" :key="entry.month">
-            <span>{{ entry.month }}</span><span>{{ entry.count }}</span>
+            <span>{{ entry.month }}</span
+            ><span>{{ entry.count }}</span>
           </li>
         </ul>
       </div>
 
       <div class="breakdown-block">
         <h3>Most played</h3>
-        <div v-if="!stats.most_played.length" class="empty-hint">No playtime tracked yet.</div>
+        <div v-if="!stats.most_played.length" class="empty-hint">
+          No playtime tracked yet.
+        </div>
         <ol v-else class="ranked-list">
           <li v-for="entry in stats.most_played" :key="entry.id">
             <span>{{ entry.title }}</span>
-            <span class="ranked-value">{{ formatPlaytime(entry.playtime_seconds) }}</span>
+            <span class="ranked-value">{{
+              formatPlaytime(entry.playtime_seconds)
+            }}</span>
           </li>
         </ol>
       </div>
@@ -267,19 +342,31 @@ const formatBreakdown = computed(() => stats.value?.format_breakdown ?? [])
           <h3>Rating distribution</h3>
           <SegmentedControl v-model="ratingView" :options="viewOptions" />
         </div>
-        <div v-if="!ratingHistogram.length" class="empty-hint">No ratings yet.</div>
+        <div v-if="!ratingHistogram.length" class="empty-hint">
+          No ratings yet.
+        </div>
         <div v-else-if="ratingView === 'chart'" class="bar-chart">
-          <div v-for="entry in ratingHistogram" :key="entry.label" class="bar-row">
+          <div
+            v-for="entry in ratingHistogram"
+            :key="entry.label"
+            class="bar-row"
+          >
             <span class="bar-label">{{ entry.label }}</span>
             <div class="bar-track">
-              <div class="bar-fill" :style="{ width: (entry.count / maxCount(ratingHistogram)) * 100 + '%' }"></div>
+              <div
+                class="bar-fill"
+                :style="{
+                  width: (entry.count / maxCount(ratingHistogram)) * 100 + '%',
+                }"
+              ></div>
             </div>
             <span class="bar-count">{{ entry.count }}</span>
           </div>
         </div>
         <ul v-else class="plain-list">
           <li v-for="entry in ratingHistogram" :key="entry.label">
-            <span>{{ entry.label }}</span><span>{{ entry.count }}</span>
+            <span>{{ entry.label }}</span
+            ><span>{{ entry.count }}</span>
           </li>
         </ul>
       </div>
@@ -300,15 +387,24 @@ const formatBreakdown = computed(() => stats.value?.format_breakdown ?? [])
           >
             <span class="bar-label">{{ entry.label }}</span>
             <div class="bar-track">
-              <div class="bar-fill" :style="{ width: (entry.count / maxCount(topTags)) * 100 + '%' }"></div>
+              <div
+                class="bar-fill"
+                :style="{
+                  width: (entry.count / maxCount(topTags)) * 100 + '%',
+                }"
+              ></div>
             </div>
             <span class="bar-count">{{ entry.count }}</span>
           </router-link>
         </div>
         <ul v-else class="plain-list">
           <li v-for="entry in topTags" :key="entry.label">
-            <router-link :to="`/games?tag=${encodeURIComponent(entry.label)}`" class="plain-list-link">
-              <span>{{ entry.label }}</span><span>{{ entry.count }}</span>
+            <router-link
+              :to="`/games?tag=${encodeURIComponent(entry.label)}`"
+              class="plain-list-link"
+            >
+              <span>{{ entry.label }}</span
+              ><span>{{ entry.count }}</span>
             </router-link>
           </li>
         </ul>
@@ -319,19 +415,32 @@ const formatBreakdown = computed(() => stats.value?.format_breakdown ?? [])
           <h3>Release year</h3>
           <SegmentedControl v-model="yearView" :options="viewOptions" />
         </div>
-        <div v-if="!releaseYearBreakdown.length" class="empty-hint">No release dates yet.</div>
+        <div v-if="!releaseYearBreakdown.length" class="empty-hint">
+          No release dates yet.
+        </div>
         <div v-else-if="yearView === 'chart'" class="bar-chart">
-          <div v-for="entry in releaseYearBreakdown" :key="entry.label" class="bar-row">
+          <div
+            v-for="entry in releaseYearBreakdown"
+            :key="entry.label"
+            class="bar-row"
+          >
             <span class="bar-label">{{ entry.label }}</span>
             <div class="bar-track">
-              <div class="bar-fill" :style="{ width: (entry.count / maxCount(releaseYearBreakdown)) * 100 + '%' }"></div>
+              <div
+                class="bar-fill"
+                :style="{
+                  width:
+                    (entry.count / maxCount(releaseYearBreakdown)) * 100 + '%',
+                }"
+              ></div>
             </div>
             <span class="bar-count">{{ entry.count }}</span>
           </div>
         </div>
         <ul v-else class="plain-list">
           <li v-for="entry in releaseYearBreakdown" :key="entry.label">
-            <span>{{ entry.label }}</span><span>{{ entry.count }}</span>
+            <span>{{ entry.label }}</span
+            ><span>{{ entry.count }}</span>
           </li>
         </ul>
       </div>
@@ -341,19 +450,31 @@ const formatBreakdown = computed(() => stats.value?.format_breakdown ?? [])
           <h3>Physical / digital</h3>
           <SegmentedControl v-model="formatView" :options="viewOptions" />
         </div>
-        <div v-if="!formatBreakdown.length" class="empty-hint">No games yet.</div>
+        <div v-if="!formatBreakdown.length" class="empty-hint">
+          No games yet.
+        </div>
         <div v-else-if="formatView === 'chart'" class="bar-chart">
-          <div v-for="entry in formatBreakdown" :key="entry.label" class="bar-row">
+          <div
+            v-for="entry in formatBreakdown"
+            :key="entry.label"
+            class="bar-row"
+          >
             <span class="bar-label">{{ entry.label }}</span>
             <div class="bar-track">
-              <div class="bar-fill" :style="{ width: (entry.count / maxCount(formatBreakdown)) * 100 + '%' }"></div>
+              <div
+                class="bar-fill"
+                :style="{
+                  width: (entry.count / maxCount(formatBreakdown)) * 100 + '%',
+                }"
+              ></div>
             </div>
             <span class="bar-count">{{ entry.count }}</span>
           </div>
         </div>
         <ul v-else class="plain-list">
           <li v-for="entry in formatBreakdown" :key="entry.label">
-            <span>{{ entry.label }}</span><span>{{ entry.count }}</span>
+            <span>{{ entry.label }}</span
+            ><span>{{ entry.count }}</span>
           </li>
         </ul>
       </div>

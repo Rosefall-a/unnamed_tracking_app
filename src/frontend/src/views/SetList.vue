@@ -1,63 +1,82 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
-import { fetchSets, createSet } from '../services/set'
-import type { CardSet } from '../types/set'
+import { ref, onMounted } from "vue";
+import { useRouter } from "vue-router";
+import { fetchSets, createSet } from "../services/set";
+import type { CardSet } from "../types/set";
 
-const router = useRouter()
+const router = useRouter();
 
-const sets = ref<CardSet[]>([])
-const loading = ref(true)
-const error = ref<string | null>(null)
+const sets = ref<CardSet[]>([]);
+const loading = ref(true);
+const error = ref<string | null>(null);
 
-const newName = ref('')
-const newTarget = ref<number | null>(null)
-const creating = ref(false)
-const createError = ref<string | null>(null)
+const newName = ref("");
+const newTarget = ref<number | null>(null);
+const creating = ref(false);
+const createError = ref<string | null>(null);
 
 async function load() {
-  loading.value = true
+  loading.value = true;
   try {
-    sets.value = await fetchSets()
+    sets.value = await fetchSets();
   } catch (e) {
-    error.value = e instanceof Error ? e.message : 'Failed to load sets.'
+    error.value = e instanceof Error ? e.message : "Failed to load sets.";
   } finally {
-    loading.value = false
+    loading.value = false;
   }
 }
 
 async function handleCreate() {
-  const name = newName.value.trim()
-  if (!name) return
-  creating.value = true
-  createError.value = null
+  const name = newName.value.trim();
+  if (!name) return;
+  creating.value = true;
+  createError.value = null;
   try {
-    await createSet({ name, targetTotal: newTarget.value })
-    newName.value = ''
-    newTarget.value = null
-    await load()
+    await createSet({ name, targetTotal: newTarget.value });
+    newName.value = "";
+    newTarget.value = null;
+    await load();
   } catch (e) {
-    createError.value = e instanceof Error ? e.message : 'Failed to create set.'
+    createError.value =
+      e instanceof Error ? e.message : "Failed to create set.";
   } finally {
-    creating.value = false
+    creating.value = false;
   }
 }
 
-onMounted(load)
+onMounted(load);
 </script>
 
 <template>
   <main class="sets-page">
     <h1>Sets</h1>
     <p class="section-hint">
-      Group cards with a position and total — assign a card to a set from the card's own detail
-      page. When every card you expect is in, the set shows as complete.
+      Group cards with a position and total — assign a card to a set from the
+      card's own detail page. When every card you expect is in, the set shows as
+      complete.
     </p>
 
     <div class="create-row">
-      <input v-model="newName" type="text" class="text-input" placeholder="New set name" @keyup.enter="handleCreate" />
-      <input v-model.number="newTarget" type="number" min="1" class="text-input target-input" placeholder="Total (optional)" />
-      <button type="button" class="add-button" :disabled="creating || !newName.trim()" @click="handleCreate">
+      <input
+        v-model="newName"
+        type="text"
+        class="text-input"
+        placeholder="New set name"
+        @keyup.enter="handleCreate"
+      />
+      <input
+        v-model.number="newTarget"
+        type="number"
+        min="1"
+        class="text-input target-input"
+        placeholder="Total (optional)"
+      />
+      <button
+        type="button"
+        class="add-button"
+        :disabled="creating || !newName.trim()"
+        @click="handleCreate"
+      >
         + Create Set
       </button>
     </div>
@@ -79,7 +98,11 @@ onMounted(load)
         <span v-if="s.isComplete" class="complete-badge">COMPLETE</span>
         <h3>{{ s.name }}</h3>
         <p class="progress">
-          {{ s.targetTotal ? `${s.cardCount} / ${s.targetTotal}` : `${s.cardCount} card${s.cardCount === 1 ? '' : 's'}` }}
+          {{
+            s.targetTotal
+              ? `${s.cardCount} / ${s.targetTotal}`
+              : `${s.cardCount} card${s.cardCount === 1 ? "" : "s"}`
+          }}
         </p>
       </button>
     </div>

@@ -1,138 +1,171 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-import { fetchUploadLimits } from '../../services/settings'
-import { fetchGames } from '../../services/games'
-import type { Game } from '../../types/game'
-import { uploadToInbox, listInbox, deleteInboxMedia, assignInboxMedia } from '../../services/media'
-import type { InboxMediaItem } from '../../services/media'
-import { startTask, updateTask, completeTask, errorTask, addFeedItem, setTaskRetry } from '../../state/taskProgress'
-import { refreshInboxCount } from '../../state/inbox'
+import { ref, computed, onMounted } from "vue";
+import { fetchUploadLimits } from "../../services/settings";
+import { fetchGames } from "../../services/games";
+import type { Game } from "../../types/game";
+import {
+  uploadToInbox,
+  listInbox,
+  deleteInboxMedia,
+  assignInboxMedia,
+} from "../../services/media";
+import type { InboxMediaItem } from "../../services/media";
+import {
+  startTask,
+  updateTask,
+  completeTask,
+  errorTask,
+  addFeedItem,
+  setTaskRetry,
+} from "../../state/taskProgress";
+import { refreshInboxCount } from "../../state/inbox";
 
-const maxUploadSizeMb = ref<number | null>(null)
+const maxUploadSizeMb = ref<number | null>(null);
 
 onMounted(async () => {
   try {
-    const limits = await fetchUploadLimits()
-    maxUploadSizeMb.value = limits.max_upload_size_mb
+    const limits = await fetchUploadLimits();
+    maxUploadSizeMb.value = limits.max_upload_size_mb;
   } catch {
     // non-critical, the upload flow below still works without this number
   }
-})
+});
 
-const games = ref<Game[]>([])
+const games = ref<Game[]>([]);
 onMounted(async () => {
   try {
-    games.value = await fetchGames()
+    games.value = await fetchGames();
   } catch {
     // game picker just stays empty; assign still shows an error if attempted
   }
-})
+});
 
-const inboxMedia = ref<InboxMediaItem[]>([])
-const loadingInbox = ref(true)
-const inboxError = ref<string | null>(null)
+const inboxMedia = ref<InboxMediaItem[]>([]);
+const loadingInbox = ref(true);
+const inboxError = ref<string | null>(null);
 
 async function loadInbox() {
-  loadingInbox.value = true
-  inboxError.value = null
+  loadingInbox.value = true;
+  inboxError.value = null;
   try {
-    inboxMedia.value = await listInbox()
+    inboxMedia.value = await listInbox();
   } catch (err) {
-    inboxError.value = err instanceof Error ? err.message : 'Failed to load inbox'
+    inboxError.value =
+      err instanceof Error ? err.message : "Failed to load inbox";
   } finally {
-    loadingInbox.value = false
+    loadingInbox.value = false;
   }
-  void refreshInboxCount()
+  void refreshInboxCount();
 }
-onMounted(loadInbox)
+onMounted(loadInbox);
 
-const screenshots = computed(() => inboxMedia.value.filter((m) => m.kind === 'screenshot'))
-const clips = computed(() => inboxMedia.value.filter((m) => m.kind === 'clip'))
+const screenshots = computed(() =>
+  inboxMedia.value.filter((m) => m.kind === "screenshot"),
+);
+const clips = computed(() => inboxMedia.value.filter((m) => m.kind === "clip"));
 
-const uploading = ref(false)
-const uploadSummary = ref<string | null>(null)
-const uploadError = ref<string | null>(null)
+const uploading = ref(false);
+const uploadSummary = ref<string | null>(null);
+const uploadError = ref<string | null>(null);
 
 async function onFilesSelected(e: Event) {
-  const input = e.target as HTMLInputElement
-  const files = Array.from(input.files ?? [])
-  if (!files.length) return
+  const input = e.target as HTMLInputElement;
+  const files = Array.from(input.files ?? []);
+  if (!files.length) return;
 
-  uploading.value = true
-  uploadSummary.value = null
-  uploadError.value = null
-  input.value = ''
+  uploading.value = true;
+  uploadSummary.value = null;
+  uploadError.value = null;
+  input.value = "";
   // real byte-level progress against the actual upload (not a fake jump to
   // 100%), see uploadToInbox/uploadFiles in services/media.ts
-  const taskId = startTask(`Uploading ${files.length} file${files.length === 1 ? '' : 's'}`, 100)
+  const taskId = startTask(
+    `Uploading ${files.length} file${files.length === 1 ? "" : "s"}`,
+    100,
+  );
 
   const attempt = async () => {
     try {
-      const results = await uploadToInbox(files, (fraction, speedLabel) => updateTask(taskId, Math.round(fraction * 100), undefined, speedLabel))
-      const saved = results.filter((r) => r.status === 'saved')
-      const rejected = results.filter((r) => r.status === 'rejected')
-      uploadSummary.value = `${saved.length} uploaded${rejected.length ? `, ${rejected.length} rejected` : ''}.`
+      const results = await uploadToInbox(files, (fraction, speedLabel) =>
+        updateTask(taskId, Math.round(fraction * 100), undefined, speedLabel),
+      );
+      const saved = results.filter((r) => r.status === "saved");
+      const rejected = results.filter((r) => r.status === "rejected");
+      uploadSummary.value = `${saved.length} uploaded${rejected.length ? `, ${rejected.length} rejected` : ""}.`;
       for (const r of results) {
-        addFeedItem(taskId, r.status === 'saved' ? `${r.filename} uploaded` : `${r.filename}: ${r.reason ?? 'rejected'}`)
+        addFeedItem(
+          taskId,
+          r.status === "saved"
+            ? `${r.filename} uploaded`
+            : `${r.filename}: ${r.reason ?? "rejected"}`,
+        );
       }
       if (saved.length === 0 && rejected.length > 0) {
-        errorTask(taskId, uploadSummary.value)
+        errorTask(taskId, uploadSummary.value);
       } else {
-        completeTask(taskId, uploadSummary.value)
+        completeTask(taskId, uploadSummary.value);
       }
-      await loadInbox()
+      await loadInbox();
     } catch (err) {
-      uploadError.value = err instanceof Error ? err.message : 'Upload failed'
-      errorTask(taskId, uploadError.value)
-      setTaskRetry(taskId, () => void attempt())
+      uploadError.value = err instanceof Error ? err.message : "Upload failed";
+      errorTask(taskId, uploadError.value);
+      setTaskRetry(taskId, () => void attempt());
     } finally {
-      uploading.value = false
+      uploading.value = false;
     }
-  }
-  await attempt()
+  };
+  await attempt();
 }
 
-const selected = ref<Set<string>>(new Set())
+const selected = ref<Set<string>>(new Set());
 function itemKey(item: InboxMediaItem) {
-  return `${item.kind}:${item.filename}`
+  return `${item.kind}:${item.filename}`;
 }
 function toggleSelected(item: InboxMediaItem) {
-  const key = itemKey(item)
-  if (selected.value.has(key)) selected.value.delete(key)
-  else selected.value.add(key)
-  selected.value = new Set(selected.value)
+  const key = itemKey(item);
+  if (selected.value.has(key)) selected.value.delete(key);
+  else selected.value.add(key);
+  selected.value = new Set(selected.value);
 }
-const selectedCount = computed(() => selected.value.size)
+const selectedCount = computed(() => selected.value.size);
 
-const assignTargetGameId = ref('')
-const assigning = ref(false)
-const assignError = ref<string | null>(null)
+const assignTargetGameId = ref("");
+const assigning = ref(false);
+const assignError = ref<string | null>(null);
 
 async function assignSelected() {
-  if (!assignTargetGameId.value || !selected.value.size) return
-  assigning.value = true
-  assignError.value = null
+  if (!assignTargetGameId.value || !selected.value.size) return;
+  assigning.value = true;
+  assignError.value = null;
   try {
-    const items = inboxMedia.value.filter((m) => selected.value.has(itemKey(m)))
+    const items = inboxMedia.value.filter((m) =>
+      selected.value.has(itemKey(m)),
+    );
     for (const item of items) {
-      await assignInboxMedia(item.kind, item.filename, assignTargetGameId.value)
+      await assignInboxMedia(
+        item.kind,
+        item.filename,
+        assignTargetGameId.value,
+      );
     }
-    selected.value = new Set()
-    assignTargetGameId.value = ''
-    await loadInbox()
+    selected.value = new Set();
+    assignTargetGameId.value = "";
+    await loadInbox();
   } catch (err) {
-    assignError.value = err instanceof Error ? err.message : 'Failed to assign media'
+    assignError.value =
+      err instanceof Error ? err.message : "Failed to assign media";
   } finally {
-    assigning.value = false
+    assigning.value = false;
   }
 }
 
 async function removeItem(item: InboxMediaItem) {
   try {
-    await deleteInboxMedia(item.kind, item.filename)
-    await loadInbox()
+    await deleteInboxMedia(item.kind, item.filename);
+    await loadInbox();
   } catch (err) {
-    inboxError.value = err instanceof Error ? err.message : 'Failed to delete media'
+    inboxError.value =
+      err instanceof Error ? err.message : "Failed to delete media";
   }
 }
 </script>
@@ -141,16 +174,27 @@ async function removeItem(item: InboxMediaItem) {
   <section class="settings-section">
     <h2>Upload</h2>
     <p class="section-hint">
-      Bulk-upload screenshots and clips without picking a game first: drop in everything at
-      once, then group and assign them below. Images become screenshots, videos become clips
-      automatically.
-      <template v-if="maxUploadSizeMb">Each file must be under {{ maxUploadSizeMb }} MB.</template>
+      Bulk-upload screenshots and clips without picking a game first: drop in
+      everything at once, then group and assign them below. Images become
+      screenshots, videos become clips automatically.
+      <template v-if="maxUploadSizeMb"
+        >Each file must be under {{ maxUploadSizeMb }} MB.</template
+      >
     </p>
 
     <label class="upload-dropzone">
-      <input type="file" multiple accept="image/*,video/*" hidden @change="onFilesSelected" :disabled="uploading" />
+      <input
+        type="file"
+        multiple
+        accept="image/*,video/*"
+        hidden
+        @change="onFilesSelected"
+        :disabled="uploading"
+      />
       <span v-if="uploading">Uploading…</span>
-      <span v-else>Click to choose files (images and videos, any number at once)</span>
+      <span v-else
+        >Click to choose files (images and videos, any number at once)</span
+      >
     </label>
 
     <div v-if="uploadSummary" class="form-success">{{ uploadSummary }}</div>
@@ -162,11 +206,20 @@ async function removeItem(item: InboxMediaItem) {
       <h3>Unassigned ({{ inboxMedia.length }})</h3>
       <div v-if="selectedCount" class="assign-bar">
         <select v-model="assignTargetGameId">
-          <option value="" disabled>Assign {{ selectedCount }} selected to…</option>
-          <option v-for="game in games" :key="game.id" :value="game.id">{{ game.title }}</option>
+          <option value="" disabled>
+            Assign {{ selectedCount }} selected to…
+          </option>
+          <option v-for="game in games" :key="game.id" :value="game.id">
+            {{ game.title }}
+          </option>
         </select>
-        <button type="button" class="primary-button" :disabled="!assignTargetGameId || assigning" @click="assignSelected">
-          {{ assigning ? 'Assigning…' : 'Assign' }}
+        <button
+          type="button"
+          class="primary-button"
+          :disabled="!assignTargetGameId || assigning"
+          @click="assignSelected"
+        >
+          {{ assigning ? "Assigning…" : "Assign" }}
         </button>
       </div>
     </div>
@@ -175,7 +228,9 @@ async function removeItem(item: InboxMediaItem) {
     <p v-if="loadingInbox">Loading…</p>
     <p v-else-if="inboxError" class="form-error">{{ inboxError }}</p>
     <template v-else>
-      <p v-if="!inboxMedia.length" class="empty-hint">Nothing waiting to be sorted.</p>
+      <p v-if="!inboxMedia.length" class="empty-hint">
+        Nothing waiting to be sorted.
+      </p>
 
       <div v-if="screenshots.length" class="media-group">
         <span class="media-group-label">Screenshots</span>
@@ -188,7 +243,14 @@ async function removeItem(item: InboxMediaItem) {
             @click="toggleSelected(item)"
           >
             <img :src="item.url" alt="" />
-            <button type="button" class="remove-button" title="Delete" @click.stop="removeItem(item)">✕</button>
+            <button
+              type="button"
+              class="remove-button"
+              title="Delete"
+              @click.stop="removeItem(item)"
+            >
+              ✕
+            </button>
           </div>
         </div>
       </div>
@@ -205,7 +267,14 @@ async function removeItem(item: InboxMediaItem) {
           >
             <video :src="item.url" muted></video>
             <span class="clip-badge">▶</span>
-            <button type="button" class="remove-button" title="Delete" @click.stop="removeItem(item)">✕</button>
+            <button
+              type="button"
+              class="remove-button"
+              title="Delete"
+              @click.stop="removeItem(item)"
+            >
+              ✕
+            </button>
           </div>
         </div>
       </div>
@@ -247,7 +316,9 @@ async function removeItem(item: InboxMediaItem) {
   color: #999;
   font-size: 0.85rem;
   cursor: pointer;
-  transition: border-color 0.15s ease, color 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    color 0.15s ease;
 }
 .upload-dropzone:hover {
   border-color: #d68a34;

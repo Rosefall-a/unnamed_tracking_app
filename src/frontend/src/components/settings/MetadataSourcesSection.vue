@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
-import MaskedInput from './MaskedInput.vue'
-import { currentUser, checkAuth } from '../../state/auth'
-import { updateProfile } from '../../services/auth'
-import { fetchPsnStatus, connectPsn, disconnectPsn } from '../../services/psn'
-import type { PsnStatus } from '../../services/psn'
+import { ref, reactive, onMounted } from "vue";
+import MaskedInput from "./MaskedInput.vue";
+import { currentUser, checkAuth } from "../../state/auth";
+import { updateProfile } from "../../services/auth";
+import { fetchPsnStatus, connectPsn, disconnectPsn } from "../../services/psn";
+import type { PsnStatus } from "../../services/psn";
 import {
   fetchProviderCredentials,
   saveProviderCredentials,
@@ -14,355 +14,393 @@ import {
   fetchAppIntegrations,
   updateAppIntegrations,
   deleteAppIntegrations,
-} from '../../services/settings'
-import type { ProviderCredentialStatus } from '../../services/settings'
-import { syncLibrary } from '../../services/librarySync'
-import type { LibrarySyncProvider } from '../../services/librarySync'
-import { startTask, completeTask, errorTask, addFeedItem } from '../../state/taskProgress'
+} from "../../services/settings";
+import type { ProviderCredentialStatus } from "../../services/settings";
+import { syncLibrary } from "../../services/librarySync";
+import type { LibrarySyncProvider } from "../../services/librarySync";
+import {
+  startTask,
+  completeTask,
+  errorTask,
+  addFeedItem,
+} from "../../state/taskProgress";
 
 // small colored monogram badge per provider, no real logos bundled, so a
 // distinct brand-ish color + short mark stands in, RomM-style icon tile
 interface CardVisual {
-  bg: string
-  fg: string
-  mark: string
+  bg: string;
+  fg: string;
+  mark: string;
 }
 // short one-liner shown on every tile so the grid stays scannable without
 // hovering, the fuller description still lives in the `title` tooltip
 const SHORT_DESC: Record<string, string> = {
-  Steam: 'Public store data, no key needed',
-  SteamGridDB: 'Cover art & hero banners',
-  IGDB: 'General metadata & art (app-wide key)',
-  GiantBomb: 'General metadata & art',
-  ScreenScraper: 'Retro box art & screenshots',
-  GOG: 'Metadata search, no key needed',
-  LaunchBox: 'Local app, not a cloud API',
-  RetroAchievements: 'Retro metadata & achievements',
-  PlayStation: 'Trophies & PSN Store data',
-  Xbox: 'Saved only: no live pull yet',
-  HowLongToBeat: 'Time-to-beat data',
-}
+  Steam: "Public store data, no key needed",
+  SteamGridDB: "Cover art & hero banners",
+  IGDB: "General metadata & art (app-wide key)",
+  GiantBomb: "General metadata & art",
+  ScreenScraper: "Retro box art & screenshots",
+  GOG: "Metadata search, no key needed",
+  LaunchBox: "Local app, not a cloud API",
+  RetroAchievements: "Retro metadata & achievements",
+  PlayStation: "Trophies & PSN Store data",
+  Xbox: "Saved only: no live pull yet",
+  HowLongToBeat: "Time-to-beat data",
+};
 
 const VISUALS: Record<string, CardVisual> = {
-  Steam: { bg: '#12202e', fg: '#66c0f4', mark: 'S' },
-  SteamGridDB: { bg: '#0e3b3b', fg: '#2dd4bf', mark: 'Gr' },
-  IGDB: { bg: '#2b1c4a', fg: '#a78bfa', mark: 'IG' },
-  GiantBomb: { bg: '#3d2f00', fg: '#fbbf24', mark: 'GB' },
-  RetroAchievements: { bg: '#3b0a0a', fg: '#f87171', mark: 'RA' },
-  ScreenScraper: { bg: '#1a3d0a', fg: '#86efac', mark: 'SS' },
-  Xbox: { bg: '#0a2e0a', fg: '#4ade80', mark: 'Xb' },
-  GOG: { bg: '#2a1a3d', fg: '#c084fc', mark: 'GOG' },
-  LaunchBox: { bg: '#1a1a1a', fg: '#999999', mark: 'LB' },
-  PlayStation: { bg: '#0a1a3d', fg: '#60a5fa', mark: 'PS' },
-  HowLongToBeat: { bg: '#1f1f1f', fg: '#d1d5db', mark: 'HL' },
-}
+  Steam: { bg: "#12202e", fg: "#66c0f4", mark: "S" },
+  SteamGridDB: { bg: "#0e3b3b", fg: "#2dd4bf", mark: "Gr" },
+  IGDB: { bg: "#2b1c4a", fg: "#a78bfa", mark: "IG" },
+  GiantBomb: { bg: "#3d2f00", fg: "#fbbf24", mark: "GB" },
+  RetroAchievements: { bg: "#3b0a0a", fg: "#f87171", mark: "RA" },
+  ScreenScraper: { bg: "#1a3d0a", fg: "#86efac", mark: "SS" },
+  Xbox: { bg: "#0a2e0a", fg: "#4ade80", mark: "Xb" },
+  GOG: { bg: "#2a1a3d", fg: "#c084fc", mark: "GOG" },
+  LaunchBox: { bg: "#1a1a1a", fg: "#999999", mark: "LB" },
+  PlayStation: { bg: "#0a1a3d", fg: "#60a5fa", mark: "PS" },
+  HowLongToBeat: { bg: "#1f1f1f", fg: "#d1d5db", mark: "HL" },
+};
 
 // which cards are expanded to show their configure form, collapsed by
 // default so the grid stays a dense, scannable wall of tiles
-const expanded = reactive<Record<string, boolean>>({})
+const expanded = reactive<Record<string, boolean>>({});
 function toggleExpanded(key: string) {
-  expanded[key] = !expanded[key]
+  expanded[key] = !expanded[key];
 }
 
-const steamgriddbApiKey = ref(currentUser.value?.steamgriddb_api_key ?? '')
-const saving = ref(false)
-const saveError = ref<string | null>(null)
-const saveSuccess = ref(false)
+const steamgriddbApiKey = ref(currentUser.value?.steamgriddb_api_key ?? "");
+const saving = ref(false);
+const saveError = ref<string | null>(null);
+const saveSuccess = ref(false);
 
 async function saveSteamgriddbKey() {
-  saving.value = true
-  saveError.value = null
-  saveSuccess.value = false
+  saving.value = true;
+  saveError.value = null;
+  saveSuccess.value = false;
 
   try {
-    await updateProfile({ steamgriddbApiKey: steamgriddbApiKey.value.trim() })
-    await checkAuth()
-    saveSuccess.value = true
+    await updateProfile({ steamgriddbApiKey: steamgriddbApiKey.value.trim() });
+    await checkAuth();
+    saveSuccess.value = true;
   } catch (err) {
-    saveError.value = err instanceof Error ? err.message : 'Failed to save settings'
+    saveError.value =
+      err instanceof Error ? err.message : "Failed to save settings";
   } finally {
-    saving.value = false
+    saving.value = false;
   }
 }
 
 // IGDB, deployment-wide, admin-only credentials (not per-user, see
 // database/models/app_integration_settings.py). Non-admins never see the
 // form, only whether it's configured.
-const isAdmin = ref(currentUser.value?.is_admin ?? false)
-const igdbClientId = ref('')
-const igdbClientSecret = ref('')
-const igdbConfigured = ref(false)
-const igdbLoading = ref(true)
-const igdbSaving = ref(false)
-const igdbError = ref<string | null>(null)
+const isAdmin = ref(currentUser.value?.is_admin ?? false);
+const igdbClientId = ref("");
+const igdbClientSecret = ref("");
+const igdbConfigured = ref(false);
+const igdbLoading = ref(true);
+const igdbSaving = ref(false);
+const igdbError = ref<string | null>(null);
 
 onMounted(async () => {
   if (!isAdmin.value) {
-    igdbLoading.value = false
-    return
+    igdbLoading.value = false;
+    return;
   }
   try {
-    const result = await fetchAppIntegrations()
-    igdbClientId.value = result.igdb_client_id ?? ''
-    igdbConfigured.value = result.igdb_configured
+    const result = await fetchAppIntegrations();
+    igdbClientId.value = result.igdb_client_id ?? "";
+    igdbConfigured.value = result.igdb_configured;
   } finally {
-    igdbLoading.value = false
+    igdbLoading.value = false;
   }
-})
+});
 
 async function saveIgdbCredentials() {
-  igdbSaving.value = true
-  igdbError.value = null
+  igdbSaving.value = true;
+  igdbError.value = null;
   try {
     const payload: { igdb_client_id?: string; igdb_client_secret?: string } = {
       igdb_client_id: igdbClientId.value.trim(),
-    }
-    if (igdbClientSecret.value.trim()) payload.igdb_client_secret = igdbClientSecret.value.trim()
-    const result = await updateAppIntegrations(payload)
-    igdbClientId.value = result.igdb_client_id ?? ''
-    igdbConfigured.value = result.igdb_configured
-    igdbClientSecret.value = ''
-    credentialStatus.IGDB = { status: igdbConfigured.value ? 'configured' : 'not_configured' }
+    };
+    if (igdbClientSecret.value.trim())
+      payload.igdb_client_secret = igdbClientSecret.value.trim();
+    const result = await updateAppIntegrations(payload);
+    igdbClientId.value = result.igdb_client_id ?? "";
+    igdbConfigured.value = result.igdb_configured;
+    igdbClientSecret.value = "";
+    credentialStatus.IGDB = {
+      status: igdbConfigured.value ? "configured" : "not_configured",
+    };
   } catch (err) {
-    igdbError.value = err instanceof Error ? err.message : 'Failed to save IGDB credentials'
+    igdbError.value =
+      err instanceof Error ? err.message : "Failed to save IGDB credentials";
   } finally {
-    igdbSaving.value = false
+    igdbSaving.value = false;
   }
 }
 
 async function clearIgdbCredentials() {
-  igdbSaving.value = true
-  igdbError.value = null
+  igdbSaving.value = true;
+  igdbError.value = null;
   try {
-    await deleteAppIntegrations()
-    igdbClientId.value = ''
-    igdbClientSecret.value = ''
-    igdbConfigured.value = false
-    credentialStatus.IGDB = { status: 'not_configured' }
+    await deleteAppIntegrations();
+    igdbClientId.value = "";
+    igdbClientSecret.value = "";
+    igdbConfigured.value = false;
+    credentialStatus.IGDB = { status: "not_configured" };
   } catch (err) {
-    igdbError.value = err instanceof Error ? err.message : 'Failed to clear IGDB credentials'
+    igdbError.value =
+      err instanceof Error ? err.message : "Failed to clear IGDB credentials";
   } finally {
-    igdbSaving.value = false
+    igdbSaving.value = false;
   }
 }
 
-const psnStatus = ref<PsnStatus>({ connected: false, validated_at: null })
-const psnLoading = ref(true)
-const npssoToken = ref('')
-const psnConnecting = ref(false)
-const psnError = ref<string | null>(null)
-const showDisconnectConfirm = ref(false)
+const psnStatus = ref<PsnStatus>({ connected: false, validated_at: null });
+const psnLoading = ref(true);
+const npssoToken = ref("");
+const psnConnecting = ref(false);
+const psnError = ref<string | null>(null);
+const showDisconnectConfirm = ref(false);
 
 onMounted(async () => {
   try {
-    psnStatus.value = await fetchPsnStatus()
+    psnStatus.value = await fetchPsnStatus();
   } finally {
-    psnLoading.value = false
+    psnLoading.value = false;
   }
-})
+});
 
 async function handleConnectPsn() {
   if (!npssoToken.value.trim()) {
-    psnError.value = 'Paste your npsso token first.'
-    return
+    psnError.value = "Paste your npsso token first.";
+    return;
   }
-  psnConnecting.value = true
-  psnError.value = null
+  psnConnecting.value = true;
+  psnError.value = null;
   try {
-    psnStatus.value = await connectPsn(npssoToken.value.trim())
-    npssoToken.value = ''
+    psnStatus.value = await connectPsn(npssoToken.value.trim());
+    npssoToken.value = "";
   } catch (err) {
-    psnError.value = err instanceof Error ? err.message : 'Failed to connect PlayStation account'
+    psnError.value =
+      err instanceof Error
+        ? err.message
+        : "Failed to connect PlayStation account";
   } finally {
-    psnConnecting.value = false
+    psnConnecting.value = false;
   }
 }
 
 async function confirmDisconnectPsn() {
-  showDisconnectConfirm.value = false
-  psnError.value = null
+  showDisconnectConfirm.value = false;
+  psnError.value = null;
   try {
-    await disconnectPsn()
-    psnStatus.value = { connected: false, validated_at: null }
+    await disconnectPsn();
+    psnStatus.value = { connected: false, validated_at: null };
   } catch (err) {
-    psnError.value = err instanceof Error ? err.message : 'Failed to disconnect PlayStation account'
+    psnError.value =
+      err instanceof Error
+        ? err.message
+        : "Failed to disconnect PlayStation account";
   }
 }
 
 // --- data-driven providers ---------------------------------------------
 
 interface ProviderFieldConfig {
-  key: string
-  label: string
-  type: 'text' | 'password'
+  key: string;
+  label: string;
+  type: "text" | "password";
 }
 
 interface ProviderCardConfig {
-  key: string
-  label: string
-  description: string
-  fields: ProviderFieldConfig[]
-  kind: 'wired' | 'deferred'
-  linkLabel?: string
-  linkUrl?: string
+  key: string;
+  label: string;
+  description: string;
+  fields: ProviderFieldConfig[];
+  kind: "wired" | "deferred";
+  linkLabel?: string;
+  linkUrl?: string;
 }
 
 const PROVIDER_CARDS: Record<string, ProviderCardConfig> = {
   Steam: {
-    key: 'Steam',
-    label: 'Steam',
+    key: "Steam",
+    label: "Steam",
     description:
       "No account needed for metadata search. Importing your library and achievements requires both fields below: your profile ID (the part after steamcommunity.com/id/, not the full link) and a Web API key. Your profile's game details must also be set to Public, or Steam silently returns an empty library.",
     fields: [
-      { key: 'steam_id', label: 'Profile ID', type: 'text' },
-      { key: 'api_key', label: 'Web API Key', type: 'password' },
+      { key: "steam_id", label: "Profile ID", type: "text" },
+      { key: "api_key", label: "Web API Key", type: "password" },
     ],
-    kind: 'wired',
-    linkLabel: 'Get a Steam Web API key',
-    linkUrl: 'https://steamcommunity.com/dev/apikey',
+    kind: "wired",
+    linkLabel: "Get a Steam Web API key",
+    linkUrl: "https://steamcommunity.com/dev/apikey",
   },
   IGDB: {
-    key: 'IGDB',
-    label: 'IGDB',
+    key: "IGDB",
+    label: "IGDB",
     description:
-      'General game metadata and cover art. Uses one deployment-wide developer credential, managed by a server administrator here rather than per-user.',
+      "General game metadata and cover art. Uses one deployment-wide developer credential, managed by a server administrator here rather than per-user.",
     fields: [],
-    kind: 'wired',
+    kind: "wired",
   },
   RetroAchievements: {
-    key: 'RetroAchievements',
-    label: 'RetroAchievements',
+    key: "RetroAchievements",
+    label: "RetroAchievements",
     description:
-      'Retro/console game metadata, plus your username to pull your library and unlocked achievements: powers all three from one key.',
+      "Retro/console game metadata, plus your username to pull your library and unlocked achievements: powers all three from one key.",
     fields: [
-      { key: 'username', label: 'Username', type: 'text' },
-      { key: 'api_key', label: 'API Key', type: 'password' },
+      { key: "username", label: "Username", type: "text" },
+      { key: "api_key", label: "API Key", type: "password" },
     ],
-    kind: 'wired',
-    linkLabel: 'Get a free key from RetroAchievements',
-    linkUrl: 'https://retroachievements.org/controlpanel.php',
+    kind: "wired",
+    linkLabel: "Get a free key from RetroAchievements",
+    linkUrl: "https://retroachievements.org/controlpanel.php",
   },
   GiantBomb: {
-    key: 'GiantBomb',
-    label: 'Giant Bomb',
-    description: 'General game metadata and cover art.',
-    fields: [{ key: 'api_key', label: 'API Key', type: 'password' }],
-    kind: 'wired',
-    linkLabel: 'Get a free key from Giant Bomb',
-    linkUrl: 'https://www.giantbomb.com/api/',
+    key: "GiantBomb",
+    label: "Giant Bomb",
+    description: "General game metadata and cover art.",
+    fields: [{ key: "api_key", label: "API Key", type: "password" }],
+    kind: "wired",
+    linkLabel: "Get a free key from Giant Bomb",
+    linkUrl: "https://www.giantbomb.com/api/",
   },
   ScreenScraper: {
-    key: 'ScreenScraper',
-    label: 'ScreenScraper',
+    key: "ScreenScraper",
+    label: "ScreenScraper",
     description:
-      'Retro box art and screenshots. Needs your personal screenscraper.fr account on top of the app-wide developer credentials your server administrator configures.',
+      "Retro box art and screenshots. Needs your personal screenscraper.fr account on top of the app-wide developer credentials your server administrator configures.",
     fields: [
-      { key: 'ssid', label: 'Username', type: 'text' },
-      { key: 'sspassword', label: 'Password', type: 'password' },
+      { key: "ssid", label: "Username", type: "text" },
+      { key: "sspassword", label: "Password", type: "password" },
     ],
-    kind: 'wired',
-    linkLabel: 'Create a free ScreenScraper account',
-    linkUrl: 'https://www.screenscraper.fr/membreinscription.php',
+    kind: "wired",
+    linkLabel: "Create a free ScreenScraper account",
+    linkUrl: "https://www.screenscraper.fr/membreinscription.php",
   },
   Xbox: {
-    key: 'Xbox',
-    label: 'Xbox',
+    key: "Xbox",
+    label: "Xbox",
     description:
       "Unofficial: Xbox's real API needs a full sign-in flow this page can't host yet. Saving your Azure app credentials here just gets them ready for that; nothing is pulled from Xbox yet.",
     fields: [
-      { key: 'client_id', label: 'Application (client) ID', type: 'text' },
-      { key: 'client_secret', label: 'Client secret', type: 'password' },
+      { key: "client_id", label: "Application (client) ID", type: "text" },
+      { key: "client_secret", label: "Client secret", type: "password" },
     ],
-    kind: 'deferred',
+    kind: "deferred",
   },
   GOG: {
-    key: 'GOG',
-    label: 'GOG',
+    key: "GOG",
+    label: "GOG",
     description:
       "Metadata search uses GOG's public store catalog: no key needed. The refresh token below is only for a future library import, not search.",
-    fields: [{ key: 'refresh_token', label: 'Refresh token (library import only)', type: 'password' }],
-    kind: 'wired',
+    fields: [
+      {
+        key: "refresh_token",
+        label: "Refresh token (library import only)",
+        type: "password",
+      },
+    ],
+    kind: "wired",
   },
-}
+};
 
-const credentialStatus = reactive<Record<string, ProviderCredentialStatus>>({})
-const fieldValues = reactive<Record<string, Record<string, string>>>({})
-const cardSaving = reactive<Record<string, boolean>>({})
-const cardError = reactive<Record<string, string | null>>({})
-const cardInfo = reactive<Record<string, string | null>>({})
-const credentialsLoading = ref(true)
+const credentialStatus = reactive<Record<string, ProviderCredentialStatus>>({});
+const fieldValues = reactive<Record<string, Record<string, string>>>({});
+const cardSaving = reactive<Record<string, boolean>>({});
+const cardError = reactive<Record<string, string | null>>({});
+const cardInfo = reactive<Record<string, string | null>>({});
+const credentialsLoading = ref(true);
 
 // must be ready before first render, the template binds
 // fieldValues[card.key][field.key] immediately, not just after mount
 for (const key of Object.keys(PROVIDER_CARDS)) {
-  fieldValues[key] = {}
+  fieldValues[key] = {};
 }
 
 onMounted(async () => {
   try {
-    const result = await fetchProviderCredentials()
-    Object.assign(credentialStatus, result)
+    const result = await fetchProviderCredentials();
+    Object.assign(credentialStatus, result);
     // prefill non-secret fields (profile IDs, usernames) that are already
     // saved, so the form shows them filled instead of misleadingly blank
     for (const [key, status] of Object.entries(result)) {
-      if (status.fields) Object.assign(fieldValues[key] ?? (fieldValues[key] = {}), status.fields)
+      if (status.fields)
+        Object.assign(
+          fieldValues[key] ?? (fieldValues[key] = {}),
+          status.fields,
+        );
     }
   } finally {
-    credentialsLoading.value = false
+    credentialsLoading.value = false;
   }
-})
+});
 
 // a password-type field that's already saved gets a placeholder instead of
 // its real value (never echoed back), still communicates "this is filled"
-function passwordPlaceholder(key: string, fieldKey: string, label: string): string {
-  const status = credentialStatus[key]?.status
-  const alreadySaved = status === 'connected' || status === 'saved' || status === 'configured'
-  if (alreadySaved && !fieldValues[key]?.[fieldKey]) return 'Already saved: paste a new value to replace it'
-  return `Paste your ${label.toLowerCase()}`
+function passwordPlaceholder(
+  key: string,
+  fieldKey: string,
+  label: string,
+): string {
+  const status = credentialStatus[key]?.status;
+  const alreadySaved =
+    status === "connected" || status === "saved" || status === "configured";
+  if (alreadySaved && !fieldValues[key]?.[fieldKey])
+    return "Already saved: paste a new value to replace it";
+  return `Paste your ${label.toLowerCase()}`;
 }
 
 function statusLabel(key: string): string {
-  const status = credentialStatus[key]?.status
-  if (status === 'connected') return 'Connected'
-  if (status === 'saved' || status === 'configured') return 'Saved'
-  if (status === 'error') return 'Error'
-  return 'Not configured'
+  const status = credentialStatus[key]?.status;
+  if (status === "connected") return "Connected";
+  if (status === "saved" || status === "configured") return "Saved";
+  if (status === "error") return "Error";
+  return "Not configured";
 }
 function statusClass(key: string): string {
-  const status = credentialStatus[key]?.status
-  if (status === 'connected') return 'connected'
-  if (status === 'saved' || status === 'configured') return 'saved'
-  if (status === 'error') return 'error'
-  return 'disconnected'
+  const status = credentialStatus[key]?.status;
+  if (status === "connected") return "connected";
+  if (status === "saved" || status === "configured") return "saved";
+  if (status === "error") return "error";
+  return "disconnected";
 }
 
 async function saveCard(card: ProviderCardConfig) {
-  cardSaving[card.key] = true
-  cardError[card.key] = null
-  cardInfo[card.key] = null
+  cardSaving[card.key] = true;
+  cardError[card.key] = null;
+  cardInfo[card.key] = null;
   try {
-    const result = await saveProviderCredentials(card.key, fieldValues[card.key])
-    credentialStatus[card.key] = result
-    if (result.status === 'error') {
-      cardError[card.key] = result.detail ?? 'Could not verify these credentials.'
-    } else if (result.status === 'saved' && result.detail) {
-      cardInfo[card.key] = result.detail
+    const result = await saveProviderCredentials(
+      card.key,
+      fieldValues[card.key],
+    );
+    credentialStatus[card.key] = result;
+    if (result.status === "error") {
+      cardError[card.key] =
+        result.detail ?? "Could not verify these credentials.";
+    } else if (result.status === "saved" && result.detail) {
+      cardInfo[card.key] = result.detail;
     }
   } catch (err) {
-    cardError[card.key] = err instanceof Error ? err.message : 'Failed to save'
+    cardError[card.key] = err instanceof Error ? err.message : "Failed to save";
   } finally {
-    cardSaving[card.key] = false
+    cardSaving[card.key] = false;
   }
 }
 
 async function clearCard(card: ProviderCardConfig) {
   try {
-    await deleteProviderCredentials(card.key)
-    credentialStatus[card.key] = { status: 'not_configured' }
-    cardError[card.key] = null
-    fieldValues[card.key] = {}
+    await deleteProviderCredentials(card.key);
+    credentialStatus[card.key] = { status: "not_configured" };
+    cardError[card.key] = null;
+    fieldValues[card.key] = {};
   } catch (err) {
-    cardError[card.key] = err instanceof Error ? err.message : 'Failed to disconnect'
+    cardError[card.key] =
+      err instanceof Error ? err.message : "Failed to disconnect";
   }
 }
 
@@ -372,84 +410,99 @@ const librarySyncing = reactive<Record<LibrarySyncProvider, boolean>>({
   steam: false,
   psn: false,
   retroachievements: false,
-})
+});
 const LIBRARY_SYNC_LABELS: Record<LibrarySyncProvider, string> = {
-  steam: 'Steam',
-  psn: 'PlayStation',
-  retroachievements: 'RetroAchievements',
-}
+  steam: "Steam",
+  psn: "PlayStation",
+  retroachievements: "RetroAchievements",
+};
 
 async function handleSyncLibrary(provider: LibrarySyncProvider) {
-  librarySyncing[provider] = true
+  librarySyncing[provider] = true;
   // indeterminate, the backend is one all-at-once request with no
   // per-game signal until it resolves, so there's nothing real to show as
   // a fraction while it's in flight
-  const taskId = startTask(`Syncing ${LIBRARY_SYNC_LABELS[provider]} library`, 1, { indeterminate: true })
+  const taskId = startTask(
+    `Syncing ${LIBRARY_SYNC_LABELS[provider]} library`,
+    1,
+    { indeterminate: true },
+  );
   try {
-    const result = await syncLibrary(provider)
+    const result = await syncLibrary(provider);
     completeTask(
       taskId,
       `${result.games_added} added, ${result.games_updated} updated, ${result.achievements_synced} achievements`,
-    )
+    );
     // the request itself wasn't live, but revealing the touched titles one
     // at a time still reads as a real "feed" once the result is in
     for (const [i, title] of result.games.entries()) {
-      setTimeout(() => addFeedItem(taskId, title), i * 90)
+      setTimeout(() => addFeedItem(taskId, title), i * 90);
     }
     // refresh the persistent "N games, last synced ..." line so it reflects
     // this run immediately instead of only on the next page load
-    Object.assign(credentialStatus, await fetchProviderCredentials())
+    Object.assign(credentialStatus, await fetchProviderCredentials());
   } catch (err) {
-    errorTask(taskId, err instanceof Error ? err.message : 'Sync failed')
+    errorTask(taskId, err instanceof Error ? err.message : "Sync failed");
   } finally {
-    librarySyncing[provider] = false
+    librarySyncing[provider] = false;
   }
 }
 
 // only claims "synced" once a library sync has actually run, a game
 // count alone (e.g. from manually-added Steam games) doesn't mean that
-function formatLastSynced(status: ProviderCredentialStatus | undefined): string | null {
-  if (!status?.last_synced_at) return null
-  const when = new Date(status.last_synced_at * 1000).toLocaleString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  })
-  const count = status.library_games ?? 0
-  return `${count} game${count === 1 ? '' : 's'} · synced ${when}`
+function formatLastSynced(
+  status: ProviderCredentialStatus | undefined,
+): string | null {
+  if (!status?.last_synced_at) return null;
+  const when = new Date(status.last_synced_at * 1000).toLocaleString(
+    undefined,
+    {
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    },
+  );
+  const count = status.library_games ?? 0;
+  return `${count} game${count === 1 ? "" : "s"} · synced ${when}`;
 }
 
 // HowLongToBeat, a real toggle now, not just informational. "Enabled"
 // means "HowLongToBeat" is present in the user's scan provider_order.
-const hltbEnabled = ref(false)
-const hltbLoading = ref(true)
-const hltbSaving = ref(false)
-const hltbError = ref<string | null>(null)
+const hltbEnabled = ref(false);
+const hltbLoading = ref(true);
+const hltbSaving = ref(false);
+const hltbError = ref<string | null>(null);
 
 onMounted(async () => {
   try {
-    const scan = await fetchScanSettings()
-    hltbEnabled.value = scan.provider_order.includes('HowLongToBeat')
+    const scan = await fetchScanSettings();
+    hltbEnabled.value = scan.provider_order.includes("HowLongToBeat");
   } finally {
-    hltbLoading.value = false
+    hltbLoading.value = false;
   }
-})
+});
 
 async function toggleHltb(enabled: boolean) {
-  hltbSaving.value = true
-  hltbError.value = null
+  hltbSaving.value = true;
+  hltbError.value = null;
   try {
-    const scan = await fetchScanSettings()
+    const scan = await fetchScanSettings();
     const nextOrder = enabled
-      ? [...scan.provider_order.filter((p) => p !== 'HowLongToBeat'), 'HowLongToBeat']
-      : scan.provider_order.filter((p) => p !== 'HowLongToBeat')
-    await updateScanSettings({ provider_order: nextOrder as typeof scan.provider_order })
-    hltbEnabled.value = enabled
+      ? [
+          ...scan.provider_order.filter((p) => p !== "HowLongToBeat"),
+          "HowLongToBeat",
+        ]
+      : scan.provider_order.filter((p) => p !== "HowLongToBeat");
+    await updateScanSettings({
+      provider_order: nextOrder as typeof scan.provider_order,
+    });
+    hltbEnabled.value = enabled;
   } catch (err) {
-    hltbError.value = err instanceof Error ? err.message : 'Failed to update HowLongToBeat'
+    hltbError.value =
+      err instanceof Error ? err.message : "Failed to update HowLongToBeat";
   } finally {
-    hltbSaving.value = false
+    hltbSaving.value = false;
   }
 }
 </script>
@@ -458,8 +511,9 @@ async function toggleHltb(enabled: boolean) {
   <section class="settings-section">
     <h2>Metadata/API</h2>
     <p class="section-hint">
-      Providers used to search for and fill in game metadata and art, plus achievement/account
-      connections. Click a tile's key icon to configure it: hover a name for details.
+      Providers used to search for and fill in game metadata and art, plus
+      achievement/account connections. Click a tile's key icon to configure it:
+      hover a name for details.
     </p>
 
     <h3 class="group-heading">Metadata</h3>
@@ -467,48 +521,114 @@ async function toggleHltb(enabled: boolean) {
     <div class="source-grid">
       <!-- SteamGridDB -->
       <div class="source-tile">
-        <div class="tile-icon" :style="{ background: VISUALS.SteamGridDB.bg, color: VISUALS.SteamGridDB.fg }">
+        <div
+          class="tile-icon"
+          :style="{
+            background: VISUALS.SteamGridDB.bg,
+            color: VISUALS.SteamGridDB.fg,
+          }"
+        >
           {{ VISUALS.SteamGridDB.mark }}
         </div>
         <div class="tile-body">
-          <span class="tile-name" title="Cover art and hero banners. Your key alone, not shared with other accounts.">SteamGridDB</span>
-          <span class="tile-status" :class="steamgriddbApiKey ? 'connected' : 'disconnected'">
-            {{ steamgriddbApiKey ? 'Configured' : 'Not configured' }}
+          <span
+            class="tile-name"
+            title="Cover art and hero banners. Your key alone, not shared with other accounts."
+            >SteamGridDB</span
+          >
+          <span
+            class="tile-status"
+            :class="steamgriddbApiKey ? 'connected' : 'disconnected'"
+          >
+            {{ steamgriddbApiKey ? "Configured" : "Not configured" }}
           </span>
         </div>
         <p class="tile-desc">{{ SHORT_DESC.SteamGridDB }}</p>
         <div class="tile-actions">
-          <button type="button" class="icon-btn" :class="{ active: expanded.SteamGridDB }" title="Configure" @click="toggleExpanded('SteamGridDB')">
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4" />
+          <button
+            type="button"
+            class="icon-btn"
+            :class="{ active: expanded.SteamGridDB }"
+            title="Configure"
+            @click="toggleExpanded('SteamGridDB')"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              width="14"
+              height="14"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path
+                d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"
+              />
             </svg>
           </button>
-          <a class="icon-btn" href="https://www.steamgriddb.com/profile/preferences/api" target="_blank" rel="noopener noreferrer" title="Get a free key">
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <a
+            class="icon-btn"
+            href="https://www.steamgriddb.com/profile/preferences/api"
+            target="_blank"
+            rel="noopener noreferrer"
+            title="Get a free key"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              width="14"
+              height="14"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
               <circle cx="12" cy="12" r="10" />
-              <path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+              <path
+                d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"
+              />
             </svg>
           </a>
         </div>
-        <form v-if="expanded.SteamGridDB" class="tile-form" @submit.prevent="saveSteamgriddbKey">
+        <form
+          v-if="expanded.SteamGridDB"
+          class="tile-form"
+          @submit.prevent="saveSteamgriddbKey"
+        >
           <label class="field">
             <span>API Key</span>
-            <MaskedInput v-model="steamgriddbApiKey" placeholder="Paste your SteamGridDB API key" />
+            <MaskedInput
+              v-model="steamgriddbApiKey"
+              placeholder="Paste your SteamGridDB API key"
+            />
           </label>
           <div v-if="saveError" class="form-error">{{ saveError }}</div>
           <div v-if="saveSuccess" class="form-success">Settings saved.</div>
           <button type="submit" class="primary-button" :disabled="saving">
-            {{ saving ? 'Saving…' : 'Save' }}
+            {{ saving ? "Saving…" : "Save" }}
           </button>
         </form>
       </div>
 
       <!-- IGDB: deployment-wide, admin-only credentials -->
       <div class="source-tile">
-        <div class="tile-icon" :style="{ background: VISUALS.IGDB.bg, color: VISUALS.IGDB.fg }">{{ VISUALS.IGDB.mark }}</div>
+        <div
+          class="tile-icon"
+          :style="{ background: VISUALS.IGDB.bg, color: VISUALS.IGDB.fg }"
+        >
+          {{ VISUALS.IGDB.mark }}
+        </div>
         <div class="tile-body">
-          <span class="tile-name" :title="PROVIDER_CARDS.IGDB.description">IGDB</span>
-          <span v-if="!credentialsLoading" class="tile-status" :class="statusClass('IGDB')">{{ statusLabel('IGDB') }}</span>
+          <span class="tile-name" :title="PROVIDER_CARDS.IGDB.description"
+            >IGDB</span
+          >
+          <span
+            v-if="!credentialsLoading"
+            class="tile-status"
+            :class="statusClass('IGDB')"
+            >{{ statusLabel("IGDB") }}</span
+          >
         </div>
         <p class="tile-desc">{{ SHORT_DESC.IGDB }}</p>
         <div class="tile-actions">
@@ -520,31 +640,71 @@ async function toggleHltb(enabled: boolean) {
             title="Configure (admin only)"
             @click="toggleExpanded('IGDB')"
           >
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4" />
+            <svg
+              viewBox="0 0 24 24"
+              width="14"
+              height="14"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path
+                d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"
+              />
             </svg>
           </button>
         </div>
-        <p v-if="!isAdmin" class="tile-desc admin-note">Configured deployment-wide by your server administrator.</p>
-        <form v-if="isAdmin && expanded.IGDB" class="tile-form" @submit.prevent="saveIgdbCredentials">
+        <p v-if="!isAdmin" class="tile-desc admin-note">
+          Configured deployment-wide by your server administrator.
+        </p>
+        <form
+          v-if="isAdmin && expanded.IGDB"
+          class="tile-form"
+          @submit.prevent="saveIgdbCredentials"
+        >
           <p class="tile-desc admin-note">
-            Applies to every user on this server, not just you. Register a free app at
-            <a href="https://dev.twitch.tv/console/apps" target="_blank" rel="noopener noreferrer">dev.twitch.tv/console/apps</a>.
+            Applies to every user on this server, not just you. Register a free
+            app at
+            <a
+              href="https://dev.twitch.tv/console/apps"
+              target="_blank"
+              rel="noopener noreferrer"
+              >dev.twitch.tv/console/apps</a
+            >.
           </p>
           <label class="field">
             <span>Client ID</span>
-            <input v-model="igdbClientId" type="text" autocomplete="off" placeholder="Paste your Twitch Client ID" />
+            <input
+              v-model="igdbClientId"
+              type="text"
+              autocomplete="off"
+              placeholder="Paste your Twitch Client ID"
+            />
           </label>
           <label class="field">
             <span>Client Secret</span>
-            <MaskedInput v-model="igdbClientSecret" :placeholder="igdbConfigured ? 'Saved: leave blank to keep' : 'Paste your Twitch Client Secret'" />
+            <MaskedInput
+              v-model="igdbClientSecret"
+              :placeholder="
+                igdbConfigured
+                  ? 'Saved: leave blank to keep'
+                  : 'Paste your Twitch Client Secret'
+              "
+            />
           </label>
           <div v-if="igdbError" class="form-error">{{ igdbError }}</div>
           <div class="card-actions">
             <button type="submit" class="primary-button" :disabled="igdbSaving">
-              {{ igdbSaving ? 'Saving…' : 'Save' }}
+              {{ igdbSaving ? "Saving…" : "Save" }}
             </button>
-            <button v-if="igdbConfigured" type="button" class="secondary-button" @click="clearIgdbCredentials">
+            <button
+              v-if="igdbConfigured"
+              type="button"
+              class="secondary-button"
+              @click="clearIgdbCredentials"
+            >
               Disconnect
             </button>
           </div>
@@ -552,11 +712,27 @@ async function toggleHltb(enabled: boolean) {
       </div>
 
       <!-- generic wired-provider tiles -->
-      <div v-for="key in ['GiantBomb', 'ScreenScraper']" :key="key" class="source-tile">
-        <div class="tile-icon" :style="{ background: VISUALS[key].bg, color: VISUALS[key].fg }">{{ VISUALS[key].mark }}</div>
+      <div
+        v-for="key in ['GiantBomb', 'ScreenScraper']"
+        :key="key"
+        class="source-tile"
+      >
+        <div
+          class="tile-icon"
+          :style="{ background: VISUALS[key].bg, color: VISUALS[key].fg }"
+        >
+          {{ VISUALS[key].mark }}
+        </div>
         <div class="tile-body">
-          <span class="tile-name" :title="PROVIDER_CARDS[key].description">{{ PROVIDER_CARDS[key].label }}</span>
-          <span v-if="!credentialsLoading" class="tile-status" :class="statusClass(key)">{{ statusLabel(key) }}</span>
+          <span class="tile-name" :title="PROVIDER_CARDS[key].description">{{
+            PROVIDER_CARDS[key].label
+          }}</span>
+          <span
+            v-if="!credentialsLoading"
+            class="tile-status"
+            :class="statusClass(key)"
+            >{{ statusLabel(key) }}</span
+          >
         </div>
         <p class="tile-desc">{{ SHORT_DESC[key] }}</p>
         <div class="tile-actions">
@@ -568,19 +744,56 @@ async function toggleHltb(enabled: boolean) {
             title="Configure"
             @click="toggleExpanded(key)"
           >
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4" />
+            <svg
+              viewBox="0 0 24 24"
+              width="14"
+              height="14"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path
+                d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"
+              />
             </svg>
           </button>
-          <a v-if="PROVIDER_CARDS[key].linkUrl" class="icon-btn" :href="PROVIDER_CARDS[key].linkUrl" target="_blank" rel="noopener noreferrer" title="Get a free key">
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <a
+            v-if="PROVIDER_CARDS[key].linkUrl"
+            class="icon-btn"
+            :href="PROVIDER_CARDS[key].linkUrl"
+            target="_blank"
+            rel="noopener noreferrer"
+            title="Get a free key"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              width="14"
+              height="14"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
               <circle cx="12" cy="12" r="10" />
-              <path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+              <path
+                d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"
+              />
             </svg>
           </a>
         </div>
-        <form v-if="expanded[key] && PROVIDER_CARDS[key].fields.length" class="tile-form" @submit.prevent="saveCard(PROVIDER_CARDS[key])">
-          <label v-for="field in PROVIDER_CARDS[key].fields" :key="field.key" class="field">
+        <form
+          v-if="expanded[key] && PROVIDER_CARDS[key].fields.length"
+          class="tile-form"
+          @submit.prevent="saveCard(PROVIDER_CARDS[key])"
+        >
+          <label
+            v-for="field in PROVIDER_CARDS[key].fields"
+            :key="field.key"
+            class="field"
+          >
             <span>{{ field.label }}</span>
             <MaskedInput
               v-if="field.type === 'password'"
@@ -595,12 +808,23 @@ async function toggleHltb(enabled: boolean) {
               :placeholder="`Paste your ${field.label.toLowerCase()}`"
             />
           </label>
-          <div v-if="cardError[key]" class="form-error">{{ cardError[key] }}</div>
+          <div v-if="cardError[key]" class="form-error">
+            {{ cardError[key] }}
+          </div>
           <div class="card-actions">
-            <button type="submit" class="primary-button" :disabled="cardSaving[key]">
-              {{ cardSaving[key] ? 'Saving…' : 'Save' }}
+            <button
+              type="submit"
+              class="primary-button"
+              :disabled="cardSaving[key]"
+            >
+              {{ cardSaving[key] ? "Saving…" : "Save" }}
             </button>
-            <button v-if="statusClass(key) !== 'disconnected'" type="button" class="secondary-button" @click="clearCard(PROVIDER_CARDS[key])">
+            <button
+              v-if="statusClass(key) !== 'disconnected'"
+              type="button"
+              class="secondary-button"
+              @click="clearCard(PROVIDER_CARDS[key])"
+            >
               Disconnect
             </button>
           </div>
@@ -609,30 +833,79 @@ async function toggleHltb(enabled: boolean) {
 
       <!-- GOG -->
       <div class="source-tile">
-        <div class="tile-icon" :style="{ background: VISUALS.GOG.bg, color: VISUALS.GOG.fg }">{{ VISUALS.GOG.mark }}</div>
+        <div
+          class="tile-icon"
+          :style="{ background: VISUALS.GOG.bg, color: VISUALS.GOG.fg }"
+        >
+          {{ VISUALS.GOG.mark }}
+        </div>
         <div class="tile-body">
-          <span class="tile-name" :title="PROVIDER_CARDS.GOG.description">GOG</span>
-          <span v-if="!credentialsLoading" class="tile-status" :class="statusClass('GOG')">{{ statusLabel('GOG') }}</span>
+          <span class="tile-name" :title="PROVIDER_CARDS.GOG.description"
+            >GOG</span
+          >
+          <span
+            v-if="!credentialsLoading"
+            class="tile-status"
+            :class="statusClass('GOG')"
+            >{{ statusLabel("GOG") }}</span
+          >
         </div>
         <p class="tile-desc">{{ SHORT_DESC.GOG }}</p>
         <div class="tile-actions">
-          <button type="button" class="icon-btn" :class="{ active: expanded.GOG }" title="Configure" @click="toggleExpanded('GOG')">
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4" />
+          <button
+            type="button"
+            class="icon-btn"
+            :class="{ active: expanded.GOG }"
+            title="Configure"
+            @click="toggleExpanded('GOG')"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              width="14"
+              height="14"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path
+                d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"
+              />
             </svg>
           </button>
         </div>
-        <form v-if="expanded.GOG" class="tile-form" @submit.prevent="saveCard(PROVIDER_CARDS.GOG)">
-          <label v-for="field in PROVIDER_CARDS.GOG.fields" :key="field.key" class="field">
+        <form
+          v-if="expanded.GOG"
+          class="tile-form"
+          @submit.prevent="saveCard(PROVIDER_CARDS.GOG)"
+        >
+          <label
+            v-for="field in PROVIDER_CARDS.GOG.fields"
+            :key="field.key"
+            class="field"
+          >
             <span>{{ field.label }}</span>
-            <MaskedInput v-model="fieldValues.GOG[field.key]" :placeholder="passwordPlaceholder('GOG', field.key, field.label)" />
+            <MaskedInput
+              v-model="fieldValues.GOG[field.key]"
+              :placeholder="passwordPlaceholder('GOG', field.key, field.label)"
+            />
           </label>
           <div v-if="cardError.GOG" class="form-error">{{ cardError.GOG }}</div>
           <div class="card-actions">
-            <button type="submit" class="primary-button" :disabled="cardSaving.GOG">
-              {{ cardSaving.GOG ? 'Saving…' : 'Save' }}
+            <button
+              type="submit"
+              class="primary-button"
+              :disabled="cardSaving.GOG"
+            >
+              {{ cardSaving.GOG ? "Saving…" : "Save" }}
             </button>
-            <button v-if="statusClass('GOG') !== 'disconnected'" type="button" class="secondary-button" @click="clearCard(PROVIDER_CARDS.GOG)">
+            <button
+              v-if="statusClass('GOG') !== 'disconnected'"
+              type="button"
+              class="secondary-button"
+              @click="clearCard(PROVIDER_CARDS.GOG)"
+            >
               Disconnect
             </button>
           </div>
@@ -644,7 +917,15 @@ async function toggleHltb(enabled: boolean) {
         class="source-tile unavailable"
         title="Local Windows app with an offline XML export, not a cloud API this server can call."
       >
-        <div class="tile-icon" :style="{ background: VISUALS.LaunchBox.bg, color: VISUALS.LaunchBox.fg }">{{ VISUALS.LaunchBox.mark }}</div>
+        <div
+          class="tile-icon"
+          :style="{
+            background: VISUALS.LaunchBox.bg,
+            color: VISUALS.LaunchBox.fg,
+          }"
+        >
+          {{ VISUALS.LaunchBox.mark }}
+        </div>
         <div class="tile-body">
           <span class="tile-name">LaunchBox</span>
           <span class="tile-status disconnected">Not available</span>
@@ -659,16 +940,36 @@ async function toggleHltb(enabled: boolean) {
     <div class="source-grid">
       <!-- Steam -->
       <div class="source-tile">
-        <div class="tile-icon" :style="{ background: VISUALS.Steam.bg, color: VISUALS.Steam.fg }">
+        <div
+          class="tile-icon"
+          :style="{ background: VISUALS.Steam.bg, color: VISUALS.Steam.fg }"
+        >
           {{ VISUALS.Steam.mark }}
         </div>
         <div class="tile-body">
-          <span class="tile-name" title="Metadata search needs no account. Importing your library and achievements needs a Web API key + your profile.">Steam</span>
-          <span v-if="credentialStatus.Steam?.display_name" class="tile-profile">
-            <img v-if="credentialStatus.Steam.avatar_url" :src="credentialStatus.Steam.avatar_url" class="tile-avatar" alt="" />
+          <span
+            class="tile-name"
+            title="Metadata search needs no account. Importing your library and achievements needs a Web API key + your profile."
+            >Steam</span
+          >
+          <span
+            v-if="credentialStatus.Steam?.display_name"
+            class="tile-profile"
+          >
+            <img
+              v-if="credentialStatus.Steam.avatar_url"
+              :src="credentialStatus.Steam.avatar_url"
+              class="tile-avatar"
+              alt=""
+            />
             {{ credentialStatus.Steam.display_name }}
           </span>
-          <span v-else-if="!credentialsLoading" class="tile-status" :class="statusClass('Steam')">{{ statusLabel('Steam') }}</span>
+          <span
+            v-else-if="!credentialsLoading"
+            class="tile-status"
+            :class="statusClass('Steam')"
+            >{{ statusLabel("Steam") }}</span
+          >
         </div>
         <p class="tile-desc">
           {{ formatLastSynced(credentialStatus.Steam) ?? SHORT_DESC.Steam }}
@@ -681,8 +982,19 @@ async function toggleHltb(enabled: boolean) {
             title="Connect account to import your library"
             @click="toggleExpanded('Steam')"
           >
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4" />
+            <svg
+              viewBox="0 0 24 24"
+              width="14"
+              height="14"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path
+                d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"
+              />
             </svg>
           </button>
         </div>
@@ -693,24 +1005,45 @@ async function toggleHltb(enabled: boolean) {
           :disabled="librarySyncing.steam"
           @click="handleSyncLibrary('steam')"
         >
-          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <svg
+            viewBox="0 0 24 24"
+            width="14"
+            height="14"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
             <path d="M23 4v6h-6M1 20v-6h6" />
-            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+            <path
+              d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"
+            />
           </svg>
-          {{ librarySyncing.steam ? 'Importing…' : 'Import Library' }}
+          {{ librarySyncing.steam ? "Importing…" : "Import Library" }}
         </button>
-        <form v-if="expanded.Steam" class="tile-form" @submit.prevent="saveCard(PROVIDER_CARDS.Steam)">
+        <form
+          v-if="expanded.Steam"
+          class="tile-form"
+          @submit.prevent="saveCard(PROVIDER_CARDS.Steam)"
+        >
           <p class="tile-hint">
-            Both fields are required to import your library: your profile ID (after
-            steamcommunity.com/id/, not the full link) and a Web API key. Your profile's game
-            details must be set to Public.
+            Both fields are required to import your library: your profile ID
+            (after steamcommunity.com/id/, not the full link) and a Web API key.
+            Your profile's game details must be set to Public.
           </p>
-          <label v-for="field in PROVIDER_CARDS.Steam.fields" :key="field.key" class="field">
+          <label
+            v-for="field in PROVIDER_CARDS.Steam.fields"
+            :key="field.key"
+            class="field"
+          >
             <span>{{ field.label }}</span>
             <MaskedInput
               v-if="field.type === 'password'"
               v-model="fieldValues.Steam[field.key]"
-              :placeholder="passwordPlaceholder('Steam', field.key, field.label)"
+              :placeholder="
+                passwordPlaceholder('Steam', field.key, field.label)
+              "
             />
             <input
               v-else
@@ -720,13 +1053,26 @@ async function toggleHltb(enabled: boolean) {
               :placeholder="`Paste your ${field.label.toLowerCase()}`"
             />
           </label>
-          <div v-if="cardError.Steam" class="form-error">{{ cardError.Steam }}</div>
-          <div v-if="cardInfo.Steam" class="form-success">{{ cardInfo.Steam }}</div>
+          <div v-if="cardError.Steam" class="form-error">
+            {{ cardError.Steam }}
+          </div>
+          <div v-if="cardInfo.Steam" class="form-success">
+            {{ cardInfo.Steam }}
+          </div>
           <div class="card-actions">
-            <button type="submit" class="primary-button" :disabled="cardSaving.Steam">
-              {{ cardSaving.Steam ? 'Connecting…' : 'Connect' }}
+            <button
+              type="submit"
+              class="primary-button"
+              :disabled="cardSaving.Steam"
+            >
+              {{ cardSaving.Steam ? "Connecting…" : "Connect" }}
             </button>
-            <button v-if="statusClass('Steam') !== 'disconnected'" type="button" class="secondary-button" @click="clearCard(PROVIDER_CARDS.Steam)">
+            <button
+              v-if="statusClass('Steam') !== 'disconnected'"
+              type="button"
+              class="secondary-button"
+              @click="clearCard(PROVIDER_CARDS.Steam)"
+            >
               Disconnect
             </button>
           </div>
@@ -735,12 +1081,25 @@ async function toggleHltb(enabled: boolean) {
 
       <!-- RetroAchievements -->
       <div class="source-tile">
-        <div class="tile-icon" :style="{ background: VISUALS.RetroAchievements.bg, color: VISUALS.RetroAchievements.fg }">
+        <div
+          class="tile-icon"
+          :style="{
+            background: VISUALS.RetroAchievements.bg,
+            color: VISUALS.RetroAchievements.fg,
+          }"
+        >
           {{ VISUALS.RetroAchievements.mark }}
         </div>
         <div class="tile-body">
-          <span class="tile-name" :title="PROVIDER_CARDS.RetroAchievements.description">RetroAchievements</span>
-          <span v-if="credentialStatus.RetroAchievements?.display_name" class="tile-profile">
+          <span
+            class="tile-name"
+            :title="PROVIDER_CARDS.RetroAchievements.description"
+            >RetroAchievements</span
+          >
+          <span
+            v-if="credentialStatus.RetroAchievements?.display_name"
+            class="tile-profile"
+          >
             <img
               v-if="credentialStatus.RetroAchievements.avatar_url"
               :src="credentialStatus.RetroAchievements.avatar_url"
@@ -749,8 +1108,12 @@ async function toggleHltb(enabled: boolean) {
             />
             {{ credentialStatus.RetroAchievements.display_name }}
           </span>
-          <span v-else-if="!credentialsLoading" class="tile-status" :class="statusClass('RetroAchievements')">
-            {{ statusLabel('RetroAchievements') }}
+          <span
+            v-else-if="!credentialsLoading"
+            class="tile-status"
+            :class="statusClass('RetroAchievements')"
+          >
+            {{ statusLabel("RetroAchievements") }}
           </span>
         </div>
         <p class="tile-desc">{{ SHORT_DESC.RetroAchievements }}</p>
@@ -762,14 +1125,42 @@ async function toggleHltb(enabled: boolean) {
             title="Configure"
             @click="toggleExpanded('RetroAchievements')"
           >
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4" />
+            <svg
+              viewBox="0 0 24 24"
+              width="14"
+              height="14"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path
+                d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"
+              />
             </svg>
           </button>
-          <a class="icon-btn" :href="PROVIDER_CARDS.RetroAchievements.linkUrl" target="_blank" rel="noopener noreferrer" title="Get a free key">
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <a
+            class="icon-btn"
+            :href="PROVIDER_CARDS.RetroAchievements.linkUrl"
+            target="_blank"
+            rel="noopener noreferrer"
+            title="Get a free key"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              width="14"
+              height="14"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
               <circle cx="12" cy="12" r="10" />
-              <path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+              <path
+                d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"
+              />
             </svg>
           </a>
         </div>
@@ -780,19 +1171,42 @@ async function toggleHltb(enabled: boolean) {
           :disabled="librarySyncing.retroachievements"
           @click="handleSyncLibrary('retroachievements')"
         >
-          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <svg
+            viewBox="0 0 24 24"
+            width="14"
+            height="14"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
             <path d="M23 4v6h-6M1 20v-6h6" />
-            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+            <path
+              d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"
+            />
           </svg>
-          {{ librarySyncing.retroachievements ? 'Importing…' : 'Import Library' }}
+          {{
+            librarySyncing.retroachievements ? "Importing…" : "Import Library"
+          }}
         </button>
-        <form v-if="expanded.RetroAchievements" class="tile-form" @submit.prevent="saveCard(PROVIDER_CARDS.RetroAchievements)">
-          <label v-for="field in PROVIDER_CARDS.RetroAchievements.fields" :key="field.key" class="field">
+        <form
+          v-if="expanded.RetroAchievements"
+          class="tile-form"
+          @submit.prevent="saveCard(PROVIDER_CARDS.RetroAchievements)"
+        >
+          <label
+            v-for="field in PROVIDER_CARDS.RetroAchievements.fields"
+            :key="field.key"
+            class="field"
+          >
             <span>{{ field.label }}</span>
             <MaskedInput
               v-if="field.type === 'password'"
               v-model="fieldValues.RetroAchievements[field.key]"
-              :placeholder="passwordPlaceholder('RetroAchievements', field.key, field.label)"
+              :placeholder="
+                passwordPlaceholder('RetroAchievements', field.key, field.label)
+              "
             />
             <input
               v-else
@@ -802,10 +1216,16 @@ async function toggleHltb(enabled: boolean) {
               :placeholder="`Paste your ${field.label.toLowerCase()}`"
             />
           </label>
-          <div v-if="cardError.RetroAchievements" class="form-error">{{ cardError.RetroAchievements }}</div>
+          <div v-if="cardError.RetroAchievements" class="form-error">
+            {{ cardError.RetroAchievements }}
+          </div>
           <div class="card-actions">
-            <button type="submit" class="primary-button" :disabled="cardSaving.RetroAchievements">
-              {{ cardSaving.RetroAchievements ? 'Saving…' : 'Save' }}
+            <button
+              type="submit"
+              class="primary-button"
+              :disabled="cardSaving.RetroAchievements"
+            >
+              {{ cardSaving.RetroAchievements ? "Saving…" : "Save" }}
             </button>
             <button
               v-if="statusClass('RetroAchievements') !== 'disconnected'"
@@ -821,30 +1241,86 @@ async function toggleHltb(enabled: boolean) {
 
       <!-- PlayStation -->
       <div class="source-tile">
-        <div class="tile-icon" :style="{ background: VISUALS.PlayStation.bg, color: VISUALS.PlayStation.fg }">
+        <div
+          class="tile-icon"
+          :style="{
+            background: VISUALS.PlayStation.bg,
+            color: VISUALS.PlayStation.fg,
+          }"
+        >
           {{ VISUALS.PlayStation.mark }}
         </div>
         <div class="tile-body">
-          <span class="tile-name" title="Unofficial npsso token flow. Also powers PSN Store data.">PlayStation</span>
-          <span v-if="psnStatus.connected && psnStatus.display_name" class="tile-profile">
-            <img v-if="psnStatus.avatar_url" :src="psnStatus.avatar_url" class="tile-avatar" alt="" />
+          <span
+            class="tile-name"
+            title="Unofficial npsso token flow. Also powers PSN Store data."
+            >PlayStation</span
+          >
+          <span
+            v-if="psnStatus.connected && psnStatus.display_name"
+            class="tile-profile"
+          >
+            <img
+              v-if="psnStatus.avatar_url"
+              :src="psnStatus.avatar_url"
+              class="tile-avatar"
+              alt=""
+            />
             {{ psnStatus.display_name }}
           </span>
-          <span v-else-if="!psnLoading" class="tile-status" :class="psnStatus.connected ? 'connected' : 'disconnected'">
-            {{ psnStatus.connected ? 'Connected' : 'Not connected' }}
+          <span
+            v-else-if="!psnLoading"
+            class="tile-status"
+            :class="psnStatus.connected ? 'connected' : 'disconnected'"
+          >
+            {{ psnStatus.connected ? "Connected" : "Not connected" }}
           </span>
         </div>
         <p class="tile-desc">{{ SHORT_DESC.PlayStation }}</p>
         <div class="tile-actions">
-          <button type="button" class="icon-btn" :class="{ active: expanded.PlayStation }" title="Configure" @click="toggleExpanded('PlayStation')">
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4" />
+          <button
+            type="button"
+            class="icon-btn"
+            :class="{ active: expanded.PlayStation }"
+            title="Configure"
+            @click="toggleExpanded('PlayStation')"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              width="14"
+              height="14"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path
+                d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"
+              />
             </svg>
           </button>
-          <a class="icon-btn" href="https://www.playstation.com" target="_blank" rel="noopener noreferrer" title="playstation.com">
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <a
+            class="icon-btn"
+            href="https://www.playstation.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            title="playstation.com"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              width="14"
+              height="14"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
               <circle cx="12" cy="12" r="10" />
-              <path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+              <path
+                d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"
+              />
             </svg>
           </a>
         </div>
@@ -855,28 +1331,55 @@ async function toggleHltb(enabled: boolean) {
           :disabled="librarySyncing.psn"
           @click="handleSyncLibrary('psn')"
         >
-          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <svg
+            viewBox="0 0 24 24"
+            width="14"
+            height="14"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
             <path d="M23 4v6h-6M1 20v-6h6" />
-            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+            <path
+              d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"
+            />
           </svg>
-          {{ librarySyncing.psn ? 'Importing…' : 'Import Library' }}
+          {{ librarySyncing.psn ? "Importing…" : "Import Library" }}
         </button>
         <div v-if="expanded.PlayStation" class="tile-form">
           <template v-if="!psnLoading">
             <template v-if="!psnStatus.connected">
               <label class="field">
                 <span>npsso token</span>
-                <MaskedInput v-model="npssoToken" placeholder="Paste your npsso token" />
+                <MaskedInput
+                  v-model="npssoToken"
+                  placeholder="Paste your npsso token"
+                />
               </label>
               <div v-if="psnError" class="form-error">{{ psnError }}</div>
-              <button type="button" class="primary-button" :disabled="psnConnecting" @click="handleConnectPsn">
-                {{ psnConnecting ? 'Connecting…' : 'Connect' }}
+              <button
+                type="button"
+                class="primary-button"
+                :disabled="psnConnecting"
+                @click="handleConnectPsn"
+              >
+                {{ psnConnecting ? "Connecting…" : "Connect" }}
               </button>
             </template>
             <template v-else>
-              <p class="tile-hint">Connected: reconnect with a fresh token to re-check it.</p>
+              <p class="tile-hint">
+                Connected: reconnect with a fresh token to re-check it.
+              </p>
               <div v-if="psnError" class="form-error">{{ psnError }}</div>
-              <button type="button" class="secondary-button" @click="showDisconnectConfirm = true">Disconnect</button>
+              <button
+                type="button"
+                class="secondary-button"
+                @click="showDisconnectConfirm = true"
+              >
+                Disconnect
+              </button>
             </template>
           </template>
         </div>
@@ -884,21 +1387,58 @@ async function toggleHltb(enabled: boolean) {
 
       <!-- Xbox -->
       <div class="source-tile">
-        <div class="tile-icon" :style="{ background: VISUALS.Xbox.bg, color: VISUALS.Xbox.fg }">{{ VISUALS.Xbox.mark }}</div>
+        <div
+          class="tile-icon"
+          :style="{ background: VISUALS.Xbox.bg, color: VISUALS.Xbox.fg }"
+        >
+          {{ VISUALS.Xbox.mark }}
+        </div>
         <div class="tile-body">
-          <span class="tile-name" :title="PROVIDER_CARDS.Xbox.description">Xbox</span>
-          <span v-if="!credentialsLoading" class="tile-status" :class="statusClass('Xbox')">{{ statusLabel('Xbox') }}</span>
+          <span class="tile-name" :title="PROVIDER_CARDS.Xbox.description"
+            >Xbox</span
+          >
+          <span
+            v-if="!credentialsLoading"
+            class="tile-status"
+            :class="statusClass('Xbox')"
+            >{{ statusLabel("Xbox") }}</span
+          >
         </div>
         <p class="tile-desc">{{ SHORT_DESC.Xbox }}</p>
         <div class="tile-actions">
-          <button type="button" class="icon-btn" :class="{ active: expanded.Xbox }" title="Configure" @click="toggleExpanded('Xbox')">
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4" />
+          <button
+            type="button"
+            class="icon-btn"
+            :class="{ active: expanded.Xbox }"
+            title="Configure"
+            @click="toggleExpanded('Xbox')"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              width="14"
+              height="14"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path
+                d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"
+              />
             </svg>
           </button>
         </div>
-        <form v-if="expanded.Xbox" class="tile-form" @submit.prevent="saveCard(PROVIDER_CARDS.Xbox)">
-          <label v-for="field in PROVIDER_CARDS.Xbox.fields" :key="field.key" class="field">
+        <form
+          v-if="expanded.Xbox"
+          class="tile-form"
+          @submit.prevent="saveCard(PROVIDER_CARDS.Xbox)"
+        >
+          <label
+            v-for="field in PROVIDER_CARDS.Xbox.fields"
+            :key="field.key"
+            class="field"
+          >
             <span>{{ field.label }}</span>
             <MaskedInput
               v-if="field.type === 'password'"
@@ -913,12 +1453,23 @@ async function toggleHltb(enabled: boolean) {
               :placeholder="`Paste your ${field.label.toLowerCase()}`"
             />
           </label>
-          <div v-if="cardError.Xbox" class="form-error">{{ cardError.Xbox }}</div>
+          <div v-if="cardError.Xbox" class="form-error">
+            {{ cardError.Xbox }}
+          </div>
           <div class="card-actions">
-            <button type="submit" class="primary-button" :disabled="cardSaving.Xbox">
-              {{ cardSaving.Xbox ? 'Saving…' : 'Save' }}
+            <button
+              type="submit"
+              class="primary-button"
+              :disabled="cardSaving.Xbox"
+            >
+              {{ cardSaving.Xbox ? "Saving…" : "Save" }}
             </button>
-            <button v-if="statusClass('Xbox') !== 'disconnected'" type="button" class="secondary-button" @click="clearCard(PROVIDER_CARDS.Xbox)">
+            <button
+              v-if="statusClass('Xbox') !== 'disconnected'"
+              type="button"
+              class="secondary-button"
+              @click="clearCard(PROVIDER_CARDS.Xbox)"
+            >
               Disconnect
             </button>
           </div>
@@ -926,14 +1477,27 @@ async function toggleHltb(enabled: boolean) {
       </div>
 
       <!-- HowLongToBeat -->
-      <div class="source-tile" title="No key needed. HLTB's anti-bot protection can make this fail silently: that's not a bug in your setup.">
-        <div class="tile-icon" :style="{ background: VISUALS.HowLongToBeat.bg, color: VISUALS.HowLongToBeat.fg }">
+      <div
+        class="source-tile"
+        title="No key needed. HLTB's anti-bot protection can make this fail silently: that's not a bug in your setup."
+      >
+        <div
+          class="tile-icon"
+          :style="{
+            background: VISUALS.HowLongToBeat.bg,
+            color: VISUALS.HowLongToBeat.fg,
+          }"
+        >
           {{ VISUALS.HowLongToBeat.mark }}
         </div>
         <div class="tile-body">
           <span class="tile-name">HowLongToBeat</span>
-          <span v-if="!hltbLoading" class="tile-status" :class="hltbEnabled ? 'connected' : 'disconnected'">
-            {{ hltbEnabled ? 'Enabled' : 'Disabled' }}
+          <span
+            v-if="!hltbLoading"
+            class="tile-status"
+            :class="hltbEnabled ? 'connected' : 'disconnected'"
+          >
+            {{ hltbEnabled ? "Enabled" : "Disabled" }}
           </span>
         </div>
         <p class="tile-desc">{{ hltbError ?? SHORT_DESC.HowLongToBeat }}</p>
@@ -954,13 +1518,29 @@ async function toggleHltb(enabled: boolean) {
       </div>
     </div>
 
-    <div v-if="showDisconnectConfirm" class="confirm-backdrop" @click.self="showDisconnectConfirm = false">
+    <div
+      v-if="showDisconnectConfirm"
+      class="confirm-backdrop"
+      @click.self="showDisconnectConfirm = false"
+    >
       <div class="confirm-dialog">
         <h3>Disconnect PlayStation account?</h3>
         <p>You'll need to paste your npsso token again to reconnect.</p>
         <div class="confirm-actions">
-          <button type="button" class="secondary-button" @click="showDisconnectConfirm = false">Cancel</button>
-          <button type="button" class="danger-button" @click="confirmDisconnectPsn">Disconnect</button>
+          <button
+            type="button"
+            class="secondary-button"
+            @click="showDisconnectConfirm = false"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            class="danger-button"
+            @click="confirmDisconnectPsn"
+          >
+            Disconnect
+          </button>
         </div>
       </div>
     </div>
@@ -1007,7 +1587,9 @@ async function toggleHltb(enabled: boolean) {
   border: 1px solid #2a2a2a;
   border-radius: 8px;
   padding: 10px;
-  transition: transform 0.15s ease, border-color 0.15s ease;
+  transition:
+    transform 0.15s ease,
+    border-color 0.15s ease;
 }
 .source-tile:hover {
   transform: translateY(-1px);
@@ -1122,7 +1704,9 @@ async function toggleHltb(enabled: boolean) {
   justify-content: center;
   cursor: pointer;
   flex-shrink: 0;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
 }
 .icon-btn:hover {
   background: rgba(255, 255, 255, 0.16);

@@ -1,12 +1,12 @@
 <script setup lang="ts">
 defineProps<{
-  modelValue: string
-  options: { value: string; label: string }[]
-}>()
+  modelValue: string;
+  options: { value: string; label: string }[];
+}>();
 
 const emit = defineEmits<{
-  'update:modelValue': [value: string]
-}>()
+  "update:modelValue": [value: string];
+}>();
 </script>
 
 <template>
@@ -42,7 +42,9 @@ const emit = defineEmits<{
   font-weight: 600;
   padding: 8px 14px;
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
 }
 .segment:hover {
   color: #fff;

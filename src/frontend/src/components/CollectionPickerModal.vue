@@ -1,71 +1,77 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-import { fetchGames, addGameToCollection } from '../services/games'
-import type { Game } from '../types/game'
+import { ref, computed, onMounted } from "vue";
+import { fetchGames, addGameToCollection } from "../services/games";
+import type { Game } from "../types/game";
 
 const props = defineProps<{
-  game: Game
-}>()
+  game: Game;
+}>();
 
 const emit = defineEmits<{
-  close: []
-  added: []
-}>()
+  close: [];
+  added: [];
+}>();
 
-const query = ref('')
-const saving = ref(false)
-const error = ref<string | null>(null)
-const loading = ref(true)
-const allNames = ref<string[]>([])
+const query = ref("");
+const saving = ref(false);
+const error = ref<string | null>(null);
+const loading = ref(true);
+const allNames = ref<string[]>([]);
 
 onMounted(async () => {
   try {
-    const games = await fetchGames()
-    const set = new Set<string>()
-    games.forEach((g) => g.collections.forEach((c) => set.add(c)))
+    const games = await fetchGames();
+    const set = new Set<string>();
+    games.forEach((g) => g.collections.forEach((c) => set.add(c)));
     try {
-      const raw = localStorage.getItem('manualCollections')
-      const manual: string[] = raw ? JSON.parse(raw) : []
-      manual.forEach((n) => set.add(n))
+      const raw = localStorage.getItem("manualCollections");
+      const manual: string[] = raw ? JSON.parse(raw) : [];
+      manual.forEach((n) => set.add(n));
     } catch {
       // ignore, manual collections are a nice-to-have, not required here
     }
-    allNames.value = Array.from(set).sort()
+    allNames.value = Array.from(set).sort();
   } finally {
-    loading.value = false
+    loading.value = false;
   }
-})
+});
 
-const availableNames = computed(() => allNames.value.filter((n) => !props.game.collections.includes(n)))
+const availableNames = computed(() =>
+  allNames.value.filter((n) => !props.game.collections.includes(n)),
+);
 
 const filteredNames = computed(() => {
-  const q = query.value.trim().toLowerCase()
-  if (!q) return availableNames.value
-  return availableNames.value.filter((n) => n.toLowerCase().includes(q))
-})
+  const q = query.value.trim().toLowerCase();
+  if (!q) return availableNames.value;
+  return availableNames.value.filter((n) => n.toLowerCase().includes(q));
+});
 
-const exactMatch = computed(() =>
-  allNames.value.find((n) => n.toLowerCase() === query.value.trim().toLowerCase()) ?? null,
-)
+const exactMatch = computed(
+  () =>
+    allNames.value.find(
+      (n) => n.toLowerCase() === query.value.trim().toLowerCase(),
+    ) ?? null,
+);
 
 async function pick(name: string) {
-  saving.value = true
-  error.value = null
+  saving.value = true;
+  error.value = null;
   try {
-    await addGameToCollection(props.game.id, name)
-    emit('added')
-    emit('close')
+    await addGameToCollection(props.game.id, name);
+    emit("added");
+    emit("close");
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Failed to add to collection'
+    error.value =
+      err instanceof Error ? err.message : "Failed to add to collection";
   } finally {
-    saving.value = false
+    saving.value = false;
   }
 }
 
 function createAndAdd() {
-  const name = query.value.trim()
-  if (!name) return
-  pick(name)
+  const name = query.value.trim();
+  if (!name) return;
+  pick(name);
 }
 </script>
 
@@ -79,7 +85,13 @@ function createAndAdd() {
         class="picker-input"
         placeholder="Search or create a collection…"
         autofocus
-        @keyup.enter="exactMatch ? pick(exactMatch) : query.trim() ? createAndAdd() : undefined"
+        @keyup.enter="
+          exactMatch
+            ? pick(exactMatch)
+            : query.trim()
+              ? createAndAdd()
+              : undefined
+        "
       />
 
       <div v-if="error" class="picker-error">{{ error }}</div>
@@ -106,14 +118,23 @@ function createAndAdd() {
           >
             {{ name }}
           </button>
-          <p v-if="!filteredNames.length && (!query.trim() || exactMatch)" class="picker-empty">
-            {{ availableNames.length ? 'No matches.' : 'No collections yet: type a name to create one.' }}
+          <p
+            v-if="!filteredNames.length && (!query.trim() || exactMatch)"
+            class="picker-empty"
+          >
+            {{
+              availableNames.length
+                ? "No matches."
+                : "No collections yet: type a name to create one."
+            }}
           </p>
         </template>
       </div>
 
       <div class="picker-actions">
-        <button type="button" class="secondary-button" @click="emit('close')">Cancel</button>
+        <button type="button" class="secondary-button" @click="emit('close')">
+          Cancel
+        </button>
       </div>
     </div>
   </div>
