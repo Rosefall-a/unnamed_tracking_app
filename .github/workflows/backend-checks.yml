@@ -6,11 +6,11 @@ on:
       - "src/backend/**"
       - ".github/workflows/backend-checks.yml"
   pull_request:
-    paths:
-      - ".github/workflows/backend-checks.yml"
 
 jobs:
   backend-checks:
+    if: ${{ github.event_name != 'pull_request' && !startsWith(github.ref, 'refs/pull/') }}
+
     runs-on: ubuntu-latest
     defaults:
       run:
