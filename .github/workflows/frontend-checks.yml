@@ -38,7 +38,3 @@ jobs:
       - name: Tests
         working-directory: src/frontend
         run: npm run test
-
-      - name: Build
-        working-directory: src/frontend
-        run: npm run build

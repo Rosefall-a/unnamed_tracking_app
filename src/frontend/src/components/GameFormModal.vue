@@ -67,9 +67,11 @@ const coverFile = ref<File | null>(null);
 const bannerFile = ref<File | null>(null);
 
 const links = ref<GameLink[]>(props.game?.links ? [...props.game.links] : []);
+
 function addLink() {
   links.value.push({ label: "", url: "" });
 }
+
 function removeLink(index: number) {
   links.value.splice(index, 1);
 }
@@ -93,14 +95,18 @@ async function searchMetadata() {
     metadataMessage.value = "Enter at least two characters to search.";
     return;
   }
+
   searchingMetadata.value = true;
   metadataMessage.value = null;
+
   try {
     metadataResults.value = await searchGameMetadata(
       metadataQuery.value.trim(),
     );
-    if (!metadataResults.value.length)
+
+    if (!metadataResults.value.length) {
       metadataMessage.value = "No games found.";
+    }
   } catch (err) {
     metadataMessage.value =
       err instanceof Error ? err.message : "Metadata search failed.";
@@ -131,11 +137,13 @@ function applyMetadata(result: MetadataSearchResult) {
   metadataMessage.value = `Prefilled from ${result.provider}. Review the fields before saving.`;
 }
 
-// when editing, the folder name is already real data — don't let the
-// title-blur auto-suggest silently overwrite it
+// When editing, the folder name is already real data — don't let the
+// title-blur auto-suggest silently overwrite it.
 const folderTouched = ref(isEditing.value);
+
 function suggestFolderFromTitle() {
   if (folderTouched.value) return;
+
   folderLocation.value = title.value
     .trim()
     .replace(/[^A-Za-z0-9_-]+/g, "-")
@@ -145,6 +153,7 @@ function suggestFolderFromTitle() {
 function onCoverFileChange(e: Event) {
   coverFile.value = (e.target as HTMLInputElement).files?.[0] ?? null;
 }
+
 function onBannerFileChange(e: Event) {
   bannerFile.value = (e.target as HTMLInputElement).files?.[0] ?? null;
 }
@@ -155,6 +164,7 @@ async function submit() {
     activeTab.value = "General";
     return;
   }
+
   if (!isEditing.value && !folderLocation.value.trim()) {
     error.value = "Folder name is required.";
     activeTab.value = "General";
@@ -196,6 +206,11 @@ async function submit() {
       price: price.value,
       condition: condition.value.trim() || null,
     },
+
+    // Preserve these fields when editing and use sensible defaults
+    // when creating a new game.
+    favorite: props.game?.favorite ?? false,
+    collections: props.game?.collections ?? [],
   };
 
   try {
@@ -207,6 +222,7 @@ async function submit() {
       if (coverFile.value) {
         await uploadGameAsset(savedGame.id, "key_art", coverFile.value);
       }
+
       if (bannerFile.value) {
         await uploadGameAsset(savedGame.id, "banner", bannerFile.value);
       }
@@ -231,6 +247,7 @@ async function submit() {
         </button>
       </div>
 
+      ```
       <nav class="modal-tabs">
         <button
           v-for="tab in tabs"
@@ -551,6 +568,7 @@ async function submit() {
         </div>
       </form>
     </div>
+    ```
   </div>
 </template>
 
