@@ -337,14 +337,14 @@ class Game(Base):
     created_at: Mapped[int] = mapped_column(
         BigInteger,
         nullable=False,
-        default=time.time,
+        default=lambda: int(time.time()),
     )
 
     updated_at: Mapped[int] = mapped_column(
         BigInteger,
         nullable=False,
-        default=time.time,
-        onupdate=time.time,
+        default=lambda: int(time.time()),
+        onupdate=lambda: int(time.time()),
     )
 
 

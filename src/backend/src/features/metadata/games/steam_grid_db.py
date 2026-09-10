@@ -96,7 +96,9 @@ class SteamGridDBClient:
         if not query or not query.strip():
             return []
 
-        payload = self._request("GET", f"/search/autocomplete/{query.strip()}", params={"limit": limit})
+        payload = self._request(
+            "GET", f"/search/autocomplete/{query.strip()}", params={"limit": limit}
+        )
         results = payload.get("data") or payload.get("results") or []
         if not isinstance(results, list):
             return []

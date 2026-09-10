@@ -11,8 +11,8 @@
   --shadow:
     rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
 
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
+  --sans: system-ui, "Segoe UI", Roboto, sans-serif;
+  --heading: system-ui, "Segoe UI", Roboto, sans-serif;
   --mono: ui-monospace, Consolas, monospace;
 
   font: 16px/145% var(--sans);
@@ -228,16 +228,46 @@ html {
   background: #121212;
 }
 ::-webkit-scrollbar-button:vertical:start {
-  background-image: linear-gradient(45deg, transparent 45%, #777 45%, #777 55%, transparent 55%),
-    linear-gradient(-45deg, transparent 45%, #777 45%, #777 55%, transparent 55%);
-  background-position: center 6px, center 2px;
+  background-image:
+    linear-gradient(
+      45deg,
+      transparent 45%,
+      #777 45%,
+      #777 55%,
+      transparent 55%
+    ),
+    linear-gradient(
+      -45deg,
+      transparent 45%,
+      #777 45%,
+      #777 55%,
+      transparent 55%
+    );
+  background-position:
+    center 6px,
+    center 2px;
   background-size: 8px 4px;
   background-repeat: no-repeat;
 }
 ::-webkit-scrollbar-button:vertical:end {
-  background-image: linear-gradient(-135deg, transparent 45%, #777 45%, #777 55%, transparent 55%),
-    linear-gradient(135deg, transparent 45%, #777 45%, #777 55%, transparent 55%);
-  background-position: center 2px, center 6px;
+  background-image:
+    linear-gradient(
+      -135deg,
+      transparent 45%,
+      #777 45%,
+      #777 55%,
+      transparent 55%
+    ),
+    linear-gradient(
+      135deg,
+      transparent 45%,
+      #777 45%,
+      #777 55%,
+      transparent 55%
+    );
+  background-position:
+    center 2px,
+    center 6px;
   background-size: 8px 4px;
   background-repeat: no-repeat;
 }
@@ -314,7 +344,7 @@ html {
 
   &::before,
   &::after {
-    content: '';
+    content: "";
     position: absolute;
     top: -4.5px;
     border: 5px solid transparent;

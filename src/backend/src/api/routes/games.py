@@ -6,7 +6,7 @@ import time
 from pathlib import Path
 from typing import Literal
 from urllib.parse import urlparse
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import requests
 from fastapi import (
@@ -23,6 +23,7 @@ from fastapi import (
 )
 from fastapi.responses import FileResponse
 
+from PIL import UnidentifiedImageError
 from pydantic import BaseModel
 from sqlalchemy import Integer, func, select
 from sqlalchemy.exc import IntegrityError
@@ -58,7 +59,7 @@ router = APIRouter(
     dependencies=[Depends(get_current_user)],
 )
 
-_DATA_ROOT = Path("/data/games")
+_DATA_ROOT = Path("/data/users")
 _NOTE_NAME_PATTERN = re.compile(r"^[A-Za-z0-9_-]+$")
 _LEADING_ARTICLE = re.compile(r"^(a|an|the)\s+", flags=re.IGNORECASE)
 
@@ -162,7 +163,13 @@ async def get_game_asset(
         )
 
     game = await _get_game_or_404(game_id, db, current_user.id)
-    asset_path = _DATA_ROOT / game.folder_location / ASSET_FILENAMES[asset_kind]
+    asset_path = (
+        _DATA_ROOT
+        / str(game.user_id)
+        / "games"
+        / game.folder_location
+        / ASSET_FILENAMES[asset_kind]
+    )
     if not asset_path.is_file():
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -280,7 +287,7 @@ def _game_note_path(game: Game, note_name: str) -> Path:
         )
 
     note_file_name = f"{_normalize_note_name(note_name)}.md"
-    note_dir = _DATA_ROOT / game.folder_location / "notes"
+    note_dir = _DATA_ROOT / str(game.user_id) / "games" / game.folder_location / "notes"
     note_dir.mkdir(parents=True, exist_ok=True)
     return note_dir / note_file_name
 
@@ -418,22 +425,31 @@ async def download_game_asset(
 ) -> dict[str, str]:
     """Download an image URL and persist it as a normalized game asset."""
     if asset_kind not in ALLOWED_ASSET_KINDS:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Unsupported asset kind '{asset_kind}'.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unsupported asset kind '{asset_kind}'.",
+        )
 
     await _get_game_or_404(game_id, db, current_user.id)
     parsed_url = urlparse(payload.url)
     if parsed_url.scheme not in {"http", "https"} or not parsed_url.netloc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Image URL must use http or https.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Image URL must use http or https."
+        )
 
     try:
         response = await asyncio.to_thread(requests.get, payload.url, timeout=20)
         response.raise_for_status()
     except requests.RequestException as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Could not download image: {exc}") from exc
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=f"Could not download image: {exc}"
+        ) from exc
 
     content_type = response.headers.get("content-type", "").split(";", 1)[0].lower()
     if not content_type.startswith("image/"):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="URL did not return an image.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="URL did not return an image."
+        )
     image_bytes = response.content
     max_bytes = settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024
     if len(image_bytes) > max_bytes:
@@ -445,7 +461,9 @@ async def download_game_asset(
     try:
         output_path = await save_game_asset(image_bytes, game_id, asset_kind)
     except (OSError, ValueError) as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Could not save image: {exc}") from exc
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=f"Could not save image: {exc}"
+        ) from exc
 
     return {
         "game_id": str(game_id),
@@ -921,7 +939,7 @@ async def list_game_notes(
             detail="Game folder_location is missing.",
         )
 
-    notes_dir = _DATA_ROOT / game.folder_location / "notes"
+    notes_dir = _DATA_ROOT / str(game.user_id) / "games" / game.folder_location / "notes"
     if not notes_dir.exists():
         return {"notes": []}
 
@@ -1476,8 +1494,7 @@ async def create_game(
         await db.rollback()
         raise _duplicate_folder_error(payload.folder_location) from exc
 
-    await db.refresh(game)
-    create_game_folder(game.folder_location)
+    create_game_folder(game.user_id, game.folder_location)
     return game
 
 
@@ -1608,7 +1625,7 @@ async def update_game(
         await db.rollback()
         raise _duplicate_folder_error(game.folder_location) from exc
 
-    await db.refresh(game)
+    await db.refresh(game, attribute_names=["platforms"])
     return game
 
 
