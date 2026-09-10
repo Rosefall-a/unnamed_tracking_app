@@ -1,114 +1,122 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-import GameCard from '../components/GameCard.vue'
-import GameFormModal from '../components/GameFormModal.vue'
-import { fetchGames, deleteGame, addGameToCollection } from '../services/games'
-import type { Game } from '../types/game'
+import { ref, computed, onMounted } from "vue";
+import GameCard from "../components/GameCard.vue";
+import GameFormModal from "../components/GameFormModal.vue";
+import { fetchGames, deleteGame, addGameToCollection } from "../services/games";
+import type { Game } from "../types/game";
 
-const games = ref<Game[]>([])
-const loading = ref(true)
-const error = ref<string | null>(null)
+const games = ref<Game[]>([]);
+const loading = ref(true);
+const error = ref<string | null>(null);
 
-const showFormModal = ref(false)
-const editingGame = ref<Game | null>(null)
+const showFormModal = ref(false);
+const editingGame = ref<Game | null>(null);
 
-const deletingGame = ref<Game | null>(null)
-const deleting = ref(false)
-const deleteError = ref<string | null>(null)
+const deletingGame = ref<Game | null>(null);
+const deleting = ref(false);
+const deleteError = ref<string | null>(null);
 
 const bgLayers = ref<{ url: string | null; visible: boolean }[]>([
   { url: null, visible: false },
   { url: null, visible: false },
-])
-const activeLayer = ref(0)
+]);
+const activeLayer = ref(0);
 
 function setHoverImage(url: string | null) {
   if (url === null) {
-    bgLayers.value[activeLayer.value].visible = false
-    return
+    bgLayers.value[activeLayer.value].visible = false;
+    return;
   }
-  const nextLayer = activeLayer.value === 0 ? 1 : 0
-  bgLayers.value[nextLayer] = { url, visible: true }
-  bgLayers.value[activeLayer.value].visible = false
-  activeLayer.value = nextLayer
+  const nextLayer = activeLayer.value === 0 ? 1 : 0;
+  bgLayers.value[nextLayer] = { url, visible: true };
+  bgLayers.value[activeLayer.value].visible = false;
+  activeLayer.value = nextLayer;
 }
 
 async function loadGames() {
-  loading.value = true
+  loading.value = true;
   try {
-    games.value = await fetchGames()
+    games.value = await fetchGames();
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Failed to load games'
+    error.value = err instanceof Error ? err.message : "Failed to load games";
   } finally {
-    loading.value = false
+    loading.value = false;
   }
 }
 
-onMounted(loadGames)
+onMounted(loadGames);
 
 function openEditModal(game: Game) {
-  editingGame.value = game
-  showFormModal.value = true
+  editingGame.value = game;
+  showFormModal.value = true;
 }
 
 async function onGameSaved() {
-  showFormModal.value = false
-  editingGame.value = null
-  await loadGames()
+  showFormModal.value = false;
+  editingGame.value = null;
+  await loadGames();
 }
 
 function requestDelete(game: Game) {
-  deletingGame.value = game
-  deleteError.value = null
+  deletingGame.value = game;
+  deleteError.value = null;
 }
 
 async function confirmDelete() {
-  if (!deletingGame.value) return
-  deleting.value = true
-  deleteError.value = null
+  if (!deletingGame.value) return;
+  deleting.value = true;
+  deleteError.value = null;
   try {
-    await deleteGame(deletingGame.value.id)
-    deletingGame.value = null
-    await loadGames()
+    await deleteGame(deletingGame.value.id);
+    deletingGame.value = null;
+    await loadGames();
   } catch (err) {
-    deleteError.value = err instanceof Error ? err.message : 'Failed to delete game'
+    deleteError.value =
+      err instanceof Error ? err.message : "Failed to delete game";
   } finally {
-    deleting.value = false
+    deleting.value = false;
   }
 }
 
 // crude placeholder — a proper picker UI can replace this once Collections
 // has more than one feature built for it
 async function handleAddToCollection(game: Game) {
-  const name = window.prompt(`Add "${game.title}" to which collection?`)
-  if (!name || !name.trim()) return
+  const name = window.prompt(`Add "${game.title}" to which collection?`);
+  if (!name || !name.trim()) return;
   try {
-    await addGameToCollection(game.id, name.trim())
-    await loadGames()
+    await addGameToCollection(game.id, name.trim());
+    await loadGames();
   } catch (err) {
-    window.alert(err instanceof Error ? err.message : 'Failed to add to collection')
+    window.alert(
+      err instanceof Error ? err.message : "Failed to add to collection",
+    );
   }
 }
 
-const playingGames = computed(() => games.value.filter((g) => g.status === 'playing'))
+const playingGames = computed(() =>
+  games.value.filter((g) => g.status === "playing"),
+);
 
 const recentlyAdded = computed(() =>
   [...games.value]
     .filter((g) => g.dateAdded)
     .sort((a, b) => (b.dateAdded! > a.dateAdded! ? 1 : -1))
     .slice(0, 10),
-)
+);
 
 const collectionGroups = computed(() => {
-  const map = new Map<string, Game[]>()
+  const map = new Map<string, Game[]>();
   for (const g of games.value) {
     for (const c of g.collections) {
-      if (!map.has(c)) map.set(c, [])
-      map.get(c)!.push(g)
+      if (!map.has(c)) map.set(c, []);
+      map.get(c)!.push(g);
     }
   }
-  return Array.from(map.entries()).map(([name, list]) => ({ name, games: list }))
-})
+  return Array.from(map.entries()).map(([name, list]) => ({
+    name,
+    games: list,
+  }));
+});
 </script>
 
 <template>
@@ -159,7 +167,11 @@ const collectionGroups = computed(() => {
           <p v-else class="empty-row">No games added yet.</p>
         </section>
 
-        <section v-for="group in collectionGroups" :key="group.name" class="row">
+        <section
+          v-for="group in collectionGroups"
+          :key="group.name"
+          class="row"
+        >
           <h2>{{ group.name }}</h2>
           <div class="shelf">
             <GameCard
@@ -185,15 +197,30 @@ const collectionGroups = computed(() => {
         @saved="onGameSaved"
       />
 
-      <div v-if="deletingGame" class="confirm-backdrop" @click.self="deletingGame = null">
+      <div
+        v-if="deletingGame"
+        class="confirm-backdrop"
+        @click.self="deletingGame = null"
+      >
         <div class="confirm-dialog">
           <h3>Delete {{ deletingGame.title }}?</h3>
           <p>This can't be undone.</p>
           <div v-if="deleteError" class="confirm-error">{{ deleteError }}</div>
           <div class="confirm-actions">
-            <button type="button" class="secondary-button" @click="deletingGame = null">Cancel</button>
-            <button type="button" class="danger-button" :disabled="deleting" @click="confirmDelete">
-              {{ deleting ? 'Deleting…' : 'Delete' }}
+            <button
+              type="button"
+              class="secondary-button"
+              @click="deletingGame = null"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              class="danger-button"
+              :disabled="deleting"
+              @click="confirmDelete"
+            >
+              {{ deleting ? "Deleting…" : "Delete" }}
             </button>
           </div>
         </div>

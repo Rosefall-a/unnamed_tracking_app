@@ -1,88 +1,94 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { computed, ref, watch } from "vue";
+import { useRoute } from "vue-router";
 import {
   deleteGameNote,
   fetchGame,
   fetchGameNote,
   listGameNotes,
   saveGameNote,
-} from '../services/games'
-import type { Achievement, AchievementTier, Game } from '../types/game'
-import GameFormModal from '../components/GameFormModal.vue'
+} from "../services/games";
+import type { Achievement, AchievementTier, Game } from "../types/game";
+import GameFormModal from "../components/GameFormModal.vue";
 
-const route = useRoute()
+const route = useRoute();
 
-const game = ref<Game | null>(null)
-const loading = ref(true)
-const error = ref<string | null>(null)
-const showEditModal = ref(false)
+const game = ref<Game | null>(null);
+const loading = ref(true);
+const error = ref<string | null>(null);
+const showEditModal = ref(false);
 
-const noteNames = ref<string[]>([])
-const noteMode = ref<'list' | 'editor'>('list')
-const editingNoteName = ref<string | null>(null)
-const draftName = ref('')
-const draftContent = ref('')
-const noteLoading = ref(false)
-const noteSaving = ref(false)
-const noteError = ref<string | null>(null)
+const noteNames = ref<string[]>([]);
+const noteMode = ref<"list" | "editor">("list");
+const editingNoteName = ref<string | null>(null);
+const draftName = ref("");
+const draftContent = ref("");
+const noteLoading = ref(false);
+const noteSaving = ref(false);
+const noteError = ref<string | null>(null);
 
 interface DescriptionSection {
-  header: string | null
-  body: string
+  header: string | null;
+  body: string;
 }
 
 const descriptionSections = computed<DescriptionSection[]>(() => {
-  if (!game.value?.description) return []
+  if (!game.value?.description) return [];
   return game.value.description
-    .split('•')
+    .split("•")
     .map((s) => s.trim())
     .filter(Boolean)
     .map((section) => {
-      const colonIndex = section.indexOf(':')
+      const colonIndex = section.indexOf(":");
       // only treat it as a header if the colon shows up early — a colon
       // buried deep in a long sentence isn't a header boundary
       if (colonIndex > 0 && colonIndex < 80) {
-        return { header: section.slice(0, colonIndex).trim(), body: section.slice(colonIndex + 1).trim() }
+        return {
+          header: section.slice(0, colonIndex).trim(),
+          body: section.slice(colonIndex + 1).trim(),
+        };
       }
-      return { header: null, body: section }
-    })
-})
+      return { header: null, body: section };
+    });
+});
 
 const hasDraft = computed(
-  () => editingNoteName.value === null && (draftName.value.trim() !== '' || draftContent.value.trim() !== '')
-)
+  () =>
+    editingNoteName.value === null &&
+    (draftName.value.trim() !== "" || draftContent.value.trim() !== ""),
+);
 
 async function loadGame(id: string) {
-  loading.value = true
-  error.value = null
+  loading.value = true;
+  error.value = null;
   try {
-    game.value = await fetchGame(id)
+    game.value = await fetchGame(id);
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Failed to load game'
+    error.value = err instanceof Error ? err.message : "Failed to load game";
   } finally {
-    loading.value = false
+    loading.value = false;
   }
 }
 
 async function onGameSaved() {
-  showEditModal.value = false
-  await loadGame(route.params.id as string)
+  showEditModal.value = false;
+  await loadGame(route.params.id as string);
 }
 
 async function loadNotes() {
   if (!game.value) {
-    noteNames.value = []
-    return
+    noteNames.value = [];
+    return;
   }
-  noteLoading.value = true
-  noteError.value = null
+  noteLoading.value = true;
+  noteError.value = null;
   try {
-    noteNames.value = await listGameNotes(game.value.id)
+    noteNames.value = await listGameNotes(game.value.id);
   } catch (err) {
-    noteError.value = err instanceof Error ? err.message : 'Failed to load notes'
+    noteError.value =
+      err instanceof Error ? err.message : "Failed to load notes";
   } finally {
-    noteLoading.value = false
+    noteLoading.value = false;
   }
 }
 
@@ -90,128 +96,145 @@ function startNewNote() {
   // resumes whatever was already typed if there's an unsaved draft,
   // otherwise starts blank
   if (!hasDraft.value) {
-    draftName.value = ''
-    draftContent.value = ''
+    draftName.value = "";
+    draftContent.value = "";
   }
-  editingNoteName.value = null
-  noteMode.value = 'editor'
+  editingNoteName.value = null;
+  noteMode.value = "editor";
 }
 
 async function editNote(noteName: string) {
-  if (!game.value) return
-  editingNoteName.value = noteName
-  draftName.value = noteName
-  noteLoading.value = true
-  noteError.value = null
+  if (!game.value) return;
+  editingNoteName.value = noteName;
+  draftName.value = noteName;
+  noteLoading.value = true;
+  noteError.value = null;
   try {
-    draftContent.value = await fetchGameNote(game.value.id, noteName)
-    noteMode.value = 'editor'
+    draftContent.value = await fetchGameNote(game.value.id, noteName);
+    noteMode.value = "editor";
   } catch (err) {
-    noteError.value = err instanceof Error ? err.message : 'Failed to load note'
+    noteError.value =
+      err instanceof Error ? err.message : "Failed to load note";
   } finally {
-    noteLoading.value = false
+    noteLoading.value = false;
   }
 }
 
 function backToList() {
-  noteMode.value = 'list'
+  noteMode.value = "list";
 }
 
 async function saveDraft() {
-  if (!game.value) return
-  const name = draftName.value.trim()
+  if (!game.value) return;
+  const name = draftName.value.trim();
   if (!name) {
-    noteError.value = 'Enter a note name first.'
-    return
+    noteError.value = "Enter a note name first.";
+    return;
   }
 
-  noteSaving.value = true
-  noteError.value = null
+  noteSaving.value = true;
+  noteError.value = null;
 
   try {
-    await saveGameNote(game.value.id, name, draftContent.value)
-    editingNoteName.value = null
-    draftName.value = ''
-    draftContent.value = ''
-    noteMode.value = 'list'
-    await loadNotes()
+    await saveGameNote(game.value.id, name, draftContent.value);
+    editingNoteName.value = null;
+    draftName.value = "";
+    draftContent.value = "";
+    noteMode.value = "list";
+    await loadNotes();
   } catch (err) {
-    noteError.value = err instanceof Error ? err.message : 'Failed to save note'
+    noteError.value =
+      err instanceof Error ? err.message : "Failed to save note";
   } finally {
-    noteSaving.value = false
+    noteSaving.value = false;
   }
 }
 
 async function deleteNote(noteName: string) {
-  if (!game.value) return
+  if (!game.value) return;
 
-  noteSaving.value = true
-  noteError.value = null
+  noteSaving.value = true;
+  noteError.value = null;
 
   try {
-    await deleteGameNote(game.value.id, noteName)
+    await deleteGameNote(game.value.id, noteName);
     if (editingNoteName.value === noteName) {
-      editingNoteName.value = null
-      draftName.value = ''
-      draftContent.value = ''
-      noteMode.value = 'list'
+      editingNoteName.value = null;
+      draftName.value = "";
+      draftContent.value = "";
+      noteMode.value = "list";
     }
-    await loadNotes()
+    await loadNotes();
   } catch (err) {
-    noteError.value = err instanceof Error ? err.message : 'Failed to delete note'
+    noteError.value =
+      err instanceof Error ? err.message : "Failed to delete note";
   } finally {
-    noteSaving.value = false
+    noteSaving.value = false;
   }
 }
 
 // re-fetches automatically if you ever navigate from one game's page
 // straight to another, not just on the first load
-watch(() => route.params.id as string, loadGame, { immediate: true })
-watch(() => game.value?.id, () => {
-  if (game.value) {
-    void loadNotes()
-  }
-})
+watch(() => route.params.id as string, loadGame, { immediate: true });
+watch(
+  () => game.value?.id,
+  () => {
+    if (game.value) {
+      void loadNotes();
+    }
+  },
+);
 
 const recentActivity = computed(() => {
-  if (!game.value) return null
+  if (!game.value) return null;
   const dates = game.value.platforms
     .map((p) => p.lastPlayedAt)
-    .filter((d): d is string => d !== null)
-  return dates.length > 0 ? dates.reduce((latest, d) => (d > latest ? d : latest)) : null
-})
+    .filter((d): d is string => d !== null);
+  return dates.length > 0
+    ? dates.reduce((latest, d) => (d > latest ? d : latest))
+    : null;
+});
 
 const tally = computed(() => {
-  if (!game.value) return null
+  if (!game.value) return null;
   const values = [
     game.value.ratingOverall,
     game.value.ratingStory,
     game.value.ratingGameplay,
     game.value.ratingSound,
-  ].filter((v): v is number => v !== null)
-  if (values.length === 0) return null
-  return { sum: values.reduce((a, b) => a + b, 0), max: values.length * 10 }
-})
+  ].filter((v): v is number => v !== null);
+  if (values.length === 0) return null;
+  return { sum: values.reduce((a, b) => a + b, 0), max: values.length * 10 };
+});
 
-const tabs = ['Overview', 'Achievements', 'Screenshots', 'Clips', 'Saves', 'Docs', 'Notes', 'Stats'] as const
-const activeTab = ref<(typeof tabs)[number]>('Overview')
+const tabs = [
+  "Overview",
+  "Achievements",
+  "Screenshots",
+  "Clips",
+  "Saves",
+  "Docs",
+  "Notes",
+  "Stats",
+] as const;
+const activeTab = ref<(typeof tabs)[number]>("Overview");
 
 function sortedAchievements(achievements: Achievement[]) {
   return [...achievements].sort((a, b) => {
-    if (a.unlockedAt === null && b.unlockedAt === null) return 0
-    if (a.unlockedAt === null) return 1
-    if (b.unlockedAt === null) return -1
-    return b.unlockedAt.localeCompare(a.unlockedAt)
-  })
+    if (a.unlockedAt === null && b.unlockedAt === null) return 0;
+    if (a.unlockedAt === null) return 1;
+    if (b.unlockedAt === null) return -1;
+    return b.unlockedAt.localeCompare(a.unlockedAt);
+  });
 }
 
 function deriveTier(achievement: Achievement): AchievementTier {
-  if (achievement.tierOverride) return achievement.tierOverride
-  const rarity = achievement.rarityPercent
-  if (rarity === null || rarity === undefined) return 'bronze'
-  if (rarity <= 20) return 'gold'
-  if (rarity <= 50) return 'silver'
-  return 'bronze'
+  if (achievement.tierOverride) return achievement.tierOverride;
+  const rarity = achievement.rarityPercent;
+  if (rarity === null || rarity === undefined) return "bronze";
+  if (rarity <= 20) return "gold";
+  if (rarity <= 50) return "silver";
+  return "bronze";
 }
 
 const isPlatinumEarned = computed(
@@ -219,63 +242,78 @@ const isPlatinumEarned = computed(
     !!game.value &&
     game.value.achievements.length > 0 &&
     game.value.achievements.every((a) => a.unlockedAt !== null),
-)
+);
 
 const trophyCounts = computed(() => {
-  const counts = { bronze: 0, silver: 0, gold: 0 }
-  if (!game.value) return counts
+  const counts = { bronze: 0, silver: 0, gold: 0 };
+  if (!game.value) return counts;
   for (const a of game.value.achievements) {
-    if (a.unlockedAt !== null) counts[deriveTier(a)]++
+    if (a.unlockedAt !== null) counts[deriveTier(a)]++;
   }
-  return counts
-})
+  return counts;
+});
 
 function formatUnlockedAt(dateStr: string) {
-  const d = new Date(dateStr)
-  return `${d.toLocaleDateString()} ${d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
+  const d = new Date(dateStr);
+  return `${d.toLocaleDateString()} ${d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
 }
 
 function formatPlaytime(minutes: number) {
-  if (minutes === 0) return 'Not played yet'
-  const hours = Math.floor(minutes / 60)
-  const mins = minutes % 60
-  return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`
+  if (minutes === 0) return "Not played yet";
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
 }
 </script>
 
 <template>
-<main v-if="loading" class="detail loading-state">
-  <p>Loading…</p>
-</main>
+  <main v-if="loading" class="detail loading-state">
+    <p>Loading…</p>
+  </main>
 
-<main v-else-if="error" class="detail error-state">
-  <p>{{ error }}</p>
-</main>
+  <main v-else-if="error" class="detail error-state">
+    <p>{{ error }}</p>
+  </main>
 
-<main v-else-if="game" class="detail">
+  <main v-else-if="game" class="detail">
     <!-- heavily blurred, dimmed copy of the cover image behind the whole page —
          separate from the sharp version used in .hero itself -->
-<div class="ambient-bg" :style="{ backgroundImage: `url(${game.bannerImageUrl})` }"></div>
+    <div
+      class="ambient-bg"
+      :style="{ backgroundImage: `url(${game.bannerImageUrl})` }"
+    ></div>
 
-<GameFormModal v-if="showEditModal" :game="game" @close="showEditModal = false" @saved="onGameSaved" />
+    <GameFormModal
+      v-if="showEditModal"
+      :game="game"
+      @close="showEditModal = false"
+      @saved="onGameSaved"
+    />
 
-<section class="hero" :style="{ backgroundImage: `url(${game.bannerImageUrl})` }">
-  <div class="hero-overlay"></div>
-  <button class="edit-button" type="button" @click="showEditModal = true">Edit</button>
-  <div class="hero-inner">
-    <h1>{{ game.title }}</h1>
-    <div class="badges">
-      <span class="badge status-badge">{{ game.status }}</span>
-      <span v-if="tally" class="badge rating-badge">
-        ★ {{ tally.sum.toFixed(1) }}
-      </span>
-      <span v-if="game.dateAdded" class="badge">
-        {{ new Date(game.dateAdded).toLocaleDateString() }}
-      </span>
-      <span v-if="game.platforms.length" class="badge">{{ game.platforms[0].platform }}</span>
-    </div>
-  </div>
-</section>
+    <section
+      class="hero"
+      :style="{ backgroundImage: `url(${game.bannerImageUrl})` }"
+    >
+      <div class="hero-overlay"></div>
+      <button class="edit-button" type="button" @click="showEditModal = true">
+        Edit
+      </button>
+      <div class="hero-inner">
+        <h1>{{ game.title }}</h1>
+        <div class="badges">
+          <span class="badge status-badge">{{ game.status }}</span>
+          <span v-if="tally" class="badge rating-badge">
+            ★ {{ tally.sum.toFixed(1) }}
+          </span>
+          <span v-if="game.dateAdded" class="badge">
+            {{ new Date(game.dateAdded).toLocaleDateString() }}
+          </span>
+          <span v-if="game.platforms.length" class="badge">{{
+            game.platforms[0].platform
+          }}</span>
+        </div>
+      </div>
+    </section>
 
     <nav class="tabs">
       <button
@@ -291,214 +329,309 @@ function formatPlaytime(minutes: number) {
     </nav>
 
     <section v-if="activeTab === 'Overview'" class="overview">
-<div class="overview-main">
-<div v-if="descriptionSections.length" class="description-wrap">
-  <div v-for="(section, i) in descriptionSections" :key="i" class="description-section">
-    <h4 v-if="section.header" class="description-heading">{{ section.header }}</h4>
-    <p class="description">{{ section.body }}</p>
-  </div>
-</div>
+      <div class="overview-main">
+        <div v-if="descriptionSections.length" class="description-wrap">
+          <div
+            v-for="(section, i) in descriptionSections"
+            :key="i"
+            class="description-section"
+          >
+            <h4 v-if="section.header" class="description-heading">
+              {{ section.header }}
+            </h4>
+            <p class="description">{{ section.body }}</p>
+          </div>
+        </div>
 
-  <div class="rating-breakdown" v-if="game.ratingOverall !== null || game.ratingStory !== null || game.ratingGameplay !== null || game.ratingSound !== null">
-    <div v-if="game.ratingOverall !== null" class="rating-item">
-      <span class="rating-label">Atmosphere</span>
-      <span class="rating-score">★ {{ game.ratingOverall.toFixed(1) }}</span>
-    </div>
-    <div v-if="game.ratingStory !== null" class="rating-item">
-      <span class="rating-label">Story</span>
-      <span class="rating-score">★ {{ game.ratingStory.toFixed(1) }}</span>
-    </div>
-    <div v-if="game.ratingGameplay !== null" class="rating-item">
-      <span class="rating-label">Gameplay</span>
-      <span class="rating-score">★ {{ game.ratingGameplay.toFixed(1) }}</span>
-    </div>
-    <div v-if="game.ratingSound !== null" class="rating-item">
-      <span class="rating-label">Sound</span>
-      <span class="rating-score">★ {{ game.ratingSound.toFixed(1) }}</span>
-    </div>
-    <div v-if="tally" class="rating-item">
-      <span class="rating-label">Tally</span>
-      <span class="rating-score">{{ tally.sum.toFixed(1) }}</span>
-    </div>
-  </div>
-</div>
+        <div
+          class="rating-breakdown"
+          v-if="
+            game.ratingOverall !== null ||
+            game.ratingStory !== null ||
+            game.ratingGameplay !== null ||
+            game.ratingSound !== null
+          "
+        >
+          <div v-if="game.ratingOverall !== null" class="rating-item">
+            <span class="rating-label">Atmosphere</span>
+            <span class="rating-score"
+              >★ {{ game.ratingOverall.toFixed(1) }}</span
+            >
+          </div>
+          <div v-if="game.ratingStory !== null" class="rating-item">
+            <span class="rating-label">Story</span>
+            <span class="rating-score"
+              >★ {{ game.ratingStory.toFixed(1) }}</span
+            >
+          </div>
+          <div v-if="game.ratingGameplay !== null" class="rating-item">
+            <span class="rating-label">Gameplay</span>
+            <span class="rating-score"
+              >★ {{ game.ratingGameplay.toFixed(1) }}</span
+            >
+          </div>
+          <div v-if="game.ratingSound !== null" class="rating-item">
+            <span class="rating-label">Sound</span>
+            <span class="rating-score"
+              >★ {{ game.ratingSound.toFixed(1) }}</span
+            >
+          </div>
+          <div v-if="tally" class="rating-item">
+            <span class="rating-label">Tally</span>
+            <span class="rating-score">{{ tally.sum.toFixed(1) }}</span>
+          </div>
+        </div>
+      </div>
 
-<aside class="details-panel">
-  <h3 class="panel-title">Details</h3>
-  <div class="detail-row">
-    <span class="detail-label">Developer</span>
-    <span class="detail-value">{{ game.developer ?? '—' }}</span>
-  </div>
-  <div class="detail-row">
-    <span class="detail-label">Publisher</span>
-    <span class="detail-value">{{ game.publisher ?? '—' }}</span>
-  </div>
-  <div class="detail-row">
-    <span class="detail-label">Series</span>
-    <span class="detail-value">{{ game.series ?? '—' }}</span>
-  </div>
-  <div v-if="game.releaseDate" class="detail-row">
-    <span class="detail-label">Release Date</span>
-    <span class="detail-value">{{ new Date(game.releaseDate).toLocaleDateString() }}</span>
-  </div>
-  <div class="detail-row">
-    <span class="detail-label">Date Added</span>
-    <span class="detail-value">
-      {{ game.dateAdded ? new Date(game.dateAdded).toLocaleDateString() : '—' }}
-    </span>
-  </div>
-  <div class="detail-row">
-    <span class="detail-label">Recent Activity</span>
-    <span class="detail-value">
-      {{ recentActivity ? new Date(recentActivity).toLocaleDateString() : '—' }}
-    </span>
-  </div>
-  <div class="detail-row">
-    <span class="detail-label">Platforms</span>
-    <ul class="platforms">
-      <li v-for="p in game.platforms" :key="p.platform" class="platform-row">
-        <div class="platform-line">
-          <span class="platform-name">{{ p.platform }}</span>
-          <span class="platform-meta">
-            {{ formatPlaytime(p.playtimeMinutes) }}<span v-if="p.completionPercent !== null"> · {{ p.completionPercent }}%</span>
+      <aside class="details-panel">
+        <h3 class="panel-title">Details</h3>
+        <div class="detail-row">
+          <span class="detail-label">Developer</span>
+          <span class="detail-value">{{ game.developer ?? "—" }}</span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">Publisher</span>
+          <span class="detail-value">{{ game.publisher ?? "—" }}</span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">Series</span>
+          <span class="detail-value">{{ game.series ?? "—" }}</span>
+        </div>
+        <div v-if="game.releaseDate" class="detail-row">
+          <span class="detail-label">Release Date</span>
+          <span class="detail-value">{{
+            new Date(game.releaseDate).toLocaleDateString()
+          }}</span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">Date Added</span>
+          <span class="detail-value">
+            {{
+              game.dateAdded
+                ? new Date(game.dateAdded).toLocaleDateString()
+                : "—"
+            }}
           </span>
         </div>
-        <div v-if="p.lastPlayedAt" class="platform-last-played">
-          last played {{ new Date(p.lastPlayedAt).toLocaleDateString() }}
+        <div class="detail-row">
+          <span class="detail-label">Recent Activity</span>
+          <span class="detail-value">
+            {{
+              recentActivity
+                ? new Date(recentActivity).toLocaleDateString()
+                : "—"
+            }}
+          </span>
         </div>
-      </li>
-    </ul>
-  </div>
-  <div v-if="game.tags.length" class="detail-row">
-    <span class="detail-label">Tags</span>
-    <span class="feature-pills">
-      <span v-for="tag in game.tags" :key="tag" class="feature-pill">{{ tag }}</span>
-    </span>
-  </div>
-  <div v-if="game.features.length" class="detail-row">
-    <span class="detail-label">Features</span>
-    <span class="feature-pills">
-      <span v-for="f in game.features" :key="f" class="feature-pill">{{ f }}</span>
-    </span>
-  </div>
-  <div v-if="game.source" class="detail-row">
-    <span class="detail-label">Source</span>
-    <span class="detail-value">{{ game.source }}</span>
-  </div>
-  <div v-if="game.ageRating" class="detail-row">
-    <span class="detail-label">Age Rating</span>
-    <span class="detail-value">{{ game.ageRating }}</span>
-  </div>
-  <div v-if="game.links.length" class="detail-row">
-    <span class="detail-label">Links</span>
-    <ul class="links-list">
-      <li v-for="link in game.links" :key="link.url">
-        <a :href="link.url" target="_blank" rel="noopener noreferrer">{{ link.label }}</a>
-      </li>
-    </ul>
-  </div>
-  <div
-    v-if="game.ownership.format || game.ownership.purchaseDate || game.ownership.price !== null"
-    class="detail-row"
-  >
-    <span class="detail-label">Ownership</span>
-    <div class="ownership-info">
-      <span v-if="game.ownership.format" class="ownership-format">{{ game.ownership.format }}</span>
-      <span v-if="game.ownership.purchaseDate">
-        Purchased {{ new Date(game.ownership.purchaseDate).toLocaleDateString() }}
-      </span>
-      <span v-if="game.ownership.price !== null">${{ game.ownership.price.toFixed(2) }}</span>
-      <span v-if="game.ownership.condition">{{ game.ownership.condition }}</span>
-    </div>
-  </div>
-  <div v-if="game.folderLocation" class="detail-row">
-    <span class="detail-label">Folder</span>
-    <span class="detail-value">{{ game.folderLocation }}</span>
-  </div>
-</aside>
+        <div class="detail-row">
+          <span class="detail-label">Platforms</span>
+          <ul class="platforms">
+            <li
+              v-for="p in game.platforms"
+              :key="p.platform"
+              class="platform-row"
+            >
+              <div class="platform-line">
+                <span class="platform-name">{{ p.platform }}</span>
+                <span class="platform-meta">
+                  {{ formatPlaytime(p.playtimeMinutes)
+                  }}<span v-if="p.completionPercent !== null">
+                    · {{ p.completionPercent }}%</span
+                  >
+                </span>
+              </div>
+              <div v-if="p.lastPlayedAt" class="platform-last-played">
+                last played {{ new Date(p.lastPlayedAt).toLocaleDateString() }}
+              </div>
+            </li>
+          </ul>
+        </div>
+        <div v-if="game.tags.length" class="detail-row">
+          <span class="detail-label">Tags</span>
+          <span class="feature-pills">
+            <span v-for="tag in game.tags" :key="tag" class="feature-pill">{{
+              tag
+            }}</span>
+          </span>
+        </div>
+        <div v-if="game.features.length" class="detail-row">
+          <span class="detail-label">Features</span>
+          <span class="feature-pills">
+            <span v-for="f in game.features" :key="f" class="feature-pill">{{
+              f
+            }}</span>
+          </span>
+        </div>
+        <div v-if="game.source" class="detail-row">
+          <span class="detail-label">Source</span>
+          <span class="detail-value">{{ game.source }}</span>
+        </div>
+        <div v-if="game.ageRating" class="detail-row">
+          <span class="detail-label">Age Rating</span>
+          <span class="detail-value">{{ game.ageRating }}</span>
+        </div>
+        <div v-if="game.links.length" class="detail-row">
+          <span class="detail-label">Links</span>
+          <ul class="links-list">
+            <li v-for="link in game.links" :key="link.url">
+              <a :href="link.url" target="_blank" rel="noopener noreferrer">{{
+                link.label
+              }}</a>
+            </li>
+          </ul>
+        </div>
+        <div
+          v-if="
+            game.ownership.format ||
+            game.ownership.purchaseDate ||
+            game.ownership.price !== null
+          "
+          class="detail-row"
+        >
+          <span class="detail-label">Ownership</span>
+          <div class="ownership-info">
+            <span v-if="game.ownership.format" class="ownership-format">{{
+              game.ownership.format
+            }}</span>
+            <span v-if="game.ownership.purchaseDate">
+              Purchased
+              {{ new Date(game.ownership.purchaseDate).toLocaleDateString() }}
+            </span>
+            <span v-if="game.ownership.price !== null"
+              >${{ game.ownership.price.toFixed(2) }}</span
+            >
+            <span v-if="game.ownership.condition">{{
+              game.ownership.condition
+            }}</span>
+          </div>
+        </div>
+        <div v-if="game.folderLocation" class="detail-row">
+          <span class="detail-label">Folder</span>
+          <span class="detail-value">{{ game.folderLocation }}</span>
+        </div>
+      </aside>
     </section>
 
-<section v-else-if="activeTab === 'Achievements'" class="achievements">
-  <div class="achievements-header">
-    <h2>Achievements</h2>
-    <span class="percent">{{ game.achievementPercent }}%</span>
-  </div>
+    <section v-else-if="activeTab === 'Achievements'" class="achievements">
+      <div class="achievements-header">
+        <h2>Achievements</h2>
+        <span class="percent">{{ game.achievementPercent }}%</span>
+      </div>
 
-  <div class="trophy-summary">
-    <div class="trophy-count">
-      <span class="trophy-badge trophy-badge-platinum" :class="{ dim: !isPlatinumEarned }"></span>
-      <span>{{ isPlatinumEarned ? 1 : 0 }}</span>
-    </div>
-    <div class="trophy-count">
-      <span class="trophy-badge trophy-badge-gold"></span>
-      <span>{{ trophyCounts.gold }}</span>
-    </div>
-    <div class="trophy-count">
-      <span class="trophy-badge trophy-badge-silver"></span>
-      <span>{{ trophyCounts.silver }}</span>
-    </div>
-    <div class="trophy-count">
-      <span class="trophy-badge trophy-badge-bronze"></span>
-      <span>{{ trophyCounts.bronze }}</span>
-    </div>
-  </div>
-
-  <ul class="achievement-list">
-    <li v-for="achievement in sortedAchievements(game.achievements)" :key="achievement.id">
-      <router-link
-        :to="{ name: 'achievement-detail', params: { gameId: game.id, achievementId: achievement.id } }"
-        class="achievement-row"
-        :class="{ unlocked: achievement.unlockedAt !== null }"
-      >
-        <div
-          class="achievement-icon"
-          :style="achievement.hidden && achievement.unlockedAt === null ? {} : { backgroundImage: `url(${game.coverImageUrl})` }"
-        >
+      <div class="trophy-summary">
+        <div class="trophy-count">
           <span
-            class="achievement-badge"
-            :class="achievement.unlockedAt !== null ? `badge-${deriveTier(achievement)}` : 'badge-locked'"
-          >
-            <template v-if="achievement.hidden && achievement.unlockedAt === null">?</template>
-          </span>
+            class="trophy-badge trophy-badge-platinum"
+            :class="{ dim: !isPlatinumEarned }"
+          ></span>
+          <span>{{ isPlatinumEarned ? 1 : 0 }}</span>
         </div>
+        <div class="trophy-count">
+          <span class="trophy-badge trophy-badge-gold"></span>
+          <span>{{ trophyCounts.gold }}</span>
+        </div>
+        <div class="trophy-count">
+          <span class="trophy-badge trophy-badge-silver"></span>
+          <span>{{ trophyCounts.silver }}</span>
+        </div>
+        <div class="trophy-count">
+          <span class="trophy-badge trophy-badge-bronze"></span>
+          <span>{{ trophyCounts.bronze }}</span>
+        </div>
+      </div>
 
-        <div class="achievement-info">
-          <template v-if="achievement.hidden && achievement.unlockedAt === null">
-            <span class="achievement-name">Hidden Trophy</span>
-            <span class="achievement-description">Unlock this achievement to reveal it.</span>
-          </template>
-          <template v-else>
-            <span class="achievement-name">{{ achievement.name }}</span>
-            <span v-if="achievement.description" class="achievement-description">{{ achievement.description }}</span>
-          </template>
-
-          <div v-if="achievement.unlockedAt !== null" class="achievement-unlocked-at">
-            Unlocked {{ formatUnlockedAt(achievement.unlockedAt) }}
-          </div>
-          <div
-            v-else-if="achievement.progressCurrent != null && achievement.progressTarget"
-            class="achievement-progress"
+      <ul class="achievement-list">
+        <li
+          v-for="achievement in sortedAchievements(game.achievements)"
+          :key="achievement.id"
+        >
+          <router-link
+            :to="{
+              name: 'achievement-detail',
+              params: { gameId: game.id, achievementId: achievement.id },
+            }"
+            class="achievement-row"
+            :class="{ unlocked: achievement.unlockedAt !== null }"
           >
-            <div class="progress-bar">
-              <div
-                class="progress-fill"
-                :style="{ width: `${Math.min(100, (achievement.progressCurrent / achievement.progressTarget) * 100)}%` }"
-              ></div>
+            <div
+              class="achievement-icon"
+              :style="
+                achievement.hidden && achievement.unlockedAt === null
+                  ? {}
+                  : { backgroundImage: `url(${game.coverImageUrl})` }
+              "
+            >
+              <span
+                class="achievement-badge"
+                :class="
+                  achievement.unlockedAt !== null
+                    ? `badge-${deriveTier(achievement)}`
+                    : 'badge-locked'
+                "
+              >
+                <template
+                  v-if="achievement.hidden && achievement.unlockedAt === null"
+                  >?</template
+                >
+              </span>
             </div>
-            <span class="progress-label">{{ achievement.progressCurrent }} / {{ achievement.progressTarget }}</span>
-          </div>
-        </div>
-      </router-link>
-    </li>
-  </ul>
-</section>
+
+            <div class="achievement-info">
+              <template
+                v-if="achievement.hidden && achievement.unlockedAt === null"
+              >
+                <span class="achievement-name">Hidden Trophy</span>
+                <span class="achievement-description"
+                  >Unlock this achievement to reveal it.</span
+                >
+              </template>
+              <template v-else>
+                <span class="achievement-name">{{ achievement.name }}</span>
+                <span
+                  v-if="achievement.description"
+                  class="achievement-description"
+                  >{{ achievement.description }}</span
+                >
+              </template>
+
+              <div
+                v-if="achievement.unlockedAt !== null"
+                class="achievement-unlocked-at"
+              >
+                Unlocked {{ formatUnlockedAt(achievement.unlockedAt) }}
+              </div>
+              <div
+                v-else-if="
+                  achievement.progressCurrent != null &&
+                  achievement.progressTarget
+                "
+                class="achievement-progress"
+              >
+                <div class="progress-bar">
+                  <div
+                    class="progress-fill"
+                    :style="{
+                      width: `${Math.min(100, (achievement.progressCurrent / achievement.progressTarget) * 100)}%`,
+                    }"
+                  ></div>
+                </div>
+                <span class="progress-label"
+                  >{{ achievement.progressCurrent }} /
+                  {{ achievement.progressTarget }}</span
+                >
+              </div>
+            </div>
+          </router-link>
+        </li>
+      </ul>
+    </section>
 
     <section v-else-if="activeTab === 'Notes'" class="notes-panel">
       <div v-if="noteMode === 'list'" class="notes-list-view">
         <div class="notes-header-row">
           <h2>Notes</h2>
           <button type="button" class="primary-button" @click="startNewNote">
-            {{ hasDraft ? 'Continue Draft' : 'New Note' }}
+            {{ hasDraft ? "Continue Draft" : "New Note" }}
           </button>
         </div>
 
@@ -507,56 +640,78 @@ function formatPlaytime(minutes: number) {
         <p v-if="noteLoading" class="empty-state">Loading…</p>
         <p v-else-if="!noteNames.length" class="empty-state">No notes yet.</p>
         <ul v-else class="notes-list">
-<li v-for="note in noteNames" :key="note" class="notes-list-row" @click="void editNote(note)">
-  <span class="note-name">{{ note }}</span>
-  <div class="notes-list-actions">
-    <button type="button" class="small-button" @click.stop="void editNote(note)">Edit</button>
-    <button type="button" class="danger-button" :disabled="noteSaving" @click.stop="void deleteNote(note)">
-      Delete
-    </button>
-  </div>
-</li>
+          <li
+            v-for="note in noteNames"
+            :key="note"
+            class="notes-list-row"
+            @click="void editNote(note)"
+          >
+            <span class="note-name">{{ note }}</span>
+            <div class="notes-list-actions">
+              <button
+                type="button"
+                class="small-button"
+                @click.stop="void editNote(note)"
+              >
+                Edit
+              </button>
+              <button
+                type="button"
+                class="danger-button"
+                :disabled="noteSaving"
+                @click.stop="void deleteNote(note)"
+              >
+                Delete
+              </button>
+            </div>
+          </li>
         </ul>
       </div>
 
       <div v-else class="notes-editor">
-  <div class="notes-editor-card">
-    <div class="notes-toolbar">
-          <button type="button" class="small-button" @click="backToList">← Back</button>
-          <span class="selected-note">{{ editingNoteName ?? 'New note' }}</span>
+        <div class="notes-editor-card">
+          <div class="notes-toolbar">
+            <button type="button" class="small-button" @click="backToList">
+              ← Back
+            </button>
+            <span class="selected-note">{{
+              editingNoteName ?? "New note"
+            }}</span>
+          </div>
+
+          <label class="field">
+            <span>Note name</span>
+            <input
+              v-model="draftName"
+              type="text"
+              placeholder="meeting-notes"
+              pattern="[A-Za-z0-9_-]+"
+              :disabled="editingNoteName !== null"
+            />
+          </label>
+
+          <textarea
+            v-model="draftContent"
+            placeholder="Write markdown here…"
+            spellcheck="true"
+          ></textarea>
+
+          <div v-if="noteError" class="note-error">{{ noteError }}</div>
+
+          <div class="notes-editor-actions">
+            <button type="button" class="small-button" @click="backToList">
+              Cancel
+            </button>
+            <button
+              type="button"
+              class="primary-button"
+              :disabled="noteSaving || !draftName.trim()"
+              @click="void saveDraft()"
+            >
+              {{ noteSaving ? "Saving…" : "Save" }}
+            </button>
+          </div>
         </div>
-
-        <label class="field">
-          <span>Note name</span>
-          <input
-            v-model="draftName"
-            type="text"
-            placeholder="meeting-notes"
-            pattern="[A-Za-z0-9_-]+"
-            :disabled="editingNoteName !== null"
-          />
-        </label>
-
-        <textarea
-          v-model="draftContent"
-          placeholder="Write markdown here…"
-          spellcheck="true"
-        ></textarea>
-
-        <div v-if="noteError" class="note-error">{{ noteError }}</div>
-
-        <div class="notes-editor-actions">
-          <button type="button" class="small-button" @click="backToList">Cancel</button>
-          <button
-            type="button"
-            class="primary-button"
-            :disabled="noteSaving || !draftName.trim()"
-            @click="void saveDraft()"
-          >
-            {{ noteSaving ? 'Saving…' : 'Save' }}
-          </button>
-        </div>
-      </div>
       </div>
     </section>
 
@@ -620,7 +775,12 @@ function formatPlaytime(minutes: number) {
 .hero-overlay {
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, rgba(18, 18, 18, 0) 40%, rgba(18, 18, 18, 0.85) 85%, #121212 100%);
+  background: linear-gradient(
+    180deg,
+    rgba(18, 18, 18, 0) 40%,
+    rgba(18, 18, 18, 0.85) 85%,
+    #121212 100%
+  );
 }
 .hero-inner {
   position: relative;
@@ -669,7 +829,9 @@ function formatPlaytime(minutes: number) {
   font-weight: 600;
   cursor: pointer;
   opacity: 0;
-  transition: opacity 0.2s ease, background 0.15s ease;
+  transition:
+    opacity 0.2s ease,
+    background 0.15s ease;
 }
 .hero:hover .edit-button {
   opacity: 1;
@@ -704,7 +866,9 @@ function formatPlaytime(minutes: number) {
   cursor: pointer;
   border-radius: 999px;
   white-space: nowrap;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
 }
 .tab:hover {
   background: #3a3a3a;
@@ -1095,7 +1259,9 @@ function formatPlaytime(minutes: number) {
   border-radius: 8px;
   padding: 12px 16px;
   cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
 }
 .notes-list-row:hover {
   background: rgba(255, 255, 255, 0.05);

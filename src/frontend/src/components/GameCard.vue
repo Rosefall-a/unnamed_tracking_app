@@ -1,104 +1,103 @@
-```vue
 <script setup lang="ts">
-import { useRouter } from 'vue-router'
-import type { Game, GameStatus } from '../types/game'
-import { setFavorite, setStatus } from '../services/games'
-import { ref, nextTick } from 'vue'
+import { useRouter } from "vue-router";
+import type { Game, GameStatus } from "../types/game";
+import { setFavorite, setStatus } from "../services/games";
+import { ref, nextTick } from "vue";
 
 const props = defineProps<{
-  game: Game
-}>()
+  game: Game;
+}>();
 
 const emit = defineEmits<{
-  edit: [game: Game]
-  delete: [game: Game]
-  'add-to-collection': [game: Game]
-  'status-change': [status: GameStatus]
-  hover: [coverUrl: string | null]
-}>()
+  edit: [game: Game];
+  delete: [game: Game];
+  "add-to-collection": [game: Game];
+  "status-change": [status: GameStatus];
+  hover: [coverUrl: string | null];
+}>();
 
-const router = useRouter()
+const router = useRouter();
 
-const menuOpen = ref(false)
-const statusSubmenuOpen = ref(false)
-const localFavorite = ref(props.game.favorite)
-const favoriteSaving = ref(false)
+const menuOpen = ref(false);
+const statusSubmenuOpen = ref(false);
+const localFavorite = ref(props.game.favorite);
+const favoriteSaving = ref(false);
 
-const menuTriggerRef = ref<HTMLElement | null>(null)
-const menuPosition = ref({ top: 0, left: 0 })
+const menuTriggerRef = ref<HTMLElement | null>(null);
+const menuPosition = ref({ top: 0, left: 0 });
 
 function onWindowScroll() {
-  closeMenu()
+  closeMenu();
 }
 
 async function toggleMenu() {
-  menuOpen.value = !menuOpen.value
+  menuOpen.value = !menuOpen.value;
 
   if (menuOpen.value && menuTriggerRef.value) {
-    await nextTick()
-    const rect = menuTriggerRef.value.getBoundingClientRect()
+    await nextTick();
+    const rect = menuTriggerRef.value.getBoundingClientRect();
     menuPosition.value = {
       top: rect.bottom + 6,
       left: rect.right - 190,
-    }
-    window.addEventListener('scroll', onWindowScroll, true)
+    };
+    window.addEventListener("scroll", onWindowScroll, true);
   } else {
-    window.removeEventListener('scroll', onWindowScroll, true)
+    window.removeEventListener("scroll", onWindowScroll, true);
   }
 }
 
 function closeMenu() {
-  menuOpen.value = false
-  statusSubmenuOpen.value = false
-  window.removeEventListener('scroll', onWindowScroll, true)
+  menuOpen.value = false;
+  statusSubmenuOpen.value = false;
+  window.removeEventListener("scroll", onWindowScroll, true);
 }
 
 const statuses: GameStatus[] = [
-  'wishlist',
-  'backlog',
-  'playing',
-  'on hold',
-  'beaten',
-  'played',
-  'dropped',
-  'mastered',
-]
+  "wishlist",
+  "backlog",
+  "playing",
+  "on hold",
+  "beaten",
+  "played",
+  "dropped",
+  "mastered",
+];
 
 function openGame() {
-  router.push(`/games/${props.game.id}`)
+  router.push(`/games/${props.game.id}`);
 }
 
 async function toggleFavorite() {
-  const next = !localFavorite.value
-  localFavorite.value = next
-  favoriteSaving.value = true
+  const next = !localFavorite.value;
+  localFavorite.value = next;
+  favoriteSaving.value = true;
 
   try {
-    await setFavorite(props.game.id, next)
+    await setFavorite(props.game.id, next);
   } catch {
-    localFavorite.value = !next
+    localFavorite.value = !next;
   } finally {
-    favoriteSaving.value = false
+    favoriteSaving.value = false;
   }
 }
 
 async function chooseStatus(status: GameStatus) {
   try {
-    await setStatus(props.game.id, status)
-    emit('status-change', status)
+    await setStatus(props.game.id, status);
+    emit("status-change", status);
   } catch {
     // silently ignore — card just keeps showing the old status
   }
 
-  closeMenu()
+  closeMenu();
 }
 
 function copyFolderPath() {
   if (props.game.folderLocation) {
-    navigator.clipboard.writeText(props.game.folderLocation)
+    navigator.clipboard.writeText(props.game.folderLocation);
   }
 
-  closeMenu()
+  closeMenu();
 }
 </script>
 
@@ -109,11 +108,7 @@ function copyFolderPath() {
   >
     <div class="game-card" :class="{ 'menu-open': menuOpen }">
       <div class="cover" @click="openGame">
-        <img
-          class="cover-image"
-          :src="game.coverImageUrl"
-          :alt="game.title"
-        />
+        <img class="cover-image" :src="game.coverImageUrl" :alt="game.title" />
       </div>
 
       <button
@@ -131,9 +126,7 @@ function copyFolderPath() {
           stroke-linecap="round"
           stroke-linejoin="round"
         >
-          <path
-            d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"
-          />
+          <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
         </svg>
       </button>
 
@@ -166,12 +159,7 @@ function copyFolderPath() {
         ref="menuTriggerRef"
         @click.stop="toggleMenu"
       >
-        <svg
-          viewBox="0 0 24 24"
-          width="16"
-          height="16"
-          fill="currentColor"
-        >
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
           <circle cx="5" cy="12" r="2" />
           <circle cx="12" cy="12" r="2" />
           <circle cx="19" cy="12" r="2" />
@@ -179,11 +167,7 @@ function copyFolderPath() {
       </button>
 
       <Teleport to="body">
-        <div
-          v-if="menuOpen"
-          class="menu-backdrop"
-          @click="closeMenu"
-        ></div>
+        <div v-if="menuOpen" class="menu-backdrop" @click="closeMenu"></div>
 
         <Transition name="menu-pop">
           <div
@@ -196,11 +180,7 @@ function copyFolderPath() {
             @click.stop
           >
             <template v-if="!statusSubmenuOpen">
-              <button
-                type="button"
-                class="menu-item"
-                @click="openGame"
-              >
+              <button type="button" class="menu-item" @click="openGame">
                 Open
               </button>
 
@@ -209,7 +189,10 @@ function copyFolderPath() {
               <button
                 type="button"
                 class="menu-item"
-                @click="emit('edit', game); closeMenu()"
+                @click="
+                  emit('edit', game);
+                  closeMenu();
+                "
               >
                 Edit
               </button>
@@ -222,39 +205,23 @@ function copyFolderPath() {
                 Change Status
               </button>
 
-              <button
-                type="button"
-                class="menu-item disabled"
-                disabled
-              >
+              <button type="button" class="menu-item disabled" disabled>
                 Refresh Metadata
               </button>
 
               <div class="menu-divider"></div>
 
-              <button
-                type="button"
-                class="menu-item disabled"
-                disabled
-              >
+              <button type="button" class="menu-item disabled" disabled>
                 Add Screenshot
               </button>
 
-              <button
-                type="button"
-                class="menu-item disabled"
-                disabled
-              >
+              <button type="button" class="menu-item disabled" disabled>
                 Add Clip
               </button>
 
               <div class="menu-divider"></div>
 
-              <button
-                type="button"
-                class="menu-item"
-                @click="copyFolderPath"
-              >
+              <button type="button" class="menu-item" @click="copyFolderPath">
                 Copy Folder Path
               </button>
 
@@ -263,7 +230,10 @@ function copyFolderPath() {
               <button
                 type="button"
                 class="menu-item destructive"
-                @click="emit('delete', game); closeMenu()"
+                @click="
+                  emit('delete', game);
+                  closeMenu();
+                "
               >
                 Delete
               </button>
@@ -302,17 +272,11 @@ function copyFolderPath() {
       <div class="meta-row">
         <span class="status">{{ game.status }}</span>
 
-        <span
-          v-if="game.ratingOverall !== null"
-          class="rating"
-        >
+        <span v-if="game.ratingOverall !== null" class="rating">
           ★ {{ game.ratingOverall.toFixed(1) }}
         </span>
 
-        <span
-          v-if="game.achievementPercent > 0"
-          class="achievements"
-        >
+        <span v-if="game.achievementPercent > 0" class="achievements">
           🏆 {{ game.achievementPercent }}%
         </span>
       </div>
@@ -535,8 +499,3 @@ function copyFolderPath() {
   color: #d68a34;
 }
 </style>
-```
-
-One important thing: **the parent component now needs to listen for `status-change`**. Otherwise the API will update successfully, but the parent's `game.status` may not update until the page is refreshed.
-
-If your current parent doesn't already handle that event, show me the component containing `<GameCard ...>` and I'll give you the corresponding change.

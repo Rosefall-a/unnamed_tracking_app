@@ -4,5 +4,5 @@
 </template>
 
 <script setup lang="ts">
-import SidebarNav from './components/SidebarNav.vue'
+import SidebarNav from "./components/SidebarNav.vue";
 </script>
