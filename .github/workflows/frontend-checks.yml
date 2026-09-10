@@ -1,0 +1,40 @@
+name: Frontend Checks
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  frontend-checks:
+    name: Frontend
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: src/frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: src/frontend
+        run: npm ci
+
+      - name: Lint
+        working-directory: src/frontend
+        run: npm run lint
+
+      - name: Formatting
+        working-directory: src/frontend
+        run: npm run format
+
+      - name: Type check
+        working-directory: src/frontend
+        run: npm run typecheck
+
+      - name: Tests
+        working-directory: src/frontend
+        run: npm run test

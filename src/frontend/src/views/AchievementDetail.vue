@@ -1,73 +1,76 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import { fetchGame } from '../services/games'
-import type { Achievement, Game } from '../types/game'
+import { computed, ref, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import { fetchGame } from "../services/games";
+import type { Achievement, Game } from "../types/game";
 
-const route = useRoute()
-const router = useRouter()
+const route = useRoute();
+const router = useRouter();
 
-const game = ref<Game | null>(null)
-const loading = ref(true)
-const error = ref<string | null>(null)
+const game = ref<Game | null>(null);
+const loading = ref(true);
+const error = ref<string | null>(null);
 
-const noteDraft = ref('')
-const noteSaved = ref(false)
+const noteDraft = ref("");
+const noteSaved = ref(false);
 
 async function loadGame() {
-  loading.value = true
-  error.value = null
+  loading.value = true;
+  error.value = null;
   try {
-    game.value = await fetchGame(route.params.gameId as string)
+    game.value = await fetchGame(route.params.gameId as string);
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Failed to load game'
+    error.value = err instanceof Error ? err.message : "Failed to load game";
   } finally {
-    loading.value = false
+    loading.value = false;
   }
 }
 
 const achievement = computed<Achievement | null>(() => {
-  if (!game.value) return null
-  return game.value.achievements.find((a) => a.id === route.params.achievementId) ?? null
-})
+  if (!game.value) return null;
+  return (
+    game.value.achievements.find((a) => a.id === route.params.achievementId) ??
+    null
+  );
+});
 
 watch(
   () => [route.params.gameId, route.params.achievementId],
   async () => {
-    await loadGame()
-    noteDraft.value = achievement.value?.notes ?? ''
+    await loadGame();
+    noteDraft.value = achievement.value?.notes ?? "";
   },
   { immediate: true },
-)
+);
 
 function saveNote() {
-  if (!achievement.value) return
-  achievement.value.notes = noteDraft.value
-  noteSaved.value = true
+  if (!achievement.value) return;
+  achievement.value.notes = noteDraft.value;
+  noteSaved.value = true;
   setTimeout(() => {
-    noteSaved.value = false
-  }, 1500)
+    noteSaved.value = false;
+  }, 1500);
 }
 
 function onMediaFileChange(e: Event) {
-  const file = (e.target as HTMLInputElement).files?.[0]
-  if (!file || !achievement.value) return
-  if (!achievement.value.media) achievement.value.media = []
-  achievement.value.media.push(URL.createObjectURL(file))
-  ;(e.target as HTMLInputElement).value = ''
+  const file = (e.target as HTMLInputElement).files?.[0];
+  if (!file || !achievement.value) return;
+  if (!achievement.value.media) achievement.value.media = [];
+  achievement.value.media.push(URL.createObjectURL(file));
+  (e.target as HTMLInputElement).value = "";
 }
 
 function removeMedia(index: number) {
-  achievement.value?.media?.splice(index, 1)
+  achievement.value?.media?.splice(index, 1);
 }
 
 function formatUnlockedAt(dateStr: string) {
-  const d = new Date(dateStr)
-  return `${d.toLocaleDateString()} ${d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
+  const d = new Date(dateStr);
+  return `${d.toLocaleDateString()} ${d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
 }
 
 function goBack() {
-  router.push({ name: 'game-detail', params: { id: route.params.gameId } })
+  router.push({ name: "game-detail", params: { id: route.params.gameId } });
 }
 </script>
 
@@ -81,13 +84,20 @@ function goBack() {
   </main>
 
   <main v-else-if="achievement" class="achievement-detail">
-    <button type="button" class="back-button" @click="goBack">← Back to {{ game?.title }}</button>
+    <button type="button" class="back-button" @click="goBack">
+      ← Back to {{ game?.title }}
+    </button>
 
     <div class="achievement-header">
-      <div class="achievement-icon-large" :style="{ backgroundImage: `url(${game?.coverImageUrl})` }"></div>
+      <div
+        class="achievement-icon-large"
+        :style="{ backgroundImage: `url(${game?.coverImageUrl})` }"
+      ></div>
       <div>
         <h1>{{ achievement.name }}</h1>
-        <p v-if="achievement.description" class="achievement-desc">{{ achievement.description }}</p>
+        <p v-if="achievement.description" class="achievement-desc">
+          {{ achievement.description }}
+        </p>
         <p v-if="achievement.unlockedAt" class="achievement-unlocked">
           Unlocked {{ formatUnlockedAt(achievement.unlockedAt) }}
         </p>
@@ -97,9 +107,13 @@ function goBack() {
 
     <section class="detail-section">
       <h2>Notes</h2>
-      <textarea v-model="noteDraft" placeholder="Write notes about how you got this…" rows="6"></textarea>
+      <textarea
+        v-model="noteDraft"
+        placeholder="Write notes about how you got this…"
+        rows="6"
+      ></textarea>
       <button type="button" class="primary-button" @click="saveNote">
-        {{ noteSaved ? 'Saved' : 'Save note' }}
+        {{ noteSaved ? "Saved" : "Save note" }}
       </button>
     </section>
 
@@ -107,9 +121,15 @@ function goBack() {
       <h2>Media</h2>
       <input type="file" accept="image/*" @change="onMediaFileChange" />
       <div v-if="achievement.media?.length" class="media-grid">
-        <div v-for="(url, i) in achievement.media" :key="url" class="media-item">
+        <div
+          v-for="(url, i) in achievement.media"
+          :key="url"
+          class="media-item"
+        >
           <img :src="url" alt="" />
-          <button type="button" class="remove-button" @click="removeMedia(i)">✕</button>
+          <button type="button" class="remove-button" @click="removeMedia(i)">
+            ✕
+          </button>
         </div>
       </div>
       <p v-else class="empty-state">No media added yet.</p>
