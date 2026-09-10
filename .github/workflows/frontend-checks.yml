@@ -1,3 +1,10 @@
+name: Frontend Checks
+
+on:
+  push:
+  pull_request:
+
+jobs:
   frontend:
     name: Frontend
     runs-on: ubuntu-latest
