@@ -23,7 +23,7 @@ def _fernet() -> Fernet:
     except (ValueError, TypeError) as exc:
         raise RuntimeError(
             "SECRET_KEY is not a valid Fernet key — generate one with "
-            "`python -c \"from cryptography.fernet import Fernet; "
+            '`python -c "from cryptography.fernet import Fernet; '
             'print(Fernet.generate_key().decode())"`'
         ) from exc
 

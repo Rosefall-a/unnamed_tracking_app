@@ -12,7 +12,16 @@ from pathlib import Path
 from typing import Literal
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    UploadFile,
+    status,
+)
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlalchemy import select
@@ -30,7 +39,9 @@ from src.features.trash.sweep import RETENTION_SECONDS
 from src.features.world_map import bluemap
 from src.helpers.media import save_media_bytes
 
-router = APIRouter(prefix="/api/game", tags=["game-archives"], dependencies=[Depends(get_current_user)])
+router = APIRouter(
+    prefix="/api/game", tags=["game-archives"], dependencies=[Depends(get_current_user)]
+)
 
 ArchiveKind = Literal["save", "world_save"]
 
@@ -53,7 +64,11 @@ async def _get_archive_or_404(
     # eager-loads versions — db.get() doesn't, and every caller of this
     # touches archive.versions afterward; a lazy-load on an already-awaited
     # async session blows up with MissingGreenlet
-    archive = await db.scalar(select(GameArchive).options(selectinload(GameArchive.versions)).where(GameArchive.id == archive_id))
+    archive = await db.scalar(
+        select(GameArchive)
+        .options(selectinload(GameArchive.versions))
+        .where(GameArchive.id == archive_id)
+    )
     if (
         archive is None
         or archive.game_id != game_id
@@ -74,8 +89,14 @@ def _version_to_dict(game_id: UUID, archive: GameArchive, v: GameArchiveVersion)
     }
 
 
-def _archive_to_dict(game_id: UUID, archive: GameArchive, include_deleted_versions: bool = False) -> dict:
-    versions = archive.versions if include_deleted_versions else [v for v in archive.versions if v.deleted_at is None]
+def _archive_to_dict(
+    game_id: UUID, archive: GameArchive, include_deleted_versions: bool = False
+) -> dict:
+    versions = (
+        archive.versions
+        if include_deleted_versions
+        else [v for v in archive.versions if v.deleted_at is None]
+    )
     return {
         "id": str(archive.id),
         "name": archive.name,
@@ -108,7 +129,11 @@ async def list_archives(
     result = await db.execute(
         select(GameArchive)
         .options(selectinload(GameArchive.versions))
-        .where(GameArchive.game_id == game_id, GameArchive.kind == kind, GameArchive.deleted_at.is_(None))
+        .where(
+            GameArchive.game_id == game_id,
+            GameArchive.kind == kind,
+            GameArchive.deleted_at.is_(None),
+        )
         .order_by(GameArchive.updated_at.desc())
     )
     archives = result.scalars().all()
@@ -128,7 +153,11 @@ async def list_archive_trash(
     result = await db.execute(
         select(GameArchive)
         .options(selectinload(GameArchive.versions))
-        .where(GameArchive.game_id == game_id, GameArchive.kind == kind, GameArchive.deleted_at.is_not(None))
+        .where(
+            GameArchive.game_id == game_id,
+            GameArchive.kind == kind,
+            GameArchive.deleted_at.is_not(None),
+        )
         .order_by(GameArchive.deleted_at.desc())
     )
     return [_trash_entry(game_id, a) for a in result.scalars().all()]
@@ -148,14 +177,20 @@ async def create_archive(
     its first save together, rather than a two-step flow."""
     game = await _get_game_or_404(game_id, db, current_user.id)
     if not game.folder_location:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Game folder_location is missing.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Game folder_location is missing."
+        )
     if not name.strip():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Name is required.")
 
-    limit_mb = settings.MAX_WORLD_SAVE_SIZE_MB if kind == "world_save" else settings.MAX_UPLOAD_SIZE_MB
+    limit_mb = (
+        settings.MAX_WORLD_SAVE_SIZE_MB if kind == "world_save" else settings.MAX_UPLOAD_SIZE_MB
+    )
     data = await file.read()
     if len(data) > limit_mb * 1024 * 1024:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Larger than {limit_mb} MB.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=f"Larger than {limit_mb} MB."
+        )
 
     archive = GameArchive(id=uuid4(), game_id=game_id, kind=kind, name=name.strip())
     db.add(archive)
@@ -163,7 +198,9 @@ async def create_archive(
 
     dest_dir = _archive_dir(game.folder_location, kind, archive.id)
     saved_path = save_media_bytes(data, dest_dir, file.filename or "file")
-    version = GameArchiveVersion(id=uuid4(), archive_id=archive.id, filename=saved_path.name, size=len(data))
+    version = GameArchiveVersion(
+        id=uuid4(), archive_id=archive.id, filename=saved_path.name, size=len(data)
+    )
     db.add(version)
     await db.commit()
     await db.refresh(archive, attribute_names=["versions"])
@@ -183,16 +220,26 @@ async def add_archive_version(
     archive = await _get_archive_or_404(game_id, archive_id, db, current_user.id)
     game = await _get_game_or_404(game_id, db, current_user.id)
     if not game.folder_location:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Game folder_location is missing.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Game folder_location is missing."
+        )
 
-    limit_mb = settings.MAX_WORLD_SAVE_SIZE_MB if archive.kind == "world_save" else settings.MAX_UPLOAD_SIZE_MB
+    limit_mb = (
+        settings.MAX_WORLD_SAVE_SIZE_MB
+        if archive.kind == "world_save"
+        else settings.MAX_UPLOAD_SIZE_MB
+    )
     data = await file.read()
     if len(data) > limit_mb * 1024 * 1024:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Larger than {limit_mb} MB.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=f"Larger than {limit_mb} MB."
+        )
 
     dest_dir = _archive_dir(game.folder_location, archive.kind, archive.id)  # type: ignore[arg-type]
     saved_path = save_media_bytes(data, dest_dir, file.filename or "file")
-    version = GameArchiveVersion(id=uuid4(), archive_id=archive.id, filename=saved_path.name, size=len(data))
+    version = GameArchiveVersion(
+        id=uuid4(), archive_id=archive.id, filename=saved_path.name, size=len(data)
+    )
     db.add(version)
     archive.updated_at = int(time.time())
     await db.commit()
@@ -246,15 +293,21 @@ async def restore_archive(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
-    archive = await _get_archive_or_404(game_id, archive_id, db, current_user.id, include_deleted=True)
+    archive = await _get_archive_or_404(
+        game_id, archive_id, db, current_user.id, include_deleted=True
+    )
     if archive.deleted_at is None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Archive isn't deleted.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Archive isn't deleted."
+        )
     game = await _get_game_or_404(game_id, db, current_user.id)
     if game.folder_location:
         game_dir = _DATA_ROOT / game.folder_location
         dir_path = _archive_dir(game.folder_location, archive.kind, archive.id)  # type: ignore[arg-type]
         work_dir = game_dir / "world_map" / str(archive.id)
-        archive_trash.restore_archive_from_trash(dir_path, work_dir, game_dir, archive.kind, archive.id)
+        archive_trash.restore_archive_from_trash(
+            dir_path, work_dir, game_dir, archive.kind, archive.id
+        )
     archive.deleted_at = None
     for version in archive.versions:
         version.deleted_at = None
@@ -273,12 +326,17 @@ async def delete_archive_version(
 ) -> dict:
     archive = await _get_archive_or_404(game_id, archive_id, db, current_user.id)
     game = await _get_game_or_404(game_id, db, current_user.id)
-    version = next((v for v in archive.versions if v.id == version_id and v.deleted_at is None), None)
+    version = next(
+        (v for v in archive.versions if v.id == version_id and v.deleted_at is None), None
+    )
     if version is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Version not found.")
     active_versions = [v for v in archive.versions if v.deleted_at is None]
     if len(active_versions) <= 1:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Delete the whole save to remove its last remaining version.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Delete the whole save to remove its last remaining version.",
+        )
     if game.folder_location:
         game_dir = _DATA_ROOT / game.folder_location
         path = _archive_dir(game.folder_location, archive.kind, archive.id) / version.filename  # type: ignore[arg-type]
@@ -297,22 +355,32 @@ async def restore_archive_version(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
-    archive = await _get_archive_or_404(game_id, archive_id, db, current_user.id, include_deleted=True)
+    archive = await _get_archive_or_404(
+        game_id, archive_id, db, current_user.id, include_deleted=True
+    )
     game = await _get_game_or_404(game_id, db, current_user.id)
-    version = next((v for v in archive.versions if v.id == version_id and v.deleted_at is not None), None)
+    version = next(
+        (v for v in archive.versions if v.id == version_id and v.deleted_at is not None), None
+    )
     if version is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Deleted version not found.")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Deleted version not found."
+        )
     if game.folder_location:
         game_dir = _DATA_ROOT / game.folder_location
         dir_path = _archive_dir(game.folder_location, archive.kind, archive.id)  # type: ignore[arg-type]
-        archive_trash.restore_file_from_trash(version.filename, dir_path, game_dir, archive.kind, archive.id)
+        archive_trash.restore_file_from_trash(
+            version.filename, dir_path, game_dir, archive.kind, archive.id
+        )
     version.deleted_at = None
     await db.commit()
     await db.refresh(archive, attribute_names=["versions"])
     return _archive_to_dict(game_id, archive)
 
 
-@router.get("/{game_id}/archives/{archive_id}/versions/{version_id}/download", response_class=FileResponse)
+@router.get(
+    "/{game_id}/archives/{archive_id}/versions/{version_id}/download", response_class=FileResponse
+)
 async def download_archive_version(
     game_id: UUID,
     archive_id: UUID,
@@ -322,7 +390,9 @@ async def download_archive_version(
 ) -> FileResponse:
     archive = await _get_archive_or_404(game_id, archive_id, db, current_user.id)
     game = await _get_game_or_404(game_id, db, current_user.id)
-    version = next((v for v in archive.versions if v.id == version_id and v.deleted_at is None), None)
+    version = next(
+        (v for v in archive.versions if v.id == version_id and v.deleted_at is None), None
+    )
     if version is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Version not found.")
     path = _archive_dir(game.folder_location or "", archive.kind, archive.id) / version.filename  # type: ignore[arg-type]
@@ -348,7 +418,11 @@ async def list_world_maps(
     result = await db.execute(
         select(GameArchive)
         .options(selectinload(GameArchive.versions))
-        .where(GameArchive.game_id == game_id, GameArchive.kind == "world_save", GameArchive.deleted_at.is_(None))
+        .where(
+            GameArchive.game_id == game_id,
+            GameArchive.kind == "world_save",
+            GameArchive.deleted_at.is_(None),
+        )
         .order_by(GameArchive.updated_at.desc())
     )
     archives = result.scalars().all()
@@ -381,13 +455,19 @@ async def render_world_map_route(
     archive = await _get_archive_or_404(game_id, archive_id, db, current_user.id, kind="world_save")
     game = await _get_game_or_404(game_id, db, current_user.id)
     if not game.folder_location:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Game folder_location is missing.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Game folder_location is missing."
+        )
     active_versions = [v for v in archive.versions if v.deleted_at is None]
     if not active_versions:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Upload a world save first.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Upload a world save first."
+        )
 
     if bluemap.get_status(game_id, archive_id)["status"] == "rendering":
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="A render is already in progress.")
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="A render is already in progress."
+        )
 
     latest = active_versions[0]  # ordered newest-first (see GameArchive.versions)
     world_zip = _archive_dir(game.folder_location, "world_save", archive_id) / latest.filename
@@ -418,7 +498,9 @@ async def get_world_map_thumbnail(
     path = bluemap.thumbnail_path(_DATA_ROOT / (game.folder_location or ""), archive_id)
     if not path.is_file():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No thumbnail yet.")
-    return FileResponse(path, media_type="image/png", headers={"Cache-Control": "private, max-age=3600"})
+    return FileResponse(
+        path, media_type="image/png", headers={"Cache-Control": "private, max-age=3600"}
+    )
 
 
 @router.get("/{game_id}/world-map/{archive_id}/view/{file_path:path}")

@@ -41,7 +41,9 @@ def move_file_to_trash(active_path: Path, game_dir: Path, kind: str, archive_id:
     shutil.move(str(active_path), str(dest_dir / active_path.name))
 
 
-def restore_file_from_trash(filename: str, active_dir: Path, game_dir: Path, kind: str, archive_id: UUID) -> None:
+def restore_file_from_trash(
+    filename: str, active_dir: Path, game_dir: Path, kind: str, archive_id: UUID
+) -> None:
     src = trash_files_dir(game_dir, kind, archive_id) / filename
     if not src.is_file():
         return
@@ -49,7 +51,9 @@ def restore_file_from_trash(filename: str, active_dir: Path, game_dir: Path, kin
     shutil.move(str(src), str(active_dir / filename))
 
 
-def move_archive_to_trash(active_dir: Path, world_map_dir: Path | None, game_dir: Path, kind: str, archive_id: UUID) -> None:
+def move_archive_to_trash(
+    active_dir: Path, world_map_dir: Path | None, game_dir: Path, kind: str, archive_id: UUID
+) -> None:
     """Moves every remaining file in the archive's active directory (and its
     world_map render, if any) into trash. Any file already moved there by an
     earlier per-version trash just stays put."""
@@ -70,7 +74,9 @@ def move_archive_to_trash(active_dir: Path, world_map_dir: Path | None, game_dir
         shutil.move(str(world_map_dir), str(dest))
 
 
-def restore_archive_from_trash(active_dir: Path, world_map_dir: Path | None, game_dir: Path, kind: str, archive_id: UUID) -> None:
+def restore_archive_from_trash(
+    active_dir: Path, world_map_dir: Path | None, game_dir: Path, kind: str, archive_id: UUID
+) -> None:
     files_dir = trash_files_dir(game_dir, kind, archive_id)
     if files_dir.is_dir():
         active_dir.mkdir(parents=True, exist_ok=True)

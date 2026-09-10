@@ -25,7 +25,10 @@ from src.database.session import get_db
 from src.features.metadata.games import steam
 from src.features.metadata.games.giant_bomb import GiantBombClient, GiantBombError
 from src.features.metadata.games.gog import GOGClient, GOGError
-from src.features.metadata.games.retroachievements import RetroAchievementsClient, RetroAchievementsError
+from src.features.metadata.games.retroachievements import (
+    RetroAchievementsClient,
+    RetroAchievementsError,
+)
 from src.features.metadata.games.screenscraper import ScreenScraperClient, ScreenScraperError
 from src.features.metadata.games.steam import SteamLibraryError
 from src.features.metadata.games.xbox import XboxClient, XboxError
@@ -45,12 +48,22 @@ PROVIDER_FIELD_MAP: dict[str, list[tuple[str, str, bool]]] = {
         ("username", "retroachievements_username", False),
     ],
     "GiantBomb": [("api_key", "giantbomb_api_key", False)],
-    "ScreenScraper": [("ssid", "screenscraper_ssid", False), ("sspassword", "screenscraper_sspassword", True)],
+    "ScreenScraper": [
+        ("ssid", "screenscraper_ssid", False),
+        ("sspassword", "screenscraper_sspassword", True),
+    ],
     "Xbox": [("client_id", "xbox_client_id", False), ("client_secret", "xbox_client_secret", True)],
     "GOG": [("refresh_token", "gog_refresh_token", True)],
 }
 
-_ProviderClientError = (SteamLibraryError, RetroAchievementsError, GiantBombError, ScreenScraperError, XboxError, GOGError)
+_ProviderClientError = (
+    SteamLibraryError,
+    RetroAchievementsError,
+    GiantBombError,
+    ScreenScraperError,
+    XboxError,
+    GOGError,
+)
 
 
 def _validate_provider(provider: str, user: User) -> dict:
@@ -74,7 +87,9 @@ def _validate_provider(provider: str, user: User) -> dict:
         if user.retroachievements_username:
             summary = client.get_user_summary(user.retroachievements_username)
             result["avatar_url"] = (
-                f"https://media.retroachievements.org{summary['UserPic']}" if summary.get("UserPic") else None
+                f"https://media.retroachievements.org{summary['UserPic']}"
+                if summary.get("UserPic")
+                else None
             )
         return result
     if provider == "GiantBomb":
@@ -84,7 +99,9 @@ def _validate_provider(provider: str, user: User) -> dict:
             devid=settings.SCREENSCRAPER_DEVID or "",
             devpassword=settings.SCREENSCRAPER_DEVPASSWORD or "",
             ssid=user.screenscraper_ssid or "",
-            sspassword=decrypt_secret(user.screenscraper_sspassword) if user.screenscraper_sspassword else "",
+            sspassword=decrypt_secret(user.screenscraper_sspassword)
+            if user.screenscraper_sspassword
+            else "",
         ).validate()
     if provider == "Xbox":
         return XboxClient(
@@ -92,7 +109,9 @@ def _validate_provider(provider: str, user: User) -> dict:
             decrypt_secret(user.xbox_client_secret) if user.xbox_client_secret else "",
         ).validate()
     if provider == "GOG":
-        return GOGClient(decrypt_secret(user.gog_refresh_token) if user.gog_refresh_token else "").validate()
+        return GOGClient(
+            decrypt_secret(user.gog_refresh_token) if user.gog_refresh_token else ""
+        ).validate()
     raise ValueError(f"Unknown provider: {provider}")
 
 
@@ -152,10 +171,14 @@ async def update_scan_settings(
     return scan_settings
 
 
-async def get_or_create_appearance_settings(user_id: UUID, db: AsyncSession) -> UserAppearanceSettings:
+async def get_or_create_appearance_settings(
+    user_id: UUID, db: AsyncSession
+) -> UserAppearanceSettings:
     """Every user gets an appearance-settings row lazily, same pattern as
     get_or_create_scan_settings."""
-    appearance = await db.scalar(select(UserAppearanceSettings).where(UserAppearanceSettings.user_id == user_id))
+    appearance = await db.scalar(
+        select(UserAppearanceSettings).where(UserAppearanceSettings.user_id == user_id)
+    )
     if appearance is None:
         appearance = UserAppearanceSettings(user_id=user_id)
         db.add(appearance)
@@ -206,7 +229,9 @@ async def upload_badge_image(
     styles instead of the built-in trophy icon)."""
     content_type = (file.content_type or "").lower()
     if not content_type.startswith("image/"):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="File must be an image.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="File must be an image."
+        )
     data = await file.read()
     max_bytes = settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024
     if len(data) > max_bytes:
@@ -217,7 +242,9 @@ async def upload_badge_image(
     try:
         save_badge_image(data, current_user.id)
     except (OSError, ValueError) as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Could not save image: {exc}") from exc
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=f"Could not save image: {exc}"
+        ) from exc
 
     appearance = await get_or_create_appearance_settings(current_user.id, db)
     appearance.completion_badge_image_url = "set"
@@ -243,8 +270,12 @@ async def delete_badge_image_route(
 async def get_badge_image(current_user: User = Depends(get_current_user)) -> FileResponse:
     path = badge_image_path(current_user.id)
     if not path.is_file():
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No custom badge image uploaded.")
-    return FileResponse(path, media_type="image/png", headers={"Cache-Control": "private, max-age=3600"})
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="No custom badge image uploaded."
+        )
+    return FileResponse(
+        path, media_type="image/png", headers={"Cache-Control": "private, max-age=3600"}
+    )
 
 
 @router.get("/upload-limits")
@@ -305,7 +336,9 @@ async def get_provider_credentials(
     }
     for provider, last_synced in sync_timestamp_columns.items():
         count = await db.scalar(
-            select(func.count(Game.id)).where(Game.user_id == current_user.id, Game.source == provider)
+            select(func.count(Game.id)).where(
+                Game.user_id == current_user.id, Game.source == provider
+            )
         )
         result.setdefault(provider, {"status": "not_configured"})
         result[provider]["library_games"] = count
@@ -334,7 +367,9 @@ async def save_provider_credentials(
 ) -> dict[str, str | None]:
     field_map = PROVIDER_FIELD_MAP.get(provider)
     if field_map is None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Unknown provider: {provider}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=f"Unknown provider: {provider}"
+        )
 
     # Steam has two boxes but doesn't care which value lands in which one —
     # a Web API key has a fixed, unambiguous shape (32 hex chars), so if it
@@ -347,7 +382,9 @@ async def save_provider_credentials(
         steam_id_input = (payload.fields.get("steam_id") or "").strip()
         api_key_input = (payload.fields.get("api_key") or "").strip()
         if steam_id_input and api_key_input:
-            if steam.looks_like_api_key(steam_id_input) and not steam.looks_like_api_key(api_key_input):
+            if steam.looks_like_api_key(steam_id_input) and not steam.looks_like_api_key(
+                api_key_input
+            ):
                 steam_id_input, api_key_input = api_key_input, steam_id_input
 
         if steam_id_input:
@@ -358,10 +395,16 @@ async def save_provider_credentials(
 
         if not current_user.steam_id or not current_user.steam_api_key:
             missing = "profile ID" if not current_user.steam_id else "API key"
-            return {"provider": provider, "status": "saved", "detail": f"Saved: now add your {missing} to connect."}
+            return {
+                "provider": provider,
+                "status": "saved",
+                "detail": f"Saved: now add your {missing} to connect.",
+            }
 
         try:
-            resolved = await asyncio.to_thread(steam.resolve_steam_id, current_user.steam_id, current_user.steam_api_key)
+            resolved = await asyncio.to_thread(
+                steam.resolve_steam_id, current_user.steam_id, current_user.steam_api_key
+            )
         except SteamLibraryError as exc:
             return {"provider": provider, "status": "error", "detail": str(exc)}
         if resolved != current_user.steam_id:
@@ -377,14 +420,22 @@ async def save_provider_credentials(
             current_user.steam_persona_name = result.get("persona_name")
             current_user.steam_avatar_url = result.get("avatar_url")
             await db.commit()
-        return {"provider": provider, "status": "connected" if connected else "saved", "detail": None}
+        return {
+            "provider": provider,
+            "status": "connected" if connected else "saved",
+            "detail": None,
+        }
 
     for payload_field, column, encrypted in field_map:
         value = payload.fields.get(payload_field)
         if value is None:
             continue
         value = value.strip()
-        setattr(current_user, column, encrypt_secret(value) if (encrypted and value) else (value or None))
+        setattr(
+            current_user,
+            column,
+            encrypt_secret(value) if (encrypted and value) else (value or None),
+        )
     await db.commit()
 
     try:
@@ -407,7 +458,9 @@ async def delete_provider_credentials(
 ) -> dict[str, str]:
     field_map = PROVIDER_FIELD_MAP.get(provider)
     if field_map is None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Unknown provider: {provider}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=f"Unknown provider: {provider}"
+        )
 
     for _, column, _ in field_map:
         setattr(current_user, column, None)
@@ -455,7 +508,9 @@ async def update_app_integrations(
     if "igdb_client_id" in updates:
         row.igdb_client_id = updates["igdb_client_id"] or None
     if "igdb_client_secret" in updates:
-        row.igdb_client_secret = encrypt_secret(updates["igdb_client_secret"]) if updates["igdb_client_secret"] else None
+        row.igdb_client_secret = (
+            encrypt_secret(updates["igdb_client_secret"]) if updates["igdb_client_secret"] else None
+        )
     await db.commit()
     return {
         "igdb_client_id": row.igdb_client_id,

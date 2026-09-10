@@ -26,7 +26,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.routes.games import _scan_settings_to_preferences
-from src.api.routes.settings import get_or_create_app_integration_settings, get_or_create_scan_settings
+from src.api.routes.settings import (
+    get_or_create_app_integration_settings,
+    get_or_create_scan_settings,
+)
 from src.core.auth import get_current_user
 from src.core.config import settings as app_settings
 from src.core.crypto import decrypt_secret
@@ -37,12 +40,17 @@ from src.database.session import get_db
 from src.features.metadata.games import steam
 from src.features.metadata.games.igdb import IGDBClient
 from src.features.metadata.games.psn import PSNClient, PSNError
-from src.features.metadata.games.retroachievements import RetroAchievementsClient, RetroAchievementsError
+from src.features.metadata.games.retroachievements import (
+    RetroAchievementsClient,
+    RetroAchievementsError,
+)
 from src.features.metadata.games.search import search_game_metadata
 from src.features.metadata.games.steam_grid_db import SteamGridDBClient
 from src.helpers.save_game_asset import AssetKind, create_game_folder, save_game_asset
 
-router = APIRouter(prefix="/api/library-sync", tags=["library-sync"], dependencies=[Depends(get_current_user)])
+router = APIRouter(
+    prefix="/api/library-sync", tags=["library-sync"], dependencies=[Depends(get_current_user)]
+)
 
 _SLUG_INVALID = re.compile(r"[^A-Za-z0-9_-]+")
 _TITLE_NOISE = re.compile(r"[™®©]")
@@ -135,7 +143,11 @@ async def _enrich_steam_game_by_appid(
         # plain-text short_description blurb meant for search-result lists
         # — matches search.py's _steam_result, which this appid-anchored
         # path was inconsistent with (it was only using short_description)
-        description = details.get("about_the_game") or details.get("detailed_description") or details.get("short_description")
+        description = (
+            details.get("about_the_game")
+            or details.get("detailed_description")
+            or details.get("short_description")
+        )
         if description:
             game.description = description
         genres = details.get("genres") or []
@@ -181,7 +193,9 @@ async def _enrich_steam_game_by_appid(
         await _download_asset(header_image, game.id, "banner")
 
 
-def _infer_status(*, playtime_seconds: int = 0, total_achievements: int = 0, unlocked_achievements: int = 0) -> GameStatus:
+def _infer_status(
+    *, playtime_seconds: int = 0, total_achievements: int = 0, unlocked_achievements: int = 0
+) -> GameStatus:
     """A freshly-imported game has no manual status from the user yet — a
     library sync only sets one (never overwrites one on re-sync, see
     `_get_or_create_game`'s `created` flag). No playtime/achievement
@@ -255,7 +269,9 @@ async def _download_asset(url: str, game_id: UUID, asset_kind: AssetKind) -> boo
         return False
 
 
-async def _fetch_series_from_igdb(title: str, igdb_client_id: str | None, igdb_client_secret: str | None) -> str | None:
+async def _fetch_series_from_igdb(
+    title: str, igdb_client_id: str | None, igdb_client_secret: str | None
+) -> str | None:
     """Steam's own storefront API has no franchise/series concept at all,
     so appid-anchored enrichment (which never text-searches, by design —
     see `_enrich_steam_game_by_appid`) would otherwise never fill `series`.
@@ -311,7 +327,16 @@ async def _enrich_new_game(
     match = next((r for r in results if _normalize_title(r.get("title") or "") == target), None)
     if match is None:
         return
-    for field in ("description", "developer", "publisher", "series", "age_rating", "tags", "features", "time_to_beat_hours"):
+    for field in (
+        "description",
+        "developer",
+        "publisher",
+        "series",
+        "age_rating",
+        "tags",
+        "features",
+        "time_to_beat_hours",
+    ):
         value = match.get(field)
         if value:
             setattr(game, field, value)
@@ -370,7 +395,10 @@ async def _get_or_create_game(
     if existing is None:
         existing = await db.scalar(
             select(Game).where(
-                Game.user_id == user_id, Game.source == source, Game.title == title, Game.deleted_at.is_(None)
+                Game.user_id == user_id,
+                Game.source == source,
+                Game.title == title,
+                Game.deleted_at.is_(None),
             )
         )
     if existing:
@@ -400,7 +428,9 @@ async def _get_or_create_game(
     return game, True
 
 
-async def _flag_stale_games(db: AsyncSession, user_id: UUID, source: str, touched_ids: set[UUID]) -> int:
+async def _flag_stale_games(
+    db: AsyncSession, user_id: UUID, source: str, touched_ids: set[UUID]
+) -> int:
     """After a full sync pass, any active game from this source that wasn't
     touched this time has disappeared from the account's owned-games pull
     (uninstalled, refunded, family-shared game removed, etc.) — flag it
@@ -408,7 +438,9 @@ async def _flag_stale_games(db: AsyncSession, user_id: UUID, source: str, touche
     tell "gone for good" from "temporarily delisted." A game that reappears
     on a later sync has its flag cleared in _get_or_create_game."""
     result = await db.execute(
-        select(Game).where(Game.user_id == user_id, Game.source == source, Game.deleted_at.is_(None))
+        select(Game).where(
+            Game.user_id == user_id, Game.source == source, Game.deleted_at.is_(None)
+        )
     )
     now = int(time.time())
     newly_flagged = 0
@@ -421,7 +453,9 @@ async def _flag_stale_games(db: AsyncSession, user_id: UUID, source: str, touche
     return newly_flagged
 
 
-async def _replace_achievements(db: AsyncSession, game_id: UUID, provider: str, rows: list[dict]) -> None:
+async def _replace_achievements(
+    db: AsyncSession, game_id: UUID, provider: str, rows: list[dict]
+) -> None:
     """Upserts by (game_id, provider, external_id) rather than delete +
     reinsert — a media item can link to a specific achievement
     (MediaItem.linked_achievement_id), and that FK is ON DELETE SET NULL,
@@ -430,7 +464,11 @@ async def _replace_achievements(db: AsyncSession, game_id: UUID, provider: str, 
     existing = {
         a.external_id: a
         for a in (
-            await db.execute(select(Achievement).where(Achievement.game_id == game_id, Achievement.provider == provider))
+            await db.execute(
+                select(Achievement).where(
+                    Achievement.game_id == game_id, Achievement.provider == provider
+                )
+            )
         )
         .scalars()
         .all()
@@ -456,13 +494,19 @@ async def sync_steam_library(
     current_user: User = Depends(get_current_user),
 ) -> dict:
     if not current_user.steam_id or not current_user.steam_api_key:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Save your Steam ID and API key first.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Save your Steam ID and API key first."
+        )
 
     scan_settings = await get_or_create_scan_settings(current_user.id, db)
     preferences = _scan_settings_to_preferences(scan_settings)
     app_integrations = await get_or_create_app_integration_settings(db)
     igdb_client_id = app_integrations.igdb_client_id
-    igdb_client_secret = decrypt_secret(app_integrations.igdb_client_secret) if app_integrations.igdb_client_secret else None
+    igdb_client_secret = (
+        decrypt_secret(app_integrations.igdb_client_secret)
+        if app_integrations.igdb_client_secret
+        else None
+    )
     api_key = current_user.steam_api_key
     try:
         # cheap no-op once the credentials-save flow has already resolved
@@ -483,13 +527,19 @@ async def sync_steam_library(
         async with semaphore:
             try:
                 schema = await asyncio.to_thread(steam.get_schema_for_game, api_key, app_id)
-                unlocked = await asyncio.to_thread(steam.get_player_achievements, steam_id, api_key, app_id)
+                unlocked = await asyncio.to_thread(
+                    steam.get_player_achievements, steam_id, api_key, app_id
+                )
             except steam.SteamLibraryError:
                 return {}, []
             return schema, unlocked
 
     fetches = await asyncio.gather(
-        *(_fetch_achievements(entry["appid"]) for entry in owned_games if entry.get("appid") and entry.get("name"))
+        *(
+            _fetch_achievements(entry["appid"])
+            for entry in owned_games
+            if entry.get("appid") and entry.get("name")
+        )
     )
 
     games_added = games_updated = achievements_synced = 0
@@ -504,7 +554,9 @@ async def sync_steam_library(
         schema, unlocked = fetches[fetch_index]
         fetch_index += 1
 
-        game, created = await _get_or_create_game(db, current_user.id, title, "Steam", external_id=str(app_id))
+        game, created = await _get_or_create_game(
+            db, current_user.id, title, "Steam", external_id=str(app_id)
+        )
         touched_ids.add(game.id)
         game.playtime_seconds = int(entry.get("playtime_forever", 0)) * 60
         if entry.get("rtime_last_played"):
@@ -551,7 +603,9 @@ async def sync_steam_library(
             # appid-anchored — no text matching, so no risk of attaching a
             # different game's data/art the way the generic search-based
             # _enrich_new_game occasionally did
-            await _enrich_steam_game_by_appid(game, app_id, current_user, igdb_client_id, igdb_client_secret)
+            await _enrich_steam_game_by_appid(
+                game, app_id, current_user, igdb_client_id, igdb_client_secret
+            )
 
     await asyncio.gather(*(_enrich(g, app_id) for g, app_id in newly_created))
 
@@ -573,13 +627,20 @@ async def sync_retroachievements_library(
     current_user: User = Depends(get_current_user),
 ) -> dict:
     if not current_user.retroachievements_username or not current_user.retroachievements_api_key:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Save your RetroAchievements username and API key first.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Save your RetroAchievements username and API key first.",
+        )
 
     scan_settings = await get_or_create_scan_settings(current_user.id, db)
     preferences = _scan_settings_to_preferences(scan_settings)
     app_integrations = await get_or_create_app_integration_settings(db)
     igdb_client_id = app_integrations.igdb_client_id
-    igdb_client_secret = decrypt_secret(app_integrations.igdb_client_secret) if app_integrations.igdb_client_secret else None
+    igdb_client_secret = (
+        decrypt_secret(app_integrations.igdb_client_secret)
+        if app_integrations.igdb_client_secret
+        else None
+    )
     client = RetroAchievementsClient(api_key=current_user.retroachievements_api_key)
     username = current_user.retroachievements_username
 
@@ -609,7 +670,11 @@ async def sync_retroachievements_library(
         if not title:
             continue
         game, created = await _get_or_create_game(
-            db, current_user.id, title, "RetroAchievements", external_id=str(entry.get("GameID") or "") or None
+            db,
+            current_user.id,
+            title,
+            "RetroAchievements",
+            external_id=str(entry.get("GameID") or "") or None,
         )
         touched_ids.add(game.id)
         games_added += created
@@ -622,7 +687,9 @@ async def sync_retroachievements_library(
                 "external_id": str(ach_id),
                 "name": ach.get("Title") or str(ach_id),
                 "description": ach.get("Description"),
-                "icon_url": f"https://media.retroachievements.org/Badge/{ach['BadgeName']}.png" if ach.get("BadgeName") else None,
+                "icon_url": f"https://media.retroachievements.org/Badge/{ach['BadgeName']}.png"
+                if ach.get("BadgeName")
+                else None,
                 "unlocked": bool(ach.get("DateEarned") or ach.get("DateEarnedHardcore")),
                 "unlocked_at": None,
                 # RA's classic API's exact casing for this field isn't
@@ -636,17 +703,24 @@ async def sync_retroachievements_library(
 
         if created:
             unlocked_count = sum(1 for r in rows if r["unlocked"])
-            _apply_status(game, _infer_status(total_achievements=len(rows), unlocked_achievements=unlocked_count))
+            _apply_status(
+                game,
+                _infer_status(total_achievements=len(rows), unlocked_achievements=unlocked_count),
+            )
             _add_source_tag_and_collection(game, "RetroAchievements")
             newly_created.append(game)
 
     async def _enrich(game: Game) -> None:
         async with semaphore:
-            await _enrich_new_game(game, current_user, preferences, igdb_client_id, igdb_client_secret)
+            await _enrich_new_game(
+                game, current_user, preferences, igdb_client_id, igdb_client_secret
+            )
 
     await asyncio.gather(*(_enrich(g) for g in newly_created))
 
-    games_flagged_stale = await _flag_stale_games(db, current_user.id, "RetroAchievements", touched_ids)
+    games_flagged_stale = await _flag_stale_games(
+        db, current_user.id, "RetroAchievements", touched_ids
+    )
     current_user.retroachievements_library_synced_at = int(time.time())
     await db.commit()
     return {
@@ -664,13 +738,20 @@ async def sync_psn_library(
     current_user: User = Depends(get_current_user),
 ) -> dict:
     if not current_user.psn_npsso_token:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Connect your PlayStation account first.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Connect your PlayStation account first.",
+        )
 
     scan_settings = await get_or_create_scan_settings(current_user.id, db)
     preferences = _scan_settings_to_preferences(scan_settings)
     app_integrations = await get_or_create_app_integration_settings(db)
     igdb_client_id = app_integrations.igdb_client_id
-    igdb_client_secret = decrypt_secret(app_integrations.igdb_client_secret) if app_integrations.igdb_client_secret else None
+    igdb_client_secret = (
+        decrypt_secret(app_integrations.igdb_client_secret)
+        if app_integrations.igdb_client_secret
+        else None
+    )
     npsso = decrypt_secret(current_user.psn_npsso_token)
     client = PSNClient(npsso)
 
@@ -685,7 +766,9 @@ async def sync_psn_library(
         async with semaphore:
             service_name = "trophy2" if "PS5" in (platform or "") else "trophy"
             try:
-                return await asyncio.to_thread(client.get_trophies_for_title, np_communication_id, service_name)
+                return await asyncio.to_thread(
+                    client.get_trophies_for_title, np_communication_id, service_name
+                )
             except PSNError:
                 return []
 
@@ -734,13 +817,18 @@ async def sync_psn_library(
 
         if created:
             unlocked_count = sum(1 for r in rows if r["unlocked"])
-            _apply_status(game, _infer_status(total_achievements=len(rows), unlocked_achievements=unlocked_count))
+            _apply_status(
+                game,
+                _infer_status(total_achievements=len(rows), unlocked_achievements=unlocked_count),
+            )
             _add_source_tag_and_collection(game, "PlayStation")
             newly_created.append(game)
 
     async def _enrich(game: Game) -> None:
         async with semaphore:
-            await _enrich_new_game(game, current_user, preferences, igdb_client_id, igdb_client_secret)
+            await _enrich_new_game(
+                game, current_user, preferences, igdb_client_id, igdb_client_secret
+            )
 
     await asyncio.gather(*(_enrich(g) for g in newly_created))
 

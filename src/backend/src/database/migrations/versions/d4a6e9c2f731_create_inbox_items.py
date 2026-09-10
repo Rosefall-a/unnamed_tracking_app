@@ -29,7 +29,10 @@ def upgrade() -> None:
         "inbox_items",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
         sa.Column(
-            "user_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+            "user_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("users.id", ondelete="CASCADE"),
+            nullable=False,
         ),
         sa.Column("kind", sa.String(length=20), nullable=False),
         sa.Column("filename", sa.String(length=500), nullable=False),

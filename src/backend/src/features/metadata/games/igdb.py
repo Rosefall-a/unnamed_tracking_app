@@ -20,7 +20,13 @@ class IGDBClient:
     TOKEN_URL = "https://id.twitch.tv/oauth2/token"
     BASE_URL = "https://api.igdb.com/v4"
 
-    def __init__(self, client_id: str | None, client_secret: str | None, *, session: requests.Session | None = None) -> None:
+    def __init__(
+        self,
+        client_id: str | None,
+        client_secret: str | None,
+        *,
+        session: requests.Session | None = None,
+    ) -> None:
         if not client_id or not client_secret:
             raise IGDBError("IGDB_CLIENT_ID/IGDB_CLIENT_SECRET are not configured on the server.")
         self.client_id = client_id
@@ -46,7 +52,9 @@ class IGDBClient:
             raise IGDBError(f"Could not reach Twitch's OAuth service: {exc}") from exc
 
         if response.status_code >= 400:
-            raise IGDBError(f"Twitch rejected the IGDB client credentials ({response.status_code}).")
+            raise IGDBError(
+                f"Twitch rejected the IGDB client credentials ({response.status_code})."
+            )
 
         payload = response.json()
         token = payload.get("access_token")
@@ -106,7 +114,11 @@ class IGDBClient:
             cover_url = (game.get("cover") or {}).get("url")
             if cover_url:
                 # IGDB returns protocol-relative thumbnail-sized URLs by default
-                cover_url = "https:" + cover_url.replace("t_thumb", "t_cover_big") if cover_url.startswith("//") else cover_url
+                cover_url = (
+                    "https:" + cover_url.replace("t_thumb", "t_cover_big")
+                    if cover_url.startswith("//")
+                    else cover_url
+                )
 
             release_ts = game.get("first_release_date")
             # IGDB's "collection" (e.g. "Dark Souls Collection") is the

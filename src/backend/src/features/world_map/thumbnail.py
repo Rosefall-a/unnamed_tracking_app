@@ -69,7 +69,9 @@ def generate_world_thumbnail(world_dir: Path, output_path: Path) -> bool:
             continue
         rx, rz = coords
         for cx, cz in _present_chunks(region_file):
-            chunk_points.append((rx * _REGION_CHUNKS_PER_SIDE + cx, rz * _REGION_CHUNKS_PER_SIDE + cz))
+            chunk_points.append(
+                (rx * _REGION_CHUNKS_PER_SIDE + cx, rz * _REGION_CHUNKS_PER_SIDE + cz)
+            )
 
     if not chunk_points:
         return False

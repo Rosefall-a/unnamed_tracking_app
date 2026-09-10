@@ -23,7 +23,8 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     op.add_column(
-        "games", sa.Column("osrs_stats_enabled", sa.Boolean(), nullable=False, server_default=sa.false())
+        "games",
+        sa.Column("osrs_stats_enabled", sa.Boolean(), nullable=False, server_default=sa.false()),
     )
 
 

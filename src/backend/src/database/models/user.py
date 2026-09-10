@@ -58,7 +58,9 @@ class User(Base):
     # from Game.updated_at, which would also be touched by unrelated
     # metadata-search edits and make "last synced" lie
     steam_library_synced_at: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
-    retroachievements_library_synced_at: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    retroachievements_library_synced_at: Mapped[int | None] = mapped_column(
+        BigInteger, nullable=True
+    )
     psn_library_synced_at: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
 
     # display identity pulled from each provider on a successful connect —

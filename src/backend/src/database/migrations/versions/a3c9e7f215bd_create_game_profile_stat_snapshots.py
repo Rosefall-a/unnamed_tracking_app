@@ -34,11 +34,19 @@ def upgrade() -> None:
         sa.Column("stats", postgresql.JSON(), nullable=False, server_default="{}"),
         sa.Column("recorded_at", sa.BigInteger(), nullable=False),
     )
-    op.create_index("ix_game_profile_stat_snapshots_profile_id", "game_profile_stat_snapshots", ["profile_id"])
-    op.create_index("ix_game_profile_stat_snapshots_recorded_at", "game_profile_stat_snapshots", ["recorded_at"])
+    op.create_index(
+        "ix_game_profile_stat_snapshots_profile_id", "game_profile_stat_snapshots", ["profile_id"]
+    )
+    op.create_index(
+        "ix_game_profile_stat_snapshots_recorded_at", "game_profile_stat_snapshots", ["recorded_at"]
+    )
 
 
 def downgrade() -> None:
-    op.drop_index("ix_game_profile_stat_snapshots_recorded_at", table_name="game_profile_stat_snapshots")
-    op.drop_index("ix_game_profile_stat_snapshots_profile_id", table_name="game_profile_stat_snapshots")
+    op.drop_index(
+        "ix_game_profile_stat_snapshots_recorded_at", table_name="game_profile_stat_snapshots"
+    )
+    op.drop_index(
+        "ix_game_profile_stat_snapshots_profile_id", table_name="game_profile_stat_snapshots"
+    )
     op.drop_table("game_profile_stat_snapshots")

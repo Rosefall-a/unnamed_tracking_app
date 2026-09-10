@@ -17,7 +17,11 @@ from src.core.auth import get_current_user
 from src.database.models.game import Game, GameLink
 from src.database.models.user import User
 from src.database.session import get_db
-from src.features.backup.scheduler import BACKUP_INTERVAL_SECONDS, BACKUPS_TO_KEEP_PER_USER, _BACKUP_ROOT
+from src.features.backup.scheduler import (
+    BACKUP_INTERVAL_SECONDS,
+    BACKUPS_TO_KEEP_PER_USER,
+    _BACKUP_ROOT,
+)
 from src.helpers.save_game_asset import create_game_folder
 
 router = APIRouter(prefix="/api", tags=["export"], dependencies=[Depends(get_current_user)])
@@ -117,12 +121,16 @@ async def import_library(
             # relationship would either fail loudly or silently point at a
             # stranger's game, so it's dropped rather than guessed at
             try:
-                await _validate_game_relationship(data.get("parent_game_id"), data.get("relationship_type"), db, current_user.id)
+                await _validate_game_relationship(
+                    data.get("parent_game_id"), data.get("relationship_type"), db, current_user.id
+                )
             except Exception:
                 data["parent_game_id"] = None
                 data["relationship_type"] = None
 
-            link_rows = [GameLink(label=link["label"], url=link["url"]) for link in data.pop("links", [])]
+            link_rows = [
+                GameLink(label=link["label"], url=link["url"]) for link in data.pop("links", [])
+            ]
             game = Game(**data)
             game.links = link_rows
             db.add(game)

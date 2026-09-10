@@ -21,7 +21,9 @@ def move_inbox_file_to_trash(active_path: Path, inbox_dir: Path, kind: str) -> N
     shutil.move(str(active_path), str(dest_dir / active_path.name))
 
 
-def restore_inbox_file_from_trash(filename: str, active_dir: Path, inbox_dir: Path, kind: str) -> None:
+def restore_inbox_file_from_trash(
+    filename: str, active_dir: Path, inbox_dir: Path, kind: str
+) -> None:
     src = inbox_trash_dir(inbox_dir, kind) / filename
     if not src.is_file():
         return

@@ -39,7 +39,9 @@ def downgrade() -> None:
     op.add_column("games", sa.Column("card_generated_at", sa.BigInteger(), nullable=True))
     op.add_column("games", sa.Column("rarity", sa.String(length=20), nullable=True))
     op.add_column("games", sa.Column("prestige_reason", sa.String(length=30), nullable=True))
-    op.add_column("games", sa.Column("prestige_challenge_note", sa.String(length=500), nullable=True))
+    op.add_column(
+        "games", sa.Column("prestige_challenge_note", sa.String(length=500), nullable=True)
+    )
     op.add_column("games", sa.Column("card_customization", postgresql.JSONB(), nullable=True))
     op.create_index(
         "ix_games_card_number_user_active",

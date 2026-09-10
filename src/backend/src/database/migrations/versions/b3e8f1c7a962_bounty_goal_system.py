@@ -31,19 +31,32 @@ def upgrade() -> None:
     op.alter_column("bounties", "notes", new_column_name="description")
     op.alter_column("bounties", "game_id", nullable=True)
 
-    op.add_column("bounties", sa.Column("type", sa.String(length=20), nullable=False, server_default="custom"))
-    op.add_column("bounties", sa.Column("difficulty", sa.String(length=10), nullable=True))
-    op.add_column("bounties", sa.Column("target_achievement_provider", sa.String(length=30), nullable=True))
-    op.add_column("bounties", sa.Column("target_achievement_external_id", sa.String(length=200), nullable=True))
-    op.add_column("bounties", sa.Column("target_collection_name", sa.String(length=120), nullable=True))
     op.add_column(
-        "bounties", sa.Column("progress_mode", sa.String(length=12), nullable=False, server_default="binary")
+        "bounties", sa.Column("type", sa.String(length=20), nullable=False, server_default="custom")
+    )
+    op.add_column("bounties", sa.Column("difficulty", sa.String(length=10), nullable=True))
+    op.add_column(
+        "bounties", sa.Column("target_achievement_provider", sa.String(length=30), nullable=True)
     )
     op.add_column(
-        "bounties", sa.Column("progress_value", sa.Numeric(10, 2), nullable=False, server_default="0")
+        "bounties",
+        sa.Column("target_achievement_external_id", sa.String(length=200), nullable=True),
+    )
+    op.add_column(
+        "bounties", sa.Column("target_collection_name", sa.String(length=120), nullable=True)
+    )
+    op.add_column(
+        "bounties",
+        sa.Column("progress_mode", sa.String(length=12), nullable=False, server_default="binary"),
+    )
+    op.add_column(
+        "bounties",
+        sa.Column("progress_value", sa.Numeric(10, 2), nullable=False, server_default="0"),
     )
     op.add_column("bounties", sa.Column("progress_target", sa.Numeric(10, 2), nullable=True))
-    op.add_column("bounties", sa.Column("points_reward", sa.BigInteger(), nullable=False, server_default="0"))
+    op.add_column(
+        "bounties", sa.Column("points_reward", sa.BigInteger(), nullable=False, server_default="0")
+    )
     op.add_column("bounties", sa.Column("target_date", sa.BigInteger(), nullable=True))
     op.add_column("bounties", sa.Column("started_at", sa.BigInteger(), nullable=True))
 
@@ -51,7 +64,10 @@ def upgrade() -> None:
         "bounty_point_transactions",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
         sa.Column(
-            "user_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+            "user_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("users.id", ondelete="CASCADE"),
+            nullable=False,
         ),
         sa.Column(
             "bounty_id",
@@ -64,7 +80,9 @@ def upgrade() -> None:
         sa.Column("reason", sa.String(length=200), nullable=False),
         sa.Column("created_at", sa.BigInteger(), nullable=False),
     )
-    op.create_index("ix_bounty_point_transactions_user_id", "bounty_point_transactions", ["user_id"])
+    op.create_index(
+        "ix_bounty_point_transactions_user_id", "bounty_point_transactions", ["user_id"]
+    )
 
 
 def downgrade() -> None:

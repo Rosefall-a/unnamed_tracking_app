@@ -45,7 +45,9 @@ class BountyProposal:
 
 
 async def _mastery_candidates(db: AsyncSession, user_id: UUID) -> list[BountyProposal]:
-    already_targeted = select(Bounty.game_id).where(Bounty.user_id == user_id, Bounty.type == "mastery")
+    already_targeted = select(Bounty.game_id).where(
+        Bounty.user_id == user_id, Bounty.type == "mastery"
+    )
     totals = (
         select(
             Achievement.game_id,
@@ -71,14 +73,19 @@ async def _mastery_candidates(db: AsyncSession, user_id: UUID) -> list[BountyPro
         if 0.5 <= pct < 1.0:
             candidates.append(
                 BountyProposal(
-                    title=f"Master {game.title}", type="mastery", game_id=game.id, points_reward=MASTERY_POINTS_REWARD
+                    title=f"Master {game.title}",
+                    type="mastery",
+                    game_id=game.id,
+                    points_reward=MASTERY_POINTS_REWARD,
                 )
             )
     return candidates
 
 
 async def _completion_candidates(db: AsyncSession, user_id: UUID) -> list[BountyProposal]:
-    already_targeted = select(Bounty.game_id).where(Bounty.user_id == user_id, Bounty.type == "completion")
+    already_targeted = select(Bounty.game_id).where(
+        Bounty.user_id == user_id, Bounty.type == "completion"
+    )
     cutoff = int(time.time()) - MIN_IDLE_SECONDS
     result = await db.execute(
         select(Game).where(

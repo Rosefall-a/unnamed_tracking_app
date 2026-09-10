@@ -36,7 +36,10 @@ def upgrade() -> None:
         "bounty_objectives",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
         sa.Column(
-            "bounty_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("bounties.id", ondelete="CASCADE"), nullable=False
+            "bounty_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("bounties.id", ondelete="CASCADE"),
+            nullable=False,
         ),
         sa.Column("title", sa.String(length=200), nullable=False),
         sa.Column("kind", sa.String(length=12), nullable=False, server_default="checkbox"),
@@ -53,7 +56,10 @@ def upgrade() -> None:
         "bounty_evidence",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
         sa.Column(
-            "bounty_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("bounties.id", ondelete="CASCADE"), nullable=False
+            "bounty_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("bounties.id", ondelete="CASCADE"),
+            nullable=False,
         ),
         sa.Column("kind", sa.String(length=12), nullable=False),
         sa.Column(

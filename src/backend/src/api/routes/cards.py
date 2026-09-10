@@ -30,14 +30,18 @@ async def _get_owned_game_or_404(game_id: UUID, db: AsyncSession, user_id: UUID)
         select(Game).where(Game.id == game_id, Game.user_id == user_id, Game.deleted_at.is_(None))
     )
     if game is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Game {game_id} not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"Game {game_id} not found"
+        )
     return game
 
 
 async def _get_card_or_404(card_id: UUID, db: AsyncSession, user_id: UUID) -> Card:
     card = await db.scalar(select(Card).where(Card.id == card_id, Card.user_id == user_id))
     if card is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Card {card_id} not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"Card {card_id} not found"
+        )
     return card
 
 
@@ -118,7 +122,9 @@ async def generate_card_prestige_challenge(
 
     game = await _get_owned_game_or_404(card.game_id, db, current_user.id)
     achievements = list(
-        (await db.execute(select(Achievement).where(Achievement.game_id == game.id))).scalars().all()
+        (await db.execute(select(Achievement).where(Achievement.game_id == game.id)))
+        .scalars()
+        .all()
     )
     if not achievements:
         raise HTTPException(

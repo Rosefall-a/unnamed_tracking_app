@@ -24,10 +24,12 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     op.add_column(
-        "game_profile_stat_snapshots", sa.Column("xp", postgresql.JSON(), nullable=False, server_default="{}")
+        "game_profile_stat_snapshots",
+        sa.Column("xp", postgresql.JSON(), nullable=False, server_default="{}"),
     )
     op.add_column(
-        "game_profile_stat_snapshots", sa.Column("kc", postgresql.JSON(), nullable=False, server_default="{}")
+        "game_profile_stat_snapshots",
+        sa.Column("kc", postgresql.JSON(), nullable=False, server_default="{}"),
     )
 
 

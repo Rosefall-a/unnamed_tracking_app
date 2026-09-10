@@ -35,7 +35,9 @@ from src.database.models.user import User
 from src.database.session import get_db
 from src.features.bounties.auto_propose import pick_bounty_proposal
 
-router = APIRouter(prefix="/api/bounties", tags=["bounties"], dependencies=[Depends(get_current_user)])
+router = APIRouter(
+    prefix="/api/bounties", tags=["bounties"], dependencies=[Depends(get_current_user)]
+)
 
 _FINISHED_GAME_STATUSES = (GameStatus.BEATEN, GameStatus.MASTERED)
 
@@ -128,7 +130,9 @@ async def _recompute_automatic_progress(db: AsyncSession, bounty: Bounty) -> Non
         if bounty.game_id is None:
             return
         game = await db.get(Game, bounty.game_id)
-        bounty.progress_value = Decimal(100) if game and game.status in _FINISHED_GAME_STATUSES else Decimal(0)
+        bounty.progress_value = (
+            Decimal(100) if game and game.status in _FINISHED_GAME_STATUSES else Decimal(0)
+        )
         bounty.progress_target = Decimal(100)
 
     elif bounty.type == "mastery":
@@ -136,15 +140,23 @@ async def _recompute_automatic_progress(db: AsyncSession, bounty: Bounty) -> Non
             return
         total = await db.scalar(select(func.count()).where(Achievement.game_id == bounty.game_id))
         unlocked = await db.scalar(
-            select(func.count()).where(Achievement.game_id == bounty.game_id, Achievement.unlocked.is_(True))
+            select(func.count()).where(
+                Achievement.game_id == bounty.game_id, Achievement.unlocked.is_(True)
+            )
         )
         total = total or 0
         unlocked = unlocked or 0
         bounty.progress_target = Decimal(100)
-        bounty.progress_value = (Decimal(unlocked) / Decimal(total) * 100) if total > 0 else Decimal(0)
+        bounty.progress_value = (
+            (Decimal(unlocked) / Decimal(total) * 100) if total > 0 else Decimal(0)
+        )
 
     elif bounty.type == "achievement":
-        if not (bounty.game_id and bounty.target_achievement_provider and bounty.target_achievement_external_id):
+        if not (
+            bounty.game_id
+            and bounty.target_achievement_provider
+            and bounty.target_achievement_external_id
+        ):
             return
         achievement = await db.scalar(
             select(Achievement).where(
@@ -175,7 +187,9 @@ async def _recompute_automatic_progress(db: AsyncSession, bounty: Bounty) -> Non
 
 async def _load_objectives(db: AsyncSession, bounty_id: UUID) -> list[BountyObjective]:
     result = await db.execute(
-        select(BountyObjective).where(BountyObjective.bounty_id == bounty_id).order_by(BountyObjective.created_at)
+        select(BountyObjective)
+        .where(BountyObjective.bounty_id == bounty_id)
+        .order_by(BountyObjective.created_at)
     )
     return list(result.scalars().all())
 
@@ -190,7 +204,11 @@ async def _objective_is_done(db: AsyncSession, bounty: Bounty, objective: Bounty
             and objective.progress_value >= objective.progress_target
         )
     if objective.kind == "achievement":
-        if not (bounty.game_id and objective.target_achievement_provider and objective.target_achievement_external_id):
+        if not (
+            bounty.game_id
+            and objective.target_achievement_provider
+            and objective.target_achievement_external_id
+        ):
             return False
         achievement = await db.scalar(
             select(Achievement).where(
@@ -203,7 +221,9 @@ async def _objective_is_done(db: AsyncSession, bounty: Bounty, objective: Bounty
     return False
 
 
-async def _sync_progress_from_objectives(db: AsyncSession, bounty: Bounty, objectives: list[BountyObjective]) -> None:
+async def _sync_progress_from_objectives(
+    db: AsyncSession, bounty: Bounty, objectives: list[BountyObjective]
+) -> None:
     """Objectives, when present, always drive the bounty's overall
     progress — overriding whatever `type`'s own automatic logic would
     otherwise compute. A bounty with objectives is progressed by checking
@@ -251,7 +271,9 @@ async def _complete_bounty(db: AsyncSession, bounty: Bounty) -> None:
     await db.commit()
 
 
-async def _sync_bounty(db: AsyncSession, bounty: Bounty, objectives: list[BountyObjective] | None = None) -> list[BountyObjective]:
+async def _sync_bounty(
+    db: AsyncSession, bounty: Bounty, objectives: list[BountyObjective] | None = None
+) -> list[BountyObjective]:
     """Called lazily whenever a bounty is read, and right after any
     objective is mutated. A bounty with objectives gets its progress
     derived from how many are done; otherwise an automatic-type bounty
@@ -283,7 +305,9 @@ async def _objective_to_dict(db: AsyncSession, bounty: Bounty, objective: Bounty
         "kind": objective.kind,
         "done": await _objective_is_done(db, bounty, objective),
         "progress_value": float(objective.progress_value),
-        "progress_target": float(objective.progress_target) if objective.progress_target is not None else None,
+        "progress_target": float(objective.progress_target)
+        if objective.progress_target is not None
+        else None,
         "target_achievement_provider": objective.target_achievement_provider,
         "target_achievement_external_id": objective.target_achievement_external_id,
         "created_at": objective.created_at,
@@ -292,12 +316,16 @@ async def _objective_to_dict(db: AsyncSession, bounty: Bounty, objective: Bounty
 
 async def _load_evidence(db: AsyncSession, bounty_id: UUID) -> list[BountyEvidence]:
     result = await db.execute(
-        select(BountyEvidence).where(BountyEvidence.bounty_id == bounty_id).order_by(BountyEvidence.created_at)
+        select(BountyEvidence)
+        .where(BountyEvidence.bounty_id == bounty_id)
+        .order_by(BountyEvidence.created_at)
     )
     return list(result.scalars().all())
 
 
-async def _evidence_to_dict(db: AsyncSession, evidence: BountyEvidence, game_id: UUID | None) -> dict:
+async def _evidence_to_dict(
+    db: AsyncSession, evidence: BountyEvidence, game_id: UUID | None
+) -> dict:
     media_url = None
     media_filename = None
     if evidence.media_item_id is not None:
@@ -330,11 +358,15 @@ def _journal_to_dict(entry: BountyJournalEntry) -> dict:
     return {"id": str(entry.id), "text": entry.text, "created_at": entry.created_at}
 
 
-async def _load_evidence_batch(db: AsyncSession, bounty_ids: list[UUID]) -> dict[UUID, list[BountyEvidence]]:
+async def _load_evidence_batch(
+    db: AsyncSession, bounty_ids: list[UUID]
+) -> dict[UUID, list[BountyEvidence]]:
     if not bounty_ids:
         return {}
     result = await db.execute(
-        select(BountyEvidence).where(BountyEvidence.bounty_id.in_(bounty_ids)).order_by(BountyEvidence.created_at)
+        select(BountyEvidence)
+        .where(BountyEvidence.bounty_id.in_(bounty_ids))
+        .order_by(BountyEvidence.created_at)
     )
     by_bounty: dict[UUID, list[BountyEvidence]] = {}
     for row in result.scalars().all():
@@ -342,7 +374,9 @@ async def _load_evidence_batch(db: AsyncSession, bounty_ids: list[UUID]) -> dict
     return by_bounty
 
 
-async def _load_journal_batch(db: AsyncSession, bounty_ids: list[UUID]) -> dict[UUID, list[BountyJournalEntry]]:
+async def _load_journal_batch(
+    db: AsyncSession, bounty_ids: list[UUID]
+) -> dict[UUID, list[BountyJournalEntry]]:
     if not bounty_ids:
         return {}
     result = await db.execute(
@@ -387,7 +421,9 @@ async def _bounty_to_dict(
         "target_collection_name": bounty.target_collection_name,
         "progress_mode": bounty.progress_mode,
         "progress_value": float(bounty.progress_value),
-        "progress_target": float(bounty.progress_target) if bounty.progress_target is not None else None,
+        "progress_target": float(bounty.progress_target)
+        if bounty.progress_target is not None
+        else None,
         "points_reward": bounty.points_reward,
         "required_evidence_kinds": bounty.required_evidence_kinds,
         "target_date": bounty.target_date,
@@ -409,7 +445,11 @@ async def _load_games(db: AsyncSession, bounties: list[Bounty]) -> dict[UUID, Ga
 
 
 async def _load_achievement_name(db: AsyncSession, bounty: Bounty) -> str | None:
-    if bounty.type != "achievement" or not bounty.game_id or not bounty.target_achievement_external_id:
+    if (
+        bounty.type != "achievement"
+        or not bounty.game_id
+        or not bounty.target_achievement_external_id
+    ):
         return None
     achievement = await db.scalar(
         select(Achievement).where(
@@ -445,7 +485,9 @@ async def _maybe_auto_propose(db: AsyncSession, user_id: UUID) -> None:
         return
 
     last_auto_at = await db.scalar(
-        select(func.max(Bounty.created_at)).where(Bounty.user_id == user_id, Bounty.auto_generated.is_(True))
+        select(func.max(Bounty.created_at)).where(
+            Bounty.user_id == user_id, Bounty.auto_generated.is_(True)
+        )
     )
     if last_auto_at is not None and int(time.time()) - last_auto_at < AUTO_PROPOSE_INTERVAL_SECONDS:
         return
@@ -579,12 +621,18 @@ async def get_bounty(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
-    bounty = await db.scalar(select(Bounty).where(Bounty.id == bounty_id, Bounty.user_id == current_user.id))
+    bounty = await db.scalar(
+        select(Bounty).where(Bounty.id == bounty_id, Bounty.user_id == current_user.id)
+    )
     if bounty is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Bounty not found.")
     objectives = await _sync_bounty(db, bounty)
     game = await db.get(Game, bounty.game_id) if bounty.game_id else None
-    return {"bounty": await _bounty_to_dict(db, bounty, game, await _load_achievement_name(db, bounty), objectives)}
+    return {
+        "bounty": await _bounty_to_dict(
+            db, bounty, game, await _load_achievement_name(db, bounty), objectives
+        )
+    }
 
 
 @router.post("")
@@ -612,18 +660,29 @@ async def create_bounty(
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Game not found.")
 
     if body.type in AUTOMATIC_BOUNTY_TYPES and body.game_id is None and body.type != "collection":
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"'{body.type}' bounties need a target game.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"'{body.type}' bounties need a target game.",
+        )
     if body.type == "collection" and not body.target_collection_name:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Collection bounties need a target collection.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Collection bounties need a target collection.",
+        )
 
     target_achievement_provider = None
     target_achievement_external_id = None
     if body.type == "achievement":
         if body.target_achievement_id is None:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Achievement bounties need a target achievement.")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Achievement bounties need a target achievement.",
+            )
         achievement = await db.get(Achievement, body.target_achievement_id)
         if achievement is None or achievement.game_id != body.game_id:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Achievement not found for that game.")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Achievement not found for that game."
+            )
         target_achievement_provider = achievement.provider
         target_achievement_external_id = achievement.external_id
 
@@ -649,7 +708,11 @@ async def create_bounty(
     await db.commit()
     await db.refresh(bounty)
     objectives = await _sync_bounty(db, bounty)
-    return {"bounty": await _bounty_to_dict(db, bounty, game, await _load_achievement_name(db, bounty), objectives)}
+    return {
+        "bounty": await _bounty_to_dict(
+            db, bounty, game, await _load_achievement_name(db, bounty), objectives
+        )
+    }
 
 
 @router.patch("/{bounty_id}")
@@ -659,16 +722,22 @@ async def update_bounty(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
-    bounty = await db.scalar(select(Bounty).where(Bounty.id == bounty_id, Bounty.user_id == current_user.id))
+    bounty = await db.scalar(
+        select(Bounty).where(Bounty.id == bounty_id, Bounty.user_id == current_user.id)
+    )
     if bounty is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Bounty not found.")
     if bounty.status in ("completed", "abandoned"):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Can't edit a finished bounty.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Can't edit a finished bounty."
+        )
 
     if body.title is not None:
         title = body.title.strip()
         if not title:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Title is required.")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="Title is required."
+            )
         bounty.title = title
     if body.description is not None:
         bounty.description = body.description
@@ -695,12 +764,16 @@ async def update_bounty(
     await db.commit()
     game = await db.get(Game, bounty.game_id) if bounty.game_id else None
     return {
-        "bounty": await _bounty_to_dict(db, bounty, game, await _load_achievement_name(db, bounty), existing_objectives)
+        "bounty": await _bounty_to_dict(
+            db, bounty, game, await _load_achievement_name(db, bounty), existing_objectives
+        )
     }
 
 
 async def _get_own_bounty(db: AsyncSession, bounty_id: UUID, user_id: UUID) -> Bounty:
-    bounty = await db.scalar(select(Bounty).where(Bounty.id == bounty_id, Bounty.user_id == user_id))
+    bounty = await db.scalar(
+        select(Bounty).where(Bounty.id == bounty_id, Bounty.user_id == user_id)
+    )
     if bounty is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Bounty not found.")
     return bounty
@@ -725,7 +798,9 @@ async def pause_bounty(
 ) -> dict:
     bounty = await _get_own_bounty(db, bounty_id, current_user.id)
     if bounty.status != "active":
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only an active bounty can be paused.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Only an active bounty can be paused."
+        )
     bounty.status = "paused"
     await db.commit()
     return {"status": "paused", "id": str(bounty_id)}
@@ -739,7 +814,9 @@ async def resume_bounty(
 ) -> dict:
     bounty = await _get_own_bounty(db, bounty_id, current_user.id)
     if bounty.status not in ("paused", "not_started"):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only a paused bounty can be resumed.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Only a paused bounty can be resumed."
+        )
     bounty.status = "active"
     if bounty.started_at is None:
         bounty.started_at = int(time.time())
@@ -789,7 +866,9 @@ async def create_objective(
     bounty = await _get_own_bounty(db, bounty_id, current_user.id)
     title = body.title.strip()
     if not title:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Objective title is required.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Objective title is required."
+        )
     _validate_choice(body.kind, BOUNTY_OBJECTIVE_KINDS, "kind")
 
     target_achievement_provider = None
@@ -802,7 +881,9 @@ async def create_objective(
             )
         achievement = await db.get(Achievement, body.target_achievement_id)
         if achievement is None or achievement.game_id != bounty.game_id:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Achievement not found for that game.")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Achievement not found for that game."
+            )
         target_achievement_provider = achievement.provider
         target_achievement_external_id = achievement.external_id
 
@@ -822,7 +903,9 @@ async def create_objective(
     game = await db.get(Game, bounty.game_id) if bounty.game_id else None
     return {
         "objective": await _objective_to_dict(db, bounty, objective),
-        "bounty": await _bounty_to_dict(db, bounty, game, await _load_achievement_name(db, bounty), objectives),
+        "bounty": await _bounty_to_dict(
+            db, bounty, game, await _load_achievement_name(db, bounty), objectives
+        ),
     }
 
 
@@ -836,7 +919,9 @@ async def update_objective(
 ) -> dict:
     bounty = await _get_own_bounty(db, bounty_id, current_user.id)
     objective = await db.scalar(
-        select(BountyObjective).where(BountyObjective.id == objective_id, BountyObjective.bounty_id == bounty.id)
+        select(BountyObjective).where(
+            BountyObjective.id == objective_id, BountyObjective.bounty_id == bounty.id
+        )
     )
     if objective is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Objective not found.")
@@ -844,7 +929,9 @@ async def update_objective(
     if body.title is not None:
         title = body.title.strip()
         if not title:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Objective title is required.")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="Objective title is required."
+            )
         objective.title = title
     if body.done is not None and objective.kind == "checkbox":
         objective.done = body.done
@@ -858,7 +945,9 @@ async def update_objective(
     game = await db.get(Game, bounty.game_id) if bounty.game_id else None
     return {
         "objective": await _objective_to_dict(db, bounty, objective),
-        "bounty": await _bounty_to_dict(db, bounty, game, await _load_achievement_name(db, bounty), objectives),
+        "bounty": await _bounty_to_dict(
+            db, bounty, game, await _load_achievement_name(db, bounty), objectives
+        ),
     }
 
 
@@ -871,7 +960,9 @@ async def delete_objective(
 ) -> dict:
     bounty = await _get_own_bounty(db, bounty_id, current_user.id)
     objective = await db.scalar(
-        select(BountyObjective).where(BountyObjective.id == objective_id, BountyObjective.bounty_id == bounty.id)
+        select(BountyObjective).where(
+            BountyObjective.id == objective_id, BountyObjective.bounty_id == bounty.id
+        )
     )
     if objective is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Objective not found.")
@@ -896,16 +987,29 @@ async def create_evidence(
 
     if body.kind in ("screenshot", "clip", "document"):
         if body.media_item_id is None:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"'{body.kind}' evidence needs a media item.")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"'{body.kind}' evidence needs a media item.",
+            )
         media_item = await db.get(MediaItem, body.media_item_id)
-        if media_item is None or media_item.deleted_at is not None or media_item.game_id != bounty.game_id:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Media item not found for that game.")
+        if (
+            media_item is None
+            or media_item.deleted_at is not None
+            or media_item.game_id != bounty.game_id
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Media item not found for that game."
+            )
     elif body.kind == "note":
         if not body.text or not body.text.strip():
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Note evidence needs text.")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="Note evidence needs text."
+            )
     elif body.kind == "link":
         if not body.url or not body.url.strip():
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Link evidence needs a URL.")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="Link evidence needs a URL."
+            )
 
     evidence = BountyEvidence(
         bounty_id=bounty.id,
@@ -929,7 +1033,9 @@ async def delete_evidence(
 ) -> dict:
     bounty = await _get_own_bounty(db, bounty_id, current_user.id)
     evidence = await db.scalar(
-        select(BountyEvidence).where(BountyEvidence.id == evidence_id, BountyEvidence.bounty_id == bounty.id)
+        select(BountyEvidence).where(
+            BountyEvidence.id == evidence_id, BountyEvidence.bounty_id == bounty.id
+        )
     )
     if evidence is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Evidence not found.")
@@ -951,7 +1057,9 @@ async def create_journal_entry(
     bounty = await _get_own_bounty(db, bounty_id, current_user.id)
     text = body.text.strip()
     if not text:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Journal entry can't be empty.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Journal entry can't be empty."
+        )
     entry = BountyJournalEntry(bounty_id=bounty.id, text=text)
     db.add(entry)
     await db.commit()
@@ -968,10 +1076,14 @@ async def delete_journal_entry(
 ) -> dict:
     bounty = await _get_own_bounty(db, bounty_id, current_user.id)
     entry = await db.scalar(
-        select(BountyJournalEntry).where(BountyJournalEntry.id == entry_id, BountyJournalEntry.bounty_id == bounty.id)
+        select(BountyJournalEntry).where(
+            BountyJournalEntry.id == entry_id, BountyJournalEntry.bounty_id == bounty.id
+        )
     )
     if entry is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Journal entry not found.")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Journal entry not found."
+        )
     await db.delete(entry)
     await db.commit()
     return {"status": "deleted", "id": str(entry_id)}

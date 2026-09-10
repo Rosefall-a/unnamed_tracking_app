@@ -25,4 +25,6 @@ class AppIntegrationSettings(Base):
     id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
     igdb_client_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     igdb_client_secret: Mapped[str | None] = mapped_column(Text, nullable=True)
-    updated_at: Mapped[int] = mapped_column(BigInteger, nullable=False, default=time.time, onupdate=time.time)
+    updated_at: Mapped[int] = mapped_column(
+        BigInteger, nullable=False, default=time.time, onupdate=time.time
+    )

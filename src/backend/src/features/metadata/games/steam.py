@@ -27,6 +27,7 @@ _API_KEY_PATTERN = re.compile(r"^[0-9A-Fa-f]{32}$")
 def looks_like_api_key(value: str) -> bool:
     return bool(_API_KEY_PATTERN.fullmatch(value.strip()))
 
+
 BASE_URL = "https://store.steampowered.com/api"
 SESSION = requests.Session()
 SESSION.headers.update({"User-Agent": "Mozilla/5.0 (compatible; SteamDataFetcher/1.0)"})
@@ -134,7 +135,9 @@ def get_schema_for_game(api_key: str, app_id: int) -> dict[str, dict]:
     if resp.status_code >= 400:
         raise SteamLibraryError(f"Steam schema request failed ({resp.status_code}).")
     try:
-        achievements = resp.json().get("game", {}).get("availableGameStats", {}).get("achievements", [])
+        achievements = (
+            resp.json().get("game", {}).get("availableGameStats", {}).get("achievements", [])
+        )
     except ValueError as exc:
         raise SteamLibraryError("Steam returned invalid JSON.") from exc
     return {entry["name"]: entry for entry in achievements if entry.get("name")}
@@ -200,5 +203,3 @@ def search_store(term: str, country: str = "us") -> list[dict]:
     resp = SESSION.get(f"{BASE_URL}/storesearch", params=params, timeout=10)
     resp.raise_for_status()
     return resp.json().get("items", [])
-
-

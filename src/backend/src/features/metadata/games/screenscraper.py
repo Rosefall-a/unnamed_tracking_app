@@ -17,9 +17,19 @@ class ScreenScraperClient:
 
     BASE_URL = "https://www.screenscraper.fr/api2"
 
-    def __init__(self, devid: str, devpassword: str, ssid: str, sspassword: str, *, session: requests.Session | None = None) -> None:
+    def __init__(
+        self,
+        devid: str,
+        devpassword: str,
+        ssid: str,
+        sspassword: str,
+        *,
+        session: requests.Session | None = None,
+    ) -> None:
         if not devid or not devpassword:
-            raise ScreenScraperError("ScreenScraper devid/devpassword are not configured on the server.")
+            raise ScreenScraperError(
+                "ScreenScraper devid/devpassword are not configured on the server."
+            )
         if not ssid or not sspassword:
             raise ScreenScraperError("No ScreenScraper account credentials provided.")
         self.devid = devid

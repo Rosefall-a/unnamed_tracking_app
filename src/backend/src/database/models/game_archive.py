@@ -30,7 +30,10 @@ class GameArchive(Base):
 
     id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
     game_id: Mapped[UUID] = mapped_column(
-        PG_UUID(as_uuid=True), ForeignKey("games.id", ondelete="CASCADE"), nullable=False, index=True
+        PG_UUID(as_uuid=True),
+        ForeignKey("games.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     kind: Mapped[str] = mapped_column(String(20), nullable=False)
     name: Mapped[str] = mapped_column(String(200), nullable=False)
@@ -45,7 +48,9 @@ class GameArchive(Base):
 
     game: Mapped["Game"] = relationship()
     versions: Mapped[list["GameArchiveVersion"]] = relationship(
-        back_populates="archive", cascade="all, delete-orphan", order_by="GameArchiveVersion.uploaded_at.desc()"
+        back_populates="archive",
+        cascade="all, delete-orphan",
+        order_by="GameArchiveVersion.uploaded_at.desc()",
     )
 
 
@@ -58,7 +63,10 @@ class GameArchiveVersion(Base):
 
     id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
     archive_id: Mapped[UUID] = mapped_column(
-        PG_UUID(as_uuid=True), ForeignKey("game_archives.id", ondelete="CASCADE"), nullable=False, index=True
+        PG_UUID(as_uuid=True),
+        ForeignKey("game_archives.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     filename: Mapped[str] = mapped_column(String(500), nullable=False)
     size: Mapped[int] = mapped_column(BigInteger, nullable=False)

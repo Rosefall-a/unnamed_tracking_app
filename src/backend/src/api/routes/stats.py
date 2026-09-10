@@ -118,7 +118,9 @@ async def get_stats_overview(
     format_stmt = select(format_case, func.count(Game.id)).where(user_filter).group_by(format_case)
 
     bounty_filter = Bounty.user_id == current_user.id
-    bounties_completed_stmt = select(func.count()).where(bounty_filter, Bounty.status == "completed")
+    bounties_completed_stmt = select(func.count()).where(
+        bounty_filter, Bounty.status == "completed"
+    )
     bounties_hard_stmt = select(func.count()).where(
         bounty_filter, Bounty.status == "completed", Bounty.difficulty.in_(["hard", "extreme"])
     )
@@ -143,7 +145,9 @@ async def get_stats_overview(
     bounties_hard_completed = await db.scalar(bounties_hard_stmt)
     bounty_points_total = await db.scalar(bounty_points_stmt)
 
-    total_games, favorite_count, total_playtime_seconds, total_spent, average_rating = totals_result.one()
+    total_games, favorite_count, total_playtime_seconds, total_spent, average_rating = (
+        totals_result.one()
+    )
 
     folder_locations = [row[0] for row in folders_result.all()]
     storage_used_bytes = await asyncio.gather(
@@ -169,7 +173,8 @@ async def get_stats_overview(
             for game_id, title, seconds in most_played_result.all()
         ],
         "recently_added": [
-            {"month": month.strftime("%Y-%m"), "count": count} for month, count in recent_result.all()
+            {"month": month.strftime("%Y-%m"), "count": count}
+            for month, count in recent_result.all()
         ],
         "rating_histogram": [
             {"label": f"{int(bucket)}-{int(bucket) + 1}", "count": count}
@@ -179,7 +184,9 @@ async def get_stats_overview(
         "release_year_breakdown": [
             {"label": str(int(year)), "count": count} for year, count in release_year_result.all()
         ],
-        "format_breakdown": [{"label": label, "count": count} for label, count in format_result.all()],
+        "format_breakdown": [
+            {"label": label, "count": count} for label, count in format_result.all()
+        ],
         "bounties_completed": int(bounties_completed or 0),
         "bounties_hard_completed": int(bounties_hard_completed or 0),
         "bounty_points_total": int(bounty_points_total or 0),
@@ -204,7 +211,9 @@ async def get_weekly_digest(
     achievements_stmt = (
         select(func.count(Achievement.id))
         .join(Game, Achievement.game_id == Game.id)
-        .where(user_filter, Achievement.unlocked_at.is_not(None), Achievement.unlocked_at >= week_ago)
+        .where(
+            user_filter, Achievement.unlocked_at.is_not(None), Achievement.unlocked_at >= week_ago
+        )
     )
     metadata_changes_stmt = (
         select(func.count(GameFieldChange.id))
@@ -212,7 +221,9 @@ async def get_weekly_digest(
         .where(user_filter, GameFieldChange.changed_at >= week_ago)
     )
     bounties_stmt = select(func.count(Bounty.id)).where(
-        Bounty.user_id == current_user.id, Bounty.status == "completed", Bounty.completed_at >= week_ago
+        Bounty.user_id == current_user.id,
+        Bounty.status == "completed",
+        Bounty.completed_at >= week_ago,
     )
 
     games_played = await db.scalar(games_played_stmt)

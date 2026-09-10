@@ -28,7 +28,10 @@ def upgrade() -> None:
         "media_items",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
         sa.Column(
-            "game_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("games.id", ondelete="CASCADE"), nullable=False
+            "game_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("games.id", ondelete="CASCADE"),
+            nullable=False,
         ),
         sa.Column("kind", sa.String(length=20), nullable=False),
         sa.Column("filename", sa.String(length=300), nullable=False),

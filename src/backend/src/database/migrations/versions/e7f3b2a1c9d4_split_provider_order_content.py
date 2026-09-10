@@ -37,11 +37,15 @@ def upgrade() -> None:
 
     connection = op.get_bind()
     rows = connection.execute(
-        sa.text('SELECT id, provider_order, image_provider_order FROM user_scan_settings')
+        sa.text("SELECT id, provider_order, image_provider_order FROM user_scan_settings")
     ).fetchall()
     for row_id, provider_order, image_provider_order in rows:
-        filtered_data = [p for p in (provider_order or []) if p in _DATA_PROVIDERS] or _DEFAULT_DATA_ORDER
-        filtered_image = [p for p in (image_provider_order or []) if p in _IMAGE_PROVIDERS] or _DEFAULT_IMAGE_ORDER
+        filtered_data = [
+            p for p in (provider_order or []) if p in _DATA_PROVIDERS
+        ] or _DEFAULT_DATA_ORDER
+        filtered_image = [
+            p for p in (image_provider_order or []) if p in _IMAGE_PROVIDERS
+        ] or _DEFAULT_IMAGE_ORDER
         connection.execute(
             sa.text(
                 "UPDATE user_scan_settings SET provider_order = :data, image_provider_order = :image WHERE id = :id"

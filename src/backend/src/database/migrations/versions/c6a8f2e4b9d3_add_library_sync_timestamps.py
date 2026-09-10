@@ -23,7 +23,9 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     op.add_column("users", sa.Column("steam_library_synced_at", sa.BigInteger(), nullable=True))
-    op.add_column("users", sa.Column("retroachievements_library_synced_at", sa.BigInteger(), nullable=True))
+    op.add_column(
+        "users", sa.Column("retroachievements_library_synced_at", sa.BigInteger(), nullable=True)
+    )
     op.add_column("users", sa.Column("psn_library_synced_at", sa.BigInteger(), nullable=True))
 
 

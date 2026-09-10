@@ -62,23 +62,31 @@ def _steam_result(item: dict[str, Any], details: dict[str, Any] | None) -> dict[
     details = details or {}
     app_id = int(str(item.get("id") or details.get("steam_appid")))
     title = details.get("name") or item.get("name") or ""
-    genres = [entry["description"] for entry in details.get("genres", []) if entry.get("description")]
-    features = [entry["description"] for entry in details.get("categories", []) if entry.get("description")]
+    genres = [
+        entry["description"] for entry in details.get("genres", []) if entry.get("description")
+    ]
+    features = [
+        entry["description"] for entry in details.get("categories", []) if entry.get("description")
+    ]
     required_age = details.get("required_age")
     result = _blank_result("Steam", str(app_id), title)
     result.update(
         {
             # "About This Game" (rich HTML, keeps the dev's screenshots/gifs) over
             # the plain-text short_description used for search-result blurbs
-            "description": details.get("about_the_game") or details.get("detailed_description")
-            or details.get("short_description") or None,
+            "description": details.get("about_the_game")
+            or details.get("detailed_description")
+            or details.get("short_description")
+            or None,
             "release_date": _parse_release_date(details.get("release_date", {}).get("date")),
             "developer": ", ".join(details.get("developers", [])) or None,
             "publisher": ", ".join(details.get("publishers", [])) or None,
             "age_rating": f"{required_age}+" if required_age else None,
             "tags": genres,
             "features": features,
-            "links": [{"label": "Steam Store", "url": f"https://store.steampowered.com/app/{app_id}/"}],
+            "links": [
+                {"label": "Steam Store", "url": f"https://store.steampowered.com/app/{app_id}/"}
+            ],
             # no art here — data providers only provide data; art comes
             # exclusively from image providers (SteamGridDB/ScreenScraper)
         }
@@ -139,7 +147,9 @@ class ProviderContext:
     igdb_client_secret: str | None = None
 
 
-ProviderRun = Callable[[str, int, ProviderContext, list[dict[str, Any]]], list[dict[str, Any]] | None]
+ProviderRun = Callable[
+    [str, int, ProviderContext, list[dict[str, Any]]], list[dict[str, Any]] | None
+]
 
 # hard wall-clock cap per enrichment provider — independent of whatever
 # timeout the provider's own HTTP client sets internally, since that can't
@@ -155,7 +165,9 @@ class ProviderSpec:
     run: ProviderRun
 
 
-def _run_steam(query: str, limit: int, ctx: ProviderContext, existing: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def _run_steam(
+    query: str, limit: int, ctx: ProviderContext, existing: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
     del ctx, existing
     found: list[dict[str, Any]] = []
     for item in steam.search_store(query)[:limit]:
@@ -169,7 +181,9 @@ def _run_steam(query: str, limit: int, ctx: ProviderContext, existing: list[dict
     return found
 
 
-def _run_steamgriddb(query: str, limit: int, ctx: ProviderContext, existing: list[dict[str, Any]]) -> None:
+def _run_steamgriddb(
+    query: str, limit: int, ctx: ProviderContext, existing: list[dict[str, Any]]
+) -> None:
     del limit
     assert ctx.steamgriddb_api_key  # guarded by `available`
     client = SteamGridDBClient(api_key=ctx.steamgriddb_api_key)
@@ -216,7 +230,9 @@ def _add_steamgriddb_art(result: dict[str, Any], client: SteamGridDBClient) -> N
     game_id = match.get("id") or match.get("game_id")
     if game_id is None:
         return
-    result["links"].append({"label": "SteamGridDB", "url": f"https://www.steamgriddb.com/game/{game_id}"})
+    result["links"].append(
+        {"label": "SteamGridDB", "url": f"https://www.steamgriddb.com/game/{game_id}"}
+    )
     # grids are filtered to portrait card styles only — 600x900 is Steam's
     # own vertical capsule, 660x930 is GOG Galaxy 2.0's cover size. Without
     # this filter SteamGridDB can just as easily return a 460x215 landscape
@@ -229,7 +245,9 @@ def _add_steamgriddb_art(result: dict[str, Any], client: SteamGridDBClient) -> N
     }
 
     def _fetch_images(image_type: str, dimensions: str | None) -> list[Any]:
-        return client.get_game_images(game_id, image_type=image_type, dimensions=dimensions, limit=10)
+        return client.get_game_images(
+            game_id, image_type=image_type, dimensions=dimensions, limit=10
+        )
 
     # 4 independent image-type lookups — run concurrently rather than one
     # HTTP round-trip after another, since each is its own request with no
@@ -253,7 +271,9 @@ def _add_steamgriddb_art(result: dict[str, Any], client: SteamGridDBClient) -> N
             result[default_field] = urls[0]
 
 
-def _run_igdb(query: str, limit: int, ctx: ProviderContext, existing: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def _run_igdb(
+    query: str, limit: int, ctx: ProviderContext, existing: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
     del existing
     assert ctx.igdb_client_id and ctx.igdb_client_secret  # guarded by `available`
     client = IGDBClient(client_id=ctx.igdb_client_id, client_secret=ctx.igdb_client_secret)
@@ -287,7 +307,9 @@ def _run_retroachievements(
         result.update(
             {
                 "tags": [game["console"]] if game.get("console") else [],
-                "links": [{"label": "RetroAchievements", "url": game["url"]}] if game.get("url") else [],
+                "links": [{"label": "RetroAchievements", "url": game["url"]}]
+                if game.get("url")
+                else [],
             }
         )
         found.append(result)
@@ -314,7 +336,9 @@ def _run_giant_bomb(
     return found
 
 
-def _run_gog(query: str, limit: int, ctx: ProviderContext, existing: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def _run_gog(
+    query: str, limit: int, ctx: ProviderContext, existing: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
     del ctx, existing
     found: list[dict[str, Any]] = []
     for product in gog.search(query, limit=limit):
@@ -327,14 +351,18 @@ def _run_gog(query: str, limit: int, ctx: ProviderContext, existing: list[dict[s
                 "developer": ", ".join(product.get("developers", [])) or None,
                 "publisher": ", ".join(product.get("publishers", [])) or None,
                 "tags": [g["name"] for g in product.get("genres", []) if g.get("name")],
-                "links": [{"label": "GOG", "url": f"https://www.gog.com/game/{product['slug']}"}] if product.get("slug") else [],
+                "links": [{"label": "GOG", "url": f"https://www.gog.com/game/{product['slug']}"}]
+                if product.get("slug")
+                else [],
             }
         )
         found.append(result)
     return found
 
 
-def _run_screenscraper(query: str, limit: int, ctx: ProviderContext, existing: list[dict[str, Any]]) -> None:
+def _run_screenscraper(
+    query: str, limit: int, ctx: ProviderContext, existing: list[dict[str, Any]]
+) -> None:
     del query, limit
     assert ctx.user and ctx.user.screenscraper_ssid and ctx.user.screenscraper_sspassword
     assert settings.SCREENSCRAPER_DEVID and settings.SCREENSCRAPER_DEVPASSWORD
@@ -377,7 +405,10 @@ PROVIDERS: dict[str, ProviderSpec] = {
         "SteamGridDB", "enrichment", lambda ctx: bool(ctx.steamgriddb_api_key), _run_steamgriddb
     ),
     "IGDB": ProviderSpec(
-        "IGDB", "primary", lambda ctx: bool(ctx.igdb_client_id and ctx.igdb_client_secret), _run_igdb
+        "IGDB",
+        "primary",
+        lambda ctx: bool(ctx.igdb_client_id and ctx.igdb_client_secret),
+        _run_igdb,
     ),
     "RetroAchievements": ProviderSpec(
         "RetroAchievements",
@@ -386,7 +417,10 @@ PROVIDERS: dict[str, ProviderSpec] = {
         _run_retroachievements,
     ),
     "GiantBomb": ProviderSpec(
-        "GiantBomb", "primary", lambda ctx: bool(ctx.user and ctx.user.giantbomb_api_key), _run_giant_bomb
+        "GiantBomb",
+        "primary",
+        lambda ctx: bool(ctx.user and ctx.user.giantbomb_api_key),
+        _run_giant_bomb,
     ),
     "ScreenScraper": ProviderSpec(
         "ScreenScraper",
@@ -499,7 +533,10 @@ def search_game_metadata(
         return [
             PROVIDERS[name]
             for name in order
-            if name in names and PROVIDERS.get(name) and PROVIDERS[name].kind == kind and PROVIDERS[name].available(ctx)
+            if name in names
+            and PROVIDERS.get(name)
+            and PROVIDERS[name].kind == kind
+            and PROVIDERS[name].available(ctx)
         ]
 
     primary_specs = _specs_for(provider_order, DATA_PROVIDER_NAMES, "primary")
@@ -517,7 +554,9 @@ def search_game_metadata(
     # asyncio. Enrichment providers run after, sequentially, since they need
     # the merged primary results to already exist (e.g. SteamGridDB matching
     # against a title Steam just found).
-    def _call_primary(spec: ProviderSpec) -> tuple[ProviderSpec, list[dict[str, Any]] | None, str | None]:
+    def _call_primary(
+        spec: ProviderSpec,
+    ) -> tuple[ProviderSpec, list[dict[str, Any]] | None, str | None]:
         try:
             return spec, spec.run(query, limit, ctx, results), None
         except Exception as exc:  # noqa: BLE001 — one provider's failure shouldn't sink the search
@@ -551,12 +590,16 @@ def search_game_metadata(
     # `ThreadPoolExecutor.__exit__`'s default `shutdown(wait=True)`.
     if enrichment_specs:
         executor = ThreadPoolExecutor(max_workers=len(enrichment_specs))
-        futures = {executor.submit(spec.run, query, limit, ctx, results): spec for spec in enrichment_specs}
+        futures = {
+            executor.submit(spec.run, query, limit, ctx, results): spec for spec in enrichment_specs
+        }
         for future, spec in futures.items():
             try:
                 future.result(timeout=ENRICHMENT_TIMEOUT_SECONDS)
             except FutureTimeoutError:
-                provider_errors.append(f"{spec.name}: timed out after {ENRICHMENT_TIMEOUT_SECONDS}s")
+                provider_errors.append(
+                    f"{spec.name}: timed out after {ENRICHMENT_TIMEOUT_SECONDS}s"
+                )
                 continue
             except Exception as exc:  # noqa: BLE001 — one provider's failure shouldn't sink the search
                 provider_errors.append(_friendly_provider_error(spec.name, str(exc)))

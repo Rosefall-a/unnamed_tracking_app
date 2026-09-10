@@ -3,7 +3,19 @@ import asyncio
 
 from fastapi import FastAPI
 
-from src.api.routes import auth, bounties, cards, export_import, game_archives, games, library_sync, media, settings, stats, users
+from src.api.routes import (
+    auth,
+    bounties,
+    cards,
+    export_import,
+    game_archives,
+    games,
+    library_sync,
+    media,
+    settings,
+    stats,
+    users,
+)
 from src.api.routes import set as set_routes
 from src.api.routes.utils.misc import router as misc_router
 from src.core.auth import ensure_primary_user

@@ -37,8 +37,12 @@ class UserAppearanceSettings(Base):
         unique=True,
     )
     # "none" | "glow" | "border" | "ribbon" | "corner_badge"
-    completion_badge_style: Mapped[str] = mapped_column(String(20), nullable=False, default=DEFAULT_BADGE_STYLE)
-    completion_badge_color: Mapped[str] = mapped_column(String(7), nullable=False, default=DEFAULT_BADGE_COLOR)
+    completion_badge_style: Mapped[str] = mapped_column(
+        String(20), nullable=False, default=DEFAULT_BADGE_STYLE
+    )
+    completion_badge_color: Mapped[str] = mapped_column(
+        String(7), nullable=False, default=DEFAULT_BADGE_COLOR
+    )
     # "top-left" | "top-right" | "bottom-left" | "bottom-right" — ignored by
     # "glow"/"border", which wrap the whole card rather than sitting in one
     # corner

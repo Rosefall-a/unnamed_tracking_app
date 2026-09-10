@@ -53,7 +53,9 @@ async def _sync_inbox_items(user_id: UUID, db: AsyncSession) -> None:
     existing files from before this migration still show up with a real
     date instead of needing a one-time manual migration script."""
     existing = await db.execute(
-        select(InboxItem.kind, InboxItem.filename).where(InboxItem.user_id == user_id, InboxItem.deleted_at.is_(None))
+        select(InboxItem.kind, InboxItem.filename).where(
+            InboxItem.user_id == user_id, InboxItem.deleted_at.is_(None)
+        )
     )
     known = {(kind, filename) for kind, filename in existing.all()}
     inbox_dir = _inbox_dir(user_id)
@@ -86,19 +88,33 @@ async def upload_to_inbox(
     for file in files:
         kind = classify_media(file.content_type, file.filename or "")
         if kind is None:
-            results.append({"filename": file.filename, "status": "rejected", "reason": "Unsupported file type."})
+            results.append(
+                {
+                    "filename": file.filename,
+                    "status": "rejected",
+                    "reason": "Unsupported file type.",
+                }
+            )
             continue
 
         # clips/soundtrack get a much larger cap than images — a real video
         # clip routinely exceeds a cover-art-sized limit (see games.py's
         # upload_game_screenshots, same fix)
-        limit_mb = settings.MAX_CLIP_SIZE_MB if kind in ("clip", "soundtrack") else settings.MAX_UPLOAD_SIZE_MB
+        limit_mb = (
+            settings.MAX_CLIP_SIZE_MB
+            if kind in ("clip", "soundtrack")
+            else settings.MAX_UPLOAD_SIZE_MB
+        )
         max_bytes = limit_mb * 1024 * 1024
 
         data = await file.read()
         if len(data) > max_bytes:
             results.append(
-                {"filename": file.filename, "status": "rejected", "reason": f"Larger than {limit_mb} MB."}
+                {
+                    "filename": file.filename,
+                    "status": "rejected",
+                    "reason": f"Larger than {limit_mb} MB.",
+                }
             )
             continue
 
@@ -217,7 +233,9 @@ async def restore_inbox_media(
         )
     )
     if item is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Deleted media not found.")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Deleted media not found."
+        )
     inbox_dir = _inbox_dir(current_user.id)
     restore_inbox_file_from_trash(name, inbox_dir / media_subdir(kind), inbox_dir, kind)
     item.deleted_at = None
@@ -241,12 +259,16 @@ async def assign_inbox_media(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Media file not found.")
 
     game = await db.scalar(
-        select(Game).where(Game.id == payload.game_id, Game.user_id == current_user.id, Game.deleted_at.is_(None))
+        select(Game).where(
+            Game.id == payload.game_id, Game.user_id == current_user.id, Game.deleted_at.is_(None)
+        )
     )
     if game is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Game not found.")
     if not game.folder_location:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Game folder_location is missing.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Game folder_location is missing."
+        )
 
     create_game_folder(game.folder_location)
     dest_dir = GAMES_DATA_ROOT / game.folder_location / media_subdir(kind)
@@ -260,7 +282,9 @@ async def assign_inbox_media(
     # "from trash", the file just lives somewhere else now)
     inbox_item = await db.scalar(
         select(InboxItem).where(
-            InboxItem.user_id == current_user.id, InboxItem.kind == kind, InboxItem.filename == source_path.name
+            InboxItem.user_id == current_user.id,
+            InboxItem.kind == kind,
+            InboxItem.filename == source_path.name,
         )
     )
     if inbox_item is not None:
@@ -284,7 +308,11 @@ async def list_all_media(
     stmt = (
         select(MediaItem, Game.title)
         .join(Game, Game.id == MediaItem.game_id)
-        .where(Game.user_id == current_user.id, Game.deleted_at.is_(None), MediaItem.deleted_at.is_(None))
+        .where(
+            Game.user_id == current_user.id,
+            Game.deleted_at.is_(None),
+            MediaItem.deleted_at.is_(None),
+        )
         .order_by(MediaItem.created_at.desc())
     )
     if kind is not None:
@@ -305,7 +333,9 @@ async def list_all_media(
             "url": f"/api/game/{item.game_id}/screenshots/{item.kind}/{item.filename}",
             "tags": item.tags,
             "note": item.note,
-            "linked_achievement_id": str(item.linked_achievement_id) if item.linked_achievement_id else None,
+            "linked_achievement_id": str(item.linked_achievement_id)
+            if item.linked_achievement_id
+            else None,
             "created_at": item.created_at,
         }
         for item, game_title in rows

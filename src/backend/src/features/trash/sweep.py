@@ -49,7 +49,9 @@ async def purge_expired_trash() -> dict[str, int]:
         )
         for archive in result.scalars().all():
             if archive.game and archive.game.folder_location:
-                purge_archive_trash(_DATA_ROOT / archive.game.folder_location, archive.kind, archive.id)
+                purge_archive_trash(
+                    _DATA_ROOT / archive.game.folder_location, archive.kind, archive.id
+                )
             await db.delete(archive)  # cascades to remaining versions
             purged_archives += 1
         await db.commit()
@@ -57,21 +59,33 @@ async def purge_expired_trash() -> dict[str, int]:
         result = await db.execute(
             select(GameArchiveVersion)
             .options(selectinload(GameArchiveVersion.archive).selectinload(GameArchive.game))
-            .where(GameArchiveVersion.deleted_at.is_not(None), GameArchiveVersion.deleted_at < cutoff)
+            .where(
+                GameArchiveVersion.deleted_at.is_not(None), GameArchiveVersion.deleted_at < cutoff
+            )
         )
         for version in result.scalars().all():
             archive = version.archive
-            if archive and archive.deleted_at is None and archive.game and archive.game.folder_location:
-                trashed_file = trash_files_dir(
-                    _DATA_ROOT / archive.game.folder_location, archive.kind, archive.id
-                ) / version.filename
+            if (
+                archive
+                and archive.deleted_at is None
+                and archive.game
+                and archive.game.folder_location
+            ):
+                trashed_file = (
+                    trash_files_dir(
+                        _DATA_ROOT / archive.game.folder_location, archive.kind, archive.id
+                    )
+                    / version.filename
+                )
                 trashed_file.unlink(missing_ok=True)
             await db.delete(version)
             purged_versions += 1
         await db.commit()
 
         result = await db.execute(
-            select(InboxItem).where(InboxItem.deleted_at.is_not(None), InboxItem.deleted_at < cutoff)
+            select(InboxItem).where(
+                InboxItem.deleted_at.is_not(None), InboxItem.deleted_at < cutoff
+            )
         )
         purged_inbox_items = 0
         for item in result.scalars().all():
@@ -101,7 +115,9 @@ async def purge_expired_trash() -> dict[str, int]:
         await db.commit()
 
         result = await db.execute(
-            select(GameFileItem).where(GameFileItem.deleted_at.is_not(None), GameFileItem.deleted_at < cutoff)
+            select(GameFileItem).where(
+                GameFileItem.deleted_at.is_not(None), GameFileItem.deleted_at < cutoff
+            )
         )
         purged_file_items = 0
         for item in result.scalars().all():
@@ -118,7 +134,9 @@ async def purge_expired_trash() -> dict[str, int]:
         # profiles and checklist items are DB-only (no files to move), so
         # purging one is just deleting the row once past retention
         result = await db.execute(
-            select(GameProfile).where(GameProfile.deleted_at.is_not(None), GameProfile.deleted_at < cutoff)
+            select(GameProfile).where(
+                GameProfile.deleted_at.is_not(None), GameProfile.deleted_at < cutoff
+            )
         )
         purged_profiles = 0
         for profile in result.scalars().all():

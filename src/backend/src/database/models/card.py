@@ -36,10 +36,16 @@ class Card(Base):
 
     id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
     user_id: Mapped[UUID] = mapped_column(
-        PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+        PG_UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     game_id: Mapped[UUID] = mapped_column(
-        PG_UUID(as_uuid=True), ForeignKey("games.id", ondelete="CASCADE"), nullable=False, index=True
+        PG_UUID(as_uuid=True),
+        ForeignKey("games.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     game: Mapped["Game"] = relationship()
 
@@ -64,7 +70,10 @@ class Card(Base):
     # card is actually "prestiged" is never stored — it's always derived
     # from bounty.status == "completed" at read time.
     bounty_id: Mapped[UUID | None] = mapped_column(
-        PG_UUID(as_uuid=True), ForeignKey("bounties.id", ondelete="SET NULL"), nullable=True, index=True
+        PG_UUID(as_uuid=True),
+        ForeignKey("bounties.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
     )
     bounty: Mapped["Bounty | None"] = relationship()
 

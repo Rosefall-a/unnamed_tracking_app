@@ -27,7 +27,9 @@ def upgrade() -> None:
     op.add_column(
         "game_profiles", sa.Column("stats", postgresql.JSON(), nullable=False, server_default="{}")
     )
-    op.add_column("game_profiles", sa.Column("wiseoldman_username", sa.String(length=64), nullable=True))
+    op.add_column(
+        "game_profiles", sa.Column("wiseoldman_username", sa.String(length=64), nullable=True)
+    )
 
 
 def downgrade() -> None:

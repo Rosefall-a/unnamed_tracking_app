@@ -23,14 +23,18 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     op.add_column(
-        "bounties", sa.Column("auto_generated", sa.Boolean(), nullable=False, server_default=sa.false())
+        "bounties",
+        sa.Column("auto_generated", sa.Boolean(), nullable=False, server_default=sa.false()),
     )
 
     op.create_table(
         "bounty_journal_entries",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
         sa.Column(
-            "bounty_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("bounties.id", ondelete="CASCADE"), nullable=False
+            "bounty_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("bounties.id", ondelete="CASCADE"),
+            nullable=False,
         ),
         sa.Column("text", sa.Text(), nullable=False),
         sa.Column("created_at", sa.BigInteger(), nullable=False),

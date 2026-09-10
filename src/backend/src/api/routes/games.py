@@ -29,9 +29,18 @@ from sqlalchemy import Integer, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.routes.settings import get_or_create_app_integration_settings, get_or_create_scan_settings
+from src.api.routes.settings import (
+    get_or_create_app_integration_settings,
+    get_or_create_scan_settings,
+)
 from src.core.crypto import decrypt_secret
-from src.api.schemas.game import GameBulkUpdate, GameCreate, GameFieldChangeRead, GameRead, GameUpdate
+from src.api.schemas.game import (
+    GameBulkUpdate,
+    GameCreate,
+    GameFieldChangeRead,
+    GameRead,
+    GameUpdate,
+)
 from src.database.models.achievement import Achievement
 from src.database.models.game import Game, GameLink, GameStatus
 from src.database.models.game_field_change import GameFieldChange
@@ -51,7 +60,12 @@ from src.features.trash.game_trash import move_game_to_trash, restore_game_from_
 from src.features.trash.media_trash import move_media_file_to_trash, restore_media_file_from_trash
 from src.features.trash.sweep import RETENTION_SECONDS
 from src.helpers.media import MediaKind, classify_media, list_media, media_subdir, save_media_bytes
-from src.helpers.save_game_asset import ASSET_FILENAMES, AssetKind, create_game_folder, save_game_asset
+from src.helpers.save_game_asset import (
+    ASSET_FILENAMES,
+    AssetKind,
+    create_game_folder,
+    save_game_asset,
+)
 
 router = APIRouter(
     prefix="/api/game",
@@ -130,7 +144,9 @@ async def search_metadata(
             preferences,
             current_user,
             app_integrations.igdb_client_id,
-            decrypt_secret(app_integrations.igdb_client_secret) if app_integrations.igdb_client_secret else None,
+            decrypt_secret(app_integrations.igdb_client_secret)
+            if app_integrations.igdb_client_secret
+            else None,
         )
     except Exception as exc:
         raise HTTPException(
@@ -325,7 +341,10 @@ async def get_achievements_summary(
         .where(Game.user_id == current_user.id, Game.deleted_at.is_(None))
         .group_by(Achievement.game_id)
     )
-    return {str(game_id): {"total": total, "unlocked": unlocked or 0} for game_id, total, unlocked in rows}
+    return {
+        str(game_id): {"total": total, "unlocked": unlocked or 0}
+        for game_id, total, unlocked in rows
+    }
 
 
 @router.get("/{game_id}/achievements")
@@ -340,7 +359,9 @@ async def list_game_achievements(
     provider itself, it only reads what's already stored."""
     await _get_game_or_404(game_id, db, current_user.id)
     result = await db.execute(
-        select(Achievement).where(Achievement.game_id == game_id).order_by(Achievement.unlocked.desc(), Achievement.name)
+        select(Achievement)
+        .where(Achievement.game_id == game_id)
+        .order_by(Achievement.unlocked.desc(), Achievement.name)
     )
     return [
         {
@@ -388,7 +409,9 @@ async def upload_game_asset(
 
     content_type = (file.content_type or "").split(";", 1)[0].lower()
     if not content_type.startswith("image/"):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="File must be an image.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="File must be an image."
+        )
 
     image_bytes = await file.read()
     max_bytes = settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024
@@ -481,7 +504,9 @@ def _media_item_to_dict(item: MediaItem, game_id: UUID) -> dict:
         "url": f"/api/game/{game_id}/screenshots/{item.kind}/{item.filename}",
         "tags": item.tags,
         "note": item.note,
-        "linked_achievement_id": str(item.linked_achievement_id) if item.linked_achievement_id else None,
+        "linked_achievement_id": str(item.linked_achievement_id)
+        if item.linked_achievement_id
+        else None,
         "profile_id": str(item.profile_id) if item.profile_id else None,
         "created_at": item.created_at,
     }
@@ -504,7 +529,9 @@ async def upload_game_screenshots(
     useful for a "levelup dump from this account" upload in one go."""
     game = await _get_game_or_404(game_id, db, current_user.id)
     if not game.folder_location:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Game folder_location is missing.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Game folder_location is missing."
+        )
     if profile_id is not None:
         await _get_profile_or_404(profile_id, game_id, db)
 
@@ -512,24 +539,40 @@ async def upload_game_screenshots(
     for file in files:
         kind = classify_media(file.content_type, file.filename or "")
         if kind is None:
-            results.append({"filename": file.filename, "status": "rejected", "reason": "Unsupported file type."})
+            results.append(
+                {
+                    "filename": file.filename,
+                    "status": "rejected",
+                    "reason": "Unsupported file type.",
+                }
+            )
             continue
 
         # clips/soundtrack get a much larger cap than images — a real video
         # clip routinely exceeds a cover-art-sized limit
-        limit_mb = settings.MAX_CLIP_SIZE_MB if kind in ("clip", "soundtrack") else settings.MAX_UPLOAD_SIZE_MB
+        limit_mb = (
+            settings.MAX_CLIP_SIZE_MB
+            if kind in ("clip", "soundtrack")
+            else settings.MAX_UPLOAD_SIZE_MB
+        )
         max_bytes = limit_mb * 1024 * 1024
 
         data = await file.read()
         if len(data) > max_bytes:
             results.append(
-                {"filename": file.filename, "status": "rejected", "reason": f"Larger than {limit_mb} MB."}
+                {
+                    "filename": file.filename,
+                    "status": "rejected",
+                    "reason": f"Larger than {limit_mb} MB.",
+                }
             )
             continue
 
         dest_dir = _DATA_ROOT / game.folder_location / media_subdir(kind)
         saved_path = save_media_bytes(data, dest_dir, file.filename or "file")
-        db.add(MediaItem(game_id=game_id, kind=kind, filename=saved_path.name, profile_id=profile_id))
+        db.add(
+            MediaItem(game_id=game_id, kind=kind, filename=saved_path.name, profile_id=profile_id)
+        )
         results.append({"filename": saved_path.name, "status": "saved", "kind": kind})
 
     await db.commit()
@@ -585,7 +628,9 @@ async def update_media_item(
     current_user: User = Depends(get_current_user),
 ) -> dict:
     await _get_game_or_404(game_id, db, current_user.id)
-    item = await db.scalar(select(MediaItem).where(MediaItem.id == media_id, MediaItem.game_id == game_id))
+    item = await db.scalar(
+        select(MediaItem).where(MediaItem.id == media_id, MediaItem.game_id == game_id)
+    )
     if item is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Media item not found.")
     for field, value in payload.model_dump(exclude_unset=True).items():
@@ -667,7 +712,9 @@ async def restore_game_screenshot(
         )
     )
     if item is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Deleted media item not found.")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Deleted media item not found."
+        )
     game_dir = _DATA_ROOT / (game.folder_location or "")
     restore_media_file_from_trash(filename, game_dir / media_subdir(kind), game_dir, kind)
     item.deleted_at = None
@@ -731,7 +778,9 @@ async def upload_game_files(
     content-type validation, just a size cap."""
     game = await _get_game_or_404(game_id, db, current_user.id)
     if not game.folder_location:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Game folder_location is missing.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Game folder_location is missing."
+        )
 
     # a modpack zip is routinely hundreds of MB to a few GB — far past a
     # doc-sized limit
@@ -742,7 +791,11 @@ async def upload_game_files(
         data = await file.read()
         if len(data) > max_bytes:
             results.append(
-                {"filename": file.filename, "status": "rejected", "reason": f"Larger than {limit_mb} MB."}
+                {
+                    "filename": file.filename,
+                    "status": "rejected",
+                    "reason": f"Larger than {limit_mb} MB.",
+                }
             )
             continue
         dest_dir = _DATA_ROOT / game.folder_location / _game_file_subdir(kind)
@@ -768,7 +821,11 @@ async def list_game_files(
     await _sync_game_file_items(game_id, game_dir, db)
     result = await db.execute(
         select(GameFileItem)
-        .where(GameFileItem.game_id == game_id, GameFileItem.kind == kind, GameFileItem.deleted_at.is_(None))
+        .where(
+            GameFileItem.game_id == game_id,
+            GameFileItem.kind == kind,
+            GameFileItem.deleted_at.is_(None),
+        )
         .order_by(GameFileItem.filename)
     )
     return {
@@ -795,7 +852,11 @@ async def list_game_file_trash(
     await _get_game_or_404(game_id, db, current_user.id)
     result = await db.execute(
         select(GameFileItem)
-        .where(GameFileItem.game_id == game_id, GameFileItem.kind == kind, GameFileItem.deleted_at.is_not(None))
+        .where(
+            GameFileItem.game_id == game_id,
+            GameFileItem.kind == kind,
+            GameFileItem.deleted_at.is_not(None),
+        )
         .order_by(GameFileItem.deleted_at.desc())
     )
     return {
@@ -1008,7 +1069,9 @@ async def delete_game_note(
     }
 
 
-async def _get_profile_or_404(profile_id: UUID, game_id: UUID, db: AsyncSession, include_deleted: bool = False) -> GameProfile:
+async def _get_profile_or_404(
+    profile_id: UUID, game_id: UUID, db: AsyncSession, include_deleted: bool = False
+) -> GameProfile:
     stmt = select(GameProfile).where(GameProfile.id == profile_id, GameProfile.game_id == game_id)
     if not include_deleted:
         stmt = stmt.where(GameProfile.deleted_at.is_(None))
@@ -1150,7 +1213,9 @@ async def sync_profile_wiseoldman(
     profile = await _get_profile_or_404(profile_id, game_id, db)
     username = (payload.username or profile.wiseoldman_username or "").strip()
     if not username:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="A WiseOldMan username is required.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="A WiseOldMan username is required."
+        )
     try:
         result = await asyncio.to_thread(wiseoldman.get_player_stats, username)
     except wiseoldman.WiseOldManError as exc:
@@ -1167,7 +1232,9 @@ async def sync_profile_wiseoldman(
     # from a blank slate just because this is the first time this app
     # asked. A later sync only ever adds today's snapshot below.
     has_history = await db.scalar(
-        select(GameProfileStatSnapshot.id).where(GameProfileStatSnapshot.profile_id == profile.id).limit(1)
+        select(GameProfileStatSnapshot.id)
+        .where(GameProfileStatSnapshot.profile_id == profile.id)
+        .limit(1)
     )
     if has_history is None:
         try:
@@ -1176,7 +1243,12 @@ async def sync_profile_wiseoldman(
             history = []
         for entry in history:
             await _record_stat_snapshot(
-                db, profile.id, entry["stats"], entry["recorded_at"], entry.get("xp"), entry.get("kc")
+                db,
+                profile.id,
+                entry["stats"],
+                entry["recorded_at"],
+                entry.get("xp"),
+                entry.get("kc"),
             )
 
     await _record_stat_snapshot(db, profile.id, stats, xp=result.get("xp"), kc=result.get("kc"))
@@ -1201,7 +1273,13 @@ async def get_profile_stat_history(
     )
     return {
         "snapshots": [
-            {"id": str(s.id), "recorded_at": s.recorded_at, "stats": s.stats, "xp": s.xp, "kc": s.kc}
+            {
+                "id": str(s.id),
+                "recorded_at": s.recorded_at,
+                "stats": s.stats,
+                "xp": s.xp,
+                "kc": s.kc,
+            }
             for s in result.scalars().all()
         ]
     }
@@ -1233,11 +1311,17 @@ async def list_game_profile_trash(
 ) -> dict[str, list[dict]]:
     await _get_game_or_404(game_id, db, current_user.id)
     result = await db.execute(
-        select(GameProfile).where(GameProfile.game_id == game_id, GameProfile.deleted_at.is_not(None))
+        select(GameProfile).where(
+            GameProfile.game_id == game_id, GameProfile.deleted_at.is_not(None)
+        )
     )
     return {
         "profiles": [
-            {**_profile_to_dict(p), "deleted_at": p.deleted_at, "purge_at": p.deleted_at + RETENTION_SECONDS}
+            {
+                **_profile_to_dict(p),
+                "deleted_at": p.deleted_at,
+                "purge_at": p.deleted_at + RETENTION_SECONDS,
+            }
             for p in result.scalars().all()
         ]
     }
@@ -1253,7 +1337,9 @@ async def restore_game_profile(
     await _get_game_or_404(game_id, db, current_user.id)
     profile = await _get_profile_or_404(profile_id, game_id, db, include_deleted=True)
     if profile.deleted_at is None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Profile is not trashed.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Profile is not trashed."
+        )
     profile.deleted_at = None
     await db.commit()
     await db.refresh(profile)
@@ -1302,7 +1388,9 @@ async def list_game_checklist(
         stmt = stmt.where(GameChecklistItem.profile_id == profile_id)
     elif unscoped_only:
         stmt = stmt.where(GameChecklistItem.profile_id.is_(None))
-    result = await db.execute(stmt.order_by(GameChecklistItem.sort_order.asc(), GameChecklistItem.created_at.asc()))
+    result = await db.execute(
+        stmt.order_by(GameChecklistItem.sort_order.asc(), GameChecklistItem.created_at.asc())
+    )
     return {"items": [_checklist_item_to_dict(item) for item in result.scalars().all()]}
 
 
@@ -1381,11 +1469,15 @@ async def update_checklist_item(
     await _get_game_or_404(game_id, db, current_user.id)
     item = await db.scalar(
         select(GameChecklistItem).where(
-            GameChecklistItem.id == item_id, GameChecklistItem.game_id == game_id, GameChecklistItem.deleted_at.is_(None)
+            GameChecklistItem.id == item_id,
+            GameChecklistItem.game_id == game_id,
+            GameChecklistItem.deleted_at.is_(None),
         )
     )
     if item is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Checklist item not found.")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Checklist item not found."
+        )
     for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(item, field, value)
     await db.commit()
@@ -1403,11 +1495,15 @@ async def delete_checklist_item(
     await _get_game_or_404(game_id, db, current_user.id)
     item = await db.scalar(
         select(GameChecklistItem).where(
-            GameChecklistItem.id == item_id, GameChecklistItem.game_id == game_id, GameChecklistItem.deleted_at.is_(None)
+            GameChecklistItem.id == item_id,
+            GameChecklistItem.game_id == game_id,
+            GameChecklistItem.deleted_at.is_(None),
         )
     )
     if item is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Checklist item not found.")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Checklist item not found."
+        )
     item.deleted_at = int(time.time())
     await db.commit()
     return {"status": "trashed", "id": str(item_id)}
@@ -1433,12 +1529,18 @@ async def _validate_game_relationship(
     if parent_game_id is None:
         return
     if game_id is not None and parent_game_id == game_id:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="A game cannot be its own parent.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="A game cannot be its own parent."
+        )
     parent = await db.scalar(
-        select(Game).where(Game.id == parent_game_id, Game.user_id == user_id, Game.deleted_at.is_(None))
+        select(Game).where(
+            Game.id == parent_game_id, Game.user_id == user_id, Game.deleted_at.is_(None)
+        )
     )
     if parent is None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="parent_game_id does not exist.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="parent_game_id does not exist."
+        )
 
 
 @router.post(
@@ -1547,7 +1649,11 @@ async def get_game_variants(
     await _get_game_or_404(game_id, db, current_user.id)
     stmt = (
         select(Game)
-        .where(Game.user_id == current_user.id, Game.parent_game_id == game_id, Game.deleted_at.is_(None))
+        .where(
+            Game.user_id == current_user.id,
+            Game.parent_game_id == game_id,
+            Game.deleted_at.is_(None),
+        )
         .order_by(Game.sort_title)
     )
     result = await db.execute(stmt)
@@ -1594,7 +1700,9 @@ async def update_game(
     if "parent_game_id" in updates or "relationship_type" in updates:
         effective_parent = updates.get("parent_game_id", game.parent_game_id)
         effective_relationship = updates.get("relationship_type", game.relationship_type)
-        await _validate_game_relationship(effective_parent, effective_relationship, db, current_user.id, game_id)
+        await _validate_game_relationship(
+            effective_parent, effective_relationship, db, current_user.id, game_id
+        )
 
     # `links` is a relationship, not a plain column — setattr needs actual
     # GameLink instances, not the raw {label, url} dicts model_dump
@@ -1662,7 +1770,9 @@ async def bulk_update_games(
 
     result = await db.execute(
         select(Game).where(
-            Game.user_id == current_user.id, Game.id.in_(payload.game_ids), Game.deleted_at.is_(None)
+            Game.user_id == current_user.id,
+            Game.id.in_(payload.game_ids),
+            Game.deleted_at.is_(None),
         )
     )
     games = result.scalars().all()

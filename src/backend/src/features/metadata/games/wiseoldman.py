@@ -150,7 +150,11 @@ def _parse_iso(value: str | None) -> int | None:
     if not value:
         return None
     try:
-        return int(datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(timezone.utc).timestamp())
+        return int(
+            datetime.fromisoformat(value.replace("Z", "+00:00"))
+            .astimezone(timezone.utc)
+            .timestamp()
+        )
     except ValueError:
         return None
 
@@ -202,7 +206,9 @@ def get_player_snapshots(username: str, limit: int = 50) -> list[dict[str, Any]]
     if not name:
         return []
     try:
-        response = _SESSION.get(f"{_PLAYERS_URL}/{name}/snapshots", params={"limit": limit}, timeout=15)
+        response = _SESSION.get(
+            f"{_PLAYERS_URL}/{name}/snapshots", params={"limit": limit}, timeout=15
+        )
     except requests.RequestException:
         return []
     if response.status_code >= 400:

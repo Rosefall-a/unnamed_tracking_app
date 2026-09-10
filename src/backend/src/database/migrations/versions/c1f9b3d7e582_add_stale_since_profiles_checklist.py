@@ -32,7 +32,12 @@ def upgrade() -> None:
     op.create_table(
         "game_profiles",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column("game_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("games.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "game_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("games.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
         sa.Column("name", sa.String(length=100), nullable=False),
         sa.Column("created_at", sa.BigInteger(), nullable=False),
         sa.Column("deleted_at", sa.BigInteger(), nullable=True),
@@ -42,7 +47,12 @@ def upgrade() -> None:
     op.create_table(
         "game_checklist_items",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column("game_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("games.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "game_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("games.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
         sa.Column(
             "profile_id",
             postgresql.UUID(as_uuid=True),

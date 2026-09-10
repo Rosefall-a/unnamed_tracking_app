@@ -26,9 +26,14 @@ class MediaItem(Base):
 
     id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
     game_id: Mapped[UUID] = mapped_column(
-        PG_UUID(as_uuid=True), ForeignKey("games.id", ondelete="CASCADE"), nullable=False, index=True
+        PG_UUID(as_uuid=True),
+        ForeignKey("games.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
-    kind: Mapped[str] = mapped_column(String(20), nullable=False)  # "screenshot" | "clip" | "soundtrack"
+    kind: Mapped[str] = mapped_column(
+        String(20), nullable=False
+    )  # "screenshot" | "clip" | "soundtrack"
     filename: Mapped[str] = mapped_column(String(300), nullable=False)
     tags: Mapped[list[str]] = mapped_column(ARRAY(String), nullable=False, default=list)
     # which GameProfile (e.g. an OSRS account) this belongs to, if any — lets

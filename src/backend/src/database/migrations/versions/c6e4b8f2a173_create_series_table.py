@@ -44,7 +44,12 @@ def upgrade() -> None:
 
     op.add_column(
         "games",
-        sa.Column("series_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("series.id", ondelete="SET NULL"), nullable=True),
+        sa.Column(
+            "series_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("series.id", ondelete="SET NULL"),
+            nullable=True,
+        ),
     )
     op.create_index("ix_games_series_id", "games", ["series_id"])
 

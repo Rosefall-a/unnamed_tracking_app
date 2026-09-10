@@ -40,7 +40,11 @@ def classify_media(content_type: str | None, filename: str) -> MediaKind | None:
     return None
 
 
-_SUBDIRS: dict[MediaKind, str] = {"screenshot": "screenshots", "clip": "clips", "soundtrack": "soundtrack"}
+_SUBDIRS: dict[MediaKind, str] = {
+    "screenshot": "screenshots",
+    "clip": "clips",
+    "soundtrack": "soundtrack",
+}
 
 
 def media_subdir(kind: MediaKind) -> str:

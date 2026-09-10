@@ -25,10 +25,12 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     op.add_column(
-        "games", sa.Column("profiles_enabled", sa.Boolean(), nullable=False, server_default=sa.false())
+        "games",
+        sa.Column("profiles_enabled", sa.Boolean(), nullable=False, server_default=sa.false()),
     )
     op.add_column(
-        "game_checklist_items", sa.Column("is_header", sa.Boolean(), nullable=False, server_default=sa.false())
+        "game_checklist_items",
+        sa.Column("is_header", sa.Boolean(), nullable=False, server_default=sa.false()),
     )
 
 

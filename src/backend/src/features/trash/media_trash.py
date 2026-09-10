@@ -20,7 +20,9 @@ def move_media_file_to_trash(active_path: Path, game_dir: Path, kind: str) -> No
     shutil.move(str(active_path), str(dest_dir / active_path.name))
 
 
-def restore_media_file_from_trash(filename: str, active_dir: Path, game_dir: Path, kind: str) -> None:
+def restore_media_file_from_trash(
+    filename: str, active_dir: Path, game_dir: Path, kind: str
+) -> None:
     src = media_trash_dir(game_dir, kind) / filename
     if not src.is_file():
         return

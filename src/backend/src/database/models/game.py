@@ -227,7 +227,9 @@ class Game(Base):
     # is NULL, i.e. for a base/standalone game
     relationship_type: Mapped[str | None] = mapped_column(String(30), nullable=True)
 
-    parent_game: Mapped["Game | None"] = relationship(remote_side=[id], back_populates="child_games")
+    parent_game: Mapped["Game | None"] = relationship(
+        remote_side=[id], back_populates="child_games"
+    )
     child_games: Mapped[list["Game"]] = relationship(back_populates="parent_game")
 
     # ------------------------------------------------------------------

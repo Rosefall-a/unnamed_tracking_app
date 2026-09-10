@@ -18,7 +18,9 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.add_column("users", sa.Column("retroachievements_api_key", sa.String(length=64), nullable=True))
+    op.add_column(
+        "users", sa.Column("retroachievements_api_key", sa.String(length=64), nullable=True)
+    )
     op.add_column("users", sa.Column("giantbomb_api_key", sa.String(length=64), nullable=True))
     op.add_column("users", sa.Column("screenscraper_ssid", sa.String(length=64), nullable=True))
     op.add_column("users", sa.Column("screenscraper_sspassword", sa.Text(), nullable=True))

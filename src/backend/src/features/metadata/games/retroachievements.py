@@ -32,7 +32,9 @@ class RetroAchievementsClient:
         if response.status_code == 401 or response.status_code == 403:
             raise RetroAchievementsError("RetroAchievements rejected the API key.")
         if response.status_code >= 400:
-            raise RetroAchievementsError(f"RetroAchievements request failed ({response.status_code}).")
+            raise RetroAchievementsError(
+                f"RetroAchievements request failed ({response.status_code})."
+            )
 
         try:
             return response.json()
@@ -121,7 +123,9 @@ class RetroAchievementsClient:
                             if game.get("ImageIcon")
                             else None
                         ),
-                        "url": f"https://retroachievements.org/game/{game['ID']}" if game.get("ID") else None,
+                        "url": f"https://retroachievements.org/game/{game['ID']}"
+                        if game.get("ID")
+                        else None,
                     }
                 )
                 if len(matches) >= limit:

@@ -21,7 +21,9 @@ class HLTBClient:
 
     def __init__(self, *, session: requests.Session | None = None) -> None:
         self.session = session or requests.Session()
-        self.session.headers.setdefault("User-Agent", "Mozilla/5.0 (compatible; unnamed-tracking-app/1.0)")
+        self.session.headers.setdefault(
+            "User-Agent", "Mozilla/5.0 (compatible; unnamed-tracking-app/1.0)"
+        )
         self.session.headers.setdefault("Content-Type", "application/json")
         self.session.headers.setdefault("Referer", "https://howlongtobeat.com/")
 

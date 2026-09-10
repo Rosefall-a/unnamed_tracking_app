@@ -24,7 +24,10 @@ class Achievement(Base):
 
     id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
     game_id: Mapped[UUID] = mapped_column(
-        PG_UUID(as_uuid=True), ForeignKey("games.id", ondelete="CASCADE"), nullable=False, index=True
+        PG_UUID(as_uuid=True),
+        ForeignKey("games.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     provider: Mapped[str] = mapped_column(String(30), nullable=False)
     external_id: Mapped[str] = mapped_column(String(200), nullable=False)

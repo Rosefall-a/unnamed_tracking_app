@@ -32,10 +32,17 @@ def upgrade() -> None:
             nullable=False,
             unique=True,
         ),
-        sa.Column("completion_badge_style", sa.String(length=20), nullable=False, server_default="glow"),
-        sa.Column("completion_badge_color", sa.String(length=7), nullable=False, server_default="#e5e4e2"),
         sa.Column(
-            "completion_badge_placement", sa.String(length=20), nullable=False, server_default="top-right"
+            "completion_badge_style", sa.String(length=20), nullable=False, server_default="glow"
+        ),
+        sa.Column(
+            "completion_badge_color", sa.String(length=7), nullable=False, server_default="#e5e4e2"
+        ),
+        sa.Column(
+            "completion_badge_placement",
+            sa.String(length=20),
+            nullable=False,
+            server_default="top-right",
         ),
         sa.Column("completion_badge_image_url", sa.String(length=500), nullable=True),
         sa.Column("created_at", sa.BigInteger(), nullable=False),

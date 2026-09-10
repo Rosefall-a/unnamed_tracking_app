@@ -80,7 +80,9 @@ class PSNClient:
 
         location = response.headers.get("Location")
         if response.status_code not in (302, 303) or not location:
-            raise PSNError("PlayStation did not return an authorization redirect: token may be invalid.")
+            raise PSNError(
+                "PlayStation did not return an authorization redirect: token may be invalid."
+            )
 
         code = parse_qs(urlparse(location).query).get("code")
         if not code:
@@ -181,7 +183,9 @@ class PSNClient:
                 break
         return titles
 
-    def get_trophies_for_title(self, np_communication_id: str, np_service_name: str = "trophy") -> list[dict[str, Any]]:
+    def get_trophies_for_title(
+        self, np_communication_id: str, np_service_name: str = "trophy"
+    ) -> list[dict[str, Any]]:
         """Trophy definitions + this account's earned status for one title,
         combined in a single response (`comparedUser`/self shorthand). PS5
         titles use `np_service_name="trophy2"` — callers should retry with

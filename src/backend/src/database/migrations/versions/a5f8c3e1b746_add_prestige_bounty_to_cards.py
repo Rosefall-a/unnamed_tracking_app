@@ -42,5 +42,7 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.drop_index("ix_cards_bounty_id", table_name="cards")
     op.drop_column("cards", "bounty_id")
-    op.add_column("cards", sa.Column("prestige_challenge_note", sa.String(length=500), nullable=True))
+    op.add_column(
+        "cards", sa.Column("prestige_challenge_note", sa.String(length=500), nullable=True)
+    )
     op.add_column("cards", sa.Column("prestige_reason", sa.String(length=30), nullable=True))

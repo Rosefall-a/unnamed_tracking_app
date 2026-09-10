@@ -13,7 +13,15 @@ from src.database.base import Base
 # built-in bounty types — kept small and generic on purpose (rule: "we
 # shouldn't constantly need to change the application when you invent a
 # weird goal") rather than one enum value per possible goal shape
-BOUNTY_TYPES = ("completion", "mastery", "achievement", "collection", "challenge", "watch", "custom")
+BOUNTY_TYPES = (
+    "completion",
+    "mastery",
+    "achievement",
+    "collection",
+    "challenge",
+    "watch",
+    "custom",
+)
 BOUNTY_DIFFICULTIES = ("easy", "normal", "hard", "extreme")
 BOUNTY_STATUSES = ("not_started", "active", "paused", "completed", "abandoned")
 BOUNTY_PROGRESS_MODES = ("binary", "percentage", "numeric")
@@ -42,7 +50,10 @@ class Bounty(Base):
 
     id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
     user_id: Mapped[UUID] = mapped_column(
-        PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+        PG_UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     title: Mapped[str] = mapped_column(String(200), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -78,7 +89,9 @@ class Bounty(Base):
     # informational only — displayed as a hint ("Required evidence:
     # Screenshot"), never enforced as a block on completion. Empty list
     # means the bounty doesn't ask for anything in particular.
-    required_evidence_kinds: Mapped[list[str]] = mapped_column(ARRAY(String), nullable=False, default=list)
+    required_evidence_kinds: Mapped[list[str]] = mapped_column(
+        ARRAY(String), nullable=False, default=list
+    )
 
     # --- dates ----------------------------------------------------------
     target_date: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
@@ -104,10 +117,16 @@ class BountyPointTransaction(Base):
 
     id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
     user_id: Mapped[UUID] = mapped_column(
-        PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+        PG_UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     bounty_id: Mapped[UUID] = mapped_column(
-        PG_UUID(as_uuid=True), ForeignKey("bounties.id", ondelete="CASCADE"), nullable=False, unique=True
+        PG_UUID(as_uuid=True),
+        ForeignKey("bounties.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
     )
     amount: Mapped[int] = mapped_column(BigInteger, nullable=False)
     reason: Mapped[str] = mapped_column(String(200), nullable=False)
@@ -125,7 +144,10 @@ class BountyObjective(Base):
 
     id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
     bounty_id: Mapped[UUID] = mapped_column(
-        PG_UUID(as_uuid=True), ForeignKey("bounties.id", ondelete="CASCADE"), nullable=False, index=True
+        PG_UUID(as_uuid=True),
+        ForeignKey("bounties.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     title: Mapped[str] = mapped_column(String(200), nullable=False)
     kind: Mapped[str] = mapped_column(String(12), nullable=False, default="checkbox")
@@ -151,7 +173,10 @@ class BountyEvidence(Base):
 
     id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
     bounty_id: Mapped[UUID] = mapped_column(
-        PG_UUID(as_uuid=True), ForeignKey("bounties.id", ondelete="CASCADE"), nullable=False, index=True
+        PG_UUID(as_uuid=True),
+        ForeignKey("bounties.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     kind: Mapped[str] = mapped_column(String(12), nullable=False)
     # screenshot/clip/document — an existing MediaItem already uploaded to
@@ -159,7 +184,9 @@ class BountyEvidence(Base):
     media_item_id: Mapped[UUID | None] = mapped_column(
         PG_UUID(as_uuid=True), ForeignKey("media_items.id", ondelete="SET NULL"), nullable=True
     )
-    text: Mapped[str | None] = mapped_column(Text, nullable=True)  # note kind, or a caption on any kind
+    text: Mapped[str | None] = mapped_column(
+        Text, nullable=True
+    )  # note kind, or a caption on any kind
     url: Mapped[str | None] = mapped_column(Text, nullable=True)  # link kind
     created_at: Mapped[int] = mapped_column(BigInteger, nullable=False, default=time.time)
 
@@ -173,7 +200,10 @@ class BountyJournalEntry(Base):
 
     id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
     bounty_id: Mapped[UUID] = mapped_column(
-        PG_UUID(as_uuid=True), ForeignKey("bounties.id", ondelete="CASCADE"), nullable=False, index=True
+        PG_UUID(as_uuid=True),
+        ForeignKey("bounties.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     text: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[int] = mapped_column(BigInteger, nullable=False, default=time.time)

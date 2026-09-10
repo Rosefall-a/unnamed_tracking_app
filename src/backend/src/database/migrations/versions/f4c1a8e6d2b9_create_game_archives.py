@@ -27,7 +27,10 @@ def upgrade() -> None:
         "game_archives",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
         sa.Column(
-            "game_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("games.id", ondelete="CASCADE"), nullable=False
+            "game_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("games.id", ondelete="CASCADE"),
+            nullable=False,
         ),
         sa.Column("kind", sa.String(length=20), nullable=False),
         sa.Column("name", sa.String(length=200), nullable=False),

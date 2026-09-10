@@ -29,7 +29,11 @@ async def _get_set_or_404(set_id: UUID, db: AsyncSession, user_id: UUID) -> Set:
 async def _card_counts(db: AsyncSession, set_ids: list[UUID]) -> dict[UUID, int]:
     if not set_ids:
         return {}
-    stmt = select(Card.set_id, func.count(Card.id)).where(Card.set_id.in_(set_ids)).group_by(Card.set_id)
+    stmt = (
+        select(Card.set_id, func.count(Card.id))
+        .where(Card.set_id.in_(set_ids))
+        .group_by(Card.set_id)
+    )
     result = await db.execute(stmt)
     return {row[0]: row[1] for row in result.all()}
 
@@ -88,7 +92,9 @@ async def create_set(
 async def _get_set_detail(set_id: UUID, db: AsyncSession, user_id: UUID) -> SetDetailRead:
     set_row = await _get_set_or_404(set_id, db, user_id)
     cards_result = await db.execute(
-        select(Card).where(Card.set_id == set_id, Card.user_id == user_id).order_by(Card.archive_number)
+        select(Card)
+        .where(Card.set_id == set_id, Card.user_id == user_id)
+        .order_by(Card.archive_number)
     )
     cards = cards_result.scalars().all()
     base = _to_read(set_row, len(cards))

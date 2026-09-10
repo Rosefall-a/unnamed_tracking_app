@@ -44,7 +44,9 @@ def get_description(product_id: str) -> str | None:
     search response doesn't include one. Best-effort: a failure here just
     means no description, not a search failure."""
     try:
-        response = _SESSION.get(f"{_PRODUCT_URL}/{product_id}", params={"expand": "description"}, timeout=10)
+        response = _SESSION.get(
+            f"{_PRODUCT_URL}/{product_id}", params={"expand": "description"}, timeout=10
+        )
         if response.status_code >= 400:
             return None
         return (response.json().get("description") or {}).get("lead")

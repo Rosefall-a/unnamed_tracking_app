@@ -21,10 +21,20 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.alter_column("achievements", "name", type_=sa.Text(), existing_type=sa.String(300), existing_nullable=False)
+    op.alter_column(
+        "achievements",
+        "name",
+        type_=sa.Text(),
+        existing_type=sa.String(300),
+        existing_nullable=False,
+    )
 
 
 def downgrade() -> None:
     op.alter_column(
-        "achievements", "name", type_=sa.String(300), existing_type=sa.Text(), existing_nullable=False
+        "achievements",
+        "name",
+        type_=sa.String(300),
+        existing_type=sa.Text(),
+        existing_nullable=False,
     )

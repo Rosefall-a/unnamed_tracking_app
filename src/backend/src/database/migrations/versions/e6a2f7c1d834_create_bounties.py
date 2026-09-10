@@ -25,8 +25,18 @@ def upgrade() -> None:
     op.create_table(
         "bounties",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column("user_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
-        sa.Column("game_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("games.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "user_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("users.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
+        sa.Column(
+            "game_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("games.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
         sa.Column("status", sa.String(length=20), nullable=False),
         sa.Column("created_at", sa.BigInteger(), nullable=False),
         sa.Column("completed_at", sa.BigInteger(), nullable=True),

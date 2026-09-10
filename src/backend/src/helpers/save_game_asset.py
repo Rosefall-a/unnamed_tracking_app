@@ -98,5 +98,3 @@ async def save_game_asset(
     output_path = output_dir / ASSET_FILENAMES[asset_kind]
     resized.save(output_path, format="PNG")
     return output_path
-
-

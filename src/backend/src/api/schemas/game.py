@@ -216,7 +216,8 @@ class GameRead(GameBase):
     created_at: int = Field(description="Unix timestamp in seconds when the game was created.")
     updated_at: int = Field(description="Unix timestamp in seconds when the game was last updated.")
     last_played_at: int | None = Field(
-        default=None, description="Unix timestamp in seconds — set by a library sync, never user-editable."
+        default=None,
+        description="Unix timestamp in seconds — set by a library sync, never user-editable.",
     )
     stale_since: int | None = Field(
         default=None,

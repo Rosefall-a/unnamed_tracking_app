@@ -51,11 +51,17 @@ class WorldMapError(RuntimeError):
 
 
 def get_status(game_id: UUID, archive_id: UUID) -> dict:
-    return _render_status.get((game_id, archive_id), {"status": "idle", "detail": None, "updated_at": None})
+    return _render_status.get(
+        (game_id, archive_id), {"status": "idle", "detail": None, "updated_at": None}
+    )
 
 
 def _set_status(game_id: UUID, archive_id: UUID, status: str, detail: str | None = None) -> None:
-    _render_status[(game_id, archive_id)] = {"status": status, "detail": detail, "updated_at": int(time.time())}
+    _render_status[(game_id, archive_id)] = {
+        "status": status,
+        "detail": detail,
+        "updated_at": int(time.time()),
+    }
 
 
 def _work_dir(game_dir: Path, archive_id: UUID) -> Path:
@@ -75,7 +81,12 @@ def thumbnail_path(game_dir: Path, archive_id: UUID) -> Path:
 async def _run_bluemap(cwd: Path) -> tuple[int, str]:
     cwd.mkdir(parents=True, exist_ok=True)
     process = await asyncio.create_subprocess_exec(
-        "java", "-jar", str(_BLUEMAP_JAR), "-c", "config/", "-r",
+        "java",
+        "-jar",
+        str(_BLUEMAP_JAR),
+        "-c",
+        "config/",
+        "-r",
         cwd=str(cwd),
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.STDOUT,
@@ -116,7 +127,9 @@ def _extract_world(world_zip: Path, dest: Path) -> None:
         inner.rmdir()
 
 
-async def render_world_map(game_id: UUID, archive_id: UUID, game_dir: Path, world_zip: Path) -> None:
+async def render_world_map(
+    game_id: UUID, archive_id: UUID, game_dir: Path, world_zip: Path
+) -> None:
     """Extracts `world_zip` and renders it. Best-effort in the sense that
     any failure is recorded in get_status() rather than raised into
     whatever fire-and-forget background task called this."""
@@ -132,27 +145,41 @@ async def render_world_map(game_id: UUID, archive_id: UUID, game_dir: Path, worl
         return
 
     if not (world_dir / "level.dat").is_file():
-        _set_status(game_id, archive_id, "error", "That doesn't look like a Minecraft world save (no level.dat found).")
+        _set_status(
+            game_id,
+            archive_id,
+            "error",
+            "That doesn't look like a Minecraft world save (no level.dat found).",
+        )
         return
 
     if not config_dir.is_dir():
         _set_status(game_id, archive_id, "rendering", "Setting up BlueMap (first render only)…")
         await _run_bluemap(work_dir)  # generates default config, expected to exit non-zero here
         if not config_dir.is_dir():
-            _set_status(game_id, archive_id, "error", "BlueMap did not generate its config: check server logs.")
+            _set_status(
+                game_id,
+                archive_id,
+                "error",
+                "BlueMap did not generate its config: check server logs.",
+            )
             return
         _patch_config(config_dir, world_dir)
     else:
         _patch_config(config_dir, world_dir)
 
-    _set_status(game_id, archive_id, "rendering", "Rendering map, this can take a while for a large world…")
+    _set_status(
+        game_id, archive_id, "rendering", "Rendering map, this can take a while for a large world…"
+    )
     code, output = await _run_bluemap(work_dir)
     if code != 0 or not (work_dir / "web" / "index.html").is_file():
         _set_status(game_id, archive_id, "error", f"BlueMap render failed: {output[-500:]}")
         return
 
     try:
-        await asyncio.to_thread(generate_world_thumbnail, world_dir, thumbnail_path(game_dir, archive_id))
+        await asyncio.to_thread(
+            generate_world_thumbnail, world_dir, thumbnail_path(game_dir, archive_id)
+        )
     except Exception:
         pass  # thumbnail is cosmetic — a failure here shouldn't fail the render
 

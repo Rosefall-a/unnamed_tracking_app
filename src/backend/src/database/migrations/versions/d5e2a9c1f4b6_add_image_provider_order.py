@@ -17,7 +17,15 @@ down_revision: Union[str, None] = "a1d4f6c8b3e0"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
-_DEFAULT_ORDER = ["Steam", "IGDB", "GiantBomb", "RetroAchievements", "SteamGridDB", "ScreenScraper", "HowLongToBeat"]
+_DEFAULT_ORDER = [
+    "Steam",
+    "IGDB",
+    "GiantBomb",
+    "RetroAchievements",
+    "SteamGridDB",
+    "ScreenScraper",
+    "HowLongToBeat",
+]
 
 
 def upgrade() -> None:

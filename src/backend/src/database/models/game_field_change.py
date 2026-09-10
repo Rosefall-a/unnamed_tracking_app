@@ -20,9 +20,14 @@ class GameFieldChange(Base):
 
     id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
     game_id: Mapped[UUID] = mapped_column(
-        PG_UUID(as_uuid=True), ForeignKey("games.id", ondelete="CASCADE"), nullable=False, index=True
+        PG_UUID(as_uuid=True),
+        ForeignKey("games.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     field_name: Mapped[str] = mapped_column(String(50), nullable=False)
     old_value: Mapped[str | None] = mapped_column(Text, nullable=True)
     new_value: Mapped[str | None] = mapped_column(Text, nullable=True)
-    changed_at: Mapped[int] = mapped_column(BigInteger, nullable=False, default=lambda: int(time.time()))
+    changed_at: Mapped[int] = mapped_column(
+        BigInteger, nullable=False, default=lambda: int(time.time())
+    )
