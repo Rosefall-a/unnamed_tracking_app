@@ -30,4 +30,15 @@ export default tseslint.config(
       globals: globals.browser,
     },
   },
+
+  {
+    // top-level route views, not reusable components — named after the
+    // page they render (Login, Settings, Inbox...), so a single word is
+    // the natural name here, unlike a component dropped into arbitrary
+    // markup where a multi-word name avoids colliding with a native tag
+    files: ["src/views/**/*.vue"],
+    rules: {
+      "vue/multi-word-component-names": "off",
+    },
+  },
 );

@@ -26,7 +26,7 @@ export const notifications = ref<Notification[]>([])
 export const notificationsLoaded = ref(false)
 
 export async function refreshNotifications() {
-  let bounties: Bounty[] = []
+  let bounties: Bounty[]
   try {
     bounties = await fetchBounties({ status: 'active' })
   } catch {

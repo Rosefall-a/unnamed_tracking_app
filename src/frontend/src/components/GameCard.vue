@@ -27,7 +27,8 @@ const score = computed(() => computeScore(props.game))
 // completion-badge appearance, customized in Settings > Appearance,
 // shared across every card via state/appearance.ts rather than fetched
 // per-card
-const isMastered = computed(() => props.game.status === 'mastered')
+const localStatus = ref(props.game.status)
+const isMastered = computed(() => localStatus.value === 'mastered')
 const badgeStyle = computed(() => appearanceSettings.value?.completion_badge_style ?? 'none')
 const badgeColor = computed(() => appearanceSettings.value?.completion_badge_color ?? '#e5e4e2')
 const badgePlacement = computed(() => appearanceSettings.value?.completion_badge_placement ?? 'top-right')
@@ -110,7 +111,7 @@ async function toggleFavorite() {
 async function chooseStatus(status: GameStatus) {
   try {
     await setStatus(props.game.id, status)
-    props.game.status = status
+    localStatus.value = status
   } catch {
     // silently ignore, card just keeps showing the old status
   }
@@ -309,7 +310,7 @@ function copyFolderPath() {
               :key="s"
               type="button"
               class="menu-item"
-              :class="{ active: s === game.status }"
+              :class="{ active: s === localStatus }"
               @click="chooseStatus(s)"
             >
               {{ s }}
@@ -323,7 +324,7 @@ function copyFolderPath() {
     <div class="card-info">
       <h3 class="title">{{ game.title }}</h3>
       <div class="meta-row">
-        <span class="status">{{ game.status }}</span>
+        <span class="status">{{ localStatus }}</span>
         <span v-if="score" class="rating">★ {{ score.sum.toFixed(1) }}</span>
         <span v-if="game.achievementPercent > 0" class="achievements">
           <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
