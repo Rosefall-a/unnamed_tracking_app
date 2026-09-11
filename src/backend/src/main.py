@@ -18,8 +18,10 @@ from src.api.routes import (
     users,
 )
 from src.api.routes import set as set_routes
+from src.api.routes.settings import get_or_create_app_integration_settings
 from src.api.routes.utils.misc import router as misc_router
 from src.core.auth import ensure_primary_user
+from src.core.provider_credentials import apply_deployment_provider_credentials
 from src.database.session import SessionLocal
 from src.features.backup.scheduler import run_backup_loop
 from src.features.trash.sweep import run_sweep_loop
@@ -51,6 +53,8 @@ app.include_router(misc_router)
 async def bootstrap_primary_user() -> None:
     async with SessionLocal() as db:
         await ensure_primary_user(db)
+        app_integrations_row = await get_or_create_app_integration_settings(db)
+        apply_deployment_provider_credentials(app_integrations_row)
 
 
 @app.on_event("startup")
