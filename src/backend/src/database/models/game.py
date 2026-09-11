@@ -51,11 +51,12 @@ class GameStatus(str, Enum):
 class Game(Base):
     __tablename__ = "games"
     __table_args__ = (
-        # a plain unique constraint would block reusing a deleted game's
-        # folder name for the full 7-day trash window — this only enforces
-        # uniqueness among games that are actually active
+        # folder names only need to be unique within a user's storage
+        # namespace. Different users can therefore safely use the same
+        # folder name while still keeping active games unique per user.
         Index(
-            "ix_games_folder_location_active",
+            "ix_games_user_folder_location_active",
+            "user_id",
             "folder_location",
             unique=True,
             postgresql_where=text("deleted_at IS NULL"),
