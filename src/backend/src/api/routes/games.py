@@ -405,12 +405,10 @@ async def upload_game_asset(
             detail="File is required.",
         )
 
-    content_type = (file.content_type or "").split(";", 1)[0].lower()
-    if not content_type.startswith("image/"):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="File must be an image."
-        )
-
+    # Do not trust the browser-supplied MIME type here. Some valid image
+    # files are reported as application/octet-stream (or with no type at all).
+    # save_game_asset decodes the actual image bytes with Pillow, which gives
+    # us the real validation without rejecting otherwise valid manual uploads.
     image_bytes = await file.read()
     max_bytes = settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024
     if len(image_bytes) > max_bytes:
