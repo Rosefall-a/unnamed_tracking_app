@@ -300,7 +300,9 @@ def _run_retroachievements(
     query: str, limit: int, ctx: ProviderContext, existing: list[dict[str, Any]]
 ) -> list[dict[str, Any]] | None:
     del existing
-    api_key = (ctx.user.retroachievements_api_key if ctx.user else None) or settings.RETROACHIEVEMENTS_API_KEY
+    api_key = (
+        ctx.user.retroachievements_api_key if ctx.user else None
+    ) or settings.RETROACHIEVEMENTS_API_KEY
     assert api_key  # guarded by `available`
     client = RetroAchievementsClient(api_key=api_key)
     found: list[dict[str, Any]] = []
@@ -412,7 +414,10 @@ def _run_hltb(query: str, limit: int, ctx: ProviderContext, existing: list[dict[
 PROVIDERS: dict[str, ProviderSpec] = {
     "Steam": ProviderSpec("Steam", "primary", lambda ctx: True, _run_steam),
     "SteamGridDB": ProviderSpec(
-        "SteamGridDB", "enrichment", lambda ctx: bool(ctx.steamgriddb_api_key or settings.STEAMGRIDDB_API_KEY), _run_steamgriddb
+        "SteamGridDB",
+        "enrichment",
+        lambda ctx: bool(ctx.steamgriddb_api_key or settings.STEAMGRIDDB_API_KEY),
+        _run_steamgriddb,
     ),
     "IGDB": ProviderSpec(
         "IGDB",
@@ -443,8 +448,10 @@ PROVIDERS: dict[str, ProviderSpec] = {
         lambda ctx: bool(
             settings.SCREENSCRAPER_DEVID
             and settings.SCREENSCRAPER_DEVPASSWORD
-            and ((ctx.user and ctx.user.screenscraper_ssid and ctx.user.screenscraper_sspassword)
-                 or (settings.SCREENSCRAPER_SSID and settings.SCREENSCRAPER_SSPASSWORD))
+            and (
+                (ctx.user and ctx.user.screenscraper_ssid and ctx.user.screenscraper_sspassword)
+                or (settings.SCREENSCRAPER_SSID and settings.SCREENSCRAPER_SSPASSWORD)
+            )
         ),
         _run_screenscraper,
     ),
