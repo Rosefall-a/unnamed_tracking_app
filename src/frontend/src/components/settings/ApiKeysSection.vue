@@ -46,7 +46,7 @@ async function handleCreate() {
 }
 
 async function handleRevoke(key: ApiKeySummary) {
-  if (!window.confirm(`Revoke the API key \"${key.name}\"? This cannot be undone.`)) {
+  if (!window.confirm(`Revoke the API key "${key.name}"? This cannot be undone.`)) {
     return;
   }
 
