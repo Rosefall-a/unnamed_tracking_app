@@ -219,17 +219,19 @@ function suggestFolderFromTitle() {
     .replace(/^-+|-+$/g, "");
 }
 
+function resetFileInputOnClick(e: Event) {
+  // Clear before the picker opens so selecting the same file again still
+  // fires change, while keeping the selected filename visible afterwards.
+  (e.currentTarget as HTMLInputElement).value = "";
+}
+
 function onCoverFileChange(e: Event) {
   const input = e.target as HTMLInputElement;
   coverFile.value = input.files?.[0] ?? null;
-  // otherwise clearing the pick (e.g. picking a metadata candidate instead)
-  // and then re-selecting the same file from disk fires no 'change' event
-  input.value = "";
 }
 function onBannerFileChange(e: Event) {
   const input = e.target as HTMLInputElement;
   bannerFile.value = input.files?.[0] ?? null;
-  input.value = "";
 }
 
 async function submit() {
@@ -677,7 +679,12 @@ async function submit() {
           <div v-else-if="activeTab === 'Media'" class="tab-panel">
             <label class="field">
               <span>Cover image (portrait)</span>
-              <input type="file" accept="image/*" @change="onCoverFileChange" />
+              <input
+                type="file"
+                accept="image/*"
+                @click="resetFileInputOnClick"
+                @change="onCoverFileChange"
+              />
             </label>
 
             <div v-if="keyArtCandidates.length > 1" class="media-candidates">
@@ -704,6 +711,7 @@ async function submit() {
               <input
                 type="file"
                 accept="image/*"
+                @click="resetFileInputOnClick"
                 @change="onBannerFileChange"
               />
             </label>
@@ -728,9 +736,9 @@ async function submit() {
             </div>
 
             <p class="hint">
-              Images upload after the game is saved, and only against a real
-              backend: skipped automatically while running on mock data. A file
-              you choose above always wins over a metadata pick.
+              Choose a file here to stage it for upload. The image is uploaded
+              when you click Add Game or Save Changes; it is not sent immediately
+              when selected.
             </p>
           </div>
 
