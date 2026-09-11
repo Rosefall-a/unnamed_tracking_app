@@ -1,0 +1,1 @@
+Default cover artwork placeholder for games without cover art. Replace with the app's preferred artwork asset during the frontend fallback implementation.
