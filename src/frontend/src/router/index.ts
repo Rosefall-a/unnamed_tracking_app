@@ -8,6 +8,7 @@ import CardCollection from "../views/CardCollection.vue";
 import CardDetail from "../views/CardDetail.vue";
 import SetList from "../views/SetList.vue";
 import SetDetail from "../views/SetDetail.vue";
+import MovieLibrary from "../views/MovieLibrary.vue";
 import Inbox from "../views/Inbox.vue";
 import Bounties from "../views/Bounties.vue";
 import AchievementDetail from "../views/AchievementDetail.vue";
@@ -44,6 +45,7 @@ const router = createRouter({
     { path: "/cards/:cardId", name: "card-detail", component: CardDetail },
     { path: "/sets", name: "set-list", component: SetList },
     { path: "/sets/:id", name: "set-detail", component: SetDetail },
+    { path: "/movies", name: "movie-library", component: MovieLibrary },
     { path: "/login", name: "login", component: Login },
     // Profile lives inside Settings now (its own side-nav section)
     { path: "/profile", redirect: "/settings" },

@@ -12,6 +12,7 @@ from src.api.routes import (
     games,
     library_sync,
     media,
+    movies,
     settings,
     stats,
     users,
@@ -31,6 +32,7 @@ app = FastAPI(
 )
 
 app.include_router(games.router)
+app.include_router(movies.router)
 app.include_router(game_archives.router)
 app.include_router(users.router)
 app.include_router(auth.router)

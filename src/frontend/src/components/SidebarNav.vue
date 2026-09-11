@@ -23,6 +23,7 @@ function isActive(path: string) {
 
 const gamesExpanded = ref(isActive("/games") || isActive("/collections"));
 const cardsExpanded = ref(isActive("/cards") || isActive("/sets"));
+const mediaExpanded = ref(isActive("/movies"));
 
 const isMockData = import.meta.env.VITE_USE_MOCK_DATA === "true";
 
@@ -398,22 +399,71 @@ async function handleLogout() {
         <span>Bounties</span>
       </router-link>
 
-      <div class="sidebar-item disabled">
-        <svg
-          viewBox="0 0 24 24"
-          width="18"
-          height="18"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
+      <div class="sidebar-parent-row" :class="{ active: isActive('/movies') }">
+        <router-link
+          to="/movies"
+          class="sidebar-item sidebar-parent-link"
+          @click="close"
         >
-          <rect x="3" y="4" width="18" height="16" rx="2" />
-          <line x1="3" y1="9" x2="21" y2="9" />
-        </svg>
-        <span>Movies & TV</span>
-        <span class="soon-badge">soon</span>
+          <svg
+            viewBox="0 0 24 24"
+            width="18"
+            height="18"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <rect x="3" y="4" width="18" height="16" rx="2" />
+            <line x1="3" y1="9" x2="21" y2="9" />
+          </svg>
+          <span>Media</span>
+        </router-link>
+        <button
+          type="button"
+          class="sidebar-expand-toggle"
+          :class="{ expanded: mediaExpanded }"
+          :title="mediaExpanded ? 'Collapse' : 'Expand'"
+          @click="mediaExpanded = !mediaExpanded"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            width="14"
+            height="14"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M9 18l6-6-6-6" />
+          </svg>
+        </button>
+      </div>
+
+      <div v-if="mediaExpanded" class="sidebar-subitems">
+        <router-link
+          to="/movies"
+          class="sidebar-item sidebar-subitem"
+          :class="{ active: isActive('/movies') }"
+          @click="close"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            width="16"
+            height="16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <rect x="3" y="4" width="18" height="16" rx="2" />
+            <line x1="3" y1="9" x2="21" y2="9" />
+          </svg>
+          <span>Movies</span>
+        </router-link>
       </div>
 
       <div class="sidebar-spacer"></div>
@@ -570,13 +620,6 @@ async function handleLogout() {
   background: rgba(214, 138, 52, 0.14);
   color: #d68a34;
 }
-.sidebar-item.disabled {
-  color: #555;
-  cursor: not-allowed;
-}
-.sidebar-item.disabled:hover {
-  background: none;
-}
 .sidebar-parent-row {
   display: flex;
   align-items: center;
@@ -631,14 +674,6 @@ async function handleLogout() {
 }
 .sidebar-subitem {
   font-size: 13px;
-}
-.soon-badge {
-  margin-left: auto;
-  font-size: 10px;
-  color: #777;
-  background: rgba(255, 255, 255, 0.06);
-  padding: 2px 6px;
-  border-radius: 999px;
 }
 .notification-toggle {
   background: none;
