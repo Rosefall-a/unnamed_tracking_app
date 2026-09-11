@@ -32,11 +32,13 @@ class Settings(BaseSettings):
     # world saves and modpacks are routinely hundreds of MB to a few GB
     MAX_WORLD_SAVE_SIZE_MB: int = 2000
 
-    # App-registered dev credentials, shared across all users on this server
-    # (not a personal login). IGDB may also be supplied through these env
-    # values as a deployment-wide fallback when no admin DB credentials exist.
+    # App-registered dev credentials, shared across all users on this server.
+    # The account credentials can be supplied per-user or through .env as a
+    # deployment-wide fallback.
     SCREENSCRAPER_DEVID: str | None = None
     SCREENSCRAPER_DEVPASSWORD: str | None = None
+    SCREENSCRAPER_SSID: str | None = None
+    SCREENSCRAPER_SSPASSWORD: str | None = None
 
     model_config = SettingsConfigDict(extra="ignore")
 
