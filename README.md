@@ -16,7 +16,7 @@ npm run format # if this fails run npm run format:fix
 npm run typecheck
 
 ## Recommended VS Code extensions
-- Ruff by Astral
+- Ruff by charliermarsh
 
 # Database updates
 
