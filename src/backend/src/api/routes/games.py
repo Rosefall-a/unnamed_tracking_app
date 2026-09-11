@@ -1760,7 +1760,6 @@ async def update_game(
         await db.rollback()
         raise _duplicate_folder_error(game.folder_location) from exc
 
-    await db.refresh(game, attribute_names=["platforms"])
     return game
 
 
