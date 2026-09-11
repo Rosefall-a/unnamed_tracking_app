@@ -4,6 +4,7 @@ import asyncio
 from fastapi import FastAPI
 
 from src.api.routes import (
+    app_integrations,
     auth,
     bounties,
     cards,
@@ -35,6 +36,7 @@ app.include_router(game_archives.router)
 app.include_router(users.router)
 app.include_router(auth.router)
 app.include_router(settings.router)
+app.include_router(app_integrations.router)
 app.include_router(media.router)
 app.include_router(stats.router)
 app.include_router(library_sync.router)
