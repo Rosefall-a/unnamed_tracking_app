@@ -112,7 +112,9 @@ export function mapBackendGame(raw: BackendGame): Game {
     series: raw.series,
     parentGameId: raw.parent_game_id,
     relationshipType: raw.relationship_type,
-    dateAdded: unixSecondsToIso(raw.created_at),
+    // created_at is an instant, but dateAdded is displayed as the calendar date the game entered the library.
+    // Keep the UTC clock value but remove the timezone marker so the existing date-only UI cannot shift the date.
+    dateAdded: unixSecondsToIso(raw.created_at)?.replace(/Z$/, "") ?? null,
     resumeNote: raw.resume_note,
     lastPlayedAt: unixSecondsToIso(raw.last_played_at),
     staleSince: unixSecondsToIso(raw.stale_since),
