@@ -109,7 +109,10 @@ onMounted(loadKeys);
         <div v-for="key in keys" :key="key.id" class="key-row">
           <div>
             <strong>{{ key.name }}</strong>
-            <span>{{ key.key_prefix }} · created {{ new Date(key.created_at * 1000).toLocaleDateString() }}</span>
+            <span>
+              {{ key.key_prefix }} · created
+              {{ new Date(key.created_at * 1000).toLocaleDateString() }}
+            </span>
           </div>
           <button type="button" class="danger" @click="handleRevoke(key)">Revoke</button>
         </div>
