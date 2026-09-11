@@ -682,16 +682,17 @@ async def list_game_screenshot_trash(
         .where(MediaItem.game_id == game_id, MediaItem.deleted_at.is_not(None))
         .order_by(MediaItem.deleted_at.desc())
     )
-    return {
-        "media": [
+    media = []
+    for item in result.scalars().all():
+        assert item.deleted_at is not None  # guaranteed by the deleted_at.is_not(None) filter above
+        media.append(
             {
                 **_media_item_to_dict(item, game_id),
                 "deleted_at": item.deleted_at,
                 "purge_at": item.deleted_at + RETENTION_SECONDS,
             }
-            for item in result.scalars().all()
-        ]
-    }
+        )
+    return {"media": media}
 
 
 @router.post("/{game_id}/screenshots/{kind}/{filename}/restore")
@@ -859,16 +860,17 @@ async def list_game_file_trash(
         )
         .order_by(GameFileItem.deleted_at.desc())
     )
-    return {
-        "files": [
+    files = []
+    for item in result.scalars().all():
+        assert item.deleted_at is not None  # guaranteed by the deleted_at.is_not(None) filter above
+        files.append(
             {
                 "filename": item.filename,
                 "deleted_at": item.deleted_at,
                 "purge_at": item.deleted_at + RETENTION_SECONDS,
             }
-            for item in result.scalars().all()
-        ]
-    }
+        )
+    return {"files": files}
 
 
 @router.get("/{game_id}/files/{kind}/{filename}", response_class=FileResponse)
@@ -1315,16 +1317,17 @@ async def list_game_profile_trash(
             GameProfile.game_id == game_id, GameProfile.deleted_at.is_not(None)
         )
     )
-    return {
-        "profiles": [
+    profiles = []
+    for p in result.scalars().all():
+        assert p.deleted_at is not None  # guaranteed by the deleted_at.is_not(None) filter above
+        profiles.append(
             {
                 **_profile_to_dict(p),
                 "deleted_at": p.deleted_at,
                 "purge_at": p.deleted_at + RETENTION_SECONDS,
             }
-            for p in result.scalars().all()
-        ]
-    }
+        )
+    return {"profiles": profiles}
 
 
 @router.post("/{game_id}/profiles/{profile_id}/restore")
@@ -1814,15 +1817,18 @@ async def list_game_trash(
         .where(Game.user_id == current_user.id, Game.deleted_at.is_not(None))
         .order_by(Game.deleted_at.desc())
     )
-    return [
-        {
-            "id": str(game.id),
-            "title": game.title,
-            "deleted_at": game.deleted_at,
-            "purge_at": game.deleted_at + RETENTION_SECONDS,
-        }
-        for game in result.scalars().all()
-    ]
+    trashed = []
+    for game in result.scalars().all():
+        assert game.deleted_at is not None  # guaranteed by the deleted_at.is_not(None) filter above
+        trashed.append(
+            {
+                "id": str(game.id),
+                "title": game.title,
+                "deleted_at": game.deleted_at,
+                "purge_at": game.deleted_at + RETENTION_SECONDS,
+            }
+        )
+    return trashed
 
 
 @router.post("/{game_id}/restore", response_model=GameRead)

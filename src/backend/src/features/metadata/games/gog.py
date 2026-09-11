@@ -25,7 +25,7 @@ def search(query: str, limit: int = 8) -> list[dict[str, Any]]:
     try:
         response = _SESSION.get(
             _CATALOG_URL,
-            params={"query": f"like:{query}", "limit": limit, "order": "desc:trending"},
+            params={"query": f"like:{query}", "limit": str(limit), "order": "desc:trending"},
             timeout=15,
         )
     except requests.RequestException as exc:

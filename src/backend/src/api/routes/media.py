@@ -161,8 +161,11 @@ async def list_inbox_trash(
         .where(InboxItem.user_id == current_user.id, InboxItem.deleted_at.is_not(None))
         .order_by(InboxItem.deleted_at.desc())
     )
-    return {
-        "media": [
+    items = result.scalars().all()
+    media = []
+    for item in items:
+        assert item.deleted_at is not None  # guaranteed by the deleted_at.is_not(None) filter above
+        media.append(
             {
                 "filename": item.filename,
                 "kind": item.kind,
@@ -170,9 +173,8 @@ async def list_inbox_trash(
                 "deleted_at": item.deleted_at,
                 "purge_at": item.deleted_at + RETENTION_SECONDS,
             }
-            for item in result.scalars().all()
-        ]
-    }
+        )
+    return {"media": media}
 
 
 @router.get("/inbox/{kind}/{filename}", response_class=FileResponse)
@@ -270,7 +272,7 @@ async def assign_inbox_media(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Game folder_location is missing."
         )
 
-    create_game_folder(game.folder_location)
+    create_game_folder(current_user.id, game.folder_location)
     dest_dir = GAMES_DATA_ROOT / game.folder_location / media_subdir(kind)
     dest_dir.mkdir(parents=True, exist_ok=True)
     dest_path = dest_dir / source_path.name
@@ -320,7 +322,7 @@ async def list_all_media(
     if game_id is not None:
         stmt = stmt.where(MediaItem.game_id == game_id)
     if tag is not None:
-        stmt = stmt.where(MediaItem.tags.any(tag))
+        stmt = stmt.where(MediaItem.tags.any(tag))  # type: ignore[arg-type]  # ARRAY.any(scalar) is valid at runtime; mypy resolves the relationship .any() overload instead
 
     rows = (await db.execute(stmt)).all()
     return [

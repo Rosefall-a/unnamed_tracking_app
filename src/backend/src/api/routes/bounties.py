@@ -175,7 +175,7 @@ async def _recompute_automatic_progress(db: AsyncSession, bounty: Bounty) -> Non
             select(Game.status).where(
                 Game.user_id == bounty.user_id,
                 Game.deleted_at.is_(None),
-                Game.collections.any(bounty.target_collection_name),
+                Game.collections.any(bounty.target_collection_name),  # type: ignore[arg-type]  # ARRAY.any(scalar) is valid at runtime; mypy resolves the relationship .any() overload instead
             )
         )
         statuses = result.scalars().all()
@@ -541,7 +541,7 @@ async def list_bounties(
             await _bounty_to_dict(
                 db,
                 b,
-                games_by_id.get(b.game_id),
+                games_by_id.get(b.game_id) if b.game_id is not None else None,
                 await _load_achievement_name(db, b),
                 objectives_by_bounty.get(b.id),
                 evidence_by_bounty.get(b.id, []),

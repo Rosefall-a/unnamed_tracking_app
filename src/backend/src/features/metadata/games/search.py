@@ -319,7 +319,7 @@ def _run_retroachievements(
 def _run_giant_bomb(
     query: str, limit: int, ctx: ProviderContext, existing: list[dict[str, Any]]
 ) -> list[dict[str, Any]]:
-    del ctx, existing
+    del existing
     assert ctx.user and ctx.user.giantbomb_api_key
     client = GiantBombClient(api_key=ctx.user.giantbomb_api_key)
     found: list[dict[str, Any]] = []

@@ -136,7 +136,7 @@ async def import_library(
             db.add(game)
             await db.commit()
             await db.refresh(game)
-            create_game_folder(game.folder_location)
+            create_game_folder(current_user.id, game.folder_location)
             created += 1
         except IntegrityError as exc:
             await db.rollback()

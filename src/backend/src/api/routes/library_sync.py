@@ -348,12 +348,13 @@ async def _enrich_new_game(
             game.release_date = date.fromisoformat(release_date)
         except ValueError:
             pass
-    for asset_kind, field in (
+    asset_fields: list[tuple[AssetKind, str]] = [
         ("key_art", "key_art_url"),
         ("banner", "banner_url"),
         ("logo", "logo_url"),
         ("icon", "icon_url"),
-    ):
+    ]
+    for asset_kind, field in asset_fields:
         url = match.get(field)
         if url:
             await _download_asset(url, game.id, asset_kind)
@@ -424,7 +425,7 @@ async def _get_or_create_game(
     )
     db.add(game)
     await db.flush()
-    create_game_folder(folder_location)
+    create_game_folder(user_id, folder_location)
     return game, True
 
 

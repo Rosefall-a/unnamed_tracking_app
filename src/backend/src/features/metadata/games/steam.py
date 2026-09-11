@@ -82,8 +82,8 @@ def get_owned_games(steam_id: str, api_key: str) -> list[dict]:
             params={
                 "key": api_key,
                 "steamid": steam_id,
-                "include_appinfo": 1,
-                "include_played_free_games": 1,
+                "include_appinfo": "1",
+                "include_played_free_games": "1",
             },
             timeout=20,
         )
@@ -127,7 +127,7 @@ def get_schema_for_game(api_key: str, app_id: int) -> dict[str, dict]:
     try:
         resp = SESSION.get(
             f"{_WEB_API_BASE}/ISteamUserStats/GetSchemaForGame/v2/",
-            params={"key": api_key, "appid": app_id},
+            params={"key": api_key, "appid": str(app_id)},
             timeout=20,
         )
     except requests.RequestException as exc:
@@ -150,7 +150,7 @@ def get_player_achievements(steam_id: str, api_key: str, app_id: int) -> list[di
     try:
         resp = SESSION.get(
             f"{_WEB_API_BASE}/ISteamUserStats/GetPlayerAchievements/v1/",
-            params={"key": api_key, "steamid": steam_id, "appid": app_id},
+            params={"key": api_key, "steamid": steam_id, "appid": str(app_id)},
             timeout=20,
         )
     except requests.RequestException as exc:
