@@ -15,6 +15,7 @@ import AdminSection from "../components/settings/AdminSection.vue";
 import StatsSection from "../components/settings/StatsSection.vue";
 import ExportImportSection from "../components/settings/ExportImportSection.vue";
 import ComingSoonSection from "../components/settings/ComingSoonSection.vue";
+import ApiKeysSection from "../components/settings/ApiKeysSection.vue";
 
 const router = useRouter();
 const route = useRoute();
@@ -35,6 +36,7 @@ const groups = computed<SettingsGroup[]>(() => {
         { id: "profile", label: "Profile" },
         { id: "interface", label: "User Interface" },
         { id: "appearance", label: "Appearance" },
+        { id: "api-keys", label: "API Keys" },
       ],
     },
     {
@@ -107,6 +109,7 @@ const activeSection = ref((route.query.section as string) || "profile");
           <ProfileSection v-if="activeSection === 'profile'" />
           <InterfaceSection v-else-if="activeSection === 'interface'" />
           <AppearanceSection v-else-if="activeSection === 'appearance'" />
+          <ApiKeysSection v-else-if="activeSection === 'api-keys'" />
           <UploadSection v-else-if="activeSection === 'upload'" />
           <LibraryManagementSection v-else-if="activeSection === 'library'" />
           <ScanSettingsSection v-else-if="activeSection === 'scan'" />
