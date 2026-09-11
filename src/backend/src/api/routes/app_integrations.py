@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.api.routes.settings import get_or_create_app_integration_settings
 from src.core.auth import get_current_admin
 from src.core.crypto import encrypt_secret
+from src.core.provider_credentials import apply_deployment_provider_credentials
 from src.database.models.user import User
 from src.database.session import get_db
 
@@ -78,6 +79,7 @@ async def update_deployment_provider_credentials(
         value = value.strip() if value else None
         setattr(row, field, encrypt_secret(value) if field in _SECRET_FIELDS and value else value)
     await db.commit()
+    apply_deployment_provider_credentials(row)
     return await get_deployment_provider_credentials(db, admin=admin)
 
 
@@ -92,4 +94,5 @@ async def clear_deployment_provider_credentials(
     for field in (*_SECRET_FIELDS, *_SAFE_FIELDS):
         setattr(row, field, None)
     await db.commit()
+    apply_deployment_provider_credentials(row)
     return {"configured": {}, "fields": {}}
