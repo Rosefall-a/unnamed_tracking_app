@@ -1,10 +1,13 @@
 name: Fix screenshot upload storage path
 
 on:
-  workflow_dispatch:
+  push:
+    branches:
+      - fix/screenshot-upload
 
 jobs:
   fix:
+    if: github.event.head_commit.message == 'fix screenshot upload storage path'
     runs-on: ubuntu-latest
     permissions:
       contents: write
