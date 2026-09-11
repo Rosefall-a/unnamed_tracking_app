@@ -86,6 +86,16 @@ class Game(Base):
         nullable=False,
     )
 
+    # Optional identifier of the corresponding Playnite library entry.
+    # This is deliberately not unique: the same app account can receive
+    # imports from multiple Playnite libraries, while ordinary app-created
+    # games simply leave this unset.
+    playnite_guid: Mapped[UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        nullable=True,
+        index=True,
+    )
+
     # set instead of actually deleting the row — see features/trash/sweep.py,
     # which purges the row and moves the on-disk folder to trash for good
     # after 7 days. NULL means active/not deleted.

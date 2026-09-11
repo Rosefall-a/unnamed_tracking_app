@@ -267,10 +267,15 @@ def _duplicate_folder_error(folder_name: str) -> HTTPException:
 
 async def _ensure_folder_location_available(
     folder_name: str,
+    user_id: UUID,
     db: AsyncSession,
     exclude_game_id: UUID | None = None,
 ) -> None:
-    stmt = select(Game.id).where(Game.folder_location == folder_name, Game.deleted_at.is_(None))
+    stmt = select(Game.id).where(
+        Game.user_id == user_id,
+        Game.folder_location == folder_name,
+        Game.deleted_at.is_(None),
+    )
     if exclude_game_id is not None:
         stmt = stmt.where(Game.id != exclude_game_id)
 
@@ -1598,7 +1603,7 @@ async def create_game(
     current_user: User = Depends(get_current_user),
 ) -> Game:
     """Create a game after validating its folder location."""
-    await _ensure_folder_location_available(payload.folder_location, db)
+    await _ensure_folder_location_available(payload.folder_location, current_user.id, db)
     await _validate_game_relationship(
         payload.parent_game_id, payload.relationship_type, db, current_user.id
     )
@@ -1721,7 +1726,7 @@ async def update_game(
 
     if "folder_location" in updates and updates["folder_location"] is not None:
         await _ensure_folder_location_available(
-            updates["folder_location"], db, exclude_game_id=game_id
+            updates["folder_location"], current_user.id, db, exclude_game_id=game_id
         )
 
     if "parent_game_id" in updates or "relationship_type" in updates:
@@ -1870,7 +1875,9 @@ async def restore_game(
         # sat in trash (the partial unique index only protects active rows) —
         # check before touching any files, not after, so a rejected restore
         # never leaves the folder half-moved
-        await _ensure_folder_location_available(game.folder_location, db, exclude_game_id=game_id)
+        await _ensure_folder_location_available(
+            game.folder_location, current_user.id, db, exclude_game_id=game_id
+        )
         restore_game_from_trash(
             _DATA_ROOT / str(game.user_id) / "games" / game.folder_location, _DATA_ROOT, game_id
         )
