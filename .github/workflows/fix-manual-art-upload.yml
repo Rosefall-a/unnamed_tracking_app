@@ -1,7 +1,9 @@
 name: Fix manual artwork upload errors
 
 on:
-  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/fix-manual-art-upload.yml
 
 jobs:
   fix:
