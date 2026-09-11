@@ -33,6 +33,28 @@ export interface FeedEntry {
   text: string;
 }
 
+// `crypto.randomUUID()` is only exposed in secure browser contexts. The app
+// can be served over plain HTTP on a local network, where `crypto` exists but
+// `randomUUID` does not. `getRandomValues` is available there, so use it to
+// generate RFC 4122 v4 ids without requiring HTTPS just for task tracking.
+function createId(): string {
+  if (typeof crypto.randomUUID === "function") return crypto.randomUUID();
+
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+
+  const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0"));
+  return [
+    hex.slice(0, 4).join(""),
+    hex.slice(4, 6).join(""),
+    hex.slice(6, 8).join(""),
+    hex.slice(8, 10).join(""),
+    hex.slice(10, 16).join(""),
+  ].join("-");
+}
+
 // Global, App-level store, deliberately outside any page/section component
 // so a task's progress survives switching Settings tabs (which unmounts the
 // section that started it) or navigating elsewhere entirely.
@@ -43,7 +65,7 @@ export function startTask(
   total: number,
   options: { indeterminate?: boolean } = {},
 ): string {
-  const id = crypto.randomUUID();
+  const id = createId();
   tasks.push({
     id,
     label,
@@ -74,7 +96,7 @@ export function updateTask(
 // individual item (a file, a game) finishes, not just at the end
 export function addFeedItem(id: string, text: string) {
   const task = tasks.find((t) => t.id === id);
-  if (task) task.feed.push({ id: crypto.randomUUID(), text });
+  if (task) task.feed.push({ id: createId(), text });
 }
 
 // success toasts clear themselves out after a bit so they don't pile up,
