@@ -1,7 +1,7 @@
 """add optional Playnite GUID to games
 
 Revision ID: b7e4c2f9a1d6
-Revises: a5f8c3e1b746
+Revises: b7c4e2f1a935
 Create Date: 2026-09-11
 
 Stores the optional GUID of the corresponding Playnite library entry.
@@ -15,7 +15,7 @@ from alembic import op
 from sqlalchemy.dialects import postgresql
 
 revision: str = "b7e4c2f9a1d6"
-down_revision: Union[str, None] = "a5f8c3e1b746"
+down_revision: Union[str, None] = "b7c4e2f1a935"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
