@@ -11,7 +11,6 @@ migration-safety reason to leave stale defaults in place.
 
 from typing import Sequence, Union
 
-import sqlalchemy as sa
 from alembic import op
 
 revision: str = "d9a1e5c3f7b8"

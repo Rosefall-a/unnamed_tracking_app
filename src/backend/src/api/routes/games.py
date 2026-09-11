@@ -6,7 +6,7 @@ import time
 from pathlib import Path
 from typing import Literal
 from urllib.parse import urlparse
-from uuid import UUID, uuid4
+from uuid import UUID
 
 import requests
 from fastapi import (
@@ -22,8 +22,6 @@ from fastapi import (
     status,
 )
 from fastapi.responses import FileResponse
-
-from PIL import UnidentifiedImageError
 from pydantic import BaseModel
 from sqlalchemy import Integer, func, select
 from sqlalchemy.exc import IntegrityError
@@ -33,7 +31,6 @@ from src.api.routes.settings import (
     get_or_create_app_integration_settings,
     get_or_create_scan_settings,
 )
-from src.core.crypto import decrypt_secret
 from src.api.schemas.game import (
     GameBulkUpdate,
     GameCreate,
@@ -41,21 +38,22 @@ from src.api.schemas.game import (
     GameRead,
     GameUpdate,
 )
+from src.core.auth import get_current_user
+from src.core.config import settings
+from src.core.crypto import decrypt_secret
 from src.database.models.achievement import Achievement
 from src.database.models.game import Game, GameLink, GameStatus
+from src.database.models.game_checklist_item import GameChecklistItem
 from src.database.models.game_field_change import GameFieldChange
 from src.database.models.game_file_item import GameFileItem
 from src.database.models.game_profile import GameProfile
 from src.database.models.game_profile_stat_snapshot import GameProfileStatSnapshot
-from src.database.models.game_checklist_item import GameChecklistItem
 from src.database.models.media_item import MediaItem
 from src.database.models.user import User
 from src.database.models.user_scan_settings import UserScanSettings
 from src.database.session import get_db
-from src.core.auth import get_current_user
-from src.core.config import settings
-from src.features.metadata.games.search import search_game_metadata
 from src.features.metadata.games import wiseoldman
+from src.features.metadata.games.search import search_game_metadata
 from src.features.trash.game_trash import move_game_to_trash, restore_game_from_trash
 from src.features.trash.media_trash import move_media_file_to_trash, restore_media_file_from_trash
 from src.features.trash.sweep import RETENTION_SECONDS
