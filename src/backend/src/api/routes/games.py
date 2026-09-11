@@ -1875,7 +1875,9 @@ async def restore_game(
         # sat in trash (the partial unique index only protects active rows) —
         # check before touching any files, not after, so a rejected restore
         # never leaves the folder half-moved
-        await _ensure_folder_location_available(game.folder_location, current_user.id, db, exclude_game_id=game_id)
+        await _ensure_folder_location_available(
+            game.folder_location, current_user.id, db, exclude_game_id=game_id
+        )
         restore_game_from_trash(
             _DATA_ROOT / str(game.user_id) / "games" / game.folder_location, _DATA_ROOT, game_id
         )
