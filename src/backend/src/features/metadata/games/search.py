@@ -300,8 +300,9 @@ def _run_retroachievements(
     query: str, limit: int, ctx: ProviderContext, existing: list[dict[str, Any]]
 ) -> list[dict[str, Any]] | None:
     del existing
-    assert ctx.user and ctx.user.retroachievements_api_key
-    client = RetroAchievementsClient(api_key=ctx.user.retroachievements_api_key)
+    api_key = (ctx.user.retroachievements_api_key if ctx.user else None) or settings.RETROACHIEVEMENTS_API_KEY
+    assert api_key  # guarded by `available`
+    client = RetroAchievementsClient(api_key=api_key)
     found: list[dict[str, Any]] = []
     for game in client.search_games(query, limit=limit):
         result = _blank_result("RetroAchievements", str(game.get("id", "")), game.get("title", ""))
@@ -321,8 +322,9 @@ def _run_giant_bomb(
     query: str, limit: int, ctx: ProviderContext, existing: list[dict[str, Any]]
 ) -> list[dict[str, Any]]:
     del existing
-    assert ctx.user and ctx.user.giantbomb_api_key
-    client = GiantBombClient(api_key=ctx.user.giantbomb_api_key)
+    api_key = (ctx.user.giantbomb_api_key if ctx.user else None) or settings.GIANTBOMB_API_KEY
+    assert api_key  # guarded by `available`
+    client = GiantBombClient(api_key=api_key)
     found: list[dict[str, Any]] = []
     for game in client.search(query, limit=limit):
         result = _blank_result("GiantBomb", str(game.get("id", "")), game.get("name", ""))
@@ -365,13 +367,20 @@ def _run_screenscraper(
     query: str, limit: int, ctx: ProviderContext, existing: list[dict[str, Any]]
 ) -> None:
     del query, limit
-    assert ctx.user and ctx.user.screenscraper_ssid and ctx.user.screenscraper_sspassword
+    ssid = (ctx.user.screenscraper_ssid if ctx.user else None) or settings.SCREENSCRAPER_SSID
+    encrypted_password = ctx.user.screenscraper_sspassword if ctx.user else None
+    sspassword = (
+        decrypt_secret(encrypted_password)
+        if encrypted_password
+        else settings.SCREENSCRAPER_SSPASSWORD
+    )
+    assert ssid and sspassword
     assert settings.SCREENSCRAPER_DEVID and settings.SCREENSCRAPER_DEVPASSWORD
     client = ScreenScraperClient(
         devid=settings.SCREENSCRAPER_DEVID,
         devpassword=settings.SCREENSCRAPER_DEVPASSWORD,
-        ssid=ctx.user.screenscraper_ssid,
-        sspassword=decrypt_secret(ctx.user.screenscraper_sspassword),
+        ssid=ssid,
+        sspassword=sspassword,
     )
     for result in existing:
         try:
@@ -403,24 +412,29 @@ def _run_hltb(query: str, limit: int, ctx: ProviderContext, existing: list[dict[
 PROVIDERS: dict[str, ProviderSpec] = {
     "Steam": ProviderSpec("Steam", "primary", lambda ctx: True, _run_steam),
     "SteamGridDB": ProviderSpec(
-        "SteamGridDB", "enrichment", lambda ctx: bool(ctx.steamgriddb_api_key), _run_steamgriddb
+        "SteamGridDB", "enrichment", lambda ctx: bool(ctx.steamgriddb_api_key or settings.STEAMGRIDDB_API_KEY), _run_steamgriddb
     ),
     "IGDB": ProviderSpec(
         "IGDB",
         "primary",
-        lambda ctx: bool(ctx.igdb_client_id and ctx.igdb_client_secret),
+        lambda ctx: bool(
+            (ctx.igdb_client_id or settings.IGDB_CLIENT_ID)
+            and (ctx.igdb_client_secret or settings.IGDB_CLIENT_SECRET)
+        ),
         _run_igdb,
     ),
     "RetroAchievements": ProviderSpec(
         "RetroAchievements",
         "primary",
-        lambda ctx: bool(ctx.user and ctx.user.retroachievements_api_key),
+        lambda ctx: bool(
+            (ctx.user and ctx.user.retroachievements_api_key) or settings.RETROACHIEVEMENTS_API_KEY
+        ),
         _run_retroachievements,
     ),
     "GiantBomb": ProviderSpec(
         "GiantBomb",
         "primary",
-        lambda ctx: bool(ctx.user and ctx.user.giantbomb_api_key),
+        lambda ctx: bool((ctx.user and ctx.user.giantbomb_api_key) or settings.GIANTBOMB_API_KEY),
         _run_giant_bomb,
     ),
     "ScreenScraper": ProviderSpec(
@@ -429,9 +443,8 @@ PROVIDERS: dict[str, ProviderSpec] = {
         lambda ctx: bool(
             settings.SCREENSCRAPER_DEVID
             and settings.SCREENSCRAPER_DEVPASSWORD
-            and ctx.user
-            and ctx.user.screenscraper_ssid
-            and ctx.user.screenscraper_sspassword
+            and ((ctx.user and ctx.user.screenscraper_ssid and ctx.user.screenscraper_sspassword)
+                 or (settings.SCREENSCRAPER_SSID and settings.SCREENSCRAPER_SSPASSWORD))
         ),
         _run_screenscraper,
     ),
@@ -521,9 +534,9 @@ def search_game_metadata(
     image_provider_order = preferences.get("image_provider_order") or DEFAULT_IMAGE_PROVIDER_ORDER
     ctx = ProviderContext(
         user=user,
-        steamgriddb_api_key=steamgriddb_api_key,
-        igdb_client_id=igdb_client_id,
-        igdb_client_secret=igdb_client_secret,
+        steamgriddb_api_key=steamgriddb_api_key or settings.STEAMGRIDDB_API_KEY,
+        igdb_client_id=igdb_client_id or settings.IGDB_CLIENT_ID,
+        igdb_client_secret=igdb_client_secret or settings.IGDB_CLIENT_SECRET,
     )
 
     results: list[dict[str, Any]] = []
@@ -613,7 +626,7 @@ def search_game_metadata(
     return {
         "query": query,
         "providers": providers_used,
-        "steamgriddb_configured": bool(steamgriddb_api_key),
+        "steamgriddb_configured": bool(ctx.steamgriddb_api_key),
         "provider_errors": provider_errors,
         "results": results,
     }
