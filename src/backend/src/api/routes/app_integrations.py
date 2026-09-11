@@ -73,7 +73,6 @@ async def update_deployment_provider_credentials(
     admin: User = Depends(get_current_admin),
 ) -> dict[str, object]:
     """Save deployment-wide provider credentials, encrypting secrets at rest."""
-    del admin
     row = await get_or_create_app_integration_settings(db)
     for field, value in payload.model_dump(exclude_unset=True).items():
         value = value.strip() if value else None
