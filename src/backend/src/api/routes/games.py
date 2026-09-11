@@ -1603,7 +1603,7 @@ async def create_game(
     current_user: User = Depends(get_current_user),
 ) -> Game:
     """Create a game after validating its folder location."""
-    await _ensure_folder_location_available(payload.folder_location, db)
+    await _ensure_folder_location_available(payload.folder_location, current_user.id, db)
     await _validate_game_relationship(
         payload.parent_game_id, payload.relationship_type, db, current_user.id
     )
