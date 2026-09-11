@@ -11,6 +11,19 @@ if TYPE_CHECKING:
     from src.database.models.user import User
 
 
+_ENVIRONMENT_FALLBACKS = {
+    "steamgriddb_api_key": settings.STEAMGRIDDB_API_KEY,
+    "retroachievements_api_key": settings.RETROACHIEVEMENTS_API_KEY,
+    "giantbomb_api_key": settings.GIANTBOMB_API_KEY,
+    "igdb_client_id": settings.IGDB_CLIENT_ID,
+    "igdb_client_secret": settings.IGDB_CLIENT_SECRET,
+    "screenscraper_ssid": settings.SCREENSCRAPER_SSID,
+    "screenscraper_sspassword": settings.SCREENSCRAPER_SSPASSWORD,
+    "screenscraper_devid": settings.SCREENSCRAPER_DEVID,
+    "screenscraper_devpassword": settings.SCREENSCRAPER_DEVPASSWORD,
+}
+
+
 def _prefer(*values: str | None) -> str | None:
     """Return the first configured value in precedence order."""
     return next((value for value in values if value), None)
@@ -59,48 +72,45 @@ def resolve_metadata_provider_credentials(
         steamgriddb_api_key=_prefer(
             user_steamgriddb,
             _decrypt(app_integrations.steamgriddb_api_key) if app_integrations else None,
-            settings.STEAMGRIDDB_API_KEY,
+            _ENVIRONMENT_FALLBACKS["steamgriddb_api_key"],
         ),
         igdb_client_id=_prefer(
             app_integrations.igdb_client_id if app_integrations else None,
-            settings.IGDB_CLIENT_ID,
+            _ENVIRONMENT_FALLBACKS["igdb_client_id"],
         ),
         igdb_client_secret=_prefer(
             _decrypt(app_integrations.igdb_client_secret) if app_integrations else None,
-            settings.IGDB_CLIENT_SECRET,
+            _ENVIRONMENT_FALLBACKS["igdb_client_secret"],
         ),
         retroachievements_api_key=_prefer(
             user_retroachievements,
             _decrypt(app_integrations.retroachievements_api_key) if app_integrations else None,
-            settings.RETROACHIEVEMENTS_API_KEY,
+            _ENVIRONMENT_FALLBACKS["retroachievements_api_key"],
         ),
         giantbomb_api_key=_prefer(
             user_giantbomb,
             _decrypt(app_integrations.giantbomb_api_key) if app_integrations else None,
-            settings.GIANTBOMB_API_KEY,
+            _ENVIRONMENT_FALLBACKS["giantbomb_api_key"],
         ),
         screenscraper_ssid=_prefer(
             user_screenscraper_ssid,
             app_integrations.screenscraper_ssid if app_integrations else None,
-            settings.SCREENSCRAPER_SSID,
+            _ENVIRONMENT_FALLBACKS["screenscraper_ssid"],
         ),
         screenscraper_sspassword=_prefer(
             user_screenscraper_password,
             _decrypt(app_integrations.screenscraper_sspassword) if app_integrations else None,
-            settings.SCREENSCRAPER_SSPASSWORD,
+            _ENVIRONMENT_FALLBACKS["screenscraper_sspassword"],
         ),
         screenscraper_devid=_prefer(
             app_integrations.screenscraper_devid if app_integrations else None,
-            settings.SCREENSCRAPER_DEVID,
+            _ENVIRONMENT_FALLBACKS["screenscraper_devid"],
         ),
         screenscraper_devpassword=_prefer(
             _decrypt(app_integrations.screenscraper_devpassword) if app_integrations else None,
-            settings.SCREENSCRAPER_DEVPASSWORD,
+            _ENVIRONMENT_FALLBACKS["screenscraper_devpassword"],
         ),
-        xbox_client_id=_prefer(
-            user.xbox_client_id if user else None,
-            app_integrations.xbox_client_id if app_integrations else None,
-        ),
+        xbox_client_id=_prefer(user.xbox_client_id if user else None, app_integrations.xbox_client_id if app_integrations else None),
         xbox_client_secret=_prefer(
             _decrypt(user.xbox_client_secret if user else None),
             _decrypt(app_integrations.xbox_client_secret) if app_integrations else None,
