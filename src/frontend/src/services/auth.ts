@@ -109,7 +109,9 @@ export async function updateProfile(
 }
 
 export async function fetchApiKeys(): Promise<ApiKeySummary[]> {
-  const response = await fetch("/api/auth/api-keys", { credentials: "include" });
+  const response = await fetch("/api/auth/api-keys", {
+    credentials: "include",
+  });
   if (!response.ok) {
     const message = await response.text();
     throw new Error(
