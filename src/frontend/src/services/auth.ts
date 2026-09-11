@@ -6,6 +6,22 @@ export interface CurrentUser {
   steamgriddb_api_key: string | null;
 }
 
+export interface ApiKeySummary {
+  id: string;
+  name: string;
+  key_prefix: string;
+  scopes: string[];
+  created_at: number;
+}
+
+export interface CreatedApiKey {
+  api_key: string;
+  key_prefix: string;
+  name: string;
+  scopes: string[];
+  warning: string;
+}
+
 export async function login(
   usernameOrEmail: string,
   password: string,
@@ -59,14 +75,6 @@ export async function fetchCurrentUser(): Promise<CurrentUser | null> {
   }
   return await response.json();
 }
-export interface UpdateProfilePayload {
-  username?: string;
-  email?: string;
-  // only required when newPassword is set
-  currentPassword?: string;
-  newPassword?: string;
-  steamgriddbApiKey?: string;
-}
 
 export async function updateProfile(
   payload: UpdateProfilePayload,
@@ -98,6 +106,54 @@ export async function updateProfile(
   }
 
   return await response.json();
+}
+
+export async function fetchApiKeys(): Promise<ApiKeySummary[]> {
+  const response = await fetch("/api/auth/api-keys", { credentials: "include" });
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(
+      `Failed to load API keys: ${response.status} ${response.statusText} ${message}`,
+    );
+  }
+  return await response.json();
+}
+
+export async function createApiKey(name: string): Promise<CreatedApiKey> {
+  const response = await fetch("/api/auth/api-keys", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ name, scopes: [] }),
+  });
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(
+      `Failed to create API key: ${response.status} ${response.statusText} ${message}`,
+    );
+  }
+  return await response.json();
+}
+
+export async function revokeApiKey(keyId: string): Promise<void> {
+  const response = await fetch(`/api/auth/api-keys/${keyId}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(
+      `Failed to revoke API key: ${response.status} ${response.statusText} ${message}`,
+    );
+  }
+}
+
+export interface UpdateProfilePayload {
+  username?: string;
+  email?: string;
+  currentPassword?: string;
+  newPassword?: string;
+  steamgriddbApiKey?: string;
 }
 
 export async function uploadProfilePicture(
