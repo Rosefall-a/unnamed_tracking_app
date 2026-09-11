@@ -18,9 +18,9 @@ from src.database.models.game import Game, GameLink
 from src.database.models.user import User
 from src.database.session import get_db
 from src.features.backup.scheduler import (
+    _BACKUP_ROOT,
     BACKUP_INTERVAL_SECONDS,
     BACKUPS_TO_KEEP_PER_USER,
-    _BACKUP_ROOT,
 )
 from src.helpers.save_game_asset import create_game_folder
 

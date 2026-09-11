@@ -20,8 +20,8 @@ from src.api.routes import set as set_routes
 from src.api.routes.utils.misc import router as misc_router
 from src.core.auth import ensure_primary_user
 from src.database.session import SessionLocal
-from src.features.trash.sweep import run_sweep_loop
 from src.features.backup.scheduler import run_backup_loop
+from src.features.trash.sweep import run_sweep_loop
 
 app = FastAPI(
     title="My API",

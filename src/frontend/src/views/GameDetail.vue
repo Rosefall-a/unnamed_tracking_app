@@ -4085,9 +4085,7 @@ function formatPlaytime(minutes: number) {
       <p v-if="gameCardsLoading" class="empty-state">Loading…</p>
       <template v-else-if="gameCards.length">
         <p class="empty-state">
-          {{
-            gameCards.length === 1 ? "1 card" : `${gameCards.length} cards`
-          }}
+          {{ gameCards.length === 1 ? "1 card" : `${gameCards.length} cards` }}
           for {{ game.title }}.
         </p>
         <div class="card-links">
