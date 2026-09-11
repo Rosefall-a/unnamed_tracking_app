@@ -60,14 +60,9 @@ async def get_deployment_provider_credentials(
     row = await get_or_create_app_integration_settings(db)
     return {
         "configured": {
-            field: bool(getattr(row, field))
-            for field in (*_SECRET_FIELDS, *_SAFE_FIELDS)
+            field: bool(getattr(row, field)) for field in (*_SECRET_FIELDS, *_SAFE_FIELDS)
         },
-        "fields": {
-            field: getattr(row, field)
-            for field in _SAFE_FIELDS
-            if getattr(row, field)
-        },
+        "fields": {field: getattr(row, field) for field in _SAFE_FIELDS if getattr(row, field)},
     }
 
 
