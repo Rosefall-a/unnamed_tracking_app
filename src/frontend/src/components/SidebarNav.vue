@@ -1,16 +1,41 @@
 <script setup lang="ts">
-import { ref } from "vue";
-import { useRoute } from "vue-router";
+import { ref, onMounted } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import { logout } from "../services/auth";
+import { currentUser } from "../state/auth";
+import { inboxCount, refreshInboxCount } from "../state/inbox";
+import {
+  notifications,
+  notificationsLoaded,
+  refreshNotifications,
+} from "../state/notifications";
+
+onMounted(refreshInboxCount);
+onMounted(refreshNotifications);
+const notificationsExpanded = ref(false);
 
 const route = useRoute();
 const open = ref(false);
 
 function isActive(path: string) {
-  return route.path === path;
+  return route.path === path || route.path.startsWith(`${path}/`);
 }
+
+const gamesExpanded = ref(isActive("/games") || isActive("/collections"));
+const cardsExpanded = ref(isActive("/cards") || isActive("/sets"));
+
+const isMockData = import.meta.env.VITE_USE_MOCK_DATA === "true";
 
 function close() {
   open.value = false;
+}
+const router = useRouter();
+
+async function handleLogout() {
+  await logout();
+  currentUser.value = null;
+  close();
+  router.push("/login");
 }
 </script>
 
@@ -30,6 +55,7 @@ function close() {
       <line x1="3" y1="12" x2="21" y2="12" />
       <line x1="3" y1="18" x2="21" y2="18" />
     </svg>
+    <span v-if="notifications.length" class="menu-toggle-dot"></span>
   </button>
 
   <Transition name="sidebar-backdrop">
@@ -41,9 +67,16 @@ function close() {
       <div class="sidebar-brand">
         <div class="brand-icon">🎮</div>
         <span class="brand-name">Archive</span>
+        <span
+          v-if="isMockData"
+          class="mock-badge"
+          title="Showing local sample data, not your real library"
+        >
+          Mock Data
+        </span>
       </div>
 
-      <router-link to="/profile" class="sidebar-item" @click="close">
+      <router-link to="/settings" class="sidebar-item" @click="close">
         <svg
           viewBox="0 0 24 24"
           width="18"
@@ -84,10 +117,243 @@ function close() {
         <span>Home</span>
       </router-link>
 
+      <div
+        class="sidebar-parent-row"
+        :class="{ active: isActive('/games') && !isActive('/collections') }"
+      >
+        <router-link
+          to="/games"
+          class="sidebar-item sidebar-parent-link"
+          @click="close"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            width="18"
+            height="18"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <rect x="2" y="7" width="20" height="10" rx="4" />
+            <line x1="7" y1="12" x2="9" y2="12" />
+            <line x1="8" y1="11" x2="8" y2="13" />
+            <circle cx="16" cy="11" r="0.8" fill="currentColor" />
+            <circle cx="18" cy="13" r="0.8" fill="currentColor" />
+          </svg>
+          <span>Games</span>
+        </router-link>
+        <button
+          type="button"
+          class="sidebar-expand-toggle"
+          :class="{ expanded: gamesExpanded }"
+          :title="gamesExpanded ? 'Collapse' : 'Expand'"
+          @click="gamesExpanded = !gamesExpanded"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            width="14"
+            height="14"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M9 18l6-6-6-6" />
+          </svg>
+        </button>
+      </div>
+
+      <div v-if="gamesExpanded" class="sidebar-subitems">
+        <router-link
+          to="/collections"
+          class="sidebar-item sidebar-subitem"
+          :class="{ active: isActive('/collections') }"
+          @click="close"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            width="16"
+            height="16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path
+              d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"
+            />
+          </svg>
+          <span>Collections</span>
+        </router-link>
+      </div>
+
+      <div
+        class="sidebar-parent-row"
+        :class="{ active: isActive('/cards') && !isActive('/sets') }"
+      >
+        <router-link
+          to="/cards"
+          class="sidebar-item sidebar-parent-link"
+          @click="close"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            width="18"
+            height="18"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <rect x="3" y="4" width="18" height="16" rx="2" />
+            <path d="M3 10h18" />
+            <circle cx="8" cy="7" r="1" fill="currentColor" stroke="none" />
+          </svg>
+          <span>Cards</span>
+        </router-link>
+        <button
+          type="button"
+          class="sidebar-expand-toggle"
+          :class="{ expanded: cardsExpanded }"
+          :title="cardsExpanded ? 'Collapse' : 'Expand'"
+          @click="cardsExpanded = !cardsExpanded"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            width="14"
+            height="14"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M9 18l6-6-6-6" />
+          </svg>
+        </button>
+      </div>
+
+      <div v-if="cardsExpanded" class="sidebar-subitems">
+        <router-link
+          to="/cards"
+          class="sidebar-item sidebar-subitem"
+          :class="{ active: isActive('/cards') }"
+          @click="close"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            width="16"
+            height="16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <rect x="3" y="4" width="18" height="16" rx="2" />
+            <path d="M3 10h18" />
+          </svg>
+          <span>All Cards</span>
+        </router-link>
+        <router-link
+          to="/sets"
+          class="sidebar-item sidebar-subitem"
+          :class="{ active: isActive('/sets') }"
+          @click="close"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            width="16"
+            height="16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <rect x="3" y="3" width="7" height="7" rx="1" />
+            <rect x="14" y="3" width="7" height="7" rx="1" />
+            <rect x="3" y="14" width="7" height="7" rx="1" />
+            <rect x="14" y="14" width="7" height="7" rx="1" />
+          </svg>
+          <span>Sets</span>
+        </router-link>
+      </div>
+
+      <div class="sidebar-parent-row">
+        <button
+          type="button"
+          class="sidebar-item sidebar-parent-link notification-toggle"
+          @click="notificationsExpanded = !notificationsExpanded"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            width="18"
+            height="18"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+            <path d="M13.7 21a2 2 0 0 1-3.4 0" />
+          </svg>
+          <span>Notifications</span>
+          <span v-if="notifications.length" class="inbox-badge">{{
+            notifications.length
+          }}</span>
+        </button>
+        <button
+          type="button"
+          class="sidebar-expand-toggle"
+          :class="{ expanded: notificationsExpanded }"
+          :title="notificationsExpanded ? 'Collapse' : 'Expand'"
+          @click="notificationsExpanded = !notificationsExpanded"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            width="14"
+            height="14"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M9 18l6-6-6-6" />
+          </svg>
+        </button>
+      </div>
+      <div v-if="notificationsExpanded" class="sidebar-subitems">
+        <p v-if="!notificationsLoaded" class="notification-empty">Loading…</p>
+        <p v-else-if="!notifications.length" class="notification-empty">
+          Nothing to flag right now.
+        </p>
+        <router-link
+          v-for="n in notifications"
+          :key="n.id"
+          :to="n.to"
+          class="notification-row"
+          @click="close"
+        >
+          <span class="notification-dot" :class="n.kind"></span>
+          <span class="notification-text">
+            <span class="notification-title">{{ n.title }}</span>
+            <span class="notification-detail">{{ n.detail }}</span>
+          </span>
+        </router-link>
+      </div>
+
       <router-link
-        to="/games"
+        to="/inbox"
         class="sidebar-item"
-        :class="{ active: isActive('/games') }"
+        :class="{ active: isActive('/inbox') }"
         @click="close"
       >
         <svg
@@ -100,13 +366,36 @@ function close() {
           stroke-linecap="round"
           stroke-linejoin="round"
         >
-          <rect x="2" y="7" width="20" height="10" rx="4" />
-          <line x1="7" y1="12" x2="9" y2="12" />
-          <line x1="8" y1="11" x2="8" y2="13" />
-          <circle cx="16" cy="11" r="0.8" fill="currentColor" />
-          <circle cx="18" cy="13" r="0.8" fill="currentColor" />
+          <path d="M22 12h-6l-2 3h-4l-2-3H2" />
+          <path
+            d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"
+          />
         </svg>
-        <span>Games</span>
+        <span>Inbox</span>
+        <span v-if="inboxCount" class="inbox-badge">{{ inboxCount }}</span>
+      </router-link>
+
+      <router-link
+        to="/bounties"
+        class="sidebar-item"
+        :class="{ active: isActive('/bounties') }"
+        @click="close"
+      >
+        <svg
+          viewBox="0 0 24 24"
+          width="18"
+          height="18"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <circle cx="12" cy="12" r="9" />
+          <circle cx="12" cy="12" r="5" />
+          <circle cx="12" cy="12" r="1" fill="currentColor" stroke="none" />
+        </svg>
+        <span>Bounties</span>
       </router-link>
 
       <div class="sidebar-item disabled">
@@ -129,7 +418,12 @@ function close() {
 
       <div class="sidebar-spacer"></div>
 
-      <div class="sidebar-item disabled">
+      <router-link
+        to="/settings"
+        class="sidebar-item"
+        :class="{ active: isActive('/settings') }"
+        @click="close"
+      >
         <svg
           viewBox="0 0 24 24"
           width="18"
@@ -146,8 +440,24 @@ function close() {
           />
         </svg>
         <span>Settings</span>
-        <span class="soon-badge">soon</span>
-      </div>
+      </router-link>
+      <button type="button" class="sidebar-item" @click="handleLogout">
+        <svg
+          viewBox="0 0 24 24"
+          width="18"
+          height="18"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+          <polyline points="16 17 21 12 16 7" />
+          <line x1="21" y1="12" x2="9" y2="12" />
+        </svg>
+        <span>Log Out</span>
+      </button>
     </aside>
   </Transition>
 </template>
@@ -174,6 +484,16 @@ function close() {
 }
 .menu-toggle:hover {
   background: rgba(40, 40, 40, 0.85);
+}
+.menu-toggle-dot {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #d68a34;
+  border: 2px solid #121212;
 }
 .sidebar-backdrop {
   position: fixed;
@@ -210,6 +530,19 @@ function close() {
   font-weight: 700;
   font-size: 16px;
 }
+.mock-badge {
+  margin-left: auto;
+  font-size: 10px;
+  font-weight: 700;
+  color: #d68a34;
+  background: rgba(214, 138, 52, 0.14);
+  border: 1px solid rgba(214, 138, 52, 0.35);
+  padding: 3px 8px;
+  border-radius: 999px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
 .sidebar-divider {
   height: 1px;
   background: #2a2a2a;
@@ -244,6 +577,61 @@ function close() {
 .sidebar-item.disabled:hover {
   background: none;
 }
+.sidebar-parent-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  border-radius: 8px;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+.sidebar-parent-row.active {
+  background: rgba(214, 138, 52, 0.14);
+  color: #d68a34;
+}
+.sidebar-parent-row.active .sidebar-parent-link {
+  color: #d68a34;
+}
+.sidebar-parent-link {
+  flex: 1;
+  min-width: 0;
+}
+.sidebar-expand-toggle {
+  background: none;
+  border: none;
+  color: #999;
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    transform 0.2s ease,
+    background 0.15s ease,
+    color 0.15s ease;
+}
+.sidebar-expand-toggle:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+.sidebar-expand-toggle.expanded {
+  transform: rotate(90deg);
+}
+.sidebar-subitems {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-left: 18px;
+  padding-left: 12px;
+  border-left: 1px solid #2a2a2a;
+}
+.sidebar-subitem {
+  font-size: 13px;
+}
 .soon-badge {
   margin-left: auto;
   font-size: 10px;
@@ -251,6 +639,75 @@ function close() {
   background: rgba(255, 255, 255, 0.06);
   padding: 2px 6px;
   border-radius: 999px;
+}
+.notification-toggle {
+  background: none;
+  border: none;
+  width: 100%;
+  font: inherit;
+  text-align: left;
+}
+.notification-empty {
+  color: #666;
+  font-size: 12.5px;
+  padding: 6px 8px;
+  margin: 0;
+}
+.notification-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 7px 8px;
+  border-radius: 6px;
+  text-decoration: none;
+  color: inherit;
+  font-size: 13px;
+}
+.notification-row:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+.notification-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  margin-top: 5px;
+  flex-shrink: 0;
+}
+.notification-dot.deadline {
+  background: #f87171;
+}
+.notification-dot.suggested {
+  background: #d68a34;
+}
+.notification-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.notification-title {
+  color: #eee;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.notification-detail {
+  color: #888;
+  font-size: 11.5px;
+}
+.inbox-badge {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 700;
+  color: #111;
+  background: #d68a34;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .sidebar-spacer {
   flex: 1;

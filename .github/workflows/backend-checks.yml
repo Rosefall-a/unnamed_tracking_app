@@ -7,7 +7,6 @@ on:
       - ".github/workflows/backend-checks.yml"
   pull_request:
     paths:
-      - ".github/workflows/backend-checks.yml"
 
 jobs:
   backend-checks:
