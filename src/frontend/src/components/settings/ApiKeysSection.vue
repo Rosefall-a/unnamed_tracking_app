@@ -46,10 +46,7 @@ async function handleCreate() {
 }
 
 async function handleRevoke(key: ApiKeySummary) {
-  if (!window.confirm(`Revoke the API key "${key.name}"? This cannot be undone.`)) {
-    return;
-  }
-
+  if (!window.confirm(`Revoke the API key "${key.name}"? This cannot be undone.`)) return;
   error.value = "";
   try {
     await revokeApiKey(key.id);
@@ -67,7 +64,9 @@ onMounted(loadKeys);
     <div class="section-header">
       <div>
         <h2>API Keys</h2>
-        <p>Generate keys for external apps and integrations such as the Playnite plugin.</p>
+        <p>
+          Generate keys for external apps and integrations such as the Playnite plugin.
+        </p>
       </div>
     </div>
 
@@ -104,7 +103,9 @@ onMounted(loadKeys);
     <div class="keys">
       <h3>Your keys</h3>
       <p v-if="isLoading" class="muted">Loading…</p>
-      <p v-else-if="keys.length === 0" class="muted">No API keys have been created.</p>
+      <p v-else-if="keys.length === 0" class="muted">
+        No API keys have been created.
+      </p>
       <div v-else class="key-list">
         <div v-for="key in keys" :key="key.id" class="key-row">
           <div>
@@ -136,7 +137,7 @@ input:focus { outline: none; border-color: #666; }
 button { padding: 10px 14px; border: 0; border-radius: 7px; background: #fff; color: #111; font: inherit; font-weight: 600; cursor: pointer; }
 button:disabled { opacity: 0.45; cursor: not-allowed; }
 .secondary { margin-top: 12px; background: rgba(255, 255, 255, 0.1); color: #fff; }
-.danger { background: transparent; color: #ff8f8f; border: 1px solid rgba(255, 143, 143, 0.25); }
+.danger { border: 1px solid rgba(255, 143, 143, 0.25); background: transparent; color: #ff8f8f; }
 .created-key { margin-bottom: 32px; padding: 16px; border: 1px solid rgba(255, 255, 255, 0.14); border-radius: 9px; background: rgba(255, 255, 255, 0.04); }
 .created-key strong { display: block; margin-bottom: 4px; }
 .created-key p { margin-bottom: 12px; }
