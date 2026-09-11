@@ -106,3 +106,23 @@ def resolve_metadata_provider_credentials(
             _decrypt(app_integrations.xbox_client_secret) if app_integrations else None,
         ),
     )
+
+
+def apply_deployment_provider_credentials(app_integrations: "AppIntegrationSettings") -> None:
+    """Apply database credentials as the in-process deployment fallback.
+
+    Existing provider clients already read deployment defaults from `settings`.
+    Loading the database row into those defaults keeps the precedence centralized
+    without duplicating database lookups throughout every provider client.
+    User-specific credentials still win because callers pass them explicitly.
+    """
+    credentials = resolve_metadata_provider_credentials(None, app_integrations)
+    settings.STEAMGRIDDB_API_KEY = credentials.steamgriddb_api_key
+    settings.RETROACHIEVEMENTS_API_KEY = credentials.retroachievements_api_key
+    settings.GIANTBOMB_API_KEY = credentials.giantbomb_api_key
+    settings.IGDB_CLIENT_ID = credentials.igdb_client_id
+    settings.IGDB_CLIENT_SECRET = credentials.igdb_client_secret
+    settings.SCREENSCRAPER_SSID = credentials.screenscraper_ssid
+    settings.SCREENSCRAPER_SSPASSWORD = credentials.screenscraper_sspassword
+    settings.SCREENSCRAPER_DEVID = credentials.screenscraper_devid
+    settings.SCREENSCRAPER_DEVPASSWORD = credentials.screenscraper_devpassword
