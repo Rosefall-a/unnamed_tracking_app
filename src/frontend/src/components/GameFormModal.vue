@@ -737,8 +737,8 @@ async function submit() {
 
             <p class="hint">
               Choose a file here to stage it for upload. The image is uploaded
-              when you click Add Game or Save Changes; it is not sent immediately
-              when selected.
+              when you click Add Game or Save Changes; it is not sent
+              immediately when selected.
             </p>
           </div>
 
