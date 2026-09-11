@@ -106,8 +106,12 @@ async function searchMetadata() {
     const response = await searchMovieMetadata(metadataQuery.value.trim());
     metadataResults.value = response.results;
     providerWarnings.value = response.providerErrors;
-    if (!metadataResults.value.length)
+    if (!response.providers.length) {
+      metadataMessage.value =
+        "No metadata providers configured — add a TMDB or OMDb API key in Settings > Metadata > Metadata/API to enable movie search.";
+    } else if (!metadataResults.value.length) {
       metadataMessage.value = "No movies found.";
+    }
   } catch (e) {
     metadataMessage.value =
       e instanceof Error ? e.message : "Metadata search failed.";

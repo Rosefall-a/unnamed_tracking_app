@@ -1,15 +1,17 @@
 <script setup lang="ts">
 import { ref, onMounted } from "vue";
+import { useRouter } from "vue-router";
 import { fetchMovies } from "../services/movies";
 import type { Movie } from "../types/movie";
 import MovieFormModal from "../components/MovieFormModal.vue";
+
+const router = useRouter();
 
 const movies = ref<Movie[]>([]);
 const loading = ref(true);
 const error = ref<string | null>(null);
 
-const showModal = ref(false);
-const editingMovie = ref<Movie | null>(null);
+const showCreateModal = ref(false);
 
 async function load() {
   loading.value = true;
@@ -22,29 +24,13 @@ async function load() {
   }
 }
 
-function openCreate() {
-  editingMovie.value = null;
-  showModal.value = true;
+function openMovie(movie: Movie) {
+  router.push(`/movies/${movie.id}`);
 }
 
-function openEdit(movie: Movie) {
-  editingMovie.value = movie;
-  showModal.value = true;
-}
-
-function onSaved(movie: Movie) {
-  const index = movies.value.findIndex((m) => m.id === movie.id);
-  if (index === -1) {
-    movies.value.push(movie);
-  } else {
-    movies.value[index] = movie;
-  }
-  showModal.value = false;
-}
-
-function onDeleted(movieId: string) {
-  movies.value = movies.value.filter((m) => m.id !== movieId);
-  showModal.value = false;
+function onCreated(movie: Movie) {
+  movies.value.push(movie);
+  showCreateModal.value = false;
 }
 
 onMounted(load);
@@ -54,7 +40,7 @@ onMounted(load);
   <main class="movies-page">
     <div class="header-row">
       <h1>Movies</h1>
-      <button type="button" class="add-button" @click="openCreate">
+      <button type="button" class="add-button" @click="showCreateModal = true">
         + Add Movie
       </button>
     </div>
@@ -73,7 +59,7 @@ onMounted(load);
         type="button"
         class="movie-tile"
         :class="{ 'has-poster': m.posterUrl }"
-        @click="openEdit(m)"
+        @click="openMovie(m)"
       >
         <img
           v-if="m.posterUrl"
@@ -91,11 +77,10 @@ onMounted(load);
     </div>
 
     <MovieFormModal
-      v-if="showModal"
-      :movie="editingMovie"
-      @saved="onSaved"
-      @deleted="onDeleted"
-      @closed="showModal = false"
+      v-if="showCreateModal"
+      :movie="null"
+      @saved="onCreated"
+      @closed="showCreateModal = false"
     />
   </main>
 </template>

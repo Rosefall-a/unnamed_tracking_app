@@ -118,6 +118,48 @@ export async function fetchMovies(): Promise<Movie[]> {
   return all.map(mapBackendMovie);
 }
 
+export async function getMovie(id: string): Promise<Movie> {
+  const response = await fetch(`/api/movie/get/${id}`, {
+    credentials: "include",
+  });
+  const raw = await handle<BackendMovie>(response, `fetch movie ${id}`);
+  return mapBackendMovie(raw);
+}
+
+// Round-trips a loaded Movie back into MovieInput shape — used when a
+// caller needs to change one field (e.g. toggling favorite from the
+// detail page) without reopening the full edit form, since updateMovie
+// always sends every field rather than a true partial patch.
+export function movieToInput(movie: Movie): MovieInput {
+  return {
+    title: movie.title,
+    description: movie.description,
+    releaseDate: movie.releaseDate,
+    runtimeMinutes: movie.runtimeMinutes,
+    director: movie.director,
+    writer: movie.writer,
+    studios: movie.studios,
+    countries: movie.countries,
+    languages: movie.languages,
+    genres: movie.genres,
+    tags: movie.tags,
+    features: movie.features,
+    ageRating: movie.ageRating,
+    tmdbScore: movie.tmdbScore,
+    source: movie.source,
+    posterUrl: movie.posterUrl,
+    status: movie.status,
+    priority: movie.priority,
+    favorite: movie.favorite,
+    rewatches: movie.rewatches,
+    ratingStory: movie.ratingStory,
+    ratingPerformance: movie.ratingPerformance,
+    ratingSoundtrack: movie.ratingSoundtrack,
+    ratingOverall: movie.ratingOverall,
+    personalRank: movie.personalRank,
+  };
+}
+
 export interface MovieInput {
   title: string;
   description?: string | null;
