@@ -46,7 +46,12 @@ async function handleCreate() {
 }
 
 async function handleRevoke(key: ApiKeySummary) {
-  if (!window.confirm(`Revoke the API key "${key.name}"? This cannot be undone.`)) return;
+  if (
+    !window.confirm(`Revoke the API key "${key.name}"? This cannot be undone.`)
+  ) {
+    return;
+  }
+
   error.value = "";
   try {
     await revokeApiKey(key.id);
@@ -65,13 +70,15 @@ onMounted(loadKeys);
       <div>
         <h2>API Keys</h2>
         <p>
-          Generate keys for external apps and integrations such as the Playnite plugin.
+          Generate keys for external apps and integrations such as the Playnite
+          plugin.
         </p>
       </div>
     </div>
 
     <div class="notice">
-      API keys grant access to your account. Keep them private and revoke any key you no longer use.
+      API keys grant access to your account. Keep them private and revoke any
+      key you no longer use.
     </div>
 
     <form class="create-form" @submit.prevent="handleCreate">
@@ -95,7 +102,9 @@ onMounted(loadKeys);
       <strong>API key created</strong>
       <p>Copy this key now. It will not be shown again.</p>
       <code>{{ createdKey }}</code>
-      <button type="button" class="secondary" @click="createdKey = ''">Done</button>
+      <button type="button" class="secondary" @click="createdKey = ''">
+        Done
+      </button>
     </div>
 
     <p v-if="error" class="error">{{ error }}</p>
@@ -115,7 +124,9 @@ onMounted(loadKeys);
               {{ new Date(key.created_at * 1000).toLocaleDateString() }}
             </span>
           </div>
-          <button type="button" class="danger" @click="handleRevoke(key)">Revoke</button>
+          <button type="button" class="danger" @click="handleRevoke(key)">
+            Revoke
+          </button>
         </div>
       </div>
     </div>
@@ -123,31 +134,173 @@ onMounted(loadKeys);
 </template>
 
 <style scoped>
-.section { color: #fff; }
-.section-header { margin-bottom: 24px; }
-h2 { margin: 0 0 8px; font-size: 1.35rem; }
-h3 { margin: 0 0 12px; font-size: 1rem; }
-p { margin: 0; color: rgba(255, 255, 255, 0.68); line-height: 1.5; }
-.notice { margin-bottom: 24px; padding: 12px 14px; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; background: rgba(255, 255, 255, 0.035); color: rgba(255, 255, 255, 0.75); font-size: 0.9rem; }
-.create-form { margin-bottom: 32px; }
-label { display: block; margin-bottom: 8px; font-size: 0.9rem; font-weight: 600; }
-.create-row { display: flex; gap: 10px; }
-input { flex: 1; min-width: 0; padding: 10px 12px; border: 1px solid #383838; border-radius: 7px; background: #111; color: #fff; font: inherit; }
-input:focus { outline: none; border-color: #666; }
-button { padding: 10px 14px; border: 0; border-radius: 7px; background: #fff; color: #111; font: inherit; font-weight: 600; cursor: pointer; }
-button:disabled { opacity: 0.45; cursor: not-allowed; }
-.secondary { margin-top: 12px; background: rgba(255, 255, 255, 0.1); color: #fff; }
-.danger { border: 1px solid rgba(255, 143, 143, 0.25); background: transparent; color: #ff8f8f; }
-.created-key { margin-bottom: 32px; padding: 16px; border: 1px solid rgba(255, 255, 255, 0.14); border-radius: 9px; background: rgba(255, 255, 255, 0.04); }
-.created-key strong { display: block; margin-bottom: 4px; }
-.created-key p { margin-bottom: 12px; }
-code { display: block; overflow-x: auto; padding: 12px; border-radius: 6px; background: #0d0d0d; color: #fff; font: 0.85rem/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; user-select: all; }
-.error { margin-bottom: 20px; color: #ff9d9d; }
-.muted { font-size: 0.9rem; }
-.keys { padding-top: 8px; }
-.key-list { border-top: 1px solid #2a2a2a; }
-.key-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 0; border-bottom: 1px solid #2a2a2a; }
-.key-row strong, .key-row span { display: block; }
-.key-row span { margin-top: 4px; color: rgba(255, 255, 255, 0.5); font-size: 0.82rem; }
-@media (max-width: 600px) { .create-row { flex-direction: column; } .key-row { align-items: flex-start; flex-direction: column; } }
+.section {
+  color: #fff;
+}
+
+.section-header {
+  margin-bottom: 24px;
+}
+
+h2 {
+  margin: 0 0 8px;
+  font-size: 1.35rem;
+}
+
+h3 {
+  margin: 0 0 12px;
+  font-size: 1rem;
+}
+
+p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.68);
+  line-height: 1.5;
+}
+
+.notice {
+  margin-bottom: 24px;
+  padding: 12px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.035);
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 0.9rem;
+}
+
+.create-form {
+  margin-bottom: 32px;
+}
+
+label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.create-row {
+  display: flex;
+  gap: 10px;
+}
+
+input {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid #383838;
+  border-radius: 7px;
+  background: #111;
+  color: #fff;
+  font: inherit;
+}
+
+input:focus {
+  outline: none;
+  border-color: #666;
+}
+
+button {
+  padding: 10px 14px;
+  border: 0;
+  border-radius: 7px;
+  background: #fff;
+  color: #111;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.secondary {
+  margin-top: 12px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.danger {
+  border: 1px solid rgba(255, 143, 143, 0.25);
+  background: transparent;
+  color: #ff8f8f;
+}
+
+.created-key {
+  margin-bottom: 32px;
+  padding: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.created-key strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.created-key p {
+  margin-bottom: 12px;
+}
+
+code {
+  display: block;
+  overflow-x: auto;
+  padding: 12px;
+  border-radius: 6px;
+  background: #0d0d0d;
+  color: #fff;
+  font: 0.85rem/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+  user-select: all;
+}
+
+.error {
+  margin-bottom: 20px;
+  color: #ff9d9d;
+}
+
+.muted {
+  font-size: 0.9rem;
+}
+
+.keys {
+  padding-top: 8px;
+}
+
+.key-list {
+  border-top: 1px solid #2a2a2a;
+}
+
+.key-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 0;
+  border-bottom: 1px solid #2a2a2a;
+}
+
+.key-row strong,
+.key-row span {
+  display: block;
+}
+
+.key-row span {
+  margin-top: 4px;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.82rem;
+}
+
+@media (max-width: 600px) {
+  .create-row {
+    flex-direction: column;
+  }
+
+  .key-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
 </style>
