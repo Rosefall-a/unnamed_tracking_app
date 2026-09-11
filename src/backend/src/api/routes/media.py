@@ -273,7 +273,9 @@ async def assign_inbox_media(
         )
 
     create_game_folder(current_user.id, game.folder_location)
-    dest_dir = GAMES_DATA_ROOT / str(current_user.id) / "games" / game.folder_location / media_subdir(kind)
+    dest_dir = (
+        GAMES_DATA_ROOT / str(current_user.id) / "games" / game.folder_location / media_subdir(kind)
+    )
     dest_dir.mkdir(parents=True, exist_ok=True)
     dest_path = dest_dir / source_path.name
     shutil.move(str(source_path), str(dest_path))
