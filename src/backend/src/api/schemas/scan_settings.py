@@ -1,3 +1,5 @@
+"""Pydantic schemas and validation for user scan settings."""
+
 from typing import Literal
 from uuid import UUID
 
@@ -34,11 +36,13 @@ class ScanSettingsUpdate(BaseModel):
     @field_validator("provider_order")
     @classmethod
     def validate_provider_order(cls, value: list[str] | None) -> list[str] | None:
+        """Validate the configured order of metadata providers."""
         return _validate_order(value, DATA_PROVIDERS)
 
     @field_validator("image_provider_order")
     @classmethod
     def validate_image_provider_order(cls, value: list[str] | None) -> list[str] | None:
+        """Validate the configured order of image providers."""
         return _validate_order(value, IMAGE_PROVIDERS)
 
 
