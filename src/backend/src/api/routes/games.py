@@ -566,7 +566,7 @@ async def upload_game_screenshots(
             )
             continue
 
-        dest_dir = _DATA_ROOT / game.folder_location / media_subdir(kind)
+        dest_dir = _DATA_ROOT / str(game.user_id) / "games" / game.folder_location / media_subdir(kind)
         saved_path = save_media_bytes(data, dest_dir, file.filename or "file")
         db.add(
             MediaItem(game_id=game_id, kind=kind, filename=saved_path.name, profile_id=profile_id)
@@ -604,7 +604,7 @@ async def get_game_screenshot(
     current_user: User = Depends(get_current_user),
 ) -> FileResponse:
     game = await _get_game_or_404(game_id, db, current_user.id)
-    path = _DATA_ROOT / (game.folder_location or "") / media_subdir(kind) / Path(filename).name
+    path = _DATA_ROOT / str(game.user_id) / "games" / (game.folder_location or "") / media_subdir(kind) / Path(filename).name
     if not path.is_file():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Media file not found.")
     return FileResponse(path)
@@ -660,7 +660,7 @@ async def delete_game_screenshot(
     )
     if item is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Media item not found.")
-    game_dir = _DATA_ROOT / (game.folder_location or "")
+    game_dir = _DATA_ROOT / str(game.user_id) / "games" / (game.folder_location or "")
     path = game_dir / media_subdir(kind) / Path(filename).name
     move_media_file_to_trash(path, game_dir, kind)
     item.deleted_at = int(time.time())
@@ -714,7 +714,7 @@ async def restore_game_screenshot(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Deleted media item not found."
         )
-    game_dir = _DATA_ROOT / (game.folder_location or "")
+    game_dir = _DATA_ROOT / str(game.user_id) / "games" / (game.folder_location or "")
     restore_media_file_from_trash(filename, game_dir / media_subdir(kind), game_dir, kind)
     item.deleted_at = None
     await db.commit()
@@ -797,7 +797,7 @@ async def upload_game_files(
                 }
             )
             continue
-        dest_dir = _DATA_ROOT / game.folder_location / _game_file_subdir(kind)
+        dest_dir = _DATA_ROOT / str(game.user_id) / "games" / game.folder_location / _game_file_subdir(kind)
         saved_path = save_media_bytes(data, dest_dir, file.filename or "file")
         db.add(GameFileItem(game_id=game_id, kind=kind, filename=saved_path.name))
         results.append({"filename": saved_path.name, "status": "saved", "size": len(data)})
@@ -816,7 +816,7 @@ async def list_game_files(
     game = await _get_game_or_404(game_id, db, current_user.id)
     if not game.folder_location:
         return {"files": []}
-    game_dir = _DATA_ROOT / game.folder_location
+    game_dir = _DATA_ROOT / str(game.user_id) / "games" / game.folder_location
     await _sync_game_file_items(game_id, game_dir, db)
     result = await db.execute(
         select(GameFileItem)
@@ -880,7 +880,7 @@ async def get_game_file(
     current_user: User = Depends(get_current_user),
 ) -> FileResponse:
     game = await _get_game_or_404(game_id, db, current_user.id)
-    path = _DATA_ROOT / (game.folder_location or "") / _game_file_subdir(kind) / Path(filename).name
+    path = _DATA_ROOT / str(game.user_id) / "games" / (game.folder_location or "") / _game_file_subdir(kind) / Path(filename).name
     if not path.is_file():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found.")
     # arbitrary user files (saves/docs) should download, not attempt to
@@ -904,7 +904,7 @@ async def delete_game_file(
     delete path in the app (features/trash/sweep.py does the eventual
     real deletion)."""
     game = await _get_game_or_404(game_id, db, current_user.id)
-    game_dir = _DATA_ROOT / (game.folder_location or "")
+    game_dir = _DATA_ROOT / str(game.user_id) / "games" / (game.folder_location or "")
     await _sync_game_file_items(game_id, game_dir, db)
     name = Path(filename).name
     item = await db.scalar(
@@ -944,7 +944,7 @@ async def restore_game_file(
     )
     if item is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Deleted file not found.")
-    game_dir = _DATA_ROOT / (game.folder_location or "")
+    game_dir = _DATA_ROOT / str(game.user_id) / "games" / (game.folder_location or "")
     restore_media_file_from_trash(name, game_dir / _game_file_subdir(kind), game_dir, kind)
     item.deleted_at = None
     await db.commit()
@@ -1800,7 +1800,7 @@ async def delete_game(
     the instant, permanent delete it had before."""
     game = await _get_game_or_404(game_id, db, current_user.id)
     if game.folder_location:
-        move_game_to_trash(_DATA_ROOT / game.folder_location, _DATA_ROOT, game_id)
+        move_game_to_trash(_DATA_ROOT / str(game.user_id) / "games" / game.folder_location, _DATA_ROOT, game_id)
     game.deleted_at = int(time.time())
     await db.commit()
 
@@ -1844,7 +1844,7 @@ async def restore_game(
         # check before touching any files, not after, so a rejected restore
         # never leaves the folder half-moved
         await _ensure_folder_location_available(game.folder_location, db, exclude_game_id=game_id)
-        restore_game_from_trash(_DATA_ROOT / game.folder_location, _DATA_ROOT, game_id)
+        restore_game_from_trash(_DATA_ROOT / str(game.user_id) / "games" / game.folder_location, _DATA_ROOT, game_id)
     game.deleted_at = None
     await db.commit()
     await db.refresh(game)
