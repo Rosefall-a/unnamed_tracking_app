@@ -1,0 +1,41 @@
+name: Finish per-user folder validation
+
+on:
+  push:
+    branches:
+      - feature/playnite-guid
+
+permissions:
+  contents: write
+
+jobs:
+  finish:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: feature/playnite-guid
+          fetch-depth: 0
+      - name: Fix remaining create caller and remove temporary workflows
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('src/backend/src/api/routes/games.py')
+          text = path.read_text()
+          old = 'await _ensure_folder_location_available(payload.folder_location, db)'
+          new = 'await _ensure_folder_location_available(payload.folder_location, current_user.id, db)'
+          if text.count(old) != 1:
+              raise SystemExit(f'Expected exactly one create caller, found {text.count(old)}')
+          path.write_text(text.replace(old, new, 1))
+          PY
+          rm -f .github/workflows/_fix_per_user_folder_validation.yml .github/workflows/_finish_per_user_folder_validation.yml
+      - name: Commit final fix
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/backend/src/api/routes/games.py .github/workflows/_fix_per_user_folder_validation.yml .github/workflows/_finish_per_user_folder_validation.yml
+          git diff --cached --check
+          git commit -m 'Complete per-user folder conflict fix'
+          git push origin feature/playnite-guid
