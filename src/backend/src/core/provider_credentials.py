@@ -110,7 +110,10 @@ def resolve_metadata_provider_credentials(
             _decrypt(app_integrations.screenscraper_devpassword) if app_integrations else None,
             _ENVIRONMENT_FALLBACKS["screenscraper_devpassword"],
         ),
-        xbox_client_id=_prefer(user.xbox_client_id if user else None, app_integrations.xbox_client_id if app_integrations else None),
+        xbox_client_id=_prefer(
+            user.xbox_client_id if user else None,
+            app_integrations.xbox_client_id if app_integrations else None,
+        ),
         xbox_client_secret=_prefer(
             _decrypt(user.xbox_client_secret if user else None),
             _decrypt(app_integrations.xbox_client_secret) if app_integrations else None,
