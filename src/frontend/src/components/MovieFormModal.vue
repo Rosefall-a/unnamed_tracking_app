@@ -1,6 +1,12 @@
 <script setup lang="ts">
 import { ref, watch } from "vue";
-import { createMovie, updateMovie, deleteMovie } from "../services/movies";
+import {
+  createMovie,
+  updateMovie,
+  deleteMovie,
+  searchMovieMetadata,
+} from "../services/movies";
+import type { MovieMetadataResult } from "../services/movies";
 import type { Movie, MovieStatus } from "../types/movie";
 
 const props = defineProps<{
@@ -39,6 +45,8 @@ function blankFields() {
     favorite: false,
     ratingOverall: null as number | null,
     personalRank: null as number | null,
+    posterUrl: null as string | null,
+    tmdbScore: null as number | null,
   };
 }
 
@@ -46,6 +54,12 @@ const fields = ref(blankFields());
 const saving = ref(false);
 const deleting = ref(false);
 const error = ref<string | null>(null);
+
+const metadataQuery = ref("");
+const metadataResults = ref<MovieMetadataResult[]>([]);
+const searchingMetadata = ref(false);
+const metadataMessage = ref<string | null>(null);
+const providerWarnings = ref<string[]>([]);
 
 function loadFromMovie(movie: Movie | null | undefined) {
   if (!movie) {
@@ -66,6 +80,8 @@ function loadFromMovie(movie: Movie | null | undefined) {
     favorite: movie.favorite,
     ratingOverall: movie.ratingOverall,
     personalRank: movie.personalRank,
+    posterUrl: movie.posterUrl,
+    tmdbScore: movie.tmdbScore,
   };
 }
 
@@ -76,6 +92,46 @@ function splitList(input: string): string[] {
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
+}
+
+async function searchMetadata() {
+  if (metadataQuery.value.trim().length < 2) {
+    metadataMessage.value = "Enter at least two characters to search.";
+    return;
+  }
+  searchingMetadata.value = true;
+  metadataMessage.value = null;
+  providerWarnings.value = [];
+  try {
+    const response = await searchMovieMetadata(metadataQuery.value.trim());
+    metadataResults.value = response.results;
+    providerWarnings.value = response.providerErrors;
+    if (!metadataResults.value.length)
+      metadataMessage.value = "No movies found.";
+  } catch (e) {
+    metadataMessage.value =
+      e instanceof Error ? e.message : "Metadata search failed.";
+  } finally {
+    searchingMetadata.value = false;
+  }
+}
+
+function applyMetadata(result: MovieMetadataResult) {
+  fields.value.title = result.title;
+  fields.value.description = result.description ?? "";
+  fields.value.releaseDate = result.releaseDate ?? "";
+  if (result.runtimeMinutes !== null)
+    fields.value.runtimeMinutes = result.runtimeMinutes;
+  fields.value.director = result.director ?? "";
+  fields.value.writer = result.writer ?? "";
+  if (result.studios.length)
+    fields.value.studiosInput = result.studios.join(", ");
+  if (result.genres.length) fields.value.genresInput = result.genres.join(", ");
+  fields.value.posterUrl = result.posterUrl;
+  if (result.tmdbScore !== null) fields.value.tmdbScore = result.tmdbScore;
+  metadataResults.value = [];
+  metadataQuery.value = result.title;
+  metadataMessage.value = `Prefilled from ${result.provider}. Review the fields before saving.`;
 }
 
 async function submit() {
@@ -100,6 +156,8 @@ async function submit() {
       favorite: fields.value.favorite,
       ratingOverall: fields.value.ratingOverall,
       personalRank: fields.value.personalRank,
+      posterUrl: fields.value.posterUrl,
+      tmdbScore: fields.value.tmdbScore,
     };
     const saved = props.movie
       ? await updateMovie(props.movie.id, input)
@@ -139,6 +197,57 @@ async function remove() {
 
       <div class="modal-body">
         <p v-if="error" class="error-text">{{ error }}</p>
+
+        <div class="field">
+          <span>Search TMDB / OMDb</span>
+          <div class="search-row">
+            <input
+              v-model="metadataQuery"
+              type="search"
+              class="text-input"
+              placeholder="Search by movie title"
+              @keyup.enter="searchMetadata"
+            />
+            <button
+              type="button"
+              class="secondary-button"
+              :disabled="searchingMetadata"
+              @click="searchMetadata"
+            >
+              {{ searchingMetadata ? "Searching…" : "Search" }}
+            </button>
+          </div>
+          <div v-if="metadataResults.length" class="metadata-results">
+            <button
+              v-for="result in metadataResults"
+              :key="`${result.provider}-${result.providerId}`"
+              type="button"
+              class="metadata-result"
+              @click="applyMetadata(result)"
+            >
+              <span>{{ result.title }}</span>
+              <small
+                >{{ result.provider
+                }}<span v-if="result.releaseDate">
+                  · {{ result.releaseDate.slice(0, 4) }}</span
+                ></small
+              >
+            </button>
+          </div>
+          <p v-if="metadataMessage" class="hint">{{ metadataMessage }}</p>
+          <ul v-if="providerWarnings.length" class="provider-warnings">
+            <li v-for="warning in providerWarnings" :key="warning">
+              {{ warning }}
+            </li>
+          </ul>
+        </div>
+
+        <img
+          v-if="fields.posterUrl"
+          :src="fields.posterUrl"
+          alt=""
+          class="poster-preview"
+        />
 
         <label class="field">
           <span>Title</span>
@@ -242,6 +351,18 @@ async function remove() {
             />
           </label>
         </div>
+
+        <label class="field">
+          <span>TMDB / IMDb score (0-10)</span>
+          <input
+            v-model.number="fields.tmdbScore"
+            type="number"
+            min="0"
+            max="10"
+            step="0.1"
+            class="text-input"
+          />
+        </label>
       </div>
 
       <div class="modal-foot">
@@ -330,6 +451,61 @@ async function remove() {
   color: #fca5a5;
   font-size: 0.85rem;
   margin: 0;
+}
+.search-row {
+  display: flex;
+  gap: 8px;
+}
+.search-row input {
+  flex: 1;
+  min-width: 0;
+}
+.metadata-results {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+}
+.metadata-result {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  width: 100%;
+  padding: 9px 10px;
+  text-align: left;
+  color: #fff;
+  background: #202020;
+  border: 1px solid #2a2a2a;
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.metadata-result:hover {
+  border-color: #d68a34;
+  background: #282828;
+}
+.metadata-result small {
+  color: #999;
+  font-size: 0.78rem;
+}
+.provider-warnings {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.provider-warnings li {
+  color: #fca27a;
+  font-size: 0.75rem;
+}
+.poster-preview {
+  width: 100%;
+  max-height: 220px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid #2a2a2a;
 }
 .field {
   display: flex;

@@ -38,6 +38,8 @@ const SHORT_DESC: Record<string, string> = {
   Steam: "Public store data, no key needed",
   SteamGridDB: "Cover art & hero banners",
   IGDB: "General metadata & art (app-wide key)",
+  TMDB: "Movie metadata & posters (app-wide key)",
+  OMDb: "IMDb-backed movie fallback source (app-wide key)",
   GiantBomb: "General metadata & art",
   ScreenScraper: "Retro box art & screenshots",
   GOG: "Metadata search, no key needed",
@@ -52,6 +54,8 @@ const VISUALS: Record<string, CardVisual> = {
   Steam: { bg: "#12202e", fg: "#66c0f4", mark: "S" },
   SteamGridDB: { bg: "#0e3b3b", fg: "#2dd4bf", mark: "Gr" },
   IGDB: { bg: "#2b1c4a", fg: "#a78bfa", mark: "IG" },
+  TMDB: { bg: "#01283d", fg: "#5dd9c1", mark: "TM" },
+  OMDb: { bg: "#2a2205", fg: "#f5c518", mark: "OM" },
   GiantBomb: { bg: "#3d2f00", fg: "#fbbf24", mark: "GB" },
   RetroAchievements: { bg: "#3b0a0a", fg: "#f87171", mark: "RA" },
   ScreenScraper: { bg: "#1a3d0a", fg: "#86efac", mark: "SS" },
@@ -102,6 +106,16 @@ const igdbLoading = ref(true);
 const igdbSaving = ref(false);
 const igdbError = ref<string | null>(null);
 
+const tmdbApiKey = ref("");
+const tmdbConfigured = ref(false);
+const tmdbSaving = ref(false);
+const tmdbError = ref<string | null>(null);
+
+const omdbApiKey = ref("");
+const omdbConfigured = ref(false);
+const omdbSaving = ref(false);
+const omdbError = ref<string | null>(null);
+
 onMounted(async () => {
   if (!isAdmin.value) {
     igdbLoading.value = false;
@@ -111,6 +125,8 @@ onMounted(async () => {
     const result = await fetchAppIntegrations();
     igdbClientId.value = result.igdb_client_id ?? "";
     igdbConfigured.value = result.igdb_configured;
+    tmdbConfigured.value = result.tmdb_configured;
+    omdbConfigured.value = result.omdb_configured;
   } finally {
     igdbLoading.value = false;
   }
@@ -154,6 +170,83 @@ async function clearIgdbCredentials() {
       err instanceof Error ? err.message : "Failed to clear IGDB credentials";
   } finally {
     igdbSaving.value = false;
+  }
+}
+
+// TMDB/OMDb each save/clear only their own field via PUT — unlike IGDB's
+// DELETE above, which clears every app-integration field at once. Reusing
+// that same DELETE for a single-key provider would wipe the other two
+// providers' keys too, so a plain PUT with an empty string is used to
+// clear just one field instead.
+async function saveTmdbKey() {
+  tmdbSaving.value = true;
+  tmdbError.value = null;
+  try {
+    const result = await updateAppIntegrations({
+      tmdb_api_key: tmdbApiKey.value.trim(),
+    });
+    tmdbConfigured.value = result.tmdb_configured;
+    tmdbApiKey.value = "";
+    credentialStatus.TMDB = {
+      status: tmdbConfigured.value ? "configured" : "not_configured",
+    };
+  } catch (err) {
+    tmdbError.value =
+      err instanceof Error ? err.message : "Failed to save TMDB key";
+  } finally {
+    tmdbSaving.value = false;
+  }
+}
+
+async function clearTmdbKey() {
+  tmdbSaving.value = true;
+  tmdbError.value = null;
+  try {
+    await updateAppIntegrations({ tmdb_api_key: "" });
+    tmdbApiKey.value = "";
+    tmdbConfigured.value = false;
+    credentialStatus.TMDB = { status: "not_configured" };
+  } catch (err) {
+    tmdbError.value =
+      err instanceof Error ? err.message : "Failed to clear TMDB key";
+  } finally {
+    tmdbSaving.value = false;
+  }
+}
+
+async function saveOmdbKey() {
+  omdbSaving.value = true;
+  omdbError.value = null;
+  try {
+    const result = await updateAppIntegrations({
+      omdb_api_key: omdbApiKey.value.trim(),
+    });
+    omdbConfigured.value = result.omdb_configured;
+    omdbApiKey.value = "";
+    credentialStatus.OMDb = {
+      status: omdbConfigured.value ? "configured" : "not_configured",
+    };
+  } catch (err) {
+    omdbError.value =
+      err instanceof Error ? err.message : "Failed to save OMDb key";
+  } finally {
+    omdbSaving.value = false;
+  }
+}
+
+async function clearOmdbKey() {
+  omdbSaving.value = true;
+  omdbError.value = null;
+  try {
+    await updateAppIntegrations({ omdb_api_key: "" });
+    omdbApiKey.value = "";
+    omdbConfigured.value = false;
+    credentialStatus.OMDb = { status: "not_configured" };
+  } catch (err) {
+    omdbError.value =
+      err instanceof Error ? err.message : "Failed to clear OMDb key";
+  } finally {
+    omdbSaving.value = false;
   }
 }
 
@@ -243,6 +336,22 @@ const PROVIDER_CARDS: Record<string, ProviderCardConfig> = {
     label: "IGDB",
     description:
       "General game metadata and cover art. Uses one deployment-wide developer credential, managed by a server administrator here rather than per-user.",
+    fields: [],
+    kind: "wired",
+  },
+  TMDB: {
+    key: "TMDB",
+    label: "TMDB",
+    description:
+      "Movie metadata and poster art. Uses one deployment-wide API key, managed by a server administrator here rather than per-user.",
+    fields: [],
+    kind: "wired",
+  },
+  OMDb: {
+    key: "OMDb",
+    label: "OMDb",
+    description:
+      "IMDb-backed movie metadata, used alongside TMDB so a search still returns results if one source is down or missing a title. Uses one deployment-wide API key, managed by a server administrator here rather than per-user.",
     fields: [],
     kind: "wired",
   },
@@ -704,6 +813,188 @@ async function toggleHltb(enabled: boolean) {
               type="button"
               class="secondary-button"
               @click="clearIgdbCredentials"
+            >
+              Disconnect
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- TMDB: deployment-wide, admin-only credentials -->
+      <div class="source-tile">
+        <div
+          class="tile-icon"
+          :style="{ background: VISUALS.TMDB.bg, color: VISUALS.TMDB.fg }"
+        >
+          {{ VISUALS.TMDB.mark }}
+        </div>
+        <div class="tile-body">
+          <span class="tile-name" :title="PROVIDER_CARDS.TMDB.description"
+            >TMDB</span
+          >
+          <span
+            v-if="!credentialsLoading"
+            class="tile-status"
+            :class="statusClass('TMDB')"
+            >{{ statusLabel("TMDB") }}</span
+          >
+        </div>
+        <p class="tile-desc">{{ SHORT_DESC.TMDB }}</p>
+        <div class="tile-actions">
+          <button
+            v-if="isAdmin"
+            type="button"
+            class="icon-btn"
+            :class="{ active: expanded.TMDB }"
+            title="Configure (admin only)"
+            @click="toggleExpanded('TMDB')"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              width="14"
+              height="14"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path
+                d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"
+              />
+            </svg>
+          </button>
+        </div>
+        <p v-if="!isAdmin" class="tile-desc admin-note">
+          Configured deployment-wide by your server administrator.
+        </p>
+        <form
+          v-if="isAdmin && expanded.TMDB"
+          class="tile-form"
+          @submit.prevent="saveTmdbKey"
+        >
+          <p class="tile-desc admin-note">
+            Applies to every user on this server, not just you. Register a free
+            key at
+            <a
+              href="https://www.themoviedb.org/settings/api"
+              target="_blank"
+              rel="noopener noreferrer"
+              >themoviedb.org/settings/api</a
+            >.
+          </p>
+          <label class="field">
+            <span>API Key</span>
+            <MaskedInput
+              v-model="tmdbApiKey"
+              :placeholder="
+                tmdbConfigured
+                  ? 'Saved: leave blank to keep'
+                  : 'Paste your TMDB API key'
+              "
+            />
+          </label>
+          <div v-if="tmdbError" class="form-error">{{ tmdbError }}</div>
+          <div class="card-actions">
+            <button type="submit" class="primary-button" :disabled="tmdbSaving">
+              {{ tmdbSaving ? "Saving…" : "Save" }}
+            </button>
+            <button
+              v-if="tmdbConfigured"
+              type="button"
+              class="secondary-button"
+              @click="clearTmdbKey"
+            >
+              Disconnect
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- OMDb: deployment-wide, admin-only credentials -->
+      <div class="source-tile">
+        <div
+          class="tile-icon"
+          :style="{ background: VISUALS.OMDb.bg, color: VISUALS.OMDb.fg }"
+        >
+          {{ VISUALS.OMDb.mark }}
+        </div>
+        <div class="tile-body">
+          <span class="tile-name" :title="PROVIDER_CARDS.OMDb.description"
+            >OMDb</span
+          >
+          <span
+            v-if="!credentialsLoading"
+            class="tile-status"
+            :class="statusClass('OMDb')"
+            >{{ statusLabel("OMDb") }}</span
+          >
+        </div>
+        <p class="tile-desc">{{ SHORT_DESC.OMDb }}</p>
+        <div class="tile-actions">
+          <button
+            v-if="isAdmin"
+            type="button"
+            class="icon-btn"
+            :class="{ active: expanded.OMDb }"
+            title="Configure (admin only)"
+            @click="toggleExpanded('OMDb')"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              width="14"
+              height="14"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path
+                d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"
+              />
+            </svg>
+          </button>
+        </div>
+        <p v-if="!isAdmin" class="tile-desc admin-note">
+          Configured deployment-wide by your server administrator.
+        </p>
+        <form
+          v-if="isAdmin && expanded.OMDb"
+          class="tile-form"
+          @submit.prevent="saveOmdbKey"
+        >
+          <p class="tile-desc admin-note">
+            Applies to every user on this server, not just you. Register a free
+            key at
+            <a
+              href="https://www.omdbapi.com/apikey.aspx"
+              target="_blank"
+              rel="noopener noreferrer"
+              >omdbapi.com/apikey.aspx</a
+            >.
+          </p>
+          <label class="field">
+            <span>API Key</span>
+            <MaskedInput
+              v-model="omdbApiKey"
+              :placeholder="
+                omdbConfigured
+                  ? 'Saved: leave blank to keep'
+                  : 'Paste your OMDb API key'
+              "
+            />
+          </label>
+          <div v-if="omdbError" class="form-error">{{ omdbError }}</div>
+          <div class="card-actions">
+            <button type="submit" class="primary-button" :disabled="omdbSaving">
+              {{ omdbSaving ? "Saving…" : "Save" }}
+            </button>
+            <button
+              v-if="omdbConfigured"
+              type="button"
+              class="secondary-button"
+              @click="clearOmdbKey"
             >
               Disconnect
             </button>

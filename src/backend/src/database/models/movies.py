@@ -151,6 +151,15 @@ class Movie(Base):
         nullable=True,
     )
 
+    # a direct external URL (TMDB's CDN / OMDb's Poster field), stored
+    # as-is — never downloaded/resized, unlike Games' asset pipeline.
+    # TMDB's poster URLs are stable, permanent CDN links, so linking
+    # directly is a legitimate, much lower-effort choice here.
+    poster_url: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
     # ------------------------------------------------------------------
     # Personal library state
     # ------------------------------------------------------------------

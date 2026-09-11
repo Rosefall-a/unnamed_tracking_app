@@ -24,6 +24,7 @@ export interface BackendMovie {
   age_rating: string | null;
   tmdb_score: number | string | null;
   source: string | null;
+  poster_url: string | null;
   status: string;
   priority: string | null;
   favorite: boolean;
@@ -78,6 +79,7 @@ export function mapBackendMovie(raw: BackendMovie): Movie {
     ageRating: raw.age_rating,
     tmdbScore: toNumberOrNull(raw.tmdb_score),
     source: raw.source,
+    posterUrl: raw.poster_url,
     status: normalizeStatus(raw.status),
     priority: raw.priority,
     favorite: raw.favorite,
@@ -132,6 +134,7 @@ export interface MovieInput {
   ageRating?: string | null;
   tmdbScore?: number | null;
   source?: string | null;
+  posterUrl?: string | null;
   status?: MovieStatus;
   priority?: string | null;
   favorite?: boolean;
@@ -160,6 +163,7 @@ function inputToBody(input: MovieInput): Record<string, unknown> {
     age_rating: input.ageRating ?? null,
     tmdb_score: input.tmdbScore ?? null,
     source: input.source ?? null,
+    poster_url: input.posterUrl ?? null,
     priority: input.priority ?? null,
     favorite: input.favorite ?? false,
     rewatches: input.rewatches ?? 0,
@@ -206,4 +210,93 @@ export async function deleteMovie(id: string): Promise<void> {
   if (!response.ok && response.status !== 204) {
     throw new Error(`Failed to delete movie ${id}: ${response.status}`);
   }
+}
+
+// A raw metadata search result, straight from whichever provider (TMDB or
+// OMDb) found it — already snake_case-to-camelCase mapped here since these
+// never round-trip back to the backend the way BackendMovie does.
+export interface MovieMetadataResult {
+  provider: string;
+  providerId: string;
+  title: string;
+  description: string | null;
+  releaseDate: string | null;
+  runtimeMinutes: number | null;
+  director: string | null;
+  writer: string | null;
+  studios: string[];
+  countries: string[];
+  languages: string[];
+  genres: string[];
+  posterUrl: string | null;
+  tmdbScore: number | null;
+  url: string | null;
+}
+
+export interface MovieMetadataSearchResponse {
+  query: string;
+  providers: string[];
+  providerErrors: string[];
+  results: MovieMetadataResult[];
+}
+
+interface BackendMovieMetadataResult {
+  provider: string;
+  provider_id: string;
+  title: string;
+  description: string | null;
+  release_date: string | null;
+  runtime_minutes: number | null;
+  director: string | null;
+  writer: string | null;
+  studios: string[];
+  countries: string[];
+  languages: string[];
+  genres: string[];
+  poster_url: string | null;
+  tmdb_score: number | string | null;
+  url: string | null;
+}
+
+interface BackendMovieMetadataSearchResponse {
+  query: string;
+  providers: string[];
+  provider_errors: string[];
+  results: BackendMovieMetadataResult[];
+}
+
+export async function searchMovieMetadata(
+  query: string,
+  limit = 8,
+): Promise<MovieMetadataSearchResponse> {
+  const params = new URLSearchParams({ query, limit: String(limit) });
+  const response = await fetch(`/api/movie/metadata/search?${params}`, {
+    credentials: "include",
+  });
+  const raw = await handle<BackendMovieMetadataSearchResponse>(
+    response,
+    "search movie metadata",
+  );
+  return {
+    query: raw.query,
+    providers: raw.providers,
+    providerErrors: raw.provider_errors,
+    results: raw.results.map((r) => ({
+      provider: r.provider,
+      providerId: r.provider_id,
+      title: r.title,
+      description: r.description,
+      releaseDate: r.release_date,
+      runtimeMinutes: r.runtime_minutes,
+      director: r.director,
+      writer: r.writer,
+      studios: r.studios,
+      countries: r.countries,
+      languages: r.languages,
+      genres: r.genres,
+      posterUrl: r.poster_url,
+      tmdbScore: toNumberOrNull(r.tmdb_score),
+      url: r.url,
+    })),
+  };
 }

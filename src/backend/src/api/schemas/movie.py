@@ -25,6 +25,7 @@ class MovieBase(BaseModel):
     age_rating: str | None = Field(default=None, max_length=20)
     tmdb_score: Decimal | None = Field(default=None, ge=0, le=10)
     source: str | None = Field(default=None, max_length=50)
+    poster_url: str | None = None
 
     status: MovieStatus = MovieStatus.WISHLIST
     priority: str | None = Field(default=None, max_length=20)
@@ -64,6 +65,7 @@ class MovieUpdate(BaseModel):
     age_rating: str | None = Field(default=None, max_length=20)
     tmdb_score: Decimal | None = Field(default=None, ge=0, le=10)
     source: str | None = Field(default=None, max_length=50)
+    poster_url: str | None = None
 
     status: MovieStatus | None = None
     priority: str | None = Field(default=None, max_length=20)

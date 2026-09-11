@@ -318,6 +318,12 @@ async def get_provider_credentials(
         if (app_integrations.igdb_client_id and app_integrations.igdb_client_secret)
         else "not_configured",
     }
+    result["TMDB"] = {
+        "status": "configured" if app_integrations.tmdb_api_key else "not_configured",
+    }
+    result["OMDb"] = {
+        "status": "configured" if app_integrations.omdb_api_key else "not_configured",
+    }
     result["ScreenScraper"]["app_configured"] = bool(
         settings.SCREENSCRAPER_DEVID and settings.SCREENSCRAPER_DEVPASSWORD
     )
@@ -476,6 +482,8 @@ async def delete_provider_credentials(
 class AppIntegrationSettingsRequest(BaseModel):
     igdb_client_id: str | None = None
     igdb_client_secret: str | None = None
+    tmdb_api_key: str | None = None
+    omdb_api_key: str | None = None
 
 
 @router.get("/app-integrations")
@@ -493,6 +501,8 @@ async def get_app_integrations(
     return {
         "igdb_client_id": row.igdb_client_id,
         "igdb_configured": bool(row.igdb_client_id and row.igdb_client_secret),
+        "tmdb_configured": bool(row.tmdb_api_key),
+        "omdb_configured": bool(row.omdb_api_key),
     }
 
 
@@ -511,10 +521,16 @@ async def update_app_integrations(
         row.igdb_client_secret = (
             encrypt_secret(updates["igdb_client_secret"]) if updates["igdb_client_secret"] else None
         )
+    if "tmdb_api_key" in updates:
+        row.tmdb_api_key = encrypt_secret(updates["tmdb_api_key"]) if updates["tmdb_api_key"] else None
+    if "omdb_api_key" in updates:
+        row.omdb_api_key = encrypt_secret(updates["omdb_api_key"]) if updates["omdb_api_key"] else None
     await db.commit()
     return {
         "igdb_client_id": row.igdb_client_id,
         "igdb_configured": bool(row.igdb_client_id and row.igdb_client_secret),
+        "tmdb_configured": bool(row.tmdb_api_key),
+        "omdb_configured": bool(row.omdb_api_key),
     }
 
 
@@ -527,5 +543,12 @@ async def delete_app_integrations(
     row = await get_or_create_app_integration_settings(db)
     row.igdb_client_id = None
     row.igdb_client_secret = None
+    row.tmdb_api_key = None
+    row.omdb_api_key = None
     await db.commit()
-    return {"igdb_client_id": None, "igdb_configured": False}
+    return {
+        "igdb_client_id": None,
+        "igdb_configured": False,
+        "tmdb_configured": False,
+        "omdb_configured": False,
+    }

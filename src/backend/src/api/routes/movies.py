@@ -1,20 +1,32 @@
 """API routes for managing movies."""
 
+import asyncio
 import re
 import time
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.api.routes.settings import get_or_create_app_integration_settings
 from src.api.schemas.movie import MovieCreate, MovieRead, MovieUpdate
 from src.core.auth import get_current_user
+from src.core.crypto import decrypt_secret
 from src.database.models.movies import Movie, MovieStatus
 from src.database.models.user import User
 from src.database.session import get_db
+from src.features.metadata.movies.search import search_movie_metadata
 
 router = APIRouter(prefix="/api/movie", tags=["movie"], dependencies=[Depends(get_current_user)])
+
+
+class MovieMetadataSearchResponse(BaseModel):
+    query: str
+    providers: list[str]
+    provider_errors: list[str] = []
+    results: list[dict]
 
 _LEADING_ARTICLE = re.compile(r"^(a|an|the)\s+", flags=re.IGNORECASE)
 
@@ -37,6 +49,38 @@ async def _get_movie_or_404(
             detail=f"Movie {movie_id} not found",
         )
     return movie
+
+
+@router.get("/metadata/search", response_model=MovieMetadataSearchResponse)
+async def search_metadata(
+    query: str = Query(..., min_length=2, max_length=100),
+    limit: int = Query(default=8, ge=1, le=20),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Search TMDB and OMDb for data that can prefill a new movie. Two
+    sources on purpose — redundancy, so a missing/rate-limited source
+    doesn't leave the search empty."""
+    del current_user
+    app_integrations = await get_or_create_app_integration_settings(db)
+    try:
+        result = await asyncio.to_thread(
+            search_movie_metadata,
+            query.strip(),
+            limit,
+            decrypt_secret(app_integrations.tmdb_api_key)
+            if app_integrations.tmdb_api_key
+            else None,
+            decrypt_secret(app_integrations.omdb_api_key)
+            if app_integrations.omdb_api_key
+            else None,
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Metadata providers could not be reached: {exc}",
+        ) from exc
+    return result
 
 
 @router.post(

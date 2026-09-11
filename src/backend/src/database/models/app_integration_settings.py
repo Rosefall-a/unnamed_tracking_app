@@ -25,6 +25,11 @@ class AppIntegrationSettings(Base):
     id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
     igdb_client_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     igdb_client_secret: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # movies metadata search — a bare API key grants access by itself
+    # (unlike igdb_client_id), so both are Fernet-encrypted and never
+    # echoed back to the client, same rule as igdb_client_secret
+    tmdb_api_key: Mapped[str | None] = mapped_column(Text, nullable=True)
+    omdb_api_key: Mapped[str | None] = mapped_column(Text, nullable=True)
     updated_at: Mapped[int] = mapped_column(
         BigInteger, nullable=False, default=time.time, onupdate=time.time
     )

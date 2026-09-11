@@ -235,11 +235,18 @@ export async function deleteProviderCredentials(
 export interface AppIntegrationSettings {
   igdb_client_id: string | null;
   igdb_configured: boolean;
+  tmdb_configured: boolean;
+  omdb_configured: boolean;
 }
 
 export async function fetchAppIntegrations(): Promise<AppIntegrationSettings> {
   if (import.meta.env.VITE_USE_MOCK_DATA === "true") {
-    return { igdb_client_id: null, igdb_configured: false };
+    return {
+      igdb_client_id: null,
+      igdb_configured: false,
+      tmdb_configured: false,
+      omdb_configured: false,
+    };
   }
   const response = await fetch("/api/settings/app-integrations", {
     credentials: "include",
@@ -255,11 +262,15 @@ export async function fetchAppIntegrations(): Promise<AppIntegrationSettings> {
 export async function updateAppIntegrations(payload: {
   igdb_client_id?: string;
   igdb_client_secret?: string;
+  tmdb_api_key?: string;
+  omdb_api_key?: string;
 }): Promise<AppIntegrationSettings> {
   if (import.meta.env.VITE_USE_MOCK_DATA === "true") {
     return {
       igdb_client_id: payload.igdb_client_id ?? null,
       igdb_configured: true,
+      tmdb_configured: !!payload.tmdb_api_key,
+      omdb_configured: !!payload.omdb_api_key,
     };
   }
   const response = await fetch("/api/settings/app-integrations", {

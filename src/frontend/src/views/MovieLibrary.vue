@@ -72,8 +72,15 @@ onMounted(load);
         :key="m.id"
         type="button"
         class="movie-tile"
+        :class="{ 'has-poster': m.posterUrl }"
         @click="openEdit(m)"
       >
+        <img
+          v-if="m.posterUrl"
+          :src="m.posterUrl"
+          alt=""
+          class="movie-tile-poster"
+        />
         <span v-if="m.favorite" class="favorite-chip">★</span>
         <span class="movie-tile-title">{{ m.title }}</span>
         <span class="movie-tile-status">{{ m.status }}</span>
@@ -143,6 +150,7 @@ h1 {
   background: #1a1a1a;
   border: 1px solid #2a2a2a;
   border-radius: 10px;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
@@ -155,6 +163,30 @@ h1 {
 }
 .movie-tile:hover {
   border-color: #d68a34;
+}
+.movie-tile-poster {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 0;
+}
+.movie-tile.has-poster::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to top,
+    rgba(0, 0, 0, 0.88) 0%,
+    rgba(0, 0, 0, 0.45) 55%,
+    rgba(0, 0, 0, 0.1) 100%
+  );
+  z-index: 1;
+}
+.movie-tile.has-poster > *:not(.movie-tile-poster) {
+  position: relative;
+  z-index: 2;
 }
 .favorite-chip {
   position: absolute;

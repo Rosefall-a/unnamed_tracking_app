@@ -27,6 +27,7 @@ export interface Movie {
   ageRating: string | null;
   tmdbScore: number | null;
   source: string | null;
+  posterUrl: string | null;
   status: MovieStatus;
   priority: string | null;
   favorite: boolean;
