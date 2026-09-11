@@ -69,11 +69,17 @@ class GameBase(BaseModel):
     resume_note: str | None = Field(default=None, max_length=2_000)
     playtime_seconds: int = Field(default=0, ge=0)
 
-    purchase_date: int | None = Field(default=None, ge=0, description="Unix timestamp in seconds for the purchase date.")
+    purchase_date: int | None = Field(
+        default=None, ge=0, description="Unix timestamp in seconds for the purchase date."
+    )
     purchase_price: Decimal | None = Field(default=None, ge=0)
     purchase_price_currency_code: str | None = Field(default=None, max_length=3)
     physical_condition: str | None = Field(default=None, max_length=200)
-    completion_date: int | None = Field(default=None, ge=0, description="Unix timestamp in seconds — when this game was first 100%-completed (Mastered).")
+    completion_date: int | None = Field(
+        default=None,
+        ge=0,
+        description="Unix timestamp in seconds — when this game was first 100%-completed (Mastered).",
+    )
 
     rating_story: Decimal | None = Field(default=None, ge=0, le=10)
     rating_gameplay: Decimal | None = Field(default=None, ge=0, le=10)
@@ -142,11 +148,17 @@ class GameUpdate(BaseModel):
     resume_note: str | None = Field(default=None, max_length=2_000)
     playtime_seconds: int | None = Field(default=None, ge=0)
 
-    purchase_date: int | None = Field(default=None, ge=0, description="Unix timestamp in seconds for the purchase date.")
+    purchase_date: int | None = Field(
+        default=None, ge=0, description="Unix timestamp in seconds for the purchase date."
+    )
     purchase_price: Decimal | None = Field(default=None, ge=0)
     purchase_price_currency_code: str | None = Field(default=None, max_length=3)
     physical_condition: str | None = Field(default=None, max_length=200)
-    completion_date: int | None = Field(default=None, ge=0, description="Unix timestamp in seconds — when this game was first 100%-completed (Mastered).")
+    completion_date: int | None = Field(
+        default=None,
+        ge=0,
+        description="Unix timestamp in seconds — when this game was first 100%-completed (Mastered).",
+    )
 
     rating_story: Decimal | None = Field(default=None, ge=0, le=10)
     rating_gameplay: Decimal | None = Field(default=None, ge=0, le=10)
@@ -199,8 +211,14 @@ class GameRead(GameBase):
     sort_title: str
     created_at: int = Field(description="Unix timestamp in seconds when the game was created.")
     updated_at: int = Field(description="Unix timestamp in seconds when the game was last updated.")
-    last_played_at: int | None = Field(default=None, description="Unix timestamp in seconds — set by a library sync, never user-editable.")
-    stale_since: int | None = Field(default=None, description="Unix timestamp in seconds since a library sync last noticed this game missing from the account's owned-games list. NULL means currently present (or never synced). Never causes deletion by itself, set for the user to review.")
+    last_played_at: int | None = Field(
+        default=None,
+        description="Unix timestamp in seconds — set by a library sync, never user-editable.",
+    )
+    stale_since: int | None = Field(
+        default=None,
+        description="Unix timestamp in seconds since a library sync last noticed this game missing from the account's owned-games list. NULL means currently present (or never synced). Never causes deletion by itself, set for the user to review.",
+    )
 
 
 class GameFieldChangeRead(BaseModel):
