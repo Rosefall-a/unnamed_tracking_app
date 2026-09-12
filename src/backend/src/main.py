@@ -20,6 +20,7 @@ from src.api.routes import (
     users,
 )
 from src.api.routes import set as set_routes
+from src.api.routes.game_afk import router as game_afk_router
 from src.api.routes.settings import get_or_create_app_integration_settings
 from src.api.routes.utils.misc import router as misc_router
 from src.core.auth import ensure_primary_user
@@ -40,6 +41,7 @@ app = FastAPI(
 # reaches the generated default cover.
 app.include_router(default_game_assets.router)
 app.include_router(games.router)
+app.include_router(game_afk_router)
 app.include_router(game_archives.router)
 app.include_router(users.router)
 app.include_router(api_keys.router)
