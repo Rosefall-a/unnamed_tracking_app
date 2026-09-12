@@ -9,6 +9,7 @@ from src.api.routes import (
     auth,
     bounties,
     cards,
+    default_game_assets,
     export_import,
     game_archives,
     games,
@@ -34,6 +35,10 @@ app = FastAPI(
     openapi_url="/api/openapi.json",
 )
 
+# Register the fallback artwork route before the normal asset route. When a
+# stored asset exists it is served unchanged; only a missing key-art file
+# reaches the generated default cover.
+app.include_router(default_game_assets.router)
 app.include_router(games.router)
 app.include_router(game_archives.router)
 app.include_router(users.router)
