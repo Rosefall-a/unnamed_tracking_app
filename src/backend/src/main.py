@@ -5,6 +5,7 @@ from fastapi import FastAPI
 
 from src.api.routes import (
     app_integrations,
+    api_keys,
     auth,
     bounties,
     cards,
@@ -36,6 +37,7 @@ app = FastAPI(
 app.include_router(games.router)
 app.include_router(game_archives.router)
 app.include_router(users.router)
+app.include_router(api_keys.router)
 app.include_router(auth.router)
 app.include_router(settings.router)
 app.include_router(app_integrations.router)

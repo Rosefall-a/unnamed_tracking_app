@@ -51,11 +51,12 @@ class GameStatus(str, Enum):
 class Game(Base):
     __tablename__ = "games"
     __table_args__ = (
-        # a plain unique constraint would block reusing a deleted game's
-        # folder name for the full 7-day trash window — this only enforces
-        # uniqueness among games that are actually active
+        # folder names only need to be unique within a user's storage
+        # namespace. Different users can therefore safely use the same
+        # folder name while still keeping active games unique per user.
         Index(
-            "ix_games_folder_location_active",
+            "ix_games_user_folder_location_active",
+            "user_id",
             "folder_location",
             unique=True,
             postgresql_where=text("deleted_at IS NULL"),
@@ -83,6 +84,16 @@ class Game(Base):
     folder_location: Mapped[str] = mapped_column(
         String(FOLDER_NAME_MAX_LENGTH),
         nullable=False,
+    )
+
+    # Optional identifier of the corresponding Playnite library entry.
+    # This is deliberately not unique: the same app account can receive
+    # imports from multiple Playnite libraries, while ordinary app-created
+    # games simply leave this unset.
+    playnite_guid: Mapped[UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        nullable=True,
+        index=True,
     )
 
     # set instead of actually deleting the row — see features/trash/sweep.py,

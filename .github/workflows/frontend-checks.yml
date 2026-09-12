@@ -4,6 +4,9 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: write
+
 jobs:
   frontend-checks:
     name: Frontend
@@ -11,6 +14,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
+          fetch-depth: 0
 
       - name: Set up Node
         uses: actions/setup-node@v4
@@ -23,13 +29,31 @@ jobs:
         working-directory: src/frontend
         run: npm ci
 
+      - name: Fix formatting
+        working-directory: src/frontend
+        run: npm run format:fix
+
+      - name: Commit formatting fixes
+        if: github.event_name == 'pull_request' && github.head_repository.full_name == github.repository
+        run: |
+          if git diff --quiet; then
+            echo "No formatting changes needed."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/frontend
+          git commit -m "chore: auto-fix frontend formatting"
+          git push origin HEAD:${{ github.head_ref }}
+
+      - name: Check formatting
+        working-directory: src/frontend
+        run: npm run format
+
       - name: Lint
         working-directory: src/frontend
         run: npm run lint
-
-      - name: Formatting
-        working-directory: src/frontend
-        run: npm run format
 
       - name: Type check
         working-directory: src/frontend
