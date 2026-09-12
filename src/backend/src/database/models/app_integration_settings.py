@@ -11,20 +11,37 @@ from src.database.base import Base
 
 
 class AppIntegrationSettings(Base):
-    """Singleton row (exactly one, created lazily on first access — see
-    get_or_create_app_integration_settings) holding API credentials that
-    belong to this deployment as a whole, not to any one user — an IGDB/
-    Twitch developer app is registered once per server, not once per
-    person using it. Admin-only to read/write (see /api/settings/
-    app-integrations), and igdb_client_id is the only field ever echoed
-    back to the client; igdb_client_secret never is, same rule as every
-    other Fernet-encrypted credential in this codebase."""
+    """Singleton row containing deployment-wide provider credentials.
+
+    These credentials are shared fallbacks for users who have not supplied
+    their own provider credentials. User credentials take precedence over
+    this row, and this row takes precedence over environment variables.
+    Secret values are stored encrypted; only safe identifiers are returned
+    by the settings API.
+    """
 
     __tablename__ = "app_integration_settings"
 
     id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
+
+    # Metadata providers
+    steamgriddb_api_key: Mapped[str | None] = mapped_column(Text, nullable=True)
+    retroachievements_api_key: Mapped[str | None] = mapped_column(Text, nullable=True)
+    giantbomb_api_key: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     igdb_client_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     igdb_client_secret: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    screenscraper_ssid: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    screenscraper_sspassword: Mapped[str | None] = mapped_column(Text, nullable=True)
+    screenscraper_devid: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    screenscraper_devpassword: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # OAuth application credentials can safely be shared by the deployment;
+    # user-specific refresh/access tokens remain on User.
+    xbox_client_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    xbox_client_secret: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     updated_at: Mapped[int] = mapped_column(
         BigInteger, nullable=False, default=time.time, onupdate=time.time
     )

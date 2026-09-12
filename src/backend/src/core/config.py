@@ -12,6 +12,10 @@ class Settings(BaseSettings):
 
     DATABASE_URL: str
     STEAMGRIDDB_API_KEY: str | None = None
+    RETROACHIEVEMENTS_API_KEY: str | None = None
+    GIANTBOMB_API_KEY: str | None = None
+    IGDB_CLIENT_ID: str | None = None
+    IGDB_CLIENT_SECRET: str | None = None
     PRIMARY_USER_USERNAME: str
     PRIMARY_USER_EMAIL: str
     PRIMARY_USER_PASSWORD: str
@@ -28,13 +32,13 @@ class Settings(BaseSettings):
     # world saves and modpacks are routinely hundreds of MB to a few GB
     MAX_WORLD_SAVE_SIZE_MB: int = 2000
 
-    # App-registered dev credentials, shared across all users on this server
-    # (not a personal login). IGDB moved to the DB-backed
-    # AppIntegrationSettings singleton (admin-entered through Settings, see
-    # api/routes/settings.py) instead of .env — a downloaded copy of this
-    # app must never ship with someone else's credentials baked in.
+    # App-registered dev credentials, shared across all users on this server.
+    # The account credentials can be supplied per-user or through .env as a
+    # deployment-wide fallback.
     SCREENSCRAPER_DEVID: str | None = None
     SCREENSCRAPER_DEVPASSWORD: str | None = None
+    SCREENSCRAPER_SSID: str | None = None
+    SCREENSCRAPER_SSPASSWORD: str | None = None
 
     model_config = SettingsConfigDict(extra="ignore")
 
