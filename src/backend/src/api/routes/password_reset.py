@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+import logging
 import secrets
 import time
 from uuid import uuid4
@@ -19,6 +21,7 @@ from src.database.models.user import User
 from src.database.session import get_db
 
 router = APIRouter(prefix="/api/auth/password-reset", tags=["auth"])
+logger = logging.getLogger(__name__)
 _RESET_SECONDS = 60 * 60
 _SESSION_SECONDS = 30 * 24 * 60 * 60
 
@@ -95,8 +98,12 @@ async def request_password_reset(
     reset_url = f"{_public_app_origin(request)}/reset-password?token={raw_token}"
     body = f"A password reset was requested for your Archive account.\n\nReset your password here:\n{reset_url}\n\nThis link expires in 1 hour. If you did not request this, you can safely ignore this email."
     try:
-        send_email(settings_row, user.email, "Reset your Archive password", body)
+        # smtplib is blocking; keep SMTP network failures from stalling the
+        # FastAPI event loop, and log the real failure while preserving the
+        # generic response that prevents account enumeration.
+        await asyncio.to_thread(send_email, settings_row, user.email, "Reset your Archive password", body)
     except Exception:
+        logger.exception("Password reset email could not be sent")
         return {"message": generic}
     return {"message": generic}
 
