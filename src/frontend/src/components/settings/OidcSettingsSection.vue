@@ -15,6 +15,8 @@ const oidc = reactive({
   groups_claim: "groups",
   admin_group: "",
   user_match_field: "email",
+  default_login_method: "local",
+  login_button_text: "Continue with SSO",
 });
 
 const defaultRedirectUri = () => `${window.location.origin}/api/auth/oidc/callback`;
@@ -29,6 +31,8 @@ onMounted(async () => {
     oidc.groups_claim = result.oidc.groups_claim ?? "groups";
     oidc.admin_group = result.oidc.admin_group ?? "";
     oidc.user_match_field = result.oidc.user_match_field === "username" ? "username" : "email";
+    oidc.default_login_method = result.oidc.default_login_method === "sso" ? "sso" : "local";
+    oidc.login_button_text = result.oidc.login_button_text?.trim() || "Continue with SSO";
   } catch (err) {
     error.value = err instanceof Error ? err.message : "Failed to load OIDC settings.";
   } finally {
@@ -49,10 +53,13 @@ async function save() {
       oidc_groups_claim: oidc.groups_claim.trim() || "groups",
       oidc_admin_group: oidc.admin_group.trim(),
       oidc_user_match_field: oidc.user_match_field,
+      oidc_default_login_method: oidc.default_login_method,
+      oidc_login_button_text: oidc.login_button_text.trim() || "Continue with SSO",
     };
     if (oidc.client_secret) payload.oidc_client_secret = oidc.client_secret;
     const result = await updateDeploymentSettings(payload);
     oidc.redirect_uri = result.oidc.redirect_uri || defaultRedirectUri();
+    oidc.login_button_text = result.oidc.login_button_text?.trim() || "Continue with SSO";
     oidc.client_secret = "";
     saved.value = true;
   } catch (err) {
@@ -90,7 +97,18 @@ async function save() {
         </div>
       </div>
 
-      <p class="hint">The redirect URI defaults to the URL you are currently using plus <code>/api/auth/oidc/callback</code>. If an admin group is configured, membership in that IdP group controls administrator status at SSO login.</p>
+      <div class="login-panel">
+        <div>
+          <strong>Login experience</strong>
+          <p class="hint">Choose which method is presented first on the login page. The other method remains available in the login-method dropdown.</p>
+        </div>
+        <div class="login-controls">
+          <label><span>Default login method</span><select v-model="oidc.default_login_method"><option value="sso">SSO</option><option value="local">Local username & password</option></select></label>
+          <label><span>SSO button text</span><input v-model="oidc.login_button_text" maxlength="100" /></label>
+        </div>
+      </div>
+
+      <p class="hint">Direct SSO start: <code>/login/oidcstart</code>. The redirect URI defaults to the URL you are currently using plus <code>/api/auth/oidc/callback</code>. If an admin group is configured, membership in that IdP group controls administrator status at SSO login.</p>
       <p v-if="error" class="error">{{ error }}</p>
       <p v-if="saved" class="success">OIDC settings saved.</p>
       <button :disabled="saving" @click="save">{{ saving ? "Saving…" : "Save OIDC settings" }}</button>
@@ -99,5 +117,5 @@ async function save() {
 </template>
 
 <style scoped>
-.section{display:flex;flex-direction:column;gap:16px}.hint{color:#999;font-size:13px;line-height:1.5}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.grid label{display:flex;flex-direction:column;gap:6px;color:#ccc;font-size:13px}.grid label.full{grid-column:1/-1}.grid input{background:#111;border:1px solid #3a3a3a;border-radius:8px;color:#fff;padding:10px;font:inherit}.grid input:focus{outline:none;border-color:#d68a34}.match-panel{border:1px solid #2f2f2f;border-radius:10px;padding:14px;background:#151515;display:flex;justify-content:space-between;gap:24px}.match-panel strong{color:#fff}.match-panel .hint{margin:6px 0 0}.choices{display:flex;gap:10px;flex-shrink:0}.choice{display:flex;align-items:flex-start;gap:8px;min-width:170px;padding:10px 12px;border:1px solid #333;border-radius:8px;background:#111;cursor:pointer;color:#ccc}.choice input{accent-color:#d68a34;margin-top:3px}.choice span{display:flex;flex-direction:column;gap:3px}.choice strong{font-size:13px}.choice small{font-size:11px;color:#888}.choice:has(input:checked){border-color:#d68a34;background:rgba(214,138,52,.08)}button{align-self:flex-start;background:#d68a34;border:0;border-radius:8px;padding:10px 14px;font-weight:600;cursor:pointer}button:disabled{opacity:.6}.error{color:#fca5a5}.success{color:#86efac}@media(max-width:900px){.match-panel{flex-direction:column}.choices{flex-wrap:wrap}}@media(max-width:760px){.grid{grid-template-columns:1fr}.grid label.full{grid-column:auto}.choices{flex-direction:column}.choice{min-width:0}}
+.section{display:flex;flex-direction:column;gap:16px}.hint{color:#999;font-size:13px;line-height:1.5}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.grid label{display:flex;flex-direction:column;gap:6px;color:#ccc;font-size:13px}.grid label.full{grid-column:1/-1}.grid input,.login-controls input,.login-controls select{background:#111;border:1px solid #3a3a3a;border-radius:8px;color:#fff;padding:10px;font:inherit}.grid input:focus,.login-controls input:focus,.login-controls select:focus{outline:none;border-color:#d68a34}.match-panel,.login-panel{border:1px solid #2f2f2f;border-radius:10px;padding:14px;background:#151515;display:flex;justify-content:space-between;gap:24px}.match-panel strong,.login-panel strong{color:#fff}.match-panel .hint,.login-panel .hint{margin:6px 0 0}.choices{display:flex;gap:10px;flex-shrink:0}.choice{display:flex;align-items:flex-start;gap:8px;min-width:170px;padding:10px 12px;border:1px solid #333;border-radius:8px;background:#111;cursor:pointer;color:#ccc}.choice input{accent-color:#d68a34;margin-top:3px}.choice span{display:flex;flex-direction:column;gap:3px}.choice strong{font-size:13px}.choice small{font-size:11px;color:#888}.choice:has(input:checked){border-color:#d68a34;background:rgba(214,138,52,.08)}.login-panel{align-items:flex-start}.login-controls{display:flex;gap:12px;min-width:420px}.login-controls label{display:flex;flex-direction:column;gap:6px;color:#ccc;font-size:13px;flex:1}.login-controls select{appearance:auto}button{align-self:flex-start;background:#d68a34;border:0;border-radius:8px;padding:10px 14px;font-weight:600;cursor:pointer}button:disabled{opacity:.6}.error{color:#fca5a5}.success{color:#86efac}@media(max-width:900px){.match-panel,.login-panel{flex-direction:column}.choices{flex-wrap:wrap}.login-controls{min-width:0;width:100%;flex-direction:column}}@media(max-width:760px){.grid{grid-template-columns:1fr}.grid label.full{grid-column:auto}}
 </style>
