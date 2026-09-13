@@ -6,6 +6,22 @@ body,
   background: #121212;
 }
 
+/* Persistent desktop navigation owns the left edge on wide screens. Give
+   page content a matching gutter without changing the mobile layout. */
+@media (min-width: 1025px) {
+  #app > :not(.desktop-sidebar) {
+    margin-left: 236px;
+  }
+
+  .desktop-sidebar + * {
+    margin-left: 236px;
+  }
+
+  .profile-dock {
+    display: none !important;
+  }
+}
+
 /* Game cards keep metadata readable even when titles are long or several
    metadata badges are present. */
 .game-card-wrap .card-info {
