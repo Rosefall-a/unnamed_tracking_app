@@ -50,9 +50,7 @@ def _named_rows(row):
     return [
         provider
         for provider in data
-        if isinstance(provider, dict)
-        and provider.get("slug")
-        and provider.get("enabled", True)
+        if isinstance(provider, dict) and provider.get("slug") and provider.get("enabled", True)
     ]
 
 
@@ -153,7 +151,9 @@ async def oidc_login(request: Request, db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/login/{provider_slug}")
-async def oidc_provider_login(provider_slug: str, request: Request, db: AsyncSession = Depends(get_db)):
+async def oidc_provider_login(
+    provider_slug: str, request: Request, db: AsyncSession = Depends(get_db)
+):
     config = await _get_config(db, provider_slug)
     if config is None:
         raise HTTPException(404, "OIDC provider is not configured.")
@@ -239,7 +239,9 @@ async def _complete_callback(request, db, config, client_name):
         else:
             user = await db.scalar(select(User).where(User.email == email))
 
-    is_admin = bool(config.admin_group and config.admin_group in _groups(claims, config.groups_claim))
+    is_admin = bool(
+        config.admin_group and config.admin_group in _groups(claims, config.groups_claim)
+    )
     if user is None:
         if not config.allow_new_users:
             return RedirectResponse("/login?oidc_error=user_creation_disabled", 303)
@@ -250,7 +252,7 @@ async def _complete_callback(request, db, config, client_name):
         suffix = 1
         while await db.scalar(select(User.id).where(User.username == username)) is not None:
             suffix += 1
-            username = f"{base[:100 - len(str(suffix)) - 1]}-{suffix}"
+            username = f"{base[: 100 - len(str(suffix)) - 1]}-{suffix}"
         user = User(
             username=username,
             email=email,
@@ -302,7 +304,9 @@ async def oidc_callback(request: Request, db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/callback/{provider_slug}", name="oidc_callback_provider")
-async def oidc_callback_provider(provider_slug: str, request: Request, db: AsyncSession = Depends(get_db)):
+async def oidc_callback_provider(
+    provider_slug: str, request: Request, db: AsyncSession = Depends(get_db)
+):
     config = await _get_config(db, provider_slug)
     if config is None:
         return RedirectResponse("/login?oidc_error=not_configured", 303)
