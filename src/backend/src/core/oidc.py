@@ -27,6 +27,8 @@ class OidcConfig:
     client_secret: str
     scopes: str = "openid profile email"
     redirect_uri: str | None = None
+    groups_claim: str = "groups"
+    admin_group: str | None = None
 
 
 def env_oidc_config() -> OidcConfig | None:
@@ -38,6 +40,8 @@ def env_oidc_config() -> OidcConfig | None:
         client_secret=settings.OIDC_CLIENT_SECRET,
         scopes=settings.OIDC_SCOPES,
         redirect_uri=settings.OIDC_REDIRECT_URI,
+        groups_claim=settings.OIDC_GROUPS_CLAIM,
+        admin_group=settings.OIDC_ADMIN_GROUP,
     )
 
 
