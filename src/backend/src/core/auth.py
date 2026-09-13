@@ -12,8 +12,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.config import settings
 from src.database.models.auth import UserApiKey, UserSession
-from src.database.session import get_db
 from src.database.models.user import User
+from src.database.session import get_db
 
 _SALT_BYTES: Final = 16
 _HASH_BYTES: Final = 32

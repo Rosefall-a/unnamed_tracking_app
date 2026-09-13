@@ -36,6 +36,7 @@ def create_game_folder(user_id: UUID | str, folder_name: str) -> Path:
     folder_path.mkdir(parents=True, exist_ok=True)
     (folder_path / "notes").mkdir(exist_ok=True)
     (folder_path / "screenshots").mkdir(exist_ok=True)
+    (folder_path / "clips").mkdir(exist_ok=True)
     return folder_path
 
 
@@ -51,7 +52,12 @@ def _load_image_bytes(image: bytes | str | Path | Image.Image) -> Image.Image:
         return img.convert("RGBA")
 
 
-def _resize_to_fit(image: Image.Image, width: int, height: int) -> Image.Image:
+# stretches to the exact target box rather than preserving aspect ratio —
+# deliberate, not a "contain" resize: every asset of a given kind must be
+# the same pixel dimensions for consistent layout, and provider-sourced
+# art (IGDB/Steam/SteamGridDB) already comes in each kind's expected ratio,
+# so the stretch is negligible in practice
+def _resize_to_exact(image: Image.Image, width: int, height: int) -> Image.Image:
     original = image.convert("RGBA")
     resized = original.resize((width, height), Image.Resampling.LANCZOS)
     return resized
@@ -59,7 +65,9 @@ def _resize_to_fit(image: Image.Image, width: int, height: int) -> Image.Image:
 
 async def get_game_folder(game_id: UUID | str) -> tuple[UUID, str]:
     async with SessionLocal() as session:
-        game = await session.scalar(select(Game).where(Game.id == str(game_id)))
+        game = await session.scalar(
+            select(Game).where(Game.id == str(game_id), Game.deleted_at.is_(None))
+        )
         if game is None:
             raise ValueError(f"Game not found for id: {game_id}")
         if not game.folder_location:
@@ -85,24 +93,8 @@ async def save_game_asset(
 
     width, height = ASSET_SIZES[asset_kind]
     image_obj = _load_image_bytes(image)
-    resized = _resize_to_fit(image_obj, width, height)
+    resized = _resize_to_exact(image_obj, width, height)
 
     output_path = output_dir / ASSET_FILENAMES[asset_kind]
     resized.save(output_path, format="PNG")
     return output_path
-
-
-async def save_game_key_art(image: bytes | str | Path | Image.Image, game_id: UUID | str) -> Path:
-    return await save_game_asset(image, game_id, "key_art")
-
-
-async def save_game_banner(image: bytes | str | Path | Image.Image, game_id: UUID | str) -> Path:
-    return await save_game_asset(image, game_id, "banner")
-
-
-async def save_game_logo(image: bytes | str | Path | Image.Image, game_id: UUID | str) -> Path:
-    return await save_game_asset(image, game_id, "logo")
-
-
-async def save_game_icon(image: bytes | str | Path | Image.Image, game_id: UUID | str) -> Path:
-    return await save_game_asset(image, game_id, "icon")

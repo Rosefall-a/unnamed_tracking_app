@@ -11,11 +11,11 @@
   --shadow:
     rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
 
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
+  --sans: system-ui, "Segoe UI", Roboto, sans-serif;
+  --heading: system-ui, "Segoe UI", Roboto, sans-serif;
   --mono: ui-monospace, Consolas, monospace;
 
-  font: 18px/145% var(--sans);
+  font: 16px/145% var(--sans);
   letter-spacing: 0.18px;
   color-scheme: light dark;
   color: var(--text);
@@ -24,10 +24,6 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-
-  @media (max-width: 1024px) {
-    font-size: 16px;
-  }
 }
 
 @media (prefers-color-scheme: dark) {
@@ -232,16 +228,46 @@ html {
   background: #121212;
 }
 ::-webkit-scrollbar-button:vertical:start {
-  background-image: linear-gradient(45deg, transparent 45%, #777 45%, #777 55%, transparent 55%),
-    linear-gradient(-45deg, transparent 45%, #777 45%, #777 55%, transparent 55%);
-  background-position: center 6px, center 2px;
+  background-image:
+    linear-gradient(
+      45deg,
+      transparent 45%,
+      #777 45%,
+      #777 55%,
+      transparent 55%
+    ),
+    linear-gradient(
+      -45deg,
+      transparent 45%,
+      #777 45%,
+      #777 55%,
+      transparent 55%
+    );
+  background-position:
+    center 6px,
+    center 2px;
   background-size: 8px 4px;
   background-repeat: no-repeat;
 }
 ::-webkit-scrollbar-button:vertical:end {
-  background-image: linear-gradient(-135deg, transparent 45%, #777 45%, #777 55%, transparent 55%),
-    linear-gradient(135deg, transparent 45%, #777 45%, #777 55%, transparent 55%);
-  background-position: center 2px, center 6px;
+  background-image:
+    linear-gradient(
+      -135deg,
+      transparent 45%,
+      #777 45%,
+      #777 55%,
+      transparent 55%
+    ),
+    linear-gradient(
+      135deg,
+      transparent 45%,
+      #777 45%,
+      #777 55%,
+      transparent 55%
+    );
+  background-position:
+    center 2px,
+    center 6px;
   background-size: 8px 4px;
   background-repeat: no-repeat;
 }
@@ -318,7 +344,7 @@ html {
 
   &::before,
   &::after {
-    content: '';
+    content: "";
     position: absolute;
     top: -4.5px;
     border: 5px solid transparent;
@@ -332,4 +358,73 @@ html {
     right: 0;
     border-right-color: var(--border);
   }
+}
+
+/* Settings > User Interface > compact mode, a modest, low-risk spacing
+   reduction on the highest-traffic layout spots (card grids/rows, page
+   padding), not a full density system across every component. */
+html.compact .grid,
+html.compact .shelf {
+  gap: 10px !important;
+}
+html.compact .library,
+html.compact .home {
+  padding-top: 64px !important;
+}
+html.compact .card-info {
+  padding-top: 6px !important;
+}
+
+/* respects the OS/browser "reduce motion" preference app-wide, hover
+   lifts, background crossfades, and other transitions collapse to
+   near-instant instead of needing an opt-out in every component */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* baseline keyboard-focus visibility, most interactive elements here rely
+   on hover/background-color states with no explicit focus style, which
+   makes keyboard navigation hard to track without this */
+:focus-visible {
+  outline: 2px solid #d68a34;
+  outline-offset: 2px;
+}
+
+/* Settings > User Interface > High contrast. This codebase has no CSS
+   custom-property theme to retarget (every component hardcodes its own
+   hex colors in scoped styles, see compact mode above for the same
+   constraint), and a filter()-based approach was tried and reverted
+   earlier: it creates a new containing block for any position:fixed
+   descendant, which breaks this app's many fixed modals/overlays the
+   moment the page has scrolled. So instead of a second full theme, this
+   brightens the specific muted-text and low-contrast-border classes that
+   are already reused by convention across the app (confirmed by grep
+   before writing this, not guessed), plus a stronger focus ring. Real,
+   scoped, and safe rather than a broken shortcut. */
+html.high-contrast .empty-state,
+html.high-contrast .section-hint,
+html.high-contrast .hint,
+html.high-contrast .subtitle,
+html.high-contrast .eyebrow,
+html.high-contrast .stat-label,
+html.high-contrast .detail-label,
+html.high-contrast .weekly-recap-label {
+  color: #ddd !important;
+}
+html.high-contrast .badge,
+html.high-contrast .chip,
+html.high-contrast .tag-chip,
+html.high-contrast .confirm-dialog {
+  border-color: #777 !important;
+}
+html.high-contrast :focus-visible {
+  outline: 3px solid #ffb454 !important;
+  outline-offset: 2px !important;
 }

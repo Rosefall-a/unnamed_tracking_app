@@ -6,7 +6,27 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     postgresql-client \
+    curl \
+    unzip \
     && rm -rf /var/lib/apt/lists/*
+
+# Java 25 JRE — BlueMap 5.23's cli jar is compiled for class file version 69
+# (Java 25); Debian bookworm's own openjdk-21 package is too old to run it,
+# so this pulls the Temurin tarball directly instead of relying on apt.
+RUN curl -fL -o /tmp/jre.tar.gz \
+    https://github.com/adoptium/temurin25-binaries/releases/download/jdk-25.0.4.1%2B1/OpenJDK25U-jre_x64_linux_hotspot_25.0.4.1_1.tar.gz \
+    && mkdir -p /opt/java \
+    && tar -xzf /tmp/jre.tar.gz -C /opt/java --strip-components=1 \
+    && rm /tmp/jre.tar.gz
+ENV JAVA_HOME=/opt/java
+ENV PATH="${JAVA_HOME}/bin:${PATH}"
+
+# BlueMap CLI — renders a Minecraft world save into a static web map (see
+# features/world_map/bluemap.py). Pinned version, downloaded once at build
+# time rather than lazily at render time so a render never depends on
+# GitHub being reachable from the running container.
+RUN curl -fL -o /opt/bluemap-cli.jar \
+    https://github.com/BlueMap-Minecraft/BlueMap/releases/download/v5.23/bluemap-5.23-cli.jar
 
 # Copy requirements and install Python dependencies
 COPY requirements.txt .
