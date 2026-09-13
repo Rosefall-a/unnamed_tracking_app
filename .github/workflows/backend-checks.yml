@@ -7,6 +7,8 @@ on:
       - ".github/workflows/backend-checks.yml"
   pull_request:
     paths:
+      - "src/backend/**"
+      - ".github/workflows/backend-checks.yml"
 
 jobs:
   backend-checks:
@@ -35,7 +37,11 @@ jobs:
           from alembic.config import Config
           from alembic.script import ScriptDirectory
 
-          script = ScriptDirectory.from_config(Config("alembic.ini"))
+          config = Config("alembic.ini")
+          # alembic.ini uses the container path /app/src/database/migrations.
+          # Override it for CI, where the working directory is src/backend.
+          config.set_main_option("script_location", "src/database/migrations")
+          script = ScriptDirectory.from_config(config)
           heads = script.get_heads()
           print("Alembic heads:", heads)
           if len(heads) != 1:
