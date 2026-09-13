@@ -50,6 +50,17 @@ router.beforeEach(async (to, from) => {
     }
   }
 
+  // Setup is a one-time state. Re-check it whenever a completed setup tries to
+  // leave /setup so the in-memory guard cannot send the newly-created admin
+  // straight back to the setup screen.
+  if (setupState === "required" && to.path !== "/setup") {
+    try {
+      setupState = (await fetchSetupStatus()).setup_required ? "required" : "complete";
+    } catch {
+      setupState = "error";
+    }
+  }
+
   if (setupState === "required" || setupState === "error") {
     if (to.path !== "/setup") return { path: "/setup", query: setupState === "error" ? { backend_error: "1" } : undefined };
     return;
