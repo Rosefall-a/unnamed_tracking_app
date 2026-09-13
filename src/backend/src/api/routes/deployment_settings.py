@@ -44,11 +44,20 @@ class DeploymentSettingsRequest(BaseModel):
 
 
 _SECRET_FIELDS = {
-    "steamgriddb_api_key", "retroachievements_api_key", "giantbomb_api_key",
-    "igdb_client_secret", "screenscraper_sspassword", "screenscraper_devpassword",
+    "steamgriddb_api_key",
+    "retroachievements_api_key",
+    "giantbomb_api_key",
+    "igdb_client_secret",
+    "screenscraper_sspassword",
+    "screenscraper_devpassword",
     "xbox_client_secret",
 }
-_SAFE_PROVIDER_FIELDS = {"igdb_client_id", "screenscraper_ssid", "screenscraper_devid", "xbox_client_id"}
+_SAFE_PROVIDER_FIELDS = {
+    "igdb_client_id",
+    "screenscraper_ssid",
+    "screenscraper_devid",
+    "xbox_client_id",
+}
 
 
 async def _oidc_row(db: AsyncSession) -> OidcSettings:
@@ -67,23 +76,39 @@ async def get_deployment_settings(db: AsyncSession, admin: User) -> dict:
     providers = {field: getattr(app, field) for field in _SAFE_PROVIDER_FIELDS}
     for field in _SECRET_FIELDS:
         providers[field + "_configured"] = bool(getattr(app, field))
-    return {"providers": providers, "oidc": {
-        "issuer_url": oidc.issuer_url, "client_id": oidc.client_id, "scopes": oidc.scopes,
-        "redirect_uri": oidc.redirect_uri, "groups_claim": oidc.groups_claim,
-        "admin_group": oidc.admin_group, "user_match_field": oidc.user_match_field or "email",
-        "default_login_method": oidc.default_login_method if oidc.default_login_method in {"local", "sso"} else "local",
-        "login_button_text": oidc.login_button_text.strip() or "Continue with SSO",
-        "allow_new_users": oidc.allow_new_users, "client_secret_configured": bool(oidc.client_secret),
-    }}
+    return {
+        "providers": providers,
+        "oidc": {
+            "issuer_url": oidc.issuer_url,
+            "client_id": oidc.client_id,
+            "scopes": oidc.scopes,
+            "redirect_uri": oidc.redirect_uri,
+            "groups_claim": oidc.groups_claim,
+            "admin_group": oidc.admin_group,
+            "user_match_field": oidc.user_match_field or "email",
+            "default_login_method": oidc.default_login_method
+            if oidc.default_login_method in {"local", "sso"}
+            else "local",
+            "login_button_text": oidc.login_button_text.strip() or "Continue with SSO",
+            "allow_new_users": oidc.allow_new_users,
+            "client_secret_configured": bool(oidc.client_secret),
+        },
+    }
 
 
 @router.get("")
-async def read_deployment_settings(db: AsyncSession = Depends(get_db), admin: User = Depends(get_current_admin)) -> dict:
+async def read_deployment_settings(
+    db: AsyncSession = Depends(get_db), admin: User = Depends(get_current_admin)
+) -> dict:
     return await get_deployment_settings(db, admin)
 
 
 @router.put("")
-async def update_deployment_settings(payload: DeploymentSettingsRequest, db: AsyncSession = Depends(get_db), admin: User = Depends(get_current_admin)) -> dict:
+async def update_deployment_settings(
+    payload: DeploymentSettingsRequest,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(get_current_admin),
+) -> dict:
     app = await get_or_create_app_integration_settings(db)
     oidc = await _oidc_row(db)
     for field, value in payload.model_dump(exclude_unset=True).items():
@@ -93,19 +118,28 @@ async def update_deployment_settings(payload: DeploymentSettingsRequest, db: Asy
                     try:
                         oidc.client_secret = encrypt_secret(value)
                     except RuntimeError as exc:
-                        raise HTTPException(status_code=400, detail="SECRET_KEY must be a valid Fernet key before secrets can be saved.") from exc
+                        raise HTTPException(
+                            status_code=400,
+                            detail="SECRET_KEY must be a valid Fernet key before secrets can be saved.",
+                        ) from exc
             elif field == "oidc_user_match_field":
                 if value not in {"email", "username"}:
-                    raise HTTPException(status_code=400, detail="OIDC user matching must be email or username.")
+                    raise HTTPException(
+                        status_code=400, detail="OIDC user matching must be email or username."
+                    )
                 oidc.user_match_field = value
             elif field == "oidc_default_login_method":
                 if value not in {"local", "sso"}:
-                    raise HTTPException(status_code=400, detail="Default login method must be local or sso.")
+                    raise HTTPException(
+                        status_code=400, detail="Default login method must be local or sso."
+                    )
                 oidc.default_login_method = value
             elif field == "oidc_login_button_text":
                 text = (value or "").strip()
                 if not text or len(text) > 100:
-                    raise HTTPException(status_code=400, detail="SSO button text must be 1–100 characters.")
+                    raise HTTPException(
+                        status_code=400, detail="SSO button text must be 1–100 characters."
+                    )
                 oidc.login_button_text = text
             elif field == "oidc_allow_new_users":
                 oidc.allow_new_users = bool(value)
