@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useRoute } from "vue-router";
 import SidebarNav from "./components/SidebarNav.vue";
+import ProfileDock from "./components/ProfileDock.vue";
 import TaskProgressToast from "./components/TaskProgressToast.vue";
 import ShortcutsHelp from "./components/ShortcutsHelp.vue";
 import CommandPalette from "./components/CommandPalette.vue";
@@ -26,6 +27,7 @@ const isPublicRoute = () =>
   >
     <SidebarNav v-if="!isPublicRoute()" />
     <router-view />
+    <ProfileDock v-if="!isPublicRoute()" />
     <TaskProgressToast v-if="!isPublicRoute()" />
     <ShortcutsHelp v-if="!isPublicRoute()" />
     <CommandPalette v-if="!isPublicRoute()" />
