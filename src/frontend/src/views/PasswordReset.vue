@@ -9,7 +9,7 @@ const token = computed(() => {
   const value = route.query.token;
   return typeof value === "string" ? value.trim() : "";
 });
-const mode = ref(token.value ? "reset" : "request");
+const mode = computed(() => (token.value ? "reset" : "request"));
 const identifier = ref("");
 const password = ref("");
 const confirm = ref("");
@@ -86,7 +86,7 @@ function goLogin() {
 
 <template>
   <main class="page">
-    <form class="card" @submit.prevent="mode === 'request' ? requestReset() : resetPassword">
+    <form class="card" @submit.prevent="mode === 'request' ? requestReset() : resetPassword()">
       <div class="brand"><span>🎮</span><h1>Archive</h1></div>
       <p class="subtitle">{{ mode === "request" ? "Reset your password" : "Choose a new password" }}</p>
       <template v-if="mode === 'request'">
