@@ -12,6 +12,7 @@ import Inbox from "../views/Inbox.vue";
 import Bounties from "../views/Bounties.vue";
 import AchievementDetail from "../views/AchievementDetail.vue";
 import Login from "../views/Login.vue";
+import OidcStart from "../views/OidcStart.vue";
 import Setup from "../views/Setup.vue";
 import { currentUser, authChecked, checkAuth } from "../state/auth";
 import Settings from "../views/Settings.vue";
@@ -30,6 +31,7 @@ const router = createRouter({ history: createWebHistory(), scrollBehavior(to, _f
   { path: "/games/:id", name: "game-detail", component: GameDetail }, { path: "/cards", name: "card-collection", component: CardCollection },
   { path: "/cards/:cardId", name: "card-detail", component: CardDetail }, { path: "/sets", name: "set-list", component: SetList },
   { path: "/sets/:id", name: "set-detail", component: SetDetail }, { path: "/login", name: "login", component: Login },
+  { path: "/login/oidcstart", name: "oidc-start", component: OidcStart },
   { path: "/setup", name: "setup", component: Setup }, { path: "/profile", redirect: "/settings" }, { path: "/settings", name: "settings", component: Settings },
   { path: "/games/:gameId/achievements/:achievementId", name: "achievement-detail", component: AchievementDetail },
 ] });
@@ -39,9 +41,6 @@ let setupState: "unknown" | "required" | "complete" | "error" = "unknown";
 router.beforeEach(async (to, from) => {
   if (from.path === "/games") saveLibraryScroll(window.scrollY);
 
-  // Never fall through to /login when we cannot determine whether this is a
-  // fresh installation. That was the confusing first-run behaviour when the
-  // backend was down or its /api/setup/status request failed.
   if (setupState === "unknown" || setupState === "error") {
     try {
       setupState = (await fetchSetupStatus()).setup_required ? "required" : "complete";
@@ -50,9 +49,6 @@ router.beforeEach(async (to, from) => {
     }
   }
 
-  // Setup is a one-time state. Re-check it whenever a completed setup tries to
-  // leave /setup so the in-memory guard cannot send the newly-created admin
-  // straight back to the setup screen.
   if (setupState === "required" && to.path !== "/setup") {
     try {
       setupState = (await fetchSetupStatus()).setup_required ? "required" : "complete";
@@ -66,6 +62,10 @@ router.beforeEach(async (to, from) => {
     return;
   }
   if (to.path === "/setup") return "/";
+
+  // This public route deliberately bypasses the normal auth redirect so a
+  // bookmark or reverse-proxy login entrypoint can start OIDC immediately.
+  if (to.path === "/login/oidcstart") return;
 
   if (!authChecked.value) await checkAuth();
   if (to.path !== "/login" && !currentUser.value) return "/login";
