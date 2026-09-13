@@ -114,8 +114,14 @@ async def setup_admin(
         await db.execute(update(Game).where(Game.user_id.is_(None)).values(user_id=user.id))
 
         if payload.oidc_enabled:
+            client_secret = oidc_values["client_secret"]
+            if not isinstance(client_secret, str):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="OIDC requires a client secret.",
+                )
             try:
-                encrypted_client_secret = encrypt_secret(oidc_values["client_secret"])
+                encrypted_client_secret = encrypt_secret(client_secret)
             except RuntimeError as exc:
                 raise HTTPException(
                     status_code=400,
