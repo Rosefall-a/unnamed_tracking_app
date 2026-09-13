@@ -23,7 +23,9 @@ function isActive(path: string) {
 
 const gamesExpanded = ref(isActive("/games") || isActive("/collections"));
 const cardsExpanded = ref(isActive("/cards") || isActive("/sets"));
-const mediaExpanded = ref(isActive("/movies") || isActive("/tv"));
+const mediaExpanded = ref(
+  isActive("/movies") || isActive("/tv") || isActive("/anime"),
+);
 
 const isMockData = import.meta.env.VITE_USE_MOCK_DATA === "true";
 
@@ -401,7 +403,9 @@ async function handleLogout() {
 
       <div
         class="sidebar-parent-row"
-        :class="{ active: isActive('/movies') || isActive('/tv') }"
+        :class="{
+          active: isActive('/movies') || isActive('/tv') || isActive('/anime'),
+        }"
       >
         <router-link
           to="/movies"
@@ -488,6 +492,29 @@ async function handleLogout() {
             <line x1="12" y1="19" x2="12" y2="21" />
           </svg>
           <span>TV</span>
+        </router-link>
+        <router-link
+          to="/anime"
+          class="sidebar-item sidebar-subitem"
+          :class="{ active: isActive('/anime') }"
+          @click="close"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            width="16"
+            height="16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <circle cx="12" cy="12" r="9" />
+            <path
+              d="M8 9c.5-1.5 2-2 4-2s3.5.5 4 2M9 13c.7.8 1.8 1.3 3 1.3s2.3-.5 3-1.3"
+            />
+          </svg>
+          <span>Anime</span>
         </router-link>
       </div>
 

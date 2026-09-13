@@ -12,6 +12,7 @@ from src.database.base import Base
 # Base.metadata before autogenerate compares it against the database.
 from src.database.models import (
     achievement,  # noqa: F401
+    anime,  # noqa: F401
     app_integration_settings,  # noqa: F401
     auth,  # noqa: F401
     bounty,  # noqa: F401
