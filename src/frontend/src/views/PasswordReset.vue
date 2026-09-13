@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { checkAuth } from "../state/auth";
+import { checkAuth, currentUser } from "../state/auth";
 
 const route = useRoute();
 const router = useRouter();
@@ -64,14 +64,12 @@ async function resetPassword() {
     const data = await response.json();
     if (!response.ok) throw new Error(data.detail || "Unable to reset password.");
 
-    // The backend has already rotated all sessions and issued a fresh session
-    // cookie. Refresh the shared auth state before entering the application.
+    // The backend has already rotated all sessions and issued the fresh
+    // session cookie. Refresh shared auth state and verify it before leaving
+    // the reset page so a rejected cookie cannot masquerade as a successful reset.
     await checkAuth();
-    if (!data.user_id || !location.pathname.includes("/reset-password")) {
-      throw new Error("Password reset succeeded, but the new session could not be verified.");
-    }
-    if (!data.user_id) {
-      throw new Error("Password reset completed without a user session.");
+    if (!currentUser.value || currentUser.value.id !== data.user_id) {
+      throw new Error("Password reset completed, but the new sign-in session could not be verified.");
     }
     await router.replace("/");
   } catch (e) {
