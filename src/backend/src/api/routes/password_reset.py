@@ -53,6 +53,23 @@ def _public_app_origin(request: Request) -> str:
     return str(request.base_url).rstrip("/")
 
 
+def _public_request_is_secure(request: Request) -> bool:
+    """Determine whether the browser-facing request is HTTPS.
+
+    AUTH_COOKIE_SECURE is useful as a deployment default, but a reset link can
+    be opened through an HTTP development deployment even when that setting
+    was copied from a production environment. A Secure cookie on that page is
+    silently rejected by the browser, making a successful reset look broken.
+    """
+    forwarded_proto = request.headers.get("x-forwarded-proto", "").split(",")[0].strip().lower()
+    if forwarded_proto:
+        return forwarded_proto == "https"
+    origin = request.headers.get("origin", "").strip().lower()
+    if origin:
+        return origin.startswith("https://")
+    return request.url.scheme == "https"
+
+
 @router.get("/status")
 async def password_reset_status(db: AsyncSession = Depends(get_db)) -> dict[str, bool]:
     settings_row = await db.scalar(select(AppIntegrationSettings).limit(1))
@@ -98,9 +115,6 @@ async def request_password_reset(
     reset_url = f"{_public_app_origin(request)}/reset-password?token={raw_token}"
     body = f"A password reset was requested for your Archive account.\n\nReset your password here:\n{reset_url}\n\nThis link expires in 1 hour. If you did not request this, you can safely ignore this email."
     try:
-        # smtplib is blocking; keep SMTP network failures from stalling the
-        # FastAPI event loop, and log the real failure while preserving the
-        # generic response that prevents account enumeration.
         await asyncio.to_thread(
             send_email, settings_row, user.email, "Reset your Archive password", body
         )
@@ -112,9 +126,12 @@ async def request_password_reset(
 
 @router.post("/confirm")
 async def confirm_password_reset(
-    payload: PasswordResetConfirm, response: Response, db: AsyncSession = Depends(get_db)
+    payload: PasswordResetConfirm,
+    request: Request,
+    response: Response,
+    db: AsyncSession = Depends(get_db),
 ) -> dict[str, str]:
-    token_hash = hash_token(payload.token)
+    token_hash = hash_token(payload.token.strip())
     now = int(time.time())
     reset = await db.scalar(
         select(PasswordResetToken).where(
@@ -132,23 +149,28 @@ async def confirm_password_reset(
         raise HTTPException(
             status_code=400, detail="This password reset link is invalid or has expired."
         )
+
     user.password_hash = hash_password(payload.password)
     reset.used_at = now
     await db.execute(delete(UserSession).where(UserSession.user_id == user.id))
     session_token = secrets.token_urlsafe(32)
     db.add(
         UserSession(
-            user_id=user.id, token_hash=hash_token(session_token), expires_at=now + _SESSION_SECONDS
+            user_id=user.id,
+            token_hash=hash_token(session_token),
+            expires_at=now + _SESSION_SECONDS,
         )
     )
     await db.commit()
+
     response.set_cookie(
         key=SESSION_COOKIE,
         value=session_token,
         max_age=_SESSION_SECONDS,
         httponly=True,
         samesite="lax",
-        secure=settings.AUTH_COOKIE_SECURE,
+        secure=_public_request_is_secure(request),
+        path="/",
     )
     return {
         "message": "Your password has been reset. You are now signed in.",
