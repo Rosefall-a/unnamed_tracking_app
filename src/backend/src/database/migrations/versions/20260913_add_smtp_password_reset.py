@@ -25,6 +25,7 @@ def upgrade() -> None:
     op.add_column("app_integration_settings", sa.Column("smtp_use_ssl", sa.Boolean(), nullable=False, server_default=sa.false()))
     op.add_column("app_integration_settings", sa.Column("smtp_from_email", sa.String(length=320), nullable=True))
     op.add_column("app_integration_settings", sa.Column("smtp_from_name", sa.String(length=200), nullable=True))
+    op.add_column("app_integration_settings", sa.Column("password_reset_enabled", sa.Boolean(), nullable=False, server_default=sa.true()))
     op.create_table(
         "password_reset_tokens",
         sa.Column("id", sa.UUID(), nullable=False),
@@ -47,5 +48,16 @@ def downgrade() -> None:
     op.drop_index("ix_password_reset_tokens_token_hash", table_name="password_reset_tokens")
     op.drop_index("ix_password_reset_tokens_user_id", table_name="password_reset_tokens")
     op.drop_table("password_reset_tokens")
-    for column in ("smtp_from_name", "smtp_from_email", "smtp_use_ssl", "smtp_use_tls", "smtp_password", "smtp_username", "smtp_port", "smtp_host", "smtp_enabled"):
+    for column in (
+        "password_reset_enabled",
+        "smtp_from_name",
+        "smtp_from_email",
+        "smtp_use_ssl",
+        "smtp_use_tls",
+        "smtp_password",
+        "smtp_username",
+        "smtp_port",
+        "smtp_host",
+        "smtp_enabled",
+    ):
         op.drop_column("app_integration_settings", column)
