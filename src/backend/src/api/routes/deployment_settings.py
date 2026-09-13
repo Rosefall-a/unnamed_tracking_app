@@ -13,7 +13,9 @@ from src.database.models.oidc_settings import OidcSettings
 from src.database.models.user import User
 from src.database.session import get_db
 
-router = APIRouter(prefix="/api/settings/deployment", tags=["settings"], dependencies=[Depends(get_current_admin)])
+router = APIRouter(
+    prefix="/api/settings/deployment", tags=["settings"], dependencies=[Depends(get_current_admin)]
+)
 
 
 class DeploymentSettingsRequest(BaseModel):
@@ -34,8 +36,22 @@ class DeploymentSettingsRequest(BaseModel):
     oidc_scopes: str | None = None
     oidc_redirect_uri: str | None = None
 
-_SECRET_FIELDS = {"steamgriddb_api_key", "retroachievements_api_key", "giantbomb_api_key", "igdb_client_secret", "screenscraper_sspassword", "screenscraper_devpassword", "xbox_client_secret"}
-_SAFE_PROVIDER_FIELDS = {"igdb_client_id", "screenscraper_ssid", "screenscraper_devid", "xbox_client_id"}
+
+_SECRET_FIELDS = {
+    "steamgriddb_api_key",
+    "retroachievements_api_key",
+    "giantbomb_api_key",
+    "igdb_client_secret",
+    "screenscraper_sspassword",
+    "screenscraper_devpassword",
+    "xbox_client_secret",
+}
+_SAFE_PROVIDER_FIELDS = {
+    "igdb_client_id",
+    "screenscraper_ssid",
+    "screenscraper_devid",
+    "xbox_client_id",
+}
 
 
 async def _oidc_row(db: AsyncSession) -> OidcSettings:
@@ -54,16 +70,31 @@ async def get_deployment_settings(db: AsyncSession, admin: User) -> dict:
     providers = {field: getattr(app, field) for field in _SAFE_PROVIDER_FIELDS}
     for field in _SECRET_FIELDS:
         providers[field + "_configured"] = bool(getattr(app, field))
-    return {"providers": providers, "oidc": {"issuer_url": oidc.issuer_url, "client_id": oidc.client_id, "scopes": oidc.scopes, "redirect_uri": oidc.redirect_uri, "client_secret_configured": bool(oidc.client_secret)}}
+    return {
+        "providers": providers,
+        "oidc": {
+            "issuer_url": oidc.issuer_url,
+            "client_id": oidc.client_id,
+            "scopes": oidc.scopes,
+            "redirect_uri": oidc.redirect_uri,
+            "client_secret_configured": bool(oidc.client_secret),
+        },
+    }
 
 
 @router.get("")
-async def read_deployment_settings(db: AsyncSession = Depends(get_db), admin: User = Depends(get_current_admin)) -> dict:
+async def read_deployment_settings(
+    db: AsyncSession = Depends(get_db), admin: User = Depends(get_current_admin)
+) -> dict:
     return await get_deployment_settings(db, admin)
 
 
 @router.put("")
-async def update_deployment_settings(payload: DeploymentSettingsRequest, db: AsyncSession = Depends(get_db), admin: User = Depends(get_current_admin)) -> dict:
+async def update_deployment_settings(
+    payload: DeploymentSettingsRequest,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(get_current_admin),
+) -> dict:
     app = await get_or_create_app_integration_settings(db)
     oidc = await _oidc_row(db)
     for field, value in payload.model_dump(exclude_unset=True).items():

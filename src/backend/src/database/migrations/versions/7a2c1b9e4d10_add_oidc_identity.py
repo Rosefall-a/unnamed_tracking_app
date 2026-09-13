@@ -3,6 +3,7 @@
 Revision ID: 7a2c1b9e4d10
 Revises: 1c6f2e8a9b70
 """
+
 from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa

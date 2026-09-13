@@ -99,12 +99,14 @@ async def oidc_callback(request: Request, db: AsyncSession = Depends(get_db)) ->
         user = await db.scalar(select(User).where(User.email == email))
 
     if user is None:
-        username = _safe_username(str(userinfo.get("preferred_username") or userinfo.get("name") or ""), email)
+        username = _safe_username(
+            str(userinfo.get("preferred_username") or userinfo.get("name") or ""), email
+        )
         base = username
         suffix = 1
         while await db.scalar(select(User.id).where(User.username == username)) is not None:
             suffix += 1
-            username = f"{base[:100-len(str(suffix))-1]}-{suffix}"
+            username = f"{base[: 100 - len(str(suffix)) - 1]}-{suffix}"
         user = User(
             username=username,
             email=email,
@@ -123,9 +125,22 @@ async def oidc_callback(request: Request, db: AsyncSession = Depends(get_db)) ->
         user.email = email
 
     session_token = secrets.token_urlsafe(32)
-    db.add(UserSession(user_id=user.id, token_hash=hash_token(session_token), expires_at=int(time.time()) + _SESSION_SECONDS))
+    db.add(
+        UserSession(
+            user_id=user.id,
+            token_hash=hash_token(session_token),
+            expires_at=int(time.time()) + _SESSION_SECONDS,
+        )
+    )
     await db.commit()
 
     redirect = RedirectResponse(url="/login?oidc=success", status_code=status.HTTP_303_SEE_OTHER)
-    redirect.set_cookie(SESSION_COOKIE, session_token, max_age=_SESSION_SECONDS, httponly=True, samesite="lax", secure=settings.AUTH_COOKIE_SECURE)
+    redirect.set_cookie(
+        SESSION_COOKIE,
+        session_token,
+        max_age=_SESSION_SECONDS,
+        httponly=True,
+        samesite="lax",
+        secure=settings.AUTH_COOKIE_SECURE,
+    )
     return redirect
