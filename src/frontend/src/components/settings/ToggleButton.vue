@@ -38,6 +38,7 @@ const emit = defineEmits<{
   background: none;
   border: none;
   padding: 0;
+  margin-bottom: 14px;
   cursor: pointer;
   text-align: left;
   color: #ccc;
