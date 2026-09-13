@@ -25,7 +25,14 @@ class OidcSettings(Base):
     admin_group: Mapped[str | None] = mapped_column(String(256), nullable=True)
     user_match_field: Mapped[str] = mapped_column(String(16), nullable=False, default="email")
     default_login_method: Mapped[str] = mapped_column(String(16), nullable=False, default="local")
-    login_button_text: Mapped[str] = mapped_column(String(100), nullable=False, default="Continue with SSO")
+    login_button_text: Mapped[str] = mapped_column(
+        String(100), nullable=False, default="Continue with SSO"
+    )
     allow_new_users: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     providers_json: Mapped[str | None] = mapped_column(Text, nullable=True)
-    updated_at: Mapped[int] = mapped_column(BigInteger, nullable=False, default=lambda: int(time.time()), onupdate=lambda: int(time.time()))
+    updated_at: Mapped[int] = mapped_column(
+        BigInteger,
+        nullable=False,
+        default=lambda: int(time.time()),
+        onupdate=lambda: int(time.time()),
+    )
