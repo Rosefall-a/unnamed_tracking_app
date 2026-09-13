@@ -1,9 +1,12 @@
 """add achievements table and library-sync credentials
 
 Revision ID: f2c8a4e6d1b7
-Revises: e7f3b2a1c9d4
+Revises: 20260911_merge_api_key_heads
 Create Date: 2026-09-04
 
+This migration was originally pointed at a later provider-order migration,
+which created a circular Alembic graph. It now continues from the repaired
+migration head so the historical migrations form one forward-only chain.
 """
 
 from typing import Sequence, Union
@@ -13,7 +16,7 @@ from alembic import op
 from sqlalchemy.dialects import postgresql
 
 revision: str = "f2c8a4e6d1b7"
-down_revision: Union[str, None] = "e7f3b2a1c9d4"
+down_revision: Union[str, None] = "20260911_merge_api_key_heads"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
