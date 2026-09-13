@@ -1,7 +1,7 @@
 """
 src/core/config.py
 
-Grabs all settings from enviorment.
+Application settings loaded from environment variables (and .env, if present).
 """
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -16,31 +16,34 @@ class Settings(BaseSettings):
     GIANTBOMB_API_KEY: str | None = None
     IGDB_CLIENT_ID: str | None = None
     IGDB_CLIENT_SECRET: str | None = None
-    PRIMARY_USER_USERNAME: str
-    PRIMARY_USER_EMAIL: str
-    PRIMARY_USER_PASSWORD: str
+
+    PRIMARY_USER_USERNAME: str = ""
+    PRIMARY_USER_EMAIL: str = ""
+    PRIMARY_USER_PASSWORD: str = ""
+
     AUTH_COOKIE_SECURE: bool = False
     DEBUG: bool = False
-    # Fernet key (Fernet.generate_key()) used to encrypt secrets at rest (e.g. the
-    # PSN npsso token) — required, no default, so a deploy can't silently run unsafe
+    # Fernet key used to encrypt secrets at rest (e.g. PSN npsso token).
     SECRET_KEY: str
     MAX_UPLOAD_SIZE_MB: int = 15
-    # video clips (and soundtrack files) are routinely far bigger than a
-    # screenshot or cover-art upload — sharing MAX_UPLOAD_SIZE_MB with those
-    # meant every real clip silently exceeded 15MB and got rejected
     MAX_CLIP_SIZE_MB: int = 500
-    # world saves and modpacks are routinely hundreds of MB to a few GB
     MAX_WORLD_SAVE_SIZE_MB: int = 2000
 
-    # App-registered dev credentials, shared across all users on this server.
-    # The account credentials can be supplied per-user or through .env as a
-    # deployment-wide fallback.
     SCREENSCRAPER_DEVID: str | None = None
     SCREENSCRAPER_DEVPASSWORD: str | None = None
     SCREENSCRAPER_SSID: str | None = None
     SCREENSCRAPER_SSPASSWORD: str | None = None
 
+    OIDC_ISSUER_URL: str | None = None
+    OIDC_CLIENT_ID: str | None = None
+    OIDC_CLIENT_SECRET: str | None = None
+    OIDC_REDIRECT_URI: str | None = None
+    OIDC_SCOPES: str = "openid profile email"
+    OIDC_GROUPS_CLAIM: str = "groups"
+    OIDC_ADMIN_GROUP: str | None = None
+    OIDC_USER_MATCH_FIELD: str = "email"
+
     model_config = SettingsConfigDict(extra="ignore")
 
 
-settings = Settings()  # type: ignore[call-arg]  # Values are loaded from the environment.
+settings = Settings()  # type: ignore[call-arg]

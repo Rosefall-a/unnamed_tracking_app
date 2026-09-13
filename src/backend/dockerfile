@@ -44,5 +44,6 @@ RUN chmod +x entrypoint.sh
 # Expose port
 EXPOSE 8000
 
-# On start: run pending migrations, then launch the app
+# Start the application. Database migrations are intentionally not run here;
+# run them separately during deployment when desired.
 ENTRYPOINT ["./entrypoint.sh"]

@@ -7,6 +7,8 @@ on:
       - ".github/workflows/backend-checks.yml"
   pull_request:
     paths:
+      - "src/backend/**"
+      - ".github/workflows/backend-checks.yml"
 
 jobs:
   backend-checks:
@@ -29,6 +31,77 @@ jobs:
       - name: Install backend dependencies
         run: python -m pip install -r requirements.txt
 
+      - name: Validate Alembic migration graph
+        run: |
+          python - <<'PY'
+          import ast
+          from pathlib import Path
+
+          versions = Path("src/database/migrations/versions")
+          revisions = {}
+          for path in sorted(versions.glob("*.py")):
+              tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+              revision = None
+              down_revision = None
+              for node in tree.body:
+                  if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+                      name = node.target.id
+                      if name in {"revision", "down_revision"}:
+                          value = ast.literal_eval(node.value)
+                          if name == "revision":
+                              revision = value
+                          else:
+                              down_revision = value
+                  elif isinstance(node, ast.Assign):
+                      for target in node.targets:
+                          if isinstance(target, ast.Name) and target.id in {"revision", "down_revision"}:
+                              value = ast.literal_eval(node.value)
+                              if target.id == "revision":
+                                  revision = value
+                              else:
+                                  down_revision = value
+              if revision:
+                  parents = [] if down_revision is None else list(down_revision) if isinstance(down_revision, tuple) else [down_revision]
+                  revisions[revision] = (path.name, parents)
+
+          print("Loaded", len(revisions), "Alembic revisions")
+          missing = sorted({parent for _, parents in revisions.values() for parent in parents if parent not in revisions})
+          if missing:
+              raise SystemExit(f"Missing Alembic parent revisions: {missing}")
+
+          state = {}
+          stack = []
+
+          def visit(revision):
+              state[revision] = 1
+              stack.append(revision)
+              for parent in revisions[revision][1]:
+                  if state.get(parent) == 1:
+                      cycle_start = stack.index(parent)
+                      cycle = stack[cycle_start:] + [parent]
+                      print("Alembic cycle detected:")
+                      for item in cycle:
+                          print("  ", item, "<-", revisions[item][1])
+                      raise SystemExit("Alembic migration graph contains a cycle")
+                  if state.get(parent, 0) == 0:
+                      visit(parent)
+              stack.pop()
+              state[revision] = 2
+
+          for revision in revisions:
+              if state.get(revision, 0) == 0:
+                  visit(revision)
+
+          children = {revision: 0 for revision in revisions}
+          for _, parents in revisions.values():
+              for parent in parents:
+                  children[parent] += 1
+          heads = sorted(revision for revision, count in children.items() if count == 0)
+          print("Alembic heads:", heads)
+          if len(heads) != 1:
+              raise SystemExit(f"Expected exactly one Alembic head, found {len(heads)}: {heads}")
+          PY
+
       - name: Run mypy
         run: mypy --config-file pyproject.toml src
 
@@ -38,4 +111,3 @@ jobs:
           score=$(grep -oP 'Your code has been rated at \K[0-9.]+(?=/10)' pylint-output.txt)
           echo "Pylint score: $score"
           python -c "import sys; sys.exit(0 if float('$score') >= 9.0 else 1)"
-

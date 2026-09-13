@@ -10,12 +10,14 @@ const route = useRoute();
 </script>
 
 <template>
-  <template v-if="authChecked">
-    <SidebarNav v-if="route.path !== '/login'" />
+  <!-- First-run setup and the direct OIDC entrypoint deliberately bypass
+       normal authentication, so both must render while authChecked is false. -->
+  <template v-if="authChecked || route.path === '/setup' || route.path === '/login/oidcstart'">
+    <SidebarNav v-if="route.path !== '/login' && route.path !== '/setup' && route.path !== '/login/oidcstart'" />
     <router-view />
-    <TaskProgressToast />
-    <ShortcutsHelp v-if="route.path !== '/login'" />
-    <CommandPalette v-if="route.path !== '/login'" />
+    <TaskProgressToast v-if="route.path !== '/setup' && route.path !== '/login/oidcstart'" />
+    <ShortcutsHelp v-if="route.path !== '/login' && route.path !== '/setup' && route.path !== '/login/oidcstart'" />
+    <CommandPalette v-if="route.path !== '/login' && route.path !== '/setup' && route.path !== '/login/oidcstart'" />
   </template>
   <main v-else class="app-loading">
     <p>Loading…</p>

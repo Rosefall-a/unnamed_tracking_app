@@ -1,21 +1,10 @@
 #!/bin/sh
 set -e
 
-MAX_RETRIES=30
-RETRY_DELAY=2
+echo "Starting application..."
 
 echo "Applying database migrations..."
+alembic upgrade heads
 
-attempt=1
-until alembic -c alembic.ini upgrade head; do
-  if [ "$attempt" -ge "$MAX_RETRIES" ]; then
-    echo "Migrations failed after $MAX_RETRIES attempts. Exiting."
-    exit 1
-  fi
-  echo "Migration attempt $attempt failed (DB may not be ready yet), retrying in ${RETRY_DELAY}s..."
-  attempt=$((attempt + 1))
-  sleep "$RETRY_DELAY"
-done
-
-echo "Migrations applied. Starting application..."
+echo "Starting API server..."
 exec uvicorn src.main:app --host 0.0.0.0 --port 8000

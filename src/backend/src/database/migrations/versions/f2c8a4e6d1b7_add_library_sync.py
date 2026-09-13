@@ -4,6 +4,7 @@ Revision ID: f2c8a4e6d1b7
 Revises: e7f3b2a1c9d4
 Create Date: 2026-09-04
 
+This migration continues from the existing provider-order migration.
 """
 
 from typing import Sequence, Union
