@@ -15,6 +15,7 @@ from src.api.routes import (
     game_archives,
     games,
     library_sync,
+    media,
     settings,
     stats,
     users,
