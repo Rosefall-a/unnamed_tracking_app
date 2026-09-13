@@ -207,7 +207,9 @@ async def update_deployment_settings(
                     raise HTTPException(400, "OIDC user matching must be email or username.")
                 secret = item.get("client_secret") or existing.get(slug, {}).get("client_secret")
                 if not secret:
-                    raise HTTPException(400, f"Client secret is required for OIDC provider '{name}'.")
+                    raise HTTPException(
+                        400, f"Client secret is required for OIDC provider '{name}'."
+                    )
                 if item.get("client_secret"):
                     secret = encrypt_secret(str(item["client_secret"]))
                 normalized.append(
