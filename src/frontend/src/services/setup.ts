@@ -11,6 +11,7 @@ export interface SetupOptions {
   oidc_redirect_uri?: string;
   oidc_groups_claim?: string;
   oidc_admin_group?: string;
+  oidc_user_match_field?: string;
 }
 
 export async function fetchSetupStatus(): Promise<SetupStatus> {
