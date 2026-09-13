@@ -1,8 +1,12 @@
 """add deployment OIDC settings table
 
 Revision ID: c3e7f1a9b2d4
-Revises: 20260911_merge_api_key_heads
+Revises: e7f3b2a1c9d4
 Create Date: 2026-09-13
+
+OIDC settings are the final migration in the repaired deployment-settings
+chain. Keeping this migration after the existing integration/provider
+migrations avoids introducing a second Alembic head.
 """
 
 from typing import Sequence, Union
@@ -11,7 +15,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "c3e7f1a9b2d4"
-down_revision: Union[str, None] = "20260911_merge_api_key_heads"
+down_revision: Union[str, None] = "e7f3b2a1c9d4"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
