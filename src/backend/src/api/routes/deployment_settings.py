@@ -38,6 +38,8 @@ class DeploymentSettingsRequest(BaseModel):
     oidc_groups_claim: str | None = None
     oidc_admin_group: str | None = None
     oidc_user_match_field: str | None = None
+    oidc_default_login_method: str | None = None
+    oidc_login_button_text: str | None = None
 
 
 _SECRET_FIELDS = {
@@ -83,6 +85,10 @@ async def get_deployment_settings(db: AsyncSession, admin: User) -> dict:
             "groups_claim": oidc.groups_claim,
             "admin_group": oidc.admin_group,
             "user_match_field": oidc.user_match_field or "email",
+            "default_login_method": oidc.default_login_method
+            if oidc.default_login_method in {"local", "sso"}
+            else "local",
+            "login_button_text": oidc.login_button_text.strip() or "Continue with SSO",
             "client_secret_configured": bool(oidc.client_secret),
         },
     }
@@ -116,10 +122,17 @@ async def update_deployment_settings(
                         ) from exc
             elif field == "oidc_user_match_field":
                 if value not in {"email", "username"}:
-                    raise HTTPException(
-                        status_code=400, detail="OIDC user matching must be email or username."
-                    )
+                    raise HTTPException(status_code=400, detail="OIDC user matching must be email or username.")
                 oidc.user_match_field = value
+            elif field == "oidc_default_login_method":
+                if value not in {"local", "sso"}:
+                    raise HTTPException(status_code=400, detail="Default login method must be local or sso.")
+                oidc.default_login_method = value
+            elif field == "oidc_login_button_text":
+                text = (value or "").strip()
+                if not text or len(text) > 100:
+                    raise HTTPException(status_code=400, detail="SSO button text must be 1–100 characters.")
+                oidc.login_button_text = text
             elif value is not None:
                 setattr(oidc, field.removeprefix("oidc_"), value or None)
         elif field in _SECRET_FIELDS:
