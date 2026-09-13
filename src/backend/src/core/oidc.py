@@ -30,16 +30,11 @@ class OidcConfig:
     groups_claim: str = "groups"
     admin_group: str | None = None
     user_match_field: str = "email"
+    allow_new_users: bool = True
     discovery_url: str | None = None
 
     @property
     def server_metadata_url(self) -> str:
-        """Return the discovery document URL.
-
-        The settings UI calls this value the issuer URL, but deployments often
-        hand out the OpenID discovery URL itself. Accept both forms so we don't
-        accidentally append a second /.well-known/openid-configuration.
-        """
         configured = (self.discovery_url or self.issuer_url).strip().rstrip("/")
         suffix = "/.well-known/openid-configuration"
         if configured.endswith(suffix):
@@ -61,6 +56,7 @@ def env_oidc_config() -> OidcConfig | None:
         groups_claim=settings.OIDC_GROUPS_CLAIM,
         admin_group=settings.OIDC_ADMIN_GROUP,
         user_match_field=getattr(settings, "OIDC_USER_MATCH_FIELD", "email"),
+        allow_new_users=True,
         discovery_url=discovery_url,
     )
 
