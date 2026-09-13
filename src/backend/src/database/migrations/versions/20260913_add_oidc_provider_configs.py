@@ -1,15 +1,20 @@
 """add multiple OIDC provider configurations
 
-Revision ID: 20260913_add_oidc_provider_configs
-Revises: 20260913_add_oidc_new_users
+Revision ID: 20260913_oidc_providers
+Revises: 20260913_add_oidc_new_users, 7a2c1b9e4d10, c3e7f1a9b2d4
 """
 
 from typing import Sequence, Union
+
 import sqlalchemy as sa
 from alembic import op
 
-revision: str = "20260913_add_oidc_provider_configs"
-down_revision: Union[str, None] = "20260913_add_oidc_new_users"
+revision: str = "20260913_oidc_providers"
+down_revision: Union[str, Sequence[str], None] = (
+    "20260913_add_oidc_new_users",
+    "7a2c1b9e4d10",
+    "c3e7f1a9b2d4",
+)
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
