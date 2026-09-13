@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import secrets
 import time
 from urllib.parse import urlparse
@@ -20,6 +21,7 @@ from src.database.session import get_db
 
 router = APIRouter(prefix="/api/auth/oidc", tags=["auth"])
 _SESSION_SECONDS = 30 * 24 * 60 * 60
+logger = logging.getLogger(__name__)
 
 
 def _env_config() -> OidcConfig | None:
@@ -125,12 +127,19 @@ async def oidc_callback(request: Request, db: AsyncSession = Depends(get_db)) ->
         for key, value in token.items():
             claims.setdefault(key, value)
     except Exception:
+        logger.exception("OIDC callback token/userinfo exchange failed")
         return RedirectResponse(url="/login?oidc_error=authentication_failed", status_code=303)
 
     subject = str(claims.get("sub", "")).strip()
     email = str(claims.get("email", "")).strip().lower()
     email_verified = claims.get("email_verified")
     if not subject or not email or email_verified is False:
+        logger.warning(
+            "OIDC callback missing required verified identity claims (subject=%s, email_present=%s, email_verified=%s)",
+            bool(subject),
+            bool(email),
+            email_verified,
+        )
         return RedirectResponse(url="/login?oidc_error=verified_email_required", status_code=303)
 
     match_field = (
@@ -180,22 +189,24 @@ async def oidc_callback(request: Request, db: AsyncSession = Depends(get_db)) ->
             user.is_admin = group_is_admin
 
     session_token = secrets.token_urlsafe(32)
-    db.add(
-        UserSession(
-            user_id=user.id,
-            token_hash=hash_token(session_token),
-            expires_at=int(time.time()) + _SESSION_SECONDS,
-        )
+    session = UserSession(
+        user_id=user.id,
+        token_hash=hash_token(session_token),
+        expires_at=int(time.time()) + _SESSION_SECONDS,
     )
+    db.add(session)
     await db.commit()
+
+    logger.info("OIDC login established application session for user %s", user.id)
 
     redirect = RedirectResponse(url="/login?oidc=success", status_code=status.HTTP_303_SEE_OTHER)
     redirect.set_cookie(
-        SESSION_COOKIE,
-        session_token,
+        key=SESSION_COOKIE,
+        value=session_token,
         max_age=_SESSION_SECONDS,
         httponly=True,
         samesite="lax",
         secure=settings.AUTH_COOKIE_SECURE,
+        path="/",
     )
     return redirect
