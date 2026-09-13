@@ -8,6 +8,8 @@ export interface DeploymentSettings {
     groups_claim: string | null;
     admin_group: string | null;
     user_match_field: string | null;
+    default_login_method: string | null;
+    login_button_text: string | null;
     client_secret_configured: boolean;
   };
 }
@@ -26,15 +28,8 @@ export async function updateDeploymentSettings(payload: Record<string, string>):
     body: JSON.stringify(payload),
   });
   if (!response.ok) {
-    const body = await response.text();
-    let message = `Failed to save server integrations: ${response.status}`;
-    try {
-      const parsed = JSON.parse(body) as { detail?: string };
-      if (parsed.detail) message = parsed.detail;
-    } catch {
-      if (body) message += ` ${body}`;
-    }
-    throw new Error(message);
+    const message = await response.text();
+    throw new Error(`Failed to save server integrations: ${response.status} ${message}`);
   }
   return await response.json();
 }
