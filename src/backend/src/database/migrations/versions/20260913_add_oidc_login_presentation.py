@@ -18,7 +18,9 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     op.add_column(
         "oidc_settings",
-        sa.Column("default_login_method", sa.String(length=16), nullable=False, server_default="local"),
+        sa.Column(
+            "default_login_method", sa.String(length=16), nullable=False, server_default="local"
+        ),
     )
     op.add_column(
         "oidc_settings",

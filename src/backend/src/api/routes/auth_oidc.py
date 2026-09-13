@@ -85,10 +85,14 @@ async def oidc_status(db: AsyncSession = Depends(get_db)) -> dict[str, object]:
         "enabled": config is not None,
         "issuer": urlparse(config.issuer_url).hostname if config else None,
         "default_login_method": (
-            row.default_login_method if row and row.default_login_method in {"local", "sso"} else "local"
+            row.default_login_method
+            if row and row.default_login_method in {"local", "sso"}
+            else "local"
         ),
         "login_button_text": (
-            row.login_button_text.strip() if row and row.login_button_text.strip() else "Continue with SSO"
+            row.login_button_text.strip()
+            if row and row.login_button_text.strip()
+            else "Continue with SSO"
         ),
     }
 
@@ -129,7 +133,9 @@ async def oidc_callback(request: Request, db: AsyncSession = Depends(get_db)) ->
     if not subject or not email or email_verified is False:
         return RedirectResponse(url="/login?oidc_error=verified_email_required", status_code=303)
 
-    match_field = config.user_match_field if config.user_match_field in {"email", "username"} else "email"
+    match_field = (
+        config.user_match_field if config.user_match_field in {"email", "username"} else "email"
+    )
     match_value = _oidc_match_value(claims, match_field, email)
     if not match_value:
         return RedirectResponse(url="/login?oidc_error=identity_missing", status_code=303)
