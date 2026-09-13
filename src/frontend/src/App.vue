@@ -10,14 +10,14 @@ const route = useRoute();
 </script>
 
 <template>
-  <!-- First-run setup deliberately bypasses normal authentication, so it must
-       render even though authChecked remains false until an account exists. -->
-  <template v-if="authChecked || route.path === '/setup'">
-    <SidebarNav v-if="route.path !== '/login' && route.path !== '/setup'" />
+  <!-- First-run setup and the direct OIDC entrypoint deliberately bypass
+       normal authentication, so both must render while authChecked is false. -->
+  <template v-if="authChecked || route.path === '/setup' || route.path === '/login/oidcstart'">
+    <SidebarNav v-if="route.path !== '/login' && route.path !== '/setup' && route.path !== '/login/oidcstart'" />
     <router-view />
-    <TaskProgressToast v-if="route.path !== '/setup'" />
-    <ShortcutsHelp v-if="route.path !== '/login' && route.path !== '/setup'" />
-    <CommandPalette v-if="route.path !== '/login' && route.path !== '/setup'" />
+    <TaskProgressToast v-if="route.path !== '/setup' && route.path !== '/login/oidcstart'" />
+    <ShortcutsHelp v-if="route.path !== '/login' && route.path !== '/setup' && route.path !== '/login/oidcstart'" />
+    <CommandPalette v-if="route.path !== '/login' && route.path !== '/setup' && route.path !== '/login/oidcstart'" />
   </template>
   <main v-else class="app-loading">
     <p>Loading…</p>
