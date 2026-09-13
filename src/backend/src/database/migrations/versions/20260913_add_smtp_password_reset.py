@@ -47,10 +47,6 @@ def upgrade() -> None:
         "app_integration_settings",
         sa.Column("smtp_from_name", sa.String(length=200), nullable=True),
     )
-    op.add_column(
-        "app_integration_settings",
-        sa.Column("password_reset_enabled", sa.Boolean(), nullable=False, server_default=sa.true()),
-    )
     op.create_table(
         "password_reset_tokens",
         sa.Column("id", sa.UUID(), nullable=False),
@@ -74,7 +70,6 @@ def downgrade() -> None:
     op.drop_index("ix_password_reset_tokens_user_id", table_name="password_reset_tokens")
     op.drop_table("password_reset_tokens")
     for column in (
-        "password_reset_enabled",
         "smtp_from_name",
         "smtp_from_email",
         "smtp_use_ssl",
