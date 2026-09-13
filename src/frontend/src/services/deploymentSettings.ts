@@ -7,6 +7,7 @@ export interface DeploymentSettings {
     redirect_uri: string | null;
     groups_claim: string | null;
     admin_group: string | null;
+    user_match_field: string | null;
     client_secret_configured: boolean;
   };
 }
@@ -25,8 +26,15 @@ export async function updateDeploymentSettings(payload: Record<string, string>):
     body: JSON.stringify(payload),
   });
   if (!response.ok) {
-    const message = await response.text();
-    throw new Error(`Failed to save server integrations: ${response.status} ${message}`);
+    const body = await response.text();
+    let message = `Failed to save server integrations: ${response.status}`;
+    try {
+      const parsed = JSON.parse(body) as { detail?: string };
+      if (parsed.detail) message = parsed.detail;
+    } catch {
+      if (body) message += ` ${body}`;
+    }
+    throw new Error(message);
   }
   return await response.json();
 }
