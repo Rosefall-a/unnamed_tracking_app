@@ -47,7 +47,6 @@ async def password_reset_status(
         and settings.password_reset_enabled
         and settings.smtp_host
         and settings.smtp_from_email
-        and settings.smtp_password
     )
     return {"enabled": enabled}
 
