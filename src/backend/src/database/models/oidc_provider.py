@@ -27,8 +27,15 @@ class OidcProvider(Base):
     admin_group: Mapped[str | None] = mapped_column(String(256), nullable=True)
     user_match_field: Mapped[str] = mapped_column(String(16), nullable=False, default="email")
     allow_new_users: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    button_text: Mapped[str] = mapped_column(String(100), nullable=False, default="Continue with SSO")
+    button_text: Mapped[str] = mapped_column(
+        String(100), nullable=False, default="Continue with SSO"
+    )
     button_image_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     sort_order: Mapped[int] = mapped_column(nullable=False, default=0)
-    updated_at: Mapped[int] = mapped_column(BigInteger, nullable=False, default=lambda: int(time.time()), onupdate=lambda: int(time.time()))
+    updated_at: Mapped[int] = mapped_column(
+        BigInteger,
+        nullable=False,
+        default=lambda: int(time.time()),
+        onupdate=lambda: int(time.time()),
+    )
