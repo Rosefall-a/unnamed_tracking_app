@@ -20,3 +20,9 @@ body,
 .game-card-wrap .meta-row > span {
   min-width: 0;
 }
+
+/* The original sidebar profile entry sat at the top and duplicated the
+   persistent profile dock. Keep one profile action, at the bottom. */
+.sidebar > a:first-of-type {
+  display: none;
+}
