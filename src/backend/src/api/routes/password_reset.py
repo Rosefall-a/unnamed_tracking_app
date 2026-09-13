@@ -101,7 +101,9 @@ async def request_password_reset(
         # smtplib is blocking; keep SMTP network failures from stalling the
         # FastAPI event loop, and log the real failure while preserving the
         # generic response that prevents account enumeration.
-        await asyncio.to_thread(send_email, settings_row, user.email, "Reset your Archive password", body)
+        await asyncio.to_thread(
+            send_email, settings_row, user.email, "Reset your Archive password", body
+        )
     except Exception:
         logger.exception("Password reset email could not be sent")
         return {"message": generic}
