@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -37,6 +37,7 @@ class DeploymentSettingsRequest(BaseModel):
     oidc_redirect_uri: str | None = None
     oidc_groups_claim: str | None = None
     oidc_admin_group: str | None = None
+    oidc_user_match_field: str | None = None
 
 
 _SECRET_FIELDS = {
@@ -81,6 +82,7 @@ async def get_deployment_settings(db: AsyncSession, admin: User) -> dict:
             "redirect_uri": oidc.redirect_uri,
             "groups_claim": oidc.groups_claim,
             "admin_group": oidc.admin_group,
+            "user_match_field": oidc.user_match_field or "email",
             "client_secret_configured": bool(oidc.client_secret),
         },
     }
@@ -105,7 +107,17 @@ async def update_deployment_settings(
         if field.startswith("oidc_"):
             if field == "oidc_client_secret":
                 if value:
-                    oidc.client_secret = encrypt_secret(value)
+                    try:
+                        oidc.client_secret = encrypt_secret(value)
+                    except RuntimeError as exc:
+                        raise HTTPException(
+                            status_code=400,
+                            detail="SECRET_KEY must be a valid Fernet key before secrets can be saved. Generate one with: python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\"",
+                        ) from exc
+            elif field == "oidc_user_match_field":
+                if value not in {"email", "username"}:
+                    raise HTTPException(status_code=400, detail="OIDC user matching must be email or username.")
+                oidc.user_match_field = value
             elif value is not None:
                 setattr(oidc, field.removeprefix("oidc_"), value or None)
         elif field in _SECRET_FIELDS:
