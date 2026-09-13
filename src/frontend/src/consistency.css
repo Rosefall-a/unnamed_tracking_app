@@ -6,15 +6,17 @@ body,
   background: #121212;
 }
 
-/* Persistent desktop navigation owns the left edge on wide screens. Put the
-   application content beside it rather than shifting fixed overlays such as
-   the notification bell/profile controls. :has() is supported by the
-   browsers targeted by this app and only applies while the desktop sidebar
-   actually exists. */
+/* Persistent desktop navigation owns the left edge on wide screens. The
+   sidebar publishes its current width so resizing/collapsing it moves the
+   application canvas with it without disturbing fixed overlays. */
 @media (min-width: 1025px) {
   #app:has(.desktop-sidebar) {
-    padding-left: 236px;
+    padding-left: var(--desktop-sidebar-width, 260px);
     box-sizing: border-box;
+  }
+
+  .profile-chip-global {
+    display: none !important;
   }
 
   .profile-dock,
@@ -23,19 +25,43 @@ body,
   }
 }
 
+/* Older views still contain their own profile chip markup. The shared app
+   chrome now owns that action so every authenticated page gets the same
+   clickable profile control without duplicates. */
+.profile-chip {
+  display: none !important;
+}
+
 /* Game cards keep metadata readable even when titles are long or several
    metadata badges are present. */
 .game-card-wrap .card-info {
   min-height: 42px;
 }
 
+.game-card-wrap .title {
+  margin: 0 0 7px;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .game-card-wrap .meta-row {
   flex-wrap: wrap;
   row-gap: 3px;
+  line-height: 1.2;
 }
 
 .game-card-wrap .meta-row > span {
   min-width: 0;
+}
+
+/* Keep page subtitles separated from headings rather than relying on each
+   view's browser-default paragraph margins. */
+.cards-page .section-hint,
+.sets-page .section-hint {
+  margin: 7px 0 18px;
+  line-height: 1.5;
 }
 
 /* A starter template that has already been used is disabled by Collections.
