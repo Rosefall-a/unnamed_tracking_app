@@ -118,7 +118,9 @@ async def oidc_callback(request: Request, db: AsyncSession = Depends(get_db)) ->
     if not subject or not email or email_verified is False:
         return RedirectResponse(url="/login?oidc_error=verified_email_required", status_code=303)
 
-    match_field = config.user_match_field if config.user_match_field in {"email", "username"} else "email"
+    match_field = (
+        config.user_match_field if config.user_match_field in {"email", "username"} else "email"
+    )
     match_value = _oidc_match_value(claims, match_field, email)
     if not match_value:
         return RedirectResponse(url="/login?oidc_error=identity_missing", status_code=303)
