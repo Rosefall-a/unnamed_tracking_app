@@ -17,7 +17,8 @@ body,
     margin-left: 236px;
   }
 
-  .profile-dock {
+  .profile-dock,
+  .menu-toggle {
     display: none !important;
   }
 }
@@ -35,6 +36,13 @@ body,
 
 .game-card-wrap .meta-row > span {
   min-width: 0;
+}
+
+/* A starter template that has already been used is disabled by Collections.
+   Hiding that disabled row makes the starter menu behave like a set of
+   one-time suggestions instead of leaving used templates around as clutter. */
+.templates-dropdown .template-item:disabled {
+  display: none;
 }
 
 /* The original sidebar profile entry sat at the top and duplicated the
