@@ -37,6 +37,20 @@ COPY src /app/src
 
 COPY alembic.ini /app/alembic.ini
 
+# Fail the image build if the migration graph ever regains multiple heads or
+# a cycle. This is deliberately offline: it loads Alembic's revision map
+# without connecting to PostgreSQL.
+RUN python - <<'PY'
+from alembic.config import Config
+from alembic.script import ScriptDirectory
+
+script = ScriptDirectory.from_config(Config("alembic.ini"))
+heads = script.get_heads()
+print("Alembic heads:", heads)
+if len(heads) != 1:
+    raise SystemExit(f"Expected exactly one Alembic head, found {len(heads)}: {heads}")
+PY
+
 # Copy and prepare the entrypoint script
 COPY entrypoint.sh .
 RUN chmod +x entrypoint.sh
