@@ -112,11 +112,13 @@ async def update_deployment_settings(
                     except RuntimeError as exc:
                         raise HTTPException(
                             status_code=400,
-                            detail="SECRET_KEY must be a valid Fernet key before secrets can be saved. Generate one with: python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\"",
+                            detail='SECRET_KEY must be a valid Fernet key before secrets can be saved. Generate one with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"',
                         ) from exc
             elif field == "oidc_user_match_field":
                 if value not in {"email", "username"}:
-                    raise HTTPException(status_code=400, detail="OIDC user matching must be email or username.")
+                    raise HTTPException(
+                        status_code=400, detail="OIDC user matching must be email or username."
+                    )
                 oidc.user_match_field = value
             elif value is not None:
                 setattr(oidc, field.removeprefix("oidc_"), value or None)
