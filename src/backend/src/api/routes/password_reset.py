@@ -35,6 +35,23 @@ class PasswordResetConfirm(BaseModel):
         return validate_password(value)
 
 
+@router.get("/status")
+async def password_reset_status(
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, bool]:
+    """Return the non-sensitive configuration needed by the sign-in page."""
+    settings = await db.scalar(select(AppIntegrationSettings).limit(1))
+    enabled = bool(
+        settings
+        and settings.smtp_enabled
+        and settings.password_reset_enabled
+        and settings.smtp_host
+        and settings.smtp_from_email
+        and settings.smtp_password_encrypted
+    )
+    return {"enabled": enabled}
+
+
 @router.post("/request")
 async def request_password_reset(
     payload: PasswordResetRequest,
