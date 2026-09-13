@@ -5,6 +5,8 @@ export interface DeploymentSettings {
     client_id: string | null;
     scopes: string | null;
     redirect_uri: string | null;
+    groups_claim: string | null;
+    admin_group: string | null;
     client_secret_configured: boolean;
   };
 }
