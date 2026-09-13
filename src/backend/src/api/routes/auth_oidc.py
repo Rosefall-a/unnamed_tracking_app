@@ -38,6 +38,7 @@ def _env_config() -> OidcConfig | None:
         groups_claim=settings.OIDC_GROUPS_CLAIM,
         admin_group=settings.OIDC_ADMIN_GROUP,
         user_match_field=getattr(settings, "OIDC_USER_MATCH_FIELD", "email"),
+        allow_new_users=True,
         discovery_url=discovery_url,
     )
 
@@ -56,6 +57,7 @@ async def _get_config(db: AsyncSession) -> OidcConfig | None:
             groups_claim=row.groups_claim or "groups",
             admin_group=row.admin_group,
             user_match_field=row.user_match_field or "email",
+            allow_new_users=row.allow_new_users,
             discovery_url=discovery_url,
         )
     return _env_config()
@@ -76,32 +78,18 @@ def _oidc_groups(claims: dict, claim_name: str) -> set[str]:
 
 
 def _oidc_match_value(claims: dict, field: str, email: str) -> str:
-    if field == "username":
-        return str(claims.get("preferred_username") or claims.get("name") or "").strip()
-    return email
-
-
-async def _oidc_row(db: AsyncSession) -> OidcSettings | None:
-    return await db.scalar(select(OidcSettings).limit(1))
+    return str(claims.get("preferred_username") or claims.get("name") or "").strip() if field == "username" else email
 
 
 @router.get("/status")
 async def oidc_status(db: AsyncSession = Depends(get_db)) -> dict[str, object]:
-    row = await _oidc_row(db)
+    row = await db.scalar(select(OidcSettings).limit(1))
     config = await _get_config(db)
     return {
         "enabled": config is not None,
         "issuer": urlparse(config.issuer_url).hostname if config else None,
-        "default_login_method": (
-            row.default_login_method
-            if row and row.default_login_method in {"local", "sso"}
-            else "local"
-        ),
-        "login_button_text": (
-            row.login_button_text.strip()
-            if row and row.login_button_text.strip()
-            else "Continue with SSO"
-        ),
+        "default_login_method": row.default_login_method if row and row.default_login_method in {"local", "sso"} else "local",
+        "login_button_text": row.login_button_text.strip() if row and row.login_button_text.strip() else "Continue with SSO",
     }
 
 
@@ -114,54 +102,29 @@ async def oidc_login(request: Request, db: AsyncSession = Depends(get_db)) -> Re
 
 
 async def _fetch_oidc_token(request: Request, client) -> dict:
-    """Fetch the OAuth token while preserving Authlib's state/CSRF checks.
-
-    Authlib's Starlette OIDC helper immediately validates the returned ID token.
-    Some otherwise usable OIDC providers expose a JWKS URL that does not return
-    a standards-compliant JWK Set, which makes Authlib fail with
-    ``ValueError: Invalid key set format`` after the code exchange has already
-    succeeded. In that case the provider's authenticated UserInfo endpoint is
-    still the appropriate source of identity claims.
-    """
-    if request.method == "GET":
-        params = {
-            "code": request.query_params.get("code"),
-            "state": request.query_params.get("state"),
-        }
-    else:
-        form = await request.form()
-        params = {"code": form.get("code"), "state": form.get("state")}
-
-    state = params.get("state")
+    params = {"code": request.query_params.get("code"), "state": request.query_params.get("state")}
+    state = params["state"]
     if not state:
         raise ValueError("Missing OIDC state parameter")
-
     state_data = await client.framework.get_state_data(request.session, state)
     if not state_data:
         raise ValueError("Invalid OIDC state parameter")
-
-    client.framework.clear_state_data(request.session, state)
+    await client.framework.clear_state_data(request.session, state)
     params = client._format_state_params(state_data, params)
     token = await client.fetch_access_token(**params)
-
     if "id_token" not in token or "nonce" not in state_data:
         return token
-
     try:
         token["userinfo"] = await client.parse_id_token(
             token,
             nonce=state_data["nonce"],
             claims_options=None,
-            leeway=120,
         )
     except ValueError as exc:
         if str(exc) != "Invalid key set format":
             raise
-        logger.warning(
-            "OIDC provider returned an invalid JWKS document; using the authenticated UserInfo endpoint instead"
-        )
+        logger.warning("OIDC provider returned an invalid JWKS document; using the authenticated UserInfo endpoint instead")
         token["userinfo"] = await client.userinfo(token=token)
-
     return token
 
 
@@ -170,17 +133,13 @@ async def oidc_callback(request: Request, db: AsyncSession = Depends(get_db)) ->
     config = await _get_config(db)
     if config is None:
         return RedirectResponse(url="/login?oidc_error=not_configured", status_code=303)
-
     register_oidc_provider(config)
     client = oauth.create_client("oidc")
     if client is None:
         return RedirectResponse(url="/login?oidc_error=provider_unavailable", status_code=303)
-
     try:
         token = await _fetch_oidc_token(request, client)
-        userinfo = token.get("userinfo")
-        if not userinfo:
-            userinfo = await client.userinfo(token=token)
+        userinfo = token.get("userinfo") or await client.userinfo(token=token)
         claims = dict(userinfo)
         for key, value in token.items():
             claims.setdefault(key, value)
@@ -190,19 +149,10 @@ async def oidc_callback(request: Request, db: AsyncSession = Depends(get_db)) ->
 
     subject = str(claims.get("sub", "")).strip()
     email = str(claims.get("email", "")).strip().lower()
-    email_verified = claims.get("email_verified")
-    if not subject or not email or email_verified is False:
-        logger.warning(
-            "OIDC callback missing required verified identity claims (subject=%s, email_present=%s, email_verified=%s)",
-            bool(subject),
-            bool(email),
-            email_verified,
-        )
+    if not subject or not email or claims.get("email_verified") is False:
         return RedirectResponse(url="/login?oidc_error=verified_email_required", status_code=303)
 
-    match_field = (
-        config.user_match_field if config.user_match_field in {"email", "username"} else "email"
-    )
+    match_field = config.user_match_field if config.user_match_field in {"email", "username"} else "email"
     match_value = _oidc_match_value(claims, match_field, email)
     if not match_value:
         return RedirectResponse(url="/login?oidc_error=identity_missing", status_code=303)
@@ -218,14 +168,14 @@ async def oidc_callback(request: Request, db: AsyncSession = Depends(get_db)) ->
     group_is_admin = bool(config.admin_group and config.admin_group in groups)
 
     if user is None:
-        username = _safe_username(
-            str(claims.get("preferred_username") or claims.get("name") or ""), email
-        )
+        if not config.allow_new_users:
+            return RedirectResponse(url="/login?oidc_error=user_creation_disabled", status_code=303)
+        username = _safe_username(str(claims.get("preferred_username") or claims.get("name") or ""), email)
         base = username
         suffix = 1
         while await db.scalar(select(User.id).where(User.username == username)) is not None:
             suffix += 1
-            username = f"{base[: 100 - len(str(suffix)) - 1]}-{suffix}"
+            username = f"{base[:100 - len(str(suffix)) - 1]}-{suffix}"
         user = User(
             username=username,
             email=email,
@@ -247,24 +197,10 @@ async def oidc_callback(request: Request, db: AsyncSession = Depends(get_db)) ->
             user.is_admin = group_is_admin
 
     session_token = secrets.token_urlsafe(32)
-    session = UserSession(
-        user_id=user.id,
-        token_hash=hash_token(session_token),
-        expires_at=int(time.time()) + _SESSION_SECONDS,
-    )
-    db.add(session)
+    db.add(UserSession(user_id=user.id, token_hash=hash_token(session_token), expires_at=int(time.time()) + _SESSION_SECONDS))
     await db.commit()
-
     logger.info("OIDC login established application session for user %s", user.id)
 
     redirect = RedirectResponse(url="/login?oidc=success", status_code=status.HTTP_303_SEE_OTHER)
-    redirect.set_cookie(
-        key=SESSION_COOKIE,
-        value=session_token,
-        max_age=_SESSION_SECONDS,
-        httponly=True,
-        samesite="lax",
-        secure=settings.AUTH_COOKIE_SECURE,
-        path="/",
-    )
+    redirect.set_cookie(key=SESSION_COOKIE, value=session_token, max_age=_SESSION_SECONDS, httponly=True, samesite="lax", secure=settings.AUTH_COOKIE_SECURE, path="/")
     return redirect
