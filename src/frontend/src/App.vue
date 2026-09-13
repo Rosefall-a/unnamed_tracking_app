@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useRoute } from "vue-router";
 import SidebarNav from "./components/SidebarNav.vue";
+import DesktopSidebar from "./components/DesktopSidebar.vue";
 import ProfileDock from "./components/ProfileDock.vue";
 import NotificationBell from "./components/NotificationBell.vue";
 import TaskProgressToast from "./components/TaskProgressToast.vue";
@@ -26,7 +27,10 @@ const isPublicRoute = () =>
       route.path === '/reset-password'
     "
   >
-    <SidebarNav v-if="!isPublicRoute()" />
+    <template v-if="!isPublicRoute()">
+      <SidebarNav />
+      <DesktopSidebar />
+    </template>
     <router-view />
     <NotificationBell v-if="!isPublicRoute()" />
     <ProfileDock v-if="!isPublicRoute()" />
