@@ -119,7 +119,7 @@ async def setup_admin(
             except RuntimeError as exc:
                 raise HTTPException(
                     status_code=400,
-                    detail="SECRET_KEY must be a valid Fernet key before OIDC secrets can be saved. Generate one with: python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\"",
+                    detail='SECRET_KEY must be a valid Fernet key before OIDC secrets can be saved. Generate one with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"',
                 ) from exc
             oidc = OidcSettings(
                 issuer_url=oidc_values["issuer_url"],
