@@ -26,3 +26,9 @@ body,
 .sidebar > a:first-of-type {
   display: none;
 }
+
+/* Notifications now live in the top-bar popover; the old sidebar control
+   should not present a second notification interaction. */
+.sidebar .notification-toggle {
+  display: none;
+}
