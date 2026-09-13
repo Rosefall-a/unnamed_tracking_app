@@ -70,6 +70,7 @@ class DeploymentSettingsRequest(BaseModel):
     smtp_use_ssl: bool | None = None
     smtp_from_email: str | None = None
     smtp_from_name: str | None = None
+    password_reset_enabled: bool | None = None
 
 
 _SECRET_FIELDS = {
@@ -124,6 +125,7 @@ def _smtp_view(app):
         "use_ssl": app.smtp_use_ssl,
         "from_email": app.smtp_from_email,
         "from_name": app.smtp_from_name,
+        "password_reset_enabled": app.password_reset_enabled,
     }
 
 
@@ -249,7 +251,7 @@ async def update_deployment_settings(
             if value < 1 or value > 65535:
                 raise HTTPException(400, "SMTP port must be between 1 and 65535.")
             app.smtp_port = value
-        elif field in {"smtp_enabled", "smtp_use_tls", "smtp_use_ssl"}:
+        elif field in {"smtp_enabled", "smtp_use_tls", "smtp_use_ssl", "password_reset_enabled"}:
             setattr(app, field, bool(value))
         elif field.startswith("smtp_"):
             setattr(app, field, value.strip() if isinstance(value, str) else value)
