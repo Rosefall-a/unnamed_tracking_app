@@ -28,7 +28,7 @@ class OidcSettings(Base):
     login_button_text: Mapped[str] = mapped_column(
         String(100), nullable=False, default="Continue with SSO"
     )
-    # PostgreSQL BIGINT cannot accept the float returned by time.time().
+    allow_new_users: Mapped[bool] = mapped_column(nullable=False, default=True)
     updated_at: Mapped[int] = mapped_column(
         BigInteger,
         nullable=False,
