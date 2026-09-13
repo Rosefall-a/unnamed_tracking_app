@@ -16,16 +16,41 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.add_column("app_integration_settings", sa.Column("smtp_enabled", sa.Boolean(), nullable=False, server_default=sa.false()))
-    op.add_column("app_integration_settings", sa.Column("smtp_host", sa.String(length=255), nullable=True))
-    op.add_column("app_integration_settings", sa.Column("smtp_port", sa.Integer(), nullable=False, server_default="587"))
-    op.add_column("app_integration_settings", sa.Column("smtp_username", sa.String(length=320), nullable=True))
+    op.add_column(
+        "app_integration_settings",
+        sa.Column("smtp_enabled", sa.Boolean(), nullable=False, server_default=sa.false()),
+    )
+    op.add_column(
+        "app_integration_settings", sa.Column("smtp_host", sa.String(length=255), nullable=True)
+    )
+    op.add_column(
+        "app_integration_settings",
+        sa.Column("smtp_port", sa.Integer(), nullable=False, server_default="587"),
+    )
+    op.add_column(
+        "app_integration_settings", sa.Column("smtp_username", sa.String(length=320), nullable=True)
+    )
     op.add_column("app_integration_settings", sa.Column("smtp_password", sa.Text(), nullable=True))
-    op.add_column("app_integration_settings", sa.Column("smtp_use_tls", sa.Boolean(), nullable=False, server_default=sa.true()))
-    op.add_column("app_integration_settings", sa.Column("smtp_use_ssl", sa.Boolean(), nullable=False, server_default=sa.false()))
-    op.add_column("app_integration_settings", sa.Column("smtp_from_email", sa.String(length=320), nullable=True))
-    op.add_column("app_integration_settings", sa.Column("smtp_from_name", sa.String(length=200), nullable=True))
-    op.add_column("app_integration_settings", sa.Column("password_reset_enabled", sa.Boolean(), nullable=False, server_default=sa.true()))
+    op.add_column(
+        "app_integration_settings",
+        sa.Column("smtp_use_tls", sa.Boolean(), nullable=False, server_default=sa.true()),
+    )
+    op.add_column(
+        "app_integration_settings",
+        sa.Column("smtp_use_ssl", sa.Boolean(), nullable=False, server_default=sa.false()),
+    )
+    op.add_column(
+        "app_integration_settings",
+        sa.Column("smtp_from_email", sa.String(length=320), nullable=True),
+    )
+    op.add_column(
+        "app_integration_settings",
+        sa.Column("smtp_from_name", sa.String(length=200), nullable=True),
+    )
+    op.add_column(
+        "app_integration_settings",
+        sa.Column("password_reset_enabled", sa.Boolean(), nullable=False, server_default=sa.true()),
+    )
     op.create_table(
         "password_reset_tokens",
         sa.Column("id", sa.UUID(), nullable=False),
