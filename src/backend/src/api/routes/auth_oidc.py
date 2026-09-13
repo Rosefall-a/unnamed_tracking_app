@@ -2,23 +2,49 @@ from __future__ import annotations
 
 import secrets
 import time
-from uuid import UUID
+from urllib.parse import urlparse
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.responses import RedirectResponse
 
-from src.core.auth import SESSION_COOKIE, hash_password, hash_token, validate_password
+from src.core.auth import SESSION_COOKIE, hash_password, hash_token
 from src.core.config import settings
-from src.core.oidc import begin_oidc, callback_url, new_state, oauth, oidc_enabled, register_oidc_provider
+from src.core.crypto import decrypt_secret, encrypt_secret
+from src.core.oidc import OidcConfig, begin_oidc, callback_url, oauth, register_oidc_provider
 from src.database.models.auth import UserSession
+from src.database.models.oidc_settings import OidcSettings
 from src.database.models.user import User
 from src.database.session import get_db
 
 router = APIRouter(prefix="/api/auth/oidc", tags=["auth"])
 _SESSION_SECONDS = 30 * 24 * 60 * 60
 
-register_oidc_provider()
+
+def _env_config() -> OidcConfig | None:
+    if not (settings.OIDC_ISSUER_URL and settings.OIDC_CLIENT_ID and settings.OIDC_CLIENT_SECRET):
+        return None
+    return OidcConfig(
+        issuer_url=settings.OIDC_ISSUER_URL,
+        client_id=settings.OIDC_CLIENT_ID,
+        client_secret=settings.OIDC_CLIENT_SECRET,
+        scopes=settings.OIDC_SCOPES,
+        redirect_uri=settings.OIDC_REDIRECT_URI,
+    )
+
+
+async def _get_config(db: AsyncSession) -> OidcConfig | None:
+    row = await db.scalar(select(OidcSettings).limit(1))
+    if row and row.issuer_url and row.client_id and row.client_secret:
+        return OidcConfig(
+            issuer_url=row.issuer_url,
+            client_id=row.client_id,
+            client_secret=decrypt_secret(row.client_secret),
+            scopes=row.scopes or "openid profile email",
+            redirect_uri=row.redirect_uri,
+        )
+    return _env_config()
 
 
 def _safe_username(value: str, email: str) -> str:
@@ -27,55 +53,47 @@ def _safe_username(value: str, email: str) -> str:
 
 
 @router.get("/status")
-async def oidc_status() -> dict[str, bool]:
-    return {"enabled": oidc_enabled()}
+async def oidc_status(db: AsyncSession = Depends(get_db)) -> dict[str, object]:
+    config = await _get_config(db)
+    return {
+        "enabled": config is not None,
+        "issuer": urlparse(config.issuer_url).hostname if config else None,
+    }
 
 
 @router.get("/login", name="oidc_login")
-async def oidc_login(request: Request) -> Response:
-    response = await begin_oidc(request)
-    # Starlette/Authlib validates the OAuth state on callback. The cookie also
-    # makes the browser's intent explicit and gives us a stable CSRF boundary.
-    response.set_cookie(
-        "oidc_state",
-        new_state(),
-        max_age=600,
-        httponly=True,
-        samesite="lax",
-        secure=settings.AUTH_COOKIE_SECURE,
-    )
-    return response
+async def oidc_login(request: Request, db: AsyncSession = Depends(get_db)) -> Response:
+    config = await _get_config(db)
+    if config is None:
+        raise HTTPException(status_code=404, detail="OIDC login is not configured.")
+    return await begin_oidc(request, config)
 
 
 @router.get("/callback", name="oidc_callback")
-async def oidc_callback(request: Request, response: Response, db: AsyncSession = Depends(get_db)) -> Response:
-    if not oidc_enabled():
-        raise HTTPException(status_code=404, detail="OIDC login is not configured.")
+async def oidc_callback(request: Request, db: AsyncSession = Depends(get_db)) -> Response:
+    config = await _get_config(db)
+    if config is None:
+        return RedirectResponse(url="/login?oidc_error=not_configured", status_code=303)
 
+    register_oidc_provider(config)
     client = oauth.create_client("oidc")
     if client is None:
-        raise HTTPException(status_code=503, detail="OIDC provider is unavailable.")
+        return RedirectResponse(url="/login?oidc_error=provider_unavailable", status_code=303)
 
     try:
         token = await client.authorize_access_token(request)
-    except Exception as exc:
-        raise HTTPException(status_code=401, detail="OIDC authentication failed.") from exc
-
-    userinfo = token.get("userinfo")
-    if not userinfo:
-        try:
+        userinfo = token.get("userinfo")
+        if not userinfo:
             userinfo = await client.userinfo(token=token)
-        except Exception as exc:
-            raise HTTPException(status_code=401, detail="OIDC provider did not return user information.") from exc
+    except Exception:
+        return RedirectResponse(url="/login?oidc_error=authentication_failed", status_code=303)
 
     subject = str(userinfo.get("sub", "")).strip()
     email = str(userinfo.get("email", "")).strip().lower()
     email_verified = userinfo.get("email_verified")
     if not subject or not email or email_verified is False:
-        raise HTTPException(status_code=403, detail="OIDC account must provide a verified email address.")
+        return RedirectResponse(url="/login?oidc_error=verified_email_required", status_code=303)
 
-    # OIDC accounts are linked by provider subject when present, otherwise by
-    # verified email. We deliberately do not auto-link an unverified email.
     user = await db.scalar(select(User).where(User.oidc_subject == subject))
     if user is None:
         user = await db.scalar(select(User).where(User.email == email))
@@ -90,7 +108,6 @@ async def oidc_callback(request: Request, response: Response, db: AsyncSession =
         user = User(
             username=username,
             email=email,
-            # OIDC-only accounts cannot authenticate through the password form.
             password_hash=hash_password(secrets.token_urlsafe(48) + "A!a"),
             is_active=True,
             is_admin=False,
@@ -99,30 +116,16 @@ async def oidc_callback(request: Request, response: Response, db: AsyncSession =
         db.add(user)
     else:
         if not user.is_active:
-            raise HTTPException(status_code=403, detail="This account is disabled.")
+            return RedirectResponse(url="/login?oidc_error=account_disabled", status_code=303)
         if user.oidc_subject and user.oidc_subject != subject:
-            raise HTTPException(status_code=409, detail="OIDC identity is linked to another account.")
+            return RedirectResponse(url="/login?oidc_error=identity_conflict", status_code=303)
         user.oidc_subject = subject
-        if user.email != email:
-            user.email = email
+        user.email = email
 
     session_token = secrets.token_urlsafe(32)
-    db.add(
-        UserSession(
-            user_id=user.id,
-            token_hash=hash_token(session_token),
-            expires_at=int(time.time()) + _SESSION_SECONDS,
-        )
-    )
+    db.add(UserSession(user_id=user.id, token_hash=hash_token(session_token), expires_at=int(time.time()) + _SESSION_SECONDS))
     await db.commit()
 
-    redirect = RedirectResponse(url="/", status_code=status.HTTP_303_SEE_OTHER)
-    redirect.set_cookie(
-        SESSION_COOKIE,
-        session_token,
-        max_age=_SESSION_SECONDS,
-        httponly=True,
-        samesite="lax",
-        secure=settings.AUTH_COOKIE_SECURE,
-    )
+    redirect = RedirectResponse(url="/login?oidc=success", status_code=status.HTTP_303_SEE_OTHER)
+    redirect.set_cookie(SESSION_COOKIE, session_token, max_age=_SESSION_SECONDS, httponly=True, samesite="lax", secure=settings.AUTH_COOKIE_SECURE)
     return redirect
