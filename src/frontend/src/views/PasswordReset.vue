@@ -17,6 +17,31 @@ const message = ref<string | null>(null);
 const error = ref<string | null>(null);
 const loading = ref(false);
 
+function getApiError(data: unknown, fallback: string): string {
+  if (!data || typeof data !== "object") return fallback;
+  const detail = (data as { detail?: unknown }).detail;
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) {
+    const messages = detail
+      .map((item) => {
+        if (!item || typeof item !== "object") return null;
+        const message = (item as { msg?: unknown }).msg;
+        return typeof message === "string" ? message : null;
+      })
+      .filter((item): item is string => Boolean(item));
+    if (messages.length) return messages.join(" ");
+  }
+  return fallback;
+}
+
+function validateNewPassword(): string | null {
+  if (password.value.length < 9) return "Password must be at least 9 characters.";
+  if (!/[A-Z]/.test(password.value)) return "Password must contain at least one uppercase letter.";
+  if (!/[a-z]/.test(password.value)) return "Password must contain at least one lowercase letter.";
+  if (!/[^A-Za-z0-9]/.test(password.value)) return "Password must contain at least one symbol.";
+  return null;
+}
+
 async function requestReset() {
   error.value = null;
   message.value = null;
@@ -32,9 +57,9 @@ async function requestReset() {
       credentials: "include",
       body: JSON.stringify({ identifier: identifier.value.trim() }),
     });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.detail || "Unable to request a reset.");
-    message.value = data.message;
+    const data: unknown = await response.json();
+    if (!response.ok) throw new Error(getApiError(data, "Unable to request a reset."));
+    message.value = (data as { message?: string }).message ?? "If an account matches that information, a password reset email has been sent.";
   } catch (e) {
     error.value = e instanceof Error ? e.message : "Unable to request a reset.";
   } finally {
@@ -49,6 +74,11 @@ async function resetPassword() {
     error.value = "This reset link is missing its token.";
     return;
   }
+  const passwordError = validateNewPassword();
+  if (passwordError) {
+    error.value = passwordError;
+    return;
+  }
   if (password.value !== confirm.value) {
     error.value = "Passwords do not match.";
     return;
@@ -61,14 +91,12 @@ async function resetPassword() {
       credentials: "include",
       body: JSON.stringify({ token: token.value, password: password.value }),
     });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.detail || "Unable to reset password.");
+    const data: unknown = await response.json();
+    if (!response.ok) throw new Error(getApiError(data, "Unable to reset password."));
 
-    // The backend has already rotated all sessions and issued the fresh
-    // session cookie. Refresh shared auth state and verify it before leaving
-    // the reset page so a rejected cookie cannot masquerade as a successful reset.
     await checkAuth();
-    if (!currentUser.value || currentUser.value.id !== data.user_id) {
+    const userId = (data as { user_id?: string }).user_id;
+    if (!currentUser.value || currentUser.value.id !== userId) {
       throw new Error("Password reset completed, but the new sign-in session could not be verified.");
     }
     await router.replace("/");
