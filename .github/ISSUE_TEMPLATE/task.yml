@@ -1,8 +1,6 @@
 name: Task / maintenance
 description: Track internal development, maintenance, or cleanup work.
 title: "[TASK] "
-labels:
-  - chore
 body:
   - type: textarea
     id: task
