@@ -27,7 +27,12 @@ def upgrade() -> None:
     op.create_table(
         "achievements",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column("game_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("games.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "game_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("games.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
         sa.Column("provider", sa.String(30), nullable=False),
         sa.Column("external_id", sa.String(200), nullable=False),
         sa.Column("name", sa.String(300), nullable=False),
