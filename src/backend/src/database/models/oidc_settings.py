@@ -23,6 +23,7 @@ class OidcSettings(Base):
     redirect_uri: Mapped[str | None] = mapped_column(Text, nullable=True)
     groups_claim: Mapped[str] = mapped_column(String(128), nullable=False, default="groups")
     admin_group: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    # PostgreSQL BIGINT cannot accept the float returned by time.time().
     updated_at: Mapped[int] = mapped_column(
-        BigInteger, nullable=False, default=time.time, onupdate=time.time
+        BigInteger, nullable=False, default=lambda: int(time.time()), onupdate=lambda: int(time.time())
     )
