@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 import json
+import logging
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -10,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.api.routes.settings import get_or_create_app_integration_settings
 from src.core.auth import get_current_admin
 from src.core.crypto import encrypt_secret
+from src.core.email import send_email
 from src.core.provider_credentials import apply_deployment_provider_credentials
 from src.database.models.oidc_settings import OidcSettings
 from src.database.models.user import User
@@ -18,6 +21,7 @@ from src.database.session import get_db
 router = APIRouter(
     prefix="/api/settings/deployment", tags=["settings"], dependencies=[Depends(get_current_admin)]
 )
+logger = logging.getLogger(__name__)
 
 
 class OidcProviderRequest(BaseModel):
@@ -86,7 +90,6 @@ _SAFE_PROVIDER_FIELDS = {
     "igdb_client_id",
     "screenscraper_ssid",
     "screenscraper_devid",
-    "xbox_client_id",
 }
 
 
@@ -265,3 +268,29 @@ async def update_deployment_settings(
     await db.commit()
     apply_deployment_provider_credentials(app)
     return await get_deployment_settings(db, admin)
+
+
+@router.post("/test-smtp")
+async def test_smtp(
+    db: AsyncSession = Depends(get_db), admin: User = Depends(get_current_admin)
+) -> dict[str, str]:
+    """Verify the saved SMTP transport by sending a test message to the
+    current admin. This deliberately uses the same send_email path as
+    password resets, so a successful test proves the transport itself works."""
+    app = await get_or_create_app_integration_settings(db)
+    if not app.smtp_enabled or not app.smtp_host or not app.smtp_from_email:
+        raise HTTPException(400, "SMTP must be enabled with a host and sender email first.")
+    if not admin.email:
+        raise HTTPException(400, "Your admin account needs an email address for the test message.")
+    try:
+        await asyncio.to_thread(
+            send_email,
+            app,
+            admin.email,
+            "Archive SMTP test",
+            "Your Archive SMTP settings are working. This is a test message.",
+        )
+    except Exception as exc:
+        logger.exception("SMTP test email could not be sent")
+        raise HTTPException(502, f"SMTP test failed: {exc}") from exc
+    return {"message": f"Test email sent to {admin.email}."}
