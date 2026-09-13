@@ -3,6 +3,7 @@
 Revision ID: 20260913_add_oidc_provider_configs
 Revises: 20260913_add_oidc_new_users
 """
+
 from typing import Sequence, Union
 import sqlalchemy as sa
 from alembic import op
