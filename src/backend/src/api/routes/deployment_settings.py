@@ -35,6 +35,8 @@ class DeploymentSettingsRequest(BaseModel):
     oidc_client_secret: str | None = None
     oidc_scopes: str | None = None
     oidc_redirect_uri: str | None = None
+    oidc_groups_claim: str | None = None
+    oidc_admin_group: str | None = None
 
 
 _SECRET_FIELDS = {
@@ -77,6 +79,8 @@ async def get_deployment_settings(db: AsyncSession, admin: User) -> dict:
             "client_id": oidc.client_id,
             "scopes": oidc.scopes,
             "redirect_uri": oidc.redirect_uri,
+            "groups_claim": oidc.groups_claim,
+            "admin_group": oidc.admin_group,
             "client_secret_configured": bool(oidc.client_secret),
         },
     }
