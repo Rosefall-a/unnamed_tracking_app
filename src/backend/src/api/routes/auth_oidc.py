@@ -11,8 +11,8 @@ from starlette.responses import RedirectResponse
 
 from src.core.auth import SESSION_COOKIE, hash_password, hash_token
 from src.core.config import settings
-from src.core.crypto import decrypt_secret, encrypt_secret
-from src.core.oidc import OidcConfig, begin_oidc, callback_url, oauth, register_oidc_provider
+from src.core.crypto import decrypt_secret
+from src.core.oidc import OidcConfig, begin_oidc, oauth, register_oidc_provider
 from src.database.models.auth import UserSession
 from src.database.models.oidc_settings import OidcSettings
 from src.database.models.user import User
@@ -31,6 +31,8 @@ def _env_config() -> OidcConfig | None:
         client_secret=settings.OIDC_CLIENT_SECRET,
         scopes=settings.OIDC_SCOPES,
         redirect_uri=settings.OIDC_REDIRECT_URI,
+        groups_claim=settings.OIDC_GROUPS_CLAIM,
+        admin_group=settings.OIDC_ADMIN_GROUP,
     )
 
 
@@ -43,6 +45,8 @@ async def _get_config(db: AsyncSession) -> OidcConfig | None:
             client_secret=decrypt_secret(row.client_secret),
             scopes=row.scopes or "openid profile email",
             redirect_uri=row.redirect_uri,
+            groups_claim=row.groups_claim or "groups",
+            admin_group=row.admin_group,
         )
     return _env_config()
 
@@ -50,6 +54,15 @@ async def _get_config(db: AsyncSession) -> OidcConfig | None:
 def _safe_username(value: str, email: str) -> str:
     candidate = "".join(c for c in value.strip() if c.isalnum() or c in "._-")[:100]
     return candidate or email.split("@", 1)[0][:90] or f"user-{secrets.token_hex(4)}"
+
+
+def _oidc_groups(claims: dict, claim_name: str) -> set[str]:
+    value = claims.get(claim_name)
+    if isinstance(value, str):
+        return {value}
+    if isinstance(value, (list, tuple, set)):
+        return {str(group) for group in value if str(group).strip()}
+    return set()
 
 
 @router.get("/status")
@@ -85,12 +98,17 @@ async def oidc_callback(request: Request, db: AsyncSession = Depends(get_db)) ->
         userinfo = token.get("userinfo")
         if not userinfo:
             userinfo = await client.userinfo(token=token)
+        claims = dict(userinfo)
+        # Some providers put custom group claims in the ID/access token rather
+        # than the UserInfo response. Prefer UserInfo values when present.
+        for key, value in token.items():
+            claims.setdefault(key, value)
     except Exception:
         return RedirectResponse(url="/login?oidc_error=authentication_failed", status_code=303)
 
-    subject = str(userinfo.get("sub", "")).strip()
-    email = str(userinfo.get("email", "")).strip().lower()
-    email_verified = userinfo.get("email_verified")
+    subject = str(claims.get("sub", "")).strip()
+    email = str(claims.get("email", "")).strip().lower()
+    email_verified = claims.get("email_verified")
     if not subject or not email or email_verified is False:
         return RedirectResponse(url="/login?oidc_error=verified_email_required", status_code=303)
 
@@ -98,9 +116,12 @@ async def oidc_callback(request: Request, db: AsyncSession = Depends(get_db)) ->
     if user is None:
         user = await db.scalar(select(User).where(User.email == email))
 
+    groups = _oidc_groups(claims, config.groups_claim)
+    group_is_admin = bool(config.admin_group and config.admin_group in groups)
+
     if user is None:
         username = _safe_username(
-            str(userinfo.get("preferred_username") or userinfo.get("name") or ""), email
+            str(claims.get("preferred_username") or claims.get("name") or ""), email
         )
         base = username
         suffix = 1
@@ -112,7 +133,7 @@ async def oidc_callback(request: Request, db: AsyncSession = Depends(get_db)) ->
             email=email,
             password_hash=hash_password(secrets.token_urlsafe(48) + "A!a"),
             is_active=True,
-            is_admin=False,
+            is_admin=group_is_admin,
             oidc_subject=subject,
         )
         db.add(user)
@@ -123,6 +144,8 @@ async def oidc_callback(request: Request, db: AsyncSession = Depends(get_db)) ->
             return RedirectResponse(url="/login?oidc_error=identity_conflict", status_code=303)
         user.oidc_subject = subject
         user.email = email
+        if config.admin_group:
+            user.is_admin = group_is_admin
 
     session_token = secrets.token_urlsafe(32)
     db.add(
