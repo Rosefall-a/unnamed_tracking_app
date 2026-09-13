@@ -11,8 +11,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.auth import SESSION_COOKIE, hash_password, hash_token, validate_password
 from src.core.config import settings
-from src.database.models.game import Game
+from src.core.crypto import encrypt_secret
 from src.database.models.auth import UserSession
+from src.database.models.game import Game
+from src.database.models.oidc_settings import OidcSettings
 from src.database.models.user import User
 from src.database.session import get_db
 
@@ -24,6 +26,14 @@ class SetupRequest(BaseModel):
     username: str = Field(min_length=1, max_length=100)
     email: str = Field(min_length=3, max_length=320)
     password: str = Field(min_length=1)
+    oidc_enabled: bool = False
+    oidc_issuer_url: str | None = None
+    oidc_client_id: str | None = None
+    oidc_client_secret: str | None = None
+    oidc_scopes: str = "openid profile email"
+    oidc_redirect_uri: str | None = None
+    oidc_groups_claim: str = "groups"
+    oidc_admin_group: str | None = None
 
     @field_validator("password")
     @classmethod
@@ -60,6 +70,30 @@ async def setup_admin(
             detail="Username and email are required.",
         )
 
+    oidc_values = {
+        "issuer_url": (payload.oidc_issuer_url or "").strip() or None,
+        "client_id": (payload.oidc_client_id or "").strip() or None,
+        "client_secret": (payload.oidc_client_secret or "").strip() or None,
+        "scopes": payload.oidc_scopes.strip() or "openid profile email",
+        "redirect_uri": (payload.oidc_redirect_uri or "").strip() or None,
+        "groups_claim": payload.oidc_groups_claim.strip() or "groups",
+        "admin_group": (payload.oidc_admin_group or "").strip() or None,
+    }
+    if payload.oidc_enabled and not all(
+        (oidc_values["issuer_url"], oidc_values["client_id"], oidc_values["client_secret"])
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="OIDC requires an issuer URL, client ID, and client secret.",
+        )
+    if not payload.oidc_enabled and any(
+        oidc_values[key] for key in ("issuer_url", "client_id", "client_secret")
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Enable OIDC before entering OIDC provider credentials.",
+        )
+
     user = User(
         username=username,
         email=email,
@@ -73,6 +107,18 @@ async def setup_admin(
         # A fresh database may have rows imported before authentication was
         # configured. Attach those orphaned games to the first administrator.
         await db.execute(update(Game).where(Game.user_id.is_(None)).values(user_id=user.id))
+
+        if payload.oidc_enabled:
+            oidc = OidcSettings(
+                issuer_url=oidc_values["issuer_url"],
+                client_id=oidc_values["client_id"],
+                client_secret=encrypt_secret(oidc_values["client_secret"]),
+                scopes=oidc_values["scopes"],
+                redirect_uri=oidc_values["redirect_uri"],
+                groups_claim=oidc_values["groups_claim"],
+                admin_group=oidc_values["admin_group"],
+            )
+            db.add(oidc)
 
         session_token = secrets.token_urlsafe(32)
         db.add(
