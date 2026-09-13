@@ -4,7 +4,9 @@ import { fetchDeploymentSettings, updateDeploymentSettings } from "../../service
 
 const loading = ref(true);
 const saving = ref(false);
+const testing = ref(false);
 const saved = ref(false);
+const testMessage = ref<string | null>(null);
 const error = ref<string | null>(null);
 const smtp = reactive({
   enabled: false,
@@ -43,6 +45,7 @@ async function save() {
   saving.value = true;
   error.value = null;
   saved.value = false;
+  testMessage.value = null;
   try {
     await updateDeploymentSettings({
       smtp_enabled: String(smtp.enabled),
@@ -62,6 +65,25 @@ async function save() {
     error.value = e instanceof Error ? e.message : "Failed to save SMTP settings.";
   } finally {
     saving.value = false;
+  }
+}
+
+async function testSmtp() {
+  testing.value = true;
+  error.value = null;
+  testMessage.value = null;
+  try {
+    const response = await fetch("/api/settings/deployment/test-smtp", {
+      method: "POST",
+      credentials: "include",
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.detail || `SMTP test failed (${response.status}).`);
+    testMessage.value = data.message || "Test email sent.";
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "SMTP test failed.";
+  } finally {
+    testing.value = false;
   }
 }
 </script>
@@ -109,13 +131,17 @@ async function save() {
         Use STARTTLS for typical port 587 configurations. Use SSL/TLS for providers that expect an
         implicit TLS connection, commonly on port 465.
       </p>
+      <div class="actions">
+        <button :disabled="saving" @click="save">{{ saving ? "Saving…" : "Save SMTP settings" }}</button>
+        <button class="secondary" :disabled="testing || saving || !smtp.enabled" @click="testSmtp">{{ testing ? "Sending…" : "Send test email" }}</button>
+      </div>
       <p v-if="error" class="error">{{ error }}</p>
       <p v-if="saved" class="success">SMTP settings saved.</p>
-      <button :disabled="saving" @click="save">{{ saving ? "Saving…" : "Save SMTP settings" }}</button>
+      <p v-if="testMessage" class="success">{{ testMessage }}</p>
     </template>
   </section>
 </template>
 
 <style scoped>
-.section{display:flex;flex-direction:column;gap:16px}.hint{color:#999;font-size:13px;line-height:1.5}.feature-card{padding:14px 16px;border:1px solid #303030;border-radius:10px;background:#151515}.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.grid label{display:flex;flex-direction:column;gap:6px;color:#ccc;font-size:13px}.grid input{background:#111;border:1px solid #3a3a3a;border-radius:8px;color:#fff;padding:10px;font:inherit}.toggle,.checks label{display:flex;align-items:center;gap:8px;color:#ccc;font-size:13px}.toggle input,.checks input{accent-color:#d68a34}.checks{display:flex;gap:20px}.section button{background:#d68a34;border:0;border-radius:8px;padding:10px 14px;font-weight:600;cursor:pointer}.section button:disabled{opacity:.6}.error{color:#fca5a5}.success{color:#86efac}@media(max-width:700px){.grid{grid-template-columns:1fr}}
+.section{display:flex;flex-direction:column;gap:16px}.hint{color:#999;font-size:13px;line-height:1.5}.feature-card{padding:14px 16px;border:1px solid #303030;border-radius:10px;background:#151515}.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.grid label{display:flex;flex-direction:column;gap:6px;color:#ccc;font-size:13px}.grid input{background:#111;border:1px solid #3a3a3a;border-radius:8px;color:#fff;padding:10px;font:inherit}.toggle,.checks label{display:flex;align-items:center;gap:8px;color:#ccc;font-size:13px}.toggle input,.checks input{accent-color:#d68a34}.checks{display:flex;gap:20px}.actions{display:flex;gap:10px;flex-wrap:wrap}.section button{background:#d68a34;border:0;border-radius:8px;padding:10px 14px;font-weight:600;cursor:pointer}.section button.secondary{background:#2b2b2b;color:#fff;border:1px solid #444}.section button:disabled{opacity:.6;cursor:not-allowed}.error{color:#fca5a5}.success{color:#86efac}@media(max-width:700px){.grid{grid-template-columns:1fr}}
 </style>
