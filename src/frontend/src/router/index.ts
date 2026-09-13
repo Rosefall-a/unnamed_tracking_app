@@ -10,6 +10,8 @@ import SetList from "../views/SetList.vue";
 import SetDetail from "../views/SetDetail.vue";
 import MovieLibrary from "../views/MovieLibrary.vue";
 import MovieDetail from "../views/MovieDetail.vue";
+import TVShowLibrary from "../views/TVShowLibrary.vue";
+import TVShowDetail from "../views/TVShowDetail.vue";
 import Inbox from "../views/Inbox.vue";
 import Bounties from "../views/Bounties.vue";
 import AchievementDetail from "../views/AchievementDetail.vue";
@@ -48,6 +50,8 @@ const router = createRouter({
     { path: "/sets/:id", name: "set-detail", component: SetDetail },
     { path: "/movies", name: "movie-library", component: MovieLibrary },
     { path: "/movies/:id", name: "movie-detail", component: MovieDetail },
+    { path: "/tv", name: "tv-show-library", component: TVShowLibrary },
+    { path: "/tv/:id", name: "tv-show-detail", component: TVShowDetail },
     { path: "/login", name: "login", component: Login },
     // Profile lives inside Settings now (its own side-nav section)
     { path: "/profile", redirect: "/settings" },

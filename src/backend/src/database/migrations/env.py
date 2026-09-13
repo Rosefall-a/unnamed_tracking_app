@@ -26,6 +26,7 @@ from src.database.models import (
     inbox_item,  # noqa: F401
     media_item,  # noqa: F401
     movies,  # noqa: F401
+    tv_show,  # noqa: F401
     user,  # noqa: F401
     user_appearance_settings,  # noqa: F401
     user_scan_settings,  # noqa: F401

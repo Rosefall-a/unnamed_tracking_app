@@ -98,3 +98,47 @@ class OMDBClient:
                 }
             )
         return results
+
+    def search_tv(self, query: str, limit: int = 8) -> list[dict[str, Any]]:
+        """Like `search`, but for series. OMDb's `totalSeasons` gives a
+        count only — no per-season episode counts or air dates, unlike
+        TMDB's `seasons` array, so this never contributes a season list."""
+        if not query.strip():
+            return []
+        try:
+            payload = self._get({"s": query, "type": "series"})
+        except OMDBError:
+            return []
+        candidates = payload.get("Search") or []
+
+        results: list[dict[str, Any]] = []
+        for candidate in candidates[:limit]:
+            imdb_id = candidate.get("imdbID")
+            if not imdb_id:
+                continue
+            try:
+                details = self._get({"i": imdb_id})
+            except OMDBError:
+                details = candidate
+
+            imdb_rating = _clean(details.get("imdbRating"))
+            poster = _clean(details.get("Poster"))
+            results.append(
+                {
+                    "id": imdb_id,
+                    "title": _clean(details.get("Title")) or candidate.get("Title"),
+                    "overview": _clean(details.get("Plot")),
+                    "first_air_date": _clean(details.get("Released")),
+                    "episode_runtime_minutes": _parse_runtime(details.get("Runtime")),
+                    "creators": _parse_list(details.get("Writer")),
+                    "studios": [],
+                    "countries": _parse_list(details.get("Country")),
+                    "languages": _parse_list(details.get("Language")),
+                    "genres": _parse_list(details.get("Genre")),
+                    "poster_url": poster,
+                    "vote_average": float(imdb_rating) if imdb_rating else None,
+                    "seasons": [],
+                    "url": f"https://www.imdb.com/title/{imdb_id}/",
+                }
+            )
+        return results

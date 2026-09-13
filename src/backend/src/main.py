@@ -15,6 +15,7 @@ from src.api.routes import (
     movies,
     settings,
     stats,
+    tv_shows,
     users,
 )
 from src.api.routes import set as set_routes
@@ -33,6 +34,7 @@ app = FastAPI(
 
 app.include_router(games.router)
 app.include_router(movies.router)
+app.include_router(tv_shows.router)
 app.include_router(game_archives.router)
 app.include_router(users.router)
 app.include_router(auth.router)
