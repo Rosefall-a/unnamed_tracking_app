@@ -48,7 +48,9 @@ async def setup_admin(
     await db.execute(text("SELECT pg_advisory_xact_lock(hashtext('unnamed_tracking_app_setup'))"))
 
     if await db.scalar(select(User.id).limit(1)) is not None:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Setup is already complete.")
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="Setup is already complete."
+        )
 
     username = payload.username.strip()
     email = payload.email.strip().lower()

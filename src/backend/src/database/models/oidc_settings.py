@@ -21,4 +21,6 @@ class OidcSettings(Base):
     client_secret: Mapped[str | None] = mapped_column(Text, nullable=True)
     scopes: Mapped[str] = mapped_column(Text, nullable=False, default="openid profile email")
     redirect_uri: Mapped[str | None] = mapped_column(Text, nullable=True)
-    updated_at: Mapped[int] = mapped_column(BigInteger, nullable=False, default=time.time, onupdate=time.time)
+    updated_at: Mapped[int] = mapped_column(
+        BigInteger, nullable=False, default=time.time, onupdate=time.time
+    )

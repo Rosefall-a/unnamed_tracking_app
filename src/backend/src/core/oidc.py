@@ -4,6 +4,7 @@ OIDC client secrets stay on the backend. The browser only receives a boolean
 status and starts the authorization redirect; Authlib performs the code/token
 exchange on the server.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -45,7 +46,9 @@ def register_oidc_provider(config: OidcConfig) -> None:
         name="oidc",
         client_id=config.client_id,
         client_secret=config.client_secret,
-        server_metadata_url=urljoin(config.issuer_url.rstrip("/") + "/", ".well-known/openid-configuration"),
+        server_metadata_url=urljoin(
+            config.issuer_url.rstrip("/") + "/", ".well-known/openid-configuration"
+        ),
         client_kwargs={"scope": config.scopes},
         overwrite=True,
     )
