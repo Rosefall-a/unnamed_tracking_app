@@ -10,12 +10,14 @@ const route = useRoute();
 </script>
 
 <template>
-  <template v-if="authChecked">
-    <SidebarNav v-if="route.path !== '/login'" />
+  <!-- First-run setup deliberately bypasses normal authentication, so it must
+       render even though authChecked remains false until an account exists. -->
+  <template v-if="authChecked || route.path === '/setup'">
+    <SidebarNav v-if="route.path !== '/login' && route.path !== '/setup'" />
     <router-view />
-    <TaskProgressToast />
-    <ShortcutsHelp v-if="route.path !== '/login'" />
-    <CommandPalette v-if="route.path !== '/login'" />
+    <TaskProgressToast v-if="route.path !== '/setup'" />
+    <ShortcutsHelp v-if="route.path !== '/login' && route.path !== '/setup'" />
+    <CommandPalette v-if="route.path !== '/login' && route.path !== '/setup'" />
   </template>
   <main v-else class="app-loading">
     <p>Loading…</p>
