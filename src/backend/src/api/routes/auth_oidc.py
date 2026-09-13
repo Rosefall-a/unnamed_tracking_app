@@ -78,7 +78,11 @@ def _oidc_groups(claims: dict, claim_name: str) -> set[str]:
 
 
 def _oidc_match_value(claims: dict, field: str, email: str) -> str:
-    return str(claims.get("preferred_username") or claims.get("name") or "").strip() if field == "username" else email
+    return (
+        str(claims.get("preferred_username") or claims.get("name") or "").strip()
+        if field == "username"
+        else email
+    )
 
 
 @router.get("/status")
@@ -88,8 +92,12 @@ async def oidc_status(db: AsyncSession = Depends(get_db)) -> dict[str, object]:
     return {
         "enabled": config is not None,
         "issuer": urlparse(config.issuer_url).hostname if config else None,
-        "default_login_method": row.default_login_method if row and row.default_login_method in {"local", "sso"} else "local",
-        "login_button_text": row.login_button_text.strip() if row and row.login_button_text.strip() else "Continue with SSO",
+        "default_login_method": row.default_login_method
+        if row and row.default_login_method in {"local", "sso"}
+        else "local",
+        "login_button_text": row.login_button_text.strip()
+        if row and row.login_button_text.strip()
+        else "Continue with SSO",
     }
 
 
@@ -123,7 +131,9 @@ async def _fetch_oidc_token(request: Request, client) -> dict:
     except ValueError as exc:
         if str(exc) != "Invalid key set format":
             raise
-        logger.warning("OIDC provider returned an invalid JWKS document; using the authenticated UserInfo endpoint instead")
+        logger.warning(
+            "OIDC provider returned an invalid JWKS document; using the authenticated UserInfo endpoint instead"
+        )
         token["userinfo"] = await client.userinfo(token=token)
     return token
 
@@ -152,7 +162,9 @@ async def oidc_callback(request: Request, db: AsyncSession = Depends(get_db)) ->
     if not subject or not email or claims.get("email_verified") is False:
         return RedirectResponse(url="/login?oidc_error=verified_email_required", status_code=303)
 
-    match_field = config.user_match_field if config.user_match_field in {"email", "username"} else "email"
+    match_field = (
+        config.user_match_field if config.user_match_field in {"email", "username"} else "email"
+    )
     match_value = _oidc_match_value(claims, match_field, email)
     if not match_value:
         return RedirectResponse(url="/login?oidc_error=identity_missing", status_code=303)
@@ -170,12 +182,14 @@ async def oidc_callback(request: Request, db: AsyncSession = Depends(get_db)) ->
     if user is None:
         if not config.allow_new_users:
             return RedirectResponse(url="/login?oidc_error=user_creation_disabled", status_code=303)
-        username = _safe_username(str(claims.get("preferred_username") or claims.get("name") or ""), email)
+        username = _safe_username(
+            str(claims.get("preferred_username") or claims.get("name") or ""), email
+        )
         base = username
         suffix = 1
         while await db.scalar(select(User.id).where(User.username == username)) is not None:
             suffix += 1
-            username = f"{base[:100 - len(str(suffix)) - 1]}-{suffix}"
+            username = f"{base[: 100 - len(str(suffix)) - 1]}-{suffix}"
         user = User(
             username=username,
             email=email,
@@ -197,10 +211,24 @@ async def oidc_callback(request: Request, db: AsyncSession = Depends(get_db)) ->
             user.is_admin = group_is_admin
 
     session_token = secrets.token_urlsafe(32)
-    db.add(UserSession(user_id=user.id, token_hash=hash_token(session_token), expires_at=int(time.time()) + _SESSION_SECONDS))
+    db.add(
+        UserSession(
+            user_id=user.id,
+            token_hash=hash_token(session_token),
+            expires_at=int(time.time()) + _SESSION_SECONDS,
+        )
+    )
     await db.commit()
     logger.info("OIDC login established application session for user %s", user.id)
 
     redirect = RedirectResponse(url="/login?oidc=success", status_code=status.HTTP_303_SEE_OTHER)
-    redirect.set_cookie(key=SESSION_COOKIE, value=session_token, max_age=_SESSION_SECONDS, httponly=True, samesite="lax", secure=settings.AUTH_COOKIE_SECURE, path="/")
+    redirect.set_cookie(
+        key=SESSION_COOKIE,
+        value=session_token,
+        max_age=_SESSION_SECONDS,
+        httponly=True,
+        samesite="lax",
+        secure=settings.AUTH_COOKIE_SECURE,
+        path="/",
+    )
     return redirect
