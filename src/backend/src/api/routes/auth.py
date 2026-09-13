@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-import time
+import asyncio
 import secrets
 import shutil
+import time
 from pathlib import Path
 from uuid import UUID
 
@@ -23,9 +24,11 @@ from src.core.auth import (
     verify_password,
 )
 from src.core.config import settings
+from src.core.crypto import encrypt_secret
 from src.database.models.auth import UserApiKey, UserSession
 from src.database.models.user import User
 from src.database.session import get_db
+from src.features.metadata.games.psn import PSNClient, PSNError
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 _SESSION_SECONDS = 30 * 24 * 60 * 60
@@ -53,11 +56,22 @@ class UserCreateRequest(BaseModel):
         return validate_password(value)
 
 
+class UserAdminUpdateRequest(BaseModel):
+    is_admin: bool
+
+
+class PsnConnectRequest(BaseModel):
+    npsso_token: str = Field(min_length=1)
+
+
 class UserProfileUpdateRequest(BaseModel):
     username: str | None = Field(default=None, min_length=1, max_length=100)
     email: str | None = Field(default=None, min_length=3, max_length=320)
-    current_password: str = Field(min_length=1)
+    # only required when actually setting a new password — everything else
+    # here (username/email/steamgriddb key) doesn't need it
+    current_password: str | None = Field(default=None, min_length=1)
     new_password: str | None = Field(default=None, min_length=1)
+    steamgriddb_api_key: str | None = Field(default=None, max_length=64)
 
     @field_validator("new_password")
     @classmethod
@@ -112,12 +126,13 @@ async def logout(
 
 
 @router.get("/me")
-async def current_user(user: User = Depends(get_current_user)) -> dict[str, str | bool]:
+async def current_user(user: User = Depends(get_current_user)) -> dict[str, str | bool | None]:
     return {
         "id": str(user.id),
         "username": user.username,
         "email": user.email,
         "is_admin": user.is_admin,
+        "steamgriddb_api_key": user.steamgriddb_api_key,
     }
 
 
@@ -126,11 +141,15 @@ async def update_current_user(
     payload: UserProfileUpdateRequest,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-) -> dict[str, str | bool]:
-    if not verify_password(payload.current_password, user.password_hash):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Current password is incorrect."
-        )
+) -> dict[str, str | bool | None]:
+    if payload.new_password is not None:
+        if not payload.current_password or not verify_password(
+            payload.current_password, user.password_hash
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Current password is required to set a new password.",
+            )
 
     if payload.username is not None:
         user.username = payload.username.strip()
@@ -138,6 +157,8 @@ async def update_current_user(
         user.email = payload.email.strip().lower()
     if payload.new_password is not None:
         user.password_hash = hash_password(payload.new_password)
+    if payload.steamgriddb_api_key is not None:
+        user.steamgriddb_api_key = payload.steamgriddb_api_key.strip() or None
 
     if not user.username or not user.email:
         raise HTTPException(
@@ -158,6 +179,59 @@ async def update_current_user(
         "username": user.username,
         "email": user.email,
         "is_admin": user.is_admin,
+        "steamgriddb_api_key": user.steamgriddb_api_key,
+    }
+
+
+@router.post("/me/psn")
+async def connect_psn(
+    payload: PsnConnectRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, str | int | None]:
+    """Validate a PSN npsso token against Sony's OAuth flow before persisting
+    it — never store a token that doesn't actually work."""
+    try:
+        result = await asyncio.to_thread(PSNClient(payload.npsso_token).validate)
+    except PSNError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    user.psn_npsso_token = encrypt_secret(payload.npsso_token)
+    user.psn_validated_at = int(time.time())
+    user.psn_online_id = result.get("profile_name")
+    user.psn_avatar_url = result.get("avatar_url")
+    await db.commit()
+    return {
+        "status": "connected",
+        "validated_at": user.psn_validated_at,
+        "display_name": user.psn_online_id,
+        "avatar_url": user.psn_avatar_url,
+    }
+
+
+@router.delete("/me/psn")
+async def disconnect_psn(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, str]:
+    user.psn_npsso_token = None
+    user.psn_validated_at = None
+    user.psn_online_id = None
+    user.psn_avatar_url = None
+    await db.commit()
+    return {"status": "disconnected"}
+
+
+@router.get("/me/psn/status")
+async def psn_status(user: User = Depends(get_current_user)) -> dict[str, bool | int | str | None]:
+    """Never echoes the token itself — connected/validated_at only. Does not
+    re-validate against Sony on every call; reconnect (POST /me/psn) to
+    re-check a token that may have expired."""
+    return {
+        "connected": user.psn_npsso_token is not None,
+        "validated_at": user.psn_validated_at,
+        "display_name": user.psn_online_id,
+        "avatar_url": user.psn_avatar_url,
     }
 
 
@@ -165,7 +239,7 @@ async def update_current_user(
 async def list_users(
     admin: User = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
-) -> list[dict[str, str | bool]]:
+) -> list[dict[str, str | bool | int]]:
     del admin
     users = await db.scalars(select(User).order_by(User.username))
     return [
@@ -174,6 +248,8 @@ async def list_users(
             "username": user.username,
             "email": user.email,
             "is_admin": user.is_admin,
+            "is_active": user.is_active,
+            "created_at": user.created_at,
         }
         for user in users
     ]
@@ -252,6 +328,41 @@ async def create_user(
             status_code=status.HTTP_409_CONFLICT, detail="Username or email already exists."
         ) from exc
 
+    return {
+        "id": str(user.id),
+        "username": user.username,
+        "email": user.email,
+        "is_admin": user.is_admin,
+    }
+
+
+@router.patch("/users/{user_id}")
+async def update_user_admin_status(
+    user_id: UUID,
+    payload: UserAdminUpdateRequest,
+    admin: User = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, str | bool]:
+    user = await db.scalar(select(User).where(User.id == user_id))
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
+    if (
+        user.username == settings.PRIMARY_USER_USERNAME
+        or user.email == settings.PRIMARY_USER_EMAIL.lower()
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="The primary user's admin status cannot be changed.",
+        )
+    if user.id == admin.id and not payload.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="You cannot remove your own admin access.",
+        )
+
+    user.is_admin = payload.is_admin
+    await db.commit()
+    await db.refresh(user)
     return {
         "id": str(user.id),
         "username": user.username,

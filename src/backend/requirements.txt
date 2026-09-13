@@ -17,6 +17,9 @@ python-multipart
 # Environment variables
 python-dotenv==1.0.1
 
+# Encryption (secrets at rest, e.g. PSN npsso token)
+cryptography==43.0.1
+
 # Development/testing
 pytest==8.3.2
 pytest-asyncio==0.24.0
