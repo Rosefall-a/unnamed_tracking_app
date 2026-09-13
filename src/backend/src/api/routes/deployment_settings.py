@@ -122,16 +122,22 @@ async def update_deployment_settings(
                         ) from exc
             elif field == "oidc_user_match_field":
                 if value not in {"email", "username"}:
-                    raise HTTPException(status_code=400, detail="OIDC user matching must be email or username.")
+                    raise HTTPException(
+                        status_code=400, detail="OIDC user matching must be email or username."
+                    )
                 oidc.user_match_field = value
             elif field == "oidc_default_login_method":
                 if value not in {"local", "sso"}:
-                    raise HTTPException(status_code=400, detail="Default login method must be local or sso.")
+                    raise HTTPException(
+                        status_code=400, detail="Default login method must be local or sso."
+                    )
                 oidc.default_login_method = value
             elif field == "oidc_login_button_text":
                 text = (value or "").strip()
                 if not text or len(text) > 100:
-                    raise HTTPException(status_code=400, detail="SSO button text must be 1–100 characters.")
+                    raise HTTPException(
+                        status_code=400, detail="SSO button text must be 1–100 characters."
+                    )
                 oidc.login_button_text = text
             elif value is not None:
                 setattr(oidc, field.removeprefix("oidc_"), value or None)
