@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { useRoute } from "vue-router";
 import SidebarNav from "./components/SidebarNav.vue";
-import HomeProfileButton from "./components/HomeProfileButton.vue";
 import TaskProgressToast from "./components/TaskProgressToast.vue";
 import ShortcutsHelp from "./components/ShortcutsHelp.vue";
 import CommandPalette from "./components/CommandPalette.vue";
@@ -27,7 +26,6 @@ const isPublicRoute = () =>
   >
     <SidebarNav v-if="!isPublicRoute()" />
     <router-view />
-    <HomeProfileButton v-if="route.path === '/'" />
     <TaskProgressToast v-if="!isPublicRoute()" />
     <ShortcutsHelp v-if="!isPublicRoute()" />
     <CommandPalette v-if="!isPublicRoute()" />
@@ -47,9 +45,5 @@ const isPublicRoute = () =>
   background: #121212;
   color: #999;
   font-family: system-ui, sans-serif;
-}
-
-:global(.home .profile-chip) {
-  pointer-events: none;
 }
 </style>
