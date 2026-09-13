@@ -5,6 +5,9 @@ Revises: 0284d11effb1
 Create Date: 2026-09-02
 """
 
+import hashlib
+import os
+import secrets
 import time
 from typing import Sequence, Union
 from uuid import uuid4
@@ -12,13 +15,30 @@ from uuid import uuid4
 import sqlalchemy as sa
 from alembic import op
 
-from src.core.auth import hash_password, validate_password
-from src.core.config import settings
-
 revision: str = "1c6f2e8a9b70"
 down_revision: Union[str, None] = "0284d11effb1"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
+
+
+def _validate_legacy_password(password: str) -> None:
+    if len(password) < 9:
+        raise ValueError("PRIMARY_USER_PASSWORD must be at least 9 characters")
+    if not any(char.isupper() for char in password):
+        raise ValueError("PRIMARY_USER_PASSWORD must contain an uppercase letter")
+    if not any(char.islower() for char in password):
+        raise ValueError("PRIMARY_USER_PASSWORD must contain a lowercase letter")
+    if not any(not char.isalnum() for char in password):
+        raise ValueError("PRIMARY_USER_PASSWORD must contain a non-alphanumeric character")
+
+
+def _hash_legacy_password(password: str) -> str:
+    salt = secrets.token_bytes(16)
+    n = 2**14
+    r = 8
+    p = 1
+    digest = hashlib.scrypt(password.encode("utf-8"), salt=salt, n=n, r=r, p=p, dklen=32)
+    return f"scrypt${n}${r}${p}${salt.hex()}${digest.hex()}"
 
 
 def upgrade() -> None:
@@ -28,15 +48,17 @@ def upgrade() -> None:
     )
 
     connection = op.get_bind()
-    username = settings.PRIMARY_USER_USERNAME.strip()
-    email = settings.PRIMARY_USER_EMAIL.strip().lower()
+    username = os.getenv("PRIMARY_USER_USERNAME", "").strip()
+    email = os.getenv("PRIMARY_USER_EMAIL", "").strip().lower()
+    password = os.getenv("PRIMARY_USER_PASSWORD", "")
     primary_user_id = None
 
     # Legacy deployments can still seed an administrator from .env. New
     # deployments intentionally leave the first user unset and finish setup
-    # through /setup in the web UI.
-    if username and email and settings.PRIMARY_USER_PASSWORD:
-        validate_password(settings.PRIMARY_USER_PASSWORD)
+    # through /setup in the web UI. Keep this migration self-contained so
+    # Alembic can load the migration graph without importing application config.
+    if username and email and password:
+        _validate_legacy_password(password)
         primary_user_id = connection.execute(
             sa.text("SELECT id FROM users WHERE username = :username OR email = :email LIMIT 1"),
             {"username": username, "email": email},
@@ -44,6 +66,7 @@ def upgrade() -> None:
 
         if primary_user_id is None:
             primary_user_id = uuid4()
+            now = int(time.time())
             connection.execute(
                 sa.text(
                     """
@@ -55,9 +78,9 @@ def upgrade() -> None:
                     "id": primary_user_id,
                     "username": username,
                     "email": email,
-                    "password_hash": hash_password(settings.PRIMARY_USER_PASSWORD),
-                    "created_at": int(time.time()),
-                    "updated_at": int(time.time()),
+                    "password_hash": _hash_legacy_password(password),
+                    "created_at": now,
+                    "updated_at": now,
                 },
             )
         else:
@@ -106,9 +129,9 @@ def upgrade() -> None:
         sa.Column("scopes", sa.ARRAY(sa.String()), nullable=False, server_default=sa.text("'{}'")),
         sa.Column("revoked_at", sa.BigInteger(), nullable=True),
         sa.Column("created_at", sa.BigInteger(), nullable=False),
+        sa.UniqueConstraint("key_hash"),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("key_hash"),
     )
     op.create_index("ix_user_api_keys_user_id", "user_api_keys", ["user_id"])
 
