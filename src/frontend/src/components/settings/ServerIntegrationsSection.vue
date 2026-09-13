@@ -8,7 +8,7 @@ const error = ref<string | null>(null);
 const saved = ref(false);
 const providers = reactive<Record<string, string>>({});
 const configured = reactive<Record<string, boolean>>({});
-const oidc = reactive({ issuer_url: "", client_id: "", client_secret: "", scopes: "openid profile email", redirect_uri: "" });
+const oidc = reactive({ issuer_url: "", client_id: "", client_secret: "", scopes: "openid profile email", redirect_uri: "", groups_claim: "groups", admin_group: "" });
 
 const fields = [
   ["steamgriddb_api_key", "SteamGridDB API key"], ["retroachievements_api_key", "RetroAchievements API key"],
@@ -29,6 +29,8 @@ onMounted(async () => {
     oidc.client_id = result.oidc.client_id ?? "";
     oidc.scopes = result.oidc.scopes ?? "openid profile email";
     oidc.redirect_uri = result.oidc.redirect_uri ?? "";
+    oidc.groups_claim = result.oidc.groups_claim ?? "groups";
+    oidc.admin_group = result.oidc.admin_group ?? "";
   } catch (err) {
     error.value = err instanceof Error ? err.message : "Failed to load server integrations.";
   } finally { loading.value = false; }
@@ -44,6 +46,8 @@ async function save() {
     if (oidc.client_secret) payload.oidc_client_secret = oidc.client_secret;
     if (oidc.scopes) payload.oidc_scopes = oidc.scopes;
     if (oidc.redirect_uri) payload.oidc_redirect_uri = oidc.redirect_uri;
+    payload.oidc_groups_claim = oidc.groups_claim.trim() || "groups";
+    payload.oidc_admin_group = oidc.admin_group.trim();
     const result = await updateDeploymentSettings(payload);
     for (const [key, value] of Object.entries(result.providers)) if (typeof value === "string") providers[key] = value;
     oidc.client_secret = "";
@@ -64,14 +68,17 @@ async function save() {
         <label v-for="[key, label] in fields" :key="key"><span>{{ label }}</span><input v-model="providers[key]" :type="key.includes('secret') || key.includes('password') || key.includes('api_key') ? 'password' : 'text'" :placeholder="configured[key] ? 'Already saved — enter a new value to replace it' : ''" /></label>
       </div>
       <h3>OpenID Connect / SSO</h3>
-      <p class="hint">The browser only starts the SSO redirect. Client secrets and the authorization-code exchange stay on the backend.</p>
+      <p class="hint">Configure SSO entirely from the browser. The client secret stays on the backend. If an admin group is set, membership in that IdP group controls the application administrator role at each SSO login.</p>
       <div class="grid">
         <label><span>Issuer URL</span><input v-model="oidc.issuer_url" placeholder="https://login.example.com/realms/archive" /></label>
         <label><span>Client ID</span><input v-model="oidc.client_id" /></label>
         <label><span>Client secret</span><input v-model="oidc.client_secret" type="password" placeholder="Leave blank to keep the saved secret" /></label>
         <label><span>Scopes</span><input v-model="oidc.scopes" /></label>
         <label><span>Redirect URI</span><input v-model="oidc.redirect_uri" placeholder="https://archive.example.com/api/auth/oidc/callback" /></label>
+        <label><span>Groups claim</span><input v-model="oidc.groups_claim" placeholder="groups" /></label>
+        <label><span>Admin group</span><input v-model="oidc.admin_group" placeholder="archive-admins" /></label>
       </div>
+      <p class="hint">Leave Admin group blank to keep administrator status managed locally. The groups claim can be changed for providers that expose groups under a custom claim name.</p>
       <p v-if="error" class="error">{{ error }}</p><p v-if="saved" class="success">Saved.</p>
       <button :disabled="saving" @click="save">{{ saving ? "Saving…" : "Save server integrations" }}</button>
     </template>
