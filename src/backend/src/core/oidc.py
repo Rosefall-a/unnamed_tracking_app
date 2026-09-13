@@ -30,13 +30,30 @@ class OidcConfig:
     groups_claim: str = "groups"
     admin_group: str | None = None
     user_match_field: str = "email"
+    discovery_url: str | None = None
+
+    @property
+    def server_metadata_url(self) -> str:
+        """Return the discovery document URL.
+
+        The settings UI calls this value the issuer URL, but deployments often
+        hand out the OpenID discovery URL itself. Accept both forms so we don't
+        accidentally append a second /.well-known/openid-configuration.
+        """
+        configured = (self.discovery_url or self.issuer_url).strip().rstrip("/")
+        suffix = "/.well-known/openid-configuration"
+        if configured.endswith(suffix):
+            return configured
+        return urljoin(configured + "/", ".well-known/openid-configuration")
 
 
 def env_oidc_config() -> OidcConfig | None:
     if not (settings.OIDC_ISSUER_URL and settings.OIDC_CLIENT_ID and settings.OIDC_CLIENT_SECRET):
         return None
+    issuer = settings.OIDC_ISSUER_URL.strip()
+    discovery_url = issuer if issuer.endswith("/.well-known/openid-configuration") else None
     return OidcConfig(
-        issuer_url=settings.OIDC_ISSUER_URL,
+        issuer_url=issuer,
         client_id=settings.OIDC_CLIENT_ID,
         client_secret=settings.OIDC_CLIENT_SECRET,
         scopes=settings.OIDC_SCOPES,
@@ -44,6 +61,7 @@ def env_oidc_config() -> OidcConfig | None:
         groups_claim=settings.OIDC_GROUPS_CLAIM,
         admin_group=settings.OIDC_ADMIN_GROUP,
         user_match_field=getattr(settings, "OIDC_USER_MATCH_FIELD", "email"),
+        discovery_url=discovery_url,
     )
 
 
@@ -52,9 +70,7 @@ def register_oidc_provider(config: OidcConfig) -> None:
         name="oidc",
         client_id=config.client_id,
         client_secret=config.client_secret,
-        server_metadata_url=urljoin(
-            config.issuer_url.rstrip("/") + "/", ".well-known/openid-configuration"
-        ),
+        server_metadata_url=config.server_metadata_url,
         client_kwargs={"scope": config.scopes},
         overwrite=True,
     )
