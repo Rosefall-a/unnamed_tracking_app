@@ -1,15 +1,10 @@
 from __future__ import annotations
-
-import logging
-import secrets
-import time
+import json, logging, secrets, time
 from urllib.parse import urlparse
-
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.responses import RedirectResponse
-
 from src.core.auth import SESSION_COOKIE, hash_password, hash_token
 from src.core.config import settings
 from src.core.crypto import decrypt_secret
@@ -18,217 +13,94 @@ from src.database.models.auth import UserSession
 from src.database.models.oidc_settings import OidcSettings
 from src.database.models.user import User
 from src.database.session import get_db
-
-router = APIRouter(prefix="/api/auth/oidc", tags=["auth"])
-_SESSION_SECONDS = 30 * 24 * 60 * 60
-logger = logging.getLogger(__name__)
-
-
-def _env_config() -> OidcConfig | None:
-    if not (settings.OIDC_ISSUER_URL and settings.OIDC_CLIENT_ID and settings.OIDC_CLIENT_SECRET):
-        return None
-    issuer = settings.OIDC_ISSUER_URL.strip()
-    discovery_url = issuer if issuer.endswith("/.well-known/openid-configuration") else None
-    return OidcConfig(
-        issuer_url=issuer,
-        client_id=settings.OIDC_CLIENT_ID,
-        client_secret=settings.OIDC_CLIENT_SECRET,
-        scopes=settings.OIDC_SCOPES,
-        redirect_uri=settings.OIDC_REDIRECT_URI,
-        groups_claim=settings.OIDC_GROUPS_CLAIM,
-        admin_group=settings.OIDC_ADMIN_GROUP,
-        user_match_field=getattr(settings, "OIDC_USER_MATCH_FIELD", "email"),
-        allow_new_users=True,
-        discovery_url=discovery_url,
-    )
-
-
-async def _get_config(db: AsyncSession) -> OidcConfig | None:
-    row = await db.scalar(select(OidcSettings).limit(1))
-    if row and row.issuer_url and row.client_id and row.client_secret:
-        issuer = row.issuer_url.strip()
-        discovery_url = issuer if issuer.endswith("/.well-known/openid-configuration") else None
-        return OidcConfig(
-            issuer_url=issuer,
-            client_id=row.client_id,
-            client_secret=decrypt_secret(row.client_secret),
-            scopes=row.scopes or "openid profile email",
-            redirect_uri=row.redirect_uri,
-            groups_claim=row.groups_claim or "groups",
-            admin_group=row.admin_group,
-            user_match_field=row.user_match_field or "email",
-            allow_new_users=row.allow_new_users,
-            discovery_url=discovery_url,
-        )
-    return _env_config()
-
-
-def _safe_username(value: str, email: str) -> str:
-    candidate = "".join(c for c in value.strip() if c.isalnum() or c in "._-")[:100]
-    return candidate or email.split("@", 1)[0][:90] or f"user-{secrets.token_hex(4)}"
-
-
-def _oidc_groups(claims: dict, claim_name: str) -> set[str]:
-    value = claims.get(claim_name)
-    if isinstance(value, str):
-        return {value}
-    if isinstance(value, (list, tuple, set)):
-        return {str(group) for group in value if str(group).strip()}
-    return set()
-
-
-def _oidc_match_value(claims: dict, field: str, email: str) -> str:
-    return (
-        str(claims.get("preferred_username") or claims.get("name") or "").strip()
-        if field == "username"
-        else email
-    )
-
-
+router=APIRouter(prefix="/api/auth/oidc",tags=["auth"]); _SESSION_SECONDS=30*24*60*60; logger=logging.getLogger(__name__)
+def _env_config():
+    if not(settings.OIDC_ISSUER_URL and settings.OIDC_CLIENT_ID and settings.OIDC_CLIENT_SECRET): return None
+    issuer=settings.OIDC_ISSUER_URL.strip(); return OidcConfig(issuer_url=issuer,client_id=settings.OIDC_CLIENT_ID,client_secret=settings.OIDC_CLIENT_SECRET,scopes=settings.OIDC_SCOPES,redirect_uri=settings.OIDC_REDIRECT_URI,groups_claim=settings.OIDC_GROUPS_CLAIM,admin_group=settings.OIDC_ADMIN_GROUP,user_match_field=getattr(settings,"OIDC_USER_MATCH_FIELD","email"),discovery_url=issuer if issuer.endswith("/.well-known/openid-configuration") else None)
+def _named_rows(row):
+    try: data=json.loads(row.providers_json or "[]")
+    except (TypeError,ValueError): return []
+    return [p for p in data if isinstance(p,dict) and p.get("slug") and p.get("enabled",True)]
+def _config_from_provider(p):
+    issuer=str(p["issuer_url"]).strip(); return OidcConfig(issuer_url=issuer,client_id=str(p["client_id"]),client_secret=decrypt_secret(str(p["client_secret"])),scopes=p.get("scopes") or "openid profile email",redirect_uri=p.get("redirect_uri") or None,groups_claim=p.get("groups_claim") or "groups",admin_group=p.get("admin_group") or None,user_match_field=p.get("user_match_field") or "email",allow_new_users=bool(p.get("allow_new_users",True)),discovery_url=issuer if issuer.endswith("/.well-known/openid-configuration") else None,name=p.get("name") or p["slug"],slug=p["slug"],button_text=p.get("button_text") or "Continue with SSO",button_image_url=p.get("button_image_url"))
+async def _get_config(db,slug="default"):
+    row=await db.scalar(select(OidcSettings).limit(1))
+    if row:
+        if slug!="default":
+            for p in _named_rows(row):
+                if p.get("slug")==slug and p.get("client_secret"): return _config_from_provider(p)
+            return None
+        if row.issuer_url and row.client_id and row.client_secret:
+            issuer=row.issuer_url.strip(); return OidcConfig(issuer_url=issuer,client_id=row.client_id,client_secret=decrypt_secret(row.client_secret),scopes=row.scopes or "openid profile email",redirect_uri=row.redirect_uri,groups_claim=row.groups_claim or "groups",admin_group=row.admin_group,user_match_field=row.user_match_field or "email",allow_new_users=row.allow_new_users)
+    return _env_config() if slug=="default" else None
 @router.get("/status")
-async def oidc_status(db: AsyncSession = Depends(get_db)) -> dict[str, object]:
-    row = await db.scalar(select(OidcSettings).limit(1))
-    config = await _get_config(db)
-    return {
-        "enabled": config is not None,
-        "issuer": urlparse(config.issuer_url).hostname if config else None,
-        "default_login_method": row.default_login_method
-        if row and row.default_login_method in {"local", "sso"}
-        else "local",
-        "login_button_text": row.login_button_text.strip()
-        if row and row.login_button_text.strip()
-        else "Continue with SSO",
-    }
-
-
-@router.get("/login", name="oidc_login")
-async def oidc_login(request: Request, db: AsyncSession = Depends(get_db)) -> Response:
-    config = await _get_config(db)
-    if config is None:
-        raise HTTPException(status_code=404, detail="OIDC login is not configured.")
-    return await begin_oidc(request, config)
-
-
-async def _fetch_oidc_token(request: Request, client) -> dict:
-    params = {"code": request.query_params.get("code"), "state": request.query_params.get("state")}
-    state = params["state"]
-    if not state:
-        raise ValueError("Missing OIDC state parameter")
-    state_data = await client.framework.get_state_data(request.session, state)
-    if not state_data:
-        raise ValueError("Invalid OIDC state parameter")
-    await client.framework.clear_state_data(request.session, state)
-    params = client._format_state_params(state_data, params)
-    token = await client.fetch_access_token(**params)
-    if "id_token" not in token or "nonce" not in state_data:
-        return token
-    try:
-        token["userinfo"] = await client.parse_id_token(
-            token,
-            nonce=state_data["nonce"],
-            claims_options=None,
-        )
+async def oidc_status(db:AsyncSession=Depends(get_db)):
+    row=await db.scalar(select(OidcSettings).limit(1)); config=await _get_config(db)
+    providers=[]
+    if row:
+        for p in _named_rows(row): providers.append({"name":p.get("name",p["slug"]),"slug":p["slug"],"button_text":p.get("button_text") or "Continue with SSO","button_image_url":p.get("button_image_url")})
+    if not providers and config: providers=[{"name":config.name,"slug":"default","button_text":row.login_button_text.strip() if row and row.login_button_text.strip() else config.button_text,"button_image_url":config.button_image_url}]
+    return {"enabled":config is not None or bool(providers),"issuer":urlparse(config.issuer_url).hostname if config else None,"default_login_method":row.default_login_method if row and row.default_login_method in {"local","sso"} else "local","login_button_text":row.login_button_text.strip() if row and row.login_button_text.strip() else "Continue with SSO","providers":providers}
+@router.get("/login",name="oidc_login")
+async def oidc_login(request:Request,db:AsyncSession=Depends(get_db)): config=await _get_config(db); 
+    # keep legacy endpoint for the default provider
+    if config is None: raise HTTPException(404,"OIDC login is not configured.")
+    return await begin_oidc(request,config)
+@router.get("/login/{provider_slug}")
+async def oidc_provider_login(provider_slug:str,request:Request,db:AsyncSession=Depends(get_db)):
+    config=await _get_config(db,provider_slug)
+    if config is None: raise HTTPException(404,"OIDC provider is not configured.")
+    return await begin_oidc(request,config)
+async def _fetch_oidc_token(request,client):
+    params={"code":request.query_params.get("code"),"state":request.query_params.get("state")}; state=params["state"]
+    if not state: raise ValueError("Missing OIDC state parameter")
+    state_data=await client.framework.get_state_data(request.session,state)
+    if not state_data: raise ValueError("Invalid OIDC state parameter")
+    await client.framework.clear_state_data(request.session,state); params=client._format_state_params(state_data,params); token=await client.fetch_access_token(**params)
+    if "id_token" not in token or "nonce" not in state_data:return token
+    try: token["userinfo"]=await client.parse_id_token(token,nonce=state_data["nonce"],claims_options=None)
     except ValueError as exc:
-        if str(exc) != "Invalid key set format":
-            raise
-        logger.warning(
-            "OIDC provider returned an invalid JWKS document; using the authenticated UserInfo endpoint instead"
-        )
-        token["userinfo"] = await client.userinfo(token=token)
+        if str(exc)!="Invalid key set format": raise
+        logger.warning("OIDC provider returned an invalid JWKS document; using UserInfo endpoint")
+        token["userinfo"]=await client.userinfo(token=token)
     return token
-
-
-@router.get("/callback", name="oidc_callback")
-async def oidc_callback(request: Request, db: AsyncSession = Depends(get_db)) -> Response:
-    config = await _get_config(db)
-    if config is None:
-        return RedirectResponse(url="/login?oidc_error=not_configured", status_code=303)
-    register_oidc_provider(config)
-    client = oauth.create_client("oidc")
-    if client is None:
-        return RedirectResponse(url="/login?oidc_error=provider_unavailable", status_code=303)
+def _groups(claims,name):
+    value=claims.get(name); return {value} if isinstance(value,str) else {str(x) for x in value if str(x).strip()} if isinstance(value,(list,tuple,set)) else set()
+def _match_value(claims,field,email): return str(claims.get("preferred_username") or claims.get("name") or "").strip() if field=="username" else email
+def _safe_username(value,email): return "".join(c for c in value.strip() if c.isalnum() or c in "._-")[:100] or email.split("@",1)[0][:90] or f"user-{secrets.token_hex(4)}"
+async def _complete_callback(request,db,config,client_name):
+    register_oidc_provider(config,client_name); client=oauth.create_client(client_name)
+    if client is None:return RedirectResponse("/login?oidc_error=provider_unavailable",303)
     try:
-        token = await _fetch_oidc_token(request, client)
-        userinfo = token.get("userinfo") or await client.userinfo(token=token)
-        claims = dict(userinfo)
-        for key, value in token.items():
-            claims.setdefault(key, value)
-    except Exception:
-        logger.exception("OIDC callback token/userinfo exchange failed")
-        return RedirectResponse(url="/login?oidc_error=authentication_failed", status_code=303)
-
-    subject = str(claims.get("sub", "")).strip()
-    email = str(claims.get("email", "")).strip().lower()
-    if not subject or not email or claims.get("email_verified") is False:
-        return RedirectResponse(url="/login?oidc_error=verified_email_required", status_code=303)
-
-    match_field = (
-        config.user_match_field if config.user_match_field in {"email", "username"} else "email"
-    )
-    match_value = _oidc_match_value(claims, match_field, email)
-    if not match_value:
-        return RedirectResponse(url="/login?oidc_error=identity_missing", status_code=303)
-
-    user = await db.scalar(select(User).where(User.oidc_subject == subject))
+        token=await _fetch_oidc_token(request,client); claims=dict(token.get("userinfo") or await client.userinfo(token=token)); claims.update({k:v for k,v in token.items() if k not in claims})
+    except Exception: logger.exception("OIDC callback token/userinfo exchange failed"); return RedirectResponse("/login?oidc_error=authentication_failed",303)
+    subject=str(claims.get("sub","")).strip(); email=str(claims.get("email","")).strip().lower()
+    if not subject or not email or claims.get("email_verified") is False:return RedirectResponse("/login?oidc_error=verified_email_required",303)
+    field=config.user_match_field if config.user_match_field in {"email","username"} else "email"; match=_match_value(claims,field,email)
+    if not match:return RedirectResponse("/login?oidc_error=identity_missing",303)
+    linked_subject=f"{config.slug}:{subject}"; user=await db.scalar(select(User).where(User.oidc_subject==linked_subject))
+    if user is None: user=await db.scalar(select(User).where(User.username==match)) if field=="username" else await db.scalar(select(User).where(User.email==email))
+    is_admin=bool(config.admin_group and config.admin_group in _groups(claims,config.groups_claim))
     if user is None:
-        if match_field == "username":
-            user = await db.scalar(select(User).where(User.username == match_value))
-        else:
-            user = await db.scalar(select(User).where(User.email == email))
-
-    groups = _oidc_groups(claims, config.groups_claim)
-    group_is_admin = bool(config.admin_group and config.admin_group in groups)
-
-    if user is None:
-        if not config.allow_new_users:
-            return RedirectResponse(url="/login?oidc_error=user_creation_disabled", status_code=303)
-        username = _safe_username(
-            str(claims.get("preferred_username") or claims.get("name") or ""), email
-        )
-        base = username
-        suffix = 1
-        while await db.scalar(select(User.id).where(User.username == username)) is not None:
-            suffix += 1
-            username = f"{base[: 100 - len(str(suffix)) - 1]}-{suffix}"
-        user = User(
-            username=username,
-            email=email,
-            password_hash=hash_password(secrets.token_urlsafe(48) + "A!a"),
-            is_active=True,
-            is_admin=group_is_admin,
-            oidc_subject=subject,
-        )
-        db.add(user)
-        await db.flush()
+        if not config.allow_new_users:return RedirectResponse("/login?oidc_error=user_creation_disabled",303)
+        username=_safe_username(str(claims.get("preferred_username") or claims.get("name") or ""),email); base=username; suffix=1
+        while await db.scalar(select(User.id).where(User.username==username)) is not None:
+            suffix+=1; username=f"{base[:100-len(str(suffix))-1]}-{suffix}"
+        user=User(username=username,email=email,password_hash=hash_password(secrets.token_urlsafe(48)+"A!a"),is_active=True,is_admin=is_admin,oidc_subject=linked_subject); db.add(user); await db.flush()
     else:
-        if not user.is_active:
-            return RedirectResponse(url="/login?oidc_error=account_disabled", status_code=303)
-        if user.oidc_subject and user.oidc_subject != subject:
-            return RedirectResponse(url="/login?oidc_error=identity_conflict", status_code=303)
-        user.oidc_subject = subject
-        user.email = email
-        if config.admin_group:
-            user.is_admin = group_is_admin
-
-    session_token = secrets.token_urlsafe(32)
-    db.add(
-        UserSession(
-            user_id=user.id,
-            token_hash=hash_token(session_token),
-            expires_at=int(time.time()) + _SESSION_SECONDS,
-        )
-    )
-    await db.commit()
-    logger.info("OIDC login established application session for user %s", user.id)
-
-    redirect = RedirectResponse(url="/login?oidc=success", status_code=status.HTTP_303_SEE_OTHER)
-    redirect.set_cookie(
-        key=SESSION_COOKIE,
-        value=session_token,
-        max_age=_SESSION_SECONDS,
-        httponly=True,
-        samesite="lax",
-        secure=settings.AUTH_COOKIE_SECURE,
-        path="/",
-    )
-    return redirect
+        if not user.is_active:return RedirectResponse("/login?oidc_error=account_disabled",303)
+        if user.oidc_subject and user.oidc_subject!=linked_subject and user.oidc_subject!=subject:return RedirectResponse("/login?oidc_error=identity_conflict",303)
+        user.oidc_subject=linked_subject; user.email=email
+        if config.admin_group:user.is_admin=is_admin
+    session_token=secrets.token_urlsafe(32); db.add(UserSession(user_id=user.id,token_hash=hash_token(session_token),expires_at=int(time.time())+_SESSION_SECONDS)); await db.commit()
+    response=RedirectResponse("/login?oidc=success",303); response.set_cookie(key=SESSION_COOKIE,value=session_token,max_age=_SESSION_SECONDS,httponly=True,samesite="lax",secure=settings.AUTH_COOKIE_SECURE,path="/"); return response
+@router.get("/callback",name="oidc_callback")
+async def oidc_callback(request:Request,db:AsyncSession=Depends(get_db)):
+    config=await _get_config(db)
+    if config is None:return RedirectResponse("/login?oidc_error=not_configured",303)
+    return await _complete_callback(request,db,config,"oidc")
+@router.get("/callback/{provider_slug}",name="oidc_callback_provider")
+async def oidc_callback_provider(provider_slug:str,request:Request,db:AsyncSession=Depends(get_db)):
+    config=await _get_config(db,provider_slug)
+    if config is None:return RedirectResponse("/login?oidc_error=not_configured",303)
+    return await _complete_callback(request,db,config,f"oidc_{provider_slug}")
