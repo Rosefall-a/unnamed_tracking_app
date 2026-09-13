@@ -9,7 +9,7 @@ const router = useRouter();
 const username = ref(""); const email = ref(""); const password = ref(""); const confirmPassword = ref("");
 const oidcEnabled = ref(false);
 const oidcIssuer = ref(""); const oidcClientId = ref(""); const oidcClientSecret = ref("");
-const oidcScopes = ref("openid profile email"); const oidcRedirectUri = ref("");
+const oidcScopes = ref("openid profile email"); const oidcRedirectUri = ref(`${window.location.origin}/api/auth/oidc/callback`);
 const oidcGroupsClaim = ref("groups"); const oidcAdminGroup = ref("");
 const error = ref<string | null>(route.query.backend_error ? "The frontend cannot reach the backend yet. Start the backend service, then reload this page." : null);
 const loading = ref(false);
@@ -29,15 +29,12 @@ async function submit() {
         oidc_client_id: oidcClientId.value.trim(),
         oidc_client_secret: oidcClientSecret.value,
         oidc_scopes: oidcScopes.value.trim(),
-        oidc_redirect_uri: oidcRedirectUri.value.trim(),
+        oidc_redirect_uri: oidcRedirectUri.value.trim() || `${window.location.origin}/api/auth/oidc/callback`,
         oidc_groups_claim: oidcGroupsClaim.value.trim() || "groups",
         oidc_admin_group: oidcAdminGroup.value.trim(),
       } : {}),
     });
     await checkAuth();
-    // The setup route is deliberately removed from the normal app flow once
-    // the first account exists. Replace avoids leaving the one-time setup page
-    // in browser history.
     await router.replace("/");
   } catch (err) { error.value = err instanceof Error ? err.message : "Setup failed."; }
   finally { loading.value = false; }
@@ -60,10 +57,10 @@ async function submit() {
       <label><span>Client ID</span><input v-model="oidcClientId" /></label>
       <label><span>Client secret</span><input v-model="oidcClientSecret" type="password" /></label>
       <label><span>Scopes</span><input v-model="oidcScopes" /></label>
-      <label><span>Redirect URI</span><input v-model="oidcRedirectUri" placeholder="https://archive.example.com/api/auth/oidc/callback" /></label>
+      <label><span>Redirect URI</span><input v-model="oidcRedirectUri" autocomplete="url" /></label>
       <label><span>Groups claim</span><input v-model="oidcGroupsClaim" placeholder="groups" /></label>
       <label><span>Admin group</span><input v-model="oidcAdminGroup" placeholder="archive-admins" /></label>
-      <p class="hint">If an admin group is set, SSO membership in that group controls administrator status. Leave it blank to manage admin status locally.</p>
+      <p class="hint">The redirect URI is automatically set from the URL you are currently using. If you are behind a proxy, use the public URL shown here. If an admin group is set, SSO membership in that group controls administrator status.</p>
     </div>
 
     <div v-if="error" class="error">{{ error }}</div>
