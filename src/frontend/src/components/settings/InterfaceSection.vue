@@ -26,9 +26,9 @@ const viewModeOptions = [
   { value: "detail", label: "List + preview" },
 ];
 const sortOptions = [
-  { value: "name", label: "Name" },
-  { value: "recent", label: "Recently added" },
-  { value: "rating", label: "Rating" },
+  { value: "name", label: "Name (A–Z)" },
+  { value: "recent", label: "Recently added (newest)" },
+  { value: "rating", label: "Rating (highest)" },
   { value: "playtime", label: "Most played" },
 ];
 
