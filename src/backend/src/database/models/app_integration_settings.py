@@ -28,7 +28,9 @@ class AppIntegrationSettings(Base):
     xbox_client_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     xbox_client_secret: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    # Optional deployment SMTP used for password-reset and future email features.
+    # Optional deployment SMTP transport. Individual email capabilities are
+    # kept as explicit feature flags so more email features can be added
+    # without coupling them to SMTP transport configuration.
     smtp_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     smtp_host: Mapped[str | None] = mapped_column(String(255), nullable=True)
     smtp_port: Mapped[int] = mapped_column(nullable=False, default=587)
@@ -38,6 +40,7 @@ class AppIntegrationSettings(Base):
     smtp_use_ssl: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     smtp_from_email: Mapped[str | None] = mapped_column(String(320), nullable=True)
     smtp_from_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    password_reset_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
     updated_at: Mapped[int] = mapped_column(
         BigInteger, nullable=False, default=time.time, onupdate=time.time
