@@ -168,6 +168,7 @@ async def oidc_callback(request: Request, db: AsyncSession = Depends(get_db)) ->
             oidc_subject=subject,
         )
         db.add(user)
+        await db.flush()
     else:
         if not user.is_active:
             return RedirectResponse(url="/login?oidc_error=account_disabled", status_code=303)
