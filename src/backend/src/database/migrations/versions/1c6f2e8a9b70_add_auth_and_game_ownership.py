@@ -3,9 +3,7 @@
 Revision ID: 1c6f2e8a9b70
 Revises: 0284d11effb1
 Create Date: 2026-09-02
-
 """
-
 import time
 from typing import Sequence, Union
 from uuid import uuid4
@@ -31,42 +29,48 @@ def upgrade() -> None:
     connection = op.get_bind()
     username = settings.PRIMARY_USER_USERNAME.strip()
     email = settings.PRIMARY_USER_EMAIL.strip().lower()
-    validate_password(settings.PRIMARY_USER_PASSWORD)
-    primary_user_id = connection.execute(
-        sa.text("SELECT id FROM users WHERE username = :username OR email = :email LIMIT 1"),
-        {"username": username, "email": email},
-    ).scalar_one_or_none()
+    primary_user_id = None
 
-    if primary_user_id is None:
-        primary_user_id = uuid4()
-        connection.execute(
-            sa.text(
-                """
-                INSERT INTO users (id, username, email, password_hash, is_active, is_admin, created_at, updated_at)
-                VALUES (:id, :username, :email, :password_hash, true, true, :created_at, :updated_at)
-                """
-            ),
-            {
-                "id": primary_user_id,
-                "username": username,
-                "email": email,
-                "password_hash": hash_password(settings.PRIMARY_USER_PASSWORD),
-                "created_at": int(time.time()),
-                "updated_at": int(time.time()),
-            },
-        )
-    else:
-        connection.execute(
-            sa.text("UPDATE users SET is_admin = true WHERE id = :id"),
-            {"id": primary_user_id},
-        )
+    # Legacy deployments can still seed an administrator from .env. New
+    # deployments intentionally leave the first user unset and finish setup
+    # through /setup in the web UI.
+    if username and email and settings.PRIMARY_USER_PASSWORD:
+        validate_password(settings.PRIMARY_USER_PASSWORD)
+        primary_user_id = connection.execute(
+            sa.text("SELECT id FROM users WHERE username = :username OR email = :email LIMIT 1"),
+            {"username": username, "email": email},
+        ).scalar_one_or_none()
+
+        if primary_user_id is None:
+            primary_user_id = uuid4()
+            connection.execute(
+                sa.text(
+                    """
+                    INSERT INTO users (id, username, email, password_hash, is_active, is_admin, created_at, updated_at)
+                    VALUES (:id, :username, :email, :password_hash, true, true, :created_at, :updated_at)
+                    """
+                ),
+                {
+                    "id": primary_user_id,
+                    "username": username,
+                    "email": email,
+                    "password_hash": hash_password(settings.PRIMARY_USER_PASSWORD),
+                    "created_at": int(time.time()),
+                    "updated_at": int(time.time()),
+                },
+            )
+        else:
+            connection.execute(
+                sa.text("UPDATE users SET is_admin = true WHERE id = :id"),
+                {"id": primary_user_id},
+            )
 
     op.add_column("games", sa.Column("user_id", sa.UUID(), nullable=True))
-    connection.execute(
-        sa.text("UPDATE games SET user_id = :user_id WHERE user_id IS NULL"),
-        {"user_id": primary_user_id},
-    )
-    op.alter_column("games", "user_id", nullable=False)
+    if primary_user_id is not None:
+        connection.execute(
+            sa.text("UPDATE games SET user_id = :user_id WHERE user_id IS NULL"),
+            {"user_id": primary_user_id},
+        )
     op.create_index("ix_games_user_id", "games", ["user_id"])
     op.create_foreign_key(
         "fk_games_user_id_users",
