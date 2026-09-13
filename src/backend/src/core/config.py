@@ -45,6 +45,8 @@ class Settings(BaseSettings):
     OIDC_CLIENT_SECRET: str | None = None
     OIDC_REDIRECT_URI: str | None = None
     OIDC_SCOPES: str = "openid profile email"
+    OIDC_GROUPS_CLAIM: str = "groups"
+    OIDC_ADMIN_GROUP: str | None = None
 
     model_config = SettingsConfigDict(extra="ignore")
 
