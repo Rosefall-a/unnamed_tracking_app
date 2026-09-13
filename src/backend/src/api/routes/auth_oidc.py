@@ -27,7 +27,9 @@ def _env_config() -> OidcConfig | None:
     client_secret = (settings.OIDC_CLIENT_SECRET or "").strip()
     if not issuer or not client_id or not client_secret:
         return None
-    discovery_url = issuer if issuer.rstrip("/").endswith("/.well-known/openid-configuration") else None
+    discovery_url = (
+        issuer if issuer.rstrip("/").endswith("/.well-known/openid-configuration") else None
+    )
     return OidcConfig(
         issuer_url=issuer,
         client_id=client_id,
@@ -49,7 +51,9 @@ async def _get_config(db: AsyncSession) -> OidcConfig | None:
     client_secret = row.client_secret
     if not issuer or not row.client_id or not client_secret:
         return None
-    discovery_url = issuer if issuer.rstrip("/").endswith("/.well-known/openid-configuration") else None
+    discovery_url = (
+        issuer if issuer.rstrip("/").endswith("/.well-known/openid-configuration") else None
+    )
     return OidcConfig(
         issuer_url=issuer,
         client_id=row.client_id,
@@ -172,7 +176,11 @@ async def oidc_callback(request: Request, db: AsyncSession = Depends(get_db)) ->
     result = await db.execute(select(User).where(User.oidc_subject == subject))
     user = result.scalar_one_or_none()
     if user is None:
-        match_value = email if config.user_match_field == "email" else userinfo.get("preferred_username") or userinfo.get("name")
+        match_value = (
+            email
+            if config.user_match_field == "email"
+            else userinfo.get("preferred_username") or userinfo.get("name")
+        )
         if match_value:
             if config.user_match_field == "email":
                 result = await db.execute(select(User).where(User.email == match_value))
@@ -181,8 +189,12 @@ async def oidc_callback(request: Request, db: AsyncSession = Depends(get_db)) ->
             user = result.scalar_one_or_none()
 
     if user is None:
-        username = userinfo.get("preferred_username") or userinfo.get("name") or email.split("@", 1)[0]
-        user = User(username=username, email=email, oidc_subject=subject, password_hash=hash_password(None))
+        username = (
+            userinfo.get("preferred_username") or userinfo.get("name") or email.split("@", 1)[0]
+        )
+        user = User(
+            username=username, email=email, oidc_subject=subject, password_hash=hash_password(None)
+        )
         db.add(user)
         await db.flush()
     else:
