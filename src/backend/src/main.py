@@ -23,6 +23,7 @@ from src.api.routes import (
 from src.api.routes import set as set_routes
 from src.api.routes.auth_oidc import router as auth_oidc_router
 from src.api.routes.deployment_settings import router as deployment_settings_router
+from src.api.routes.password_reset import router as password_reset_router
 from src.api.routes.setup import router as setup_router
 from src.api.routes.settings import get_or_create_app_integration_settings
 from src.api.routes.utils.misc import router as misc_router
@@ -34,7 +35,10 @@ from src.features.backup.scheduler import run_backup_loop
 from src.features.trash.sweep import run_sweep_loop
 
 app = FastAPI(
-    title="My API", docs_url="/api/docs", redoc_url="/api/redoc", openapi_url="/api/openapi.json"
+    title="Archive",
+    docs_url="/api/docs",
+    redoc_url="/api/redoc",
+    openapi_url="/api/openapi.json",
 )
 app.add_middleware(
     SessionMiddleware,
@@ -51,6 +55,7 @@ app.include_router(users.router)
 app.include_router(api_keys.router)
 app.include_router(auth.router)
 app.include_router(auth_oidc_router)
+app.include_router(password_reset_router)
 app.include_router(setup_router)
 app.include_router(settings.router)
 app.include_router(deployment_settings_router)
