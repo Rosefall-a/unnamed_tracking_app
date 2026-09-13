@@ -29,6 +29,7 @@ class OidcConfig:
     redirect_uri: str | None = None
     groups_claim: str = "groups"
     admin_group: str | None = None
+    user_match_field: str = "email"
 
 
 def env_oidc_config() -> OidcConfig | None:
@@ -42,6 +43,7 @@ def env_oidc_config() -> OidcConfig | None:
         redirect_uri=settings.OIDC_REDIRECT_URI,
         groups_claim=settings.OIDC_GROUPS_CLAIM,
         admin_group=settings.OIDC_ADMIN_GROUP,
+        user_match_field=getattr(settings, "OIDC_USER_MATCH_FIELD", "email"),
     )
 
 
@@ -67,6 +69,4 @@ async def begin_oidc(request: Request, config: OidcConfig) -> RedirectResponse:
     client = oauth.create_client("oidc")
     if client is None:
         raise HTTPException(status_code=503, detail="OIDC provider is unavailable.")
-    # Authlib stores and validates the authorization state in the Starlette
-    # session. No separate state cookie is necessary.
     return await client.authorize_redirect(request, callback_url(request, config))
