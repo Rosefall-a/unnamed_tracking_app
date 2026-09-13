@@ -33,6 +33,7 @@ def _env_config() -> OidcConfig | None:
         redirect_uri=settings.OIDC_REDIRECT_URI,
         groups_claim=settings.OIDC_GROUPS_CLAIM,
         admin_group=settings.OIDC_ADMIN_GROUP,
+        user_match_field=getattr(settings, "OIDC_USER_MATCH_FIELD", "email"),
     )
 
 
@@ -47,6 +48,7 @@ async def _get_config(db: AsyncSession) -> OidcConfig | None:
             redirect_uri=row.redirect_uri,
             groups_claim=row.groups_claim or "groups",
             admin_group=row.admin_group,
+            user_match_field=row.user_match_field or "email",
         )
     return _env_config()
 
@@ -63,6 +65,12 @@ def _oidc_groups(claims: dict, claim_name: str) -> set[str]:
     if isinstance(value, (list, tuple, set)):
         return {str(group) for group in value if str(group).strip()}
     return set()
+
+
+def _oidc_match_value(claims: dict, field: str, email: str) -> str:
+    if field == "username":
+        return str(claims.get("preferred_username") or claims.get("name") or "").strip()
+    return email
 
 
 @router.get("/status")
@@ -99,8 +107,6 @@ async def oidc_callback(request: Request, db: AsyncSession = Depends(get_db)) ->
         if not userinfo:
             userinfo = await client.userinfo(token=token)
         claims = dict(userinfo)
-        # Some providers put custom group claims in the ID/access token rather
-        # than the UserInfo response. Prefer UserInfo values when present.
         for key, value in token.items():
             claims.setdefault(key, value)
     except Exception:
@@ -112,9 +118,17 @@ async def oidc_callback(request: Request, db: AsyncSession = Depends(get_db)) ->
     if not subject or not email or email_verified is False:
         return RedirectResponse(url="/login?oidc_error=verified_email_required", status_code=303)
 
+    match_field = config.user_match_field if config.user_match_field in {"email", "username"} else "email"
+    match_value = _oidc_match_value(claims, match_field, email)
+    if not match_value:
+        return RedirectResponse(url="/login?oidc_error=identity_missing", status_code=303)
+
     user = await db.scalar(select(User).where(User.oidc_subject == subject))
     if user is None:
-        user = await db.scalar(select(User).where(User.email == email))
+        if match_field == "username":
+            user = await db.scalar(select(User).where(User.username == match_value))
+        else:
+            user = await db.scalar(select(User).where(User.email == email))
 
     groups = _oidc_groups(claims, config.groups_claim)
     group_is_admin = bool(config.admin_group and config.admin_group in groups)
