@@ -10,14 +10,6 @@ const providers = reactive<Record<string, string>>({});
 const configured = reactive<Record<string, boolean>>({});
 const oidc = reactive({ issuer_url: "", client_id: "", client_secret: "", scopes: "openid profile email", redirect_uri: "", groups_claim: "groups", admin_group: "" });
 
-const fields = [
-  ["steamgriddb_api_key", "SteamGridDB API key"], ["retroachievements_api_key", "RetroAchievements API key"],
-  ["giantbomb_api_key", "Giant Bomb API key"], ["igdb_client_id", "IGDB client ID"], ["igdb_client_secret", "IGDB client secret"],
-  ["screenscraper_ssid", "ScreenScraper app username"], ["screenscraper_sspassword", "ScreenScraper app password"],
-  ["screenscraper_devid", "ScreenScraper developer ID"], ["screenscraper_devpassword", "ScreenScraper developer password"],
-  ["xbox_client_id", "Xbox client ID"], ["xbox_client_secret", "Xbox client secret"],
-] as const;
-
 onMounted(async () => {
   try {
     const result = await fetchDeploymentSettings();
@@ -28,7 +20,7 @@ onMounted(async () => {
     oidc.issuer_url = result.oidc.issuer_url ?? "";
     oidc.client_id = result.oidc.client_id ?? "";
     oidc.scopes = result.oidc.scopes ?? "openid profile email";
-    oidc.redirect_uri = result.oidc.redirect_uri ?? "";
+    oidc.redirect_uri = result.oidc.redirect_uri || `${window.location.origin}/api/auth/oidc/callback`;
     oidc.groups_claim = result.oidc.groups_claim ?? "groups";
     oidc.admin_group = result.oidc.admin_group ?? "";
   } catch (err) {
@@ -45,7 +37,7 @@ async function save() {
     if (oidc.client_id) payload.oidc_client_id = oidc.client_id;
     if (oidc.client_secret) payload.oidc_client_secret = oidc.client_secret;
     if (oidc.scopes) payload.oidc_scopes = oidc.scopes;
-    if (oidc.redirect_uri) payload.oidc_redirect_uri = oidc.redirect_uri;
+    payload.oidc_redirect_uri = oidc.redirect_uri.trim() || `${window.location.origin}/api/auth/oidc/callback`;
     payload.oidc_groups_claim = oidc.groups_claim.trim() || "groups";
     payload.oidc_admin_group = oidc.admin_group.trim();
     const result = await updateDeploymentSettings(payload);
@@ -56,6 +48,14 @@ async function save() {
     error.value = err instanceof Error ? err.message : "Failed to save server integrations.";
   } finally { saving.value = false; }
 }
+
+const fields = [
+  ["steamgriddb_api_key", "SteamGridDB API key"], ["retroachievements_api_key", "RetroAchievements API key"],
+  ["giantbomb_api_key", "Giant Bomb API key"], ["igdb_client_id", "IGDB client ID"], ["igdb_client_secret", "IGDB client secret"],
+  ["screenscraper_ssid", "ScreenScraper app username"], ["screenscraper_sspassword", "ScreenScraper app password"],
+  ["screenscraper_devid", "ScreenScraper developer ID"], ["screenscraper_devpassword", "ScreenScraper developer password"],
+  ["xbox_client_id", "Xbox client ID"], ["xbox_client_secret", "Xbox client secret"],
+] as const;
 </script>
 
 <template>
@@ -74,11 +74,11 @@ async function save() {
         <label><span>Client ID</span><input v-model="oidc.client_id" /></label>
         <label><span>Client secret</span><input v-model="oidc.client_secret" type="password" placeholder="Leave blank to keep the saved secret" /></label>
         <label><span>Scopes</span><input v-model="oidc.scopes" /></label>
-        <label><span>Redirect URI</span><input v-model="oidc.redirect_uri" placeholder="https://archive.example.com/api/auth/oidc/callback" /></label>
+        <label><span>Redirect URI</span><input v-model="oidc.redirect_uri" autocomplete="url" /></label>
         <label><span>Groups claim</span><input v-model="oidc.groups_claim" placeholder="groups" /></label>
         <label><span>Admin group</span><input v-model="oidc.admin_group" placeholder="archive-admins" /></label>
       </div>
-      <p class="hint">Leave Admin group blank to keep administrator status managed locally. The groups claim can be changed for providers that expose groups under a custom claim name.</p>
+      <p class="hint">The redirect URI defaults to the URL you are currently using, with <code>/api/auth/oidc/callback</code> appended. If an admin group is set, SSO membership in that group controls administrator status.</p>
       <p v-if="error" class="error">{{ error }}</p><p v-if="saved" class="success">Saved.</p>
       <button :disabled="saving" @click="save">{{ saving ? "Saving…" : "Save server integrations" }}</button>
     </template>
