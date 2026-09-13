@@ -27,8 +27,10 @@ logger = logging.getLogger(__name__)
 def _env_config() -> OidcConfig | None:
     if not (settings.OIDC_ISSUER_URL and settings.OIDC_CLIENT_ID and settings.OIDC_CLIENT_SECRET):
         return None
+    issuer = settings.OIDC_ISSUER_URL.strip()
+    discovery_url = issuer if issuer.endswith("/.well-known/openid-configuration") else None
     return OidcConfig(
-        issuer_url=settings.OIDC_ISSUER_URL,
+        issuer_url=issuer,
         client_id=settings.OIDC_CLIENT_ID,
         client_secret=settings.OIDC_CLIENT_SECRET,
         scopes=settings.OIDC_SCOPES,
@@ -36,14 +38,17 @@ def _env_config() -> OidcConfig | None:
         groups_claim=settings.OIDC_GROUPS_CLAIM,
         admin_group=settings.OIDC_ADMIN_GROUP,
         user_match_field=getattr(settings, "OIDC_USER_MATCH_FIELD", "email"),
+        discovery_url=discovery_url,
     )
 
 
 async def _get_config(db: AsyncSession) -> OidcConfig | None:
     row = await db.scalar(select(OidcSettings).limit(1))
     if row and row.issuer_url and row.client_id and row.client_secret:
+        issuer = row.issuer_url.strip()
+        discovery_url = issuer if issuer.endswith("/.well-known/openid-configuration") else None
         return OidcConfig(
-            issuer_url=row.issuer_url,
+            issuer_url=issuer,
             client_id=row.client_id,
             client_secret=decrypt_secret(row.client_secret),
             scopes=row.scopes or "openid profile email",
@@ -51,6 +56,7 @@ async def _get_config(db: AsyncSession) -> OidcConfig | None:
             groups_claim=row.groups_claim or "groups",
             admin_group=row.admin_group,
             user_match_field=row.user_match_field or "email",
+            discovery_url=discovery_url,
         )
     return _env_config()
 
@@ -107,6 +113,59 @@ async def oidc_login(request: Request, db: AsyncSession = Depends(get_db)) -> Re
     return await begin_oidc(request, config)
 
 
+async def _fetch_oidc_token(request: Request, client) -> dict:
+    """Fetch the OAuth token while preserving Authlib's state/CSRF checks.
+
+    Authlib's Starlette OIDC helper immediately validates the returned ID token.
+    Some otherwise usable OIDC providers expose a JWKS URL that does not return
+    a standards-compliant JWK Set, which makes Authlib fail with
+    ``ValueError: Invalid key set format`` after the code exchange has already
+    succeeded. In that case the provider's authenticated UserInfo endpoint is
+    still the appropriate source of identity claims.
+    """
+    if request.method == "GET":
+        params = {
+            "code": request.query_params.get("code"),
+            "state": request.query_params.get("state"),
+        }
+    else:
+        form = await request.form()
+        params = {"code": form.get("code"), "state": form.get("state")}
+
+    state = params.get("state")
+    if not state:
+        raise ValueError("Missing OIDC state parameter")
+
+    state_data = await client.framework.get_state_data(request.session, state)
+    if not state_data:
+        raise ValueError("Invalid OIDC state parameter")
+
+    client.framework.clear_state_data(request.session, state)
+    params = client._format_state_params(state_data, params)
+    token = await client.fetch_access_token(**params)
+
+    if "id_token" not in token or "nonce" not in state_data:
+        return token
+
+    try:
+        token["userinfo"] = await client.parse_id_token(
+            token,
+            nonce=state_data["nonce"],
+            claims_options=None,
+            claims_cls=None,
+            leeway=120,
+        )
+    except ValueError as exc:
+        if str(exc) != "Invalid key set format":
+            raise
+        logger.warning(
+            "OIDC provider returned an invalid JWKS document; using the authenticated UserInfo endpoint instead"
+        )
+        token["userinfo"] = await client.userinfo(token=token)
+
+    return token
+
+
 @router.get("/callback", name="oidc_callback")
 async def oidc_callback(request: Request, db: AsyncSession = Depends(get_db)) -> Response:
     config = await _get_config(db)
@@ -119,7 +178,7 @@ async def oidc_callback(request: Request, db: AsyncSession = Depends(get_db)) ->
         return RedirectResponse(url="/login?oidc_error=provider_unavailable", status_code=303)
 
     try:
-        token = await client.authorize_access_token(request)
+        token = await _fetch_oidc_token(request, client)
         userinfo = token.get("userinfo")
         if not userinfo:
             userinfo = await client.userinfo(token=token)
