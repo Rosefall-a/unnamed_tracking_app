@@ -1,0 +1,7 @@
+/* Shared page chrome: keep the dark application canvas consistent even
+   when individual views use their own scoped surfaces. */
+html,
+body,
+#app {
+  background: #121212;
+}
