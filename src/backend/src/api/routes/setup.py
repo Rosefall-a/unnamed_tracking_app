@@ -34,11 +34,19 @@ class SetupRequest(BaseModel):
     oidc_redirect_uri: str | None = None
     oidc_groups_claim: str = "groups"
     oidc_admin_group: str | None = None
+    oidc_user_match_field: str = "email"
 
     @field_validator("password")
     @classmethod
     def validate_setup_password(cls, value: str) -> str:
         return validate_password(value)
+
+    @field_validator("oidc_user_match_field")
+    @classmethod
+    def validate_oidc_user_match_field(cls, value: str) -> str:
+        if value not in {"email", "username"}:
+            raise ValueError("OIDC user matching must be email or username.")
+        return value
 
 
 @router.get("/status")
@@ -53,8 +61,6 @@ async def setup_admin(
     response: Response,
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, str | bool]:
-    # Serialize first-run setup so two simultaneous browser requests cannot
-    # create competing administrator accounts.
     await db.execute(text("SELECT pg_advisory_xact_lock(hashtext('unnamed_tracking_app_setup'))"))
 
     if await db.scalar(select(User.id).limit(1)) is not None:
@@ -78,6 +84,7 @@ async def setup_admin(
         "redirect_uri": (payload.oidc_redirect_uri or "").strip() or None,
         "groups_claim": payload.oidc_groups_claim.strip() or "groups",
         "admin_group": (payload.oidc_admin_group or "").strip() or None,
+        "user_match_field": payload.oidc_user_match_field,
     }
     if payload.oidc_enabled and not all(
         (oidc_values["issuer_url"], oidc_values["client_id"], oidc_values["client_secret"])
@@ -104,19 +111,25 @@ async def setup_admin(
     db.add(user)
     try:
         await db.flush()
-        # A fresh database may have rows imported before authentication was
-        # configured. Attach those orphaned games to the first administrator.
         await db.execute(update(Game).where(Game.user_id.is_(None)).values(user_id=user.id))
 
         if payload.oidc_enabled:
+            try:
+                encrypted_client_secret = encrypt_secret(oidc_values["client_secret"])
+            except RuntimeError as exc:
+                raise HTTPException(
+                    status_code=400,
+                    detail="SECRET_KEY must be a valid Fernet key before OIDC secrets can be saved. Generate one with: python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\"",
+                ) from exc
             oidc = OidcSettings(
                 issuer_url=oidc_values["issuer_url"],
                 client_id=oidc_values["client_id"],
-                client_secret=encrypt_secret(oidc_values["client_secret"]),
+                client_secret=encrypted_client_secret,
                 scopes=oidc_values["scopes"],
                 redirect_uri=oidc_values["redirect_uri"],
                 groups_claim=oidc_values["groups_claim"],
                 admin_group=oidc_values["admin_group"],
+                user_match_field=oidc_values["user_match_field"],
             )
             db.add(oidc)
 
