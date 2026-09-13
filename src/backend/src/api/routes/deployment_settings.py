@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 import json
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from src.api.routes.settings import get_or_create_app_integration_settings
 from src.core.auth import get_current_admin
-from src.core.crypto import decrypt_secret, encrypt_secret
+from src.core.crypto import encrypt_secret
 from src.core.provider_credentials import apply_deployment_provider_credentials
 from src.database.models.oidc_settings import OidcSettings
 from src.database.models.user import User
@@ -59,6 +61,15 @@ class DeploymentSettingsRequest(BaseModel):
     oidc_login_button_text: str | None = None
     oidc_allow_new_users: bool | None = None
     oidc_providers_json: str | None = None
+    smtp_enabled: bool | None = None
+    smtp_host: str | None = None
+    smtp_port: int | None = None
+    smtp_username: str | None = None
+    smtp_password: str | None = None
+    smtp_use_tls: bool | None = None
+    smtp_use_ssl: bool | None = None
+    smtp_from_email: str | None = None
+    smtp_from_name: str | None = None
 
 
 _SECRET_FIELDS = {
@@ -99,7 +110,21 @@ def _provider_rows(row):
         data = json.loads(row.providers_json or "[]")
     except (TypeError, ValueError):
         data = []
-    return [p for p in data if isinstance(p, dict) and p.get("enabled", True) and p.get("slug")]
+    return [p for p in data if isinstance(p, dict) and p.get("slug")]
+
+
+def _smtp_view(app):
+    return {
+        "enabled": app.smtp_enabled,
+        "host": app.smtp_host,
+        "port": app.smtp_port,
+        "username": app.smtp_username,
+        "password_configured": bool(app.smtp_password),
+        "use_tls": app.smtp_use_tls,
+        "use_ssl": app.smtp_use_ssl,
+        "from_email": app.smtp_from_email,
+        "from_name": app.smtp_from_name,
+    }
 
 
 async def get_deployment_settings(db: AsyncSession, admin: User) -> dict:
@@ -128,6 +153,7 @@ async def get_deployment_settings(db: AsyncSession, admin: User) -> dict:
             "client_secret_configured": bool(oidc.client_secret),
             "named_providers": named,
         },
+        "smtp": _smtp_view(app),
     }
 
 
@@ -179,9 +205,7 @@ async def update_deployment_settings(
                     raise HTTPException(400, "OIDC user matching must be email or username.")
                 secret = item.get("client_secret") or existing.get(slug, {}).get("client_secret")
                 if not secret:
-                    raise HTTPException(
-                        400, f"Client secret is required for OIDC provider '{name}'."
-                    )
+                    raise HTTPException(400, f"Client secret is required for OIDC provider '{name}'.")
                 if item.get("client_secret"):
                     secret = encrypt_secret(str(item["client_secret"]))
                 normalized.append(
@@ -218,6 +242,17 @@ async def update_deployment_settings(
                 oidc.allow_new_users = bool(value)
             elif value is not None:
                 setattr(oidc, field.removeprefix("oidc_"), value or None)
+        elif field == "smtp_password":
+            if value:
+                app.smtp_password = encrypt_secret(value)
+        elif field == "smtp_port":
+            if value < 1 or value > 65535:
+                raise HTTPException(400, "SMTP port must be between 1 and 65535.")
+            app.smtp_port = value
+        elif field in {"smtp_enabled", "smtp_use_tls", "smtp_use_ssl"}:
+            setattr(app, field, bool(value))
+        elif field.startswith("smtp_"):
+            setattr(app, field, value.strip() if isinstance(value, str) else value)
         elif field in _SECRET_FIELDS:
             if value:
                 setattr(app, field, encrypt_secret(value))
