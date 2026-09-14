@@ -19,7 +19,7 @@ import { currentUser, authChecked, checkAuth } from "../state/auth";
 import Settings from "../views/Settings.vue";
 import { saveLibraryScroll } from "../state/libraryScroll";
 import { appearanceLoaded, loadAppearanceSettings } from "../state/appearance";
-import { fetchSetupStatus } from "../services/setup";
+import { waitForServer } from "../state/serverStartup";
 
 const router = createRouter({
   history: createWebHistory(),
@@ -50,39 +50,29 @@ const router = createRouter({
   ],
 });
 
-let setupState: "unknown" | "required" | "complete" | "error" = "unknown";
+let setupState: "unknown" | "required" | "complete" = "unknown";
 
 router.beforeEach(async (to, from) => {
   if (from.path === "/games") saveLibraryScroll(window.scrollY);
 
-  // Home Hub's "Connect a library" action intentionally points to the
-  // settings root. Give that onboarding path the provider configuration it
-  // describes, while preserving explicit destinations such as the profile dock.
   if (to.path === "/settings" && !to.query.section && from.path === "/") {
     return { path: "/settings", query: { section: "sources" } };
   }
 
   if (to.path === "/reset-password" || to.path === "/login/oidcstart") return;
-  if (setupState === "unknown" || setupState === "error") {
-    try {
-      setupState = (await fetchSetupStatus()).setup_required ? "required" : "complete";
-    } catch {
-      setupState = "error";
-    }
+
+  // Never interpret a transient backend outage as "setup is required". The
+  // frontend stays on App.vue's startup screen and keeps polling until the
+  // backend can answer setup/status successfully.
+  if (setupState === "unknown") {
+    setupState = (await waitForServer()) ? "required" : "complete";
   }
-  if (setupState === "required" && to.path !== "/setup") {
-    try {
-      setupState = (await fetchSetupStatus()).setup_required ? "required" : "complete";
-    } catch {
-      setupState = "error";
-    }
-  }
-  if (setupState === "required" || setupState === "error") {
-    if (to.path !== "/setup") {
-      return { path: "/setup", query: setupState === "error" ? { backend_error: "1" } : undefined };
-    }
+
+  if (setupState === "required") {
+    if (to.path !== "/setup") return { path: "/setup" };
     return;
   }
+
   if (to.path === "/setup") return "/";
   if (!authChecked.value) await checkAuth();
   if (to.path !== "/login" && !currentUser.value) return "/login";
