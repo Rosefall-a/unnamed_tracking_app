@@ -37,7 +37,7 @@ jobs:
       PYTHONPATH: ${{ github.workspace }}/src/backend
       DATABASE_URL: postgresql+psycopg://test:test@localhost:5432/unnamed_tracking_test
       APP_DATA_DIR: ${{ runner.temp }}/unnamed-tracking-data
-      SECRET_KEY: test-secret-key
+      SECRET_KEY: 6-jbOTCGj5-aLxr9cAYKD1bTZytEEVnf-jq51OpRTmc=
 
     steps:
       - name: Check out repository
