@@ -76,8 +76,15 @@ app.include_router(cards.router)
 app.include_router(misc_router)
 
 
-def _legacy_oidc_provider() -> dict[str, object] | None:
-    """Build a named provider from the legacy OIDC environment settings."""
+def _provider_identity(issuer: str, fallback_name: str = "OIDC") -> tuple[str, str]:
+    hostname = (urlparse(issuer).hostname or "").lower()
+    name = hostname.split(".")[0] or fallback_name
+    slug = "".join(char if char.isalnum() else "-" for char in name).strip("-") or "oidc"
+    return name, slug[:80]
+
+
+def _legacy_oidc_provider_from_env() -> dict[str, object] | None:
+    """Build a named provider from the pre-Settings OIDC environment config."""
     if not (
         app_settings.OIDC_ISSUER_URL
         and app_settings.OIDC_CLIENT_ID
@@ -85,12 +92,10 @@ def _legacy_oidc_provider() -> dict[str, object] | None:
     ):
         return None
     issuer = app_settings.OIDC_ISSUER_URL.strip()
-    hostname = (urlparse(issuer).hostname or "oidc").lower()
-    name = hostname.split(".")[0] or "OIDC"
-    slug = "".join(char if char.isalnum() else "-" for char in name).strip("-") or "oidc"
+    name, slug = _provider_identity(issuer)
     return {
         "name": name,
-        "slug": slug[:80],
+        "slug": slug,
         "issuer_url": issuer,
         "client_id": app_settings.OIDC_CLIENT_ID,
         "client_secret": encrypt_secret(app_settings.OIDC_CLIENT_SECRET),
@@ -107,46 +112,74 @@ def _legacy_oidc_provider() -> dict[str, object] | None:
     }
 
 
+def _legacy_oidc_provider_from_row(row: OidcSettings) -> dict[str, object] | None:
+    """Convert the old single-provider database columns into a named provider."""
+    if not (row.issuer_url and row.client_id and row.client_secret):
+        return None
+    issuer = row.issuer_url.strip()
+    name, slug = _provider_identity(issuer)
+    return {
+        "name": name,
+        "slug": slug,
+        "issuer_url": issuer,
+        "client_id": row.client_id,
+        "client_secret": row.client_secret,
+        "scopes": row.scopes or "openid profile email",
+        "redirect_uri": row.redirect_uri,
+        "groups_claim": row.groups_claim or "groups",
+        "admin_group": row.admin_group,
+        "user_match_field": row.user_match_field or "email",
+        "allow_new_users": row.allow_new_users,
+        "button_text": row.login_button_text.strip() or "Continue with SSO",
+        "button_image_url": None,
+        "enabled": True,
+        "show_on_login": True,
+    }
+
+
 async def _migrate_legacy_oidc(db) -> None:
-    """Move legacy .env OIDC settings into the database-backed Settings UI.
+    """Migrate both legacy env-based and legacy single-row OIDC configuration.
 
-    Existing installations historically configured one OIDC provider with
-    OIDC_* environment variables. Keep those variables as a runtime fallback,
-    but copy a configured legacy provider into the new database representation
-    on upgrade so it appears in Settings and in deployment backups.
+    The original Settings model stored one provider directly in issuer/client
+    columns. The current UI reads named providers from providers_json, so an
+    existing database can otherwise appear empty even though its old OIDC
+    configuration is still present.
     """
-    legacy = _legacy_oidc_provider()
-    if legacy is None:
-        return
-
     row = await db.scalar(select(OidcSettings).limit(1))
     if row is None:
         row = OidcSettings()
         db.add(row)
         await db.flush()
 
-    has_legacy = bool(row.issuer_url and row.client_id and row.client_secret)
     try:
-        existing_providers = json.loads(row.providers_json or "[]")
+        existing = json.loads(row.providers_json or "[]")
     except (TypeError, ValueError):
-        existing_providers = []
-    if not isinstance(existing_providers, list):
-        existing_providers = []
-
-    if has_legacy or existing_providers:
+        existing = []
+    if not isinstance(existing, list):
+        existing = []
+    if existing:
         return
 
-    row.issuer_url = str(legacy["issuer_url"])
-    row.client_id = str(legacy["client_id"])
-    row.client_secret = str(legacy["client_secret"])
-    row.scopes = str(legacy["scopes"])
-    row.redirect_uri = legacy["redirect_uri"]
-    row.groups_claim = str(legacy["groups_claim"])
-    row.admin_group = legacy["admin_group"]
-    row.user_match_field = str(legacy["user_match_field"])
-    row.login_button_text = str(legacy["button_text"])
-    row.allow_new_users = bool(legacy["allow_new_users"])
-    row.providers_json = json.dumps([legacy])
+    provider = _legacy_oidc_provider_from_row(row)
+    if provider is None:
+        provider = _legacy_oidc_provider_from_env()
+    if provider is None:
+        return
+
+    # If the provider came from the legacy environment, also populate the old
+    # columns so older runtime paths remain compatible during the transition.
+    if not row.issuer_url:
+        row.issuer_url = str(provider["issuer_url"])
+        row.client_id = str(provider["client_id"])
+        row.client_secret = str(provider["client_secret"])
+        row.scopes = str(provider["scopes"])
+        row.redirect_uri = provider["redirect_uri"]
+        row.groups_claim = str(provider["groups_claim"])
+        row.admin_group = provider["admin_group"]
+        row.user_match_field = str(provider["user_match_field"])
+        row.login_button_text = str(provider["button_text"])
+        row.allow_new_users = bool(provider["allow_new_users"])
+    row.providers_json = json.dumps([provider])
     await db.commit()
 
 
