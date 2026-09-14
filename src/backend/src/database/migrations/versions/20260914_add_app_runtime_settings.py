@@ -32,10 +32,15 @@ def upgrade() -> None:
         "app_integration_settings",
         sa.Column("max_world_save_size_mb", sa.Integer(), nullable=False, server_default="2000"),
     )
+    op.add_column(
+        "app_integration_settings",
+        sa.Column("runtime_settings_initialized", sa.Boolean(), nullable=False, server_default=sa.false()),
+    )
 
 
 def downgrade() -> None:
     for column in (
+        "runtime_settings_initialized",
         "max_world_save_size_mb",
         "max_clip_size_mb",
         "max_upload_size_mb",
