@@ -1,0 +1,64 @@
+# Reuse the existing runtime choices from the frontend and backend images:
+# Python 3.12 remains the application runtime, while Node 22 is copied from
+# the same official image used by src/frontend/Dockerfile.
+FROM node:22-slim AS node-runtime
+FROM python:3.12-slim
+
+WORKDIR /app
+
+# Backend system dependencies (kept aligned with src/backend/dockerfile).
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    postgresql-client \
+    curl \
+    unzip \
+    && rm -rf /var/lib/apt/lists/*
+
+# Node.js runtime for the existing Vite frontend.
+COPY --from=node-runtime /usr/local/bin/node /usr/local/bin/node
+COPY --from=node-runtime /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/npm
+RUN ln -s /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
+    && ln -s /usr/local/lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx
+
+# Java 25 JRE — BlueMap 5.23's cli jar is compiled for class file version 69.
+RUN curl -fL -o /tmp/jre.tar.gz \
+    https://github.com/adoptium/temurin25-binaries/releases/download/jdk-25.0.4.1%2B1/OpenJDK25U-jre_x64_linux_hotspot_25.0.4.1_1.tar.gz \
+    && mkdir -p /opt/java \
+    && tar -xzf /tmp/jre.tar.gz -C /opt/java --strip-components=1 \
+    && rm /tmp/jre.tar.gz
+ENV JAVA_HOME=/opt/java
+ENV PATH="${JAVA_HOME}/bin:${PATH}"
+
+# BlueMap CLI — keep the same pinned dependency as the existing backend image.
+RUN curl -fL -o /opt/bluemap-cli.jar \
+    https://github.com/BlueMap-Minecraft/BlueMap/releases/download/v5.23/bluemap-5.23-cli.jar
+
+# Reuse the backend's existing dependency manifest; do not create a combined
+# requirements file that would drift from the standalone backend image.
+COPY src/backend/requirements.txt /app/backend-requirements.txt
+RUN pip install --no-cache-dir -r /app/backend-requirements.txt
+
+# Keep the backend's existing /app layout so relative paths and alembic.ini
+# behave exactly as they do in src/backend/dockerfile.
+COPY src/backend/src /app/src
+COPY src/backend/alembic.ini /app/alembic.ini
+COPY src/backend/entrypoint.sh /app/backend-entrypoint.sh
+RUN chmod +x /app/backend-entrypoint.sh
+
+# Keep the frontend as the same Vite development application used by its
+# standalone image, just under /app/frontend so it can coexist with /app/src.
+COPY src/frontend/package*.json /app/frontend/
+WORKDIR /app/frontend
+RUN npm install
+COPY src/frontend/. /app/frontend/
+
+WORKDIR /app
+
+ENV APP_MODE=both
+
+EXPOSE 80 8000
+
+COPY docker/central-entrypoint.sh /usr/local/bin/central-entrypoint.sh
+RUN chmod +x /usr/local/bin/central-entrypoint.sh
+
+ENTRYPOINT ["/usr/local/bin/central-entrypoint.sh"]
