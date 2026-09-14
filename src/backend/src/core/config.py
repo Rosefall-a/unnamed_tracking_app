@@ -104,6 +104,8 @@ class Settings(BaseSettings):
     OIDC_USER_MATCH_FIELD: str = "email"
 
     # The generated/persisted key is deliberately not a normal .env setting.
+    # The post-instantiation assignment below makes the persisted copy
+    # authoritative even when an old SECRET_KEY is still present in .env.
     SECRET_KEY: str = _persistent_fernet_key()
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
@@ -146,3 +148,4 @@ class Settings(BaseSettings):
 
 
 settings = Settings()  # type: ignore[call-arg]
+settings.SECRET_KEY = _persistent_fernet_key()
