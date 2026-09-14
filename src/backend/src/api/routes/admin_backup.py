@@ -30,13 +30,29 @@ from src.database.models.oidc_settings import OidcSettings
 from src.database.models.user import User
 from src.database.session import get_db
 
-router = APIRouter(prefix="/api/settings/backup", tags=["settings"], dependencies=[Depends(get_current_admin)])
+router = APIRouter(
+    prefix="/api/settings/backup", tags=["settings"], dependencies=[Depends(get_current_admin)]
+)
 
 _KDF_ITERATIONS = 600_000
 _SALT_BYTES = 16
 _MIN_PASSWORD_LENGTH = 12
-_SECRET_APP_FIELDS = {"steamgriddb_api_key", "retroachievements_api_key", "giantbomb_api_key", "igdb_client_secret", "screenscraper_sspassword", "screenscraper_devpassword", "xbox_client_secret", "smtp_password"}
-_USER_SECRET_FIELDS = {"psn_npsso_token", "screenscraper_sspassword", "xbox_client_secret", "gog_refresh_token"}
+_SECRET_APP_FIELDS = {
+    "steamgriddb_api_key",
+    "retroachievements_api_key",
+    "giantbomb_api_key",
+    "igdb_client_secret",
+    "screenscraper_sspassword",
+    "screenscraper_devpassword",
+    "xbox_client_secret",
+    "smtp_password",
+}
+_USER_SECRET_FIELDS = {
+    "psn_npsso_token",
+    "screenscraper_sspassword",
+    "xbox_client_secret",
+    "gog_refresh_token",
+}
 
 
 class SecretBackupRequest(BaseModel):
@@ -113,11 +129,16 @@ def _decode_backup(raw: bytes, password: str) -> dict[str, Any]:
         if envelope.get("format") != "archive-deployment-backup-encrypted":
             raise ValueError("unsupported backup format")
         salt = base64.urlsafe_b64decode(envelope["salt"].encode("ascii"))
-        plaintext = Fernet(_password_key(password, salt)).decrypt(envelope["ciphertext"].encode("ascii"))
+        plaintext = Fernet(_password_key(password, salt)).decrypt(
+            envelope["ciphertext"].encode("ascii")
+        )
         backup = json.loads(plaintext.decode("utf-8"))
     except (ValueError, KeyError, TypeError, json.JSONDecodeError, InvalidToken) as exc:
         raise HTTPException(400, "The backup file or password is invalid.") from exc
-    if backup.get("format") != "archive-deployment-backup" or backup.get("format_version") not in {1, 2}:
+    if backup.get("format") != "archive-deployment-backup" or backup.get("format_version") not in {
+        1,
+        2,
+    }:
         raise HTTPException(400, "Unsupported deployment backup format.")
     if not isinstance(backup.get("fernet_keys"), list):
         raise HTTPException(400, "Backup is missing its Fernet key copies.")
@@ -125,26 +146,71 @@ def _decode_backup(raw: bytes, password: str) -> dict[str, Any]:
 
 
 @router.post("/export")
-async def export_secret_backup(payload: SecretBackupRequest, db: AsyncSession = Depends(get_db), admin: User = Depends(get_current_admin)) -> Response:
+async def export_secret_backup(
+    payload: SecretBackupRequest,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(get_current_admin),
+) -> Response:
     del admin
     app = await get_or_create_app_integration_settings(db)
     oidc = await db.scalar(select(OidcSettings).limit(1)) or OidcSettings()
     backup = {
-        "format": "archive-deployment-backup", "format_version": 2, "exported_at": int(time.time()),
-        "scope": {"includes": ["deployment application settings", "provider credentials", "SMTP credentials", "OIDC configuration and provider secrets", "persistent Fernet encryption keys"], "excludes": ["users", "sessions", "user credentials and API keys", "libraries and games", "media and uploaded files", "user preferences and scan settings", "database connection credentials"]},
-        "app_integration_settings": _serialize_model(app, _SECRET_APP_FIELDS), "oidc_settings": _oidc_export(oidc), "fernet_keys": _key_copies(),
+        "format": "archive-deployment-backup",
+        "format_version": 2,
+        "exported_at": int(time.time()),
+        "scope": {
+            "includes": [
+                "deployment application settings",
+                "provider credentials",
+                "SMTP credentials",
+                "OIDC configuration and provider secrets",
+                "persistent Fernet encryption keys",
+            ],
+            "excludes": [
+                "users",
+                "sessions",
+                "user credentials and API keys",
+                "libraries and games",
+                "media and uploaded files",
+                "user preferences and scan settings",
+                "database connection credentials",
+            ],
+        },
+        "app_integration_settings": _serialize_model(app, _SECRET_APP_FIELDS),
+        "oidc_settings": _oidc_export(oidc),
+        "fernet_keys": _key_copies(),
     }
     plaintext = json.dumps(backup, sort_keys=True, separators=(",", ":")).encode("utf-8")
     salt = secrets.token_bytes(_SALT_BYTES)
     token = Fernet(_password_key(payload.password, salt)).encrypt(plaintext)
-    envelope = {"format": "archive-deployment-backup-encrypted", "format_version": 2, "kdf": "PBKDF2-HMAC-SHA256", "iterations": _KDF_ITERATIONS, "salt": base64.urlsafe_b64encode(salt).decode("ascii"), "ciphertext": token.decode("ascii")}
+    envelope = {
+        "format": "archive-deployment-backup-encrypted",
+        "format_version": 2,
+        "kdf": "PBKDF2-HMAC-SHA256",
+        "iterations": _KDF_ITERATIONS,
+        "salt": base64.urlsafe_b64encode(salt).decode("ascii"),
+        "ciphertext": token.decode("ascii"),
+    }
     body = (json.dumps(envelope, sort_keys=True, indent=2) + "\n").encode("utf-8")
     filename = f"archive-deployment-backup-{time.strftime('%Y%m%d-%H%M%S', time.gmtime())}.json"
-    return Response(content=body, media_type="application/json", headers={"Content-Disposition": f'attachment; filename="{filename}"', "Cache-Control": "no-store", "Pragma": "no-cache"})
+    return Response(
+        content=body,
+        media_type="application/json",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Cache-Control": "no-store",
+            "Pragma": "no-cache",
+        },
+    )
 
 
 @router.post("/import")
-async def import_secret_backup(payload: SecretBackupRequest, backup_file: UploadFile = File(...), db: AsyncSession = Depends(get_db), admin: User = Depends(get_current_admin)) -> dict[str, Any]:
+async def import_secret_backup(
+    payload: SecretBackupRequest,
+    backup_file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(get_current_admin),
+) -> dict[str, Any]:
     del admin
     backup = _decode_backup(await backup_file.read(), payload.password)
     valid_keys = []
@@ -173,7 +239,11 @@ async def import_secret_backup(payload: SecretBackupRequest, backup_file: Upload
     app_columns = {column.name for column in app.__table__.columns}
     for field, value in app_payload.items():
         if field in app_columns and field not in {"id", "updated_at"}:
-            setattr(app, field, encrypt_secret(str(value)) if field in _SECRET_APP_FIELDS and value else value)
+            setattr(
+                app,
+                field,
+                encrypt_secret(str(value)) if field in _SECRET_APP_FIELDS and value else value,
+            )
 
     oidc = await db.scalar(select(OidcSettings).limit(1))
     if oidc is None:
@@ -181,9 +251,18 @@ async def import_secret_backup(payload: SecretBackupRequest, backup_file: Upload
         db.add(oidc)
     oidc_columns = {column.name for column in oidc.__table__.columns}
     for field, value in oidc_payload.items():
-        if field in oidc_columns and field not in {"id", "updated_at", "providers_json", "client_secret"}:
+        if field in oidc_columns and field not in {
+            "id",
+            "updated_at",
+            "providers_json",
+            "client_secret",
+        }:
             setattr(oidc, field, value)
-    oidc.client_secret = encrypt_secret(str(oidc_payload["client_secret"])) if oidc_payload.get("client_secret") else None
+    oidc.client_secret = (
+        encrypt_secret(str(oidc_payload["client_secret"]))
+        if oidc_payload.get("client_secret")
+        else None
+    )
     try:
         providers = json.loads(oidc_payload.get("providers_json", "[]") or "[]")
     except (TypeError, ValueError) as exc:
@@ -198,11 +277,19 @@ async def import_secret_backup(payload: SecretBackupRequest, backup_file: Upload
     await db.commit()
     apply_runtime_settings(app)
     apply_deployment_provider_credentials(app)
-    return {"restored": True, "sessions_revoked": True, "message": "Deployment configuration restored. Users must sign in again; user accounts and library data were not imported."}
+    return {
+        "restored": True,
+        "sessions_revoked": True,
+        "message": "Deployment configuration restored. Users must sign in again; user accounts and library data were not imported.",
+    }
 
 
 @router.post("/rotate-key")
-async def rotate_encryption_key(payload: KeyRotationRequest, db: AsyncSession = Depends(get_db), admin: User = Depends(get_current_admin)) -> dict[str, Any]:
+async def rotate_encryption_key(
+    payload: KeyRotationRequest,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(get_current_admin),
+) -> dict[str, Any]:
     del admin
     if not payload.confirm:
         raise HTTPException(status_code=400, detail="Key rotation was not confirmed.")
@@ -215,7 +302,9 @@ async def rotate_encryption_key(payload: KeyRotationRequest, db: AsyncSession = 
         try:
             plaintext = old_fernet.decrypt(value.encode())
         except InvalidToken as exc:
-            raise HTTPException(500, "A stored secret could not be decrypted during key rotation.") from exc
+            raise HTTPException(
+                500, "A stored secret could not be decrypted during key rotation."
+            ) from exc
         return new_fernet.encrypt(plaintext).decode()
 
     app = await get_or_create_app_integration_settings(db)
@@ -242,4 +331,9 @@ async def rotate_encryption_key(payload: KeyRotationRequest, db: AsyncSession = 
     app_settings.SECRET_KEY = new_key
     _fernet.cache_clear()
     apply_deployment_provider_credentials(app)
-    return {"rotated": True, "sessions_revoked": True, "users_required_to_sign_in_again": len(users), "message": "Encryption key rotated successfully. The previous key is retained for recovery until the next rotation."}
+    return {
+        "rotated": True,
+        "sessions_revoked": True,
+        "users_required_to_sign_in_again": len(users),
+        "message": "Encryption key rotated successfully. The previous key is retained for recovery until the next rotation.",
+    }
