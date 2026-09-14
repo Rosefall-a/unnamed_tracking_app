@@ -20,10 +20,7 @@ export default defineConfig({
     proxy: {
       "/api": {
         target: backendUrl,
-        // Keep the browser-facing Host header. OIDC uses the request host
-        // when a named provider has no explicit redirect URI, so changing
-        // the host to backend:8000 would generate an unusable callback URL.
-        changeOrigin: false,
+        changeOrigin: true,
       },
     },
   },
