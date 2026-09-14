@@ -15,6 +15,15 @@ def _bootstrap_value(name: str) -> str:
     return str(dotenv_values(".env").get(name) or "").strip()
 
 
+def _paths() -> tuple[Path, Path, Path]:
+    config_dir = Path(_bootstrap_value("APP_DATA_DIR") or "/data") / "config"
+    return (
+        config_dir / "fernet.key",
+        config_dir / "fernet.key.1",
+        config_dir / "fernet.key.2",
+    )
+
+
 def persistent_fernet_key() -> str:
     """Load the installation key from three redundant copies.
 
@@ -23,8 +32,7 @@ def persistent_fernet_key() -> str:
     single damaged/missing copy is repaired. If two valid copies disagree,
     startup fails closed rather than risking encrypted-secret loss.
     """
-    config_dir = Path(_bootstrap_value("APP_DATA_DIR") or "/data") / "config"
-    paths = [config_dir / "fernet.key", config_dir / "fernet.key.1", config_dir / "fernet.key.2"]
+    paths = _paths()
     env_key = _bootstrap_value("SECRET_KEY")
 
     valid: list[str] = []
@@ -45,9 +53,15 @@ def persistent_fernet_key() -> str:
             raise RuntimeError(
                 "The three persistent Fernet key copies do not have a matching "
                 "majority. Refusing to start; restore at least two matching "
-                f"copies in {config_dir}."
+                f"copies in {paths[0].parent}."
             )
 
+    _write_current_key(key, paths)
+    return key
+
+
+def _write_current_key(key: str, paths: tuple[Path, Path, Path]) -> None:
+    config_dir = paths[0].parent
     try:
         config_dir.mkdir(parents=True, exist_ok=True)
         for path in paths:
@@ -59,4 +73,34 @@ def persistent_fernet_key() -> str:
             "Mount APP_DATA_DIR as a writable persistent volume."
         ) from exc
 
-    return key
+
+def rotate_persistent_fernet_key() -> tuple[str, str]:
+    """Create a new current key while retaining the old key for decryption.
+
+    The old key is placed in a separate decrypt-only file before the new key
+    becomes current. This gives a safe overlap window while database secrets
+    are re-encrypted. The previous key is deliberately never used for new
+    encryption operations.
+    """
+    paths = _paths()
+    old_key = persistent_fernet_key()
+    new_key = Fernet.generate_key().decode()
+    previous_path = paths[0].parent / "fernet.key.previous"
+    try:
+        previous_path.parent.mkdir(parents=True, exist_ok=True)
+        previous_path.write_text(old_key + "\n", encoding="utf-8")
+        previous_path.chmod(0o600)
+    except OSError as exc:
+        raise RuntimeError("Could not persist the previous Fernet key during rotation.") from exc
+    _write_current_key(new_key, paths)
+    return old_key, new_key
+
+
+def previous_fernet_key() -> str | None:
+    path = _paths()[0].parent / "fernet.key.previous"
+    try:
+        value = path.read_text(encoding="utf-8").strip()
+        Fernet(value.encode())
+        return value
+    except (OSError, ValueError, TypeError):
+        return None
