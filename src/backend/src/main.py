@@ -4,6 +4,7 @@ import json
 from urllib.parse import urlparse
 
 from fastapi import FastAPI
+from sqlalchemy import select
 from starlette.middleware.sessions import SessionMiddleware
 from src.api.routes import (
     admin_backup,
@@ -118,7 +119,7 @@ async def _migrate_legacy_oidc(db) -> None:
     if legacy is None:
         return
 
-    row = await db.scalar(__import__("sqlalchemy").select(OidcSettings).limit(1))
+    row = await db.scalar(select(OidcSettings).limit(1))
     if row is None:
         row = OidcSettings()
         db.add(row)
