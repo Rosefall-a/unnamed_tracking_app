@@ -28,15 +28,28 @@ docker compose exec backend alembic -c alembic.ini revision --autogenerate -m "y
 
 The repository also publishes a central Docker image containing both the existing backend and frontend applications. The standalone backend and frontend images remain available and are still built by the existing Docker workflow.
 
-The central image uses the same backend `requirements.txt`, the same Python 3.12/BlueMap runtime, and the same frontend `package.json` rather than maintaining duplicate dependency manifests.
+The central image lives under `src/central/` and reuses the existing backend `requirements.txt`, the same Python 3.12/BlueMap runtime, and the existing frontend `package.json` rather than maintaining duplicate dependency manifests.
 
 ### Build locally
 
 From the repository root:
 
 ```bash
-docker build -f Dockerfile.central -t unnamed-tracking-app-central .
+docker build -f src/central/Dockerfile -t unnamed-tracking-app-central .
 ```
+
+### Docker Compose example
+
+A complete combined-image Compose example, including PostgreSQL and an example environment file, is provided in `src/central/`:
+
+```bash
+cd src/central
+cp example.env .env
+# Edit .env and replace the placeholder passwords/API keys.
+docker compose -f docker-compose.yaml up -d --build
+```
+
+The example publishes the frontend at `http://localhost:5173` and the backend at `http://localhost:8000`. The central image's Vite proxy uses `BACKEND_URL=http://127.0.0.1:8000` because both applications run inside the same container.
 
 ### Run modes
 
@@ -46,7 +59,7 @@ Set `APP_MODE` to choose which application(s) the container starts:
 - `backend`: starts only the backend on port `8000`.
 - `frontend`: starts only Vite on port `80`.
 
-For the normal combined setup, publish both ports and provide the same environment variables required by the backend:
+For a normal combined container, publish both ports and provide the same environment variables required by the backend:
 
 ```bash
 docker run --rm \
