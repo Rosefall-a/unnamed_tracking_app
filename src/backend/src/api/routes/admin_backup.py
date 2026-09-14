@@ -8,11 +8,9 @@ file is encrypted before it leaves the server.
 from __future__ import annotations
 
 import base64
-import hashlib
 import json
 import secrets
 import time
-from pathlib import Path
 from typing import Any
 
 from cryptography.fernet import Fernet
@@ -25,8 +23,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.routes.settings import get_or_create_app_integration_settings
 from src.core.auth import get_current_admin
-from src.core.config import settings as app_settings
 from src.core.crypto import decrypt_secret
+from src.core.data_paths import DATA_ROOT
 from src.database.models.oidc_settings import OidcSettings
 from src.database.models.user import User
 from src.database.session import get_db
@@ -76,13 +74,13 @@ def _serialize_model(row: Any, secret_fields: set[str]) -> dict[str, Any]:
 
 def _oidc_export(row: OidcSettings) -> dict[str, Any]:
     result = _serialize_model(row, {"client_secret"})
-    providers: list[dict[str, Any]] = []
     try:
         raw = json.loads(row.providers_json or "[]")
     except (TypeError, ValueError) as exc:
         raise HTTPException(500, "Saved OIDC provider configuration is invalid.") from exc
     if not isinstance(raw, list):
         raise HTTPException(500, "Saved OIDC provider configuration is invalid.")
+    providers: list[dict[str, Any]] = []
     for provider in raw:
         if not isinstance(provider, dict):
             raise HTTPException(500, "Saved OIDC provider configuration is invalid.")
@@ -95,7 +93,7 @@ def _oidc_export(row: OidcSettings) -> dict[str, Any]:
 
 
 def _key_copies() -> list[str]:
-    config_dir = Path(app_settings.APP_DATA_DIR if hasattr(app_settings, "APP_DATA_DIR") else "/data") / "config"
+    config_dir = DATA_ROOT / "config"
     values = []
     for name in ("fernet.key", "fernet.key.1", "fernet.key.2"):
         path = config_dir / name
