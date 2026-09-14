@@ -39,8 +39,16 @@ from src.database.session import SessionLocal
 from src.features.backup.scheduler import run_backup_loop
 from src.features.trash.sweep import run_sweep_loop
 
-app = FastAPI(title="Archive",docs_url="/api/docs",redoc_url="/api/redoc",openapi_url="/api/openapi.json")
-app.add_middleware(SessionMiddleware,secret_key=app_settings.SECRET_KEY,session_cookie=f"oidc_state_{COOKIE_NAMESPACE}",same_site="lax",https_only=app_settings.AUTH_COOKIE_SECURE)
+app = FastAPI(
+    title="Archive", docs_url="/api/docs", redoc_url="/api/redoc", openapi_url="/api/openapi.json"
+)
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=app_settings.SECRET_KEY,
+    session_cookie=f"oidc_state_{COOKIE_NAMESPACE}",
+    same_site="lax",
+    https_only=app_settings.AUTH_COOKIE_SECURE,
+)
 app.include_router(default_game_assets.router)
 app.include_router(games.router)
 app.include_router(game_archives.router)
@@ -65,6 +73,7 @@ app.include_router(set_routes.router)
 app.include_router(cards.router)
 app.include_router(misc_router)
 
+
 @app.on_event("startup")
 async def bootstrap_application_settings() -> None:
     ensure_data_directories()
@@ -80,13 +89,16 @@ async def bootstrap_application_settings() -> None:
         apply_runtime_settings(app_integrations_row)
         apply_deployment_provider_credentials(app_integrations_row)
 
+
 @app.on_event("startup")
 async def start_trash_sweep() -> None:
     asyncio.create_task(run_sweep_loop())
 
+
 @app.on_event("startup")
 async def start_backup_loop() -> None:
     asyncio.create_task(run_backup_loop())
+
 
 @app.get("/health")
 def health():
