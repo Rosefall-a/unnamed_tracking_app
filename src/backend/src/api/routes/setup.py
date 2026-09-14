@@ -9,10 +9,10 @@ from sqlalchemy import select, text, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.api.routes.settings import get_or_create_app_integration_settings
 from src.core.auth import SESSION_COOKIE, hash_password, hash_token, validate_password
 from src.core.config import settings
 from src.core.crypto import encrypt_secret
-from src.database.models.app_integration_settings import AppIntegrationSettings
 from src.database.models.auth import UserSession
 from src.database.models.game import Game
 from src.database.models.oidc_settings import OidcSettings
@@ -150,19 +150,16 @@ async def setup_admin(
                 )
             )
         if payload.smtp_enabled:
-            db.add(
-                AppIntegrationSettings(
-                    smtp_enabled=True,
-                    smtp_host=smtp_host,
-                    smtp_port=payload.smtp_port,
-                    smtp_username=smtp_username,
-                    smtp_password=encrypt_secret(smtp_password) if smtp_password else None,
-                    smtp_use_tls=payload.smtp_use_tls,
-                    smtp_use_ssl=payload.smtp_use_ssl,
-                    smtp_from_email=smtp_from_email,
-                    smtp_from_name=smtp_from_name,
-                )
-            )
+            app_integrations = await get_or_create_app_integration_settings(db)
+            app_integrations.smtp_enabled = True
+            app_integrations.smtp_host = smtp_host
+            app_integrations.smtp_port = payload.smtp_port
+            app_integrations.smtp_username = smtp_username
+            app_integrations.smtp_password = encrypt_secret(smtp_password) if smtp_password else None
+            app_integrations.smtp_use_tls = payload.smtp_use_tls
+            app_integrations.smtp_use_ssl = payload.smtp_use_ssl
+            app_integrations.smtp_from_email = smtp_from_email
+            app_integrations.smtp_from_name = smtp_from_name
         session_token = secrets.token_urlsafe(32)
         db.add(
             UserSession(
