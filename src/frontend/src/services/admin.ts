@@ -117,3 +117,19 @@ export async function setUserAdmin(
   }
   return await response.json();
 }
+
+export async function exportDeploymentBackup(password: string): Promise<Blob> {
+  const response = await fetch("/api/settings/backup/export", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ password }),
+  });
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(
+      `Failed to export deployment backup: ${response.status} ${message}`,
+    );
+  }
+  return await response.blob();
+}
