@@ -106,7 +106,7 @@ class Settings(BaseSettings):
     # The generated/persisted key is deliberately not a normal .env setting.
     SECRET_KEY: str = _persistent_fernet_key()
 
-    model_config = SettingsConfigDict(extra="ignore")
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     @model_validator(mode="after")
     def build_database_url(self) -> "Settings":
