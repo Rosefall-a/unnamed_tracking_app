@@ -20,7 +20,6 @@ import Settings from "../views/Settings.vue";
 import { saveLibraryScroll } from "../state/libraryScroll";
 import { appearanceLoaded, loadAppearanceSettings } from "../state/appearance";
 import { waitForServer } from "../state/serverStartup";
-import { oidcLoginStatus } from "../services/oidc";
 
 const router = createRouter({
   history: createWebHistory(),
@@ -69,29 +68,10 @@ router.beforeEach(async (to, from) => {
     return { path: "/settings", query: { section: "sources" } };
   }
 
-  // The legacy /login/oidcstart URL starts the configured default provider.
-  // For the new named-provider configuration, make "SSO" the actual default
-  // when the admin has selected it: use the first enabled provider that has
-  // autostart enabled. Query-string returns from OIDC must not trigger it
-  // again, otherwise the successful callback would immediately restart SSO.
-  if (
-    to.path === "/login" &&
-    to.query.oidc !== "success" &&
-    typeof to.query.oidc_error !== "string"
-  ) {
-    try {
-      const status = await oidcLoginStatus();
-      if (status.default_login_method === "sso") {
-        const provider = status.providers.find((item) => item.autostart_enabled);
-        if (provider) {
-          return { path: `/login/oidcstart/${encodeURIComponent(provider.slug)}` };
-        }
-      }
-    } catch {
-      // If OIDC status cannot be loaded, keep the normal login page usable.
-    }
-  }
-
+  // The normal login page is always reachable. The "SSO" default-login
+  // setting only changes which login UI is shown; it never starts an
+  // authentication redirect. Explicit /login/oidcstart URLs remain the
+  // opt-in autostart mechanism.
   if (
     to.path === "/reset-password" ||
     to.path.startsWith("/login/oidcstart") ||
