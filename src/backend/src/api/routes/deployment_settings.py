@@ -1,6 +1,7 @@
 from __future__ import annotations
 import asyncio, json, logging, re
-from fastapi import APIRouter, Depends, HTTPException
+from urllib.parse import urlsplit, urlunsplit
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -102,21 +103,34 @@ async def _oidc_row(db):
     return row
 
 
-def _provider_view(raw):
-    item = dict(raw)
-    item["client_secret_configured"] = bool(item.pop("client_secret", None))
-    item.setdefault("show_on_login", True)
-    item.setdefault("button_color", "#d68a34")
-    item.setdefault("autostart_enabled", True)
-    return item
-
-
 def _provider_rows(row):
     try:
         data = json.loads(row.providers_json or "[]")
     except (TypeError, ValueError):
         data = []
     return [p for p in data if isinstance(p, dict) and p.get("slug")]
+
+
+def _effective_redirect_uri(request: Request, provider: dict) -> str:
+    configured = str(provider.get("redirect_uri") or "").strip()
+    slug = str(provider.get("slug") or "").strip()
+    if configured:
+        parts = urlsplit(configured)
+        if slug and parts.path.rstrip("/") == "/api/auth/oidc/callback":
+            parts = parts._replace(path=f"/api/auth/oidc/callback/{slug}")
+            return urlunsplit(parts)
+        return configured
+    return str(request.url_for("oidc_callback_provider", provider_slug=slug))
+
+
+def _provider_view(raw, request: Request):
+    item = dict(raw)
+    item["client_secret_configured"] = bool(item.pop("client_secret", None))
+    item.setdefault("show_on_login", True)
+    item.setdefault("button_color", "#d68a34")
+    item.setdefault("autostart_enabled", True)
+    item["redirect_uri"] = _effective_redirect_uri(request, item)
+    return item
 
 
 def _smtp_view(app):
@@ -143,7 +157,7 @@ def _runtime_view(app):
     }
 
 
-async def get_deployment_settings(db: AsyncSession, admin: User) -> dict:
+async def get_deployment_settings(db: AsyncSession, admin: User, request: Request) -> dict:
     del admin
     app = await get_or_create_app_integration_settings(db)
     oidc = await _oidc_row(db)
@@ -166,7 +180,7 @@ async def get_deployment_settings(db: AsyncSession, admin: User) -> dict:
             "login_button_text": oidc.login_button_text.strip() or "Continue with SSO",
             "allow_new_users": oidc.allow_new_users,
             "client_secret_configured": bool(oidc.client_secret),
-            "named_providers": [_provider_view(p) for p in _provider_rows(oidc)],
+            "named_providers": [_provider_view(p, request) for p in _provider_rows(oidc)],
         },
         "smtp": _smtp_view(app),
         "runtime": _runtime_view(app),
@@ -175,14 +189,17 @@ async def get_deployment_settings(db: AsyncSession, admin: User) -> dict:
 
 @router.get("")
 async def read_deployment_settings(
-    db: AsyncSession = Depends(get_db), admin: User = Depends(get_current_admin)
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(get_current_admin),
 ) -> dict:
-    return await get_deployment_settings(db, admin)
+    return await get_deployment_settings(db, admin, request)
 
 
 @router.put("")
 async def update_deployment_settings(
     payload: DeploymentSettingsRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     admin: User = Depends(get_current_admin),
 ) -> dict:
@@ -295,7 +312,7 @@ async def update_deployment_settings(
     await db.commit()
     apply_runtime_settings(app)
     apply_deployment_provider_credentials(app)
-    return await get_deployment_settings(db, admin)
+    return await get_deployment_settings(db, admin, request)
 
 
 @router.post("/test-smtp")
