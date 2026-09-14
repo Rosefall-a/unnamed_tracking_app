@@ -20,7 +20,14 @@ _HASH_BYTES: Final = 32
 _SCRYPT_N: Final = 2**14
 _SCRYPT_R: Final = 8
 _SCRYPT_P: Final = 1
-SESSION_COOKIE: Final = "session"
+
+# Browsers scope cookies by domain/path, but not by port. Two separate
+# self-hosted installs accessed as localhost:8000 and localhost:9000 would
+# otherwise both use the same cookie named "session". The persistent Fernet
+# key is unique to an installation, so use a short deterministic hash of it
+# as the cookie namespace. This remains stable across restarts.
+_COOKIE_NAMESPACE: Final = hashlib.sha256(settings.SECRET_KEY.encode("utf-8")).hexdigest()[:16]
+SESSION_COOKIE: Final = f"session_{_COOKIE_NAMESPACE}"
 API_KEY_PREFIX: Final = "utk_"
 
 
