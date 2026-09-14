@@ -3,6 +3,27 @@ set -eu
 
 APP_MODE="${APP_MODE:-both}"
 
+# The same image can run the frontend by itself or alongside its backend.
+# Keep the overrideable BACKEND_URL as the single escape hatch for unusual
+# deployments, while choosing sensible Docker defaults automatically.
+if [ -z "${BACKEND_URL:-}" ]; then
+    case "$APP_MODE" in
+        frontend)
+            BACKEND_URL="http://backend:8000"
+            ;;
+        both)
+            BACKEND_URL="http://127.0.0.1:8000"
+            ;;
+        *)
+            BACKEND_URL="http://127.0.0.1:8000"
+            ;;
+    esac
+fi
+export BACKEND_URL
+
+echo "Application mode: $APP_MODE"
+echo "Frontend API proxy: $BACKEND_URL"
+
 start_backend() {
     echo "Starting backend..."
     echo "Applying database migrations..."
