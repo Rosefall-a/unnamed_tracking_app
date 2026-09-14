@@ -90,7 +90,7 @@ async function handleLogout() {
           <circle cx="12" cy="8" r="4" />
           <path d="M4 20c0-4.4 3.6-7 8-7s8 2.6 8 7" />
         </svg>
-        <span>Profile</span>
+        <span>{{ currentUser?.username || "Profile" }}</span>
       </router-link>
 
       <div class="sidebar-divider"></div>
@@ -441,7 +441,7 @@ async function handleLogout() {
         </svg>
         <span>Settings</span>
       </router-link>
-      <button type="button" class="sidebar-item" @click="handleLogout">
+      <button type="button" class="sidebar-item logout-item" @click="handleLogout">
         <svg
           viewBox="0 0 24 24"
           width="18"
@@ -711,6 +711,9 @@ async function handleLogout() {
 }
 .sidebar-spacer {
   flex: 1;
+}
+.logout-item {
+  margin-top: 8px;
 }
 .sidebar-slide-enter-active,
 .sidebar-slide-leave-active {

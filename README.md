@@ -1,17 +1,29 @@
-# Authentication setup
+# Running the API
 
-New installations no longer require an administrator username, email, or password in `.env`. After the database migrations complete, open the application and it will redirect to `/setup`, where the first administrator creates their account. The setup endpoint is one-time and creates the first administrator plus a normal 30-day HttpOnly session.
+docker compose down -v
+docker compose up -d --build
+docker compose run --rm backend
 
-## OIDC / SSO
+# Backend checks
+cd src/backend
+mypy --config-file pyproject.toml src
+pylint --rcfile=pyproject.toml src
 
-OIDC is optional. Set these variables in the backend environment:
+# Frontend checks
+cd /src/frontend
+npm run lint
+npm run format # if this fails run npm run format:fix
+npm run typecheck
 
-- `OIDC_ISSUER_URL` — the provider issuer, for example the realm/tenant issuer URL.
-- `OIDC_CLIENT_ID` — the client/application ID.
-- `OIDC_CLIENT_SECRET` — the client secret.
-- `OIDC_REDIRECT_URI` — the registered callback URL; if omitted, it is derived from the incoming request.
-- `OIDC_SCOPES` — defaults to `openid profile email`.
+## Recommended VS Code extensions
+- Ruff by charliermarsh
 
-Register the callback as `/api/auth/oidc/callback` on the public application URL. When configured, the login page shows **Continue with SSO**. The backend uses the provider's discovery metadata and authorization-code flow, requires a `sub` and verified email, links an existing account by OIDC subject or verified email, and otherwise creates a normal non-admin account. OIDC accounts receive the same server-side session cookie as password logins; provider access/ID tokens are not stored in the database.
+# Database updates
 
-Existing deployments may continue to use `PRIMARY_USER_USERNAME`, `PRIMARY_USER_EMAIL`, and `PRIMARY_USER_PASSWORD` as a legacy bootstrap mechanism. They are optional for new installations.
+```bash
+docker compose exec backend alembic -c alembic.ini revision --autogenerate -m "your changes here eg add playtime to game table"
+```
+
+## Security
+
+This project is not currently hardened for direct public-internet exposure. Keep the API behind an appropriate network boundary and do not expose it directly to the public internet.
