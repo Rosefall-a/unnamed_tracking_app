@@ -179,8 +179,8 @@ async def setup_admin(
     except RuntimeError as exc:
         await db.rollback()
         raise HTTPException(
-            status_code=400,
-            detail="SECRET_KEY must be a valid Fernet key before encrypted settings can be saved.",
+            status_code=500,
+            detail="The application could not encrypt the setup credentials. Check the persisted Fernet key.",
         ) from exc
 
     response.set_cookie(
