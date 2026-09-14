@@ -26,11 +26,7 @@ logger = logging.getLogger(__name__)
 
 
 def _env_config():
-    if not (
-        settings.OIDC_ISSUER_URL
-        and settings.OIDC_CLIENT_ID
-        and settings.OIDC_CLIENT_SECRET
-    ):
+    if not (settings.OIDC_ISSUER_URL and settings.OIDC_CLIENT_ID and settings.OIDC_CLIENT_SECRET):
         return None
     issuer = settings.OIDC_ISSUER_URL.strip()
     return OidcConfig(
@@ -42,9 +38,7 @@ def _env_config():
         groups_claim=settings.OIDC_GROUPS_CLAIM,
         admin_group=settings.OIDC_ADMIN_GROUP,
         user_match_field=getattr(settings, "OIDC_USER_MATCH_FIELD", "email"),
-        discovery_url=issuer
-        if issuer.endswith("/.well-known/openid-configuration")
-        else None,
+        discovery_url=issuer if issuer.endswith("/.well-known/openid-configuration") else None,
     )
 
 
@@ -56,9 +50,7 @@ def _named_rows(row):
     return [
         provider
         for provider in data
-        if isinstance(provider, dict)
-        and provider.get("slug")
-        and provider.get("enabled", True)
+        if isinstance(provider, dict) and provider.get("slug") and provider.get("enabled", True)
     ]
 
 
@@ -74,9 +66,7 @@ def _config_from_provider(provider):
         admin_group=provider.get("admin_group") or None,
         user_match_field=provider.get("user_match_field") or "email",
         allow_new_users=bool(provider.get("allow_new_users", True)),
-        discovery_url=issuer
-        if issuer.endswith("/.well-known/openid-configuration")
-        else None,
+        discovery_url=issuer if issuer.endswith("/.well-known/openid-configuration") else None,
         name=provider.get("name") or provider["slug"],
         slug=provider["slug"],
         button_text=provider.get("button_text") or "Continue with SSO",
@@ -119,8 +109,7 @@ async def oidc_status(db: AsyncSession = Depends(get_db)):
                     {
                         "name": provider.get("name", provider["slug"]),
                         "slug": provider["slug"],
-                        "button_text": provider.get("button_text")
-                        or "Continue with SSO",
+                        "button_text": provider.get("button_text") or "Continue with SSO",
                         "button_image_url": provider.get("button_image_url"),
                     }
                 )
@@ -189,9 +178,7 @@ async def _fetch_oidc_token(request, client):
     except ValueError as exc:
         if str(exc) != "Invalid key set format":
             raise
-        logger.warning(
-            "OIDC provider returned an invalid JWKS document; using UserInfo endpoint"
-        )
+        logger.warning("OIDC provider returned an invalid JWKS document; using UserInfo endpoint")
         token["userinfo"] = await client.userinfo(token=token)
     return token
 
@@ -207,9 +194,7 @@ def _groups(claims, name):
 
 def _match_value(claims, field, email):
     if field == "username":
-        return str(
-            claims.get("preferred_username") or claims.get("name") or ""
-        ).strip()
+        return str(claims.get("preferred_username") or claims.get("name") or "").strip()
     return email
 
 
@@ -225,9 +210,7 @@ async def _complete_callback(request, db, config, client_name):
         return RedirectResponse("/login?oidc_error=provider_unavailable", 303)
     try:
         token = await _fetch_oidc_token(request, client)
-        claims = dict(
-            token.get("userinfo") or await client.userinfo(token=token)
-        )
+        claims = dict(token.get("userinfo") or await client.userinfo(token=token))
         claims.update({k: v for k, v in token.items() if k not in claims})
     except Exception:
         logger.exception("OIDC callback token/userinfo exchange failed")
@@ -237,11 +220,7 @@ async def _complete_callback(request, db, config, client_name):
     email = str(claims.get("email", "")).strip().lower()
     if not subject or not email or claims.get("email_verified") is False:
         return RedirectResponse("/login?oidc_error=verified_email_required", 303)
-    field = (
-        config.user_match_field
-        if config.user_match_field in {"email", "username"}
-        else "email"
-    )
+    field = config.user_match_field if config.user_match_field in {"email", "username"} else "email"
     match = _match_value(claims, field, email)
     if not match:
         return RedirectResponse("/login?oidc_error=identity_missing", 303)
@@ -267,7 +246,7 @@ async def _complete_callback(request, db, config, client_name):
         suffix = 1
         while await db.scalar(select(User.id).where(User.username == username)) is not None:
             suffix += 1
-            username = f"{base[:100-len(str(suffix))-1]}-{suffix}"
+            username = f"{base[: 100 - len(str(suffix)) - 1]}-{suffix}"
         user = User(
             username=username,
             email=email,
