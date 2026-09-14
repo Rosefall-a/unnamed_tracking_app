@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from starlette.middleware.sessions import SessionMiddleware
 
 from src.api.routes import (
+    admin_backup,
     app_integrations,
     api_keys,
     auth,
@@ -61,6 +62,7 @@ app.include_router(password_reset_router)
 app.include_router(setup_router)
 app.include_router(settings.router)
 app.include_router(deployment_settings_router)
+app.include_router(admin_backup.router)
 app.include_router(app_integrations.router)
 app.include_router(media.router)
 app.include_router(stats.router)
