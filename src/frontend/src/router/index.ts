@@ -41,6 +41,7 @@ const router = createRouter({
     { path: "/sets", name: "set-list", component: SetList },
     { path: "/sets/:id", name: "set-detail", component: SetDetail },
     { path: "/login", name: "login", component: Login },
+    { path: "/login/", redirect: "/login" },
     {
       path: "/login/oidcstart/:provider",
       name: "oidc-start-provider",
