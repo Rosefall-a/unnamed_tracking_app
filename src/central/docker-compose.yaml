@@ -14,10 +14,7 @@ services:
       retries: 10
 
   central:
-    build:
-      context: ../..
-      dockerfile: src/central/Dockerfile
-    image: unnamed-tracking-app-central
+    image: ghcr.io/rosefall-a/unnamed_tracking_app-central:feat-central-docker-image
     environment:
       APP_MODE: both
       BACKEND_URL: http://127.0.0.1:8000
