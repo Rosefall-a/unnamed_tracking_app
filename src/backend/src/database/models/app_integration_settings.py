@@ -11,7 +11,7 @@ from src.database.base import Base
 
 
 class AppIntegrationSettings(Base):
-    """Singleton row containing deployment-wide provider credentials and SMTP."""
+    """Singleton row containing deployment-wide provider, email and runtime settings."""
 
     __tablename__ = "app_integration_settings"
 
@@ -27,6 +27,15 @@ class AppIntegrationSettings(Base):
     screenscraper_devpassword: Mapped[str | None] = mapped_column(Text, nullable=True)
     xbox_client_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     xbox_client_secret: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # Application-wide runtime settings. These are intentionally persisted in
+    # PostgreSQL rather than requiring operators to edit .env for normal app
+    # configuration. The environment values remain useful as initial defaults
+    # for existing installations.
+    auth_cookie_secure: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    max_upload_size_mb: Mapped[int] = mapped_column(nullable=False, default=15)
+    max_clip_size_mb: Mapped[int] = mapped_column(nullable=False, default=500)
+    max_world_save_size_mb: Mapped[int] = mapped_column(nullable=False, default=2000)
 
     # Optional deployment SMTP transport. Individual email capabilities are
     # kept as explicit feature flags so more email features can be added
