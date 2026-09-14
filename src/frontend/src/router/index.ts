@@ -41,13 +41,23 @@ const router = createRouter({
     { path: "/sets", name: "set-list", component: SetList },
     { path: "/sets/:id", name: "set-detail", component: SetDetail },
     { path: "/login", name: "login", component: Login },
+    { path: "/login/local", name: "login-local", component: Login },
     {
       path: "/login/oidcstart/:provider",
       name: "oidc-start-provider",
       component: OidcStart,
     },
     { path: "/login/oidcstart", name: "oidc-start", component: OidcStart },
-    { path: "/login/:provider", name: "oidc-provider-start", component: OidcStart },
+    {
+      path: "/login/:provider",
+      name: "oidc-provider-start",
+      beforeEnter: (to) => {
+        const provider = typeof to.params.provider === "string" ? to.params.provider.trim() : "";
+        if (!provider || provider === "local" || provider === "oidcstart") return "/login";
+        window.location.assign(`/api/auth/oidc/login/${encodeURIComponent(provider)}`);
+        return false;
+      },
+    },
     { path: "/reset-password", name: "password-reset", component: PasswordReset },
     { path: "/setup", name: "setup", component: Setup },
     { path: "/profile", redirect: "/settings?section=profile" },
