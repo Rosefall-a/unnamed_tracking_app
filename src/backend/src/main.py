@@ -76,6 +76,15 @@ async def bootstrap_application_settings() -> None:
         # The web setup page owns first-run admin creation. Deployment-wide
         # application and provider settings are loaded from the database.
         app_integrations_row = await get_or_create_app_integration_settings(db)
+        if not app_integrations_row.runtime_settings_initialized:
+            # Preserve existing .env tuning exactly once when upgrading an
+            # installation; subsequent Settings edits become authoritative.
+            app_integrations_row.auth_cookie_secure = app_settings.AUTH_COOKIE_SECURE
+            app_integrations_row.max_upload_size_mb = app_settings.MAX_UPLOAD_SIZE_MB
+            app_integrations_row.max_clip_size_mb = app_settings.MAX_CLIP_SIZE_MB
+            app_integrations_row.max_world_save_size_mb = app_settings.MAX_WORLD_SAVE_SIZE_MB
+            app_integrations_row.runtime_settings_initialized = True
+            await db.commit()
         apply_runtime_settings(app_integrations_row)
         apply_deployment_provider_credentials(app_integrations_row)
 
