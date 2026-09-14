@@ -16,6 +16,8 @@ jobs:
     defaults:
       run:
         working-directory: src/backend
+    env:
+      PYTHONPATH: ${{ github.workspace }}
 
     steps:
       - name: Check out repository
