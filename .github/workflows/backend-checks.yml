@@ -13,12 +13,29 @@ on:
 jobs:
   backend-checks:
     runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: unnamed_tracking_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U test -d unnamed_tracking_test"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
     defaults:
       run:
         working-directory: src/backend
+
     env:
       PYTHONPATH: ${{ github.workspace }}/src/backend
-      DATABASE_URL: sqlite+aiosqlite:///./test.db
+      DATABASE_URL: postgresql+psycopg://test:test@localhost:5432/unnamed_tracking_test
       PRIMARY_USER_USERNAME: test
       PRIMARY_USER_EMAIL: test@example.com
       PRIMARY_USER_PASSWORD: test-password
