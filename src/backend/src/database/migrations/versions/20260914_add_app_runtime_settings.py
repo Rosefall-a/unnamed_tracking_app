@@ -34,7 +34,9 @@ def upgrade() -> None:
     )
     op.add_column(
         "app_integration_settings",
-        sa.Column("runtime_settings_initialized", sa.Boolean(), nullable=False, server_default=sa.false()),
+        sa.Column(
+            "runtime_settings_initialized", sa.Boolean(), nullable=False, server_default=sa.false()
+        ),
     )
 
 

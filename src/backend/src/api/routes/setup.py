@@ -155,7 +155,9 @@ async def setup_admin(
             app_integrations.smtp_host = smtp_host
             app_integrations.smtp_port = payload.smtp_port
             app_integrations.smtp_username = smtp_username
-            app_integrations.smtp_password = encrypt_secret(smtp_password) if smtp_password else None
+            app_integrations.smtp_password = (
+                encrypt_secret(smtp_password) if smtp_password else None
+            )
             app_integrations.smtp_use_tls = payload.smtp_use_tls
             app_integrations.smtp_use_ssl = payload.smtp_use_ssl
             app_integrations.smtp_from_email = smtp_from_email
