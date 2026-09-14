@@ -140,7 +140,9 @@ def _decode_backup(raw: bytes, password: str) -> dict[str, Any]:
         plaintext = Fernet(_password_key(password, salt)).decrypt(ciphertext)
         backup = json.loads(plaintext.decode("utf-8"))
     except (ValueError, KeyError, TypeError, json.JSONDecodeError, InvalidToken) as exc:
-        raise HTTPException(status_code=400, detail="The backup file or password is invalid.") from exc
+        raise HTTPException(
+            status_code=400, detail="The backup file or password is invalid."
+        ) from exc
     if backup.get("format") != "archive-deployment-backup":
         raise HTTPException(status_code=400, detail="Unsupported deployment backup format.")
     if backup.get("format_version") not in {1, 2}:
@@ -251,7 +253,11 @@ async def import_secret_backup(
     app_columns = {column.name for column in app.__table__.columns}
     for field, value in app_payload.items():
         if field in app_columns and field not in {"id", "updated_at"}:
-            setattr(app, field, encrypt_secret(str(value)) if field in _SECRET_APP_FIELDS and value else value)
+            setattr(
+                app,
+                field,
+                encrypt_secret(str(value)) if field in _SECRET_APP_FIELDS and value else value,
+            )
 
     oidc = await db.scalar(select(OidcSettings).limit(1))
     if oidc is None:
@@ -259,9 +265,18 @@ async def import_secret_backup(
         db.add(oidc)
     oidc_columns = {column.name for column in oidc.__table__.columns}
     for field, value in oidc_payload.items():
-        if field in oidc_columns and field not in {"id", "updated_at", "providers_json", "client_secret"}:
+        if field in oidc_columns and field not in {
+            "id",
+            "updated_at",
+            "providers_json",
+            "client_secret",
+        }:
             setattr(oidc, field, value)
-    oidc.client_secret = encrypt_secret(str(oidc_payload["client_secret"])) if oidc_payload.get("client_secret") else None
+    oidc.client_secret = (
+        encrypt_secret(str(oidc_payload["client_secret"]))
+        if oidc_payload.get("client_secret")
+        else None
+    )
 
     raw_providers = oidc_payload.get("providers_json", "[]")
     try:
@@ -307,7 +322,9 @@ async def rotate_encryption_key(
         try:
             plaintext = old_fernet.decrypt(value.encode())
         except InvalidToken as exc:
-            raise HTTPException(500, "A stored secret could not be decrypted during key rotation.") from exc
+            raise HTTPException(
+                500, "A stored secret could not be decrypted during key rotation."
+            ) from exc
         return new_fernet.encrypt(plaintext).decode()
 
     app = await get_or_create_app_integration_settings(db)
