@@ -1,37 +1,31 @@
 <script setup lang="ts">
 import { onMounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { oidcLoginStatus, startOidcLogin } from "../services/oidc";
 
 const route = useRoute();
 const router = useRouter();
 
-onMounted(async () => {
+onMounted(() => {
   const requestedProvider =
     typeof route.params.provider === "string" && route.params.provider.trim()
       ? route.params.provider.trim()
       : undefined;
 
-  // The original /login/oidcstart flow works by immediately handing control
-  // to the backend OIDC endpoint. Keep that exact mechanism for named
-  // providers too; the backend is responsible for validating the slug and
-  // enforcing the provider's autostart setting.
-  if (requestedProvider && requestedProvider !== "default") {
-    startOidcLogin(requestedProvider);
-    return;
-  }
+  // Autostart is deliberately a hard browser navigation. This avoids leaving
+  // the SPA on this holding page while the backend performs the OAuth redirect.
+  const endpoint = requestedProvider && requestedProvider !== "default"
+    ? `/api/auth/oidc/login/${encodeURIComponent(requestedProvider)}`
+    : "/api/auth/oidc/login";
 
-  try {
-    const status = await oidcLoginStatus();
-    if (status.enabled) {
-      startOidcLogin();
-      return;
+  window.location.replace(endpoint);
+
+  // Only reached if the browser refuses to navigate (for example in a test
+  // environment). Keep the normal login page as the safe fallback.
+  window.setTimeout(() => {
+    if (window.location.pathname.startsWith("/login/oidcstart")) {
+      void router.replace("/login");
     }
-  } catch {
-    // Fall through to the normal login page.
-  }
-
-  await router.replace("/login");
+  }, 5000);
 });
 </script>
 
