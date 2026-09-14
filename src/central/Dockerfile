@@ -46,6 +46,8 @@ COPY src/frontend/. /app/frontend/
 
 WORKDIR /app
 
+# The combined image defaults to both processes. Override APP_MODE at runtime
+# for the same image when it is used as a standalone frontend or backend.
 ENV APP_MODE=both
 EXPOSE 80 8000
 
