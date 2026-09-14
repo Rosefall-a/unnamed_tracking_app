@@ -47,11 +47,7 @@ def _named_rows(row):
         data = json.loads(row.providers_json or "[]")
     except (TypeError, ValueError):
         return []
-    return [
-        provider
-        for provider in data
-        if isinstance(provider, dict) and provider.get("slug")
-    ]
+    return [provider for provider in data if isinstance(provider, dict) and provider.get("slug")]
 
 
 def _config_from_provider(provider):
