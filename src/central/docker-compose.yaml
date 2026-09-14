@@ -1,10 +1,8 @@
 services:
   db:
     image: postgres:18
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
+    env_file:
+      - .env
     volumes:
       - unnamed_tracking_app_central_db:/var/lib/postgresql
     healthcheck:
@@ -14,21 +12,16 @@ services:
       retries: 10
 
   central:
-    build:
-      context: ../..
-      dockerfile: src/central/Dockerfile
-    image: unnamed-tracking-app-central:local
+    image: ghcr.io/rosefall-a/unnamed_tracking_app-central:main
     environment:
-      APP_MODE: both
       APP_DATA_DIR: /data
       PYTHONUNBUFFERED: 1
     env_file:
-      - ./example.env
+      - .env
     ports:
-      - "5173:80"
-      - "8000:8000"
+      - "5175:80"
     volumes:
-      - ../../data:/data
+      - ./data:/data
     depends_on:
       db:
         condition: service_healthy
