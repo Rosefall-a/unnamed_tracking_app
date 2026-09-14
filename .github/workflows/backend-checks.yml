@@ -18,6 +18,11 @@ jobs:
         working-directory: src/backend
     env:
       PYTHONPATH: ${{ github.workspace }}/src/backend
+      DATABASE_URL: sqlite+aiosqlite:///./test.db
+      PRIMARY_USER_USERNAME: test
+      PRIMARY_USER_EMAIL: test@example.com
+      PRIMARY_USER_PASSWORD: test-password
+      SECRET_KEY: test-secret-key
 
     steps:
       - name: Check out repository
