@@ -28,6 +28,7 @@ from src.api.routes.setup import router as setup_router
 from src.api.routes.settings import get_or_create_app_integration_settings
 from src.api.routes.utils.misc import router as misc_router
 from src.core.config import settings as app_settings
+from src.core.data_paths import ensure_data_directories
 from src.core.provider_credentials import apply_deployment_provider_credentials
 from src.core.runtime_settings import apply_runtime_settings
 from src.database.session import SessionLocal
@@ -72,6 +73,7 @@ app.include_router(misc_router)
 
 @app.on_event("startup")
 async def bootstrap_application_settings() -> None:
+    ensure_data_directories()
     async with SessionLocal() as db:
         # The web setup page owns first-run admin creation. Deployment-wide
         # application and provider settings are loaded from the database.
