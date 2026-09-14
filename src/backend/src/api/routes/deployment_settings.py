@@ -120,11 +120,27 @@ def _provider_rows(row):
 
 
 def _smtp_view(app):
-    return {"enabled": app.smtp_enabled, "host": app.smtp_host, "port": app.smtp_port, "username": app.smtp_username, "password_configured": bool(app.smtp_password), "use_tls": app.smtp_use_tls, "use_ssl": app.smtp_use_ssl, "from_email": app.smtp_from_email, "from_name": app.smtp_from_name, "password_reset_enabled": app.password_reset_enabled}
+    return {
+        "enabled": app.smtp_enabled,
+        "host": app.smtp_host,
+        "port": app.smtp_port,
+        "username": app.smtp_username,
+        "password_configured": bool(app.smtp_password),
+        "use_tls": app.smtp_use_tls,
+        "use_ssl": app.smtp_use_ssl,
+        "from_email": app.smtp_from_email,
+        "from_name": app.smtp_from_name,
+        "password_reset_enabled": app.password_reset_enabled,
+    }
 
 
 def _runtime_view(app):
-    return {"auth_cookie_secure": app.auth_cookie_secure, "max_upload_size_mb": app.max_upload_size_mb, "max_clip_size_mb": app.max_clip_size_mb, "max_world_save_size_mb": app.max_world_save_size_mb}
+    return {
+        "auth_cookie_secure": app.auth_cookie_secure,
+        "max_upload_size_mb": app.max_upload_size_mb,
+        "max_clip_size_mb": app.max_clip_size_mb,
+        "max_world_save_size_mb": app.max_world_save_size_mb,
+    }
 
 
 async def get_deployment_settings(db: AsyncSession, admin: User) -> dict:
@@ -134,16 +150,42 @@ async def get_deployment_settings(db: AsyncSession, admin: User) -> dict:
     providers = {field: getattr(app, field) for field in _SAFE_PROVIDER_FIELDS}
     for field in _SECRET_FIELDS:
         providers[field + "_configured"] = bool(getattr(app, field))
-    return {"providers": providers, "oidc": {"issuer_url": oidc.issuer_url, "client_id": oidc.client_id, "scopes": oidc.scopes, "redirect_uri": oidc.redirect_uri, "groups_claim": oidc.groups_claim, "admin_group": oidc.admin_group, "user_match_field": oidc.user_match_field or "email", "default_login_method": oidc.default_login_method if oidc.default_login_method in {"local", "sso"} else "local", "login_button_text": oidc.login_button_text.strip() or "Continue with SSO", "allow_new_users": oidc.allow_new_users, "client_secret_configured": bool(oidc.client_secret), "named_providers": [_provider_view(p) for p in _provider_rows(oidc)]}, "smtp": _smtp_view(app), "runtime": _runtime_view(app)}
+    return {
+        "providers": providers,
+        "oidc": {
+            "issuer_url": oidc.issuer_url,
+            "client_id": oidc.client_id,
+            "scopes": oidc.scopes,
+            "redirect_uri": oidc.redirect_uri,
+            "groups_claim": oidc.groups_claim,
+            "admin_group": oidc.admin_group,
+            "user_match_field": oidc.user_match_field or "email",
+            "default_login_method": oidc.default_login_method
+            if oidc.default_login_method in {"local", "sso"}
+            else "local",
+            "login_button_text": oidc.login_button_text.strip() or "Continue with SSO",
+            "allow_new_users": oidc.allow_new_users,
+            "client_secret_configured": bool(oidc.client_secret),
+            "named_providers": [_provider_view(p) for p in _provider_rows(oidc)],
+        },
+        "smtp": _smtp_view(app),
+        "runtime": _runtime_view(app),
+    }
 
 
 @router.get("")
-async def read_deployment_settings(db: AsyncSession = Depends(get_db), admin: User = Depends(get_current_admin)) -> dict:
+async def read_deployment_settings(
+    db: AsyncSession = Depends(get_db), admin: User = Depends(get_current_admin)
+) -> dict:
     return await get_deployment_settings(db, admin)
 
 
 @router.put("")
-async def update_deployment_settings(payload: DeploymentSettingsRequest, db: AsyncSession = Depends(get_db), admin: User = Depends(get_current_admin)) -> dict:
+async def update_deployment_settings(
+    payload: DeploymentSettingsRequest,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(get_current_admin),
+) -> dict:
     app = await get_or_create_app_integration_settings(db)
     oidc = await _oidc_row(db)
     for field, value in payload.model_dump(exclude_unset=True).items():
@@ -164,8 +206,17 @@ async def update_deployment_settings(payload: DeploymentSettingsRequest, db: Asy
                 name = str(item.get("name", "")).strip()
                 issuer = str(item.get("issuer_url", "")).strip()
                 client_id = str(item.get("client_id", "")).strip()
-                if not slug or not name or not issuer or not client_id or slug in slugs or any(c not in "abcdefghijklmnopqrstuvwxyz0123456789-_" for c in slug):
-                    raise HTTPException(400, "Each OIDC provider needs a unique name, slug, issuer and client ID.")
+                if (
+                    not slug
+                    or not name
+                    or not issuer
+                    or not client_id
+                    or slug in slugs
+                    or any(c not in "abcdefghijklmnopqrstuvwxyz0123456789-_" for c in slug)
+                ):
+                    raise HTTPException(
+                        400, "Each OIDC provider needs a unique name, slug, issuer and client ID."
+                    )
                 if item.get("user_match_field", "email") not in {"email", "username"}:
                     raise HTTPException(400, "OIDC user matching must be email or username.")
                 button_color = str(item.get("button_color") or "#d68a34").strip()
@@ -173,42 +224,72 @@ async def update_deployment_settings(payload: DeploymentSettingsRequest, db: Asy
                     raise HTTPException(400, "OIDC button color must be a six-digit hex color.")
                 secret = item.get("client_secret") or existing.get(slug, {}).get("client_secret")
                 if not secret:
-                    raise HTTPException(400, f"Client secret is required for OIDC provider '{name}'.")
+                    raise HTTPException(
+                        400, f"Client secret is required for OIDC provider '{name}'."
+                    )
                 if item.get("client_secret"):
                     secret = encrypt_secret(str(item["client_secret"]))
-                normalized.append({**item, "slug": slug, "name": name, "issuer_url": issuer, "client_id": client_id, "client_secret": secret, "button_color": button_color, "enabled": bool(item.get("enabled", True)), "show_on_login": bool(item.get("show_on_login", True)), "autostart_enabled": bool(item.get("autostart_enabled", True))})
+                normalized.append(
+                    {
+                        **item,
+                        "slug": slug,
+                        "name": name,
+                        "issuer_url": issuer,
+                        "client_id": client_id,
+                        "client_secret": secret,
+                        "button_color": button_color,
+                        "enabled": bool(item.get("enabled", True)),
+                        "show_on_login": bool(item.get("show_on_login", True)),
+                        "autostart_enabled": bool(item.get("autostart_enabled", True)),
+                    }
+                )
                 slugs.add(slug)
             oidc.providers_json = json.dumps(normalized)
         elif field.startswith("oidc_"):
             if field == "oidc_client_secret":
-                if value: oidc.client_secret = encrypt_secret(value)
+                if value:
+                    oidc.client_secret = encrypt_secret(value)
             elif field == "oidc_user_match_field":
-                if value not in {"email", "username"}: raise HTTPException(400, "OIDC user matching must be email or username.")
+                if value not in {"email", "username"}:
+                    raise HTTPException(400, "OIDC user matching must be email or username.")
                 oidc.user_match_field = value
             elif field == "oidc_default_login_method":
-                if value not in {"local", "sso"}: raise HTTPException(400, "Default login method must be local or sso.")
+                if value not in {"local", "sso"}:
+                    raise HTTPException(400, "Default login method must be local or sso.")
                 oidc.default_login_method = value
             elif field == "oidc_login_button_text":
                 text = (value or "").strip()
-                if not text or len(text) > 100: raise HTTPException(400, "SSO button text must be 1–100 characters.")
+                if not text or len(text) > 100:
+                    raise HTTPException(400, "SSO button text must be 1–100 characters.")
                 oidc.login_button_text = text
-            elif field == "oidc_allow_new_users": oidc.allow_new_users = bool(value)
-            elif value is not None: setattr(oidc, field.removeprefix("oidc_"), value or None)
+            elif field == "oidc_allow_new_users":
+                oidc.allow_new_users = bool(value)
+            elif value is not None:
+                setattr(oidc, field.removeprefix("oidc_"), value or None)
         elif field == "smtp_password":
-            if value: app.smtp_password = encrypt_secret(value)
+            if value:
+                app.smtp_password = encrypt_secret(value)
         elif field == "smtp_port":
-            if value < 1 or value > 65535: raise HTTPException(400, "SMTP port must be between 1 and 65535.")
+            if value < 1 or value > 65535:
+                raise HTTPException(400, "SMTP port must be between 1 and 65535.")
             app.smtp_port = value
         elif field in {"smtp_enabled", "smtp_use_tls", "smtp_use_ssl", "password_reset_enabled"}:
             setattr(app, field, bool(value))
         elif field.startswith("smtp_"):
             setattr(app, field, value.strip() if isinstance(value, str) else value)
         elif field in _SECRET_FIELDS:
-            if value: setattr(app, field, encrypt_secret(value))
+            if value:
+                setattr(app, field, encrypt_secret(value))
         elif field in _SAFE_PROVIDER_FIELDS:
             setattr(app, field, value or None)
-        elif field in {"auth_cookie_secure", "max_upload_size_mb", "max_clip_size_mb", "max_world_save_size_mb"}:
-            if field != "auth_cookie_secure" and (value is None or value < 1): raise HTTPException(400, f"{field} must be at least 1.")
+        elif field in {
+            "auth_cookie_secure",
+            "max_upload_size_mb",
+            "max_clip_size_mb",
+            "max_world_save_size_mb",
+        }:
+            if field != "auth_cookie_secure" and (value is None or value < 1):
+                raise HTTPException(400, f"{field} must be at least 1.")
             setattr(app, field, bool(value) if field == "auth_cookie_secure" else value)
     app.runtime_settings_initialized = True
     await db.commit()
@@ -218,12 +299,22 @@ async def update_deployment_settings(payload: DeploymentSettingsRequest, db: Asy
 
 
 @router.post("/test-smtp")
-async def test_smtp(db: AsyncSession = Depends(get_db), admin: User = Depends(get_current_admin)) -> dict[str, str]:
+async def test_smtp(
+    db: AsyncSession = Depends(get_db), admin: User = Depends(get_current_admin)
+) -> dict[str, str]:
     app = await get_or_create_app_integration_settings(db)
-    if not app.smtp_enabled or not app.smtp_host or not app.smtp_from_email: raise HTTPException(400, "SMTP must be enabled with a host and sender email first.")
-    if not admin.email: raise HTTPException(400, "Your admin account needs an email address for the test message.")
+    if not app.smtp_enabled or not app.smtp_host or not app.smtp_from_email:
+        raise HTTPException(400, "SMTP must be enabled with a host and sender email first.")
+    if not admin.email:
+        raise HTTPException(400, "Your admin account needs an email address for the test message.")
     try:
-        await asyncio.to_thread(send_email, app, admin.email, "Archive SMTP test", "Your Archive SMTP settings are working. This is a test message.")
+        await asyncio.to_thread(
+            send_email,
+            app,
+            admin.email,
+            "Archive SMTP test",
+            "Your Archive SMTP settings are working. This is a test message.",
+        )
     except Exception as exc:
         logger.exception("SMTP test email could not be sent")
         raise HTTPException(502, f"SMTP test failed: {exc}") from exc
