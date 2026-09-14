@@ -41,7 +41,6 @@ const router = createRouter({
     { path: "/sets", name: "set-list", component: SetList },
     { path: "/sets/:id", name: "set-detail", component: SetDetail },
     { path: "/login", name: "login", component: Login },
-    { path: "/login/", redirect: "/login" },
     {
       path: "/login/oidcstart/:provider",
       name: "oidc-start-provider",
@@ -69,17 +68,17 @@ router.beforeEach(async (to, from) => {
     return { path: "/settings", query: { section: "sources" } };
   }
 
-  // The normal login page is always reachable. The "SSO" default-login
-  // setting only changes which login UI is shown; it never starts an
-  // authentication redirect. Explicit /login/oidcstart URLs remain the
-  // opt-in autostart mechanism.
+  // Login and explicit OIDC-start URLs must always be reachable without an
+  // authenticated session. In particular, do not redirect /login/ back into
+  // itself: Vue Router treats /login and /login/ as the same route.
   if (
-    to.path === "/reset-password" ||
-    to.path.startsWith("/login/oidcstart") ||
-    to.path.startsWith("/login/")
+    to.path === "/login" ||
+    to.path.startsWith("/login/") ||
+    to.path === "/reset-password"
   ) {
     return;
   }
+
   if (setupState === "unknown") setupState = (await waitForServer()) ? "required" : "complete";
   if (setupState === "required") {
     if (to.path !== "/setup") return { path: "/setup" };
