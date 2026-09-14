@@ -44,6 +44,7 @@ const router = createRouter({
     { path: "/login", name: "login", component: Login },
     { path: "/login/local", name: "login-local", component: Login },
     { path: "/login/oidcstart", name: "oidc-start", component: OidcStart },
+    { path: "/login/oidcstart/:provider", name: "oidc-start-legacy", redirect: "/login" },
     { path: "/login/:provider", name: "oidc-provider-start", component: OidcProviderStart },
     { path: "/reset-password", name: "password-reset", component: PasswordReset },
     { path: "/setup", name: "setup", component: Setup },
