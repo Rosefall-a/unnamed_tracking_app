@@ -132,7 +132,10 @@ def _decode_backup(raw: bytes, password: str) -> dict[str, Any]:
         backup = json.loads(plaintext.decode("utf-8"))
     except (ValueError, KeyError, TypeError, json.JSONDecodeError, InvalidToken) as exc:
         raise HTTPException(400, "The backup file or password is invalid.") from exc
-    if backup.get("format") != "archive-deployment-backup" or backup.get("format_version") not in {1, 2}:
+    if backup.get("format") != "archive-deployment-backup" or backup.get("format_version") not in {
+        1,
+        2,
+    }:
         raise HTTPException(400, "Unsupported deployment backup format.")
     if not isinstance(backup.get("fernet_keys"), list):
         raise HTTPException(400, "Backup is missing its Fernet key copies.")
@@ -302,7 +305,12 @@ async def import_secret_backup(
             db.add(oidc)
         oidc_columns = {c.name for c in oidc.__table__.columns}
         for field, value in oidc_payload.items():
-            if field in oidc_columns and field not in {"id", "updated_at", "providers_json", "client_secret"}:
+            if field in oidc_columns and field not in {
+                "id",
+                "updated_at",
+                "providers_json",
+                "client_secret",
+            }:
                 setattr(oidc, field, value)
         oidc.client_secret = (
             encrypt_secret(str(oidc_payload["client_secret"]))
