@@ -64,7 +64,7 @@ jobs:
           import ast
           from pathlib import Path
 
-          versions = Path("app/database/migrations/versions")
+          versions = Path("src/database/migrations/versions")
           revisions = {}
           for path in sorted(versions.glob("*.py")):
               tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
