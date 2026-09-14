@@ -14,8 +14,16 @@ from pathlib import Path
 from urllib.parse import quote_plus
 
 from cryptography.fernet import Fernet
+from dotenv import dotenv_values
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+def _bootstrap_value(name: str) -> str:
+    value = os.getenv(name, "").strip()
+    if value:
+        return value
+    return str(dotenv_values(".env").get(name) or "").strip()
 
 
 def _persistent_fernet_key() -> str:
@@ -28,9 +36,9 @@ def _persistent_fernet_key() -> str:
     authoritative key; accidentally supplying a different environment key must
     never silently invalidate the existing encrypted secrets.
     """
-    data_dir = Path(os.getenv("APP_DATA_DIR", "/data"))
+    data_dir = Path(_bootstrap_value("APP_DATA_DIR") or "/data")
     key_path = data_dir / "config" / "fernet.key"
-    env_key = os.getenv("SECRET_KEY", "").strip()
+    env_key = _bootstrap_value("SECRET_KEY")
 
     if key_path.exists():
         key = key_path.read_text(encoding="utf-8").strip()
