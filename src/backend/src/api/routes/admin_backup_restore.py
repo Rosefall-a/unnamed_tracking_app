@@ -75,7 +75,11 @@ async def restore_deployment_backup(
     app_columns = {column.name for column in app.__table__.columns}
     for field, value in app_payload.items():
         if field in app_columns and field not in {"id", "updated_at"}:
-            setattr(app, field, encrypt_secret(str(value)) if field in _SECRET_APP_FIELDS and value else value)
+            setattr(
+                app,
+                field,
+                encrypt_secret(str(value)) if field in _SECRET_APP_FIELDS and value else value,
+            )
 
     oidc = await db.scalar(select(OidcSettings).limit(1))
     if oidc is None:
@@ -83,9 +87,18 @@ async def restore_deployment_backup(
         db.add(oidc)
     oidc_columns = {column.name for column in oidc.__table__.columns}
     for field, value in oidc_payload.items():
-        if field in oidc_columns and field not in {"id", "updated_at", "providers_json", "client_secret"}:
+        if field in oidc_columns and field not in {
+            "id",
+            "updated_at",
+            "providers_json",
+            "client_secret",
+        }:
             setattr(oidc, field, value)
-    oidc.client_secret = encrypt_secret(str(oidc_payload["client_secret"])) if oidc_payload.get("client_secret") else None
+    oidc.client_secret = (
+        encrypt_secret(str(oidc_payload["client_secret"]))
+        if oidc_payload.get("client_secret")
+        else None
+    )
 
     try:
         providers = json.loads(oidc_payload.get("providers_json", "[]") or "[]")
