@@ -6,6 +6,7 @@ import base64
 import json
 import secrets
 import time
+from collections import Counter
 from typing import Any
 
 from cryptography.fernet import Fernet, InvalidToken
@@ -21,10 +22,10 @@ from src.core.auth import get_current_admin
 from src.core.config import settings as app_settings
 from src.core.crypto import decrypt_secret, encrypt_secret, _fernet
 from src.core.data_paths import DATA_ROOT
-from src.core.fernet_key import rotate_persistent_fernet_key
+from src.core.fernet_key import restore_persistent_fernet_key, rotate_persistent_fernet_key
 from src.core.provider_credentials import apply_deployment_provider_credentials
+from src.core.runtime_settings import apply_runtime_settings
 from src.database.models.auth import UserSession
-from src.database.models.app_integration_settings import AppIntegrationSettings
 from src.database.models.oidc_settings import OidcSettings
 from src.database.models.user import User
 from src.database.session import get_db
@@ -129,6 +130,26 @@ def _password_key(password: str, salt: bytes) -> bytes:
     return base64.urlsafe_b64encode(kdf.derive(password.encode("utf-8")))
 
 
+def _decode_backup(raw: bytes, password: str) -> dict[str, Any]:
+    try:
+        envelope = json.loads(raw.decode("utf-8"))
+        if envelope.get("format") != "archive-deployment-backup-encrypted":
+            raise ValueError("unsupported backup format")
+        salt = base64.urlsafe_b64decode(envelope["salt"].encode("ascii"))
+        ciphertext = envelope["ciphertext"].encode("ascii")
+        plaintext = Fernet(_password_key(password, salt)).decrypt(ciphertext)
+        backup = json.loads(plaintext.decode("utf-8"))
+    except (ValueError, KeyError, TypeError, json.JSONDecodeError, InvalidToken) as exc:
+        raise HTTPException(status_code=400, detail="The backup file or password is invalid.") from exc
+    if backup.get("format") != "archive-deployment-backup":
+        raise HTTPException(status_code=400, detail="Unsupported deployment backup format.")
+    if backup.get("format_version") not in {1, 2}:
+        raise HTTPException(status_code=400, detail="Unsupported deployment backup version.")
+    if not isinstance(backup.get("fernet_keys"), list):
+        raise HTTPException(status_code=400, detail="Backup is missing its Fernet key copies.")
+    return backup
+
+
 @router.post("/export")
 async def export_secret_backup(
     payload: SecretBackupRequest,
@@ -192,18 +213,86 @@ async def export_secret_backup(
     )
 
 
+@router.post("/import")
+async def import_secret_backup(
+    payload: SecretBackupRequest,
+    backup_file: bytes,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(get_current_admin),
+) -> dict[str, Any]:
+    """Restore deployment settings and secrets, never users or user data."""
+    del admin
+    backup = _decode_backup(backup_file, payload.password)
+    key_values = [value for value in backup["fernet_keys"] if isinstance(value, str)]
+    valid_keys = []
+    for value in key_values:
+        try:
+            Fernet(value.encode())
+            valid_keys.append(value)
+        except (ValueError, TypeError):
+            pass
+    if not valid_keys:
+        raise HTTPException(400, "Backup does not contain a valid Fernet key.")
+    counts = Counter(valid_keys)
+    restore_key, count = counts.most_common(1)[0]
+    if len(valid_keys) >= 2 and count < 2:
+        raise HTTPException(400, "Backup Fernet key copies do not have a matching majority.")
+
+    app_payload = backup.get("app_integration_settings")
+    oidc_payload = backup.get("oidc_settings")
+    if not isinstance(app_payload, dict) or not isinstance(oidc_payload, dict):
+        raise HTTPException(400, "Backup is missing deployment settings.")
+
+    restore_persistent_fernet_key(restore_key)
+    app_settings.SECRET_KEY = restore_key
+    _fernet.cache_clear()
+
+    app = await get_or_create_app_integration_settings(db)
+    app_columns = {column.name for column in app.__table__.columns}
+    for field, value in app_payload.items():
+        if field in app_columns and field not in {"id", "updated_at"}:
+            setattr(app, field, encrypt_secret(str(value)) if field in _SECRET_APP_FIELDS and value else value)
+
+    oidc = await db.scalar(select(OidcSettings).limit(1))
+    if oidc is None:
+        oidc = OidcSettings()
+        db.add(oidc)
+    oidc_columns = {column.name for column in oidc.__table__.columns}
+    for field, value in oidc_payload.items():
+        if field in oidc_columns and field not in {"id", "updated_at", "providers_json", "client_secret"}:
+            setattr(oidc, field, value)
+    oidc.client_secret = encrypt_secret(str(oidc_payload["client_secret"])) if oidc_payload.get("client_secret") else None
+
+    raw_providers = oidc_payload.get("providers_json", "[]")
+    try:
+        providers = json.loads(raw_providers or "[]")
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(400, "Backup OIDC provider configuration is invalid.") from exc
+    if not isinstance(providers, list):
+        raise HTTPException(400, "Backup OIDC provider configuration is invalid.")
+    for provider in providers:
+        if isinstance(provider, dict) and provider.get("client_secret"):
+            provider["client_secret"] = encrypt_secret(str(provider["client_secret"]))
+    oidc.providers_json = json.dumps(providers)
+
+    await db.execute(delete(UserSession))
+    await db.commit()
+    apply_runtime_settings(app)
+    apply_deployment_provider_credentials(app)
+    return {
+        "restored": True,
+        "sessions_revoked": True,
+        "message": "Deployment configuration restored. Users must sign in again; user accounts and library data were not imported.",
+    }
+
+
 @router.post("/rotate-key")
 async def rotate_encryption_key(
     payload: KeyRotationRequest,
     db: AsyncSession = Depends(get_db),
     admin: User = Depends(get_current_admin),
 ) -> dict[str, Any]:
-    """Rotate the deployment Fernet key and re-encrypt every known secret.
-
-    The old key is retained as decrypt-only material during the transition.
-    All server sessions are revoked because the installation's cookie
-    namespace is derived from the Fernet key.
-    """
+    """Rotate the deployment Fernet key and re-encrypt every known secret."""
     del admin
     if not payload.confirm:
         raise HTTPException(status_code=400, detail="Key rotation was not confirmed.")
@@ -218,9 +307,7 @@ async def rotate_encryption_key(
         try:
             plaintext = old_fernet.decrypt(value.encode())
         except InvalidToken as exc:
-            raise HTTPException(
-                500, "A stored secret could not be decrypted during key rotation."
-            ) from exc
+            raise HTTPException(500, "A stored secret could not be decrypted during key rotation.") from exc
         return new_fernet.encrypt(plaintext).decode()
 
     app = await get_or_create_app_integration_settings(db)
