@@ -74,14 +74,24 @@ def _write_current_key(key: str, paths: tuple[Path, Path, Path]) -> None:
         ) from exc
 
 
-def rotate_persistent_fernet_key() -> tuple[str, str]:
-    """Create a new current key while retaining the old key for decryption.
+def restore_persistent_fernet_key(key: str) -> None:
+    """Install an exported key as the current key and preserve the old key."""
+    Fernet(key.encode())
+    paths = _paths()
+    old_key = persistent_fernet_key()
+    if old_key != key:
+        previous_path = paths[0].parent / "fernet.key.previous"
+        try:
+            previous_path.parent.mkdir(parents=True, exist_ok=True)
+            previous_path.write_text(old_key + "\n", encoding="utf-8")
+            previous_path.chmod(0o600)
+        except OSError as exc:
+            raise RuntimeError("Could not preserve the existing Fernet key during restore.") from exc
+    _write_current_key(key, paths)
 
-    The old key is placed in a separate decrypt-only file before the new key
-    becomes current. This gives a safe overlap window while database secrets
-    are re-encrypted. The previous key is deliberately never used for new
-    encryption operations.
-    """
+
+def rotate_persistent_fernet_key() -> tuple[str, str]:
+    """Create a new current key while retaining the old key for decryption."""
     paths = _paths()
     old_key = persistent_fernet_key()
     new_key = Fernet.generate_key().decode()
