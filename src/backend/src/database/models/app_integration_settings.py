@@ -30,12 +30,12 @@ class AppIntegrationSettings(Base):
 
     # Application-wide runtime settings. These are intentionally persisted in
     # PostgreSQL rather than requiring operators to edit .env for normal app
-    # configuration. The environment values remain useful as initial defaults
-    # for existing installations.
+    # configuration.
     auth_cookie_secure: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     max_upload_size_mb: Mapped[int] = mapped_column(nullable=False, default=15)
     max_clip_size_mb: Mapped[int] = mapped_column(nullable=False, default=500)
     max_world_save_size_mb: Mapped[int] = mapped_column(nullable=False, default=2000)
+    runtime_settings_initialized: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
     # Optional deployment SMTP transport. Individual email capabilities are
     # kept as explicit feature flags so more email features can be added
