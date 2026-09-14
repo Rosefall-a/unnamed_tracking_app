@@ -15,8 +15,8 @@ const route = useRoute();
 
 const isPublicRoute = () =>
   route.path === "/login" ||
+  route.path.startsWith("/login/") ||
   route.path === "/setup" ||
-  route.path === "/login/oidcstart" ||
   route.path === "/reset-password";
 
 const startupMessage = computed(() => {
@@ -62,7 +62,8 @@ const startupStep = computed(() => {
     v-if="
       authChecked ||
       route.path === '/setup' ||
-      route.path === '/login/oidcstart' ||
+      route.path === '/login' ||
+      route.path.startsWith('/login/') ||
       route.path === '/reset-password'
     "
   >
