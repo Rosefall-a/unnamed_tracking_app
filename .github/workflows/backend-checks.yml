@@ -17,7 +17,7 @@ jobs:
       run:
         working-directory: src/backend
     env:
-      PYTHONPATH: ${{ github.workspace }}
+      PYTHONPATH: ${{ github.workspace }}/src/backend
 
     steps:
       - name: Check out repository
