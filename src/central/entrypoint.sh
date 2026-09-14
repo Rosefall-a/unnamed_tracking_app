@@ -39,21 +39,12 @@ case "$APP_MODE" in
         ;;
     both)
         echo "Starting backend and frontend..."
-
-        # Run the backend startup in the background so the frontend can share
-        # this container while still retaining the existing migration behavior.
         start_backend &
         BACKEND_PID=$!
-
-        # Give the backend process a moment to initialize before starting Vite.
-        # The frontend proxy retries naturally once the API is accepting traffic.
         start_frontend &
         FRONTEND_PID=$!
-
         trap cleanup EXIT INT TERM
 
-        # Keep the container alive while both services are healthy. If either
-        # process exits, stop the other and return a failure status.
         while kill -0 "$BACKEND_PID" 2>/dev/null && kill -0 "$FRONTEND_PID" 2>/dev/null; do
             sleep 1
         done
