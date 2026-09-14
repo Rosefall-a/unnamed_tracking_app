@@ -1,16 +1,22 @@
 """Password-protected deployment configuration export/import and key rotation."""
 
 from __future__ import annotations
-import base64, json, secrets, time
+
+import base64
+import json
+import secrets
+import time
 from collections import Counter
 from typing import Any
+
 from cryptography.fernet import Fernet, InvalidToken
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
-from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile
 from pydantic import BaseModel, Field
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from src.api.routes.settings import get_or_create_app_integration_settings
 from src.core.auth import get_current_admin
 from src.core.config import settings as app_settings
@@ -126,10 +132,7 @@ def _decode_backup(raw: bytes, password: str) -> dict[str, Any]:
         backup = json.loads(plaintext.decode("utf-8"))
     except (ValueError, KeyError, TypeError, json.JSONDecodeError, InvalidToken) as exc:
         raise HTTPException(400, "The backup file or password is invalid.") from exc
-    if backup.get("format") != "archive-deployment-backup" or backup.get("format_version") not in {
-        1,
-        2,
-    }:
+    if backup.get("format") != "archive-deployment-backup" or backup.get("format_version") not in {1, 2}:
         raise HTTPException(400, "Unsupported deployment backup format.")
     if not isinstance(backup.get("fernet_keys"), list):
         raise HTTPException(400, "Backup is missing its Fernet key copies.")
@@ -214,12 +217,12 @@ async def export_secret_backup(
 
 @router.post("/inspect")
 async def inspect_secret_backup(
-    payload: SecretBackupRequest,
+    password: str = Form(..., min_length=_MIN_PASSWORD_LENGTH, max_length=256),
     backup_file: UploadFile = File(...),
     admin: User = Depends(get_current_admin),
 ) -> dict[str, Any]:
     del admin
-    backup = _decode_backup(await backup_file.read(), payload.password)
+    backup = _decode_backup(await backup_file.read(), password)
     _validate_backup_keys(backup)
     app = backup.get("app_integration_settings")
     oidc = backup.get("oidc_settings")
@@ -253,7 +256,7 @@ async def inspect_secret_backup(
 
 @router.post("/restore")
 async def import_secret_backup(
-    payload: SecretBackupRequest,
+    password: str = Form(..., min_length=_MIN_PASSWORD_LENGTH, max_length=256),
     backup_file: UploadFile = File(...),
     sections: str = '["application","oidc"]',
     db: AsyncSession = Depends(get_db),
@@ -271,7 +274,7 @@ async def import_secret_backup(
     ):
         raise HTTPException(400, "Choose at least one valid restore section.")
     selected = set(selected)
-    backup = _decode_backup(await backup_file.read(), payload.password)
+    backup = _decode_backup(await backup_file.read(), password)
     restore_key = _validate_backup_keys(backup)
     app_payload = backup.get("app_integration_settings")
     oidc_payload = backup.get("oidc_settings")
@@ -299,12 +302,7 @@ async def import_secret_backup(
             db.add(oidc)
         oidc_columns = {c.name for c in oidc.__table__.columns}
         for field, value in oidc_payload.items():
-            if field in oidc_columns and field not in {
-                "id",
-                "updated_at",
-                "providers_json",
-                "client_secret",
-            }:
+            if field in oidc_columns and field not in {"id", "updated_at", "providers_json", "client_secret"}:
                 setattr(oidc, field, value)
         oidc.client_secret = (
             encrypt_secret(str(oidc_payload["client_secret"]))
