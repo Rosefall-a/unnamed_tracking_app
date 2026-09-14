@@ -30,6 +30,7 @@ from src.api.routes.utils.misc import router as misc_router
 from src.core.auth import ensure_primary_user
 from src.core.config import settings as app_settings
 from src.core.provider_credentials import apply_deployment_provider_credentials
+from src.core.runtime_settings import apply_runtime_settings
 from src.database.session import SessionLocal
 from src.features.backup.scheduler import run_backup_loop
 from src.features.trash.sweep import run_sweep_loop
@@ -71,15 +72,14 @@ app.include_router(misc_router)
 
 
 @app.on_event("startup")
-async def bootstrap_primary_user() -> None:
+async def bootstrap_application_settings() -> None:
     async with SessionLocal() as db:
-        if (
-            app_settings.PRIMARY_USER_USERNAME.strip()
-            and app_settings.PRIMARY_USER_EMAIL.strip()
-            and app_settings.PRIMARY_USER_PASSWORD
-        ):
-            await ensure_primary_user(db)
+        # The web setup page owns first-run admin creation. Keep the legacy
+        # helper available for callers that still import it, but never seed a
+        # primary user from environment variables here.
+        del ensure_primary_user
         app_integrations_row = await get_or_create_app_integration_settings(db)
+        apply_runtime_settings(app_integrations_row)
         apply_deployment_provider_credentials(app_integrations_row)
 
 
