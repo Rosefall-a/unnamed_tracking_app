@@ -238,13 +238,12 @@ async function save() {
         </div>
 
         <div class="autostart">
-          <strong>Autostart URLs</strong>
+          <strong>Autostart URL</strong>
           <template v-if="provider.autostart_enabled">
-            <span><code>{{ browserOrigin }}/login/oidcstart/{{ provider.slug || slugify(provider.name) || 'provider-slug' }}</code></span>
             <span><code>{{ browserOrigin }}/login/{{ provider.slug || slugify(provider.name) || 'provider-slug' }}</code></span>
-            <small>These URLs start this provider directly. Disable autostart to make both URLs fall back to the normal login page.</small>
+            <small>This URL starts this provider directly. Disable autostart to make the direct link fall back to the normal login page.</small>
           </template>
-          <small v-else>Autostart is disabled. Direct links for this provider will redirect to the normal login page.</small>
+          <small v-else>Autostart is disabled. The direct link for this provider will redirect to the normal login page.</small>
         </div>
       </div>
 
