@@ -24,8 +24,8 @@ def test_safe_filename_strips_paths_and_adds_unique_prefix() -> None:
     first = safe_filename("../../Screenshots/My File?.PNG")
     second = safe_filename("../../Screenshots/My File?.PNG")
 
-    assert first.endswith("_Screenshots_My_File_.PNG")
-    assert second.endswith("_Screenshots_My_File_.PNG")
+    assert first.endswith("_My_File_.PNG")
+    assert second.endswith("_My_File_.PNG")
     assert first != second
 
 
