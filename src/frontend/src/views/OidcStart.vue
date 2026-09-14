@@ -8,28 +8,30 @@ const router = useRouter();
 
 onMounted(async () => {
   const requestedProvider =
-    typeof route.params.provider === "string" ? route.params.provider : undefined;
+    typeof route.params.provider === "string" && route.params.provider.trim()
+      ? route.params.provider.trim()
+      : undefined;
+
+  // The original /login/oidcstart flow works by immediately handing control
+  // to the backend OIDC endpoint. Keep that exact mechanism for named
+  // providers too; the backend is responsible for validating the slug and
+  // enforcing the provider's autostart setting.
+  if (requestedProvider && requestedProvider !== "default") {
+    startOidcLogin(requestedProvider);
+    return;
+  }
 
   try {
     const status = await oidcLoginStatus();
-
-    if (!requestedProvider || requestedProvider === "default") {
-      if (status.enabled) {
-        startOidcLogin();
-        return;
-      }
-      await router.replace("/login");
+    if (status.enabled) {
+      startOidcLogin();
       return;
     }
-
-    // Hidden providers are intentionally omitted from the normal login-page
-    // provider list, so a direct autostart URL must still attempt the backend
-    // provider endpoint rather than treating the provider as missing here.
-    startOidcLogin(requestedProvider);
   } catch {
-    // Autostart URLs should never strand the user on the loading screen.
-    await router.replace("/login");
+    // Fall through to the normal login page.
   }
+
+  await router.replace("/login");
 });
 </script>
 
