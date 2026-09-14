@@ -218,7 +218,9 @@ async def rotate_encryption_key(
         try:
             plaintext = old_fernet.decrypt(value.encode())
         except InvalidToken as exc:
-            raise HTTPException(500, "A stored secret could not be decrypted during key rotation.") from exc
+            raise HTTPException(
+                500, "A stored secret could not be decrypted during key rotation."
+            ) from exc
         return new_fernet.encrypt(plaintext).decode()
 
     app = await get_or_create_app_integration_settings(db)

@@ -86,7 +86,9 @@ def restore_persistent_fernet_key(key: str) -> None:
             previous_path.write_text(old_key + "\n", encoding="utf-8")
             previous_path.chmod(0o600)
         except OSError as exc:
-            raise RuntimeError("Could not preserve the existing Fernet key during restore.") from exc
+            raise RuntimeError(
+                "Could not preserve the existing Fernet key during restore."
+            ) from exc
     _write_current_key(key, paths)
 
 
