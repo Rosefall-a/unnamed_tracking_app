@@ -26,8 +26,8 @@ _SCRYPT_P: Final = 1
 # otherwise both use the same cookie named "session". The persistent Fernet
 # key is unique to an installation, so use a short deterministic hash of it
 # as the cookie namespace. This remains stable across restarts.
-_COOKIE_NAMESPACE: Final = hashlib.sha256(settings.SECRET_KEY.encode("utf-8")).hexdigest()[:16]
-SESSION_COOKIE: Final = f"session_{_COOKIE_NAMESPACE}"
+COOKIE_NAMESPACE: Final = hashlib.sha256(settings.SECRET_KEY.encode("utf-8")).hexdigest()[:16]
+SESSION_COOKIE: Final = f"session_{COOKIE_NAMESPACE}"
 API_KEY_PREFIX: Final = "utk_"
 
 
