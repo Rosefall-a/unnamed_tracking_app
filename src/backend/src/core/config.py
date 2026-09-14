@@ -68,7 +68,7 @@ class Settings(BaseSettings):
 
     # DATABASE_URL is an optional escape hatch. When it is absent, the normal
     # Docker-friendly POSTGRES_* values are assembled into the async psycopg URL.
-    DATABASE_URL: str | None = None
+    DATABASE_URL: str = ""
     POSTGRES_USER: str | None = None
     POSTGRES_PASSWORD: str | None = None
     POSTGRES_DB: str | None = None
@@ -84,8 +84,7 @@ class Settings(BaseSettings):
     AUTH_COOKIE_SECURE: bool = False
     DEBUG: bool = False
     # Runtime deployment settings are persisted in the database after first
-    # startup. These environment defaults are retained for backwards
-    # compatibility and are used to seed a fresh deployment's row.
+    # startup. These environment defaults are migrated once for upgrades.
     MAX_UPLOAD_SIZE_MB: int = 15
     MAX_CLIP_SIZE_MB: int = 500
     MAX_WORLD_SAVE_SIZE_MB: int = 2000
@@ -111,7 +110,7 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def build_database_url(self) -> "Settings":
-        if self.DATABASE_URL:
+        if self.DATABASE_URL.strip():
             url = self.DATABASE_URL.strip()
             if url.startswith("postgres://"):
                 url = "postgresql+psycopg://" + url.removeprefix("postgres://")
