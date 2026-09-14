@@ -12,7 +12,6 @@ import Inbox from "../views/Inbox.vue";
 import Bounties from "../views/Bounties.vue";
 import AchievementDetail from "../views/AchievementDetail.vue";
 import Login from "../views/Login.vue";
-import OidcStart from "../views/OidcStart.vue";
 import PasswordReset from "../views/PasswordReset.vue";
 import Setup from "../views/Setup.vue";
 import { currentUser, authChecked, checkAuth } from "../state/auth";
@@ -42,22 +41,7 @@ const router = createRouter({
     { path: "/sets/:id", name: "set-detail", component: SetDetail },
     { path: "/login", name: "login", component: Login },
     { path: "/login/local", name: "login-local", component: Login },
-    {
-      path: "/login/oidcstart/:provider",
-      name: "oidc-start-provider",
-      component: OidcStart,
-    },
-    { path: "/login/oidcstart", name: "oidc-start", component: OidcStart },
-    {
-      path: "/login/:provider",
-      name: "oidc-provider-start",
-      beforeEnter: (to) => {
-        const provider = typeof to.params.provider === "string" ? to.params.provider.trim() : "";
-        if (!provider || provider === "local" || provider === "oidcstart") return "/login";
-        window.location.assign(`/api/auth/oidc/login/${encodeURIComponent(provider)}`);
-        return false;
-      },
-    },
+    { path: "/login/:provider", name: "oidc-provider-start", component: Login },
     { path: "/reset-password", name: "password-reset", component: PasswordReset },
     { path: "/setup", name: "setup", component: Setup },
     { path: "/profile", redirect: "/settings?section=profile" },
@@ -78,14 +62,10 @@ router.beforeEach(async (to, from) => {
     return { path: "/settings", query: { section: "sources" } };
   }
 
-  // Login and explicit OIDC-start URLs must always be reachable without an
-  // authenticated session. In particular, do not redirect /login/ back into
-  // itself: Vue Router treats /login and /login/ as the same route.
-  if (
-    to.path === "/login" ||
-    to.path.startsWith("/login/") ||
-    to.path === "/reset-password"
-  ) {
+  // Every login URL is public and must not wait for server setup/auth checks.
+  // /login/<provider> is a normal route so Vue Router does not reject a
+  // navigation guard returning a boolean from a RouteRecordRaw.
+  if (to.path === "/login" || to.path.startsWith("/login/") || to.path === "/reset-password") {
     return;
   }
 
@@ -96,10 +76,7 @@ router.beforeEach(async (to, from) => {
   }
   if (to.path === "/setup") return "/";
   if (!authChecked.value) await checkAuth();
-  if (to.path !== "/login" && !to.path.startsWith("/login/") && !currentUser.value) {
-    return "/login";
-  }
-  if (to.path === "/login" && currentUser.value) return "/";
+  if (!currentUser.value) return "/login";
   if (currentUser.value && !appearanceLoaded.value) await loadAppearanceSettings();
 });
 
