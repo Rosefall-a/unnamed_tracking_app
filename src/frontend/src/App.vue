@@ -1,24 +1,44 @@
 <script setup lang="ts">
 import { useRoute } from "vue-router";
 import SidebarNav from "./components/SidebarNav.vue";
+import DesktopSidebar from "./components/DesktopSidebar.vue";
+import ProfileChip from "./components/ProfileChip.vue";
+import NotificationBell from "./components/NotificationBell.vue";
 import TaskProgressToast from "./components/TaskProgressToast.vue";
 import ShortcutsHelp from "./components/ShortcutsHelp.vue";
 import CommandPalette from "./components/CommandPalette.vue";
 import { authChecked } from "./state/auth";
 
 const route = useRoute();
+
+const isPublicRoute = () =>
+  route.path === "/login" ||
+  route.path === "/setup" ||
+  route.path === "/login/oidcstart" ||
+  route.path === "/reset-password";
 </script>
 
 <template>
-  <!-- First-run setup and the direct OIDC entrypoint deliberately bypass
-       normal authentication, so both must render while authChecked is false. -->
-  <template v-if="authChecked || route.path === '/setup' || route.path === '/login/oidcstart'">
-    <SidebarNav v-if="route.path !== '/login' && route.path !== '/setup' && route.path !== '/login/oidcstart'" />
+  <template
+    v-if="
+      authChecked ||
+      route.path === '/setup' ||
+      route.path === '/login/oidcstart' ||
+      route.path === '/reset-password'
+    "
+  >
+    <template v-if="!isPublicRoute()">
+      <SidebarNav />
+      <DesktopSidebar />
+    </template>
     <router-view />
-    <TaskProgressToast v-if="route.path !== '/setup' && route.path !== '/login/oidcstart'" />
-    <ShortcutsHelp v-if="route.path !== '/login' && route.path !== '/setup' && route.path !== '/login/oidcstart'" />
-    <CommandPalette v-if="route.path !== '/login' && route.path !== '/setup' && route.path !== '/login/oidcstart'" />
+    <NotificationBell v-if="!isPublicRoute()" />
+    <ProfileChip v-if="!isPublicRoute()" />
+    <TaskProgressToast v-if="!isPublicRoute()" />
+    <ShortcutsHelp v-if="!isPublicRoute()" />
+    <CommandPalette v-if="!isPublicRoute()" />
   </template>
+
   <main v-else class="app-loading">
     <p>Loading…</p>
   </main>

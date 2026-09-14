@@ -26,9 +26,9 @@ const viewModeOptions = [
   { value: "detail", label: "List + preview" },
 ];
 const sortOptions = [
-  { value: "name", label: "Name" },
-  { value: "recent", label: "Recently added" },
-  { value: "rating", label: "Rating" },
+  { value: "name", label: "Name (A–Z)" },
+  { value: "recent", label: "Recently added (newest)" },
+  { value: "rating", label: "Rating (highest)" },
   { value: "playtime", label: "Most played" },
 ];
 
@@ -77,20 +77,22 @@ watch(highContrastMode, (enabled) => {
       />
     </div>
 
-    <ToggleButton v-model="compactMode" label="Compact mode">
-      <strong>Compact mode</strong>: tighter spacing across the app
-    </ToggleButton>
+    <div class="toggle-list">
+      <ToggleButton v-model="compactMode" label="Compact mode">
+        <strong>Compact mode</strong>: tighter spacing across the app
+      </ToggleButton>
 
-    <ToggleButton v-model="weeklyDigestEnabled" label="Weekly digest">
-      <strong>Weekly digest</strong>: a "this week" recap card on the Home Hub
-      showing games played, achievements unlocked, and metadata changes over the
-      last 7 days
-    </ToggleButton>
+      <ToggleButton v-model="weeklyDigestEnabled" label="Weekly digest">
+        <strong>Weekly digest</strong>: a "this week" recap card on the Home Hub
+        showing games played, achievements unlocked, and metadata changes over the
+        last 7 days
+      </ToggleButton>
 
-    <ToggleButton v-model="highContrastMode" label="High contrast">
-      <strong>High contrast</strong>: brighter secondary text, stronger borders,
-      and a bolder keyboard focus ring across the app
-    </ToggleButton>
+      <ToggleButton v-model="highContrastMode" label="High contrast">
+        <strong>High contrast</strong>: brighter secondary text, stronger borders,
+        and a bolder keyboard focus ring across the app
+      </ToggleButton>
+    </div>
   </section>
 </template>
 
@@ -111,9 +113,24 @@ watch(highContrastMode, (enabled) => {
 .field {
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
   gap: 8px;
   font-size: 0.85rem;
   color: #ccc;
-  margin-bottom: 18px;
+  margin-bottom: 20px;
+}
+.toggle-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.toggle-list :deep(.toggle-button) {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 11px 10px;
+  border-radius: 8px;
+}
+.toggle-list :deep(.toggle-button:hover:not(:disabled)) {
+  background: rgba(255, 255, 255, 0.04);
 }
 </style>
