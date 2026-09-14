@@ -1,36 +1,12 @@
 // Library export/import plus admin deployment configuration backup/restore.
-
-export interface ImportResult { created: number; skipped: number; errors: string[]; }
-export interface BackupStatus { enabled: boolean; interval_hours: number; backups_kept: number; last_backup_at: number | null; backup_count: number; }
-
-export async function fetchLibraryExport(): Promise<unknown> {
-  const response = await fetch("/api/export/library", { credentials: "include" });
-  if (!response.ok) throw new Error(`Failed to export library: ${response.status} ${response.statusText}`);
-  return await response.json();
-}
-export async function fetchBackupStatus(): Promise<BackupStatus> {
-  const response = await fetch("/api/export/backup-status", { credentials: "include" });
-  if (!response.ok) throw new Error(`Failed to fetch backup status: ${response.status} ${response.statusText}`);
-  return await response.json();
-}
-export async function importLibrary(games: unknown[]): Promise<ImportResult> {
-  const response = await fetch("/api/import/library", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(games) });
-  if (!response.ok) throw new Error(`Failed to import library: ${response.status} ${response.statusText} ${await response.text()}`);
-  return await response.json();
-}
-export async function exportDeploymentBackup(password: string): Promise<Blob> {
-  const response = await fetch("/api/settings/backup/export", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password }) });
-  if (!response.ok) throw new Error(`Failed to export deployment backup: ${response.status} ${response.statusText} ${await response.text()}`);
-  return await response.blob();
-}
-export async function restoreDeploymentBackup(file: File, password: string): Promise<{ restored: boolean; sessions_revoked: boolean; message: string }> {
-  const form = new FormData(); form.append("password", password); form.append("backup_file", file);
-  const response = await fetch("/api/settings/backup/restore", { method: "POST", credentials: "include", body: form });
-  if (!response.ok) throw new Error(`Failed to restore deployment backup: ${response.status} ${response.statusText} ${await response.text()}`);
-  return await response.json();
-}
-export async function rotateDeploymentKey(): Promise<{ rotated: boolean; sessions_revoked: boolean; message: string }> {
-  const response = await fetch("/api/settings/backup/rotate-key", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ confirm: true }) });
-  if (!response.ok) throw new Error(`Failed to rotate encryption key: ${response.status} ${response.statusText} ${await response.text()}`);
-  return await response.json();
-}
+export interface ImportResult{created:number;skipped:number;errors:string[]}
+export interface BackupStatus{enabled:boolean;interval_hours:number;backups_kept:number;last_backup_at:number|null;backup_count:number}
+export interface DeploymentBackupPreview{format_version:number;exported_at:number;sections:Array<{id:string;label:string;description:string;available:boolean}>}
+export interface DeploymentRestoreResult{restored:boolean;sessions_revoked:boolean;message:string}
+export async function fetchLibraryExport():Promise<unknown>{const response=await fetch("/api/export/library",{credentials:"include"});if(!response.ok)throw new Error(`Failed to export library: ${response.status} ${response.statusText}`);return await response.json()}
+export async function fetchBackupStatus():Promise<BackupStatus>{const response=await fetch("/api/export/backup-status",{credentials:"include"});if(!response.ok)throw new Error(`Failed to fetch backup status: ${response.status} ${response.statusText}`);return await response.json()}
+export async function importLibrary(games:unknown[]):Promise<ImportResult>{const response=await fetch("/api/import/library",{method:"POST",credentials:"include",headers:{"Content-Type":"application/json"},body:JSON.stringify(games)});if(!response.ok)throw new Error(`Failed to import library: ${response.status} ${response.statusText} ${await response.text()}`);return await response.json()}
+export async function exportDeploymentBackup(password:string):Promise<Blob>{const response=await fetch("/api/settings/backup/export",{method:"POST",credentials:"include",headers:{"Content-Type":"application/json"},body:JSON.stringify({password})});if(!response.ok)throw new Error(`Failed to export deployment backup: ${response.status} ${response.statusText} ${await response.text()}`);return await response.blob()}
+export async function inspectDeploymentBackup(file:File,password:string):Promise<DeploymentBackupPreview>{const form=new FormData();form.append("password",password);form.append("backup_file",file);const response=await fetch("/api/settings/backup/inspect",{method:"POST",credentials:"include",body:form});if(!response.ok)throw new Error(`Failed to decrypt deployment backup: ${response.status} ${response.statusText} ${await response.text()}`);return await response.json()}
+export async function restoreDeploymentBackup(file:File,password:string,sections:string[]):Promise<DeploymentRestoreResult>{const form=new FormData();form.append("password",password);form.append("backup_file",file);form.append("sections",JSON.stringify(sections));const response=await fetch("/api/settings/backup/restore",{method:"POST",credentials:"include",body:form});if(!response.ok)throw new Error(`Failed to restore deployment backup: ${response.status} ${response.statusText} ${await response.text()}`);return await response.json()}
+export async function rotateDeploymentKey():Promise<{rotated:boolean;sessions_revoked:boolean;message:string}>{const response=await fetch("/api/settings/backup/rotate-key",{method:"POST",credentials:"include",headers:{"Content-Type":"application/json"},body:JSON.stringify({confirm:true})});if(!response.ok)throw new Error(`Failed to rotate encryption key: ${response.status} ${response.statusText} ${await response.text()}`);return await response.json()}
