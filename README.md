@@ -24,7 +24,7 @@ POSTGRES_DB=archive
 ```
 
 You can instead provide a complete `DATABASE_URL`; it takes precedence over the `POSTGRES_*` values. The default PostgreSQL host is `db` and the default port is `5432`.
-
+  
 The application generates its Fernet encryption key automatically and persists it under `/data/config/fernet.key`. Existing deployments may temporarily provide `SECRET_KEY` as a migration/bootstrap value; new deployments do not need to generate one manually.
 
 Normal application settings are managed from the web UI:
