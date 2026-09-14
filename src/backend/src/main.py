@@ -27,7 +27,6 @@ from src.api.routes.password_reset import router as password_reset_router
 from src.api.routes.setup import router as setup_router
 from src.api.routes.settings import get_or_create_app_integration_settings
 from src.api.routes.utils.misc import router as misc_router
-from src.core.auth import ensure_primary_user
 from src.core.config import settings as app_settings
 from src.core.provider_credentials import apply_deployment_provider_credentials
 from src.core.runtime_settings import apply_runtime_settings
@@ -74,10 +73,8 @@ app.include_router(misc_router)
 @app.on_event("startup")
 async def bootstrap_application_settings() -> None:
     async with SessionLocal() as db:
-        # The web setup page owns first-run admin creation. Keep the legacy
-        # helper available for callers that still import it, but never seed a
-        # primary user from environment variables here.
-        del ensure_primary_user
+        # The web setup page owns first-run admin creation. Deployment-wide
+        # application and provider settings are loaded from the database.
         app_integrations_row = await get_or_create_app_integration_settings(db)
         apply_runtime_settings(app_integrations_row)
         apply_deployment_provider_credentials(app_integrations_row)
