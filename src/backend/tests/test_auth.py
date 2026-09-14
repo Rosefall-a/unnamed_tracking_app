@@ -1,4 +1,10 @@
-from src.core.auth import create_api_key, hash_password, hash_token, validate_password, verify_password
+from src.core.auth import (
+    create_api_key,
+    hash_password,
+    hash_token,
+    validate_password,
+    verify_password,
+)
 
 
 def test_validate_password_accepts_password_meeting_policy() -> None:
