@@ -1,6 +1,5 @@
 # app/main.py
 import asyncio
-import hashlib
 
 from fastapi import FastAPI
 from starlette.middleware.sessions import SessionMiddleware
@@ -28,7 +27,7 @@ from src.api.routes.password_reset import router as password_reset_router
 from src.api.routes.setup import router as setup_router
 from src.api.routes.settings import get_or_create_app_integration_settings
 from src.api.routes.utils.misc import router as misc_router
-from src.core.auth import _COOKIE_NAMESPACE
+from src.core.auth import COOKIE_NAMESPACE
 from src.core.config import settings as app_settings
 from src.core.data_paths import ensure_data_directories
 from src.core.provider_credentials import apply_deployment_provider_credentials
@@ -46,7 +45,7 @@ app = FastAPI(
 app.add_middleware(
     SessionMiddleware,
     secret_key=app_settings.SECRET_KEY,
-    session_cookie=f"oidc_state_{_COOKIE_NAMESPACE}",
+    session_cookie=f"oidc_state_{COOKIE_NAMESPACE}",
     same_site="lax",
     https_only=app_settings.AUTH_COOKIE_SECURE,
 )
