@@ -17,6 +17,7 @@ import ExportImportSection from "../components/settings/ExportImportSection.vue"
 import ComingSoonSection from "../components/settings/ComingSoonSection.vue";
 import ApiKeysSection from "../components/settings/ApiKeysSection.vue";
 import ServerIntegrationsSection from "../components/settings/ServerIntegrationsSection.vue";
+import ApplicationSettingsSection from "../components/settings/ApplicationSettingsSection.vue";
 import OidcSettingsSection from "../components/settings/OidcSettingsSection.vue";
 import SmtpSettingsSection from "../components/settings/SmtpSettingsSection.vue";
 
@@ -48,6 +49,7 @@ const groups = computed<SettingsGroup[]>(() => {
   ];
 
   const systemSections = [
+    ...(currentUser.value?.is_admin ? [{ id: "application", label: "Application" }] : []),
     ...(currentUser.value?.is_admin ? [{ id: "oidc", label: "OIDC / SSO" }] : []),
     ...(currentUser.value?.is_admin ? [{ id: "smtp", label: "SMTP / Email" }] : []),
     ...(currentUser.value?.is_admin ? [{ id: "server-integrations", label: "Server Integrations" }] : []),
@@ -92,6 +94,7 @@ watch(activeSection, (section) => {
           <LibraryManagementSection v-else-if="activeSection==='library'"/>
           <ScanSettingsSection v-else-if="activeSection==='scan'"/>
           <MetadataSourcesSection v-else-if="activeSection==='sources'"/>
+          <ApplicationSettingsSection v-else-if="activeSection==='application'&&currentUser?.is_admin"/>
           <OidcSettingsSection v-else-if="activeSection==='oidc'&&currentUser?.is_admin"/>
           <SmtpSettingsSection v-else-if="activeSection==='smtp'&&currentUser?.is_admin"/>
           <ServerIntegrationsSection v-else-if="activeSection==='server-integrations'&&currentUser?.is_admin"/>
