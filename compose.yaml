@@ -35,6 +35,8 @@ services:
     build:
       context: ./src/frontend
       dockerfile: Dockerfile
+    environment:
+      BACKEND_URL: http://backend:8000
     env_file:
       - .env
     ports:
