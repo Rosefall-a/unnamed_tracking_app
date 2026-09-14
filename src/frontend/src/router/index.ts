@@ -12,6 +12,8 @@ import Inbox from "../views/Inbox.vue";
 import Bounties from "../views/Bounties.vue";
 import AchievementDetail from "../views/AchievementDetail.vue";
 import Login from "../views/Login.vue";
+import OidcStart from "../views/OidcStart.vue";
+import OidcProviderStart from "../views/OidcProviderStart.vue";
 import PasswordReset from "../views/PasswordReset.vue";
 import Setup from "../views/Setup.vue";
 import { currentUser, authChecked, checkAuth } from "../state/auth";
@@ -41,7 +43,8 @@ const router = createRouter({
     { path: "/sets/:id", name: "set-detail", component: SetDetail },
     { path: "/login", name: "login", component: Login },
     { path: "/login/local", name: "login-local", component: Login },
-    { path: "/login/:provider", name: "oidc-provider-start", component: Login },
+    { path: "/login/oidcstart", name: "oidc-start", component: OidcStart },
+    { path: "/login/:provider", name: "oidc-provider-start", component: OidcProviderStart },
     { path: "/reset-password", name: "password-reset", component: PasswordReset },
     { path: "/setup", name: "setup", component: Setup },
     { path: "/profile", redirect: "/settings?section=profile" },
@@ -62,9 +65,9 @@ router.beforeEach(async (to, from) => {
     return { path: "/settings", query: { section: "sources" } };
   }
 
-  // Every login URL is public and must not wait for server setup/auth checks.
-  // /login/<provider> is a normal route so Vue Router does not reject a
-  // navigation guard returning a boolean from a RouteRecordRaw.
+  // Login, provider startup, and password reset are public. They must render
+  // immediately even while the backend is booting; the login page itself can
+  // then make the API request it actually needs.
   if (to.path === "/login" || to.path.startsWith("/login/") || to.path === "/reset-password") {
     return;
   }
