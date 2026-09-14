@@ -11,9 +11,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.routes.settings import get_or_create_app_integration_settings
 from src.core.auth import get_current_admin
+from src.core.config import settings as app_settings
 from src.core.crypto import encrypt_secret
 from src.core.email import send_email
 from src.core.provider_credentials import apply_deployment_provider_credentials
+from src.core.runtime_settings import apply_runtime_settings
 from src.database.models.oidc_settings import OidcSettings
 from src.database.models.user import User
 from src.database.session import get_db
@@ -75,6 +77,10 @@ class DeploymentSettingsRequest(BaseModel):
     smtp_from_email: str | None = None
     smtp_from_name: str | None = None
     password_reset_enabled: bool | None = None
+    auth_cookie_secure: bool | None = None
+    max_upload_size_mb: int | None = None
+    max_clip_size_mb: int | None = None
+    max_world_save_size_mb: int | None = None
 
 
 _SECRET_FIELDS = {
@@ -132,6 +138,15 @@ def _smtp_view(app):
     }
 
 
+def _runtime_view(app):
+    return {
+        "auth_cookie_secure": app.auth_cookie_secure,
+        "max_upload_size_mb": app.max_upload_size_mb,
+        "max_clip_size_mb": app.max_clip_size_mb,
+        "max_world_save_size_mb": app.max_world_save_size_mb,
+    }
+
+
 async def get_deployment_settings(db: AsyncSession, admin: User) -> dict:
     del admin
     app = await get_or_create_app_integration_settings(db)
@@ -159,6 +174,7 @@ async def get_deployment_settings(db: AsyncSession, admin: User) -> dict:
             "named_providers": named,
         },
         "smtp": _smtp_view(app),
+        "runtime": _runtime_view(app),
     }
 
 
@@ -265,7 +281,18 @@ async def update_deployment_settings(
                 setattr(app, field, encrypt_secret(value))
         elif field in _SAFE_PROVIDER_FIELDS:
             setattr(app, field, value or None)
+        elif field in {
+            "auth_cookie_secure",
+            "max_upload_size_mb",
+            "max_clip_size_mb",
+            "max_world_save_size_mb",
+        }:
+            if field != "auth_cookie_secure" and (value is None or value < 1):
+                raise HTTPException(400, f"{field} must be at least 1.")
+            setattr(app, field, bool(value) if field == "auth_cookie_secure" else value)
+    app.runtime_settings_initialized = True
     await db.commit()
+    apply_runtime_settings(app)
     apply_deployment_provider_credentials(app)
     return await get_deployment_settings(db, admin)
 
