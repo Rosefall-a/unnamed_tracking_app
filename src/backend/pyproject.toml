@@ -9,6 +9,7 @@ plugins = ["pydantic.mypy"]
 
 [tool.pytest.ini_options]
 asyncio_default_fixture_loop_scope = "function"
+pythonpath = ["."]
 
 [tool.pylint.main]
 py-version = "3.12"
