@@ -20,6 +20,7 @@ import ServerIntegrationsSection from "../components/settings/ServerIntegrations
 import ApplicationSettingsSection from "../components/settings/ApplicationSettingsSection.vue";
 import OidcSettingsSection from "../components/settings/OidcSettingsSection.vue";
 import SmtpSettingsSection from "../components/settings/SmtpSettingsSection.vue";
+import DeploymentBackupSection from "../components/settings/DeploymentBackupSection.vue";
 
 const router = useRouter();
 const route = useRoute();
@@ -53,6 +54,7 @@ const groups = computed<SettingsGroup[]>(() => {
     ...(currentUser.value?.is_admin ? [{ id: "oidc", label: "OIDC / SSO" }] : []),
     ...(currentUser.value?.is_admin ? [{ id: "smtp", label: "SMTP / Email" }] : []),
     ...(currentUser.value?.is_admin ? [{ id: "server-integrations", label: "Server Integrations" }] : []),
+    ...(currentUser.value?.is_admin ? [{ id: "deployment-backup", label: "Deployment Backup" }] : []),
     ...(currentUser.value?.is_admin ? [{ id: "users", label: "Users" }] : []),
     { id: "stats", label: "Server Stats" },
     ...(currentUser.value?.is_admin ? [{ id: "tasks", label: "Tasks", comingSoon: true }] : []),
@@ -98,6 +100,7 @@ watch(activeSection, (section) => {
           <OidcSettingsSection v-else-if="activeSection==='oidc'&&currentUser?.is_admin"/>
           <SmtpSettingsSection v-else-if="activeSection==='smtp'&&currentUser?.is_admin"/>
           <ServerIntegrationsSection v-else-if="activeSection==='server-integrations'&&currentUser?.is_admin"/>
+          <DeploymentBackupSection v-else-if="activeSection==='deployment-backup'&&currentUser?.is_admin"/>
           <AdminSection v-else-if="activeSection==='users'&&currentUser?.is_admin"/>
           <StatsSection v-else-if="activeSection==='stats'"/>
           <ExportImportSection v-else-if="activeSection==='export'"/>
