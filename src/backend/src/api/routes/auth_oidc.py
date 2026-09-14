@@ -50,7 +50,7 @@ def _named_rows(row):
     return [
         provider
         for provider in data
-        if isinstance(provider, dict) and provider.get("slug") and provider.get("enabled", True)
+        if isinstance(provider, dict) and provider.get("slug")
     ]
 
 
@@ -76,13 +76,20 @@ def _config_from_provider(provider):
 
 async def _get_config(db, slug="default", *, autostart=False):
     row = await db.scalar(select(OidcSettings).limit(1))
+
     if row and slug != "default":
         for provider in _named_rows(row):
-            if provider.get("slug") == slug and provider.get("client_secret"):
-                if autostart and not provider.get("autostart_enabled", True):
-                    return None
-                return _config_from_provider(provider)
+            if provider.get("slug") != slug:
+                continue
+            if not provider.get("enabled", True):
+                return None
+            if not provider.get("client_secret"):
+                return None
+            if autostart and not provider.get("autostart_enabled", True):
+                return None
+            return _config_from_provider(provider)
         return None
+
     if row and row.issuer_url and row.client_id and row.client_secret:
         return OidcConfig(
             issuer_url=row.issuer_url.strip(),
@@ -105,7 +112,7 @@ async def oidc_status(db: AsyncSession = Depends(get_db)):
     providers = []
     if row:
         for provider in _named_rows(row):
-            if provider.get("show_on_login", True):
+            if provider.get("enabled", True) and provider.get("show_on_login", True):
                 providers.append(
                     {
                         "name": provider.get("name", provider["slug"]),
