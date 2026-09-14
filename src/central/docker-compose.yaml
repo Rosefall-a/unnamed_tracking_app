@@ -1,0 +1,37 @@
+services:
+  db:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - unnamed_tracking_app_central_db:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  central:
+    build:
+      context: ../..
+      dockerfile: src/central/Dockerfile
+    image: unnamed-tracking-app-central:local
+    environment:
+      APP_MODE: both
+      APP_DATA_DIR: /data
+      PYTHONUNBUFFERED: 1
+    env_file:
+      - ./example.env
+    ports:
+      - "5173:80"
+      - "8000:8000"
+    volumes:
+      - ../../data:/data
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  unnamed_tracking_app_central_db:
