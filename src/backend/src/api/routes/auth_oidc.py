@@ -151,7 +151,8 @@ async def oidc_provider_login(
 ):
     config = await _get_config(db, provider_slug)
     if config is None:
-        raise HTTPException(404, "OIDC provider is not configured.")
+        # Friendly autostart links should never leave the user at an API 404.
+        return RedirectResponse("/login", 303)
     return await begin_oidc(request, config)
 
 
