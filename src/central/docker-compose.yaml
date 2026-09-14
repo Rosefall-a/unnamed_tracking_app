@@ -14,7 +14,7 @@ services:
       retries: 10
 
   central:
-    image: ghcr.io/rosefall-a/unnamed_tracking_app-central:feat-central-docker-image
+    image: ghcr.io/rosefall-a/unnamed_tracking_app-central:feat-central-docker-image-v2
     environment:
       # APP_MODE=both makes the central image run both processes. In this
       # mode BACKEND_URL automatically defaults to localhost:8000 because
