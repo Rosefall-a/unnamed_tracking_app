@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.core.auth import SESSION_COOKIE, hash_password, hash_token, validate_password
 from src.core.config import settings
 from src.core.crypto import encrypt_secret
+from src.database.models.app_integration_settings import AppIntegrationSettings
 from src.database.models.auth import UserSession
 from src.database.models.game import Game
 from src.database.models.oidc_settings import OidcSettings
@@ -35,6 +36,15 @@ class SetupRequest(BaseModel):
     oidc_groups_claim: str = "groups"
     oidc_admin_group: str | None = None
     oidc_user_match_field: str = "email"
+    smtp_enabled: bool = False
+    smtp_host: str | None = None
+    smtp_port: int = 587
+    smtp_username: str | None = None
+    smtp_password: str | None = None
+    smtp_use_tls: bool = True
+    smtp_use_ssl: bool = False
+    smtp_from_email: str | None = None
+    smtp_from_name: str | None = None
 
     @field_validator("password")
     @classmethod
@@ -48,6 +58,13 @@ class SetupRequest(BaseModel):
             raise ValueError("OIDC user matching must be email or username.")
         return value
 
+    @field_validator("smtp_port")
+    @classmethod
+    def validate_smtp_port(cls, value: int) -> int:
+        if not 1 <= value <= 65535:
+            raise ValueError("SMTP port must be between 1 and 65535.")
+        return value
+
 
 @router.get("/status")
 async def setup_status(db: AsyncSession = Depends(get_db)) -> dict[str, bool]:
@@ -57,12 +74,9 @@ async def setup_status(db: AsyncSession = Depends(get_db)) -> dict[str, bool]:
 
 @router.post("", status_code=status.HTTP_201_CREATED)
 async def setup_admin(
-    payload: SetupRequest,
-    response: Response,
-    db: AsyncSession = Depends(get_db),
+    payload: SetupRequest, response: Response, db: AsyncSession = Depends(get_db)
 ) -> dict[str, str | bool]:
     await db.execute(text("SELECT pg_advisory_xact_lock(hashtext('unnamed_tracking_app_setup'))"))
-
     if await db.scalar(select(User.id).limit(1)) is not None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail="Setup is already complete."
@@ -72,8 +86,7 @@ async def setup_admin(
     email = payload.email.strip().lower()
     if not username or not email:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Username and email are required.",
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Username and email are required."
         )
 
     oidc_values = {
@@ -90,15 +103,23 @@ async def setup_admin(
         (oidc_values["issuer_url"], oidc_values["client_id"], oidc_values["client_secret"])
     ):
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="OIDC requires an issuer URL, client ID, and client secret.",
+            status_code=400, detail="OIDC requires an issuer URL, client ID, and client secret."
         )
     if not payload.oidc_enabled and any(
         oidc_values[key] for key in ("issuer_url", "client_id", "client_secret")
     ):
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Enable OIDC before entering OIDC provider credentials.",
+            status_code=400, detail="Enable OIDC before entering OIDC provider credentials."
+        )
+
+    smtp_host = (payload.smtp_host or "").strip() or None
+    smtp_from_email = (payload.smtp_from_email or "").strip() or None
+    smtp_username = (payload.smtp_username or "").strip() or None
+    smtp_password = (payload.smtp_password or "").strip() or None
+    smtp_from_name = (payload.smtp_from_name or "").strip() or None
+    if payload.smtp_enabled and (not smtp_host or not smtp_from_email):
+        raise HTTPException(
+            status_code=400, detail="SMTP requires a host and sender email address."
         )
 
     user = User(
@@ -112,33 +133,36 @@ async def setup_admin(
     try:
         await db.flush()
         await db.execute(update(Game).where(Game.user_id.is_(None)).values(user_id=user.id))
-
         if payload.oidc_enabled:
             client_secret = oidc_values["client_secret"]
             if not isinstance(client_secret, str):
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="OIDC requires a client secret.",
+                raise HTTPException(status_code=400, detail="OIDC requires a client secret.")
+            db.add(
+                OidcSettings(
+                    issuer_url=oidc_values["issuer_url"],
+                    client_id=oidc_values["client_id"],
+                    client_secret=encrypt_secret(client_secret),
+                    scopes=oidc_values["scopes"],
+                    redirect_uri=oidc_values["redirect_uri"],
+                    groups_claim=oidc_values["groups_claim"],
+                    admin_group=oidc_values["admin_group"],
+                    user_match_field=oidc_values["user_match_field"],
                 )
-            try:
-                encrypted_client_secret = encrypt_secret(client_secret)
-            except RuntimeError as exc:
-                raise HTTPException(
-                    status_code=400,
-                    detail='SECRET_KEY must be a valid Fernet key before OIDC secrets can be saved. Generate one with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"',
-                ) from exc
-            oidc = OidcSettings(
-                issuer_url=oidc_values["issuer_url"],
-                client_id=oidc_values["client_id"],
-                client_secret=encrypted_client_secret,
-                scopes=oidc_values["scopes"],
-                redirect_uri=oidc_values["redirect_uri"],
-                groups_claim=oidc_values["groups_claim"],
-                admin_group=oidc_values["admin_group"],
-                user_match_field=oidc_values["user_match_field"],
             )
-            db.add(oidc)
-
+        if payload.smtp_enabled:
+            db.add(
+                AppIntegrationSettings(
+                    smtp_enabled=True,
+                    smtp_host=smtp_host,
+                    smtp_port=payload.smtp_port,
+                    smtp_username=smtp_username,
+                    smtp_password=encrypt_secret(smtp_password) if smtp_password else None,
+                    smtp_use_tls=payload.smtp_use_tls,
+                    smtp_use_ssl=payload.smtp_use_ssl,
+                    smtp_from_email=smtp_from_email,
+                    smtp_from_name=smtp_from_name,
+                )
+            )
         session_token = secrets.token_urlsafe(32)
         db.add(
             UserSession(
@@ -151,9 +175,12 @@ async def setup_admin(
         await db.refresh(user)
     except IntegrityError as exc:
         await db.rollback()
+        raise HTTPException(status_code=409, detail="Username or email already exists.") from exc
+    except RuntimeError as exc:
+        await db.rollback()
         raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Username or email already exists.",
+            status_code=400,
+            detail="SECRET_KEY must be a valid Fernet key before encrypted settings can be saved.",
         ) from exc
 
     response.set_cookie(
