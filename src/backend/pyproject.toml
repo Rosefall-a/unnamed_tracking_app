@@ -7,6 +7,9 @@ explicit_package_bases = true
 exclude = ["src/database/migrations/.*"]
 plugins = ["pydantic.mypy"]
 
+[tool.pytest.ini_options]
+asyncio_default_fixture_loop_scope = "function"
+
 [tool.pylint.main]
 py-version = "3.12"
 source-roots = ["src"]
