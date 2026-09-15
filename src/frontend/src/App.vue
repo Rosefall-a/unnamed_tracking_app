@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import { useRoute } from "vue-router";
 import SidebarNav from "./components/SidebarNav.vue";
 import DesktopSidebar from "./components/DesktopSidebar.vue";
@@ -12,6 +12,14 @@ import { authChecked } from "./state/auth";
 import { serverStartupPhase } from "./state/serverStartup";
 
 const route = useRoute();
+const navigating = ref(false);
+
+router.beforeEach(() => {
+  navigating.value = true;
+});
+router.afterEach(() => {
+  navigating.value = false;
+});
 
 const isPublicRoute = () =>
   route.path === "/login" ||
@@ -50,6 +58,9 @@ const startupStep = computed(() => {
 </script>
 
 <template>
+  <div v-if="navigating" class="route-loading" role="status" aria-label="Loading page">
+    <span class="route-loading-bar"></span>
+  </div>
   <template
     v-if="
       authChecked ||
@@ -88,5 +99,5 @@ const startupStep = computed(() => {
 </template>
 
 <style scoped>
-.app-loading{min-height:100vh;display:flex;align-items:center;justify-content:center;background:#121212;color:#fff;font-family:system-ui,sans-serif;padding:24px}.startup-card{width:min(460px,100%);padding:40px 36px;border:1px solid #2d2d2d;border-radius:16px;background:#1a1a1a;text-align:center;box-shadow:0 18px 50px rgba(0,0,0,.35)}.brand-mark{font-size:38px;margin-bottom:10px}.startup-card h1{margin:0;font-size:1.45rem}.startup-message{margin:22px 0 14px;color:#e6e6e6;font-size:1rem;font-weight:600}.startup-detail{margin:14px auto 26px;max-width:380px;color:#929292;font-size:13px;line-height:1.55}.spinner{width:28px;height:28px;margin:0 auto;border:3px solid #333;border-top-color:#d68a34;border-radius:50%;animation:spin .85s linear infinite}.startup-steps{display:grid;gap:8px;margin:0;padding:0;list-style:none;text-align:left}.startup-steps li{position:relative;padding:10px 12px 10px 34px;border-radius:8px;background:#151515;color:#686868;font-size:13px}.startup-steps li::before{content:"";position:absolute;left:12px;top:50%;width:8px;height:8px;border:2px solid #555;border-radius:50%;transform:translateY(-50%)}.startup-steps li.active{color:#eee;background:#202020}.startup-steps li.active::before{border-color:#d68a34;box-shadow:0 0 0 3px rgba(214,138,52,.12)}.startup-steps li.done{color:#9c9c9c}.startup-steps li.done::before{border-color:#6f9d78;background:#6f9d78}@keyframes spin{to{transform:rotate(360deg)}}
+.route-loading{position:fixed;top:0;left:0;right:0;height:3px;z-index:1000;overflow:hidden;pointer-events:none;background:rgba(255,255,255,.08)}.route-loading-bar{display:block;width:35%;height:100%;background:#d68a34;animation:route-progress 1s ease-in-out infinite}@keyframes route-progress{0%{transform:translateX(-120%)}100%{transform:translateX(390%)}}.app-loading{min-height:100vh;display:flex;align-items:center;justify-content:center;background:#121212;color:#fff;font-family:system-ui,sans-serif;padding:24px}.startup-card{width:min(460px,100%);padding:40px 36px;border:1px solid #2d2d2d;border-radius:16px;background:#1a1a1a;text-align:center;box-shadow:0 18px 50px rgba(0,0,0,.35)}.brand-mark{font-size:38px;margin-bottom:10px}.startup-card h1{margin:0;font-size:1.45rem}.startup-message{margin:22px 0 14px;color:#e6e6e6;font-size:1rem;font-weight:600}.startup-detail{margin:14px auto 26px;max-width:380px;color:#929292;font-size:13px;line-height:1.55}.spinner{width:28px;height:28px;margin:0 auto;border:3px solid #333;border-top-color:#d68a34;border-radius:50%;animation:spin .85s linear infinite}.startup-steps{display:grid;gap:8px;margin:0;padding:0;list-style:none;text-align:left}.startup-steps li{position:relative;padding:10px 12px 10px 34px;border-radius:8px;background:#151515;color:#686868;font-size:13px}.startup-steps li::before{content:"";position:absolute;left:12px;top:50%;width:8px;height:8px;border:2px solid #555;border-radius:50%;transform:translateY(-50%)}.startup-steps li.active{color:#eee;background:#202020}.startup-steps li.active::before{border-color:#d68a34;box-shadow:0 0 0 3px rgba(214,138,52,.12)}.startup-steps li.done{color:#9c9c9c}.startup-steps li.done::before{border-color:#6f9d78;background:#6f9d78}@keyframes spin{to{transform:rotate(360deg)}}
 </style>
