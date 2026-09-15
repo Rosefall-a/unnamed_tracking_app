@@ -16,6 +16,9 @@ import OidcStart from "../views/OidcStart.vue";
 import OidcProviderStart from "../views/OidcProviderStart.vue";
 import PasswordReset from "../views/PasswordReset.vue";
 import Setup from "../views/Setup.vue";
+import SetupFirstUser from "../views/SetupFirstUser.vue";
+import SetupOidc from "../views/SetupOidc.vue";
+import SetupSmtp from "../views/SetupSmtp.vue";
 import { currentUser, authChecked, checkAuth } from "../state/auth";
 import Settings from "../views/Settings.vue";
 import { saveLibraryScroll } from "../state/libraryScroll";
@@ -48,9 +51,9 @@ const router = createRouter({
     { path: "/login/:provider", name: "oidc-provider-start", component: OidcProviderStart },
     { path: "/reset-password", name: "password-reset", component: PasswordReset },
     { path: "/setup", name: "setup", component: Setup },
-    { path: "/setup/firstuser", name: "setup-firstuser", component: Setup },
-    { path: "/setup/oidc", name: "setup-oidc", component: Setup },
-    { path: "/setup/smtp", name: "setup-smtp", component: Setup },
+    { path: "/setup/firstuser", name: "setup-firstuser", component: SetupFirstUser },
+    { path: "/setup/oidc", name: "setup-oidc", component: SetupOidc },
+    { path: "/setup/smtp", name: "setup-smtp", component: SetupSmtp },
     { path: "/profile", redirect: "/settings?section=profile" },
     { path: "/settings", name: "settings", component: Settings },
     { path: "/games/:gameId/achievements/:achievementId", name: "achievement-detail", component: AchievementDetail },
