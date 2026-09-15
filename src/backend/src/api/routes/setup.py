@@ -161,27 +161,29 @@ async def setup_admin(
             oidc.default_login_method = "local"
             oidc.login_button_text = "Continue with SSO"
             oidc.allow_new_users = True
-            oidc.providers_json = json.dumps([
-                {
-                    "name": provider_name,
-                    "slug": provider_slug,
-                    "issuer_url": oidc_values["issuer_url"],
-                    "client_id": oidc_values["client_id"],
-                    "client_secret": encrypt_secret(client_secret),
-                    "scopes": oidc_values["scopes"],
-                    "redirect_uri": oidc_values["redirect_uri"],
-                    "groups_claim": oidc_values["groups_claim"],
-                    "admin_group": oidc_values["admin_group"],
-                    "user_match_field": oidc_values["user_match_field"],
-                    "allow_new_users": True,
-                    "button_text": "Continue with SSO",
-                    "button_image_url": None,
-                    "button_color": "#d68a34",
-                    "enabled": True,
-                    "show_on_login": True,
-                    "autostart_enabled": True,
-                }
-            ])
+            oidc.providers_json = json.dumps(
+                [
+                    {
+                        "name": provider_name,
+                        "slug": provider_slug,
+                        "issuer_url": oidc_values["issuer_url"],
+                        "client_id": oidc_values["client_id"],
+                        "client_secret": encrypt_secret(client_secret),
+                        "scopes": oidc_values["scopes"],
+                        "redirect_uri": oidc_values["redirect_uri"],
+                        "groups_claim": oidc_values["groups_claim"],
+                        "admin_group": oidc_values["admin_group"],
+                        "user_match_field": oidc_values["user_match_field"],
+                        "allow_new_users": True,
+                        "button_text": "Continue with SSO",
+                        "button_image_url": None,
+                        "button_color": "#d68a34",
+                        "enabled": True,
+                        "show_on_login": True,
+                        "autostart_enabled": True,
+                    }
+                ]
+            )
         if payload.smtp_enabled:
             app_integrations = await get_or_create_app_integration_settings(db)
             app_integrations.smtp_enabled = True
