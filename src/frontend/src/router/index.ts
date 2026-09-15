@@ -48,6 +48,9 @@ const router = createRouter({
     { path: "/login/:provider", name: "oidc-provider-start", component: OidcProviderStart },
     { path: "/reset-password", name: "password-reset", component: PasswordReset },
     { path: "/setup", name: "setup", component: Setup },
+    { path: "/setup/firstuser", name: "setup-firstuser", component: Setup },
+    { path: "/setup/oidc", name: "setup-oidc", component: Setup },
+    { path: "/setup/smtp", name: "setup-smtp", component: Setup },
     { path: "/profile", redirect: "/settings?section=profile" },
     { path: "/settings", name: "settings", component: Settings },
     {
@@ -66,19 +69,23 @@ router.beforeEach(async (to, from) => {
     return { path: "/settings", query: { section: "sources" } };
   }
 
-  // Login, provider startup, and password reset are public. They must render
-  // immediately even while the backend is booting; the login page itself can
-  // then make the API request it actually needs.
+  // Login and password reset are public. Setup pages are also reachable while
+  // the installation is being initialized, and remain reachable after the
+  // admin is created so the optional configuration steps can save settings.
   if (to.path === "/login" || to.path.startsWith("/login/") || to.path === "/reset-password") {
+    if (setupState === "required" && !currentUser.value) await checkAuth();
+    if (setupState === "required" && currentUser.value) setupState = "complete";
     return;
   }
 
   if (setupState === "unknown") setupState = (await waitForServer()) ? "required" : "complete";
-  if (setupState === "required") {
-    if (to.path !== "/setup") return { path: "/setup" };
+  if (to.path === "/setup" || to.path.startsWith("/setup/")) {
+    if (setupState === "required") return;
+    if (!authChecked.value) await checkAuth();
+    if (!currentUser.value) return "/login";
     return;
   }
-  if (to.path === "/setup") return "/";
+  if (setupState === "required") return { path: "/setup" };
   if (!authChecked.value) await checkAuth();
   if (!currentUser.value) return "/login";
   if (currentUser.value && !appearanceLoaded.value) await loadAppearanceSettings();
