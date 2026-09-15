@@ -1,4 +1,5 @@
 using Tracking.Core;
+using Xunit;
 
 namespace Tracking.Windows.Tests;
 
