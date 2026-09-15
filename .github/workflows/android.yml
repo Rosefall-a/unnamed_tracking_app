@@ -1,4 +1,3 @@
- 1 file changed, 3 insertions(+), 2 deletions(-)
 name: Android checks and APK
 
 on:
