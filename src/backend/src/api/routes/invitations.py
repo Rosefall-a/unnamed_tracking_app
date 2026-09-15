@@ -6,7 +6,7 @@ import time
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -26,8 +26,16 @@ _SESSION_SECONDS = 30 * 24 * 60 * 60
 
 class InvitationCreateRequest(BaseModel):
     username: str = Field(min_length=1, max_length=100)
-    email: EmailStr
+    email: str = Field(min_length=3, max_length=320)
     is_admin: bool = False
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, value: str) -> str:
+        value = value.strip().lower()
+        if "@" not in value or value.startswith("@") or value.endswith("@"):
+            raise ValueError("Enter a valid email address.")
+        return value
 
 
 class InvitationAcceptRequest(BaseModel):
@@ -81,9 +89,9 @@ async def _create_invitation(
     admin: User,
     request: Request,
     db: AsyncSession,
-) -> tuple[UserInvitation, str]:
+) -> UserInvitation:
     settings_row = await _smtp_settings(db)
-    email = str(payload.email).strip().lower()
+    email = payload.email.strip().lower()
     username = payload.username.strip()
     if not username:
         raise HTTPException(status_code=400, detail="Username is required.")
@@ -134,7 +142,7 @@ async def _create_invitation(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="The invitation could not be emailed. Check the SMTP configuration and try again.",
         ) from exc
-    return invitation, raw_token
+    return invitation
 
 
 @router.get("")
@@ -165,7 +173,7 @@ async def create_invitation(
     admin: User = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, str | bool | int]:
-    invitation, _ = await _create_invitation(payload, admin, request, db)
+    invitation = await _create_invitation(payload, admin, request, db)
     return {
         "id": str(invitation.id),
         "email": invitation.email,
@@ -192,7 +200,7 @@ async def resend_invitation(
     )
     await db.execute(delete(UserInvitation).where(UserInvitation.id == invitation_id))
     await db.commit()
-    replacement, _ = await _create_invitation(payload, admin, request, db)
+    replacement = await _create_invitation(payload, admin, request, db)
     return {
         "id": str(replacement.id),
         "email": replacement.email,
@@ -279,7 +287,6 @@ async def accept_invitation(
     db.add(user)
     try:
         await db.flush()
-        await db.execute(delete(UserSession).where(UserSession.user_id == user.id))
         session_token = secrets.token_urlsafe(32)
         db.add(
             UserSession(
