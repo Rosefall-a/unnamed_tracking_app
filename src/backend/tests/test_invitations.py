@@ -5,9 +5,18 @@ from starlette.requests import Request
 from src.api.routes.invitations import InvitationAcceptRequest, InvitationCreateRequest, _public_app_origin
 
 
-def _request(headers: dict[str, str] | None = None, base_url: str = "http://testserver/") -> Request:
+def _request(headers: dict[str, str] | None = None) -> Request:
     raw_headers = [(key.lower().encode(), value.encode()) for key, value in (headers or {}).items()]
-    return Request({"type": "http", "headers": raw_headers, "scheme": "http", "server": ("testserver", 80), "path": "/", "query_string": b""})
+    return Request(
+        {
+            "type": "http",
+            "headers": raw_headers,
+            "scheme": "http",
+            "server": ("testserver", 80),
+            "path": "/",
+            "query_string": b"",
+        }
+    )
 
 
 def test_invitation_email_is_normalized() -> None:
