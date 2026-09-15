@@ -3,7 +3,9 @@ import asyncio
 import json
 from urllib.parse import urlparse
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from sqlalchemy import select
 from starlette.middleware.sessions import SessionMiddleware
 from src.api.routes import (
@@ -53,6 +55,34 @@ app.add_middleware(
     same_site="lax",
     https_only=app_settings.AUTH_COOKIE_SECURE,
 )
+
+
+def _safe_validation_errors(exc: RequestValidationError) -> list[dict[str, object]]:
+    """Return useful validation details without echoing submitted values.
+
+    Pydantic's normal error representation includes an `input` member and
+    sometimes a `ctx` object. Those fields can contain passwords, tokens, API
+    keys, or other secrets supplied in the rejected request, so they must not
+    cross the API boundary.
+    """
+    return [
+        {
+            "type": error.get("type", "value_error"),
+            "loc": error.get("loc", []),
+            "msg": error.get("msg", "Invalid request."),
+        }
+        for error in exc.errors()
+    ]
+
+
+@app.exception_handler(RequestValidationError)
+async def request_validation_exception_handler(
+    request: Request, exc: RequestValidationError
+) -> JSONResponse:
+    del request
+    return JSONResponse(status_code=422, content={"detail": _safe_validation_errors(exc)})
+
+
 app.include_router(default_game_assets.router)
 app.include_router(games.router)
 app.include_router(game_archives.router)
@@ -140,13 +170,7 @@ def _legacy_oidc_provider_from_row(row: OidcSettings) -> dict[str, object] | Non
 
 
 async def _migrate_legacy_oidc(db) -> None:
-    """Migrate both legacy env-based and legacy single-row OIDC configuration.
-
-    The original Settings model stored one provider directly in issuer/client
-    columns. The current UI reads named providers from providers_json, so an
-    existing database can otherwise appear empty even though its old OIDC
-    configuration is still present.
-    """
+    """Migrate both legacy env-based and legacy single-row OIDC configuration."""
     row = await db.scalar(select(OidcSettings).limit(1))
     if row is None:
         row = OidcSettings()
@@ -168,8 +192,6 @@ async def _migrate_legacy_oidc(db) -> None:
     if provider is None:
         return
 
-    # If the provider came from the legacy environment, also populate the old
-    # columns so older runtime paths remain compatible during the transition.
     if not row.issuer_url:
         row.issuer_url = str(provider["issuer_url"])
         row.client_id = str(provider["client_id"])
