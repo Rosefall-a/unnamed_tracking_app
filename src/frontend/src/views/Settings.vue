@@ -21,6 +21,7 @@ import ApplicationSettingsSection from "../components/settings/ApplicationSettin
 import OidcSettingsSection from "../components/settings/OidcSettingsSection.vue";
 import SmtpSettingsSection from "../components/settings/SmtpSettingsSection.vue";
 import DeploymentBackupSection from "../components/settings/DeploymentBackupSection.vue";
+import HealthStatusSection from "../components/settings/HealthStatusSection.vue";
 
 const router = useRouter();
 const route = useRoute();
@@ -56,6 +57,7 @@ const groups = computed<SettingsGroup[]>(() => {
     ...(currentUser.value?.is_admin ? [{ id: "server-integrations", label: "Server Integrations" }] : []),
     ...(currentUser.value?.is_admin ? [{ id: "deployment-backup", label: "Deployment Backup" }] : []),
     ...(currentUser.value?.is_admin ? [{ id: "users", label: "Users" }] : []),
+    ...(currentUser.value?.is_admin ? [{ id: "health", label: "System Status" }] : []),
     { id: "stats", label: "Server Stats" },
     ...(currentUser.value?.is_admin ? [{ id: "tasks", label: "Tasks", comingSoon: true }] : []),
     ...(currentUser.value?.is_admin ? [{ id: "logs", label: "Logs", comingSoon: true }] : []),
@@ -102,6 +104,7 @@ watch(activeSection, (section) => {
           <ServerIntegrationsSection v-else-if="activeSection==='server-integrations'&&currentUser?.is_admin"/>
           <DeploymentBackupSection v-else-if="activeSection==='deployment-backup'&&currentUser?.is_admin"/>
           <AdminSection v-else-if="activeSection==='users'&&currentUser?.is_admin"/>
+          <HealthStatusSection v-else-if="activeSection==='health'&&currentUser?.is_admin"/>
           <StatsSection v-else-if="activeSection==='stats'"/>
           <ExportImportSection v-else-if="activeSection==='export'"/>
           <ComingSoonSection v-else-if="activeSection==='tasks'&&currentUser?.is_admin" title="Tasks" description="Schedule recurring jobs, run by an in-process scheduler: no extra server required." :planned-features="['Scheduled metadata refreshes','Automatic library rescans','Storage cleanup jobs']"/>
