@@ -27,6 +27,7 @@ const oidcAllowNewUsers = ref(true);
 const oidcButtonText = ref("Continue with SSO");
 const oidcButtonImageUrl = ref("");
 const oidcButtonColor = ref("#d68a34");
+const oidcProviderEnabled = ref(true);
 const oidcShowOnLogin = ref(true);
 const oidcAutostartEnabled = ref(true);
 const oidcDefaultLoginMethod = ref("local");
@@ -47,7 +48,6 @@ function slugify(value: string) {
 }
 const oidcSlug = computed(() => slugify(oidcName.value || oidcIssuer.value));
 const oidcRedirectUri = computed(() => `${browserOrigin}/api/auth/oidc/callback/${oidcSlug.value}`);
-
 const stages = computed(() => {
   const result = ["Account"];
   if (configureOidc.value) result.push("OIDC");
@@ -87,7 +87,6 @@ async function submitSetup() {
     stage.value = "smtp";
     return;
   }
-
   loading.value = true;
   try {
     await createInitialAdmin(username.value.trim(), email.value.trim(), password.value, {
@@ -105,6 +104,7 @@ async function submitSetup() {
       oidc_button_text: oidcButtonText.value.trim() || "Continue with SSO",
       oidc_button_image_url: oidcButtonImageUrl.value.trim() || null,
       oidc_button_color: oidcButtonColor.value,
+      oidc_provider_enabled: oidcProviderEnabled.value,
       oidc_show_on_login: oidcShowOnLogin.value,
       oidc_autostart_enabled: oidcAutostartEnabled.value,
       oidc_default_login_method: oidcDefaultLoginMethod.value,
@@ -143,46 +143,26 @@ onMounted(async () => {
   <main class="setup-page">
     <form v-if="checking" class="setup-card"><div class="brand"><span>🎮</span><h1>Archive setup</h1></div><p class="subtitle">Checking whether this installation needs setup…</p></form>
     <form v-else-if="stage === 'choose'" class="setup-card" @submit.prevent="stage = 'firstuser'">
-      <div class="brand"><span>🎮</span><h1>Archive setup</h1></div>
-      <p class="subtitle">Choose the optional services to configure. Everything is saved together when setup is finished.</p>
+      <div class="brand"><span>🎮</span><h1>Archive setup</h1></div><p class="subtitle">Choose the optional services to configure. Everything is saved together when setup is finished.</p>
       <div class="progress"><span v-for="(item, index) in stages" :key="item" :class="{ active: index === 0 }">{{ index + 1 }}. {{ item }}</span></div>
-      <label class="toggle"><input v-model="configureOidc" type="checkbox" /><span>Configure OpenID Connect / SSO</span></label>
-      <label class="toggle"><input v-model="configureSmtp" type="checkbox" /><span>Configure SMTP / password-reset email</span></label>
+      <label class="toggle"><input v-model="configureOidc" type="checkbox" /><span>Configure OpenID Connect / SSO</span></label><label class="toggle"><input v-model="configureSmtp" type="checkbox" /><span>Configure SMTP / password-reset email</span></label>
       <p class="hint">These settings can be changed later from Settings.</p><button>Continue</button>
     </form>
     <form v-else-if="stage === 'firstuser'" class="setup-card" @submit.prevent="nextAfterAccount">
-      <div class="brand"><span>🎮</span><h1>Create administrator</h1></div>
-      <div class="progress"><span class="active">1. Account</span><span v-if="configureOidc">2. OIDC</span><span v-if="configureSmtp">{{ configureOidc ? 3 : 2 }}. SMTP</span></div>
-      <label><span>Username</span><input v-model="username" autocomplete="username" required /></label>
-      <label><span>Email</span><input v-model="email" type="email" autocomplete="email" required /></label>
-      <label><span>Password</span><input v-model="password" type="password" autocomplete="new-password" minlength="9" required /></label>
-      <label><span>Confirm password</span><input v-model="confirmPassword" type="password" autocomplete="new-password" minlength="9" required /></label>
-      <p class="hint">Use at least 9 characters with uppercase, lowercase, and a symbol.</p>
-      <div class="actions"><button type="button" class="secondary" @click="back">Back</button><button :disabled="loading">{{ configureOidc || configureSmtp ? 'Continue' : 'Finish setup' }}</button></div>
-      <div v-if="error" class="error">{{ error }}</div>
+      <div class="brand"><span>🎮</span><h1>Create administrator</h1></div><div class="progress"><span class="active">1. Account</span><span v-if="configureOidc">2. OIDC</span><span v-if="configureSmtp">{{ configureOidc ? 3 : 2 }}. SMTP</span></div>
+      <label><span>Username</span><input v-model="username" autocomplete="username" required /></label><label><span>Email</span><input v-model="email" type="email" autocomplete="email" required /></label><label><span>Password</span><input v-model="password" type="password" autocomplete="new-password" minlength="9" required /></label><label><span>Confirm password</span><input v-model="confirmPassword" type="password" autocomplete="new-password" minlength="9" required /></label>
+      <p class="hint">Use at least 9 characters with uppercase, lowercase, and a symbol.</p><div class="actions"><button type="button" class="secondary" @click="back">Back</button><button :disabled="loading">{{ configureOidc || configureSmtp ? 'Continue' : 'Finish setup' }}</button></div><div v-if="error" class="error">{{ error }}</div>
     </form>
     <form v-else-if="stage === 'oidc'" class="setup-card wide" @submit.prevent="nextAfterOidc">
-      <div class="brand"><span>🔐</span><h1>Configure OIDC / SSO</h1></div>
-      <div class="progress"><span>1. Account</span><span class="active">2. OIDC</span><span v-if="configureSmtp">3. SMTP</span></div>
-      <div class="grid">
-        <label><span>Provider name</span><input v-model="oidcName" placeholder="Authentik" required /></label><label><span>Slug</span><input :value="oidcSlug" readonly class="generated-input" /></label>
-        <label class="full"><span>Issuer / discovery URL</span><input v-model="oidcIssuer" placeholder="https://id.example.com" required /></label>
-        <label><span>Client ID</span><input v-model="oidcClientId" required /></label><label><span>Client secret</span><input v-model="oidcClientSecret" type="password" required /></label>
-        <label><span>Scopes</span><input v-model="oidcScopes" /></label><label><span>Groups claim</span><input v-model="oidcGroupsClaim" /></label>
-        <label><span>Admin group</span><input v-model="oidcAdminGroup" /></label><label><span>Match users by</span><select v-model="oidcUserMatchField"><option value="email">Email</option><option value="username">Username</option></select></label>
-        <label><span>Login button text</span><input v-model="oidcButtonText" /></label><label><span>Button image URL</span><input v-model="oidcButtonImageUrl" /></label>
-        <label><span>Button color</span><input v-model="oidcButtonColor" type="color" /></label><label class="full"><span>Redirect URI</span><input :value="oidcRedirectUri" readonly class="generated-input" /></label>
-      </div>
-      <div class="options"><label><input v-model="oidcAllowNewUsers" type="checkbox" /> Allow new users</label><label><input v-model="oidcShowOnLogin" type="checkbox" /> Show on login</label><label><input v-model="oidcAutostartEnabled" type="checkbox" /> Enable autostart URL</label></div>
-      <label><span>Default login method</span><select v-model="oidcDefaultLoginMethod"><option value="local">Local username &amp; password</option><option value="sso">SSO</option></select></label>
+      <div class="brand"><span>🔐</span><h1>Configure OIDC / SSO</h1></div><div class="progress"><span>1. Account</span><span class="active">2. OIDC</span><span v-if="configureSmtp">3. SMTP</span></div>
+      <div class="grid"><label><span>Provider name</span><input v-model="oidcName" placeholder="Authentik" required /></label><label><span>Slug</span><input :value="oidcSlug" readonly class="generated-input" /></label><label class="full"><span>Issuer / discovery URL</span><input v-model="oidcIssuer" placeholder="https://id.example.com" required /></label><label><span>Client ID</span><input v-model="oidcClientId" required /></label><label><span>Client secret</span><input v-model="oidcClientSecret" type="password" required /></label><label><span>Scopes</span><input v-model="oidcScopes" /></label><label><span>Groups claim</span><input v-model="oidcGroupsClaim" /></label><label><span>Admin group</span><input v-model="oidcAdminGroup" /></label><label><span>Match users by</span><select v-model="oidcUserMatchField"><option value="email">Email</option><option value="username">Username</option></select></label><label><span>Login button text</span><input v-model="oidcButtonText" /></label><label><span>Button image URL</span><input v-model="oidcButtonImageUrl" /></label><label><span>Button color</span><input v-model="oidcButtonColor" type="color" /></label><label class="full"><span>Redirect URI</span><input :value="oidcRedirectUri" readonly class="generated-input" /></label></div>
+      <div class="options"><label><input v-model="oidcAllowNewUsers" type="checkbox" /> Allow new users</label><label><input v-model="oidcProviderEnabled" type="checkbox" /> Provider enabled</label><label><input v-model="oidcShowOnLogin" type="checkbox" /> Show on login</label><label><input v-model="oidcAutostartEnabled" type="checkbox" /> Enable autostart URL</label></div><label><span>Default login method</span><select v-model="oidcDefaultLoginMethod"><option value="local">Local username &amp; password</option><option value="sso">SSO</option></select></label>
       <div class="actions"><button type="button" class="secondary" @click="back">Back</button><button :disabled="loading">{{ configureSmtp ? 'Continue to SMTP' : 'Finish setup' }}</button></div><div v-if="error" class="error">{{ error }}</div>
     </form>
     <form v-else class="setup-card wide" @submit.prevent="submitSetup">
-      <div class="brand"><span>✉️</span><h1>Configure SMTP</h1></div>
-      <div class="progress"><span>1. Account</span><span v-if="configureOidc">2. OIDC</span><span class="active">{{ configureOidc ? 3 : 2 }}. SMTP</span></div>
+      <div class="brand"><span>✉️</span><h1>Configure SMTP</h1></div><div class="progress"><span>1. Account</span><span v-if="configureOidc">2. OIDC</span><span class="active">{{ configureOidc ? 3 : 2 }}. SMTP</span></div>
       <div class="grid"><label><span>SMTP host</span><input v-model="smtpHost" placeholder="smtp.example.com" required /></label><label><span>Port</span><input v-model.number="smtpPort" type="number" min="1" max="65535" required /></label><label><span>Username</span><input v-model="smtpUsername" autocomplete="off" /></label><label><span>Password</span><input v-model="smtpPassword" type="password" autocomplete="new-password" /></label><label><span>Sender email</span><input v-model="smtpFromEmail" type="email" placeholder="noreply@example.com" required /></label><label><span>Sender name</span><input v-model="smtpFromName" /></label></div>
-      <div class="options"><label><input v-model="smtpEnabled" type="checkbox" /> SMTP enabled</label><label><input v-model="smtpUseTls" type="checkbox" /> STARTTLS</label><label><input v-model="smtpUseSsl" type="checkbox" /> SSL/TLS</label></div>
-      <div class="actions"><button type="button" class="secondary" @click="back">Back</button><button :disabled="loading">{{ loading ? 'Finishing setup…' : 'Finish setup' }}</button></div><div v-if="error" class="error">{{ error }}</div>
+      <div class="options"><label><input v-model="smtpEnabled" type="checkbox" /> SMTP enabled</label><label><input v-model="smtpUseTls" type="checkbox" /> STARTTLS</label><label><input v-model="smtpUseSsl" type="checkbox" /> SSL/TLS</label></div><div class="actions"><button type="button" class="secondary" @click="back">Back</button><button :disabled="loading">{{ loading ? 'Finishing setup…' : 'Finish setup' }}</button></div><div v-if="error" class="error">{{ error }}</div>
     </form>
   </main>
 </template>
