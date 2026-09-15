@@ -82,3 +82,24 @@ body,
 .sidebar .notification-toggle {
   display: none;
 }
+
+/* Admin tables remain complete on desktop but become horizontally scrollable
+   on narrow screens instead of shrinking action columns until their controls
+   become unusable. */
+@media (max-width: 760px) {
+  .settings-section .user-table {
+    display: block;
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .settings-section .user-table th,
+  .settings-section .user-table td {
+    white-space: nowrap;
+  }
+
+  .settings-section .user-table .actions {
+    justify-content: flex-start;
+  }
+}
