@@ -3,7 +3,6 @@ import { computed, onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { createInitialAdmin } from "../services/setup";
 import { updateDeploymentSettings } from "../services/deploymentSettings";
-import { checkAuth } from "../state/auth";
 
 const route = useRoute();
 const router = useRouter();
@@ -98,8 +97,9 @@ async function submitFirstUser() {
   loading.value = true;
   try {
     await createInitialAdmin(username.value.trim(), email.value.trim(), password.value);
-    await checkAuth();
-    await router.replace(nextSetupPage());
+    // The setup POST creates the session cookie and changes the server's setup
+    // state. Reloading the SPA makes the router read the new state from scratch.
+    window.location.assign(nextSetupPage());
   } catch (err) {
     error.value = err instanceof Error ? err.message : "Setup failed.";
   } finally {
@@ -139,7 +139,7 @@ async function submitOidc() {
     });
     const saved = JSON.parse(sessionStorage.getItem("archive_setup_selection") || "{}");
     sessionStorage.removeItem("archive_setup_selection");
-    await router.replace(saved.smtp === true ? "/setup/smtp" : "/login");
+    window.location.assign(saved.smtp === true ? "/setup/smtp" : "/login");
   } catch (err) {
     error.value = err instanceof Error ? err.message : "Failed to save OIDC settings.";
   } finally {
@@ -167,7 +167,7 @@ async function submitSmtp() {
       smtp_from_name: smtpFromName.value.trim(),
     });
     sessionStorage.removeItem("archive_setup_selection");
-    await router.replace("/login");
+    window.location.assign("/login");
   } catch (err) {
     error.value = err instanceof Error ? err.message : "Failed to save SMTP settings.";
   } finally {
@@ -178,7 +178,7 @@ async function submitSmtp() {
 
 <template>
   <main class="setup-page">
-    <form v-if="step === 'choose'" class="setup-card" @submit.prevent="persistSelection(); router.push('/setup/firstuser')">
+    <form v-if="step === 'choose'" class="setup-card" @submit.prevent="persistSelection(); router.replace('/setup/firstuser')">
       <div class="brand"><span>🎮</span><h1>Archive setup</h1></div>
       <p class="subtitle">Choose which optional services you want to configure before creating the administrator account.</p>
       <label class="toggle"><input v-model="configureOidc" type="checkbox" /><span>Configure OpenID Connect / SSO</span></label>
@@ -196,7 +196,7 @@ async function submitSmtp() {
       <label><span>Confirm password</span><input v-model="confirmPassword" type="password" autocomplete="new-password" minlength="9" required /></label>
       <p class="hint">Use at least 9 characters with uppercase, lowercase, and a symbol.</p>
       <p class="step-summary">Next: {{ configureOidc ? 'OIDC' : configureSmtp ? 'SMTP' : 'finish setup' }}</p>
-      <div class="actions"><button type="button" class="secondary" @click="router.push('/setup')">Back</button><button :disabled="loading">{{ loading ? 'Creating account…' : 'Create administrator' }}</button></div>
+      <div class="actions"><button type="button" class="secondary" @click="router.replace('/setup')">Back</button><button :disabled="loading">{{ loading ? 'Creating account…' : 'Create administrator' }}</button></div>
       <div v-if="error" class="error">{{ error }}</div>
     </form>
 
@@ -220,7 +220,7 @@ async function submitSmtp() {
       </div>
       <div class="options"><label><input v-model="oidcAllowNewUsers" type="checkbox" /> Allow new users</label><label><input v-model="oidcEnabled" type="checkbox" /> Provider enabled</label><label><input v-model="oidcShowOnLogin" type="checkbox" /> Show on login page</label><label><input v-model="oidcAutostartEnabled" type="checkbox" /> Enable autostart URL</label></div>
       <label><span>Default login method</span><select v-model="oidcDefaultLoginMethod"><option value="local">Local username &amp; password</option><option value="sso">SSO</option></select></label>
-      <div class="actions"><button type="button" class="secondary" @click="router.push(previousSetupPage())">Back</button><button :disabled="loading">{{ loading ? 'Saving OIDC…' : 'Save OIDC and continue' }}</button></div>
+      <div class="actions"><button type="button" class="secondary" @click="router.replace(previousSetupPage())">Back</button><button :disabled="loading">{{ loading ? 'Saving OIDC…' : 'Save OIDC and continue' }}</button></div>
       <div v-if="error" class="error">{{ error }}</div>
     </form>
 
@@ -236,7 +236,7 @@ async function submitSmtp() {
         <label><span>Sender name</span><input v-model="smtpFromName" /></label>
       </div>
       <div class="options"><label><input v-model="smtpEnabled" type="checkbox" /> SMTP enabled</label><label><input v-model="smtpUseTls" type="checkbox" /> STARTTLS</label><label><input v-model="smtpUseSsl" type="checkbox" /> SSL/TLS</label></div>
-      <div class="actions"><button type="button" class="secondary" @click="router.push(previousSetupPage())">Back</button><button :disabled="loading">{{ loading ? 'Saving SMTP…' : 'Save SMTP and finish' }}</button></div>
+      <div class="actions"><button type="button" class="secondary" @click="router.replace(previousSetupPage())">Back</button><button :disabled="loading">{{ loading ? 'Saving SMTP…' : 'Save SMTP and finish' }}</button></div>
       <div v-if="error" class="error">{{ error }}</div>
     </form>
   </main>
