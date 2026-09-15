@@ -1,3 +1,4 @@
+import { apiError } from "./apiErrors";
 import type { Card, CardRarity, CardStatus } from "../types/card";
 import type { CardCustomization } from "../types/card";
 
@@ -37,10 +38,7 @@ export function mapBackendCard(raw: BackendCard): Card {
 }
 
 async function handle<T>(response: Response, action: string): Promise<T> {
-  if (!response.ok) {
-    const message = await response.text();
-    throw new Error(`Failed to ${action}: ${response.status} ${message}`);
-  }
+  if (!response.ok) throw await apiError(response, `Failed to ${action}`);
   return response.json();
 }
 
@@ -144,6 +142,6 @@ export async function deleteCard(id: string): Promise<void> {
     credentials: "include",
   });
   if (!response.ok && response.status !== 204) {
-    throw new Error(`Failed to delete card ${id}: ${response.status}`);
+    throw await apiError(response, `Failed to delete card ${id}`);
   }
 }
