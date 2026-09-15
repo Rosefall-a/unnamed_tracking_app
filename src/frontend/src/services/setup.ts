@@ -15,6 +15,7 @@ export interface SetupOptions {
   oidc_button_text?: string;
   oidc_button_image_url?: string | null;
   oidc_button_color?: string;
+  oidc_provider_enabled?: boolean;
   oidc_show_on_login?: boolean;
   oidc_autostart_enabled?: boolean;
   oidc_default_login_method?: string;
