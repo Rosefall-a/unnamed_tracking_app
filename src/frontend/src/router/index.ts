@@ -53,11 +53,7 @@ const router = createRouter({
     { path: "/setup/smtp", name: "setup-smtp", component: Setup },
     { path: "/profile", redirect: "/settings?section=profile" },
     { path: "/settings", name: "settings", component: Settings },
-    {
-      path: "/games/:gameId/achievements/:achievementId",
-      name: "achievement-detail",
-      component: AchievementDetail,
-    },
+    { path: "/games/:gameId/achievements/:achievementId", name: "achievement-detail", component: AchievementDetail },
   ],
 });
 
@@ -69,9 +65,6 @@ router.beforeEach(async (to, from) => {
     return { path: "/settings", query: { section: "sources" } };
   }
 
-  // Login and password reset are public. Setup pages are also reachable while
-  // the installation is being initialized, and remain reachable after the
-  // admin is created so the optional configuration steps can save settings.
   if (to.path === "/login" || to.path.startsWith("/login/") || to.path === "/reset-password") {
     if (setupState === "required" && !currentUser.value) await checkAuth();
     if (setupState === "required" && currentUser.value) setupState = "complete";
@@ -79,16 +72,25 @@ router.beforeEach(async (to, from) => {
   }
 
   if (setupState === "unknown") setupState = (await waitForServer()) ? "required" : "complete";
+
   if (to.path === "/setup" || to.path.startsWith("/setup/")) {
-    if (setupState === "required") return;
+    if (setupState === "required") {
+      if (to.path !== "/setup") {
+        if (!authChecked.value) await checkAuth();
+        if (!currentUser.value) return "/setup";
+      }
+      return;
+    }
     if (!authChecked.value) await checkAuth();
     if (!currentUser.value) return "/login";
+    if (to.path === "/setup") return "/login";
     return;
   }
+
   if (setupState === "required") return { path: "/setup" };
   if (!authChecked.value) await checkAuth();
   if (!currentUser.value) return "/login";
-  if (currentUser.value && !appearanceLoaded.value) await loadAppearanceSettings();
+  if (!appearanceLoaded.value) await loadAppearanceSettings();
 });
 
 export default router;
