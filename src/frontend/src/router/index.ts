@@ -16,11 +16,8 @@ import OidcStart from "../views/OidcStart.vue";
 import OidcProviderStart from "../views/OidcProviderStart.vue";
 import PasswordReset from "../views/PasswordReset.vue";
 import Setup from "../views/Setup.vue";
-import SetupFirstUser from "../views/SetupFirstUser.vue";
-import SetupOidc from "../views/SetupOidc.vue";
-import SetupSmtp from "../views/SetupSmtp.vue";
-import { currentUser, authChecked, checkAuth } from "../state/auth";
 import Settings from "../views/Settings.vue";
+import { currentUser, authChecked, checkAuth } from "../state/auth";
 import { saveLibraryScroll } from "../state/libraryScroll";
 import { appearanceLoaded, loadAppearanceSettings } from "../state/appearance";
 import { waitForServer } from "../state/serverStartup";
@@ -52,9 +49,6 @@ const router = createRouter({
     { path: "/login/:provider", name: "oidc-provider-start", component: OidcProviderStart },
     { path: "/reset-password", name: "password-reset", component: PasswordReset },
     { path: "/setup", name: "setup", component: Setup },
-    { path: "/setup/firstuser", name: "setup-firstuser", component: SetupFirstUser },
-    { path: "/setup/oidc", name: "setup-oidc", component: SetupOidc },
-    { path: "/setup/smtp", name: "setup-smtp", component: SetupSmtp },
     { path: "/profile", redirect: "/settings?section=profile" },
     { path: "/settings", name: "settings", component: Settings },
     { path: "/games/:gameId/achievements/:achievementId", name: "achievement-detail", component: AchievementDetail },
@@ -63,16 +57,14 @@ const router = createRouter({
 
 let setupState: "unknown" | "required" | "complete" = "unknown";
 
-async function refreshSetupState(): Promise<boolean> {
+async function refreshSetupState(): Promise<"required" | "complete"> {
   try {
     const status = await fetchSetupStatus();
     setupState = status.setup_required ? "required" : "complete";
-    return status.setup_required;
+    return setupState;
   } catch {
-    // If the backend is still starting, use the startup retry loop rather
-    // than treating a temporary failure as setup being complete.
     setupState = (await waitForServer()) ? "required" : "complete";
-    return setupState === "required";
+    return setupState;
   }
 }
 
@@ -82,24 +74,18 @@ router.beforeEach(async (to, from) => {
     return { path: "/settings", query: { section: "sources" } };
   }
 
-  if (to.path === "/login" || to.path.startsWith("/login/") || to.path === "/reset-password") {
-    if (setupState === "required" && !currentUser.value) await checkAuth();
-    if (setupState === "required" && currentUser.value) setupState = "complete";
-    return;
+  // Setup has exactly one route and is never authenticated. The only gate is
+  // the public server setup-status endpoint. This prevents /api/auth/me (and
+  // its expected 401 on a fresh installation) from participating in setup.
+  if (to.path === "/setup") {
+    const state = await refreshSetupState();
+    return state === "required" ? undefined : "/login";
   }
 
-  const isSetupRoute = to.path === "/setup" || to.path.startsWith("/setup/");
-  if (isSetupRoute) {
-    // Setup is deliberately public: none of the setup pages ever call
-    // /api/auth/me or require a session. The only gate is the server's
-    // authoritative setup status. This also refreshes the status on every
-    // setup navigation so a stale client-side state cannot expose the wizard
-    // after the first account has been created.
-    const setupRequired = await refreshSetupState();
-    if (setupRequired) return;
-
-    // An installation that already has a user must never expose setup pages.
-    return "/login";
+  // Login and password reset are public too. Do not call /api/auth/me merely
+  // to render them; a fresh installation legitimately has no session yet.
+  if (to.path === "/login" || to.path.startsWith("/login/") || to.path === "/reset-password") {
+    return;
   }
 
   if (setupState === "unknown") setupState = (await waitForServer()) ? "required" : "complete";
