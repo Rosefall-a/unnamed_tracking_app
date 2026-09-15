@@ -77,13 +77,12 @@ router.beforeEach(async (to, from) => {
   if (setupState === "unknown") setupState = (await waitForServer()) ? "required" : "complete";
 
   if (to.path === "/setup" || to.path.startsWith("/setup/")) {
-    if (setupState === "required") {
-      if (to.path !== "/setup") {
-        if (!authChecked.value) await checkAuth();
-        if (!currentUser.value) return "/setup";
-      }
-      return;
-    }
+    // Every setup wizard step must remain reachable before the first account
+    // exists. In particular, /setup/firstuser is intentionally unauthenticated:
+    // requiring /api/auth/me here creates a 401 and immediately redirects back
+    // to the first setup screen when the user presses Continue.
+    if (setupState === "required") return;
+
     if (!authChecked.value) await checkAuth();
     if (!currentUser.value) return "/login";
     if (to.path === "/setup") return "/login";
