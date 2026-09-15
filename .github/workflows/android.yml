@@ -1,3 +1,4 @@
+ 1 file changed, 3 insertions(+), 2 deletions(-)
 name: Android checks and APK
 
 on:
@@ -25,12 +26,13 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
-      - uses: android-actions/setup-android@v3
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.9"
       - name: Install Android SDK
-        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-35" "build-tools;35.0.0"
       - name: Unit tests, lint, and APK
         run: gradle --no-daemon testDebugUnitTest lintDebug assembleDebug
       - name: Upload debug APK
