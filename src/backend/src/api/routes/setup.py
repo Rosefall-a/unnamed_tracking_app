@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import secrets
 import time
+from typing import cast
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from pydantic import BaseModel, Field, field_validator
@@ -84,16 +85,12 @@ async def setup_admin(
 ) -> dict[str, str | bool]:
     await db.execute(text("SELECT pg_advisory_xact_lock(hashtext('unnamed_tracking_app_setup'))"))
     if await db.scalar(select(User.id).limit(1)) is not None:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT, detail="Setup is already complete."
-        )
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Setup is already complete.")
 
     username = payload.username.strip()
     email = payload.email.strip().lower()
     if not username or not email:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Username and email are required."
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Username and email are required.")
 
     oidc_values = {
         "issuer_url": (payload.oidc_issuer_url or "").strip() or None,
@@ -108,15 +105,11 @@ async def setup_admin(
     if payload.oidc_enabled and not all(
         (oidc_values["issuer_url"], oidc_values["client_id"], oidc_values["client_secret"])
     ):
-        raise HTTPException(
-            status_code=400, detail="OIDC requires an issuer URL, client ID, and client secret."
-        )
+        raise HTTPException(status_code=400, detail="OIDC requires an issuer URL, client ID, and client secret.")
     if not payload.oidc_enabled and any(
         oidc_values[key] for key in ("issuer_url", "client_id", "client_secret")
     ):
-        raise HTTPException(
-            status_code=400, detail="Enable OIDC before entering OIDC provider credentials."
-        )
+        raise HTTPException(status_code=400, detail="Enable OIDC before entering OIDC provider credentials.")
 
     smtp_host = (payload.smtp_host or "").strip() or None
     smtp_from_email = (payload.smtp_from_email or "").strip() or None
@@ -124,9 +117,7 @@ async def setup_admin(
     smtp_password = (payload.smtp_password or "").strip() or None
     smtp_from_name = (payload.smtp_from_name or "").strip() or None
     if payload.smtp_enabled and (not smtp_host or not smtp_from_email):
-        raise HTTPException(
-            status_code=400, detail="SMTP requires a host and sender email address."
-        )
+        raise HTTPException(status_code=400, detail="SMTP requires a host and sender email address.")
 
     user = User(
         username=username,
@@ -147,58 +138,48 @@ async def setup_admin(
             if oidc is None:
                 oidc = OidcSettings()
                 db.add(oidc)
-            oidc.issuer_url = oidc_values["issuer_url"]
-            oidc.client_id = oidc_values["client_id"]
+            oidc.issuer_url = cast(str | None, oidc_values["issuer_url"])
+            oidc.client_id = cast(str | None, oidc_values["client_id"])
             oidc.client_secret = encrypt_secret(client_secret)
-            oidc.scopes = oidc_values["scopes"]
-            oidc.redirect_uri = oidc_values["redirect_uri"]
-            oidc.groups_claim = oidc_values["groups_claim"]
-            oidc.admin_group = oidc_values["admin_group"]
-            oidc.user_match_field = oidc_values["user_match_field"]
-            oidc.providers_json = json.dumps(
-                [
-                    {
-                        "name": payload.oidc_issuer_url or "OIDC",
-                        "slug": _provider_slug(payload.oidc_issuer_url or "oidc"),
-                        "issuer_url": oidc_values["issuer_url"],
-                        "client_id": oidc_values["client_id"],
-                        "client_secret": encrypt_secret(client_secret),
-                        "scopes": oidc_values["scopes"],
-                        "redirect_uri": oidc_values["redirect_uri"],
-                        "groups_claim": oidc_values["groups_claim"],
-                        "admin_group": oidc_values["admin_group"],
-                        "user_match_field": oidc_values["user_match_field"],
-                        "allow_new_users": True,
-                        "button_text": "Continue with SSO",
-                        "button_image_url": None,
-                        "button_color": "#d68a34",
-                        "enabled": True,
-                        "show_on_login": True,
-                        "autostart_enabled": True,
-                    }
-                ]
-            )
+            oidc.scopes = cast(str, oidc_values["scopes"])
+            oidc.redirect_uri = cast(str | None, oidc_values["redirect_uri"])
+            oidc.groups_claim = cast(str, oidc_values["groups_claim"])
+            oidc.admin_group = cast(str | None, oidc_values["admin_group"])
+            oidc.user_match_field = cast(str, oidc_values["user_match_field"])
+            oidc.providers_json = json.dumps([
+                {
+                    "name": payload.oidc_issuer_url or "OIDC",
+                    "slug": _provider_slug(payload.oidc_issuer_url or "oidc"),
+                    "issuer_url": oidc_values["issuer_url"],
+                    "client_id": oidc_values["client_id"],
+                    "client_secret": encrypt_secret(client_secret),
+                    "scopes": oidc_values["scopes"],
+                    "redirect_uri": oidc_values["redirect_uri"],
+                    "groups_claim": oidc_values["groups_claim"],
+                    "admin_group": oidc_values["admin_group"],
+                    "user_match_field": oidc_values["user_match_field"],
+                    "allow_new_users": True,
+                    "button_text": "Continue with SSO",
+                    "button_image_url": None,
+                    "button_color": "#d68a34",
+                    "enabled": True,
+                    "show_on_login": True,
+                    "autostart_enabled": True,
+                }
+            ])
         if payload.smtp_enabled:
             app_integrations = await get_or_create_app_integration_settings(db)
             app_integrations.smtp_enabled = True
             app_integrations.smtp_host = smtp_host
             app_integrations.smtp_port = payload.smtp_port
             app_integrations.smtp_username = smtp_username
-            app_integrations.smtp_password = (
-                encrypt_secret(smtp_password) if smtp_password else None
-            )
+            app_integrations.smtp_password = encrypt_secret(smtp_password) if smtp_password else None
             app_integrations.smtp_use_tls = payload.smtp_use_tls
             app_integrations.smtp_use_ssl = payload.smtp_use_ssl
             app_integrations.smtp_from_email = smtp_from_email
             app_integrations.smtp_from_name = smtp_from_name
         session_token = secrets.token_urlsafe(32)
-        db.add(
-            UserSession(
-                user_id=user.id,
-                token_hash=hash_token(session_token),
-                expires_at=int(time.time()) + _SESSION_SECONDS,
-            )
-        )
+        db.add(UserSession(user_id=user.id, token_hash=hash_token(session_token), expires_at=int(time.time()) + _SESSION_SECONDS))
         await db.commit()
         await db.refresh(user)
     except IntegrityError as exc:
@@ -206,10 +187,7 @@ async def setup_admin(
         raise HTTPException(status_code=409, detail="Username or email already exists.") from exc
     except RuntimeError as exc:
         await db.rollback()
-        raise HTTPException(
-            status_code=500,
-            detail="The application could not encrypt the setup credentials. Check the persisted Fernet key.",
-        ) from exc
+        raise HTTPException(status_code=500, detail="The application could not encrypt the setup credentials. Check the persisted Fernet key.") from exc
 
     response.set_cookie(
         key=SESSION_COOKIE,
