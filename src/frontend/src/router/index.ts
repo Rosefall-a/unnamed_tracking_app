@@ -24,6 +24,7 @@ import Settings from "../views/Settings.vue";
 import { saveLibraryScroll } from "../state/libraryScroll";
 import { appearanceLoaded, loadAppearanceSettings } from "../state/appearance";
 import { waitForServer } from "../state/serverStartup";
+import { fetchSetupStatus } from "../services/setup";
 
 const router = createRouter({
   history: createWebHistory(),
@@ -62,6 +63,19 @@ const router = createRouter({
 
 let setupState: "unknown" | "required" | "complete" = "unknown";
 
+async function refreshSetupState(): Promise<boolean> {
+  try {
+    const status = await fetchSetupStatus();
+    setupState = status.setup_required ? "required" : "complete";
+    return status.setup_required;
+  } catch {
+    // If the backend is still starting, use the startup retry loop rather
+    // than treating a temporary failure as setup being complete.
+    setupState = (await waitForServer()) ? "required" : "complete";
+    return setupState === "required";
+  }
+}
+
 router.beforeEach(async (to, from) => {
   if (from.path === "/games") saveLibraryScroll(window.scrollY);
   if (to.path === "/settings" && !to.query.section && from.path === "/") {
@@ -74,21 +88,21 @@ router.beforeEach(async (to, from) => {
     return;
   }
 
-  if (setupState === "unknown") setupState = (await waitForServer()) ? "required" : "complete";
+  const isSetupRoute = to.path === "/setup" || to.path.startsWith("/setup/");
+  if (isSetupRoute) {
+    // Setup is deliberately public: none of the setup pages ever call
+    // /api/auth/me or require a session. The only gate is the server's
+    // authoritative setup status. This also refreshes the status on every
+    // setup navigation so a stale client-side state cannot expose the wizard
+    // after the first account has been created.
+    const setupRequired = await refreshSetupState();
+    if (setupRequired) return;
 
-  if (to.path === "/setup" || to.path.startsWith("/setup/")) {
-    // Every setup wizard step must remain reachable before the first account
-    // exists. In particular, /setup/firstuser is intentionally unauthenticated:
-    // requiring /api/auth/me here creates a 401 and immediately redirects back
-    // to the first setup screen when the user presses Continue.
-    if (setupState === "required") return;
-
-    if (!authChecked.value) await checkAuth();
-    if (!currentUser.value) return "/login";
-    if (to.path === "/setup") return "/login";
-    return;
+    // An installation that already has a user must never expose setup pages.
+    return "/login";
   }
 
+  if (setupState === "unknown") setupState = (await waitForServer()) ? "required" : "complete";
   if (setupState === "required") return { path: "/setup" };
   if (!authChecked.value) await checkAuth();
   if (!currentUser.value) return "/login";
