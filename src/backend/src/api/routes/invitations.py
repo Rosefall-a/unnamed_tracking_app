@@ -6,7 +6,7 @@ import time
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
 from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -34,8 +34,9 @@ class InvitationAcceptRequest(BaseModel):
     token: str = Field(min_length=1)
     password: str = Field(min_length=1)
 
+    @field_validator("password")
     @classmethod
-    def validate_password(cls, value: str) -> str:
+    def validate_new_password(cls, value: str) -> str:
         return validate_password(value)
 
 
@@ -189,9 +190,7 @@ async def resend_invitation(
     payload = InvitationCreateRequest(
         username=invitation.username, email=invitation.email, is_admin=invitation.is_admin
     )
-    await db.execute(
-        delete(UserInvitation).where(UserInvitation.id == invitation_id)
-    )
+    await db.execute(delete(UserInvitation).where(UserInvitation.id == invitation_id))
     await db.commit()
     replacement, _ = await _create_invitation(payload, admin, request, db)
     return {
