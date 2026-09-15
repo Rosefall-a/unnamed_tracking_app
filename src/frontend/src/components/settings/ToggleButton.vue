@@ -24,9 +24,7 @@ const emit = defineEmits<{
     @click="emit('update:modelValue', !modelValue)"
   >
     <span class="toggle-track"><span class="toggle-knob"></span></span>
-    <span class="toggle-label"
-      ><slot>{{ label }}</slot></span
-    >
+    <span class="toggle-label"><slot>{{ label }}</slot></span>
   </button>
 </template>
 
@@ -45,6 +43,11 @@ const emit = defineEmits<{
   font: inherit;
   font-size: 0.82rem;
   line-height: 1.5;
+}
+.toggle-button:focus-visible {
+  outline: 2px solid #d68a34;
+  outline-offset: 4px;
+  border-radius: 4px;
 }
 .toggle-button:disabled {
   cursor: not-allowed;
