@@ -26,8 +26,7 @@ async def cleanup_expired_authentication_records(
 
     invitation_result = await db.execute(
         delete(UserInvitation).where(
-            (UserInvitation.expires_at <= current_time)
-            | UserInvitation.accepted_at.is_not(None)
+            (UserInvitation.expires_at <= current_time) | UserInvitation.accepted_at.is_not(None)
         )
     )
     reset_result = await db.execute(
