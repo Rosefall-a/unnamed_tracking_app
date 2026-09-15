@@ -2,7 +2,11 @@ from __future__ import annotations
 
 from starlette.requests import Request
 
-from src.api.routes.invitations import InvitationAcceptRequest, InvitationCreateRequest, _public_app_origin
+from src.api.routes.invitations import (
+    InvitationAcceptRequest,
+    InvitationCreateRequest,
+    _public_app_origin,
+)
 
 
 def _request(headers: dict[str, str] | None = None) -> Request:
@@ -55,7 +59,5 @@ def test_public_origin_prefers_browser_origin() -> None:
 
 
 def test_public_origin_uses_forwarded_host() -> None:
-    request = _request(
-        {"x-forwarded-proto": "https", "x-forwarded-host": "archive.example"}
-    )
+    request = _request({"x-forwarded-proto": "https", "x-forwarded-host": "archive.example"})
     assert _public_app_origin(request) == "https://archive.example"

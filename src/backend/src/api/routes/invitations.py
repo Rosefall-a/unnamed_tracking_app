@@ -11,7 +11,13 @@ from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.auth import SESSION_COOKIE, get_current_admin, hash_password, hash_token, validate_password
+from src.core.auth import (
+    SESSION_COOKIE,
+    get_current_admin,
+    hash_password,
+    hash_token,
+    validate_password,
+)
 from src.core.email import send_email
 from src.database.models.app_integration_settings import AppIntegrationSettings
 from src.database.models.auth import UserSession
@@ -150,7 +156,9 @@ async def list_invitations(
     admin: User = Depends(get_current_admin), db: AsyncSession = Depends(get_db)
 ) -> list[dict[str, str | bool | int | None]]:
     del admin
-    invitations = await db.scalars(select(UserInvitation).order_by(UserInvitation.created_at.desc()))
+    invitations = await db.scalars(
+        select(UserInvitation).order_by(UserInvitation.created_at.desc())
+    )
     return [
         {
             "id": str(inv.id),
@@ -228,7 +236,9 @@ async def revoke_invitation(
 
 
 @router.get("/validate")
-async def validate_invitation(token: str, db: AsyncSession = Depends(get_db)) -> dict[str, str | bool | int]:
+async def validate_invitation(
+    token: str, db: AsyncSession = Depends(get_db)
+) -> dict[str, str | bool | int]:
     invitation = await db.scalar(
         select(UserInvitation).where(
             UserInvitation.token_hash == hash_token(token.strip()),
@@ -268,7 +278,9 @@ async def accept_invitation(
         raise HTTPException(status_code=400, detail="This invitation is invalid or has expired.")
 
     existing_user = await db.scalar(
-        select(User).where((User.email == invitation.email) | (User.username == invitation.username))
+        select(User).where(
+            (User.email == invitation.email) | (User.username == invitation.username)
+        )
     )
     if existing_user is not None:
         raise HTTPException(
@@ -299,7 +311,9 @@ async def accept_invitation(
         await db.refresh(user)
     except IntegrityError as exc:
         await db.rollback()
-        raise HTTPException(status_code=409, detail="That username or email is already in use.") from exc
+        raise HTTPException(
+            status_code=409, detail="That username or email is already in use."
+        ) from exc
 
     response.set_cookie(
         key=SESSION_COOKIE,
@@ -310,4 +324,7 @@ async def accept_invitation(
         secure=_public_request_is_secure(request),
         path="/",
     )
-    return {"message": "Your Archive account is ready. You are now signed in.", "user_id": str(user.id)}
+    return {
+        "message": "Your Archive account is ready. You are now signed in.",
+        "user_id": str(user.id),
+    }
