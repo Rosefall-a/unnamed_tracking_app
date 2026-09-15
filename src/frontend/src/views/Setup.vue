@@ -3,7 +3,7 @@ import { computed, onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { createInitialAdmin } from "../services/setup";
 import { updateDeploymentSettings } from "../services/deploymentSettings";
-import { checkAuth, currentUser } from "../state/auth";
+import { checkAuth } from "../state/auth";
 
 const route = useRoute();
 const router = useRouter();
@@ -81,8 +81,7 @@ function nextSetupPage() {
 }
 
 function previousSetupPage() {
-  if (step.value === "oidc" || step.value === "smtp") return "/setup/firstuser";
-  return "/setup";
+  return "/setup/firstuser";
 }
 
 onMounted(() => {
@@ -184,7 +183,7 @@ async function submitSmtp() {
       <p class="subtitle">Choose which optional services you want to configure before creating the administrator account.</p>
       <label class="toggle"><input v-model="configureOidc" type="checkbox" /><span>Configure OpenID Connect / SSO</span></label>
       <label class="toggle"><input v-model="configureSmtp" type="checkbox" /><span>Configure SMTP / password-reset email</span></label>
-      <p class="hint">You can configure either service later from Settings. OIDC setup supports one provider; additional providers can be added from Settings after setup.</p>
+      <p class="hint">You can configure either service later from Settings. OIDC setup supports one provider; additional providers can be added later from Settings.</p>
       <button>Continue</button>
     </form>
 
