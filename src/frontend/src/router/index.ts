@@ -11,6 +11,7 @@ import SetDetail from "../views/SetDetail.vue";
 import Inbox from "../views/Inbox.vue";
 import Bounties from "../views/Bounties.vue";
 import AchievementDetail from "../views/AchievementDetail.vue";
+import InviteAccept from "../views/InviteAccept.vue";
 import Login from "../views/Login.vue";
 import OidcStart from "../views/OidcStart.vue";
 import OidcProviderStart from "../views/OidcProviderStart.vue";
@@ -48,6 +49,7 @@ const router = createRouter({
     { path: "/login/oidcstart/:provider", name: "oidc-start-legacy", redirect: "/login" },
     { path: "/login/:provider", name: "oidc-provider-start", component: OidcProviderStart },
     { path: "/reset-password", name: "password-reset", component: PasswordReset },
+    { path: "/invite", name: "invite-accept", component: InviteAccept },
     { path: "/setup", name: "setup", component: Setup },
     { path: "/profile", redirect: "/settings?section=profile" },
     { path: "/settings", name: "settings", component: Settings },
@@ -82,9 +84,14 @@ router.beforeEach(async (to, from) => {
     return state === "required" ? undefined : "/login";
   }
 
-  // Login and password reset are public too. Do not call /api/auth/me merely
-  // to render them; a fresh installation legitimately has no session yet.
-  if (to.path === "/login" || to.path.startsWith("/login/") || to.path === "/reset-password") {
+  // Login, password reset, and invitation acceptance are public. Invitation
+  // acceptance creates the account only after the invite token is verified.
+  if (
+    to.path === "/login" ||
+    to.path.startsWith("/login/") ||
+    to.path === "/reset-password" ||
+    to.path === "/invite"
+  ) {
     return;
   }
 
