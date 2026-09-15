@@ -1,6 +1,7 @@
 name: Android checks and APK
 
 on:
+  workflow_dispatch:
   push:
     paths:
       - "src/androidapp/**"
@@ -35,13 +36,24 @@ jobs:
         run: |
           yes | sdkmanager --licenses >/dev/null || true
           sdkmanager "platforms;android-35" "build-tools;35.0.0"
-      - name: Unit tests, lint, and APK
+      - name: Unit tests, lint, and both APKs
         run: gradle --no-daemon testDebugUnitTest lintDebug assembleDebug
-      - name: Upload debug APK
+      - name: Stage named APKs
+        run: |
+          mkdir -p build/distributions
+          cp app/build/outputs/apk/debug/app-debug.apk build/distributions/tracking-native.apk
+          cp webapp/build/outputs/apk/debug/webapp-debug.apk build/distributions/tracking-web.apk
+      - name: Upload native debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: android-debug-apk
-          path: src/androidapp/app/build/outputs/apk/debug/app-debug.apk
+          name: tracking-native-apk
+          path: src/androidapp/build/distributions/tracking-native.apk
+          if-no-files-found: error
+      - name: Upload web debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: tracking-web-apk
+          path: src/androidapp/build/distributions/tracking-web.apk
           if-no-files-found: error
 
   instrumented-test:
@@ -71,4 +83,4 @@ jobs:
           arch: x86_64
           profile: pixel_6
           working-directory: src/androidapp
-          script: gradle --no-daemon connectedDebugAndroidTest
+          script: gradle --no-daemon :app:connectedDebugAndroidTest

@@ -1,0 +1,50 @@
+name: Windows client
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "src/windowsapp/**"
+      - ".github/workflows/windows.yml"
+  pull_request:
+    paths:
+      - "src/windowsapp/**"
+      - ".github/workflows/windows.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: src/windowsapp
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - name: Test shared Windows contracts
+        run: dotnet test Tracking.Windows.Tests/Tracking.Windows.Tests.csproj --configuration Release
+      - name: Publish WebView2 client
+        run: dotnet publish Tracking.Windows/Tracking.Windows.csproj --configuration Release --runtime win-x64 --self-contained false --output build/publish
+      - name: Create portable ZIP
+        shell: pwsh
+        run: Compress-Archive -Path build/publish/* -DestinationPath build/tracking-windows-web.zip
+      - name: Stage MSIX contents
+        shell: pwsh
+        run: |
+          Copy-Item packaging/AppxManifest.xml build/publish/AppxManifest.xml
+          Copy-Item packaging/Assets build/publish/Assets -Recurse
+          $makeAppx = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Recurse -Filter makeappx.exe | Select-Object -First 1
+          if (-not $makeAppx) { throw "makeappx.exe was not found" }
+          & $makeAppx.FullName pack /d build/publish /p build/tracking-windows-web.msix /o
+      - name: Upload Windows packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: tracking-windows-web
+          path: |
+            src/windowsapp/build/tracking-windows-web.zip
+            src/windowsapp/build/tracking-windows-web.msix
+          if-no-files-found: error

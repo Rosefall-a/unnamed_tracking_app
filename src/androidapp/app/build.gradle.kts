@@ -9,7 +9,7 @@ android {
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.rosefall.tracker"
+        applicationId = "com.rosefall.tracker.nativeapp"
         minSdk = 29
         targetSdk = 35
         versionCode = 1
@@ -20,10 +20,25 @@ android {
         buildConfigField("String", "DEFAULT_SERVER_URL", "\"${defaultServerUrl.replace("\"", "\\\"")}\"")
     }
 
+    val releaseStorePath = providers.gradleProperty("releaseStoreFile").orNull
+    if (releaseStorePath != null) {
+        signingConfigs.create("release") {
+            storeFile = file(releaseStorePath)
+            storePassword = providers.gradleProperty("releaseStorePassword").get()
+            keyAlias = providers.gradleProperty("releaseKeyAlias").get()
+            keyPassword = providers.gradleProperty("releaseKeyPassword").get()
+        }
+    }
+
     buildTypes {
+        debug {
+            applicationIdSuffix = ".debug"
+            versionNameSuffix = "-debug"
+        }
         release {
             isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            if (releaseStorePath != null) signingConfig = signingConfigs.getByName("release")
         }
     }
 

@@ -1,12 +1,16 @@
 from __future__ import annotations
 
+import base64
+import hashlib
 import json
 import logging
+import re
 import secrets
 import time
 from urllib.parse import urlparse
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.responses import RedirectResponse
@@ -15,14 +19,37 @@ from src.core.auth import SESSION_COOKIE, hash_password, hash_token
 from src.core.config import settings
 from src.core.crypto import decrypt_secret
 from src.core.oidc import OidcConfig, begin_oidc, oauth, register_oidc_provider
-from src.database.models.auth import UserSession
+from src.database.models.auth import MobileOidcHandoff, UserSession
 from src.database.models.oidc_settings import OidcSettings
 from src.database.models.user import User
 from src.database.session import get_db
 
 router = APIRouter(prefix="/api/auth/oidc", tags=["auth"])
 _SESSION_SECONDS = 30 * 24 * 60 * 60
+_MOBILE_HANDOFF_SECONDS = 120
+_MOBILE_LOGIN_SECONDS = 10 * 60
+_MOBILE_SESSION_KEY = "native_oidc"
+_MOBILE_CALLBACK = "tracking-native://oidc/callback"
 logger = logging.getLogger(__name__)
+
+
+class MobileExchangeRequest(BaseModel):
+    code: str = Field(min_length=32, max_length=256)
+    verifier: str = Field(min_length=43, max_length=128, pattern=r"^[A-Za-z0-9._~-]+$")
+
+
+def _pkce_challenge(verifier: str) -> str:
+    digest = hashlib.sha256(verifier.encode("ascii")).digest()
+    return base64.urlsafe_b64encode(digest).rstrip(b"=").decode("ascii")
+
+
+def _valid_challenge(value: str) -> bool:
+    return bool(re.fullmatch(r"[A-Za-z0-9_-]{43}", value))
+
+
+def _mobile_redirect(*, code: str | None = None, error: str | None = None) -> RedirectResponse:
+    parameter = f"code={code}" if code else f"error={error or 'authentication_failed'}"
+    return RedirectResponse(f"{_MOBILE_CALLBACK}?{parameter}", 303)
 
 
 def _env_config():
@@ -151,6 +178,89 @@ async def oidc_status(db: AsyncSession = Depends(get_db)):
     }
 
 
+async def _begin_mobile_login(
+    request: Request,
+    db: AsyncSession,
+    challenge: str,
+    provider_slug: str = "default",
+):
+    if not _valid_challenge(challenge):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid PKCE challenge.")
+    config = await _get_config(
+        db,
+        provider_slug,
+        autostart=provider_slug != "default",
+    )
+    if config is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "OIDC login is not configured.")
+    request.session[_MOBILE_SESSION_KEY] = {
+        "challenge": challenge,
+        "created_at": int(time.time()),
+    }
+    return await begin_oidc(request, config)
+
+
+@router.get("/mobile/login")
+async def mobile_oidc_login(
+    request: Request,
+    challenge: str,
+    db: AsyncSession = Depends(get_db),
+):
+    return await _begin_mobile_login(request, db, challenge)
+
+
+@router.get("/mobile/login/{provider_slug}")
+async def mobile_oidc_provider_login(
+    provider_slug: str,
+    request: Request,
+    challenge: str,
+    db: AsyncSession = Depends(get_db),
+):
+    return await _begin_mobile_login(request, db, challenge, provider_slug)
+
+
+@router.post("/mobile/exchange")
+async def mobile_oidc_exchange(
+    payload: MobileExchangeRequest,
+    response: Response,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, str]:
+    now = int(time.time())
+    handoff = await db.scalar(
+        select(MobileOidcHandoff)
+        .where(
+            MobileOidcHandoff.code_hash == hash_token(payload.code),
+            MobileOidcHandoff.expires_at > now,
+        )
+        .with_for_update()
+    )
+    if handoff is None or not secrets.compare_digest(
+        _pkce_challenge(payload.verifier), handoff.verifier_challenge
+    ):
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid or expired OIDC handoff.")
+
+    session_token = secrets.token_urlsafe(32)
+    db.add(
+        UserSession(
+            user_id=handoff.user_id,
+            token_hash=hash_token(session_token),
+            expires_at=now + _SESSION_SECONDS,
+        )
+    )
+    await db.delete(handoff)
+    await db.commit()
+    response.set_cookie(
+        key=SESSION_COOKIE,
+        value=session_token,
+        max_age=_SESSION_SECONDS,
+        httponly=True,
+        samesite="lax",
+        secure=settings.AUTH_COOKIE_SECURE,
+        path="/",
+    )
+    return {"status": "logged_in"}
+
+
 @router.get("/login", name="oidc_login")
 async def oidc_login(request: Request, db: AsyncSession = Depends(get_db)):
     config = await _get_config(db)
@@ -220,25 +330,34 @@ def _safe_username(value, email):
 
 
 async def _complete_callback(request, db, config, client_name):
+    mobile_context = request.session.pop(_MOBILE_SESSION_KEY, None)
+
+    def error_redirect(reason: str) -> RedirectResponse:
+        return (
+            _mobile_redirect(error=reason)
+            if isinstance(mobile_context, dict)
+            else RedirectResponse(f"/login?oidc_error={reason}", 303)
+        )
+
     register_oidc_provider(config, client_name)
     client = oauth.create_client(client_name)
     if client is None:
-        return RedirectResponse("/login?oidc_error=provider_unavailable", 303)
+        return error_redirect("provider_unavailable")
     try:
         token = await _fetch_oidc_token(request, client)
         claims = dict(token.get("userinfo") or await client.userinfo(token=token))
         claims.update({k: v for k, v in token.items() if k not in claims})
     except Exception:
         logger.exception("OIDC callback token/userinfo exchange failed")
-        return RedirectResponse("/login?oidc_error=authentication_failed", 303)
+        return error_redirect("authentication_failed")
     subject = str(claims.get("sub", "")).strip()
     email = str(claims.get("email", "")).strip().lower()
     if not subject or not email or claims.get("email_verified") is False:
-        return RedirectResponse("/login?oidc_error=verified_email_required", 303)
+        return error_redirect("verified_email_required")
     field = config.user_match_field if config.user_match_field in {"email", "username"} else "email"
     match = _match_value(claims, field, email)
     if not match:
-        return RedirectResponse("/login?oidc_error=identity_missing", 303)
+        return error_redirect("identity_missing")
     linked_subject = f"{config.slug}:{subject}"
     user = await db.scalar(select(User).where(User.oidc_subject == linked_subject))
     if user is None:
@@ -251,7 +370,7 @@ async def _complete_callback(request, db, config, client_name):
     )
     if user is None:
         if not config.allow_new_users:
-            return RedirectResponse("/login?oidc_error=user_creation_disabled", 303)
+            return error_redirect("user_creation_disabled")
         username = _safe_username(
             str(claims.get("preferred_username") or claims.get("name") or ""),
             email,
@@ -273,19 +392,43 @@ async def _complete_callback(request, db, config, client_name):
         await db.flush()
     else:
         if not user.is_active:
-            return RedirectResponse("/login?oidc_error=account_disabled", 303)
+            return error_redirect("account_disabled")
         if user.oidc_subject and user.oidc_subject not in {linked_subject, subject}:
-            return RedirectResponse("/login?oidc_error=identity_conflict", 303)
+            return error_redirect("identity_conflict")
         user.oidc_subject = linked_subject
         user.email = email
         if config.admin_group:
             user.is_admin = is_admin
+    now = int(time.time())
+    if isinstance(mobile_context, dict):
+        challenge = str(mobile_context.get("challenge", ""))
+        created_at = mobile_context.get("created_at")
+        if (
+            not _valid_challenge(challenge)
+            or not isinstance(created_at, int)
+            or created_at < now - _MOBILE_LOGIN_SECONDS
+            or created_at > now + 30
+        ):
+            await db.rollback()
+            return _mobile_redirect(error="handoff_expired")
+        handoff_code = secrets.token_urlsafe(32)
+        db.add(
+            MobileOidcHandoff(
+                code_hash=hash_token(handoff_code),
+                user_id=user.id,
+                verifier_challenge=challenge,
+                expires_at=now + _MOBILE_HANDOFF_SECONDS,
+            )
+        )
+        await db.commit()
+        return _mobile_redirect(code=handoff_code)
+
     session_token = secrets.token_urlsafe(32)
     db.add(
         UserSession(
             user_id=user.id,
             token_hash=hash_token(session_token),
-            expires_at=int(time.time()) + _SESSION_SECONDS,
+            expires_at=now + _SESSION_SECONDS,
         )
     )
     await db.commit()

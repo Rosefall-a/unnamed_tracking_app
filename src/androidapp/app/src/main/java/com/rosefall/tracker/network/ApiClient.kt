@@ -43,6 +43,20 @@ class ApiClient(context: Context, val baseUrl: String) {
         cookieJar.clear()
     }
 
+    suspend fun oidcStatus(): JsonElement = get("/api/auth/oidc/status")
+
+    suspend fun exchangeOidc(code: String, verifier: String) {
+        post(
+            "/api/auth/oidc/mobile/exchange",
+            JsonObject(
+                mapOf(
+                    "code" to JsonPrimitive(code),
+                    "verifier" to JsonPrimitive(verifier),
+                )
+            ),
+        )
+    }
+
     private suspend fun request(method: String, path: String, body: JsonObject? = null): JsonElement =
         withContext(Dispatchers.IO) {
             val builder = Request.Builder().url(baseUrl.trimEnd('/') + path)

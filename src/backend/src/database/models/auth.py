@@ -23,6 +23,20 @@ class UserSession(Base):
     created_at: Mapped[int] = mapped_column(BigInteger, nullable=False, default=time.time)
 
 
+class MobileOidcHandoff(Base):
+    """Short-lived PKCE-bound bridge from a system browser to a native client."""
+
+    __tablename__ = "mobile_oidc_handoffs"
+
+    code_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    verifier_challenge: Mapped[str] = mapped_column(String(64), nullable=False)
+    expires_at: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
+    created_at: Mapped[int] = mapped_column(BigInteger, nullable=False, default=time.time)
+
+
 class UserApiKey(Base):
     __tablename__ = "user_api_keys"
 

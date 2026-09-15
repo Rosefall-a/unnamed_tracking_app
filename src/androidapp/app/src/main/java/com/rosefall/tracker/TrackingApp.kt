@@ -1,6 +1,8 @@
 package com.rosefall.tracker
 
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -69,7 +71,7 @@ private const val APP_PREFERENCES = "tracking-app"
 private const val SERVER_URL = "server-url"
 
 @Composable
-fun TrackingApp() {
+fun TrackingApp(oidcCallback: Uri? = null, onOidcConsumed: () -> Unit = {}) {
     val context = LocalContext.current
     val preferences = remember { context.getSharedPreferences(APP_PREFERENCES, Context.MODE_PRIVATE) }
     val configuredDefault = remember {
@@ -90,6 +92,8 @@ fun TrackingApp() {
     val client = remember(serverUrl) { ApiClient(context.applicationContext, serverUrl!!) }
     SessionGate(
         client = client,
+        oidcCallback = oidcCallback,
+        onOidcConsumed = onOidcConsumed,
         onChangeServer = {
             preferences.edit().remove(SERVER_URL).apply()
             serverUrl = null
@@ -151,7 +155,12 @@ private fun ServerSetupScreen(onConnected: (String) -> Unit) {
 private enum class SessionState { CHECKING, SIGNED_OUT, SIGNED_IN }
 
 @Composable
-private fun SessionGate(client: ApiClient, onChangeServer: () -> Unit) {
+private fun SessionGate(
+    client: ApiClient,
+    oidcCallback: Uri?,
+    onOidcConsumed: () -> Unit,
+    onChangeServer: () -> Unit,
+) {
     var state by remember(client) { mutableStateOf(SessionState.CHECKING) }
     var user by remember(client) { mutableStateOf<JsonObject?>(null) }
     var connectionError by remember(client) { mutableStateOf<String?>(null) }
@@ -180,7 +189,13 @@ private fun SessionGate(client: ApiClient, onChangeServer: () -> Unit) {
             retry = { checkSession() },
         )
         state == SessionState.CHECKING -> LoadingScreen()
-        state == SessionState.SIGNED_OUT -> LoginScreen(client, onSignedIn = { checkSession() }, onChangeServer)
+        state == SessionState.SIGNED_OUT -> LoginScreen(
+            client,
+            oidcCallback,
+            onOidcConsumed,
+            onSignedIn = { checkSession() },
+            onChangeServer = onChangeServer,
+        )
         else -> MainScreen(
             client = client,
             user = user,
@@ -217,13 +232,68 @@ private fun ConnectionErrorScreen(
     }
 }
 
+private data class OidcProvider(val slug: String, val buttonText: String)
+
 @Composable
-private fun LoginScreen(client: ApiClient, onSignedIn: suspend () -> Unit, onChangeServer: () -> Unit) {
+private fun LoginScreen(
+    client: ApiClient,
+    oidcCallback: Uri?,
+    onOidcConsumed: () -> Unit,
+    onSignedIn: suspend () -> Unit,
+    onChangeServer: () -> Unit,
+) {
     var identifier by rememberSaveable { mutableStateOf("") }
     var password by rememberSaveable { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
     var loading by remember { mutableStateOf(false) }
+    var oidcProviders by remember(client) { mutableStateOf<List<OidcProvider>>(emptyList()) }
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+
+    LaunchedEffect(client) {
+        runCatching { client.oidcStatus() as? JsonObject }.getOrNull()?.let { status ->
+            if ((status["enabled"] as? JsonPrimitive)?.contentOrNull == "true") {
+                val providers = status["providers"] as? JsonArray
+                oidcProviders = providers.orEmpty().mapNotNull { item ->
+                    val provider = item as? JsonObject ?: return@mapNotNull null
+                    val slug = provider.string("slug") ?: return@mapNotNull null
+                    OidcProvider(slug, provider.string("button_text") ?: "Continue with SSO")
+                }.ifEmpty { listOf(OidcProvider("default", status.string("login_button_text") ?: "Continue with SSO")) }
+            }
+        }
+    }
+
+    LaunchedEffect(oidcCallback) {
+        val callback = oidcCallback ?: return@LaunchedEffect
+        onOidcConsumed()
+        val oidcError = callback.getQueryParameter("error")
+        if (oidcError != null) {
+            error = "SSO sign-in failed: ${oidcError.replace('_', ' ')}"
+            return@LaunchedEffect
+        }
+        val code = callback.getQueryParameter("code")
+        val verifier = OidcLogin.consumeVerifier(context)
+        if (code.isNullOrBlank() || verifier.isNullOrBlank()) {
+            error = "The SSO response could not be matched to this sign-in attempt. Please try again."
+            return@LaunchedEffect
+        }
+        loading = true
+        try {
+            client.exchangeOidc(code, verifier)
+            onSignedIn()
+        } catch (exception: Exception) {
+            error = exception.message ?: "SSO sign-in failed."
+        } finally {
+            loading = false
+        }
+    }
+
+    fun startOidc(provider: OidcProvider) {
+        error = null
+        val uri = OidcLogin.begin(context, client.baseUrl, provider.slug)
+        runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, uri)) }
+            .onFailure { error = "No browser is available to complete SSO." }
+    }
     fun submit() {
         if (identifier.isBlank() || password.isBlank() || loading) return
         scope.launch {
@@ -253,6 +323,13 @@ private fun LoginScreen(client: ApiClient, onSignedIn: suspend () -> Unit, onCha
                 error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                 Button(onClick = ::submit, enabled = !loading, modifier = Modifier.fillMaxWidth()) {
                     if (loading) CircularProgressIndicator(Modifier.height(20.dp)) else Text("Sign in")
+                }
+                oidcProviders.forEach { provider ->
+                    OutlinedButton(
+                        onClick = { startOidc(provider) },
+                        enabled = !loading,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { Text(provider.buttonText) }
                 }
                 TextButton(onClick = onChangeServer, modifier = Modifier.align(Alignment.CenterHorizontally)) { Text("Change server") }
             }

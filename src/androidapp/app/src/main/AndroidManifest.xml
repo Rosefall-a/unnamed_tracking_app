@@ -4,16 +4,25 @@
 
     <application
         android:allowBackup="false"
-        android:label="Tracking App"
+        android:icon="@drawable/ic_launcher"
+        android:label="Tracking Native"
+        android:roundIcon="@drawable/ic_launcher"
         android:theme="@style/Theme.TrackingApp"
         android:usesCleartextTraffic="true">
         <activity
             android:name=".MainActivity"
             android:configChanges="keyboardHidden|orientation|screenSize"
-            android:exported="true">
+            android:exported="true"
+            android:launchMode="singleTask">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="tracking-native" android:host="oidc" android:path="/callback" />
             </intent-filter>
         </activity>
     </application>

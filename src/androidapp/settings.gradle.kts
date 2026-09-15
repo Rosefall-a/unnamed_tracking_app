@@ -16,3 +16,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "UnnamedTrackingApp"
 include(":app")
+include(":webapp")
