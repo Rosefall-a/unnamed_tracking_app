@@ -69,13 +69,19 @@ jobs:
           Compress-Archive -Path build/publish/* -DestinationPath build/tracking-windows-web.zip
           Copy-Item packaging/AppxManifest.xml build/publish/AppxManifest.xml
           Copy-Item packaging/Assets build/publish/Assets -Recurse
-          $makeAppx = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Recurse -Filter makeappx.exe | Select-Object -First 1
+          $makeAppx = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Recurse -Filter makeappx.exe |
+            Where-Object { $_.FullName -match '\\x64\\' } |
+            Sort-Object FullName -Descending |
+            Select-Object -First 1
           if (-not $makeAppx) { throw "makeappx.exe was not found" }
           & $makeAppx.FullName pack /d build/publish /p build/tracking-windows-web.msix /o
           if (-not $env:WINDOWS_CERTIFICATE_BASE64) { throw "WINDOWS_CERTIFICATE_BASE64 is required for releases" }
           $certificate = Join-Path $env:RUNNER_TEMP "archive-release.pfx"
           [IO.File]::WriteAllBytes($certificate, [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE_BASE64))
-          $signTool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Recurse -Filter signtool.exe | Select-Object -First 1
+          $signTool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Recurse -Filter signtool.exe |
+            Where-Object { $_.FullName -match '\\x64\\' } |
+            Sort-Object FullName -Descending |
+            Select-Object -First 1
           if (-not $signTool) { throw "signtool.exe was not found" }
           & $signTool.FullName sign /fd SHA256 /f $certificate /p $env:WINDOWS_CERTIFICATE_PASSWORD build/tracking-windows-web.msix
       - uses: actions/upload-artifact@v4
