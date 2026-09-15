@@ -67,6 +67,13 @@ npm run format
 npm run typecheck
 ```
 
+### Android
+
+The Android 10+ companion app lives in [`src/androidapp`](src/androidapp). It
+loads the same self-hosted frontend, preserving the full web feature set while
+adding persistent login cookies, Android file selection, downloads, and native
+back navigation. See its [user and developer guide](src/androidapp/README.md).
+
 ## Database migrations
 
 Generate a migration from the backend environment with:
