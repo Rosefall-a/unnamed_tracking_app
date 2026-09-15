@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { useRoute } from "vue-router";
+import router from "./router";
 import SidebarNav from "./components/SidebarNav.vue";
 import DesktopSidebar from "./components/DesktopSidebar.vue";
 import ProfileChip from "./components/ProfileChip.vue";
