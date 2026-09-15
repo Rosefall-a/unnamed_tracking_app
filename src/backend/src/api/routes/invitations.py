@@ -150,7 +150,9 @@ async def _create_invitation(
         "If you were not expecting this invitation, you can safely ignore this email."
     )
     try:
-        await asyncio.to_thread(send_email, settings_row, email, "You have been invited to Archive", body)
+        await asyncio.to_thread(
+            send_email, settings_row, email, "You have been invited to Archive", body
+        )
     except Exception as exc:
         await db.delete(invitation)
         await db.commit()
@@ -313,7 +315,13 @@ async def accept_invitation(
     try:
         await db.flush()
         session_token = secrets.token_urlsafe(32)
-        db.add(UserSession(user_id=user.id, token_hash=hash_token(session_token), expires_at=now + _SESSION_SECONDS))
+        db.add(
+            UserSession(
+                user_id=user.id,
+                token_hash=hash_token(session_token),
+                expires_at=now + _SESSION_SECONDS,
+            )
+        )
         await db.commit()
         await db.refresh(user)
     except IntegrityError as exc:
