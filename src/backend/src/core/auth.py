@@ -127,13 +127,14 @@ async def get_current_user(
 
 
 async def ensure_primary_user(db: AsyncSession) -> User:
-    """Create the configured admin account once and return it."""
-    username = settings.PRIMARY_USER_USERNAME.strip()
-    email = settings.PRIMARY_USER_EMAIL.strip().lower()
-    if not username or not email or not settings.PRIMARY_USER_PASSWORD:
+    """Create the legacy configured admin account once and return it."""
+    username = getattr(settings, "PRIMARY_USER_USERNAME", "").strip()
+    email = getattr(settings, "PRIMARY_USER_EMAIL", "").strip().lower()
+    password = getattr(settings, "PRIMARY_USER_PASSWORD", "")
+    if not username or not email or not password:
         raise RuntimeError("Primary user username, email, and password must be configured.")
     try:
-        validate_password(settings.PRIMARY_USER_PASSWORD)
+        validate_password(password)
     except ValueError as exc:
         raise RuntimeError(f"Invalid primary user password: {exc}") from exc
 
@@ -145,7 +146,7 @@ async def ensure_primary_user(db: AsyncSession) -> User:
         user = User(
             username=username,
             email=email,
-            password_hash=hash_password(settings.PRIMARY_USER_PASSWORD),
+            password_hash=hash_password(password),
             is_admin=True,
             is_active=True,
         )
