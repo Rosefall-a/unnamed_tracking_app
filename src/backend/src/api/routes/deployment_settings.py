@@ -317,5 +317,8 @@ async def test_smtp(
         )
     except Exception as exc:
         logger.exception("SMTP test email could not be sent")
-        raise HTTPException(502, f"SMTP test failed: {exc}") from exc
+        raise HTTPException(
+            502,
+            "SMTP test failed. Check the SMTP settings and server logs for details.",
+        ) from exc
     return {"message": f"Test email sent to {admin.email}."}
