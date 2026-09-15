@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.TrackingApp" parent="Theme.AppCompat.DayNight.DarkActionBar">
-        <item name="android:windowActionModeOverlay">true</item>
-        <item name="windowActionModeOverlay">true</item>
-        <item name="android:colorAccent">#7C3AED</item>
+    <style name="Theme.TrackingApp" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:navigationBarColor">#0F1117</item>
+        <item name="android:statusBarColor">#0F1117</item>
     </style>
 </resources>

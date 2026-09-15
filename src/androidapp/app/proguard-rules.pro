@@ -1,1 +1,1 @@
-# WebView integration uses only Android framework callbacks; no custom keep rules are required.
+# Native Compose and OkHttp dependencies publish their required consumer rules.

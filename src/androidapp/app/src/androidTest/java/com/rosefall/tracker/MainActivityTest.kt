@@ -1,19 +1,19 @@
 package com.rosefall.tracker
 
-import androidx.test.core.app.ActivityScenario
-import androidx.test.ext.junit.runners.AndroidJUnit4
-import org.junit.Assert.assertNotNull
+import androidx.compose.ui.test.assertExists
+import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithText
+import org.junit.Rule
 import org.junit.Test
-import org.junit.runner.RunWith
 
-@RunWith(AndroidJUnit4::class)
 class MainActivityTest {
-    @Test fun firstLaunchShowsServerConfiguration() {
-        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
-            scenario.onActivity { activity ->
-                assertNotNull(activity.window.decorView.findViewWithTag("server-url-input"))
-                assertNotNull(activity.window.decorView.findViewWithTag("connect-button"))
-            }
-        }
+    @get:Rule
+    val composeRule = createAndroidComposeRule<MainActivity>()
+
+    @Test
+    fun firstLaunchShowsNativeServerConfiguration() {
+        composeRule.onNodeWithText("Connect your library").assertExists()
+        composeRule.onNodeWithText("Server address").assertExists()
+        composeRule.onNodeWithText("Continue").assertExists()
     }
 }

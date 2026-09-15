@@ -13,6 +13,15 @@ class ServerUrlTest {
         assertEquals("http://192.168.1.20:5173", ServerUrl.normalize("http://192.168.1.20:5173/"))
     }
 
+    @Test fun defaultsPrivateLanAddressToHttp() {
+        assertEquals("http://192.168.1.20:5173", ServerUrl.normalize("192.168.1.20:5173"))
+        assertEquals("http://10.0.2.2:5173", ServerUrl.normalize("10.0.2.2:5173"))
+    }
+
+    @Test fun defaultsPublicHostnameToHttps() {
+        assertEquals("https://tracker.example.com", ServerUrl.normalize("tracker.example.com"))
+    }
+
     @Test fun rejectsNonWebSchemesAndCredentials() {
         assertThrows(IllegalArgumentException::class.java) { ServerUrl.normalize("file:///tmp/app") }
         assertThrows(IllegalArgumentException::class.java) { ServerUrl.normalize("https://user:pass@example.com") }
