@@ -42,6 +42,7 @@ from src.core.provider_credentials import apply_deployment_provider_credentials
 from src.core.runtime_settings import apply_runtime_settings
 from src.database.models.oidc_settings import OidcSettings
 from src.database.session import SessionLocal
+from src.features.auth.cleanup import cleanup_expired_authentication_records
 from src.features.backup.scheduler import run_backup_loop
 from src.features.trash.sweep import run_sweep_loop
 
@@ -222,6 +223,19 @@ async def bootstrap_application_settings() -> None:
         await _migrate_legacy_oidc(db)
         apply_runtime_settings(app_integrations_row)
         apply_deployment_provider_credentials(app_integrations_row)
+
+
+@app.on_event("startup")
+async def start_auth_cleanup() -> None:
+    try:
+        async with SessionLocal() as db:
+            await cleanup_expired_authentication_records(db)
+    except Exception:
+        # Authentication cleanup is housekeeping only; a database hiccup here
+        # must never stop the application from starting.
+        import logging
+
+        logging.getLogger(__name__).exception("Authentication record cleanup failed")
 
 
 @app.on_event("startup")
