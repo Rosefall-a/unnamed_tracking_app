@@ -14,3 +14,9 @@ document.documentElement.classList.toggle(
 );
 
 createApp(App).use(router).mount("#app");
+
+if ("serviceWorker" in navigator && import.meta.env.PROD) {
+  window.addEventListener("load", () => {
+    void navigator.serviceWorker.register("/service-worker.js");
+  });
+}

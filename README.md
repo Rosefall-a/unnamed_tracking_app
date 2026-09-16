@@ -1,5 +1,18 @@
 # Unnamed Tracking App
 
+## Installable clients
+
+The same self-hosted server can be used from several maintained clients:
+
+- **Tracking Web APK** renders the hosted Vue application and therefore follows normal frontend UI updates automatically.
+- **Tracking Native APK** is a Kotlin/Jetpack Compose client with native Android navigation and secure system-browser OIDC.
+- **Progressive Web App** can be installed directly from a supported browser on desktop or mobile.
+- **Tracking Windows Web** packages the hosted Vue application with Microsoft WebView2 as a portable ZIP and signed MSIX.
+
+Tagged builds are published on the [latest GitHub Release](https://github.com/Rosefall-a/unnamed_tracking_app/releases/latest). Stable asset names are `tracking-web.apk`, `tracking-native.apk`, `tracking-windows-web.zip`, and `tracking-windows-web.msix`. Development builds remain available from the named artifacts on the Android and Windows Actions workflows.
+
+See [`docs/CLIENTS.md`](docs/CLIENTS.md) for choosing, installing, releasing, and maintaining each client.
+
 ## Quick start
 
 The recommended self-hosted deployment uses PostgreSQL plus the separate backend and frontend images/services.
@@ -69,10 +82,11 @@ npm run typecheck
 
 ### Android
 
-The Android 10+ companion app lives in [`src/androidapp`](src/androidapp). It is
-a native Jetpack Compose client with persistent authentication and explicit
-HTTP/HTTPS server configuration. See its
-[user and developer guide](src/androidapp/README.md).
+The two co-installable Android 10+ clients live in [`src/androidapp`](src/androidapp): a Vue/WebView edition and a native Compose edition. Both support explicit HTTP/HTTPS server configuration. See the [Android user and developer guide](src/androidapp/README.md).
+
+### Windows
+
+The Windows 10+ WebView2 client lives in [`src/windowsapp`](src/windowsapp). See its [build, packaging, and installation guide](src/windowsapp/README.md).
 
 ## Database migrations
 

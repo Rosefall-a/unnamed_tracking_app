@@ -71,3 +71,9 @@ Make sure the configured groups claim name matches the claim returned by the pro
 - Use a confidential OIDC client for the server-side authorization-code exchange.
 - Keep the application's session cookie HTTP-only.
 - OIDC authentication creates the application's normal server-side session; API requests continue to use that session rather than sending the OIDC token to the frontend.
+
+## Native Android sign-in
+
+The native Android client uses the same provider configuration and server-side callback. It begins at `/api/auth/oidc/mobile/login` (or the provider-specific child route) with an RFC 7636-style SHA-256 challenge. After the provider callback, the backend redirects to `tracking-native://oidc/callback` with a random, short-lived handoff code—not an OIDC token or application session token.
+
+The client exchanges that code together with its private verifier at `/api/auth/oidc/mobile/exchange`. The handoff is row-locked, expires after two minutes, and is deleted in the same transaction that creates the normal session. Intercepting the callback is therefore insufficient to authenticate without the original verifier, and a successful code cannot be replayed.
