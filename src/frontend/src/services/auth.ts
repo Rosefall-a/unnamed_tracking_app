@@ -1,3 +1,5 @@
+import { apiError } from "./apiErrors";
+
 export interface CurrentUser {
   id: string;
   username: string;
@@ -26,9 +28,7 @@ export async function login(
   usernameOrEmail: string,
   password: string,
 ): Promise<void> {
-  if (import.meta.env.VITE_USE_MOCK_DATA === "true") {
-    return;
-  }
+  if (import.meta.env.VITE_USE_MOCK_DATA === "true") return;
 
   const response = await fetch("/api/auth/login", {
     method: "POST",
@@ -38,20 +38,17 @@ export async function login(
   });
 
   if (!response.ok) {
-    if (response.status === 401) {
+    if (response.status === 401)
       throw new Error("Invalid username/email or password.");
-    }
-    const message = await response.text();
-    throw new Error(
-      `Login failed: ${response.status} ${response.statusText} ${message}`,
-    );
+    // Do not render response bodies for credential-bearing requests. The
+    // backend also redacts validation input, but this prevents a future
+    // backend regression from reflecting a password into the UI.
+    throw new Error("Login failed");
   }
 }
 
 export async function logout(): Promise<void> {
-  if (import.meta.env.VITE_USE_MOCK_DATA === "true") {
-    return;
-  }
+  if (import.meta.env.VITE_USE_MOCK_DATA === "true") return;
   await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
 }
 
@@ -68,11 +65,8 @@ export async function fetchCurrentUser(): Promise<CurrentUser | null> {
 
   const response = await fetch("/api/auth/me", { credentials: "include" });
   if (response.status === 401) return null;
-  if (!response.ok) {
-    throw new Error(
-      `Failed to fetch current user: ${response.status} ${response.statusText}`,
-    );
-  }
+  if (!response.ok)
+    throw await apiError(response, "Failed to fetch current user");
   return await response.json();
 }
 
@@ -92,19 +86,13 @@ export async function updateProfile(
     }),
   });
 
-  if (response.status === 401) {
+  if (response.status === 401)
     throw new Error("Current password is incorrect.");
-  }
-  if (response.status === 409) {
+  if (response.status === 409)
     throw new Error("That username or email is already taken.");
-  }
-  if (!response.ok) {
-    const message = await response.text();
-    throw new Error(
-      `Failed to update profile: ${response.status} ${response.statusText} ${message}`,
-    );
-  }
-
+  // This request can contain current and new passwords, so its response body
+  // is never used as user-facing text.
+  if (!response.ok) throw new Error("Failed to update profile");
   return await response.json();
 }
 
@@ -112,12 +100,7 @@ export async function fetchApiKeys(): Promise<ApiKeySummary[]> {
   const response = await fetch("/api/auth/api-keys", {
     credentials: "include",
   });
-  if (!response.ok) {
-    const message = await response.text();
-    throw new Error(
-      `Failed to load API keys: ${response.status} ${response.statusText} ${message}`,
-    );
-  }
+  if (!response.ok) throw await apiError(response, "Failed to load API keys");
   return await response.json();
 }
 
@@ -128,12 +111,7 @@ export async function createApiKey(name: string): Promise<CreatedApiKey> {
     credentials: "include",
     body: JSON.stringify({ name, scopes: [] }),
   });
-  if (!response.ok) {
-    const message = await response.text();
-    throw new Error(
-      `Failed to create API key: ${response.status} ${response.statusText} ${message}`,
-    );
-  }
+  if (!response.ok) throw await apiError(response, "Failed to create API key");
   return await response.json();
 }
 
@@ -142,12 +120,7 @@ export async function revokeApiKey(keyId: string): Promise<void> {
     method: "DELETE",
     credentials: "include",
   });
-  if (!response.ok) {
-    const message = await response.text();
-    throw new Error(
-      `Failed to revoke API key: ${response.status} ${response.statusText} ${message}`,
-    );
-  }
+  if (!response.ok) throw await apiError(response, "Failed to revoke API key");
 }
 
 export interface UpdateProfilePayload {
@@ -171,12 +144,8 @@ export async function uploadProfilePicture(
     body: formData,
   });
 
-  if (!response.ok) {
-    const message = await response.text();
-    throw new Error(
-      `Failed to upload profile picture: ${response.status} ${response.statusText} ${message}`,
-    );
-  }
+  if (!response.ok)
+    throw await apiError(response, "Failed to upload profile picture");
 }
 
 export function profilePictureUrl(userId: string): string {
