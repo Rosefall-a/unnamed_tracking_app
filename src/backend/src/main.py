@@ -24,6 +24,7 @@ from src.api.routes import (
 from src.api.routes import set as set_routes
 from src.api.routes.password_reset import router as password_reset_router
 from src.api.routes.smtp_settings import router as smtp_settings_router
+from src.api.routes.invitations import router as invitations_router
 from src.api.routes.settings import get_or_create_app_integration_settings
 from src.api.routes.utils.misc import router as misc_router
 from src.core.auth import ensure_primary_user
@@ -58,7 +59,6 @@ async def request_validation_exception_handler(
     del request
     return JSONResponse(status_code=422, content={"detail": _safe_validation_errors(exc)})
 
-
 # Register the fallback artwork route before the normal asset route. When a
 # stored asset exists it is served unchanged; only a missing key-art file
 # reaches the generated default cover.
@@ -70,6 +70,7 @@ app.include_router(api_keys.router)
 app.include_router(auth.router)
 app.include_router(password_reset_router)
 app.include_router(smtp_settings_router)
+app.include_router(invitations_router)
 app.include_router(settings.router)
 app.include_router(app_integrations.router)
 app.include_router(media.router)

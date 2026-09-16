@@ -32,6 +32,8 @@ const ICON_PATHS: Record<string, string> = {
   export: "M12 3v12 M7 8l5-5 5 5 M5 21h14",
   admin: "M12 2 4 6v6c0 5 3.5 8.5 8 10 4.5-1.5 8-5 8-10V6l-8-4Z",
   smtp: "M3 5h18v14H3z M3 6l9 7 9-7",
+  invitations:
+    "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2 M9 11a4 4 0 1 0 0-8 M19 8v6 M16 11h6",
   stats: "M4 20V10 M11 20V4 M18 20v-7",
   tasks:
     "M9 11l3 3 8-8 M21 12v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h11",
