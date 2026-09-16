@@ -44,6 +44,7 @@ RUN chmod +x entrypoint.sh
 # Expose port
 EXPOSE 8000
 
-# Start the application. Database migrations are intentionally not run here;
-# run them separately during deployment when desired.
+# Start the application. entrypoint.sh applies Alembic migrations before
+# starting Uvicorn so a freshly built container cannot boot against a schema
+# that is missing columns from the application models.
 ENTRYPOINT ["./entrypoint.sh"]
