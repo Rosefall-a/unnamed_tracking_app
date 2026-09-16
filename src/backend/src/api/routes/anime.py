@@ -32,7 +32,10 @@ from src.features.metadata.anime.episode_sync import (
     fetch_episodes_with_fallback,
     pad_to_known_total,
 )
-from src.features.metadata.anime.search import search_anime_metadata
+from src.features.metadata.anime.search import (
+    get_anime_metadata_by_anilist_id,
+    search_anime_metadata,
+)
 from src.features.metadata.locked_fields import apply_updates_with_locking
 
 router = APIRouter(prefix="/api/anime", tags=["anime"], dependencies=[Depends(get_current_user)])
@@ -114,6 +117,28 @@ async def search_metadata(
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=f"Metadata providers could not be reached: {exc}",
+        ) from exc
+    return result
+
+
+@router.get("/metadata/by-id/{anilist_id}", response_model=dict | None)
+async def get_metadata_by_id(
+    anilist_id: int,
+    current_user: User = Depends(get_current_user),
+) -> dict | None:
+    """Looks up one exact AniList entry by id, in the same shape
+    `/metadata/search` returns per result — used when adding a title from
+    the Related/Recommended graph, which already carries a real AniList
+    id and shouldn't need a fresh title search to find the same entry
+    again (fragile for an unusual title, and wasted requests against an
+    API with a real rate limit)."""
+    del current_user
+    try:
+        result = await asyncio.to_thread(get_anime_metadata_by_anilist_id, anilist_id)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"AniList could not be reached: {exc}",
         ) from exc
     return result
 

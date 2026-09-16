@@ -77,34 +77,45 @@ class ProviderSpec:
     run: ProviderRun
 
 
+def _map_anilist_entry(entry: dict[str, Any]) -> dict[str, Any]:
+    result = _blank_result("AniList", str(entry.get("id", "")), entry.get("title") or "")
+    result.update(
+        {
+            "description": entry.get("overview"),
+            "first_air_date": entry.get("release_date"),
+            "episode_runtime_minutes": entry.get("episode_runtime_minutes"),
+            "episode_count": entry.get("episode_count"),
+            "studios": entry.get("studios") or [],
+            "countries": entry.get("countries") or [],
+            "genres": entry.get("genres") or [],
+            "poster_url": entry.get("poster_url"),
+            "backdrop_url": entry.get("backdrop_url"),
+            "format": entry.get("format"),
+            "anilist_score": entry.get("score"),
+            "url": entry.get("url"),
+            # AniList exposes each entry's own MyAnimeList id directly,
+            # so a show found via AniList alone can still get a real
+            # Jikan fallback later (once Jikan is reachable) instead of
+            # needing MAL's own search to separately find and match it.
+            "mal_id": str(entry["id_mal"]) if entry.get("id_mal") else None,
+        }
+    )
+    return result
+
+
 def _run_anilist(query: str, limit: int) -> list[dict[str, Any]]:
     client = AniListClient()
-    found: list[dict[str, Any]] = []
-    for entry in client.search(query, limit=limit):
-        result = _blank_result("AniList", str(entry.get("id", "")), entry.get("title") or "")
-        result.update(
-            {
-                "description": entry.get("overview"),
-                "first_air_date": entry.get("release_date"),
-                "episode_runtime_minutes": entry.get("episode_runtime_minutes"),
-                "episode_count": entry.get("episode_count"),
-                "studios": entry.get("studios") or [],
-                "countries": entry.get("countries") or [],
-                "genres": entry.get("genres") or [],
-                "poster_url": entry.get("poster_url"),
-                "backdrop_url": entry.get("backdrop_url"),
-                "format": entry.get("format"),
-                "anilist_score": entry.get("score"),
-                "url": entry.get("url"),
-                # AniList exposes each entry's own MyAnimeList id directly,
-                # so a show found via AniList alone can still get a real
-                # Jikan fallback later (once Jikan is reachable) instead of
-                # needing MAL's own search to separately find and match it.
-                "mal_id": str(entry["id_mal"]) if entry.get("id_mal") else None,
-            }
-        )
-        found.append(result)
-    return found
+    return [_map_anilist_entry(entry) for entry in client.search(query, limit=limit)]
+
+
+def get_anime_metadata_by_anilist_id(anilist_id: int) -> dict[str, Any] | None:
+    """The same normalized shape `search_anime_metadata` returns per
+    result, for one already-known AniList id — used when adding a title
+    from a relations-graph branch, chain entry, or recommendation, all of
+    which already carry AniList's real id and shouldn't depend on a fresh
+    title search re-finding (and correctly matching) the same entry."""
+    entry = AniListClient().get_by_id(anilist_id)
+    return _map_anilist_entry(entry) if entry else None
 
 
 def _run_jikan(query: str, limit: int) -> list[dict[str, Any]]:

@@ -12,8 +12,14 @@ import {
   fetchAnime,
   createAnime,
   searchAnimeMetadata,
+  fetchAnimeMetadataByAnilistId,
 } from "../services/anime";
-import type { RelatedAnime, AnimeChainNode, AnimeRelationBranch } from "../services/anime";
+import type {
+  RelatedAnime,
+  AnimeChainNode,
+  AnimeRelationBranch,
+  AnimeMetadataResult,
+} from "../services/anime";
 import type { Anime, AnimeStatus } from "../types/anime";
 import AnimeFormModal from "../components/AnimeFormModal.vue";
 import EpisodeList from "../components/EpisodeList.vue";
@@ -367,8 +373,28 @@ function posterMeta(r: RelatedAnime): string {
 }
 
 const previewFormat = ref<string | null>(null);
+const previewAnilistId = ref<number | null>(null);
+
+// Preferred over a fresh title search whenever the clicked item already
+// carries a real AniList id (every Related/Recommended item does) — a
+// text search can miss or mismatch an unusual/long title (e.g. "STEEL
+// BALL RUN JoJo's Bizarre Adventure 2nd - 3rd STAGE"), silently creating
+// a library entry with null format/episode data. Falls back to a title
+// search only if the id lookup itself comes back empty.
+async function lookupMetadata(
+  anilistId: number | null,
+  title: string,
+): Promise<AnimeMetadataResult | null> {
+  if (anilistId) {
+    const byId = await fetchAnimeMetadataByAnilistId(anilistId);
+    if (byId) return byId;
+  }
+  const { results } = await searchAnimeMetadata(title, 1);
+  return results.find((m) => m.title === title) ?? results[0] ?? null;
+}
 
 async function onRelatedTitleClick(r: {
+  id: number;
   title: string;
   posterUrl: string | null;
   format?: string | null;
@@ -389,6 +415,7 @@ async function onRelatedTitleClick(r: {
   previewDescription.value = null;
   previewMeta.value = [];
   previewFormat.value = r.format ?? null;
+  previewAnilistId.value = r.id;
   if (isPrintFormat(r.format ?? null)) {
     previewMeta.value = [r.format ?? "Print"].filter((v): v is string => !!v);
     previewError.value = `"${r.title}" is ${r.format?.toLowerCase() ?? "print media"}, not an anime, so it can't be added to your anime list.`;
@@ -396,8 +423,7 @@ async function onRelatedTitleClick(r: {
   }
   previewLoading.value = true;
   try {
-    const { results } = await searchAnimeMetadata(r.title, 1);
-    const match = results.find((m) => m.title === r.title) ?? results[0];
+    const match = await lookupMetadata(r.id, r.title);
     previewDescription.value = match?.description ?? null;
     previewMeta.value = [
       match?.firstAirDate?.slice(0, 4),
@@ -416,9 +442,7 @@ async function addPreviewToLibrary() {
   previewAdding.value = true;
   previewError.value = null;
   try {
-    const { results } = await searchAnimeMetadata(previewTitle.value, 1);
-    const match =
-      results.find((m) => m.title === previewTitle.value) ?? results[0];
+    const match = await lookupMetadata(previewAnilistId.value, previewTitle.value);
     const created = await createAnime({
       title: previewTitle.value,
       description: match?.description ?? null,

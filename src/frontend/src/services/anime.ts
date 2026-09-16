@@ -582,6 +582,28 @@ interface BackendAnimeMetadataSearchResponse {
   results: BackendAnimeMetadataResult[];
 }
 
+function mapBackendAnimeMetadataResult(r: BackendAnimeMetadataResult): AnimeMetadataResult {
+  return {
+    provider: r.provider,
+    providerId: r.provider_id,
+    title: r.title,
+    description: r.description,
+    firstAirDate: r.first_air_date,
+    episodeRuntimeMinutes: r.episode_runtime_minutes,
+    episodeCount: r.episode_count,
+    studios: r.studios,
+    countries: r.countries,
+    genres: r.genres,
+    posterUrl: r.poster_url,
+    backdropUrl: r.backdrop_url,
+    format: r.format,
+    anilistScore: toNumberOrNull(r.anilist_score),
+    malScore: toNumberOrNull(r.mal_score),
+    malId: r.mal_id,
+    url: r.url,
+  };
+}
+
 export async function searchAnimeMetadata(
   query: string,
   limit = 8,
@@ -598,26 +620,25 @@ export async function searchAnimeMetadata(
     query: raw.query,
     providers: raw.providers,
     providerErrors: raw.provider_errors,
-    results: raw.results.map((r) => ({
-      provider: r.provider,
-      providerId: r.provider_id,
-      title: r.title,
-      description: r.description,
-      firstAirDate: r.first_air_date,
-      episodeRuntimeMinutes: r.episode_runtime_minutes,
-      episodeCount: r.episode_count,
-      studios: r.studios,
-      countries: r.countries,
-      genres: r.genres,
-      posterUrl: r.poster_url,
-      backdropUrl: r.backdrop_url,
-      format: r.format,
-      anilistScore: toNumberOrNull(r.anilist_score),
-      malScore: toNumberOrNull(r.mal_score),
-      malId: r.mal_id,
-      url: r.url,
-    })),
+    results: raw.results.map(mapBackendAnimeMetadataResult),
   };
+}
+
+// Looks up one exact AniList entry by id — used when adding a title from
+// the Related/Recommended graph, which already carries a real AniList id
+// (unlike a fresh text search, this can't miss or mismatch on an unusual
+// title). Returns null if AniList has nothing for that id.
+export async function fetchAnimeMetadataByAnilistId(
+  anilistId: number,
+): Promise<AnimeMetadataResult | null> {
+  const response = await fetch(`/api/anime/metadata/by-id/${anilistId}`, {
+    credentials: "include",
+  });
+  const raw = await handle<BackendAnimeMetadataResult | null>(
+    response,
+    "look up anime metadata by id",
+  );
+  return raw ? mapBackendAnimeMetadataResult(raw) : null;
 }
 
 // Related/Recommended titles — a plain item, not a full Anime: these

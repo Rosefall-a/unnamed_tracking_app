@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import time
 from typing import Any
 
 import requests
@@ -8,10 +9,26 @@ import requests
 _URL = "https://graphql.anilist.co"
 _TAG_RE = re.compile(r"<[^>]+>")
 
-_QUERY = """
-query ($search: String, $perPage: Int) {
-  Page(page: 1, perPage: $perPage) {
-    media(search: $search, type: ANIME) {
+# AniList's public API rate limit is low and shared across every client
+# hitting it, not just this app — a single Related-tab load can already
+# mean a dozen+ requests (one per prequel/sequel chain hop, one per
+# branch-group reorder lookup), so a 429 is a routine, expected response
+# under normal use, not a rare edge case. Retried with backoff (honoring
+# `Retry-After` when AniList sends one) instead of surfacing a 502 to the
+# user for something that just needed a short wait.
+_MAX_RETRIES = 3
+_BASE_BACKOFF_SECONDS = 2.0
+_MAX_BACKOFF_SECONDS = 10.0
+# A small pause between successive requests in a multi-request sequence
+# (chain walk, branch-group reordering) so a long chain doesn't burn
+# through the rate limit in one burst before any 429 has a chance to
+# happen — cheaper than always waiting for the retry backoff.
+_PACING_SECONDS = 0.3
+
+# Shared between the search-by-title query and the lookup-by-id query
+# below, so a single Media node's fields aren't kept in sync by hand in
+# two places.
+_MEDIA_FIELDS = """
       id
       idMal
       title {
@@ -41,9 +58,29 @@ query ($search: String, $perPage: Int) {
       bannerImage
       averageScore
       siteUrl
-    }
-  }
-}
+"""
+
+_QUERY = f"""
+query ($search: String, $perPage: Int) {{
+  Page(page: 1, perPage: $perPage) {{
+    media(search: $search, type: ANIME) {{
+{_MEDIA_FIELDS}
+    }}
+  }}
+}}
+"""
+
+# Looks up one exact entry by AniList's own id — used when adding a title
+# to the library from somewhere that already carries a real AniList id
+# (a relations-graph branch, a chain entry, a recommendation) instead of
+# re-searching by title, which can miss or mismatch for a title AniList
+# itself would format slightly differently in its search index.
+_BY_ID_QUERY = f"""
+query ($id: Int) {{
+  Media(id: $id, type: ANIME) {{
+{_MEDIA_FIELDS}
+  }}
+}}
 """
 
 
@@ -83,6 +120,33 @@ def _format_label(raw: str | None) -> str | None:
     if not raw:
         return None
     return _FORMAT_LABELS.get(raw, raw.title())
+
+
+def _map_media_entry(entry: dict[str, Any]) -> dict[str, Any]:
+    """Normalizes one `_MEDIA_FIELDS`-shaped node into the search-result
+    dict shape — shared by `search()` (a page of these) and `get_by_id()`
+    (exactly one), so the two stay in sync automatically."""
+    title = entry.get("title") or {}
+    cover = entry.get("coverImage") or {}
+    studios = [n["name"] for n in (entry.get("studios") or {}).get("nodes", []) if n.get("name")]
+    score = entry.get("averageScore")
+    return {
+        "id": entry.get("id"),
+        "id_mal": entry.get("idMal"),
+        "title": title.get("english") or title.get("romaji"),
+        "overview": _clean_description(entry.get("description")),
+        "release_date": _format_date(entry.get("startDate")),
+        "episode_runtime_minutes": entry.get("duration"),
+        "episode_count": entry.get("episodes"),
+        "studios": studios,
+        "countries": [entry["countryOfOrigin"]] if entry.get("countryOfOrigin") else [],
+        "genres": entry.get("genres") or [],
+        "poster_url": cover.get("extraLarge") or cover.get("large"),
+        "backdrop_url": entry.get("bannerImage"),
+        "score": (score / 10) if score is not None else None,
+        "format": _format_label(entry.get("format")),
+        "url": entry.get("siteUrl"),
+    }
 
 
 def _node_to_dict(node: dict[str, Any]) -> dict[str, Any]:
@@ -417,54 +481,64 @@ class AniListClient:
     def __init__(self, *, session: requests.Session | None = None) -> None:
         self.session = session or requests.Session()
 
+    def _post_graphql(self, query: str, variables: dict[str, Any]) -> dict[str, Any]:
+        """Every AniList call funnels through here so the 429 retry/backoff
+        (and error normalization) only has to be written once. Retries up
+        to `_MAX_RETRIES` times, sleeping `Retry-After` when AniList sends
+        one, otherwise an increasing backoff — after that, raises a
+        friendly rate-limit message instead of AniList's raw 429 body."""
+        for attempt in range(_MAX_RETRIES + 1):
+            try:
+                response = self.session.post(
+                    _URL, json={"query": query, "variables": variables}, timeout=15
+                )
+            except requests.RequestException as exc:
+                raise AniListError(f"Could not reach AniList: {exc}") from exc
+            if response.status_code == 429:
+                if attempt >= _MAX_RETRIES:
+                    break
+                retry_after = response.headers.get("Retry-After")
+                delay = (
+                    float(retry_after)
+                    if retry_after and retry_after.replace(".", "", 1).isdigit()
+                    else _BASE_BACKOFF_SECONDS * (2**attempt)
+                )
+                time.sleep(min(delay, _MAX_BACKOFF_SECONDS))
+                continue
+            if response.status_code >= 400:
+                raise AniListError(
+                    f"AniList request failed ({response.status_code}): {response.text[:200]}"
+                )
+            try:
+                payload = response.json()
+            except ValueError as exc:
+                raise AniListError("AniList returned invalid JSON.") from exc
+            if "errors" in payload:
+                messages = "; ".join(e.get("message", "unknown error") for e in payload["errors"])
+                raise AniListError(f"AniList returned an error: {messages}")
+            return payload
+        raise AniListError(
+            "AniList is rate-limiting requests right now — wait a bit and try again."
+        )
+
     def search(self, query: str, limit: int = 8) -> list[dict[str, Any]]:
         if not query.strip():
             return []
-        try:
-            response = self.session.post(
-                _URL,
-                json={"query": _QUERY, "variables": {"search": query, "perPage": limit}},
-                timeout=15,
-            )
-        except requests.RequestException as exc:
-            raise AniListError(f"Could not reach AniList: {exc}") from exc
-        if response.status_code >= 400:
-            raise AniListError(f"AniList request failed ({response.status_code}): {response.text[:200]}")
-        try:
-            payload = response.json()
-        except ValueError as exc:
-            raise AniListError("AniList returned invalid JSON.") from exc
-        if "errors" in payload:
-            messages = "; ".join(e.get("message", "unknown error") for e in payload["errors"])
-            raise AniListError(f"AniList returned an error: {messages}")
-
+        payload = self._post_graphql(_QUERY, {"search": query, "perPage": limit})
         media = (payload.get("data") or {}).get("Page", {}).get("media") or []
-        results: list[dict[str, Any]] = []
-        for entry in media[:limit]:
-            title = entry.get("title") or {}
-            cover = entry.get("coverImage") or {}
-            studios = [n["name"] for n in (entry.get("studios") or {}).get("nodes", []) if n.get("name")]
-            score = entry.get("averageScore")
-            results.append(
-                {
-                    "id": entry.get("id"),
-                    "id_mal": entry.get("idMal"),
-                    "title": title.get("english") or title.get("romaji"),
-                    "overview": _clean_description(entry.get("description")),
-                    "release_date": _format_date(entry.get("startDate")),
-                    "episode_runtime_minutes": entry.get("duration"),
-                    "episode_count": entry.get("episodes"),
-                    "studios": studios,
-                    "countries": [entry["countryOfOrigin"]] if entry.get("countryOfOrigin") else [],
-                    "genres": entry.get("genres") or [],
-                    "poster_url": cover.get("extraLarge") or cover.get("large"),
-                    "backdrop_url": entry.get("bannerImage"),
-                    "score": (score / 10) if score is not None else None,
-                    "format": _format_label(entry.get("format")),
-                    "url": entry.get("siteUrl"),
-                }
-            )
-        return results
+        return [_map_media_entry(entry) for entry in media[:limit]]
+
+    def get_by_id(self, anilist_id: int) -> dict[str, Any] | None:
+        """The same result shape `search()` returns, for exactly one
+        already-known AniList id — used when adding a title that a
+        relations-graph branch, chain entry, or recommendation already
+        carries a real id for, so the add doesn't depend on a fresh
+        title search finding (and correctly matching) the same entry."""
+        payload = self._post_graphql(_BY_ID_QUERY, {"id": anilist_id})
+        media = (payload.get("data") or {}).get("Media")
+        if not media:
+            return None
+        return _map_media_entry(media)
 
     def episodes(self, anilist_id: str) -> list[dict[str, Any]]:
         """Episode data via AniList's `streamingEpisodes` — thumbnail +
@@ -480,26 +554,10 @@ class AniListClient:
         padded as plain numbered placeholders so the full aired run is at
         least trackable even without rich metadata for every episode."""
         try:
-            response = self.session.post(
-                _URL,
-                json={"query": _EPISODES_QUERY, "variables": {"id": int(anilist_id)}},
-                timeout=15,
-            )
-        except requests.RequestException as exc:
-            raise AniListError(f"Could not reach AniList: {exc}") from exc
+            anilist_id_int = int(anilist_id)
         except (TypeError, ValueError) as exc:
             raise AniListError(f"Invalid AniList id: {anilist_id!r}") from exc
-        if response.status_code >= 400:
-            raise AniListError(
-                f"AniList request failed ({response.status_code}): {response.text[:200]}"
-            )
-        try:
-            payload = response.json()
-        except ValueError as exc:
-            raise AniListError("AniList returned invalid JSON.") from exc
-        if "errors" in payload:
-            messages = "; ".join(e.get("message", "unknown error") for e in payload["errors"])
-            raise AniListError(f"AniList returned an error: {messages}")
+        payload = self._post_graphql(_EPISODES_QUERY, {"id": anilist_id_int})
 
         media = (payload.get("data") or {}).get("Media")
         if not media:
@@ -518,26 +576,10 @@ class AniListClient:
         TMDB-backfilling) sync on that cadence. `is_airing` is just
         whether AniList still has a `nextAiringEpisode` scheduled."""
         try:
-            response = self.session.post(
-                _URL,
-                json={"query": _AIRED_COUNT_QUERY, "variables": {"id": int(anilist_id)}},
-                timeout=15,
-            )
-        except requests.RequestException as exc:
-            raise AniListError(f"Could not reach AniList: {exc}") from exc
+            anilist_id_int = int(anilist_id)
         except (TypeError, ValueError) as exc:
             raise AniListError(f"Invalid AniList id: {anilist_id!r}") from exc
-        if response.status_code >= 400:
-            raise AniListError(
-                f"AniList request failed ({response.status_code}): {response.text[:200]}"
-            )
-        try:
-            payload = response.json()
-        except ValueError as exc:
-            raise AniListError("AniList returned invalid JSON.") from exc
-        if "errors" in payload:
-            messages = "; ".join(e.get("message", "unknown error") for e in payload["errors"])
-            raise AniListError(f"AniList returned an error: {messages}")
+        payload = self._post_graphql(_AIRED_COUNT_QUERY, {"id": anilist_id_int})
 
         media = (payload.get("data") or {}).get("Media")
         if not media:
@@ -558,21 +600,7 @@ class AniListClient:
             query, variables = _RELATIONS_BY_ID_QUERY, {"id": media_id}
         else:
             query, variables = _RELATIONS_QUERY, {"search": search}
-        try:
-            response = self.session.post(_URL, json={"query": query, "variables": variables}, timeout=15)
-        except requests.RequestException as exc:
-            raise AniListError(f"Could not reach AniList: {exc}") from exc
-        if response.status_code >= 400:
-            raise AniListError(
-                f"AniList request failed ({response.status_code}): {response.text[:200]}"
-            )
-        try:
-            payload = response.json()
-        except ValueError as exc:
-            raise AniListError("AniList returned invalid JSON.") from exc
-        if "errors" in payload:
-            messages = "; ".join(e.get("message", "unknown error") for e in payload["errors"])
-            raise AniListError(f"AniList returned an error: {messages}")
+        payload = self._post_graphql(query, variables)
         return (payload.get("data") or {}).get("Media")
 
     def relations_and_recommendations(self, title: str) -> dict[str, Any]:
@@ -625,6 +653,7 @@ class AniListClient:
                 next_id = edge["node"]["id"]
                 if next_id in nodes:
                     break  # cycle guard — a franchise's edges can loop back
+                time.sleep(_PACING_SECONDS)
                 try:
                     next_node = self._fetch_relations_node(media_id=next_id)
                 except AniListError:
@@ -692,6 +721,7 @@ class AniListClient:
         ordering the group)."""
         prequel_of: dict[int, int] = {}
         for b in group:
+            time.sleep(_PACING_SECONDS)
             try:
                 node = self._fetch_relations_node(media_id=b["id"])
             except AniListError:
