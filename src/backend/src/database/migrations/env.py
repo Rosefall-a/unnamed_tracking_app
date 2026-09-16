@@ -27,6 +27,7 @@ from src.database.models import (
     media_item,  # noqa: F401
     password_reset,  # noqa: F401
     user,  # noqa: F401
+    user_invitation,  # noqa: F401
     user_appearance_settings,  # noqa: F401
     user_scan_settings,  # noqa: F401
 )
