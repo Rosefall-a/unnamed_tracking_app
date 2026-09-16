@@ -32,6 +32,11 @@ def _blank_result(provider: str, provider_id: str, title: str) -> dict[str, Any]
         "tmdb_score": None,
         "seasons": [],
         "url": None,
+        # TVmaze's own id for this show — kept separate from `provider_id`
+        # (whichever provider matched first, usually TMDB or OMDb since
+        # TVmaze runs last) since episode sync and the airing check
+        # specifically need TVmaze's id to call back in.
+        "tvmaze_id": None,
     }
 
 
@@ -151,6 +156,7 @@ def _run_tvmaze(query: str, limit: int, _ctx: ProviderContext) -> list[dict[str,
                 "poster_url": show.get("poster_url"),
                 "tmdb_score": show.get("score"),
                 "url": show.get("url"),
+                "tvmaze_id": str(show.get("id", "")) or None,
             }
         )
         found.append(result)

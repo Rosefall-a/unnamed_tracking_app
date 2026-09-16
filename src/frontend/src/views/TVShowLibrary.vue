@@ -226,8 +226,11 @@ async function createFromResult(
     backdropUrl: match?.backdropUrl ?? null,
     tmdbScore: match?.tmdbScore ?? null,
     // Only TVmaze IDs are useful here — that's the only provider the
-    // episode sync knows how to call back into.
-    externalId: match?.provider === "TVmaze" ? match.providerId : null,
+    // episode sync knows how to call back into. tvmazeId survives even
+    // when TMDB/OMDb "owns" the merged search result (see search.py's
+    // _merge_or_append), unlike providerId which only reflects whichever
+    // provider happened to match the title first.
+    externalId: match?.tvmazeId ?? null,
     status: form.status as TVShowStatus,
     ratingOverall: form.score,
     startDate: form.startDate,

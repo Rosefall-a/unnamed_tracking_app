@@ -528,6 +528,10 @@ export interface TVShowMetadataResult {
   tmdbScore: number | null;
   seasons: TVShowMetadataSeason[];
   url: string | null;
+  // TVmaze's own id, kept separate from providerId (whichever provider
+  // matched first) since episode sync/airing checks need TVmaze's id
+  // specifically, regardless of which provider ended up owning the result
+  tvmazeId: string | null;
 }
 
 export interface TVShowMetadataSearchResponse {
@@ -562,6 +566,7 @@ interface BackendTVShowMetadataResult {
   tmdb_score: number | string | null;
   seasons: BackendTVShowMetadataSeason[];
   url: string | null;
+  tvmaze_id: string | null;
 }
 
 interface BackendTVShowMetadataSearchResponse {
@@ -610,6 +615,7 @@ export async function searchTVShowMetadata(
         posterUrl: s.poster_url,
       })),
       url: r.url,
+      tvmazeId: r.tvmaze_id,
     })),
   };
 }
