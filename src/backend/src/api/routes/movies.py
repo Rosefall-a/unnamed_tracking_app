@@ -195,6 +195,57 @@ async def delete_movie(
     await db.commit()
 
 
+@router.get("/trash")
+async def list_movie_trash(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> list[dict]:
+    """Deleted movies, most recently deleted first. No purge job runs
+    against these — unlike Game's on-disk folders, a movie is just a
+    row, so there's nothing to clean up and it stays here until an
+    admin either restores it or deletes it again to purge it for good."""
+    result = await db.execute(
+        select(Movie)
+        .where(Movie.user_id == current_user.id, Movie.deleted_at.is_not(None))
+        .order_by(Movie.deleted_at.desc())
+    )
+    trashed = []
+    for movie in result.scalars().all():
+        assert movie.deleted_at is not None  # guaranteed by the deleted_at.is_not(None) filter above
+        trashed.append({"id": str(movie.id), "title": movie.title, "deleted_at": movie.deleted_at})
+    return trashed
+
+
+@router.post("/{movie_id}/restore", response_model=MovieRead)
+async def restore_movie(
+    movie_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Movie:
+    movie = await _get_movie_or_404(movie_id, db, current_user.id, include_deleted=True)
+    if movie.deleted_at is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Movie isn't deleted.")
+    movie.deleted_at = None
+    await db.commit()
+    await db.refresh(movie)
+    return movie
+
+
+@router.delete("/{movie_id}/purge", status_code=status.HTTP_204_NO_CONTENT)
+async def purge_movie(
+    movie_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> None:
+    """Permanently removes an already-deleted movie. Only reachable from
+    trash — a movie still active must be soft-deleted first."""
+    movie = await _get_movie_or_404(movie_id, db, current_user.id, include_deleted=True)
+    if movie.deleted_at is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Movie isn't deleted.")
+    await db.delete(movie)
+    await db.commit()
+
+
 @router.get("/{movie_id}/relations")
 async def get_movie_relations(
     movie_id: UUID,

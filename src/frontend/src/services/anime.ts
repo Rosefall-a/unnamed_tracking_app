@@ -379,6 +379,41 @@ export async function deleteAnime(id: string): Promise<void> {
   }
 }
 
+export interface TrashedAnime {
+  id: string;
+  title: string;
+  deleted_at: number;
+}
+
+export async function fetchAnimeTrash(): Promise<TrashedAnime[]> {
+  const response = await fetch("/api/anime/trash", { credentials: "include" });
+  if (!response.ok) {
+    throw new Error(`Failed to fetch deleted anime: ${response.status}`);
+  }
+  return await response.json();
+}
+
+export async function restoreAnime(id: string): Promise<Anime> {
+  const response = await fetch(`/api/anime/${id}/restore`, {
+    method: "POST",
+    credentials: "include",
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to restore anime ${id}: ${response.status}`);
+  }
+  return mapBackendAnime(await response.json());
+}
+
+export async function purgeAnime(id: string): Promise<void> {
+  const response = await fetch(`/api/anime/${id}/purge`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  if (!response.ok && response.status !== 204) {
+    throw new Error(`Failed to purge anime ${id}: ${response.status}`);
+  }
+}
+
 export async function createSeason(
   showId: string,
   input: SeasonInput,

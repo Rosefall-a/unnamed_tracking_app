@@ -276,6 +276,41 @@ export async function deleteMovie(id: string): Promise<void> {
   }
 }
 
+export interface TrashedMovie {
+  id: string;
+  title: string;
+  deleted_at: number;
+}
+
+export async function fetchMovieTrash(): Promise<TrashedMovie[]> {
+  const response = await fetch("/api/movie/trash", { credentials: "include" });
+  if (!response.ok) {
+    throw new Error(`Failed to fetch deleted movies: ${response.status}`);
+  }
+  return await response.json();
+}
+
+export async function restoreMovie(id: string): Promise<Movie> {
+  const response = await fetch(`/api/movie/${id}/restore`, {
+    method: "POST",
+    credentials: "include",
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to restore movie ${id}: ${response.status}`);
+  }
+  return mapBackendMovie(await response.json());
+}
+
+export async function purgeMovie(id: string): Promise<void> {
+  const response = await fetch(`/api/movie/${id}/purge`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  if (!response.ok && response.status !== 204) {
+    throw new Error(`Failed to purge movie ${id}: ${response.status}`);
+  }
+}
+
 // A raw metadata search result, straight from whichever provider (TMDB or
 // OMDb) found it — already snake_case-to-camelCase mapped here since these
 // never round-trip back to the backend the way BackendMovie does.

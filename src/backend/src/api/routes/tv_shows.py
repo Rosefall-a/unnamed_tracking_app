@@ -218,6 +218,57 @@ async def delete_show(
     await db.commit()
 
 
+@router.get("/trash")
+async def list_show_trash(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> list[dict]:
+    """Deleted shows, most recently deleted first. No purge job runs
+    against these — unlike Game's on-disk folders, a show is just a row
+    (plus its seasons/episodes), so there's nothing to clean up and it
+    stays here until an admin either restores it or purges it for good."""
+    result = await db.execute(
+        select(TVShow)
+        .where(TVShow.user_id == current_user.id, TVShow.deleted_at.is_not(None))
+        .order_by(TVShow.deleted_at.desc())
+    )
+    trashed = []
+    for show in result.scalars().all():
+        assert show.deleted_at is not None  # guaranteed by the deleted_at.is_not(None) filter above
+        trashed.append({"id": str(show.id), "title": show.title, "deleted_at": show.deleted_at})
+    return trashed
+
+
+@router.post("/{show_id}/restore", response_model=TVShowRead)
+async def restore_show(
+    show_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> TVShow:
+    show = await _get_show_or_404(show_id, db, current_user.id, include_deleted=True)
+    if show.deleted_at is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Show isn't deleted.")
+    show.deleted_at = None
+    await db.commit()
+    return await _get_show_or_404(show_id, db, current_user.id)
+
+
+@router.delete("/{show_id}/purge", status_code=status.HTTP_204_NO_CONTENT)
+async def purge_show(
+    show_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> None:
+    """Permanently removes an already-deleted show and its seasons/
+    episodes. Only reachable from trash — a show still active must be
+    soft-deleted first."""
+    show = await _get_show_or_404(show_id, db, current_user.id, include_deleted=True)
+    if show.deleted_at is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Show isn't deleted.")
+    await db.delete(show)
+    await db.commit()
+
+
 @router.post("/{show_id}/seasons", response_model=TVShowRead, status_code=status.HTTP_201_CREATED)
 async def create_season(
     show_id: UUID,

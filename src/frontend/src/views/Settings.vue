@@ -9,6 +9,7 @@ import InterfaceSection from "../components/settings/InterfaceSection.vue";
 import AppearanceSection from "../components/settings/AppearanceSection.vue";
 import UploadSection from "../components/settings/UploadSection.vue";
 import LibraryManagementSection from "../components/settings/LibraryManagementSection.vue";
+import MediaTrashSection from "../components/settings/MediaTrashSection.vue";
 import ScanSettingsSection from "../components/settings/ScanSettingsSection.vue";
 import MetadataSourcesSection from "../components/settings/MetadataSourcesSection.vue";
 import MediaRefreshSection from "../components/settings/MediaRefreshSection.vue";
@@ -44,6 +45,7 @@ const groups = computed<SettingsGroup[]>(() => {
       sections: [
         { id: "upload", label: "Upload" },
         { id: "library", label: "Library Management" },
+        { id: "media-trash", label: "Media Trash" },
       ],
     },
     {
@@ -110,6 +112,7 @@ const activeSection = ref((route.query.section as string) || "profile");
           <AppearanceSection v-else-if="activeSection === 'appearance'" />
           <UploadSection v-else-if="activeSection === 'upload'" />
           <LibraryManagementSection v-else-if="activeSection === 'library'" />
+          <MediaTrashSection v-else-if="activeSection === 'media-trash'" />
           <ScanSettingsSection v-else-if="activeSection === 'scan'" />
           <MetadataSourcesSection v-else-if="activeSection === 'sources'" />
           <MediaRefreshSection v-else-if="activeSection === 'media-refresh'" />

@@ -360,6 +360,41 @@ export async function deleteTVShow(id: string): Promise<void> {
   }
 }
 
+export interface TrashedTVShow {
+  id: string;
+  title: string;
+  deleted_at: number;
+}
+
+export async function fetchTVShowTrash(): Promise<TrashedTVShow[]> {
+  const response = await fetch("/api/tv/trash", { credentials: "include" });
+  if (!response.ok) {
+    throw new Error(`Failed to fetch deleted shows: ${response.status}`);
+  }
+  return await response.json();
+}
+
+export async function restoreTVShow(id: string): Promise<TVShow> {
+  const response = await fetch(`/api/tv/${id}/restore`, {
+    method: "POST",
+    credentials: "include",
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to restore show ${id}: ${response.status}`);
+  }
+  return mapBackendTVShow(await response.json());
+}
+
+export async function purgeTVShow(id: string): Promise<void> {
+  const response = await fetch(`/api/tv/${id}/purge`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  if (!response.ok && response.status !== 204) {
+    throw new Error(`Failed to purge show ${id}: ${response.status}`);
+  }
+}
+
 export async function createSeason(
   showId: string,
   input: SeasonInput,
