@@ -109,6 +109,11 @@ watch(activeSection, (section) => {
           <ExportImportSection v-else-if="activeSection==='export'"/>
           <ComingSoonSection v-else-if="activeSection==='tasks'&&currentUser?.is_admin" title="Tasks" description="Schedule recurring jobs, run by an in-process scheduler: no extra server required." :planned-features="['Scheduled metadata refreshes','Automatic library rescans','Storage cleanup jobs']"/>
           <ComingSoonSection v-else-if="activeSection==='logs'&&currentUser?.is_admin" title="Logs" description="An audit trail of edits made across the library, including changes made by other users." :planned-features="['Who changed what, and when','Filter by user, game, or field','Restore a previous value']"/>
+          <div v-else class="settings-empty" role="status">
+            <h2>Settings section unavailable</h2>
+            <p>This section is no longer available for your account. Choose another section from the settings menu.</p>
+            <button type="button" @click="activeSection = 'profile'">Go to Profile</button>
+          </div>
         </div>
       </div>
     </div>
@@ -116,5 +121,5 @@ watch(activeSection, (section) => {
 </template>
 
 <style scoped>
-.settings-page{position:relative;min-height:100vh;padding:84px 40px 40px;background:#121212;font-family:system-ui,sans-serif}.back-arrow-button{position:fixed;top:16px;left:62px;width:38px;height:38px;border-radius:50%;border:1px solid rgba(255,255,255,.14);background:rgba(20,20,20,.55);backdrop-filter:blur(6px);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:100}.settings-layout{width:100%;color:#fff}.settings-layout h1{margin:0 0 24px;font-size:1.5rem}.settings-body{display:flex;gap:32px;align-items:flex-start}.settings-card{flex:1;min-width:0;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:14px;padding:32px}@media(max-width:760px){.settings-body{flex-direction:column}.settings-card{width:100%;padding:20px}}
+.settings-page{position:relative;min-height:100vh;padding:84px 40px 40px;background:#121212;font-family:system-ui,sans-serif}.back-arrow-button{position:fixed;top:16px;left:62px;width:38px;height:38px;border-radius:50%;border:1px solid rgba(255,255,255,.14);background:rgba(20,20,20,.55);backdrop-filter:blur(6px);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:100}.settings-layout{width:100%;color:#fff}.settings-layout h1{margin:0 0 24px;font-size:1.5rem}.settings-body{display:flex;gap:32px;align-items:flex-start}.settings-card{flex:1;min-width:0;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:14px;padding:32px}.settings-empty{display:flex;flex-direction:column;align-items:flex-start;gap:10px;color:#ccc}.settings-empty h2{margin:0;color:#fff;font-size:1rem}.settings-empty p{margin:0;color:#999;line-height:1.5}.settings-empty button{background:#d68a34;color:#111;border:0;border-radius:8px;padding:10px 14px;font-weight:600;cursor:pointer}@media(max-width:760px){.settings-body{flex-direction:column}.settings-card{width:100%;padding:20px}}
 </style>
