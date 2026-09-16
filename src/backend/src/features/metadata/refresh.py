@@ -30,6 +30,7 @@ from src.features.metadata.anime.episode_sync import (
     backfill_from_tmdb,
     fetch_airing_status,
     fetch_episodes_with_fallback,
+    needs_tmdb_backfill,
     pad_to_known_total,
 )
 from src.features.metadata.tv.episode_sync import fetch_is_airing, fetch_season_episodes
@@ -135,7 +136,7 @@ async def _refresh_anime_season(db, show: Anime, season: AnimeSeason) -> tuple[i
     # was fixed).
     fresh_total = max((e["episode_number"] for e in all_episodes), default=None)
     season.episode_count = pad_to_known_total(all_episodes, fresh_total)
-    if any(e.get("title") is None for e in all_episodes):
+    if needs_tmdb_backfill(all_episodes):
         app_integrations = await get_or_create_app_integration_settings(db)
         if app_integrations.tmdb_api_key:
             tmdb_api_key = decrypt_secret(app_integrations.tmdb_api_key)
@@ -233,15 +234,19 @@ async def _refresh_tv_season(show: TVShow, season: TVSeason, db) -> tuple[int, i
 
 def _heal_anime_metadata(client: AniListClient, show: Anime) -> bool:
     """Backfills whichever of format/poster/backdrop/description/studios/
-    genres/runtime/score/anilist_id are still null, using a known id
-    rather than a fresh title search — a title search is what creates
-    these gaps in the first place (an unusual title can miss or match the
-    wrong entry), so it's not a trustworthy way to fix them either.
-    Prefers the stored AniList id; when only a MyAnimeList id is known
-    (added while AniList itself was unreachable/rate-limited, so only
-    Jikan matched), looks it up by that instead and recovers the AniList
-    id too. A show with neither id is left alone — nothing reliable to
-    heal from. Returns whether anything actually changed."""
+    genres/runtime/score/anilist_id/external_id are still null, using a
+    known id rather than a fresh title search — a title search is what
+    creates these gaps in the first place (an unusual title can miss or
+    match the wrong entry), so it's not a trustworthy way to fix them
+    either. Prefers the stored AniList id; when only a MyAnimeList id is
+    known (added while AniList itself was unreachable/rate-limited, so
+    only Jikan matched), looks it up by that instead. Either way, also
+    recovers whichever of the two ids was still missing — AniList's own
+    data carries MyAnimeList's id for the same entry (`idMal`), and a
+    show missing that id can only ever get Jikan's richer per-episode
+    data (titles/synopses/air-dates) once it's recovered. A show with
+    neither id is left alone — nothing reliable to heal from. Returns
+    whether anything actually changed."""
     entry = None
     if show.anilist_id:
         try:
@@ -253,12 +258,16 @@ def _heal_anime_metadata(client: AniListClient, show: Anime) -> bool:
             entry = client.get_by_mal_id(int(show.external_id))
         except (AniListError, ValueError):
             return False
-        if entry and entry.get("id"):
-            show.anilist_id = str(entry["id"])
     if not entry:
         return False
 
     changed = False
+    if show.anilist_id is None and entry.get("id"):
+        show.anilist_id = str(entry["id"])
+        changed = True
+    if show.external_id is None and entry.get("id_mal"):
+        show.external_id = str(entry["id_mal"])
+        changed = True
     if show.format is None and entry.get("format"):
         show.format = entry["format"]
         changed = True
@@ -291,12 +300,16 @@ def _heal_anime_metadata(client: AniListClient, show: Anime) -> bool:
 
 async def heal_all_anime_metadata() -> int:
     """Sweeps every non-deleted anime row for one missing enough to be
-    worth a lookup (no format, poster, or AniList id yet) and backfills
-    it — the self-healing counterpart to the manual "delete and re-add"
-    fix a title with a failed metadata match used to need. A small pause
-    between rows paces requests the same way the relations chain walk
-    does, so a large backlog doesn't burn through AniList's rate limit in
-    one burst."""
+    worth a lookup (no format, poster, AniList id, or MyAnimeList id yet)
+    and backfills it — the self-healing counterpart to the manual "delete
+    and re-add" fix a title with a failed metadata match used to need.
+    Missing `external_id` is included because it silently caps episode
+    quality forever otherwise: without it, episode sync can only ever use
+    AniList's thin `streamingEpisodes` coverage, never Jikan's richer
+    per-episode titles/synopses/air-dates. A small pause between rows
+    paces requests the same way the relations chain walk does, so a
+    large backlog doesn't burn through AniList's rate limit in one
+    burst."""
     healed = 0
     client = AniListClient()
     async with SessionLocal() as db:
@@ -309,6 +322,7 @@ async def heal_all_anime_metadata() -> int:
                             Anime.format.is_(None),
                             Anime.poster_url.is_(None),
                             Anime.anilist_id.is_(None),
+                            Anime.external_id.is_(None),
                         ),
                     )
                 )

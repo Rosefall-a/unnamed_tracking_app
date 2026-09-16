@@ -13,29 +13,63 @@ from src.features.metadata.anime.jikan import JikanClient, JikanError
 from src.features.metadata.movies.tmdb import TMDBClient, TMDBError
 
 
+def _merge_episode_sources(
+    jikan_episodes: list[dict[str, Any]], anilist_episodes: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """Combines both providers' episode lists by episode number instead
+    of picking one — neither provider alone is complete. Jikan has real
+    titles/synopses/air-dates but its v4 API has no per-episode image
+    field at all (`still_url` is always null from `JikanClient.episodes`);
+    AniList's `streamingEpisodes` has thumbnails but no air date/synopsis,
+    and only thinly covers long-running shows. Merged per field, keeping
+    whichever source already has a value for the fields Jikan won under
+    the old either-or fallback (title/description/air_date/runtime) and
+    filling in AniList's data (chiefly `still_url`) for whatever's still
+    blank — this is the fix for episodes syncing with a real title but a
+    permanently missing thumbnail."""
+    by_number: dict[int, dict[str, Any]] = {
+        entry["episode_number"]: dict(entry) for entry in anilist_episodes
+    }
+    for entry in jikan_episodes:
+        existing = by_number.get(entry["episode_number"])
+        if existing is None:
+            by_number[entry["episode_number"]] = dict(entry)
+            continue
+        for key, value in entry.items():
+            if value is not None and not existing.get(key):
+                existing[key] = value
+    return sorted(by_number.values(), key=lambda e: e["episode_number"])
+
+
 async def fetch_episodes_with_fallback(
     external_id: str | None, anilist_id: str | None
 ) -> tuple[list[dict[str, Any]], list[str]]:
-    """Jikan (richer data — synopsis, air dates) is tried first when
-    `external_id` (MyAnimeList's id) is known; AniList's
-    `streamingEpisodes` is tried next as a fallback (thinner data, but
-    real titles/thumbnails) when Jikan fails or wasn't matched. Returns
+    """Fetches from both Jikan (richer data — synopsis, air dates, but no
+    episode images) and AniList (`streamingEpisodes` — thumbnails, but
+    thinner coverage) whenever both ids are known, and merges them rather
+    than using one as a strict fallback for the other — using only one
+    left whatever that provider was structurally missing (usually
+    Jikan's total lack of episode images) permanently unfillable even
+    after the other provider had the data all along. Returns
     `(episodes, errors)` rather than raising, so a caller with no HTTP
     request behind it (the background refresh) can just log errors
     instead of needing to turn them into an HTTPException."""
-    all_episodes: list[dict[str, Any]] = []
+    jikan_episodes: list[dict[str, Any]] = []
+    anilist_episodes: list[dict[str, Any]] = []
     errors: list[str] = []
     if external_id:
         try:
-            all_episodes = await asyncio.to_thread(JikanClient().episodes, external_id)
+            jikan_episodes = await asyncio.to_thread(JikanClient().episodes, external_id)
         except JikanError as exc:
             errors.append(f"Jikan: {exc}")
-    if not all_episodes and anilist_id:
+    if anilist_id:
         try:
-            all_episodes = await asyncio.to_thread(AniListClient().episodes, anilist_id)
+            anilist_episodes = await asyncio.to_thread(AniListClient().episodes, anilist_id)
         except AniListError as exc:
             errors.append(f"AniList: {exc}")
-    return all_episodes, errors
+    if not jikan_episodes and not anilist_episodes:
+        return [], errors
+    return _merge_episode_sources(jikan_episodes, anilist_episodes), errors
 
 
 async def fetch_airing_status(
@@ -74,15 +108,42 @@ def pad_to_known_total(all_episodes: list[dict[str, Any]], episode_count: int | 
     return episode_count
 
 
+_BACKFILLABLE_EPISODE_FIELDS = (
+    "title",
+    "description",
+    "air_date",
+    "runtime_minutes",
+    "still_url",
+)
+
+
+def needs_tmdb_backfill(all_episodes: list[dict[str, Any]]) -> bool:
+    """Whether any entry is still missing a field TMDB could fill —
+    checked per field rather than just "no title yet", since an entry can
+    already have a real title (from Jikan, which never returns an
+    episode image at all) while still missing everything else."""
+    return any(
+        entry.get(field) is None
+        for entry in all_episodes
+        for field in _BACKFILLABLE_EPISODE_FIELDS
+    )
+
+
 async def backfill_from_tmdb(
     all_episodes: list[dict[str, Any]], show_title: str, tmdb_api_key: str
 ) -> None:
-    """Fill in title/description/air_date/still_url for whichever entries
-    are still bare placeholders (neither Jikan nor AniList had them) —
-    most long-running anime is also indexed as an ordinary TV show on
-    TMDB, often more completely than AniList's sparse `streamingEpisodes`.
-    Silently gives up on any TMDB failure; the placeholders it can't fill
-    just stay as they are, no worse off than before this ran."""
+    """Fills in whichever of title/description/air_date/runtime/still_url
+    is still blank on each entry — most long-running anime is also
+    indexed as an ordinary TV show on TMDB, often with a still image even
+    when Jikan+AniList together don't have one. Checked per field, not
+    "does this entry have a title yet" — an entry can already have a real
+    title (from Jikan, which never returns episode images at all) and
+    still be missing everything else TMDB could fill in; the old
+    title-only gate skipped those entirely, so an episode that resolved
+    via Jikan could never get a thumbnail even once a TMDB key was
+    configured. Never overwrites a field that already has a value.
+    Silently gives up on any TMDB failure; the fields it can't fill just
+    stay as they are, no worse off than before this ran."""
     try:
         client = TMDBClient(tmdb_api_key)
         tv_id = await asyncio.to_thread(client.find_tv_id, show_title)
@@ -93,8 +154,9 @@ async def backfill_from_tmdb(
         return
     by_number = {e["episode_number"]: e for e in tmdb_episodes}
     for entry in all_episodes:
-        if entry.get("title") is not None:
-            continue
         match = by_number.get(entry["episode_number"])
-        if match:
-            entry.update(match)
+        if not match:
+            continue
+        for field in _BACKFILLABLE_EPISODE_FIELDS:
+            if entry.get(field) is None and match.get(field) is not None:
+                entry[field] = match[field]

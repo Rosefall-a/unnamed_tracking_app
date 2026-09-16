@@ -30,6 +30,7 @@ from src.features.metadata.anime.anilist import AniListClient, AniListError
 from src.features.metadata.anime.episode_sync import (
     backfill_from_tmdb,
     fetch_episodes_with_fallback,
+    needs_tmdb_backfill,
     pad_to_known_total,
 )
 from src.features.metadata.anime.search import (
@@ -390,7 +391,7 @@ async def list_episodes(
         # count before that bug was fixed).
         fresh_total = max((e["episode_number"] for e in all_episodes), default=None)
         season.episode_count = pad_to_known_total(all_episodes, fresh_total)
-        if any(e.get("title") is None for e in all_episodes):
+        if needs_tmdb_backfill(all_episodes):
             await _backfill_from_tmdb_if_configured(all_episodes, show.title, db)
         for entry in all_episodes:
             raw_air_date = entry.get("air_date")
