@@ -6,7 +6,7 @@
 // Relations tab (branch nodes = related entries hanging off one anchor,
 // nothing chained). Both cases are just different combinations of the
 // same chainNodes/branchNodes props, so one component covers both.
-import { ref, computed, reactive } from "vue";
+import { ref, computed, reactive, watch } from "vue";
 
 export interface ChainNode {
   id: string;
@@ -36,12 +36,13 @@ const emit = defineEmits<{
   (e: "branch-click", id: string): void;
 }>();
 
-const NODE_W = 172;
-const NODE_H = 70;
-const STEP_X = 230;
-const MID_Y = 170;
-const BRANCH_UP_Y = 30;
-const BRANCH_DOWN_Y = 310;
+const NODE_W = 200;
+const NODE_H = 74;
+const STEP_X = 270;
+const MID_Y = 190;
+const BRANCH_UP_Y = 20;
+const BRANCH_DOWN_Y = 360;
+const BRANCH_SPACING = NODE_W + 40;
 
 function edgePoint(
   cx: number,
@@ -66,16 +67,37 @@ const chainPositions = computed(() =>
   })),
 );
 
+// Branches are grouped by (anchor, side) and centered under/over their
+// own anchor — not a single running offset shared across every anchor,
+// which used to make a branch drift toward whichever anchor happened to
+// come later, overlapping unrelated nodes once more than one chain node
+// had its own branches (a single-anchor "this anime" graph never hit
+// this; the real prequel/sequel chain does).
 const branchCounts = computed(() => {
-  const counts: { up: number; down: number } = { up: 0, down: 0 };
-  return props.branchNodes.map((n) => {
-    const anchor = chainPositions.value[n.anchorIndex];
-    const cy =
-      n.side === "up" ? BRANCH_UP_Y + NODE_H / 2 : BRANCH_DOWN_Y + NODE_H / 2;
-    const branchIndex = counts[n.side]++;
-    const cx = (anchor?.cx ?? 0) + 90 + branchIndex * 210;
-    return { node: n, cx, cy, anchor };
-  });
+  const groups = new Map<string, BranchNode[]>();
+  for (const n of props.branchNodes) {
+    const key = `${n.anchorIndex}:${n.side}`;
+    const group = groups.get(key);
+    if (group) group.push(n);
+    else groups.set(key, [n]);
+  }
+  const result: {
+    node: BranchNode;
+    cx: number;
+    cy: number;
+    anchor: { node: ChainNode; cx: number; cy: number } | undefined;
+  }[] = [];
+  for (const [key, group] of groups) {
+    const [anchorIndexStr, side] = key.split(":");
+    const anchor = chainPositions.value[Number(anchorIndexStr)];
+    const cy = side === "up" ? BRANCH_UP_Y + NODE_H / 2 : BRANCH_DOWN_Y + NODE_H / 2;
+    const totalWidth = (group.length - 1) * BRANCH_SPACING;
+    const startX = (anchor?.cx ?? 0) - totalWidth / 2;
+    group.forEach((node, i) => {
+      result.push({ node, cx: startX + i * BRANCH_SPACING, cy, anchor });
+    });
+  }
+  return result;
 });
 
 interface Edge {
@@ -139,6 +161,7 @@ const pan = reactive({ x: 40, y: 0 });
 const zoom = ref(1);
 const dragging = ref(false);
 const expanded = ref(false);
+const canvasEl = ref<HTMLElement | null>(null);
 let dragStart: { x: number; y: number } | null = null;
 
 const worldStyle = computed(() => ({
@@ -167,20 +190,54 @@ function onWheel(e: WheelEvent) {
 function zoomBy(delta: number) {
   zoom.value = Math.max(0.5, Math.min(1.8, zoom.value + delta));
 }
+// Fits the whole graph (chain + branches) into view instead of just
+// resetting to a fixed pan/zoom — a wide multi-season chain otherwise
+// spills past the canvas edge with no indication there's more to see.
 function fit() {
-  pan.x = 40;
-  pan.y = 0;
-  zoom.value = 1;
+  const positions = [
+    ...chainPositions.value.map((p) => ({ cx: p.cx, cy: p.cy })),
+    ...branchCounts.value.map((p) => ({ cx: p.cx, cy: p.cy })),
+  ];
+  if (!positions.length || !canvasEl.value) {
+    pan.x = 40;
+    pan.y = 0;
+    zoom.value = 1;
+    return;
+  }
+  const minX = Math.min(...positions.map((p) => p.cx)) - NODE_W / 2;
+  const maxX = Math.max(...positions.map((p) => p.cx)) + NODE_W / 2;
+  const minY = Math.min(...positions.map((p) => p.cy)) - NODE_H / 2;
+  const maxY = Math.max(...positions.map((p) => p.cy)) + NODE_H / 2;
+  const contentW = Math.max(maxX - minX, 1);
+  const contentH = Math.max(maxY - minY, 1);
+  const padding = 32;
+  const canvasW = canvasEl.value.clientWidth;
+  const canvasH = canvasEl.value.clientHeight;
+  const scale = Math.max(
+    0.4,
+    Math.min(1.4, (canvasW - padding * 2) / contentW, (canvasH - padding * 2) / contentH),
+  );
+  zoom.value = scale;
+  pan.x = (canvasW - contentW * scale) / 2 - minX * scale;
+  pan.y = (canvasH - contentH * scale) / 2 - minY * scale;
 }
 function toggleExpand() {
   expanded.value = !expanded.value;
+  requestAnimationFrame(fit);
 }
+
+watch(
+  () => [props.chainNodes, props.branchNodes],
+  () => requestAnimationFrame(fit),
+  { immediate: true },
+);
 
 defineExpose({ fit });
 </script>
 
 <template>
   <div
+    ref="canvasEl"
     class="graph-canvas"
     :class="{ dragging, expanded }"
     @mousedown="onMouseDown"
@@ -253,7 +310,7 @@ defineExpose({ fit });
 <style scoped>
 .graph-canvas {
   position: relative;
-  height: 380px;
+  height: 440px;
   background:
     radial-gradient(circle, rgba(255, 255, 255, 0.09) 1px, transparent 1.2px) 0
       0 / 22px 22px,
@@ -281,8 +338,8 @@ defineExpose({ fit });
 }
 .graph-node {
   position: absolute;
-  width: 172px;
-  min-height: 70px;
+  width: 200px;
+  min-height: 74px;
   background: #222222;
   border: 1px solid #2b2b2b;
   border-radius: 8px;
