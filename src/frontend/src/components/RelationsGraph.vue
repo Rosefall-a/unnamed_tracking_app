@@ -290,13 +290,40 @@ function toggleExpand() {
   requestAnimationFrame(fit);
 }
 
+// Opens centered on the entry actually being viewed rather than the
+// whole graph — a long chain (JoJo's has 9 entries) otherwise shrinks
+// down to near-unreadable to fit everything on load. Placed left/
+// center/right depending on where the current node sits in the chain,
+// so its side of the chain (the sequels ahead of it, or the prequels
+// behind it) has room to show rather than running straight off the
+// edge of the canvas.
+function focusCurrent() {
+  if (!canvasEl.value) return;
+  const chain = chainPositions.value;
+  const idx = props.chainNodes.findIndex((n) => n.current);
+  if (!chain.length || idx < 0) {
+    fit();
+    return;
+  }
+  const target = chain[idx];
+  const canvasW = canvasEl.value.clientWidth;
+  const canvasH = canvasEl.value.clientHeight;
+  const scale = 1;
+  let xFrac = 0.5;
+  if (idx === 0) xFrac = 0.28;
+  else if (idx === chain.length - 1) xFrac = 0.72;
+  zoom.value = scale;
+  pan.x = canvasW * xFrac - target.cx * scale;
+  pan.y = canvasH / 2 - target.cy * scale;
+}
+
 watch(
   () => [props.chainNodes, props.branchNodes],
-  () => requestAnimationFrame(fit),
+  () => requestAnimationFrame(focusCurrent),
   { immediate: true },
 );
 
-defineExpose({ fit });
+defineExpose({ fit, focusCurrent });
 </script>
 
 <template>

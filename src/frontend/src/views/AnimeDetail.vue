@@ -348,13 +348,31 @@ function closePreview() {
   previewOpen.value = false;
 }
 
+// Manga/novel/one-shot/doujinshi relation branches (the source material a
+// TV/movie adaptation is based on) aren't anime and have no AniList "type:
+// ANIME" entry to search for — letting them through "+ Add to Library"
+// either silently creates a bogus anime row (null format/episode data) or
+// matches an unrelated anime that happens to share the title. Blocked at
+// the point of adding rather than filtered out of the graph/list entirely,
+// since they're still useful to see as a relation.
+function isPrintFormat(format: string | null): boolean {
+  const t = (format ?? "").toLowerCase();
+  return t.includes("manga") || t.includes("novel") || t.includes("doujin") || t.includes("one shot");
+}
+
 function posterMeta(r: RelatedAnime): string {
   const parts = [r.format, r.year ? String(r.year) : null];
   if (r.episodeCount) parts.push(`${r.episodeCount} ep`);
   return parts.filter(Boolean).join(" · ");
 }
 
-async function onRelatedTitleClick(r: { title: string; posterUrl: string | null }) {
+const previewFormat = ref<string | null>(null);
+
+async function onRelatedTitleClick(r: {
+  title: string;
+  posterUrl: string | null;
+  format?: string | null;
+}) {
   const mine = await ensureMyAnime();
   const existing = mine.find(
     (a) => a.title.trim().toLowerCase() === r.title.trim().toLowerCase(),
@@ -364,12 +382,19 @@ async function onRelatedTitleClick(r: { title: string; posterUrl: string | null 
     return;
   }
   previewOpen.value = true;
-  previewLoading.value = true;
+  previewLoading.value = false;
   previewError.value = null;
   previewTitle.value = r.title;
   previewPosterUrl.value = r.posterUrl;
   previewDescription.value = null;
   previewMeta.value = [];
+  previewFormat.value = r.format ?? null;
+  if (isPrintFormat(r.format ?? null)) {
+    previewMeta.value = [r.format ?? "Print"].filter((v): v is string => !!v);
+    previewError.value = `"${r.title}" is ${r.format?.toLowerCase() ?? "print media"}, not an anime, so it can't be added to your anime list.`;
+    return;
+  }
+  previewLoading.value = true;
   try {
     const { results } = await searchAnimeMetadata(r.title, 1);
     const match = results.find((m) => m.title === r.title) ?? results[0];
@@ -387,6 +412,7 @@ async function onRelatedTitleClick(r: { title: string; posterUrl: string | null 
 }
 
 async function addPreviewToLibrary() {
+  if (isPrintFormat(previewFormat.value)) return;
   previewAdding.value = true;
   previewError.value = null;
   try {
