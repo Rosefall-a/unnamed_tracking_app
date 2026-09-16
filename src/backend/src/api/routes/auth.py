@@ -7,7 +7,7 @@ import time
 from pathlib import Path
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -20,6 +20,7 @@ from src.core.auth import (
     get_current_user,
     hash_password,
     hash_token,
+    revoke_session,
     validate_password,
     verify_password,
 )
@@ -117,10 +118,11 @@ async def login(
 @router.post("/logout")
 async def logout(
     response: Response,
-    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    session_token: str | None = Cookie(default=None, alias=SESSION_COOKIE),
 ) -> dict[str, str]:
-    del user
+    if session_token:
+        await revoke_session(db, session_token)
     response.delete_cookie(SESSION_COOKIE)
     return {"status": "logged_out"}
 
