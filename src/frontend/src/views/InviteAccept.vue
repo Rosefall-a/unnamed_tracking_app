@@ -1,0 +1,116 @@
+<script setup lang="ts">
+import { onMounted, ref } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import { checkAuth, currentUser } from "../state/auth";
+
+const route = useRoute();
+const router = useRouter();
+const token = typeof route.query.token === "string" ? route.query.token.trim() : "";
+const username = ref("");
+const email = ref("");
+const password = ref("");
+const confirm = ref("");
+const loading = ref(true);
+const submitting = ref(false);
+const error = ref<string | null>(null);
+
+function apiError(data: unknown, fallback: string): string {
+  if (!data || typeof data !== "object") return fallback;
+  const detail = (data as { detail?: unknown }).detail;
+  if (typeof detail === "string") return detail;
+  return fallback;
+}
+
+function validatePassword(): string | null {
+  if (password.value.length < 9) return "Password must be at least 9 characters.";
+  if (!/[A-Z]/.test(password.value)) return "Password must contain at least one uppercase letter.";
+  if (!/[a-z]/.test(password.value)) return "Password must contain at least one lowercase letter.";
+  if (!/[^A-Za-z0-9]/.test(password.value)) return "Password must contain at least one symbol.";
+  return null;
+}
+
+async function loadInvitation() {
+  if (!token) {
+    error.value = "This invitation link is missing its token.";
+    loading.value = false;
+    return;
+  }
+  try {
+    const response = await fetch(`/api/auth/invitations/validate?token=${encodeURIComponent(token)}`, {
+      credentials: "include",
+    });
+    const data: unknown = await response.json();
+    if (!response.ok) throw new Error(apiError(data, "This invitation is invalid or has expired."));
+    const invitation = data as { username: string; email: string };
+    username.value = invitation.username;
+    email.value = invitation.email;
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "This invitation is invalid or has expired.";
+  } finally {
+    loading.value = false;
+  }
+}
+
+async function acceptInvitation() {
+  error.value = null;
+  const passwordError = validatePassword();
+  if (passwordError) {
+    error.value = passwordError;
+    return;
+  }
+  if (password.value !== confirm.value) {
+    error.value = "Passwords do not match.";
+    return;
+  }
+  submitting.value = true;
+  try {
+    const response = await fetch("/api/auth/invitations/accept", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ token, password: password.value }),
+    });
+    const data: unknown = await response.json();
+    if (!response.ok) throw new Error(apiError(data, "Unable to accept invitation."));
+    await checkAuth();
+    const userId = (data as { user_id?: string }).user_id;
+    if (!currentUser.value || currentUser.value.id !== userId) {
+      throw new Error("Your account was created, but the sign-in session could not be verified.");
+    }
+    await router.replace("/");
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "Unable to accept invitation.";
+  } finally {
+    submitting.value = false;
+  }
+}
+
+function goLogin() {
+  void router.replace("/login");
+}
+
+onMounted(loadInvitation);
+</script>
+
+<template>
+  <main class="page">
+    <form class="card" @submit.prevent="acceptInvitation">
+      <div class="brand"><span>🎮</span><h1>Archive</h1></div>
+      <p class="subtitle">Join your Archive server</p>
+      <p v-if="loading" class="hint">Checking your invitation…</p>
+      <template v-else-if="!error">
+        <div class="account"><strong>{{ username }}</strong><span>{{ email }}</span></div>
+        <label><span>Password</span><input v-model="password" type="password" autocomplete="new-password" minlength="9" required /></label>
+        <label><span>Confirm password</span><input v-model="confirm" type="password" autocomplete="new-password" minlength="9" required /></label>
+        <p class="hint">Use at least 9 characters with uppercase, lowercase, and a symbol.</p>
+        <button :disabled="submitting">{{ submitting ? "Creating account…" : "Create account" }}</button>
+      </template>
+      <p v-if="error" class="error">{{ error }}</p>
+      <button type="button" class="secondary" @click="goLogin">Back to sign in</button>
+    </form>
+  </main>
+</template>
+
+<style scoped>
+.page{min-height:100vh;display:flex;align-items:center;justify-content:center;background:#121212;font-family:system-ui,sans-serif;padding:24px}.card{width:100%;max-width:380px;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:14px;padding:32px;display:flex;flex-direction:column;gap:14px}.brand{display:flex;align-items:center;gap:10px;justify-content:center;color:#fff}.brand h1{margin:0;font-size:1.4rem}.subtitle{margin:0;text-align:center;color:#aaa}.account{display:flex;flex-direction:column;gap:3px;padding:12px;border-radius:8px;background:#111;color:#ddd}.account span,.hint{color:#888;font-size:12px;line-height:1.5}.card label{display:flex;flex-direction:column;gap:6px;color:#ccc;font-size:13px}.card input{background:#111;border:1px solid #3a3a3a;border-radius:8px;color:#fff;padding:10px;font:inherit}.card input:focus{outline:none;border-color:#d68a34}.card button{background:#d68a34;border:0;border-radius:8px;padding:11px;font-weight:600;cursor:pointer}.card button:disabled{opacity:.6}.card button.secondary{background:#292929;color:#ddd}.error{font-size:13px;padding:9px;border-radius:8px;color:#fca5a5;background:rgba(220,38,38,.1);border:1px solid rgba(220,38,38,.3)}
+</style>

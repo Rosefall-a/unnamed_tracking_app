@@ -17,6 +17,7 @@ from src.api.routes import (
     export_import,
     game_archives,
     games,
+    invitations,
     library_sync,
     media,
     settings,
@@ -61,6 +62,7 @@ app.include_router(auth.router)
 app.include_router(session_admin_router)
 app.include_router(auth_oidc_router)
 app.include_router(password_reset_router)
+app.include_router(invitations.router)
 app.include_router(setup_router)
 app.include_router(settings.router)
 app.include_router(deployment_settings_router)

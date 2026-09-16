@@ -28,6 +28,7 @@ from src.database.models import (
     password_reset,  # noqa: F401
     user,  # noqa: F401
     user_appearance_settings,  # noqa: F401
+    user_invitation,  # noqa: F401
     user_scan_settings,  # noqa: F401
 )
 from src.database.models import set as set_model  # noqa: F401
