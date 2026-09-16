@@ -84,15 +84,23 @@ const chainPositions = computed(() =>
   })),
 );
 
-// A real left-to-right tree per chain anchor, not two fixed up/down
-// bands: every direct branch of an anchor gets its own vertical slot,
-// spread evenly around the anchor's own Y, and a branch's nested
-// children (parentBranchId set — e.g. two related titles that are
-// themselves a sequel pair) sit one column further right at their
-// parent's Y. A node with multiple children is vertically centered
-// over them (classic tree-layout: a leaf gets the next open slot, a
-// parent's slot is the average of its children's), so a wide subtree
-// doesn't collide with its siblings' subtrees.
+// A real left-to-right tree per chain anchor: every direct branch gets
+// its own vertical slot (a leaf takes the next open one, a parent with
+// children centers over them), and a branch's nested children
+// (parentBranchId set — e.g. two related titles that are themselves a
+// sequel pair) sit one column further right at their parent's row.
+//
+// Slots split into an upper and lower stack rather than one row
+// centered on the anchor's own Y — TV/movie entries (the "main
+// series") fill from the center outward on both sides, specials push
+// out beyond them on top, manga/novels beyond them on the bottom — and
+// critically, neither stack ever uses the row the chain itself sits
+// on (both start one full row away from center). A chain can run deep
+// (a long-running show easily has 5+ entries), and a branch sharing
+// the chain's own Y would land exactly on top of the next entry
+// whenever its horizontal depth happens to reach that far — starting
+// one row off guarantees real separation from the chain regardless of
+// how wide a branch subtree gets.
 const branchCounts = computed(() => {
   type Positioned = { node: BranchNode; cx: number; cy: number; anchor: { cx: number; cy: number } | undefined };
   const childrenOf = new Map<string, BranchNode[]>();
@@ -115,32 +123,43 @@ const branchCounts = computed(() => {
 
   for (const [anchorIndex, roots] of rootsByAnchor) {
     const anchor = chainPositions.value[anchorIndex];
-    let leafCount = 0;
+    const byBand = [0, 1, 2].map((band) => roots.filter((n) => branchBand(n.type) === band));
+    const [specials, mainSeries, manga] = byBand;
+    const mainUpper: BranchNode[] = [];
+    const mainLower: BranchNode[] = [];
+    mainSeries.forEach((n, i) => (i % 2 === 0 ? mainUpper : mainLower).push(n));
+    // main series closest to center on both sides, specials pushed
+    // further out above, manga/novels pushed further out below
+    const upperRoots = [...mainUpper, ...specials];
+    const lowerRoots = [...mainLower, ...manga];
+
     const slotOf = new Map<string, number>();
     const depthOf = new Map<string, number>();
 
-    function assignSlot(node: BranchNode, depth: number): number {
+    function assignSlot(node: BranchNode, depth: number, dir: 1 | -1, counter: { n: number }): number {
       depthOf.set(node.id, depth);
       const kids = childrenOf.get(node.id) ?? [];
       if (!kids.length) {
-        const slot = leafCount++;
+        counter.n += 1;
+        const slot = counter.n * dir;
         slotOf.set(node.id, slot);
         return slot;
       }
-      const kidSlots = kids.map((k) => assignSlot(k, depth + 1));
+      const kidSlots = kids.map((k) => assignSlot(k, depth + 1, dir, counter));
       const avg = kidSlots.reduce((a, b) => a + b, 0) / kidSlots.length;
       slotOf.set(node.id, avg);
       return avg;
     }
-    const orderedRoots = [...roots].sort((a, b) => branchBand(a.type) - branchBand(b.type));
-    for (const root of orderedRoots) assignSlot(root, 1);
+    const upCounter = { n: 0 };
+    for (const root of upperRoots) assignSlot(root, 1, -1, upCounter);
+    const downCounter = { n: 0 };
+    for (const root of lowerRoots) assignSlot(root, 1, 1, downCounter);
 
-    const centerOffset = (leafCount - 1) / 2;
     function place(node: BranchNode) {
       const depth = depthOf.get(node.id) ?? 1;
-      const slot = slotOf.get(node.id) ?? 0;
+      const slot = slotOf.get(node.id) ?? 1;
       const cx = (anchor?.cx ?? 0) + depth * BRANCH_SPACING;
-      const cy = (anchor?.cy ?? 0) + (slot - centerOffset) * ROW_H;
+      const cy = (anchor?.cy ?? 0) + slot * ROW_H;
       const parentPos = node.parentBranchId ? posById.get(node.parentBranchId) : undefined;
       result.push({ node, cx, cy, anchor: parentPos ?? anchor });
       posById.set(node.id, { cx, cy });
