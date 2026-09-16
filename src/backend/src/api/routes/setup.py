@@ -30,6 +30,7 @@ class SetupRequest(BaseModel):
     email: str = Field(min_length=3, max_length=320)
     password: str = Field(min_length=1)
     oidc_enabled: bool = False
+    oidc_name: str | None = None
     oidc_issuer_url: str | None = None
     oidc_client_id: str | None = None
     oidc_client_secret: str | None = None
@@ -38,6 +39,14 @@ class SetupRequest(BaseModel):
     oidc_groups_claim: str = "groups"
     oidc_admin_group: str | None = None
     oidc_user_match_field: str = "email"
+    oidc_allow_new_users: bool = True
+    oidc_button_text: str = "Continue with SSO"
+    oidc_button_image_url: str | None = None
+    oidc_button_color: str = "#d68a34"
+    oidc_provider_enabled: bool = True
+    oidc_show_on_login: bool = True
+    oidc_autostart_enabled: bool = True
+    oidc_default_login_method: str = "local"
     smtp_enabled: bool = False
     smtp_host: str | None = None
     smtp_port: int = 587
@@ -58,6 +67,13 @@ class SetupRequest(BaseModel):
     def validate_oidc_user_match_field(cls, value: str) -> str:
         if value not in {"email", "username"}:
             raise ValueError("OIDC user matching must be email or username.")
+        return value
+
+    @field_validator("oidc_default_login_method")
+    @classmethod
+    def validate_oidc_default_login_method(cls, value: str) -> str:
+        if value not in {"local", "sso"}:
+            raise ValueError("OIDC default login method must be local or sso.")
         return value
 
     @field_validator("smtp_port")
@@ -92,9 +108,7 @@ async def setup_admin(
     username = payload.username.strip()
     email = payload.email.strip().lower()
     if not username or not email:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Username and email are required."
-        )
+        raise HTTPException(status_code=400, detail="Username and email are required.")
 
     oidc_values = {
         "issuer_url": (payload.oidc_issuer_url or "").strip() or None,
@@ -140,6 +154,7 @@ async def setup_admin(
     try:
         await db.flush()
         await db.execute(update(Game).where(Game.user_id.is_(None)).values(user_id=user.id))
+
         if payload.oidc_enabled:
             client_secret = oidc_values["client_secret"]
             if not isinstance(client_secret, str):
@@ -148,6 +163,8 @@ async def setup_admin(
             if oidc is None:
                 oidc = OidcSettings()
                 db.add(oidc)
+            provider_name = (payload.oidc_name or payload.oidc_issuer_url or "OIDC").strip()
+            provider_slug = _provider_slug(provider_name)
             oidc.issuer_url = cast(str | None, oidc_values["issuer_url"])
             oidc.client_id = cast(str | None, oidc_values["client_id"])
             oidc.client_secret = encrypt_secret(client_secret)
@@ -156,11 +173,14 @@ async def setup_admin(
             oidc.groups_claim = cast(str, oidc_values["groups_claim"])
             oidc.admin_group = cast(str | None, oidc_values["admin_group"])
             oidc.user_match_field = cast(str, oidc_values["user_match_field"])
+            oidc.default_login_method = payload.oidc_default_login_method
+            oidc.login_button_text = payload.oidc_button_text.strip() or "Continue with SSO"
+            oidc.allow_new_users = payload.oidc_allow_new_users
             oidc.providers_json = json.dumps(
                 [
                     {
-                        "name": payload.oidc_issuer_url or "OIDC",
-                        "slug": _provider_slug(payload.oidc_issuer_url or "oidc"),
+                        "name": provider_name,
+                        "slug": provider_slug,
                         "issuer_url": oidc_values["issuer_url"],
                         "client_id": oidc_values["client_id"],
                         "client_secret": encrypt_secret(client_secret),
@@ -169,16 +189,17 @@ async def setup_admin(
                         "groups_claim": oidc_values["groups_claim"],
                         "admin_group": oidc_values["admin_group"],
                         "user_match_field": oidc_values["user_match_field"],
-                        "allow_new_users": True,
-                        "button_text": "Continue with SSO",
-                        "button_image_url": None,
-                        "button_color": "#d68a34",
-                        "enabled": True,
-                        "show_on_login": True,
-                        "autostart_enabled": True,
+                        "allow_new_users": payload.oidc_allow_new_users,
+                        "button_text": payload.oidc_button_text.strip() or "Continue with SSO",
+                        "button_image_url": (payload.oidc_button_image_url or "").strip() or None,
+                        "button_color": payload.oidc_button_color,
+                        "enabled": payload.oidc_provider_enabled,
+                        "show_on_login": payload.oidc_show_on_login,
+                        "autostart_enabled": payload.oidc_autostart_enabled,
                     }
                 ]
             )
+
         if payload.smtp_enabled:
             app_integrations = await get_or_create_app_integration_settings(db)
             app_integrations.smtp_enabled = True
@@ -192,6 +213,7 @@ async def setup_admin(
             app_integrations.smtp_use_ssl = payload.smtp_use_ssl
             app_integrations.smtp_from_email = smtp_from_email
             app_integrations.smtp_from_name = smtp_from_name
+
         session_token = secrets.token_urlsafe(32)
         db.add(
             UserSession(
