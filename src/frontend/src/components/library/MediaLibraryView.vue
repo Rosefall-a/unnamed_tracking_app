@@ -2746,7 +2746,7 @@ defineExpose({ openQuickAdd });
 .shelf-rank {
   position: absolute;
   top: 8px;
-  left: 8px;
+  right: 8px;
   z-index: 2;
 }
 .shelf-body {
@@ -2905,7 +2905,7 @@ defineExpose({ openQuickAdd });
 .board-rank {
   position: absolute;
   top: 6px;
-  left: 6px;
+  right: 6px;
   z-index: 2;
 }
 .board-title-row {
