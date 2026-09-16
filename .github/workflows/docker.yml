@@ -25,6 +25,9 @@ jobs:
           - name: frontend
             context: ./src/frontend
             dockerfile: ./src/frontend/Dockerfile
+          - name: central
+            context: .
+            dockerfile: ./src/central/Dockerfile
 
     steps:
       - name: Checkout

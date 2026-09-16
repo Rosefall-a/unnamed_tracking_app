@@ -12,6 +12,10 @@ COPY . .
 
 EXPOSE 80
 
+# Standalone frontend containers use the Docker backend service by default.
+# BACKEND_URL remains an explicit override for unusual deployments.
+ENV APP_MODE=frontend
+
 # --host 0.0.0.0 is required, not optional: Vite's dev server binds to
 # localhost only by default, which is invisible from outside the container
 # even with the port mapped. --host makes it listen on all interfaces.

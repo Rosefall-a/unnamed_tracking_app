@@ -1,0 +1,30 @@
+services:
+  db:
+    image: postgres:18
+    env_file:
+      - .env
+    volumes:
+      - unnamed_tracking_app_central_db:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  central:
+    image: ghcr.io/rosefall-a/unnamed_tracking_app-central:main
+    environment:
+      APP_DATA_DIR: /data
+      PYTHONUNBUFFERED: 1
+    env_file:
+      - .env
+    ports:
+      - "5175:80"
+    volumes:
+      - ./data:/data
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  unnamed_tracking_app_central_db:
