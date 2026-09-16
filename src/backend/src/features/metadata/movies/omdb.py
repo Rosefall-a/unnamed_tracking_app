@@ -49,7 +49,7 @@ class OMDBClient:
         except requests.RequestException as exc:
             raise OMDBError(f"Could not reach OMDb: {exc}") from exc
         if response.status_code >= 400:
-            raise OMDBError(f"OMDb request failed ({response.status_code}).")
+            raise OMDBError(f"OMDb request failed ({response.status_code}): {response.text[:200]}")
         try:
             payload: dict[str, Any] = response.json()
         except ValueError as exc:
@@ -63,8 +63,14 @@ class OMDBClient:
             return []
         try:
             payload = self._get({"s": query, "type": "movie"})
-        except OMDBError:
-            return []
+        except OMDBError as exc:
+            # "Movie not found!" is OMDb's normal zero-results response, not
+            # a real failure — swallow only that one message so it reads as
+            # an empty search instead of a scary error. Anything else (bad
+            # key, rate limit, ...) propagates so the caller can surface it.
+            if "not found" in str(exc).lower():
+                return []
+            raise
         candidates = payload.get("Search") or []
 
         results: list[dict[str, Any]] = []
@@ -107,8 +113,10 @@ class OMDBClient:
             return []
         try:
             payload = self._get({"s": query, "type": "series"})
-        except OMDBError:
-            return []
+        except OMDBError as exc:
+            if "not found" in str(exc).lower():
+                return []
+            raise
         candidates = payload.get("Search") or []
 
         results: list[dict[str, Any]] = []
