@@ -23,7 +23,6 @@ export interface BranchNode {
   sub: string;
   label: string;
   anchorIndex: number;
-  side: "up" | "down";
   // When set, this node is positioned relative to another BranchNode's
   // id instead of a chain position — e.g. two related titles that are
   // themselves a sequel pair, not each independently tied to the show.
@@ -44,9 +43,8 @@ const NODE_W = 200;
 const NODE_H = 74;
 const STEP_X = 270;
 const MID_Y = 190;
-const BRANCH_UP_Y = 20;
-const BRANCH_DOWN_Y = 360;
 const BRANCH_SPACING = NODE_W + 40;
+const ROW_H = 92;
 
 function edgePoint(
   cx: number,
@@ -71,85 +69,92 @@ const chainPositions = computed(() =>
   })),
 );
 
-// Top-level branches (no parentBranchId) are grouped by (anchor, side)
-// and centered under/over their own chain anchor — not a single running
-// offset shared across every anchor, which used to make a branch drift
-// toward whichever anchor happened to come later, overlapping unrelated
-// nodes once more than one chain node had its own branches (a
-// single-anchor "this anime" graph never hit this; the real
-// prequel/sequel chain does).
-//
-// Nested branches (parentBranchId set — e.g. two related titles that
-// are themselves a sequel pair) extend the row rightward from their
-// parent. A top-level sibling's own slot has to reserve room for that
-// whole nested chain, not just one node's width — otherwise the next
-// top-level branch in the row gets laid out as if the one before it
-// were a single node, and lands right on top of its descendants.
+// A real left-to-right tree per chain anchor, not two fixed up/down
+// bands: every direct branch of an anchor gets its own vertical slot,
+// spread evenly around the anchor's own Y, and a branch's nested
+// children (parentBranchId set — e.g. two related titles that are
+// themselves a sequel pair) sit one column further right at their
+// parent's Y. A node with multiple children is vertically centered
+// over them (classic tree-layout: a leaf gets the next open slot, a
+// parent's slot is the average of its children's), so a wide subtree
+// doesn't collide with its siblings' subtrees.
 const branchCounts = computed(() => {
   type Positioned = { node: BranchNode; cx: number; cy: number; anchor: { cx: number; cy: number } | undefined };
-  const topLevel = props.branchNodes.filter((n) => !n.parentBranchId);
-  const nested = props.branchNodes.filter((n) => n.parentBranchId);
-
   const childrenOf = new Map<string, BranchNode[]>();
-  for (const n of nested) {
-    const list = childrenOf.get(n.parentBranchId!);
+  for (const n of props.branchNodes) {
+    if (!n.parentBranchId) continue;
+    const list = childrenOf.get(n.parentBranchId);
     if (list) list.push(n);
-    else childrenOf.set(n.parentBranchId!, [n]);
+    else childrenOf.set(n.parentBranchId, [n]);
   }
-  // How many horizontal slots a node's own subtree needs: itself, plus
-  // every descendant (a nested chain is a straight line in practice,
-  // but this sums correctly even if a node ever has multiple children).
-  function subtreeWidth(id: string): number {
-    const kids = childrenOf.get(id) ?? [];
-    return 1 + kids.reduce((sum, k) => sum + subtreeWidth(k.id), 0);
-  }
-
-  const groups = new Map<string, BranchNode[]>();
-  for (const n of topLevel) {
-    const key = `${n.anchorIndex}:${n.side}`;
-    const group = groups.get(key);
-    if (group) group.push(n);
-    else groups.set(key, [n]);
+  const rootsByAnchor = new Map<number, BranchNode[]>();
+  for (const n of props.branchNodes) {
+    if (n.parentBranchId) continue;
+    const list = rootsByAnchor.get(n.anchorIndex);
+    if (list) list.push(n);
+    else rootsByAnchor.set(n.anchorIndex, [n]);
   }
 
   const result: Positioned[] = [];
-  function place(
-    node: BranchNode,
-    cx: number,
-    cy: number,
-    anchor: { cx: number; cy: number } | undefined,
-  ) {
-    result.push({ node, cx, cy, anchor });
-    let nextX = cx + BRANCH_SPACING;
-    for (const child of childrenOf.get(node.id) ?? []) {
-      place(child, nextX, cy, { cx, cy });
-      nextX += subtreeWidth(child.id) * BRANCH_SPACING;
-    }
-  }
+  const posById = new Map<string, { cx: number; cy: number }>();
 
-  for (const [key, group] of groups) {
-    const [anchorIndexStr, side] = key.split(":");
-    const anchor = chainPositions.value[Number(anchorIndexStr)];
-    const cy = side === "up" ? BRANCH_UP_Y + NODE_H / 2 : BRANCH_DOWN_Y + NODE_H / 2;
-    const widths = group.map((n) => subtreeWidth(n.id));
-    const totalWidth = (widths.reduce((a, b) => a + b, 0) - 1) * BRANCH_SPACING;
-    let cursor = (anchor?.cx ?? 0) - totalWidth / 2;
-    group.forEach((node, i) => {
-      place(node, cursor, cy, anchor);
-      cursor += widths[i] * BRANCH_SPACING;
-    });
+  for (const [anchorIndex, roots] of rootsByAnchor) {
+    const anchor = chainPositions.value[anchorIndex];
+    let leafCount = 0;
+    const slotOf = new Map<string, number>();
+    const depthOf = new Map<string, number>();
+
+    function assignSlot(node: BranchNode, depth: number): number {
+      depthOf.set(node.id, depth);
+      const kids = childrenOf.get(node.id) ?? [];
+      if (!kids.length) {
+        const slot = leafCount++;
+        slotOf.set(node.id, slot);
+        return slot;
+      }
+      const kidSlots = kids.map((k) => assignSlot(k, depth + 1));
+      const avg = kidSlots.reduce((a, b) => a + b, 0) / kidSlots.length;
+      slotOf.set(node.id, avg);
+      return avg;
+    }
+    for (const root of roots) assignSlot(root, 1);
+
+    const centerOffset = (leafCount - 1) / 2;
+    function place(node: BranchNode) {
+      const depth = depthOf.get(node.id) ?? 1;
+      const slot = slotOf.get(node.id) ?? 0;
+      const cx = (anchor?.cx ?? 0) + depth * BRANCH_SPACING;
+      const cy = (anchor?.cy ?? 0) + (slot - centerOffset) * ROW_H;
+      const parentPos = node.parentBranchId ? posById.get(node.parentBranchId) : undefined;
+      result.push({ node, cx, cy, anchor: parentPos ?? anchor });
+      posById.set(node.id, { cx, cy });
+      for (const kid of childrenOf.get(node.id) ?? []) place(kid);
+    }
+    for (const root of roots) place(root);
   }
   return result;
 });
 
 interface Edge {
-  x1: number;
-  y1: number;
-  x2: number;
-  y2: number;
+  path: string;
+  labelX: number;
+  labelY: number;
   label: string;
-  length: number;
-  angle: number;
+}
+
+// A smooth S-curve (cubic bezier) between two node edges, control points
+// pulled horizontally toward each other — reads as a real connection
+// between two specific nodes even when they're several rows apart
+// vertically, unlike a straight line crossing through unrelated nodes.
+function bezier(x1: number, y1: number, x2: number, y2: number) {
+  const pull = Math.max(Math.abs(x2 - x1) * 0.5, 40);
+  const c1x = x1 + pull;
+  const c2x = x2 - pull;
+  const path = `M ${x1} ${y1} C ${c1x} ${y1}, ${c2x} ${y2}, ${x2} ${y2}`;
+  // point at t=0.5 on the cubic bezier, for the label
+  const labelX = 0.125 * x1 + 0.375 * c1x + 0.375 * c2x + 0.125 * x2;
+  const labelY = 0.125 * y1 + 0.375 * y1 + 0.375 * y2 + 0.125 * y2;
+  return { path, labelX, labelY };
 }
 
 const edges = computed<Edge[]>(() => {
@@ -160,17 +165,8 @@ const edges = computed<Edge[]>(() => {
     const cur = chain[i];
     const a = edgePoint(prev.cx, prev.cy, NODE_W, NODE_H, cur.cx - prev.cx, 0);
     const b = edgePoint(cur.cx, cur.cy, NODE_W, NODE_H, prev.cx - cur.cx, 0);
-    const dx = b.x - a.x;
-    const dy = b.y - a.y;
-    list.push({
-      x1: a.x,
-      y1: a.y,
-      x2: b.x,
-      y2: b.y,
-      label: "SEQUEL",
-      length: Math.sqrt(dx * dx + dy * dy),
-      angle: (Math.atan2(dy, dx) * 180) / Math.PI,
-    });
+    const { path, labelX, labelY } = bezier(a.x, a.y, b.x, b.y);
+    list.push({ path, labelX, labelY, label: "SEQUEL" });
   }
   branchCounts.value.forEach(({ node, cx, cy, anchor }) => {
     if (!anchor) return;
@@ -183,17 +179,8 @@ const edges = computed<Edge[]>(() => {
       cy - anchor.cy,
     );
     const b = edgePoint(cx, cy, NODE_W, NODE_H, anchor.cx - cx, anchor.cy - cy);
-    const dx = b.x - a.x;
-    const dy = b.y - a.y;
-    list.push({
-      x1: a.x,
-      y1: a.y,
-      x2: b.x,
-      y2: b.y,
-      label: node.label,
-      length: Math.sqrt(dx * dx + dy * dy),
-      angle: (Math.atan2(dy, dx) * 180) / Math.PI,
-    });
+    const { path, labelX, labelY } = bezier(a.x, a.y, b.x, b.y);
+    list.push({ path, labelX, labelY, label: node.label });
   });
   return list;
 });
@@ -290,24 +277,21 @@ defineExpose({ fit });
   >
     <div class="graph-hint">drag to pan · scroll or +/− to zoom</div>
     <div class="graph-world" :style="worldStyle">
+      <svg class="graph-edges">
+        <path
+          v-for="(edge, i) in edges"
+          :key="`path-${i}`"
+          :d="edge.path"
+          class="graph-edge-path"
+        />
+      </svg>
       <div
-        v-for="edge in edges"
-        :key="`${edge.x1}-${edge.y1}-${edge.x2}-${edge.y2}`"
-        class="graph-edge-line"
-        :style="{
-          left: edge.x1 + 'px',
-          top: edge.y1 + 'px',
-          width: edge.length + 'px',
-          transform: `rotate(${edge.angle}deg)`,
-        }"
-      ></div>
-      <div
-        v-for="edge in edges"
-        :key="`label-${edge.x1}-${edge.y1}-${edge.x2}-${edge.y2}`"
+        v-for="(edge, i) in edges"
+        :key="`label-${i}`"
         class="graph-edge-label"
         :style="{
-          left: (edge.x1 + edge.x2) / 2 - 30 + 'px',
-          top: (edge.y1 + edge.y2) / 2 - 9 + 'px',
+          left: edge.labelX - 34 + 'px',
+          top: edge.labelY - 9 + 'px',
         }"
       >
         {{ edge.label }}
@@ -425,22 +409,30 @@ defineExpose({ fit });
   color: #d68a34;
   border-color: rgba(214, 138, 52, 0.4);
 }
-.graph-edge-line {
+.graph-edges {
   position: absolute;
-  height: 0;
-  border-top: 1px dashed #2b2b2b;
-  transform-origin: 0 0;
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: 1px;
+  overflow: visible;
   pointer-events: none;
+}
+.graph-edge-path {
+  fill: none;
+  stroke: rgba(214, 138, 52, 0.45);
+  stroke-width: 1.5;
+  stroke-dasharray: 4 4;
 }
 .graph-edge-label {
   position: absolute;
-  font-size: 0.6rem;
+  font-size: 0.62rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   font-weight: 700;
-  color: #666;
+  color: #d68a34;
   background: #1a1a1a;
-  border: 1px solid #202020;
+  border: 1px solid rgba(214, 138, 52, 0.35);
   padding: 2px 7px;
   border-radius: 5px;
   white-space: nowrap;

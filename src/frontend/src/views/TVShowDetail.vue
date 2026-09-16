@@ -227,14 +227,13 @@ const relatedChainNodes = computed<ChainNode[]>(() =>
     : [],
 );
 const relatedBranchNodes = computed<BranchNode[]>(() =>
-  relatedList.value.map((r, i) => ({
+  relatedList.value.map((r) => ({
     id: String(r.id),
     title: r.title,
     type: "TV",
     sub: r.year ?? "",
     label: relatedListName.value ?? "Related",
     anchorIndex: 0,
-    side: i % 2 === 0 ? "up" : "down",
   })),
 );
 function onRelatedBranchClick() {
