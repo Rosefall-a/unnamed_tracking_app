@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from "vue";
+import { ref, computed, watch } from "vue";
 import {
   createAnime,
   updateAnime,
@@ -8,6 +8,11 @@ import {
 } from "../services/anime";
 import type { AnimeMetadataResult } from "../services/anime";
 import type { Anime, AnimeStatus } from "../types/anime";
+import {
+  STATUS_BUCKETS,
+  statusBucket,
+  bucketToReal,
+} from "../utils/mediaStatus";
 
 const props = defineProps<{
   show?: Anime | null;
@@ -18,17 +23,6 @@ const emit = defineEmits<{
   deleted: [showId: string];
   closed: [];
 }>();
-
-const STATUSES: AnimeStatus[] = [
-  "wishlist",
-  "watchlist",
-  "backlog",
-  "in progress",
-  "watched",
-  "rewatch",
-  "favorite",
-  "dropped",
-];
 
 function blankFields() {
   return {
@@ -44,12 +38,19 @@ function blankFields() {
     ratingOverall: null as number | null,
     personalRank: null as number | null,
     posterUrl: null as string | null,
+    backdropUrl: null as string | null,
     anilistScore: null as number | null,
     malScore: null as number | null,
   };
 }
 
 const fields = ref(blankFields());
+const statusBucketModel = computed({
+  get: () => statusBucket(fields.value.status),
+  set: (bucket: string) => {
+    fields.value.status = bucketToReal(bucket) as AnimeStatus;
+  },
+});
 const saving = ref(false);
 const deleting = ref(false);
 const error = ref<string | null>(null);
@@ -78,6 +79,7 @@ function loadFromShow(show: Anime | null | undefined) {
     ratingOverall: show.ratingOverall,
     personalRank: show.personalRank,
     posterUrl: show.posterUrl,
+    backdropUrl: show.backdropUrl,
     anilistScore: show.anilistScore,
     malScore: show.malScore,
   };
@@ -125,6 +127,7 @@ function applyMetadata(result: AnimeMetadataResult) {
     fields.value.studiosInput = result.studios.join(", ");
   if (result.genres.length) fields.value.genresInput = result.genres.join(", ");
   fields.value.posterUrl = result.posterUrl;
+  fields.value.backdropUrl = result.backdropUrl;
   if (result.anilistScore !== null)
     fields.value.anilistScore = result.anilistScore;
   if (result.malScore !== null) fields.value.malScore = result.malScore;
@@ -154,6 +157,7 @@ async function submit() {
       ratingOverall: fields.value.ratingOverall,
       personalRank: fields.value.personalRank,
       posterUrl: fields.value.posterUrl,
+      backdropUrl: fields.value.backdropUrl,
       anilistScore: fields.value.anilistScore,
       malScore: fields.value.malScore,
     };
@@ -306,9 +310,9 @@ async function remove() {
         <div class="field-row">
           <label class="field">
             <span>Status</span>
-            <select v-model="fields.status" class="text-input">
-              <option v-for="s in STATUSES" :key="s" :value="s">
-                {{ s }}
+            <select v-model="statusBucketModel" class="text-input">
+              <option v-for="s in STATUS_BUCKETS" :key="s.key" :value="s.key">
+                {{ s.label }}
               </option>
             </select>
           </label>

@@ -25,10 +25,14 @@ export interface BackendMovie {
   tmdb_score: number | string | null;
   source: string | null;
   poster_url: string | null;
+  backdrop_url: string | null;
   status: string;
   priority: string | null;
   favorite: boolean;
   rewatches: number;
+  note: string | null;
+  start_date: string | null;
+  end_date: string | null;
   rating_story: number | string | null;
   rating_performance: number | string | null;
   rating_soundtrack: number | string | null;
@@ -80,10 +84,14 @@ export function mapBackendMovie(raw: BackendMovie): Movie {
     tmdbScore: toNumberOrNull(raw.tmdb_score),
     source: raw.source,
     posterUrl: raw.poster_url,
+    backdropUrl: raw.backdrop_url,
     status: normalizeStatus(raw.status),
     priority: raw.priority,
     favorite: raw.favorite,
     rewatches: raw.rewatches,
+    note: raw.note,
+    startDate: raw.start_date,
+    endDate: raw.end_date,
     ratingStory: toNumberOrNull(raw.rating_story),
     ratingPerformance: toNumberOrNull(raw.rating_performance),
     ratingSoundtrack: toNumberOrNull(raw.rating_soundtrack),
@@ -148,10 +156,14 @@ export function movieToInput(movie: Movie): MovieInput {
     tmdbScore: movie.tmdbScore,
     source: movie.source,
     posterUrl: movie.posterUrl,
+    backdropUrl: movie.backdropUrl,
     status: movie.status,
     priority: movie.priority,
     favorite: movie.favorite,
     rewatches: movie.rewatches,
+    note: movie.note,
+    startDate: movie.startDate,
+    endDate: movie.endDate,
     ratingStory: movie.ratingStory,
     ratingPerformance: movie.ratingPerformance,
     ratingSoundtrack: movie.ratingSoundtrack,
@@ -177,10 +189,14 @@ export interface MovieInput {
   tmdbScore?: number | null;
   source?: string | null;
   posterUrl?: string | null;
+  backdropUrl?: string | null;
   status?: MovieStatus;
   priority?: string | null;
   favorite?: boolean;
   rewatches?: number;
+  note?: string | null;
+  startDate?: string | null;
+  endDate?: string | null;
   ratingStory?: number | null;
   ratingPerformance?: number | null;
   ratingSoundtrack?: number | null;
@@ -206,9 +222,13 @@ function inputToBody(input: MovieInput): Record<string, unknown> {
     tmdb_score: input.tmdbScore ?? null,
     source: input.source ?? null,
     poster_url: input.posterUrl ?? null,
+    backdrop_url: input.backdropUrl ?? null,
     priority: input.priority ?? null,
     favorite: input.favorite ?? false,
     rewatches: input.rewatches ?? 0,
+    note: input.note ?? null,
+    start_date: input.startDate ?? null,
+    end_date: input.endDate ?? null,
     rating_story: input.ratingStory ?? null,
     rating_performance: input.ratingPerformance ?? null,
     rating_soundtrack: input.ratingSoundtrack ?? null,
@@ -271,6 +291,7 @@ export interface MovieMetadataResult {
   languages: string[];
   genres: string[];
   posterUrl: string | null;
+  backdropUrl: string | null;
   tmdbScore: number | null;
   url: string | null;
 }
@@ -296,6 +317,7 @@ interface BackendMovieMetadataResult {
   languages: string[];
   genres: string[];
   poster_url: string | null;
+  backdrop_url: string | null;
   tmdb_score: number | string | null;
   url: string | null;
 }
@@ -337,8 +359,85 @@ export async function searchMovieMetadata(
       languages: r.languages,
       genres: r.genres,
       posterUrl: r.poster_url,
+      backdropUrl: r.backdrop_url,
       tmdbScore: toNumberOrNull(r.tmdb_score),
       url: r.url,
     })),
+  };
+}
+
+// Related/Recommended titles — a plain item, not a full Movie: these
+// exist only to render a graph node or a poster tile and link back to
+// TMDB, never round-tripped into this app's own data.
+export interface RelatedMovie {
+  id: number;
+  title: string;
+  year: string | null;
+  posterUrl: string | null;
+}
+
+export interface MovieRelationsResponse {
+  collectionName: string | null;
+  related: RelatedMovie[];
+  configured: boolean;
+}
+
+interface BackendRelatedMovie {
+  id: number;
+  title: string;
+  year: string | null;
+  poster_url: string | null;
+}
+
+interface BackendMovieRelationsResponse {
+  collection_name: string | null;
+  related: BackendRelatedMovie[];
+  configured: boolean;
+}
+
+function mapRelatedMovie(r: BackendRelatedMovie): RelatedMovie {
+  return { id: r.id, title: r.title, year: r.year, posterUrl: r.poster_url };
+}
+
+export async function fetchMovieRelations(
+  id: string,
+): Promise<MovieRelationsResponse> {
+  const response = await fetch(`/api/movie/${id}/relations`, {
+    credentials: "include",
+  });
+  const raw = await handle<BackendMovieRelationsResponse>(
+    response,
+    "fetch movie relations",
+  );
+  return {
+    collectionName: raw.collection_name,
+    related: raw.related.map(mapRelatedMovie),
+    configured: raw.configured,
+  };
+}
+
+export interface MovieRecommendedResponse {
+  recommended: RelatedMovie[];
+  configured: boolean;
+}
+
+interface BackendMovieRecommendedResponse {
+  recommended: BackendRelatedMovie[];
+  configured: boolean;
+}
+
+export async function fetchMovieRecommended(
+  id: string,
+): Promise<MovieRecommendedResponse> {
+  const response = await fetch(`/api/movie/${id}/recommended`, {
+    credentials: "include",
+  });
+  const raw = await handle<BackendMovieRecommendedResponse>(
+    response,
+    "fetch movie recommended",
+  );
+  return {
+    recommended: raw.recommended.map(mapRelatedMovie),
+    configured: raw.configured,
   };
 }

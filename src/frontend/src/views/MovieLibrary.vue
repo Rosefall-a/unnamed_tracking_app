@@ -1,17 +1,58 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
-import { useRouter } from "vue-router";
-import { fetchMovies } from "../services/movies";
-import type { Movie } from "../types/movie";
-import MovieFormModal from "../components/MovieFormModal.vue";
-
-const router = useRouter();
+import { ref, computed, onMounted } from "vue";
+import {
+  fetchMovies,
+  updateMovie,
+  deleteMovie,
+  movieToInput,
+  searchMovieMetadata,
+  createMovie,
+} from "../services/movies";
+import type { Movie, MovieStatus } from "../types/movie";
+import MediaLibraryView from "../components/library/MediaLibraryView.vue";
+import type {
+  LibraryCardVM,
+  SearchResultVM,
+  QuickAddForm,
+  EditForm,
+} from "../components/library/MediaLibraryView.vue";
 
 const movies = ref<Movie[]>([]);
 const loading = ref(true);
 const error = ref<string | null>(null);
 
-const showCreateModal = ref(false);
+const COMPLETED_STATUSES: MovieStatus[] = ["watched", "favorite", "rewatch"];
+
+function formatRuntime(minutes: number | null): string {
+  if (!minutes) return "—";
+  const hrs = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  return hrs > 0 ? `${hrs}h ${mins}m` : `${mins}m`;
+}
+
+function toVM(m: Movie): LibraryCardVM {
+  const seen = COMPLETED_STATUSES.includes(m.status);
+  return {
+    id: m.id,
+    title: m.title,
+    poster: m.posterUrl,
+    status: m.status,
+    favorite: m.favorite,
+    score: m.ratingOverall,
+    personalRank: m.personalRank,
+    note: m.note,
+    genres: m.genres,
+    isEpisodic: false,
+    watched: seen ? 1 : 0,
+    total: 1,
+    progressLabel: formatRuntime(m.runtimeMinutes),
+    canAdvance: false,
+    runtimeMinutes: m.runtimeMinutes,
+    releaseYear: m.releaseDate ? m.releaseDate.slice(0, 4) : null,
+  };
+}
+
+const items = computed(() => movies.value.map(toVM));
 
 async function load() {
   loading.value = true;
@@ -23,174 +64,140 @@ async function load() {
     loading.value = false;
   }
 }
-
-function openMovie(movie: Movie) {
-  router.push(`/movies/${movie.id}`);
-}
-
-function onCreated(movie: Movie) {
-  movies.value.push(movie);
-  showCreateModal.value = false;
-}
-
 onMounted(load);
+
+function findMovie(id: string): Movie {
+  const movie = movies.value.find((m) => m.id === id);
+  if (!movie) throw new Error(`Movie ${id} not in the loaded list`);
+  return movie;
+}
+function replaceMovie(updated: Movie) {
+  const idx = movies.value.findIndex((m) => m.id === updated.id);
+  if (idx !== -1) movies.value[idx] = updated;
+}
+
+async function onToggleFavorite(id: string) {
+  const movie = findMovie(id);
+  const next = !movie.favorite;
+  movie.favorite = next;
+  try {
+    replaceMovie(
+      await updateMovie(id, { ...movieToInput(movie), favorite: next }),
+    );
+  } catch {
+    movie.favorite = !next;
+  }
+}
+
+async function onSaveNote(id: string, note: string | null) {
+  const movie = findMovie(id);
+  replaceMovie(await updateMovie(id, { ...movieToInput(movie), note }));
+}
+
+async function onSaveEdit(id: string, form: EditForm) {
+  const movie = findMovie(id);
+  replaceMovie(
+    await updateMovie(id, {
+      ...movieToInput(movie),
+      status: form.status as MovieStatus,
+      ratingOverall: form.score,
+    }),
+  );
+}
+
+async function onBulkSetStatus(ids: string[], status: string) {
+  for (const id of ids) {
+    const movie = findMovie(id);
+    replaceMovie(
+      await updateMovie(id, {
+        ...movieToInput(movie),
+        status: status as MovieStatus,
+      }),
+    );
+  }
+}
+async function onBulkFavorite(ids: string[]) {
+  for (const id of ids) {
+    const movie = findMovie(id);
+    replaceMovie(
+      await updateMovie(id, { ...movieToInput(movie), favorite: true }),
+    );
+  }
+}
+async function onBulkDelete(ids: string[]) {
+  for (const id of ids) {
+    await deleteMovie(id);
+  }
+  movies.value = movies.value.filter((m) => !ids.includes(m.id));
+}
+
+async function search(
+  query: string,
+): Promise<{ results: SearchResultVM[]; providerErrors: string[] }> {
+  const { results, providerErrors } = await searchMovieMetadata(query);
+  return {
+    results: results.map((r) => ({
+      title: r.title,
+      poster: r.posterUrl,
+      description: r.description,
+      episodeTotal: null,
+      releaseYear: r.releaseDate ? r.releaseDate.slice(0, 4) : null,
+    })),
+    providerErrors,
+  };
+}
+
+async function createFromResult(
+  result: SearchResultVM,
+  form: QuickAddForm,
+): Promise<void> {
+  // Re-run the search to recover the full metadata result behind this
+  // title (the normalized SearchResultVM only carries what the shared
+  // library view needs to render — the rest of the real fields still
+  // come straight from the same provider search).
+  const { results } = await searchMovieMetadata(result.title, 1);
+  const match = results.find((r) => r.title === result.title) ?? results[0];
+  const created = await createMovie({
+    title: result.title,
+    description: match?.description ?? null,
+    releaseDate: match?.releaseDate ?? null,
+    runtimeMinutes: match?.runtimeMinutes ?? null,
+    director: match?.director ?? null,
+    writer: match?.writer ?? null,
+    studios: match?.studios ?? [],
+    countries: match?.countries ?? [],
+    genres: match?.genres ?? [],
+    posterUrl: result.poster,
+    backdropUrl: match?.backdropUrl ?? null,
+    tmdbScore: match?.tmdbScore ?? null,
+    status: form.status as MovieStatus,
+    ratingOverall: form.score,
+    startDate: form.startDate,
+    endDate: form.endDate,
+  });
+  movies.value.push(created);
+}
+
+function detailRoute(id: string): string {
+  return `/movies/${id}`;
+}
 </script>
 
 <template>
-  <main class="movies-page">
-    <div class="header-row">
-      <h1>Movies</h1>
-      <button type="button" class="add-button" @click="showCreateModal = true">
-        + Add Movie
-      </button>
-    </div>
-    <p class="section-hint">Everything you're tracking on the big screen.</p>
-
-    <p v-if="loading" class="empty-state">Loading…</p>
-    <p v-else-if="error" class="empty-state error">{{ error }}</p>
-    <p v-else-if="!movies.length" class="empty-state">
-      No movies yet — add your first one.
-    </p>
-
-    <div v-else class="movies-grid">
-      <button
-        v-for="m in movies"
-        :key="m.id"
-        type="button"
-        class="movie-tile"
-        :class="{ 'has-poster': m.posterUrl }"
-        @click="openMovie(m)"
-      >
-        <img
-          v-if="m.posterUrl"
-          :src="m.posterUrl"
-          alt=""
-          class="movie-tile-poster"
-        />
-        <span v-if="m.favorite" class="favorite-chip">★</span>
-        <span class="movie-tile-title">{{ m.title }}</span>
-        <span class="movie-tile-status">{{ m.status }}</span>
-        <span v-if="m.ratingOverall !== null" class="movie-tile-rating"
-          >★ {{ m.ratingOverall.toFixed(1) }}</span
-        >
-      </button>
-    </div>
-
-    <MovieFormModal
-      v-if="showCreateModal"
-      :movie="null"
-      @saved="onCreated"
-      @closed="showCreateModal = false"
-    />
-  </main>
+  <MediaLibraryView
+    kind="movie"
+    add-label="+ Add Movie"
+    :items="items"
+    :loading="loading"
+    :error="error"
+    :detail-route="detailRoute"
+    :search="search"
+    :create-from-result="createFromResult"
+    @toggle-favorite="onToggleFavorite"
+    @save-note="onSaveNote"
+    @save-edit="onSaveEdit"
+    @bulk-set-status="onBulkSetStatus"
+    @bulk-favorite="onBulkFavorite"
+    @bulk-delete="onBulkDelete"
+  />
 </template>
-
-<style scoped>
-.movies-page {
-  min-height: 100vh;
-  background: #121212;
-  color: #fff;
-  padding: 84px 24px 24px;
-  font-family: system-ui, sans-serif;
-  box-sizing: border-box;
-}
-.header-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-h1 {
-  margin: 0;
-}
-.section-hint {
-  color: #999;
-  font-size: 0.85rem;
-}
-.empty-state {
-  color: #777;
-}
-.empty-state.error {
-  color: #fca5a5;
-}
-.add-button {
-  background: #d68a34;
-  border: none;
-  color: #121212;
-  font-weight: 700;
-  border-radius: 8px;
-  padding: 9px 14px;
-  font-size: 0.85rem;
-  cursor: pointer;
-}
-.movies-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 16px;
-  margin-top: 20px;
-}
-.movie-tile {
-  position: relative;
-  aspect-ratio: 5 / 7;
-  background: #1a1a1a;
-  border: 1px solid #2a2a2a;
-  border-radius: 10px;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-  align-items: flex-start;
-  padding: 12px;
-  cursor: pointer;
-  color: #fff;
-  text-align: left;
-  gap: 4px;
-}
-.movie-tile:hover {
-  border-color: #d68a34;
-}
-.movie-tile-poster {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  z-index: 0;
-}
-.movie-tile.has-poster::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    to top,
-    rgba(0, 0, 0, 0.88) 0%,
-    rgba(0, 0, 0, 0.45) 55%,
-    rgba(0, 0, 0, 0.1) 100%
-  );
-  z-index: 1;
-}
-.movie-tile.has-poster > *:not(.movie-tile-poster) {
-  position: relative;
-  z-index: 2;
-}
-.favorite-chip {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  color: #d68a34;
-  font-size: 0.95rem;
-}
-.movie-tile-title {
-  font-weight: 600;
-  font-size: 0.9rem;
-}
-.movie-tile-status {
-  font-size: 0.72rem;
-  color: #999;
-  text-transform: capitalize;
-}
-.movie-tile-rating {
-  font-size: 0.72rem;
-  color: #d68a34;
-}
-</style>

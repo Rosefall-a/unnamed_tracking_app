@@ -40,6 +40,7 @@ const SHORT_DESC: Record<string, string> = {
   IGDB: "General metadata & art (app-wide key)",
   TMDB: "Movie metadata & posters (app-wide key)",
   OMDb: "IMDb-backed movie fallback source (app-wide key)",
+  TVDB: "TV show franchise & relations data (app-wide key)",
   GiantBomb: "General metadata & art",
   ScreenScraper: "Retro box art & screenshots",
   GOG: "Metadata search, no key needed",
@@ -56,6 +57,7 @@ const VISUALS: Record<string, CardVisual> = {
   IGDB: { bg: "#2b1c4a", fg: "#a78bfa", mark: "IG" },
   TMDB: { bg: "#01283d", fg: "#5dd9c1", mark: "TM" },
   OMDb: { bg: "#2a2205", fg: "#f5c518", mark: "OM" },
+  TVDB: { bg: "#1a2a3d", fg: "#7ba7d9", mark: "TV" },
   GiantBomb: { bg: "#3d2f00", fg: "#fbbf24", mark: "GB" },
   RetroAchievements: { bg: "#3b0a0a", fg: "#f87171", mark: "RA" },
   ScreenScraper: { bg: "#1a3d0a", fg: "#86efac", mark: "SS" },
@@ -116,6 +118,11 @@ const omdbConfigured = ref(false);
 const omdbSaving = ref(false);
 const omdbError = ref<string | null>(null);
 
+const tvdbApiKey = ref("");
+const tvdbConfigured = ref(false);
+const tvdbSaving = ref(false);
+const tvdbError = ref<string | null>(null);
+
 onMounted(async () => {
   if (!isAdmin.value) {
     igdbLoading.value = false;
@@ -127,6 +134,16 @@ onMounted(async () => {
     igdbConfigured.value = result.igdb_configured;
     tmdbConfigured.value = result.tmdb_configured;
     omdbConfigured.value = result.omdb_configured;
+    tvdbConfigured.value = result.tvdb_configured;
+    credentialStatus.TMDB = {
+      status: tmdbConfigured.value ? "configured" : "not_configured",
+    };
+    credentialStatus.OMDb = {
+      status: omdbConfigured.value ? "configured" : "not_configured",
+    };
+    credentialStatus.TVDB = {
+      status: tvdbConfigured.value ? "configured" : "not_configured",
+    };
   } finally {
     igdbLoading.value = false;
   }
@@ -250,6 +267,42 @@ async function clearOmdbKey() {
   }
 }
 
+async function saveTvdbKey() {
+  tvdbSaving.value = true;
+  tvdbError.value = null;
+  try {
+    const result = await updateAppIntegrations({
+      tvdb_api_key: tvdbApiKey.value.trim(),
+    });
+    tvdbConfigured.value = result.tvdb_configured;
+    tvdbApiKey.value = "";
+    credentialStatus.TVDB = {
+      status: tvdbConfigured.value ? "configured" : "not_configured",
+    };
+  } catch (err) {
+    tvdbError.value =
+      err instanceof Error ? err.message : "Failed to save TVDB key";
+  } finally {
+    tvdbSaving.value = false;
+  }
+}
+
+async function clearTvdbKey() {
+  tvdbSaving.value = true;
+  tvdbError.value = null;
+  try {
+    await updateAppIntegrations({ tvdb_api_key: "" });
+    tvdbApiKey.value = "";
+    tvdbConfigured.value = false;
+    credentialStatus.TVDB = { status: "not_configured" };
+  } catch (err) {
+    tvdbError.value =
+      err instanceof Error ? err.message : "Failed to clear TVDB key";
+  } finally {
+    tvdbSaving.value = false;
+  }
+}
+
 const psnStatus = ref<PsnStatus>({ connected: false, validated_at: null });
 const psnLoading = ref(true);
 const npssoToken = ref("");
@@ -352,6 +405,14 @@ const PROVIDER_CARDS: Record<string, ProviderCardConfig> = {
     label: "OMDb",
     description:
       "IMDb-backed movie metadata, used alongside TMDB so a search still returns results if one source is down or missing a title. Uses one deployment-wide API key, managed by a server administrator here rather than per-user.",
+    fields: [],
+    kind: "wired",
+  },
+  TVDB: {
+    key: "TVDB",
+    label: "TheTVDB",
+    description:
+      "The only real franchise/relations source for TV shows (TMDB has no collection concept outside of movies) — powers the Related tab on a show's page. Uses one deployment-wide API key, managed by a server administrator here rather than per-user.",
     fields: [],
     kind: "wired",
   },
@@ -995,6 +1056,97 @@ async function toggleHltb(enabled: boolean) {
               type="button"
               class="secondary-button"
               @click="clearOmdbKey"
+            >
+              Disconnect
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- TVDB: deployment-wide, admin-only credentials -->
+      <div class="source-tile">
+        <div
+          class="tile-icon"
+          :style="{ background: VISUALS.TVDB.bg, color: VISUALS.TVDB.fg }"
+        >
+          {{ VISUALS.TVDB.mark }}
+        </div>
+        <div class="tile-body">
+          <span class="tile-name" :title="PROVIDER_CARDS.TVDB.description"
+            >TheTVDB</span
+          >
+          <span
+            v-if="!credentialsLoading"
+            class="tile-status"
+            :class="statusClass('TVDB')"
+            >{{ statusLabel("TVDB") }}</span
+          >
+        </div>
+        <p class="tile-desc">{{ SHORT_DESC.TVDB }}</p>
+        <div class="tile-actions">
+          <button
+            v-if="isAdmin"
+            type="button"
+            class="icon-btn"
+            :class="{ active: expanded.TVDB }"
+            title="Configure (admin only)"
+            @click="toggleExpanded('TVDB')"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              width="14"
+              height="14"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path
+                d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"
+              />
+            </svg>
+          </button>
+        </div>
+        <p v-if="!isAdmin" class="tile-desc admin-note">
+          Configured deployment-wide by your server administrator.
+        </p>
+        <form
+          v-if="isAdmin && expanded.TVDB"
+          class="tile-form"
+          @submit.prevent="saveTvdbKey"
+        >
+          <p class="tile-desc admin-note">
+            Applies to every user on this server, not just you. Register a free
+            key at
+            <a
+              href="https://thetvdb.com/api-information"
+              target="_blank"
+              rel="noopener noreferrer"
+              >thetvdb.com/api-information</a
+            >.
+          </p>
+          <label class="field">
+            <span>API Key</span>
+            <MaskedInput
+              v-model="tvdbApiKey"
+              :placeholder="
+                tvdbConfigured
+                  ? 'Saved: leave blank to keep'
+                  : 'Paste your TVDB API key'
+              "
+            />
+          </label>
+          <div v-if="tvdbError" class="form-error">{{ tvdbError }}</div>
+          <div class="card-actions">
+            <button type="submit" class="primary-button" :disabled="tvdbSaving">
+              {{ tvdbSaving ? "Saving…" : "Save" }}
+            </button>
+            <button
+              v-if="tvdbConfigured"
+              type="button"
+              class="secondary-button"
+              @click="clearTvdbKey"
             >
               Disconnect
             </button>

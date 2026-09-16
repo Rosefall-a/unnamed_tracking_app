@@ -10,14 +10,15 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.routes.settings import get_or_create_app_integration_settings
 from src.api.schemas.movie import MovieCreate, MovieRead, MovieUpdate
+from src.core.app_integrations import get_or_create_app_integration_settings
 from src.core.auth import get_current_user
 from src.core.crypto import decrypt_secret
 from src.database.models.movies import Movie, MovieStatus
 from src.database.models.user import User
 from src.database.session import get_db
 from src.features.metadata.movies.search import search_movie_metadata
+from src.features.metadata.movies.tmdb import TMDBClient
 
 router = APIRouter(prefix="/api/movie", tags=["movie"], dependencies=[Depends(get_current_user)])
 
@@ -174,3 +175,50 @@ async def delete_movie(
     movie = await _get_movie_or_404(movie_id, db, current_user.id)
     movie.deleted_at = int(time.time())
     await db.commit()
+
+
+@router.get("/{movie_id}/relations")
+async def get_movie_relations(
+    movie_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """TMDB's only real franchise concept for movies: the collection a
+    title belongs to (e.g. every Mad Max film). Most movies aren't in
+    one — that's a normal empty result, not an error."""
+    movie = await _get_movie_or_404(movie_id, db, current_user.id)
+    app_integrations = await get_or_create_app_integration_settings(db)
+    if not app_integrations.tmdb_api_key:
+        return {"collection_name": None, "related": [], "configured": False}
+    tmdb_api_key = decrypt_secret(app_integrations.tmdb_api_key)
+    try:
+        result = await asyncio.to_thread(
+            lambda: TMDBClient(tmdb_api_key).movie_relations(movie.title)
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY, detail=f"TMDB could not be reached: {exc}"
+        ) from exc
+    return {**result, "configured": True}
+
+
+@router.get("/{movie_id}/recommended")
+async def get_movie_recommended(
+    movie_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    movie = await _get_movie_or_404(movie_id, db, current_user.id)
+    app_integrations = await get_or_create_app_integration_settings(db)
+    if not app_integrations.tmdb_api_key:
+        return {"recommended": [], "configured": False}
+    tmdb_api_key = decrypt_secret(app_integrations.tmdb_api_key)
+    try:
+        recommended = await asyncio.to_thread(
+            lambda: TMDBClient(tmdb_api_key).movie_recommendations(movie.title)
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY, detail=f"TMDB could not be reached: {exc}"
+        ) from exc
+    return {"recommended": recommended, "configured": True}

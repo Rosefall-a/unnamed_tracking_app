@@ -25,6 +25,7 @@ def _blank_result(provider: str, provider_id: str, title: str) -> dict[str, Any]
         "languages": [],
         "genres": [],
         "poster_url": None,
+        "backdrop_url": None,
         "tmdb_score": None,
         "url": None,
     }
@@ -92,6 +93,7 @@ def _run_tmdb(query: str, limit: int, ctx: ProviderContext) -> list[dict[str, An
                 "languages": movie.get("languages") or [],
                 "genres": movie.get("genres") or [],
                 "poster_url": movie.get("poster_url"),
+                "backdrop_url": movie.get("backdrop_url"),
                 "tmdb_score": movie.get("vote_average"),
                 "url": movie.get("url"),
             }

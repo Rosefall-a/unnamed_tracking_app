@@ -6,6 +6,8 @@ import requests
 
 _BASE_URL = "https://api.themoviedb.org/3"
 _POSTER_BASE = "https://image.tmdb.org/t/p/w500"
+_BACKDROP_BASE = "https://image.tmdb.org/t/p/w1280"
+_STILL_BASE = "https://image.tmdb.org/t/p/w300"
 
 
 class TMDBError(RuntimeError):
@@ -63,6 +65,7 @@ class TMDBClient:
                 (c["name"] for c in crew if c.get("job") in ("Writer", "Screenplay")), None
             )
             poster_path = details.get("poster_path") or candidate.get("poster_path")
+            backdrop_path = details.get("backdrop_path") or candidate.get("backdrop_path")
 
             results.append(
                 {
@@ -86,6 +89,7 @@ class TMDBClient:
                     ],
                     "genres": [g["name"] for g in details.get("genres", []) if g.get("name")],
                     "poster_url": f"{_POSTER_BASE}{poster_path}" if poster_path else None,
+                    "backdrop_url": f"{_BACKDROP_BASE}{backdrop_path}" if backdrop_path else None,
                     "vote_average": details.get("vote_average") or candidate.get("vote_average"),
                     "url": f"https://www.themoviedb.org/movie/{movie_id}",
                 }
@@ -118,6 +122,7 @@ class TMDBClient:
             creators = [c["name"] for c in details.get("created_by", []) if c.get("name")]
             episode_run_times = details.get("episode_run_time") or []
             poster_path = details.get("poster_path") or candidate.get("poster_path")
+            backdrop_path = details.get("backdrop_path") or candidate.get("backdrop_path")
             seasons = [
                 {
                     "season_number": s.get("season_number"),
@@ -153,9 +158,122 @@ class TMDBClient:
                     ],
                     "genres": [g["name"] for g in details.get("genres", []) if g.get("name")],
                     "poster_url": f"{_POSTER_BASE}{poster_path}" if poster_path else None,
+                    "backdrop_url": f"{_BACKDROP_BASE}{backdrop_path}" if backdrop_path else None,
                     "vote_average": details.get("vote_average") or candidate.get("vote_average"),
                     "seasons": seasons,
                     "url": f"https://www.themoviedb.org/tv/{tv_id}",
                 }
             )
         return results
+
+    def find_movie_id(self, title: str) -> int | None:
+        """Best-match movie id for a title — the first step for both
+        relations (collection) and recommendations, since neither is
+        stored locally and both need TMDB's own numeric id to query."""
+        payload = self._get("/search/movie", {"query": title})
+        candidates = payload.get("results") or []
+        return candidates[0]["id"] if candidates else None
+
+    def find_tv_id(self, title: str) -> int | None:
+        payload = self._get("/search/tv", {"query": title})
+        candidates = payload.get("results") or []
+        return candidates[0]["id"] if candidates else None
+
+    def tv_season_episodes(self, tv_id: int, season_number: int) -> list[dict[str, Any]]:
+        """Real per-episode data for one TMDB season."""
+        payload = self._get(f"/tv/{tv_id}/season/{season_number}", {})
+        episodes = payload.get("episodes") or []
+        return [
+            {
+                "episode_number": ep.get("episode_number"),
+                "title": ep.get("name"),
+                "description": ep.get("overview") or None,
+                "air_date": ep.get("air_date") or None,
+                "runtime_minutes": ep.get("runtime"),
+                "still_url": f"{_STILL_BASE}{ep['still_path']}" if ep.get("still_path") else None,
+            }
+            for ep in episodes
+            if ep.get("episode_number") is not None
+        ]
+
+    def tv_all_episodes(self, tv_id: int) -> list[dict[str, Any]]:
+        """Every episode across every TMDB season, renumbered into one
+        continuous run (1, 2, 3, ...) — used as a third episode source
+        for anime. Anime this app tracks as a single flat season often
+        maps to *many* TMDB seasons (arcs) for very long shows like One
+        Piece, so a flat renumbering is what actually lines up with this
+        app's own single-season episode numbering, rather than trusting
+        TMDB's own per-arc episode numbers."""
+        details = self._tv_details(tv_id)
+        season_numbers = sorted(
+            s["season_number"]
+            for s in details.get("seasons", [])
+            if s.get("season_number") is not None and s["season_number"] > 0
+        )
+        all_episodes: list[dict[str, Any]] = []
+        for season_number in season_numbers:
+            try:
+                all_episodes.extend(self.tv_season_episodes(tv_id, season_number))
+            except TMDBError:
+                continue
+        for i, episode in enumerate(all_episodes, start=1):
+            episode["episode_number"] = i
+        return all_episodes
+
+    def movie_relations(self, title: str) -> dict[str, Any]:
+        """A movie's real "relations" on TMDB is the collection it
+        belongs to (e.g. every Mad Max film) — the only franchise concept
+        TMDB actually has. Most movies aren't in one; that's a normal,
+        empty result, not an error."""
+        movie_id = self.find_movie_id(title)
+        if movie_id is None:
+            return {"collection_name": None, "related": []}
+        details = self._details(movie_id)
+        collection = details.get("belongs_to_collection")
+        if not collection:
+            return {"collection_name": None, "related": []}
+        collection_data = self._get(f"/collection/{collection['id']}", {})
+        parts = collection_data.get("parts") or []
+        related = [
+            {
+                "id": p.get("id"),
+                "title": p.get("title"),
+                "year": (p.get("release_date") or "")[:4] or None,
+                "poster_url": f"{_POSTER_BASE}{p['poster_path']}" if p.get("poster_path") else None,
+            }
+            for p in parts
+            if p.get("id") != movie_id
+        ]
+        return {"collection_name": collection.get("name"), "related": related}
+
+    def movie_recommendations(self, title: str, limit: int = 10) -> list[dict[str, Any]]:
+        movie_id = self.find_movie_id(title)
+        if movie_id is None:
+            return []
+        payload = self._get(f"/movie/{movie_id}/recommendations", {})
+        results = payload.get("results") or []
+        return [
+            {
+                "id": r.get("id"),
+                "title": r.get("title"),
+                "year": (r.get("release_date") or "")[:4] or None,
+                "poster_url": f"{_POSTER_BASE}{r['poster_path']}" if r.get("poster_path") else None,
+            }
+            for r in results[:limit]
+        ]
+
+    def tv_recommendations(self, title: str, limit: int = 10) -> list[dict[str, Any]]:
+        tv_id = self.find_tv_id(title)
+        if tv_id is None:
+            return []
+        payload = self._get(f"/tv/{tv_id}/recommendations", {})
+        results = payload.get("results") or []
+        return [
+            {
+                "id": r.get("id"),
+                "title": r.get("name"),
+                "year": (r.get("first_air_date") or "")[:4] or None,
+                "poster_url": f"{_POSTER_BASE}{r['poster_path']}" if r.get("poster_path") else None,
+            }
+            for r in results[:limit]
+        ]

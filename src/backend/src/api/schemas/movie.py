@@ -26,11 +26,15 @@ class MovieBase(BaseModel):
     tmdb_score: Decimal | None = Field(default=None, ge=0, le=10)
     source: str | None = Field(default=None, max_length=50)
     poster_url: str | None = None
+    backdrop_url: str | None = None
 
     status: MovieStatus = MovieStatus.WISHLIST
     priority: str | None = Field(default=None, max_length=20)
     favorite: bool = False
     rewatches: int = Field(default=0, ge=0)
+    note: str | None = None
+    start_date: date | None = None
+    end_date: date | None = None
 
     rating_story: Decimal | None = Field(default=None, ge=0, le=10)
     rating_performance: Decimal | None = Field(default=None, ge=0, le=10)
@@ -66,11 +70,15 @@ class MovieUpdate(BaseModel):
     tmdb_score: Decimal | None = Field(default=None, ge=0, le=10)
     source: str | None = Field(default=None, max_length=50)
     poster_url: str | None = None
+    backdrop_url: str | None = None
 
     status: MovieStatus | None = None
     priority: str | None = Field(default=None, max_length=20)
     favorite: bool | None = None
     rewatches: int | None = Field(default=None, ge=0)
+    note: str | None = None
+    start_date: date | None = None
+    end_date: date | None = None
 
     rating_story: Decimal | None = Field(default=None, ge=0, le=10)
     rating_performance: Decimal | None = Field(default=None, ge=0, le=10)

@@ -30,6 +30,10 @@ class AppIntegrationSettings(Base):
     # echoed back to the client, same rule as igdb_client_secret
     tmdb_api_key: Mapped[str | None] = mapped_column(Text, nullable=True)
     omdb_api_key: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # TheTVDB v4 — the only real franchise/relations source for TV shows
+    # (TMDB has no collection concept for TV). Same treatment as the keys
+    # above: Fernet-encrypted, never echoed back.
+    tvdb_api_key: Mapped[str | None] = mapped_column(Text, nullable=True)
     updated_at: Mapped[int] = mapped_column(
         BigInteger, nullable=False, default=time.time, onupdate=time.time
     )

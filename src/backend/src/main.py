@@ -24,6 +24,7 @@ from src.api.routes.utils.misc import router as misc_router
 from src.core.auth import ensure_primary_user
 from src.database.session import SessionLocal
 from src.features.backup.scheduler import run_backup_loop
+from src.features.metadata.refresh import run_airing_check_loop, run_metadata_refresh_loop
 from src.features.trash.sweep import run_sweep_loop
 
 app = FastAPI(
@@ -65,6 +66,16 @@ async def start_trash_sweep() -> None:
 @app.on_event("startup")
 async def start_backup_loop() -> None:
     asyncio.create_task(run_backup_loop())
+
+
+@app.on_event("startup")
+async def start_airing_check_loop() -> None:
+    asyncio.create_task(run_airing_check_loop())
+
+
+@app.on_event("startup")
+async def start_metadata_refresh_loop() -> None:
+    asyncio.create_task(run_metadata_refresh_loop())
 
 
 @app.get("/health")

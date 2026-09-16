@@ -1,17 +1,69 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
-import { useRouter } from "vue-router";
-import { fetchTVShows } from "../services/tvShows";
-import type { TVShow } from "../types/tv_show";
-import TVShowFormModal from "../components/TVShowFormModal.vue";
-
-const router = useRouter();
+import { ref, computed, onMounted } from "vue";
+import {
+  fetchTVShows,
+  updateTVShow,
+  deleteTVShow,
+  tvShowToInput,
+  searchTVShowMetadata,
+  createTVShow,
+  updateSeason,
+} from "../services/tvShows";
+import type { SeasonUpdateInput } from "../services/tvShows";
+import type { TVShow, TVShowStatus } from "../types/tv_show";
+import MediaLibraryView from "../components/library/MediaLibraryView.vue";
+import type {
+  LibraryCardVM,
+  SearchResultVM,
+  QuickAddForm,
+  EditForm,
+} from "../components/library/MediaLibraryView.vue";
 
 const shows = ref<TVShow[]>([]);
 const loading = ref(true);
 const error = ref<string | null>(null);
 
-const showCreateModal = ref(false);
+function seasonProgress(show: TVShow): {
+  watched: number;
+  total: number | null;
+} {
+  const watched = show.seasons.reduce((sum, s) => sum + s.episodesWatched, 0);
+  const known = show.seasons.every((s) => s.episodeCount !== null);
+  const total = known
+    ? show.seasons.reduce((sum, s) => sum + (s.episodeCount ?? 0), 0)
+    : null;
+  return { watched, total };
+}
+// The season currently being watched: the first one not yet fully watched.
+function currentSeason(show: TVShow) {
+  return show.seasons.find(
+    (s) => s.episodeCount === null || s.episodesWatched < s.episodeCount,
+  );
+}
+
+function toVM(show: TVShow): LibraryCardVM {
+  const { watched, total } = seasonProgress(show);
+  return {
+    id: show.id,
+    title: show.title,
+    poster: show.posterUrl,
+    status: show.status,
+    favorite: show.favorite,
+    score: show.ratingOverall,
+    personalRank: show.personalRank,
+    note: show.note,
+    genres: show.genres,
+    isEpisodic: true,
+    watched,
+    total,
+    progressLabel: total !== null ? `${watched}/${total}` : `${watched}/–`,
+    canAdvance: !!currentSeason(show),
+    runtimeMinutes: show.episodeRuntimeMinutes,
+    releaseYear: show.firstAirDate ? show.firstAirDate.slice(0, 4) : null,
+  };
+}
+
+const items = computed(() => shows.value.map(toVM));
 
 async function load() {
   loading.value = true;
@@ -23,176 +75,196 @@ async function load() {
     loading.value = false;
   }
 }
-
-function openShow(show: TVShow) {
-  router.push(`/tv/${show.id}`);
-}
-
-function onCreated(show: TVShow) {
-  shows.value.push(show);
-  showCreateModal.value = false;
-}
-
 onMounted(load);
+
+function findShow(id: string): TVShow {
+  const show = shows.value.find((s) => s.id === id);
+  if (!show) throw new Error(`TV show ${id} not in the loaded list`);
+  return show;
+}
+function replaceShow(updated: TVShow) {
+  const idx = shows.value.findIndex((s) => s.id === updated.id);
+  if (idx !== -1) shows.value[idx] = updated;
+}
+
+async function onToggleFavorite(id: string) {
+  const show = findShow(id);
+  const next = !show.favorite;
+  show.favorite = next;
+  try {
+    replaceShow(
+      await updateTVShow(id, { ...tvShowToInput(show), favorite: next }),
+    );
+  } catch {
+    show.favorite = !next;
+  }
+}
+
+async function onSaveNote(id: string, note: string | null) {
+  const show = findShow(id);
+  replaceShow(await updateTVShow(id, { ...tvShowToInput(show), note }));
+}
+
+// No cap on episodes watched — metadata's episode count is often wrong
+// or stale, and a rewatch can genuinely outrun it too.
+async function onAdvanceEpisode(id: string) {
+  const show = findShow(id);
+  const season = currentSeason(show);
+  if (!season) return;
+  replaceShow(
+    await updateSeason(id, season.id, {
+      episodesWatched: season.episodesWatched + 1,
+    }),
+  );
+}
+
+async function onSaveEdit(id: string, form: EditForm) {
+  const show = findShow(id);
+  replaceShow(
+    await updateTVShow(id, {
+      ...tvShowToInput(show),
+      status: form.status as TVShowStatus,
+      ratingOverall: form.score,
+    }),
+  );
+  // The small edit modal's "episodes watched" and "total episodes" are
+  // flat numbers; apply them to the current season the same way the
+  // quick "+" button does, rather than pretending a show-level episode
+  // count exists as its own field. Falls back to the last season once
+  // everything is already watched (currentSeason has nothing left to
+  // pick) so the fields stay editable after a show is fully caught up.
+  const updatedShow = findShow(id);
+  const season =
+    currentSeason(updatedShow) ??
+    updatedShow.seasons[updatedShow.seasons.length - 1];
+  if (season) {
+    const watchedDelta = form.watched - seasonProgress(updatedShow).watched;
+    const totalChanged = form.totalEpisodes !== season.episodeCount;
+    const seasonUpdates: SeasonUpdateInput = {};
+    if (watchedDelta !== 0) {
+      seasonUpdates.episodesWatched = Math.max(
+        0,
+        season.episodesWatched + watchedDelta,
+      );
+    }
+    if (totalChanged) {
+      seasonUpdates.episodeCount = form.totalEpisodes;
+    }
+    if (Object.keys(seasonUpdates).length > 0) {
+      replaceShow(await updateSeason(id, season.id, seasonUpdates));
+    }
+  }
+}
+
+async function onBulkSetStatus(ids: string[], status: string) {
+  for (const id of ids) {
+    const show = findShow(id);
+    replaceShow(
+      await updateTVShow(id, {
+        ...tvShowToInput(show),
+        status: status as TVShowStatus,
+      }),
+    );
+  }
+}
+async function onBulkFavorite(ids: string[]) {
+  for (const id of ids) {
+    const show = findShow(id);
+    replaceShow(
+      await updateTVShow(id, { ...tvShowToInput(show), favorite: true }),
+    );
+  }
+}
+async function onBulkDelete(ids: string[]) {
+  for (const id of ids) {
+    await deleteTVShow(id);
+  }
+  shows.value = shows.value.filter((s) => !ids.includes(s.id));
+}
+
+async function search(
+  query: string,
+): Promise<{ results: SearchResultVM[]; providerErrors: string[] }> {
+  const { results, providerErrors } = await searchTVShowMetadata(query);
+  return {
+    results: results.map((r) => ({
+      title: r.title,
+      poster: r.posterUrl,
+      description: r.description,
+      episodeTotal: r.seasons.length
+        ? r.seasons.reduce((sum, s) => sum + (s.episodeCount ?? 0), 0)
+        : null,
+      releaseYear: r.firstAirDate ? r.firstAirDate.slice(0, 4) : null,
+    })),
+    providerErrors,
+  };
+}
+
+async function createFromResult(
+  result: SearchResultVM,
+  form: QuickAddForm,
+): Promise<void> {
+  const { results } = await searchTVShowMetadata(result.title, 1);
+  const match = results.find((r) => r.title === result.title) ?? results[0];
+  // TMDB results carry a real per-season breakdown; TVmaze's don't (it has
+  // no season-level endpoint wired up here) — fall back to a single
+  // Season 1 using the flat episode total so there's always somewhere for
+  // "episodes watched" to land, regardless of which provider found it.
+  const seasons =
+    match?.seasons && match.seasons.length > 0
+      ? match.seasons
+      : [{ seasonNumber: 1, episodeCount: result.episodeTotal ?? undefined }];
+  const created = await createTVShow({
+    title: result.title,
+    description: match?.description ?? null,
+    firstAirDate: match?.firstAirDate ?? null,
+    episodeRuntimeMinutes: match?.episodeRuntimeMinutes ?? null,
+    creators: match?.creators ?? [],
+    studios: match?.studios ?? [],
+    genres: match?.genres ?? [],
+    posterUrl: result.poster,
+    backdropUrl: match?.backdropUrl ?? null,
+    tmdbScore: match?.tmdbScore ?? null,
+    // Only TVmaze IDs are useful here — that's the only provider the
+    // episode sync knows how to call back into.
+    externalId: match?.provider === "TVmaze" ? match.providerId : null,
+    status: form.status as TVShowStatus,
+    ratingOverall: form.score,
+    startDate: form.startDate,
+    endDate: form.endDate,
+    seasons,
+  });
+  let finalShow = created;
+  const firstSeason = created.seasons[0];
+  if (firstSeason && form.watched > 0) {
+    finalShow = await updateSeason(created.id, firstSeason.id, {
+      episodesWatched: form.watched,
+    });
+  }
+  shows.value.push(finalShow);
+}
+
+function detailRoute(id: string): string {
+  return `/tv/${id}`;
+}
 </script>
 
 <template>
-  <main class="shows-page">
-    <div class="header-row">
-      <h1>TV Shows</h1>
-      <button type="button" class="add-button" @click="showCreateModal = true">
-        + Add Show
-      </button>
-    </div>
-    <p class="section-hint">Everything you're tracking on the small screen.</p>
-
-    <p v-if="loading" class="empty-state">Loading…</p>
-    <p v-else-if="error" class="empty-state error">{{ error }}</p>
-    <p v-else-if="!shows.length" class="empty-state">
-      No shows yet — add your first one.
-    </p>
-
-    <div v-else class="shows-grid">
-      <button
-        v-for="s in shows"
-        :key="s.id"
-        type="button"
-        class="show-tile"
-        :class="{ 'has-poster': s.posterUrl }"
-        @click="openShow(s)"
-      >
-        <img
-          v-if="s.posterUrl"
-          :src="s.posterUrl"
-          alt=""
-          class="show-tile-poster"
-        />
-        <span v-if="s.favorite" class="favorite-chip">★</span>
-        <span class="show-tile-title">{{ s.title }}</span>
-        <span class="show-tile-status">{{ s.status }}</span>
-        <span v-if="s.seasons.length" class="show-tile-seasons"
-          >{{ s.seasons.length }} season{{
-            s.seasons.length === 1 ? "" : "s"
-          }}</span
-        >
-      </button>
-    </div>
-
-    <TVShowFormModal
-      v-if="showCreateModal"
-      :show="null"
-      @saved="onCreated"
-      @closed="showCreateModal = false"
-    />
-  </main>
+  <MediaLibraryView
+    kind="tv"
+    add-label="+ Add Show"
+    :items="items"
+    :loading="loading"
+    :error="error"
+    :detail-route="detailRoute"
+    :search="search"
+    :create-from-result="createFromResult"
+    @toggle-favorite="onToggleFavorite"
+    @advance-episode="onAdvanceEpisode"
+    @save-note="onSaveNote"
+    @save-edit="onSaveEdit"
+    @bulk-set-status="onBulkSetStatus"
+    @bulk-favorite="onBulkFavorite"
+    @bulk-delete="onBulkDelete"
+  />
 </template>
-
-<style scoped>
-.shows-page {
-  min-height: 100vh;
-  background: #121212;
-  color: #fff;
-  padding: 84px 24px 24px;
-  font-family: system-ui, sans-serif;
-  box-sizing: border-box;
-}
-.header-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-h1 {
-  margin: 0;
-}
-.section-hint {
-  color: #999;
-  font-size: 0.85rem;
-}
-.empty-state {
-  color: #777;
-}
-.empty-state.error {
-  color: #fca5a5;
-}
-.add-button {
-  background: #d68a34;
-  border: none;
-  color: #121212;
-  font-weight: 700;
-  border-radius: 8px;
-  padding: 9px 14px;
-  font-size: 0.85rem;
-  cursor: pointer;
-}
-.shows-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 16px;
-  margin-top: 20px;
-}
-.show-tile {
-  position: relative;
-  aspect-ratio: 5 / 7;
-  background: #1a1a1a;
-  border: 1px solid #2a2a2a;
-  border-radius: 10px;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-  align-items: flex-start;
-  padding: 12px;
-  cursor: pointer;
-  color: #fff;
-  text-align: left;
-  gap: 4px;
-}
-.show-tile:hover {
-  border-color: #d68a34;
-}
-.show-tile-poster {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  z-index: 0;
-}
-.show-tile.has-poster::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    to top,
-    rgba(0, 0, 0, 0.88) 0%,
-    rgba(0, 0, 0, 0.45) 55%,
-    rgba(0, 0, 0, 0.1) 100%
-  );
-  z-index: 1;
-}
-.show-tile.has-poster > *:not(.show-tile-poster) {
-  position: relative;
-  z-index: 2;
-}
-.favorite-chip {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  color: #d68a34;
-  font-size: 0.95rem;
-}
-.show-tile-title {
-  font-weight: 600;
-  font-size: 0.9rem;
-}
-.show-tile-status {
-  font-size: 0.72rem;
-  color: #999;
-  text-transform: capitalize;
-}
-.show-tile-seasons {
-  font-size: 0.72rem;
-  color: #d68a34;
-}
-</style>

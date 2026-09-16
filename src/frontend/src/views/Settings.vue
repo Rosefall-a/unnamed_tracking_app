@@ -11,6 +11,8 @@ import UploadSection from "../components/settings/UploadSection.vue";
 import LibraryManagementSection from "../components/settings/LibraryManagementSection.vue";
 import ScanSettingsSection from "../components/settings/ScanSettingsSection.vue";
 import MetadataSourcesSection from "../components/settings/MetadataSourcesSection.vue";
+import MediaRefreshSection from "../components/settings/MediaRefreshSection.vue";
+import TasksSection from "../components/settings/TasksSection.vue";
 import AdminSection from "../components/settings/AdminSection.vue";
 import StatsSection from "../components/settings/StatsSection.vue";
 import ExportImportSection from "../components/settings/ExportImportSection.vue";
@@ -49,6 +51,7 @@ const groups = computed<SettingsGroup[]>(() => {
       sections: [
         { id: "scan", label: "Scan Settings" },
         { id: "sources", label: "Metadata/API" },
+        { id: "media-refresh", label: "Refresh Media" },
         { id: "export", label: "Export / Import" },
       ],
     },
@@ -57,9 +60,7 @@ const groups = computed<SettingsGroup[]>(() => {
   const systemSections = [
     ...(currentUser.value?.is_admin ? [{ id: "admin", label: "Admin" }] : []),
     { id: "stats", label: "Server Stats" },
-    ...(currentUser.value?.is_admin
-      ? [{ id: "tasks", label: "Tasks", comingSoon: true }]
-      : []),
+    ...(currentUser.value?.is_admin ? [{ id: "tasks", label: "Tasks" }] : []),
     ...(currentUser.value?.is_admin
       ? [{ id: "logs", label: "Logs", comingSoon: true }]
       : []),
@@ -111,20 +112,14 @@ const activeSection = ref((route.query.section as string) || "profile");
           <LibraryManagementSection v-else-if="activeSection === 'library'" />
           <ScanSettingsSection v-else-if="activeSection === 'scan'" />
           <MetadataSourcesSection v-else-if="activeSection === 'sources'" />
+          <MediaRefreshSection v-else-if="activeSection === 'media-refresh'" />
           <AdminSection
             v-else-if="activeSection === 'admin' && currentUser?.is_admin"
           />
           <StatsSection v-else-if="activeSection === 'stats'" />
           <ExportImportSection v-else-if="activeSection === 'export'" />
-          <ComingSoonSection
+          <TasksSection
             v-else-if="activeSection === 'tasks' && currentUser?.is_admin"
-            title="Tasks"
-            description="Schedule recurring jobs, run by an in-process scheduler: no extra server required."
-            :planned-features="[
-              'Scheduled metadata refreshes',
-              'Automatic library rescans',
-              'Storage cleanup jobs',
-            ]"
           />
           <ComingSoonSection
             v-else-if="activeSection === 'logs' && currentUser?.is_admin"

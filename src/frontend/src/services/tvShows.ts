@@ -1,10 +1,25 @@
-import type { Season, TVShow, TVShowStatus } from "../types/tv_show";
+import type { Episode, Season, TVShow, TVShowStatus } from "../types/tv_show";
 
 const SHOWS_PAGE_SIZE = 50;
 
 // The exact shape FastAPI sends, snake_case, matching the Python model
 // field-for-field. Nothing outside this file should ever see raw backend
 // data directly.
+interface BackendEpisode {
+  id: string;
+  season_id: string;
+  episode_number: number;
+  title: string | null;
+  description: string | null;
+  air_date: string | null;
+  runtime_minutes: number | null;
+  still_url: string | null;
+  watched: boolean;
+  rating: number | string | null;
+  created_at: number;
+  updated_at: number;
+}
+
 interface BackendSeason {
   id: string;
   show_id: string;
@@ -15,6 +30,7 @@ interface BackendSeason {
   status: string;
   air_date: string | null;
   poster_url: string | null;
+  episodes: BackendEpisode[];
   created_at: number;
   updated_at: number;
 }
@@ -37,11 +53,16 @@ export interface BackendTVShow {
   age_rating: string | null;
   tmdb_score: number | string | null;
   source: string | null;
+  external_id: string | null;
   poster_url: string | null;
+  backdrop_url: string | null;
   status: string;
   priority: string | null;
   favorite: boolean;
   rewatches: number;
+  note: string | null;
+  start_date: string | null;
+  end_date: string | null;
   rating_story: number | string | null;
   rating_performance: number | string | null;
   rating_soundtrack: number | string | null;
@@ -73,6 +94,23 @@ function denormalizeStatus(status: TVShowStatus): string {
   return status.toUpperCase().replace(/ /g, "_");
 }
 
+function mapBackendEpisode(raw: BackendEpisode): Episode {
+  return {
+    id: raw.id,
+    seasonId: raw.season_id,
+    episodeNumber: raw.episode_number,
+    title: raw.title,
+    description: raw.description,
+    airDate: raw.air_date,
+    runtimeMinutes: raw.runtime_minutes,
+    stillUrl: raw.still_url,
+    watched: raw.watched,
+    rating: toNumberOrNull(raw.rating),
+    createdAt: unixSecondsToIso(raw.created_at),
+    updatedAt: unixSecondsToIso(raw.updated_at),
+  };
+}
+
 function mapBackendSeason(raw: BackendSeason): Season {
   return {
     id: raw.id,
@@ -84,6 +122,7 @@ function mapBackendSeason(raw: BackendSeason): Season {
     status: normalizeStatus(raw.status),
     airDate: raw.air_date,
     posterUrl: raw.poster_url,
+    episodes: raw.episodes.map(mapBackendEpisode),
     createdAt: unixSecondsToIso(raw.created_at),
     updatedAt: unixSecondsToIso(raw.updated_at),
   };
@@ -108,11 +147,16 @@ export function mapBackendTVShow(raw: BackendTVShow): TVShow {
     ageRating: raw.age_rating,
     tmdbScore: toNumberOrNull(raw.tmdb_score),
     source: raw.source,
+    externalId: raw.external_id,
     posterUrl: raw.poster_url,
+    backdropUrl: raw.backdrop_url,
     status: normalizeStatus(raw.status),
     priority: raw.priority,
     favorite: raw.favorite,
     rewatches: raw.rewatches,
+    note: raw.note,
+    startDate: raw.start_date,
+    endDate: raw.end_date,
     ratingStory: toNumberOrNull(raw.rating_story),
     ratingPerformance: toNumberOrNull(raw.rating_performance),
     ratingSoundtrack: toNumberOrNull(raw.rating_soundtrack),
@@ -187,11 +231,16 @@ export interface TVShowInput {
   ageRating?: string | null;
   tmdbScore?: number | null;
   source?: string | null;
+  externalId?: string | null;
   posterUrl?: string | null;
+  backdropUrl?: string | null;
   status?: TVShowStatus;
   priority?: string | null;
   favorite?: boolean;
   rewatches?: number;
+  note?: string | null;
+  startDate?: string | null;
+  endDate?: string | null;
   ratingStory?: number | null;
   ratingPerformance?: number | null;
   ratingSoundtrack?: number | null;
@@ -220,11 +269,16 @@ export function tvShowToInput(show: TVShow): TVShowInput {
     ageRating: show.ageRating,
     tmdbScore: show.tmdbScore,
     source: show.source,
+    externalId: show.externalId,
     posterUrl: show.posterUrl,
+    backdropUrl: show.backdropUrl,
     status: show.status,
     priority: show.priority,
     favorite: show.favorite,
     rewatches: show.rewatches,
+    note: show.note,
+    startDate: show.startDate,
+    endDate: show.endDate,
     ratingStory: show.ratingStory,
     ratingPerformance: show.ratingPerformance,
     ratingSoundtrack: show.ratingSoundtrack,
@@ -249,10 +303,15 @@ function inputToBody(input: TVShowInput): Record<string, unknown> {
     age_rating: input.ageRating ?? null,
     tmdb_score: input.tmdbScore ?? null,
     source: input.source ?? null,
+    external_id: input.externalId ?? null,
     poster_url: input.posterUrl ?? null,
+    backdrop_url: input.backdropUrl ?? null,
     priority: input.priority ?? null,
     favorite: input.favorite ?? false,
     rewatches: input.rewatches ?? 0,
+    note: input.note ?? null,
+    start_date: input.startDate ?? null,
+    end_date: input.endDate ?? null,
     rating_story: input.ratingStory ?? null,
     rating_performance: input.ratingPerformance ?? null,
     rating_soundtrack: input.ratingSoundtrack ?? null,
@@ -347,6 +406,51 @@ export async function updateSeason(
   return mapBackendTVShow(raw);
 }
 
+// First call syncs the season's episodes in from TVmaze if none exist yet
+// (needs the show's externalId — set at creation from a TVmaze search
+// result); every later call just reads what's already stored.
+export async function fetchEpisodes(
+  showId: string,
+  seasonId: string,
+): Promise<TVShow> {
+  const response = await fetch(
+    `/api/tv/${showId}/seasons/${seasonId}/episodes`,
+    {
+      credentials: "include",
+    },
+  );
+  const raw = await handle<BackendTVShow>(response, "fetch episodes");
+  return mapBackendTVShow(raw);
+}
+
+export interface EpisodeUpdateInput {
+  watched?: boolean;
+  rating?: number | null;
+}
+
+export async function updateEpisode(
+  showId: string,
+  seasonId: string,
+  episodeId: string,
+  input: EpisodeUpdateInput,
+): Promise<TVShow> {
+  const body: Record<string, unknown> = {};
+  if ("watched" in input) body.watched = input.watched;
+  if ("rating" in input) body.rating = input.rating;
+
+  const response = await fetch(
+    `/api/tv/${showId}/seasons/${seasonId}/episodes/${episodeId}`,
+    {
+      method: "PATCH",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    },
+  );
+  const raw = await handle<BackendTVShow>(response, "update episode");
+  return mapBackendTVShow(raw);
+}
+
 export async function deleteSeason(
   showId: string,
   seasonId: string,
@@ -383,6 +487,7 @@ export interface TVShowMetadataResult {
   languages: string[];
   genres: string[];
   posterUrl: string | null;
+  backdropUrl: string | null;
   tmdbScore: number | null;
   seasons: TVShowMetadataSeason[];
   url: string | null;
@@ -416,6 +521,7 @@ interface BackendTVShowMetadataResult {
   languages: string[];
   genres: string[];
   poster_url: string | null;
+  backdrop_url: string | null;
   tmdb_score: number | string | null;
   seasons: BackendTVShowMetadataSeason[];
   url: string | null;
@@ -457,6 +563,7 @@ export async function searchTVShowMetadata(
       languages: r.languages,
       genres: r.genres,
       posterUrl: r.poster_url,
+      backdropUrl: r.backdrop_url,
       tmdbScore: toNumberOrNull(r.tmdb_score),
       seasons: r.seasons.map((s) => ({
         seasonNumber: s.season_number,
@@ -467,5 +574,84 @@ export async function searchTVShowMetadata(
       })),
       url: r.url,
     })),
+  };
+}
+
+// Related/Recommended titles — a plain item, not a full TVShow: these
+// exist only to render a graph node or a poster tile and link back to
+// their source provider, never round-tripped into this app's own data.
+export interface RelatedShow {
+  id: number;
+  title: string;
+  year: string | null;
+  posterUrl: string | null;
+}
+
+export interface TVShowRelationsResponse {
+  listName: string | null;
+  related: RelatedShow[];
+  configured: boolean;
+}
+
+interface BackendRelatedShow {
+  id: number;
+  title: string;
+  year: string | null;
+  poster_url: string | null;
+}
+
+interface BackendTVShowRelationsResponse {
+  listName: string | null;
+  related: BackendRelatedShow[];
+  configured: boolean;
+}
+
+function mapRelatedShow(r: BackendRelatedShow): RelatedShow {
+  return { id: r.id, title: r.title, year: r.year, posterUrl: r.poster_url };
+}
+
+// TheTVDB is the only real franchise source for TV — `configured: false`
+// means no TVDB key is set yet, distinct from a real empty result (the
+// show simply isn't part of a franchise).
+export async function fetchTVShowRelations(
+  id: string,
+): Promise<TVShowRelationsResponse> {
+  const response = await fetch(`/api/tv/${id}/relations`, {
+    credentials: "include",
+  });
+  const raw = await handle<BackendTVShowRelationsResponse>(
+    response,
+    "fetch show relations",
+  );
+  return {
+    listName: raw.listName,
+    related: raw.related.map(mapRelatedShow),
+    configured: raw.configured,
+  };
+}
+
+export interface TVShowRecommendedResponse {
+  recommended: RelatedShow[];
+  configured: boolean;
+}
+
+interface BackendTVShowRecommendedResponse {
+  recommended: BackendRelatedShow[];
+  configured: boolean;
+}
+
+export async function fetchTVShowRecommended(
+  id: string,
+): Promise<TVShowRecommendedResponse> {
+  const response = await fetch(`/api/tv/${id}/recommended`, {
+    credentials: "include",
+  });
+  const raw = await handle<BackendTVShowRecommendedResponse>(
+    response,
+    "fetch show recommended",
+  );
+  return {
+    recommended: raw.recommended.map(mapRelatedShow),
+    configured: raw.configured,
   };
 }

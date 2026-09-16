@@ -24,12 +24,17 @@ class TVShowBase(BaseModel):
     age_rating: str | None = Field(default=None, max_length=20)
     tmdb_score: Decimal | None = Field(default=None, ge=0, le=10)
     source: str | None = Field(default=None, max_length=50)
+    external_id: str | None = Field(default=None, max_length=50)
     poster_url: str | None = None
+    backdrop_url: str | None = None
 
     status: TVShowStatus = TVShowStatus.WISHLIST
     priority: str | None = Field(default=None, max_length=20)
     favorite: bool = False
     rewatches: int = Field(default=0, ge=0)
+    note: str | None = None
+    start_date: date | None = None
+    end_date: date | None = None
 
     rating_story: Decimal | None = Field(default=None, ge=0, le=10)
     rating_performance: Decimal | None = Field(default=None, ge=0, le=10)
@@ -80,11 +85,15 @@ class TVShowUpdate(BaseModel):
     tmdb_score: Decimal | None = Field(default=None, ge=0, le=10)
     source: str | None = Field(default=None, max_length=50)
     poster_url: str | None = None
+    backdrop_url: str | None = None
 
     status: TVShowStatus | None = None
     priority: str | None = Field(default=None, max_length=20)
     favorite: bool | None = None
     rewatches: int | None = Field(default=None, ge=0)
+    note: str | None = None
+    start_date: date | None = None
+    end_date: date | None = None
 
     rating_story: Decimal | None = Field(default=None, ge=0, le=10)
     rating_performance: Decimal | None = Field(default=None, ge=0, le=10)
@@ -115,6 +124,31 @@ class SeasonUpdate(BaseModel):
     status: TVShowStatus | None = None
 
 
+class EpisodeUpdate(BaseModel):
+    """Partial update for a single episode — only the two fields a user
+    can actually change; everything else is provider-synced."""
+
+    watched: bool | None = None
+    rating: Decimal | None = Field(default=None, ge=0, le=10)
+
+
+class EpisodeRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    season_id: UUID
+    episode_number: int
+    title: str | None
+    description: str | None
+    air_date: date | None
+    runtime_minutes: int | None
+    still_url: str | None
+    watched: bool
+    rating: Decimal | None
+    created_at: int
+    updated_at: int
+
+
 class SeasonRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -127,6 +161,7 @@ class SeasonRead(BaseModel):
     status: TVShowStatus
     air_date: date | None
     poster_url: str | None
+    episodes: list[EpisodeRead] = Field(default_factory=list)
     created_at: int
     updated_at: int
 

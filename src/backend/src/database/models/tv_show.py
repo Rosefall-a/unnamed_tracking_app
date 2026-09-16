@@ -89,10 +89,25 @@ class TVShow(Base):
     age_rating: Mapped[str | None] = mapped_column(String(20), nullable=True)
     tmdb_score: Mapped[Decimal | None] = mapped_column(Numeric(4, 2), nullable=True)
     source: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    # the source provider's own id for this show (TVmaze's numeric id) —
+    # kept so episode sync can hit that exact show again later instead of
+    # re-searching by title and hoping for an exact match
+    external_id: Mapped[str | None] = mapped_column(String(50), nullable=True)
+
+    # NULL until the airing-check loop has actually looked (nothing to
+    # filter on yet); True/False once TVmaze's own show status has been
+    # checked at least once. Lets the frequent airing-check loop skip a
+    # show entirely once it's known to have ended, instead of re-fetching
+    # its episode list every cycle forever.
+    is_airing: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
 
     # a direct external URL (TMDB's CDN / OMDb's Poster field), stored
     # as-is — same convention as Movie.poster_url, never downloaded/resized
     poster_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # a wide-format background image (TMDB's backdrop_path), distinct
+    # from the portrait poster_url above — used for the detail page hero
+    backdrop_url: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # ------------------------------------------------------------------
     # Personal library state
@@ -106,6 +121,10 @@ class TVShow(Base):
     priority: Mapped[str | None] = mapped_column(String(20), nullable=True)
     favorite: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     rewatches: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    start_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    end_date: Mapped[date | None] = mapped_column(Date, nullable=True)
 
     # ------------------------------------------------------------------
     # Ratings
@@ -145,12 +164,12 @@ class TVShow(Base):
 
 
 class TVSeason(Base):
-    """One season of a TVShow — a real child row, not just a count, so
-    progress and status can be tracked per season independently of the
-    show overall. No per-episode table: episode-level tracking here is a
-    single `episodes_watched` progress count against `episode_count`,
-    matching how MyAnimeList-style trackers actually record progress
-    (a number, not a per-episode checklist)."""
+    """One season of a TVShow — a real child row, so progress and status
+    can be tracked per season independently of the show overall.
+    `episodes_watched`/`episode_count` stay as the flat progress numbers
+    used everywhere else in the app (library rows, quick add); `episodes`
+    below is the optional richer breakdown, synced from the source
+    provider on first request and cached rather than re-fetched."""
 
     __tablename__ = "tv_seasons"
 
@@ -177,6 +196,52 @@ class TVSeason(Base):
     )
     air_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     poster_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    episodes: Mapped[list["TVEpisode"]] = relationship(
+        back_populates="season",
+        order_by="TVEpisode.episode_number",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+    )
+
+    created_at: Mapped[int] = mapped_column(
+        BigInteger, nullable=False, default=lambda: int(time.time())
+    )
+    updated_at: Mapped[int] = mapped_column(
+        BigInteger,
+        nullable=False,
+        default=lambda: int(time.time()),
+        onupdate=lambda: int(time.time()),
+    )
+
+
+class TVEpisode(Base):
+    """One episode of a TVSeason. Rows are synced in from the source
+    provider (TVmaze) the first time a season's episode list is
+    requested, then persisted here — later requests read straight from
+    this table instead of re-fetching, and `watched`/`rating` are purely
+    local, never touched by a re-sync."""
+
+    __tablename__ = "tv_episodes"
+
+    id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
+    season_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("tv_seasons.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    season: Mapped["TVSeason"] = relationship(back_populates="episodes")
+
+    episode_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    title: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    air_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    runtime_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    still_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    watched: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    rating: Mapped[Decimal | None] = mapped_column(Numeric(4, 2), nullable=True)
 
     created_at: Mapped[int] = mapped_column(
         BigInteger, nullable=False, default=lambda: int(time.time())

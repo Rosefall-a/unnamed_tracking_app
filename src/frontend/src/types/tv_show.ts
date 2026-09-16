@@ -8,6 +8,21 @@ export type TVShowStatus =
   | "favorite"
   | "rewatch";
 
+export interface Episode {
+  id: string;
+  seasonId: string;
+  episodeNumber: number;
+  title: string | null;
+  description: string | null;
+  airDate: string | null;
+  runtimeMinutes: number | null;
+  stillUrl: string | null;
+  watched: boolean;
+  rating: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Season {
   id: string;
   showId: string;
@@ -18,6 +33,7 @@ export interface Season {
   status: TVShowStatus;
   airDate: string | null;
   posterUrl: string | null;
+  episodes: Episode[];
   createdAt: string;
   updatedAt: string;
 }
@@ -40,11 +56,16 @@ export interface TVShow {
   ageRating: string | null;
   tmdbScore: number | null;
   source: string | null;
+  externalId: string | null;
   posterUrl: string | null;
+  backdropUrl: string | null;
   status: TVShowStatus;
   priority: string | null;
   favorite: boolean;
   rewatches: number;
+  note: string | null;
+  startDate: string | null;
+  endDate: string | null;
   ratingStory: number | null;
   ratingPerformance: number | null;
   ratingSoundtrack: number | null;

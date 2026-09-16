@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from "vue";
+import { ref, computed, watch } from "vue";
 import {
   createTVShow,
   updateTVShow,
@@ -8,6 +8,11 @@ import {
 } from "../services/tvShows";
 import type { TVShowMetadataResult, SeasonInput } from "../services/tvShows";
 import type { TVShow, TVShowStatus } from "../types/tv_show";
+import {
+  STATUS_BUCKETS,
+  statusBucket,
+  bucketToReal,
+} from "../utils/mediaStatus";
 
 const props = defineProps<{
   show?: TVShow | null;
@@ -18,17 +23,6 @@ const emit = defineEmits<{
   deleted: [showId: string];
   closed: [];
 }>();
-
-const STATUSES: TVShowStatus[] = [
-  "wishlist",
-  "watchlist",
-  "backlog",
-  "in progress",
-  "watched",
-  "rewatch",
-  "favorite",
-  "dropped",
-];
 
 function blankFields() {
   return {
@@ -44,11 +38,18 @@ function blankFields() {
     ratingOverall: null as number | null,
     personalRank: null as number | null,
     posterUrl: null as string | null,
+    backdropUrl: null as string | null,
     tmdbScore: null as number | null,
   };
 }
 
 const fields = ref(blankFields());
+const statusBucketModel = computed({
+  get: () => statusBucket(fields.value.status),
+  set: (bucket: string) => {
+    fields.value.status = bucketToReal(bucket) as TVShowStatus;
+  },
+});
 // staged from a metadata search result when creating a new show — bulk
 // created alongside it so the user doesn't have to type each season in
 // by hand. Never used on edit (seasons are managed from the detail page).
@@ -82,6 +83,7 @@ function loadFromShow(show: TVShow | null | undefined) {
     ratingOverall: show.ratingOverall,
     personalRank: show.personalRank,
     posterUrl: show.posterUrl,
+    backdropUrl: show.backdropUrl,
     tmdbScore: show.tmdbScore,
   };
 }
@@ -131,6 +133,7 @@ function applyMetadata(result: TVShowMetadataResult) {
     fields.value.creatorsInput = result.creators.join(", ");
   if (result.genres.length) fields.value.genresInput = result.genres.join(", ");
   fields.value.posterUrl = result.posterUrl;
+  fields.value.backdropUrl = result.backdropUrl;
   if (result.tmdbScore !== null) fields.value.tmdbScore = result.tmdbScore;
   stagedSeasons.value = result.seasons.map((s) => ({
     seasonNumber: s.seasonNumber,
@@ -167,6 +170,7 @@ async function submit() {
       ratingOverall: fields.value.ratingOverall,
       personalRank: fields.value.personalRank,
       posterUrl: fields.value.posterUrl,
+      backdropUrl: fields.value.backdropUrl,
       tmdbScore: fields.value.tmdbScore,
       seasons: props.show ? undefined : stagedSeasons.value,
     };
@@ -325,9 +329,9 @@ async function remove() {
         <div class="field-row">
           <label class="field">
             <span>Status</span>
-            <select v-model="fields.status" class="text-input">
-              <option v-for="s in STATUSES" :key="s" :value="s">
-                {{ s }}
+            <select v-model="statusBucketModel" class="text-input">
+              <option v-for="s in STATUS_BUCKETS" :key="s.key" :value="s.key">
+                {{ s.label }}
               </option>
             </select>
           </label>

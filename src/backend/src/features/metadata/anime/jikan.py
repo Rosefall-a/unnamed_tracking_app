@@ -69,7 +69,51 @@ class JikanClient:
                     "genres": [g["name"] for g in entry.get("genres", []) if g.get("name")],
                     "poster_url": images.get("large_image_url") or images.get("image_url"),
                     "score": entry.get("score"),
+                    # Jikan's "type" is already the friendly label we want:
+                    # TV, Movie, OVA, ONA, Special, Music.
+                    "format": entry.get("type"),
                     "url": entry.get("url"),
                 }
             )
+        return results
+
+    def episodes(self, mal_id: str) -> list[dict[str, Any]]:
+        """Jikan's episode list is thinner than TVmaze's — no thumbnail or
+        synopsis per episode, just number/title/air date — but it's the
+        only keyless per-episode source available for anime."""
+        results: list[dict[str, Any]] = []
+        page = 1
+        while True:
+            try:
+                response = self.session.get(
+                    f"{_BASE_URL}/anime/{mal_id}/episodes",
+                    params={"page": str(page)},
+                    timeout=15,
+                )
+            except requests.RequestException as exc:
+                raise JikanError(f"Could not reach Jikan: {exc}") from exc
+            if response.status_code >= 400:
+                raise JikanError(
+                    f"Jikan request failed ({response.status_code}): {response.text[:200]}"
+                )
+            try:
+                payload = response.json()
+            except ValueError as exc:
+                raise JikanError("Jikan returned invalid JSON.") from exc
+
+            for entry in payload.get("data") or []:
+                results.append(
+                    {
+                        "episode_number": entry.get("mal_id"),
+                        "title": entry.get("title"),
+                        "description": None,
+                        "air_date": (entry.get("aired") or "").split("T")[0] or None,
+                        "runtime_minutes": None,
+                        "still_url": None,
+                    }
+                )
+            has_next = ((payload.get("pagination") or {}).get("has_next_page")) or False
+            if not has_next:
+                break
+            page += 1
         return results

@@ -85,6 +85,12 @@ class Anime(Base):
 
     age_rating: Mapped[str | None] = mapped_column(String(20), nullable=True)
 
+    # the media sub-format (TV, Movie, OVA, ONA, Special, Music) as
+    # reported by AniList/Jikan — distinct from `kind`, which is fixed to
+    # "anime" for every row in this table; this is what actually varies
+    # per entry and drives the "TV"/"Movie"/"OVA" label shown in the UI
+    format: Mapped[str | None] = mapped_column(String(20), nullable=True)
+
     # two external scores, matching how Movie/TVShow keep one provider's
     # score (tmdb_score) — here AniList and MyAnimeList (via Jikan) are
     # both real, independent sources worth keeping separately rather than
@@ -93,10 +99,32 @@ class Anime(Base):
     mal_score: Mapped[Decimal | None] = mapped_column(Numeric(4, 2), nullable=True)
 
     source: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    # the source provider's own id for this show (MyAnimeList's id via
+    # Jikan) — kept so episode sync can hit that exact show again later
+    # instead of re-searching by title and hoping for an exact match
+    external_id: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    # AniList's own id, kept separately from external_id (which is MAL's)
+    # — Jikan/MyAnimeList is unreliable (rate limits, occasional outages),
+    # so episode sync tries it first when known but falls back to AniList's
+    # streamingEpisodes data when Jikan is unavailable or external_id is
+    # unknown. Two independent episode sources instead of one single point
+    # of failure.
+    anilist_id: Mapped[str | None] = mapped_column(String(50), nullable=True)
+
+    # NULL until the airing-check loop has actually looked (nothing to
+    # filter on yet); True/False once AniList's own nextAiringEpisode
+    # presence has been checked at least once. Lets the frequent
+    # airing-check loop skip a show entirely once it's known to have
+    # finished, instead of re-querying it every cycle forever.
+    is_airing: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
 
     # a direct external URL (AniList's CDN / Jikan's image field), stored
     # as-is — same convention as Movie.poster_url, never downloaded/resized
     poster_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # a wide-format background image (AniList's bannerImage), distinct
+    # from the portrait poster_url above — used for the detail page hero
+    backdrop_url: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # ------------------------------------------------------------------
     # Personal library state
@@ -110,6 +138,10 @@ class Anime(Base):
     priority: Mapped[str | None] = mapped_column(String(20), nullable=True)
     favorite: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     rewatches: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    start_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    end_date: Mapped[date | None] = mapped_column(Date, nullable=True)
 
     # ------------------------------------------------------------------
     # Ratings
@@ -153,10 +185,9 @@ class AnimeSeason(Base):
     so progress and status can be tracked per season independently of the
     show overall. Most anime will carry exactly one season row (a new
     cour is usually its own separate AniList entry rather than a season
-    of an existing one). No per-episode table: episode-level tracking
-    here is a single `episodes_watched` progress count against
-    `episode_count`, matching how MyAnimeList-style trackers actually
-    record progress."""
+    of an existing one). `episodes_watched`/`episode_count` stay as the
+    flat progress numbers used everywhere else in the app; `episodes`
+    below is the optional richer per-episode breakdown."""
 
     __tablename__ = "anime_seasons"
 
@@ -181,6 +212,52 @@ class AnimeSeason(Base):
     )
     air_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     poster_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    episodes: Mapped[list["AnimeEpisode"]] = relationship(
+        back_populates="season",
+        order_by="AnimeEpisode.episode_number",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+    )
+
+    created_at: Mapped[int] = mapped_column(
+        BigInteger, nullable=False, default=lambda: int(time.time())
+    )
+    updated_at: Mapped[int] = mapped_column(
+        BigInteger,
+        nullable=False,
+        default=lambda: int(time.time()),
+        onupdate=lambda: int(time.time()),
+    )
+
+
+class AnimeEpisode(Base):
+    """One episode of an AnimeSeason. Rows are synced in from the source
+    provider (Jikan/MyAnimeList) the first time a season's episode list
+    is requested, then persisted here — later requests read straight from
+    this table instead of re-fetching, and `watched`/`rating` are purely
+    local, never touched by a re-sync."""
+
+    __tablename__ = "anime_episodes"
+
+    id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
+    season_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("anime_seasons.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    season: Mapped["AnimeSeason"] = relationship(back_populates="episodes")
+
+    episode_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    title: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    air_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    runtime_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    still_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    watched: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    rating: Mapped[Decimal | None] = mapped_column(Numeric(4, 2), nullable=True)
 
     created_at: Mapped[int] = mapped_column(
         BigInteger, nullable=False, default=lambda: int(time.time())

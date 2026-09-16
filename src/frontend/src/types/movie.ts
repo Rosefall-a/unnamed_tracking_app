@@ -28,10 +28,14 @@ export interface Movie {
   tmdbScore: number | null;
   source: string | null;
   posterUrl: string | null;
+  backdropUrl: string | null;
   status: MovieStatus;
   priority: string | null;
   favorite: boolean;
   rewatches: number;
+  note: string | null;
+  startDate: string | null;
+  endDate: string | null;
   ratingStory: number | null;
   ratingPerformance: number | null;
   ratingSoundtrack: number | null;

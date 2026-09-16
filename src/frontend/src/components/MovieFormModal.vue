@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from "vue";
+import { ref, computed, watch } from "vue";
 import {
   createMovie,
   updateMovie,
@@ -8,6 +8,11 @@ import {
 } from "../services/movies";
 import type { MovieMetadataResult } from "../services/movies";
 import type { Movie, MovieStatus } from "../types/movie";
+import {
+  STATUS_BUCKETS,
+  statusBucket,
+  bucketToReal,
+} from "../utils/mediaStatus";
 
 const props = defineProps<{
   movie?: Movie | null;
@@ -18,17 +23,6 @@ const emit = defineEmits<{
   deleted: [movieId: string];
   closed: [];
 }>();
-
-const STATUSES: MovieStatus[] = [
-  "wishlist",
-  "watchlist",
-  "backlog",
-  "in progress",
-  "watched",
-  "rewatch",
-  "favorite",
-  "dropped",
-];
 
 function blankFields() {
   return {
@@ -46,11 +40,18 @@ function blankFields() {
     ratingOverall: null as number | null,
     personalRank: null as number | null,
     posterUrl: null as string | null,
+    backdropUrl: null as string | null,
     tmdbScore: null as number | null,
   };
 }
 
 const fields = ref(blankFields());
+const statusBucketModel = computed({
+  get: () => statusBucket(fields.value.status),
+  set: (bucket: string) => {
+    fields.value.status = bucketToReal(bucket) as MovieStatus;
+  },
+});
 const saving = ref(false);
 const deleting = ref(false);
 const error = ref<string | null>(null);
@@ -81,6 +82,7 @@ function loadFromMovie(movie: Movie | null | undefined) {
     ratingOverall: movie.ratingOverall,
     personalRank: movie.personalRank,
     posterUrl: movie.posterUrl,
+    backdropUrl: movie.backdropUrl,
     tmdbScore: movie.tmdbScore,
   };
 }
@@ -132,6 +134,7 @@ function applyMetadata(result: MovieMetadataResult) {
     fields.value.studiosInput = result.studios.join(", ");
   if (result.genres.length) fields.value.genresInput = result.genres.join(", ");
   fields.value.posterUrl = result.posterUrl;
+  fields.value.backdropUrl = result.backdropUrl;
   if (result.tmdbScore !== null) fields.value.tmdbScore = result.tmdbScore;
   metadataResults.value = [];
   metadataQuery.value = result.title;
@@ -161,6 +164,7 @@ async function submit() {
       ratingOverall: fields.value.ratingOverall,
       personalRank: fields.value.personalRank,
       posterUrl: fields.value.posterUrl,
+      backdropUrl: fields.value.backdropUrl,
       tmdbScore: fields.value.tmdbScore,
     };
     const saved = props.movie
@@ -321,9 +325,9 @@ async function remove() {
         <div class="field-row">
           <label class="field">
             <span>Status</span>
-            <select v-model="fields.status" class="text-input">
-              <option v-for="s in STATUSES" :key="s" :value="s">
-                {{ s }}
+            <select v-model="statusBucketModel" class="text-input">
+              <option v-for="s in STATUS_BUCKETS" :key="s.key" :value="s.key">
+                {{ s.label }}
               </option>
             </select>
           </label>

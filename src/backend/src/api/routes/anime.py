@@ -3,6 +3,8 @@
 import asyncio
 import re
 import time
+from datetime import date
+from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -14,13 +16,22 @@ from src.api.schemas.anime import (
     AnimeCreate,
     AnimeRead,
     AnimeUpdate,
+    EpisodeUpdate,
     SeasonCreate,
     SeasonUpdate,
 )
+from src.core.app_integrations import get_or_create_app_integration_settings
 from src.core.auth import get_current_user
-from src.database.models.anime import Anime, AnimeSeason, AnimeStatus
+from src.core.crypto import decrypt_secret
+from src.database.models.anime import Anime, AnimeEpisode, AnimeSeason, AnimeStatus
 from src.database.models.user import User
 from src.database.session import get_db
+from src.features.metadata.anime.anilist import AniListClient, AniListError
+from src.features.metadata.anime.episode_sync import (
+    backfill_from_tmdb,
+    fetch_episodes_with_fallback,
+    pad_to_known_total,
+)
 from src.features.metadata.anime.search import search_anime_metadata
 
 router = APIRouter(prefix="/api/anime", tags=["anime"], dependencies=[Depends(get_current_user)])
@@ -231,3 +242,130 @@ async def delete_season(
     await db.delete(season)
     await db.commit()
     return await _get_show_or_404(show_id, db, current_user.id)
+
+
+async def _backfill_from_tmdb_if_configured(
+    all_episodes: list[dict[str, Any]], show_title: str, db: AsyncSession
+) -> None:
+    app_integrations = await get_or_create_app_integration_settings(db)
+    if app_integrations.tmdb_api_key:
+        tmdb_api_key = decrypt_secret(app_integrations.tmdb_api_key)
+        await backfill_from_tmdb(all_episodes, show_title, tmdb_api_key)
+
+
+async def _get_episode_or_404(episode_id: UUID, season_id: UUID, db: AsyncSession) -> AnimeEpisode:
+    episode = await db.scalar(
+        select(AnimeEpisode).where(AnimeEpisode.id == episode_id, AnimeEpisode.season_id == season_id)
+    )
+    if episode is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Episode {episode_id} not found")
+    return episode
+
+
+@router.get("/{show_id}/seasons/{season_id}/episodes", response_model=AnimeRead)
+async def list_episodes(
+    show_id: UUID,
+    season_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Anime:
+    """Return the season's episodes, syncing them in on the very first
+    request. Jikan (richer data — synopsis, air dates) is tried first when
+    the show has an `external_id`; if Jikan is unreachable or the show was
+    never matched on MyAnimeList, AniList's `streamingEpisodes` is tried
+    next as a fallback (thinner data — no air date/synopsis, but real
+    titles and thumbnails) when an `anilist_id` is known. Nothing to sync
+    from if neither id is set (added by hand, or found by neither
+    provider). Every later call reads straight from the table instead of
+    re-fetching."""
+    show = await _get_show_or_404(show_id, db, current_user.id)
+    season = await _get_season_or_404(season_id, show_id, db)
+
+    if not season.episodes and (show.external_id or show.anilist_id):
+        all_episodes, errors = await fetch_episodes_with_fallback(
+            show.external_id, show.anilist_id
+        )
+        if not all_episodes and errors:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"Could not sync episodes: {'; '.join(errors)}",
+            )
+        season.episode_count = pad_to_known_total(all_episodes, season.episode_count)
+        if any(e.get("title") is None for e in all_episodes):
+            await _backfill_from_tmdb_if_configured(all_episodes, show.title, db)
+        for entry in all_episodes:
+            raw_air_date = entry.get("air_date")
+            db.add(
+                AnimeEpisode(
+                    season_id=season.id,
+                    episode_number=entry["episode_number"],
+                    title=entry.get("title"),
+                    description=entry.get("description"),
+                    air_date=date.fromisoformat(raw_air_date) if raw_air_date else None,
+                    runtime_minutes=entry.get("runtime_minutes"),
+                    still_url=entry.get("still_url"),
+                )
+            )
+        await db.commit()
+
+    return await _get_show_or_404(show_id, db, current_user.id)
+
+
+@router.patch("/{show_id}/seasons/{season_id}/episodes/{episode_id}", response_model=AnimeRead)
+async def update_episode(
+    show_id: UUID,
+    season_id: UUID,
+    episode_id: UUID,
+    payload: EpisodeUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Anime:
+    await _get_show_or_404(show_id, db, current_user.id)
+    await _get_season_or_404(season_id, show_id, db)
+    episode = await _get_episode_or_404(episode_id, season_id, db)
+
+    updates = payload.model_dump(exclude_unset=True)
+    for field, value in updates.items():
+        setattr(episode, field, value)
+
+    await db.commit()
+    return await _get_show_or_404(show_id, db, current_user.id)
+
+
+@router.get("/{show_id}/relations")
+async def get_anime_relations(
+    show_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """AniList's real relations graph (prequel/sequel/spin-off/etc) for
+    the best title match — keyless, so unlike TV/Movie there's no
+    "not configured" state to handle here."""
+    show = await _get_show_or_404(show_id, db, current_user.id)
+    try:
+        result = await asyncio.to_thread(
+            AniListClient().relations_and_recommendations, show.title
+        )
+    except AniListError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY, detail=f"AniList could not be reached: {exc}"
+        ) from exc
+    return {"related": result["relations"], "configured": True}
+
+
+@router.get("/{show_id}/recommended")
+async def get_anime_recommended(
+    show_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    show = await _get_show_or_404(show_id, db, current_user.id)
+    try:
+        result = await asyncio.to_thread(
+            AniListClient().relations_and_recommendations, show.title
+        )
+    except AniListError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY, detail=f"AniList could not be reached: {exc}"
+        ) from exc
+    return {"recommended": result["recommendations"], "configured": True}

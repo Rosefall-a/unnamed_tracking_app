@@ -160,6 +160,13 @@ class Movie(Base):
         nullable=True,
     )
 
+    # a wide-format background image (TMDB's backdrop_path), distinct
+    # from the portrait poster_url above — used for the detail page hero
+    backdrop_url: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
     # ------------------------------------------------------------------
     # Personal library state
     # ------------------------------------------------------------------
@@ -184,6 +191,21 @@ class Movie(Base):
     rewatches: Mapped[int] = mapped_column(
         nullable=False,
         default=0,
+    )
+
+    note: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
+    start_date: Mapped[date | None] = mapped_column(
+        Date,
+        nullable=True,
+    )
+
+    end_date: Mapped[date | None] = mapped_column(
+        Date,
+        nullable=True,
     )
 
     # ------------------------------------------------------------------

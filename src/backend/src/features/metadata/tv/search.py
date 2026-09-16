@@ -6,6 +6,7 @@ from typing import Any, Callable, Literal
 
 from src.features.metadata.movies.omdb import OMDBClient
 from src.features.metadata.movies.tmdb import TMDBClient
+from src.features.metadata.tv.tvmaze import TVMazeClient
 
 # Reuses the TMDB/OMDb clients built for Movies (same API keys, same
 # deployment-wide AppIntegrationSettings) rather than duplicating a whole
@@ -27,6 +28,7 @@ def _blank_result(provider: str, provider_id: str, title: str) -> dict[str, Any]
         "languages": [],
         "genres": [],
         "poster_url": None,
+        "backdrop_url": None,
         "tmdb_score": None,
         "seasons": [],
         "url": None,
@@ -97,6 +99,7 @@ def _run_tmdb(query: str, limit: int, ctx: ProviderContext) -> list[dict[str, An
                 "languages": show.get("languages") or [],
                 "genres": show.get("genres") or [],
                 "poster_url": show.get("poster_url"),
+                "backdrop_url": show.get("backdrop_url"),
                 "tmdb_score": show.get("vote_average"),
                 "seasons": show.get("seasons") or [],
                 "url": show.get("url"),
@@ -132,12 +135,37 @@ def _run_omdb(query: str, limit: int, ctx: ProviderContext) -> list[dict[str, An
     return found
 
 
+def _run_tvmaze(query: str, limit: int, _ctx: ProviderContext) -> list[dict[str, Any]]:
+    client = TVMazeClient()
+    found: list[dict[str, Any]] = []
+    for show in client.search(query, limit=limit):
+        result = _blank_result("TVmaze", str(show.get("id", "")), show.get("title", ""))
+        result.update(
+            {
+                "description": show.get("overview"),
+                "first_air_date": show.get("first_air_date"),
+                "episode_runtime_minutes": show.get("episode_runtime_minutes"),
+                "studios": show.get("studios") or [],
+                "countries": show.get("countries") or [],
+                "genres": show.get("genres") or [],
+                "poster_url": show.get("poster_url"),
+                "tmdb_score": show.get("score"),
+                "url": show.get("url"),
+            }
+        )
+        found.append(result)
+    return found
+
+
 PROVIDERS: dict[str, ProviderSpec] = {
     "TMDB": ProviderSpec("TMDB", "primary", lambda ctx: bool(ctx.tmdb_api_key), _run_tmdb),
     "OMDb": ProviderSpec("OMDb", "primary", lambda ctx: bool(ctx.omdb_api_key), _run_omdb),
+    # Keyless — always available, so TV search still returns real results
+    # even before TMDB/OMDb are configured.
+    "TVmaze": ProviderSpec("TVmaze", "primary", lambda ctx: True, _run_tvmaze),
 }
 
-DEFAULT_PROVIDER_ORDER = ["TMDB", "OMDb"]
+DEFAULT_PROVIDER_ORDER = ["TMDB", "OMDb", "TVmaze"]
 
 
 def search_tv_metadata(

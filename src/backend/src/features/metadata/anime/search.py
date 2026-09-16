@@ -28,8 +28,14 @@ def _blank_result(provider: str, provider_id: str, title: str) -> dict[str, Any]
         "countries": [],
         "genres": [],
         "poster_url": None,
+        "backdrop_url": None,
+        "format": None,
         "anilist_score": None,
         "mal_score": None,
+        # Jikan's own id for this entry — kept separate from `provider_id`
+        # (which is whichever provider matched first, usually AniList)
+        # since episode sync specifically needs Jikan's id to call back in.
+        "mal_id": None,
         "url": None,
     }
 
@@ -86,6 +92,8 @@ def _run_anilist(query: str, limit: int) -> list[dict[str, Any]]:
                 "countries": entry.get("countries") or [],
                 "genres": entry.get("genres") or [],
                 "poster_url": entry.get("poster_url"),
+                "backdrop_url": entry.get("backdrop_url"),
+                "format": entry.get("format"),
                 "anilist_score": entry.get("score"),
                 "url": entry.get("url"),
             }
@@ -108,7 +116,9 @@ def _run_jikan(query: str, limit: int) -> list[dict[str, Any]]:
                 "studios": entry.get("studios") or [],
                 "countries": entry.get("countries") or [],
                 "genres": entry.get("genres") or [],
+                "mal_id": str(entry.get("id", "")) or None,
                 "poster_url": entry.get("poster_url"),
+                "format": entry.get("format"),
                 "mal_score": entry.get("score"),
                 "url": entry.get("url"),
             }

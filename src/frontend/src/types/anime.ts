@@ -8,6 +8,21 @@ export type AnimeStatus =
   | "favorite"
   | "rewatch";
 
+export interface AnimeEpisode {
+  id: string;
+  seasonId: string;
+  episodeNumber: number;
+  title: string | null;
+  description: string | null;
+  airDate: string | null;
+  runtimeMinutes: number | null;
+  stillUrl: string | null;
+  watched: boolean;
+  rating: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface AnimeSeason {
   id: string;
   showId: string;
@@ -18,6 +33,7 @@ export interface AnimeSeason {
   status: AnimeStatus;
   airDate: string | null;
   posterUrl: string | null;
+  episodes: AnimeEpisode[];
   createdAt: string;
   updatedAt: string;
 }
@@ -37,14 +53,21 @@ export interface Anime {
   tags: string[];
   features: string[];
   ageRating: string | null;
+  format: string | null;
   anilistScore: number | null;
   malScore: number | null;
   source: string | null;
+  externalId: string | null;
+  anilistId: string | null;
   posterUrl: string | null;
+  backdropUrl: string | null;
   status: AnimeStatus;
   priority: string | null;
   favorite: boolean;
   rewatches: number;
+  note: string | null;
+  startDate: string | null;
+  endDate: string | null;
   ratingStory: number | null;
   ratingPerformance: number | null;
   ratingSoundtrack: number | null;
