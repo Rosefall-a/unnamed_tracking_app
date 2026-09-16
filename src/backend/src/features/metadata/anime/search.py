@@ -96,6 +96,11 @@ def _run_anilist(query: str, limit: int) -> list[dict[str, Any]]:
                 "format": entry.get("format"),
                 "anilist_score": entry.get("score"),
                 "url": entry.get("url"),
+                # AniList exposes each entry's own MyAnimeList id directly,
+                # so a show found via AniList alone can still get a real
+                # Jikan fallback later (once Jikan is reachable) instead of
+                # needing MAL's own search to separately find and match it.
+                "mal_id": str(entry["id_mal"]) if entry.get("id_mal") else None,
             }
         )
         found.append(result)

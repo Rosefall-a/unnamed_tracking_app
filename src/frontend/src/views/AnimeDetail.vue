@@ -237,32 +237,51 @@ const relatedChainNodes = computed<ChainNode[]>(() =>
 );
 const relatedBranchNodes = computed<BranchNode[]>(() => {
   const indexById = new Map(relatedChain.value.map((n, i) => [n.id, i]));
+  const branchById = new Map(relatedBranches.value.map((b) => [b.id, b]));
+
   // Same anchor + same relation label (e.g. a two-part movie duology,
   // both "Alternative") stay on the same side as each other — assigning
   // side per node instead of per group used to split siblings across
-  // up/down by coin-flip, breaking the adjacency the backend already
-  // worked out (see anilist.py's _order_related_branches).
+  // up/down by coin-flip. A nested branch (anchorKind "branch", itself
+  // anchored to a sibling rather than the show) always inherits its
+  // ultimate top-level ancestor's side, so a multi-level chain (e.g.
+  // Parallel Works -> ... -> Parallel Works 2) renders as one
+  // consistent row instead of criss-crossing up and down.
   const sideByGroup = new Map<string, "up" | "down">();
+  const sideById = new Map<number, "up" | "down">();
   let groupCount = 0;
-  const nodes: BranchNode[] = [];
-  for (const b of relatedBranches.value) {
-    const anchorIndex = indexById.get(b.anchorId);
-    if (anchorIndex === undefined) continue;
-    const groupKey = `${anchorIndex}:${b.relationLabel}`;
+  function resolveSide(b: AnimeRelationBranch): "up" | "down" {
+    const cached = sideById.get(b.id);
+    if (cached) return cached;
+    if (b.anchorKind === "branch") {
+      const parent = branchById.get(b.anchorId);
+      const side = parent ? resolveSide(parent) : "up";
+      sideById.set(b.id, side);
+      return side;
+    }
+    const groupKey = `${b.anchorId}:${b.relationLabel}`;
     let side = sideByGroup.get(groupKey);
     if (!side) {
       side = groupCount % 2 === 0 ? "up" : "down";
       sideByGroup.set(groupKey, side);
       groupCount++;
     }
+    sideById.set(b.id, side);
+    return side;
+  }
+
+  const nodes: BranchNode[] = [];
+  for (const b of relatedBranches.value) {
+    if (b.anchorKind === "show" && indexById.get(b.anchorId) === undefined) continue;
     nodes.push({
       id: String(b.id),
       title: b.title,
       type: b.format ?? "Anime",
       sub: b.episodeCount ? `${b.episodeCount} Episodes` : "",
       label: b.relationLabel,
-      anchorIndex,
-      side,
+      anchorIndex: b.anchorKind === "show" ? indexById.get(b.anchorId)! : 0,
+      side: resolveSide(b),
+      parentBranchId: b.anchorKind === "branch" ? String(b.anchorId) : undefined,
     });
   }
   return nodes;

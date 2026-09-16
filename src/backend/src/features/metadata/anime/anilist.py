@@ -13,6 +13,7 @@ query ($search: String, $perPage: Int) {
   Page(page: 1, perPage: $perPage) {
     media(search: $search, type: ANIME) {
       id
+      idMal
       title {
         romaji
         english
@@ -335,11 +336,13 @@ _MAX_BRANCHES = 24
 _CHAIN_RELATION_TYPES = {"PREQUEL", "SEQUEL"}
 
 # Relation types that read as clutter rather than a genuinely related
-# title — a shared-character cameo, a clip-show/recap compilation, or
-# AniList's catch-all "other" bucket — so they're left out of the graph
-# entirely rather than competing for space with the source manga/novel,
-# side stories, and spin-offs that actually matter.
-_LOW_VALUE_BRANCH_TYPES = {"CHARACTER", "SUMMARY", "COMPILATION", "CONTAINS", "OTHER"}
+# title — a shared-character cameo, or a clip-show/recap compilation —
+# so they're left out of the graph entirely rather than competing for
+# space with the source manga/novel, side stories, and spin-offs that
+# actually matter. "Other" is deliberately NOT filtered: AniList uses it
+# for real named specials/shorts too (e.g. a movie recap special isn't
+# always tagged more specifically), not just noise.
+_LOW_VALUE_BRANCH_TYPES = {"CHARACTER", "SUMMARY", "COMPILATION", "CONTAINS"}
 
 
 def _topological_order(ids: set[int], prequel_of: dict[int, int]) -> list[int] | None:
@@ -392,6 +395,7 @@ def _collect_branches(
             branches.append(
                 {
                     "anchor_id": node_id,
+                    "anchor_kind": "show",
                     "relation_label": _RELATION_LABELS.get(rtype, "Related"),
                     **_node_to_dict(node),
                 }
@@ -440,6 +444,7 @@ class AniListClient:
             results.append(
                 {
                     "id": entry.get("id"),
+                    "id_mal": entry.get("idMal"),
                     "title": title.get("english") or title.get("romaji"),
                     "overview": _clean_description(entry.get("description")),
                     "release_date": _format_date(entry.get("startDate")),
@@ -701,9 +706,14 @@ class AniListClient:
         """A branch group sharing the same anchor and relation label —
         e.g. a two-part movie duology, both tagged ALTERNATIVE to the
         parent show rather than SEQUEL/PREQUEL to it — can still be
-        chronologically ordered relative to each other via their own
-        mutual PREQUEL edges. Fetches each 2+-member group once to find
-        that order instead of leaving the pieces in arbitrary API order."""
+        chronologically ordered via their own mutual PREQUEL edges.
+        Fetches each 2+-member group once to find that order; every
+        member after the first is then reparented onto its immediate
+        predecessor (anchor_kind "branch") instead of the show, and
+        labeled "Sequel" — a real edge between the siblings themselves,
+        matching how the source actually relates them, rather than two
+        independent spokes off the show that just happen to sit in the
+        right order."""
         groups: dict[tuple[int, str], list[int]] = {}
         for i, b in enumerate(branches):
             groups.setdefault((b["anchor_id"], b["relation_label"]), []).append(i)
@@ -720,4 +730,9 @@ class AniListClient:
             by_id = {b["id"]: b for b in group}
             for slot, branch_id in zip(sorted(positions), order):
                 branches[slot] = by_id[branch_id]
+            for prev_id, branch_id in zip(order, order[1:]):
+                child = by_id[branch_id]
+                child["anchor_id"] = prev_id
+                child["anchor_kind"] = "branch"
+                child["relation_label"] = "Sequel"
         return branches

@@ -646,6 +646,10 @@ export interface AnimeChainNode extends RelatedAnime {
 export interface AnimeRelationBranch extends RelatedAnime {
   relationLabel: string;
   anchorId: number;
+  // "show" (the default) anchors to a chain entry; "branch" anchors to
+  // another branch's id instead — e.g. two compilation movies that are
+  // themselves a sequel pair, not directly chained to the show.
+  anchorKind: "show" | "branch";
 }
 
 export interface AnimeRelationsResponse {
@@ -671,6 +675,7 @@ interface BackendAnimeChainNode extends BackendRelatedAnime {
 interface BackendAnimeRelationBranch extends BackendRelatedAnime {
   relation_label: string;
   anchor_id: number;
+  anchor_kind: "show" | "branch";
 }
 
 interface BackendAnimeRelationsResponse {
@@ -707,6 +712,7 @@ export async function fetchAnimeRelations(
       ...mapRelatedAnime(b),
       relationLabel: b.relation_label,
       anchorId: b.anchor_id,
+      anchorKind: b.anchor_kind,
     })),
     configured: raw.configured,
   };

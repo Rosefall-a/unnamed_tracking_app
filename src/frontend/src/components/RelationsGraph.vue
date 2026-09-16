@@ -24,6 +24,10 @@ export interface BranchNode {
   label: string;
   anchorIndex: number;
   side: "up" | "down";
+  // When set, this node is positioned relative to another BranchNode's
+  // id instead of a chain position — e.g. two related titles that are
+  // themselves a sequel pair, not each independently tied to the show.
+  parentBranchId?: string;
 }
 
 const props = defineProps<{
@@ -67,34 +71,72 @@ const chainPositions = computed(() =>
   })),
 );
 
-// Branches are grouped by (anchor, side) and centered under/over their
-// own anchor — not a single running offset shared across every anchor,
-// which used to make a branch drift toward whichever anchor happened to
-// come later, overlapping unrelated nodes once more than one chain node
-// had its own branches (a single-anchor "this anime" graph never hit
-// this; the real prequel/sequel chain does).
+// Top-level branches (no parentBranchId) are grouped by (anchor, side)
+// and centered under/over their own chain anchor — not a single running
+// offset shared across every anchor, which used to make a branch drift
+// toward whichever anchor happened to come later, overlapping unrelated
+// nodes once more than one chain node had its own branches (a
+// single-anchor "this anime" graph never hit this; the real
+// prequel/sequel chain does).
+//
+// Nested branches (parentBranchId set — e.g. two related titles that
+// are themselves a sequel pair) extend the row rightward from their
+// parent. A top-level sibling's own slot has to reserve room for that
+// whole nested chain, not just one node's width — otherwise the next
+// top-level branch in the row gets laid out as if the one before it
+// were a single node, and lands right on top of its descendants.
 const branchCounts = computed(() => {
+  type Positioned = { node: BranchNode; cx: number; cy: number; anchor: { cx: number; cy: number } | undefined };
+  const topLevel = props.branchNodes.filter((n) => !n.parentBranchId);
+  const nested = props.branchNodes.filter((n) => n.parentBranchId);
+
+  const childrenOf = new Map<string, BranchNode[]>();
+  for (const n of nested) {
+    const list = childrenOf.get(n.parentBranchId!);
+    if (list) list.push(n);
+    else childrenOf.set(n.parentBranchId!, [n]);
+  }
+  // How many horizontal slots a node's own subtree needs: itself, plus
+  // every descendant (a nested chain is a straight line in practice,
+  // but this sums correctly even if a node ever has multiple children).
+  function subtreeWidth(id: string): number {
+    const kids = childrenOf.get(id) ?? [];
+    return 1 + kids.reduce((sum, k) => sum + subtreeWidth(k.id), 0);
+  }
+
   const groups = new Map<string, BranchNode[]>();
-  for (const n of props.branchNodes) {
+  for (const n of topLevel) {
     const key = `${n.anchorIndex}:${n.side}`;
     const group = groups.get(key);
     if (group) group.push(n);
     else groups.set(key, [n]);
   }
-  const result: {
-    node: BranchNode;
-    cx: number;
-    cy: number;
-    anchor: { node: ChainNode; cx: number; cy: number } | undefined;
-  }[] = [];
+
+  const result: Positioned[] = [];
+  function place(
+    node: BranchNode,
+    cx: number,
+    cy: number,
+    anchor: { cx: number; cy: number } | undefined,
+  ) {
+    result.push({ node, cx, cy, anchor });
+    let nextX = cx + BRANCH_SPACING;
+    for (const child of childrenOf.get(node.id) ?? []) {
+      place(child, nextX, cy, { cx, cy });
+      nextX += subtreeWidth(child.id) * BRANCH_SPACING;
+    }
+  }
+
   for (const [key, group] of groups) {
     const [anchorIndexStr, side] = key.split(":");
     const anchor = chainPositions.value[Number(anchorIndexStr)];
     const cy = side === "up" ? BRANCH_UP_Y + NODE_H / 2 : BRANCH_DOWN_Y + NODE_H / 2;
-    const totalWidth = (group.length - 1) * BRANCH_SPACING;
-    const startX = (anchor?.cx ?? 0) - totalWidth / 2;
+    const widths = group.map((n) => subtreeWidth(n.id));
+    const totalWidth = (widths.reduce((a, b) => a + b, 0) - 1) * BRANCH_SPACING;
+    let cursor = (anchor?.cx ?? 0) - totalWidth / 2;
     group.forEach((node, i) => {
-      result.push({ node, cx: startX + i * BRANCH_SPACING, cy, anchor });
+      place(node, cursor, cy, anchor);
+      cursor += widths[i] * BRANCH_SPACING;
     });
   }
   return result;
