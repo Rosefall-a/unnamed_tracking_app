@@ -75,6 +75,16 @@ def _public_request_is_secure(request: Request) -> bool:
     return request.url.scheme == "https"
 
 
+def _invitation_status(invitation: UserInvitation, now: int | None = None) -> str:
+    if invitation.accepted_at is not None:
+        return "accepted"
+    if invitation.revoked_at is not None:
+        return "revoked"
+    if invitation.expires_at <= (now if now is not None else int(time.time())):
+        return "expired"
+    return "pending"
+
+
 async def _smtp_settings(db: AsyncSession) -> AppIntegrationSettings:
     settings_row = await db.scalar(select(AppIntegrationSettings).limit(1))
     if (
@@ -82,10 +92,12 @@ async def _smtp_settings(db: AsyncSession) -> AppIntegrationSettings:
         or not settings_row.smtp_enabled
         or not settings_row.smtp_host
         or not settings_row.smtp_from_email
+        or settings_row.smtp_port is None
+        or (settings_row.smtp_username and not settings_row.smtp_password)
     ):
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="SMTP email is not configured.",
+            detail="SMTP email is not configured for invitations.",
         )
     return settings_row
 
@@ -142,7 +154,7 @@ async def _create_invitation(
             send_email, settings_row, email, "You have been invited to Archive", body
         )
     except Exception as exc:
-        invitation.revoked_at = int(time.time())
+        await db.delete(invitation)
         await db.commit()
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
@@ -169,6 +181,7 @@ async def list_invitations(
             "accepted_at": inv.accepted_at,
             "revoked_at": inv.revoked_at,
             "created_at": inv.created_at,
+            "status": _invitation_status(inv),
         }
         for inv in invitations
     ]
@@ -188,6 +201,7 @@ async def create_invitation(
         "username": invitation.username,
         "is_admin": invitation.is_admin,
         "expires_at": invitation.expires_at,
+        "status": _invitation_status(invitation),
     }
 
 
@@ -215,6 +229,7 @@ async def resend_invitation(
         "username": replacement.username,
         "is_admin": replacement.is_admin,
         "expires_at": replacement.expires_at,
+        "status": _invitation_status(replacement),
     }
 
 
