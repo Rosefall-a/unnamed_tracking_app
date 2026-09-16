@@ -13,7 +13,7 @@ import {
   createAnime,
   searchAnimeMetadata,
 } from "../services/anime";
-import type { RelatedAnime } from "../services/anime";
+import type { RelatedAnime, AnimeChainNode, AnimeRelationBranch } from "../services/anime";
 import type { Anime, AnimeStatus } from "../types/anime";
 import AnimeFormModal from "../components/AnimeFormModal.vue";
 import EpisodeList from "../components/EpisodeList.vue";
@@ -192,7 +192,8 @@ async function onSetEpisodeRating(
 const relatedLoading = ref(false);
 const relatedLoaded = ref(false);
 const relatedError = ref<string | null>(null);
-const relatedList = ref<RelatedAnime[]>([]);
+const relatedChain = ref<AnimeChainNode[]>([]);
+const relatedBranches = ref<AnimeRelationBranch[]>([]);
 
 async function loadRelated() {
   if (!show.value || relatedLoaded.value) return;
@@ -200,7 +201,8 @@ async function loadRelated() {
   relatedError.value = null;
   try {
     const res = await fetchAnimeRelations(show.value.id);
-    relatedList.value = res.related;
+    relatedChain.value = res.chain;
+    relatedBranches.value = res.branches;
     relatedLoaded.value = true;
   } catch (e) {
     relatedError.value =
@@ -210,33 +212,59 @@ async function loadRelated() {
   }
 }
 
+// Flat list for the poster grid below the graph — every chain entry
+// except the current one, plus every branch (adaptation, side story,
+// source manga/novel, etc.), each labeled by how it relates.
+const relatedList = computed(() => {
+  const currentIndex = relatedChain.value.findIndex((n) => n.isCurrent);
+  const chainItems = relatedChain.value
+    .map((n, i) => ({
+      ...n,
+      relationLabel: i < currentIndex ? "Prequel" : "Sequel",
+    }))
+    .filter((n) => !n.isCurrent);
+  return [...chainItems, ...relatedBranches.value];
+});
+
 const relatedChainNodes = computed<ChainNode[]>(() =>
-  show.value
-    ? [
-        {
-          id: "current",
-          title: show.value.title,
-          type: "This anime",
-          sub: "",
-          current: true,
-        },
-      ]
-    : [],
-);
-const relatedBranchNodes = computed<BranchNode[]>(() =>
-  relatedList.value.map((r, i) => ({
-    id: String(r.id),
-    title: r.title,
-    type: r.format ?? "Anime",
-    sub: "",
-    label: r.relationLabel ?? "Related",
-    anchorIndex: 0,
-    side: i % 2 === 0 ? "up" : "down",
+  relatedChain.value.map((n) => ({
+    id: String(n.id),
+    title: n.title,
+    type: n.format ?? "Anime",
+    sub: n.episodeCount ? `${n.episodeCount} Episodes` : "",
+    current: n.isCurrent,
   })),
 );
-function onRelatedBranchClick() {
-  // Related titles are AniList entries, not necessarily in this
-  // library — nothing to navigate to yet.
+const relatedBranchNodes = computed<BranchNode[]>(() => {
+  const indexById = new Map(relatedChain.value.map((n, i) => [n.id, i]));
+  let branchCount = 0;
+  const nodes: BranchNode[] = [];
+  for (const b of relatedBranches.value) {
+    const anchorIndex = indexById.get(b.anchorId);
+    if (anchorIndex === undefined) continue;
+    nodes.push({
+      id: String(b.id),
+      title: b.title,
+      type: b.format ?? "Anime",
+      sub: b.episodeCount ? `${b.episodeCount} Episodes` : "",
+      label: b.relationLabel,
+      anchorIndex,
+      side: branchCount % 2 === 0 ? "up" : "down",
+    });
+    branchCount++;
+  }
+  return nodes;
+});
+
+function findRelatedNode(id: string): RelatedAnime | undefined {
+  return (
+    relatedChain.value.find((n) => String(n.id) === id) ??
+    relatedBranches.value.find((b) => String(b.id) === id)
+  );
+}
+async function onRelatedGraphNodeClick(id: string) {
+  const node = findRelatedNode(id);
+  if (node) await onRelatedTitleClick(node);
 }
 
 // ---- recommended (AniList) ----
@@ -645,7 +673,8 @@ watch(
           <RelationsGraph
             :chain-nodes="relatedChainNodes"
             :branch-nodes="relatedBranchNodes"
-            @branch-click="onRelatedBranchClick"
+            @chain-click="onRelatedGraphNodeClick"
+            @branch-click="onRelatedGraphNodeClick"
           />
           <div class="poster-grid">
             <div

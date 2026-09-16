@@ -358,7 +358,13 @@ async def list_episodes(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail=f"Could not sync episodes: {'; '.join(errors)}",
             )
-        season.episode_count = pad_to_known_total(all_episodes, season.episode_count)
+        # Pad gaps up to THIS fetch's own highest episode number, never
+        # the season's stored total — feeding that back in would
+        # re-inflate every fresh fetch back up to the same wrong number
+        # forever (e.g. once padded to a confirmed-but-not-fully-aired
+        # count before that bug was fixed).
+        fresh_total = max((e["episode_number"] for e in all_episodes), default=None)
+        season.episode_count = pad_to_known_total(all_episodes, fresh_total)
         if any(e.get("title") is None for e in all_episodes):
             await _backfill_from_tmdb_if_configured(all_episodes, show.title, db)
         for entry in all_episodes:
@@ -406,19 +412,28 @@ async def get_anime_relations(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
-    """AniList's real relations graph (prequel/sequel/spin-off/etc) for
-    the best title match — keyless, so unlike TV/Movie there's no
-    "not configured" state to handle here."""
+    """The full prequel/sequel chain this entry belongs to, plus every
+    other relation (adaptation, side story, source manga/novel, etc.)
+    attached to whichever chain entry it's actually connected to — not
+    just this one entry's own direct relations, which for a 3+ season
+    franchise would read as missing entries. Uses the stored AniList id
+    when known (set at creation/sync) rather than re-searching by title,
+    since a title search can match a different entry with a similar
+    name. Keyless, so unlike TV/Movie there's no "not configured" state."""
     show = await _get_show_or_404(show_id, db, current_user.id)
     try:
         result = await asyncio.to_thread(
-            AniListClient().relations_and_recommendations, show.title
+            AniListClient().relations_chain_and_branches, show.title, show.anilist_id
         )
     except AniListError as exc:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY, detail=f"AniList could not be reached: {exc}"
         ) from exc
-    return {"related": result["relations"], "configured": True}
+    return {
+        "chain": result["chain"],
+        "branches": result["branches"],
+        "configured": True,
+    }
 
 
 @router.get("/{show_id}/recommended")

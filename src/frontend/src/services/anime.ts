@@ -628,11 +628,28 @@ export interface RelatedAnime {
   title: string;
   format: string | null;
   posterUrl: string | null;
+  episodeCount: number | null;
   relationLabel?: string;
 }
 
+// A season/entry in the full prequel-sequel chain this anime belongs
+// to (not just its own direct neighbor) — `isCurrent` marks which one
+// is the entry actually in the library.
+export interface AnimeChainNode extends RelatedAnime {
+  isCurrent: boolean;
+}
+
+// An off-chain relation (adaptation, side story, source manga/novel,
+// etc.) attached to whichever chain entry it's actually connected to,
+// via `anchorId` (that chain entry's AniList id).
+export interface AnimeRelationBranch extends RelatedAnime {
+  relationLabel: string;
+  anchorId: number;
+}
+
 export interface AnimeRelationsResponse {
-  related: RelatedAnime[];
+  chain: AnimeChainNode[];
+  branches: AnimeRelationBranch[];
   configured: boolean;
 }
 
@@ -641,11 +658,22 @@ interface BackendRelatedAnime {
   title: string;
   format: string | null;
   poster_url: string | null;
+  episode_count: number | null;
   relation_label?: string;
 }
 
+interface BackendAnimeChainNode extends BackendRelatedAnime {
+  is_current: boolean;
+}
+
+interface BackendAnimeRelationBranch extends BackendRelatedAnime {
+  relation_label: string;
+  anchor_id: number;
+}
+
 interface BackendAnimeRelationsResponse {
-  related: BackendRelatedAnime[];
+  chain: BackendAnimeChainNode[];
+  branches: BackendAnimeRelationBranch[];
   configured: boolean;
 }
 
@@ -655,6 +683,7 @@ function mapRelatedAnime(r: BackendRelatedAnime): RelatedAnime {
     title: r.title,
     format: r.format,
     posterUrl: r.poster_url,
+    episodeCount: r.episode_count,
     relationLabel: r.relation_label,
   };
 }
@@ -670,7 +699,12 @@ export async function fetchAnimeRelations(
     "fetch anime relations",
   );
   return {
-    related: raw.related.map(mapRelatedAnime),
+    chain: raw.chain.map((n) => ({ ...mapRelatedAnime(n), isCurrent: n.is_current })),
+    branches: raw.branches.map((b) => ({
+      ...mapRelatedAnime(b),
+      relationLabel: b.relation_label,
+      anchorId: b.anchor_id,
+    })),
     configured: raw.configured,
   };
 }

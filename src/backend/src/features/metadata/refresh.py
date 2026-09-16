@@ -3,8 +3,12 @@ have episodes synced — catches newly aired episodes for shows still
 airing. Same in-process asyncio loop pattern as the trash sweep
 (features/trash/sweep.py) and automatic backups
 (features/backup/scheduler.py): no new worker container, no new
-dependency. Only appends episode numbers that aren't already stored —
-existing rows (and their watched/rating state) are never touched."""
+dependency. Mostly appends episode numbers that aren't already stored
+and enriches blank placeholders — a watched or rated episode is never
+touched. The one exception: a still-blank placeholder beyond what the
+source provider now says has actually aired gets pruned (see
+_prune_unaired_episodes), since that only happens from a prior
+miscalculation, never from a real episode disappearing."""
 
 from __future__ import annotations
 
@@ -90,6 +94,27 @@ def _enrich_episode(existing: AnimeEpisode | TVEpisode, entry: dict) -> bool:
     return changed
 
 
+def _prune_unaired_episodes(season: AnimeSeason, valid_numbers: set[int]) -> int:
+    """Removes a still-blank placeholder row whose episode number the
+    source provider no longer includes as aired — the only way that
+    happens is a prior aired-count miscalculation created it too early
+    (e.g. padding to a season's confirmed total instead of how many had
+    actually aired). Never touches a watched or rated episode, and only
+    called after a successful fetch, so a transient provider hiccup
+    can't be mistaken for episodes disappearing."""
+    removed = 0
+    for episode in list(season.episodes):
+        if episode.episode_number in valid_numbers:
+            continue
+        if episode.watched or episode.rating is not None:
+            continue
+        if episode.title is not None:
+            continue
+        season.episodes.remove(episode)
+        removed += 1
+    return removed
+
+
 async def _refresh_anime_season(db, show: Anime, season: AnimeSeason) -> tuple[int, int]:
     """Returns (added, enriched) — added is brand-new episode numbers
     that didn't exist yet; enriched is existing bare placeholder rows
@@ -102,7 +127,13 @@ async def _refresh_anime_season(db, show: Anime, season: AnimeSeason) -> tuple[i
         logger.warning("Anime refresh couldn't reach a provider for %r: %s", show.title, "; ".join(errors))
     if not all_episodes:
         return 0, 0
-    season.episode_count = pad_to_known_total(all_episodes, season.episode_count)
+    # Pad gaps up to THIS fetch's own highest episode number, never the
+    # season's stored total — feeding that back in would re-inflate every
+    # fresh fetch back up to the same wrong number forever (e.g. once
+    # padded to a confirmed-but-not-fully-aired count before that bug
+    # was fixed).
+    fresh_total = max((e["episode_number"] for e in all_episodes), default=None)
+    season.episode_count = pad_to_known_total(all_episodes, fresh_total)
     if any(e.get("title") is None for e in all_episodes):
         app_integrations = await get_or_create_app_integration_settings(db)
         if app_integrations.tmdb_api_key:
@@ -118,6 +149,8 @@ async def _refresh_anime_season(db, show: Anime, season: AnimeSeason) -> tuple[i
             added += 1
         elif _enrich_episode(existing, entry):
             enriched += 1
+    if not errors:
+        _prune_unaired_episodes(season, {e["episode_number"] for e in all_episodes})
     return added, enriched
 
 

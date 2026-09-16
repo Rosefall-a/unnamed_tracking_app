@@ -84,6 +84,18 @@ def _format_label(raw: str | None) -> str | None:
     return _FORMAT_LABELS.get(raw, raw.title())
 
 
+def _node_to_dict(node: dict[str, Any]) -> dict[str, Any]:
+    node_title = node.get("title") or {}
+    cover = node.get("coverImage") or {}
+    return {
+        "id": node.get("id"),
+        "title": node_title.get("english") or node_title.get("romaji"),
+        "format": _format_label(node.get("format")),
+        "poster_url": cover.get("extraLarge") or cover.get("large"),
+        "episode_count": node.get("episodes"),
+    }
+
+
 # AniList's own RelationType enum -> a short human label for the graph
 # edge (e.g. "Sequel", "Side story") rather than the raw SCREAMING_SNAKE
 # value.
@@ -193,6 +205,12 @@ query ($search: String) {
       romaji
       english
     }
+    format
+    episodes
+    coverImage {
+      extraLarge
+      large
+    }
     relations {
       edges {
         relationType(version: 2)
@@ -203,6 +221,7 @@ query ($search: String) {
             english
           }
           format
+          episodes
           coverImage {
             extraLarge
             large
@@ -229,6 +248,105 @@ query ($search: String) {
   }
 }
 """
+
+# Same shape as _RELATIONS_QUERY but looked up by AniList's own id rather
+# than a text search — used while walking the prequel/sequel chain, where
+# every step after the first already has a real id to follow instead of
+# a title to (re-)search for.
+_RELATIONS_BY_ID_QUERY = """
+query ($id: Int) {
+  Media(id: $id, type: ANIME) {
+    id
+    title {
+      romaji
+      english
+    }
+    format
+    episodes
+    coverImage {
+      extraLarge
+      large
+    }
+    relations {
+      edges {
+        relationType(version: 2)
+        node {
+          id
+          title {
+            romaji
+            english
+          }
+          format
+          episodes
+          coverImage {
+            extraLarge
+            large
+          }
+        }
+      }
+    }
+    recommendations(sort: RATING_DESC, perPage: 10) {
+      nodes {
+        mediaRecommendation {
+          id
+          title {
+            romaji
+            english
+          }
+          format
+          coverImage {
+            extraLarge
+            large
+          }
+        }
+      }
+    }
+  }
+}
+"""
+
+# How far the chain walk follows PREQUEL/SEQUEL edges in each direction,
+# and how many off-chain relations (adaptation, side story, source
+# manga/novel, etc.) get surfaced as branches — generous enough for a
+# real franchise's full run without risking a runaway request chain.
+_MAX_CHAIN_HOPS = 8
+_MAX_BRANCHES = 24
+_CHAIN_RELATION_TYPES = {"PREQUEL", "SEQUEL"}
+
+
+def _collect_branches(
+    nodes: dict[int, dict[str, Any]], chain_ids: list[int]
+) -> list[dict[str, Any]]:
+    """Every relation attached to a chain node that isn't itself another
+    chain link — adaptation, side story, source manga/novel, etc. — up
+    to `_MAX_BRANCHES` total, deduplicated across the whole chain."""
+    branches: list[dict[str, Any]] = []
+    seen = set(chain_ids)
+    for node_id in chain_ids:
+        if len(branches) >= _MAX_BRANCHES:
+            break
+        edges = (nodes[node_id].get("relations") or {}).get("edges") or []
+        for edge in edges:
+            node = edge.get("node")
+            if not node:
+                continue
+            rtype = edge.get("relationType")
+            target_id = node["id"]
+            if rtype in _CHAIN_RELATION_TYPES and target_id in nodes:
+                continue  # already represented as a chain link
+            if target_id in seen:
+                continue
+            seen.add(target_id)
+            branches.append(
+                {
+                    "anchor_id": node_id,
+                    "relation_label": _RELATION_LABELS.get(rtype, "Related"),
+                    **_node_to_dict(node),
+                }
+            )
+            if len(branches) >= _MAX_BRANCHES:
+                break
+    return branches
 
 
 class AniListClient:
@@ -367,19 +485,20 @@ class AniListClient:
         is_airing = bool(next_airing and next_airing.get("episode"))
         return _aired_total(media), is_airing
 
-    def relations_and_recommendations(self, title: str) -> dict[str, Any]:
-        """One request gets both the real prequel/sequel/spin-off graph
-        (relations) and AniList's own recommendation list for the best
-        title match — cheaper than two separate lookups, and both tabs
-        need the same "find this anime on AniList" step first anyway."""
-        if not title.strip():
-            return {"relations": [], "recommendations": []}
+    def _fetch_relations_node(
+        self, *, media_id: int | None = None, search: str | None = None
+    ) -> dict[str, Any] | None:
+        """One request's worth of a single Media node: its own id/title
+        plus its direct relations edges and recommendations — the unit
+        both `relations_and_recommendations` and the chain walk in
+        `relations_chain_and_branches` are built from."""
+        variables: dict[str, Any]
+        if media_id is not None:
+            query, variables = _RELATIONS_BY_ID_QUERY, {"id": media_id}
+        else:
+            query, variables = _RELATIONS_QUERY, {"search": search}
         try:
-            response = self.session.post(
-                _URL,
-                json={"query": _RELATIONS_QUERY, "variables": {"search": title}},
-                timeout=15,
-            )
+            response = self.session.post(_URL, json={"query": query, "variables": variables}, timeout=15)
         except requests.RequestException as exc:
             raise AniListError(f"Could not reach AniList: {exc}") from exc
         if response.status_code >= 400:
@@ -393,20 +512,18 @@ class AniListClient:
         if "errors" in payload:
             messages = "; ".join(e.get("message", "unknown error") for e in payload["errors"])
             raise AniListError(f"AniList returned an error: {messages}")
+        return (payload.get("data") or {}).get("Media")
 
-        media = (payload.get("data") or {}).get("Media")
+    def relations_and_recommendations(self, title: str) -> dict[str, Any]:
+        """One request gets both the real prequel/sequel/spin-off graph
+        (relations) and AniList's own recommendation list for the best
+        title match — cheaper than two separate lookups, and both tabs
+        need the same "find this anime on AniList" step first anyway."""
+        if not title.strip():
+            return {"relations": [], "recommendations": []}
+        media = self._fetch_relations_node(search=title)
         if not media:
             return {"relations": [], "recommendations": []}
-
-        def _node_to_dict(node: dict[str, Any]) -> dict[str, Any]:
-            node_title = node.get("title") or {}
-            cover = node.get("coverImage") or {}
-            return {
-                "id": node.get("id"),
-                "title": node_title.get("english") or node_title.get("romaji"),
-                "format": _format_label(node.get("format")),
-                "poster_url": cover.get("extraLarge") or cover.get("large"),
-            }
 
         relations = []
         for edge in (media.get("relations") or {}).get("edges") or []:
@@ -427,3 +544,75 @@ class AniListClient:
             recommendations.append(_node_to_dict(node))
 
         return {"relations": relations, "recommendations": recommendations}
+
+    def _walk_chain(
+        self, nodes: dict[int, dict[str, Any]], chain_ids: list[int], anchor_id: int
+    ) -> None:
+        """Extends `chain_ids`/`nodes` in place, following PREQUEL edges
+        backward and SEQUEL edges forward from the anchor, up to
+        `_MAX_CHAIN_HOPS` each way, guarded against cycles."""
+
+        def _walk_one_direction(relation_type: str, prepend: bool) -> None:
+            current_id = anchor_id
+            for _ in range(_MAX_CHAIN_HOPS):
+                edges = (nodes[current_id].get("relations") or {}).get("edges") or []
+                edge = next(
+                    (e for e in edges if e.get("relationType") == relation_type), None
+                )
+                if not edge or not edge.get("node"):
+                    break
+                next_id = edge["node"]["id"]
+                if next_id in nodes:
+                    break  # cycle guard — a franchise's edges can loop back
+                next_node = self._fetch_relations_node(media_id=next_id)
+                if not next_node:
+                    break
+                nodes[next_id] = next_node
+                if prepend:
+                    chain_ids.insert(0, next_id)
+                else:
+                    chain_ids.append(next_id)
+                current_id = next_id
+
+        _walk_one_direction("PREQUEL", prepend=True)
+        _walk_one_direction("SEQUEL", prepend=False)
+
+    def relations_chain_and_branches(
+        self, title: str, anilist_id: str | None = None
+    ) -> dict[str, Any]:
+        """The full prequel/sequel chain this entry belongs to — walked
+        via PREQUEL/SEQUEL edges in both directions, not just the single
+        hop `relations_and_recommendations` returns — plus every other
+        relation type (adaptation, side story, source manga/novel, etc.)
+        attached to whichever chain entry it's actually connected to.
+        A season otherwise only ever lists its immediate neighbor, which
+        reads as missing entries for any franchise 3+ seasons deep."""
+        anchor = self._fetch_relations_node(
+            media_id=int(anilist_id) if anilist_id else None,
+            search=None if anilist_id else title,
+        )
+        if not anchor:
+            return {"chain": [], "branches": [], "recommendations": []}
+
+        nodes: dict[int, dict[str, Any]] = {anchor["id"]: anchor}
+        chain_ids: list[int] = [anchor["id"]]
+        self._walk_chain(nodes, chain_ids, anchor["id"])
+
+        chain = []
+        for node_id in chain_ids:
+            entry = _node_to_dict(nodes[node_id])
+            entry["is_current"] = node_id == anchor["id"]
+            chain.append(entry)
+
+        recommendations = []
+        for rec in (anchor.get("recommendations") or {}).get("nodes") or []:
+            node = rec.get("mediaRecommendation")
+            if not node:
+                continue
+            recommendations.append(_node_to_dict(node))
+
+        return {
+            "chain": chain,
+            "branches": _collect_branches(nodes, chain_ids),
+            "recommendations": recommendations,
+        }
