@@ -43,8 +43,23 @@ const NODE_W = 200;
 const NODE_H = 74;
 const STEP_X = 270;
 const MID_Y = 190;
-const BRANCH_SPACING = NODE_W + 40;
-const ROW_H = 92;
+const BRANCH_SPACING = NODE_W + 70;
+const ROW_H = 130;
+
+// Roughly groups a top-level branch's whole subtree by format so the
+// graph reads top-to-bottom as specials/shorts, then the main
+// series-like entries, then source manga/novels — rather than whatever
+// order the source API happened to list relations in.
+function branchBand(type: string): number {
+  const t = type.toLowerCase();
+  if (t.includes("manga") || t.includes("novel") || t.includes("doujin") || t.includes("one shot")) {
+    return 2; // bottom: source material
+  }
+  if (t === "special" || t === "ova" || t === "ona" || t === "music") {
+    return 0; // top: shorts/specials
+  }
+  return 1; // middle: tv, tv short, movie
+}
 
 function edgePoint(
   cx: number,
@@ -117,7 +132,8 @@ const branchCounts = computed(() => {
       slotOf.set(node.id, avg);
       return avg;
     }
-    for (const root of roots) assignSlot(root, 1);
+    const orderedRoots = [...roots].sort((a, b) => branchBand(a.type) - branchBand(b.type));
+    for (const root of orderedRoots) assignSlot(root, 1);
 
     const centerOffset = (leafCount - 1) / 2;
     function place(node: BranchNode) {
