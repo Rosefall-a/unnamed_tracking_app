@@ -1,12 +1,10 @@
 """
-src/core/crypto.py
+Symmetric encryption for secrets stored at rest.
 
-Symmetric encryption for secrets we must store at rest (e.g. a PSN npsso
-token) but never need to search/index — Fernet (AES-128-CBC + HMAC) via
-`settings.SECRET_KEY`.
-
-Generate a key for `.env`'s SECRET_KEY with:
-    python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+The current Fernet key encrypts new values. During key rotation the previous
+key is retained temporarily and is accepted for decryption only, allowing the
+database to be re-encrypted safely without making a crash between filesystem
+and database updates fatal.
 """
 
 from functools import lru_cache
@@ -14,6 +12,7 @@ from functools import lru_cache
 from cryptography.fernet import Fernet, InvalidToken
 
 from src.core.config import settings
+from src.core.fernet_key import previous_fernet_key
 
 
 @lru_cache(maxsize=1)
@@ -21,11 +20,7 @@ def _fernet() -> Fernet:
     try:
         return Fernet(settings.SECRET_KEY.encode())
     except (ValueError, TypeError) as exc:
-        raise RuntimeError(
-            "SECRET_KEY is not a valid Fernet key — generate one with "
-            '`python -c "from cryptography.fernet import Fernet; '
-            'print(Fernet.generate_key().decode())"`'
-        ) from exc
+        raise RuntimeError("Configured SECRET_KEY is not a valid Fernet key.") from exc
 
 
 def encrypt_secret(value: str) -> str:
@@ -35,5 +30,14 @@ def encrypt_secret(value: str) -> str:
 def decrypt_secret(ciphertext: str) -> str:
     try:
         return _fernet().decrypt(ciphertext.encode()).decode()
-    except InvalidToken as exc:
-        raise RuntimeError("Could not decrypt stored secret: SECRET_KEY may have changed.") from exc
+    except InvalidToken as current_exc:
+        previous = previous_fernet_key()
+        if previous:
+            try:
+                return Fernet(previous.encode()).decrypt(ciphertext.encode()).decode()
+            except InvalidToken:
+                pass
+        raise RuntimeError(
+            "Could not decrypt stored secret: the current and previous Fernet keys "
+            "could not decrypt the value."
+        ) from current_exc

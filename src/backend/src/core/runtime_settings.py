@@ -1,0 +1,16 @@
+"""Apply persisted deployment settings to the process-level configuration."""
+
+from typing import TYPE_CHECKING
+
+from src.core.config import settings
+
+if TYPE_CHECKING:
+    from src.database.models.app_integration_settings import AppIntegrationSettings
+
+
+def apply_runtime_settings(app_settings: "AppIntegrationSettings") -> None:
+    """Copy database-backed runtime settings into the live configuration object."""
+    settings.AUTH_COOKIE_SECURE = app_settings.auth_cookie_secure
+    settings.MAX_UPLOAD_SIZE_MB = app_settings.max_upload_size_mb
+    settings.MAX_CLIP_SIZE_MB = app_settings.max_clip_size_mb
+    settings.MAX_WORLD_SAVE_SIZE_MB = app_settings.max_world_save_size_mb

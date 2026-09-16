@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import json
 import secrets
 import time
+from typing import cast
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from pydantic import BaseModel, Field, field_validator
@@ -9,10 +11,10 @@ from sqlalchemy import select, text, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.api.routes.settings import get_or_create_app_integration_settings
 from src.core.auth import SESSION_COOKIE, hash_password, hash_token, validate_password
 from src.core.config import settings
 from src.core.crypto import encrypt_secret
-from src.database.models.app_integration_settings import AppIntegrationSettings
 from src.database.models.auth import UserSession
 from src.database.models.game import Game
 from src.database.models.oidc_settings import OidcSettings
@@ -64,6 +66,11 @@ class SetupRequest(BaseModel):
         if not 1 <= value <= 65535:
             raise ValueError("SMTP port must be between 1 and 65535.")
         return value
+
+
+def _provider_slug(name: str) -> str:
+    slug = "".join(char if char.isalnum() else "-" for char in name.strip().lower()).strip("-")
+    return slug[:80] or "oidc"
 
 
 @router.get("/status")
@@ -137,32 +144,54 @@ async def setup_admin(
             client_secret = oidc_values["client_secret"]
             if not isinstance(client_secret, str):
                 raise HTTPException(status_code=400, detail="OIDC requires a client secret.")
-            db.add(
-                OidcSettings(
-                    issuer_url=oidc_values["issuer_url"],
-                    client_id=oidc_values["client_id"],
-                    client_secret=encrypt_secret(client_secret),
-                    scopes=oidc_values["scopes"],
-                    redirect_uri=oidc_values["redirect_uri"],
-                    groups_claim=oidc_values["groups_claim"],
-                    admin_group=oidc_values["admin_group"],
-                    user_match_field=oidc_values["user_match_field"],
-                )
+            oidc = await db.scalar(select(OidcSettings).limit(1))
+            if oidc is None:
+                oidc = OidcSettings()
+                db.add(oidc)
+            oidc.issuer_url = cast(str | None, oidc_values["issuer_url"])
+            oidc.client_id = cast(str | None, oidc_values["client_id"])
+            oidc.client_secret = encrypt_secret(client_secret)
+            oidc.scopes = cast(str, oidc_values["scopes"])
+            oidc.redirect_uri = cast(str | None, oidc_values["redirect_uri"])
+            oidc.groups_claim = cast(str, oidc_values["groups_claim"])
+            oidc.admin_group = cast(str | None, oidc_values["admin_group"])
+            oidc.user_match_field = cast(str, oidc_values["user_match_field"])
+            oidc.providers_json = json.dumps(
+                [
+                    {
+                        "name": payload.oidc_issuer_url or "OIDC",
+                        "slug": _provider_slug(payload.oidc_issuer_url or "oidc"),
+                        "issuer_url": oidc_values["issuer_url"],
+                        "client_id": oidc_values["client_id"],
+                        "client_secret": encrypt_secret(client_secret),
+                        "scopes": oidc_values["scopes"],
+                        "redirect_uri": oidc_values["redirect_uri"],
+                        "groups_claim": oidc_values["groups_claim"],
+                        "admin_group": oidc_values["admin_group"],
+                        "user_match_field": oidc_values["user_match_field"],
+                        "allow_new_users": True,
+                        "button_text": "Continue with SSO",
+                        "button_image_url": None,
+                        "button_color": "#d68a34",
+                        "enabled": True,
+                        "show_on_login": True,
+                        "autostart_enabled": True,
+                    }
+                ]
             )
         if payload.smtp_enabled:
-            db.add(
-                AppIntegrationSettings(
-                    smtp_enabled=True,
-                    smtp_host=smtp_host,
-                    smtp_port=payload.smtp_port,
-                    smtp_username=smtp_username,
-                    smtp_password=encrypt_secret(smtp_password) if smtp_password else None,
-                    smtp_use_tls=payload.smtp_use_tls,
-                    smtp_use_ssl=payload.smtp_use_ssl,
-                    smtp_from_email=smtp_from_email,
-                    smtp_from_name=smtp_from_name,
-                )
+            app_integrations = await get_or_create_app_integration_settings(db)
+            app_integrations.smtp_enabled = True
+            app_integrations.smtp_host = smtp_host
+            app_integrations.smtp_port = payload.smtp_port
+            app_integrations.smtp_username = smtp_username
+            app_integrations.smtp_password = (
+                encrypt_secret(smtp_password) if smtp_password else None
             )
+            app_integrations.smtp_use_tls = payload.smtp_use_tls
+            app_integrations.smtp_use_ssl = payload.smtp_use_ssl
+            app_integrations.smtp_from_email = smtp_from_email
+            app_integrations.smtp_from_name = smtp_from_name
         session_token = secrets.token_urlsafe(32)
         db.add(
             UserSession(
@@ -179,8 +208,8 @@ async def setup_admin(
     except RuntimeError as exc:
         await db.rollback()
         raise HTTPException(
-            status_code=400,
-            detail="SECRET_KEY must be a valid Fernet key before encrypted settings can be saved.",
+            status_code=500,
+            detail="The application could not encrypt the setup credentials. Check the persisted Fernet key.",
         ) from exc
 
     response.set_cookie(

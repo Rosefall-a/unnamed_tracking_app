@@ -17,8 +17,10 @@ import ExportImportSection from "../components/settings/ExportImportSection.vue"
 import ComingSoonSection from "../components/settings/ComingSoonSection.vue";
 import ApiKeysSection from "../components/settings/ApiKeysSection.vue";
 import ServerIntegrationsSection from "../components/settings/ServerIntegrationsSection.vue";
+import ApplicationSettingsSection from "../components/settings/ApplicationSettingsSection.vue";
 import OidcSettingsSection from "../components/settings/OidcSettingsSection.vue";
 import SmtpSettingsSection from "../components/settings/SmtpSettingsSection.vue";
+import DeploymentBackupSection from "../components/settings/DeploymentBackupSection.vue";
 
 const router = useRouter();
 const route = useRoute();
@@ -48,9 +50,11 @@ const groups = computed<SettingsGroup[]>(() => {
   ];
 
   const systemSections = [
+    ...(currentUser.value?.is_admin ? [{ id: "application", label: "Application" }] : []),
     ...(currentUser.value?.is_admin ? [{ id: "oidc", label: "OIDC / SSO" }] : []),
     ...(currentUser.value?.is_admin ? [{ id: "smtp", label: "SMTP / Email" }] : []),
     ...(currentUser.value?.is_admin ? [{ id: "server-integrations", label: "Server Integrations" }] : []),
+    ...(currentUser.value?.is_admin ? [{ id: "deployment-backup", label: "Deployment Backup" }] : []),
     ...(currentUser.value?.is_admin ? [{ id: "users", label: "Users" }] : []),
     { id: "stats", label: "Server Stats" },
     ...(currentUser.value?.is_admin ? [{ id: "tasks", label: "Tasks", comingSoon: true }] : []),
@@ -92,9 +96,11 @@ watch(activeSection, (section) => {
           <LibraryManagementSection v-else-if="activeSection==='library'"/>
           <ScanSettingsSection v-else-if="activeSection==='scan'"/>
           <MetadataSourcesSection v-else-if="activeSection==='sources'"/>
+          <ApplicationSettingsSection v-else-if="activeSection==='application'&&currentUser?.is_admin"/>
           <OidcSettingsSection v-else-if="activeSection==='oidc'&&currentUser?.is_admin"/>
           <SmtpSettingsSection v-else-if="activeSection==='smtp'&&currentUser?.is_admin"/>
           <ServerIntegrationsSection v-else-if="activeSection==='server-integrations'&&currentUser?.is_admin"/>
+          <DeploymentBackupSection v-else-if="activeSection==='deployment-backup'&&currentUser?.is_admin"/>
           <AdminSection v-else-if="activeSection==='users'&&currentUser?.is_admin"/>
           <StatsSection v-else-if="activeSection==='stats'"/>
           <ExportImportSection v-else-if="activeSection==='export'"/>

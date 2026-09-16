@@ -13,13 +13,14 @@ import Bounties from "../views/Bounties.vue";
 import AchievementDetail from "../views/AchievementDetail.vue";
 import Login from "../views/Login.vue";
 import OidcStart from "../views/OidcStart.vue";
+import OidcProviderStart from "../views/OidcProviderStart.vue";
 import PasswordReset from "../views/PasswordReset.vue";
 import Setup from "../views/Setup.vue";
 import { currentUser, authChecked, checkAuth } from "../state/auth";
 import Settings from "../views/Settings.vue";
 import { saveLibraryScroll } from "../state/libraryScroll";
 import { appearanceLoaded, loadAppearanceSettings } from "../state/appearance";
-import { fetchSetupStatus } from "../services/setup";
+import { waitForServer } from "../state/serverStartup";
 
 const router = createRouter({
   history: createWebHistory(),
@@ -41,53 +42,55 @@ const router = createRouter({
     { path: "/sets", name: "set-list", component: SetList },
     { path: "/sets/:id", name: "set-detail", component: SetDetail },
     { path: "/login", name: "login", component: Login },
+    { path: "/login/local", name: "login-local", component: Login },
     { path: "/login/oidcstart", name: "oidc-start", component: OidcStart },
+    { path: "/login/oidcstart/:provider", name: "oidc-start-legacy", redirect: "/login" },
+    { path: "/login/:provider", name: "oidc-provider-start", component: OidcProviderStart },
     { path: "/reset-password", name: "password-reset", component: PasswordReset },
     { path: "/setup", name: "setup", component: Setup },
+    { path: "/setup/firstuser", name: "setup-firstuser", component: Setup },
+    { path: "/setup/oidc", name: "setup-oidc", component: Setup },
+    { path: "/setup/smtp", name: "setup-smtp", component: Setup },
     { path: "/profile", redirect: "/settings?section=profile" },
     { path: "/settings", name: "settings", component: Settings },
     { path: "/games/:gameId/achievements/:achievementId", name: "achievement-detail", component: AchievementDetail },
   ],
 });
 
-let setupState: "unknown" | "required" | "complete" | "error" = "unknown";
+let setupState: "unknown" | "required" | "complete" = "unknown";
 
 router.beforeEach(async (to, from) => {
   if (from.path === "/games") saveLibraryScroll(window.scrollY);
-
-  // Home Hub's "Connect a library" action intentionally points to the
-  // settings root. Give that onboarding path the provider configuration it
-  // describes, while preserving explicit destinations such as the profile dock.
   if (to.path === "/settings" && !to.query.section && from.path === "/") {
     return { path: "/settings", query: { section: "sources" } };
   }
 
-  if (to.path === "/reset-password" || to.path === "/login/oidcstart") return;
-  if (setupState === "unknown" || setupState === "error") {
-    try {
-      setupState = (await fetchSetupStatus()).setup_required ? "required" : "complete";
-    } catch {
-      setupState = "error";
-    }
-  }
-  if (setupState === "required" && to.path !== "/setup") {
-    try {
-      setupState = (await fetchSetupStatus()).setup_required ? "required" : "complete";
-    } catch {
-      setupState = "error";
-    }
-  }
-  if (setupState === "required" || setupState === "error") {
-    if (to.path !== "/setup") {
-      return { path: "/setup", query: setupState === "error" ? { backend_error: "1" } : undefined };
-    }
+  if (to.path === "/login" || to.path.startsWith("/login/") || to.path === "/reset-password") {
+    if (setupState === "required" && !currentUser.value) await checkAuth();
+    if (setupState === "required" && currentUser.value) setupState = "complete";
     return;
   }
-  if (to.path === "/setup") return "/";
+
+  if (setupState === "unknown") setupState = (await waitForServer()) ? "required" : "complete";
+
+  if (to.path === "/setup" || to.path.startsWith("/setup/")) {
+    if (setupState === "required") {
+      if (to.path !== "/setup") {
+        if (!authChecked.value) await checkAuth();
+        if (!currentUser.value) return "/setup";
+      }
+      return;
+    }
+    if (!authChecked.value) await checkAuth();
+    if (!currentUser.value) return "/login";
+    if (to.path === "/setup") return "/login";
+    return;
+  }
+
+  if (setupState === "required") return { path: "/setup" };
   if (!authChecked.value) await checkAuth();
-  if (to.path !== "/login" && !currentUser.value) return "/login";
-  if (to.path === "/login" && currentUser.value) return "/";
-  if (currentUser.value && !appearanceLoaded.value) await loadAppearanceSettings();
+  if (!currentUser.value) return "/login";
+  if (!appearanceLoaded.value) await loadAppearanceSettings();
 });
 
 export default router;
