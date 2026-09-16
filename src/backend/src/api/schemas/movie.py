@@ -96,5 +96,6 @@ class MovieRead(MovieBase):
     id: UUID
     user_id: UUID
     sort_title: str
+    locked_fields: list[str] = Field(default_factory=list)
     created_at: int = Field(description="Unix timestamp in seconds when the movie was created.")
     updated_at: int = Field(description="Unix timestamp in seconds when the movie was last updated.")

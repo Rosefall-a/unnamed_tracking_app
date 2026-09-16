@@ -179,6 +179,7 @@ class AnimeRead(AnimeBase):
     id: UUID
     user_id: UUID
     sort_title: str
+    locked_fields: list[str] = Field(default_factory=list)
     seasons: list[SeasonRead] = Field(default_factory=list)
     created_at: int = Field(description="Unix timestamp in seconds when the entry was created.")
     updated_at: int = Field(description="Unix timestamp in seconds when the entry was last updated.")

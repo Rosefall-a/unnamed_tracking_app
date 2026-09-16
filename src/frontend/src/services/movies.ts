@@ -38,6 +38,7 @@ export interface BackendMovie {
   rating_soundtrack: number | string | null;
   rating_overall: number | string | null;
   personal_rank: number | null;
+  locked_fields: string[];
   // unix timestamps in seconds, not ISO strings
   created_at: number;
   updated_at: number;
@@ -97,6 +98,7 @@ export function mapBackendMovie(raw: BackendMovie): Movie {
     ratingSoundtrack: toNumberOrNull(raw.rating_soundtrack),
     ratingOverall: toNumberOrNull(raw.rating_overall),
     personalRank: raw.personal_rank,
+    lockedFields: raw.locked_fields,
     createdAt: unixSecondsToIso(raw.created_at),
     updatedAt: unixSecondsToIso(raw.updated_at),
   };

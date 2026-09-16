@@ -109,6 +109,11 @@ class TVShow(Base):
     # from the portrait poster_url above — used for the detail page hero
     backdrop_url: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    # names of fields an admin has manually changed away from what a
+    # metadata provider last set — "Apply metadata" skips these instead
+    # of silently overwriting a deliberate fix
+    locked_fields: Mapped[list[str]] = mapped_column(ARRAY(String), nullable=False, default=list)
+
     # ------------------------------------------------------------------
     # Personal library state
     # ------------------------------------------------------------------

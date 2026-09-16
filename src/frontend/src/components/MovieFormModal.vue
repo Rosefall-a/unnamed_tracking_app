@@ -13,6 +13,7 @@ import {
   statusBucket,
   bucketToReal,
 } from "../utils/mediaStatus";
+import { lockedFieldLabels } from "../utils/lockedFields";
 
 const props = defineProps<{
   movie?: Movie | null;
@@ -123,22 +124,27 @@ async function searchMetadata() {
 }
 
 function applyMetadata(result: MovieMetadataResult) {
-  fields.value.title = result.title;
-  fields.value.description = result.description ?? "";
-  fields.value.releaseDate = result.releaseDate ?? "";
-  if (result.runtimeMinutes !== null)
+  const locked = new Set(props.movie?.lockedFields ?? []);
+  if (!locked.has("title")) fields.value.title = result.title;
+  if (!locked.has("description")) fields.value.description = result.description ?? "";
+  if (!locked.has("release_date")) fields.value.releaseDate = result.releaseDate ?? "";
+  if (!locked.has("runtime_minutes") && result.runtimeMinutes !== null)
     fields.value.runtimeMinutes = result.runtimeMinutes;
-  fields.value.director = result.director ?? "";
-  fields.value.writer = result.writer ?? "";
-  if (result.studios.length)
+  if (!locked.has("director")) fields.value.director = result.director ?? "";
+  if (!locked.has("writer")) fields.value.writer = result.writer ?? "";
+  if (!locked.has("studios") && result.studios.length)
     fields.value.studiosInput = result.studios.join(", ");
-  if (result.genres.length) fields.value.genresInput = result.genres.join(", ");
-  fields.value.posterUrl = result.posterUrl;
-  fields.value.backdropUrl = result.backdropUrl;
-  if (result.tmdbScore !== null) fields.value.tmdbScore = result.tmdbScore;
+  if (!locked.has("genres") && result.genres.length)
+    fields.value.genresInput = result.genres.join(", ");
+  if (!locked.has("poster_url")) fields.value.posterUrl = result.posterUrl;
+  if (!locked.has("backdrop_url")) fields.value.backdropUrl = result.backdropUrl;
+  if (!locked.has("tmdb_score") && result.tmdbScore !== null)
+    fields.value.tmdbScore = result.tmdbScore;
   metadataResults.value = [];
   metadataQuery.value = result.title;
-  metadataMessage.value = `Prefilled from ${result.provider}. Review the fields before saving.`;
+  metadataMessage.value = locked.size
+    ? `Prefilled from ${result.provider}. Skipped ${locked.size} field(s) you've already edited: ${lockedFieldLabels([...locked]).join(", ")}. Review the fields before saving.`
+    : `Prefilled from ${result.provider}. Review the fields before saving.`;
 }
 
 async function submit() {

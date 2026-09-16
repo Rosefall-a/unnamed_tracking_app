@@ -25,12 +25,29 @@ from src.core.crypto import decrypt_secret
 from src.database.models.tv_show import TVEpisode, TVSeason, TVShow, TVShowStatus
 from src.database.models.user import User
 from src.database.session import get_db
+from src.features.metadata.locked_fields import apply_updates_with_locking
 from src.features.metadata.movies.tmdb import TMDBClient
 from src.features.metadata.tv.episode_sync import fetch_season_episodes
 from src.features.metadata.tv.search import search_tv_metadata
 from src.features.metadata.tv.tvdb import TVDBClient
 
 router = APIRouter(prefix="/api/tv", tags=["tv"], dependencies=[Depends(get_current_user)])
+
+# fields the metadata search's "Apply" button can fill in — the only ones
+# worth locking, since nothing else is ever set by that flow
+_LOCKABLE_FIELDS = frozenset(
+    {
+        "title",
+        "description",
+        "first_air_date",
+        "episode_runtime_minutes",
+        "creators",
+        "genres",
+        "poster_url",
+        "backdrop_url",
+        "tmdb_score",
+    }
+)
 
 
 class TVMetadataSearchResponse(BaseModel):
@@ -180,8 +197,7 @@ async def update_show(
 
     updates = payload.model_dump(exclude_unset=True)
 
-    for field, value in updates.items():
-        setattr(show, field, value)
+    apply_updates_with_locking(show, updates, _LOCKABLE_FIELDS)
 
     if "title" in updates and "sort_title" not in updates:
         show.sort_title = _derive_sort_title(show.title)

@@ -41,6 +41,9 @@ export interface Movie {
   ratingSoundtrack: number | null;
   ratingOverall: number | null;
   personalRank: number | null;
+  // backend field names (e.g. "poster_url") an admin has manually
+  // changed — "Apply metadata" skips re-filling these
+  lockedFields: string[];
   createdAt: string;
   updatedAt: string;
 }

@@ -17,10 +17,29 @@ from src.core.crypto import decrypt_secret
 from src.database.models.movies import Movie, MovieStatus
 from src.database.models.user import User
 from src.database.session import get_db
+from src.features.metadata.locked_fields import apply_updates_with_locking
 from src.features.metadata.movies.search import search_movie_metadata
 from src.features.metadata.movies.tmdb import TMDBClient
 
 router = APIRouter(prefix="/api/movie", tags=["movie"], dependencies=[Depends(get_current_user)])
+
+# fields the metadata search's "Apply" button can fill in — the only ones
+# worth locking, since nothing else is ever set by that flow
+_LOCKABLE_FIELDS = frozenset(
+    {
+        "title",
+        "description",
+        "release_date",
+        "runtime_minutes",
+        "director",
+        "writer",
+        "studios",
+        "genres",
+        "poster_url",
+        "backdrop_url",
+        "tmdb_score",
+    }
+)
 
 
 class MovieMetadataSearchResponse(BaseModel):
@@ -154,8 +173,7 @@ async def update_movie(
 
     updates = payload.model_dump(exclude_unset=True)
 
-    for field, value in updates.items():
-        setattr(movie, field, value)
+    apply_updates_with_locking(movie, updates, _LOCKABLE_FIELDS)
 
     if "title" in updates and "sort_title" not in updates:
         movie.sort_title = _derive_sort_title(movie.title)

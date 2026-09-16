@@ -68,6 +68,7 @@ export interface BackendTVShow {
   rating_soundtrack: number | string | null;
   rating_overall: number | string | null;
   personal_rank: number | null;
+  locked_fields: string[];
   seasons: BackendSeason[];
   // unix timestamps in seconds, not ISO strings
   created_at: number;
@@ -162,6 +163,7 @@ export function mapBackendTVShow(raw: BackendTVShow): TVShow {
     ratingSoundtrack: toNumberOrNull(raw.rating_soundtrack),
     ratingOverall: toNumberOrNull(raw.rating_overall),
     personalRank: raw.personal_rank,
+    lockedFields: raw.locked_fields,
     seasons: raw.seasons.map(mapBackendSeason),
     createdAt: unixSecondsToIso(raw.created_at),
     updatedAt: unixSecondsToIso(raw.updated_at),

@@ -13,6 +13,7 @@ import {
   statusBucket,
   bucketToReal,
 } from "../utils/mediaStatus";
+import { lockedFieldLabels } from "../utils/lockedFields";
 
 const props = defineProps<{
   show?: TVShow | null;
@@ -124,17 +125,20 @@ async function searchMetadata() {
 }
 
 function applyMetadata(result: TVShowMetadataResult) {
-  fields.value.title = result.title;
-  fields.value.description = result.description ?? "";
-  fields.value.firstAirDate = result.firstAirDate ?? "";
-  if (result.episodeRuntimeMinutes !== null)
+  const locked = new Set(props.show?.lockedFields ?? []);
+  if (!locked.has("title")) fields.value.title = result.title;
+  if (!locked.has("description")) fields.value.description = result.description ?? "";
+  if (!locked.has("first_air_date")) fields.value.firstAirDate = result.firstAirDate ?? "";
+  if (!locked.has("episode_runtime_minutes") && result.episodeRuntimeMinutes !== null)
     fields.value.episodeRuntimeMinutes = result.episodeRuntimeMinutes;
-  if (result.creators.length)
+  if (!locked.has("creators") && result.creators.length)
     fields.value.creatorsInput = result.creators.join(", ");
-  if (result.genres.length) fields.value.genresInput = result.genres.join(", ");
-  fields.value.posterUrl = result.posterUrl;
-  fields.value.backdropUrl = result.backdropUrl;
-  if (result.tmdbScore !== null) fields.value.tmdbScore = result.tmdbScore;
+  if (!locked.has("genres") && result.genres.length)
+    fields.value.genresInput = result.genres.join(", ");
+  if (!locked.has("poster_url")) fields.value.posterUrl = result.posterUrl;
+  if (!locked.has("backdrop_url")) fields.value.backdropUrl = result.backdropUrl;
+  if (!locked.has("tmdb_score") && result.tmdbScore !== null)
+    fields.value.tmdbScore = result.tmdbScore;
   stagedSeasons.value = result.seasons.map((s) => ({
     seasonNumber: s.seasonNumber,
     name: s.name,
@@ -144,9 +148,12 @@ function applyMetadata(result: TVShowMetadataResult) {
   }));
   metadataResults.value = [];
   metadataQuery.value = result.title;
-  metadataMessage.value = result.seasons.length
-    ? `Prefilled from ${result.provider}, including ${result.seasons.length} season${result.seasons.length === 1 ? "" : "s"}. Review before saving.`
-    : `Prefilled from ${result.provider}. Review the fields before saving.`;
+  const seasonNote = result.seasons.length
+    ? ` including ${result.seasons.length} season${result.seasons.length === 1 ? "" : "s"}`
+    : "";
+  metadataMessage.value = locked.size
+    ? `Prefilled from ${result.provider}${seasonNote}. Skipped ${locked.size} field(s) you've already edited: ${lockedFieldLabels([...locked]).join(", ")}. Review before saving.`
+    : `Prefilled from ${result.provider}${seasonNote}. Review before saving.`;
 }
 
 async function submit() {

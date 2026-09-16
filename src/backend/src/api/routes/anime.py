@@ -33,8 +33,26 @@ from src.features.metadata.anime.episode_sync import (
     pad_to_known_total,
 )
 from src.features.metadata.anime.search import search_anime_metadata
+from src.features.metadata.locked_fields import apply_updates_with_locking
 
 router = APIRouter(prefix="/api/anime", tags=["anime"], dependencies=[Depends(get_current_user)])
+
+# fields the metadata search's "Apply" button can fill in — the only ones
+# worth locking, since nothing else is ever set by that flow
+_LOCKABLE_FIELDS = frozenset(
+    {
+        "title",
+        "description",
+        "first_air_date",
+        "episode_runtime_minutes",
+        "studios",
+        "genres",
+        "poster_url",
+        "backdrop_url",
+        "anilist_score",
+        "mal_score",
+    }
+)
 
 
 class AnimeMetadataSearchResponse(BaseModel):
@@ -176,8 +194,7 @@ async def update_anime(
 
     updates = payload.model_dump(exclude_unset=True)
 
-    for field, value in updates.items():
-        setattr(show, field, value)
+    apply_updates_with_locking(show, updates, _LOCKABLE_FIELDS)
 
     if "title" in updates and "sort_title" not in updates:
         show.sort_title = _derive_sort_title(show.title)
