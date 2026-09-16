@@ -1,24 +1,23 @@
 # Android app
 
-The Android client is a deliberately thin WebView shell around the existing Vue
-application. The server remains the single source of truth, so every current and
-future web feature is available without maintaining a second UI or API client.
+The Android client is a native Jetpack Compose application. It communicates with
+the existing FastAPI backend through OkHttp and renders Android-native Material 3
+screens; it does not use WebView.
 
 ## User setup
 
 1. Install the debug or release APK on Android 10 or newer.
 2. Open the app and enter the full URL of the running tracking-app frontend.
-3. Sign in normally. The `HttpOnly` session cookie is retained by Android's
-   WebView cookie store and is sent only to the server that issued it.
+3. Sign in normally. The server's `HttpOnly` session cookie is retained by the
+   app's private persistent cookie store and sent only to matching server URLs.
 
 Use HTTPS whenever the server is reachable outside a trusted LAN. Cleartext HTTP
 is enabled only to support local self-hosted addresses. The app does not bypass
 certificate failures.
 
-Uploads use Android's system file picker. Authenticated downloads are handed to
-Download Manager with the current session cookie. Back navigates WebView history;
-the action-bar menu can reload, change servers, or open the current page in the
-default browser.
+Always include `http://` or `https://` when the server's protocol is known. When
+omitted, private LAN and emulator addresses default to HTTP while public hostnames
+default to HTTPS. TLS certificate verification is never bypassed.
 
 ## Development
 
@@ -38,12 +37,14 @@ gradle testDebugUnitTest lintDebug assembleDebug
 gradle connectedDebugAndroidTest  # with an emulator/device attached
 ```
 
-The application code is intentionally small:
+The application is split into a small native architecture:
 
-- `MainActivity.kt` owns WebView lifecycle, cookies, file selection, downloads,
-  navigation, and server switching.
-- `ServerUrl.kt` validates the configured server URL and has JVM unit tests.
-- `MainActivityTest.kt` verifies the first-run configuration flow on Android.
+- `MainActivity.kt` hosts the edge-to-edge Compose UI without an Android title bar.
+- `TrackingApp.kt` owns native setup, login, navigation, library and data screens.
+- `network/ApiClient.kt` owns HTTP/HTTPS requests and actionable TLS errors.
+- `network/PersistentCookieJar.kt` persists first-party session cookies privately.
+- `ServerUrl.kt` validates protocol and server-address behaviour.
+- `MainActivityTest.kt` verifies the native first-run configuration flow.
 
 ## APK artifacts
 

@@ -69,10 +69,10 @@ npm run typecheck
 
 ### Android
 
-The Android 10+ companion app lives in [`src/androidapp`](src/androidapp). It
-loads the same self-hosted frontend, preserving the full web feature set while
-adding persistent login cookies, Android file selection, downloads, and native
-back navigation. See its [user and developer guide](src/androidapp/README.md).
+The Android 10+ companion app lives in [`src/androidapp`](src/androidapp). It is
+a native Jetpack Compose client with persistent authentication and explicit
+HTTP/HTTPS server configuration. See its
+[user and developer guide](src/androidapp/README.md).
 
 ## Database migrations
 
