@@ -160,14 +160,17 @@ def _parse_streaming_episodes(streaming: list[dict[str, Any]]) -> list[dict[str,
 
 
 def _aired_total(media: dict[str, Any]) -> int | None:
-    """The real total episode count if known (completed show), otherwise
-    how many have aired so far for an ongoing show (nextAiringEpisode's
-    number minus one) — AniList only sets `episodes` once a show wraps."""
+    """How many episodes have actually aired so far. A season can have a
+    confirmed total episode count (e.g. 14) while still airing weekly
+    (e.g. only 12 out) — `nextAiringEpisode`, when present, is what's
+    actually aired and takes priority over the confirmed total. Only
+    fall back to `episodes` once AniList reports nothing left scheduled,
+    meaning the show has genuinely wrapped."""
     next_airing = media.get("nextAiringEpisode")
-    if media.get("episodes"):
-        return media["episodes"]
     if next_airing and next_airing.get("episode"):
         return next_airing["episode"] - 1
+    if media.get("episodes"):
+        return media["episodes"]
     return None
 
 
