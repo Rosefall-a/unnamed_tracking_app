@@ -58,6 +58,7 @@ async def request_validation_exception_handler(
     del request
     return JSONResponse(status_code=422, content={"detail": _safe_validation_errors(exc)})
 
+
 # Register the fallback artwork route before the normal asset route. When a
 # stored asset exists it is served unchanged; only a missing key-art file
 # reaches the generated default cover.
