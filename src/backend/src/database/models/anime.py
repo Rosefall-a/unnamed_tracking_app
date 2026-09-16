@@ -16,7 +16,7 @@ from sqlalchemy import (
     String,
     Text,
 )
-from sqlalchemy.dialects.postgresql import ARRAY, UUID as PG_UUID
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.database.base import Base
@@ -130,6 +130,15 @@ class Anime(Base):
     # metadata provider last set — "Apply metadata" skips these instead
     # of silently overwriting a deliberate fix
     locked_fields: Mapped[list[str]] = mapped_column(ARRAY(String), nullable=False, default=list)
+
+    # The Related tab's {chain, branches, recommendations} payload from
+    # AniList, cached after the first fetch instead of re-fetched on every
+    # visit — a single load can already mean a dozen+ AniList requests
+    # (one per prequel/sequel chain hop, one per branch-group reorder
+    # lookup), and AniList's rate limit is shared and low. NULL means
+    # never fetched yet.
+    relations_cache: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    relations_cached_at: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
 
     # ------------------------------------------------------------------
     # Personal library state

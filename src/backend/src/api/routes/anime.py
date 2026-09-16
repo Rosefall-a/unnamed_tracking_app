@@ -431,6 +431,40 @@ async def update_episode(
     return await _get_show_or_404(show_id, db, current_user.id)
 
 
+# How long a cached Related/Recommended payload is served without
+# re-asking AniList — a prequel/sequel chain or recommendation list
+# changes rarely (only a genuine new-sequel announcement, or AniList
+# recomputing its own recommendation scores), so most visits should cost
+# zero AniList requests rather than a dozen+.
+_RELATIONS_CACHE_TTL_SECONDS = 3 * 24 * 60 * 60
+
+
+async def _get_or_refresh_anime_relations(show: Anime, db: AsyncSession) -> dict:
+    """Chain + branches + recommendations for one anime, served from
+    `show.relations_cache` when fresh. A fetch failure with a cache
+    already on hand serves that stale cache rather than failing the
+    request — AniList being briefly rate-limited or down shouldn't break
+    a tab that already has real data to show; only a first-ever fetch
+    with nothing cached yet surfaces the error."""
+    cache_age = (
+        int(time.time()) - show.relations_cached_at if show.relations_cached_at else None
+    )
+    if show.relations_cache is not None and cache_age is not None and cache_age < _RELATIONS_CACHE_TTL_SECONDS:
+        return show.relations_cache
+    try:
+        result = await asyncio.to_thread(
+            AniListClient().relations_chain_and_branches, show.title, show.anilist_id
+        )
+    except AniListError:
+        if show.relations_cache is not None:
+            return show.relations_cache
+        raise
+    show.relations_cache = result
+    show.relations_cached_at = int(time.time())
+    await db.commit()
+    return result
+
+
 @router.get("/{show_id}/relations")
 async def get_anime_relations(
     show_id: UUID,
@@ -447,9 +481,7 @@ async def get_anime_relations(
     name. Keyless, so unlike TV/Movie there's no "not configured" state."""
     show = await _get_show_or_404(show_id, db, current_user.id)
     try:
-        result = await asyncio.to_thread(
-            AniListClient().relations_chain_and_branches, show.title, show.anilist_id
-        )
+        result = await _get_or_refresh_anime_relations(show, db)
     except AniListError as exc:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY, detail=f"AniList could not be reached: {exc}"
@@ -467,13 +499,14 @@ async def get_anime_recommended(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
+    """Reuses the same cached fetch `/relations` populates — AniList
+    returns both a title's relations and its recommendations in one
+    request, so there's no reason for this tab to cost a second one."""
     show = await _get_show_or_404(show_id, db, current_user.id)
     try:
-        result = await asyncio.to_thread(
-            AniListClient().relations_and_recommendations, show.title
-        )
+        result = await _get_or_refresh_anime_relations(show, db)
     except AniListError as exc:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY, detail=f"AniList could not be reached: {exc}"
         ) from exc
-    return {"recommended": result["recommendations"], "configured": True}
+    return {"recommended": result.get("recommendations", []), "configured": True}

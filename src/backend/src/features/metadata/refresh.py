@@ -25,6 +25,7 @@ from src.core.crypto import decrypt_secret
 from src.database.models.anime import Anime, AnimeEpisode, AnimeSeason
 from src.database.models.tv_show import TVEpisode, TVSeason, TVShow
 from src.database.session import SessionLocal
+from src.features.metadata.anime.anilist import AniListClient, AniListError
 from src.features.metadata.anime.episode_sync import (
     backfill_from_tmdb,
     fetch_airing_status,
@@ -230,14 +231,117 @@ async def _refresh_tv_season(show: TVShow, season: TVSeason, db) -> tuple[int, i
     return added, enriched
 
 
+def _heal_anime_metadata(client: AniListClient, show: Anime) -> bool:
+    """Backfills whichever of format/poster/backdrop/description/studios/
+    genres/runtime/score/anilist_id are still null, using a known id
+    rather than a fresh title search — a title search is what creates
+    these gaps in the first place (an unusual title can miss or match the
+    wrong entry), so it's not a trustworthy way to fix them either.
+    Prefers the stored AniList id; when only a MyAnimeList id is known
+    (added while AniList itself was unreachable/rate-limited, so only
+    Jikan matched), looks it up by that instead and recovers the AniList
+    id too. A show with neither id is left alone — nothing reliable to
+    heal from. Returns whether anything actually changed."""
+    entry = None
+    if show.anilist_id:
+        try:
+            entry = client.get_by_id(int(show.anilist_id))
+        except (AniListError, ValueError):
+            return False
+    elif show.external_id:
+        try:
+            entry = client.get_by_mal_id(int(show.external_id))
+        except (AniListError, ValueError):
+            return False
+        if entry and entry.get("id"):
+            show.anilist_id = str(entry["id"])
+    if not entry:
+        return False
+
+    changed = False
+    if show.format is None and entry.get("format"):
+        show.format = entry["format"]
+        changed = True
+    if show.poster_url is None and entry.get("poster_url"):
+        show.poster_url = entry["poster_url"]
+        changed = True
+    if show.backdrop_url is None and entry.get("backdrop_url"):
+        show.backdrop_url = entry["backdrop_url"]
+        changed = True
+    if show.description is None and entry.get("overview"):
+        show.description = entry["overview"]
+        changed = True
+    if not show.studios and entry.get("studios"):
+        show.studios = entry["studios"]
+        changed = True
+    if not show.genres and entry.get("genres"):
+        show.genres = entry["genres"]
+        changed = True
+    if show.episode_runtime_minutes is None and entry.get("episode_runtime_minutes"):
+        show.episode_runtime_minutes = entry["episode_runtime_minutes"]
+        changed = True
+    if show.anilist_score is None and entry.get("score") is not None:
+        show.anilist_score = entry["score"]
+        changed = True
+    if entry.get("episode_count") and show.seasons and show.seasons[0].episode_count is None:
+        show.seasons[0].episode_count = entry["episode_count"]
+        changed = True
+    return changed
+
+
+async def heal_all_anime_metadata() -> int:
+    """Sweeps every non-deleted anime row for one missing enough to be
+    worth a lookup (no format, poster, or AniList id yet) and backfills
+    it — the self-healing counterpart to the manual "delete and re-add"
+    fix a title with a failed metadata match used to need. A small pause
+    between rows paces requests the same way the relations chain walk
+    does, so a large backlog doesn't burn through AniList's rate limit in
+    one burst."""
+    healed = 0
+    client = AniListClient()
+    async with SessionLocal() as db:
+        shows = (
+            (
+                await db.execute(
+                    select(Anime).where(
+                        Anime.deleted_at.is_(None),
+                        or_(
+                            Anime.format.is_(None),
+                            Anime.poster_url.is_(None),
+                            Anime.anilist_id.is_(None),
+                        ),
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        for show in shows:
+            if not (show.anilist_id or show.external_id):
+                continue
+            await asyncio.sleep(0.3)
+            try:
+                if _heal_anime_metadata(client, show):
+                    healed += 1
+            except Exception:
+                logger.exception("Anime metadata heal failed for %s", show.title)
+        await db.commit()
+    if healed:
+        logger.info("Metadata heal: backfilled %d anime row(s)", healed)
+    return healed
+
+
 async def refresh_all_episode_metadata() -> dict[str, int]:
-    """Re-check every already-synced season (anime + TV): appends newly
-    aired episode numbers, and separately enriches existing bare
-    placeholder rows (title still null) whose data has since become
-    available — e.g. a TMDB key added after the first sync. Only seasons
-    someone has actually opened the Episodes tab for (i.e. already have
-    at least one episode row) are refreshed — no point calling out for a
-    show nobody's tracking episode-by-episode yet."""
+    """Re-check every anime/TV season: appends newly aired episode
+    numbers, and separately enriches existing bare placeholder rows
+    (title still null) whose data has since become available — e.g. a
+    TMDB key added after the first sync. Anime seasons are synced even
+    if nobody's opened the Episodes tab yet — episode data used to only
+    ever get pulled in on that first manual visit, which read as
+    "inconsistent" for anything left untouched; TV seasons keep the
+    already-opened gate (TVmaze has no equivalent cheap per-show id
+    recovery path the way anime's heal pass does, so an untouched TV
+    season is more likely to just be noise)."""
     anime_added = anime_enriched = 0
     tv_added = tv_enriched = 0
     async with SessionLocal() as db:
@@ -247,11 +351,10 @@ async def refresh_all_episode_metadata() -> dict[str, int]:
             .all()
         )
         for anime_season in anime_seasons:
-            if not anime_season.episodes:
-                continue
             anime_show = await db.get(Anime, anime_season.show_id)
             if anime_show is None:
                 continue
+            await asyncio.sleep(0.3)
             try:
                 added, enriched = await _refresh_anime_season(db, anime_show, anime_season)
                 anime_added += added
@@ -287,11 +390,17 @@ async def refresh_all_episode_metadata() -> dict[str, int]:
             tv_added,
             tv_enriched,
         )
+    anime_healed = 0
+    try:
+        anime_healed = await heal_all_anime_metadata()
+    except Exception:
+        logger.exception("Anime metadata heal pass failed")
     result = {
         "anime_episodes_added": anime_added,
         "anime_episodes_updated": anime_enriched,
         "tv_episodes_added": tv_added,
         "tv_episodes_updated": tv_enriched,
+        "anime_metadata_healed": anime_healed,
     }
     full_refresh_status.last_run_at = int(time.time())
     full_refresh_status.last_result = result

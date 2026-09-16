@@ -83,6 +83,18 @@ query ($id: Int) {{
 }}
 """
 
+# Same lookup, but keyed by MyAnimeList's id (Jikan's own id for the
+# entry) — used to recover a missing AniList id for an entry that was
+# added while AniList itself was unreachable/rate-limited and only Jikan
+# matched, without depending on a fresh title search.
+_BY_MAL_ID_QUERY = f"""
+query ($idMal: Int) {{
+  Media(idMal: $idMal, type: ANIME) {{
+{_MEDIA_FIELDS}
+  }}
+}}
+"""
+
 
 class AniListError(RuntimeError):
     """Raised when AniList responds unsuccessfully."""
@@ -540,6 +552,16 @@ class AniListClient:
             return None
         return _map_media_entry(media)
 
+    def get_by_mal_id(self, mal_id: int) -> dict[str, Any] | None:
+        """Same result shape as `get_by_id`, keyed by MyAnimeList's id
+        instead — recovers a missing AniList id for an entry that was
+        matched via Jikan only (e.g. added while AniList was rate-limited)."""
+        payload = self._post_graphql(_BY_MAL_ID_QUERY, {"idMal": mal_id})
+        media = (payload.get("data") or {}).get("Media")
+        if not media:
+            return None
+        return _map_media_entry(media)
+
     def episodes(self, anilist_id: str) -> list[dict[str, Any]]:
         """Episode data via AniList's `streamingEpisodes` — thumbnail +
         title only, no air date or synopsis (AniList doesn't track those
@@ -593,8 +615,7 @@ class AniListClient:
     ) -> dict[str, Any] | None:
         """One request's worth of a single Media node: its own id/title
         plus its direct relations edges and recommendations — the unit
-        both `relations_and_recommendations` and the chain walk in
-        `relations_chain_and_branches` are built from."""
+        the chain walk in `relations_chain_and_branches` is built from."""
         variables: dict[str, Any]
         if media_id is not None:
             query, variables = _RELATIONS_BY_ID_QUERY, {"id": media_id}
@@ -602,37 +623,6 @@ class AniListClient:
             query, variables = _RELATIONS_QUERY, {"search": search}
         payload = self._post_graphql(query, variables)
         return (payload.get("data") or {}).get("Media")
-
-    def relations_and_recommendations(self, title: str) -> dict[str, Any]:
-        """One request gets both the real prequel/sequel/spin-off graph
-        (relations) and AniList's own recommendation list for the best
-        title match — cheaper than two separate lookups, and both tabs
-        need the same "find this anime on AniList" step first anyway."""
-        if not title.strip():
-            return {"relations": [], "recommendations": []}
-        media = self._fetch_relations_node(search=title)
-        if not media:
-            return {"relations": [], "recommendations": []}
-
-        relations = []
-        for edge in (media.get("relations") or {}).get("edges") or []:
-            node = edge.get("node")
-            if not node:
-                continue
-            entry = _node_to_dict(node)
-            entry["relation_label"] = _RELATION_LABELS.get(
-                edge.get("relationType"), "Related"
-            )
-            relations.append(entry)
-
-        recommendations = []
-        for rec in (media.get("recommendations") or {}).get("nodes") or []:
-            node = rec.get("mediaRecommendation")
-            if not node:
-                continue
-            recommendations.append(_node_to_dict(node))
-
-        return {"relations": relations, "recommendations": recommendations}
 
     def _walk_chain(
         self, nodes: dict[int, dict[str, Any]], chain_ids: list[int], anchor_id: int
@@ -674,9 +664,9 @@ class AniListClient:
         self, title: str, anilist_id: str | None = None
     ) -> dict[str, Any]:
         """The full prequel/sequel chain this entry belongs to — walked
-        via PREQUEL/SEQUEL edges in both directions, not just the single
-        hop `relations_and_recommendations` returns — plus every other
-        relation type (adaptation, side story, source manga/novel, etc.)
+        via PREQUEL/SEQUEL edges in both directions, not just the anchor's
+        own direct relations — plus every other relation type (adaptation,
+        side story, source manga/novel, etc.)
         attached to whichever chain entry it's actually connected to.
         A season otherwise only ever lists its immediate neighbor, which
         reads as missing entries for any franchise 3+ seasons deep."""
