@@ -88,6 +88,8 @@ class AnimeUpdate(BaseModel):
     anilist_score: Decimal | None = Field(default=None, ge=0, le=10)
     mal_score: Decimal | None = Field(default=None, ge=0, le=10)
     source: str | None = Field(default=None, max_length=50)
+    external_id: str | None = Field(default=None, max_length=50)
+    anilist_id: str | None = Field(default=None, max_length=50)
     poster_url: str | None = None
     backdrop_url: str | None = None
 

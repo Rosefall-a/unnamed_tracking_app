@@ -41,6 +41,7 @@ function blankFields() {
     posterUrl: null as string | null,
     backdropUrl: null as string | null,
     tmdbScore: null as number | null,
+    externalId: null as string | null,
   };
 }
 
@@ -86,6 +87,7 @@ function loadFromShow(show: TVShow | null | undefined) {
     posterUrl: show.posterUrl,
     backdropUrl: show.backdropUrl,
     tmdbScore: show.tmdbScore,
+    externalId: show.externalId,
   };
 }
 
@@ -139,6 +141,12 @@ function applyMetadata(result: TVShowMetadataResult) {
   if (!locked.has("backdrop_url")) fields.value.backdropUrl = result.backdropUrl;
   if (!locked.has("tmdb_score") && result.tmdbScore !== null)
     fields.value.tmdbScore = result.tmdbScore;
+  // Not gated by locked_fields — this isn't a user-editable display
+  // field, just the link episode sync/the airing check need. Picking a
+  // search result is exactly how a show with a missing/wrong link (e.g.
+  // added by hand, or one that lost it to the merge-ownership bug) gets
+  // fixed, so always take the freshly-picked match's TVmaze id.
+  fields.value.externalId = result.tvmazeId;
   stagedSeasons.value = result.seasons.map((s) => ({
     seasonNumber: s.seasonNumber,
     name: s.name,
@@ -179,6 +187,7 @@ async function submit() {
       posterUrl: fields.value.posterUrl,
       backdropUrl: fields.value.backdropUrl,
       tmdbScore: fields.value.tmdbScore,
+      externalId: fields.value.externalId,
       seasons: props.show ? undefined : stagedSeasons.value,
     };
     const saved = props.show

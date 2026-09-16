@@ -42,6 +42,8 @@ function blankFields() {
     backdropUrl: null as string | null,
     anilistScore: null as number | null,
     malScore: null as number | null,
+    externalId: null as string | null,
+    anilistId: null as string | null,
   };
 }
 
@@ -83,6 +85,8 @@ function loadFromShow(show: Anime | null | undefined) {
     backdropUrl: show.backdropUrl,
     anilistScore: show.anilistScore,
     malScore: show.malScore,
+    externalId: show.externalId,
+    anilistId: show.anilistId,
   };
 }
 
@@ -135,6 +139,13 @@ function applyMetadata(result: AnimeMetadataResult) {
     fields.value.anilistScore = result.anilistScore;
   if (!locked.has("mal_score") && result.malScore !== null)
     fields.value.malScore = result.malScore;
+  // Not gated by locked_fields — these aren't a user-editable display
+  // field, just the link episode sync/airing checks need. Picking a
+  // search result is exactly how a show with a missing/wrong link (e.g.
+  // added by hand, or from before this app tracked these ids) gets
+  // fixed, so always take the freshly-picked match's ids.
+  fields.value.externalId = result.malId;
+  fields.value.anilistId = result.provider === "AniList" ? result.providerId : null;
   metadataResults.value = [];
   metadataQuery.value = result.title;
   metadataMessage.value = locked.size
@@ -166,6 +177,8 @@ async function submit() {
       backdropUrl: fields.value.backdropUrl,
       anilistScore: fields.value.anilistScore,
       malScore: fields.value.malScore,
+      externalId: fields.value.externalId,
+      anilistId: fields.value.anilistId,
     };
     const saved = props.show
       ? await updateAnime(props.show.id, input)

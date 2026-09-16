@@ -84,6 +84,7 @@ class TVShowUpdate(BaseModel):
     age_rating: str | None = Field(default=None, max_length=20)
     tmdb_score: Decimal | None = Field(default=None, ge=0, le=10)
     source: str | None = Field(default=None, max_length=50)
+    external_id: str | None = Field(default=None, max_length=50)
     poster_url: str | None = None
     backdrop_url: str | None = None
 
