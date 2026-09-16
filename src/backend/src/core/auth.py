@@ -7,7 +7,7 @@ import time
 from typing import Final
 
 from fastapi import Cookie, Depends, Header, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.config import settings
@@ -83,6 +83,19 @@ def create_api_key() -> tuple[str, str, str]:
     secret = secrets.token_urlsafe(32)
     api_key = f"{API_KEY_PREFIX}{secret}"
     return api_key, api_key[:12], hash_token(api_key)
+
+
+async def revoke_session(db: AsyncSession, session_token: str) -> bool:
+    """Revoke one opaque browser session by its raw cookie value.
+
+    Only the token hash is compared with the database. Logout can therefore
+    remain idempotent without exposing or persisting the raw credential.
+    """
+    result = await db.execute(
+        delete(UserSession).where(UserSession.token_hash == hash_token(session_token))
+    )
+    await db.commit()
+    return bool(result.rowcount)
 
 
 async def get_current_user(

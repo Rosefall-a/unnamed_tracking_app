@@ -81,6 +81,10 @@ Application startup applies all migration heads with `alembic upgrade heads`.
 
 This project is not currently hardened for direct public-internet exposure. Keep the API behind an appropriate network boundary and do not expose it directly to the public internet. Keep PostgreSQL private, persist `/data`, and never delete the persisted Fernet key from an installation that contains encrypted secrets.
 
+Browser sessions use opaque random credentials; only SHA-256 token hashes are
+stored in PostgreSQL. Logout is idempotent and revokes the matching database
+session before clearing the browser cookie, so that cookie cannot be reused.
+
 ## Recommended VS Code extensions
 
 - Ruff by charliermarsh
