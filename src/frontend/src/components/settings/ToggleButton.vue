@@ -46,6 +46,11 @@ const emit = defineEmits<{
   font-size: 0.82rem;
   line-height: 1.5;
 }
+.toggle-button:focus-visible {
+  outline: 2px solid #d68a34;
+  outline-offset: 4px;
+  border-radius: 4px;
+}
 .toggle-button:disabled {
   cursor: not-allowed;
   opacity: 0.5;

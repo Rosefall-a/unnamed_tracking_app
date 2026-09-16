@@ -8,6 +8,7 @@ const router = useRouter();
 
 const usernameOrEmail = ref("");
 const password = ref("");
+const showPassword = ref(false);
 const error = ref<string | null>(null);
 const loading = ref(false);
 
@@ -51,14 +52,25 @@ async function submit() {
         />
       </label>
 
-      <label class="field">
+      <label class="field password-field">
         <span>Password</span>
-        <input
-          v-model="password"
-          type="password"
-          autocomplete="current-password"
-          required
-        />
+        <span class="password-control">
+          <input
+            v-model="password"
+            :type="showPassword ? 'text' : 'password'"
+            autocomplete="current-password"
+            required
+          />
+          <button
+            type="button"
+            class="password-toggle"
+            :aria-label="showPassword ? 'Hide password' : 'Show password'"
+            :aria-pressed="showPassword"
+            @click="showPassword = !showPassword"
+          >
+            {{ showPassword ? "Hide" : "Show" }}
+          </button>
+        </span>
       </label>
 
       <div v-if="error" class="login-error">{{ error }}</div>
@@ -146,6 +158,26 @@ async function submit() {
   padding: 10px 12px;
   font: inherit;
   transition: border-color 0.15s ease;
+}
+.password-control {
+  display: flex;
+  gap: 8px;
+}
+.password-control input {
+  min-width: 0;
+  flex: 1;
+}
+.password-toggle {
+  border: 1px solid #3a3a3a;
+  border-radius: 8px;
+  background: #252525;
+  color: #ddd;
+  padding: 0 12px;
+  cursor: pointer;
+}
+.password-toggle:focus-visible {
+  outline: 2px solid #d68a34;
+  outline-offset: 2px;
 }
 .field input:focus {
   outline: none;

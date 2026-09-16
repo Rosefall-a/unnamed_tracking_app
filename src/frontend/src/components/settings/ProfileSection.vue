@@ -21,6 +21,8 @@ const username = ref(currentUser.value?.username ?? "");
 const email = ref(currentUser.value?.email ?? "");
 const currentPassword = ref("");
 const newPassword = ref("");
+const showCurrentPassword = ref(false);
+const showNewPassword = ref(false);
 const saving = ref(false);
 const saveError = ref<string | null>(null);
 const saveSuccess = ref(false);
@@ -135,21 +137,49 @@ async function onAvatarFileChange(e: Event) {
 
       <label class="field">
         <span>New password (optional)</span>
-        <input
-          v-model="newPassword"
-          type="password"
-          autocomplete="new-password"
-        />
+        <span class="password-control">
+          <input
+            v-model="newPassword"
+            :type="showNewPassword ? 'text' : 'password'"
+            autocomplete="new-password"
+          />
+          <button
+            type="button"
+            class="password-toggle"
+            :aria-label="
+              showNewPassword ? 'Hide new password' : 'Show new password'
+            "
+            :aria-pressed="showNewPassword"
+            @click="showNewPassword = !showNewPassword"
+          >
+            {{ showNewPassword ? "Hide" : "Show" }}
+          </button>
+        </span>
       </label>
 
       <label v-if="newPassword" class="field">
         <span>Current password (required to set a new one)</span>
-        <input
-          v-model="currentPassword"
-          type="password"
-          autocomplete="current-password"
-          required
-        />
+        <span class="password-control">
+          <input
+            v-model="currentPassword"
+            :type="showCurrentPassword ? 'text' : 'password'"
+            autocomplete="current-password"
+            required
+          />
+          <button
+            type="button"
+            class="password-toggle"
+            :aria-label="
+              showCurrentPassword
+                ? 'Hide current password'
+                : 'Show current password'
+            "
+            :aria-pressed="showCurrentPassword"
+            @click="showCurrentPassword = !showCurrentPassword"
+          >
+            {{ showCurrentPassword ? "Hide" : "Show" }}
+          </button>
+        </span>
       </label>
 
       <div v-if="saveError" class="form-error">{{ saveError }}</div>
@@ -211,6 +241,26 @@ form {
   display: flex;
   flex-direction: column;
   gap: 14px;
+}
+.password-control {
+  display: flex;
+  gap: 8px;
+}
+.password-control input {
+  min-width: 0;
+  flex: 1;
+}
+.password-toggle {
+  border: 1px solid #444;
+  border-radius: 8px;
+  background: #292929;
+  color: #ddd;
+  padding: 0 12px;
+  cursor: pointer;
+}
+.password-toggle:focus-visible {
+  outline: 2px solid #d68a34;
+  outline-offset: 2px;
 }
 .field {
   display: flex;
