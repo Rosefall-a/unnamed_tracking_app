@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from datetime import datetime
 from typing import Any
 
 import requests
@@ -28,6 +29,18 @@ def _parse_list(value: str | None) -> list[str]:
 
 def _clean(value: str | None) -> str | None:
     return None if not value or value == "N/A" else value
+
+
+def _parse_date(value: str | None) -> str | None:
+    """OMDb's "Released" field reads like "16 Jul 2010" — convert to
+    ISO (YYYY-MM-DD) since that's what the rest of the app stores/expects."""
+    cleaned = _clean(value)
+    if not cleaned:
+        return None
+    try:
+        return datetime.strptime(cleaned, "%d %b %Y").date().isoformat()
+    except ValueError:
+        return None
 
 
 class OMDBClient:
@@ -90,7 +103,7 @@ class OMDBClient:
                     "id": imdb_id,
                     "title": _clean(details.get("Title")) or candidate.get("Title"),
                     "overview": _clean(details.get("Plot")),
-                    "release_date": _clean(details.get("Released")),
+                    "release_date": _parse_date(details.get("Released")),
                     "runtime_minutes": _parse_runtime(details.get("Runtime")),
                     "director": _clean(details.get("Director")),
                     "writer": _clean(details.get("Writer")),
@@ -136,7 +149,7 @@ class OMDBClient:
                     "id": imdb_id,
                     "title": _clean(details.get("Title")) or candidate.get("Title"),
                     "overview": _clean(details.get("Plot")),
-                    "first_air_date": _clean(details.get("Released")),
+                    "first_air_date": _parse_date(details.get("Released")),
                     "episode_runtime_minutes": _parse_runtime(details.get("Runtime")),
                     "creators": _parse_list(details.get("Writer")),
                     "studios": [],
