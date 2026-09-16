@@ -66,6 +66,9 @@ async function submit() {
       <button type="submit" class="login-button" :disabled="loading">
         {{ loading ? "Signing in…" : "Sign in" }}
       </button>
+      <RouterLink class="reset-link" to="/reset-password"
+        >Forgot your password?</RouterLink
+      >
     </form>
   </main>
 </template>
@@ -176,5 +179,10 @@ async function submit() {
 .login-button:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+.reset-link {
+  color: #d68a34;
+  font-size: 13px;
+  text-align: center;
 }
 </style>

@@ -16,6 +16,7 @@ import StatsSection from "../components/settings/StatsSection.vue";
 import ExportImportSection from "../components/settings/ExportImportSection.vue";
 import ComingSoonSection from "../components/settings/ComingSoonSection.vue";
 import ApiKeysSection from "../components/settings/ApiKeysSection.vue";
+import SmtpSettingsSection from "../components/settings/SmtpSettingsSection.vue";
 
 const router = useRouter();
 const route = useRoute();
@@ -58,6 +59,9 @@ const groups = computed<SettingsGroup[]>(() => {
 
   const systemSections = [
     ...(currentUser.value?.is_admin ? [{ id: "admin", label: "Admin" }] : []),
+    ...(currentUser.value?.is_admin
+      ? [{ id: "smtp", label: "SMTP / Email" }]
+      : []),
     { id: "stats", label: "Server Stats" },
     ...(currentUser.value?.is_admin
       ? [{ id: "tasks", label: "Tasks", comingSoon: true }]
@@ -116,6 +120,9 @@ const activeSection = ref((route.query.section as string) || "profile");
           <MetadataSourcesSection v-else-if="activeSection === 'sources'" />
           <AdminSection
             v-else-if="activeSection === 'admin' && currentUser?.is_admin"
+          />
+          <SmtpSettingsSection
+            v-else-if="activeSection === 'smtp' && currentUser?.is_admin"
           />
           <StatsSection v-else-if="activeSection === 'stats'" />
           <ExportImportSection v-else-if="activeSection === 'export'" />
