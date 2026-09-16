@@ -1,0 +1,104 @@
+<script setup lang="ts">
+import { onMounted, reactive, ref } from "vue";
+import { fetchDeploymentSettings, updateDeploymentSettings, type OidcProviderSetting } from "../../services/deploymentSettings";
+import ToggleButton from "./ToggleButton.vue";
+
+const loading = ref(true);
+const saving = ref(false);
+const error = ref<string | null>(null);
+const saved = ref(false);
+const browserOrigin = window.location.origin;
+const oidc = reactive({ issuer_url: "", client_id: "", client_secret: "", scopes: "openid profile email", redirect_uri: "", groups_claim: "groups", admin_group: "", user_match_field: "email", default_login_method: "local", login_button_text: "Continue with SSO", allow_new_users: true });
+const providers = ref<OidcProviderSetting[]>([]);
+const newProvider = (): OidcProviderSetting => ({ name: "", slug: "", issuer_url: "", client_id: "", scopes: "openid profile email", redirect_uri: null, groups_claim: "groups", admin_group: null, user_match_field: "email", allow_new_users: true, button_text: "Continue with SSO", button_image_url: null, enabled: true, client_secret_configured: false });
+const defaultRedirectUri = () => `${browserOrigin}/api/auth/oidc/callback`;
+
+onMounted(async () => {
+  try {
+    const r = await fetchDeploymentSettings();
+    const o = r.oidc;
+    oidc.issuer_url = o.issuer_url ?? "";
+    oidc.client_id = o.client_id ?? "";
+    oidc.scopes = o.scopes ?? "openid profile email";
+    oidc.redirect_uri = o.redirect_uri || defaultRedirectUri();
+    oidc.groups_claim = o.groups_claim ?? "groups";
+    oidc.admin_group = o.admin_group ?? "";
+    oidc.user_match_field = o.user_match_field === "username" ? "username" : "email";
+    oidc.default_login_method = o.default_login_method === "sso" ? "sso" : "local";
+    oidc.login_button_text = o.login_button_text?.trim() || "Continue with SSO";
+    oidc.allow_new_users = o.allow_new_users !== false;
+    providers.value = (o.named_providers ?? []).map((p) => ({ ...p, client_secret: "" }) as OidcProviderSetting & { client_secret?: string });
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "Failed to load OIDC settings.";
+  } finally {
+    loading.value = false;
+  }
+});
+
+function addProvider() { providers.value.push(newProvider()); }
+function removeProvider(index: number) { providers.value.splice(index, 1); }
+
+async function save() {
+  saving.value = true;
+  error.value = null;
+  saved.value = false;
+  try {
+    const payload: Record<string, string> = {
+      oidc_issuer_url: oidc.issuer_url.trim(),
+      oidc_client_id: oidc.client_id.trim(),
+      oidc_scopes: oidc.scopes.trim() || "openid profile email",
+      oidc_redirect_uri: oidc.redirect_uri.trim() || defaultRedirectUri(),
+      oidc_groups_claim: oidc.groups_claim.trim() || "groups",
+      oidc_admin_group: oidc.admin_group.trim(),
+      oidc_user_match_field: oidc.user_match_field,
+      oidc_default_login_method: oidc.default_login_method,
+      oidc_login_button_text: oidc.login_button_text.trim() || "Continue with SSO",
+      oidc_allow_new_users: String(oidc.allow_new_users),
+      oidc_providers_json: JSON.stringify(providers.value),
+    };
+    if (oidc.client_secret) payload.oidc_client_secret = oidc.client_secret;
+    const r = await updateDeploymentSettings(payload);
+    oidc.redirect_uri = r.oidc.redirect_uri || defaultRedirectUri();
+    oidc.login_button_text = r.oidc.login_button_text?.trim() || "Continue with SSO";
+    oidc.allow_new_users = r.oidc.allow_new_users !== false;
+    oidc.client_secret = "";
+    providers.value = (r.oidc.named_providers ?? []).map((p) => ({ ...p, client_secret: "" }) as OidcProviderSetting & { client_secret?: string });
+    saved.value = true;
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "Failed to save OIDC settings.";
+  } finally {
+    saving.value = false;
+  }
+}
+</script>
+
+<template>
+  <section class="section">
+    <h2>OpenID Connect / SSO</h2>
+    <p class="hint">Configure browser-based SSO. Client secrets stay encrypted on the backend and are never returned to the browser.</p>
+    <div v-if="loading">Loading…</div>
+    <template v-else>
+      <div class="grid">
+        <label><span>Issuer / discovery URL</span><input v-model="oidc.issuer_url" placeholder="https://login.example.com/realms/archive" /></label>
+        <label><span>Client ID</span><input v-model="oidc.client_id" /></label>
+        <label><span>Client secret</span><input v-model="oidc.client_secret" type="password" placeholder="Leave blank to keep the saved secret" /></label>
+        <label><span>Scopes</span><input v-model="oidc.scopes" /></label>
+        <label class="full"><span>Redirect URI</span><input v-model="oidc.redirect_uri" autocomplete="url" /></label>
+        <label><span>Groups claim</span><input v-model="oidc.groups_claim" placeholder="groups" /></label>
+        <label><span>Admin group</span><input v-model="oidc.admin_group" placeholder="archive-admins" /></label>
+      </div>
+
+      <div class="match-panel"><div><strong>Match existing users by</strong><p class="hint">Connect SSO identities to existing local accounts by email or username.</p></div><div class="choices"><label class="choice"><input v-model="oidc.user_match_field" type="radio" value="email" /><span><strong>Email</strong><small>OIDC email → local email</small></span></label><label class="choice"><input v-model="oidc.user_match_field" type="radio" value="username" /><span><strong>Username</strong><small>OIDC preferred_username → local username</small></span></label></div></div>
+      <div class="login-panel"><div><strong>Login experience</strong><p class="hint">Local-first shows the normal login with SSO below it. SSO-first shows the SSO choices with local credentials in the dropdown.</p></div><div class="login-controls"><label><span>Default login method</span><select v-model="oidc.default_login_method"><option value="sso">SSO</option><option value="local">Local username &amp; password</option></select></label><label><span>Default SSO button text</span><input v-model="oidc.login_button_text" maxlength="100" /></label></div></div>
+      <div class="policy-panel"><div class="policy-copy"><strong>Account creation</strong><p class="hint">Allow successfully authenticated OIDC users without an existing local account to be created automatically.</p></div><div class="policy-toggle"><ToggleButton v-model="oidc.allow_new_users" label="Create new users" /></div></div>
+      <div class="providers-header"><div><h3>SSO providers</h3><p class="hint">Add multiple identity providers such as “SSO 1”, “SSO 2”, or “Pumpkin Soup”. Each gets its own login button and callback URL.</p></div><button type="button" @click="addProvider">+ Add provider</button></div>
+      <div v-for="(provider, index) in providers" :key="provider.slug || index" class="provider-card"><div class="provider-card-head"><div><strong>{{ provider.name || `Provider ${index + 1}` }}</strong><small>/{{ provider.slug || "provider-slug" }}</small></div><button type="button" class="remove" @click="removeProvider(index)">Remove</button></div><div class="grid"><label><span>Display name</span><input v-model="provider.name" placeholder="Pumpkin Soup" /></label><label><span>Slug</span><input v-model="provider.slug" placeholder="pumpkin-soup" /></label><label><span>Issuer / discovery URL</span><input v-model="provider.issuer_url" placeholder="https://id.example.com" /></label><label><span>Client ID</span><input v-model="provider.client_id" /></label><label><span>Client secret</span><input v-model="(provider as any).client_secret" type="password" :placeholder="provider.client_secret_configured ? 'Leave blank to keep saved secret' : 'Required'" /></label><label><span>Scopes</span><input v-model="provider.scopes" /></label><label><span>Button text</span><input v-model="provider.button_text" placeholder="Continue with Pumpkin Soup" /></label><label><span>Button image</span><input v-model="provider.button_image_url" placeholder="Image URL (optional placeholder)" /></label><label class="full"><span>Redirect URI (optional)</span><input v-model="provider.redirect_uri" :placeholder="`${browserOrigin}/api/auth/oidc/callback/${provider.slug || 'provider-slug'}`" /></label></div><div class="provider-options"><label><input v-model="provider.allow_new_users" type="checkbox" /> Allow new users</label><label><input v-model="provider.enabled" type="checkbox" /> Show on login screen</label></div></div>
+      <p class="hint">Direct default SSO start: <code>/login/oidcstart</code>. Named providers use <code>/api/auth/oidc/login/&lt;slug&gt;</code>.</p>
+      <p v-if="error" class="error">{{ error }}</p><p v-if="saved" class="success">OIDC settings saved.</p><button :disabled="saving" @click="save">{{ saving ? "Saving…" : "Save OIDC settings" }}</button>
+    </template>
+  </section>
+</template>
+
+<style scoped>
+.section{display:flex;flex-direction:column;gap:16px}.hint{color:#999;font-size:13px;line-height:1.5}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.grid label{display:flex;flex-direction:column;gap:6px;color:#ccc;font-size:13px}.grid label.full{grid-column:1/-1}.grid input,.login-controls input,.login-controls select{background:#111;border:1px solid #3a3a3a;border-radius:8px;color:#fff;padding:10px;font:inherit}.match-panel,.login-panel,.policy-panel,.provider-card{border:1px solid #2f2f2f;border-radius:10px;padding:16px;background:#151515;display:flex;justify-content:space-between;gap:24px}.match-panel strong,.login-panel strong,.policy-panel strong,.provider-card strong{color:#fff}.match-panel .hint,.login-panel .hint,.policy-panel .hint{margin:6px 0 0}.choices{display:flex;gap:10px;flex-shrink:0}.choice{display:flex;align-items:flex-start;gap:8px;min-width:170px;padding:10px 12px;border:1px solid #333;border-radius:8px;background:#111;cursor:pointer;color:#ccc}.choice input{accent-color:#d68a34;margin-top:3px}.choice span{display:flex;flex-direction:column;gap:3px}.choice small{font-size:11px;color:#888}.login-panel{align-items:flex-start}.login-controls{display:grid;grid-template-columns:1fr 1fr;gap:12px;min-width:520px}.login-controls label{display:flex;flex-direction:column;gap:6px;color:#ccc;font-size:13px}.policy-panel{align-items:center;padding:20px 22px}.policy-copy{max-width:620px}.policy-toggle{min-width:220px;display:flex;justify-content:center;transform:scale(1.12)}.policy-panel :deep(.toggle-button){min-width:200px;min-height:42px}.providers-header{display:flex;align-items:center;justify-content:space-between;gap:20px}.providers-header h3{margin:0;color:#fff}.providers-header .hint{margin:4px 0 0}.provider-card{display:block}.provider-card-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}.provider-card-head small{display:block;color:#777;margin-top:3px}.provider-card .grid{margin-bottom:14px}.provider-options{display:flex;gap:18px;color:#bbb;font-size:13px}.provider-options label{display:flex;align-items:center;gap:6px}.provider-options input{accent-color:#d68a34}.remove{background:transparent!important;border:1px solid #633!important;color:#fca5a5!important}.providers-header button,button{background:#d68a34;border:0;border-radius:8px;padding:10px 14px;font-weight:600;cursor:pointer}.error{color:#fca5a5}.success{color:#86efac}button:disabled{opacity:.6}@media(max-width:1000px){.login-controls{min-width:0;grid-template-columns:1fr}.match-panel,.login-panel,.policy-panel{flex-direction:column}.choices{flex-wrap:wrap}}@media(max-width:760px){.grid{grid-template-columns:1fr}.grid label.full{grid-column:auto}.providers-header{align-items:flex-start;flex-direction:column}}
+</style>
