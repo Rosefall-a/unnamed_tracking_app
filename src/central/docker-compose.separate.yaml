@@ -1,3 +1,6 @@
+# Optional split-process example using the exact same central image for both services.
+# The frontend container automatically proxies /api to http://backend:8000
+# because APP_MODE=frontend and BACKEND_URL is not set.
 services:
   db:
     image: postgres:18
@@ -5,47 +8,41 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
-    
     volumes:
-      - pgdata:/var/lib/postgresql
+      - unnamed_tracking_app_split_db:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
+      timeout: 5s
       retries: 10
 
   backend:
-    build:
-      context: ./src/backend
-      dockerfile: Dockerfile
+    image: ghcr.io/rosefall-a/unnamed_tracking_app-central:feat-central-docker-image-v2
     environment:
+      APP_MODE: backend
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       PYTHONUNBUFFERED: 1
     env_file:
       - .env
+    ports:
+      - "8000:8000"
     volumes:
-      - ./src/backend/src:/app/src
-      - ./data:/data
-    stdin_open: true
-    tty: true
+      - ../../data:/data
     depends_on:
       db:
         condition: service_healthy
-        
+
   frontend:
-    build:
-      context: ./src/frontend
-      dockerfile: Dockerfile
+    image: ghcr.io/rosefall-a/unnamed_tracking_app-central:feat-central-docker-image-v2
     environment:
-      BACKEND_URL: http://backend:8000
+      APP_MODE: frontend
+      PYTHONUNBUFFERED: 1
     env_file:
       - .env
     ports:
       - "5173:80"
-    volumes:
-      - ./src/frontend:/app
-      - /app/node_modules
     depends_on:
       - backend
 
 volumes:
-  pgdata:
+  unnamed_tracking_app_split_db:
