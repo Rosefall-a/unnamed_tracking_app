@@ -93,6 +93,7 @@ def _node_to_dict(node: dict[str, Any]) -> dict[str, Any]:
         "format": _format_label(node.get("format")),
         "poster_url": cover.get("extraLarge") or cover.get("large"),
         "episode_count": node.get("episodes"),
+        "year": (node.get("startDate") or {}).get("year"),
     }
 
 
@@ -207,6 +208,9 @@ query ($search: String) {
     }
     format
     episodes
+    startDate {
+      year
+    }
     coverImage {
       extraLarge
       large
@@ -222,6 +226,9 @@ query ($search: String) {
           }
           format
           episodes
+          startDate {
+            year
+          }
           coverImage {
             extraLarge
             large
@@ -238,6 +245,10 @@ query ($search: String) {
             english
           }
           format
+          episodes
+          startDate {
+            year
+          }
           coverImage {
             extraLarge
             large
@@ -263,6 +274,9 @@ query ($id: Int) {
     }
     format
     episodes
+    startDate {
+      year
+    }
     coverImage {
       extraLarge
       large
@@ -278,6 +292,9 @@ query ($id: Int) {
           }
           format
           episodes
+          startDate {
+            year
+          }
           coverImage {
             extraLarge
             large
@@ -294,6 +311,10 @@ query ($id: Int) {
             english
           }
           format
+          episodes
+          startDate {
+            year
+          }
           coverImage {
             extraLarge
             large
@@ -313,13 +334,42 @@ _MAX_CHAIN_HOPS = 8
 _MAX_BRANCHES = 24
 _CHAIN_RELATION_TYPES = {"PREQUEL", "SEQUEL"}
 
+# Relation types that read as clutter rather than a genuinely related
+# title — a shared-character cameo, a clip-show/recap compilation, or
+# AniList's catch-all "other" bucket — so they're left out of the graph
+# entirely rather than competing for space with the source manga/novel,
+# side stories, and spin-offs that actually matter.
+_LOW_VALUE_BRANCH_TYPES = {"CHARACTER", "SUMMARY", "COMPILATION", "CONTAINS", "OTHER"}
+
+
+def _topological_order(ids: set[int], prequel_of: dict[int, int]) -> list[int] | None:
+    """Orders `ids` earliest-prequel-first using each id's prequel
+    pointer (only ones pointing within `ids` matter). Returns None if
+    the pointers don't fully resolve every id — a partial/cyclic result
+    isn't trustworthy enough to reorder anything."""
+    if not prequel_of:
+        return None
+    order: list[int] = []
+    remaining = set(ids)
+    guard = 0
+    while remaining and guard <= len(ids):
+        guard += 1
+        ready = sorted(i for i in remaining if prequel_of.get(i) not in remaining)
+        if not ready:
+            break
+        order.extend(ready)
+        remaining.difference_update(ready)
+    return None if remaining else order
+
 
 def _collect_branches(
     nodes: dict[int, dict[str, Any]], chain_ids: list[int]
 ) -> list[dict[str, Any]]:
     """Every relation attached to a chain node that isn't itself another
     chain link — adaptation, side story, source manga/novel, etc. — up
-    to `_MAX_BRANCHES` total, deduplicated across the whole chain."""
+    to `_MAX_BRANCHES` total, deduplicated across the whole chain.
+    Low-value relation types (shared character, compilation, ...) are
+    skipped so they don't clutter the graph with rarely-useful nodes."""
     branches: list[dict[str, Any]] = []
     seen = set(chain_ids)
     for node_id in chain_ids:
@@ -334,6 +384,8 @@ def _collect_branches(
             target_id = node["id"]
             if rtype in _CHAIN_RELATION_TYPES and target_id in nodes:
                 continue  # already represented as a chain link
+            if rtype in _LOW_VALUE_BRANCH_TYPES:
+                continue
             if target_id in seen:
                 continue
             seen.add(target_id)
@@ -564,7 +616,10 @@ class AniListClient:
                 next_id = edge["node"]["id"]
                 if next_id in nodes:
                     break  # cycle guard — a franchise's edges can loop back
-                next_node = self._fetch_relations_node(media_id=next_id)
+                try:
+                    next_node = self._fetch_relations_node(media_id=next_id)
+                except AniListError:
+                    break  # a flaky/missing hop ends the walk, not the whole tab
                 if not next_node:
                     break
                 nodes[next_id] = next_node
@@ -613,6 +668,56 @@ class AniListClient:
 
         return {
             "chain": chain,
-            "branches": _collect_branches(nodes, chain_ids),
+            "branches": self._order_related_branches(_collect_branches(nodes, chain_ids)),
             "recommendations": recommendations,
         }
+
+    def _fetch_group_prequel_pointers(
+        self, group: list[dict[str, Any]], ids: set[int]
+    ) -> dict[int, int]:
+        """Fetches each group member's own relations and returns
+        {member_id: its_prequel_id} restricted to prequels that are
+        themselves in the group (an outside prequel isn't useful for
+        ordering the group)."""
+        prequel_of: dict[int, int] = {}
+        for b in group:
+            try:
+                node = self._fetch_relations_node(media_id=b["id"])
+            except AniListError:
+                continue  # one flaky/missing member shouldn't sink the whole tab
+            if not node:
+                continue
+            for edge in (node.get("relations") or {}).get("edges") or []:
+                if edge.get("relationType") != "PREQUEL":
+                    continue
+                target = (edge.get("node") or {}).get("id")
+                if isinstance(target, int) and target in ids:
+                    prequel_of[b["id"]] = target
+        return prequel_of
+
+    def _order_related_branches(
+        self, branches: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        """A branch group sharing the same anchor and relation label —
+        e.g. a two-part movie duology, both tagged ALTERNATIVE to the
+        parent show rather than SEQUEL/PREQUEL to it — can still be
+        chronologically ordered relative to each other via their own
+        mutual PREQUEL edges. Fetches each 2+-member group once to find
+        that order instead of leaving the pieces in arbitrary API order."""
+        groups: dict[tuple[int, str], list[int]] = {}
+        for i, b in enumerate(branches):
+            groups.setdefault((b["anchor_id"], b["relation_label"]), []).append(i)
+
+        for positions in groups.values():
+            if len(positions) < 2:
+                continue
+            group = [branches[i] for i in positions]
+            ids = {b["id"] for b in group}
+            prequel_of = self._fetch_group_prequel_pointers(group, ids)
+            order = _topological_order(ids, prequel_of)
+            if order is None:
+                continue  # couldn't fully resolve — leave original order
+            by_id = {b["id"]: b for b in group}
+            for slot, branch_id in zip(sorted(positions), order):
+                branches[slot] = by_id[branch_id]
+        return branches

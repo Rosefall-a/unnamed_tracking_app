@@ -237,11 +237,24 @@ const relatedChainNodes = computed<ChainNode[]>(() =>
 );
 const relatedBranchNodes = computed<BranchNode[]>(() => {
   const indexById = new Map(relatedChain.value.map((n, i) => [n.id, i]));
-  let branchCount = 0;
+  // Same anchor + same relation label (e.g. a two-part movie duology,
+  // both "Alternative") stay on the same side as each other — assigning
+  // side per node instead of per group used to split siblings across
+  // up/down by coin-flip, breaking the adjacency the backend already
+  // worked out (see anilist.py's _order_related_branches).
+  const sideByGroup = new Map<string, "up" | "down">();
+  let groupCount = 0;
   const nodes: BranchNode[] = [];
   for (const b of relatedBranches.value) {
     const anchorIndex = indexById.get(b.anchorId);
     if (anchorIndex === undefined) continue;
+    const groupKey = `${anchorIndex}:${b.relationLabel}`;
+    let side = sideByGroup.get(groupKey);
+    if (!side) {
+      side = groupCount % 2 === 0 ? "up" : "down";
+      sideByGroup.set(groupKey, side);
+      groupCount++;
+    }
     nodes.push({
       id: String(b.id),
       title: b.title,
@@ -249,9 +262,8 @@ const relatedBranchNodes = computed<BranchNode[]>(() => {
       sub: b.episodeCount ? `${b.episodeCount} Episodes` : "",
       label: b.relationLabel,
       anchorIndex,
-      side: branchCount % 2 === 0 ? "up" : "down",
+      side,
     });
-    branchCount++;
   }
   return nodes;
 });
@@ -310,6 +322,12 @@ const previewMeta = ref<string[]>([]);
 
 function closePreview() {
   previewOpen.value = false;
+}
+
+function posterMeta(r: RelatedAnime): string {
+  const parts = [r.format, r.year ? String(r.year) : null];
+  if (r.episodeCount) parts.push(`${r.episodeCount} ep`);
+  return parts.filter(Boolean).join(" · ");
 }
 
 async function onRelatedTitleClick(r: { title: string; posterUrl: string | null }) {
@@ -690,7 +708,8 @@ watch(
                 "
               ></div>
               <div class="poster-card-sm-title">{{ r.title }}</div>
-              <div v-if="r.relationLabel" class="poster-card-sm-meta">
+              <div class="poster-card-sm-meta">{{ posterMeta(r) }}</div>
+              <div v-if="r.relationLabel" class="poster-card-sm-tag">
                 {{ r.relationLabel }}
               </div>
             </div>
@@ -723,6 +742,7 @@ watch(
               "
             ></div>
             <div class="poster-card-sm-title">{{ r.title }}</div>
+            <div class="poster-card-sm-meta">{{ posterMeta(r) }}</div>
           </div>
         </div>
       </div>
@@ -1137,6 +1157,14 @@ watch(
   margin-top: 2px;
   font-size: 0.7rem;
   color: #666;
+}
+.poster-card-sm-tag {
+  margin-top: 2px;
+  font-size: 0.66rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #d68a34;
 }
 @media (max-width: 640px) {
   .hero-content {

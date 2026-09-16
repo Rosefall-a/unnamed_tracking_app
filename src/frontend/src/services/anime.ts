@@ -629,6 +629,7 @@ export interface RelatedAnime {
   format: string | null;
   posterUrl: string | null;
   episodeCount: number | null;
+  year: number | null;
   relationLabel?: string;
 }
 
@@ -659,6 +660,7 @@ interface BackendRelatedAnime {
   format: string | null;
   poster_url: string | null;
   episode_count: number | null;
+  year: number | null;
   relation_label?: string;
 }
 
@@ -684,6 +686,7 @@ function mapRelatedAnime(r: BackendRelatedAnime): RelatedAnime {
     format: r.format,
     posterUrl: r.poster_url,
     episodeCount: r.episode_count,
+    year: r.year,
     relationLabel: r.relation_label,
   };
 }
