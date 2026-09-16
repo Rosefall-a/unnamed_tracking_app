@@ -1,7 +1,9 @@
 # app/main.py
 import asyncio
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 
 from src.api.routes import (
     app_integrations,
@@ -34,6 +36,26 @@ app = FastAPI(
     redoc_url="/api/redoc",
     openapi_url="/api/openapi.json",
 )
+
+
+def _safe_validation_errors(exc: RequestValidationError) -> list[dict[str, object]]:
+    """Keep submitted values and exception context out of validation responses."""
+    return [
+        {
+            "type": error.get("type", "value_error"),
+            "loc": error.get("loc", []),
+            "msg": error.get("msg", "Invalid request."),
+        }
+        for error in exc.errors()
+    ]
+
+
+@app.exception_handler(RequestValidationError)
+async def request_validation_exception_handler(
+    request: Request, exc: RequestValidationError
+) -> JSONResponse:
+    del request
+    return JSONResponse(status_code=422, content={"detail": _safe_validation_errors(exc)})
 
 # Register the fallback artwork route before the normal asset route. When a
 # stored asset exists it is served unchanged; only a missing key-art file

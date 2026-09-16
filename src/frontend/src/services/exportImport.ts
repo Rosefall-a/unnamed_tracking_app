@@ -1,25 +1,11 @@
-// Library export/import, a portable JSON snapshot of games, for backups
-// or moving to a new server. Scoped to game data only, not screenshots/
-// saves/bounties, see backend/src/api/routes/export_import.py.
+import { apiError } from "./apiErrors";
 
+// Library export/import plus admin deployment configuration backup/restore.
 export interface ImportResult {
   created: number;
   skipped: number;
   errors: string[];
 }
-
-export async function fetchLibraryExport(): Promise<unknown> {
-  const response = await fetch("/api/export/library", {
-    credentials: "include",
-  });
-  if (!response.ok) {
-    throw new Error(
-      `Failed to export library: ${response.status} ${response.statusText}`,
-    );
-  }
-  return await response.json();
-}
-
 export interface BackupStatus {
   enabled: boolean;
   interval_hours: number;
@@ -27,16 +13,36 @@ export interface BackupStatus {
   last_backup_at: number | null;
   backup_count: number;
 }
+export interface DeploymentBackupPreview {
+  format_version: number;
+  exported_at: number;
+  sections: Array<{
+    id: string;
+    label: string;
+    description: string;
+    available: boolean;
+  }>;
+}
+export interface DeploymentRestoreResult {
+  restored: boolean;
+  sessions_revoked: boolean;
+  message: string;
+}
+
+export async function fetchLibraryExport(): Promise<unknown> {
+  const response = await fetch("/api/export/library", {
+    credentials: "include",
+  });
+  if (!response.ok) throw await apiError(response, "Failed to export library");
+  return await response.json();
+}
 
 export async function fetchBackupStatus(): Promise<BackupStatus> {
   const response = await fetch("/api/export/backup-status", {
     credentials: "include",
   });
-  if (!response.ok) {
-    throw new Error(
-      `Failed to fetch backup status: ${response.status} ${response.statusText}`,
-    );
-  }
+  if (!response.ok)
+    throw await apiError(response, "Failed to fetch backup status");
   return await response.json();
 }
 
@@ -47,11 +53,68 @@ export async function importLibrary(games: unknown[]): Promise<ImportResult> {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(games),
   });
-  if (!response.ok) {
-    const message = await response.text();
-    throw new Error(
-      `Failed to import library: ${response.status} ${response.statusText} ${message}`,
-    );
-  }
+  if (!response.ok) throw await apiError(response, "Failed to import library");
+  return await response.json();
+}
+
+export async function exportDeploymentBackup(password: string): Promise<Blob> {
+  const response = await fetch("/api/settings/backup/export", {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ password }),
+  });
+  if (!response.ok)
+    throw await apiError(response, "Failed to export deployment backup");
+  return await response.blob();
+}
+
+export async function inspectDeploymentBackup(
+  file: File,
+  password: string,
+): Promise<DeploymentBackupPreview> {
+  const form = new FormData();
+  form.append("password", password);
+  form.append("backup_file", file);
+  const response = await fetch("/api/settings/backup/inspect", {
+    method: "POST",
+    credentials: "include",
+    body: form,
+  });
+  if (!response.ok)
+    throw await apiError(response, "Failed to decrypt deployment backup");
+  return await response.json();
+}
+
+export async function restoreDeploymentBackup(
+  file: File,
+  password: string,
+  sections: string[],
+): Promise<DeploymentRestoreResult> {
+  const form = new FormData();
+  form.append("password", password);
+  form.append("backup_file", file);
+  const response = await fetch(
+    `/api/settings/backup/restore?sections=${encodeURIComponent(JSON.stringify(sections))}`,
+    { method: "POST", credentials: "include", body: form },
+  );
+  if (!response.ok)
+    throw await apiError(response, "Failed to restore deployment backup");
+  return await response.json();
+}
+
+export async function rotateDeploymentKey(): Promise<{
+  rotated: boolean;
+  sessions_revoked: boolean;
+  message: string;
+}> {
+  const response = await fetch("/api/settings/backup/rotate-key", {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ confirm: true }),
+  });
+  if (!response.ok)
+    throw await apiError(response, "Failed to rotate encryption key");
   return await response.json();
 }

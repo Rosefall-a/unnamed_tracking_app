@@ -1,3 +1,5 @@
+import { apiError } from "./apiErrors";
+
 export interface LibrarySyncResult {
   games_added: number;
   games_updated: number;
@@ -27,11 +29,6 @@ export async function syncLibrary(
     method: "POST",
     credentials: "include",
   });
-  if (!response.ok) {
-    const message = await response.text();
-    throw new Error(
-      `Library sync failed: ${response.status} ${response.statusText} ${message}`,
-    );
-  }
+  if (!response.ok) throw await apiError(response, "Library sync failed");
   return await response.json();
 }
