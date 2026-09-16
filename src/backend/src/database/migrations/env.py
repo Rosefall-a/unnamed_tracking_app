@@ -25,6 +25,7 @@ from src.database.models import (
     game_profile_stat_snapshot,  # noqa: F401
     inbox_item,  # noqa: F401
     media_item,  # noqa: F401
+    password_reset,  # noqa: F401
     user,  # noqa: F401
     user_appearance_settings,  # noqa: F401
     user_scan_settings,  # noqa: F401

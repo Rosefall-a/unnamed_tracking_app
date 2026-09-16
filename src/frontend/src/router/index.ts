@@ -12,6 +12,7 @@ import Inbox from "../views/Inbox.vue";
 import Bounties from "../views/Bounties.vue";
 import AchievementDetail from "../views/AchievementDetail.vue";
 import Login from "../views/Login.vue";
+import PasswordReset from "../views/PasswordReset.vue";
 import { currentUser, authChecked, checkAuth } from "../state/auth";
 import Settings from "../views/Settings.vue";
 import { saveLibraryScroll } from "../state/libraryScroll";
@@ -45,6 +46,11 @@ const router = createRouter({
     { path: "/sets", name: "set-list", component: SetList },
     { path: "/sets/:id", name: "set-detail", component: SetDetail },
     { path: "/login", name: "login", component: Login },
+    {
+      path: "/reset-password",
+      name: "password-reset",
+      component: PasswordReset,
+    },
     // Profile lives inside Settings now (its own side-nav section)
     { path: "/profile", redirect: "/settings" },
     { path: "/settings", name: "settings", component: Settings },
@@ -67,10 +73,10 @@ router.beforeEach(async (to, from) => {
   if (!authChecked.value) {
     await checkAuth();
   }
-  if (to.path !== "/login" && !currentUser.value) {
+  if (!["/login", "/reset-password"].includes(to.path) && !currentUser.value) {
     return "/login";
   }
-  if (to.path === "/login" && currentUser.value) {
+  if (["/login", "/reset-password"].includes(to.path) && currentUser.value) {
     return "/";
   }
   if (currentUser.value && !appearanceLoaded.value) {
