@@ -41,10 +41,10 @@ const emit = defineEmits<{
 
 const NODE_W = 200;
 const NODE_H = 74;
-const STEP_X = 270;
+const STEP_X = 320;
 const MID_Y = 190;
-const BRANCH_SPACING = NODE_W + 70;
-const ROW_H = 130;
+const BRANCH_SPACING = NODE_W + 140;
+const ROW_H = 170;
 
 // Roughly groups a top-level branch's whole subtree by format so the
 // graph reads top-to-bottom as specials/shorts, then the main

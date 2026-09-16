@@ -212,9 +212,48 @@ async function loadRelated() {
   }
 }
 
+// Which branch formats to leave out of the graph/poster-grid — e.g. a
+// user who doesn't read manga can hide those branches entirely. Built
+// from whatever formats actually appear so the filter row only ever
+// shows options that exist for this entry.
+const hiddenBranchFormats = ref<Set<string>>(new Set());
+const availableBranchFormats = computed(() => {
+  const set = new Set<string>();
+  for (const b of relatedBranches.value) set.add(b.format ?? "Other");
+  return [...set].sort();
+});
+function toggleBranchFormat(format: string) {
+  const next = new Set(hiddenBranchFormats.value);
+  if (next.has(format)) next.delete(format);
+  else next.add(format);
+  hiddenBranchFormats.value = next;
+}
+// A branch whose own format is hidden is excluded, and so is anything
+// chained onto it (its anchor is that now-excluded branch) — otherwise
+// hiding a middle link would leave its descendants floating with
+// nowhere to anchor.
+const visibleBranches = computed(() => {
+  const excluded = new Set<number>();
+  for (const b of relatedBranches.value) {
+    if (hiddenBranchFormats.value.has(b.format ?? "Other")) excluded.add(b.id);
+  }
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const b of relatedBranches.value) {
+      if (excluded.has(b.id)) continue;
+      if (b.anchorKind === "branch" && excluded.has(b.anchorId)) {
+        excluded.add(b.id);
+        changed = true;
+      }
+    }
+  }
+  return relatedBranches.value.filter((b) => !excluded.has(b.id));
+});
+
 // Flat list for the poster grid below the graph — every chain entry
-// except the current one, plus every branch (adaptation, side story,
-// source manga/novel, etc.), each labeled by how it relates.
+// except the current one, plus every visible branch (adaptation, side
+// story, source manga/novel, etc.), each labeled by how it relates.
 const relatedList = computed(() => {
   const currentIndex = relatedChain.value.findIndex((n) => n.isCurrent);
   const chainItems = relatedChain.value
@@ -223,7 +262,7 @@ const relatedList = computed(() => {
       relationLabel: i < currentIndex ? "Prequel" : "Sequel",
     }))
     .filter((n) => !n.isCurrent);
-  return [...chainItems, ...relatedBranches.value];
+  return [...chainItems, ...visibleBranches.value];
 });
 
 const relatedChainNodes = computed<ChainNode[]>(() =>
@@ -238,7 +277,7 @@ const relatedChainNodes = computed<ChainNode[]>(() =>
 const relatedBranchNodes = computed<BranchNode[]>(() => {
   const indexById = new Map(relatedChain.value.map((n, i) => [n.id, i]));
   const nodes: BranchNode[] = [];
-  for (const b of relatedBranches.value) {
+  for (const b of visibleBranches.value) {
     if (b.anchorKind === "show" && indexById.get(b.anchorId) === undefined) continue;
     nodes.push({
       id: String(b.id),
@@ -673,6 +712,19 @@ watch(
           No known relations on AniList.
         </p>
         <template v-else>
+          <div v-if="availableBranchFormats.length" class="format-filter">
+            <span class="format-filter-label">Show:</span>
+            <button
+              v-for="format in availableBranchFormats"
+              :key="format"
+              type="button"
+              class="format-chip"
+              :class="{ off: hiddenBranchFormats.has(format) }"
+              @click="toggleBranchFormat(format)"
+            >
+              {{ format }}
+            </button>
+          </div>
           <RelationsGraph
             :chain-nodes="relatedChainNodes"
             :branch-nodes="relatedBranchNodes"
@@ -1150,6 +1202,36 @@ watch(
   text-transform: uppercase;
   letter-spacing: 0.03em;
   color: #d68a34;
+}
+.format-filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.format-filter-label {
+  font-size: 0.76rem;
+  color: #777;
+}
+.format-chip {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #d68a34;
+  background: rgba(214, 138, 52, 0.14);
+  border: 1px solid rgba(214, 138, 52, 0.35);
+  border-radius: 999px;
+  padding: 4px 12px;
+  cursor: pointer;
+}
+.format-chip:hover {
+  background: rgba(214, 138, 52, 0.22);
+}
+.format-chip.off {
+  color: #666;
+  background: transparent;
+  border-color: #2a2a2a;
+  text-decoration: line-through;
 }
 @media (max-width: 640px) {
   .hero-content {
