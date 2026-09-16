@@ -1142,7 +1142,10 @@ defineExpose({ openQuickAdd });
                 </div>
                 <div class="list-title-col">
                   <div class="list-title">{{ it.title }}</div>
-                  <div class="list-type">{{ it.format ?? typeLabel }}</div>
+                  <div class="list-type">
+                    {{ it.format ?? typeLabel
+                    }}<template v-if="it.releaseYear"> · {{ it.releaseYear }}</template>
+                  </div>
                   <div class="airing-tag" :class="{ invisible: !it.airing }">
                     <span class="dot"></span>Airing
                   </div>
