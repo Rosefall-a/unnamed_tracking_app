@@ -15,7 +15,10 @@ export default defineConfig({
     },
     proxy: {
       "/api": {
-        target: "http://backend:8000",
+        // Docker Compose overrides this with the backend service name;
+        // the central image uses localhost because both processes share
+        // the same network namespace.
+        target: process.env.BACKEND_URL || "http://127.0.0.1:8000",
         changeOrigin: true,
       },
     },
