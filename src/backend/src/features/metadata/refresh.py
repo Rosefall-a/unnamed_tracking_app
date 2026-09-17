@@ -17,6 +17,7 @@ import logging
 import time
 from dataclasses import dataclass, field
 from datetime import date
+from typing import Any
 
 from sqlalchemy import or_, select
 
@@ -232,32 +233,78 @@ async def _refresh_tv_season(show: TVShow, season: TVSeason, db) -> tuple[int, i
     return added, enriched
 
 
-def _heal_anime_metadata(client: AniListClient, show: Anime) -> bool:
-    """Backfills whichever of format/poster/backdrop/description/studios/
-    genres/runtime/score/anilist_id/external_id are still null, using a
-    known id rather than a fresh title search — a title search is what
-    creates these gaps in the first place (an unusual title can miss or
-    match the wrong entry), so it's not a trustworthy way to fix them
-    either. Prefers the stored AniList id; when only a MyAnimeList id is
-    known (added while AniList itself was unreachable/rate-limited, so
-    only Jikan matched), looks it up by that instead. Either way, also
-    recovers whichever of the two ids was still missing — AniList's own
-    data carries MyAnimeList's id for the same entry (`idMal`), and a
-    show missing that id can only ever get Jikan's richer per-episode
-    data (titles/synopses/air-dates) once it's recovered. A show with
-    neither id is left alone — nothing reliable to heal from. Returns
-    whether anything actually changed."""
-    entry = None
+def _normalize_title(title: str) -> str:
+    return " ".join(title.strip().lower().split())
+
+
+def _find_by_exact_title(client: AniListClient, title: str) -> dict[str, Any] | None:
+    """A show with neither id at all (added by hand, or added while both
+    AniList and Jikan were unreachable) has nothing to look up BY —
+    the only way to recover an id for one is a fresh title search, which
+    is exactly the kind of lookup that created these gaps elsewhere (a
+    loose match can land on the wrong entry). The risk is contained here
+    by requiring an EXACT title match (case/whitespace-insensitive) among
+    the search results and refusing anything looser — a real title, not
+    a guess, or nothing at all."""
+    try:
+        results = client.search(title, limit=5)
+    except AniListError:
+        return None
+    target = _normalize_title(title)
+    for entry in results:
+        if _normalize_title(entry.get("title") or "") == target:
+            return entry
+    return None
+
+
+def _find_anime_entry(client: AniListClient, show: Anime) -> dict[str, Any] | None:
+    """Looks up the one AniList entry to heal `show` from — a known id
+    over a fresh title search, since a title search is what creates these
+    gaps in the first place (an unusual title can miss or match the wrong
+    entry), so it's not trustworthy once a real id is already on hand.
+    Prefers the stored AniList id; when only a MyAnimeList id is known
+    (added while AniList itself was unreachable/rate-limited, so only
+    Jikan matched), looks it up by that instead. A show with NEITHER id
+    falls back to an exact-title-match search rather than being left
+    permanently unhealable — this is the common case for anything added
+    by hand or added while both providers were down."""
     if show.anilist_id:
         try:
-            entry = client.get_by_id(int(show.anilist_id))
+            return client.get_by_id(int(show.anilist_id))
         except (AniListError, ValueError):
-            return False
-    elif show.external_id:
+            return None
+    if show.external_id:
         try:
-            entry = client.get_by_mal_id(int(show.external_id))
+            return client.get_by_mal_id(int(show.external_id))
         except (AniListError, ValueError):
-            return False
+            return None
+    return _find_by_exact_title(client, show.title)
+
+
+# (show attribute, entry key) pairs backfilled only when the show's own
+# field is still blank — id fields are handled separately since they
+# need str(...) conversion and the season episode count lives one level
+# down, not a plain attribute of `show` itself.
+_HEALABLE_FIELDS: tuple[tuple[str, str], ...] = (
+    ("format", "format"),
+    ("poster_url", "poster_url"),
+    ("backdrop_url", "backdrop_url"),
+    ("description", "overview"),
+    ("studios", "studios"),
+    ("genres", "genres"),
+    ("episode_runtime_minutes", "episode_runtime_minutes"),
+)
+
+
+def _heal_anime_metadata(client: AniListClient, show: Anime) -> bool:
+    """Backfills whichever of format/poster/backdrop/description/studios/
+    genres/runtime/score/anilist_id/external_id are still null, from
+    `_find_anime_entry`. Also recovers whichever of the two ids was still
+    missing — AniList's own data carries MyAnimeList's id for the same
+    entry (`idMal`), and a show missing that id can only ever get Jikan's
+    richer per-episode data (titles/synopses/air-dates) once it's
+    recovered. Returns whether anything actually changed."""
+    entry = _find_anime_entry(client, show)
     if not entry:
         return False
 
@@ -268,27 +315,10 @@ def _heal_anime_metadata(client: AniListClient, show: Anime) -> bool:
     if show.external_id is None and entry.get("id_mal"):
         show.external_id = str(entry["id_mal"])
         changed = True
-    if show.format is None and entry.get("format"):
-        show.format = entry["format"]
-        changed = True
-    if show.poster_url is None and entry.get("poster_url"):
-        show.poster_url = entry["poster_url"]
-        changed = True
-    if show.backdrop_url is None and entry.get("backdrop_url"):
-        show.backdrop_url = entry["backdrop_url"]
-        changed = True
-    if show.description is None and entry.get("overview"):
-        show.description = entry["overview"]
-        changed = True
-    if not show.studios and entry.get("studios"):
-        show.studios = entry["studios"]
-        changed = True
-    if not show.genres and entry.get("genres"):
-        show.genres = entry["genres"]
-        changed = True
-    if show.episode_runtime_minutes is None and entry.get("episode_runtime_minutes"):
-        show.episode_runtime_minutes = entry["episode_runtime_minutes"]
-        changed = True
+    for attr, key in _HEALABLE_FIELDS:
+        if not getattr(show, attr) and entry.get(key):
+            setattr(show, attr, entry[key])
+            changed = True
     if show.anilist_score is None and entry.get("score") is not None:
         show.anilist_score = entry["score"]
         changed = True
@@ -306,10 +336,14 @@ async def heal_all_anime_metadata() -> int:
     Missing `external_id` is included because it silently caps episode
     quality forever otherwise: without it, episode sync can only ever use
     AniList's thin `streamingEpisodes` coverage, never Jikan's richer
-    per-episode titles/synopses/air-dates. A small pause between rows
-    paces requests the same way the relations chain walk does, so a
-    large backlog doesn't burn through AniList's rate limit in one
-    burst."""
+    per-episode titles/synopses/air-dates. A show with NEITHER id (added
+    by hand, or added while both providers were unreachable) is not
+    skipped either — `_heal_anime_metadata` falls back to an exact-title
+    search for those, which is the majority of what's actually stuck
+    with zero episode data, since episode sync has nothing to look up at
+    all without at least one real id. A small pause between rows paces
+    requests the same way the relations chain walk does, so a large
+    backlog doesn't burn through AniList's rate limit in one burst."""
     healed = 0
     client = AniListClient()
     async with SessionLocal() as db:
@@ -331,8 +365,6 @@ async def heal_all_anime_metadata() -> int:
             .all()
         )
         for show in shows:
-            if not (show.anilist_id or show.external_id):
-                continue
             await asyncio.sleep(0.3)
             try:
                 if _heal_anime_metadata(client, show):
