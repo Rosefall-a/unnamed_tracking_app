@@ -419,6 +419,13 @@ _MAX_CHAIN_HOPS = 8
 _MAX_BRANCHES = 24
 _CHAIN_RELATION_TYPES = {"PREQUEL", "SEQUEL"}
 
+# _expand_branch_chains checks at most this many top-level branches for a
+# hidden prequel/sequel of their own — each check is a real extra AniList
+# request, so this bounds an uncached relations fetch to a handful of
+# extra round trips instead of one per branch on a franchise with a lot
+# of them.
+_MAX_BRANCH_CHAIN_EXPANSIONS = 4
+
 # Relation types that read as clutter rather than a genuinely related
 # title — a shared-character cameo, or a clip-show/recap compilation —
 # so they're left out of the graph entirely rather than competing for
@@ -702,13 +709,75 @@ class AniListClient:
                 continue
             recommendations.append(_node_to_dict(node))
 
+        branches = self._order_related_branches(
+            _collect_branches(nodes, anchor["id"], chain_ids)
+        )
+        seen_ids = set(chain_ids) | {b["id"] for b in branches}
+        branches.extend(self._expand_branch_chains(branches, seen_ids))
+
         return {
             "chain": chain,
-            "branches": self._order_related_branches(
-                _collect_branches(nodes, anchor["id"], chain_ids)
-            ),
+            "branches": branches,
             "recommendations": recommendations,
         }
+
+    def _expand_branch_chains(
+        self, branches: list[dict[str, Any]], seen_ids: set[int]
+    ) -> list[dict[str, Any]]:
+        """A top-level branch can have its own prequel/sequel that's
+        invisible from the anchor's own relations — e.g. Bleach's "BURN
+        THE WITCH" ONA has its own prequel special ("BURN THE WITCH
+        #0.8") that's only a relation of the ONA itself, one hop past
+        what `_collect_branches` ever looks at (the anchor's direct
+        relations only). One extra fetch per still-top-level branch,
+        pulling in any PREQUEL/SEQUEL neighbor not already known and
+        nesting it under that branch (`anchor_kind: "branch"`) — the
+        same nested-branch shape `_order_related_branches` already
+        produces for a duology it detects. Single hop only (not a full
+        walk), restricted to short-form formats that actually tend to
+        have their own mini-chain (OVA/ONA/Special/One Shot — a movie or
+        source manga essentially never does), and capped to a handful of
+        extra fetches total — this is a real AniList request per branch
+        checked, and a franchise with a dozen+ branches would otherwise
+        turn one relations fetch into a dozen+ more, which is a bad
+        trade for a detail few branches actually have."""
+        candidates = [
+            b
+            for b in branches
+            if b["anchor_kind"] == "show"
+            and (b.get("format") or "").lower() in {"ova", "ona", "special", "one shot"}
+        ]
+        extra: list[dict[str, Any]] = []
+        checked = 0
+        for branch in candidates:
+            if checked >= _MAX_BRANCH_CHAIN_EXPANSIONS:
+                break
+            checked += 1
+            time.sleep(_PACING_SECONDS)
+            try:
+                node = self._fetch_relations_node(media_id=branch["id"])
+            except AniListError:
+                continue
+            if not node:
+                continue
+            for edge in (node.get("relations") or {}).get("edges") or []:
+                rtype = edge.get("relationType")
+                target = edge.get("node")
+                if rtype not in _CHAIN_RELATION_TYPES or not target:
+                    continue
+                target_id = target["id"]
+                if target_id in seen_ids:
+                    continue
+                seen_ids.add(target_id)
+                extra.append(
+                    {
+                        "anchor_id": branch["id"],
+                        "anchor_kind": "branch",
+                        "relation_label": _RELATION_LABELS.get(rtype, "Related"),
+                        **_node_to_dict(target),
+                    }
+                )
+        return extra
 
     def _fetch_group_prequel_pointers(
         self, group: list[dict[str, Any]], ids: set[int]

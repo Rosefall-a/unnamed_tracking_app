@@ -144,21 +144,30 @@ function timelineCx(year: number, chain: { cx: number; node: ChainNode }[]): num
   return null;
 }
 
+const ROW_MIN_GAP = NODE_W + 40;
+
 // Greedily rows out a set of already-cx-placed nodes into alternating
 // above/below rows (1, -1, 2, -2, ...), skipping to the next row a node
 // would otherwise horizontally collide in — the same guaranteed-gap
 // principle the old depth-based layout used, just driven by real
-// horizontal position instead of an anchor-relative column.
-function assignTimelineRows<T extends { cx: number }>(items: T[]): (T & { slot: number })[] {
-  const minGap = NODE_W + 40;
-  const placedByRow = new Map<number, number[]>();
+// horizontal position instead of an anchor-relative column. Takes the
+// row-occupancy map by reference (rather than building its own) so it
+// can be seeded with positions another pass already placed — the
+// timeline pass and the fixed-depth "side" pass both draw from the same
+// map, or a movie whose interpolated year lands near the anchor can
+// silently land in the exact row/column a source-manga branch already
+// occupies there.
+function assignRows<T extends { cx: number }>(
+  items: T[],
+  placedByRow: Map<number, number[]>,
+): (T & { slot: number })[] {
   const rowOrder: number[] = [];
-  for (let i = 1; i <= 8; i++) rowOrder.push(i, -i);
+  for (let i = 1; i <= 12; i++) rowOrder.push(i, -i);
   return items.map((item) => {
     let slot = rowOrder[rowOrder.length - 1];
     for (const row of rowOrder) {
       const placed = placedByRow.get(row) ?? [];
-      if (!placed.some((cx) => Math.abs(cx - item.cx) < minGap)) {
+      if (!placed.some((cx) => Math.abs(cx - item.cx) < ROW_MIN_GAP)) {
         slot = row;
         break;
       }
@@ -199,26 +208,19 @@ const branchCounts = computed(() => {
     );
     const sideRoots = roots.filter((n) => !timelineRoots.includes(n));
 
-    // ---- timeline-positioned roots (movies/OVAs/ONAs/specials) ----
-    const withCx = timelineRoots
-      .map((n) => ({ node: n, cx: timelineCx(n.year as number, chain) as number }))
-      .sort((a, b) => a.cx - b.cx);
-    for (const { node, cx, slot } of assignTimelineRows(withCx)) {
-      const cy = (anchor?.cy ?? 0) + slot * ROW_H;
-      result.push({ node, cx, cy, anchor });
-      posById.set(node.id, { cx, cy });
-      // A rare nested child (e.g. two movies that are themselves a
-      // sequel pair) sits one short step further along from its parent
-      // rather than getting its own timeline slot.
-      for (const kid of childrenOf.get(node.id) ?? []) {
-        const kidCx = cx + BRANCH_SPACING * 0.6;
-        result.push({ node: kid, cx: kidCx, cy, anchor: { cx, cy } });
-        posById.set(kid.id, { cx: kidCx, cy });
-      }
-    }
+    // Shared row-occupancy map across BOTH passes below — a movie
+    // placed by release year and a source-manga branch placed by fixed
+    // depth can easily land at overlapping X (the anchor's own
+    // near-field is exactly where an early-year movie often interpolates
+    // to), so both passes have to see the same "what's already in this
+    // row" picture rather than two independent ones that can each think
+    // a row is free.
+    const occupiedByRow = new Map<number, number[]>();
 
     // ---- side roots (source manga/novels, music, anything undated) —
-    // unchanged from before: banded and stacked out from the anchor ----
+    // banded and stacked out from the anchor at a fixed depth; placed
+    // first since their X is deterministic, so the timeline pass below
+    // can route around wherever they land ----
     const byBand = [0, 1, 2].map((band) => sideRoots.filter((n) => branchBand(n.type) === band));
     const [specials, mainSeries, manga] = byBand;
     const mainUpper: BranchNode[] = [];
@@ -257,9 +259,31 @@ const branchCounts = computed(() => {
       const parentPos = node.parentBranchId ? posById.get(node.parentBranchId) : undefined;
       result.push({ node, cx, cy, anchor: parentPos ?? anchor });
       posById.set(node.id, { cx, cy });
+      const rowKey = Math.round(slot);
+      const occupied = occupiedByRow.get(rowKey) ?? [];
+      occupied.push(cx);
+      occupiedByRow.set(rowKey, occupied);
       for (const kid of childrenOf.get(node.id) ?? []) place(kid);
     }
     for (const root of sideRoots) place(root);
+
+    // ---- timeline-positioned roots (movies/OVAs/ONAs/specials) ----
+    const withCx = timelineRoots
+      .map((n) => ({ node: n, cx: timelineCx(n.year as number, chain) as number }))
+      .sort((a, b) => a.cx - b.cx);
+    for (const { node, cx, slot } of assignRows(withCx, occupiedByRow)) {
+      const cy = (anchor?.cy ?? 0) + slot * ROW_H;
+      result.push({ node, cx, cy, anchor });
+      posById.set(node.id, { cx, cy });
+      // A rare nested child (e.g. two movies that are themselves a
+      // sequel pair) sits one short step further along from its parent
+      // rather than getting its own timeline slot.
+      for (const kid of childrenOf.get(node.id) ?? []) {
+        const kidCx = cx + BRANCH_SPACING * 0.6;
+        result.push({ node: kid, cx: kidCx, cy, anchor: { cx, cy } });
+        posById.set(kid.id, { cx: kidCx, cy });
+      }
+    }
   }
   return result;
 });
