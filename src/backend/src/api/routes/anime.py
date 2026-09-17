@@ -365,20 +365,18 @@ async def list_episodes(
     current_user: User = Depends(get_current_user),
 ) -> Anime:
     """Return the season's episodes, syncing them in on the very first
-    request. Jikan (richer data — synopsis, air dates) is tried first when
-    the show has an `external_id`; if Jikan is unreachable or the show was
-    never matched on MyAnimeList, AniList's `streamingEpisodes` is tried
-    next as a fallback (thinner data — no air date/synopsis, but real
-    titles and thumbnails) when an `anilist_id` is known. Nothing to sync
-    from if neither id is set (added by hand, or found by neither
-    provider). Every later call reads straight from the table instead of
-    re-fetching."""
+    request. Fetches from every provider with a known id (Jikan, AniList,
+    Kitsu) and merges their results per field rather than using one as a
+    strict fallback for another — see `fetch_episodes_with_fallback`.
+    Nothing to sync from if no id is set at all (added by hand, or found
+    by no provider). Every later call reads straight from the table
+    instead of re-fetching."""
     show = await _get_show_or_404(show_id, db, current_user.id)
     season = await _get_season_or_404(season_id, show_id, db)
 
-    if not season.episodes and (show.external_id or show.anilist_id):
+    if not season.episodes and (show.external_id or show.anilist_id or show.kitsu_id):
         all_episodes, errors = await fetch_episodes_with_fallback(
-            show.external_id, show.anilist_id
+            show.external_id, show.anilist_id, show.kitsu_id
         )
         if not all_episodes and errors:
             raise HTTPException(

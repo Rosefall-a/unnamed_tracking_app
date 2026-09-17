@@ -34,6 +34,7 @@ from src.features.metadata.anime.episode_sync import (
     needs_tmdb_backfill,
     pad_to_known_total,
 )
+from src.features.metadata.anime.kitsu import KitsuClient, KitsuError
 from src.features.metadata.tv.episode_sync import fetch_is_airing, fetch_season_episodes
 
 logger = logging.getLogger(__name__)
@@ -123,9 +124,11 @@ async def _refresh_anime_season(db, show: Anime, season: AnimeSeason) -> tuple[i
     that didn't exist yet; enriched is existing bare placeholder rows
     that just got a real title/image now that better data is available
     (e.g. a TMDB key was added after the first sync)."""
-    if not (show.external_id or show.anilist_id):
+    if not (show.external_id or show.anilist_id or show.kitsu_id):
         return 0, 0
-    all_episodes, errors = await fetch_episodes_with_fallback(show.external_id, show.anilist_id)
+    all_episodes, errors = await fetch_episodes_with_fallback(
+        show.external_id, show.anilist_id, show.kitsu_id
+    )
     if errors:
         logger.warning("Anime refresh couldn't reach a provider for %r: %s", show.title, "; ".join(errors))
     if not all_episodes:
@@ -298,52 +301,64 @@ _HEALABLE_FIELDS: tuple[tuple[str, str], ...] = (
 
 def _heal_anime_metadata(client: AniListClient, show: Anime) -> bool:
     """Backfills whichever of format/poster/backdrop/description/studios/
-    genres/runtime/score/anilist_id/external_id are still null, from
-    `_find_anime_entry`. Also recovers whichever of the two ids was still
-    missing — AniList's own data carries MyAnimeList's id for the same
-    entry (`idMal`), and a show missing that id can only ever get Jikan's
-    richer per-episode data (titles/synopses/air-dates) once it's
-    recovered. Returns whether anything actually changed."""
-    entry = _find_anime_entry(client, show)
-    if not entry:
-        return False
-
+    genres/runtime/score/anilist_id/external_id/kitsu_id are still null.
+    Recovers whichever of the AniList/MyAnimeList ids was still missing
+    from `_find_anime_entry` — AniList's own data carries MyAnimeList's
+    id for the same entry (`idMal`), and a show missing that id can only
+    ever get Jikan's richer per-episode data (titles/synopses/air-dates)
+    once it's recovered. Kitsu has no such cross-reference, so its id is
+    recovered separately via its own exact-title search. Returns whether
+    anything actually changed."""
     changed = False
-    if show.anilist_id is None and entry.get("id"):
-        show.anilist_id = str(entry["id"])
-        changed = True
-    if show.external_id is None and entry.get("id_mal"):
-        show.external_id = str(entry["id_mal"])
-        changed = True
-    for attr, key in _HEALABLE_FIELDS:
-        if not getattr(show, attr) and entry.get(key):
-            setattr(show, attr, entry[key])
+
+    entry = _find_anime_entry(client, show)
+    if entry:
+        if show.anilist_id is None and entry.get("id"):
+            show.anilist_id = str(entry["id"])
             changed = True
-    if show.anilist_score is None and entry.get("score") is not None:
-        show.anilist_score = entry["score"]
-        changed = True
-    if entry.get("episode_count") and show.seasons and show.seasons[0].episode_count is None:
-        show.seasons[0].episode_count = entry["episode_count"]
-        changed = True
+        if show.external_id is None and entry.get("id_mal"):
+            show.external_id = str(entry["id_mal"])
+            changed = True
+        for attr, key in _HEALABLE_FIELDS:
+            if not getattr(show, attr) and entry.get(key):
+                setattr(show, attr, entry[key])
+                changed = True
+        if show.anilist_score is None and entry.get("score") is not None:
+            show.anilist_score = entry["score"]
+            changed = True
+        if entry.get("episode_count") and show.seasons and show.seasons[0].episode_count is None:
+            show.seasons[0].episode_count = entry["episode_count"]
+            changed = True
+
+    if show.kitsu_id is None:
+        try:
+            kitsu_id = KitsuClient().find_exact(show.title)
+        except KitsuError:
+            kitsu_id = None
+        if kitsu_id:
+            show.kitsu_id = kitsu_id
+            changed = True
+
     return changed
 
 
 async def heal_all_anime_metadata() -> int:
     """Sweeps every non-deleted anime row for one missing enough to be
-    worth a lookup (no format, poster, AniList id, or MyAnimeList id yet)
-    and backfills it — the self-healing counterpart to the manual "delete
-    and re-add" fix a title with a failed metadata match used to need.
-    Missing `external_id` is included because it silently caps episode
-    quality forever otherwise: without it, episode sync can only ever use
-    AniList's thin `streamingEpisodes` coverage, never Jikan's richer
-    per-episode titles/synopses/air-dates. A show with NEITHER id (added
-    by hand, or added while both providers were unreachable) is not
-    skipped either — `_heal_anime_metadata` falls back to an exact-title
-    search for those, which is the majority of what's actually stuck
-    with zero episode data, since episode sync has nothing to look up at
-    all without at least one real id. A small pause between rows paces
-    requests the same way the relations chain walk does, so a large
-    backlog doesn't burn through AniList's rate limit in one burst."""
+    worth a lookup (no format, poster, AniList id, MyAnimeList id, or
+    Kitsu id yet) and backfills it — the self-healing counterpart to the
+    manual "delete and re-add" fix a title with a failed metadata match
+    used to need. Missing `external_id`/`kitsu_id` are included because
+    they silently cap episode quality forever otherwise: without them,
+    episode sync can only ever use whichever provider's id it does have,
+    never merge in the other two's data. A show with NEITHER AniList nor
+    MyAnimeList id (added by hand, or added while both providers were
+    unreachable) is not skipped either — `_heal_anime_metadata` falls
+    back to an exact-title search for those, which is the majority of
+    what's actually stuck with zero episode data, since episode sync has
+    nothing to look up at all without at least one real id. A small
+    pause between rows paces requests the same way the relations chain
+    walk does, so a large backlog doesn't burn through AniList's rate
+    limit in one burst."""
     healed = 0
     client = AniListClient()
     async with SessionLocal() as db:
@@ -357,6 +372,7 @@ async def heal_all_anime_metadata() -> int:
                             Anime.poster_url.is_(None),
                             Anime.anilist_id.is_(None),
                             Anime.external_id.is_(None),
+                            Anime.kitsu_id.is_(None),
                         ),
                     )
                 )

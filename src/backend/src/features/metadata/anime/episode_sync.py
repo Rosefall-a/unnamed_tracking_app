@@ -1,7 +1,7 @@
 """Fetching a show's episode list from whichever provider has it, shared
 between the on-demand route (api/routes/anime.py) and the weekly
 background refresh (features/metadata/refresh.py) — one place for the
-Jikan -> AniList -> TMDB fallback chain instead of duplicating it."""
+Jikan + AniList + Kitsu + TMDB merge instead of duplicating it."""
 
 from __future__ import annotations
 
@@ -10,52 +10,51 @@ from typing import Any
 
 from src.features.metadata.anime.anilist import AniListClient, AniListError
 from src.features.metadata.anime.jikan import JikanClient, JikanError
+from src.features.metadata.anime.kitsu import KitsuClient, KitsuError
 from src.features.metadata.movies.tmdb import TMDBClient, TMDBError
 
 
-def _merge_episode_sources(
-    jikan_episodes: list[dict[str, Any]], anilist_episodes: list[dict[str, Any]]
-) -> list[dict[str, Any]]:
-    """Combines both providers' episode lists by episode number instead
-    of picking one — neither provider alone is complete. Jikan has real
-    titles/synopses/air-dates but its v4 API has no per-episode image
-    field at all (`still_url` is always null from `JikanClient.episodes`);
-    AniList's `streamingEpisodes` has thumbnails but no air date/synopsis,
-    and only thinly covers long-running shows. Merged per field, keeping
-    whichever source already has a value for the fields Jikan won under
-    the old either-or fallback (title/description/air_date/runtime) and
-    filling in AniList's data (chiefly `still_url`) for whatever's still
-    blank — this is the fix for episodes syncing with a real title but a
-    permanently missing thumbnail."""
-    by_number: dict[int, dict[str, Any]] = {
-        entry["episode_number"]: dict(entry) for entry in anilist_episodes
-    }
-    for entry in jikan_episodes:
-        existing = by_number.get(entry["episode_number"])
-        if existing is None:
-            by_number[entry["episode_number"]] = dict(entry)
-            continue
-        for key, value in entry.items():
-            if value is not None and not existing.get(key):
-                existing[key] = value
+def _merge_episode_sources(*sources: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Combines any number of providers' episode lists by episode number
+    instead of picking one — no single provider is complete. Jikan has
+    real titles/synopses/air-dates but its v4 API has no per-episode
+    image field at all; AniList's `streamingEpisodes` has thumbnails but
+    no air date/synopsis and only thinly covers long-running shows;
+    Kitsu has its own independent thumbnails and synopses with its own
+    (also incomplete) coverage. Merged per field — the first source
+    passed wins a field it has a value for, later sources only fill in
+    whatever's still blank — so three thin sources add up to one much
+    more complete one instead of each other's gaps staying permanent."""
+    by_number: dict[int, dict[str, Any]] = {}
+    for source in sources:
+        for entry in source:
+            existing = by_number.get(entry["episode_number"])
+            if existing is None:
+                by_number[entry["episode_number"]] = dict(entry)
+                continue
+            for key, value in entry.items():
+                if value is not None and not existing.get(key):
+                    existing[key] = value
     return sorted(by_number.values(), key=lambda e: e["episode_number"])
 
 
 async def fetch_episodes_with_fallback(
-    external_id: str | None, anilist_id: str | None
+    external_id: str | None, anilist_id: str | None, kitsu_id: str | None = None
 ) -> tuple[list[dict[str, Any]], list[str]]:
-    """Fetches from both Jikan (richer data — synopsis, air dates, but no
-    episode images) and AniList (`streamingEpisodes` — thumbnails, but
-    thinner coverage) whenever both ids are known, and merges them rather
-    than using one as a strict fallback for the other — using only one
-    left whatever that provider was structurally missing (usually
-    Jikan's total lack of episode images) permanently unfillable even
-    after the other provider had the data all along. Returns
-    `(episodes, errors)` rather than raising, so a caller with no HTTP
-    request behind it (the background refresh) can just log errors
-    instead of needing to turn them into an HTTPException."""
+    """Fetches from every provider with a known id — Jikan (richer data —
+    synopsis, air dates, but no episode images at all), AniList
+    (`streamingEpisodes` — thumbnails, but thinner coverage), and Kitsu
+    (its own independent thumbnails/synopses) — and merges them rather
+    than using one as a strict fallback for another, so whatever one
+    provider is structurally missing (Jikan's total lack of episode
+    images, in particular) has two other chances to be filled in instead
+    of staying permanently blank. Returns `(episodes, errors)` rather
+    than raising, so a caller with no HTTP request behind it (the
+    background refresh) can just log errors instead of needing to turn
+    them into an HTTPException."""
     jikan_episodes: list[dict[str, Any]] = []
     anilist_episodes: list[dict[str, Any]] = []
+    kitsu_episodes: list[dict[str, Any]] = []
     errors: list[str] = []
     if external_id:
         try:
@@ -67,9 +66,14 @@ async def fetch_episodes_with_fallback(
             anilist_episodes = await asyncio.to_thread(AniListClient().episodes, anilist_id)
         except AniListError as exc:
             errors.append(f"AniList: {exc}")
-    if not jikan_episodes and not anilist_episodes:
+    if kitsu_id:
+        try:
+            kitsu_episodes = await asyncio.to_thread(KitsuClient().episodes, kitsu_id)
+        except KitsuError as exc:
+            errors.append(f"Kitsu: {exc}")
+    if not jikan_episodes and not anilist_episodes and not kitsu_episodes:
         return [], errors
-    return _merge_episode_sources(jikan_episodes, anilist_episodes), errors
+    return _merge_episode_sources(jikan_episodes, anilist_episodes, kitsu_episodes), errors
 
 
 async def fetch_airing_status(

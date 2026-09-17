@@ -110,6 +110,11 @@ class Anime(Base):
     # unknown. Two independent episode sources instead of one single point
     # of failure.
     anilist_id: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    # Kitsu's own id — a third, keyless episode-data source alongside
+    # AniList and MyAnimeList, with real per-episode thumbnails that
+    # Jikan's API has none of at all. Stored once found so episode sync
+    # doesn't repeat the title search on every fetch.
+    kitsu_id: Mapped[str | None] = mapped_column(String(50), nullable=True)
 
     # NULL until the airing-check loop has actually looked (nothing to
     # filter on yet); True/False once AniList's own nextAiringEpisode
