@@ -822,7 +822,16 @@ class AniListClient:
             groups.setdefault((b["anchor_id"], b["relation_label"]), []).append(i)
 
         for positions in groups.values():
-            if len(positions) < 2:
+            # A real duology/trilogy is 2-4 members; a large group sharing
+            # a label (e.g. two dozen movies/specials all loosely tagged
+            # "Sequel" to the main show, which AniList uses as a catch-all
+            # far more often than a genuine narrative chain) is a shared
+            # bucket, not a chain — reparenting all of them nose-to-tail
+            # would turn 24 independent branches into one 24-deep nested
+            # chain the graph has no legible way to draw, and the ids
+            # inside it were never meant to represent "watch this right
+            # after that" the way a real duology's mutual PREQUEL edges do.
+            if not 2 <= len(positions) <= 4:
                 continue
             group = [branches[i] for i in positions]
             ids = {b["id"] for b in group}

@@ -21,6 +21,7 @@ import EpisodeList from "../components/EpisodeList.vue";
 import RelationsGraph from "../components/RelationsGraph.vue";
 import type { ChainNode, BranchNode } from "../components/RelationsGraph.vue";
 import MediaPreviewModal from "../components/MediaPreviewModal.vue";
+import ConfirmPopup from "../components/ConfirmPopup.vue";
 import {
   STATUS_BUCKETS,
   statusBucket,
@@ -157,15 +158,45 @@ async function loadAllEpisodes() {
   }
 }
 
+// Checking off an episode on a show that's still Plan to Watch or On
+// Hold almost always means "I'm starting/resuming this" — asked once
+// per visit rather than nagging on every single episode, and only when
+// moving *toward* watched (unwatching one back never prompts).
+const showMoveToWatchingPrompt = ref(false);
+const moveToWatchingPromptShown = ref(false);
+function maybePromptMoveToWatching() {
+  if (!show.value || moveToWatchingPromptShown.value) return;
+  const bucket = statusBucket(show.value.status);
+  if (bucket !== "plan" && bucket !== "hold") return;
+  moveToWatchingPromptShown.value = true;
+  showMoveToWatchingPrompt.value = true;
+}
+async function confirmMoveToWatching(move: boolean) {
+  showMoveToWatchingPrompt.value = false;
+  if (!move || !show.value) return;
+  const previous = show.value.status;
+  show.value.status = "in progress";
+  try {
+    show.value = await updateTVShow(show.value.id, {
+      ...tvShowToInput(show.value),
+      status: "in progress",
+    });
+  } catch {
+    if (show.value) show.value.status = previous;
+  }
+}
+
 async function onToggleEpisodeWatched(seasonId: string, episodeId: string) {
   if (!show.value) return;
   const season = show.value.seasons.find((s) => s.id === seasonId);
   const episode = season?.episodes.find((e) => e.id === episodeId);
   if (!episode) return;
+  const markingWatched = !episode.watched;
   try {
     show.value = await updateEpisode(show.value.id, seasonId, episodeId, {
-      watched: !episode.watched,
+      watched: markingWatched,
     });
+    if (markingWatched) maybePromptMoveToWatching();
   } catch (e) {
     episodesError.value =
       e instanceof Error ? e.message : "Failed to update episode.";
@@ -185,6 +216,7 @@ async function onBulkSetEpisodesWatched(
       episodeIds,
       watched,
     );
+    if (watched) maybePromptMoveToWatching();
   } catch (e) {
     episodesError.value =
       e instanceof Error ? e.message : "Failed to update episodes.";
@@ -398,6 +430,7 @@ watch(
     relatedLoaded.value = false;
     recommendedLoaded.value = false;
     previewOpen.value = false;
+    moveToWatchingPromptShown.value = false;
     load();
   },
   { immediate: true },
@@ -742,6 +775,15 @@ watch(
       :error="previewError"
       @add="addPreviewToLibrary"
       @close="closePreview"
+    />
+
+    <ConfirmPopup
+      v-if="showMoveToWatchingPrompt"
+      message="Move this to Watching?"
+      confirm-label="Move to Watching"
+      cancel-label="Leave as is"
+      @confirm="confirmMoveToWatching(true)"
+      @cancel="confirmMoveToWatching(false)"
     />
   </main>
 </template>

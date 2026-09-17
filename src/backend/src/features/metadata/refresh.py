@@ -240,7 +240,9 @@ def _normalize_title(title: str) -> str:
     return " ".join(title.strip().lower().split())
 
 
-def _find_by_exact_title(client: AniListClient, title: str) -> dict[str, Any] | None:
+def _find_by_exact_title(
+    client: AniListClient, title: str, year: int | None = None
+) -> dict[str, Any] | None:
     """A show with neither id at all (added by hand, or added while both
     AniList and Jikan were unreachable) has nothing to look up BY —
     the only way to recover an id for one is a fresh title search, which
@@ -248,15 +250,29 @@ def _find_by_exact_title(client: AniListClient, title: str) -> dict[str, Any] | 
     loose match can land on the wrong entry). The risk is contained here
     by requiring an EXACT title match (case/whitespace-insensitive) among
     the search results and refusing anything looser — a real title, not
-    a guess, or nothing at all."""
+    a guess, or nothing at all.
+
+    Title alone still isn't always enough: an early OVA/movie and a much
+    later TV series in the same franchise can share the exact same
+    display title (confirmed for real on Kitsu — see `KitsuClient.
+    find_exact`'s docstring — and the same shape of ambiguity can happen
+    here), so a title-only match can silently pick the wrong decades-
+    apart entry. When `year` is known, a candidate more than a year off
+    is rejected even though its title matched."""
     try:
         results = client.search(title, limit=5)
     except AniListError:
         return None
     target = _normalize_title(title)
     for entry in results:
-        if _normalize_title(entry.get("title") or "") == target:
-            return entry
+        if _normalize_title(entry.get("title") or "") != target:
+            continue
+        if year is not None:
+            release_date = entry.get("release_date") or ""
+            entry_year = int(release_date[:4]) if release_date[:4].isdigit() else None
+            if entry_year is None or abs(entry_year - year) > 1:
+                continue
+        return entry
     return None
 
 
@@ -281,7 +297,8 @@ def _find_anime_entry(client: AniListClient, show: Anime) -> dict[str, Any] | No
             return client.get_by_mal_id(int(show.external_id))
         except (AniListError, ValueError):
             return None
-    return _find_by_exact_title(client, show.title)
+    year = show.first_air_date.year if show.first_air_date else None
+    return _find_by_exact_title(client, show.title, year)
 
 
 # (show attribute, entry key) pairs backfilled only when the show's own
@@ -331,8 +348,9 @@ def _heal_anime_metadata(client: AniListClient, show: Anime) -> bool:
             changed = True
 
     if show.kitsu_id is None:
+        kitsu_year = show.first_air_date.year if show.first_air_date else None
         try:
-            kitsu_id = KitsuClient().find_exact(show.title)
+            kitsu_id = KitsuClient().find_exact(show.title, kitsu_year)
         except KitsuError:
             kitsu_id = None
         if kitsu_id:

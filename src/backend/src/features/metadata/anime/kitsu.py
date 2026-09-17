@@ -27,14 +27,25 @@ class KitsuClient:
     def __init__(self, *, session: requests.Session | None = None) -> None:
         self.session = session or requests.Session()
 
-    def find_exact(self, title: str) -> str | None:
+    def find_exact(self, title: str, year: int | None = None) -> str | None:
         """Searches by title and returns the id only when a result's own
         title matches exactly (case/whitespace-insensitive) — the same
         safety net `_find_by_exact_title` uses for AniList, so a search
         miss never silently attaches episode data from an unrelated
         show. Checks both the canonical title and any alternate titles
         Kitsu lists, since its canonical title is sometimes the Japanese
-        romaji rather than the English name this app stores."""
+        romaji rather than the English name this app stores.
+
+        Title alone is not always enough to disambiguate, though: Kitsu's
+        `en_us` field for a franchise's TV series can be the bare title
+        with no year/season qualifier (e.g. "JoJo's Bizarre Adventure"
+        for the 2012 TV series) while the real match — an earlier OVA of
+        the same franchise — carries the qualifier instead (e.g. "JoJo's
+        Bizarre Adventure (1993)"), so an exact-title check alone picks
+        the wrong one. When `year` is given, a candidate is only accepted
+        if its own start year is within 1 of it; a title match with a
+        wildly different year is treated as no match rather than a
+        confident one."""
         try:
             response = self.session.get(
                 f"{_BASE_URL}/anime",
@@ -54,8 +65,14 @@ class KitsuClient:
         for entry in payload.get("data") or []:
             attrs = entry.get("attributes") or {}
             candidates = [attrs.get("canonicalTitle")] + list((attrs.get("titles") or {}).values())
-            if any(c and _normalize_title(c) == target for c in candidates):
-                return str(entry["id"])
+            if not any(c and _normalize_title(c) == target for c in candidates):
+                continue
+            if year is not None:
+                start_date = attrs.get("startDate") or ""
+                candidate_year = int(start_date[:4]) if start_date[:4].isdigit() else None
+                if candidate_year is None or abs(candidate_year - year) > 1:
+                    continue
+            return str(entry["id"])
         return None
 
     def episodes(self, kitsu_id: str) -> list[dict[str, Any]]:
@@ -86,10 +103,18 @@ class KitsuClient:
                 if number is None:
                     continue
                 thumb = attrs.get("thumbnail") or {}
+                # Kitsu uses the same literal "Untitled" placeholder
+                # AniList does when the episode has no real title — kept
+                # as None so a richer source (Jikan, TMDB) still gets a
+                # chance to fill it in on merge, instead of "Untitled"
+                # counting as an already-known title forever.
+                title = attrs.get("canonicalTitle")
+                if title and title.strip().lower() == "untitled":
+                    title = None
                 results.append(
                     {
                         "episode_number": number,
-                        "title": attrs.get("canonicalTitle"),
+                        "title": title,
                         "description": attrs.get("synopsis") or None,
                         "air_date": attrs.get("airdate"),
                         "runtime_minutes": attrs.get("length"),

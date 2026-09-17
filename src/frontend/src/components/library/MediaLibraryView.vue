@@ -2,6 +2,7 @@
 import { ref, computed, reactive, watch } from "vue";
 import { useRouter } from "vue-router";
 import { currentUser } from "../../state/auth";
+import CheckIcon from "../CheckIcon.vue";
 import {
   STATUS_BUCKETS,
   statusBucket,
@@ -1137,7 +1138,7 @@ defineExpose({ openQuickAdd });
                     :class="{ checked: selectedIds.has(it.id) }"
                     @click.stop="toggleSelectItem(it.id)"
                   >
-                    <span v-if="selectedIds.has(it.id)">✓</span>
+                    <CheckIcon v-if="selectedIds.has(it.id)" />
                   </div>
                 </div>
                 <div class="list-title-col">
@@ -1294,7 +1295,7 @@ defineExpose({ openQuickAdd });
                   :class="{ checked: selectedIds.has(it.id) }"
                   @click.stop="toggleSelectItem(it.id)"
                 >
-                  <span v-if="selectedIds.has(it.id)">✓</span>
+                  <CheckIcon v-if="selectedIds.has(it.id)" />
                 </div>
                 <span v-if="computedRank(it)" class="shelf-rank rank-badge"
                   >#{{ computedRank(it) }}</span
@@ -1462,7 +1463,7 @@ defineExpose({ openQuickAdd });
                     :class="{ checked: selectedIds.has(it.id) }"
                     @click.stop="toggleSelectItem(it.id)"
                   >
-                    <span v-if="selectedIds.has(it.id)">✓</span>
+                    <CheckIcon v-if="selectedIds.has(it.id)" />
                   </div>
                   <span v-if="computedRank(it)" class="board-rank rank-badge"
                     >#{{ computedRank(it) }}</span

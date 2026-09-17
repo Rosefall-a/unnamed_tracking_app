@@ -5,6 +5,7 @@
 // loaded/synced by the caller before this renders; this component is
 // purely display + the two per-episode actions.
 import { computed, ref, watch } from "vue";
+import CheckIcon from "./CheckIcon.vue";
 
 export interface EpisodeVM {
   id: string;
@@ -150,7 +151,7 @@ function goToPage(p: number) {
         :title="ep.watched ? 'Mark unwatched (shift-click for a range)' : 'Mark watched (shift-click for a range)'"
         @click="onCheckboxClick($event, ep)"
       >
-        <span v-if="ep.watched">✓</span>
+        <CheckIcon v-if="ep.watched" />
       </button>
       <div
         class="episode-thumb"

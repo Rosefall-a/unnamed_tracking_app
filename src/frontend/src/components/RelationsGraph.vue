@@ -271,18 +271,25 @@ const branchCounts = computed(() => {
     const withCx = timelineRoots
       .map((n) => ({ node: n, cx: timelineCx(n.year as number, chain) as number }))
       .sort((a, b) => a.cx - b.cx);
+    // A nested child (e.g. two movies that are themselves a sequel pair)
+    // sits one short step further along from its parent rather than
+    // getting its own timeline slot — walked recursively so a genuine
+    // multi-member chain (a trilogy, not just a duology) renders every
+    // link instead of only the first, matching how the side-branch
+    // `place()` above already recurses through its own children.
+    function placeTimelineChild(parentNode: BranchNode, parentCx: number, cy: number) {
+      for (const kid of childrenOf.get(parentNode.id) ?? []) {
+        const kidCx = parentCx + BRANCH_SPACING * 0.6;
+        result.push({ node: kid, cx: kidCx, cy, anchor: { cx: parentCx, cy } });
+        posById.set(kid.id, { cx: kidCx, cy });
+        placeTimelineChild(kid, kidCx, cy);
+      }
+    }
     for (const { node, cx, slot } of assignRows(withCx, occupiedByRow)) {
       const cy = (anchor?.cy ?? 0) + slot * ROW_H;
       result.push({ node, cx, cy, anchor });
       posById.set(node.id, { cx, cy });
-      // A rare nested child (e.g. two movies that are themselves a
-      // sequel pair) sits one short step further along from its parent
-      // rather than getting its own timeline slot.
-      for (const kid of childrenOf.get(node.id) ?? []) {
-        const kidCx = cx + BRANCH_SPACING * 0.6;
-        result.push({ node: kid, cx: kidCx, cy, anchor: { cx, cy } });
-        posById.set(kid.id, { cx: kidCx, cy });
-      }
+      placeTimelineChild(node, cx, cy);
     }
   }
   return result;
