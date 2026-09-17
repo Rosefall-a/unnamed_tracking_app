@@ -874,7 +874,6 @@ watch(
 }
 .description-block {
   margin-top: 22px;
-  max-width: 72ch;
 }
 .description {
   font-size: 0.96rem;

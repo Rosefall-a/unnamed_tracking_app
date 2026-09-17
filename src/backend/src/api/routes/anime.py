@@ -16,6 +16,7 @@ from src.api.schemas.anime import (
     AnimeCreate,
     AnimeRead,
     AnimeUpdate,
+    EpisodesBulkWatched,
     EpisodeUpdate,
     SeasonCreate,
     SeasonUpdate,
@@ -408,6 +409,32 @@ async def list_episodes(
             )
         await db.commit()
 
+    return await _get_show_or_404(show_id, db, current_user.id)
+
+
+@router.patch("/{show_id}/seasons/{season_id}/episodes/bulk-watched", response_model=AnimeRead)
+async def bulk_set_episodes_watched(
+    show_id: UUID,
+    season_id: UUID,
+    payload: EpisodesBulkWatched,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Anime:
+    """Sets `watched` on a whole batch of episodes in one request — a
+    shift-click range select or "mark watched up to here" would
+    otherwise cost one PATCH per episode, which gets genuinely slow on a
+    500+ episode season. Silently ignores any id that isn't actually in
+    this season rather than 404ing the whole batch over one bad id.
+    Registered ahead of the single-episode PATCH below so the literal
+    path segment "bulk-watched" is matched here rather than attempted as
+    an `episode_id` UUID."""
+    await _get_show_or_404(show_id, db, current_user.id)
+    season = await _get_season_or_404(season_id, show_id, db)
+    ids = set(payload.episode_ids)
+    for episode in season.episodes:
+        if episode.id in ids:
+            episode.watched = payload.watched
+    await db.commit()
     return await _get_show_or_404(show_id, db, current_user.id)
 
 

@@ -25,11 +25,49 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: "toggle-watched", episodeId: string): void;
   (e: "set-rating", episodeId: string, rating: number | null): void;
+  (e: "bulk-set-watched", episodeIds: string[], watched: boolean): void;
 }>();
 
 function onRatingInput(episodeId: string, event: Event) {
   const raw = (event.target as HTMLInputElement).value;
   emit("set-rating", episodeId, raw === "" ? null : Number(raw));
+}
+
+// Shift-click extends from the last checkbox clicked (anywhere in the
+// full list, not just the current page) through the one just clicked,
+// setting the whole range to match the just-clicked episode's new
+// state — the standard file-manager/email range-select gesture, so
+// catching up on a dozen episodes at once doesn't mean a dozen
+// individual clicks.
+const lastClickedId = ref<string | null>(null);
+
+function onCheckboxClick(event: MouseEvent, ep: EpisodeVM) {
+  const targetWatched = !ep.watched;
+  if (event.shiftKey && lastClickedId.value) {
+    const ids = props.episodes.map((e) => e.id);
+    const fromIndex = ids.indexOf(lastClickedId.value);
+    const toIndex = ids.indexOf(ep.id);
+    if (fromIndex !== -1 && toIndex !== -1) {
+      const [start, end] = [fromIndex, toIndex].sort((a, b) => a - b);
+      emit("bulk-set-watched", ids.slice(start, end + 1), targetWatched);
+      lastClickedId.value = ep.id;
+      return;
+    }
+  }
+  emit("toggle-watched", ep.id);
+  lastClickedId.value = ep.id;
+}
+
+// "Catch up" — marks every episode from the start of the season through
+// this one as watched in a single request, for jumping into a
+// long-running show without checking off each prior episode by hand.
+function markWatchedUpToHere(ep: EpisodeVM) {
+  const ids: string[] = [];
+  for (const e of props.episodes) {
+    ids.push(e.id);
+    if (e.id === ep.id) break;
+  }
+  emit("bulk-set-watched", ids, true);
 }
 
 // Long-running shows (Naruto Shippuden-style, 500+ episodes) would
@@ -109,8 +147,8 @@ function goToPage(p: number) {
       <button
         type="button"
         class="episode-checkbox"
-        :title="ep.watched ? 'Mark unwatched' : 'Mark watched'"
-        @click="emit('toggle-watched', ep.id)"
+        :title="ep.watched ? 'Mark unwatched (shift-click for a range)' : 'Mark watched (shift-click for a range)'"
+        @click="onCheckboxClick($event, ep)"
       >
         <span v-if="ep.watched">✓</span>
       </button>
@@ -128,6 +166,15 @@ function goToPage(p: number) {
         </div>
         <p v-if="ep.description" class="episode-desc">{{ ep.description }}</p>
       </div>
+      <button
+        v-if="!ep.watched"
+        type="button"
+        class="catch-up-btn"
+        title="Mark watched up to here"
+        @click="markWatchedUpToHere(ep)"
+      >
+        Catch up ›
+      </button>
       <div class="episode-rating">
         <span class="star">★</span>
         <input
@@ -227,7 +274,7 @@ function goToPage(p: number) {
 }
 .episode-row {
   display: grid;
-  grid-template-columns: 26px 140px 1fr auto;
+  grid-template-columns: 26px 140px 1fr auto auto;
   gap: 14px;
   align-items: center;
   background: #1a1a1a;
@@ -235,6 +282,27 @@ function goToPage(p: number) {
   border-radius: 10px;
   padding: 10px;
   transition: border-color 0.15s ease;
+}
+.catch-up-btn {
+  background: none;
+  border: 1px solid #2b2b2b;
+  color: #666;
+  border-radius: 7px;
+  padding: 5px 10px;
+  font-family: inherit;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.episode-row:hover .catch-up-btn,
+.episode-row:focus-within .catch-up-btn {
+  opacity: 1;
+}
+.catch-up-btn:hover {
+  color: #d68a34;
+  border-color: rgba(214, 138, 52, 0.4);
 }
 .episode-row.watched {
   border-color: rgba(214, 138, 52, 0.4);

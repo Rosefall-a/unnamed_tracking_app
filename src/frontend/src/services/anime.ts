@@ -507,6 +507,28 @@ export async function updateEpisode(
   return mapBackendAnime(raw);
 }
 
+// Sets `watched` on many episodes in one request — a shift-click range
+// select or "mark watched up to here" would otherwise cost one PATCH per
+// episode.
+export async function bulkSetEpisodesWatched(
+  showId: string,
+  seasonId: string,
+  episodeIds: string[],
+  watched: boolean,
+): Promise<Anime> {
+  const response = await fetch(
+    `/api/anime/${showId}/seasons/${seasonId}/episodes/bulk-watched`,
+    {
+      method: "PATCH",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ episode_ids: episodeIds, watched }),
+    },
+  );
+  const raw = await handle<BackendAnime>(response, "bulk-update episodes");
+  return mapBackendAnime(raw);
+}
+
 export async function deleteSeason(
   showId: string,
   seasonId: string,

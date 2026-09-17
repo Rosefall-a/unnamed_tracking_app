@@ -245,6 +245,14 @@ def _parse_streaming_episodes(streaming: list[dict[str, Any]]) -> list[dict[str,
         raw_title = entry.get("title") or ""
         match = _EPISODE_TITLE_RE.match(raw_title)
         title = match.group(1) if match else (raw_title or None)
+        # AniList's streaming partners often supply a thumbnail with no
+        # real title, and AniList fills the gap with the literal string
+        # "Untitled" rather than leaving it blank — treated as no title at
+        # all so a richer one (Jikan, TMDB) still gets a chance to fill it
+        # in on merge, instead of this placeholder counting as "already
+        # has a title" and blocking every other source.
+        if title and title.strip().lower() == "untitled":
+            title = None
         results.append(_blank_episode(i, still_url=entry.get("thumbnail"), title=title))
     return results
 

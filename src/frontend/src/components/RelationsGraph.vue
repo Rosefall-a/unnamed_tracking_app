@@ -14,6 +14,10 @@ export interface ChainNode {
   type: string;
   sub: string;
   current?: boolean;
+  // Release year, when known — lets a movie/special branch (below) place
+  // itself at roughly the right point along the chain's own timeline
+  // instead of always hugging the anchor.
+  year?: number | null;
 }
 
 export interface BranchNode {
@@ -27,6 +31,7 @@ export interface BranchNode {
   // id instead of a chain position — e.g. two related titles that are
   // themselves a sequel pair, not each independently tied to the show.
   parentBranchId?: string;
+  year?: number | null;
 }
 
 const props = defineProps<{
@@ -59,6 +64,20 @@ function branchBand(type: string): number {
     return 0; // top: shorts/specials
   }
   return 1; // middle: tv, tv short, movie
+}
+
+// Movies/OVAs/ONAs/specials have a real release date and a real place in
+// watch order (a movie that came out between two TV seasons is meant to
+// be watched between them) — unlike source manga/novels or music videos,
+// which don't have a "watch order" position at all. These get placed
+// along the chain's own timeline by year instead of bunched at a fixed
+// depth next to the anchor, which is what made a franchise with several
+// movies/specials (Bleach, with 4 movies + 2 specials + an ONA all
+// hanging off the one TV entry) read as one confusing clump regardless
+// of when each one actually came out.
+function isTimelineFormat(type: string): boolean {
+  const t = type.toLowerCase();
+  return t === "movie" || t === "ova" || t === "ona" || t === "special";
 }
 
 function edgePoint(
@@ -101,6 +120,56 @@ const chainPositions = computed(() =>
 // whenever its horizontal depth happens to reach that far — starting
 // one row off guarantees real separation from the chain regardless of
 // how wide a branch subtree gets.
+// Where a timeline branch's own year falls along the chain's release
+// years — interpolated between whichever two chain entries bracket it,
+// or projected just past the first/last chain entry when the branch
+// predates or postdates the whole chain. Null when nothing in the chain
+// has a known year to interpolate against.
+function timelineCx(year: number, chain: { cx: number; node: ChainNode }[]): number | null {
+  const dated = chain.filter((p) => p.node.year != null) as { cx: number; node: ChainNode & { year: number } }[];
+  if (!dated.length) return null;
+  let before: (typeof dated)[number] | null = null;
+  let after: (typeof dated)[number] | null = null;
+  for (const p of dated) {
+    if (p.node.year <= year && (!before || p.node.year > before.node.year)) before = p;
+    if (p.node.year >= year && (!after || p.node.year < after.node.year)) after = p;
+  }
+  if (before && after && before !== after) {
+    const span = after.node.year - before.node.year;
+    const frac = span > 0 ? (year - before.node.year) / span : 0.5;
+    return before.cx + frac * (after.cx - before.cx);
+  }
+  if (before) return before.cx + STEP_X * 0.5;
+  if (after) return after.cx - STEP_X * 0.5;
+  return null;
+}
+
+// Greedily rows out a set of already-cx-placed nodes into alternating
+// above/below rows (1, -1, 2, -2, ...), skipping to the next row a node
+// would otherwise horizontally collide in — the same guaranteed-gap
+// principle the old depth-based layout used, just driven by real
+// horizontal position instead of an anchor-relative column.
+function assignTimelineRows<T extends { cx: number }>(items: T[]): (T & { slot: number })[] {
+  const minGap = NODE_W + 40;
+  const placedByRow = new Map<number, number[]>();
+  const rowOrder: number[] = [];
+  for (let i = 1; i <= 8; i++) rowOrder.push(i, -i);
+  return items.map((item) => {
+    let slot = rowOrder[rowOrder.length - 1];
+    for (const row of rowOrder) {
+      const placed = placedByRow.get(row) ?? [];
+      if (!placed.some((cx) => Math.abs(cx - item.cx) < minGap)) {
+        slot = row;
+        break;
+      }
+    }
+    const placed = placedByRow.get(slot) ?? [];
+    placed.push(item.cx);
+    placedByRow.set(slot, placed);
+    return { ...item, slot };
+  });
+}
+
 const branchCounts = computed(() => {
   type Positioned = { node: BranchNode; cx: number; cy: number; anchor: { cx: number; cy: number } | undefined };
   const childrenOf = new Map<string, BranchNode[]>();
@@ -120,16 +189,41 @@ const branchCounts = computed(() => {
 
   const result: Positioned[] = [];
   const posById = new Map<string, { cx: number; cy: number }>();
+  const chain = chainPositions.value;
 
   for (const [anchorIndex, roots] of rootsByAnchor) {
-    const anchor = chainPositions.value[anchorIndex];
-    const byBand = [0, 1, 2].map((band) => roots.filter((n) => branchBand(n.type) === band));
+    const anchor = chain[anchorIndex];
+
+    const timelineRoots = roots.filter(
+      (n) => isTimelineFormat(n.type) && n.year != null && timelineCx(n.year, chain) != null,
+    );
+    const sideRoots = roots.filter((n) => !timelineRoots.includes(n));
+
+    // ---- timeline-positioned roots (movies/OVAs/ONAs/specials) ----
+    const withCx = timelineRoots
+      .map((n) => ({ node: n, cx: timelineCx(n.year as number, chain) as number }))
+      .sort((a, b) => a.cx - b.cx);
+    for (const { node, cx, slot } of assignTimelineRows(withCx)) {
+      const cy = (anchor?.cy ?? 0) + slot * ROW_H;
+      result.push({ node, cx, cy, anchor });
+      posById.set(node.id, { cx, cy });
+      // A rare nested child (e.g. two movies that are themselves a
+      // sequel pair) sits one short step further along from its parent
+      // rather than getting its own timeline slot.
+      for (const kid of childrenOf.get(node.id) ?? []) {
+        const kidCx = cx + BRANCH_SPACING * 0.6;
+        result.push({ node: kid, cx: kidCx, cy, anchor: { cx, cy } });
+        posById.set(kid.id, { cx: kidCx, cy });
+      }
+    }
+
+    // ---- side roots (source manga/novels, music, anything undated) —
+    // unchanged from before: banded and stacked out from the anchor ----
+    const byBand = [0, 1, 2].map((band) => sideRoots.filter((n) => branchBand(n.type) === band));
     const [specials, mainSeries, manga] = byBand;
     const mainUpper: BranchNode[] = [];
     const mainLower: BranchNode[] = [];
     mainSeries.forEach((n, i) => (i % 2 === 0 ? mainUpper : mainLower).push(n));
-    // main series closest to center on both sides, specials pushed
-    // further out above, manga/novels pushed further out below
     const upperRoots = [...mainUpper, ...specials];
     const lowerRoots = [...mainLower, ...manga];
 
@@ -165,7 +259,7 @@ const branchCounts = computed(() => {
       posById.set(node.id, { cx, cy });
       for (const kid of childrenOf.get(node.id) ?? []) place(kid);
     }
-    for (const root of roots) place(root);
+    for (const root of sideRoots) place(root);
   }
   return result;
 });

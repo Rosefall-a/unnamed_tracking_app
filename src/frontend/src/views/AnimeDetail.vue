@@ -7,6 +7,7 @@ import {
   animeToInput,
   fetchEpisodes,
   updateEpisode,
+  bulkSetEpisodesWatched,
   fetchAnimeRelations,
   fetchAnimeRecommended,
   fetchAnime,
@@ -178,6 +179,25 @@ async function onToggleEpisodeWatched(seasonId: string, episodeId: string) {
   }
 }
 
+async function onBulkSetEpisodesWatched(
+  seasonId: string,
+  episodeIds: string[],
+  watched: boolean,
+) {
+  if (!show.value) return;
+  try {
+    show.value = await bulkSetEpisodesWatched(
+      show.value.id,
+      seasonId,
+      episodeIds,
+      watched,
+    );
+  } catch (e) {
+    episodesError.value =
+      e instanceof Error ? e.message : "Failed to update episodes.";
+  }
+}
+
 async function onSetEpisodeRating(
   seasonId: string,
   episodeId: string,
@@ -278,6 +298,7 @@ const relatedChainNodes = computed<ChainNode[]>(() =>
     type: n.format ?? "Anime",
     sub: n.episodeCount ? `${n.episodeCount} Episodes` : "",
     current: n.isCurrent,
+    year: n.year,
   })),
 );
 const relatedBranchNodes = computed<BranchNode[]>(() => {
@@ -293,6 +314,7 @@ const relatedBranchNodes = computed<BranchNode[]>(() => {
       label: b.relationLabel,
       anchorIndex: b.anchorKind === "show" ? indexById.get(b.anchorId)! : 0,
       parentBranchId: b.anchorKind === "branch" ? String(b.anchorId) : undefined,
+      year: b.year,
     });
   }
   return nodes;
@@ -745,6 +767,9 @@ watch(
               @set-rating="
                 (epId, rating) => onSetEpisodeRating(season.id, epId, rating)
               "
+              @bulk-set-watched="
+                (epIds, watched) => onBulkSetEpisodesWatched(season.id, epIds, watched)
+              "
             />
           </template>
         </template>
@@ -1122,7 +1147,6 @@ watch(
 }
 .description-block {
   margin-top: 22px;
-  max-width: 72ch;
 }
 .description {
   font-size: 0.96rem;

@@ -7,6 +7,7 @@ import {
   tvShowToInput,
   fetchEpisodes,
   updateEpisode,
+  bulkSetEpisodesWatched,
   fetchTVShowRelations,
   fetchTVShowRecommended,
   fetchTVShows,
@@ -168,6 +169,25 @@ async function onToggleEpisodeWatched(seasonId: string, episodeId: string) {
   } catch (e) {
     episodesError.value =
       e instanceof Error ? e.message : "Failed to update episode.";
+  }
+}
+
+async function onBulkSetEpisodesWatched(
+  seasonId: string,
+  episodeIds: string[],
+  watched: boolean,
+) {
+  if (!show.value) return;
+  try {
+    show.value = await bulkSetEpisodesWatched(
+      show.value.id,
+      seasonId,
+      episodeIds,
+      watched,
+    );
+  } catch (e) {
+    episodesError.value =
+      e instanceof Error ? e.message : "Failed to update episodes.";
   }
 }
 
@@ -627,6 +647,9 @@ watch(
               @set-rating="
                 (epId, rating) => onSetEpisodeRating(season.id, epId, rating)
               "
+              @bulk-set-watched="
+                (epIds, watched) => onBulkSetEpisodesWatched(season.id, epIds, watched)
+              "
             />
           </template>
         </template>
@@ -995,7 +1018,6 @@ watch(
 }
 .description-block {
   margin-top: 22px;
-  max-width: 72ch;
 }
 .description {
   font-size: 0.96rem;

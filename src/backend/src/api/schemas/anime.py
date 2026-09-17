@@ -138,6 +138,15 @@ class EpisodeUpdate(BaseModel):
     rating: Decimal | None = Field(default=None, ge=0, le=10)
 
 
+class EpisodesBulkWatched(BaseModel):
+    """Sets `watched` on a batch of episodes in one request — a range
+    select or "mark watched up to here" shouldn't cost one round trip
+    per episode, especially on a 500+ episode season."""
+
+    episode_ids: list[UUID] = Field(min_length=1, max_length=2000)
+    watched: bool
+
+
 class EpisodeRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
