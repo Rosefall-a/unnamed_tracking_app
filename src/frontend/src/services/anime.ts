@@ -21,6 +21,7 @@ interface BackendEpisode {
   still_url: string | null;
   watched: boolean;
   rating: number | string | null;
+  note: string | null;
   created_at: number;
   updated_at: number;
 }
@@ -80,6 +81,14 @@ export interface BackendAnime {
   // unix timestamps in seconds, not ISO strings
   created_at: number;
   updated_at: number;
+
+  kitsu_id: string | null;
+  is_airing: boolean | null;
+  next_episode_air_at: number | null;
+  next_episode_number: number | null;
+  airing_interval_days: number | null;
+  linked_tv_show_id: string | null;
+  linked_movie_id: string | null;
 }
 
 // Pydantic can serialize a Decimal as either a JSON number or a string
@@ -114,6 +123,7 @@ function mapBackendEpisode(raw: BackendEpisode): AnimeEpisode {
     stillUrl: raw.still_url,
     watched: raw.watched,
     rating: toNumberOrNull(raw.rating),
+    note: raw.note ?? null,
     createdAt: unixSecondsToIso(raw.created_at),
     updatedAt: unixSecondsToIso(raw.updated_at),
   };
@@ -176,6 +186,13 @@ export function mapBackendAnime(raw: BackendAnime): Anime {
     seasons: raw.seasons.map(mapBackendSeason),
     createdAt: unixSecondsToIso(raw.created_at),
     updatedAt: unixSecondsToIso(raw.updated_at),
+    kitsuId: raw.kitsu_id,
+    isAiring: raw.is_airing,
+    nextEpisodeAirAt: raw.next_episode_air_at,
+    nextEpisodeNumber: raw.next_episode_number,
+    airingIntervalDays: raw.airing_interval_days ?? null,
+    linkedTvShowId: raw.linked_tv_show_id,
+    linkedMovieId: raw.linked_movie_id,
   };
 }
 
@@ -261,6 +278,10 @@ export interface AnimeInput {
   ratingSoundtrack?: number | null;
   ratingOverall?: number | null;
   personalRank?: number | null;
+  // days between episodes; null/absent = the weekly default
+  airingIntervalDays?: number | null;
+  linkedTvShowId?: string | null;
+  linkedMovieId?: string | null;
   // omitted entirely (not just an empty array) means "auto-create a
   // default Season 1" — see create_anime on the backend
   seasons?: SeasonInput[];
@@ -303,6 +324,9 @@ export function animeToInput(show: Anime): AnimeInput {
     ratingSoundtrack: show.ratingSoundtrack,
     ratingOverall: show.ratingOverall,
     personalRank: show.personalRank,
+    airingIntervalDays: show.airingIntervalDays,
+    linkedTvShowId: show.linkedTvShowId,
+    linkedMovieId: show.linkedMovieId,
   };
 }
 
@@ -338,7 +362,10 @@ function inputToBody(input: AnimeInput): Record<string, unknown> {
     rating_soundtrack: input.ratingSoundtrack ?? null,
     rating_overall: input.ratingOverall ?? null,
     personal_rank: input.personalRank ?? null,
+    linked_tv_show_id: input.linkedTvShowId ?? null,
+    linked_movie_id: input.linkedMovieId ?? null,
   };
+  if (input.airingIntervalDays !== undefined) body.airing_interval_days = input.airingIntervalDays;
   if (input.status) body.status = denormalizeStatus(input.status);
   if (input.seasons) body.seasons = input.seasons.map(seasonInputToBody);
   return body;
@@ -482,6 +509,7 @@ export async function fetchEpisodes(
 export interface EpisodeUpdateInput {
   watched?: boolean;
   rating?: number | null;
+  note?: string | null;
 }
 
 export async function updateEpisode(
@@ -493,6 +521,7 @@ export async function updateEpisode(
   const body: Record<string, unknown> = {};
   if ("watched" in input) body.watched = input.watched;
   if ("rating" in input) body.rating = input.rating;
+  if ("note" in input) body.note = input.note;
 
   const response = await fetch(
     `/api/anime/${showId}/seasons/${seasonId}/episodes/${episodeId}`,
@@ -785,4 +814,15 @@ export async function fetchAnimeRecommended(
     recommended: raw.recommended.map(mapRelatedAnime),
     configured: raw.configured,
   };
+}
+
+// Runs the airing check for just this title now (the background loop only
+// comes around every 30 minutes) and returns the refreshed record.
+export async function refreshAnimeAiring(id: string): Promise<Anime> {
+  const response = await fetch(`/api/anime/${id}/refresh-airing`, {
+    method: "POST",
+    credentials: "include",
+  });
+  const raw = await handle<BackendAnime>(response, "refresh airing schedule");
+  return mapBackendAnime(raw);
 }

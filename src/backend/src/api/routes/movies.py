@@ -3,6 +3,7 @@
 import asyncio
 import re
 import time
+from datetime import date
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -10,10 +11,12 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.api.routes.media_extras import log_activity
 from src.api.schemas.movie import MovieCreate, MovieRead, MovieUpdate
 from src.core.app_integrations import get_or_create_app_integration_settings
 from src.core.auth import get_current_user
 from src.core.crypto import decrypt_secret
+from src.database.models.media_extras import ActivityEventType
 from src.database.models.movies import Movie, MovieStatus
 from src.database.models.user import User
 from src.database.session import get_db
@@ -170,6 +173,7 @@ async def update_movie(
 ) -> Movie:
     """Update a movie and keep its derived sort title synchronized."""
     movie = await _get_movie_or_404(movie_id, db, current_user.id)
+    previous_status = movie.status
 
     updates = payload.model_dump(exclude_unset=True)
 
@@ -177,6 +181,13 @@ async def update_movie(
 
     if "title" in updates and "sort_title" not in updates:
         movie.sort_title = _derive_sort_title(movie.title)
+
+    if "status" in updates and movie.status != previous_status:
+        await log_activity(
+            db, current_user.id, "movie", movie.id, movie.title,
+            ActivityEventType.STATUS_CHANGED, date.today(),
+            detail=f"{previous_status.value} -> {movie.status.value}",
+        )
 
     await db.commit()
     await db.refresh(movie)

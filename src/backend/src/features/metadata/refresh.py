@@ -35,7 +35,11 @@ from src.features.metadata.anime.episode_sync import (
     pad_to_known_total,
 )
 from src.features.metadata.anime.kitsu import KitsuClient, KitsuError
-from src.features.metadata.tv.episode_sync import fetch_is_airing, fetch_season_episodes
+from src.features.metadata.tv.episode_sync import (
+    fetch_is_airing,
+    fetch_next_episode,
+    fetch_season_episodes,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -160,7 +164,7 @@ async def _refresh_anime_season(db, show: Anime, season: AnimeSeason) -> tuple[i
     return added, enriched
 
 
-async def _quick_check_anime_season(show: Anime, season: AnimeSeason) -> int:
+async def quick_check_anime_season(show: Anime, season: AnimeSeason) -> int:
     """The frequent, cheap check: just asks AniList how many episodes
     have aired (and whether it's still airing at all), and if the count
     has gone up, adds bare numbered placeholder rows (no title/thumbnail
@@ -173,11 +177,13 @@ async def _quick_check_anime_season(show: Anime, season: AnimeSeason) -> int:
     gets excluded from this query entirely on the next pass."""
     if not show.anilist_id:
         return 0
-    aired_total, is_airing, errors = await fetch_airing_status(show.anilist_id)
+    aired_total, is_airing, air_at, next_number, errors = await fetch_airing_status(show.anilist_id)
     if errors:
         logger.warning("Airing check couldn't reach AniList for %r: %s", show.title, "; ".join(errors))
         return 0
     show.is_airing = is_airing
+    show.next_episode_air_at = air_at
+    show.next_episode_number = next_number
     if not aired_total:
         return 0
     known_max = max((e.episode_number for e in season.episodes), default=0)
@@ -192,7 +198,7 @@ async def _quick_check_anime_season(show: Anime, season: AnimeSeason) -> int:
     return added
 
 
-async def _quick_check_tv_season(show: TVShow, season: TVSeason, db) -> int:
+async def quick_check_tv_season(show: TVShow, season: TVSeason, db) -> int:
     """The frequent, cheap check for TV: first asks TVmaze just the
     show's status (a single small object) and persists `show.is_airing`
     from it. Only when it's actually still running does it bother with
@@ -208,7 +214,13 @@ async def _quick_check_tv_season(show: TVShow, season: TVSeason, db) -> int:
     if is_airing is not None:
         show.is_airing = is_airing
     if is_airing is False:
+        show.next_episode_air_at = None
+        show.next_episode_number = None
         return 0
+    air_at, next_number, next_errors = await fetch_next_episode(show.external_id)
+    if not next_errors:
+        show.next_episode_air_at = air_at
+        show.next_episode_number = next_number
     added, _enriched = await _refresh_tv_season(show, season, db)
     return added
 
@@ -502,8 +514,8 @@ async def check_airing_episodes() -> dict[str, int]:
     shows that are airing or not yet checked (`is_airing` true or null);
     a show already known to have finished is skipped entirely, not just
     fetched-and-ignored. Anime gets the cheap aired-count-only check
-    (_quick_check_anime_season); TV checks a cheap status field first and
-    only fetches episodes if still running (_quick_check_tv_season).
+    (quick_check_anime_season); TV checks a cheap status field first and
+    only fetches episodes if still running (quick_check_tv_season).
     Neither does the (comparatively expensive) TMDB backfill step — that
     stays on the slower full refresh, run manually or via the daily
     loop."""
@@ -531,7 +543,7 @@ async def check_airing_episodes() -> dict[str, int]:
             if anime_show is None:
                 continue
             try:
-                anime_added += await _quick_check_anime_season(anime_show, anime_season)
+                anime_added += await quick_check_anime_season(anime_show, anime_season)
             except Exception:
                 logger.exception("Airing check failed for anime %s", anime_show.title)
 
@@ -556,7 +568,7 @@ async def check_airing_episodes() -> dict[str, int]:
             if tv_show is None:
                 continue
             try:
-                tv_added += await _quick_check_tv_season(tv_show, tv_season, db)
+                tv_added += await quick_check_tv_season(tv_show, tv_season, db)
             except Exception:
                 logger.exception("Airing check failed for TV show %s", tv_show.title)
 

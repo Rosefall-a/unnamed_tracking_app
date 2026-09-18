@@ -1,0 +1,159 @@
+<script setup lang="ts">
+// The Lists equivalent of CollectionCard.vue — same 2x2 poster-collage
+// tile, same card shape/hover, so a list reads as "the same kind of
+// thing" as a game collection instead of a different feature bolted on.
+import { computed } from "vue";
+import type { MediaListSummary } from "../services/mediaExtras";
+
+const props = defineProps<{
+  list: MediaListSummary;
+}>();
+
+const emit = defineEmits<{
+  open: [id: string];
+  delete: [id: string];
+}>();
+
+const covers = computed(() => props.list.previewPosters.slice(0, 4));
+const emptySlots = computed(() => Math.max(0, 4 - covers.value.length));
+</script>
+
+<template>
+  <div class="collection-card-wrap" @click="emit('open', list.id)">
+    <div class="collection-card">
+      <div class="cover">
+        <div class="cover-grid">
+          <div
+            v-for="(cover, i) in covers"
+            :key="i"
+            class="cover-cell"
+            :style="cover ? { backgroundImage: `url(${cover})` } : {}"
+          ></div>
+          <div
+            v-for="i in emptySlots"
+            :key="`empty-${i}`"
+            class="cover-cell empty"
+          ></div>
+        </div>
+        <span v-if="list.isSmart" class="smart-badge" title="Fills itself from a filter">Smart</span>
+        <button
+          type="button"
+          class="smart-delete"
+          title="Delete this list"
+          @click.stop="emit('delete', list.id)"
+        >
+          ✕
+        </button>
+      </div>
+    </div>
+
+    <div class="card-info">
+      <h3 class="title">{{ list.name }}</h3>
+      <div class="meta-row">
+        <span class="status"
+          >{{ list.itemCount }} title{{ list.itemCount === 1 ? "" : "s" }}</span
+        >
+      </div>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+.collection-card-wrap {
+  width: 200px;
+  cursor: pointer;
+}
+.collection-card {
+  position: relative;
+  width: 100%;
+  border-radius: 10px;
+  transition:
+    transform 0.32s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
+}
+.collection-card-wrap:hover .collection-card {
+  transform: scale(1.07) translateY(-4px);
+  box-shadow: 0 24px 56px rgba(0, 0, 0, 0.5);
+}
+.smart-delete {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(20, 20, 20, 0.75);
+  backdrop-filter: blur(4px);
+  color: #ccc;
+  font-size: 11px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.collection-card-wrap:hover .smart-delete {
+  opacity: 1;
+}
+.smart-delete:hover {
+  color: #fca5a5;
+}
+.cover {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #1a1a1a;
+}
+.cover-grid {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 2px;
+}
+.cover-cell {
+  background-size: cover;
+  background-position: center;
+  background-color: #1c1c1c;
+}
+.cover-cell.empty {
+  background-color: #161616;
+}
+.smart-badge {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  z-index: 2;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(20, 20, 20, 0.8);
+  backdrop-filter: blur(4px);
+  color: #d68a34;
+}
+.card-info {
+  padding: 10px 2px 0;
+}
+.title {
+  margin: 0 0 2px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.meta-row {
+  display: flex;
+  gap: 8px;
+  font-size: 12px;
+  color: #999;
+}
+</style>

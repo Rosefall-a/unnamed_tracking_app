@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from datetime import datetime
 from typing import Any
 
 import requests
@@ -79,6 +80,38 @@ class TVMazeClient:
         except ValueError as exc:
             raise TVMazeError("TVmaze returned invalid JSON.") from exc
         return payload.get("status")
+
+    def next_episode(self, show_id: str) -> tuple[int | None, int | None]:
+        """`(air_at_unix, episode_number)` for the show's next scheduled
+        episode, via TVmaze's `embed=nextepisode` — a single small object
+        alongside the show itself, not the full episode list, cheap
+        enough for the frequent airing-check loop. `(None, None)` when
+        nothing is scheduled (the show isn't currently airing)."""
+        try:
+            response = self.session.get(
+                f"{_BASE_URL}/shows/{show_id}",
+                params={"embed": "nextepisode"},
+                timeout=15,
+            )
+        except requests.RequestException as exc:
+            raise TVMazeError(f"Could not reach TVmaze: {exc}") from exc
+        if response.status_code >= 400:
+            raise TVMazeError(f"TVmaze request failed ({response.status_code}): {response.text[:200]}")
+        try:
+            payload = response.json()
+        except ValueError as exc:
+            raise TVMazeError("TVmaze returned invalid JSON.") from exc
+        next_ep = (payload.get("_embedded") or {}).get("nextepisode")
+        if not next_ep:
+            return None, None
+        airstamp = next_ep.get("airstamp")
+        if not airstamp:
+            return None, None
+        try:
+            air_at = int(datetime.fromisoformat(airstamp).timestamp())
+        except ValueError:
+            return None, None
+        return air_at, next_ep.get("number")
 
     def episodes(self, show_id: str) -> list[dict[str, Any]]:
         """Every episode of a show in one call — TVmaze has no per-season

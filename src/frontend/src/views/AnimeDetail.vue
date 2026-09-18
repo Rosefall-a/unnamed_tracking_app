@@ -7,6 +7,7 @@ import {
   animeToInput,
   fetchEpisodes,
   updateEpisode,
+  refreshAnimeAiring,
   bulkSetEpisodesWatched,
   fetchAnimeRelations,
   fetchAnimeRecommended,
@@ -28,11 +29,14 @@ import RelationsGraph from "../components/RelationsGraph.vue";
 import type { ChainNode, BranchNode } from "../components/RelationsGraph.vue";
 import MediaPreviewModal from "../components/MediaPreviewModal.vue";
 import ConfirmPopup from "../components/ConfirmPopup.vue";
+import MediaExtrasPanel from "../components/MediaExtrasPanel.vue";
+import MediaKindSwitch from "../components/MediaKindSwitch.vue";
 import {
   STATUS_BUCKETS,
   statusBucket,
   bucketToReal,
 } from "../utils/mediaStatus";
+import { formatAiringCountdown } from "../utils/countdown";
 
 const route = useRoute();
 const router = useRouter();
@@ -66,6 +70,11 @@ async function load() {
   loading.value = true;
   try {
     show.value = await getAnime(showId.value);
+    // Needed for the Overview tab's "Other seasons" row, not just the
+    // Related tab — loaded eagerly here instead of waiting for a tab
+    // click, since Overview is what actually shows first.
+    loadRelated();
+    loadLibrarySeasons();
   } catch (e) {
     error.value = e instanceof Error ? e.message : "Failed to load anime.";
   } finally {
@@ -193,6 +202,101 @@ async function confirmMoveToWatching(move: boolean) {
   }
 }
 
+// Finishing the last episode of something that isn't still airing almost
+// always means "I'm done with this" — offered once per visit, and never
+// for a show with more episodes coming (all-watched-so-far isn't finished)
+// or one that's already Completed/Dropped.
+const showMoveToCompletedPrompt = ref(false);
+const moveToCompletedPromptShown = ref(false);
+function maybePromptMoveToCompleted() {
+  if (!show.value || moveToCompletedPromptShown.value) return;
+  const bucket = statusBucket(show.value.status);
+  if (bucket === "completed" || bucket === "dropped") return;
+  if (show.value.nextEpisodeAirAt || show.value.isAiring) return;
+  const seasons = show.value.seasons;
+  if (!seasons.length) return;
+  const allDone = seasons.every(
+    (s) =>
+      s.episodes.length > 0 &&
+      s.episodes.every((e) => e.watched) &&
+      (s.episodeCount == null || s.episodes.length >= s.episodeCount),
+  );
+  if (!allDone) return;
+  moveToCompletedPromptShown.value = true;
+  showMoveToCompletedPrompt.value = true;
+}
+async function confirmMoveToCompleted(move: boolean) {
+  showMoveToCompletedPrompt.value = false;
+  if (!move || !show.value) return;
+  const previous = show.value.status;
+  show.value.status = "watched";
+  try {
+    show.value = await updateAnime(show.value.id, {
+      ...animeToInput(show.value),
+      status: "watched",
+    });
+  } catch {
+    if (show.value) show.value.status = previous;
+  }
+}
+// The one call every "just marked something watched" path makes: the
+// finished-it prompt outranks the started-it prompt when both apply.
+function afterMarkedWatched() {
+  maybePromptMoveToCompleted();
+  if (!showMoveToCompletedPrompt.value) maybePromptMoveToWatching();
+}
+
+async function onSetEpisodeNote(seasonId: string, episodeId: string, note: string | null) {
+  if (!show.value) return;
+  try {
+    show.value = await updateEpisode(show.value.id, seasonId, episodeId, { note });
+  } catch (e) {
+    episodesError.value = e instanceof Error ? e.message : "Failed to save note.";
+  }
+}
+
+// ---- airing controls: check now, and a per-show release cadence ----
+const refreshingAiring = ref(false);
+async function onRefreshAiring() {
+  if (!show.value) return;
+  refreshingAiring.value = true;
+  episodesError.value = null;
+  try {
+    show.value = await refreshAnimeAiring(show.value.id);
+  } catch (e) {
+    episodesError.value = e instanceof Error ? e.message : "Failed to check the airing schedule.";
+  } finally {
+    refreshingAiring.value = false;
+  }
+}
+const CADENCE_PRESETS = [
+  { days: 1, label: "Daily" },
+  { days: 7, label: "Weekly" },
+  { days: 14, label: "Every 2 weeks" },
+  { days: 30, label: "Monthly" },
+];
+const cadenceOptions = computed(() => {
+  const current = show.value?.airingIntervalDays;
+  if (current && !CADENCE_PRESETS.some((p) => p.days === current)) {
+    return [...CADENCE_PRESETS, { days: current, label: `Every ${current} days` }].sort(
+      (a, b) => a.days - b.days,
+    );
+  }
+  return CADENCE_PRESETS;
+});
+async function onCadenceChange(event: Event) {
+  if (!show.value) return;
+  const days = Number((event.target as HTMLSelectElement).value);
+  try {
+    show.value = await updateAnime(show.value.id, {
+      ...animeToInput(show.value),
+      airingIntervalDays: days === 7 ? null : days,
+    });
+  } catch (e) {
+    episodesError.value = e instanceof Error ? e.message : "Failed to save the schedule.";
+  }
+}
+
 async function onToggleEpisodeWatched(seasonId: string, episodeId: string) {
   if (!show.value) return;
   const season = show.value.seasons.find((s) => s.id === seasonId);
@@ -203,7 +307,7 @@ async function onToggleEpisodeWatched(seasonId: string, episodeId: string) {
     show.value = await updateEpisode(show.value.id, seasonId, episodeId, {
       watched: markingWatched,
     });
-    if (markingWatched) maybePromptMoveToWatching();
+    if (markingWatched) afterMarkedWatched();
   } catch (e) {
     episodesError.value =
       e instanceof Error ? e.message : "Failed to update episode.";
@@ -223,7 +327,7 @@ async function onBulkSetEpisodesWatched(
       episodeIds,
       watched,
     );
-    if (watched) maybePromptMoveToWatching();
+    if (watched) afterMarkedWatched();
   } catch (e) {
     episodesError.value =
       e instanceof Error ? e.message : "Failed to update episodes.";
@@ -268,6 +372,111 @@ async function loadRelated() {
   } finally {
     relatedLoading.value = false;
   }
+}
+
+// ---- every season of this anime, in order ----
+// Anime seasons are separate top-level library entries (AniList has no
+// "seasons of a show" grouping the way TMDB does for TV), so a franchise
+// reads as unrelated titles unless the chain is stitched back together.
+// This lists every anime entry in the franchise (never the manga/novel
+// side of the graph): seasons in chain order first, then OVAs/specials,
+// movies last. Ones already in the library link straight to their page;
+// the rest are dimmed and open the same add-preview as the Related tab.
+const librarySeasons = ref<Anime[]>([]);
+async function loadLibrarySeasons() {
+  try {
+    librarySeasons.value = await fetchAnime();
+  } catch {
+    // non-critical — cards just all show as not-in-library if this fails
+  }
+}
+
+interface SeasonCard {
+  key: string;
+  anilistId: number;
+  title: string;
+  posterUrl: string | null;
+  format: string | null;
+  year: number | null;
+  episodeCount: number | null;
+  isCurrent: boolean;
+  inLibrary: Anime | null;
+}
+
+// 0 = seasons/series, 1 = OVA/special, 2 = movies (always last)
+function seasonRank(format: string | null): number {
+  const t = (format ?? "").toLowerCase();
+  if (t.includes("movie")) return 2;
+  if (t.includes("ova") || t.includes("special")) return 1;
+  return 0;
+}
+
+const allSeasons = computed<SeasonCard[]>(() => {
+  if (!show.value) return [];
+  const cards: (SeasonCard & { rank: number; order: number })[] = [];
+  const matchLibrary = (id: number, title: string): Anime | null =>
+    librarySeasons.value.find((a) => a.anilistId && Number(a.anilistId) === id) ??
+    librarySeasons.value.find(
+      (a) => a.title.trim().toLowerCase() === title.trim().toLowerCase(),
+    ) ??
+    null;
+
+  relatedChain.value.forEach((n, i) => {
+    cards.push({
+      key: `chain-${n.id}`,
+      anilistId: n.id,
+      title: n.title,
+      posterUrl: n.posterUrl,
+      format: n.format,
+      year: n.year,
+      episodeCount: n.episodeCount,
+      isCurrent: n.isCurrent,
+      inLibrary: n.isCurrent ? null : matchLibrary(n.id, n.title),
+      rank: seasonRank(n.format),
+      order: i,
+    });
+  });
+  // side entries that are still anime (a spin-off series, a film, an OVA)
+  // sort after the main chain within their own rank, oldest first
+  const branchAnime = relatedBranches.value
+    .filter((b) => !isPrintFormat(b.format) && !(b.format ?? "").toLowerCase().includes("music"))
+    .sort((x, y) => (x.year ?? 9999) - (y.year ?? 9999));
+  branchAnime.forEach((b, i) => {
+    cards.push({
+      key: `branch-${b.id}`,
+      anilistId: b.id,
+      title: b.title,
+      posterUrl: b.posterUrl,
+      format: b.format,
+      year: b.year,
+      episodeCount: b.episodeCount,
+      isCurrent: false,
+      inLibrary: matchLibrary(b.id, b.title),
+      rank: seasonRank(b.format),
+      order: 1000 + i,
+    });
+  });
+  cards.sort((x, y) => x.rank - y.rank || x.order - y.order);
+  return cards;
+});
+
+function seasonCardMeta(c: SeasonCard): string {
+  const parts = [c.format, c.year ? String(c.year) : null];
+  if (c.episodeCount) parts.push(`${c.episodeCount} ep`);
+  return parts.filter(Boolean).join(" · ");
+}
+async function onSeasonCardClick(c: SeasonCard) {
+  if (c.isCurrent) return;
+  if (c.inLibrary) {
+    router.push(`/anime/${c.inLibrary.id}`);
+    return;
+  }
+  await onRelatedTitleClick({
+    id: c.anilistId,
+    title: c.title,
+    posterUrl: c.posterUrl,
+    format: c.format,
+  });
 }
 
 // Which branch formats to leave out of the graph/poster-grid — e.g. a
@@ -547,6 +756,7 @@ watch(
     recommendedLoaded.value = false;
     previewOpen.value = false;
     moveToWatchingPromptShown.value = false;
+    moveToCompletedPromptShown.value = false;
     load();
   },
   { immediate: true },
@@ -583,6 +793,10 @@ watch(
         <path d="M12 19l-7-7 7-7" />
       </svg>
     </button>
+
+    <div class="detail-switch">
+      <MediaKindSwitch active="anime" />
+    </div>
 
     <AnimeFormModal
       v-if="showEditModal"
@@ -672,6 +886,7 @@ watch(
                 />
               </svg>
             </button>
+            <MediaExtrasPanel media-type="anime" :media-id="show.id" />
           </div>
         </div>
       </div>
@@ -746,6 +961,7 @@ watch(
             <span class="meta-value">{{ show.rewatches }}</span>
           </div>
         </div>
+
         <div v-if="show.genres.length" class="chip-row">
           <span v-for="g in show.genres" :key="g" class="chip primary">{{
             g
@@ -770,14 +986,76 @@ watch(
             {{ descriptionExpanded ? "Show less" : "Read more" }}
           </button>
         </div>
+
+        <div v-if="allSeasons.length > 1" class="seasons-section">
+          <h3 class="seasons-heading">
+            Seasons
+            <span class="seasons-count">{{ allSeasons.length }}</span>
+          </h3>
+          <div class="seasons-grid">
+            <button
+              v-for="c in allSeasons"
+              :key="c.key"
+              type="button"
+              class="season-card"
+              :class="{ current: c.isCurrent, missing: !c.isCurrent && !c.inLibrary }"
+              :disabled="c.isCurrent"
+              :title="c.title"
+              @click="onSeasonCardClick(c)"
+            >
+              <span
+                class="season-poster"
+                :style="c.posterUrl ? { backgroundImage: `url(${c.posterUrl})` } : {}"
+              >
+                <span v-if="c.isCurrent" class="season-flag now">Viewing</span>
+                <span v-else-if="!c.inLibrary" class="season-flag add">+ Add</span>
+              </span>
+              <span class="season-title">{{ c.title }}</span>
+              <span class="season-meta">{{ seasonCardMeta(c) }}</span>
+              <span
+                v-if="c.inLibrary"
+                class="pill"
+                :class="statusBucket(c.inLibrary.status)"
+                >{{
+                  STATUS_BUCKETS.find((s) => s.key === statusBucket(c.inLibrary!.status))?.label
+                }}</span
+              >
+            </button>
+          </div>
+        </div>
       </div>
 
       <div v-else-if="activeTab === 'episodes'" class="tab-panel">
         <div class="section-heading">
           <h2>Episodes</h2>
-          <span v-if="totalEpisodeCount" class="episodes-total"
-            >{{ watchedEpisodeCount }} / {{ totalEpisodeCount }} watched</span
-          >
+          <div class="section-heading-right">
+            <button
+              v-if="show.anilistId"
+              type="button"
+              class="airing-ctl"
+              :disabled="refreshingAiring"
+              title="Look up the latest episode and air date now"
+              @click="onRefreshAiring"
+            >
+              {{ refreshingAiring ? "Checking…" : "Check airing" }}
+            </button>
+            <select
+              v-if="show.nextEpisodeAirAt"
+              class="airing-ctl"
+              :value="show.airingIntervalDays ?? 7"
+              title="How often new episodes air"
+              @change="onCadenceChange"
+            >
+              <option v-for="c in cadenceOptions" :key="c.days" :value="c.days">{{ c.label }}</option>
+            </select>
+            <span v-if="show.nextEpisodeAirAt" class="next-episode-banner">
+              Episode {{ show.nextEpisodeNumber }} airs in
+              {{ formatAiringCountdown(show.nextEpisodeAirAt) }}
+            </span>
+            <span v-if="totalEpisodeCount" class="episodes-total"
+              >{{ watchedEpisodeCount }} / {{ totalEpisodeCount }} watched</span
+            >
+          </div>
         </div>
 
         <p v-if="episodesError" class="error-text">{{ episodesError }}</p>
@@ -796,7 +1074,12 @@ watch(
               class="season-episodes"
               :episodes="season.episodes"
               :loading="false"
+              :next-episode-number="show.nextEpisodeNumber"
+              :next-episode-air-at="show.nextEpisodeAirAt"
+              :episode-count="season.episodeCount"
+              :interval-days="show.airingIntervalDays"
               @toggle-watched="(epId) => onToggleEpisodeWatched(season.id, epId)"
+              @set-note="(epId, note) => onSetEpisodeNote(season.id, epId, note)"
               @set-rating="
                 (epId, rating) => onSetEpisodeRating(season.id, epId, rating)
               "
@@ -904,6 +1187,15 @@ watch(
       :error="previewError"
       @add="addPreviewToLibrary"
       @close="closePreview"
+    />
+
+    <ConfirmPopup
+      v-if="showMoveToCompletedPrompt"
+      message="You've watched every episode. Move this to Completed?"
+      confirm-label="Move to Completed"
+      cancel-label="Leave as is"
+      @confirm="confirmMoveToCompleted(true)"
+      @cancel="confirmMoveToCompleted(false)"
     />
 
     <ConfirmPopup
@@ -1121,6 +1413,24 @@ watch(
   z-index: 100;
   transition: background 0.15s ease;
 }
+.detail-switch {
+  position: absolute;
+  top: 16px;
+  left: 112px;
+  z-index: 100;
+}
+.detail-switch :deep(.kind-switch) {
+  background: rgba(20, 20, 20, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  padding: 3px;
+}
+@media (max-width: 860px) {
+  .detail-switch {
+    display: none;
+  }
+}
 .back-arrow-button:hover {
   background: rgba(40, 40, 40, 0.85);
 }
@@ -1215,6 +1525,142 @@ watch(
 .read-more-btn:hover {
   text-decoration: underline;
 }
+.seasons-section {
+  margin-top: 28px;
+  padding-top: 20px;
+  border-top: 1px solid #202020;
+}
+.seasons-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 14px;
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: #f2f2f2;
+}
+.seasons-count {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #999;
+  background: rgba(255, 255, 255, 0.06);
+  padding: 2px 9px;
+  border-radius: 999px;
+}
+.seasons-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+  gap: 16px 14px;
+}
+.season-card {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+  padding: 0;
+  background: none;
+  border: none;
+  text-align: left;
+  color: inherit;
+  font-family: inherit;
+  cursor: pointer;
+}
+.season-card:disabled {
+  cursor: default;
+}
+.season-poster {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  border-radius: 8px;
+  background-color: #1c1c1c;
+  background-size: cover;
+  background-position: center;
+  border: 1px solid #262626;
+  overflow: hidden;
+  transition:
+    transform 0.25s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.15s ease;
+}
+.season-card:not(:disabled):hover .season-poster {
+  transform: translateY(-3px);
+  border-color: rgba(214, 138, 52, 0.5);
+}
+.season-card.current .season-poster {
+  border: 2px solid #d68a34;
+}
+.season-card.missing .season-poster {
+  opacity: 0.5;
+  filter: saturate(0.6);
+}
+.season-card.missing:hover .season-poster {
+  opacity: 0.85;
+}
+.season-flag {
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 999px;
+}
+.season-flag.now {
+  background: #d68a34;
+  color: #14100a;
+}
+.season-flag.add {
+  background: rgba(20, 20, 20, 0.85);
+  color: #ddd;
+}
+.season-title {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #f2f2f2;
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.season-meta {
+  font-size: 0.68rem;
+  color: #8a8a8a;
+}
+.pill {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.66rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  padding: 3px 9px;
+  border-radius: 999px;
+}
+.pill.watching {
+  background: rgba(214, 138, 52, 0.16);
+  color: #d68a34;
+}
+.pill.completed {
+  background: rgba(111, 191, 115, 0.16);
+  color: #6fbf73;
+}
+.pill.hold {
+  background: rgba(123, 167, 217, 0.16);
+  color: #7ba7d9;
+}
+.pill.dropped {
+  background: rgba(217, 111, 111, 0.16);
+  color: #d96f6f;
+}
+.pill.plan {
+  background: rgba(157, 140, 217, 0.16);
+  color: #9d8cd9;
+}
 .chip-row {
   display: flex;
   flex-wrap: wrap;
@@ -1260,6 +1706,41 @@ watch(
   color: #d68a34;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
+}
+.section-heading-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.airing-ctl {
+  height: 30px;
+  box-sizing: border-box;
+  background: #1a1a1a;
+  border: 1px solid #2b2b2b;
+  color: #ccc;
+  border-radius: 7px;
+  padding: 0 12px;
+  font-family: inherit;
+  font-size: 0.76rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.airing-ctl:hover:not(:disabled) {
+  border-color: rgba(214, 138, 52, 0.4);
+  color: #d68a34;
+}
+.airing-ctl:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.next-episode-banner {
+  background: rgba(214, 138, 52, 0.12);
+  border: 1px solid rgba(214, 138, 52, 0.35);
+  color: #d68a34;
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 0.76rem;
+  font-weight: 700;
 }
 .season-divider {
   margin: 20px 0 10px;

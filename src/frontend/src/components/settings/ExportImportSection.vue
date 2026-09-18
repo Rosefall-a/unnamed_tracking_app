@@ -89,9 +89,11 @@ async function onFileSelected(e: Event) {
   <section class="settings-section">
     <h2>Export / Import</h2>
     <p class="section-hint">
-      A portable JSON snapshot of your games, for backups, or moving to a new
-      server. This covers game data and metadata only, not attached files
-      (screenshots, saves, docs) or bounties.
+      A portable JSON snapshot of your whole library — games, movies, TV
+      shows, and anime — for backups, or moving to a new server. Covers title
+      data and metadata only, not attached files (screenshots, saves, docs)
+      or bounties. Import currently only re-creates games; movies/TV/anime
+      are included in the export but not yet re-importable.
     </p>
 
     <div v-if="backupStatus" class="tile backup-status-tile">
@@ -118,7 +120,8 @@ async function onFileSelected(e: Event) {
     <div class="tile">
       <h3>Export</h3>
       <p class="tile-desc">
-        Downloads every game in your library as a single JSON file.
+        Downloads your games, movies, TV shows, and anime as a single JSON
+        file.
       </p>
       <div v-if="exportError" class="form-error">{{ exportError }}</div>
       <button

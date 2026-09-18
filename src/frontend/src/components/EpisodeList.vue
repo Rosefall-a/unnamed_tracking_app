@@ -6,6 +6,7 @@
 // purely display + the two per-episode actions.
 import { computed, ref, watch } from "vue";
 import CheckIcon from "./CheckIcon.vue";
+import { formatAiringCountdown } from "../utils/countdown";
 
 export interface EpisodeVM {
   id: string;
@@ -16,18 +17,111 @@ export interface EpisodeVM {
   stillUrl: string | null;
   watched: boolean;
   rating: number | null;
+  note?: string | null;
+  // true only for a synthetic row this component generated itself for
+  // an episode that hasn't aired yet and so has no real row from the
+  // backend — no id to act on, so its checkbox/rating/catch-up controls
+  // are disabled rather than emitting an event nothing can handle
+  isVirtual?: boolean;
 }
 
 const props = defineProps<{
   episodes: EpisodeVM[];
   loading: boolean;
+  // if set, the episode with this number gets an "airs in..." badge
+  // instead of the ordinary air date
+  nextEpisodeNumber?: number | null;
+  nextEpisodeAirAt?: number | null;
+  // the season's known total, when known — lets the projected/virtual
+  // rows below stop at a real ceiling instead of a fixed guess
+  episodeCount?: number | null;
+  // days between episodes for a show that doesn't air weekly
+  intervalDays?: number | null;
 }>();
+
+// A newly-scheduled episode (confirmed next, or one of the weekly
+// projections after it) has no row at all yet — the backend only pads
+// placeholder rows for episodes that have actually aired. Synthesized
+// here purely for display so "every episode until it's finished" is
+// visible even before the real row exists; these can't be checked off
+// or rated since there's nothing in the database to act on yet.
+const MAX_SYNTHETIC_WEEKS = 12;
+const displayEpisodes = computed<EpisodeVM[]>(() => {
+  if (!props.nextEpisodeNumber || !props.nextEpisodeAirAt) return props.episodes;
+  const maxReal = props.episodes.reduce((m, e) => Math.max(m, e.episodeNumber), 0);
+  const ceiling =
+    props.episodeCount && props.episodeCount > props.nextEpisodeNumber
+      ? props.episodeCount
+      : props.nextEpisodeNumber + MAX_SYNTHETIC_WEEKS - 1;
+  if (maxReal >= ceiling) return props.episodes;
+  const synthetic: EpisodeVM[] = [];
+  for (let n = Math.max(maxReal + 1, props.nextEpisodeNumber); n <= ceiling; n++) {
+    synthetic.push({
+      id: `virtual-${n}`,
+      episodeNumber: n,
+      title: null,
+      description: null,
+      airDate: null,
+      stillUrl: null,
+      watched: false,
+      rating: null,
+      isVirtual: true,
+    });
+  }
+  return [...props.episodes, ...synthetic];
+});
+
+const intervalSeconds = computed(() => (props.intervalDays ?? 7) * 24 * 60 * 60);
+const cadenceLabel = computed(() => {
+  const d = props.intervalDays ?? 7;
+  if (d === 7) return "weekly";
+  if (d === 1) return "daily";
+  return `every ${d} days`;
+});
+
+// The exact next episode is a real, provider-confirmed date; anything
+// after it is a weekly-cadence guess (no provider hands over a show's
+// full future schedule) — same per-show cadence the calendar's own
+// projected entries use, kept visually distinct via `isProjectedFor`.
+function airAtFor(episodeNumber: number): number | null {
+  if (!props.nextEpisodeAirAt || !props.nextEpisodeNumber) return null;
+  if (episodeNumber < props.nextEpisodeNumber) return null;
+  return (
+    props.nextEpisodeAirAt +
+    intervalSeconds.value * (episodeNumber - props.nextEpisodeNumber)
+  );
+}
+function countdownFor(episodeNumber: number): string | null {
+  const airAt = airAtFor(episodeNumber);
+  return airAt === null ? null : formatAiringCountdown(airAt);
+}
+function isProjectedFor(episodeNumber: number): boolean {
+  return !!props.nextEpisodeNumber && episodeNumber > props.nextEpisodeNumber;
+}
 
 const emit = defineEmits<{
   (e: "toggle-watched", episodeId: string): void;
   (e: "set-rating", episodeId: string, rating: number | null): void;
   (e: "bulk-set-watched", episodeIds: string[], watched: boolean): void;
+  (e: "set-note", episodeId: string, note: string | null): void;
 }>();
+
+// Per-episode private note (thoughts, where you left off, a rewatch
+// reminder) — edited inline under the title, saved with the button or
+// Ctrl+Enter.
+const editingNoteId = ref<string | null>(null);
+const noteDraft = ref("");
+function startNote(ep: EpisodeVM) {
+  if (ep.isVirtual) return;
+  editingNoteId.value = ep.id;
+  noteDraft.value = ep.note ?? "";
+}
+function saveNote(ep: EpisodeVM) {
+  const value = noteDraft.value.trim();
+  editingNoteId.value = null;
+  if ((ep.note ?? "") === value) return;
+  emit("set-note", ep.id, value || null);
+}
 
 function onRatingInput(episodeId: string, event: Event) {
   const raw = (event.target as HTMLInputElement).value;
@@ -43,9 +137,10 @@ function onRatingInput(episodeId: string, event: Event) {
 const lastClickedId = ref<string | null>(null);
 
 function onCheckboxClick(event: MouseEvent, ep: EpisodeVM) {
+  if (ep.isVirtual) return;
   const targetWatched = !ep.watched;
   if (event.shiftKey && lastClickedId.value) {
-    const ids = props.episodes.map((e) => e.id);
+    const ids = displayEpisodes.value.filter((e) => !e.isVirtual).map((e) => e.id);
     const fromIndex = ids.indexOf(lastClickedId.value);
     const toIndex = ids.indexOf(ep.id);
     if (fromIndex !== -1 && toIndex !== -1) {
@@ -63,8 +158,10 @@ function onCheckboxClick(event: MouseEvent, ep: EpisodeVM) {
 // this one as watched in a single request, for jumping into a
 // long-running show without checking off each prior episode by hand.
 function markWatchedUpToHere(ep: EpisodeVM) {
+  if (ep.isVirtual) return;
   const ids: string[] = [];
-  for (const e of props.episodes) {
+  for (const e of displayEpisodes.value) {
+    if (e.isVirtual) break;
     ids.push(e.id);
     if (e.id === ep.id) break;
   }
@@ -78,7 +175,7 @@ function markWatchedUpToHere(ep: EpisodeVM) {
 const PAGE_SIZE = 50;
 const page = ref(0);
 const pageCount = computed(() =>
-  Math.max(1, Math.ceil(props.episodes.length / PAGE_SIZE)),
+  Math.max(1, Math.ceil(displayEpisodes.value.length / PAGE_SIZE)),
 );
 // Land on whichever page has the next unwatched episode (i.e. roughly
 // "where you left off") the first time a real episode list shows up,
@@ -87,7 +184,8 @@ const pageCount = computed(() =>
 // sync), not on every watched-toggle inside the current page.
 watch(
   () => props.episodes,
-  (episodes) => {
+  () => {
+    const episodes = displayEpisodes.value;
     if (!episodes.length) {
       page.value = 0;
       return;
@@ -100,7 +198,7 @@ watch(
 );
 const pageStart = computed(() => page.value * PAGE_SIZE);
 const visibleEpisodes = computed(() =>
-  props.episodes.slice(pageStart.value, pageStart.value + PAGE_SIZE),
+  displayEpisodes.value.slice(pageStart.value, pageStart.value + PAGE_SIZE),
 );
 function goToPage(p: number) {
   page.value = Math.min(Math.max(p, 0), pageCount.value - 1);
@@ -110,7 +208,7 @@ function goToPage(p: number) {
 <template>
   <div class="episode-list">
     <p v-if="loading" class="episodes-loading">Loading episodes…</p>
-    <p v-else-if="!episodes.length" class="episodes-unavailable">
+    <p v-else-if="!displayEpisodes.length" class="episodes-unavailable">
       No episode data available for this season.
     </p>
     <template v-else>
@@ -126,7 +224,7 @@ function goToPage(p: number) {
         <select :value="page" @change="goToPage(Number(($event.target as HTMLSelectElement).value))">
           <option v-for="p in pageCount" :key="p - 1" :value="p - 1">
             Episodes {{ (p - 1) * PAGE_SIZE + 1 }}–{{
-              Math.min(p * PAGE_SIZE, episodes.length)
+              Math.min(p * PAGE_SIZE, displayEpisodes.length)
             }}
           </option>
         </select>
@@ -143,12 +241,24 @@ function goToPage(p: number) {
         v-for="ep in visibleEpisodes"
         :key="ep.id"
         class="episode-row"
-        :class="{ watched: ep.watched }"
+        :class="{
+          watched: ep.watched,
+          virtual: ep.isVirtual,
+          'next-up': countdownFor(ep.episodeNumber) && !isProjectedFor(ep.episodeNumber),
+          projected: countdownFor(ep.episodeNumber) && isProjectedFor(ep.episodeNumber),
+        }"
       >
       <button
         type="button"
         class="episode-checkbox"
-        :title="ep.watched ? 'Mark unwatched (shift-click for a range)' : 'Mark watched (shift-click for a range)'"
+        :disabled="ep.isVirtual"
+        :title="
+          ep.isVirtual
+            ? 'Not aired yet'
+            : ep.watched
+              ? 'Mark unwatched (shift-click for a range)'
+              : 'Mark watched (shift-click for a range)'
+        "
         @click="onCheckboxClick($event, ep)"
       >
         <CheckIcon v-if="ep.watched" />
@@ -162,13 +272,51 @@ function goToPage(p: number) {
       <div class="episode-info">
         <div class="episode-title-row">
           <span class="episode-number">Ep {{ ep.episodeNumber }}</span>
-          <span class="episode-title">{{ ep.title || "Untitled" }}</span>
-          <span v-if="ep.airDate" class="episode-air">{{ ep.airDate }}</span>
+          <span class="episode-title">{{ ep.title || (ep.isVirtual ? "Not yet aired" : "Untitled") }}</span>
+          <span
+            v-if="countdownFor(ep.episodeNumber)"
+            class="episode-countdown"
+            :class="{ projected: isProjectedFor(ep.episodeNumber) }"
+            :title="isProjectedFor(ep.episodeNumber) ? `Estimated from a ${cadenceLabel} schedule, not confirmed` : undefined"
+            >{{ isProjectedFor(ep.episodeNumber) ? "Est. " : "" }}Airs in {{ countdownFor(ep.episodeNumber) }}</span
+          >
+          <span v-else-if="ep.airDate" class="episode-air">{{ ep.airDate }}</span>
         </div>
         <p v-if="ep.description" class="episode-desc">{{ ep.description }}</p>
+        <div v-if="editingNoteId === ep.id" class="note-editor">
+          <textarea
+            v-model="noteDraft"
+            rows="2"
+            maxlength="2000"
+            placeholder="Your notes on this episode…"
+            autofocus
+            @keydown.ctrl.enter="saveNote(ep)"
+            @keydown.esc="editingNoteId = null"
+          ></textarea>
+          <div class="note-actions">
+            <button type="button" class="note-save" @click="saveNote(ep)">Save note</button>
+            <button type="button" class="note-cancel" @click="editingNoteId = null">Cancel</button>
+          </div>
+        </div>
+        <p
+          v-else-if="ep.note"
+          class="episode-note"
+          title="Click to edit"
+          @click="startNote(ep)"
+        >
+          {{ ep.note }}
+        </p>
+        <button
+          v-else-if="!ep.isVirtual"
+          type="button"
+          class="add-note-btn"
+          @click="startNote(ep)"
+        >
+          + Note
+        </button>
       </div>
       <button
-        v-if="!ep.watched"
+        v-if="!ep.watched && !ep.isVirtual"
         type="button"
         class="catch-up-btn"
         title="Mark watched up to here"
@@ -184,6 +332,7 @@ function goToPage(p: number) {
           max="10"
           step="0.1"
           placeholder="–"
+          :disabled="ep.isVirtual"
           :value="ep.rating ?? ''"
           @change="onRatingInput(ep.id, $event)"
         />
@@ -305,8 +454,117 @@ function goToPage(p: number) {
   color: #d68a34;
   border-color: rgba(214, 138, 52, 0.4);
 }
+.add-note-btn {
+  align-self: flex-start;
+  margin-top: 4px;
+  background: none;
+  border: none;
+  padding: 0;
+  color: #666;
+  font-family: inherit;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s ease, color 0.15s ease;
+}
+.episode-row:hover .add-note-btn,
+.episode-row:focus-within .add-note-btn {
+  opacity: 1;
+}
+.add-note-btn:hover {
+  color: #d68a34;
+}
+.episode-note {
+  margin: 6px 0 0;
+  padding: 6px 10px;
+  background: rgba(214, 138, 52, 0.08);
+  border-left: 2px solid rgba(214, 138, 52, 0.6);
+  border-radius: 4px;
+  color: #d8c3a0;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  cursor: text;
+}
+.note-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+}
+.note-editor textarea {
+  width: 100%;
+  box-sizing: border-box;
+  background: #0d0d0d;
+  border: 1px solid #3a3a3a;
+  border-radius: 6px;
+  color: #eee;
+  padding: 7px 9px;
+  font: inherit;
+  font-size: 0.8rem;
+  resize: vertical;
+}
+.note-editor textarea:focus {
+  outline: none;
+  border-color: #d68a34;
+}
+.note-actions {
+  display: flex;
+  gap: 8px;
+}
+.note-save,
+.note-cancel {
+  border: none;
+  border-radius: 6px;
+  padding: 5px 12px;
+  font-family: inherit;
+  font-size: 0.74rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.note-save {
+  background: #d68a34;
+  color: #14100a;
+}
+.note-cancel {
+  background: rgba(255, 255, 255, 0.08);
+  color: #ccc;
+}
 .episode-row.watched {
   border-color: rgba(214, 138, 52, 0.4);
+}
+.episode-row.next-up {
+  border-color: rgba(214, 138, 52, 0.55);
+  background: rgba(214, 138, 52, 0.06);
+}
+.episode-row.projected {
+  border-color: rgba(214, 138, 52, 0.3);
+  border-style: dashed;
+}
+.episode-row.virtual {
+  opacity: 0.6;
+}
+.episode-row.virtual .episode-title {
+  color: #999;
+  font-style: italic;
+}
+.episode-checkbox:disabled,
+.episode-rating input:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.episode-countdown {
+  font-size: 0.72rem;
+  color: #d68a34;
+  font-weight: 700;
+  margin-left: auto;
+  white-space: nowrap;
+}
+.episode-countdown.projected {
+  color: #b8874a;
+  font-weight: 600;
+  opacity: 0.8;
 }
 .episode-checkbox {
   width: 20px;

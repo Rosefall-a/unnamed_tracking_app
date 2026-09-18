@@ -100,6 +100,16 @@ class TVShow(Base):
     # show entirely once it's known to have ended, instead of re-fetching
     # its episode list every cycle forever.
     is_airing: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    # TVmaze's `_embedded.nextepisode.airstamp`, converted to a real
+    # timestamp — populated by the same airing-check loop, alongside
+    # is_airing, so a countdown and the calendar view have a real date
+    # to work from instead of just a yes/no flag.
+    next_episode_air_at: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    next_episode_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Days between episodes, for projecting the ones after the confirmed
+    # next one (no provider gives a full future schedule). NULL = the
+    # weekly default; set per show for biweekly/daily/irregular releases.
+    airing_interval_days: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     # a direct external URL (TMDB's CDN / OMDb's Poster field), stored
     # as-is — same convention as Movie.poster_url, never downloaded/resized
@@ -247,6 +257,7 @@ class TVEpisode(Base):
 
     watched: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     rating: Mapped[Decimal | None] = mapped_column(Numeric(4, 2), nullable=True)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     created_at: Mapped[int] = mapped_column(
         BigInteger, nullable=False, default=lambda: int(time.time())

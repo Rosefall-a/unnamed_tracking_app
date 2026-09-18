@@ -42,3 +42,18 @@ async def fetch_is_airing(external_id: str | None) -> tuple[bool | None, list[st
     if raw_status is None:
         return None, []
     return raw_status == "Running", []
+
+
+async def fetch_next_episode(
+    external_id: str | None,
+) -> tuple[int | None, int | None, list[str]]:
+    """`(air_at_unix, episode_number, errors)` for the show's next
+    scheduled episode — drives a countdown display and the calendar
+    view, same as the AniList side does for anime."""
+    if not external_id:
+        return None, None, []
+    try:
+        air_at, number = await asyncio.to_thread(TVMazeClient().next_episode, external_id)
+        return air_at, number, []
+    except TVMazeError as exc:
+        return None, None, [f"TVmaze: {exc}"]

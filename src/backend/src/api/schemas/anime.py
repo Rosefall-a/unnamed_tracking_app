@@ -107,6 +107,12 @@ class AnimeUpdate(BaseModel):
     rating_overall: Decimal | None = Field(default=None, ge=0, le=10)
 
     personal_rank: int | None = None
+    airing_interval_days: int | None = Field(default=None, ge=1, le=90)
+
+    # A manual cross-link to this anime's TV/movie adaptation — see the
+    # model column's own docstring for why this isn't auto-detected.
+    linked_tv_show_id: UUID | None = None
+    linked_movie_id: UUID | None = None
 
 
 class SeasonCreate(BaseModel):
@@ -136,6 +142,7 @@ class EpisodeUpdate(BaseModel):
 
     watched: bool | None = None
     rating: Decimal | None = Field(default=None, ge=0, le=10)
+    note: str | None = Field(default=None, max_length=2000)
 
 
 class EpisodesBulkWatched(BaseModel):
@@ -160,6 +167,7 @@ class EpisodeRead(BaseModel):
     still_url: str | None
     watched: bool
     rating: Decimal | None
+    note: str | None = None
     created_at: int
     updated_at: int
 
@@ -194,3 +202,11 @@ class AnimeRead(AnimeBase):
     seasons: list[SeasonRead] = Field(default_factory=list)
     created_at: int = Field(description="Unix timestamp in seconds when the entry was created.")
     updated_at: int = Field(description="Unix timestamp in seconds when the entry was last updated.")
+
+    kitsu_id: str | None = None
+    is_airing: bool | None = None
+    next_episode_air_at: int | None = None
+    next_episode_number: int | None = None
+    airing_interval_days: int | None = None
+    linked_tv_show_id: UUID | None = None
+    linked_movie_id: UUID | None = None

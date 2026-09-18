@@ -78,20 +78,23 @@ async def fetch_episodes_with_fallback(
 
 async def fetch_airing_status(
     anilist_id: str | None,
-) -> tuple[int | None, bool, list[str]]:
-    """`(aired_count, is_airing, errors)` — the cheap AniList query, no
-    episode list at all. Used by the frequent airing-check loop;
-    MyAnimeList/Jikan has no equivalent lightweight endpoint, so this
-    only covers the AniList side (fine — it's specifically the
-    ongoing-show case this exists for, and AniList tracks
-    nextAiringEpisode where Jikan doesn't expose anything comparable)."""
+) -> tuple[int | None, bool, int | None, int | None, list[str]]:
+    """`(aired_count, is_airing, next_episode_air_at, next_episode_number,
+    errors)` — the cheap AniList query, no episode list at all. Used by
+    the frequent airing-check loop; MyAnimeList/Jikan has no equivalent
+    lightweight endpoint, so this only covers the AniList side (fine —
+    it's specifically the ongoing-show case this exists for, and AniList
+    tracks nextAiringEpisode where Jikan doesn't expose anything
+    comparable)."""
     if not anilist_id:
-        return None, False, []
+        return None, False, None, None, []
     try:
-        count, is_airing = await asyncio.to_thread(AniListClient().airing_status, anilist_id)
-        return count, is_airing, []
+        count, is_airing, air_at, next_number = await asyncio.to_thread(
+            AniListClient().airing_status, anilist_id
+        )
+        return count, is_airing, air_at, next_number, []
     except AniListError as exc:
-        return None, False, [f"AniList: {exc}"]
+        return None, False, None, None, [f"AniList: {exc}"]
 
 
 def pad_to_known_total(all_episodes: list[dict[str, Any]], episode_count: int | None) -> int | None:

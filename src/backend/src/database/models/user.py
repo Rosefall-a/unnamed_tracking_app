@@ -25,6 +25,10 @@ class User(Base):
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     is_admin: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # Secret path token for the iCalendar feed — calendar apps subscribe
+    # by URL and can't send a login cookie, so the feed authenticates by
+    # this instead. NULL until the user first asks for their feed URL.
+    calendar_token: Mapped[str | None] = mapped_column(String(64), unique=True, nullable=True)
     # per-user, not a shared app-wide default — each user brings their own key
     steamgriddb_api_key: Mapped[str | None] = mapped_column(String(64), nullable=True)
     # Fernet ciphertext (src.core.crypto) — never store or return the raw npsso value

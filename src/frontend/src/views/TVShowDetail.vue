@@ -7,6 +7,7 @@ import {
   tvShowToInput,
   fetchEpisodes,
   updateEpisode,
+  refreshTVShowAiring,
   bulkSetEpisodesWatched,
   fetchTVShowRelations,
   fetchTVShowRecommended,
@@ -22,6 +23,9 @@ import RelationsGraph from "../components/RelationsGraph.vue";
 import type { ChainNode, BranchNode } from "../components/RelationsGraph.vue";
 import MediaPreviewModal from "../components/MediaPreviewModal.vue";
 import ConfirmPopup from "../components/ConfirmPopup.vue";
+import MediaExtrasPanel from "../components/MediaExtrasPanel.vue";
+import MediaKindSwitch from "../components/MediaKindSwitch.vue";
+import { formatAiringCountdown } from "../utils/countdown";
 import {
   STATUS_BUCKETS,
   statusBucket,
@@ -186,6 +190,101 @@ async function confirmMoveToWatching(move: boolean) {
   }
 }
 
+// Finishing the last episode of something that isn't still airing almost
+// always means "I'm done with this" — offered once per visit, and never
+// for a show with more episodes coming (all-watched-so-far isn't finished)
+// or one that's already Completed/Dropped.
+const showMoveToCompletedPrompt = ref(false);
+const moveToCompletedPromptShown = ref(false);
+function maybePromptMoveToCompleted() {
+  if (!show.value || moveToCompletedPromptShown.value) return;
+  const bucket = statusBucket(show.value.status);
+  if (bucket === "completed" || bucket === "dropped") return;
+  if (show.value.nextEpisodeAirAt || show.value.isAiring) return;
+  const seasons = show.value.seasons;
+  if (!seasons.length) return;
+  const allDone = seasons.every(
+    (s) =>
+      s.episodes.length > 0 &&
+      s.episodes.every((e) => e.watched) &&
+      (s.episodeCount == null || s.episodes.length >= s.episodeCount),
+  );
+  if (!allDone) return;
+  moveToCompletedPromptShown.value = true;
+  showMoveToCompletedPrompt.value = true;
+}
+async function confirmMoveToCompleted(move: boolean) {
+  showMoveToCompletedPrompt.value = false;
+  if (!move || !show.value) return;
+  const previous = show.value.status;
+  show.value.status = "watched";
+  try {
+    show.value = await updateTVShow(show.value.id, {
+      ...tvShowToInput(show.value),
+      status: "watched",
+    });
+  } catch {
+    if (show.value) show.value.status = previous;
+  }
+}
+// The one call every "just marked something watched" path makes: the
+// finished-it prompt outranks the started-it prompt when both apply.
+function afterMarkedWatched() {
+  maybePromptMoveToCompleted();
+  if (!showMoveToCompletedPrompt.value) maybePromptMoveToWatching();
+}
+
+async function onSetEpisodeNote(seasonId: string, episodeId: string, note: string | null) {
+  if (!show.value) return;
+  try {
+    show.value = await updateEpisode(show.value.id, seasonId, episodeId, { note });
+  } catch (e) {
+    episodesError.value = e instanceof Error ? e.message : "Failed to save note.";
+  }
+}
+
+// ---- airing controls: check now, and a per-show release cadence ----
+const refreshingAiring = ref(false);
+async function onRefreshAiring() {
+  if (!show.value) return;
+  refreshingAiring.value = true;
+  episodesError.value = null;
+  try {
+    show.value = await refreshTVShowAiring(show.value.id);
+  } catch (e) {
+    episodesError.value = e instanceof Error ? e.message : "Failed to check the airing schedule.";
+  } finally {
+    refreshingAiring.value = false;
+  }
+}
+const CADENCE_PRESETS = [
+  { days: 1, label: "Daily" },
+  { days: 7, label: "Weekly" },
+  { days: 14, label: "Every 2 weeks" },
+  { days: 30, label: "Monthly" },
+];
+const cadenceOptions = computed(() => {
+  const current = show.value?.airingIntervalDays;
+  if (current && !CADENCE_PRESETS.some((p) => p.days === current)) {
+    return [...CADENCE_PRESETS, { days: current, label: `Every ${current} days` }].sort(
+      (a, b) => a.days - b.days,
+    );
+  }
+  return CADENCE_PRESETS;
+});
+async function onCadenceChange(event: Event) {
+  if (!show.value) return;
+  const days = Number((event.target as HTMLSelectElement).value);
+  try {
+    show.value = await updateTVShow(show.value.id, {
+      ...tvShowToInput(show.value),
+      airingIntervalDays: days === 7 ? null : days,
+    });
+  } catch (e) {
+    episodesError.value = e instanceof Error ? e.message : "Failed to save the schedule.";
+  }
+}
+
 async function onToggleEpisodeWatched(seasonId: string, episodeId: string) {
   if (!show.value) return;
   const season = show.value.seasons.find((s) => s.id === seasonId);
@@ -196,7 +295,7 @@ async function onToggleEpisodeWatched(seasonId: string, episodeId: string) {
     show.value = await updateEpisode(show.value.id, seasonId, episodeId, {
       watched: markingWatched,
     });
-    if (markingWatched) maybePromptMoveToWatching();
+    if (markingWatched) afterMarkedWatched();
   } catch (e) {
     episodesError.value =
       e instanceof Error ? e.message : "Failed to update episode.";
@@ -216,7 +315,7 @@ async function onBulkSetEpisodesWatched(
       episodeIds,
       watched,
     );
-    if (watched) maybePromptMoveToWatching();
+    if (watched) afterMarkedWatched();
   } catch (e) {
     episodesError.value =
       e instanceof Error ? e.message : "Failed to update episodes.";
@@ -431,6 +530,7 @@ watch(
     recommendedLoaded.value = false;
     previewOpen.value = false;
     moveToWatchingPromptShown.value = false;
+    moveToCompletedPromptShown.value = false;
     load();
   },
   { immediate: true },
@@ -467,6 +567,10 @@ watch(
         <path d="M12 19l-7-7 7-7" />
       </svg>
     </button>
+
+    <div class="detail-switch">
+      <MediaKindSwitch active="tv" />
+    </div>
 
     <TVShowFormModal
       v-if="showEditModal"
@@ -556,6 +660,7 @@ watch(
                 />
               </svg>
             </button>
+            <MediaExtrasPanel media-type="tv" :media-id="show.id" />
           </div>
         </div>
       </div>
@@ -626,6 +731,7 @@ watch(
             <span class="meta-value">{{ show.rewatches }}</span>
           </div>
         </div>
+
         <div v-if="show.genres.length" class="chip-row">
           <span v-for="g in show.genres" :key="g" class="chip primary">{{
             g
@@ -655,9 +761,34 @@ watch(
       <div v-else-if="activeTab === 'episodes'" class="tab-panel">
         <div class="section-heading">
           <h2>Episodes</h2>
-          <span v-if="totalEpisodeCount" class="episodes-total"
-            >{{ watchedEpisodeCount }} / {{ totalEpisodeCount }} watched</span
-          >
+          <div class="section-heading-right">
+            <button
+              v-if="show.externalId"
+              type="button"
+              class="airing-ctl"
+              :disabled="refreshingAiring"
+              title="Look up the latest episode and air date now"
+              @click="onRefreshAiring"
+            >
+              {{ refreshingAiring ? "Checking…" : "Check airing" }}
+            </button>
+            <select
+              v-if="show.nextEpisodeAirAt"
+              class="airing-ctl"
+              :value="show.airingIntervalDays ?? 7"
+              title="How often new episodes air"
+              @change="onCadenceChange"
+            >
+              <option v-for="c in cadenceOptions" :key="c.days" :value="c.days">{{ c.label }}</option>
+            </select>
+            <span v-if="show.nextEpisodeAirAt" class="next-episode-banner">
+              Episode {{ show.nextEpisodeNumber }} airs in
+              {{ formatAiringCountdown(show.nextEpisodeAirAt) }}
+            </span>
+            <span v-if="totalEpisodeCount" class="episodes-total"
+              >{{ watchedEpisodeCount }} / {{ totalEpisodeCount }} watched</span
+            >
+          </div>
         </div>
 
         <p v-if="episodesError" class="error-text">{{ episodesError }}</p>
@@ -676,7 +807,12 @@ watch(
               class="season-episodes"
               :episodes="season.episodes"
               :loading="false"
+              :next-episode-number="show.nextEpisodeNumber"
+              :next-episode-air-at="show.nextEpisodeAirAt"
+              :episode-count="season.episodeCount"
+              :interval-days="show.airingIntervalDays"
               @toggle-watched="(epId) => onToggleEpisodeWatched(season.id, epId)"
+              @set-note="(epId, note) => onSetEpisodeNote(season.id, epId, note)"
               @set-rating="
                 (epId, rating) => onSetEpisodeRating(season.id, epId, rating)
               "
@@ -775,6 +911,15 @@ watch(
       :error="previewError"
       @add="addPreviewToLibrary"
       @close="closePreview"
+    />
+
+    <ConfirmPopup
+      v-if="showMoveToCompletedPrompt"
+      message="You've watched every episode. Move this to Completed?"
+      confirm-label="Move to Completed"
+      cancel-label="Leave as is"
+      @confirm="confirmMoveToCompleted(true)"
+      @cancel="confirmMoveToCompleted(false)"
     />
 
     <ConfirmPopup
@@ -992,6 +1137,24 @@ watch(
   z-index: 100;
   transition: background 0.15s ease;
 }
+.detail-switch {
+  position: absolute;
+  top: 16px;
+  left: 112px;
+  z-index: 100;
+}
+.detail-switch :deep(.kind-switch) {
+  background: rgba(20, 20, 20, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  padding: 3px;
+}
+@media (max-width: 860px) {
+  .detail-switch {
+    display: none;
+  }
+}
 .back-arrow-button:hover {
   background: rgba(40, 40, 40, 0.85);
 }
@@ -1131,6 +1294,41 @@ watch(
   color: #d68a34;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
+}
+.section-heading-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.airing-ctl {
+  height: 30px;
+  box-sizing: border-box;
+  background: #1a1a1a;
+  border: 1px solid #2b2b2b;
+  color: #ccc;
+  border-radius: 7px;
+  padding: 0 12px;
+  font-family: inherit;
+  font-size: 0.76rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.airing-ctl:hover:not(:disabled) {
+  border-color: rgba(214, 138, 52, 0.4);
+  color: #d68a34;
+}
+.airing-ctl:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.next-episode-banner {
+  background: rgba(214, 138, 52, 0.12);
+  border: 1px solid rgba(214, 138, 52, 0.35);
+  color: #d68a34;
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 0.76rem;
+  font-weight: 700;
 }
 .season-divider {
   margin: 20px 0 10px;

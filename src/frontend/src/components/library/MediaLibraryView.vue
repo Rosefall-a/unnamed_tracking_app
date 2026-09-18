@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, reactive, watch } from "vue";
-import { useRouter } from "vue-router";
-import { currentUser } from "../../state/auth";
+import { useRoute, useRouter } from "vue-router";
 import CheckIcon from "../CheckIcon.vue";
+import MediaTopBar from "../MediaTopBar.vue";
 import {
   STATUS_BUCKETS,
   statusBucket,
@@ -104,6 +104,7 @@ const emit = defineEmits<{
 }>();
 
 const router = useRouter();
+const route = useRoute();
 
 // The mockup's per-item "type" field (TV/Movie/OVA/Series/Anthology) has
 // no real per-item equivalent — none of the three entities carry a
@@ -127,7 +128,10 @@ const layout = ref<"list" | "shelf" | "board">(
     "list",
 );
 watch(layout, (v) => localStorage.setItem("libraryLayout", v));
-const viewingStats = ref(false);
+// Deep-linkable so Calendar/Lists' "View stats" links can jump straight
+// into a specific library's Stats tab (e.g. /anime?view=stats) instead
+// of only being reachable by clicking the tab after arriving.
+const viewingStats = ref(route.query.view === "stats");
 // Card size for the Shelf grid, same idea as Games' S/M/L density toggle
 // — persisted so it doesn't reset every visit.
 const shelfCardSize = ref<"compact" | "cozy" | "large">(
@@ -620,37 +624,8 @@ defineExpose({ openQuickAdd });
 
 <template>
   <div class="lib-root">
-    <div v-if="currentUser" class="profile-chip">
-      <span class="profile-name">{{ currentUser.username }}</span>
-      <div class="profile-avatar">
-        {{ currentUser.username.slice(0, 2).toUpperCase() }}
-      </div>
-    </div>
-
-    <div class="topbar">
-      <div class="kind-switch">
-        <RouterLink
-          to="/movies"
-          class="kind-tab"
-          :class="{ active: kind === 'movie' }"
-        >
-          Movies
-        </RouterLink>
-        <RouterLink
-          to="/tv"
-          class="kind-tab"
-          :class="{ active: kind === 'tv' }"
-        >
-          TV Shows
-        </RouterLink>
-        <RouterLink
-          to="/anime"
-          class="kind-tab"
-          :class="{ active: kind === 'anime' }"
-        >
-          Anime
-        </RouterLink>
-      </div>
+    <MediaTopBar :active="kind">
+      <template #actions>
       <div class="layout-tabs-group">
         <div class="layout-tabs">
           <button
@@ -743,7 +718,8 @@ defineExpose({ openQuickAdd });
           Stats
         </button>
       </div>
-    </div>
+      </template>
+    </MediaTopBar>
 
     <div class="lib-inner">
       <div class="page-head">
@@ -1929,92 +1905,6 @@ defineExpose({ openQuickAdd });
   box-sizing: border-box;
 }
 
-.profile-chip {
-  position: fixed;
-  top: 16px;
-  right: 16px;
-  z-index: 100;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  background: rgba(20, 20, 20, 0.55);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  border-radius: 999px;
-  padding: 6px 6px 6px 16px;
-}
-.profile-avatar {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: var(--accent);
-  color: #111;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  font-weight: 700;
-}
-.profile-name {
-  color: #fff;
-  font-size: 13px;
-  font-weight: 600;
-}
-
-/* The sticky top bar from the mockup: the Movies/TV/Anime switcher on the
-   left (right where the sidebar's hamburger button already reserves
-   space) and the List/Shelf/Board layout tabs on the right, divided from
-   the page content below by a hairline border. */
-.topbar {
-  position: sticky;
-  top: 0;
-  z-index: 80;
-  background: rgba(13, 13, 13, 0.94);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border-bottom: 1px solid var(--border-soft);
-  padding: 16px 24px 16px 64px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  flex-wrap: wrap;
-}
-.kind-switch {
-  display: inline-flex;
-  gap: 4px;
-  background: var(--surface);
-  border-radius: 10px;
-  padding: 4px;
-}
-.kind-tab {
-  background: transparent;
-  border: none;
-  color: var(--text-dim);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 30px;
-  box-sizing: border-box;
-  font-family: inherit;
-  font-size: 0.8rem;
-  font-weight: 700;
-  padding: 0 16px;
-  border-radius: 7px;
-  cursor: pointer;
-  text-decoration: none;
-  transition:
-    background 0.15s ease,
-    color 0.15s ease;
-}
-.kind-tab:hover {
-  color: var(--text);
-}
-.kind-tab.active {
-  background: var(--accent);
-  color: #14100a;
-}
 
 .page-head {
   display: flex;
@@ -2102,10 +1992,6 @@ defineExpose({ openQuickAdd });
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  /* Clears the fixed profile chip (top:16px, right:16px, ~150px wide)
-     so it never overlaps this group instead of padding out the whole
-     bar (which threw off the bar's proportions). */
-  margin-right: 160px;
 }
 .layout-tabs {
   display: inline-flex;

@@ -102,6 +102,7 @@ class TVShowUpdate(BaseModel):
     rating_overall: Decimal | None = Field(default=None, ge=0, le=10)
 
     personal_rank: int | None = None
+    airing_interval_days: int | None = Field(default=None, ge=1, le=90)
 
 
 class SeasonCreate(BaseModel):
@@ -131,6 +132,7 @@ class EpisodeUpdate(BaseModel):
 
     watched: bool | None = None
     rating: Decimal | None = Field(default=None, ge=0, le=10)
+    note: str | None = Field(default=None, max_length=2000)
 
 
 class EpisodesBulkWatched(BaseModel):
@@ -155,6 +157,7 @@ class EpisodeRead(BaseModel):
     still_url: str | None
     watched: bool
     rating: Decimal | None
+    note: str | None = None
     created_at: int
     updated_at: int
 
@@ -189,3 +192,8 @@ class TVShowRead(TVShowBase):
     seasons: list[SeasonRead] = Field(default_factory=list)
     created_at: int = Field(description="Unix timestamp in seconds when the show was created.")
     updated_at: int = Field(description="Unix timestamp in seconds when the show was last updated.")
+
+    is_airing: bool | None = None
+    next_episode_air_at: int | None = None
+    next_episode_number: int | None = None
+    airing_interval_days: int | None = None

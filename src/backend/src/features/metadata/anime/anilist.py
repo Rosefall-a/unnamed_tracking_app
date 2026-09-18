@@ -6,6 +6,8 @@ from typing import Any
 
 import requests
 
+from src.features.metadata.rate_limit import throttle
+
 _URL = "https://graphql.anilist.co"
 _TAG_RE = re.compile(r"<[^>]+>")
 
@@ -217,6 +219,7 @@ query ($id: Int) {
     episodes
     nextAiringEpisode {
       episode
+      airingAt
     }
   }
 }
@@ -513,8 +516,14 @@ class AniListClient:
         (and error normalization) only has to be written once. Retries up
         to `_MAX_RETRIES` times, sleeping `Retry-After` when AniList sends
         one, otherwise an increasing backoff — after that, raises a
-        friendly rate-limit message instead of AniList's raw 429 body."""
+        friendly rate-limit message instead of AniList's raw 429 body.
+        Throttled process-wide (not just within this client instance) so
+        the several background loops that each walk the anime library
+        (episode refresh, airing check, metadata heal) don't independently
+        burst AniList at the same moment and all collide on the same 429s
+        — see rate_limit.py."""
         for attempt in range(_MAX_RETRIES + 1):
+            throttle("anilist", _PACING_SECONDS)
             try:
                 response = self.session.post(
                     _URL, json={"query": query, "variables": variables}, timeout=15
@@ -604,14 +613,18 @@ class AniListClient:
         _pad_to_aired_total(results, _aired_total(media))
         return results
 
-    def airing_status(self, anilist_id: str) -> tuple[int | None, bool]:
-        """`(aired_episode_count, is_airing)` — the same two fields
-        `episodes()` uses to compute a total, without the
-        `streamingEpisodes` list, so this is cheap enough to poll every
-        few minutes across a whole library to catch a newly-aired
-        episode quickly, instead of running the full (thumbnail-fetching,
-        TMDB-backfilling) sync on that cadence. `is_airing` is just
-        whether AniList still has a `nextAiringEpisode` scheduled."""
+    def airing_status(
+        self, anilist_id: str
+    ) -> tuple[int | None, bool, int | None, int | None]:
+        """`(aired_episode_count, is_airing, next_episode_air_at,
+        next_episode_number)` — the same fields `episodes()` uses to
+        compute a total, without the `streamingEpisodes` list, so this is
+        cheap enough to poll every few minutes across a whole library to
+        catch a newly-aired episode quickly, instead of running the full
+        (thumbnail-fetching, TMDB-backfilling) sync on that cadence.
+        `is_airing` is just whether AniList still has a
+        `nextAiringEpisode` scheduled; the air-at timestamp is what
+        drives a countdown display and the calendar view."""
         try:
             anilist_id_int = int(anilist_id)
         except (TypeError, ValueError) as exc:
@@ -620,10 +633,12 @@ class AniListClient:
 
         media = (payload.get("data") or {}).get("Media")
         if not media:
-            return None, False
+            return None, False, None, None
         next_airing = media.get("nextAiringEpisode")
         is_airing = bool(next_airing and next_airing.get("episode"))
-        return _aired_total(media), is_airing
+        air_at = next_airing.get("airingAt") if next_airing else None
+        next_number = next_airing.get("episode") if next_airing else None
+        return _aired_total(media), is_airing, air_at, next_number
 
     def _fetch_relations_node(
         self, *, media_id: int | None = None, search: str | None = None

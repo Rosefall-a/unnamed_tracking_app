@@ -16,6 +16,7 @@ interface BackendEpisode {
   still_url: string | null;
   watched: boolean;
   rating: number | string | null;
+  note: string | null;
   created_at: number;
   updated_at: number;
 }
@@ -73,6 +74,11 @@ export interface BackendTVShow {
   // unix timestamps in seconds, not ISO strings
   created_at: number;
   updated_at: number;
+
+  is_airing: boolean | null;
+  next_episode_air_at: number | null;
+  next_episode_number: number | null;
+  airing_interval_days: number | null;
 }
 
 // Pydantic can serialize a Decimal as either a JSON number or a string
@@ -107,6 +113,7 @@ function mapBackendEpisode(raw: BackendEpisode): Episode {
     stillUrl: raw.still_url,
     watched: raw.watched,
     rating: toNumberOrNull(raw.rating),
+    note: raw.note ?? null,
     createdAt: unixSecondsToIso(raw.created_at),
     updatedAt: unixSecondsToIso(raw.updated_at),
   };
@@ -167,6 +174,10 @@ export function mapBackendTVShow(raw: BackendTVShow): TVShow {
     seasons: raw.seasons.map(mapBackendSeason),
     createdAt: unixSecondsToIso(raw.created_at),
     updatedAt: unixSecondsToIso(raw.updated_at),
+    isAiring: raw.is_airing,
+    nextEpisodeAirAt: raw.next_episode_air_at,
+    nextEpisodeNumber: raw.next_episode_number,
+    airingIntervalDays: raw.airing_interval_days ?? null,
   };
 }
 
@@ -248,6 +259,8 @@ export interface TVShowInput {
   ratingSoundtrack?: number | null;
   ratingOverall?: number | null;
   personalRank?: number | null;
+  // days between episodes; null/absent = the weekly default
+  airingIntervalDays?: number | null;
   seasons?: SeasonInput[];
 }
 
@@ -286,6 +299,7 @@ export function tvShowToInput(show: TVShow): TVShowInput {
     ratingSoundtrack: show.ratingSoundtrack,
     ratingOverall: show.ratingOverall,
     personalRank: show.personalRank,
+    airingIntervalDays: show.airingIntervalDays,
   };
 }
 
@@ -320,6 +334,7 @@ function inputToBody(input: TVShowInput): Record<string, unknown> {
     rating_overall: input.ratingOverall ?? null,
     personal_rank: input.personalRank ?? null,
   };
+  if (input.airingIntervalDays !== undefined) body.airing_interval_days = input.airingIntervalDays;
   if (input.status) body.status = denormalizeStatus(input.status);
   if (input.seasons) body.seasons = input.seasons.map(seasonInputToBody);
   return body;
@@ -463,6 +478,7 @@ export async function fetchEpisodes(
 export interface EpisodeUpdateInput {
   watched?: boolean;
   rating?: number | null;
+  note?: string | null;
 }
 
 export async function updateEpisode(
@@ -474,6 +490,7 @@ export async function updateEpisode(
   const body: Record<string, unknown> = {};
   if ("watched" in input) body.watched = input.watched;
   if ("rating" in input) body.rating = input.rating;
+  if ("note" in input) body.note = input.note;
 
   const response = await fetch(
     `/api/tv/${showId}/seasons/${seasonId}/episodes/${episodeId}`,
@@ -719,4 +736,15 @@ export async function fetchTVShowRecommended(
     recommended: raw.recommended.map(mapRelatedShow),
     configured: raw.configured,
   };
+}
+
+// Runs the airing check for just this title now (the background loop only
+// comes around every 30 minutes) and returns the refreshed record.
+export async function refreshTVShowAiring(id: string): Promise<TVShow> {
+  const response = await fetch(`/api/tv/${id}/refresh-airing`, {
+    method: "POST",
+    credentials: "include",
+  });
+  const raw = await handle<BackendTVShow>(response, "refresh airing schedule");
+  return mapBackendTVShow(raw);
 }

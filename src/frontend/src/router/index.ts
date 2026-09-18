@@ -14,6 +14,9 @@ import TVShowLibrary from "../views/TVShowLibrary.vue";
 import TVShowDetail from "../views/TVShowDetail.vue";
 import AnimeLibrary from "../views/AnimeLibrary.vue";
 import AnimeDetail from "../views/AnimeDetail.vue";
+import Calendar from "../views/Calendar.vue";
+import MediaLists from "../views/MediaLists.vue";
+import MediaListDetail from "../views/MediaListDetail.vue";
 import Inbox from "../views/Inbox.vue";
 import Bounties from "../views/Bounties.vue";
 import AchievementDetail from "../views/AchievementDetail.vue";
@@ -56,6 +59,11 @@ const router = createRouter({
     { path: "/tv/:id", name: "tv-show-detail", component: TVShowDetail },
     { path: "/anime", name: "anime-library", component: AnimeLibrary },
     { path: "/anime/:id", name: "anime-detail", component: AnimeDetail },
+    { path: "/calendar", name: "calendar", component: Calendar },
+    { path: "/lists", name: "media-lists", component: MediaLists },
+    { path: "/lists/:id", name: "media-list-detail", component: MediaListDetail },
+    // History merged into the Calendar page as a second tab
+    { path: "/history", redirect: "/calendar" },
     { path: "/login", name: "login", component: Login },
     // Profile lives inside Settings now (its own side-nav section)
     { path: "/profile", redirect: "/settings" },

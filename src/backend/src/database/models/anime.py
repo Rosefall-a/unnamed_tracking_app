@@ -122,6 +122,17 @@ class Anime(Base):
     # airing-check loop skip a show entirely once it's known to have
     # finished, instead of re-querying it every cycle forever.
     is_airing: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    # AniList's nextAiringEpisode.airingAt, converted to a real
+    # timestamp — populated by the same airing-check loop, alongside
+    # is_airing, so a countdown ("next episode in 3 days") and the
+    # calendar view have a real date to work from instead of just a
+    # yes/no flag.
+    next_episode_air_at: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    next_episode_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Days between episodes, for projecting the ones after the confirmed
+    # next one (no provider gives a full future schedule). NULL = the
+    # weekly default; set per show for biweekly/daily/irregular releases.
+    airing_interval_days: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     # a direct external URL (AniList's CDN / Jikan's image field), stored
     # as-is — same convention as Movie.poster_url, never downloaded/resized
@@ -144,6 +155,20 @@ class Anime(Base):
     # never fetched yet.
     relations_cache: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     relations_cached_at: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+
+    # A manual cross-link to this anime's TV or movie adaptation (or vice
+    # versa — a live-action version of the same story). Deliberately not
+    # auto-detected: AniList/Jikan/Kitsu have no reliable "this anime's
+    # live-action adaptation is TMDB id X" cross-reference, so guessing
+    # from title similarity risks the same wrong-match class of bug the
+    # id-recovery healing already had to fix once. SET NULL rather than
+    # CASCADE — deleting the linked title shouldn't delete this one.
+    linked_tv_show_id: Mapped[UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("tv_shows.id", ondelete="SET NULL"), nullable=True
+    )
+    linked_movie_id: Mapped[UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("movies.id", ondelete="SET NULL"), nullable=True
+    )
 
     # ------------------------------------------------------------------
     # Personal library state
@@ -277,6 +302,7 @@ class AnimeEpisode(Base):
 
     watched: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     rating: Mapped[Decimal | None] = mapped_column(Numeric(4, 2), nullable=True)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     created_at: Mapped[int] = mapped_column(
         BigInteger, nullable=False, default=lambda: int(time.time())

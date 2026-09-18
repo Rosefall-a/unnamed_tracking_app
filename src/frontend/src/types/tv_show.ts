@@ -19,6 +19,7 @@ export interface Episode {
   stillUrl: string | null;
   watched: boolean;
   rating: number | null;
+  note: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -77,4 +78,10 @@ export interface TVShow {
   seasons: Season[];
   createdAt: string;
   updatedAt: string;
+
+  isAiring: boolean | null;
+  nextEpisodeAirAt: number | null;
+  nextEpisodeNumber: number | null;
+  // days between episodes when a show doesn't air weekly; null = weekly
+  airingIntervalDays: number | null;
 }

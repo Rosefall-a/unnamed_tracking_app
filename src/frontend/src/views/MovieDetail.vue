@@ -17,6 +17,8 @@ import MovieFormModal from "../components/MovieFormModal.vue";
 import RelationsGraph from "../components/RelationsGraph.vue";
 import type { ChainNode, BranchNode } from "../components/RelationsGraph.vue";
 import MediaPreviewModal from "../components/MediaPreviewModal.vue";
+import MediaExtrasPanel from "../components/MediaExtrasPanel.vue";
+import MediaKindSwitch from "../components/MediaKindSwitch.vue";
 import {
   STATUS_BUCKETS,
   statusBucket,
@@ -337,6 +339,10 @@ watch(
       </svg>
     </button>
 
+    <div class="detail-switch">
+      <MediaKindSwitch active="movie" />
+    </div>
+
     <MovieFormModal
       v-if="showEditModal"
       :movie="movie"
@@ -420,6 +426,7 @@ watch(
                 />
               </svg>
             </button>
+            <MediaExtrasPanel media-type="movie" :media-id="movie.id" />
           </div>
         </div>
       </div>
@@ -490,6 +497,7 @@ watch(
             <span class="meta-value">{{ movie.rewatches }}</span>
           </div>
         </div>
+
         <div v-if="movie.genres.length" class="chip-row">
           <span v-for="g in movie.genres" :key="g" class="chip primary">{{
             g
@@ -805,6 +813,24 @@ watch(
   cursor: pointer;
   z-index: 100;
   transition: background 0.15s ease;
+}
+.detail-switch {
+  position: absolute;
+  top: 16px;
+  left: 112px;
+  z-index: 100;
+}
+.detail-switch :deep(.kind-switch) {
+  background: rgba(20, 20, 20, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  padding: 3px;
+}
+@media (max-width: 860px) {
+  .detail-switch {
+    display: none;
+  }
 }
 .back-arrow-button:hover {
   background: rgba(40, 40, 40, 0.85);

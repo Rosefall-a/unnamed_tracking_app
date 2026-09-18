@@ -66,20 +66,6 @@ function branchBand(type: string): number {
   return 1; // middle: tv, tv short, movie
 }
 
-// Movies/OVAs/ONAs/specials have a real release date and a real place in
-// watch order (a movie that came out between two TV seasons is meant to
-// be watched between them) — unlike source manga/novels or music videos,
-// which don't have a "watch order" position at all. These get placed
-// along the chain's own timeline by year instead of bunched at a fixed
-// depth next to the anchor, which is what made a franchise with several
-// movies/specials (Bleach, with 4 movies + 2 specials + an ONA all
-// hanging off the one TV entry) read as one confusing clump regardless
-// of when each one actually came out.
-function isTimelineFormat(type: string): boolean {
-  const t = type.toLowerCase();
-  return t === "movie" || t === "ova" || t === "ona" || t === "special";
-}
-
 function edgePoint(
   cx: number,
   cy: number,
@@ -120,65 +106,6 @@ const chainPositions = computed(() =>
 // whenever its horizontal depth happens to reach that far — starting
 // one row off guarantees real separation from the chain regardless of
 // how wide a branch subtree gets.
-// Where a timeline branch's own year falls along the chain's release
-// years — interpolated between whichever two chain entries bracket it,
-// or projected just past the first/last chain entry when the branch
-// predates or postdates the whole chain. Null when nothing in the chain
-// has a known year to interpolate against.
-function timelineCx(year: number, chain: { cx: number; node: ChainNode }[]): number | null {
-  const dated = chain.filter((p) => p.node.year != null) as { cx: number; node: ChainNode & { year: number } }[];
-  if (!dated.length) return null;
-  let before: (typeof dated)[number] | null = null;
-  let after: (typeof dated)[number] | null = null;
-  for (const p of dated) {
-    if (p.node.year <= year && (!before || p.node.year > before.node.year)) before = p;
-    if (p.node.year >= year && (!after || p.node.year < after.node.year)) after = p;
-  }
-  if (before && after && before !== after) {
-    const span = after.node.year - before.node.year;
-    const frac = span > 0 ? (year - before.node.year) / span : 0.5;
-    return before.cx + frac * (after.cx - before.cx);
-  }
-  if (before) return before.cx + STEP_X * 0.5;
-  if (after) return after.cx - STEP_X * 0.5;
-  return null;
-}
-
-const ROW_MIN_GAP = NODE_W + 40;
-
-// Greedily rows out a set of already-cx-placed nodes into alternating
-// above/below rows (1, -1, 2, -2, ...), skipping to the next row a node
-// would otherwise horizontally collide in — the same guaranteed-gap
-// principle the old depth-based layout used, just driven by real
-// horizontal position instead of an anchor-relative column. Takes the
-// row-occupancy map by reference (rather than building its own) so it
-// can be seeded with positions another pass already placed — the
-// timeline pass and the fixed-depth "side" pass both draw from the same
-// map, or a movie whose interpolated year lands near the anchor can
-// silently land in the exact row/column a source-manga branch already
-// occupies there.
-function assignRows<T extends { cx: number }>(
-  items: T[],
-  placedByRow: Map<number, number[]>,
-): (T & { slot: number })[] {
-  const rowOrder: number[] = [];
-  for (let i = 1; i <= 12; i++) rowOrder.push(i, -i);
-  return items.map((item) => {
-    let slot = rowOrder[rowOrder.length - 1];
-    for (const row of rowOrder) {
-      const placed = placedByRow.get(row) ?? [];
-      if (!placed.some((cx) => Math.abs(cx - item.cx) < ROW_MIN_GAP)) {
-        slot = row;
-        break;
-      }
-    }
-    const placed = placedByRow.get(slot) ?? [];
-    placed.push(item.cx);
-    placedByRow.set(slot, placed);
-    return { ...item, slot };
-  });
-}
-
 const branchCounts = computed(() => {
   type Positioned = { node: BranchNode; cx: number; cy: number; anchor: { cx: number; cy: number } | undefined };
   const childrenOf = new Map<string, BranchNode[]>();
@@ -203,24 +130,16 @@ const branchCounts = computed(() => {
   for (const [anchorIndex, roots] of rootsByAnchor) {
     const anchor = chain[anchorIndex];
 
-    const timelineRoots = roots.filter(
-      (n) => isTimelineFormat(n.type) && n.year != null && timelineCx(n.year, chain) != null,
+    // Every direct branch gets its own fixed row, in a fixed order: by
+    // band (specials on top, series/movies next to the chain, source
+    // material at the bottom), oldest first within a band. Nothing is
+    // placed by release-year interpolation or collision search, so the
+    // same franchise always lays out the same way.
+    const sideRoots = [...roots].sort(
+      (x, y) => (x.year ?? 9999) - (y.year ?? 9999) || x.title.localeCompare(y.title),
     );
-    const sideRoots = roots.filter((n) => !timelineRoots.includes(n));
 
-    // Shared row-occupancy map across BOTH passes below — a movie
-    // placed by release year and a source-manga branch placed by fixed
-    // depth can easily land at overlapping X (the anchor's own
-    // near-field is exactly where an early-year movie often interpolates
-    // to), so both passes have to see the same "what's already in this
-    // row" picture rather than two independent ones that can each think
-    // a row is free.
-    const occupiedByRow = new Map<number, number[]>();
-
-    // ---- side roots (source manga/novels, music, anything undated) —
-    // banded and stacked out from the anchor at a fixed depth; placed
-    // first since their X is deterministic, so the timeline pass below
-    // can route around wherever they land ----
+    // banded and stacked out from the anchor at a fixed depth
     const byBand = [0, 1, 2].map((band) => sideRoots.filter((n) => branchBand(n.type) === band));
     const [specials, mainSeries, manga] = byBand;
     const mainUpper: BranchNode[] = [];
@@ -259,38 +178,9 @@ const branchCounts = computed(() => {
       const parentPos = node.parentBranchId ? posById.get(node.parentBranchId) : undefined;
       result.push({ node, cx, cy, anchor: parentPos ?? anchor });
       posById.set(node.id, { cx, cy });
-      const rowKey = Math.round(slot);
-      const occupied = occupiedByRow.get(rowKey) ?? [];
-      occupied.push(cx);
-      occupiedByRow.set(rowKey, occupied);
       for (const kid of childrenOf.get(node.id) ?? []) place(kid);
     }
     for (const root of sideRoots) place(root);
-
-    // ---- timeline-positioned roots (movies/OVAs/ONAs/specials) ----
-    const withCx = timelineRoots
-      .map((n) => ({ node: n, cx: timelineCx(n.year as number, chain) as number }))
-      .sort((a, b) => a.cx - b.cx);
-    // A nested child (e.g. two movies that are themselves a sequel pair)
-    // sits one short step further along from its parent rather than
-    // getting its own timeline slot — walked recursively so a genuine
-    // multi-member chain (a trilogy, not just a duology) renders every
-    // link instead of only the first, matching how the side-branch
-    // `place()` above already recurses through its own children.
-    function placeTimelineChild(parentNode: BranchNode, parentCx: number, cy: number) {
-      for (const kid of childrenOf.get(parentNode.id) ?? []) {
-        const kidCx = parentCx + BRANCH_SPACING * 0.6;
-        result.push({ node: kid, cx: kidCx, cy, anchor: { cx: parentCx, cy } });
-        posById.set(kid.id, { cx: kidCx, cy });
-        placeTimelineChild(kid, kidCx, cy);
-      }
-    }
-    for (const { node, cx, slot } of assignRows(withCx, occupiedByRow)) {
-      const cy = (anchor?.cy ?? 0) + slot * ROW_H;
-      result.push({ node, cx, cy, anchor });
-      posById.set(node.id, { cx, cy });
-      placeTimelineChild(node, cx, cy);
-    }
   }
   return result;
 });
@@ -489,6 +379,7 @@ defineExpose({ fit, focusCurrent });
         class="graph-node"
         :class="{ current: node.current }"
         :style="{ left: cx - NODE_W / 2 + 'px', top: cy - NODE_H / 2 + 'px' }"
+        :title="node.title"
         @click="emit('chain-click', node.id)"
       >
         <div class="graph-node-title">{{ node.title }}</div>
@@ -502,6 +393,7 @@ defineExpose({ fit, focusCurrent });
         :key="node.id"
         class="graph-node"
         :style="{ left: cx - NODE_W / 2 + 'px', top: cy - NODE_H / 2 + 'px' }"
+        :title="node.title"
         @click="emit('branch-click', node.id)"
       >
         <div class="graph-node-title">{{ node.title }}</div>
@@ -552,7 +444,15 @@ defineExpose({ fit, focusCurrent });
 .graph-node {
   position: absolute;
   width: 200px;
-  min-height: 74px;
+  /* A hard height, not min-height: the layout math (ROW_H, edge anchor
+     points, assignRows' collision gap) all assume every node is exactly
+     NODE_H tall. A long title used to wrap onto extra lines and grow
+     the node past that, pushing it into whatever sat in the next row
+     and warping the whole graph — truncated below instead, with the
+     full title available as a hover tooltip. */
+  height: 74px;
+  box-sizing: border-box;
+  overflow: hidden;
   background: #222222;
   border: 1px solid #2b2b2b;
   border-radius: 8px;
@@ -571,6 +471,9 @@ defineExpose({ fit, focusCurrent });
   margin-bottom: 6px;
   line-height: 1.25;
   color: #f2f2f2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .graph-node-meta {
   display: flex;

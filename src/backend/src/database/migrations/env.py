@@ -25,6 +25,7 @@ from src.database.models import (
     game_profile,  # noqa: F401
     game_profile_stat_snapshot,  # noqa: F401
     inbox_item,  # noqa: F401
+    media_extras,  # noqa: F401
     media_item,  # noqa: F401
     movies,  # noqa: F401
     tv_show,  # noqa: F401

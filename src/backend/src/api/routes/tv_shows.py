@@ -1,6 +1,7 @@
 """API routes for managing TV shows and their seasons."""
 
 import asyncio
+import logging
 import re
 import time
 from datetime import date
@@ -20,19 +21,23 @@ from src.api.schemas.tv_show import (
     TVShowRead,
     TVShowUpdate,
 )
+from src.api.routes.media_extras import log_activity
 from src.core.app_integrations import get_or_create_app_integration_settings
 from src.core.auth import get_current_user
 from src.core.crypto import decrypt_secret
+from src.database.models.media_extras import ActivityEventType
 from src.database.models.tv_show import TVEpisode, TVSeason, TVShow, TVShowStatus
 from src.database.models.user import User
 from src.database.session import get_db
 from src.features.metadata.locked_fields import apply_updates_with_locking
 from src.features.metadata.movies.tmdb import TMDBClient
+from src.features.metadata.refresh import quick_check_tv_season
 from src.features.metadata.tv.episode_sync import fetch_season_episodes
 from src.features.metadata.tv.search import search_tv_metadata
 from src.features.metadata.tv.tvdb import TVDBClient
 
 router = APIRouter(prefix="/api/tv", tags=["tv"], dependencies=[Depends(get_current_user)])
+logger = logging.getLogger(__name__)
 
 # fields the metadata search's "Apply" button can fill in — the only ones
 # worth locking, since nothing else is ever set by that flow
@@ -143,11 +148,46 @@ async def create_show(
     db.add(show)
     await db.flush()
 
+    first_season = None
     for season_input in payload.seasons:
-        db.add(TVSeason(**season_input.model_dump(), show_id=show.id))
+        season = TVSeason(**season_input.model_dump(), show_id=show.id)
+        db.add(season)
+        if first_season is None:
+            first_season = season
+
+    # Otherwise a freshly-added airing show shows no next-episode date
+    # anywhere (countdown, calendar) until the next periodic airing-check
+    # pass, up to AIRING_CHECK_INTERVAL_SECONDS later — worth the one
+    # extra TVmaze call at creation time so it's there immediately.
+    # Best-effort: a slow/unreachable TVmaze never blocks creation.
+    if show.external_id and first_season is not None:
+        try:
+            await quick_check_tv_season(show, first_season, db)
+        except Exception:
+            logger.exception("Immediate airing check failed for new show %r", show.title)
 
     await db.commit()
     return await _get_show_or_404(show.id, db, current_user.id)
+
+
+@router.post("/{show_id}/refresh-airing", response_model=TVShowRead)
+async def refresh_airing(
+    show_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> TVShow:
+    """Runs the airing check for just this show right now (the background
+    loop only comes around every 30 minutes)."""
+    show = await _get_show_or_404(show_id, db, current_user.id)
+    if not show.external_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This show has no TVmaze id, so its airing schedule can't be checked.",
+        )
+    if show.seasons:
+        await quick_check_tv_season(show, show.seasons[-1], db)
+        await db.commit()
+    return await _get_show_or_404(show_id, db, current_user.id)
 
 
 @router.get("/list", response_model=list[TVShowRead])
@@ -195,6 +235,7 @@ async def update_show(
 ) -> TVShow:
     """Update a show and keep its derived sort title synchronized."""
     show = await _get_show_or_404(show_id, db, current_user.id)
+    previous_status = show.status
 
     updates = payload.model_dump(exclude_unset=True)
 
@@ -202,6 +243,13 @@ async def update_show(
 
     if "title" in updates and "sort_title" not in updates:
         show.sort_title = _derive_sort_title(show.title)
+
+    if "status" in updates and show.status != previous_status:
+        await log_activity(
+            db, current_user.id, "tv", show.id, show.title,
+            ActivityEventType.STATUS_CHANGED, date.today(),
+            detail=f"{previous_status.value} -> {show.status.value}",
+        )
 
     await db.commit()
     return await _get_show_or_404(show_id, db, current_user.id)
@@ -380,12 +428,20 @@ async def bulk_set_episodes_watched(
     single-episode PATCH below so the literal path segment
     "bulk-watched" is matched here rather than attempted as an
     `episode_id` UUID."""
-    await _get_show_or_404(show_id, db, current_user.id)
+    show = await _get_show_or_404(show_id, db, current_user.id)
     season = await _get_season_or_404(season_id, show_id, db)
     ids = set(payload.episode_ids)
+    newly_watched = 0
     for episode in season.episodes:
         if episode.id in ids:
+            if payload.watched and not episode.watched:
+                newly_watched += 1
             episode.watched = payload.watched
+    if newly_watched:
+        await log_activity(
+            db, current_user.id, "tv", show.id, show.title,
+            ActivityEventType.EPISODES_WATCHED, date.today(), increment=newly_watched,
+        )
     await db.commit()
     return await _get_show_or_404(show_id, db, current_user.id)
 
@@ -399,13 +455,20 @@ async def update_episode(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> TVShow:
-    await _get_show_or_404(show_id, db, current_user.id)
+    show = await _get_show_or_404(show_id, db, current_user.id)
     await _get_season_or_404(season_id, show_id, db)
     episode = await _get_episode_or_404(episode_id, season_id, db)
 
     updates = payload.model_dump(exclude_unset=True)
+    newly_watched = updates.get("watched") is True and not episode.watched
     for field, value in updates.items():
         setattr(episode, field, value)
+
+    if newly_watched:
+        await log_activity(
+            db, current_user.id, "tv", show.id, show.title,
+            ActivityEventType.EPISODES_WATCHED, date.today(),
+        )
 
     await db.commit()
     return await _get_show_or_404(show_id, db, current_user.id)

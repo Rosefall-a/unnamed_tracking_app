@@ -1,11 +1,24 @@
 from __future__ import annotations
 
+import time
 from typing import Any
 
 import requests
 
+from src.features.metadata.rate_limit import throttle
+
 _BASE_URL = "https://kitsu.io/api/edge"
 _EPISODE_PAGE_SIZE = 20
+
+# Same shape as anilist.py/jikan.py's retry+throttle — see rate_limit.py
+# for why a shared, process-wide gap matters here even though Kitsu
+# hasn't been observed rate-limiting yet: the several background loops
+# that walk the anime library can still burst it the same way they did
+# AniList and Jikan.
+_MAX_RETRIES = 3
+_BASE_BACKOFF_SECONDS = 2.0
+_MAX_BACKOFF_SECONDS = 10.0
+_PACING_SECONDS = 0.4
 
 
 class KitsuError(RuntimeError):
@@ -27,6 +40,32 @@ class KitsuClient:
     def __init__(self, *, session: requests.Session | None = None) -> None:
         self.session = session or requests.Session()
 
+    def _get(self, path: str, params: dict[str, str]) -> dict[str, Any]:
+        for attempt in range(_MAX_RETRIES + 1):
+            throttle("kitsu", _PACING_SECONDS)
+            try:
+                response = self.session.get(f"{_BASE_URL}{path}", params=params, timeout=15)
+            except requests.RequestException as exc:
+                raise KitsuError(f"Could not reach Kitsu: {exc}") from exc
+            if response.status_code == 429:
+                if attempt >= _MAX_RETRIES:
+                    break
+                retry_after = response.headers.get("Retry-After")
+                delay = (
+                    float(retry_after)
+                    if retry_after and retry_after.replace(".", "", 1).isdigit()
+                    else _BASE_BACKOFF_SECONDS * (2**attempt)
+                )
+                time.sleep(min(delay, _MAX_BACKOFF_SECONDS))
+                continue
+            if response.status_code >= 400:
+                raise KitsuError(f"Kitsu request failed ({response.status_code}): {response.text[:200]}")
+            try:
+                return response.json()
+            except ValueError as exc:
+                raise KitsuError("Kitsu returned invalid JSON.") from exc
+        raise KitsuError("Kitsu is rate-limiting requests right now — wait a bit and try again.")
+
     def find_exact(self, title: str, year: int | None = None) -> str | None:
         """Searches by title and returns the id only when a result's own
         title matches exactly (case/whitespace-insensitive) — the same
@@ -46,20 +85,7 @@ class KitsuClient:
         if its own start year is within 1 of it; a title match with a
         wildly different year is treated as no match rather than a
         confident one."""
-        try:
-            response = self.session.get(
-                f"{_BASE_URL}/anime",
-                params={"filter[text]": title, "page[limit]": "5"},
-                timeout=15,
-            )
-        except requests.RequestException as exc:
-            raise KitsuError(f"Could not reach Kitsu: {exc}") from exc
-        if response.status_code >= 400:
-            raise KitsuError(f"Kitsu request failed ({response.status_code}): {response.text[:200]}")
-        try:
-            payload = response.json()
-        except ValueError as exc:
-            raise KitsuError("Kitsu returned invalid JSON.") from exc
+        payload = self._get("/anime", {"filter[text]": title, "page[limit]": "5"})
 
         target = _normalize_title(title)
         for entry in payload.get("data") or []:
@@ -79,23 +105,10 @@ class KitsuClient:
         results: list[dict[str, Any]] = []
         offset = 0
         while True:
-            try:
-                response = self.session.get(
-                    f"{_BASE_URL}/anime/{kitsu_id}/episodes",
-                    params={"page[limit]": str(_EPISODE_PAGE_SIZE), "page[offset]": str(offset)},
-                    timeout=15,
-                )
-            except requests.RequestException as exc:
-                raise KitsuError(f"Could not reach Kitsu: {exc}") from exc
-            if response.status_code >= 400:
-                raise KitsuError(
-                    f"Kitsu request failed ({response.status_code}): {response.text[:200]}"
-                )
-            try:
-                payload = response.json()
-            except ValueError as exc:
-                raise KitsuError("Kitsu returned invalid JSON.") from exc
-
+            payload = self._get(
+                f"/anime/{kitsu_id}/episodes",
+                {"page[limit]": str(_EPISODE_PAGE_SIZE), "page[offset]": str(offset)},
+            )
             entries = payload.get("data") or []
             for entry in entries:
                 attrs = entry.get("attributes") or {}

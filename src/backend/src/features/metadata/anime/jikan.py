@@ -1,12 +1,26 @@
 from __future__ import annotations
 
 import re
+import time
 from typing import Any
 
 import requests
 
+from src.features.metadata.rate_limit import throttle
+
 _BASE_URL = "https://api.jikan.moe/v4"
 _DURATION_RE = re.compile(r"(\d+)")
+
+# Jikan's published limit is 3 req/sec and 60 req/min — tighter than
+# AniList's. Previously every call here just raised on a 429 with no
+# retry at all, so any of the several background loops (episode refresh,
+# airing check, metadata heal) that hit this at the same moment as
+# another loop would permanently lose that show for the day. Same
+# retry/backoff + process-wide throttle shape as anilist.py now.
+_MAX_RETRIES = 3
+_BASE_BACKOFF_SECONDS = 2.0
+_MAX_BACKOFF_SECONDS = 10.0
+_PACING_SECONDS = 0.4
 
 
 class JikanError(RuntimeError):
@@ -31,23 +45,39 @@ class JikanClient:
     def __init__(self, *, session: requests.Session | None = None) -> None:
         self.session = session or requests.Session()
 
+    def _get(self, path: str, params: dict[str, str]) -> dict[str, Any]:
+        """Every Jikan call funnels through here for the same reason
+        AniList's `_post_graphql` does: one place for retry/backoff and
+        the process-wide throttle, instead of duplicated per endpoint."""
+        for attempt in range(_MAX_RETRIES + 1):
+            throttle("jikan", _PACING_SECONDS)
+            try:
+                response = self.session.get(f"{_BASE_URL}{path}", params=params, timeout=15)
+            except requests.RequestException as exc:
+                raise JikanError(f"Could not reach Jikan: {exc}") from exc
+            if response.status_code == 429:
+                if attempt >= _MAX_RETRIES:
+                    break
+                retry_after = response.headers.get("Retry-After")
+                delay = (
+                    float(retry_after)
+                    if retry_after and retry_after.replace(".", "", 1).isdigit()
+                    else _BASE_BACKOFF_SECONDS * (2**attempt)
+                )
+                time.sleep(min(delay, _MAX_BACKOFF_SECONDS))
+                continue
+            if response.status_code >= 400:
+                raise JikanError(f"Jikan request failed ({response.status_code}): {response.text[:200]}")
+            try:
+                return response.json()
+            except ValueError as exc:
+                raise JikanError("Jikan returned invalid JSON.") from exc
+        raise JikanError("Jikan is rate-limiting requests right now — wait a bit and try again.")
+
     def search(self, query: str, limit: int = 8) -> list[dict[str, Any]]:
         if not query.strip():
             return []
-        try:
-            response = self.session.get(
-                f"{_BASE_URL}/anime",
-                params={"q": query, "limit": str(limit)},
-                timeout=15,
-            )
-        except requests.RequestException as exc:
-            raise JikanError(f"Could not reach Jikan: {exc}") from exc
-        if response.status_code >= 400:
-            raise JikanError(f"Jikan request failed ({response.status_code}): {response.text[:200]}")
-        try:
-            payload = response.json()
-        except ValueError as exc:
-            raise JikanError("Jikan returned invalid JSON.") from exc
+        payload = self._get("/anime", {"q": query, "limit": str(limit)})
         if payload.get("status") and payload.get("status") != 200:
             raise JikanError(payload.get("message", "Jikan returned an error."))
 
@@ -84,23 +114,7 @@ class JikanClient:
         results: list[dict[str, Any]] = []
         page = 1
         while True:
-            try:
-                response = self.session.get(
-                    f"{_BASE_URL}/anime/{mal_id}/episodes",
-                    params={"page": str(page)},
-                    timeout=15,
-                )
-            except requests.RequestException as exc:
-                raise JikanError(f"Could not reach Jikan: {exc}") from exc
-            if response.status_code >= 400:
-                raise JikanError(
-                    f"Jikan request failed ({response.status_code}): {response.text[:200]}"
-                )
-            try:
-                payload = response.json()
-            except ValueError as exc:
-                raise JikanError("Jikan returned invalid JSON.") from exc
-
+            payload = self._get(f"/anime/{mal_id}/episodes", {"page": str(page)})
             for entry in payload.get("data") or []:
                 results.append(
                     {

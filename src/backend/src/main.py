@@ -7,12 +7,15 @@ from src.api.routes import (
     anime,
     auth,
     bounties,
+    calendar_feed,
     cards,
     export_import,
     game_archives,
     games,
     library_sync,
     media,
+    media_extras,
+    media_lists,
     movies,
     settings,
     stats,
@@ -47,6 +50,10 @@ app.include_router(stats.router)
 app.include_router(library_sync.router)
 app.include_router(bounties.router)
 app.include_router(export_import.router)
+app.include_router(media_extras.router)
+app.include_router(media_lists.router)
+app.include_router(calendar_feed.authed_router)
+app.include_router(calendar_feed.public_router)
 app.include_router(set_routes.router)
 app.include_router(cards.router)
 app.include_router(misc_router)
