@@ -3,6 +3,9 @@ import { ref, computed, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import {
   getAnime,
+  peekAnime,
+  peekAllAnimes,
+  peekAnimeRelations,
   updateAnime,
   animeToInput,
   fetchEpisodes,
@@ -28,9 +31,11 @@ import EpisodeList from "../components/EpisodeList.vue";
 import RelationsGraph from "../components/RelationsGraph.vue";
 import type { ChainNode, BranchNode } from "../components/RelationsGraph.vue";
 import MediaPreviewModal from "../components/MediaPreviewModal.vue";
-import ConfirmPopup from "../components/ConfirmPopup.vue";
+import { useConfirm } from "../state/dialog";
 import MediaExtrasPanel from "../components/MediaExtrasPanel.vue";
-import MediaKindSwitch from "../components/MediaKindSwitch.vue";
+import MediaTopBar from "../components/MediaTopBar.vue";
+import BackButton from "../components/BackButton.vue";
+import RatingPicker from "../components/RatingPicker.vue";
 import {
   STATUS_BUCKETS,
   statusBucket,
@@ -66,17 +71,31 @@ function goBack() {
   }
 }
 
+// Runs after the first paint, so secondary requests and the re-renders they
+// cause never compete with the page appearing.
+function afterFirstPaint(fn: () => void) {
+  requestAnimationFrame(() => setTimeout(fn, 0));
+}
+
 async function load() {
-  loading.value = true;
+  // Draw at once from what the library or the last visit already fetched;
+  // the fresh copy replaces it a moment later.
+  const cached = peekAnime(showId.value);
+  if (cached) {
+    show.value = cached;
+    loading.value = false;
+  } else {
+    loading.value = true;
+  }
   try {
     show.value = await getAnime(showId.value);
-    // Needed for the Overview tab's "Other seasons" row, not just the
-    // Related tab — loaded eagerly here instead of waiting for a tab
-    // click, since Overview is what actually shows first.
-    loadRelated();
-    loadLibrarySeasons();
+    // Needed for the Overview tab's Seasons grid, not just the Related tab
+    afterFirstPaint(() => {
+      loadRelated();
+      loadLibrarySeasons();
+    });
   } catch (e) {
-    error.value = e instanceof Error ? e.message : "Failed to load anime.";
+    if (!cached) error.value = e instanceof Error ? e.message : "Failed to load anime.";
   } finally {
     loading.value = false;
   }
@@ -178,17 +197,20 @@ async function loadAllEpisodes() {
 // Hold almost always means "I'm starting/resuming this" — asked once
 // per visit rather than nagging on every single episode, and only when
 // moving *toward* watched (unwatching one back never prompts).
-const showMoveToWatchingPrompt = ref(false);
+const confirm = useConfirm();
 const moveToWatchingPromptShown = ref(false);
 function maybePromptMoveToWatching() {
   if (!show.value || moveToWatchingPromptShown.value) return;
   const bucket = statusBucket(show.value.status);
   if (bucket !== "plan" && bucket !== "hold") return;
   moveToWatchingPromptShown.value = true;
-  showMoveToWatchingPrompt.value = true;
+  void confirm({
+    message: "Move this to Watching?",
+    confirmLabel: "Move to Watching",
+    cancelLabel: "Leave as is",
+  }).then(confirmMoveToWatching);
 }
 async function confirmMoveToWatching(move: boolean) {
-  showMoveToWatchingPrompt.value = false;
   if (!move || !show.value) return;
   const previous = show.value.status;
   show.value.status = "in progress";
@@ -206,27 +228,30 @@ async function confirmMoveToWatching(move: boolean) {
 // always means "I'm done with this" — offered once per visit, and never
 // for a show with more episodes coming (all-watched-so-far isn't finished)
 // or one that's already Completed/Dropped.
-const showMoveToCompletedPrompt = ref(false);
 const moveToCompletedPromptShown = ref(false);
-function maybePromptMoveToCompleted() {
-  if (!show.value || moveToCompletedPromptShown.value) return;
+function maybePromptMoveToCompleted(): boolean {
+  if (!show.value || moveToCompletedPromptShown.value) return false;
   const bucket = statusBucket(show.value.status);
-  if (bucket === "completed" || bucket === "dropped") return;
-  if (show.value.nextEpisodeAirAt || show.value.isAiring) return;
+  if (bucket === "completed" || bucket === "dropped") return false;
+  if (show.value.nextEpisodeAirAt || show.value.isAiring) return false;
   const seasons = show.value.seasons;
-  if (!seasons.length) return;
+  if (!seasons.length) return false;
   const allDone = seasons.every(
     (s) =>
       s.episodes.length > 0 &&
       s.episodes.every((e) => e.watched) &&
       (s.episodeCount == null || s.episodes.length >= s.episodeCount),
   );
-  if (!allDone) return;
+  if (!allDone) return false;
   moveToCompletedPromptShown.value = true;
-  showMoveToCompletedPrompt.value = true;
+  void confirm({
+    message: "You've watched every episode. Move this to Completed?",
+    confirmLabel: "Move to Completed",
+    cancelLabel: "Leave as is",
+  }).then(confirmMoveToCompleted);
+  return true;
 }
 async function confirmMoveToCompleted(move: boolean) {
-  showMoveToCompletedPrompt.value = false;
   if (!move || !show.value) return;
   const previous = show.value.status;
   show.value.status = "watched";
@@ -242,8 +267,7 @@ async function confirmMoveToCompleted(move: boolean) {
 // The one call every "just marked something watched" path makes: the
 // finished-it prompt outranks the started-it prompt when both apply.
 function afterMarkedWatched() {
-  maybePromptMoveToCompleted();
-  if (!showMoveToCompletedPrompt.value) maybePromptMoveToWatching();
+  if (!maybePromptMoveToCompleted()) maybePromptMoveToWatching();
 }
 
 async function onSetEpisodeNote(seasonId: string, episodeId: string, note: string | null) {
@@ -359,7 +383,13 @@ const relatedBranches = ref<AnimeRelationBranch[]>([]);
 
 async function loadRelated() {
   if (!show.value || relatedLoaded.value) return;
-  relatedLoading.value = true;
+  const remembered = peekAnimeRelations(show.value.id);
+  if (remembered) {
+    relatedChain.value = remembered.chain;
+    relatedBranches.value = remembered.branches;
+  } else {
+    relatedLoading.value = true;
+  }
   relatedError.value = null;
   try {
     const res = await fetchAnimeRelations(show.value.id);
@@ -384,6 +414,8 @@ async function loadRelated() {
 // the rest are dimmed and open the same add-preview as the Related tab.
 const librarySeasons = ref<Anime[]>([]);
 async function loadLibrarySeasons() {
+  const known = peekAllAnimes();
+  if (known) librarySeasons.value = known;
   try {
     librarySeasons.value = await fetchAnime();
   } catch {
@@ -403,12 +435,13 @@ interface SeasonCard {
   inLibrary: Anime | null;
 }
 
-// 0 = seasons/series, 1 = OVA/special, 2 = movies (always last)
+// 0 = seasons/series, 2 = movies (always last). OVAs, specials, music
+// and everything else stay on the Related tab, not here.
 function seasonRank(format: string | null): number {
   const t = (format ?? "").toLowerCase();
   if (t.includes("movie")) return 2;
-  if (t.includes("ova") || t.includes("special")) return 1;
-  return 0;
+  if (t === "tv" || t === "tv short" || t === "ona") return 0;
+  return -1;
 }
 
 const allSeasons = computed<SeasonCard[]>(() => {
@@ -450,14 +483,15 @@ const allSeasons = computed<SeasonCard[]>(() => {
       format: b.format,
       year: b.year,
       episodeCount: b.episodeCount,
-      isCurrent: false,
-      inLibrary: matchLibrary(b.id, b.title),
+      isCurrent: b.isCurrent,
+      inLibrary: b.isCurrent ? null : matchLibrary(b.id, b.title),
       rank: seasonRank(b.format),
       order: 1000 + i,
     });
   });
-  cards.sort((x, y) => x.rank - y.rank || x.order - y.order);
-  return cards;
+  return cards
+    .filter((c) => c.rank >= 0 || c.isCurrent)
+    .sort((x, y) => x.rank - y.rank || x.order - y.order);
 });
 
 function seasonCardMeta(c: SeasonCard): string {
@@ -526,10 +560,12 @@ const relatedList = computed(() => {
   const chainItems = relatedChain.value
     .map((n, i) => ({
       ...n,
-      relationLabel: i < currentIndex ? "Prequel" : "Sequel",
+      // a movie/OVA opened from the library isn't in the chain at all
+      // (currentIndex -1): its chain entries are the main series
+      relationLabel: currentIndex === -1 ? "Main series" : i < currentIndex ? "Prequel" : "Sequel",
     }))
     .filter((n) => !n.isCurrent);
-  return [...chainItems, ...visibleBranches.value];
+  return [...chainItems, ...visibleBranches.value.filter((b) => !b.isCurrent)];
 });
 
 const relatedChainNodes = computed<ChainNode[]>(() =>
@@ -556,6 +592,7 @@ const relatedBranchNodes = computed<BranchNode[]>(() => {
       anchorIndex: b.anchorKind === "show" ? indexById.get(b.anchorId)! : 0,
       parentBranchId: b.anchorKind === "branch" ? String(b.anchorId) : undefined,
       year: b.year,
+      current: b.isCurrent,
     });
   }
   return nodes;
@@ -761,42 +798,33 @@ watch(
   },
   { immediate: true },
 );
+async function onRatingChange(value: number | null) {
+  if (!show.value) return;
+  const previous = show.value.ratingOverall;
+  show.value.ratingOverall = value;
+  try {
+    show.value = await updateAnime(show.value.id, { ...animeToInput(show.value), ratingOverall: value });
+  } catch {
+    if (show.value) show.value.ratingOverall = previous;
+  }
+}
 </script>
 
 <template>
   <main v-if="loading" class="detail loading-state">
-    <p>Loading…</p>
+    <MediaTopBar active="anime" />
+    <p class="loading-text">Loading…</p>
   </main>
 
   <main v-else-if="error" class="detail error-state">
-    <p>{{ error }}</p>
+    <MediaTopBar active="anime" />
+    <p class="loading-text">{{ error }}</p>
   </main>
 
   <main v-else-if="show" class="detail">
-    <button
-      type="button"
-      class="back-arrow-button"
-      title="Back"
-      @click="goBack"
-    >
-      <svg
-        viewBox="0 0 24 24"
-        width="18"
-        height="18"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-      >
-        <path d="M19 12H5" />
-        <path d="M12 19l-7-7 7-7" />
-      </svg>
-    </button>
+    <MediaTopBar active="anime" />
 
-    <div class="detail-switch">
-      <MediaKindSwitch active="anime" />
-    </div>
+    <BackButton class="back-spot" @click="goBack" />
 
     <AnimeFormModal
       v-if="showEditModal"
@@ -841,9 +869,7 @@ watch(
                 {{ opt.label }}
               </option>
             </select>
-            <span v-if="show.ratingOverall !== null" class="badge rating"
-              >★ {{ show.ratingOverall.toFixed(1) }}</span
-            >
+            <RatingPicker :model-value="show.ratingOverall" @change="onRatingChange" />
             <span v-if="firstAirYear" class="badge">{{ firstAirYear }}</span>
             <span v-if="episodeRuntimeLabel" class="badge">{{
               episodeRuntimeLabel
@@ -1037,7 +1063,7 @@ watch(
               title="Look up the latest episode and air date now"
               @click="onRefreshAiring"
             >
-              {{ refreshingAiring ? "Checking…" : "Check airing" }}
+              {{ refreshingAiring ? "Checking…" : "Check Airing" }}
             </button>
             <select
               v-if="show.nextEpisodeAirAt"
@@ -1068,7 +1094,7 @@ watch(
           <template v-for="season in show.seasons" :key="season.id">
             <div v-if="show.seasons.length > 1" class="season-divider">
               Season {{ season.seasonNumber
-              }}<template v-if="season.name"> — {{ season.name }}</template>
+              }}<template v-if="season.name">: {{ season.name }}</template>
             </div>
             <EpisodeList
               class="season-episodes"
@@ -1189,23 +1215,7 @@ watch(
       @close="closePreview"
     />
 
-    <ConfirmPopup
-      v-if="showMoveToCompletedPrompt"
-      message="You've watched every episode. Move this to Completed?"
-      confirm-label="Move to Completed"
-      cancel-label="Leave as is"
-      @confirm="confirmMoveToCompleted(true)"
-      @cancel="confirmMoveToCompleted(false)"
-    />
 
-    <ConfirmPopup
-      v-if="showMoveToWatchingPrompt"
-      message="Move this to Watching?"
-      confirm-label="Move to Watching"
-      cancel-label="Leave as is"
-      @confirm="confirmMoveToWatching(true)"
-      @cancel="confirmMoveToWatching(false)"
-    />
   </main>
 </template>
 
@@ -1214,15 +1224,21 @@ watch(
   min-height: 100vh;
   background: #0d0d0d;
   color: #f2f2f2;
-  font-family: "Inter", system-ui, sans-serif;
+  font-family: system-ui, sans-serif;
   position: relative;
 }
 .loading-state,
 .error-state {
   display: flex;
+  flex-direction: column;
+  color: #9c9c9c;
+}
+.loading-text {
+  flex: 1;
+  display: flex;
   align-items: center;
   justify-content: center;
-  color: #9c9c9c;
+  margin: 0;
 }
 .hero {
   position: relative;
@@ -1247,8 +1263,8 @@ watch(
 }
 .hero-backdrop.is-poster {
   inset: -30px;
-  filter: blur(26px) brightness(0.55) saturate(1.15);
-  transform: scale(1.08);
+  filter: blur(18px) brightness(0.55) saturate(1.15);
+  transform: translateZ(0);
 }
 .hero-overlay {
   position: absolute;
@@ -1322,6 +1338,7 @@ watch(
   margin-bottom: 16px;
 }
 .badge {
+  line-height: 1.25;
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 7px;
@@ -1335,9 +1352,6 @@ watch(
   background: rgba(111, 191, 115, 0.16);
   border-color: rgba(111, 191, 115, 0.4);
   color: #6fbf73;
-}
-.badge.rating {
-  color: #d68a34;
 }
 .status-select {
   appearance: none;
@@ -1393,46 +1407,6 @@ watch(
   color: #d68a34;
   border-color: rgba(214, 138, 52, 0.4);
   background: rgba(214, 138, 52, 0.16);
-}
-.back-arrow-button {
-  position: fixed;
-  top: 16px;
-  left: 62px;
-  width: 38px;
-  height: 38px;
-  border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(20, 20, 20, 0.55);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  color: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  z-index: 100;
-  transition: background 0.15s ease;
-}
-.detail-switch {
-  position: absolute;
-  top: 16px;
-  left: 112px;
-  z-index: 100;
-}
-.detail-switch :deep(.kind-switch) {
-  background: rgba(20, 20, 20, 0.55);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  padding: 3px;
-}
-@media (max-width: 860px) {
-  .detail-switch {
-    display: none;
-  }
-}
-.back-arrow-button:hover {
-  background: rgba(40, 40, 40, 0.85);
 }
 .tabbar-wrap {
   max-width: 1180px;
@@ -1693,7 +1667,7 @@ watch(
   margin: 0;
 }
 .error-text {
-  color: #fca5a5;
+  color: #e57373;
   font-size: 0.85rem;
   margin: 0 0 12px;
 }
@@ -1835,5 +1809,11 @@ watch(
     flex-direction: column;
     align-items: flex-start;
   }
+}
+.back-spot {
+  position: absolute;
+  top: 84px;
+  left: var(--ui-edge-left);
+  z-index: 100;
 }
 </style>

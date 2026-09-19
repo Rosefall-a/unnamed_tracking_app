@@ -419,7 +419,7 @@ query ($id: Int) {
 # manga/novel, etc.) get surfaced as branches — generous enough for a
 # real franchise's full run without risking a runaway request chain.
 _MAX_CHAIN_HOPS = 8
-_MAX_BRANCHES = 24
+_MAX_BRANCHES = 40
 _CHAIN_RELATION_TYPES = {"PREQUEL", "SEQUEL"}
 
 # _expand_branch_chains checks at most this many top-level branches for a
@@ -436,7 +436,21 @@ _MAX_BRANCH_CHAIN_EXPANSIONS = 4
 # actually matter. "Other" is deliberately NOT filtered: AniList uses it
 # for real named specials/shorts too (e.g. a movie recap special isn't
 # always tagged more specifically), not just noise.
-_LOW_VALUE_BRANCH_TYPES = {"CHARACTER", "SUMMARY", "COMPILATION", "CONTAINS"}
+_LOW_VALUE_BRANCH_TYPES = {"CHARACTER"}
+
+# A movie/OVA/special is reached from the franchise root, not the other
+# way round: opening the page of "Gurren Lagann The Movie" used to build
+# the graph around that one movie, so it only ever showed its own parent
+# and sequel instead of the whole franchise. Entries of these formats
+# hop up to their parent TV series first, and the graph is built from
+# there with the entry you opened marked as current.
+_SHORT_FORMATS = {"MOVIE", "OVA", "ONA", "SPECIAL", "MUSIC"}
+_ROOT_FORMATS = {"TV", "TV_SHORT"}
+_ROOT_RELATION_TYPES = ("PARENT", "ALTERNATIVE", "SIDE_STORY", "SPIN_OFF")
+
+# Bumped whenever the shape/coverage of the cached payload changes, so
+# results cached by an older layout are refetched instead of served stale.
+RELATIONS_CACHE_VERSION = 2
 
 
 def _topological_order(ids: set[int], prequel_of: dict[int, int]) -> list[int] | None:
@@ -700,12 +714,19 @@ class AniListClient:
         attached to whichever chain entry it's actually connected to.
         A season otherwise only ever lists its immediate neighbor, which
         reads as missing entries for any franchise 3+ seasons deep."""
-        anchor = self._fetch_relations_node(
+        opened = self._fetch_relations_node(
             media_id=int(anilist_id) if anilist_id else None,
             search=None if anilist_id else title,
         )
-        if not anchor:
-            return {"chain": [], "branches": [], "recommendations": []}
+        if not opened:
+            return {
+                "chain": [],
+                "branches": [],
+                "recommendations": [],
+                "version": RELATIONS_CACHE_VERSION,
+            }
+        current_id = opened["id"]
+        anchor = self._find_franchise_root(opened) or opened
 
         nodes: dict[int, dict[str, Any]] = {anchor["id"]: anchor}
         chain_ids: list[int] = [anchor["id"]]
@@ -714,7 +735,7 @@ class AniListClient:
         chain = []
         for node_id in chain_ids:
             entry = _node_to_dict(nodes[node_id])
-            entry["is_current"] = node_id == anchor["id"]
+            entry["is_current"] = node_id == current_id
             chain.append(entry)
 
         recommendations = []
@@ -729,12 +750,49 @@ class AniListClient:
         )
         seen_ids = set(chain_ids) | {b["id"] for b in branches}
         branches.extend(self._expand_branch_chains(branches, seen_ids))
+        for b in branches:
+            b["is_current"] = b["id"] == current_id
+        if current_id not in seen_ids and opened["id"] != anchor["id"]:
+            # reached the root but the entry itself sits deeper than the
+            # graph looks (a sequel of a sequel of a movie): still show it
+            branches.append(
+                {
+                    "anchor_id": anchor["id"],
+                    "anchor_kind": "show",
+                    "relation_label": "Related",
+                    "is_current": True,
+                    **_node_to_dict(opened),
+                }
+            )
 
         return {
             "chain": chain,
             "branches": branches,
             "recommendations": recommendations,
+            "version": RELATIONS_CACHE_VERSION,
         }
+
+    def _find_franchise_root(self, opened: dict[str, Any]) -> dict[str, Any] | None:
+        """For a movie/OVA/special, the parent TV series it hangs off (one
+        hop, which is all AniList's PARENT/ALTERNATIVE links need), fetched
+        with its own relations. None when the entry is already a series,
+        has no such link, or the parent can't be fetched."""
+        if (opened.get("format") or "").upper() not in _SHORT_FORMATS:
+            return None
+        edges = (opened.get("relations") or {}).get("edges") or []
+        for wanted in _ROOT_RELATION_TYPES:
+            for edge in edges:
+                node = edge.get("node")
+                if edge.get("relationType") != wanted or not node:
+                    continue
+                if (node.get("format") or "").upper() not in _ROOT_FORMATS:
+                    continue
+                time.sleep(_PACING_SECONDS)
+                try:
+                    return self._fetch_relations_node(media_id=node["id"])
+                except AniListError:
+                    return None
+        return None
 
     def _expand_branch_chains(
         self, branches: list[dict[str, Any]], seen_ids: set[int]

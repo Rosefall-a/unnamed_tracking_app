@@ -11,7 +11,7 @@ from datetime import date
 from enum import Enum
 from uuid import UUID, uuid4
 
-from sqlalchemy import BigInteger, Date, Enum as SAEnum, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import BigInteger, Boolean, Date, Enum as SAEnum, ForeignKey, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -70,6 +70,8 @@ class MediaList(Base):
     # Which member represents the list on the overview grid; NULL = the
     # default 2x2 collage of its first four titles.
     cover_media_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
+    # a list the app keeps for you (Favorites): it cannot be renamed or deleted
+    is_system: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
     created_at: Mapped[int] = mapped_column(BigInteger, nullable=False, default=lambda: int(time.time()))
     updated_at: Mapped[int] = mapped_column(
         BigInteger, nullable=False, default=lambda: int(time.time()), onupdate=lambda: int(time.time())

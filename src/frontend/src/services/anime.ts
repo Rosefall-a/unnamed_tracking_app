@@ -91,6 +91,16 @@ export interface BackendAnime {
   linked_movie_id: string | null;
 }
 
+import { createEntityCache } from "../utils/entityCache";
+const animeCache = createEntityCache<Anime>();
+export const peekAnime = animeCache.peek;
+export const peekAllAnimes = (): Anime[] | null =>
+  animeCache.listLoaded() ? animeCache.all() : null;
+// every entity that passes through here is remembered for instant reopening
+function mapBackendAnime(raw: Parameters<typeof mapBackendAnimeRaw>[0]): Anime {
+  return animeCache.put(mapBackendAnimeRaw(raw));
+}
+
 // Pydantic can serialize a Decimal as either a JSON number or a string
 // depending on config, handle both rather than assume one
 function toNumberOrNull(value: number | string | null): number | null {
@@ -146,7 +156,7 @@ function mapBackendSeason(raw: BackendSeason): AnimeSeason {
   };
 }
 
-export function mapBackendAnime(raw: BackendAnime): Anime {
+export function mapBackendAnimeRaw(raw: BackendAnime): Anime {
   return {
     id: raw.id,
     userId: raw.user_id,
@@ -217,7 +227,9 @@ export async function fetchAnime(): Promise<Anime[]> {
     if (page.length < SHOWS_PAGE_SIZE) break;
     skip += SHOWS_PAGE_SIZE;
   }
-  return all.map(mapBackendAnime);
+  const list = all.map(mapBackendAnime);
+  animeCache.markListLoaded();
+  return list;
 }
 
 export async function getAnime(id: string): Promise<Anime> {
@@ -397,6 +409,7 @@ export async function updateAnime(
 }
 
 export async function deleteAnime(id: string): Promise<void> {
+  animeCache.remove(id);
   const response = await fetch(`/api/anime/delete/${id}`, {
     method: "DELETE",
     credentials: "include",
@@ -722,6 +735,9 @@ export interface AnimeRelationBranch extends RelatedAnime {
   // another branch's id instead — e.g. two compilation movies that are
   // themselves a sequel pair, not directly chained to the show.
   anchorKind: "show" | "branch";
+  // the entry whose page is open — a movie/OVA opened from the library
+  // is a branch of its franchise's root series, not a chain link
+  isCurrent: boolean;
 }
 
 export interface AnimeRelationsResponse {
@@ -748,6 +764,7 @@ interface BackendAnimeRelationBranch extends BackendRelatedAnime {
   relation_label: string;
   anchor_id: number;
   anchor_kind: "show" | "branch";
+  is_current?: boolean;
 }
 
 interface BackendAnimeRelationsResponse {
@@ -768,6 +785,9 @@ function mapRelatedAnime(r: BackendRelatedAnime): RelatedAnime {
   };
 }
 
+const relationsCache = new Map<string, AnimeRelationsResponse>();
+export const peekAnimeRelations = (id: string): AnimeRelationsResponse | undefined => relationsCache.get(id);
+
 export async function fetchAnimeRelations(
   id: string,
 ): Promise<AnimeRelationsResponse> {
@@ -778,16 +798,19 @@ export async function fetchAnimeRelations(
     response,
     "fetch anime relations",
   );
-  return {
+  const result: AnimeRelationsResponse = {
     chain: raw.chain.map((n) => ({ ...mapRelatedAnime(n), isCurrent: n.is_current })),
     branches: raw.branches.map((b) => ({
       ...mapRelatedAnime(b),
       relationLabel: b.relation_label,
       anchorId: b.anchor_id,
       anchorKind: b.anchor_kind,
+      isCurrent: b.is_current ?? false,
     })),
     configured: raw.configured,
   };
+  relationsCache.set(id, result);
+  return result;
 }
 
 export interface AnimeRecommendedResponse {

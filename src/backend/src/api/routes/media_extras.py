@@ -13,7 +13,7 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.schemas.media_extras import (
@@ -25,6 +25,8 @@ from src.api.schemas.media_extras import (
     RewatchRead,
 )
 from src.core.auth import get_current_user
+from src.core.preferences import load_preferences
+from src.database.models.achievement import Achievement
 from src.database.models.anime import Anime, AnimeStatus
 from src.database.models.media_extras import (
     ActivityEventType,
@@ -32,10 +34,34 @@ from src.database.models.media_extras import (
     MediaType,
     RewatchLog,
 )
+from src.database.models.game import Game, GameStatus
 from src.database.models.movies import Movie, MovieStatus
 from src.database.models.tv_show import TVShow, TVShowStatus
 from src.database.models.user import User
 from src.database.session import get_db
+
+
+# The app shows five statuses (Plan to Watch, On Hold, Watching, Completed,
+# Dropped) over eight stored ones; history text uses the shown names.
+_STATUS_LABELS = {
+    "WISHLIST": "Plan to Watch",
+    "WATCHLIST": "Plan to Watch",
+    "BACKLOG": "On Hold",
+    "IN_PROGRESS": "Watching",
+    "REWATCH": "Watching",
+    "WATCHED": "Completed",
+    "FAVORITE": "Completed",
+    "DROPPED": "Dropped",
+}
+
+
+def status_change_detail(previous: Any, current: Any) -> str | None:
+    """"Plan to Watch → Watching" for the history feed, or None when the
+    two stored statuses are the same thing to the user (Wishlist to
+    Watchlist), which is not worth a history line."""
+    before = _STATUS_LABELS.get(getattr(previous, "value", str(previous)), str(previous))
+    after = _STATUS_LABELS.get(getattr(current, "value", str(current)), str(current))
+    return None if before == after else f"{before} → {after}"
 
 
 # Safety cap on how many projected episodes one show can contribute to a
@@ -234,7 +260,7 @@ async def delete_rewatch(
 
 @router.get("/activity", response_model=list[ActivityEntryRead])
 async def get_activity(
-    days: int = Query(default=30, ge=1, le=365),
+    days: int = Query(default=30, ge=1, le=36500),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> list:
@@ -349,7 +375,9 @@ async def delete_activity_entry(
     await db.commit()
 
 
-async def build_calendar_entries(db: AsyncSession, user_id: UUID, days: int) -> list[dict]:
+async def build_calendar_entries(
+    db: AsyncSession, user_id: UUID, days: int, game_releases: bool = False
+) -> list[dict]:
     """Two kinds of entry, both media the real-calendar view groups by
     day: "episode" entries are anime/TV already airing with a known
     next-episode date, and "release" entries are anything on Plan to
@@ -452,6 +480,27 @@ async def build_calendar_entries(db: AsyncSession, user_id: UUID, days: int) -> 
             }
         )
 
+    if game_releases:
+        game_rows = (
+            await db.execute(
+                select(Game).where(
+                    Game.user_id == user_id,
+                    Game.deleted_at.is_(None),
+                    Game.status.in_([GameStatus.WISHLIST, GameStatus.BACKLOG]),
+                    Game.release_date.isnot(None),
+                    Game.release_date >= date_window_start,
+                    Game.release_date <= date_window_end,
+                )
+            )
+        ).scalars().all()
+        for g in game_rows:
+            result.append(
+                {
+                    "media_type": "game", "media_id": g.id, "title": g.title, "poster_url": None,
+                    "next_episode_number": None, "air_at": _date_to_unix(g.release_date), "kind": "release",
+                }
+            )
+
     result.sort(key=lambda r: r["air_at"])
     return result
 
@@ -462,4 +511,67 @@ async def get_calendar(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> list[dict]:
-    return await build_calendar_entries(db, current_user.id, days)
+    prefs = await load_preferences(db, current_user.id)
+    return await build_calendar_entries(
+        db,
+        current_user.id,
+        days,
+        game_releases=bool(prefs["calendar_game_releases"]) and not prefs["calendar_hide_games"],
+    )
+
+
+@router.get("/calendar/games")
+async def get_calendar_games(
+    days: int = Query(default=36500, ge=1, le=36500),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> list[dict]:
+    """Games history for the calendar: the day a game was completed and
+    how many achievements were unlocked on a day. Empty unless the user
+    turned "Games history" on in Settings."""
+    prefs = await load_preferences(db, current_user.id)
+    if not prefs["calendar_game_history"] or prefs["calendar_hide_games"]:
+        return []
+    since = int(time.time()) - days * 86400
+    entries: list[dict] = []
+    finished = (
+        await db.execute(
+            select(Game).where(
+                Game.user_id == current_user.id,
+                Game.deleted_at.is_(None),
+                Game.completion_date.isnot(None),
+                Game.completion_date >= since,
+            )
+        )
+    ).scalars().all()
+    for g in finished:
+        if g.completion_date is None:
+            continue
+        entries.append(
+            {
+                "kind": "game_finished", "game_id": g.id, "title": g.title,
+                "date": datetime.fromtimestamp(g.completion_date, tz=timezone.utc).date().isoformat(),
+                "count": 1,
+            }
+        )
+    day = func.date(func.to_timestamp(Achievement.unlocked_at))
+    rows = (
+        await db.execute(
+            select(Game.id, Game.title, day, func.count())
+            .join(Game, Game.id == Achievement.game_id)
+            .where(
+                Game.user_id == current_user.id,
+                Game.deleted_at.is_(None),
+                Achievement.unlocked.is_(True),
+                Achievement.unlocked_at.isnot(None),
+                Achievement.unlocked_at >= since,
+            )
+            .group_by(Game.id, Game.title, day)
+        )
+    ).all()
+    for game_id, title, d, count in rows:
+        entries.append(
+            {"kind": "game_achievements", "game_id": game_id, "title": title, "date": d.isoformat(), "count": count}
+        )
+    entries.sort(key=lambda e: e["date"])
+    return entries

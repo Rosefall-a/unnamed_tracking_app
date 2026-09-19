@@ -28,9 +28,11 @@ from src.database.models import (
     media_extras,  # noqa: F401
     media_item,  # noqa: F401
     movies,  # noqa: F401
+    notification,  # noqa: F401
     tv_show,  # noqa: F401
     user,  # noqa: F401
     user_appearance_settings,  # noqa: F401
+    user_preferences,  # noqa: F401
     user_scan_settings,  # noqa: F401
 )
 from src.database.models import set as set_model  # noqa: F401

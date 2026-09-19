@@ -10,6 +10,15 @@ _BASE_URL = "https://api.tvmaze.com"
 _TAG_RE = re.compile(r"<[^>]+>")
 
 
+def _stamp_to_unix(stamp: str | None) -> int | None:
+    if not stamp:
+        return None
+    try:
+        return int(datetime.fromisoformat(stamp).timestamp())
+    except ValueError:
+        return None
+
+
 class TVMazeError(RuntimeError):
     """Raised when TVmaze responds unsuccessfully."""
 
@@ -142,6 +151,7 @@ class TVMazeClient:
                     "air_date": entry.get("airdate") or None,
                     "runtime_minutes": entry.get("runtime"),
                     "still_url": image.get("original") or image.get("medium"),
+                    "air_at": _stamp_to_unix(entry.get("airstamp")),
                 }
             )
         return results

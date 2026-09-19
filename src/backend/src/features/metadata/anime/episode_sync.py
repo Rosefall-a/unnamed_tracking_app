@@ -9,6 +9,7 @@ import asyncio
 from typing import Any
 
 from src.features.metadata.anime.anilist import AniListClient, AniListError
+from src.features.metadata.anime.anizip import AniZipClient, AniZipError
 from src.features.metadata.anime.jikan import JikanClient, JikanError
 from src.features.metadata.anime.kitsu import KitsuClient, KitsuError
 from src.features.metadata.movies.tmdb import TMDBClient, TMDBError
@@ -52,10 +53,18 @@ async def fetch_episodes_with_fallback(
     than raising, so a caller with no HTTP request behind it (the
     background refresh) can just log errors instead of needing to turn
     them into an HTTPException."""
+    anizip_episodes: list[dict[str, Any]] = []
     jikan_episodes: list[dict[str, Any]] = []
     anilist_episodes: list[dict[str, Any]] = []
     kitsu_episodes: list[dict[str, Any]] = []
     errors: list[str] = []
+    if anilist_id:
+        # first: for an airing show this is the source that has the new
+        # episode's real title, screenshot and synopsis soonest
+        try:
+            anizip_episodes = await asyncio.to_thread(AniZipClient().episodes, anilist_id)
+        except AniZipError as exc:
+            errors.append(f"ani.zip: {exc}")
     if external_id:
         try:
             jikan_episodes = await asyncio.to_thread(JikanClient().episodes, external_id)
@@ -71,9 +80,12 @@ async def fetch_episodes_with_fallback(
             kitsu_episodes = await asyncio.to_thread(KitsuClient().episodes, kitsu_id)
         except KitsuError as exc:
             errors.append(f"Kitsu: {exc}")
-    if not jikan_episodes and not anilist_episodes and not kitsu_episodes:
+    if not anizip_episodes and not jikan_episodes and not anilist_episodes and not kitsu_episodes:
         return [], errors
-    return _merge_episode_sources(jikan_episodes, anilist_episodes, kitsu_episodes), errors
+    return (
+        _merge_episode_sources(anizip_episodes, jikan_episodes, anilist_episodes, kitsu_episodes),
+        errors,
+    )
 
 
 async def fetch_airing_status(

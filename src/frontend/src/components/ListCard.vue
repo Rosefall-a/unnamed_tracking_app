@@ -12,6 +12,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   open: [id: string];
   delete: [id: string];
+  edit: [id: string];
 }>();
 
 const covers = computed(() => props.list.previewPosters.slice(0, 4));
@@ -35,15 +36,13 @@ const emptySlots = computed(() => Math.max(0, 4 - covers.value.length));
             class="cover-cell empty"
           ></div>
         </div>
-        <span v-if="list.isSmart" class="smart-badge" title="Fills itself from a filter">Smart</span>
-        <button
-          type="button"
-          class="smart-delete"
-          title="Delete this list"
-          @click.stop="emit('delete', list.id)"
-        >
-          ✕
-        </button>
+        <span v-if="list.isSmart" class="smart-badge" title="Fills itself from a filter">{{ list.isSystem ? "Auto" : "Smart" }}</span>
+        <div class="card-actions">
+          <template v-if="!list.isSystem">
+            <button type="button" title="Edit this list" @click.stop="emit('edit', list.id)">✎</button>
+            <button type="button" title="Delete this list" @click.stop="emit('delete', list.id)">✕</button>
+          </template>
+        </div>
       </div>
     </div>
 
@@ -53,6 +52,7 @@ const emptySlots = computed(() => Math.max(0, 4 - covers.value.length));
         <span class="status"
           >{{ list.itemCount }} title{{ list.itemCount === 1 ? "" : "s" }}</span
         >
+        <span v-if="list.description" class="desc" :title="list.description">{{ list.description }}</span>
       </div>
     </div>
   </div>
@@ -76,28 +76,50 @@ const emptySlots = computed(() => Math.max(0, 4 - covers.value.length));
   transform: scale(1.07) translateY(-4px);
   box-shadow: 0 24px 56px rgba(0, 0, 0, 0.5);
 }
-.smart-delete {
+.card-actions {
   position: absolute;
   top: 8px;
   right: 8px;
   z-index: 2;
-  width: 24px;
-  height: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.collection-card-wrap:hover .card-actions,
+.collection-card-wrap:focus-within .card-actions {
+  opacity: 1;
+}
+/* no hover on touch screens: keep the actions reachable */
+@media (hover: none) {
+  .card-actions {
+    opacity: 1;
+  }
+}
+.card-actions button {
+  width: 26px;
+  height: 26px;
   border-radius: 50%;
   border: none;
-  background: rgba(20, 20, 20, 0.75);
+  background: rgba(20, 20, 20, 0.78);
   backdrop-filter: blur(4px);
   color: #ccc;
   font-size: 11px;
   cursor: pointer;
-  opacity: 0;
-  transition: opacity 0.15s ease;
 }
-.collection-card-wrap:hover .smart-delete {
-  opacity: 1;
+.card-actions button:hover {
+  color: #d68a34;
 }
-.smart-delete:hover {
-  color: #fca5a5;
+.card-actions button[title^="Delete"]:hover {
+  color: #e57373;
+}
+.desc {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #666;
 }
 .cover {
   position: relative;
@@ -154,6 +176,6 @@ const emptySlots = computed(() => Math.max(0, 4 - covers.value.length));
   display: flex;
   gap: 8px;
   font-size: 12px;
-  color: #999;
+  color: #9c9c9c;
 }
 </style>

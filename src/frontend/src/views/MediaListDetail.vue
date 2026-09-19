@@ -16,8 +16,10 @@ import {
 } from "../services/mediaExtras";
 import type { MediaListDetail, MediaListItemVM, MediaType, SmartRule } from "../services/mediaExtras";
 import ListFormModal from "../components/ListFormModal.vue";
+import BackButton from "../components/BackButton.vue";
 import MediaTopBar from "../components/MediaTopBar.vue";
 import { STATUS_BUCKETS, statusBucket, statusBucketLabel } from "../utils/mediaStatus";
+import { useConfirm } from "../state/dialog";
 import { fetchMovies } from "../services/movies";
 import { fetchTVShows } from "../services/tvShows";
 import { fetchAnime } from "../services/anime";
@@ -44,6 +46,15 @@ async function load() {
 watch(listId, load, { immediate: true });
 
 const isSmart = computed(() => list.value?.isSmart ?? false);
+const isSystem = computed(() => list.value?.isSystem ?? false);
+
+// ---- filter by type ----
+const typeFilter = ref<"all" | MediaType>("all");
+const typeCounts = computed(() => list.value?.typeCounts ?? {});
+const presentTypes = computed(() =>
+  (["movie", "tv", "anime"] as MediaType[]).filter((t) => (typeCounts.value[t] ?? 0) > 0),
+);
+const TYPE_LABEL: Record<MediaType, string> = { movie: "Movies", tv: "TV Shows", anime: "Anime" };
 
 // ---- sorting (view only; "manual" is the stored order) ----
 type SortMode = "manual" | "title" | "status";
@@ -55,7 +66,8 @@ watch(isSmart, (smart) => {
 });
 const STATUS_ORDER = STATUS_BUCKETS.map((s) => s.key as string);
 const shownItems = computed<MediaListItemVM[]>(() => {
-  const items = list.value?.items ?? [];
+  const all = list.value?.items ?? [];
+  const items = typeFilter.value === "all" ? all : all.filter((i) => i.mediaType === typeFilter.value);
   if (sortMode.value === "manual") return items;
   const copy = [...items];
   if (sortMode.value === "title") copy.sort((a, b) => a.title.localeCompare(b.title));
@@ -173,9 +185,15 @@ async function onEdit(payload: {
 }
 
 const deletingList = ref(false);
+const confirm = useConfirm();
 async function deleteList() {
   if (!list.value) return;
-  if (!window.confirm(`Delete "${list.value.name}"? This doesn't delete the titles in it, just the list.`)) return;
+  const ok = await confirm({
+    message: `Delete "${list.value.name}"? This doesn't delete the titles in it, just the list.`,
+    confirmLabel: "Delete list",
+    danger: true,
+  });
+  if (!ok) return;
   deletingList.value = true;
   try {
     await deleteMediaList(list.value.id);
@@ -264,13 +282,16 @@ async function addTitle(m: PickItem) {
 </script>
 
 <template>
-  <main class="collection-detail">
-    <MediaTopBar active="lists" back @back="goBack" />
+  <main class="ui-page">
+    <MediaTopBar active="lists" />
 
-    <p v-if="loading" class="state">Loading…</p>
-    <p v-else-if="error && !list" class="state error">{{ error }}</p>
+    <div v-if="loading || (error && !list)" class="ui-content">
+      <p v-if="loading" class="ui-state">Loading…</p>
+      <p v-else class="ui-state error">{{ error }}</p>
+    </div>
 
-    <div v-else-if="list" class="content">
+    <div v-else-if="list" class="ui-content">
+      <BackButton class="back-spot" @click="goBack" />
       <div class="header-row">
         <h1>{{ list.name }}</h1>
         <span class="count-badge"
@@ -278,23 +299,36 @@ async function addTitle(m: PickItem) {
         >
         <span v-if="isSmart" class="smart-pill" title="Fills itself from a filter">Smart</span>
         <div class="header-spacer"></div>
-        <select v-model="sortMode" class="sort-select" :disabled="reorderMode" title="Sort">
+        <select v-model="sortMode" class="ui-field" :disabled="reorderMode" title="Sort">
           <option v-if="!isSmart" value="manual">Manual order</option>
           <option value="title">Title</option>
           <option value="status">Status</option>
         </select>
-        <button v-if="!isSmart && list.items.length > 1" type="button" class="secondary-button" :class="{ on: reorderMode }" @click="toggleReorder">
+        <button v-if="!isSmart && list.items.length > 1" type="button" class="ui-btn ui-btn-secondary" :class="{ on: reorderMode }" @click="toggleReorder">
           {{ reorderMode ? "Done" : "Reorder" }}
         </button>
-        <button v-if="!isSmart" type="button" class="add-button" @click="openAdd">+ Add titles</button>
-        <button type="button" class="secondary-button" @click="showEdit = true">Edit</button>
-        <button type="button" class="danger-button" :disabled="deletingList" @click="deleteList">
+        <button v-if="!isSmart" type="button" class="ui-btn ui-btn-primary" @click="openAdd">+ Add Titles</button>
+        <button v-if="!isSystem" type="button" class="ui-btn ui-btn-secondary" @click="showEdit = true">Edit</button>
+        <button v-if="!isSystem" type="button" class="ui-btn ui-btn-danger" :disabled="deletingList" @click="deleteList">
           {{ deletingList ? "Deleting…" : "Delete" }}
         </button>
       </div>
       <p v-if="list.description" class="subtitle">{{ list.description }}</p>
       <p v-if="isSmart && ruleSummary" class="subtitle rule-line">Matches: {{ ruleSummary }}</p>
-      <p v-if="error" class="state error">{{ error }}</p>
+      <p v-if="error" class="ui-state error">{{ error }}</p>
+      <div v-if="presentTypes.length > 1" class="type-chips">
+        <button type="button" class="ui-chip" :class="{ on: typeFilter === 'all' }" @click="typeFilter = 'all'">All</button>
+        <button
+          v-for="t in presentTypes"
+          :key="t"
+          type="button"
+          class="ui-chip"
+          :class="{ on: typeFilter === t }"
+          @click="typeFilter = t"
+        >
+          {{ TYPE_LABEL[t] }} <span class="n">{{ typeCounts[t] }}</span>
+        </button>
+      </div>
       <p v-if="reorderMode" class="hint">Drag titles, or use the arrows, to set the order. It saves as you go.</p>
 
       <div v-if="shownItems.length" class="grid">
@@ -348,11 +382,11 @@ async function addTitle(m: PickItem) {
           </div>
         </div>
       </div>
-      <p v-else-if="isSmart" class="empty-row">
+      <p v-else-if="isSmart" class="ui-state">
         Nothing matches this list's filter right now. Edit the list to loosen it.
       </p>
-      <p v-else class="empty-row">
-        Nothing in this list yet. Use "+ Add titles", or the list button on any movie, TV or anime page.
+      <p v-else class="ui-state">
+        Nothing in this list yet. Use "+ Add Titles", or the list button on any movie, TV or anime page.
       </p>
     </div>
 
@@ -364,11 +398,11 @@ async function addTitle(m: PickItem) {
       @close="showEdit = false"
     />
 
-    <div v-if="showAdd" class="modal-backdrop" @click.self="showAdd = false">
-      <div class="modal-card">
+    <div v-if="showAdd" class="ui-backdrop" @click.self="showAdd = false">
+      <div class="ui-modal add-modal">
         <h3>Add titles</h3>
-        <input v-model="addSearch" type="text" class="modal-input" placeholder="Search your library…" autofocus />
-        <p v-if="addError" class="modal-error">{{ addError }}</p>
+        <input v-model="addSearch" type="text" class="ui-field" placeholder="Search your library…" autofocus />
+        <p v-if="addError" class="ui-error-box">{{ addError }}</p>
         <div class="add-results">
           <button v-for="m in addResults" :key="`${m.mediaType}-${m.mediaId}`" type="button" class="add-row" @click="addTitle(m)">
             <span class="add-thumb" :style="m.posterUrl ? { backgroundImage: `url(${m.posterUrl})` } : {}"></span>
@@ -376,10 +410,10 @@ async function addTitle(m: PickItem) {
             <span class="add-kind">{{ m.mediaType }}</span>
             <span class="add-plus">+</span>
           </button>
-          <p v-if="libraryLoaded && !addResults.length" class="empty-row">Nothing left to add{{ addSearch ? " for that search" : "" }}.</p>
+          <p v-if="libraryLoaded && !addResults.length" class="ui-state">Nothing left to add{{ addSearch ? " for that search" : "" }}.</p>
         </div>
-        <div class="modal-actions">
-          <button type="button" class="add-button" @click="showAdd = false">Done</button>
+        <div class="ui-modal-actions">
+          <button type="button" class="ui-btn ui-btn-primary" @click="showAdd = false">Done</button>
         </div>
       </div>
     </div>
@@ -387,27 +421,6 @@ async function addTitle(m: PickItem) {
 </template>
 
 <style scoped>
-.collection-detail {
-  position: relative;
-  font-family: system-ui, sans-serif;
-  background: #121212;
-  min-height: 100vh;
-  color: #fff;
-}
-.content {
-  padding: 24px;
-}
-.state {
-  color: #999;
-  font-size: 0.88rem;
-  padding: 24px;
-}
-.state.error {
-  color: #e57373;
-}
-.content .state {
-  padding: 8px 0;
-}
 .header-row {
   display: flex;
   flex-wrap: wrap;
@@ -420,11 +433,11 @@ async function addTitle(m: PickItem) {
 }
 .header-row h1 {
   margin: 0 4px 0 0;
-  font-size: 1.6rem;
-  font-weight: 700;
+  font-size: 1.7rem;
+  font-weight: 800;
 }
 .count-badge {
-  color: #999;
+  color: #9c9c9c;
   font-size: 13px;
   background: rgba(255, 255, 255, 0.06);
   padding: 4px 12px;
@@ -442,75 +455,28 @@ async function addTitle(m: PickItem) {
 }
 .subtitle {
   margin: 0 0 8px;
-  color: #999;
+  color: #9c9c9c;
   font-size: 0.88rem;
 }
 .rule-line {
   color: #b9a37f;
+}
+.type-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0 0;
 }
 .hint {
   margin: 0 0 4px;
   color: #d68a34;
   font-size: 0.8rem;
 }
-.sort-select {
-  height: 40px;
-  box-sizing: border-box;
-  background: #111;
-  border: 1px solid #3a3a3a;
-  border-radius: 8px;
-  color: #fff;
-  padding: 0 12px;
-  font: inherit;
-  font-size: 13px;
-}
-.sort-select:disabled {
-  opacity: 0.5;
-}
-.add-button,
-.secondary-button,
-.danger-button {
-  height: 40px;
-  box-sizing: border-box;
-  border: none;
-  border-radius: 8px;
-  padding: 0 18px;
-  font-weight: 600;
-  font-size: 0.84rem;
-  cursor: pointer;
-  font-family: inherit;
-  white-space: nowrap;
-}
-.add-button {
-  background: #d68a34;
-  color: #111;
-}
-.secondary-button {
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
-}
-.secondary-button.on {
-  background: rgba(214, 138, 52, 0.22);
-  color: #d68a34;
-}
-.danger-button {
-  background: #dc2626;
-  color: #fff;
-}
-.danger-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
 /* same fixed 10-per-row grid as Collections/CollectionDetail */
 .grid {
   display: grid;
-  grid-template-columns: repeat(10, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
   gap: 16px;
-  margin-top: 24px;
-}
-.empty-row {
-  color: #777;
-  font-size: 14px;
   margin-top: 24px;
 }
 .item-card {
@@ -583,7 +549,7 @@ async function addTitle(m: PickItem) {
   cursor: pointer;
 }
 .tile-btn:hover {
-  color: #fca5a5;
+  color: #e57373;
 }
 .tile-btn[title^="Use"]:hover {
   color: #d68a34;
@@ -663,53 +629,6 @@ async function addTitle(m: PickItem) {
 }
 
 /* add-titles modal */
-.modal-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.65);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 200;
-  padding: 24px;
-}
-.modal-card {
-  background: #1a1a1a;
-  border: 1px solid #2a2a2a;
-  border-radius: 12px;
-  padding: 22px;
-  width: 100%;
-  max-width: 460px;
-  max-height: 85vh;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  box-sizing: border-box;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
-}
-.modal-card h3 {
-  margin: 0;
-}
-.modal-input {
-  background: #111;
-  border: 1px solid #3a3a3a;
-  border-radius: 8px;
-  color: #fff;
-  padding: 9px 12px;
-  font: inherit;
-  font-size: 13px;
-  box-sizing: border-box;
-  width: 100%;
-}
-.modal-input:focus {
-  outline: none;
-  border-color: #d68a34;
-}
-.modal-error {
-  color: #fca5a5;
-  font-size: 13px;
-  margin: 0;
-}
 .add-results {
   overflow-y: auto;
   min-height: 120px;
@@ -749,7 +668,7 @@ async function addTitle(m: PickItem) {
   white-space: nowrap;
 }
 .add-kind {
-  color: #777;
+  color: #666;
   font-size: 0.7rem;
   text-transform: uppercase;
 }
@@ -760,8 +679,15 @@ async function addTitle(m: PickItem) {
   width: 20px;
   text-align: center;
 }
-.modal-actions {
+.back-spot {
+  margin-bottom: 14px;
+}
+.add-modal {
   display: flex;
-  justify-content: flex-end;
+  flex-direction: column;
+  gap: 12px;
+}
+.add-modal h3 {
+  margin: 0;
 }
 </style>

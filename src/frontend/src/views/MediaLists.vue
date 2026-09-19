@@ -4,19 +4,25 @@
 // same search/sort controls, same card-collage grid — so a list reads
 // as "the same kind of thing" as a game collection, not a separate,
 // differently-styled feature.
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, onMounted, watch } from "vue";
 import { useRouter } from "vue-router";
 import ListCard from "../components/ListCard.vue";
+import SegmentedTabs from "../components/SegmentedTabs.vue";
+import type { SegmentOption } from "../components/SegmentedTabs.vue";
+import { useConfirm } from "../state/dialog";
+import { preferences } from "../state/preferences";
 import ListFormModal from "../components/ListFormModal.vue";
 import MediaTopBar from "../components/MediaTopBar.vue";
 import {
   fetchMediaLists,
   createMediaList,
   deleteMediaList,
+  updateMediaList,
 } from "../services/mediaExtras";
 import type { MediaListSummary, SmartRule } from "../services/mediaExtras";
 
 type SortBy = "name" | "count" | "recent";
+type KindFilter = "all" | "manual" | "smart";
 
 const router = useRouter();
 
@@ -24,8 +30,17 @@ const lists = ref<MediaListSummary[]>([]);
 const loading = ref(true);
 const error = ref<string | null>(null);
 const searchQuery = ref("");
-const sortBy = ref<SortBy>("name");
+const sortBy = ref<SortBy>(preferences.value.lists_default_sort);
+watch(
+  () => preferences.value.lists_default_sort,
+  (v) => {
+    sortBy.value = v;
+  },
+);
 const showCreate = ref(false);
+const kindFilter = ref<KindFilter>("all");
+const editingList = ref<MediaListSummary | null>(null);
+const typeFilter = ref<"all" | "movie" | "tv" | "anime">("all");
 
 async function load() {
   loading.value = true;
@@ -61,6 +76,12 @@ async function onCreate(payload: {
 const filteredLists = computed(() => {
   const q = searchQuery.value.trim().toLowerCase();
   let result = lists.value;
+  if (kindFilter.value === "smart") result = result.filter((l) => l.isSmart);
+  if (typeFilter.value !== "all") {
+    const t = typeFilter.value;
+    result = result.filter((l) => (l.typeCounts[t] ?? 0) > 0);
+  }
+  if (kindFilter.value === "manual") result = result.filter((l) => !l.isSmart);
   if (q) result = result.filter((l) => l.name.toLowerCase().includes(q));
   return [...result].sort((a, b) => {
     if (sortBy.value === "count") return b.itemCount - a.itemCount;
@@ -69,14 +90,56 @@ const filteredLists = computed(() => {
   });
 });
 
+const smartCount = computed(() => lists.value.filter((l) => l.isSmart).length);
+const kindOptions = computed<SegmentOption[]>(() => [
+  { value: "all", label: "All", count: lists.value.length },
+  { value: "manual", label: "Manual", count: lists.value.length - smartCount.value },
+  { value: "smart", label: "Smart", count: smartCount.value },
+]);
+const TYPE_OPTIONS: SegmentOption[] = [
+  { value: "all", label: "Any Type" },
+  { value: "movie", label: "Movies" },
+  { value: "tv", label: "TV Shows" },
+  { value: "anime", label: "Anime" },
+];
+function editList(id: string) {
+  editingList.value = lists.value.find((l) => l.id === id) ?? null;
+}
+async function onEditSave(payload: {
+  name: string;
+  description: string | null;
+  smartRule: SmartRule | null;
+}) {
+  const target = editingList.value;
+  if (!target) return;
+  try {
+    const updated = await updateMediaList(target.id, {
+      name: payload.name,
+      description: payload.description,
+      ...(target.isSmart ? { smartRule: payload.smartRule } : {}),
+    });
+    lists.value = lists.value.map((l) => (l.id === updated.id ? updated : l));
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "Failed to save the list.";
+  } finally {
+    editingList.value = null;
+  }
+}
+
 function openList(id: string) {
   router.push(`/lists/${id}`);
 }
 
+const confirm = useConfirm();
 async function deleteList(id: string) {
   const list = lists.value.find((l) => l.id === id);
   if (!list) return;
-  if (!window.confirm(`Delete "${list.name}"? This doesn't delete the titles in it, just the list.`)) return;
+  const ok = await confirm({
+    message: `Delete "${list.name}"? This doesn't delete the titles in it, just the list.`,
+    confirmLabel: "Delete list",
+    danger: true,
+  });
+  if (!ok) return;
   try {
     await deleteMediaList(id);
     lists.value = lists.value.filter((l) => l.id !== id);
@@ -87,34 +150,49 @@ async function deleteList(id: string) {
 </script>
 
 <template>
-  <main class="collections-page">
+  <main class="ui-page">
     <MediaTopBar active="lists" />
 
-    <div class="content">
-      <div class="header-row">
+    <div class="ui-content">
+      <div class="ui-head">
         <h1>Lists</h1>
         <div class="header-actions">
           <input
             v-model="searchQuery"
             type="text"
-            class="search-input"
+            class="ui-field search-input"
             placeholder="Search lists…"
           />
-          <select v-model="sortBy" class="filter-select">
+          <select v-model="sortBy" class="ui-field">
             <option value="name">Name</option>
             <option value="count">Most Titles</option>
             <option value="recent">Recently Updated</option>
           </select>
-          <button type="button" class="add-button" @click="showCreate = true">
+          <button type="button" class="ui-btn ui-btn-primary" @click="showCreate = true">
             + Create List
           </button>
         </div>
       </div>
 
-      <p v-if="createError" class="error create-error">{{ createError }}</p>
+      <div class="filter-row">
+        <SegmentedTabs
+          :options="kindOptions"
+          :model-value="kindFilter"
+          aria-label="Filter by kind of list"
+          @update:model-value="kindFilter = $event as 'all' | 'manual' | 'smart'"
+        />
+        <SegmentedTabs
+          :options="TYPE_OPTIONS"
+          :model-value="typeFilter"
+          aria-label="Filter by type"
+          @update:model-value="typeFilter = $event as 'all' | 'movie' | 'tv' | 'anime'"
+        />
+      </div>
 
-      <p v-if="loading">Loading…</p>
-      <p v-else-if="error" class="error">{{ error }}</p>
+      <p v-if="createError" class="ui-error-box">{{ createError }}</p>
+
+      <p v-if="loading" class="ui-state">Loading…</p>
+      <p v-else-if="error" class="ui-state error">{{ error }}</p>
 
       <template v-else>
         <div v-if="filteredLists.length" class="grid">
@@ -123,10 +201,11 @@ async function deleteList(id: string) {
             :key="list.id"
             :list="list"
             @open="openList"
+            @edit="editList"
             @delete="deleteList"
           />
         </div>
-        <p v-else class="empty-row">
+        <p v-else class="ui-state">
           No lists yet: create one above, or use a movie/TV/anime page's list
           button to start one. A smart list fills itself from a filter, like
           every anime you rated 9 or higher.
@@ -134,6 +213,13 @@ async function deleteList(id: string) {
       </template>
     </div>
 
+    <ListFormModal
+      v-if="editingList"
+      :list="editingList"
+      :existing-names="lists.map((l) => l.name)"
+      @save="onEditSave"
+      @close="editingList = null"
+    />
     <ListFormModal
       v-if="showCreate"
       :list="null"
@@ -145,102 +231,29 @@ async function deleteList(id: string) {
 </template>
 
 <style scoped>
-.collections-page {
-  position: relative;
-  font-family: system-ui, sans-serif;
-  background: #121212;
-  min-height: 100vh;
-  color: #fff;
-}
-.content {
-  padding: 24px 24px 24px;
-}
-.header-row {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  align-items: center;
-  gap: 16px;
-  margin-bottom: 24px;
-}
-.header-row h1 {
-  margin: 0;
-  font-size: 1.6rem;
-  font-weight: 700;
-}
 .header-actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 10px;
 }
-.search-input,
-.filter-select {
-  height: 40px;
-  box-sizing: border-box;
-  background: #111;
-  border: 1px solid #3a3a3a;
-  border-radius: 8px;
-  color: #fff;
-  padding: 0 14px;
-  font: inherit;
-  font-size: 13px;
-  transition: border-color 0.15s ease;
-}
-.search-input {
-  width: 220px;
-}
-.search-input:focus,
-.filter-select:focus {
-  outline: none;
-  border-color: #d68a34;
-}
-.filter-select:hover {
-  border-color: #4a4a4a;
-}
-.filter-select {
-  appearance: none;
-  -webkit-appearance: none;
-  padding-right: 34px;
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' stroke='%23999' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>");
-  background-repeat: no-repeat;
-  background-position: right 16px center;
-}
-.add-button {
-  height: 40px;
-  box-sizing: border-box;
-  background: #d68a34;
-  color: #111;
-  border: none;
-  border-radius: 8px;
-  padding: 0 18px;
-  font-weight: 600;
-  cursor: pointer;
-}
-/* fixed 10-per-row grid, column width only depends on the container, never
-   on how many lists there are, matching Collections.vue's own grid */
+/* as many 150px+ columns as fit, so cards stay one size at any window width */
 .grid {
   display: grid;
-  grid-template-columns: repeat(10, 1fr);
-  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 20px 16px;
 }
 .grid :deep(.collection-card-wrap) {
   width: auto;
   min-width: 0;
 }
-.empty-row {
-  color: #777;
-  font-size: 14px;
+.search-input {
+  width: 220px;
 }
-.error {
-  color: #f87171;
-}
-.create-error {
-  font-size: 13px;
-  background: rgba(220, 38, 38, 0.1);
-  border: 1px solid rgba(220, 38, 38, 0.3);
-  border-radius: 8px;
-  padding: 8px 12px;
-  margin-bottom: 16px;
+.filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  margin-bottom: 20px;
 }
 </style>

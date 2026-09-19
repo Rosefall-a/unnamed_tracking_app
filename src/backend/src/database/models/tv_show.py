@@ -257,6 +257,9 @@ class TVEpisode(Base):
 
     watched: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     rating: Mapped[Decimal | None] = mapped_column(Numeric(4, 2), nullable=True)
+    # exact air time (unix seconds) when the provider gives one; air_date
+    # alone is only a calendar day
+    air_at: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     created_at: Mapped[int] = mapped_column(

@@ -15,6 +15,8 @@ import TVShowDetail from "../views/TVShowDetail.vue";
 import AnimeLibrary from "../views/AnimeLibrary.vue";
 import AnimeDetail from "../views/AnimeDetail.vue";
 import Calendar from "../views/Calendar.vue";
+import Statistics from "../views/Statistics.vue";
+import Notifications from "../views/Notifications.vue";
 import MediaLists from "../views/MediaLists.vue";
 import MediaListDetail from "../views/MediaListDetail.vue";
 import Inbox from "../views/Inbox.vue";
@@ -60,6 +62,8 @@ const router = createRouter({
     { path: "/anime", name: "anime-library", component: AnimeLibrary },
     { path: "/anime/:id", name: "anime-detail", component: AnimeDetail },
     { path: "/calendar", name: "calendar", component: Calendar },
+    { path: "/statistics", name: "statistics", component: Statistics },
+    { path: "/notifications", name: "notifications", component: Notifications },
     { path: "/lists", name: "media-lists", component: MediaLists },
     { path: "/lists/:id", name: "media-list-detail", component: MediaListDetail },
     // History merged into the Calendar page as a second tab

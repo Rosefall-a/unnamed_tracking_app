@@ -34,6 +34,7 @@ from src.features.metadata.anime.episode_sync import (
     needs_tmdb_backfill,
     pad_to_known_total,
 )
+from src.features.metadata.anime.anizip import AniZipClient, AniZipError
 from src.features.metadata.anime.kitsu import KitsuClient, KitsuError
 from src.features.metadata.tv.episode_sync import (
     fetch_is_airing,
@@ -74,6 +75,7 @@ def _add_episode(
         air_date=date.fromisoformat(raw_air_date) if raw_air_date else None,
         runtime_minutes=entry.get("runtime_minutes"),
         still_url=entry.get("still_url"),
+        air_at=entry.get("air_at"),
     )
 
 
@@ -95,6 +97,9 @@ def _enrich_episode(existing: AnimeEpisode | TVEpisode, entry: dict) -> bool:
         changed = True
     if existing.runtime_minutes is None and entry.get("runtime_minutes") is not None:
         existing.runtime_minutes = entry["runtime_minutes"]
+        changed = True
+    if existing.air_at is None and entry.get("air_at") is not None:
+        existing.air_at = entry["air_at"]
         changed = True
     if existing.still_url is None and entry.get("still_url") is not None:
         existing.still_url = entry["still_url"]
@@ -187,15 +192,47 @@ async def quick_check_anime_season(show: Anime, season: AnimeSeason) -> int:
     if not aired_total:
         return 0
     known_max = max((e.episode_number for e in season.episodes), default=0)
-    if aired_total <= known_max:
-        return 0
     added = 0
-    for n in range(known_max + 1, aired_total + 1):
-        season.episodes.append(AnimeEpisode(season_id=season.id, episode_number=n))
-        added += 1
-    if season.episode_count is None or season.episode_count < aired_total:
-        season.episode_count = aired_total
+    if aired_total > known_max:
+        for n in range(known_max + 1, aired_total + 1):
+            season.episodes.append(AnimeEpisode(season_id=season.id, episode_number=n))
+            added += 1
+        if season.episode_count is None or season.episode_count < aired_total:
+            season.episode_count = aired_total
+    if is_airing:
+        await _fill_recent_from_anizip(season, show.anilist_id)
     return added
+
+
+async def _fill_recent_from_anizip(season: AnimeSeason, anilist_id: str) -> None:
+    """One ani.zip call fills the title, screenshot, synopsis and exact
+    air time of the newest episodes, which is what makes a freshly aired
+    episode look finished within a check cycle instead of staying a bare
+    "Episode N" until the daily full refresh. Only runs when one of the
+    newest few episodes is actually missing something."""
+    recent = sorted(season.episodes, key=lambda e: e.episode_number)[-4:]
+    if not any(e.title is None or e.still_url is None or e.air_at is None for e in recent):
+        return
+    try:
+        entries = await asyncio.to_thread(AniZipClient().episodes, anilist_id)
+    except AniZipError as exc:
+        logger.warning("ani.zip unavailable while filling recent episodes: %s", exc)
+        return
+    by_number = {e["episode_number"]: e for e in entries}
+    for episode in recent:
+        entry = by_number.get(episode.episode_number)
+        if entry:
+            _enrich_episode(episode, entry)
+
+
+async def refresh_anime_season_now(db, show: Anime, season: AnimeSeason) -> tuple[int, int]:
+    """The full episode refresh for one season on demand (the Check airing
+    button), not only the cheap airing-count check."""
+    return await _refresh_anime_season(db, show, season)
+
+
+async def refresh_tv_season_now(show: TVShow, season: TVSeason, db) -> tuple[int, int]:
+    return await _refresh_tv_season(show, season, db)
 
 
 async def quick_check_tv_season(show: TVShow, season: TVSeason, db) -> int:

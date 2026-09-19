@@ -116,6 +116,19 @@ function startNote(ep: EpisodeVM) {
   editingNoteId.value = ep.id;
   noteDraft.value = ep.note ?? "";
 }
+const NOTE_MAX = 2000;
+const NOTE_CLAMP_CHARS = 180;
+const expandedNotes = ref<Set<string>>(new Set());
+function toggleNoteExpanded(id: string) {
+  const next = new Set(expandedNotes.value);
+  if (next.has(id)) next.delete(id);
+  else next.add(id);
+  expandedNotes.value = next;
+}
+function removeNote(ep: EpisodeVM) {
+  editingNoteId.value = null;
+  emit("set-note", ep.id, null);
+}
 function saveNote(ep: EpisodeVM) {
   const value = noteDraft.value.trim();
   editingNoteId.value = null;
@@ -286,33 +299,56 @@ function goToPage(p: number) {
         <div v-if="editingNoteId === ep.id" class="note-editor">
           <textarea
             v-model="noteDraft"
-            rows="2"
-            maxlength="2000"
-            placeholder="Your notes on this episode…"
+            :rows="Math.min(8, Math.max(3, noteDraft.split('\n').length + 1))"
+            :maxlength="NOTE_MAX"
+            placeholder="Thoughts, theories, where you stopped, what to rewatch…"
             autofocus
             @keydown.ctrl.enter="saveNote(ep)"
+            @keydown.meta.enter="saveNote(ep)"
             @keydown.esc="editingNoteId = null"
           ></textarea>
-          <div class="note-actions">
-            <button type="button" class="note-save" @click="saveNote(ep)">Save note</button>
+          <div class="note-foot">
+            <span class="note-count" :class="{ near: noteDraft.length > NOTE_MAX - 100 }"
+              >{{ noteDraft.length }} / {{ NOTE_MAX }}</span
+            >
+            <span class="note-hint">Ctrl+Enter to save</span>
+            <span class="note-spacer"></span>
+            <button v-if="ep.note" type="button" class="note-remove" @click="removeNote(ep)">Remove</button>
             <button type="button" class="note-cancel" @click="editingNoteId = null">Cancel</button>
+            <button type="button" class="note-save" @click="saveNote(ep)">Save</button>
           </div>
         </div>
-        <p
-          v-else-if="ep.note"
-          class="episode-note"
-          title="Click to edit"
-          @click="startNote(ep)"
-        >
-          {{ ep.note }}
-        </p>
+        <div v-else-if="ep.note" class="note-card">
+          <div class="note-head">
+            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 20h9" />
+              <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+            </svg>
+            <span>Your note</span>
+            <button type="button" class="note-edit" @click="startNote(ep)">Edit</button>
+          </div>
+          <p
+            class="note-body"
+            :class="{ clamped: ep.note.length > NOTE_CLAMP_CHARS && !expandedNotes.has(ep.id) }"
+          >
+            {{ ep.note }}
+          </p>
+          <button
+            v-if="ep.note.length > NOTE_CLAMP_CHARS"
+            type="button"
+            class="note-more"
+            @click="toggleNoteExpanded(ep.id)"
+          >
+            {{ expandedNotes.has(ep.id) ? "Show less" : "Show more" }}
+          </button>
+        </div>
         <button
           v-else-if="!ep.isVirtual"
           type="button"
           class="add-note-btn"
           @click="startNote(ep)"
         >
-          + Note
+          + Add Note
         </button>
       </div>
       <button
@@ -397,7 +433,7 @@ function goToPage(p: number) {
 }
 .pager-label {
   font-size: 0.78rem;
-  color: #999;
+  color: #9c9c9c;
   font-variant-numeric: tabular-nums;
 }
 .episode-pager select {
@@ -410,7 +446,7 @@ function goToPage(p: number) {
   font-size: 0.8rem;
 }
 .episodes-loading {
-  color: #999;
+  color: #9c9c9c;
   font-size: 0.85rem;
 }
 .episodes-unavailable {
@@ -456,65 +492,136 @@ function goToPage(p: number) {
 }
 .add-note-btn {
   align-self: flex-start;
-  margin-top: 4px;
+  margin-top: 6px;
   background: none;
-  border: none;
-  padding: 0;
+  border: 1px dashed #333;
+  border-radius: 6px;
+  padding: 3px 10px;
   color: #666;
   font-family: inherit;
   font-size: 0.72rem;
   font-weight: 600;
   cursor: pointer;
   opacity: 0;
-  transition: opacity 0.15s ease, color 0.15s ease;
+  transition: opacity 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 }
 .episode-row:hover .add-note-btn,
 .episode-row:focus-within .add-note-btn {
   opacity: 1;
 }
+/* touch screens have no hover, so the control is always there */
+@media (hover: none) {
+  .add-note-btn {
+    opacity: 1;
+  }
+}
 .add-note-btn:hover {
   color: #d68a34;
+  border-color: rgba(214, 138, 52, 0.5);
 }
-.episode-note {
-  margin: 6px 0 0;
-  padding: 6px 10px;
-  background: rgba(214, 138, 52, 0.08);
-  border-left: 2px solid rgba(214, 138, 52, 0.6);
-  border-radius: 4px;
-  color: #d8c3a0;
-  font-size: 0.78rem;
-  line-height: 1.45;
+.note-card {
+  margin-top: 8px;
+  padding: 8px 12px 8px;
+  background: rgba(214, 138, 52, 0.07);
+  border: 1px solid rgba(214, 138, 52, 0.22);
+  border-radius: 8px;
+}
+.note-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #d68a34;
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.note-edit {
+  margin-left: auto;
+  background: none;
+  border: none;
+  padding: 0;
+  color: #9c8760;
+  font-family: inherit;
+  font-size: 0.7rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.note-edit:hover {
+  color: #d68a34;
+}
+.note-body {
+  margin: 4px 0 0;
+  color: #e3d5bb;
+  font-size: 0.82rem;
+  line-height: 1.5;
   white-space: pre-wrap;
-  cursor: text;
+  overflow-wrap: anywhere;
+}
+.note-body.clamped {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.note-more {
+  margin-top: 2px;
+  background: none;
+  border: none;
+  padding: 0;
+  color: #9c8760;
+  font-family: inherit;
+  font-size: 0.7rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.note-more:hover {
+  color: #d68a34;
 }
 .note-editor {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  margin-top: 6px;
+  margin-top: 8px;
 }
 .note-editor textarea {
   width: 100%;
   box-sizing: border-box;
   background: #0d0d0d;
   border: 1px solid #3a3a3a;
-  border-radius: 6px;
+  border-radius: 8px;
   color: #eee;
-  padding: 7px 9px;
+  padding: 9px 11px;
   font: inherit;
-  font-size: 0.8rem;
+  font-size: 0.82rem;
+  line-height: 1.5;
   resize: vertical;
 }
 .note-editor textarea:focus {
   outline: none;
   border-color: #d68a34;
 }
-.note-actions {
+.note-foot {
   display: flex;
+  align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
+}
+.note-spacer {
+  flex: 1;
+}
+.note-count,
+.note-hint {
+  font-size: 0.68rem;
+  color: #666;
+  font-variant-numeric: tabular-nums;
+}
+.note-count.near {
+  color: #e57373;
 }
 .note-save,
-.note-cancel {
+.note-cancel,
+.note-remove {
   border: none;
   border-radius: 6px;
   padding: 5px 12px;
@@ -531,6 +638,10 @@ function goToPage(p: number) {
   background: rgba(255, 255, 255, 0.08);
   color: #ccc;
 }
+.note-remove {
+  background: none;
+  color: #d96f6f;
+}
 .episode-row.watched {
   border-color: rgba(214, 138, 52, 0.4);
 }
@@ -546,7 +657,7 @@ function goToPage(p: number) {
   opacity: 0.6;
 }
 .episode-row.virtual .episode-title {
-  color: #999;
+  color: #9c9c9c;
   font-style: italic;
 }
 .episode-checkbox:disabled,
@@ -630,7 +741,7 @@ function goToPage(p: number) {
 }
 .episode-desc {
   font-size: 0.8rem;
-  color: #999;
+  color: #9c9c9c;
   line-height: 1.5;
   margin: 0;
   display: -webkit-box;
@@ -658,5 +769,25 @@ function goToPage(p: number) {
   font-family: inherit;
   font-size: 0.78rem;
   font-variant-numeric: tabular-nums;
+}
+
+/* phones: drop the thumbnail column and let the rating/catch-up controls
+   wrap under the title instead of squeezing it */
+@media (max-width: 640px) {
+  .episode-row {
+    grid-template-columns: 26px 1fr;
+    gap: 10px;
+  }
+  .episode-thumb {
+    display: none;
+  }
+  .episode-row .catch-up-btn,
+  .episode-row .episode-rating {
+    grid-column: 2;
+    justify-self: start;
+  }
+  .catch-up-btn {
+    opacity: 1;
+  }
 }
 </style>

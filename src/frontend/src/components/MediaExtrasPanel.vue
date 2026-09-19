@@ -6,6 +6,7 @@
 // utils/countdown.ts), not here.
 import { ref, computed, onMounted, onBeforeUnmount } from "vue";
 import { useRouter } from "vue-router";
+import { useConfirm } from "../state/dialog";
 import {
   fetchRewatches,
   addRewatch,
@@ -15,6 +16,8 @@ import {
   addToMediaList,
   removeFromMediaList,
   fetchListMembership,
+  updateMediaList,
+  deleteMediaList,
 } from "../services/mediaExtras";
 import type { MediaType, Rewatch, MediaListSummary, ListMembership } from "../services/mediaExtras";
 
@@ -159,6 +162,54 @@ async function toggleListMembership(listId: string) {
     listError.value = e instanceof Error ? e.message : "Failed to update list.";
   } finally {
     addingToList.value = null;
+  }
+}
+
+// ---- editing lists from here, so a list can be fixed without leaving
+// the title you're looking at ----
+const renamingId = ref<string | null>(null);
+const renameDraft = ref("");
+function startRename(l: MediaListSummary) {
+  renamingId.value = l.id;
+  renameDraft.value = l.name;
+}
+async function commitRename(l: MediaListSummary) {
+  const name = renameDraft.value.trim();
+  renamingId.value = null;
+  if (!name || name === l.name) return;
+  if (lists.value.some((o) => o.id !== l.id && o.name.toLowerCase() === name.toLowerCase())) {
+    listError.value = `"${name}" already exists.`;
+    return;
+  }
+  try {
+    const updated = await updateMediaList(l.id, { name });
+    lists.value = lists.value.map((o) => (o.id === l.id ? updated : o));
+  } catch (e) {
+    listError.value = e instanceof Error ? e.message : "Failed to rename list.";
+  }
+}
+async function useAsCover(l: MediaListSummary) {
+  try {
+    const updated = await updateMediaList(l.id, { coverMediaId: props.mediaId });
+    lists.value = lists.value.map((o) => (o.id === l.id ? updated : o));
+  } catch (e) {
+    listError.value = e instanceof Error ? e.message : "Failed to set the cover.";
+  }
+}
+const confirm = useConfirm();
+async function removeList(l: MediaListSummary) {
+  const ok = await confirm({
+    message: `Delete "${l.name}"? This doesn't delete the titles in it, just the list.`,
+    confirmLabel: "Delete list",
+    danger: true,
+  });
+  if (!ok) return;
+  try {
+    await deleteMediaList(l.id);
+    lists.value = lists.value.filter((o) => o.id !== l.id);
+    membership.value = membership.value.filter((m) => m.listId !== l.id);
+  } catch (e) {
+    listError.value = e instanceof Error ? e.message : "Failed to delete list.";
   }
 }
 
@@ -356,35 +407,59 @@ onBeforeUnmount(() => document.removeEventListener("click", onDocumentClick));
 
         <p v-if="listError" class="extras-error">{{ listError }}</p>
         <p v-if="listsLoaded && !lists.length" class="empty-hint">
-          No lists yet — create one below.
+          No lists yet. Create one below.
         </p>
         <ul v-else class="list-options">
-          <li v-for="l in lists" :key="l.id">
-            <button
-              type="button"
-              class="list-option"
-              :class="{ checked: membershipByList.has(l.id) }"
-              :disabled="addingToList === l.id"
-              @click="toggleListMembership(l.id)"
-            >
-              <span class="list-check">
-                <svg
-                  v-if="membershipByList.has(l.id)"
-                  viewBox="0 0 24 24"
-                  width="12"
-                  height="12"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="3"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
+          <li v-for="l in lists" :key="l.id" class="list-row">
+            <input
+              v-if="renamingId === l.id"
+              v-model="renameDraft"
+              class="rename-input"
+              type="text"
+              autofocus
+              @keyup.enter="commitRename(l)"
+              @keyup.esc="renamingId = null"
+              @blur="commitRename(l)"
+            />
+            <template v-else>
+              <button
+                type="button"
+                class="list-option"
+                :class="{ checked: membershipByList.has(l.id) }"
+                :disabled="addingToList === l.id"
+                @click="toggleListMembership(l.id)"
+              >
+                <span class="list-check">
+                  <svg
+                    v-if="membershipByList.has(l.id)"
+                    viewBox="0 0 24 24"
+                    width="12"
+                    height="12"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="3"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                </span>
+                <span class="list-option-name">{{ l.name }}</span>
+                <span class="list-option-count">{{ l.itemCount }}</span>
+              </button>
+              <span class="list-row-actions">
+                <button
+                  v-if="membershipByList.has(l.id) && l.coverMediaId !== mediaId"
+                  type="button"
+                  title="Use this title as the list cover"
+                  @click="useAsCover(l)"
                 >
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>
+                  ★
+                </button>
+                <button type="button" title="Rename list" @click="startRename(l)">✎</button>
+                <button type="button" title="Delete list" @click="removeList(l)">✕</button>
               </span>
-              <span class="list-option-name">{{ l.name }}</span>
-              <span class="list-option-count">{{ l.itemCount }}</span>
-            </button>
+            </template>
           </li>
         </ul>
 
@@ -470,7 +545,7 @@ onBeforeUnmount(() => document.removeEventListener("click", onDocumentClick));
 
 .popover {
   position: fixed;
-  z-index: 300;
+  z-index: var(--ui-z-popover);
   width: 280px;
   background: #171717;
   border: 1px solid #2b2b2b;
@@ -614,7 +689,7 @@ onBeforeUnmount(() => document.removeEventListener("click", onDocumentClick));
   flex-shrink: 0;
 }
 .remove-btn:hover {
-  color: #f87171;
+  color: #e57373;
 }
 .list-options {
   list-style: none;
@@ -625,6 +700,57 @@ onBeforeUnmount(() => document.removeEventListener("click", onDocumentClick));
   gap: 2px;
   max-height: 220px;
   overflow-y: auto;
+}
+.list-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.list-row-actions {
+  display: flex;
+  gap: 2px;
+  margin-left: 2px;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+.list-row:hover .list-row-actions,
+.list-row:focus-within .list-row-actions {
+  opacity: 1;
+}
+@media (hover: none) {
+  .list-row-actions {
+    opacity: 1;
+  }
+}
+.list-row-actions button {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  border: none;
+  background: none;
+  color: #888;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+.list-row-actions button:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #d68a34;
+}
+.list-row-actions button[title^="Delete"]:hover {
+  color: #e57373;
+}
+.rename-input {
+  flex: 1;
+  background: #111;
+  border: 1px solid #d68a34;
+  border-radius: 8px;
+  color: #fff;
+  padding: 7px 10px;
+  font: inherit;
+  font-size: 0.82rem;
+}
+.rename-input:focus {
+  outline: none;
 }
 .list-option {
   display: flex;
@@ -697,7 +823,7 @@ onBeforeUnmount(() => document.removeEventListener("click", onDocumentClick));
   font-family: inherit;
 }
 .extras-error {
-  color: #f87171;
+  color: #e57373;
   font-size: 0.76rem;
   margin: 4px 0;
 }

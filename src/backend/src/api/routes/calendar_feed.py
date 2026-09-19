@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.routes.media_extras import build_calendar_entries
 from src.core.auth import get_current_user
+from src.core.preferences import load_preferences
 from src.database.models.user import User
 from src.database.session import get_db
 
@@ -90,5 +91,8 @@ async def calendar_feed(token: str, db: AsyncSession = Depends(get_db)) -> Respo
     user = await db.scalar(select(User).where(User.calendar_token == token))
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unknown calendar feed")
-    entries = await build_calendar_entries(db, user.id, _FEED_DAYS)
+    prefs = await load_preferences(db, user.id)
+    entries = await build_calendar_entries(
+        db, user.id, _FEED_DAYS, game_releases=bool(prefs["calendar_game_releases"])
+    )
     return Response(content=_build_ics(entries), media_type="text/calendar; charset=utf-8")

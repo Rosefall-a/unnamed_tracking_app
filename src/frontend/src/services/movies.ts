@@ -44,6 +44,16 @@ export interface BackendMovie {
   updated_at: number;
 }
 
+import { createEntityCache } from "../utils/entityCache";
+const movieCache = createEntityCache<Movie>();
+export const peekMovie = movieCache.peek;
+export const peekAllMovies = (): Movie[] | null =>
+  movieCache.listLoaded() ? movieCache.all() : null;
+// every entity that passes through here is remembered for instant reopening
+function mapBackendMovie(raw: Parameters<typeof mapBackendMovieRaw>[0]): Movie {
+  return movieCache.put(mapBackendMovieRaw(raw));
+}
+
 // Pydantic can serialize a Decimal as either a JSON number or a string
 // depending on config, handle both rather than assume one
 function toNumberOrNull(value: number | string | null): number | null {
@@ -64,7 +74,7 @@ function denormalizeStatus(status: MovieStatus): string {
   return status.toUpperCase().replace(/ /g, "_");
 }
 
-export function mapBackendMovie(raw: BackendMovie): Movie {
+export function mapBackendMovieRaw(raw: BackendMovie): Movie {
   return {
     id: raw.id,
     userId: raw.user_id,
@@ -125,7 +135,9 @@ export async function fetchMovies(): Promise<Movie[]> {
     if (page.length < MOVIES_PAGE_SIZE) break;
     skip += MOVIES_PAGE_SIZE;
   }
-  return all.map(mapBackendMovie);
+  const list = all.map(mapBackendMovie);
+  movieCache.markListLoaded();
+  return list;
 }
 
 export async function getMovie(id: string): Promise<Movie> {
@@ -267,6 +279,7 @@ export async function updateMovie(
 }
 
 export async function deleteMovie(id: string): Promise<void> {
+  movieCache.remove(id);
   const response = await fetch(`/api/movie/delete/${id}`, {
     method: "DELETE",
     credentials: "include",

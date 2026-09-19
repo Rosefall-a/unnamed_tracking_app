@@ -114,7 +114,7 @@ async function searchMetadata() {
     providerWarnings.value = response.providerErrors;
     if (!response.providers.length) {
       metadataMessage.value =
-        "No metadata providers configured — add a TMDB or OMDb API key in Settings > Metadata > Metadata/API to enable show search.";
+        "No metadata providers configured. Add a TMDB or OMDb API key in Settings > Metadata > Metadata/API to enable show search.";
     } else if (!metadataResults.value.length) {
       metadataMessage.value = "No shows found.";
     }

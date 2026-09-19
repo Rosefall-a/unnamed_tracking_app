@@ -17,6 +17,8 @@ import TasksSection from "../components/settings/TasksSection.vue";
 import AdminSection from "../components/settings/AdminSection.vue";
 import StatsSection from "../components/settings/StatsSection.vue";
 import ExportImportSection from "../components/settings/ExportImportSection.vue";
+import CalendarNotificationsSection from "../components/settings/CalendarNotificationsSection.vue";
+import MediaPreferencesSection from "../components/settings/MediaPreferencesSection.vue";
 import ComingSoonSection from "../components/settings/ComingSoonSection.vue";
 
 const router = useRouter();
@@ -38,6 +40,7 @@ const groups = computed<SettingsGroup[]>(() => {
         { id: "profile", label: "Profile" },
         { id: "interface", label: "User Interface" },
         { id: "appearance", label: "Appearance" },
+        { id: "calendar-notifications", label: "Calendar and Notifications" },
       ],
     },
     {
@@ -45,6 +48,7 @@ const groups = computed<SettingsGroup[]>(() => {
       sections: [
         { id: "upload", label: "Upload" },
         { id: "library", label: "Library Management" },
+        { id: "media-prefs", label: "Media Preferences" },
         { id: "media-trash", label: "Media Trash" },
       ],
     },
@@ -110,8 +114,12 @@ const activeSection = ref((route.query.section as string) || "profile");
           <ProfileSection v-if="activeSection === 'profile'" />
           <InterfaceSection v-else-if="activeSection === 'interface'" />
           <AppearanceSection v-else-if="activeSection === 'appearance'" />
+          <CalendarNotificationsSection
+            v-else-if="activeSection === 'calendar-notifications'"
+          />
           <UploadSection v-else-if="activeSection === 'upload'" />
           <LibraryManagementSection v-else-if="activeSection === 'library'" />
+          <MediaPreferencesSection v-else-if="activeSection === 'media-prefs'" />
           <MediaTrashSection v-else-if="activeSection === 'media-trash'" />
           <ScanSettingsSection v-else-if="activeSection === 'scan'" />
           <MetadataSourcesSection v-else-if="activeSection === 'sources'" />
@@ -145,7 +153,7 @@ const activeSection = ref((route.query.section as string) || "profile");
   position: relative;
   min-height: 100vh;
   padding: 84px 40px 40px;
-  background: #121212;
+  background: var(--ui-bg);
   font-family: system-ui, sans-serif;
 }
 .back-arrow-button {

@@ -89,8 +89,8 @@ async function onFileSelected(e: Event) {
   <section class="settings-section">
     <h2>Export / Import</h2>
     <p class="section-hint">
-      A portable JSON snapshot of your whole library — games, movies, TV
-      shows, and anime — for backups, or moving to a new server. Covers title
+      A portable JSON snapshot of your whole library (games, movies, TV
+      shows and anime) for backups, or moving to a new server. Covers title
       data and metadata only, not attached files (screenshots, saves, docs)
       or bounties. Import currently only re-creates games; movies/TV/anime
       are included in the export but not yet re-importable.

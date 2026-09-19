@@ -412,7 +412,7 @@ const PROVIDER_CARDS: Record<string, ProviderCardConfig> = {
     key: "TVDB",
     label: "TheTVDB",
     description:
-      "The only real franchise/relations source for TV shows (TMDB has no collection concept outside of movies) — powers the Related tab on a show's page. Uses one deployment-wide API key, managed by a server administrator here rather than per-user.",
+      "The only real franchise/relations source for TV shows (TMDB has no collection concept outside of movies). It powers the Related tab on a show's page. Uses one deployment-wide API key, managed by a server administrator here rather than per-user.",
     fields: [],
     kind: "wired",
   },

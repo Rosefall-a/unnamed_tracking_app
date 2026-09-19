@@ -83,8 +83,8 @@ function submit() {
 </script>
 
 <template>
-  <div class="modal-backdrop" @click.self="emit('close')">
-    <form class="modal-card" @submit.prevent="submit">
+  <div class="ui-backdrop" @click.self="emit('close')">
+    <form class="ui-modal" @submit.prevent="submit">
       <h3>{{ editing ? "Edit list" : "Create a list" }}</h3>
 
       <div v-if="!editing" class="kind-pick">
@@ -100,11 +100,11 @@ function submit() {
 
       <label class="field">
         <span>Name</span>
-        <input v-model="name" type="text" class="input" maxlength="200" autofocus />
+        <input v-model="name" type="text" class="ui-field" maxlength="200" autofocus />
       </label>
       <label class="field">
         <span>Description (optional)</span>
-        <input v-model="description" type="text" class="input" />
+        <input v-model="description" type="text" class="ui-field" />
       </label>
 
       <template v-if="smart">
@@ -115,7 +115,7 @@ function submit() {
               v-for="m in MEDIA_OPTIONS"
               :key="m.key"
               type="button"
-              class="chip"
+              class="ui-chip"
               :class="{ on: mediaTypes.includes(m.key) }"
               @click="toggle(mediaTypes, m.key)"
             >
@@ -131,7 +131,7 @@ function submit() {
               v-for="s in STATUS_BUCKETS"
               :key="s.key"
               type="button"
-              class="chip"
+              class="ui-chip"
               :class="{ on: statusBuckets.includes(s.key) }"
               @click="toggle(statusBuckets, s.key)"
             >
@@ -142,11 +142,11 @@ function submit() {
         <div class="row">
           <label class="field">
             <span>Genre</span>
-            <input v-model="genre" type="text" class="input" placeholder="e.g. Comedy" />
+            <input v-model="genre" type="text" class="ui-field" placeholder="e.g. Comedy" />
           </label>
           <label class="field score-field">
             <span>Min. score</span>
-            <input v-model.number="minScore" type="number" min="0" max="10" step="0.5" class="input" placeholder="0-10" />
+            <input v-model.number="minScore" type="number" min="0" max="10" step="0.5" class="ui-field" placeholder="0-10" />
           </label>
         </div>
         <label class="check">
@@ -155,43 +155,17 @@ function submit() {
         </label>
       </template>
 
-      <p v-if="error" class="error">{{ error }}</p>
+      <p v-if="error" class="ui-error-box">{{ error }}</p>
 
-      <div class="actions">
-        <button type="button" class="secondary-button" @click="emit('close')">Cancel</button>
-        <button type="submit" class="add-button">{{ editing ? "Save" : "Create" }}</button>
+      <div class="ui-modal-actions">
+        <button type="button" class="ui-btn ui-btn-secondary" @click="emit('close')">Cancel</button>
+        <button type="submit" class="ui-btn ui-btn-primary">{{ editing ? "Save" : "Create" }}</button>
       </div>
     </form>
   </div>
 </template>
 
 <style scoped>
-.modal-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.65);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 200;
-  padding: 24px;
-}
-.modal-card {
-  background: #1a1a1a;
-  border: 1px solid #2a2a2a;
-  border-radius: 12px;
-  padding: 22px;
-  width: 100%;
-  max-width: 440px;
-  max-height: 88vh;
-  overflow-y: auto;
-  box-sizing: border-box;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
-  color: #fff;
-}
-.modal-card h3 {
-  margin: 0 0 14px;
-}
 .kind-pick {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -217,7 +191,7 @@ function submit() {
 }
 .kind-pick button span {
   font-size: 0.72rem;
-  color: #888;
+  color: #9c9c9c;
 }
 .kind-pick button.active {
   border-color: #d68a34;
@@ -233,7 +207,7 @@ function submit() {
   flex: 1;
 }
 .field small {
-  color: #777;
+  color: #666;
   font-size: 0.72rem;
 }
 .row {
@@ -243,42 +217,10 @@ function submit() {
 .score-field {
   flex: 0 0 110px;
 }
-.input {
-  background: #111;
-  border: 1px solid #3a3a3a;
-  border-radius: 8px;
-  color: #fff;
-  padding: 9px 12px;
-  font: inherit;
-  font-size: 13px;
-  box-sizing: border-box;
-  width: 100%;
-}
-.input:focus {
-  outline: none;
-  border-color: #d68a34;
-}
 .chips {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-}
-.chip {
-  height: 28px;
-  padding: 0 12px;
-  border-radius: 999px;
-  border: 1px solid #333;
-  background: transparent;
-  color: #888;
-  font-family: inherit;
-  font-size: 0.76rem;
-  font-weight: 700;
-  cursor: pointer;
-}
-.chip.on {
-  color: #14100a;
-  background: #d68a34;
-  border-color: #d68a34;
 }
 .check {
   display: flex;
@@ -287,41 +229,5 @@ function submit() {
   font-size: 0.82rem;
   color: #ccc;
   margin-bottom: 14px;
-}
-.error {
-  color: #fca5a5;
-  font-size: 13px;
-  background: rgba(220, 38, 38, 0.1);
-  border: 1px solid rgba(220, 38, 38, 0.3);
-  border-radius: 8px;
-  padding: 8px 10px;
-  margin: 0 0 12px;
-}
-.actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-}
-.secondary-button {
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
-  border: none;
-  border-radius: 8px;
-  padding: 10px 18px;
-  font-weight: 600;
-  font-size: 0.84rem;
-  cursor: pointer;
-  font-family: inherit;
-}
-.add-button {
-  background: #d68a34;
-  color: #111;
-  border: none;
-  border-radius: 8px;
-  padding: 10px 18px;
-  font-weight: 600;
-  font-size: 0.84rem;
-  cursor: pointer;
-  font-family: inherit;
 }
 </style>

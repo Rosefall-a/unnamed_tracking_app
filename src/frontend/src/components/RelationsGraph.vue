@@ -32,6 +32,7 @@ export interface BranchNode {
   // themselves a sequel pair, not each independently tied to the show.
   parentBranchId?: string;
   year?: number | null;
+  current?: boolean;
 }
 
 const props = defineProps<{
@@ -392,6 +393,7 @@ defineExpose({ fit, focusCurrent });
         v-for="{ node, cx, cy } in branchCounts"
         :key="node.id"
         class="graph-node"
+        :class="{ current: node.current }"
         :style="{ left: cx - NODE_W / 2 + 'px', top: cy - NODE_H / 2 + 'px' }"
         :title="node.title"
         @click="emit('branch-click', node.id)"

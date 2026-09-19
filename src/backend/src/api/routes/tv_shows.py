@@ -21,7 +21,7 @@ from src.api.schemas.tv_show import (
     TVShowRead,
     TVShowUpdate,
 )
-from src.api.routes.media_extras import log_activity
+from src.api.routes.media_extras import log_activity, status_change_detail
 from src.core.app_integrations import get_or_create_app_integration_settings
 from src.core.auth import get_current_user
 from src.core.crypto import decrypt_secret
@@ -245,11 +245,13 @@ async def update_show(
         show.sort_title = _derive_sort_title(show.title)
 
     if "status" in updates and show.status != previous_status:
-        await log_activity(
-            db, current_user.id, "tv", show.id, show.title,
-            ActivityEventType.STATUS_CHANGED, date.today(),
-            detail=f"{previous_status.value} -> {show.status.value}",
-        )
+        change = status_change_detail(previous_status, show.status)
+        if change:
+            await log_activity(
+                db, current_user.id, "tv", show.id, show.title,
+                ActivityEventType.STATUS_CHANGED, date.today(),
+                detail=change,
+            )
 
     await db.commit()
     return await _get_show_or_404(show_id, db, current_user.id)

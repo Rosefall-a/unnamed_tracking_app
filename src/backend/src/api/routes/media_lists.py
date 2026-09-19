@@ -123,6 +123,8 @@ def _summary(lst: MediaList, items: list[dict]) -> dict:
         "description": lst.description,
         "item_count": len(items),
         "is_smart": lst.smart_rule is not None,
+        "is_system": lst.is_system,
+        "type_counts": {t: sum(1 for i in items if i["media_type"] == t) for t in ("movie", "tv", "anime")},
         "smart_rule": lst.smart_rule,
         "cover_media_id": lst.cover_media_id,
         "preview_posters": [i["poster_url"] for i in ordered[:4]],
@@ -138,13 +140,38 @@ async def _get_list_or_404(list_id: UUID, user_id: UUID, db: AsyncSession) -> Me
     return lst
 
 
+async def _ensure_favorites_list(user_id: UUID, db: AsyncSession) -> None:
+    """Everyone gets a Favorites list that fills itself from the favorite
+    flag on every title, so starring something is enough to file it."""
+    exists = await db.scalar(
+        select(MediaList.id).where(MediaList.user_id == user_id, MediaList.is_system.is_(True)).limit(1)
+    )
+    if exists is not None:
+        return
+    db.add(
+        MediaList(
+            user_id=user_id,
+            name="Favorites",
+            description="Everything you have marked as a favorite",
+            smart_rule={"favorite": True},
+            is_system=True,
+        )
+    )
+    await db.commit()
+
+
 @router.get("/lists", response_model=list[MediaListRead])
 async def list_media_lists(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> list[dict]:
+    await _ensure_favorites_list(current_user.id, db)
     lists = (
-        await db.execute(select(MediaList).where(MediaList.user_id == current_user.id).order_by(MediaList.name))
+        await db.execute(
+            select(MediaList)
+            .where(MediaList.user_id == current_user.id)
+            .order_by(MediaList.is_system.desc(), MediaList.name)
+        )
     ).scalars().all()
     return [_summary(lst, await _resolve_items(lst, current_user.id, db)) for lst in lists]
 
@@ -201,6 +228,11 @@ async def update_media_list(
 ) -> dict:
     lst = await _get_list_or_404(list_id, current_user.id, db)
     updates = payload.model_dump(exclude_unset=True)
+    if lst.is_system and ({"name", "smart_rule"} & updates.keys()):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Favorites is kept by the app; only its description and cover can change.",
+        )
     if "smart_rule" in updates:
         rule = payload.smart_rule
         updates["smart_rule"] = rule.model_dump(exclude_none=True) if rule else None
@@ -218,6 +250,8 @@ async def delete_media_list(
     current_user: User = Depends(get_current_user),
 ) -> None:
     lst = await _get_list_or_404(list_id, current_user.id, db)
+    if lst.is_system:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Favorites can't be deleted.")
     await db.delete(lst)
     await db.commit()
 

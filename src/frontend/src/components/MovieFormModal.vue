@@ -111,7 +111,7 @@ async function searchMetadata() {
     providerWarnings.value = response.providerErrors;
     if (!response.providers.length) {
       metadataMessage.value =
-        "No metadata providers configured — add a TMDB or OMDb API key in Settings > Metadata > Metadata/API to enable movie search.";
+        "No metadata providers configured. Add a TMDB or OMDb API key in Settings > Metadata > Metadata/API to enable movie search.";
     } else if (!metadataResults.value.length) {
       metadataMessage.value = "No movies found.";
     }

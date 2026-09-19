@@ -16,6 +16,9 @@ from src.api.routes import (
     media,
     media_extras,
     media_lists,
+    media_stats,
+    notifications,
+    preferences,
     movies,
     settings,
     stats,
@@ -52,6 +55,9 @@ app.include_router(bounties.router)
 app.include_router(export_import.router)
 app.include_router(media_extras.router)
 app.include_router(media_lists.router)
+app.include_router(notifications.router)
+app.include_router(media_stats.router)
+app.include_router(preferences.router)
 app.include_router(calendar_feed.authed_router)
 app.include_router(calendar_feed.public_router)
 app.include_router(set_routes.router)

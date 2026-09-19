@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
+import { useKeptAlive } from "../utils/useKeptAlive";
 import {
   fetchTVShows,
   updateTVShow,
@@ -58,15 +59,16 @@ function toVM(show: TVShow): LibraryCardVM {
     total,
     progressLabel: total !== null ? `${watched}/${total}` : `${watched}/–`,
     canAdvance: !!currentSeason(show),
-    runtimeMinutes: show.episodeRuntimeMinutes,
     releaseYear: show.firstAirDate ? show.firstAirDate.slice(0, 4) : null,
   };
 }
 
 const items = computed(() => shows.value.map(toVM));
 
+// Only the very first load shows the loading state; a refresh when the
+// page comes back swaps data in quietly, so titles never blink away.
 async function load() {
-  loading.value = true;
+  if (!shows.value.length) loading.value = true;
   try {
     shows.value = await fetchTVShows();
   } catch (e) {
@@ -76,6 +78,7 @@ async function load() {
   }
 }
 onMounted(load);
+useKeptAlive(load);
 
 function findShow(id: string): TVShow {
   const show = shows.value.find((s) => s.id === id);

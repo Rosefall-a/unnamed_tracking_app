@@ -96,6 +96,10 @@ export interface MediaListSummary {
   description: string | null;
   itemCount: number;
   isSmart: boolean;
+  // kept by the app (Favorites): can't be renamed, re-ruled or deleted
+  isSystem: boolean;
+  // titles per type, so the overview can filter lists by what they hold
+  typeCounts: Partial<Record<MediaType, number>>;
   smartRule: SmartRule | null;
   coverMediaId: string | null;
   // up to 4 posters (cover first) so the overview grid needs no
@@ -133,6 +137,8 @@ interface BackendMediaListSummary {
   description: string | null;
   item_count: number;
   is_smart: boolean;
+  is_system?: boolean;
+  type_counts?: Partial<Record<MediaType, number>>;
   smart_rule: BackendSmartRule | null;
   cover_media_id: string | null;
   preview_posters: (string | null)[];
@@ -179,6 +185,8 @@ function mapListSummary(l: BackendMediaListSummary): MediaListSummary {
     description: l.description,
     itemCount: l.item_count,
     isSmart: l.is_smart,
+    isSystem: l.is_system ?? false,
+    typeCounts: l.type_counts ?? {},
     smartRule: mapSmartRule(l.smart_rule),
     coverMediaId: l.cover_media_id,
     previewPosters: l.preview_posters,
@@ -423,7 +431,8 @@ export async function deleteActivityEntry(id: string): Promise<void> {
 }
 
 export interface CalendarEntry {
-  mediaType: MediaType;
+  // "game" only appears when game releases are switched on in Settings
+  mediaType: MediaType | "game";
   mediaId: string;
   title: string;
   posterUrl: string | null;
@@ -440,7 +449,7 @@ export interface CalendarEntry {
 }
 
 interface BackendCalendarEntry {
-  media_type: MediaType;
+  media_type: MediaType | "game";
   media_id: string;
   title: string;
   poster_url: string | null;
@@ -475,4 +484,23 @@ export async function fetchCalendarFeedUrl(regenerate = false): Promise<string> 
   );
   const raw = await handle<{ path: string }>(response, "load the calendar feed link");
   return `${window.location.origin}${raw.path}`;
+}
+
+// Games history for the calendar: the day a game was finished and how many
+// achievements were unlocked on a day. Empty unless "Games history" is on
+// in Settings.
+export interface CalendarGameEntry {
+  kind: "game_finished" | "game_achievements";
+  gameId: string;
+  title: string;
+  date: string;
+  count: number;
+}
+
+export async function fetchCalendarGames(): Promise<CalendarGameEntry[]> {
+  const response = await fetch("/api/calendar/games", { credentials: "include" });
+  const raw = await handle<
+    { kind: CalendarGameEntry["kind"]; game_id: string; title: string; date: string; count: number }[]
+  >(response, "load games history");
+  return raw.map((g) => ({ kind: g.kind, gameId: g.game_id, title: g.title, date: g.date, count: g.count }));
 }

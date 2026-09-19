@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { ref, computed, reactive, watch } from "vue";
-import { useRoute, useRouter } from "vue-router";
+import { useRouter } from "vue-router";
 import CheckIcon from "../CheckIcon.vue";
 import MediaTopBar from "../MediaTopBar.vue";
+import SegmentedTabs from "../SegmentedTabs.vue";
+import type { SegmentOption } from "../SegmentedTabs.vue";
+import { preferences } from "../../state/preferences";
 import {
   STATUS_BUCKETS,
   statusBucket,
@@ -39,9 +42,6 @@ export interface LibraryCardVM {
   // carries one — currently only Anime does (from AniList/Jikan). Falls
   // back to the generic per-kind typeLabel below when absent.
   format?: string | null;
-  // Per-episode runtime (TV/Anime) or the movie's own runtime — used only
-  // by the Stats view's "time watched" total, null when unknown.
-  runtimeMinutes: number | null;
   // Release/first-air year, shown right under the format label — null
   // when the underlying date is unknown.
   releaseYear: string | null;
@@ -104,7 +104,6 @@ const emit = defineEmits<{
 }>();
 
 const router = useRouter();
-const route = useRoute();
 
 // The mockup's per-item "type" field (TV/Movie/OVA/Series/Anthology) has
 // no real per-item equivalent — none of the three entities carry a
@@ -116,6 +115,20 @@ const typeLabel = computed(() => {
   return "Anime";
 });
 
+const LAYOUT_OPTIONS: SegmentOption[] = [
+  {
+    value: "list",
+    label: "List",
+    icon: '<line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" /><line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" />',
+  },
+  { value: "shelf", label: "Shelf", icon: '<rect x="3" y="3" width="7" height="18" rx="1" /><rect x="14" y="3" width="7" height="10" rx="1" />' },
+  {
+    value: "board",
+    label: "Board",
+    icon: '<rect x="3" y="4" width="6" height="16" rx="1" /><rect x="11" y="4" width="6" height="10" rx="1" /><rect x="19" y="4" width="2" height="7" rx="1" />',
+  },
+];
+
 // ---- layout + filters ----
 // List/Shelf/Board is a persisted, remembered choice — same idea as the
 // Shelf card-size toggle below, so switching kinds or reloading doesn't
@@ -125,13 +138,16 @@ const typeLabel = computed(() => {
 // was last set to, and leaving it returns to that remembered layout.
 const layout = ref<"list" | "shelf" | "board">(
   (localStorage.getItem("libraryLayout") as "list" | "shelf" | "board") ||
-    "list",
+    preferences.value.library_default_layout,
+);
+// the server default arrives a moment after the first render
+watch(
+  () => preferences.value.library_default_layout,
+  (v) => {
+    if (!localStorage.getItem("libraryLayout")) layout.value = v;
+  },
 );
 watch(layout, (v) => localStorage.setItem("libraryLayout", v));
-// Deep-linkable so Calendar/Lists' "View stats" links can jump straight
-// into a specific library's Stats tab (e.g. /anime?view=stats) instead
-// of only being reachable by clicking the tab after arriving.
-const viewingStats = ref(route.query.view === "stats");
 // Card size for the Shelf grid, same idea as Games' S/M/L density toggle
 // — persisted so it doesn't reset every visit.
 const shelfCardSize = ref<"compact" | "cozy" | "large">(
@@ -194,106 +210,6 @@ function progressPct(it: LibraryCardVM): number {
   if (!it.isEpisodic) return it.watched > 0 ? 100 : 0;
   return it.total ? (it.watched / it.total) * 100 : 0;
 }
-
-// ---- stats ----
-// Minutes actually spent watching: episodic entries count each watched
-// episode at the show's own per-episode runtime; a movie counts once
-// (its own runtime) the moment it's marked seen at all. Unknown runtimes
-// contribute 0 rather than skewing the total with a guessed average.
-function minutesWatched(it: LibraryCardVM): number {
-  const runtime = it.runtimeMinutes ?? 0;
-  if (it.isEpisodic) return it.watched * runtime;
-  return it.watched > 0 ? runtime : 0;
-}
-
-interface ScoreBucket {
-  score: number;
-  count: number;
-}
-
-interface GenreCount {
-  genre: string;
-  count: number;
-}
-
-interface FormatCount {
-  format: string;
-  count: number;
-}
-
-const stats = computed(() => {
-  const items = props.items;
-  const totalMinutes = items.reduce((sum, it) => sum + minutesWatched(it), 0);
-  const scored = items.filter((it) => it.score !== null) as (LibraryCardVM & {
-    score: number;
-  })[];
-  const meanScore = scored.length
-    ? scored.reduce((sum, it) => sum + it.score, 0) / scored.length
-    : null;
-
-  const statusBreakdown = STATUS_BUCKETS.map((s) => ({
-    key: s.key,
-    label: s.label,
-    count: items.filter((it) => statusBucket(it.status) === s.key).length,
-  }));
-
-  const scoreDistribution: ScoreBucket[] = Array.from(
-    { length: 11 },
-    (_, i) => ({
-      score: i,
-      count: scored.filter((it) => Math.round(it.score) === i).length,
-    }),
-  );
-
-  const genreTally = new Map<string, number>();
-  items.forEach((it) =>
-    it.genres.forEach((g) => genreTally.set(g, (genreTally.get(g) ?? 0) + 1)),
-  );
-  const genreCounts: GenreCount[] = [...genreTally.entries()]
-    .map(([genre, count]) => ({ genre, count }))
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 10);
-
-  const completedCount = items.filter(
-    (it) => statusBucket(it.status) === "completed",
-  ).length;
-  const favoriteCount = items.filter((it) => it.favorite).length;
-  const totalEpisodesWatched = items
-    .filter((it) => it.isEpisodic)
-    .reduce((sum, it) => sum + it.watched, 0);
-
-  const formatTally = new Map<string, number>();
-  items.forEach((it) => {
-    const label = it.format ?? typeLabel.value;
-    formatTally.set(label, (formatTally.get(label) ?? 0) + 1);
-  });
-  const formatCounts: FormatCount[] = [...formatTally.entries()]
-    .map(([format, count]) => ({ format, count }))
-    .sort((a, b) => b.count - a.count);
-
-  const topRated = scored
-    .slice()
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 5);
-
-  return {
-    totalEntries: items.length,
-    completedCount,
-    favoriteCount,
-    totalEpisodesWatched,
-    daysWatched: totalMinutes / 1440,
-    meanScore,
-    statusBreakdown,
-    scoreDistribution,
-    genreCounts,
-    formatCounts,
-    topRated,
-    maxStatusCount: Math.max(1, ...statusBreakdown.map((s) => s.count)),
-    maxScoreCount: Math.max(1, ...scoreDistribution.map((s) => s.count)),
-    maxGenreCount: Math.max(1, ...genreCounts.map((g) => g.count)),
-    maxFormatCount: Math.max(1, ...formatCounts.map((f) => f.count)),
-  };
-});
 
 const filteredItems = computed(() => {
   let list = props.items;
@@ -626,98 +542,12 @@ defineExpose({ openQuickAdd });
   <div class="lib-root">
     <MediaTopBar :active="kind">
       <template #actions>
-      <div class="layout-tabs-group">
-        <div class="layout-tabs">
-          <button
-            type="button"
-            :class="{ active: !viewingStats && layout === 'list' }"
-            @click="
-              viewingStats = false;
-              layout = 'list';
-            "
-          >
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-            >
-              <line x1="8" y1="6" x2="21" y2="6" />
-              <line x1="8" y1="12" x2="21" y2="12" />
-              <line x1="8" y1="18" x2="21" y2="18" />
-              <line x1="3" y1="6" x2="3.01" y2="6" />
-              <line x1="3" y1="12" x2="3.01" y2="12" />
-              <line x1="3" y1="18" x2="3.01" y2="18" />
-            </svg>
-            List
-          </button>
-          <button
-            type="button"
-            :class="{ active: !viewingStats && layout === 'shelf' }"
-            @click="
-              viewingStats = false;
-              layout = 'shelf';
-            "
-          >
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <rect x="3" y="3" width="7" height="18" rx="1" />
-              <rect x="14" y="3" width="7" height="10" rx="1" />
-            </svg>
-            Shelf
-          </button>
-          <button
-            type="button"
-            :class="{ active: !viewingStats && layout === 'board' }"
-            @click="
-              viewingStats = false;
-              layout = 'board';
-            "
-          >
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <rect x="3" y="4" width="6" height="16" rx="1" />
-              <rect x="11" y="4" width="6" height="10" rx="1" />
-              <rect x="19" y="4" width="2" height="7" rx="1" />
-            </svg>
-            Board
-          </button>
-        </div>
-        <button
-          type="button"
-          class="stats-toggle"
-          :class="{ active: viewingStats }"
-          @click="viewingStats = true"
-        >
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <line x1="4" y1="20" x2="20" y2="20" />
-            <rect x="6" y="12" width="3" height="8" rx="0.5" />
-            <rect x="12" y="7" width="3" height="13" rx="0.5" />
-            <rect x="18" y="3" width="3" height="17" rx="0.5" />
-          </svg>
-          Stats
-        </button>
-      </div>
+        <SegmentedTabs
+          :options="LAYOUT_OPTIONS"
+          :model-value="layout"
+          aria-label="Layout"
+          @update:model-value="layout = $event as 'list' | 'shelf' | 'board'"
+        />
       </template>
     </MediaTopBar>
 
@@ -771,7 +601,7 @@ defineExpose({ openQuickAdd });
         </button>
       </div>
 
-      <div v-if="!viewingStats" class="toolbar">
+      <div class="toolbar">
         <div class="search-wrap">
           <svg
             viewBox="0 0 24 24"
@@ -819,7 +649,7 @@ defineExpose({ openQuickAdd });
           </button>
         </div>
       </div>
-      <div v-if="genreChipsOpen && !viewingStats" class="genre-chips">
+      <div v-if="genreChipsOpen" class="genre-chips">
         <button
           v-for="g in allGenres"
           :key="g"
@@ -832,7 +662,7 @@ defineExpose({ openQuickAdd });
         </button>
       </div>
 
-      <div v-if="!viewingStats" class="status-tabs">
+      <div class="status-tabs">
         <button
           type="button"
           class="status-tab"
@@ -858,236 +688,10 @@ defineExpose({ openQuickAdd });
         <p v-else-if="error" class="empty-state error">{{ error }}</p>
 
         <!-- ===== STATS ===== -->
-        <template v-else-if="viewingStats">
-          <div class="stats-summary">
-            <div class="stat-card">
-              <svg
-                class="stat-icon"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <rect x="3" y="3" width="7" height="7" rx="1.5" />
-                <rect x="14" y="3" width="7" height="7" rx="1.5" />
-                <rect x="3" y="14" width="7" height="7" rx="1.5" />
-                <rect x="14" y="14" width="7" height="7" rx="1.5" />
-              </svg>
-              <div class="stat-value">{{ stats.totalEntries }}</div>
-              <div class="stat-label">Total titles</div>
-            </div>
-            <div class="stat-card">
-              <svg
-                class="stat-icon"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <path d="M20 6 9 17l-5-5" />
-              </svg>
-              <div class="stat-value">{{ stats.completedCount }}</div>
-              <div class="stat-label">Completed</div>
-            </div>
-            <div class="stat-card">
-              <svg
-                class="stat-icon"
-                viewBox="0 0 24 24"
-                fill="currentColor"
-                stroke="none"
-              >
-                <path
-                  d="M12 21s-7.5-4.9-10.2-9.4C.2 8.6 1.4 5 4.9 4.1c2-.5 3.9.3 5.1 2C11.2 4.4 13.1 3.6 15.1 4.1c3.5.9 4.7 4.5 3.1 7.5C15.5 16.1 12 21 12 21z"
-                />
-              </svg>
-              <div class="stat-value">{{ stats.favoriteCount }}</div>
-              <div class="stat-label">Favorites</div>
-            </div>
-            <div class="stat-card">
-              <svg
-                class="stat-icon"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <circle cx="12" cy="12" r="9" />
-                <path d="M12 7v5l3.5 2" />
-              </svg>
-              <div class="stat-value">{{ stats.daysWatched.toFixed(1) }}</div>
-              <div class="stat-label">Days watched</div>
-            </div>
-            <div class="stat-card">
-              <svg
-                class="stat-icon"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <polygon points="5 3 19 12 5 21 5 3" />
-              </svg>
-              <div class="stat-value">{{ stats.totalEpisodesWatched }}</div>
-              <div class="stat-label">Episodes watched</div>
-            </div>
-            <div class="stat-card">
-              <svg
-                class="stat-icon"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <polygon
-                  points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"
-                />
-              </svg>
-              <div class="stat-value">
-                {{
-                  stats.meanScore !== null ? stats.meanScore.toFixed(2) : "–"
-                }}
-              </div>
-              <div class="stat-label">Mean score</div>
-            </div>
-          </div>
-
-          <div v-if="stats.topRated.length" class="stats-panel toprated-panel">
-            <h2>Top rated</h2>
-            <div class="toprated-row">
-              <div
-                v-for="(it, i) in stats.topRated"
-                :key="it.id"
-                class="toprated-card"
-                @click="handleCardClick(it)"
-              >
-                <span class="toprated-rank">#{{ i + 1 }}</span>
-                <div
-                  class="toprated-art"
-                  :style="
-                    it.poster ? { backgroundImage: `url(${it.poster})` } : {}
-                  "
-                ></div>
-                <div class="toprated-title">{{ it.title }}</div>
-                <div class="toprated-score">★ {{ it.score }}</div>
-              </div>
-            </div>
-          </div>
-
-          <div class="stats-panels">
-            <div class="stats-panel">
-              <h2>Status breakdown</h2>
-              <div class="bar-list">
-                <div
-                  v-for="s in stats.statusBreakdown"
-                  :key="s.key"
-                  class="bar-row"
-                >
-                  <span class="bar-row-label">{{ s.label }}</span>
-                  <div class="bar-track">
-                    <div
-                      class="bar-fill"
-                      :class="s.key"
-                      :style="{
-                        width: (s.count / stats.maxStatusCount) * 100 + '%',
-                      }"
-                    ></div>
-                  </div>
-                  <span class="bar-row-count">{{ s.count }}</span>
-                </div>
-              </div>
-            </div>
-
-            <div class="stats-panel">
-              <h2>Score distribution</h2>
-              <div v-if="stats.meanScore === null" class="empty-state">
-                Nothing rated yet.
-              </div>
-              <div v-else class="score-histogram">
-                <div
-                  v-for="b in stats.scoreDistribution"
-                  :key="b.score"
-                  class="score-bar-col"
-                >
-                  <div class="score-bar-track">
-                    <div
-                      class="score-bar-fill"
-                      :style="{
-                        height: (b.count / stats.maxScoreCount) * 100 + '%',
-                      }"
-                      :title="`${b.count} at score ${b.score}`"
-                    ></div>
-                  </div>
-                  <span class="score-bar-label">{{ b.score }}</span>
-                </div>
-              </div>
-            </div>
-
-            <div class="stats-panel">
-              <h2>Top genres</h2>
-              <div v-if="!stats.genreCounts.length" class="empty-state">
-                No genre data yet.
-              </div>
-              <div v-else class="bar-list">
-                <div
-                  v-for="g in stats.genreCounts"
-                  :key="g.genre"
-                  class="bar-row"
-                >
-                  <span class="bar-row-label">{{ g.genre }}</span>
-                  <div class="bar-track">
-                    <div
-                      class="bar-fill genre"
-                      :style="{
-                        width: (g.count / stats.maxGenreCount) * 100 + '%',
-                      }"
-                    ></div>
-                  </div>
-                  <span class="bar-row-count">{{ g.count }}</span>
-                </div>
-              </div>
-            </div>
-
-            <div class="stats-panel">
-              <h2>By format</h2>
-              <div v-if="!stats.formatCounts.length" class="empty-state">
-                No format data yet.
-              </div>
-              <div v-else class="bar-list">
-                <div
-                  v-for="f in stats.formatCounts"
-                  :key="f.format"
-                  class="bar-row"
-                >
-                  <span class="bar-row-label">{{ f.format }}</span>
-                  <div class="bar-track">
-                    <div
-                      class="bar-fill format"
-                      :style="{
-                        width: (f.count / stats.maxFormatCount) * 100 + '%',
-                      }"
-                    ></div>
-                  </div>
-                  <span class="bar-row-count">{{ f.count }}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </template>
-
         <!-- ===== LIST ===== -->
         <template v-else-if="layout === 'list'">
           <p v-if="!filteredItems.length" class="empty-state">
-            Nothing matches — try a different filter or search.
+            Nothing matches. Try a different filter or search.
           </p>
           <div v-else class="list-scroll">
             <div class="list-row-header">
@@ -1243,7 +847,7 @@ defineExpose({ openQuickAdd });
         <!-- ===== SHELF ===== -->
         <template v-else-if="layout === 'shelf'">
           <p v-if="!filteredItems.length" class="empty-state">
-            Nothing matches — try a different filter or search.
+            Nothing matches. Try a different filter or search.
           </p>
           <div
             v-else
@@ -1407,7 +1011,7 @@ defineExpose({ openQuickAdd });
         <!-- ===== BOARD ===== -->
         <template v-else-if="layout === 'board'">
           <p v-if="!boardGroups.length" class="empty-state">
-            Nothing matches — try a different filter or search.
+            Nothing matches. Try a different filter or search.
           </p>
           <div
             v-for="group in boardGroups"
@@ -1577,7 +1181,7 @@ defineExpose({ openQuickAdd });
         <div class="sub">Only visible to you.</div>
         <textarea
           v-model="noteText"
-          placeholder="Nothing written yet — first impressions, things to remember, why you dropped it..."
+          placeholder="Nothing written yet: first impressions, things to remember, why you dropped it..."
         ></textarea>
         <div class="modal-actions">
           <button type="button" class="btn-outline" @click="closeNote">
@@ -1631,7 +1235,7 @@ defineExpose({ openQuickAdd });
     <div v-if="editOpen" class="modal-overlay" @click.self="closeEdit">
       <div class="modal-card">
         <h3>Edit</h3>
-        <div class="sub">Quick edit — status, rating, progress.</div>
+        <div class="sub">Quick edit: status, rating, progress.</div>
         <div class="qa-field-grid">
           <label class="qa-field">
             <span>Status</span>
@@ -1727,7 +1331,7 @@ defineExpose({ openQuickAdd });
             </p>
             <p v-if="quickAddSearching" class="empty-state">Searching…</p>
             <p v-else-if="!quickAddResults.length" class="empty-state">
-              No results yet — search above.
+              No results yet. Search above.
             </p>
             <div v-else class="qa-results">
               <div v-for="(r, i) in quickAddResults" :key="i" class="qa-result">
@@ -1988,81 +1592,6 @@ defineExpose({ openQuickAdd });
   flex: 1;
 }
 
-.layout-tabs-group {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-}
-.layout-tabs {
-  display: inline-flex;
-  gap: 4px;
-  background: var(--surface);
-  border-radius: 10px;
-  padding: 4px;
-}
-.layout-tabs button {
-  background: transparent;
-  border: none;
-  color: var(--text-dim);
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  font-family: inherit;
-  font-size: 0.8rem;
-  font-weight: 700;
-  padding: 7px 14px 7px 12px;
-  border-radius: 7px;
-  cursor: pointer;
-  transition:
-    background 0.15s ease,
-    color 0.15s ease;
-}
-.layout-tabs button svg {
-  width: 15px;
-  height: 15px;
-  flex-shrink: 0;
-}
-.layout-tabs button.active {
-  background: var(--accent);
-  color: #14100a;
-}
-.layout-tabs button:not(.active):hover {
-  color: var(--text);
-}
-/* Deliberately its own separate pill, not a fourth option inside
-   .layout-tabs — Stats is a different lens on the data, not another
-   layout, so it doesn't share the segmented control or get remembered
-   as "the" layout the way List/Shelf/Board do. */
-.stats-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  background: var(--surface);
-  border: none;
-  border-radius: 10px;
-  color: var(--text-dim);
-  font-family: inherit;
-  font-size: 0.8rem;
-  font-weight: 700;
-  padding: 11px 14px 11px 12px;
-  cursor: pointer;
-  transition:
-    background 0.15s ease,
-    color 0.15s ease;
-}
-.stats-toggle svg {
-  width: 15px;
-  height: 15px;
-  flex-shrink: 0;
-}
-.stats-toggle.active {
-  background: var(--accent);
-  color: #14100a;
-}
-.stats-toggle:not(.active):hover {
-  color: var(--text);
-}
-
 .toolbar {
   margin-top: 16px;
   display: flex;
@@ -2087,12 +1616,14 @@ defineExpose({ openQuickAdd });
   pointer-events: none;
 }
 .search-wrap input {
+  box-sizing: border-box;
+  height: 38px;
   width: 100%;
   background: var(--surface);
   border: 1px solid var(--border);
   color: var(--text);
   border-radius: 8px;
-  padding: 9px 12px 9px 34px;
+  padding: 0 12px 0 34px;
   font-family: inherit;
   font-size: 0.85rem;
 }
@@ -2101,24 +1632,28 @@ defineExpose({ openQuickAdd });
   border-color: var(--accent-line);
 }
 .sort-select {
+  box-sizing: border-box;
+  height: 38px;
   background: var(--surface);
   border: 1px solid var(--border);
   color: var(--text);
   border-radius: 8px;
-  padding: 9px 12px;
+  padding: 0 12px;
   font-family: inherit;
   font-size: 0.85rem;
   cursor: pointer;
 }
 .filter-btn {
+  box-sizing: border-box;
+  height: 38px;
   background: var(--surface);
   border: 1px solid var(--border);
   color: var(--text-dim);
   border-radius: 8px;
-  padding: 9px 14px;
+  padding: 0 14px;
   font-family: inherit;
   font-size: 0.85rem;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -2170,13 +1705,15 @@ defineExpose({ openQuickAdd });
   flex-wrap: wrap;
 }
 .genre-chip {
+  box-sizing: border-box;
+  height: 28px;
   background: var(--surface-2);
   border: 1px solid var(--border);
   color: var(--text-dim);
   border-radius: 999px;
-  padding: 5px 13px;
+  padding: 0 12px;
   font-size: 0.76rem;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
 }
 .genre-chip.selected {
@@ -2224,16 +1761,16 @@ defineExpose({ openQuickAdd });
 }
 .empty-state {
   color: var(--text-faint);
-  font-size: 0.88rem;
+  font-size: 0.9rem;
   padding: 40px 0;
   text-align: center;
 }
 .empty-state.error {
-  color: #fca5a5;
+  color: #e57373;
 }
 
 /* Solid-fill chips, same visual language as the app's own active-tab
-   buttons (.layout-tabs button.active etc — solid color, dark text) so
+   buttons (the segmented tabs' active state: solid color, dark text) so
    status reads as a confident, deliberate color instead of a faint tint
    with a stray dot in front of it. */
 /* A small masked icon per status (currentColor-tinted, so one image works
@@ -2703,11 +2240,6 @@ defineExpose({ openQuickAdd });
 }
 /* Shared by Board: bar, then episode count, then the advance button, all
    on one line — same order as the List layout's row. */
-.progress-track-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
 .shelf-footer-row {
   display: flex;
   align-items: center;
@@ -2838,236 +2370,15 @@ defineExpose({ openQuickAdd });
   margin-top: 8px;
 }
 
-/* STATS */
-.stats-summary {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 14px;
-  margin-bottom: 20px;
-}
-.stat-card {
-  position: relative;
-  overflow: hidden;
-  background: linear-gradient(160deg, var(--surface) 0%, var(--surface-2) 130%);
-  border: 1px solid var(--border-soft);
-  border-radius: 12px;
-  padding: 18px 20px;
-  transition: border-color 0.15s ease;
-}
-.stat-card:hover {
-  border-color: var(--accent-line);
-}
-.stat-icon {
-  position: absolute;
-  top: 14px;
-  right: 14px;
-  width: 20px;
-  height: 20px;
-  color: var(--accent);
-  opacity: 0.55;
-}
-.stat-value {
-  font-size: 1.9rem;
-  font-weight: 800;
-  color: var(--accent);
-  font-variant-numeric: tabular-nums;
-  line-height: 1.1;
-}
-.stat-label {
-  margin-top: 6px;
-  font-size: 0.76rem;
-  color: var(--text-faint);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  font-weight: 700;
-}
-.stats-panels {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 16px;
-}
-.stats-panel {
-  background: var(--surface);
-  border: 1px solid var(--border-soft);
-  border-radius: 12px;
-  padding: 18px 20px;
-}
-.stats-panel h2 {
-  position: relative;
-  margin: 0 0 18px;
-  padding-left: 12px;
-  font-size: 0.92rem;
-  font-weight: 800;
-}
-.stats-panel h2::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 1px;
-  bottom: 1px;
-  width: 3px;
-  border-radius: 999px;
-  background: var(--accent);
-}
-.bar-list {
-  display: flex;
-  flex-direction: column;
-  gap: 13px;
-}
-.bar-row {
-  display: grid;
-  grid-template-columns: 96px 1fr 30px;
-  align-items: center;
-  gap: 10px;
-}
-.bar-row-label {
-  font-size: 0.78rem;
-  color: var(--text-dim);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.bar-track {
-  height: 9px;
-  border-radius: 999px;
-  background: var(--surface-2);
-  overflow: hidden;
-}
-.bar-fill {
-  height: 100%;
-  border-radius: 999px;
-  background: var(--accent);
-  min-width: 3px;
-  transition: width 0.3s ease;
-}
-.bar-fill.watching {
-  background: var(--accent);
-}
-.bar-fill.completed {
-  background: var(--good);
-}
-.bar-fill.hold {
-  background: var(--hold);
-}
-.bar-fill.dropped {
-  background: var(--dropped);
-}
-.bar-fill.plan {
-  background: var(--plan);
-}
-.bar-fill.genre {
-  background: linear-gradient(90deg, var(--accent), #e8a552);
-}
-.bar-fill.format {
-  background: linear-gradient(90deg, var(--hold), #9dc3ea);
-}
-.bar-row-count {
-  font-size: 0.8rem;
-  color: var(--text-faint);
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-}
-.score-histogram {
-  display: flex;
-  align-items: flex-end;
-  gap: 6px;
-  height: 160px;
-}
-.score-bar-col {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  height: 100%;
-}
-.score-bar-track {
-  flex: 1;
-  width: 100%;
-  display: flex;
-  align-items: flex-end;
-  min-height: 0;
-}
-.score-bar-fill {
-  width: 100%;
-  min-height: 2px;
-  border-radius: 4px 4px 0 0;
-  background: linear-gradient(180deg, var(--accent), #e8a552);
-  transition: height 0.3s ease;
-}
-.score-bar-label {
-  font-size: 0.68rem;
-  color: var(--text-faint);
-  font-variant-numeric: tabular-nums;
-}
-
 /* Top rated — the one Stats panel built from real artwork instead of
    bars, so the page isn't wall-to-wall charts. */
-.toprated-panel {
-  margin-bottom: 16px;
-}
-.toprated-row {
-  display: flex;
-  gap: 14px;
-  overflow-x: auto;
-  padding-bottom: 4px;
-}
-.toprated-card {
-  position: relative;
-  flex-shrink: 0;
-  width: 120px;
-  cursor: pointer;
-}
-.toprated-rank {
-  position: absolute;
-  top: 6px;
-  left: 6px;
-  z-index: 2;
-  background: rgba(10, 10, 10, 0.75);
-  color: var(--accent);
-  font-size: 0.7rem;
-  font-weight: 800;
-  padding: 2px 6px;
-  border-radius: 5px;
-  font-variant-numeric: tabular-nums;
-}
-.toprated-art {
-  aspect-ratio: 2 / 3;
-  border-radius: 8px;
-  background-size: cover;
-  background-position: center;
-  background-color: var(--surface-2);
-  border: 1px solid var(--border-soft);
-  transition: transform 0.2s ease;
-}
-.toprated-card:hover .toprated-art {
-  transform: scale(1.04);
-}
-.toprated-title {
-  margin-top: 6px;
-  font-size: 0.76rem;
-  font-weight: 700;
-  line-height: 1.25;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-.toprated-score {
-  margin-top: 2px;
-  font-size: 0.74rem;
-  font-weight: 700;
-  color: var(--accent);
-  font-variant-numeric: tabular-nums;
-}
 
 /* Modals */
 .modal-overlay {
   position: fixed;
   inset: 0;
-  z-index: 300;
-  background: rgba(8, 8, 8, 0.65);
-  backdrop-filter: blur(3px);
+  z-index: var(--ui-z-modal);
+  background: rgba(0, 0, 0, 0.6);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -3075,12 +2386,12 @@ defineExpose({ openQuickAdd });
 }
 .modal-card {
   width: 100%;
-  max-width: 420px;
-  background: var(--surface);
+  max-width: 440px;
+  background: var(--ui-popover);
   border: 1px solid var(--border);
-  border-radius: 14px;
-  padding: 20px;
-  box-shadow: 0 30px 70px -20px rgba(0, 0, 0, 0.85);
+  border-radius: var(--ui-radius-dialog);
+  padding: 22px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
 }
 .modal-card h3 {
   margin: 0 0 4px;
@@ -3408,11 +2719,6 @@ defineExpose({ openQuickAdd });
   outline: none;
   border-color: var(--accent-line);
 }
-.qa-checkbox-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
 .qa-back-link {
   background: none;
   border: none;
@@ -3428,5 +2734,38 @@ defineExpose({ openQuickAdd });
 }
 .qa-back-link:hover {
   color: var(--accent);
+}
+
+/* phones and narrow windows: the seven-column list row can't fit, so it
+   collapses to poster + title with the status/progress/score tags stacked
+   underneath, and the padding meant for the sidebar gutter shrinks */
+@media (max-width: 720px) {
+  .lib-inner {
+    padding: 16px 14px 60px;
+  }
+  .page-head {
+    align-items: flex-start;
+  }
+  .list-row-header {
+    display: none;
+  }
+  .list-row-header,
+  .list-rows {
+    min-width: 0;
+  }
+  .list-row {
+    grid-template-columns: 56px minmax(0, 1fr);
+    gap: 6px 12px;
+  }
+  .list-row > *:nth-child(n + 3) {
+    grid-column: 2;
+    justify-self: start;
+  }
+  .list-thumb-wrap {
+    width: 56px;
+  }
+  .shelf-grid {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  }
 }
 </style>

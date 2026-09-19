@@ -11,7 +11,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.routes.media_extras import log_activity
+from src.api.routes.media_extras import log_activity, status_change_detail
 from src.api.schemas.movie import MovieCreate, MovieRead, MovieUpdate
 from src.core.app_integrations import get_or_create_app_integration_settings
 from src.core.auth import get_current_user
@@ -183,11 +183,13 @@ async def update_movie(
         movie.sort_title = _derive_sort_title(movie.title)
 
     if "status" in updates and movie.status != previous_status:
-        await log_activity(
-            db, current_user.id, "movie", movie.id, movie.title,
-            ActivityEventType.STATUS_CHANGED, date.today(),
-            detail=f"{previous_status.value} -> {movie.status.value}",
-        )
+        change = status_change_detail(previous_status, movie.status)
+        if change:
+            await log_activity(
+                db, current_user.id, "movie", movie.id, movie.title,
+                ActivityEventType.STATUS_CHANGED, date.today(),
+                detail=change,
+            )
 
     await db.commit()
     await db.refresh(movie)

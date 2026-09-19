@@ -81,6 +81,16 @@ export interface BackendTVShow {
   airing_interval_days: number | null;
 }
 
+import { createEntityCache } from "../utils/entityCache";
+const tvShowCache = createEntityCache<TVShow>();
+export const peekTVShow = tvShowCache.peek;
+export const peekAllTVShows = (): TVShow[] | null =>
+  tvShowCache.listLoaded() ? tvShowCache.all() : null;
+// every entity that passes through here is remembered for instant reopening
+function mapBackendTVShow(raw: Parameters<typeof mapBackendTVShowRaw>[0]): TVShow {
+  return tvShowCache.put(mapBackendTVShowRaw(raw));
+}
+
 // Pydantic can serialize a Decimal as either a JSON number or a string
 // depending on config, handle both rather than assume one
 function toNumberOrNull(value: number | string | null): number | null {
@@ -136,7 +146,7 @@ function mapBackendSeason(raw: BackendSeason): Season {
   };
 }
 
-export function mapBackendTVShow(raw: BackendTVShow): TVShow {
+export function mapBackendTVShowRaw(raw: BackendTVShow): TVShow {
   return {
     id: raw.id,
     userId: raw.user_id,
@@ -202,7 +212,9 @@ export async function fetchTVShows(): Promise<TVShow[]> {
     if (page.length < SHOWS_PAGE_SIZE) break;
     skip += SHOWS_PAGE_SIZE;
   }
-  return all.map(mapBackendTVShow);
+  const list = all.map(mapBackendTVShow);
+  tvShowCache.markListLoaded();
+  return list;
 }
 
 export async function getTVShow(id: string): Promise<TVShow> {
@@ -366,6 +378,7 @@ export async function updateTVShow(
 }
 
 export async function deleteTVShow(id: string): Promise<void> {
+  tvShowCache.remove(id);
   const response = await fetch(`/api/tv/delete/${id}`, {
     method: "DELETE",
     credentials: "include",

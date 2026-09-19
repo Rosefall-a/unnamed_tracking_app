@@ -3,6 +3,7 @@ import { ref, computed, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import {
   getMovie,
+  peekMovie,
   updateMovie,
   movieToInput,
   fetchMovieRelations,
@@ -18,7 +19,9 @@ import RelationsGraph from "../components/RelationsGraph.vue";
 import type { ChainNode, BranchNode } from "../components/RelationsGraph.vue";
 import MediaPreviewModal from "../components/MediaPreviewModal.vue";
 import MediaExtrasPanel from "../components/MediaExtrasPanel.vue";
-import MediaKindSwitch from "../components/MediaKindSwitch.vue";
+import MediaTopBar from "../components/MediaTopBar.vue";
+import BackButton from "../components/BackButton.vue";
+import RatingPicker from "../components/RatingPicker.vue";
 import {
   STATUS_BUCKETS,
   statusBucket,
@@ -52,11 +55,17 @@ function goBack() {
 }
 
 async function load() {
-  loading.value = true;
+  const cached = peekMovie(movieId.value);
+  if (cached) {
+    movie.value = cached;
+    loading.value = false;
+  } else {
+    loading.value = true;
+  }
   try {
     movie.value = await getMovie(movieId.value);
   } catch (e) {
-    error.value = e instanceof Error ? e.message : "Failed to load movie.";
+    if (!cached) error.value = e instanceof Error ? e.message : "Failed to load movie.";
   } finally {
     loading.value = false;
   }
@@ -306,42 +315,33 @@ watch(
   },
   { immediate: true },
 );
+async function onRatingChange(value: number | null) {
+  if (!movie.value) return;
+  const previous = movie.value.ratingOverall;
+  movie.value.ratingOverall = value;
+  try {
+    movie.value = await updateMovie(movie.value.id, { ...movieToInput(movie.value), ratingOverall: value });
+  } catch {
+    if (movie.value) movie.value.ratingOverall = previous;
+  }
+}
 </script>
 
 <template>
   <main v-if="loading" class="detail loading-state">
-    <p>Loading…</p>
+    <MediaTopBar active="movie" />
+    <p class="loading-text">Loading…</p>
   </main>
 
   <main v-else-if="error" class="detail error-state">
-    <p>{{ error }}</p>
+    <MediaTopBar active="movie" />
+    <p class="loading-text">{{ error }}</p>
   </main>
 
   <main v-else-if="movie" class="detail">
-    <button
-      type="button"
-      class="back-arrow-button"
-      title="Back"
-      @click="goBack"
-    >
-      <svg
-        viewBox="0 0 24 24"
-        width="18"
-        height="18"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-      >
-        <path d="M19 12H5" />
-        <path d="M12 19l-7-7 7-7" />
-      </svg>
-    </button>
+    <MediaTopBar active="movie" />
 
-    <div class="detail-switch">
-      <MediaKindSwitch active="movie" />
-    </div>
+    <BackButton class="back-spot" @click="goBack" />
 
     <MovieFormModal
       v-if="showEditModal"
@@ -388,9 +388,7 @@ watch(
                 {{ opt.label }}
               </option>
             </select>
-            <span v-if="movie.ratingOverall !== null" class="badge rating"
-              >★ {{ movie.ratingOverall.toFixed(1) }}</span
-            >
+            <RatingPicker :model-value="movie.ratingOverall" @change="onRatingChange" />
             <span v-if="releaseYear" class="badge">{{ releaseYear }}</span>
             <span v-if="runtimeLabel" class="badge">{{ runtimeLabel }}</span>
           </div>
@@ -533,7 +531,7 @@ watch(
           {{ relatedError }}
         </p>
         <p v-else-if="!relatedConfigured" class="empty-state">
-          TMDB isn't configured yet — a server admin can add an API key under
+          TMDB isn't configured yet. A server admin can add an API key under
           Settings &gt; Metadata Sources to enable this.
         </p>
         <p v-else-if="!relatedList.length" class="empty-state">
@@ -574,7 +572,7 @@ watch(
           {{ recommendedError }}
         </p>
         <p v-else-if="!recommendedConfigured" class="empty-state">
-          TMDB isn't configured yet — a server admin can add an API key under
+          TMDB isn't configured yet. A server admin can add an API key under
           Settings &gt; Metadata Sources to enable this.
         </p>
         <p v-else-if="!recommendedList.length" class="empty-state">
@@ -620,15 +618,21 @@ watch(
   min-height: 100vh;
   background: #0d0d0d;
   color: #f2f2f2;
-  font-family: "Inter", system-ui, sans-serif;
+  font-family: system-ui, sans-serif;
   position: relative;
 }
 .loading-state,
 .error-state {
   display: flex;
+  flex-direction: column;
+  color: #9c9c9c;
+}
+.loading-text {
+  flex: 1;
+  display: flex;
   align-items: center;
   justify-content: center;
-  color: #9c9c9c;
+  margin: 0;
 }
 .hero {
   position: relative;
@@ -653,8 +657,8 @@ watch(
 }
 .hero-backdrop.is-poster {
   inset: -30px;
-  filter: blur(26px) brightness(0.55) saturate(1.15);
-  transform: scale(1.08);
+  filter: blur(18px) brightness(0.55) saturate(1.15);
+  transform: translateZ(0);
 }
 .hero-overlay {
   position: absolute;
@@ -728,6 +732,7 @@ watch(
   margin-bottom: 16px;
 }
 .badge {
+  line-height: 1.25;
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 7px;
@@ -736,9 +741,6 @@ watch(
   font-weight: 600;
   color: #9c9c9c;
   text-transform: capitalize;
-}
-.badge.rating {
-  color: #d68a34;
 }
 .status-select {
   appearance: none;
@@ -794,46 +796,6 @@ watch(
   color: #d68a34;
   border-color: rgba(214, 138, 52, 0.4);
   background: rgba(214, 138, 52, 0.16);
-}
-.back-arrow-button {
-  position: fixed;
-  top: 16px;
-  left: 62px;
-  width: 38px;
-  height: 38px;
-  border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(20, 20, 20, 0.55);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  color: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  z-index: 100;
-  transition: background 0.15s ease;
-}
-.detail-switch {
-  position: absolute;
-  top: 16px;
-  left: 112px;
-  z-index: 100;
-}
-.detail-switch :deep(.kind-switch) {
-  background: rgba(20, 20, 20, 0.55);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  padding: 3px;
-}
-@media (max-width: 860px) {
-  .detail-switch {
-    display: none;
-  }
-}
-.back-arrow-button:hover {
-  background: rgba(40, 40, 40, 0.85);
 }
 .tabbar-wrap {
   max-width: 1180px;
@@ -962,7 +924,7 @@ watch(
   font-size: 0.85rem;
 }
 .error-text {
-  color: #fca5a5;
+  color: #e57373;
 }
 .poster-grid {
   margin-top: 20px;
@@ -1005,5 +967,11 @@ watch(
     flex-direction: column;
     align-items: flex-start;
   }
+}
+.back-spot {
+  position: absolute;
+  top: 84px;
+  left: var(--ui-edge-left);
+  z-index: 100;
 }
 </style>

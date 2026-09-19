@@ -22,15 +22,15 @@ from src.api.schemas.anime import (
     SeasonCreate,
     SeasonUpdate,
 )
-from src.api.routes.media_extras import log_activity
+from src.api.routes.media_extras import log_activity, status_change_detail
 from src.core.app_integrations import get_or_create_app_integration_settings
 from src.core.auth import get_current_user
 from src.core.crypto import decrypt_secret
 from src.database.models.anime import Anime, AnimeEpisode, AnimeSeason, AnimeStatus
 from src.database.models.media_extras import ActivityEventType
 from src.database.models.user import User
-from src.database.session import get_db
-from src.features.metadata.anime.anilist import AniListClient, AniListError
+from src.database.session import SessionLocal, get_db
+from src.features.metadata.anime.anilist import RELATIONS_CACHE_VERSION, AniListClient, AniListError
 from src.features.metadata.anime.episode_sync import (
     backfill_from_tmdb,
     fetch_episodes_with_fallback,
@@ -42,7 +42,8 @@ from src.features.metadata.anime.search import (
     search_anime_metadata,
 )
 from src.features.metadata.locked_fields import apply_updates_with_locking
-from src.features.metadata.refresh import quick_check_anime_season
+from src.features.notifications import record_sequel_announcements
+from src.features.metadata.refresh import quick_check_anime_season, refresh_anime_season_now
 
 router = APIRouter(prefix="/api/anime", tags=["anime"], dependencies=[Depends(get_current_user)])
 logger = logging.getLogger(__name__)
@@ -191,6 +192,10 @@ async def create_anime(
             logger.exception("Immediate airing check failed for new anime %r", show.title)
 
     await db.commit()
+    if show.anilist_id:
+        # store its franchise graph now, off the request, so Seasons/Related
+        # are ready the first time the title is opened
+        asyncio.create_task(refresh_relations_in_background(show.id))
     return await _get_show_or_404(show.id, db, current_user.id)
 
 
@@ -210,7 +215,9 @@ async def refresh_airing(
             detail="This title has no AniList id, so its airing schedule can't be checked.",
         )
     if show.seasons:
-        await quick_check_anime_season(show, show.seasons[-1])
+        season = show.seasons[-1]
+        await quick_check_anime_season(show, season)
+        await refresh_anime_season_now(db, show, season)
         await db.commit()
     return await _get_show_or_404(show_id, db, current_user.id)
 
@@ -270,11 +277,13 @@ async def update_anime(
         show.sort_title = _derive_sort_title(show.title)
 
     if "status" in updates and show.status != previous_status:
-        await log_activity(
-            db, current_user.id, "anime", show.id, show.title,
-            ActivityEventType.STATUS_CHANGED, date.today(),
-            detail=f"{previous_status.value} -> {show.status.value}",
-        )
+        change = status_change_detail(previous_status, show.status)
+        if change:
+            await log_activity(
+                db, current_user.id, "anime", show.id, show.title,
+                ActivityEventType.STATUS_CHANGED, date.today(),
+                detail=change,
+            )
 
     await db.commit()
     return await _get_show_or_404(show_id, db, current_user.id)
@@ -530,30 +539,62 @@ async def update_episode(
 _RELATIONS_CACHE_TTL_SECONDS = 3 * 24 * 60 * 60
 
 
-async def _get_or_refresh_anime_relations(show: Anime, db: AsyncSession) -> dict:
-    """Chain + branches + recommendations for one anime, served from
-    `show.relations_cache` when fresh. A fetch failure with a cache
-    already on hand serves that stale cache rather than failing the
-    request — AniList being briefly rate-limited or down shouldn't break
-    a tab that already has real data to show; only a first-ever fetch
-    with nothing cached yet surfaces the error."""
-    cache_age = (
-        int(time.time()) - show.relations_cached_at if show.relations_cached_at else None
+_relations_inflight: set[UUID] = set()
+
+
+async def _fetch_and_store_relations(show: Anime, db: AsyncSession) -> dict:
+    """Asks AniList (slow: a paced request per franchise entry), stores the
+    result on the row, and notes any newly listed season for a title the
+    user has completed."""
+    old_chain = show.relations_cache.get("chain") if show.relations_cache else None
+    result = await asyncio.to_thread(
+        AniListClient().relations_chain_and_branches, show.title, show.anilist_id
     )
-    if show.relations_cache is not None and cache_age is not None and cache_age < _RELATIONS_CACHE_TTL_SECONDS:
-        return show.relations_cache
-    try:
-        result = await asyncio.to_thread(
-            AniListClient().relations_chain_and_branches, show.title, show.anilist_id
-        )
-    except AniListError:
-        if show.relations_cache is not None:
-            return show.relations_cache
-        raise
     show.relations_cache = result
     show.relations_cached_at = int(time.time())
     await db.commit()
+    await record_sequel_announcements(db, show.user_id, show, old_chain, result["chain"])
     return result
+
+
+async def refresh_relations_in_background(show_id: UUID) -> None:
+    """Fetches and stores a franchise graph without making anyone wait for
+    it. Used for a stale cache (the old one is served meanwhile) and to
+    warm a title right after it is added, so its Seasons and Related tabs
+    are already in the database by the time it is opened."""
+    if show_id in _relations_inflight:
+        return
+    _relations_inflight.add(show_id)
+    try:
+        async with SessionLocal() as db:
+            show = await db.scalar(select(Anime).where(Anime.id == show_id))
+            if show is None or not show.anilist_id:
+                return
+            await _fetch_and_store_relations(show, db)
+    except Exception:
+        logger.exception("Background franchise refresh failed for %s", show_id)
+    finally:
+        _relations_inflight.discard(show_id)
+
+
+async def _get_or_refresh_anime_relations(show: Anime, db: AsyncSession) -> dict:
+    """Chain + branches + recommendations for one anime, straight from the
+    database whenever anything is stored. A stale or older-layout copy is
+    still served instantly and refreshed in the background, so opening a
+    title never waits on AniList once it has been seen. Only a title with
+    nothing stored yet has to wait for the first fetch."""
+    cached = show.relations_cache
+    if cached is not None:
+        cache_age = int(time.time()) - show.relations_cached_at if show.relations_cached_at else None
+        fresh = (
+            cached.get("version") == RELATIONS_CACHE_VERSION
+            and cache_age is not None
+            and cache_age < _RELATIONS_CACHE_TTL_SECONDS
+        )
+        if not fresh:
+            asyncio.create_task(refresh_relations_in_background(show.id))
+        return cached
+    return await _fetch_and_store_relations(show, db)
 
 
 @router.get("/{show_id}/relations")

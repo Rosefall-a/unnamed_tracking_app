@@ -55,6 +55,10 @@ class MediaListRead(BaseModel):
     description: str | None
     item_count: int
     is_smart: bool = False
+    # kept by the app (Favorites): cannot be renamed, re-ruled or deleted
+    is_system: bool = False
+    # how many titles of each type it holds, so the overview can filter by type
+    type_counts: dict[str, int] = Field(default_factory=dict)
     smart_rule: SmartRule | None = None
     cover_media_id: UUID | None = None
     # up to 4 poster URLs for the overview card's collage, cover first —

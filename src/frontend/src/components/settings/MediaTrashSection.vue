@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useConfirm } from "../../state/dialog";
 import { ref, onMounted } from "vue";
 import { fetchMovieTrash, restoreMovie, purgeMovie } from "../../services/movies";
 import type { TrashedMovie } from "../../services/movies";
@@ -53,8 +54,14 @@ async function restore(kind: "movie" | "tv" | "anime", id: string) {
   }
 }
 
+const confirm = useConfirm();
 async function purge(kind: "movie" | "tv" | "anime", id: string, title: string) {
-  if (!window.confirm(`Permanently delete "${title}"? This can't be undone.`)) return;
+  const ok = await confirm({
+    message: `Permanently delete "${title}"? This can't be undone.`,
+    confirmLabel: "Delete forever",
+    danger: true,
+  });
+  if (!ok) return;
   busyId.value = id;
   error.value = null;
   try {
@@ -75,7 +82,7 @@ async function purge(kind: "movie" | "tv" | "anime", id: string, title: string) 
     <h2>Media Trash</h2>
     <p class="section-hint">
       A deleted movie, show, or anime entry moves here first. Nothing gets
-      purged automatically — restore it to bring it back, or delete it again
+      purged automatically. Restore it to bring it back, or delete it again
       here to remove it for good.
     </p>
 

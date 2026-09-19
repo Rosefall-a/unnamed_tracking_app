@@ -54,7 +54,7 @@ function formatInterval(seconds: number): string {
   <section class="settings-section">
     <h2>Tasks</h2>
     <p class="section-hint">
-      Recurring jobs run by the app's own in-process scheduler — no separate
+      Recurring jobs run by the app's own in-process scheduler, with no separate
       worker or server needed.
     </p>
 
@@ -70,7 +70,7 @@ function formatInterval(seconds: number): string {
       <p class="tile-desc">
         A cheap check ({{ formatInterval(status.airingCheck.intervalSeconds) }})
         for whether a tracked show or anime has a newly-aired episode number.
-        Adds a bare placeholder row right away so you can check it off — the
+        Adds a bare placeholder row right away so you can check it off. The
         real title and image come later from a full refresh.
       </p>
       <p class="last-run">
@@ -82,7 +82,7 @@ function formatInterval(seconds: number): string {
               status.airingCheck.lastResult.tv_episodes_added)
           "
         >
-          — +{{ status.airingCheck.lastResult.anime_episodes_added || 0 }} anime,
+          · +{{ status.airingCheck.lastResult.anime_episodes_added || 0 }} anime,
           +{{ status.airingCheck.lastResult.tv_episodes_added || 0 }} TV
         </template>
       </p>
@@ -108,7 +108,7 @@ function formatInterval(seconds: number): string {
         Backfills real titles, descriptions, and images (including a TMDB
         lookup for anime), on top of whatever the airing check already added.
         Runs on its own
-        {{ formatInterval(status.fullRefresh.intervalSeconds) }} — run it
+        {{ formatInterval(status.fullRefresh.intervalSeconds) }}. Run it
         early from Metadata &gt; Refresh Media if you don't want to wait.
       </p>
       <p class="last-run">
@@ -122,7 +122,7 @@ function formatInterval(seconds: number): string {
               status.fullRefresh.lastResult.tv_episodes_updated)
           "
         >
-          — +{{ status.fullRefresh.lastResult.anime_episodes_added || 0 }}/upd
+          · +{{ status.fullRefresh.lastResult.anime_episodes_added || 0 }}/upd
           {{ status.fullRefresh.lastResult.anime_episodes_updated || 0 }} anime,
           +{{ status.fullRefresh.lastResult.tv_episodes_added || 0 }}/upd
           {{ status.fullRefresh.lastResult.tv_episodes_updated || 0 }} TV
