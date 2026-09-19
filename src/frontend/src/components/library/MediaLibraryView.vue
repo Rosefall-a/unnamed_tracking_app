@@ -582,6 +582,7 @@ defineExpose({ openQuickAdd });
           >
             {{ addLabel }}
           </button>
+          <slot name="actions"></slot>
         </div>
       </div>
 
