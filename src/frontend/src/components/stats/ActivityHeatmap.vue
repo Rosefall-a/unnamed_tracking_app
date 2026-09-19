@@ -1,23 +1,41 @@
 <script setup lang="ts">
 // The last 52 weeks as a grid, one square per day, shaded by how many
-// episodes were checked off that day. Weeks are columns (Sunday at the
+// episodes were checked off or achievements unlocked that day. Weeks are columns (Sunday at the
 // top). Levels are quartiles of the busiest day, so a light user still
 // sees a readable pattern; the exact count is in each square's tooltip.
 import { computed } from "vue";
 
 const props = defineProps<{
-  days: { date: string; count: number }[];
+  days: {
+    date: string;
+    count: number;
+    episodes?: number;
+    achievements?: number;
+  }[];
 }>();
 
 interface Cell {
   key: string;
   count: number;
+  detail: string;
   level: number;
   inRange: boolean;
 }
 
 const weeks = computed<Cell[][]>(() => {
   const counts = new Map(props.days.map((d) => [d.date, d.count]));
+  const details = new Map(
+    props.days.map((d) => {
+      const parts: string[] = [];
+      if (d.episodes)
+        parts.push(`${d.episodes} episode${d.episodes === 1 ? "" : "s"}`);
+      if (d.achievements)
+        parts.push(
+          `${d.achievements} achievement${d.achievements === 1 ? "" : "s"}`,
+        );
+      return [d.date, parts.join(", ") || "nothing"];
+    }),
+  );
   const max = Math.max(1, ...props.days.map((d) => d.count));
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -36,6 +54,7 @@ const weeks = computed<Cell[][]>(() => {
       week.push({
         key,
         count,
+        detail: details.get(key) ?? "nothing",
         inRange,
         level: !count ? 0 : Math.min(4, Math.ceil((count / max) * 4)),
       });
@@ -56,11 +75,7 @@ const weeks = computed<Cell[][]>(() => {
           :key="cell.key"
           class="heat-cell"
           :class="[`l${cell.level}`, { off: !cell.inRange }]"
-          :title="
-            cell.inRange
-              ? `${cell.key}: ${cell.count} episode${cell.count === 1 ? '' : 's'}`
-              : ''
-          "
+          :title="cell.inRange ? `${cell.key}: ${cell.detail}` : ''"
         ></span>
       </div>
     </div>

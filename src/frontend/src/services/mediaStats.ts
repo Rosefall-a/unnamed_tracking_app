@@ -31,10 +31,12 @@ export interface Rewatched {
 export interface ProgressRow {
   id: string;
   title: string;
-  kind: "anime" | "tv";
+  kind: "anime" | "tv" | "game";
   watched: number;
   total: number;
   posterUrl: string | null;
+  // set for games, which have no episode count: the exact playtime text
+  label?: string;
 }
 export interface StatusCounts {
   plan: number;
@@ -111,6 +113,48 @@ export interface GameStats extends Common {
   tags: NamedCount[];
   finished_per_year: YearCount[];
   spent: { currency: string; amount: number }[];
+  insights: GameInsights;
+}
+
+// What a game library tool like Playnite would show, computed exactly:
+// "no playtime recorded" means the platform reported none, backlog hours
+// only add games that have a time-to-beat (the rest are counted apart),
+// and cost per hour only uses games with both a price and playtime.
+export interface GameInsights {
+  owned: number;
+  with_playtime: number;
+  unplayed: { count: number; spent: { currency: string; amount: number }[] };
+  average_seconds: number | null;
+  median_seconds: number | null;
+  playtime_buckets: { label: string; count: number }[];
+  played_last_30_days: number;
+  recently_played: {
+    id: string;
+    title: string;
+    last_played_at: number;
+    seconds: number;
+  }[];
+  finished_this_year: number;
+  seconds_by_source: { name: string; seconds: number }[];
+  seconds_by_developer: { name: string; seconds: number }[];
+  seconds_by_series: { name: string; seconds: number }[];
+  backlog: { count: number; hours: number; without_estimate: number };
+  cost_per_hour: {
+    currency: string;
+    per_hour: number;
+    hours: number;
+    games: number;
+  }[];
+  closest_to_full: {
+    id: string;
+    title: string;
+    unlocked: number;
+    total: number;
+  }[];
+  fully_unlocked: number;
+  decades: { decade: number; count: number }[];
+  age_ratings: NamedCount[];
+  features: NamedCount[];
 }
 
 export interface OverviewStats {
@@ -127,6 +171,13 @@ export interface OverviewStats {
   media_favorites: number;
   top_rated: TopTitle[];
   in_progress: ProgressRow[];
+  backlog: {
+    kind: "movie" | "tv" | "anime" | "game";
+    waiting: number;
+    on_hold: number;
+  }[];
+  game_backlog: { count: number; hours: number; without_estimate: number };
+  games_finished_this_year: number;
   score_by_type: {
     kind: "movie" | "tv" | "anime" | "game";
     average: number | null;
@@ -142,7 +193,12 @@ export interface OverviewStats {
     }[];
   };
   activity: {
-    per_day: { date: string; count: number }[];
+    per_day: {
+      date: string;
+      count: number;
+      episodes: number;
+      achievements: number;
+    }[];
     active_days_total: number;
     current_streak: number;
     longest_streak: number;

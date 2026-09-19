@@ -23,7 +23,10 @@ from src.database.models.notification import Notification
 from src.database.models.user import User
 from src.database.session import SessionLocal
 from src.features.metadata.anime.anizip import AniZipClient
+from src.features.episode_progress import apply_counter, counter_from_flags, materialize_progress
+from src.features.metadata.tv.search import _looks_like_anime
 from src.features.notifications import _episode_row, generate_for_user
+from src.features.tv_seasons import check_new_seasons, new_seasons
 
 
 # ---------------------------------------------------------------- pure logic
@@ -380,6 +383,290 @@ async def test_a_counter_covering_every_episode_completes_the_season():
             assert anime["seasons_completed"] == 1
             assert anime["episodes_watched"] == 26
             assert anime["minutes_watched"] == 26 * 24  # no rows on record: the show's runtime
+        finally:
+            if user is not None:
+                await _cleanup(db, user)
+
+
+# ------------------------------------------- library counter and episode flags
+class _Ep:
+    def __init__(self, number, watched=False):
+        self.episode_number = number
+        self.watched = watched
+
+
+class _Season:
+    def __init__(self, counter, episodes):
+        self.episodes_watched = counter
+        self.episodes = episodes
+
+
+def test_checking_an_episode_keeps_what_the_counter_already_counted():
+    season = _Season(3, [_Ep(n) for n in range(1, 7)])  # 3 watched by counter, no flags yet
+    without_row = materialize_progress(season)
+    season.episodes[4].watched = True  # the user checks off episode 5
+    counter_from_flags(season, without_row)
+    assert [e.watched for e in season.episodes] == [True, True, True, False, True, False]
+    assert season.episodes_watched == 4  # 3 that were counted + 1 new, not reset to 1
+
+
+def test_a_synced_season_is_not_re_flagged_from_the_bottom():
+    """Counter 5 with episodes 1-4 and 8 flagged is already fully backed by
+    flags; the next change must not also flag episode 5."""
+    season = _Season(5, [_Ep(n, watched=n in (1, 2, 3, 4, 8)) for n in range(1, 11)])
+    without_row = materialize_progress(season)
+    assert without_row == 0
+    assert [e.episode_number for e in season.episodes if e.watched] == [1, 2, 3, 4, 8]
+    season.episodes[8].watched = True
+    counter_from_flags(season, without_row)
+    assert season.episodes_watched == 6
+
+
+def test_unchecking_an_episode_lowers_the_counter():
+    season = _Season(3, [_Ep(n) for n in range(1, 7)])
+    without_row = materialize_progress(season)
+    season.episodes[1].watched = False
+    counter_from_flags(season, without_row)
+    assert season.episodes_watched == 2
+
+
+def test_progress_with_no_episode_rows_survives_a_flag_change():
+    season = _Season(26, [])  # tracked by number only, episode list never synced
+    without_row = materialize_progress(season)
+    assert without_row == 26
+    counter_from_flags(season, without_row)
+    assert season.episodes_watched == 26
+
+
+def test_setting_the_counter_flags_rows_and_lowering_it_clears_the_highest():
+    season = _Season(0, [_Ep(n) for n in range(1, 6)])
+    season.episodes_watched = 4
+    apply_counter(season, 4)
+    assert [e.watched for e in season.episodes] == [True, True, True, True, False]
+    season.episodes_watched = 2
+    apply_counter(season, 2)
+    assert [e.watched for e in season.episodes] == [True, True, False, False, False]
+
+
+def test_anime_is_recognised_in_tv_search_results():
+    assert _looks_like_anime({"genres": ["Anime", "Action"]})
+    assert _looks_like_anime({"genres": ["Animation"], "countries": ["JP"]})
+    assert _looks_like_anime({"genres": ["Animation"], "languages": ["Japanese"]})
+    assert not _looks_like_anime({"genres": ["Animation", "Comedy"], "countries": ["US"]})
+    assert not _looks_like_anime({"genres": ["Drama"], "countries": ["JP"]})
+    assert not _looks_like_anime({})
+
+
+@pytest.mark.asyncio
+async def test_route_level_flow_flags_moves_the_counter_and_the_library_number():
+    from src.api.routes.anime import bulk_set_episodes_watched, update_episode, update_season
+    from src.api.schemas.anime import EpisodesBulkWatched, EpisodeUpdate, SeasonUpdate
+
+    async with SessionLocal() as db:
+        user = None
+        try:
+            user = await _user(db)
+            show = _anime(user)
+            db.add(show)
+            await db.flush()
+            season = AnimeSeason(show_id=show.id, season_number=1, episode_count=10)
+            db.add(season)
+            await db.flush()
+            eps = [AnimeEpisode(season_id=season.id, episode_number=n) for n in range(1, 11)]
+            db.add_all(eps)
+            await db.commit()
+            show_id, season_id = show.id, season.id
+            ids = [e.id for e in eps]
+
+            # the library "+" button: counter to 4 flags episodes 1 to 4
+            await update_season(show_id, season_id, SeasonUpdate(episodes_watched=4), db, user)
+            rows = (await db.execute(select(AnimeEpisode).where(AnimeEpisode.season_id == season_id))).scalars().all()
+            assert sorted(e.episode_number for e in rows if e.watched) == [1, 2, 3, 4]
+
+            # checking episode 8 on the title page moves the library number to 5
+            await update_episode(show_id, season_id, ids[7], EpisodeUpdate(watched=True), db, user)
+            s = (await db.execute(select(AnimeSeason).where(AnimeSeason.id == season_id))).scalar_one()
+            assert s.episodes_watched == 5
+
+            # a range select adds to it too
+            await bulk_set_episodes_watched(show_id, season_id, EpisodesBulkWatched(episode_ids=ids[8:10], watched=True), db, user)
+            s = (await db.execute(select(AnimeSeason).where(AnimeSeason.id == season_id))).scalar_one()
+            assert s.episodes_watched == 7
+        finally:
+            if user is not None:
+                await _cleanup(db, user)
+
+
+@pytest.mark.asyncio
+async def test_unchecking_episodes_works_including_ones_the_counter_covered():
+    """Unchecking must actually clear the flag and lower the library number,
+    both for an episode the user flagged and for one that only the old
+    progress counter had counted."""
+    from src.api.routes.anime import update_episode
+    from src.api.schemas.anime import EpisodeUpdate
+
+    async with SessionLocal() as db:
+        user = None
+        try:
+            user = await _user(db)
+            show = _anime(user)
+            db.add(show)
+            await db.flush()
+            season = AnimeSeason(show_id=show.id, season_number=1, episode_count=6, episodes_watched=4)
+            db.add(season)
+            await db.flush()
+            eps = [AnimeEpisode(season_id=season.id, episode_number=n) for n in range(1, 7)]  # nothing flagged
+            db.add_all(eps)
+            await db.commit()
+            show_id, season_id = show.id, season.id
+            ids = [e.id for e in eps]
+
+            # episode 2 was only counted by the counter; unchecking it must stick
+            result = await update_episode(show_id, season_id, ids[1], EpisodeUpdate(watched=False), db, user)
+            episodes = {e.episode_number: e.watched for e in result.seasons[0].episodes}
+            assert episodes == {1: True, 2: False, 3: True, 4: True, 5: False, 6: False}
+            assert result.seasons[0].episodes_watched == 3
+
+            # and a flagged one
+            result = await update_episode(show_id, season_id, ids[3], EpisodeUpdate(watched=False), db, user)
+            assert result.seasons[0].episodes_watched == 2
+            assert {e.episode_number for e in result.seasons[0].episodes if e.watched} == {1, 3}
+        finally:
+            if user is not None:
+                await _cleanup(db, user)
+
+
+# ------------------------------------------------------- TV new-season check
+def test_only_seasons_above_every_known_one_count_as_new():
+    listed = [{"season_number": n} for n in range(1, 6)]
+    assert [s["season_number"] for s in new_seasons({1, 2, 3}, listed)] == [4, 5]
+    assert new_seasons({1, 2, 3, 4, 5}, listed) == []
+    # a provider numbering an old season differently never adds one
+    assert new_seasons({2, 3, 5}, listed) == []
+
+
+class _FakeTVMaze:
+    def __init__(self, seasons):
+        self._seasons = seasons
+
+    def seasons(self, _id):
+        return self._seasons
+
+
+@pytest.mark.asyncio
+async def test_new_tv_season_is_added_and_announced_once_but_not_on_the_first_check():
+    from src.database.models.tv_show import TVSeason, TVShow, TVShowStatus
+
+    async with SessionLocal() as db:
+        user = None
+        try:
+            user = await _user(db)
+            show = TVShow(
+                user_id=user.scratch_id, title="Season Test", sort_title="season test", status=TVShowStatus.WATCHED,
+                external_id="1", creators=[], studios=[], countries=[], languages=[], genres=[], tags=[],
+                features=[], locked_fields=[],
+            )
+            db.add(show)
+            await db.flush()
+            db.add(TVSeason(show_id=show.id, season_number=1, episode_count=8))
+            await db.commit()
+            show_id = show.id
+
+            listed = [
+                {"season_number": 1, "name": None, "episode_count": 8, "air_date": "2020-01-01"},
+                {"season_number": 2, "name": None, "episode_count": 10, "air_date": "2027-03-01"},
+            ]
+            show = (await db.execute(select(TVShow).where(TVShow.id == show_id))).scalar_one()
+            # first check: the season is added, but nothing is announced
+            assert await check_new_seasons(db, show, _FakeTVMaze(listed)) == 1  # type: ignore[arg-type]
+            notes = (await db.execute(select(Notification).where(Notification.user_id == user.scratch_id))).scalars().all()
+            assert notes == []
+
+            # a season 3 appears later: added and announced, with the premiere date
+            listed.append({"season_number": 3, "name": None, "episode_count": None, "air_date": "2028-01-01"})
+            show = (await db.execute(select(TVShow).where(TVShow.id == show_id))).scalar_one()
+            assert await check_new_seasons(db, show, _FakeTVMaze(listed)) == 1  # type: ignore[arg-type]
+            assert await check_new_seasons(db, show, _FakeTVMaze(listed)) == 0  # nothing new the third time
+            notes = (await db.execute(select(Notification).where(Notification.user_id == user.scratch_id))).scalars().all()
+            assert len(notes) == 1
+            assert notes[0].body == "Season 3 is listed, premiering 2028-01-01"
+            seasons = (await db.execute(select(TVSeason).where(TVSeason.show_id == show_id))).scalars().all()
+            assert sorted(s.season_number for s in seasons) == [1, 2, 3]
+        finally:
+            if user is not None:
+                await _cleanup(db, user)
+
+
+# ------------------------------------------------------------- game statistics
+class _G:
+    def __init__(self, title, status="PLAYED", seconds=0, price=None, currency="USD", **kw):
+        from types import SimpleNamespace
+
+        self.__dict__.update(
+            id=uuid.uuid4(), title=title, status=SimpleNamespace(value=status), playtime_seconds=seconds,
+            purchase_price=price, purchase_price_currency_code=currency, last_played_at=None,
+            completion_date=None, time_to_beat_hours=None, source=None, developer=None, series=None,
+            release_date=None, age_rating=None, features=[],
+        )
+        self.__dict__.update(kw)
+
+
+def test_game_stats_are_exact_and_report_what_is_missing():
+    from src.features.game_stats import game_stats
+
+    now = datetime(2026, 9, 19, 12, 0)
+    day = 86400
+    a = _G("A", seconds=2 * 3600, price=20, source="Steam", last_played_at=now.timestamp() - 3 * day)
+    b = _G("B", seconds=30 * 3600, price=60, source="Steam", last_played_at=now.timestamp() - 90 * day)
+    c = _G("C", status="BACKLOG", price=10, time_to_beat_hours=12)
+    d = _G("D", status="BACKLOG")
+    w = _G("W", status="WISHLIST", price=5)
+    stats = game_stats([a, b, c, d, w], {a.id: (5, 10), b.id: (10, 10)}, now)
+
+    assert stats["owned"] == 4  # a wishlist entry is not owned
+    assert stats["unplayed"] == {"count": 2, "spent": [{"currency": "USD", "amount": 10.0}]}
+    assert stats["median_seconds"] == 16 * 3600 and stats["average_seconds"] == 16 * 3600
+    assert stats["played_last_30_days"] == 1
+    assert [r["title"] for r in stats["recently_played"]] == ["A", "B"]
+    buckets = {r["label"]: r["count"] for r in stats["playtime_buckets"]}
+    assert buckets["No playtime recorded"] == 2 and buckets["1 to 5h"] == 1 and buckets["25 to 50h"] == 1
+    # only the backlog game with an estimate adds hours; the other is reported as missing one
+    assert stats["backlog"] == {"count": 2, "hours": 12.0, "without_estimate": 1}
+    # (20 + 60) dollars over 32 hours; games with no playtime or no price never enter it
+    assert stats["cost_per_hour"] == [{"currency": "USD", "per_hour": 2.5, "hours": 32.0, "games": 2}]
+    assert stats["fully_unlocked"] == 1
+    assert [(r["title"], r["unlocked"], r["total"]) for r in stats["closest_to_full"]] == [("A", 5, 10)]
+    assert stats["seconds_by_source"] == [{"name": "Steam", "seconds": 32 * 3600}]
+
+
+def test_game_stats_with_no_games_say_nothing_instead_of_zero_averages():
+    from src.features.game_stats import game_stats
+
+    stats = game_stats([], {}, datetime(2026, 9, 19))
+    assert stats["average_seconds"] is None and stats["median_seconds"] is None
+    assert stats["cost_per_hour"] == [] and stats["backlog"]["hours"] == 0.0
+
+
+@pytest.mark.asyncio
+async def test_overview_lists_games_being_played_and_counts_achievement_days():
+    from src.database.models.game import Game, GameStatus
+
+    async with SessionLocal() as db:
+        user = None
+        try:
+            user = await _user(db)
+            db.add(
+                Game(
+                    user_id=user.scratch_id, folder_location=f"scratch-{uuid.uuid4()}", title="Now Playing",
+                    sort_title="now playing", status=GameStatus.PLAYING, playtime_seconds=5400,
+                    tags=[], features=[], collections=[],
+                )
+            )
+            await db.flush()
+            data = await get_media_stats(db, user)
+            row = next(r for r in data["overview"]["in_progress"] if r["kind"] == "game")
+            assert row["title"] == "Now Playing" and row["label"] == "1h 30m played"
+            assert data["games"]["insights"]["owned"] == 1
         finally:
             if user is not None:
                 await _cleanup(db, user)

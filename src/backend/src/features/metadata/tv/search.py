@@ -174,6 +174,19 @@ PROVIDERS: dict[str, ProviderSpec] = {
 DEFAULT_PROVIDER_ORDER = ["TMDB", "OMDb", "TVmaze"]
 
 
+def _looks_like_anime(result: dict[str, Any]) -> bool:
+    """A TV search result that is Japanese animation: genre "Anime"
+    (TVmaze), or genre "Animation" from Japan or in Japanese (TMDB)."""
+    genres = {str(g).lower() for g in result.get("genres") or []}
+    if "anime" in genres:
+        return True
+    if "animation" not in genres:
+        return False
+    countries = {str(c).lower() for c in result.get("countries") or []}
+    languages = {str(l).lower() for l in result.get("languages") or []}
+    return bool({"jp", "japan"} & countries or {"ja", "japanese"} & languages)
+
+
 def search_tv_metadata(
     query: str,
     limit: int = 8,
@@ -210,9 +223,20 @@ def search_tv_metadata(
                         _merge_or_append(results, candidate)
                 providers_used.append(spec.name)
 
+    # anime belongs in the Anime library (AniList, its own episode numbering
+    # and airing data); TMDB and TVmaze also list it as TV, which put the
+    # same title in the wrong place. Hidden here, with a note saying so.
+    kept = [r for r in results if not _looks_like_anime(r)]
+    hidden = len(results) - len(kept)
+    if hidden:
+        provider_errors.append(
+            f"{hidden} anime title{'s' if hidden != 1 else ''} hidden from these results. "
+            "Add anime from the Anime page."
+        )
+
     return {
         "query": query,
         "providers": providers_used,
         "provider_errors": provider_errors,
-        "results": results,
+        "results": kept,
     }

@@ -11,10 +11,13 @@ from sqlalchemy import (
     Date,
     Enum as SAEnum,
     ForeignKey,
+    Index,
     Integer,
     Numeric,
     String,
     Text,
+    UniqueConstraint,
+    text,
 )
 from sqlalchemy.dialects.postgresql import ARRAY, UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -106,6 +109,8 @@ class TVShow(Base):
     # to work from instead of just a yes/no flag.
     next_episode_air_at: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     next_episode_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # when TVmaze was last asked whether this show has seasons we don't have
+    seasons_checked_at: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     # Days between episodes, for projecting the ones after the confirmed
     # next one (no provider gives a full future schedule). NULL = the
     # weekly default; set per show for biweekly/daily/irregular releases.
@@ -238,6 +243,11 @@ class TVEpisode(Base):
     local, never touched by a re-sync."""
 
     __tablename__ = "tv_episodes"
+    __table_args__ = (
+        UniqueConstraint("season_id", "episode_number", name="uq_tv_episodes_season_id_episode_number"),
+        Index("ix_tv_episodes_season_watched", "season_id", "watched"),
+        Index("ix_tv_episodes_air_at", "air_at", postgresql_where=text("air_at IS NOT NULL")),
+    )
 
     id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
     season_id: Mapped[UUID] = mapped_column(

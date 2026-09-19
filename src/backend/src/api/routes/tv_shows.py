@@ -29,7 +29,9 @@ from src.database.models.media_extras import ActivityEventType
 from src.database.models.tv_show import TVEpisode, TVSeason, TVShow, TVShowStatus
 from src.database.models.user import User
 from src.database.session import get_db
+from src.features.episode_progress import apply_counter, counter_from_flags, materialize_progress
 from src.features.metadata.locked_fields import apply_updates_with_locking
+from src.features.tv_seasons import check_in_background, is_due
 from src.features.metadata.movies.tmdb import TMDBClient
 from src.features.metadata.refresh import quick_check_tv_season
 from src.features.metadata.tv.episode_sync import fetch_season_episodes
@@ -222,8 +224,13 @@ async def get_show(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> TVShow:
-    """Return one show by ID, with its seasons."""
-    return await _get_show_or_404(show_id, db, current_user.id)
+    """Return one show by ID, with its seasons. If it has been a while,
+    also asks TVmaze in the background whether the show has a new season
+    (see features/tv_seasons.py), which shows up the next time it's opened."""
+    show = await _get_show_or_404(show_id, db, current_user.id)
+    if is_due(show):
+        asyncio.create_task(check_in_background(show.id))
+    return show
 
 
 @router.patch("/update/{show_id}", response_model=TVShowRead)
@@ -341,12 +348,24 @@ async def update_season(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> TVShow:
-    await _get_show_or_404(show_id, db, current_user.id)
+    show = await _get_show_or_404(show_id, db, current_user.id)
     season = await _get_season_or_404(season_id, show_id, db)
 
     updates = payload.model_dump(exclude_unset=True)
+    old_counter = season.episodes_watched or 0
     for field, value in updates.items():
         setattr(season, field, value)
+
+    if "episodes_watched" in updates:
+        new_counter = season.episodes_watched or 0
+        apply_counter(season, new_counter)
+        if new_counter > old_counter:
+            # advancing from the library counts as watching, same as
+            # checking episodes off on the title page
+            await log_activity(
+                db, current_user.id, "tv", show.id, show.title,
+                ActivityEventType.EPISODES_WATCHED, date.today(), increment=new_counter - old_counter,
+            )
 
     await db.commit()
     return await _get_show_or_404(show_id, db, current_user.id)
@@ -434,11 +453,15 @@ async def bulk_set_episodes_watched(
     season = await _get_season_or_404(season_id, show_id, db)
     ids = set(payload.episode_ids)
     newly_watched = 0
+    # progress the counter already held is flagged first, so it is neither
+    # lost nor logged again as new
+    without_row = materialize_progress(season)
     for episode in season.episodes:
         if episode.id in ids:
             if payload.watched and not episode.watched:
                 newly_watched += 1
             episode.watched = payload.watched
+    counter_from_flags(season, without_row)
     if newly_watched:
         await log_activity(
             db, current_user.id, "tv", show.id, show.title,
@@ -458,13 +481,20 @@ async def update_episode(
     current_user: User = Depends(get_current_user),
 ) -> TVShow:
     show = await _get_show_or_404(show_id, db, current_user.id)
-    await _get_season_or_404(season_id, show_id, db)
+    season = await _get_season_or_404(season_id, show_id, db)
     episode = await _get_episode_or_404(episode_id, season_id, db)
 
     updates = payload.model_dump(exclude_unset=True)
+    without_row = 0
+    if "watched" in updates:
+        # progress the counter already held is flagged first, so it is
+        # neither lost nor logged again as new
+        without_row = materialize_progress(season)
     newly_watched = updates.get("watched") is True and not episode.watched
     for field, value in updates.items():
         setattr(episode, field, value)
+    if "watched" in updates:
+        counter_from_flags(season, without_row)
 
     if newly_watched:
         await log_activity(

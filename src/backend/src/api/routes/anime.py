@@ -41,6 +41,7 @@ from src.features.metadata.anime.search import (
     get_anime_metadata_by_anilist_id,
     search_anime_metadata,
 )
+from src.features.episode_progress import apply_counter, counter_from_flags, materialize_progress
 from src.features.metadata.locked_fields import apply_updates_with_locking
 from src.features.notifications import record_sequel_announcements
 from src.features.metadata.refresh import quick_check_anime_season, refresh_anime_season_now
@@ -373,12 +374,24 @@ async def update_season(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> Anime:
-    await _get_show_or_404(show_id, db, current_user.id)
+    show = await _get_show_or_404(show_id, db, current_user.id)
     season = await _get_season_or_404(season_id, show_id, db)
 
     updates = payload.model_dump(exclude_unset=True)
+    old_counter = season.episodes_watched or 0
     for field, value in updates.items():
         setattr(season, field, value)
+
+    if "episodes_watched" in updates:
+        new_counter = season.episodes_watched or 0
+        apply_counter(season, new_counter)
+        if new_counter > old_counter:
+            # advancing from the library counts as watching, same as
+            # checking episodes off on the title page
+            await log_activity(
+                db, current_user.id, "anime", show.id, show.title,
+                ActivityEventType.EPISODES_WATCHED, date.today(), increment=new_counter - old_counter,
+            )
 
     await db.commit()
     return await _get_show_or_404(show_id, db, current_user.id)
@@ -489,11 +502,15 @@ async def bulk_set_episodes_watched(
     season = await _get_season_or_404(season_id, show_id, db)
     ids = set(payload.episode_ids)
     newly_watched = 0
+    # progress the counter already held is flagged first, so it is neither
+    # lost nor logged again as new
+    without_row = materialize_progress(season)
     for episode in season.episodes:
         if episode.id in ids:
             if payload.watched and not episode.watched:
                 newly_watched += 1
             episode.watched = payload.watched
+    counter_from_flags(season, without_row)
     if newly_watched:
         await log_activity(
             db, current_user.id, "anime", show.id, show.title,
@@ -513,13 +530,20 @@ async def update_episode(
     current_user: User = Depends(get_current_user),
 ) -> Anime:
     show = await _get_show_or_404(show_id, db, current_user.id)
-    await _get_season_or_404(season_id, show_id, db)
+    season = await _get_season_or_404(season_id, show_id, db)
     episode = await _get_episode_or_404(episode_id, season_id, db)
 
     updates = payload.model_dump(exclude_unset=True)
+    without_row = 0
+    if "watched" in updates:
+        # progress the counter already held is flagged first, so it is
+        # neither lost nor logged again as new
+        without_row = materialize_progress(season)
     newly_watched = updates.get("watched") is True and not episode.watched
     for field, value in updates.items():
         setattr(episode, field, value)
+    if "watched" in updates:
+        counter_from_flags(season, without_row)
 
     if newly_watched:
         await log_activity(

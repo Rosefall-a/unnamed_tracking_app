@@ -220,7 +220,7 @@ class Game(Base):
     # string, not a hard DB enum: new relationship kinds should never need
     # a migration, just a code change to the allowed set in the schema.
     parent_game_id: Mapped[UUID | None] = mapped_column(
-        PG_UUID(as_uuid=True), ForeignKey("games.id", ondelete="SET NULL"), nullable=True
+        PG_UUID(as_uuid=True), ForeignKey("games.id", ondelete="SET NULL"), nullable=True, index=True
     )
     # "mod" | "modpack" | "expansion" | "dlc" | "standalone_expansion" |
     # "total_conversion" — meaningless (should be NULL) when parent_game_id
