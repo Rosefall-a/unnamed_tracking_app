@@ -288,17 +288,53 @@ function detailRoute(id: string): string {
   <MediaLibraryView
     kind="anime"
     add-label="+ Add Anime"
-    >
+    :items="items"
+    :loading="loading"
+    :error="error"
+    :detail-route="detailRoute"
+    :search="search"
+    :create-from-result="createFromResult"
+    @toggle-favorite="onToggleFavorite"
+    @advance-episode="onAdvanceEpisode"
+    @save-note="onSaveNote"
+    @save-edit="onSaveEdit"
+    @bulk-set-status="onBulkSetStatus"
+    @bulk-favorite="onBulkFavorite"
+    @bulk-delete="onBulkDelete"
+  >
     <template #actions>
-      <button
-        type="button"
-        class="anilist-import-btn"
-        :disabled="selectMode"
-        @click="showAniListImport = true"
-      >
+      <button type="button" class="anilist-import-btn" @click="showAniListImport = true">
         Import AniList
       </button>
     </template>
+  </MediaLibraryView>
+
+  <div v-if="showAniListImport" class="import-backdrop" @click.self="showAniListImport = false">
+    <div class="import-modal">
+      <h2>Import from AniList</h2>
+      <p>Enter your public AniList username. This imports your anime list into this library and never changes AniList.</p>
+      <input v-model="aniListUsername" class="import-input" placeholder="AniList username" @keyup.enter="importFromAniList" />
+      <label class="import-check">
+        <input v-model="aniListUpdateExisting" type="checkbox" />
+        Update existing titles
+      </label>
+      <p v-if="aniListImportError" class="import-error">{{ aniListImportError }}</p>
+      <p v-if="aniListImportResult" class="import-result">
+        Fetched {{ aniListImportResult.fetched }} · Created {{ aniListImportResult.created }} ·
+        Updated {{ aniListImportResult.updated }} · Skipped {{ aniListImportResult.skipped }}
+      </p>
+      <ul v-if="aniListImportResult?.errors.length" class="import-errors">
+        <li v-for="item in aniListImportResult.errors" :key="item">{{ item }}</li>
+      </ul>
+      <div class="import-actions">
+        <button type="button" @click="showAniListImport = false">Close</button>
+        <button type="button" :disabled="aniListImporting || !aniListUsername.trim()" @click="importFromAniList">
+          {{ aniListImporting ? "Importing…" : "Import" }}
+        </button>
+      </div>
+    </div>
+  </div>
+</template>
   </MediaLibraryView>
 
   <div v-if="showAniListImport" class="import-backdrop" @click.self="showAniListImport = false">
