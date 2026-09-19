@@ -25,7 +25,6 @@ async function loadUsers() {
     loading.value = false;
   }
 }
-
 onMounted(loadUsers);
 
 const showCreateForm = ref(false);
@@ -63,7 +62,6 @@ async function handleCreateUser() {
 const deletingUser = ref<AdminUser | null>(null);
 const deleting = ref(false);
 const deleteError = ref<string | null>(null);
-
 async function confirmDeleteUser() {
   if (!deletingUser.value) return;
   deleting.value = true;
@@ -81,7 +79,6 @@ async function confirmDeleteUser() {
 }
 
 const togglingAdminId = ref<string | null>(null);
-
 async function toggleAdmin(user: AdminUser) {
   togglingAdminId.value = user.id;
   try {
@@ -96,7 +93,6 @@ async function toggleAdmin(user: AdminUser) {
 }
 
 function openCreateForm() {
-  // clear any leftover values/error from a previous cancelled/failed attempt
   newUsername.value = "";
   newEmail.value = "";
   newPassword.value = "";
@@ -108,9 +104,10 @@ function openCreateForm() {
 
 <template>
   <section class="settings-section">
-    <h2>Admin</h2>
-    <p class="section-hint">Manage the other accounts on this server.</p>
-
+    <h2>Users</h2>
+    <p class="section-hint">
+      Manage the accounts on this server, including administrator access.
+    </p>
     <p v-if="loading">Loading…</p>
     <p v-else-if="error" class="form-error">{{ error }}</p>
     <template v-else>
@@ -129,9 +126,9 @@ function openCreateForm() {
             <td>{{ user.username }}</td>
             <td>{{ user.email }}</td>
             <td>
-              <span class="role-badge" :class="{ admin: user.is_admin }">
-                {{ user.is_admin ? "Admin" : "User" }}
-              </span>
+              <span class="role-badge" :class="{ admin: user.is_admin }">{{
+                user.is_admin ? "Admin" : "User"
+              }}</span>
             </td>
             <td class="joined">
               {{
@@ -166,7 +163,6 @@ function openCreateForm() {
           </tr>
         </tbody>
       </table>
-
       <button
         type="button"
         class="secondary-button"
@@ -174,29 +170,26 @@ function openCreateForm() {
       >
         {{ showCreateForm ? "Cancel" : "+ Create user" }}
       </button>
-
       <form
         v-if="showCreateForm"
         class="create-form"
         @submit.prevent="handleCreateUser"
       >
-        <label class="field">
-          <span>Username</span>
-          <input v-model="newUsername" type="text" required />
-        </label>
-        <label class="field">
-          <span>Email</span>
-          <input v-model="newEmail" type="email" required />
-        </label>
-        <label class="field">
-          <span>Password</span>
-          <input
+        <label class="field"
+          ><span>Username</span
+          ><input v-model="newUsername" type="text" required
+        /></label>
+        <label class="field"
+          ><span>Email</span><input v-model="newEmail" type="email" required
+        /></label>
+        <label class="field"
+          ><span>Password</span
+          ><input
             v-model="newPassword"
             type="password"
             required
             autocomplete="new-password"
-          />
-        </label>
+        /></label>
         <ToggleButton v-model="newIsAdmin" label="Grant admin access"
           >Grant admin access</ToggleButton
         >
@@ -206,7 +199,6 @@ function openCreateForm() {
         </button>
       </form>
     </template>
-
     <div
       v-if="deletingUser"
       class="confirm-backdrop"
@@ -222,9 +214,8 @@ function openCreateForm() {
             class="secondary-button"
             @click="deletingUser = null"
           >
-            Cancel
-          </button>
-          <button
+            Cancel</button
+          ><button
             type="button"
             class="danger-button"
             :disabled="deleting"
