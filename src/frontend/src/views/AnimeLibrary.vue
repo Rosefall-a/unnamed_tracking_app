@@ -335,78 +335,14 @@ function detailRoute(id: string): string {
     </div>
   </div>
 </template>
-  </MediaLibraryView>
-
-  <div v-if="showAniListImport" class="import-backdrop" @click.self="showAniListImport = false">
-    <div class="import-modal">
-      <h2>Import from AniList</h2>
-      <p>Enter your public AniList username. This imports your anime list into this library and never changes AniList.</p>
-      <input v-model="aniListUsername" class="import-input" placeholder="AniList username" @keyup.enter="importFromAniList" />
-      <label class="import-check">
-        <input v-model="aniListUpdateExisting" type="checkbox" />
-        Update existing titles
-      </label>
-      <p v-if="aniListImportError" class="import-error">{{ aniListImportError }}</p>
-      <p v-if="aniListImportResult" class="import-result">
-        Fetched {{ aniListImportResult.fetched }} · Created {{ aniListImportResult.created }} ·
-        Updated {{ aniListImportResult.updated }} · Skipped {{ aniListImportResult.skipped }}
-      </p>
-      <ul v-if="aniListImportResult?.errors.length" class="import-errors">
-        <li v-for="item in aniListImportResult.errors" :key="item">{{ item }}</li>
-      </ul>
-      <div class="import-actions">
-        <button type="button" @click="showAniListImport = false">Close</button>
-        <button type="button" :disabled="aniListImporting || !aniListUsername.trim()" @click="importFromAniList">
-          {{ aniListImporting ? "Importing…" : "Import" }}
-        </button>
-      </div>
-    </div>
-  </div>
-    :items="items"
-    :loading="loading"
-    :error="error"
-    :detail-route="detailRoute"
-    :search="search"
-    :create-from-result="createFromResult"
-    @toggle-favorite="onToggleFavorite"
-    @advance-episode="onAdvanceEpisode"
-    @save-note="onSaveNote"
-    @save-edit="onSaveEdit"
-    @bulk-set-status="onBulkSetStatus"
-    @bulk-favorite="onBulkFavorite"
-    @bulk-delete="onBulkDelete"
-  />
-</template>
-
 
 <style scoped>
-.anilist-import-btn {
-  border: 1px solid rgba(255,255,255,.16);
-  background: rgba(255,255,255,.06);
-  color: #ddd;
-  border-radius: 8px;
-  padding: 9px 13px;
-  cursor: pointer;
-}
-.anilist-import-btn:disabled { opacity: .5; cursor: default; }
-.import-backdrop {
-  position: fixed; inset: 0; z-index: 100;
-  display: grid; place-items: center;
-  background: rgba(0,0,0,.7);
-}
-.import-modal {
-  width: min(520px, calc(100vw - 32px));
-  background: #191919; border: 1px solid rgba(255,255,255,.12);
-  border-radius: 12px; padding: 22px;
-  display: flex; flex-direction: column; gap: 12px;
-}
+.anilist-import-btn { border: 1px solid rgba(255,255,255,.16); background: rgba(255,255,255,.06); color: #ddd; border-radius: 8px; padding: 9px 13px; cursor: pointer; }
+.import-backdrop { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; background: rgba(0,0,0,.7); }
+.import-modal { width: min(520px, calc(100vw - 32px)); background: #191919; border: 1px solid rgba(255,255,255,.12); border-radius: 12px; padding: 22px; display: flex; flex-direction: column; gap: 12px; }
 .import-modal h2 { margin: 0; }
 .import-modal p { color: #aaa; margin: 0; }
-.import-input {
-  width: 100%; box-sizing: border-box; padding: 10px;
-  border-radius: 7px; border: 1px solid rgba(255,255,255,.15);
-  background: #111; color: #fff;
-}
+.import-input { width: 100%; box-sizing: border-box; padding: 10px; border-radius: 7px; border: 1px solid rgba(255,255,255,.15); background: #111; color: #fff; }
 .import-check { display: flex; gap: 8px; align-items: center; color: #ddd; }
 .import-error { color: #e57373 !important; }
 .import-result { color: #8bc98f !important; }
