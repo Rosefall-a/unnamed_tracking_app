@@ -95,7 +95,7 @@ _PRIORITY_MAP = {
 def _fuzzy_date(value: dict[str, Any] | None) -> str | None:
     if not value or not value.get("year"):
         return None
-    return f"{value["year"]:04d}-{value.get("month") or 1:02d}-{value.get("day") or 1:02d}"
+    return f'{value["year"]:04d}-{value.get("month") or 1:02d}-{value.get("day") or 1:02d}'
 
 
 def _map_entry(entry: dict[str, Any]) -> dict[str, Any] | None:
