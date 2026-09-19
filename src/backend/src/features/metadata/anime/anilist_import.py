@@ -95,9 +95,7 @@ _PRIORITY_MAP = {
 def _fuzzy_date(value: dict[str, Any] | None) -> str | None:
     if not value or not value.get("year"):
         return None
-    return "{:04d}-{:02d}-{:02d}".format(
-        value["year"], value.get("month") or 1, value.get("day") or 1
-    )
+    return f"{value["year"]:04d}-{value.get("month") or 1:02d}-{value.get("day") or 1:02d}"
 
 
 def _map_entry(entry: dict[str, Any]) -> dict[str, Any] | None:
@@ -151,6 +149,7 @@ class AniListImportClient(AniListClient):
     """Read public anime list entries for one AniList username."""
 
     def fetch_user_anime(self, username: str) -> list[dict[str, Any]]:
+        """Fetch and normalize every anime entry from a public AniList list."""
         username = username.strip()
         if not username:
             raise AniListError("AniList username is required.")
