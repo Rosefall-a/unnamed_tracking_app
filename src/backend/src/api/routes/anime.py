@@ -152,6 +152,7 @@ async def import_anilist_library(
                 db.add(season)
                 created += 1
             else:
+                show.sort_title = _derive_sort_title(entry['title'])
                 for field in ('title','description','first_air_date','episode_runtime_minutes','studios','countries','genres','format','anilist_score','poster_url','backdrop_url','status','priority','rewatches','note','start_date','end_date','rating_overall'):
                     setattr(show, field, parsed(field) if field in ('first_air_date','start_date','end_date') else entry[field])
                 season = show.seasons[0] if show.seasons else None
