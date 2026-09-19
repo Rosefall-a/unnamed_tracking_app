@@ -87,7 +87,9 @@ export const peekTVShow = tvShowCache.peek;
 export const peekAllTVShows = (): TVShow[] | null =>
   tvShowCache.listLoaded() ? tvShowCache.all() : null;
 // every entity that passes through here is remembered for instant reopening
-function mapBackendTVShow(raw: Parameters<typeof mapBackendTVShowRaw>[0]): TVShow {
+function mapBackendTVShow(
+  raw: Parameters<typeof mapBackendTVShowRaw>[0],
+): TVShow {
   return tvShowCache.put(mapBackendTVShowRaw(raw));
 }
 
@@ -346,7 +348,8 @@ function inputToBody(input: TVShowInput): Record<string, unknown> {
     rating_overall: input.ratingOverall ?? null,
     personal_rank: input.personalRank ?? null,
   };
-  if (input.airingIntervalDays !== undefined) body.airing_interval_days = input.airingIntervalDays;
+  if (input.airingIntervalDays !== undefined)
+    body.airing_interval_days = input.airingIntervalDays;
   if (input.status) body.status = denormalizeStatus(input.status);
   if (input.seasons) body.seasons = input.seasons.map(seasonInputToBody);
   return body;

@@ -32,7 +32,17 @@ const emit = defineEmits<{ "update:modelValue": [value: string] }>();
         :class="{ active: modelValue === o.value }"
         :title="o.title"
       >
-        <svg v-if="o.icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" v-html="o.icon"></svg>
+        <svg
+          v-if="o.icon"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+          v-html="o.icon"
+        ></svg>
         {{ o.label }}
         <span v-if="o.count" class="seg-count">{{ o.count }}</span>
       </RouterLink>
@@ -44,7 +54,17 @@ const emit = defineEmits<{ "update:modelValue": [value: string] }>();
         :title="o.title"
         @click="emit('update:modelValue', o.value)"
       >
-        <svg v-if="o.icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" v-html="o.icon"></svg>
+        <svg
+          v-if="o.icon"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+          v-html="o.icon"
+        ></svg>
         {{ o.label }}
         <span v-if="o.count" class="seg-count">{{ o.count }}</span>
       </button>

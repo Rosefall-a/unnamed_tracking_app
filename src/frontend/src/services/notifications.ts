@@ -4,10 +4,7 @@
 // polling this is what makes them appear.
 
 export type MediaNotificationKind =
-  | "episode_aired"
-  | "season_started"
-  | "sequel_announced"
-  | "movie_released";
+  "episode_aired" | "season_started" | "sequel_announced" | "movie_released";
 
 export interface MediaNotification {
   id: string;
@@ -42,10 +39,15 @@ export async function fetchMediaNotifications(
   limit = 50,
 ): Promise<{ items: MediaNotification[]; unread: number }> {
   const response = await ok(
-    await fetch(`/api/notifications?limit=${limit}`, { credentials: "include" }),
+    await fetch(`/api/notifications?limit=${limit}`, {
+      credentials: "include",
+    }),
     "load notifications",
   );
-  const raw = (await response.json()) as { items: BackendNotification[]; unread: number };
+  const raw = (await response.json()) as {
+    items: BackendNotification[];
+    unread: number;
+  };
   return {
     unread: raw.unread,
     items: raw.items.map((n) => ({
@@ -64,28 +66,40 @@ export async function fetchMediaNotifications(
 
 export async function markNotificationRead(id: string): Promise<void> {
   await ok(
-    await fetch(`/api/notifications/${id}/read`, { method: "POST", credentials: "include" }),
+    await fetch(`/api/notifications/${id}/read`, {
+      method: "POST",
+      credentials: "include",
+    }),
     "mark notification read",
   );
 }
 
 export async function markNotificationUnread(id: string): Promise<void> {
   await ok(
-    await fetch(`/api/notifications/${id}/unread`, { method: "POST", credentials: "include" }),
+    await fetch(`/api/notifications/${id}/unread`, {
+      method: "POST",
+      credentials: "include",
+    }),
     "mark notification unread",
   );
 }
 
 export async function markAllNotificationsRead(): Promise<void> {
   await ok(
-    await fetch("/api/notifications/read-all", { method: "POST", credentials: "include" }),
+    await fetch("/api/notifications/read-all", {
+      method: "POST",
+      credentials: "include",
+    }),
     "mark notifications read",
   );
 }
 
 export async function deleteMediaNotification(id: string): Promise<void> {
   await ok(
-    await fetch(`/api/notifications/${id}`, { method: "DELETE", credentials: "include" }),
+    await fetch(`/api/notifications/${id}`, {
+      method: "DELETE",
+      credentials: "include",
+    }),
     "delete notification",
   );
 }

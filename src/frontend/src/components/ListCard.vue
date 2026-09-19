@@ -36,11 +36,28 @@ const emptySlots = computed(() => Math.max(0, 4 - covers.value.length));
             class="cover-cell empty"
           ></div>
         </div>
-        <span v-if="list.isSmart" class="smart-badge" title="Fills itself from a filter">{{ list.isSystem ? "Auto" : "Smart" }}</span>
+        <span
+          v-if="list.isSmart"
+          class="smart-badge"
+          title="Fills itself from a filter"
+          >{{ list.isSystem ? "Auto" : "Smart" }}</span
+        >
         <div class="card-actions">
           <template v-if="!list.isSystem">
-            <button type="button" title="Edit this list" @click.stop="emit('edit', list.id)">✎</button>
-            <button type="button" title="Delete this list" @click.stop="emit('delete', list.id)">✕</button>
+            <button
+              type="button"
+              title="Edit this list"
+              @click.stop="emit('edit', list.id)"
+            >
+              ✎
+            </button>
+            <button
+              type="button"
+              title="Delete this list"
+              @click.stop="emit('delete', list.id)"
+            >
+              ✕
+            </button>
           </template>
         </div>
       </div>
@@ -52,7 +69,9 @@ const emptySlots = computed(() => Math.max(0, 4 - covers.value.length));
         <span class="status"
           >{{ list.itemCount }} title{{ list.itemCount === 1 ? "" : "s" }}</span
         >
-        <span v-if="list.description" class="desc" :title="list.description">{{ list.description }}</span>
+        <span v-if="list.description" class="desc" :title="list.description">{{
+          list.description
+        }}</span>
       </div>
     </div>
   </div>

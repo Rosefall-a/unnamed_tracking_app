@@ -65,7 +65,11 @@ const router = createRouter({
     { path: "/statistics", name: "statistics", component: Statistics },
     { path: "/notifications", name: "notifications", component: Notifications },
     { path: "/lists", name: "media-lists", component: MediaLists },
-    { path: "/lists/:id", name: "media-list-detail", component: MediaListDetail },
+    {
+      path: "/lists/:id",
+      name: "media-list-detail",
+      component: MediaListDetail,
+    },
     // History merged into the Calendar page as a second tab
     { path: "/history", redirect: "/calendar" },
     { path: "/login", name: "login", component: Login },

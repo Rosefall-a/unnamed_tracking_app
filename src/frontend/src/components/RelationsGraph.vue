@@ -58,7 +58,12 @@ const ROW_H = 170;
 // order the source API happened to list relations in.
 function branchBand(type: string): number {
   const t = type.toLowerCase();
-  if (t.includes("manga") || t.includes("novel") || t.includes("doujin") || t.includes("one shot")) {
+  if (
+    t.includes("manga") ||
+    t.includes("novel") ||
+    t.includes("doujin") ||
+    t.includes("one shot")
+  ) {
     return 2; // bottom: source material
   }
   if (t === "special" || t === "ova" || t === "ona" || t === "music") {
@@ -108,7 +113,12 @@ const chainPositions = computed(() =>
 // one row off guarantees real separation from the chain regardless of
 // how wide a branch subtree gets.
 const branchCounts = computed(() => {
-  type Positioned = { node: BranchNode; cx: number; cy: number; anchor: { cx: number; cy: number } | undefined };
+  type Positioned = {
+    node: BranchNode;
+    cx: number;
+    cy: number;
+    anchor: { cx: number; cy: number } | undefined;
+  };
   const childrenOf = new Map<string, BranchNode[]>();
   for (const n of props.branchNodes) {
     if (!n.parentBranchId) continue;
@@ -137,11 +147,14 @@ const branchCounts = computed(() => {
     // placed by release-year interpolation or collision search, so the
     // same franchise always lays out the same way.
     const sideRoots = [...roots].sort(
-      (x, y) => (x.year ?? 9999) - (y.year ?? 9999) || x.title.localeCompare(y.title),
+      (x, y) =>
+        (x.year ?? 9999) - (y.year ?? 9999) || x.title.localeCompare(y.title),
     );
 
     // banded and stacked out from the anchor at a fixed depth
-    const byBand = [0, 1, 2].map((band) => sideRoots.filter((n) => branchBand(n.type) === band));
+    const byBand = [0, 1, 2].map((band) =>
+      sideRoots.filter((n) => branchBand(n.type) === band),
+    );
     const [specials, mainSeries, manga] = byBand;
     const mainUpper: BranchNode[] = [];
     const mainLower: BranchNode[] = [];
@@ -152,7 +165,12 @@ const branchCounts = computed(() => {
     const slotOf = new Map<string, number>();
     const depthOf = new Map<string, number>();
 
-    function assignSlot(node: BranchNode, depth: number, dir: 1 | -1, counter: { n: number }): number {
+    function assignSlot(
+      node: BranchNode,
+      depth: number,
+      dir: 1 | -1,
+      counter: { n: number },
+    ): number {
       depthOf.set(node.id, depth);
       const kids = childrenOf.get(node.id) ?? [];
       if (!kids.length) {
@@ -176,7 +194,9 @@ const branchCounts = computed(() => {
       const slot = slotOf.get(node.id) ?? 1;
       const cx = (anchor?.cx ?? 0) + depth * BRANCH_SPACING;
       const cy = (anchor?.cy ?? 0) + slot * ROW_H;
-      const parentPos = node.parentBranchId ? posById.get(node.parentBranchId) : undefined;
+      const parentPos = node.parentBranchId
+        ? posById.get(node.parentBranchId)
+        : undefined;
       result.push({ node, cx, cy, anchor: parentPos ?? anchor });
       posById.set(node.id, { cx, cy });
       for (const kid of childrenOf.get(node.id) ?? []) place(kid);
@@ -295,7 +315,11 @@ function fit() {
   const canvasH = canvasEl.value.clientHeight;
   const scale = Math.max(
     0.4,
-    Math.min(1.4, (canvasW - padding * 2) / contentW, (canvasH - padding * 2) / contentH),
+    Math.min(
+      1.4,
+      (canvasW - padding * 2) / contentW,
+      (canvasH - padding * 2) / contentH,
+    ),
   );
   zoom.value = scale;
   pan.x = (canvasW - contentW * scale) / 2 - minX * scale;

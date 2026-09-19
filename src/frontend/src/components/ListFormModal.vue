@@ -7,7 +7,11 @@
 // dropping one for the other would lose work.
 import { ref, computed } from "vue";
 import { STATUS_BUCKETS } from "../utils/mediaStatus";
-import type { MediaListSummary, MediaType, SmartRule } from "../services/mediaExtras";
+import type {
+  MediaListSummary,
+  MediaType,
+  SmartRule,
+} from "../services/mediaExtras";
 
 const props = defineProps<{
   // set = editing that list; null = creating
@@ -16,7 +20,13 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  save: [payload: { name: string; description: string | null; smartRule: SmartRule | null }];
+  save: [
+    payload: {
+      name: string;
+      description: string | null;
+      smartRule: SmartRule | null;
+    },
+  ];
   close: [];
 }>();
 
@@ -32,8 +42,12 @@ const MEDIA_OPTIONS: { key: MediaType; label: string }[] = [
 ];
 
 const rule = props.list?.smartRule ?? {};
-const mediaTypes = ref<MediaType[]>(rule.mediaTypes ? [...rule.mediaTypes] : []);
-const statusBuckets = ref<string[]>(rule.statusBuckets ? [...rule.statusBuckets] : []);
+const mediaTypes = ref<MediaType[]>(
+  rule.mediaTypes ? [...rule.mediaTypes] : [],
+);
+const statusBuckets = ref<string[]>(
+  rule.statusBuckets ? [...rule.statusBuckets] : [],
+);
 const genre = ref(rule.genre ?? "");
 const minScore = ref<number | null>(rule.minScore ?? null);
 const favoriteOnly = ref(rule.favorite === true);
@@ -51,7 +65,8 @@ function buildRule(): SmartRule {
   if (mediaTypes.value.length) r.mediaTypes = [...mediaTypes.value];
   if (statusBuckets.value.length) r.statusBuckets = [...statusBuckets.value];
   if (genre.value.trim()) r.genre = genre.value.trim();
-  if (minScore.value !== null && !Number.isNaN(minScore.value)) r.minScore = minScore.value;
+  if (minScore.value !== null && !Number.isNaN(minScore.value))
+    r.minScore = minScore.value;
   if (favoriteOnly.value) r.favorite = true;
   return r;
 }
@@ -71,7 +86,8 @@ function submit() {
   }
   const smartRule = smart.value ? buildRule() : null;
   if (smartRule && !Object.keys(smartRule).length) {
-    error.value = "Pick at least one filter, or the list would just be your whole library.";
+    error.value =
+      "Pick at least one filter, or the list would just be your whole library.";
     return;
   }
   emit("save", {
@@ -88,7 +104,11 @@ function submit() {
       <h3>{{ editing ? "Edit list" : "Create a list" }}</h3>
 
       <div v-if="!editing" class="kind-pick">
-        <button type="button" :class="{ active: !smart }" @click="smart = false">
+        <button
+          type="button"
+          :class="{ active: !smart }"
+          @click="smart = false"
+        >
           <strong>Manual</strong>
           <span>You add and order the titles</span>
         </button>
@@ -100,7 +120,13 @@ function submit() {
 
       <label class="field">
         <span>Name</span>
-        <input v-model="name" type="text" class="ui-field" maxlength="200" autofocus />
+        <input
+          v-model="name"
+          type="text"
+          class="ui-field"
+          maxlength="200"
+          autofocus
+        />
       </label>
       <label class="field">
         <span>Description (optional)</span>
@@ -142,11 +168,24 @@ function submit() {
         <div class="row">
           <label class="field">
             <span>Genre</span>
-            <input v-model="genre" type="text" class="ui-field" placeholder="e.g. Comedy" />
+            <input
+              v-model="genre"
+              type="text"
+              class="ui-field"
+              placeholder="e.g. Comedy"
+            />
           </label>
           <label class="field score-field">
             <span>Min. score</span>
-            <input v-model.number="minScore" type="number" min="0" max="10" step="0.5" class="ui-field" placeholder="0-10" />
+            <input
+              v-model.number="minScore"
+              type="number"
+              min="0"
+              max="10"
+              step="0.5"
+              class="ui-field"
+              placeholder="0-10"
+            />
           </label>
         </div>
         <label class="check">
@@ -158,8 +197,16 @@ function submit() {
       <p v-if="error" class="ui-error-box">{{ error }}</p>
 
       <div class="ui-modal-actions">
-        <button type="button" class="ui-btn ui-btn-secondary" @click="emit('close')">Cancel</button>
-        <button type="submit" class="ui-btn ui-btn-primary">{{ editing ? "Save" : "Create" }}</button>
+        <button
+          type="button"
+          class="ui-btn ui-btn-secondary"
+          @click="emit('close')"
+        >
+          Cancel
+        </button>
+        <button type="submit" class="ui-btn ui-btn-primary">
+          {{ editing ? "Save" : "Create" }}
+        </button>
       </div>
     </form>
   </div>

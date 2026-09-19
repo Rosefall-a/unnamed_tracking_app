@@ -5,7 +5,11 @@
 import { ref, onMounted } from "vue";
 import SegmentedControl from "./SegmentedControl.vue";
 import ToggleButton from "./ToggleButton.vue";
-import { DEFAULT_PREFERENCES, fetchPreferences, updatePreferences } from "../../services/preferences";
+import {
+  DEFAULT_PREFERENCES,
+  fetchPreferences,
+  updatePreferences,
+} from "../../services/preferences";
 import type { Preferences } from "../../services/preferences";
 import { preferences as sharedPreferences } from "../../state/preferences";
 
@@ -92,8 +96,8 @@ const weekOptions = [
       @update:model-value="change({ calendar_show_estimated: $event })"
     >
       <strong>Estimated episodes</strong>: show later episodes projected from
-      the show's usual schedule (drawn dashed). Only the next episode of a
-      show is a confirmed date.
+      the show's usual schedule (drawn dashed). Only the next episode of a show
+      is a confirmed date.
     </ToggleButton>
     <ToggleButton
       :model-value="prefs.calendar_hide_games"
@@ -110,7 +114,12 @@ const weekOptions = [
       <SegmentedControl
         :model-value="prefs.calendar_default_view"
         :options="viewOptions"
-        @update:model-value="change({ calendar_default_view: $event as Preferences['calendar_default_view'] })"
+        @update:model-value="
+          change({
+            calendar_default_view:
+              $event as Preferences['calendar_default_view'],
+          })
+        "
       />
     </div>
     <div class="field">
@@ -118,7 +127,13 @@ const weekOptions = [
       <SegmentedControl
         :model-value="String(prefs.calendar_week_start)"
         :options="weekOptions"
-        @update:model-value="change({ calendar_week_start: Number($event) as Preferences['calendar_week_start'] })"
+        @update:model-value="
+          change({
+            calendar_week_start: Number(
+              $event,
+            ) as Preferences['calendar_week_start'],
+          })
+        "
       />
     </div>
 
@@ -132,7 +147,13 @@ const weekOptions = [
       <SegmentedControl
         :model-value="String(prefs.notification_retention_days)"
         :options="retentionOptions"
-        @update:model-value="change({ notification_retention_days: Number($event) as Preferences['notification_retention_days'] })"
+        @update:model-value="
+          change({
+            notification_retention_days: Number(
+              $event,
+            ) as Preferences['notification_retention_days'],
+          })
+        "
       />
     </div>
     <ToggleButton

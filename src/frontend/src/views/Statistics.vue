@@ -19,7 +19,12 @@ import DonutChart from "../components/stats/DonutChart.vue";
 import StatCard from "../components/stats/StatCard.vue";
 import TopRatedRow from "../components/stats/TopRatedRow.vue";
 import { fetchMediaStats, peekMediaStats } from "../services/mediaStats";
-import type { EpisodicStats, MediaStats, StatusCounts, TopTitle } from "../services/mediaStats";
+import type {
+  EpisodicStats,
+  MediaStats,
+  StatusCounts,
+  TopTitle,
+} from "../services/mediaStats";
 import { useKeptAlive } from "../utils/useKeptAlive";
 
 type Tab = "overview" | "games" | "movie" | "tv" | "anime";
@@ -79,26 +84,37 @@ function pct(a: number, b: number): string {
 }
 function shortMonth(key: string): string {
   const [y, m] = key.split("-").map(Number);
-  return new Date(y, m - 1, 1).toLocaleDateString(undefined, { month: "short" });
+  return new Date(y, m - 1, 1).toLocaleDateString(undefined, {
+    month: "short",
+  });
 }
 
 // ---- chart inputs ----
-const STATUS_META: { key: keyof StatusCounts; label: string; color: string }[] = [
-  { key: "watching", label: "Watching", color: "#d68a34" },
-  { key: "completed", label: "Completed", color: "#6fbf73" },
-  { key: "hold", label: "On Hold", color: "#7ba7d9" },
-  { key: "dropped", label: "Dropped", color: "#d96f6f" },
-  { key: "plan", label: "Plan to Watch", color: "#9d8cd9" },
-];
+const STATUS_META: { key: keyof StatusCounts; label: string; color: string }[] =
+  [
+    { key: "watching", label: "Watching", color: "#d68a34" },
+    { key: "completed", label: "Completed", color: "#6fbf73" },
+    { key: "hold", label: "On Hold", color: "#7ba7d9" },
+    { key: "dropped", label: "Dropped", color: "#d96f6f" },
+    { key: "plan", label: "Plan to Watch", color: "#9d8cd9" },
+  ];
 function statusSlices(s: StatusCounts, games = false) {
   return STATUS_META.map((m) => ({
-    name: games && m.key === "watching" ? "Playing" : games && m.key === "plan" ? "Wishlist" : m.label,
+    name:
+      games && m.key === "watching"
+        ? "Playing"
+        : games && m.key === "plan"
+          ? "Wishlist"
+          : m.label,
     value: s[m.key],
     color: m.color,
   }));
 }
 function scoreColumns(d: Record<string, number>) {
-  return Array.from({ length: 10 }, (_, i) => ({ label: String(i + 1), value: d[String(i + 1)] ?? 0 }));
+  return Array.from({ length: 10 }, (_, i) => ({
+    label: String(i + 1),
+    value: d[String(i + 1)] ?? 0,
+  }));
 }
 function named(rows: { name: string; count: number }[]) {
   return rows.map((r) => ({ name: r.name, value: r.count }));
@@ -110,30 +126,60 @@ function months(rows: { month: string; count: number }[]) {
   return rows.map((m) => ({ label: shortMonth(m.month), value: m.count }));
 }
 
-const KIND_LABEL: Record<string, string> = { movie: "Movies", tv: "TV Shows", anime: "Anime", game: "Games" };
+const KIND_LABEL: Record<string, string> = {
+  movie: "Movies",
+  tv: "TV Shows",
+  anime: "Anime",
+  game: "Games",
+};
 function openKind(kind: string, id: string) {
-  const base = kind === "movie" ? "/movies" : kind === "tv" ? "/tv" : kind === "anime" ? "/anime" : "/games";
+  const base =
+    kind === "movie"
+      ? "/movies"
+      : kind === "tv"
+        ? "/tv"
+        : kind === "anime"
+          ? "/anime"
+          : "/games";
   router.push(`${base}/${id}`);
 }
 // genres you rate highest: only ones with a score, best first
-function bestGenres(rows: { name: string; count: number; average?: number | null }[]) {
+function bestGenres(
+  rows: { name: string; count: number; average?: number | null }[],
+) {
   return rows
     .filter((g) => g.average != null)
     .sort((a, b) => (b.average ?? 0) - (a.average ?? 0))
-    .map((g) => ({ name: g.name, value: g.average ?? 0, label: String(g.average), hint: `${g.count} titles` }));
+    .map((g) => ({
+      name: g.name,
+      value: g.average ?? 0,
+      label: String(g.average),
+      hint: `${g.count} titles`,
+    }));
 }
 function progressPct(p: { watched: number; total: number }): number {
   return p.total ? Math.min(100, Math.round((p.watched / p.total) * 100)) : 0;
 }
 function openTitle(t: TopTitle) {
-  const base = t.kind === "movie" ? "/movies" : t.kind === "tv" ? "/tv" : t.kind === "anime" ? "/anime" : "/games";
+  const base =
+    t.kind === "movie"
+      ? "/movies"
+      : t.kind === "tv"
+        ? "/tv"
+        : t.kind === "anime"
+          ? "/anime"
+          : "/games";
   router.push(`${base}/${t.id}`);
 }
 
 // the TV and Anime tabs share one layout
 const episodic = computed<EpisodicStats | null>(() => {
   if (!stats.value) return null;
-  return tab.value === "tv" ? stats.value.tv : tab.value === "anime" ? stats.value.anime : null;
+  return tab.value === "tv"
+    ? stats.value.tv
+    : tab.value === "anime"
+      ? stats.value.anime
+      : null;
 });
 </script>
 
@@ -159,33 +205,86 @@ const episodic = computed<EpisodicStats | null>(() => {
         <!-- ================= OVERVIEW ================= -->
         <template v-if="tab === 'overview'">
           <div class="stats-summary">
-            <StatCard icon="grid" label="Media titles" :value="stats.overview.media_titles" :sub="`${stats.overview.media_completed} completed`" />
-            <StatCard icon="clock" label="Media watch time" :value="fmtMinutes(stats.overview.media_minutes)" :sub="`${fmtHours(stats.overview.media_minutes)}, exact runtimes`" />
-            <StatCard icon="play" label="Game time" :value="fmtSeconds(stats.overview.game_seconds)" :sub="`${(stats.overview.game_seconds / 3600).toLocaleString(undefined, { maximumFractionDigits: 1 })} hours from your platforms`" />
-            <StatCard icon="flame" label="Current streak" :value="`${stats.overview.activity.current_streak} days`" :sub="`longest ${stats.overview.activity.longest_streak} days`" />
-            <StatCard icon="calendar" label="Active days" :value="stats.overview.activity.active_days_total" sub="days with anything logged" />
-            <StatCard icon="heart" label="Media favorites" :value="stats.overview.media_favorites" sub="movies, TV and anime" />
+            <StatCard
+              icon="grid"
+              label="Media titles"
+              :value="stats.overview.media_titles"
+              :sub="`${stats.overview.media_completed} completed`"
+            />
+            <StatCard
+              icon="clock"
+              label="Media watch time"
+              :value="fmtMinutes(stats.overview.media_minutes)"
+              :sub="`${fmtHours(stats.overview.media_minutes)}, exact runtimes`"
+            />
+            <StatCard
+              icon="play"
+              label="Game time"
+              :value="fmtSeconds(stats.overview.game_seconds)"
+              :sub="`${(stats.overview.game_seconds / 3600).toLocaleString(undefined, { maximumFractionDigits: 1 })} hours from your platforms`"
+            />
+            <StatCard
+              icon="flame"
+              label="Current streak"
+              :value="`${stats.overview.activity.current_streak} days`"
+              :sub="`longest ${stats.overview.activity.longest_streak} days`"
+            />
+            <StatCard
+              icon="calendar"
+              label="Active days"
+              :value="stats.overview.activity.active_days_total"
+              sub="days with anything logged"
+            />
+            <StatCard
+              icon="heart"
+              label="Media favorites"
+              :value="stats.overview.media_favorites"
+              sub="movies, TV and anime"
+            />
           </div>
 
-          <section v-if="stats.overview.top_rated.length" class="stats-panel toprated-panel">
+          <section
+            v-if="stats.overview.top_rated.length"
+            class="stats-panel toprated-panel"
+          >
             <h2>Top rated</h2>
-            <TopRatedRow :items="stats.overview.top_rated" :limit="10" @open="openTitle" />
+            <TopRatedRow
+              :items="stats.overview.top_rated"
+              :limit="10"
+              @open="openTitle"
+            />
           </section>
 
           <div class="stats-panels">
             <section class="stats-panel">
               <h2>Titles by type</h2>
-              <DonutChart :slices="stats.overview.kinds.map((k) => ({ name: KIND_LABEL[k.kind], value: k.titles }))" center-label="titles" />
+              <DonutChart
+                :slices="
+                  stats.overview.kinds.map((k) => ({
+                    name: KIND_LABEL[k.kind],
+                    value: k.titles,
+                  }))
+                "
+                center-label="titles"
+              />
             </section>
             <section class="stats-panel">
               <h2>Time by type</h2>
               <DonutChart
-                :slices="stats.overview.kinds.map((k) => ({ name: `${KIND_LABEL[k.kind]} (${fmtMinutes(k.minutes)})`, value: k.minutes }))"
+                :slices="
+                  stats.overview.kinds.map((k) => ({
+                    name: `${KIND_LABEL[k.kind]} (${fmtMinutes(k.minutes)})`,
+                    value: k.minutes,
+                  }))
+                "
                 center-label="minutes"
                 empty="Nothing watched or played yet."
               />
             </section>
-            <section v-if="stats.overview.in_progress.length" class="stats-panel wide">
+            <section
+              v-if="stats.overview.in_progress.length"
+              class="stats-panel wide"
+            >
               <h2>Currently watching</h2>
               <div class="progress-list">
                 <button
@@ -195,28 +294,65 @@ const episodic = computed<EpisodicStats | null>(() => {
                   class="progress-row"
                   @click="openKind(p.kind, p.id)"
                 >
-                  <span class="progress-art" :style="p.posterUrl ? { backgroundImage: `url(${p.posterUrl})` } : {}"></span>
+                  <span
+                    class="progress-art"
+                    :style="
+                      p.posterUrl
+                        ? { backgroundImage: `url(${p.posterUrl})` }
+                        : {}
+                    "
+                  ></span>
                   <span class="progress-main">
                     <span class="progress-title">{{ p.title }}</span>
-                    <span class="progress-track"><span class="progress-fill" :style="{ width: progressPct(p) + '%' }"></span></span>
+                    <span class="progress-track"
+                      ><span
+                        class="progress-fill"
+                        :style="{ width: progressPct(p) + '%' }"
+                      ></span
+                    ></span>
                   </span>
-                  <span class="progress-count">{{ p.watched }}<template v-if="p.total"> / {{ p.total }}</template></span>
+                  <span class="progress-count"
+                    >{{ p.watched
+                    }}<template v-if="p.total"> / {{ p.total }}</template></span
+                  >
                 </button>
               </div>
             </section>
             <section class="stats-panel">
               <h2>Average score by type</h2>
               <BarList
-                :rows="stats.overview.score_by_type.filter((s) => s.average !== null).map((s) => ({ name: KIND_LABEL[s.kind], value: s.average ?? 0, label: String(s.average), hint: `${s.rated} rated` }))"
+                :rows="
+                  stats.overview.score_by_type
+                    .filter((s) => s.average !== null)
+                    .map((s) => ({
+                      name: KIND_LABEL[s.kind],
+                      value: s.average ?? 0,
+                      label: String(s.average),
+                      hint: `${s.rated} rated`,
+                    }))
+                "
                 empty="Nothing rated yet."
               />
             </section>
-            <section v-if="stats.overview.needs_score.count" class="stats-panel">
+            <section
+              v-if="stats.overview.needs_score.count"
+              class="stats-panel"
+            >
               <h2>Completed, not scored yet</h2>
-              <p class="note lead">{{ stats.overview.needs_score.count }} completed title{{ stats.overview.needs_score.count === 1 ? "" : "s" }} still have no score.</p>
+              <p class="note lead">
+                {{ stats.overview.needs_score.count }} completed title{{
+                  stats.overview.needs_score.count === 1 ? "" : "s"
+                }}
+                still have no score.
+              </p>
               <ul class="plain-list">
-                <li v-for="t in stats.overview.needs_score.items" :key="`${t.kind}-${t.id}`">
-                  <button type="button" @click="openKind(t.kind, t.id)">{{ t.title }}</button>
+                <li
+                  v-for="t in stats.overview.needs_score.items"
+                  :key="`${t.kind}-${t.id}`"
+                >
+                  <button type="button" @click="openKind(t.kind, t.id)">
+                    {{ t.title }}
+                  </button>
                   <span class="dim">{{ KIND_LABEL[t.kind] }}</span>
                 </li>
               </ul>
@@ -235,132 +371,397 @@ const episodic = computed<EpisodicStats | null>(() => {
         <!-- ================= GAMES ================= -->
         <template v-else-if="tab === 'games'">
           <div class="stats-summary">
-            <StatCard icon="grid" label="Games" :value="stats.games.titles" :sub="`${stats.games.by_status.completed} completed`" />
-            <StatCard icon="heart" label="Favorites" :value="stats.games.favorites" />
-            <StatCard icon="clock" label="Playtime" :value="fmtSeconds(stats.games.playtime_seconds)" :sub="`${(stats.games.playtime_seconds / 3600).toLocaleString(undefined, { maximumFractionDigits: 1 })} hours across ${stats.games.games_with_playtime} games`" />
-            <StatCard icon="trophy" label="Achievements" :value="`${stats.games.achievements_unlocked} / ${stats.games.achievements_total}`" :sub="`${pct(stats.games.achievements_unlocked, stats.games.achievements_total)} unlocked`" />
-            <StatCard icon="star" label="Mean score" :value="stats.games.score.average ?? '–'" :sub="`${stats.games.score.rated} rated`" />
-            <StatCard v-for="s in stats.games.spent" :key="s.currency" icon="check" :label="`Spent (${s.currency})`" :value="s.amount.toLocaleString()" sub="from recorded purchase prices" />
+            <StatCard
+              icon="grid"
+              label="Games"
+              :value="stats.games.titles"
+              :sub="`${stats.games.by_status.completed} completed`"
+            />
+            <StatCard
+              icon="heart"
+              label="Favorites"
+              :value="stats.games.favorites"
+            />
+            <StatCard
+              icon="clock"
+              label="Playtime"
+              :value="fmtSeconds(stats.games.playtime_seconds)"
+              :sub="`${(stats.games.playtime_seconds / 3600).toLocaleString(undefined, { maximumFractionDigits: 1 })} hours across ${stats.games.games_with_playtime} games`"
+            />
+            <StatCard
+              icon="trophy"
+              label="Achievements"
+              :value="`${stats.games.achievements_unlocked} / ${stats.games.achievements_total}`"
+              :sub="`${pct(stats.games.achievements_unlocked, stats.games.achievements_total)} unlocked`"
+            />
+            <StatCard
+              icon="star"
+              label="Mean score"
+              :value="stats.games.score.average ?? '–'"
+              :sub="`${stats.games.score.rated} rated`"
+            />
+            <StatCard
+              v-for="s in stats.games.spent"
+              :key="s.currency"
+              icon="check"
+              :label="`Spent (${s.currency})`"
+              :value="s.amount.toLocaleString()"
+              sub="from recorded purchase prices"
+            />
           </div>
-          <section v-if="stats.games.top_rated.length" class="stats-panel toprated-panel">
+          <section
+            v-if="stats.games.top_rated.length"
+            class="stats-panel toprated-panel"
+          >
             <h2>Top rated</h2>
             <TopRatedRow :items="stats.games.top_rated" @open="openTitle" />
           </section>
           <div class="stats-panels">
-            <section class="stats-panel"><h2>Status breakdown</h2><DonutChart :slices="statusSlices(stats.games.by_status, true)" center-label="games" /></section>
-            <section class="stats-panel"><h2>Score distribution</h2><ColumnChart :columns="scoreColumns(stats.games.score.distribution)" empty="Nothing rated yet." /></section>
+            <section class="stats-panel">
+              <h2>Status breakdown</h2>
+              <DonutChart
+                :slices="statusSlices(stats.games.by_status, true)"
+                center-label="games"
+              />
+            </section>
+            <section class="stats-panel">
+              <h2>Score distribution</h2>
+              <ColumnChart
+                :columns="scoreColumns(stats.games.score.distribution)"
+                empty="Nothing rated yet."
+              />
+            </section>
             <section class="stats-panel">
               <h2>Most played</h2>
               <BarList
-                :rows="stats.games.most_played.map((g) => ({ name: g.title, value: g.seconds, label: fmtSeconds(g.seconds) }))"
+                :rows="
+                  stats.games.most_played.map((g) => ({
+                    name: g.title,
+                    value: g.seconds,
+                    label: fmtSeconds(g.seconds),
+                  }))
+                "
                 empty="No playtime recorded yet."
               />
             </section>
-            <section v-if="stats.games.sources.length" class="stats-panel"><h2>Sources</h2><DonutChart :slices="named(stats.games.sources)" center-label="games" /></section>
-            <section v-if="stats.games.finished_per_year.length" class="stats-panel"><h2>Finished per year</h2><ColumnChart :columns="years(stats.games.finished_per_year)" /></section>
-            <section class="stats-panel"><h2>Release years</h2><ColumnChart :columns="years(stats.games.by_release_year)" /></section>
-            <section v-if="stats.games.tags.length" class="stats-panel"><h2>Top tags</h2><BarList :rows="named(stats.games.tags)" /></section>
-            <section v-if="stats.games.developers.length" class="stats-panel"><h2>Top developers</h2><BarList :rows="named(stats.games.developers)" /></section>
-            <section class="stats-panel"><h2>Added, last 12 months</h2><ColumnChart :columns="months(stats.games.added_per_month)" /></section>
+            <section v-if="stats.games.sources.length" class="stats-panel">
+              <h2>Sources</h2>
+              <DonutChart
+                :slices="named(stats.games.sources)"
+                center-label="games"
+              />
+            </section>
+            <section
+              v-if="stats.games.finished_per_year.length"
+              class="stats-panel"
+            >
+              <h2>Finished per year</h2>
+              <ColumnChart :columns="years(stats.games.finished_per_year)" />
+            </section>
+            <section class="stats-panel">
+              <h2>Release years</h2>
+              <ColumnChart :columns="years(stats.games.by_release_year)" />
+            </section>
+            <section v-if="stats.games.tags.length" class="stats-panel">
+              <h2>Top tags</h2>
+              <BarList :rows="named(stats.games.tags)" />
+            </section>
+            <section v-if="stats.games.developers.length" class="stats-panel">
+              <h2>Top developers</h2>
+              <BarList :rows="named(stats.games.developers)" />
+            </section>
+            <section class="stats-panel">
+              <h2>Added, last 12 months</h2>
+              <ColumnChart :columns="months(stats.games.added_per_month)" />
+            </section>
           </div>
         </template>
 
         <!-- ================= MOVIES ================= -->
         <template v-else-if="tab === 'movie'">
           <div class="stats-summary">
-            <StatCard icon="grid" label="Total titles" :value="stats.movie.titles" :sub="`${stats.movie.movies_watched} watched`" />
-            <StatCard icon="check" label="Completed" :value="stats.movie.by_status.completed" />
-            <StatCard icon="heart" label="Favorites" :value="stats.movie.favorites" />
-            <StatCard icon="clock" label="Time watched" :value="fmtMinutes(stats.movie.minutes_watched)" :sub="`${fmtHours(stats.movie.minutes_watched)}; ${fmtMinutes(stats.movie.minutes_rewatch)} of it rewatches`" />
-            <StatCard icon="play" label="Rewatches" :value="stats.movie.rewatches" :sub="`${stats.movie.rewatch_logs} logged with a date`" />
-            <StatCard icon="star" label="Mean score" :value="stats.movie.score.average ?? '–'" :sub="`${stats.movie.score.rated} rated`" />
+            <StatCard
+              icon="grid"
+              label="Total titles"
+              :value="stats.movie.titles"
+              :sub="`${stats.movie.movies_watched} watched`"
+            />
+            <StatCard
+              icon="check"
+              label="Completed"
+              :value="stats.movie.by_status.completed"
+            />
+            <StatCard
+              icon="heart"
+              label="Favorites"
+              :value="stats.movie.favorites"
+            />
+            <StatCard
+              icon="clock"
+              label="Time watched"
+              :value="fmtMinutes(stats.movie.minutes_watched)"
+              :sub="`${fmtHours(stats.movie.minutes_watched)}; ${fmtMinutes(stats.movie.minutes_rewatch)} of it rewatches`"
+            />
+            <StatCard
+              icon="play"
+              label="Rewatches"
+              :value="stats.movie.rewatches"
+              :sub="`${stats.movie.rewatch_logs} logged with a date`"
+            />
+            <StatCard
+              icon="star"
+              label="Mean score"
+              :value="stats.movie.score.average ?? '–'"
+              :sub="`${stats.movie.score.rated} rated`"
+            />
           </div>
           <p v-if="stats.movie.movies_without_runtime" class="note warn">
-            {{ stats.movie.movies_without_runtime }} watched movie{{ stats.movie.movies_without_runtime === 1 ? " has" : "s have" }} no runtime on record and
-            {{ stats.movie.movies_without_runtime === 1 ? "is" : "are" }} left out of the watch time rather than guessed.
+            {{ stats.movie.movies_without_runtime }} watched movie{{
+              stats.movie.movies_without_runtime === 1 ? " has" : "s have"
+            }}
+            no runtime on record and
+            {{ stats.movie.movies_without_runtime === 1 ? "is" : "are" }} left
+            out of the watch time rather than guessed.
           </p>
-          <section v-if="stats.movie.top_rated.length" class="stats-panel toprated-panel">
+          <section
+            v-if="stats.movie.top_rated.length"
+            class="stats-panel toprated-panel"
+          >
             <h2>Top rated</h2>
             <TopRatedRow :items="stats.movie.top_rated" @open="openTitle" />
           </section>
           <div class="stats-panels">
-            <section class="stats-panel"><h2>Status breakdown</h2><DonutChart :slices="statusSlices(stats.movie.by_status)" center-label="movies" /></section>
-            <section class="stats-panel"><h2>Score distribution</h2><ColumnChart :columns="scoreColumns(stats.movie.score.distribution)" empty="Nothing rated yet." /></section>
+            <section class="stats-panel">
+              <h2>Status breakdown</h2>
+              <DonutChart
+                :slices="statusSlices(stats.movie.by_status)"
+                center-label="movies"
+              />
+            </section>
+            <section class="stats-panel">
+              <h2>Score distribution</h2>
+              <ColumnChart
+                :columns="scoreColumns(stats.movie.score.distribution)"
+                empty="Nothing rated yet."
+              />
+            </section>
             <section v-if="stats.movie.minutes_rewatch" class="stats-panel">
               <h2>Watch time</h2>
               <DonutChart
                 :slices="[
-                  { name: 'First watch', value: stats.movie.minutes_first, color: '#d68a34' },
-                  { name: 'Rewatches', value: stats.movie.minutes_rewatch, color: '#7ba7d9' },
+                  {
+                    name: 'First watch',
+                    value: stats.movie.minutes_first,
+                    color: '#d68a34',
+                  },
+                  {
+                    name: 'Rewatches',
+                    value: stats.movie.minutes_rewatch,
+                    color: '#7ba7d9',
+                  },
                 ]"
                 center-label="minutes"
               />
             </section>
-            <section v-if="stats.movie.most_rewatched.length" class="stats-panel">
+            <section
+              v-if="stats.movie.most_rewatched.length"
+              class="stats-panel"
+            >
               <h2>Most rewatched</h2>
-              <BarList :rows="stats.movie.most_rewatched.map((r) => ({ name: r.title, value: r.count, label: `${r.count}x` }))" />
+              <BarList
+                :rows="
+                  stats.movie.most_rewatched.map((r) => ({
+                    name: r.title,
+                    value: r.count,
+                    label: `${r.count}x`,
+                  }))
+                "
+              />
             </section>
-            <section v-if="stats.movie.genres.length" class="stats-panel"><h2>Top genres</h2><DonutChart :slices="named(stats.movie.genres)" center-label="titles" /></section>
-            <section v-if="bestGenres(stats.movie.genres).length" class="stats-panel"><h2>Genres you rate highest</h2><BarList :rows="bestGenres(stats.movie.genres)" /></section>
-            <section class="stats-panel"><h2>Release years</h2><ColumnChart :columns="years(stats.movie.by_release_year)" /></section>
-            <section v-if="stats.movie.directors.length" class="stats-panel"><h2>Directors</h2><BarList :rows="named(stats.movie.directors)" /></section>
-            <section v-if="stats.movie.studios.length" class="stats-panel"><h2>Studios</h2><BarList :rows="named(stats.movie.studios)" /></section>
-            <section class="stats-panel"><h2>Added, last 12 months</h2><ColumnChart :columns="months(stats.movie.added_per_month)" /></section>
+            <section v-if="stats.movie.genres.length" class="stats-panel">
+              <h2>Top genres</h2>
+              <DonutChart
+                :slices="named(stats.movie.genres)"
+                center-label="titles"
+              />
+            </section>
+            <section
+              v-if="bestGenres(stats.movie.genres).length"
+              class="stats-panel"
+            >
+              <h2>Genres you rate highest</h2>
+              <BarList :rows="bestGenres(stats.movie.genres)" />
+            </section>
+            <section class="stats-panel">
+              <h2>Release years</h2>
+              <ColumnChart :columns="years(stats.movie.by_release_year)" />
+            </section>
+            <section v-if="stats.movie.directors.length" class="stats-panel">
+              <h2>Directors</h2>
+              <BarList :rows="named(stats.movie.directors)" />
+            </section>
+            <section v-if="stats.movie.studios.length" class="stats-panel">
+              <h2>Studios</h2>
+              <BarList :rows="named(stats.movie.studios)" />
+            </section>
+            <section class="stats-panel">
+              <h2>Added, last 12 months</h2>
+              <ColumnChart :columns="months(stats.movie.added_per_month)" />
+            </section>
           </div>
         </template>
 
         <!-- ================= TV + ANIME ================= -->
         <template v-else-if="episodic">
           <div class="stats-summary">
-            <StatCard icon="grid" label="Total titles" :value="episodic.titles" :sub="`${episodic.by_status.completed} completed`" />
-            <StatCard icon="heart" label="Favorites" :value="episodic.favorites" />
+            <StatCard
+              icon="grid"
+              label="Total titles"
+              :value="episodic.titles"
+              :sub="`${episodic.by_status.completed} completed`"
+            />
+            <StatCard
+              icon="heart"
+              label="Favorites"
+              :value="episodic.favorites"
+            />
             <StatCard
               icon="play"
               label="Episodes watched"
               :value="episodic.episodes_watched + episodic.episodes_rewatched"
-              :sub="episodic.episodes_rewatched ? `${episodic.episodes_watched} first watch + ${episodic.episodes_rewatched} rewatched` : `of ${episodic.episodes_known} known episodes`"
+              :sub="
+                episodic.episodes_rewatched
+                  ? `${episodic.episodes_watched} first watch + ${episodic.episodes_rewatched} rewatched`
+                  : `of ${episodic.episodes_known} known episodes`
+              "
             />
-            <StatCard icon="clock" label="Time watched" :value="fmtMinutes(episodic.minutes_watched)" :sub="`${fmtHours(episodic.minutes_watched)}; ${fmtMinutes(episodic.minutes_rewatch)} of it rewatches`" />
-            <StatCard icon="check" label="Seasons completed" :value="episodic.seasons_completed" :sub="`${episodic.seasons_in_progress} more in progress, not counted`" />
-            <StatCard icon="star" label="Mean score" :value="episodic.score.average ?? '–'" :sub="`${episodic.score.rated} rated`" />
+            <StatCard
+              icon="clock"
+              label="Time watched"
+              :value="fmtMinutes(episodic.minutes_watched)"
+              :sub="`${fmtHours(episodic.minutes_watched)}; ${fmtMinutes(episodic.minutes_rewatch)} of it rewatches`"
+            />
+            <StatCard
+              icon="check"
+              label="Seasons completed"
+              :value="episodic.seasons_completed"
+              :sub="`${episodic.seasons_in_progress} more in progress, not counted`"
+            />
+            <StatCard
+              icon="star"
+              label="Mean score"
+              :value="episodic.score.average ?? '–'"
+              :sub="`${episodic.score.rated} rated`"
+            />
           </div>
           <p v-if="episodic.episodes_without_runtime" class="note warn">
-            {{ episodic.episodes_without_runtime }} watched episode{{ episodic.episodes_without_runtime === 1 ? " has" : "s have" }} no runtime on record and
-            {{ episodic.episodes_without_runtime === 1 ? "is" : "are" }} left out of the watch time rather than guessed.
+            {{ episodic.episodes_without_runtime }} watched episode{{
+              episodic.episodes_without_runtime === 1 ? " has" : "s have"
+            }}
+            no runtime on record and
+            {{ episodic.episodes_without_runtime === 1 ? "is" : "are" }} left
+            out of the watch time rather than guessed.
           </p>
-          <section v-if="episodic.top_rated.length" class="stats-panel toprated-panel">
+          <section
+            v-if="episodic.top_rated.length"
+            class="stats-panel toprated-panel"
+          >
             <h2>Top rated</h2>
             <TopRatedRow :items="episodic.top_rated" @open="openTitle" />
           </section>
           <div class="stats-panels">
-            <section class="stats-panel"><h2>Status breakdown</h2><DonutChart :slices="statusSlices(episodic.by_status)" :center-label="tab === 'tv' ? 'shows' : 'anime'" /></section>
-            <section class="stats-panel"><h2>Score distribution</h2><ColumnChart :columns="scoreColumns(episodic.score.distribution)" empty="Nothing rated yet." /></section>
+            <section class="stats-panel">
+              <h2>Status breakdown</h2>
+              <DonutChart
+                :slices="statusSlices(episodic.by_status)"
+                :center-label="tab === 'tv' ? 'shows' : 'anime'"
+              />
+            </section>
+            <section class="stats-panel">
+              <h2>Score distribution</h2>
+              <ColumnChart
+                :columns="scoreColumns(episodic.score.distribution)"
+                empty="Nothing rated yet."
+              />
+            </section>
             <section v-if="episodic.minutes_rewatch" class="stats-panel">
               <h2>Watch time</h2>
               <DonutChart
                 :slices="[
-                  { name: 'First watch', value: episodic.minutes_first, color: '#d68a34' },
-                  { name: 'Rewatches', value: episodic.minutes_rewatch, color: '#7ba7d9' },
+                  {
+                    name: 'First watch',
+                    value: episodic.minutes_first,
+                    color: '#d68a34',
+                  },
+                  {
+                    name: 'Rewatches',
+                    value: episodic.minutes_rewatch,
+                    color: '#7ba7d9',
+                  },
                 ]"
                 center-label="minutes"
               />
             </section>
             <section v-if="episodic.most_rewatched.length" class="stats-panel">
               <h2>Most rewatched</h2>
-              <BarList :rows="episodic.most_rewatched.map((r) => ({ name: r.title, value: r.count, label: `${r.count}x` }))" />
+              <BarList
+                :rows="
+                  episodic.most_rewatched.map((r) => ({
+                    name: r.title,
+                    value: r.count,
+                    label: `${r.count}x`,
+                  }))
+                "
+              />
             </section>
-            <section v-if="episodic.genres.length" class="stats-panel"><h2>Top genres</h2><DonutChart :slices="named(episodic.genres)" center-label="titles" /></section>
-            <section v-if="tab === 'anime' && episodic.formats.length" class="stats-panel"><h2>By format</h2><DonutChart :slices="named(episodic.formats)" center-label="titles" /></section>
+            <section v-if="episodic.genres.length" class="stats-panel">
+              <h2>Top genres</h2>
+              <DonutChart
+                :slices="named(episodic.genres)"
+                center-label="titles"
+              />
+            </section>
+            <section
+              v-if="tab === 'anime' && episodic.formats.length"
+              class="stats-panel"
+            >
+              <h2>By format</h2>
+              <DonutChart
+                :slices="named(episodic.formats)"
+                center-label="titles"
+              />
+            </section>
             <section v-if="episodic.most_watched.length" class="stats-panel">
               <h2>Most time watched</h2>
               <BarList
-                :rows="episodic.most_watched.map((s) => ({ name: s.title, value: s.minutes, label: `${fmtMinutes(s.minutes)} · ${s.episodes} eps` }))"
+                :rows="
+                  episodic.most_watched.map((s) => ({
+                    name: s.title,
+                    value: s.minutes,
+                    label: `${fmtMinutes(s.minutes)} · ${s.episodes} eps`,
+                  }))
+                "
               />
             </section>
-            <section v-if="bestGenres(episodic.genres).length" class="stats-panel"><h2>Genres you rate highest</h2><BarList :rows="bestGenres(episodic.genres)" /></section>
-            <section class="stats-panel"><h2>Release years</h2><ColumnChart :columns="years(episodic.by_release_year)" /></section>
-            <section v-if="episodic.studios.length" class="stats-panel"><h2>{{ tab === 'tv' ? 'Creators' : 'Studios' }}</h2><BarList :rows="named(episodic.studios)" /></section>
-            <section class="stats-panel"><h2>Added, last 12 months</h2><ColumnChart :columns="months(episodic.added_per_month)" /></section>
+            <section
+              v-if="bestGenres(episodic.genres).length"
+              class="stats-panel"
+            >
+              <h2>Genres you rate highest</h2>
+              <BarList :rows="bestGenres(episodic.genres)" />
+            </section>
+            <section class="stats-panel">
+              <h2>Release years</h2>
+              <ColumnChart :columns="years(episodic.by_release_year)" />
+            </section>
+            <section v-if="episodic.studios.length" class="stats-panel">
+              <h2>{{ tab === "tv" ? "Creators" : "Studios" }}</h2>
+              <BarList :rows="named(episodic.studios)" />
+            </section>
+            <section class="stats-panel">
+              <h2>Added, last 12 months</h2>
+              <ColumnChart :columns="months(episodic.added_per_month)" />
+            </section>
           </div>
         </template>
       </template>

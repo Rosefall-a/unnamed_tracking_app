@@ -37,17 +37,21 @@ export const DEFAULT_PREFERENCES: Preferences = {
 
 export async function fetchPreferences(): Promise<Preferences> {
   const response = await fetch("/api/preferences", { credentials: "include" });
-  if (!response.ok) throw new Error(`Failed to load preferences: ${response.status}`);
+  if (!response.ok)
+    throw new Error(`Failed to load preferences: ${response.status}`);
   return { ...DEFAULT_PREFERENCES, ...(await response.json()) };
 }
 
-export async function updatePreferences(changes: Partial<Preferences>): Promise<Preferences> {
+export async function updatePreferences(
+  changes: Partial<Preferences>,
+): Promise<Preferences> {
   const response = await fetch("/api/preferences", {
     method: "PATCH",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(changes),
   });
-  if (!response.ok) throw new Error(`Failed to save preferences: ${response.status}`);
+  if (!response.ok)
+    throw new Error(`Failed to save preferences: ${response.status}`);
   return { ...DEFAULT_PREFERENCES, ...(await response.json()) };
 }

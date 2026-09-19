@@ -16,7 +16,8 @@ async function loadStatus() {
   try {
     status.value = await fetchMediaRefreshStatus();
   } catch (err) {
-    loadError.value = err instanceof Error ? err.message : "Failed to load task status";
+    loadError.value =
+      err instanceof Error ? err.message : "Failed to load task status";
   }
 }
 onMounted(loadStatus);
@@ -70,8 +71,8 @@ function formatInterval(seconds: number): string {
       <p class="tile-desc">
         A cheap check ({{ formatInterval(status.airingCheck.intervalSeconds) }})
         for whether a tracked show or anime has a newly-aired episode number.
-        Adds a bare placeholder row right away so you can check it off. The
-        real title and image come later from a full refresh.
+        Adds a bare placeholder row right away so you can check it off. The real
+        title and image come later from a full refresh.
       </p>
       <p class="last-run">
         Last run: {{ formatTime(status.airingCheck.lastRunAt) }}
@@ -82,8 +83,10 @@ function formatInterval(seconds: number): string {
               status.airingCheck.lastResult.tv_episodes_added)
           "
         >
-          · +{{ status.airingCheck.lastResult.anime_episodes_added || 0 }} anime,
-          +{{ status.airingCheck.lastResult.tv_episodes_added || 0 }} TV
+          · +{{
+            status.airingCheck.lastResult.anime_episodes_added || 0
+          }}
+          anime, +{{ status.airingCheck.lastResult.tv_episodes_added || 0 }} TV
         </template>
       </p>
       <div v-if="checkError" class="form-error">{{ checkError }}</div>
@@ -105,11 +108,11 @@ function formatInterval(seconds: number): string {
         </span>
       </div>
       <p class="tile-desc">
-        Backfills real titles, descriptions, and images (including a TMDB
-        lookup for anime), on top of whatever the airing check already added.
-        Runs on its own
-        {{ formatInterval(status.fullRefresh.intervalSeconds) }}. Run it
-        early from Metadata &gt; Refresh Media if you don't want to wait.
+        Backfills real titles, descriptions, and images (including a TMDB lookup
+        for anime), on top of whatever the airing check already added. Runs on
+        its own
+        {{ formatInterval(status.fullRefresh.intervalSeconds) }}. Run it early
+        from Metadata &gt; Refresh Media if you don't want to wait.
       </p>
       <p class="last-run">
         Last run: {{ formatTime(status.fullRefresh.lastRunAt) }}

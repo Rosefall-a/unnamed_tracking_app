@@ -24,7 +24,9 @@ const LISTS: SegmentOption[] = [
     icon: '<line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" /><line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" />',
   },
 ];
-const listsActive = computed(() => (route.path.startsWith("/lists") ? "lists" : ""));
+const listsActive = computed(() =>
+  route.path.startsWith("/lists") ? "lists" : "",
+);
 </script>
 
 <template>
@@ -32,7 +34,11 @@ const listsActive = computed(() => (route.path.startsWith("/lists") ? "lists" : 
     <MediaKindSwitch :active="active" />
     <template #actions>
       <slot name="actions" />
-      <SegmentedTabs :options="LISTS" :model-value="listsActive" aria-label="Lists" />
+      <SegmentedTabs
+        :options="LISTS"
+        :model-value="listsActive"
+        aria-label="Lists"
+      />
     </template>
   </AppTopBar>
 </template>

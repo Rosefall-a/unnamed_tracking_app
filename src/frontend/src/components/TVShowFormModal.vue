@@ -129,16 +129,22 @@ async function searchMetadata() {
 function applyMetadata(result: TVShowMetadataResult) {
   const locked = new Set(props.show?.lockedFields ?? []);
   if (!locked.has("title")) fields.value.title = result.title;
-  if (!locked.has("description")) fields.value.description = result.description ?? "";
-  if (!locked.has("first_air_date")) fields.value.firstAirDate = result.firstAirDate ?? "";
-  if (!locked.has("episode_runtime_minutes") && result.episodeRuntimeMinutes !== null)
+  if (!locked.has("description"))
+    fields.value.description = result.description ?? "";
+  if (!locked.has("first_air_date"))
+    fields.value.firstAirDate = result.firstAirDate ?? "";
+  if (
+    !locked.has("episode_runtime_minutes") &&
+    result.episodeRuntimeMinutes !== null
+  )
     fields.value.episodeRuntimeMinutes = result.episodeRuntimeMinutes;
   if (!locked.has("creators") && result.creators.length)
     fields.value.creatorsInput = result.creators.join(", ");
   if (!locked.has("genres") && result.genres.length)
     fields.value.genresInput = result.genres.join(", ");
   if (!locked.has("poster_url")) fields.value.posterUrl = result.posterUrl;
-  if (!locked.has("backdrop_url")) fields.value.backdropUrl = result.backdropUrl;
+  if (!locked.has("backdrop_url"))
+    fields.value.backdropUrl = result.backdropUrl;
   if (!locked.has("tmdb_score") && result.tmdbScore !== null)
     fields.value.tmdbScore = result.tmdbScore;
   // Not gated by locked_fields — this isn't a user-editable display

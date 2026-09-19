@@ -18,7 +18,15 @@ watch(
   },
   { immediate: true },
 );
-const KEPT_ALIVE = ["MovieLibrary", "TVShowLibrary", "AnimeLibrary", "Calendar", "MediaLists", "Statistics", "Notifications"];
+const KEPT_ALIVE = [
+  "MovieLibrary",
+  "TVShowLibrary",
+  "AnimeLibrary",
+  "Calendar",
+  "MediaLists",
+  "Statistics",
+  "Notifications",
+];
 </script>
 
 <template>

@@ -11,12 +11,17 @@ const emit = defineEmits<{ change: [value: number | null] }>();
 const open = ref(false);
 const anchor = ref<HTMLElement | null>(null);
 const inputEl = ref<HTMLInputElement | null>(null);
-const panelStyle = ref<{ top: string; left: string }>({ top: "0px", left: "0px" });
+const panelStyle = ref<{ top: string; left: string }>({
+  top: "0px",
+  left: "0px",
+});
 const text = ref("");
 const invalid = ref(false);
 
 const label = computed(() =>
-  props.modelValue === null ? "Rate" : `★ ${Number.isInteger(props.modelValue) ? props.modelValue.toFixed(1) : props.modelValue}`,
+  props.modelValue === null
+    ? "Rate"
+    : `★ ${Number.isInteger(props.modelValue) ? props.modelValue.toFixed(1) : props.modelValue}`,
 );
 
 async function toggle() {
@@ -60,7 +65,8 @@ function clear() {
 function onDocumentClick(e: MouseEvent) {
   if (!open.value) return;
   const target = e.target as HTMLElement;
-  if (anchor.value?.contains(target) || target.closest?.(".rating-panel")) return;
+  if (anchor.value?.contains(target) || target.closest?.(".rating-panel"))
+    return;
   open.value = false;
 }
 function onKey(e: KeyboardEvent) {
@@ -92,7 +98,14 @@ onBeforeUnmount(() => {
 
   <Teleport to="body">
     <Transition name="pop">
-      <form v-if="open" class="rating-panel" role="dialog" aria-label="Your score" :style="panelStyle" @submit.prevent="save">
+      <form
+        v-if="open"
+        class="rating-panel"
+        role="dialog"
+        aria-label="Your score"
+        :style="panelStyle"
+        @submit.prevent="save"
+      >
         <label class="panel-title" for="rating-input">Your score</label>
         <input
           id="rating-input"
@@ -109,7 +122,14 @@ onBeforeUnmount(() => {
         />
         <p v-if="invalid" class="hint bad">Enter a number from 0 to 10.</p>
         <div class="panel-actions">
-          <button v-if="modelValue !== null" type="button" class="clear-btn" @click="clear">Clear</button>
+          <button
+            v-if="modelValue !== null"
+            type="button"
+            class="clear-btn"
+            @click="clear"
+          >
+            Clear
+          </button>
           <button type="submit" class="save-btn">Save</button>
         </div>
       </form>
@@ -238,7 +258,9 @@ onBeforeUnmount(() => {
 }
 .pop-enter-active,
 .pop-leave-active {
-  transition: opacity 0.12s ease, transform 0.12s ease;
+  transition:
+    opacity 0.12s ease,
+    transform 0.12s ease;
 }
 .pop-enter-from,
 .pop-leave-to {

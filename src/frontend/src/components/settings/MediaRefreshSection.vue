@@ -22,7 +22,10 @@ async function runRefresh() {
 }
 
 function formatTime(d: Date): string {
-  return d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  return d.toLocaleTimeString(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+  });
 }
 </script>
 
@@ -33,37 +36,33 @@ function formatTime(d: Date): string {
       This full refresh already runs automatically every 24 hours, same as
       backups. Run it manually here to check for newly-aired episodes, or to
       fill in titles/images on episodes that were only ever synced as bare
-      placeholders, right away instead of waiting for the next automatic
-      pass (e.g. right after adding a TMDB key).
+      placeholders, right away instead of waiting for the next automatic pass
+      (e.g. right after adding a TMDB key).
     </p>
 
     <div class="tile">
       <h3>Show &amp; anime episodes</h3>
       <p class="tile-desc">
         Checks every show and anime you're already tracking episode-by-episode
-        against Jikan, AniList, and TMDB (whichever are configured). Appends
-        any newly-aired episode numbers, and fills in title/description/image
-        on existing rows that were still blank placeholders. Never touches
-        which episodes you've already marked watched, or your ratings.
+        against Jikan, AniList, and TMDB (whichever are configured). Appends any
+        newly-aired episode numbers, and fills in title/description/image on
+        existing rows that were still blank placeholders. Never touches which
+        episodes you've already marked watched, or your ratings.
       </p>
       <div v-if="error" class="form-error">{{ error }}</div>
       <div v-if="result" class="refresh-result">
         <div class="refresh-result-row">
           <span class="refresh-result-label">Anime</span>
           <span
-            >+{{ result.animeEpisodesAdded }} new, {{
-              result.animeEpisodesUpdated
-            }}
-            updated</span
+            >+{{ result.animeEpisodesAdded }} new,
+            {{ result.animeEpisodesUpdated }} updated</span
           >
         </div>
         <div class="refresh-result-row">
           <span class="refresh-result-label">TV</span>
           <span
-            >+{{ result.tvEpisodesAdded }} new, {{
-              result.tvEpisodesUpdated
-            }}
-            updated</span
+            >+{{ result.tvEpisodesAdded }} new,
+            {{ result.tvEpisodesUpdated }} updated</span
           >
         </div>
       </div>

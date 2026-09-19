@@ -1,7 +1,16 @@
 import { describe, it, expect } from "vitest";
-import { bucketToReal, statusBucket, statusBucketLabel } from "../utils/mediaStatus";
+import {
+  bucketToReal,
+  statusBucket,
+  statusBucketLabel,
+} from "../utils/mediaStatus";
 import { createEntityCache } from "../utils/entityCache";
-import { activeDialog, closeDialog, useConfirm, usePrompt } from "../state/dialog";
+import {
+  activeDialog,
+  closeDialog,
+  useConfirm,
+  usePrompt,
+} from "../state/dialog";
 
 describe("status buckets", () => {
   it("collapses the eight stored statuses into the five shown ones", () => {

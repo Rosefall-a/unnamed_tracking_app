@@ -58,16 +58,36 @@ const manualLibrary = ref<PickableMedia[]>([]);
 const manualLibraryLoaded = ref(false);
 const posterByMedia = computed(() => {
   const map = new Map<string, string | null>();
-  for (const m of manualLibrary.value) map.set(`${m.mediaType}-${m.mediaId}`, m.posterUrl);
+  for (const m of manualLibrary.value)
+    map.set(`${m.mediaType}-${m.mediaId}`, m.posterUrl);
   return map;
 });
 async function loadManualLibrary() {
   if (manualLibraryLoaded.value) return;
-  const [movies, shows, anime] = await Promise.all([fetchMovies(), fetchTVShows(), fetchAnime()]);
+  const [movies, shows, anime] = await Promise.all([
+    fetchMovies(),
+    fetchTVShows(),
+    fetchAnime(),
+  ]);
   manualLibrary.value = [
-    ...movies.map((m) => ({ mediaType: "movie" as const, mediaId: m.id, title: m.title, posterUrl: m.posterUrl })),
-    ...shows.map((s) => ({ mediaType: "tv" as const, mediaId: s.id, title: s.title, posterUrl: s.posterUrl })),
-    ...anime.map((a) => ({ mediaType: "anime" as const, mediaId: a.id, title: a.title, posterUrl: a.posterUrl })),
+    ...movies.map((m) => ({
+      mediaType: "movie" as const,
+      mediaId: m.id,
+      title: m.title,
+      posterUrl: m.posterUrl,
+    })),
+    ...shows.map((s) => ({
+      mediaType: "tv" as const,
+      mediaId: s.id,
+      title: s.title,
+      posterUrl: s.posterUrl,
+    })),
+    ...anime.map((a) => ({
+      mediaType: "anime" as const,
+      mediaId: a.id,
+      title: a.title,
+      posterUrl: a.posterUrl,
+    })),
   ];
   manualLibraryLoaded.value = true;
 }
@@ -105,7 +125,9 @@ watch(filters, () => {
 // ---- preferences (Settings > Calendar) ----
 const prefs = ref<Preferences>({ ...DEFAULT_PREFERENCES });
 const showGamesFilter = computed(
-  () => !prefs.value.calendar_hide_games && (prefs.value.calendar_game_releases || prefs.value.calendar_game_history),
+  () =>
+    !prefs.value.calendar_hide_games &&
+    (prefs.value.calendar_game_releases || prefs.value.calendar_game_history),
 );
 const weekStart = computed(() => prefs.value.calendar_week_start);
 async function loadPreferences() {
@@ -136,7 +158,9 @@ const viewYear = ref(today.getFullYear());
 const viewMonth = ref(today.getMonth()); // 0-11
 
 const isCurrentMonth = computed(
-  () => viewYear.value === today.getFullYear() && viewMonth.value === today.getMonth(),
+  () =>
+    viewYear.value === today.getFullYear() &&
+    viewMonth.value === today.getMonth(),
 );
 const CAL_MAX_DAYS = 90;
 // Back as far as the oldest logged entry (never earlier than the current
@@ -144,23 +168,32 @@ const CAL_MAX_DAYS = 90;
 // forward as far as the backend projects airings.
 const earliestMonth = computed(() => {
   let min = "";
-  for (const a of historyEntries.value) if (!min || a.eventDate < min) min = a.eventDate;
+  for (const a of historyEntries.value)
+    if (!min || a.eventDate < min) min = a.eventDate;
   if (!min) return today.getFullYear() * 12 + today.getMonth();
   const d = new Date(`${min}T00:00:00`);
-  return Math.min(d.getFullYear() * 12 + d.getMonth(), today.getFullYear() * 12 + today.getMonth());
+  return Math.min(
+    d.getFullYear() * 12 + d.getMonth(),
+    today.getFullYear() * 12 + today.getMonth(),
+  );
 });
-const canGoPrev = computed(() => viewYear.value * 12 + viewMonth.value > earliestMonth.value);
+const canGoPrev = computed(
+  () => viewYear.value * 12 + viewMonth.value > earliestMonth.value,
+);
 const canGoNext = computed(() => {
   const firstOfNext = new Date(viewYear.value, viewMonth.value + 1, 1);
   return firstOfNext.getTime() - today.getTime() < CAL_MAX_DAYS * 86_400_000;
 });
-const jumpMonthValue = computed(() => `${viewYear.value}-${String(viewMonth.value + 1).padStart(2, "0")}`);
+const jumpMonthValue = computed(
+  () => `${viewYear.value}-${String(viewMonth.value + 1).padStart(2, "0")}`,
+);
 function jumpToMonth(event: Event) {
   const value = (event.target as HTMLInputElement).value;
   if (!/^\d{4}-\d{2}$/.test(value)) return;
   const [y, m] = value.split("-").map(Number);
   const index = y * 12 + (m - 1);
-  const max = today.getFullYear() * 12 + today.getMonth() + Math.ceil(CAL_MAX_DAYS / 30);
+  const max =
+    today.getFullYear() * 12 + today.getMonth() + Math.ceil(CAL_MAX_DAYS / 30);
   if (index < earliestMonth.value || index > max) return;
   viewYear.value = y;
   viewMonth.value = m - 1;
@@ -177,7 +210,8 @@ async function loadCalendar() {
     // from the watched layer instead.
     entries.value = await fetchCalendar(CAL_MAX_DAYS);
   } catch (e) {
-    calError.value = e instanceof Error ? e.message : "Failed to load the calendar.";
+    calError.value =
+      e instanceof Error ? e.message : "Failed to load the calendar.";
   } finally {
     calLoading.value = false;
   }
@@ -195,7 +229,8 @@ async function loadHistory() {
     // every entry there is, not a fixed window
     historyEntries.value = await fetchActivity(36500);
   } catch (e) {
-    historyError.value = e instanceof Error ? e.message : "Failed to load history.";
+    historyError.value =
+      e instanceof Error ? e.message : "Failed to load history.";
   } finally {
     historyLoading.value = false;
   }
@@ -242,7 +277,10 @@ function keyOfDate(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 function timeLabel(airAt: number): string {
-  return new Date(airAt * 1000).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  return new Date(airAt * 1000).toLocaleTimeString(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+  });
 }
 
 function fromEntry(e: CalendarEntry): CalItem {
@@ -277,14 +315,17 @@ function fromGame(g: CalendarGameEntry): CalItem {
     title: g.title,
     posterUrl: null,
     badge: finished ? "✓" : String(g.count),
-    detail: finished ? "Finished" : `${g.count} achievement${g.count === 1 ? "" : "s"} unlocked`,
+    detail: finished
+      ? "Finished"
+      : `${g.count} achievement${g.count === 1 ? "" : "s"} unlocked`,
     projected: false,
     sortAt: new Date(`${g.date}T12:00:00`).getTime() / 1000,
     dayKey: g.date,
   };
 }
 function fromActivity(a: ActivityEntry): CalItem | null {
-  if (a.eventType !== "episodes_watched" && a.eventType !== "rewatched") return null;
+  if (a.eventType !== "episodes_watched" && a.eventType !== "rewatched")
+    return null;
   const isRewatch = a.eventType === "rewatched";
   return {
     key: `watched-${a.id}`,
@@ -328,21 +369,39 @@ const watchedByDay = computed(() => {
 function passesFilters(i: CalItem): boolean {
   if (!filters[i.mediaType] || !filters[i.layer]) return false;
   if (i.mediaType === "game" && prefs.value.calendar_hide_games) return false;
-  return !(i.projected && (!filters.estimated || !prefs.value.calendar_show_estimated));
+  return !(
+    i.projected &&
+    (!filters.estimated || !prefs.value.calendar_show_estimated)
+  );
 }
 function itemsForDay(key: string): CalItem[] {
   const a = upcomingByDay.value.get(key);
   const b = watchedByDay.value.get(key);
   if (!a && !b) return [];
-  return [...(a ?? []), ...(b ?? [])].filter(passesFilters).sort((x, y) => x.sortAt - y.sortAt);
+  return [...(a ?? []), ...(b ?? [])]
+    .filter(passesFilters)
+    .sort((x, y) => x.sortAt - y.sortAt);
 }
 
 const MONTH_NAMES = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
 ];
 const ALL_WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const WEEKDAY_LABELS = computed(() => [...ALL_WEEKDAYS.slice(weekStart.value), ...ALL_WEEKDAYS.slice(0, weekStart.value)]);
+const WEEKDAY_LABELS = computed(() => [
+  ...ALL_WEEKDAYS.slice(weekStart.value),
+  ...ALL_WEEKDAYS.slice(0, weekStart.value),
+]);
 
 interface DayCell {
   day: number;
@@ -405,14 +464,23 @@ function goToday() {
 const CHIP_SLOTS = 6;
 function chipsFor(cell: DayCell): { shown: CalItem[]; more: number } {
   if (cell.items.length <= CHIP_SLOTS) return { shown: cell.items, more: 0 };
-  return { shown: cell.items.slice(0, CHIP_SLOTS - 1), more: cell.items.length - (CHIP_SLOTS - 1) };
+  return {
+    shown: cell.items.slice(0, CHIP_SLOTS - 1),
+    more: cell.items.length - (CHIP_SLOTS - 1),
+  };
 }
 function itemTooltip(i: CalItem): string {
   return `${i.title}${i.detail ? ` · ${i.detail}` : ""}`;
 }
 function openItem(i: { mediaType: CalMediaType; mediaId: string }) {
   const base =
-    i.mediaType === "movie" ? "/movies" : i.mediaType === "anime" ? "/anime" : i.mediaType === "game" ? "/games" : "/tv";
+    i.mediaType === "movie"
+      ? "/movies"
+      : i.mediaType === "anime"
+        ? "/anime"
+        : i.mediaType === "game"
+          ? "/games"
+          : "/tv";
   router.push(`${base}/${i.mediaId}`);
 }
 
@@ -421,14 +489,19 @@ const agendaGroups = computed(() =>
   [...upcomingByDay.value.keys()]
     .filter((key) => key >= todayKey)
     .sort()
-    .map((key) => ({ key, items: itemsForDay(key).filter((i) => i.layer !== "watched") }))
+    .map((key) => ({
+      key,
+      items: itemsForDay(key).filter((i) => i.layer !== "watched"),
+    }))
     .filter((g) => g.items.length),
 );
 function longDayLabel(key: string): string {
   const yesterday = keyOfDate(new Date(today.getTime() - 86_400_000));
   const tomorrow = keyOfDate(new Date(today.getTime() + 86_400_000));
   const base = new Date(`${key}T00:00:00`).toLocaleDateString(undefined, {
-    weekday: "long", month: "short", day: "numeric",
+    weekday: "long",
+    month: "short",
+    day: "numeric",
   });
   if (key === todayKey) return `Today · ${base}`;
   if (key === tomorrow) return `Tomorrow · ${base}`;
@@ -438,7 +511,9 @@ function longDayLabel(key: string): string {
 
 // ---- day drawer (opens on click, holds the full list for that day) ----
 const drawerKey = ref<string | null>(null);
-const drawerItems = computed(() => (drawerKey.value ? itemsForDay(drawerKey.value) : []));
+const drawerItems = computed(() =>
+  drawerKey.value ? itemsForDay(drawerKey.value) : [],
+);
 function openDrawer(cell: DayCell) {
   drawerKey.value = cell.key;
 }
@@ -465,7 +540,8 @@ async function openFeed() {
   try {
     feedUrl.value = await fetchCalendarFeedUrl();
   } catch (e) {
-    feedError.value = e instanceof Error ? e.message : "Couldn't load the feed link.";
+    feedError.value =
+      e instanceof Error ? e.message : "Couldn't load the feed link.";
   }
 }
 async function copyFeed() {
@@ -480,7 +556,8 @@ async function copyFeed() {
 const confirm = useConfirm();
 async function regenerateFeed() {
   const ok = await confirm({
-    message: "Make a new link? Anything subscribed to the old one stops updating.",
+    message:
+      "Make a new link? Anything subscribed to the old one stops updating.",
     confirmLabel: "Make new link",
   });
   if (!ok) return;
@@ -489,7 +566,8 @@ async function regenerateFeed() {
     feedUrl.value = await fetchCalendarFeedUrl(true);
     feedCopied.value = false;
   } catch (e) {
-    feedError.value = e instanceof Error ? e.message : "Couldn't make a new link.";
+    feedError.value =
+      e instanceof Error ? e.message : "Couldn't make a new link.";
   } finally {
     feedBusy.value = false;
   }
@@ -526,7 +604,8 @@ const HISTORY_ICONS: Record<ActivityEntry["eventType"], string> = {
 const filteredHistory = computed(() => {
   const q = historySearch.value.trim().toLowerCase();
   return historyEntries.value.filter((e) => {
-    if (historyType.value !== "all" && e.eventType !== historyType.value) return false;
+    if (historyType.value !== "all" && e.eventType !== historyType.value)
+      return false;
     if (q && !e.mediaTitle.toLowerCase().includes(q)) return false;
     return true;
   });
@@ -585,7 +664,9 @@ function cancelEdit() {
 const editSearchResults = computed(() => {
   const q = editMediaSearch.value.trim().toLowerCase();
   if (!q) return [];
-  return manualLibrary.value.filter((m) => m.title.toLowerCase().includes(q)).slice(0, 8);
+  return manualLibrary.value
+    .filter((m) => m.title.toLowerCase().includes(q))
+    .slice(0, 8);
 });
 function pickEditMedia(m: PickableMedia) {
   editMediaPicked.value = m;
@@ -616,7 +697,9 @@ async function saveEdit(e: ActivityEntry) {
         // side into that row, so this one is gone and the target
         // needs its own count/detail refreshed
         historyEntries.value.splice(idx, 1);
-        const targetIdx = historyEntries.value.findIndex((h) => h.id === updated.id);
+        const targetIdx = historyEntries.value.findIndex(
+          (h) => h.id === updated.id,
+        );
         if (targetIdx !== -1) historyEntries.value[targetIdx] = updated;
         else historyEntries.value.push(updated);
       }
@@ -637,7 +720,8 @@ async function removeHistoryEntry(e: ActivityEntry) {
     await deleteActivityEntry(e.id);
     historyEntries.value = historyEntries.value.filter((h) => h.id !== e.id);
   } catch (err) {
-    historyError.value = err instanceof Error ? err.message : "Failed to delete entry.";
+    historyError.value =
+      err instanceof Error ? err.message : "Failed to delete entry.";
   }
 }
 
@@ -678,7 +762,9 @@ function logForDrawerDay() {
 const manualSearchResults = computed(() => {
   const q = manualSearch.value.trim().toLowerCase();
   if (!q) return [];
-  return manualLibrary.value.filter((m) => m.title.toLowerCase().includes(q)).slice(0, 8);
+  return manualLibrary.value
+    .filter((m) => m.title.toLowerCase().includes(q))
+    .slice(0, 8);
 });
 function pickManualMedia(m: PickableMedia) {
   manualPicked.value = m;
@@ -708,7 +794,8 @@ async function submitManualEntry() {
     else historyEntries.value.push(created);
     showManualForm.value = false;
   } catch (err) {
-    manualError.value = err instanceof Error ? err.message : "Failed to log entry.";
+    manualError.value =
+      err instanceof Error ? err.message : "Failed to log entry.";
   } finally {
     manualSaving.value = false;
   }
@@ -725,10 +812,21 @@ async function submitManualEntry() {
         @update:model-value="tab = $event as 'calendar' | 'history'"
       />
       <template #actions>
-        <button v-if="tab === 'calendar'" type="button" class="ui-btn ui-btn-secondary" @click="openFeed">
+        <button
+          v-if="tab === 'calendar'"
+          type="button"
+          class="ui-btn ui-btn-secondary"
+          @click="openFeed"
+        >
           Subscribe
         </button>
-        <button type="button" class="ui-btn ui-btn-primary" @click="openManualForm()">+ Log Entry</button>
+        <button
+          type="button"
+          class="ui-btn ui-btn-primary"
+          @click="openManualForm()"
+        >
+          + Log Entry
+        </button>
       </template>
     </AppTopBar>
 
@@ -739,15 +837,35 @@ async function submitManualEntry() {
       <template v-if="tab === 'calendar'">
         <div class="month-bar">
           <div v-if="calView === 'month'" class="month-nav">
-            <button type="button" class="nav-btn" :disabled="!canGoPrev" @click="prevMonth">‹</button>
+            <button
+              type="button"
+              class="nav-btn"
+              :disabled="!canGoPrev"
+              @click="prevMonth"
+            >
+              ‹
+            </button>
             <label class="month-label month-picker" title="Jump to a month">
               {{ MONTH_NAMES[viewMonth] }} {{ viewYear }}
-              <input type="month" :value="jumpMonthValue" @change="jumpToMonth" />
+              <input
+                type="month"
+                :value="jumpMonthValue"
+                @change="jumpToMonth"
+              />
             </label>
-            <button type="button" class="nav-btn" :disabled="!canGoNext" @click="nextMonth">›</button>
+            <button
+              type="button"
+              class="nav-btn"
+              :disabled="!canGoNext"
+              @click="nextMonth"
+            >
+              ›
+            </button>
           </div>
           <div v-else class="month-nav">
-            <span class="month-label agenda-label">Next {{ CAL_MAX_DAYS }} days</span>
+            <span class="month-label agenda-label"
+              >Next {{ CAL_MAX_DAYS }} days</span
+            >
           </div>
           <div class="month-bar-actions">
             <SegmentedTabs
@@ -764,7 +882,16 @@ async function submitManualEntry() {
               :disabled="refreshing"
               @click="refreshAll"
             >
-              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <svg
+                viewBox="0 0 24 24"
+                width="14"
+                height="14"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
                 <path d="M21 12a9 9 0 1 1-2.64-6.36" />
                 <polyline points="21 4 21 10 15 10" />
               </svg>
@@ -783,9 +910,30 @@ async function submitManualEntry() {
 
         <div class="filter-row">
           <div class="filter-group">
-            <button type="button" class="ui-chip" :class="{ on: filters.movie }" @click="filters.movie = !filters.movie">Movies</button>
-            <button type="button" class="ui-chip" :class="{ on: filters.tv }" @click="filters.tv = !filters.tv">TV</button>
-            <button type="button" class="ui-chip" :class="{ on: filters.anime }" @click="filters.anime = !filters.anime">Anime</button>
+            <button
+              type="button"
+              class="ui-chip"
+              :class="{ on: filters.movie }"
+              @click="filters.movie = !filters.movie"
+            >
+              Movies
+            </button>
+            <button
+              type="button"
+              class="ui-chip"
+              :class="{ on: filters.tv }"
+              @click="filters.tv = !filters.tv"
+            >
+              TV
+            </button>
+            <button
+              type="button"
+              class="ui-chip"
+              :class="{ on: filters.anime }"
+              @click="filters.anime = !filters.anime"
+            >
+              Anime
+            </button>
             <button
               v-if="showGamesFilter"
               type="button"
@@ -797,13 +945,28 @@ async function submitManualEntry() {
             </button>
           </div>
           <div class="filter-group">
-            <button type="button" class="ui-chip layer-episode" :class="{ on: filters.episode }" @click="filters.episode = !filters.episode">
+            <button
+              type="button"
+              class="ui-chip layer-episode"
+              :class="{ on: filters.episode }"
+              @click="filters.episode = !filters.episode"
+            >
               <span class="swatch"></span>Airing
             </button>
-            <button type="button" class="ui-chip layer-release" :class="{ on: filters.release }" @click="filters.release = !filters.release">
+            <button
+              type="button"
+              class="ui-chip layer-release"
+              :class="{ on: filters.release }"
+              @click="filters.release = !filters.release"
+            >
               <span class="swatch"></span>Releases
             </button>
-            <button type="button" class="ui-chip layer-watched" :class="{ on: filters.watched }" @click="filters.watched = !filters.watched">
+            <button
+              type="button"
+              class="ui-chip layer-watched"
+              :class="{ on: filters.watched }"
+              @click="filters.watched = !filters.watched"
+            >
               <span class="swatch"></span>Watched
             </button>
             <button
@@ -831,7 +994,11 @@ async function submitManualEntry() {
               :key="cell.key"
               type="button"
               class="day-cell"
-              :class="{ 'out-of-month': !cell.inMonth, today: cell.isToday, past: cell.isPast }"
+              :class="{
+                'out-of-month': !cell.inMonth,
+                today: cell.isToday,
+                past: cell.isPast,
+              }"
               @click="openDrawer(cell)"
             >
               <span class="day-number">{{ cell.day }}</span>
@@ -843,11 +1010,20 @@ async function submitManualEntry() {
                   :class="[`layer-${i.layer}`, { projected: i.projected }]"
                   :title="itemTooltip(i)"
                 >
-                  <img v-if="i.posterUrl" :src="i.posterUrl" alt="" loading="lazy" />
-                  <span v-else class="chip-fallback">{{ i.title.slice(0, 1) }}</span>
+                  <img
+                    v-if="i.posterUrl"
+                    :src="i.posterUrl"
+                    alt=""
+                    loading="lazy"
+                  />
+                  <span v-else class="chip-fallback">{{
+                    i.title.slice(0, 1)
+                  }}</span>
                   <span v-if="i.badge" class="chip-badge">{{ i.badge }}</span>
                 </span>
-                <span v-if="chipsFor(cell).more" class="chip chip-more">+{{ chipsFor(cell).more }}</span>
+                <span v-if="chipsFor(cell).more" class="chip chip-more"
+                  >+{{ chipsFor(cell).more }}</span
+                >
               </span>
             </button>
           </div>
@@ -855,7 +1031,8 @@ async function submitManualEntry() {
 
         <template v-else>
           <p v-if="!agendaGroups.length && !calLoading" class="ui-state">
-            Nothing scheduled in the next {{ CAL_MAX_DAYS }} days with these filters.
+            Nothing scheduled in the next {{ CAL_MAX_DAYS }} days with these
+            filters.
           </p>
           <div v-else class="agenda">
             <div v-for="g in agendaGroups" :key="g.key" class="agenda-day">
@@ -869,7 +1046,12 @@ async function submitManualEntry() {
                 @click="openItem(i)"
               >
                 <span class="agenda-thumb">
-                  <img v-if="i.posterUrl" :src="i.posterUrl" alt="" loading="lazy" />
+                  <img
+                    v-if="i.posterUrl"
+                    :src="i.posterUrl"
+                    alt=""
+                    loading="lazy"
+                  />
                 </span>
                 <span class="agenda-main">
                   <span class="agenda-title">{{ i.title }}</span>
@@ -884,19 +1066,37 @@ async function submitManualEntry() {
 
       <template v-else>
         <div class="history-filters">
-          <input v-model="historySearch" type="text" class="ui-field history-search" placeholder="Search history…" />
+          <input
+            v-model="historySearch"
+            type="text"
+            class="ui-field history-search"
+            placeholder="Search history…"
+          />
           <select v-model="historyType" class="ui-field history-type">
             <option value="all">Everything</option>
-            <option v-for="(label, key) in EVENT_TYPE_LABELS" :key="key" :value="key">{{ label }}</option>
+            <option
+              v-for="(label, key) in EVENT_TYPE_LABELS"
+              :key="key"
+              :value="key"
+            >
+              {{ label }}
+            </option>
           </select>
         </div>
         <p v-if="historyLoading" class="ui-state">Loading…</p>
-        <p v-else-if="historyError" class="ui-state error">{{ historyError }}</p>
+        <p v-else-if="historyError" class="ui-state error">
+          {{ historyError }}
+        </p>
         <p v-else-if="!groupedHistory.length" class="ui-state">
-          Nothing logged yet. Checking off episodes or changing a status will show up here.
+          Nothing logged yet. Checking off episodes or changing a status will
+          show up here.
         </p>
         <div v-else class="days">
-          <div v-for="[key, dayEntries] in groupedHistory" :key="key" class="day-group">
+          <div
+            v-for="[key, dayEntries] in groupedHistory"
+            :key="key"
+            class="day-group"
+          >
             <div class="day-heading">{{ historyDayLabel(key) }}</div>
             <template v-for="entry in dayEntries" :key="entry.id">
               <div v-if="editingId === entry.id" class="entry-edit-row">
@@ -910,7 +1110,10 @@ async function submitManualEntry() {
                         class="entry-edit-detail"
                         @input="editMediaPicked = null"
                       />
-                      <div v-if="editSearchResults.length" class="modal-search-results">
+                      <div
+                        v-if="editSearchResults.length"
+                        class="modal-search-results"
+                      >
                         <button
                           v-for="m in editSearchResults"
                           :key="`${m.mediaType}-${m.mediaId}`"
@@ -918,43 +1121,113 @@ async function submitManualEntry() {
                           class="modal-search-result"
                           @click="pickEditMedia(m)"
                         >
-                          {{ m.title }} <span class="modal-search-kind">{{ m.mediaType }}</span>
+                          {{ m.title }}
+                          <span class="modal-search-kind">{{
+                            m.mediaType
+                          }}</span>
                         </button>
                       </div>
                     </div>
                   </template>
                   <template v-else>
-                    <span class="entry-edit-title">{{ editMediaPicked?.title }}</span>
-                    <button type="button" class="entry-change-title-btn" @click="editChangingMedia = true; loadManualLibrary()">
+                    <span class="entry-edit-title">{{
+                      editMediaPicked?.title
+                    }}</span>
+                    <button
+                      type="button"
+                      class="entry-change-title-btn"
+                      @click="
+                        editChangingMedia = true;
+                        loadManualLibrary();
+                      "
+                    >
                       Change title
                     </button>
                   </template>
                 </div>
                 <div class="entry-edit-fields">
                   <select v-model="editEventType" class="entry-edit-type">
-                    <option v-for="(label, key) in EVENT_TYPE_LABELS" :key="key" :value="key">{{ label }}</option>
+                    <option
+                      v-for="(label, key) in EVENT_TYPE_LABELS"
+                      :key="key"
+                      :value="key"
+                    >
+                      {{ label }}
+                    </option>
                   </select>
-                  <input v-model="editDate" type="date" class="entry-edit-date" />
-                  <input v-model.number="editCount" type="number" min="1" class="entry-edit-count" />
-                  <input v-model="editDetail" type="text" placeholder="Note (optional)" class="entry-edit-detail" />
+                  <input
+                    v-model="editDate"
+                    type="date"
+                    class="entry-edit-date"
+                  />
+                  <input
+                    v-model.number="editCount"
+                    type="number"
+                    min="1"
+                    class="entry-edit-count"
+                  />
+                  <input
+                    v-model="editDetail"
+                    type="text"
+                    placeholder="Note (optional)"
+                    class="entry-edit-detail"
+                  />
                 </div>
                 <p v-if="editError" class="ui-error-box">{{ editError }}</p>
                 <div class="entry-edit-actions">
-                  <button type="button" class="entry-save-btn" @click="saveEdit(entry)">Save</button>
-                  <button type="button" class="entry-cancel-btn" @click="cancelEdit">Cancel</button>
+                  <button
+                    type="button"
+                    class="entry-save-btn"
+                    @click="saveEdit(entry)"
+                  >
+                    Save
+                  </button>
+                  <button
+                    type="button"
+                    class="entry-cancel-btn"
+                    @click="cancelEdit"
+                  >
+                    Cancel
+                  </button>
                 </div>
               </div>
-              <div v-else class="entry-row" :class="entry.eventType" @click="openHistoryEntry(entry)">
-                <span class="entry-icon">{{ HISTORY_ICONS[entry.eventType] }}</span>
+              <div
+                v-else
+                class="entry-row"
+                :class="entry.eventType"
+                @click="openHistoryEntry(entry)"
+              >
+                <span class="entry-icon">{{
+                  HISTORY_ICONS[entry.eventType]
+                }}</span>
                 <span class="entry-text">{{ describeActivity(entry) }}</span>
                 <span class="entry-actions">
-                  <button type="button" class="entry-action-btn" title="Edit" @click.stop="startEdit(entry)">✎</button>
-                  <button type="button" class="entry-action-btn" title="Delete" @click.stop="removeHistoryEntry(entry)">×</button>
+                  <button
+                    type="button"
+                    class="entry-action-btn"
+                    title="Edit"
+                    @click.stop="startEdit(entry)"
+                  >
+                    ✎
+                  </button>
+                  <button
+                    type="button"
+                    class="entry-action-btn"
+                    title="Delete"
+                    @click.stop="removeHistoryEntry(entry)"
+                  >
+                    ×
+                  </button>
                 </span>
               </div>
             </template>
           </div>
-          <button v-if="hasOlderHistory" type="button" class="secondary-button older-btn" @click="historyWindowDays += 90">
+          <button
+            v-if="hasOlderHistory"
+            type="button"
+            class="secondary-button older-btn"
+            @click="historyWindowDays += 90"
+          >
             Show Older
           </button>
         </div>
@@ -966,9 +1239,18 @@ async function submitManualEntry() {
         <aside class="drawer" role="dialog" aria-label="Day details">
           <div class="drawer-head">
             <h3>{{ longDayLabel(drawerKey) }}</h3>
-            <button type="button" class="drawer-close" title="Close" @click="closeDrawer">×</button>
+            <button
+              type="button"
+              class="drawer-close"
+              title="Close"
+              @click="closeDrawer"
+            >
+              ×
+            </button>
           </div>
-          <p v-if="!drawerItems.length" class="drawer-empty">Nothing on this day with the current filters.</p>
+          <p v-if="!drawerItems.length" class="drawer-empty">
+            Nothing on this day with the current filters.
+          </p>
           <div v-else class="drawer-list">
             <button
               v-for="i in drawerItems"
@@ -979,7 +1261,12 @@ async function submitManualEntry() {
               @click="openItem(i)"
             >
               <span class="agenda-thumb">
-                <img v-if="i.posterUrl" :src="i.posterUrl" alt="" loading="lazy" />
+                <img
+                  v-if="i.posterUrl"
+                  :src="i.posterUrl"
+                  alt=""
+                  loading="lazy"
+                />
               </span>
               <span class="agenda-main">
                 <span class="agenda-title">{{ i.title }}</span>
@@ -989,7 +1276,13 @@ async function submitManualEntry() {
             </button>
           </div>
           <div class="drawer-foot">
-            <button type="button" class="ui-btn ui-btn-secondary" @click="logForDrawerDay">Log something on this day</button>
+            <button
+              type="button"
+              class="ui-btn ui-btn-secondary"
+              @click="logForDrawerDay"
+            >
+              Log something on this day
+            </button>
           </div>
         </aside>
       </div>
@@ -999,30 +1292,52 @@ async function submitManualEntry() {
       <div class="ui-modal">
         <h3>Subscribe in your calendar app</h3>
         <p class="modal-hint">
-          Paste this link into Google Calendar (Other calendars, From URL), Apple Calendar or
-          Outlook and every airing episode and release shows up there, kept up to date. Anyone
-          with the link can see your schedule, so treat it like a password. The app has to be
-          reachable from the internet for Google Calendar to fetch it.
+          Paste this link into Google Calendar (Other calendars, From URL),
+          Apple Calendar or Outlook and every airing episode and release shows
+          up there, kept up to date. Anyone with the link can see your schedule,
+          so treat it like a password. The app has to be reachable from the
+          internet for Google Calendar to fetch it.
         </p>
-        <input class="ui-field" type="text" readonly :value="feedUrl" placeholder="Loading…" @focus="($event.target as HTMLInputElement).select()" />
+        <input
+          class="ui-field"
+          type="text"
+          readonly
+          :value="feedUrl"
+          placeholder="Loading…"
+          @focus="($event.target as HTMLInputElement).select()"
+        />
         <p v-if="feedError" class="ui-error-box feed-error">{{ feedError }}</p>
         <div class="ui-modal-actions">
-          <button type="button" class="ui-btn ui-btn-secondary" :disabled="feedBusy" @click="regenerateFeed">
+          <button
+            type="button"
+            class="ui-btn ui-btn-secondary"
+            :disabled="feedBusy"
+            @click="regenerateFeed"
+          >
             New link
           </button>
-          <button type="button" class="ui-btn ui-btn-primary" :disabled="!feedUrl" @click="copyFeed">
+          <button
+            type="button"
+            class="ui-btn ui-btn-primary"
+            :disabled="!feedUrl"
+            @click="copyFeed"
+          >
             {{ feedCopied ? "Copied" : "Copy link" }}
           </button>
         </div>
       </div>
     </div>
 
-    <div v-if="showManualForm" class="ui-backdrop" @click.self="closeManualForm">
+    <div
+      v-if="showManualForm"
+      class="ui-backdrop"
+      @click.self="closeManualForm"
+    >
       <div class="ui-modal">
         <h3>Log a history entry</h3>
         <p class="modal-hint">
-          For anything the app didn't catch automatically: watch history from before you added
-          this title, or an import.
+          For anything the app didn't catch automatically: watch history from
+          before you added this title, or an import.
         </p>
 
         <label class="modal-field">
@@ -1034,7 +1349,10 @@ async function submitManualEntry() {
             class="ui-field"
             @input="manualPicked = null"
           />
-          <div v-if="manualSearchResults.length && !manualPicked" class="modal-search-results">
+          <div
+            v-if="manualSearchResults.length && !manualPicked"
+            class="modal-search-results"
+          >
             <button
               v-for="m in manualSearchResults"
               :key="`${m.mediaType}-${m.mediaId}`"
@@ -1042,7 +1360,8 @@ async function submitManualEntry() {
               class="modal-search-result"
               @click="pickManualMedia(m)"
             >
-              {{ m.title }} <span class="modal-search-kind">{{ m.mediaType }}</span>
+              {{ m.title }}
+              <span class="modal-search-kind">{{ m.mediaType }}</span>
             </button>
           </div>
         </label>
@@ -1050,7 +1369,13 @@ async function submitManualEntry() {
         <label class="modal-field">
           <span>What happened</span>
           <select v-model="manualEventType" class="ui-field">
-            <option v-for="(label, key) in EVENT_TYPE_LABELS" :key="key" :value="key">{{ label }}</option>
+            <option
+              v-for="(label, key) in EVENT_TYPE_LABELS"
+              :key="key"
+              :value="key"
+            >
+              {{ label }}
+            </option>
           </select>
         </label>
 
@@ -1059,22 +1384,46 @@ async function submitManualEntry() {
             <span>Date</span>
             <input v-model="manualDate" type="date" class="ui-field" />
           </label>
-          <label v-if="manualEventType === 'episodes_watched'" class="modal-field">
+          <label
+            v-if="manualEventType === 'episodes_watched'"
+            class="modal-field"
+          >
             <span>Episodes</span>
-            <input v-model.number="manualCount" type="number" min="1" class="ui-field" />
+            <input
+              v-model.number="manualCount"
+              type="number"
+              min="1"
+              class="ui-field"
+            />
           </label>
         </div>
 
         <label class="modal-field">
           <span>Note (optional)</span>
-          <input v-model="manualDetail" type="text" class="ui-field" placeholder="e.g. rewatched with friends" />
+          <input
+            v-model="manualDetail"
+            type="text"
+            class="ui-field"
+            placeholder="e.g. rewatched with friends"
+          />
         </label>
 
         <p v-if="manualError" class="ui-error-box">{{ manualError }}</p>
 
         <div class="ui-modal-actions">
-          <button type="button" class="ui-btn ui-btn-secondary" @click="closeManualForm">Cancel</button>
-          <button type="button" class="ui-btn ui-btn-primary" :disabled="manualSaving" @click="submitManualEntry">
+          <button
+            type="button"
+            class="ui-btn ui-btn-secondary"
+            @click="closeManualForm"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            class="ui-btn ui-btn-primary"
+            :disabled="manualSaving"
+            @click="submitManualEntry"
+          >
             {{ manualSaving ? "Logging…" : "Log entry" }}
           </button>
         </div>
@@ -1084,7 +1433,6 @@ async function submitManualEntry() {
 </template>
 
 <style scoped>
-
 /* month calendar grid */
 .month-bar {
   display: flex;
@@ -1251,7 +1599,9 @@ async function submitManualEntry() {
   font-family: inherit;
   color: inherit;
   cursor: pointer;
-  transition: border-color 0.15s ease, background 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
 }
 .day-cell:hover {
   border-color: rgba(214, 138, 52, 0.45);
@@ -1366,7 +1716,9 @@ async function submitManualEntry() {
   color: #ddd;
   font-family: inherit;
   cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
 }
 .agenda-row:hover {
   background: #1c1c1c;
@@ -1519,7 +1871,10 @@ async function submitManualEntry() {
   font-size: 0.86rem;
   color: #ddd;
   cursor: pointer;
-  transition: border-color 0.15s ease, background 0.15s ease, transform 0.1s ease;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    transform 0.1s ease;
 }
 .entry-row:hover {
   border-color: rgba(214, 138, 52, 0.4);
@@ -1792,6 +2147,4 @@ async function submitManualEntry() {
 }
 </style>
 
-.month-picker input {
-  font-family: inherit;
-}
+.month-picker input { font-family: inherit; }

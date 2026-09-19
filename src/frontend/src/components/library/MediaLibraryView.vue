@@ -121,7 +121,11 @@ const LAYOUT_OPTIONS: SegmentOption[] = [
     label: "List",
     icon: '<line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" /><line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" />',
   },
-  { value: "shelf", label: "Shelf", icon: '<rect x="3" y="3" width="7" height="18" rx="1" /><rect x="14" y="3" width="7" height="10" rx="1" />' },
+  {
+    value: "shelf",
+    label: "Shelf",
+    icon: '<rect x="3" y="3" width="7" height="18" rx="1" /><rect x="14" y="3" width="7" height="10" rx="1" />',
+  },
   {
     value: "board",
     label: "Board",
@@ -725,7 +729,9 @@ defineExpose({ openQuickAdd });
                   <div class="list-title">{{ it.title }}</div>
                   <div class="list-type">
                     {{ it.format ?? typeLabel
-                    }}<template v-if="it.releaseYear"> · {{ it.releaseYear }}</template>
+                    }}<template v-if="it.releaseYear">
+                      · {{ it.releaseYear }}</template
+                    >
                   </div>
                   <div class="airing-tag" :class="{ invisible: !it.airing }">
                     <span class="dot"></span>Airing
@@ -1508,7 +1514,6 @@ defineExpose({ openQuickAdd });
   padding: 24px 24px 60px 48px;
   box-sizing: border-box;
 }
-
 
 .page-head {
   display: flex;

@@ -42,9 +42,17 @@ function mapRewatch(r: BackendRewatch): Rewatch {
   };
 }
 
-export async function fetchRewatches(mediaType: MediaType, mediaId: string): Promise<Rewatch[]> {
-  const params = new URLSearchParams({ media_type: mediaType, media_id: mediaId });
-  const response = await fetch(`/api/rewatches?${params}`, { credentials: "include" });
+export async function fetchRewatches(
+  mediaType: MediaType,
+  mediaId: string,
+): Promise<Rewatch[]> {
+  const params = new URLSearchParams({
+    media_type: mediaType,
+    media_id: mediaId,
+  });
+  const response = await fetch(`/api/rewatches?${params}`, {
+    credentials: "include",
+  });
   const raw = await handle<BackendRewatch[]>(response, "load rewatch history");
   return raw.map(mapRewatch);
 }
@@ -157,7 +165,9 @@ function mapSmartRule(r: BackendSmartRule | null): SmartRule | null {
   return rule;
 }
 
-function smartRuleToBody(r: SmartRule | null | undefined): BackendSmartRule | null {
+function smartRuleToBody(
+  r: SmartRule | null | undefined,
+): BackendSmartRule | null {
   if (!r) return null;
   return {
     media_types: r.mediaTypes?.length ? r.mediaTypes : null,
@@ -246,8 +256,10 @@ export async function updateMediaList(
   const body: Record<string, unknown> = {};
   if (input.name !== undefined) body.name = input.name;
   if (input.description !== undefined) body.description = input.description;
-  if (input.smartRule !== undefined) body.smart_rule = smartRuleToBody(input.smartRule);
-  if (input.coverMediaId !== undefined) body.cover_media_id = input.coverMediaId;
+  if (input.smartRule !== undefined)
+    body.smart_rule = smartRuleToBody(input.smartRule);
+  if (input.coverMediaId !== undefined)
+    body.cover_media_id = input.coverMediaId;
   const response = await fetch(`/api/lists/${listId}`, {
     method: "PATCH",
     credentials: "include",
@@ -259,16 +271,22 @@ export async function updateMediaList(
 }
 
 export async function deleteMediaList(listId: string): Promise<void> {
-  const response = await fetch(`/api/lists/${listId}`, { method: "DELETE", credentials: "include" });
+  const response = await fetch(`/api/lists/${listId}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
   await handle<void>(response, "delete list");
 }
 
-export async function fetchMediaListDetail(listId: string): Promise<MediaListDetail> {
-  const response = await fetch(`/api/lists/${listId}`, { credentials: "include" });
-  const raw = await handle<BackendMediaListSummary & { items: BackendMediaListItem[] }>(
-    response,
-    "load list",
-  );
+export async function fetchMediaListDetail(
+  listId: string,
+): Promise<MediaListDetail> {
+  const response = await fetch(`/api/lists/${listId}`, {
+    credentials: "include",
+  });
+  const raw = await handle<
+    BackendMediaListSummary & { items: BackendMediaListItem[] }
+  >(response, "load list");
   return { ...mapListSummary(raw), items: raw.items.map(mapListItem) };
 }
 
@@ -288,7 +306,10 @@ export async function addToMediaList(
 }
 
 // `itemIds` is the full desired sequence of the list's item rows
-export async function reorderMediaList(listId: string, itemIds: string[]): Promise<void> {
+export async function reorderMediaList(
+  listId: string,
+  itemIds: string[],
+): Promise<void> {
   const response = await fetch(`/api/lists/${listId}/order`, {
     method: "PUT",
     credentials: "include",
@@ -312,13 +333,24 @@ export async function fetchListMembership(
   mediaType: MediaType,
   mediaId: string,
 ): Promise<ListMembership[]> {
-  const params = new URLSearchParams({ media_type: mediaType, media_id: mediaId });
-  const response = await fetch(`/api/lists/membership?${params}`, { credentials: "include" });
-  const raw = await handle<BackendListMembership[]>(response, "load list membership");
+  const params = new URLSearchParams({
+    media_type: mediaType,
+    media_id: mediaId,
+  });
+  const response = await fetch(`/api/lists/membership?${params}`, {
+    credentials: "include",
+  });
+  const raw = await handle<BackendListMembership[]>(
+    response,
+    "load list membership",
+  );
   return raw.map((m) => ({ listId: m.list_id, itemId: m.item_id }));
 }
 
-export async function removeFromMediaList(listId: string, itemId: string): Promise<void> {
+export async function removeFromMediaList(
+  listId: string,
+  itemId: string,
+): Promise<void> {
   const response = await fetch(`/api/lists/${listId}/items/${itemId}`, {
     method: "DELETE",
     credentials: "include",
@@ -326,7 +358,8 @@ export async function removeFromMediaList(listId: string, itemId: string): Promi
   await handle<void>(response, "remove from list");
 }
 
-export type ActivityEventType = "episodes_watched" | "status_changed" | "rated" | "rewatched";
+export type ActivityEventType =
+  "episodes_watched" | "status_changed" | "rated" | "rewatched";
 
 export interface ActivityEntry {
   id: string;
@@ -364,7 +397,9 @@ function mapActivityEntry(a: BackendActivityEntry): ActivityEntry {
 }
 
 export async function fetchActivity(days = 30): Promise<ActivityEntry[]> {
-  const response = await fetch(`/api/activity?days=${days}`, { credentials: "include" });
+  const response = await fetch(`/api/activity?days=${days}`, {
+    credentials: "include",
+  });
   const raw = await handle<BackendActivityEntry[]>(response, "load activity");
   return raw.map(mapActivityEntry);
 }
@@ -390,7 +425,10 @@ export async function createActivityEntry(input: {
       detail: input.detail ?? null,
     }),
   });
-  const raw = await handle<BackendActivityEntry>(response, "log activity entry");
+  const raw = await handle<BackendActivityEntry>(
+    response,
+    "log activity entry",
+  );
   return mapActivityEntry(raw);
 }
 
@@ -418,7 +456,10 @@ export async function updateActivityEntry(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  const raw = await handle<BackendActivityEntry>(response, "update activity entry");
+  const raw = await handle<BackendActivityEntry>(
+    response,
+    "update activity entry",
+  );
   return mapActivityEntry(raw);
 }
 
@@ -460,7 +501,9 @@ interface BackendCalendarEntry {
 }
 
 export async function fetchCalendar(days = 14): Promise<CalendarEntry[]> {
-  const response = await fetch(`/api/calendar?days=${days}`, { credentials: "include" });
+  const response = await fetch(`/api/calendar?days=${days}`, {
+    credentials: "include",
+  });
   const raw = await handle<BackendCalendarEntry[]>(response, "load calendar");
   return raw.map((c) => ({
     mediaType: c.media_type,
@@ -477,12 +520,19 @@ export async function fetchCalendar(days = 14): Promise<CalendarEntry[]> {
 // The secret .ics feed URL for this user — created on first ask, and
 // replaceable if it ever leaks. Calendar apps can't send a login cookie,
 // so the URL itself is the credential.
-export async function fetchCalendarFeedUrl(regenerate = false): Promise<string> {
+export async function fetchCalendarFeedUrl(
+  regenerate = false,
+): Promise<string> {
   const response = await fetch(
-    regenerate ? "/api/calendar/feed-token/regenerate" : "/api/calendar/feed-token",
+    regenerate
+      ? "/api/calendar/feed-token/regenerate"
+      : "/api/calendar/feed-token",
     { method: regenerate ? "POST" : "GET", credentials: "include" },
   );
-  const raw = await handle<{ path: string }>(response, "load the calendar feed link");
+  const raw = await handle<{ path: string }>(
+    response,
+    "load the calendar feed link",
+  );
   return `${window.location.origin}${raw.path}`;
 }
 
@@ -498,9 +548,23 @@ export interface CalendarGameEntry {
 }
 
 export async function fetchCalendarGames(): Promise<CalendarGameEntry[]> {
-  const response = await fetch("/api/calendar/games", { credentials: "include" });
+  const response = await fetch("/api/calendar/games", {
+    credentials: "include",
+  });
   const raw = await handle<
-    { kind: CalendarGameEntry["kind"]; game_id: string; title: string; date: string; count: number }[]
+    {
+      kind: CalendarGameEntry["kind"];
+      game_id: string;
+      title: string;
+      date: string;
+      count: number;
+    }[]
   >(response, "load games history");
-  return raw.map((g) => ({ kind: g.kind, gameId: g.game_id, title: g.title, date: g.date, count: g.count }));
+  return raw.map((g) => ({
+    kind: g.kind,
+    gameId: g.game_id,
+    title: g.title,
+    date: g.date,
+    count: g.count,
+  }));
 }

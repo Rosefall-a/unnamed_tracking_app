@@ -92,7 +92,12 @@ export interface EpisodicStats extends Common {
   minutes_rewatch: number;
   minutes_watched: number;
   episodes_without_runtime: number;
-  most_watched: { id: string; title: string; minutes: number; episodes: number }[];
+  most_watched: {
+    id: string;
+    title: string;
+    minutes: number;
+    episodes: number;
+  }[];
 }
 
 export interface GameStats extends Common {
@@ -109,7 +114,12 @@ export interface GameStats extends Common {
 }
 
 export interface OverviewStats {
-  kinds: { kind: "movie" | "tv" | "anime" | "game"; titles: number; completed: number; minutes: number }[];
+  kinds: {
+    kind: "movie" | "tv" | "anime" | "game";
+    titles: number;
+    completed: number;
+    minutes: number;
+  }[];
   media_minutes: number;
   game_seconds: number;
   media_titles: number;
@@ -117,8 +127,20 @@ export interface OverviewStats {
   media_favorites: number;
   top_rated: TopTitle[];
   in_progress: ProgressRow[];
-  score_by_type: { kind: "movie" | "tv" | "anime" | "game"; average: number | null; rated: number }[];
-  needs_score: { count: number; items: { id: string; title: string; kind: "movie" | "tv" | "anime"; posterUrl: string | null }[] };
+  score_by_type: {
+    kind: "movie" | "tv" | "anime" | "game";
+    average: number | null;
+    rated: number;
+  }[];
+  needs_score: {
+    count: number;
+    items: {
+      id: string;
+      title: string;
+      kind: "movie" | "tv" | "anime";
+      posterUrl: string | null;
+    }[];
+  };
   activity: {
     per_day: { date: string; count: number }[];
     active_days_total: number;
@@ -146,11 +168,13 @@ export function peekMediaStats(): MediaStats | null {
 
 export async function fetchMediaStats(): Promise<MediaStats> {
   const response = await fetch("/api/media-stats", { credentials: "include" });
-  if (!response.ok) throw new Error(`Failed to load statistics: ${response.status}`);
+  if (!response.ok)
+    throw new Error(`Failed to load statistics: ${response.status}`);
   const raw = (await response.json()) as MediaStats;
   // the server names it poster_url; the rest of the app says posterUrl
-  const fix = (list: { poster_url?: string | null; posterUrl?: string | null }[]) =>
-    list.forEach((t) => (t.posterUrl = t.posterUrl ?? t.poster_url ?? null));
+  const fix = (
+    list: { poster_url?: string | null; posterUrl?: string | null }[],
+  ) => list.forEach((t) => (t.posterUrl = t.posterUrl ?? t.poster_url ?? null));
   fix(raw.overview.top_rated);
   fix(raw.overview.in_progress);
   fix(raw.overview.needs_score.items);

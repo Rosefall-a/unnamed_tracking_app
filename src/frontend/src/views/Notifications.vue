@@ -15,12 +15,19 @@ import {
   markAllNotificationsRead,
   deleteMediaNotification,
 } from "../services/notifications";
-import type { MediaNotification, MediaNotificationKind } from "../services/notifications";
-import { notifications as bountyNotifications, refreshMediaNotifications } from "../state/notifications";
+import type {
+  MediaNotification,
+  MediaNotificationKind,
+} from "../services/notifications";
+import {
+  notifications as bountyNotifications,
+  refreshMediaNotifications,
+} from "../state/notifications";
 import { useKeptAlive } from "../utils/useKeptAlive";
 import { useConfirm } from "../state/dialog";
 
-type Filter = "all" | "unread" | "episodes" | "seasons" | "releases" | "bounties";
+type Filter =
+  "all" | "unread" | "episodes" | "seasons" | "releases" | "bounties";
 const FILTERS: { key: Filter; label: string }[] = [
   { key: "all", label: "All" },
   { key: "unread", label: "Unread" },
@@ -43,7 +50,8 @@ async function load() {
   try {
     items.value = (await fetchMediaNotifications(200)).items;
   } catch (e) {
-    error.value = e instanceof Error ? e.message : "Failed to load notifications.";
+    error.value =
+      e instanceof Error ? e.message : "Failed to load notifications.";
   } finally {
     loading.value = false;
   }
@@ -51,21 +59,43 @@ async function load() {
 onMounted(load);
 useKeptAlive(load);
 
-const KIND_META: Record<MediaNotificationKind, { label: string; tone: string; group: Filter }> = {
+const KIND_META: Record<
+  MediaNotificationKind,
+  { label: string; tone: string; group: Filter }
+> = {
   episode_aired: { label: "Episode aired", tone: "amber", group: "episodes" },
   season_started: { label: "Season started", tone: "green", group: "seasons" },
-  sequel_announced: { label: "New season listed", tone: "blue", group: "seasons" },
-  movie_released: { label: "Movie released", tone: "violet", group: "releases" },
+  sequel_announced: {
+    label: "New season listed",
+    tone: "blue",
+    group: "seasons",
+  },
+  movie_released: {
+    label: "Movie released",
+    tone: "violet",
+    group: "releases",
+  },
 };
 
 const unreadCount = computed(() => items.value.filter((n) => !n.read).length);
 const counts = computed(() => {
-  const c: Record<Filter, number> = { all: items.value.length, unread: unreadCount.value, episodes: 0, seasons: 0, releases: 0, bounties: bountyNotifications.value.length };
+  const c: Record<Filter, number> = {
+    all: items.value.length,
+    unread: unreadCount.value,
+    episodes: 0,
+    seasons: 0,
+    releases: 0,
+    bounties: bountyNotifications.value.length,
+  };
   for (const n of items.value) c[KIND_META[n.kind].group] += 1;
   return c;
 });
 const filterOptions = computed<SegmentOption[]>(() =>
-  FILTERS.map((f) => ({ value: f.key, label: f.label, count: counts.value[f.key] })),
+  FILTERS.map((f) => ({
+    value: f.key,
+    label: f.label,
+    count: counts.value[f.key],
+  })),
 );
 const shown = computed(() => {
   if (filter.value === "bounties") return [];
@@ -86,7 +116,11 @@ function dayLabel(key: string): string {
   const yesterday = dayKey(now.getTime() / 1000 - 86400);
   if (key === today) return "Today";
   if (key === yesterday) return "Yesterday";
-  return new Date(`${key}T00:00:00`).toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" });
+  return new Date(`${key}T00:00:00`).toLocaleDateString(undefined, {
+    weekday: "long",
+    month: "short",
+    day: "numeric",
+  });
 }
 const grouped = computed(() => {
   const map = new Map<string, MediaNotification[]>();
@@ -111,7 +145,10 @@ function exactTime(unix: number): string {
   });
 }
 function timeOnly(unix: number): string {
-  return new Date(unix * 1000).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  return new Date(unix * 1000).toLocaleTimeString(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+  });
 }
 function ago(unix: number): string {
   const s = Math.max(0, Math.floor(Date.now() / 1000 - unix));
@@ -121,10 +158,19 @@ function ago(unix: number): string {
   return `${Math.floor(s / 86400)} days ago`;
 }
 function route(n: MediaNotification): string {
-  const base = n.mediaType === "movie" ? "/movies" : n.mediaType === "tv" ? "/tv" : "/anime";
+  const base =
+    n.mediaType === "movie"
+      ? "/movies"
+      : n.mediaType === "tv"
+        ? "/tv"
+        : "/anime";
   return `${base}/${n.mediaId}`;
 }
-const TYPE_LABEL: Record<string, string> = { movie: "Movie", tv: "TV show", anime: "Anime" };
+const TYPE_LABEL: Record<string, string> = {
+  movie: "Movie",
+  tv: "TV show",
+  anime: "Anime",
+};
 
 // ---- actions ----
 async function setRead(n: MediaNotification, read: boolean) {
@@ -151,7 +197,10 @@ async function readAll() {
   }
 }
 async function dismiss(n: MediaNotification) {
-  const ok = await confirm({ message: "Remove this notification?", confirmLabel: "Remove" });
+  const ok = await confirm({
+    message: "Remove this notification?",
+    confirmLabel: "Remove",
+  });
   if (!ok) return;
   try {
     await deleteMediaNotification(n.id);
@@ -180,7 +229,12 @@ function toggleOpen(n: MediaNotification) {
         @update:model-value="filter = $event as Filter"
       />
       <template #actions>
-        <button type="button" class="ui-btn ui-btn-secondary" :disabled="!unreadCount" @click="readAll">
+        <button
+          type="button"
+          class="ui-btn ui-btn-secondary"
+          :disabled="!unreadCount"
+          @click="readAll"
+        >
           Mark All Read
         </button>
       </template>
@@ -190,66 +244,130 @@ function toggleOpen(n: MediaNotification) {
       <div class="ui-head">
         <div>
           <h1>Notifications</h1>
-          <div class="sub">{{ unreadCount ? `${unreadCount} unread` : "All caught up" }}</div>
+          <div class="sub">
+            {{ unreadCount ? `${unreadCount} unread` : "All caught up" }}
+          </div>
         </div>
       </div>
       <p v-if="error" class="ui-state error">{{ error }}</p>
       <p v-if="loading" class="ui-state">Loading…</p>
 
       <template v-else-if="filter === 'bounties'">
-        <p v-if="!bountyNotifications.length" class="ui-state">No bounty deadlines or suggestions right now.</p>
+        <p v-if="!bountyNotifications.length" class="ui-state">
+          No bounty deadlines or suggestions right now.
+        </p>
         <div v-else class="list">
-          <router-link v-for="b in bountyNotifications" :key="b.id" :to="b.to" class="card plain">
+          <router-link
+            v-for="b in bountyNotifications"
+            :key="b.id"
+            :to="b.to"
+            class="card plain"
+          >
             <span class="card-main">
               <span class="card-title">{{ b.title }}</span>
               <span class="card-body">{{ b.detail }}</span>
             </span>
-            <span class="badge" :class="b.kind === 'deadline' ? 'red' : 'amber'">{{ b.kind === "deadline" ? "Deadline" : "Suggested" }}</span>
+            <span
+              class="badge"
+              :class="b.kind === 'deadline' ? 'red' : 'amber'"
+              >{{ b.kind === "deadline" ? "Deadline" : "Suggested" }}</span
+            >
           </router-link>
         </div>
       </template>
 
       <template v-else>
         <div v-if="!grouped.length" class="empty">
-          <p class="empty-title">{{ filter === "unread" ? "You're all caught up." : "Nothing here yet." }}</p>
+          <p class="empty-title">
+            {{
+              filter === "unread"
+                ? "You're all caught up."
+                : "Nothing here yet."
+            }}
+          </p>
           <p class="empty-sub">
-            Episodes, season starts, new seasons and movie releases show up here as they happen, using the
-            exact time the provider lists. Choose which ones you get under Settings, Calendar and Notifications.
+            Episodes, season starts, new seasons and movie releases show up here
+            as they happen, using the exact time the provider lists. Choose
+            which ones you get under Settings, Calendar and Notifications.
           </p>
         </div>
 
         <section v-for="[key, day] in grouped" :key="key" class="day">
           <h2 class="day-heading">{{ dayLabel(key) }}</h2>
           <div class="list">
-            <article v-for="n in day" :key="n.id" class="card" :class="{ unread: !n.read, open: openId === n.id }">
+            <article
+              v-for="n in day"
+              :key="n.id"
+              class="card"
+              :class="{ unread: !n.read, open: openId === n.id }"
+            >
               <button type="button" class="card-row" @click="toggleOpen(n)">
-                <span class="poster" :style="n.posterUrl ? { backgroundImage: `url(${n.posterUrl})` } : {}">
-                  <span v-if="!n.posterUrl" class="poster-initial">{{ n.title.slice(0, 1) }}</span>
+                <span
+                  class="poster"
+                  :style="
+                    n.posterUrl
+                      ? { backgroundImage: `url(${n.posterUrl})` }
+                      : {}
+                  "
+                >
+                  <span v-if="!n.posterUrl" class="poster-initial">{{
+                    n.title.slice(0, 1)
+                  }}</span>
                 </span>
                 <span class="card-main">
                   <span class="card-title">{{ n.title }}</span>
                   <span class="card-body">{{ n.body }}</span>
-                  <span class="card-time">{{ timeOnly(n.eventAt) }} · {{ ago(n.eventAt) }}</span>
+                  <span class="card-time"
+                    >{{ timeOnly(n.eventAt) }} · {{ ago(n.eventAt) }}</span
+                  >
                 </span>
-                <span class="badge" :class="KIND_META[n.kind].tone">{{ KIND_META[n.kind].label }}</span>
+                <span class="badge" :class="KIND_META[n.kind].tone">{{
+                  KIND_META[n.kind].label
+                }}</span>
                 <span v-if="!n.read" class="unread-dot" title="Unread"></span>
               </button>
 
               <div v-if="openId === n.id" class="detail">
                 <dl>
-                  <div><dt>What happened</dt><dd>{{ KIND_META[n.kind].label }}: {{ n.body }}</dd></div>
-                  <div><dt>Title</dt><dd>{{ n.title }} ({{ TYPE_LABEL[n.mediaType] }})</dd></div>
                   <div>
-                    <dt>{{ n.kind === "sequel_announced" ? "Noticed" : "Exact time" }}</dt>
+                    <dt>What happened</dt>
+                    <dd>{{ KIND_META[n.kind].label }}: {{ n.body }}</dd>
+                  </div>
+                  <div>
+                    <dt>Title</dt>
+                    <dd>{{ n.title }} ({{ TYPE_LABEL[n.mediaType] }})</dd>
+                  </div>
+                  <div>
+                    <dt>
+                      {{
+                        n.kind === "sequel_announced" ? "Noticed" : "Exact time"
+                      }}
+                    </dt>
                     <dd>{{ exactTime(n.eventAt) }}</dd>
                   </div>
                 </dl>
                 <div class="detail-actions">
-                  <button type="button" class="ui-btn ui-btn-sm ui-btn-primary" @click="open(n)">Open Title</button>
-                  <button type="button" class="ui-btn ui-btn-sm ui-btn-secondary" @click="setRead(n, !n.read)">
+                  <button
+                    type="button"
+                    class="ui-btn ui-btn-sm ui-btn-primary"
+                    @click="open(n)"
+                  >
+                    Open Title
+                  </button>
+                  <button
+                    type="button"
+                    class="ui-btn ui-btn-sm ui-btn-secondary"
+                    @click="setRead(n, !n.read)"
+                  >
                     {{ n.read ? "Mark Unread" : "Mark Read" }}
                   </button>
-                  <button type="button" class="ui-btn ui-btn-sm ui-btn-danger-soft" @click="dismiss(n)">Remove</button>
+                  <button
+                    type="button"
+                    class="ui-btn ui-btn-sm ui-btn-danger-soft"
+                    @click="dismiss(n)"
+                  >
+                    Remove
+                  </button>
                 </div>
               </div>
             </article>

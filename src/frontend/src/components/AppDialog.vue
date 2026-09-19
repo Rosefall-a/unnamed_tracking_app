@@ -44,8 +44,15 @@ function cancel() {
     @click.self="cancel"
     @keydown.esc="cancel"
   >
-    <div class="dialog" role="dialog" aria-modal="true" :aria-label="activeDialog.title ?? activeDialog.message">
-      <h3 v-if="activeDialog.title" class="dialog-title">{{ activeDialog.title }}</h3>
+    <div
+      class="dialog"
+      role="dialog"
+      aria-modal="true"
+      :aria-label="activeDialog.title ?? activeDialog.message"
+    >
+      <h3 v-if="activeDialog.title" class="dialog-title">
+        {{ activeDialog.title }}
+      </h3>
       <p class="dialog-message">{{ activeDialog.message }}</p>
       <input
         v-if="activeDialog.kind === 'prompt'"
@@ -57,7 +64,9 @@ function cancel() {
         @keydown.enter.prevent="accept"
       />
       <div class="dialog-actions">
-        <button type="button" class="dialog-cancel" @click="cancel">{{ activeDialog.cancelLabel }}</button>
+        <button type="button" class="dialog-cancel" @click="cancel">
+          {{ activeDialog.cancelLabel }}
+        </button>
         <button
           ref="acceptEl"
           type="button"

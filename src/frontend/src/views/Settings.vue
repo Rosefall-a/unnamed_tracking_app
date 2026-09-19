@@ -119,7 +119,9 @@ const activeSection = ref((route.query.section as string) || "profile");
           />
           <UploadSection v-else-if="activeSection === 'upload'" />
           <LibraryManagementSection v-else-if="activeSection === 'library'" />
-          <MediaPreferencesSection v-else-if="activeSection === 'media-prefs'" />
+          <MediaPreferencesSection
+            v-else-if="activeSection === 'media-prefs'"
+          />
           <MediaTrashSection v-else-if="activeSection === 'media-trash'" />
           <ScanSettingsSection v-else-if="activeSection === 'scan'" />
           <MetadataSourcesSection v-else-if="activeSection === 'sources'" />

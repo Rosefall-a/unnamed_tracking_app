@@ -1,11 +1,23 @@
 <script setup lang="ts">
 import { useConfirm } from "../../state/dialog";
 import { ref, onMounted } from "vue";
-import { fetchMovieTrash, restoreMovie, purgeMovie } from "../../services/movies";
+import {
+  fetchMovieTrash,
+  restoreMovie,
+  purgeMovie,
+} from "../../services/movies";
 import type { TrashedMovie } from "../../services/movies";
-import { fetchTVShowTrash, restoreTVShow, purgeTVShow } from "../../services/tvShows";
+import {
+  fetchTVShowTrash,
+  restoreTVShow,
+  purgeTVShow,
+} from "../../services/tvShows";
 import type { TrashedTVShow } from "../../services/tvShows";
-import { fetchAnimeTrash, restoreAnime, purgeAnime } from "../../services/anime";
+import {
+  fetchAnimeTrash,
+  restoreAnime,
+  purgeAnime,
+} from "../../services/anime";
 import type { TrashedAnime } from "../../services/anime";
 
 const movieTrash = ref<TrashedMovie[]>([]);
@@ -25,7 +37,8 @@ async function loadAll() {
       fetchAnimeTrash(),
     ]);
   } catch (e) {
-    error.value = e instanceof Error ? e.message : "Failed to load deleted media";
+    error.value =
+      e instanceof Error ? e.message : "Failed to load deleted media";
   } finally {
     loading.value = false;
   }
@@ -55,7 +68,11 @@ async function restore(kind: "movie" | "tv" | "anime", id: string) {
 }
 
 const confirm = useConfirm();
-async function purge(kind: "movie" | "tv" | "anime", id: string, title: string) {
+async function purge(
+  kind: "movie" | "tv" | "anime",
+  id: string,
+  title: string,
+) {
   const ok = await confirm({
     message: `Permanently delete "${title}"? This can't be undone.`,
     confirmLabel: "Delete forever",
@@ -70,7 +87,8 @@ async function purge(kind: "movie" | "tv" | "anime", id: string, title: string) 
     else await purgeAnime(id);
     await loadAll();
   } catch (e) {
-    error.value = e instanceof Error ? e.message : "Failed to permanently delete";
+    error.value =
+      e instanceof Error ? e.message : "Failed to permanently delete";
   } finally {
     busyId.value = null;
   }
@@ -82,8 +100,8 @@ async function purge(kind: "movie" | "tv" | "anime", id: string, title: string) 
     <h2>Media Trash</h2>
     <p class="section-hint">
       A deleted movie, show, or anime entry moves here first. Nothing gets
-      purged automatically. Restore it to bring it back, or delete it again
-      here to remove it for good.
+      purged automatically. Restore it to bring it back, or delete it again here
+      to remove it for good.
     </p>
 
     <p v-if="loading">Loading…</p>
@@ -96,7 +114,9 @@ async function purge(kind: "movie" | "tv" | "anime", id: string, title: string) 
         <ul v-else class="trash-list">
           <li v-for="item in movieTrash" :key="item.id" class="trash-row">
             <span class="trash-name">{{ item.title }}</span>
-            <span class="trash-meta">deleted {{ formatDate(item.deleted_at) }}</span>
+            <span class="trash-meta"
+              >deleted {{ formatDate(item.deleted_at) }}</span
+            >
             <button
               type="button"
               class="secondary-button"
@@ -123,7 +143,9 @@ async function purge(kind: "movie" | "tv" | "anime", id: string, title: string) 
         <ul v-else class="trash-list">
           <li v-for="item in tvTrash" :key="item.id" class="trash-row">
             <span class="trash-name">{{ item.title }}</span>
-            <span class="trash-meta">deleted {{ formatDate(item.deleted_at) }}</span>
+            <span class="trash-meta"
+              >deleted {{ formatDate(item.deleted_at) }}</span
+            >
             <button
               type="button"
               class="secondary-button"
@@ -150,7 +172,9 @@ async function purge(kind: "movie" | "tv" | "anime", id: string, title: string) 
         <ul v-else class="trash-list">
           <li v-for="item in animeTrash" :key="item.id" class="trash-row">
             <span class="trash-name">{{ item.title }}</span>
-            <span class="trash-meta">deleted {{ formatDate(item.deleted_at) }}</span>
+            <span class="trash-meta"
+              >deleted {{ formatDate(item.deleted_at) }}</span
+            >
             <button
               type="button"
               class="secondary-button"

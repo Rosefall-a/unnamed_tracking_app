@@ -16,7 +16,12 @@ const max = computed(() => Math.max(1, ...props.rows.map((r) => r.value)));
   <div v-if="rows.length" class="bar-list">
     <div v-for="r in rows" :key="r.name" class="bar-row" :title="r.hint">
       <span class="bar-name">{{ r.name }}</span>
-      <span class="bar-track"><span class="bar-fill" :style="{ width: (r.value / max) * 100 + '%' }"></span></span>
+      <span class="bar-track"
+        ><span
+          class="bar-fill"
+          :style="{ width: (r.value / max) * 100 + '%' }"
+        ></span
+      ></span>
       <span class="bar-value">{{ r.label ?? r.value }}</span>
     </div>
   </div>

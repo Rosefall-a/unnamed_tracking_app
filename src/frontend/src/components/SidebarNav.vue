@@ -24,7 +24,10 @@ onMounted(refreshNotifications);
 let notificationTimer: number | undefined;
 onMounted(() => {
   refreshMediaNotifications();
-  notificationTimer = window.setInterval(refreshMediaNotifications, 5 * 60 * 1000);
+  notificationTimer = window.setInterval(
+    refreshMediaNotifications,
+    5 * 60 * 1000,
+  );
 });
 onUnmounted(() => window.clearInterval(notificationTimer));
 function timeAgo(unix: number): string {
@@ -83,7 +86,10 @@ async function handleLogout() {
       <line x1="3" y1="12" x2="21" y2="12" />
       <line x1="3" y1="18" x2="21" y2="18" />
     </svg>
-    <span v-if="notifications.length + mediaUnread" class="menu-toggle-dot"></span>
+    <span
+      v-if="notifications.length + mediaUnread"
+      class="menu-toggle-dot"
+    ></span>
   </button>
 
   <Transition name="sidebar-backdrop">
@@ -366,12 +372,20 @@ async function handleLogout() {
         >
           Nothing to flag right now.
         </p>
-        <router-link to="/notifications" class="notification-see-all" @click="close">
+        <router-link
+          to="/notifications"
+          class="notification-see-all"
+          @click="close"
+        >
           See All Notifications
         </router-link>
         <div v-if="mediaNotifications.length" class="notification-group-head">
           <span>Episodes and releases</span>
-          <button v-if="mediaUnread" type="button" @click="readAllMediaNotifications">
+          <button
+            v-if="mediaUnread"
+            type="button"
+            @click="readAllMediaNotifications"
+          >
             Mark All Read
           </button>
         </div>
@@ -386,15 +400,27 @@ async function handleLogout() {
             close();
           "
         >
-          <span v-if="n.posterUrl" class="notification-poster" :style="{ backgroundImage: `url(${n.posterUrl})` }"></span>
-          <span v-else class="notification-dot" :class="{ unread: !n.read }"></span>
+          <span
+            v-if="n.posterUrl"
+            class="notification-poster"
+            :style="{ backgroundImage: `url(${n.posterUrl})` }"
+          ></span>
+          <span
+            v-else
+            class="notification-dot"
+            :class="{ unread: !n.read }"
+          ></span>
           <span class="notification-text">
             <span class="notification-title">{{ n.title }}</span>
-            <span class="notification-detail">{{ n.body }} · {{ timeAgo(n.eventAt) }}</span>
+            <span class="notification-detail"
+              >{{ n.body }} · {{ timeAgo(n.eventAt) }}</span
+            >
           </span>
           <span v-if="!n.read" class="notification-unread-dot"></span>
         </router-link>
-        <div v-if="notifications.length" class="notification-group-head"><span>Bounties</span></div>
+        <div v-if="notifications.length" class="notification-group-head">
+          <span>Bounties</span>
+        </div>
         <router-link
           v-for="n in notifications"
           :key="n.id"
@@ -610,7 +636,16 @@ async function handleLogout() {
         :class="{ active: isActive('/calendar') }"
         @click="close"
       >
-        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <svg
+          viewBox="0 0 24 24"
+          width="18"
+          height="18"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
           <rect x="3" y="4" width="18" height="18" rx="2" />
           <line x1="3" y1="10" x2="21" y2="10" />
           <line x1="8" y1="2" x2="8" y2="6" />
@@ -624,7 +659,16 @@ async function handleLogout() {
         :class="{ active: isActive('/statistics') }"
         @click="close"
       >
-        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <svg
+          viewBox="0 0 24 24"
+          width="18"
+          height="18"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
           <line x1="4" y1="20" x2="20" y2="20" />
           <rect x="6" y="12" width="3" height="8" rx="0.5" />
           <rect x="12" y="7" width="3" height="13" rx="0.5" />

@@ -95,7 +95,8 @@ async function load() {
       loadLibrarySeasons();
     });
   } catch (e) {
-    if (!cached) error.value = e instanceof Error ? e.message : "Failed to load anime.";
+    if (!cached)
+      error.value = e instanceof Error ? e.message : "Failed to load anime.";
   } finally {
     loading.value = false;
   }
@@ -270,12 +271,19 @@ function afterMarkedWatched() {
   if (!maybePromptMoveToCompleted()) maybePromptMoveToWatching();
 }
 
-async function onSetEpisodeNote(seasonId: string, episodeId: string, note: string | null) {
+async function onSetEpisodeNote(
+  seasonId: string,
+  episodeId: string,
+  note: string | null,
+) {
   if (!show.value) return;
   try {
-    show.value = await updateEpisode(show.value.id, seasonId, episodeId, { note });
+    show.value = await updateEpisode(show.value.id, seasonId, episodeId, {
+      note,
+    });
   } catch (e) {
-    episodesError.value = e instanceof Error ? e.message : "Failed to save note.";
+    episodesError.value =
+      e instanceof Error ? e.message : "Failed to save note.";
   }
 }
 
@@ -288,7 +296,8 @@ async function onRefreshAiring() {
   try {
     show.value = await refreshAnimeAiring(show.value.id);
   } catch (e) {
-    episodesError.value = e instanceof Error ? e.message : "Failed to check the airing schedule.";
+    episodesError.value =
+      e instanceof Error ? e.message : "Failed to check the airing schedule.";
   } finally {
     refreshingAiring.value = false;
   }
@@ -302,9 +311,10 @@ const CADENCE_PRESETS = [
 const cadenceOptions = computed(() => {
   const current = show.value?.airingIntervalDays;
   if (current && !CADENCE_PRESETS.some((p) => p.days === current)) {
-    return [...CADENCE_PRESETS, { days: current, label: `Every ${current} days` }].sort(
-      (a, b) => a.days - b.days,
-    );
+    return [
+      ...CADENCE_PRESETS,
+      { days: current, label: `Every ${current} days` },
+    ].sort((a, b) => a.days - b.days);
   }
   return CADENCE_PRESETS;
 });
@@ -317,7 +327,8 @@ async function onCadenceChange(event: Event) {
       airingIntervalDays: days === 7 ? null : days,
     });
   } catch (e) {
-    episodesError.value = e instanceof Error ? e.message : "Failed to save the schedule.";
+    episodesError.value =
+      e instanceof Error ? e.message : "Failed to save the schedule.";
   }
 }
 
@@ -448,7 +459,9 @@ const allSeasons = computed<SeasonCard[]>(() => {
   if (!show.value) return [];
   const cards: (SeasonCard & { rank: number; order: number })[] = [];
   const matchLibrary = (id: number, title: string): Anime | null =>
-    librarySeasons.value.find((a) => a.anilistId && Number(a.anilistId) === id) ??
+    librarySeasons.value.find(
+      (a) => a.anilistId && Number(a.anilistId) === id,
+    ) ??
     librarySeasons.value.find(
       (a) => a.title.trim().toLowerCase() === title.trim().toLowerCase(),
     ) ??
@@ -472,7 +485,11 @@ const allSeasons = computed<SeasonCard[]>(() => {
   // side entries that are still anime (a spin-off series, a film, an OVA)
   // sort after the main chain within their own rank, oldest first
   const branchAnime = relatedBranches.value
-    .filter((b) => !isPrintFormat(b.format) && !(b.format ?? "").toLowerCase().includes("music"))
+    .filter(
+      (b) =>
+        !isPrintFormat(b.format) &&
+        !(b.format ?? "").toLowerCase().includes("music"),
+    )
     .sort((x, y) => (x.year ?? 9999) - (y.year ?? 9999));
   branchAnime.forEach((b, i) => {
     cards.push({
@@ -562,7 +579,12 @@ const relatedList = computed(() => {
       ...n,
       // a movie/OVA opened from the library isn't in the chain at all
       // (currentIndex -1): its chain entries are the main series
-      relationLabel: currentIndex === -1 ? "Main series" : i < currentIndex ? "Prequel" : "Sequel",
+      relationLabel:
+        currentIndex === -1
+          ? "Main series"
+          : i < currentIndex
+            ? "Prequel"
+            : "Sequel",
     }))
     .filter((n) => !n.isCurrent);
   return [...chainItems, ...visibleBranches.value.filter((b) => !b.isCurrent)];
@@ -582,7 +604,8 @@ const relatedBranchNodes = computed<BranchNode[]>(() => {
   const indexById = new Map(relatedChain.value.map((n, i) => [n.id, i]));
   const nodes: BranchNode[] = [];
   for (const b of visibleBranches.value) {
-    if (b.anchorKind === "show" && indexById.get(b.anchorId) === undefined) continue;
+    if (b.anchorKind === "show" && indexById.get(b.anchorId) === undefined)
+      continue;
     nodes.push({
       id: String(b.id),
       title: b.title,
@@ -590,7 +613,8 @@ const relatedBranchNodes = computed<BranchNode[]>(() => {
       sub: b.episodeCount ? `${b.episodeCount} Episodes` : "",
       label: b.relationLabel,
       anchorIndex: b.anchorKind === "show" ? indexById.get(b.anchorId)! : 0,
-      parentBranchId: b.anchorKind === "branch" ? String(b.anchorId) : undefined,
+      parentBranchId:
+        b.anchorKind === "branch" ? String(b.anchorId) : undefined,
       year: b.year,
       current: b.isCurrent,
     });
@@ -663,7 +687,12 @@ function closePreview() {
 // since they're still useful to see as a relation.
 function isPrintFormat(format: string | null): boolean {
   const t = (format ?? "").toLowerCase();
-  return t.includes("manga") || t.includes("novel") || t.includes("doujin") || t.includes("one shot");
+  return (
+    t.includes("manga") ||
+    t.includes("novel") ||
+    t.includes("doujin") ||
+    t.includes("one shot")
+  );
 }
 
 function posterMeta(r: RelatedAnime): string {
@@ -742,7 +771,10 @@ async function addPreviewToLibrary() {
   previewAdding.value = true;
   previewError.value = null;
   try {
-    const match = await lookupMetadata(previewAnilistId.value, previewTitle.value);
+    const match = await lookupMetadata(
+      previewAnilistId.value,
+      previewTitle.value,
+    );
     const created = await createAnime({
       title: previewTitle.value,
       description: match?.description ?? null,
@@ -803,7 +835,10 @@ async function onRatingChange(value: number | null) {
   const previous = show.value.ratingOverall;
   show.value.ratingOverall = value;
   try {
-    show.value = await updateAnime(show.value.id, { ...animeToInput(show.value), ratingOverall: value });
+    show.value = await updateAnime(show.value.id, {
+      ...animeToInput(show.value),
+      ratingOverall: value,
+    });
   } catch {
     if (show.value) show.value.ratingOverall = previous;
   }
@@ -869,7 +904,10 @@ async function onRatingChange(value: number | null) {
                 {{ opt.label }}
               </option>
             </select>
-            <RatingPicker :model-value="show.ratingOverall" @change="onRatingChange" />
+            <RatingPicker
+              :model-value="show.ratingOverall"
+              @change="onRatingChange"
+            />
             <span v-if="firstAirYear" class="badge">{{ firstAirYear }}</span>
             <span v-if="episodeRuntimeLabel" class="badge">{{
               episodeRuntimeLabel
@@ -1024,17 +1062,24 @@ async function onRatingChange(value: number | null) {
               :key="c.key"
               type="button"
               class="season-card"
-              :class="{ current: c.isCurrent, missing: !c.isCurrent && !c.inLibrary }"
+              :class="{
+                current: c.isCurrent,
+                missing: !c.isCurrent && !c.inLibrary,
+              }"
               :disabled="c.isCurrent"
               :title="c.title"
               @click="onSeasonCardClick(c)"
             >
               <span
                 class="season-poster"
-                :style="c.posterUrl ? { backgroundImage: `url(${c.posterUrl})` } : {}"
+                :style="
+                  c.posterUrl ? { backgroundImage: `url(${c.posterUrl})` } : {}
+                "
               >
                 <span v-if="c.isCurrent" class="season-flag now">Viewing</span>
-                <span v-else-if="!c.inLibrary" class="season-flag add">+ Add</span>
+                <span v-else-if="!c.inLibrary" class="season-flag add"
+                  >+ Add</span
+                >
               </span>
               <span class="season-title">{{ c.title }}</span>
               <span class="season-meta">{{ seasonCardMeta(c) }}</span>
@@ -1043,7 +1088,9 @@ async function onRatingChange(value: number | null) {
                 class="pill"
                 :class="statusBucket(c.inLibrary.status)"
                 >{{
-                  STATUS_BUCKETS.find((s) => s.key === statusBucket(c.inLibrary!.status))?.label
+                  STATUS_BUCKETS.find(
+                    (s) => s.key === statusBucket(c.inLibrary!.status),
+                  )?.label
                 }}</span
               >
             </button>
@@ -1072,7 +1119,9 @@ async function onRatingChange(value: number | null) {
               title="How often new episodes air"
               @change="onCadenceChange"
             >
-              <option v-for="c in cadenceOptions" :key="c.days" :value="c.days">{{ c.label }}</option>
+              <option v-for="c in cadenceOptions" :key="c.days" :value="c.days">
+                {{ c.label }}
+              </option>
             </select>
             <span v-if="show.nextEpisodeAirAt" class="next-episode-banner">
               Episode {{ show.nextEpisodeNumber }} airs in
@@ -1104,13 +1153,18 @@ async function onRatingChange(value: number | null) {
               :next-episode-air-at="show.nextEpisodeAirAt"
               :episode-count="season.episodeCount"
               :interval-days="show.airingIntervalDays"
-              @toggle-watched="(epId) => onToggleEpisodeWatched(season.id, epId)"
-              @set-note="(epId, note) => onSetEpisodeNote(season.id, epId, note)"
+              @toggle-watched="
+                (epId) => onToggleEpisodeWatched(season.id, epId)
+              "
+              @set-note="
+                (epId, note) => onSetEpisodeNote(season.id, epId, note)
+              "
               @set-rating="
                 (epId, rating) => onSetEpisodeRating(season.id, epId, rating)
               "
               @bulk-set-watched="
-                (epIds, watched) => onBulkSetEpisodesWatched(season.id, epIds, watched)
+                (epIds, watched) =>
+                  onBulkSetEpisodesWatched(season.id, epIds, watched)
               "
             />
           </template>
@@ -1214,8 +1268,6 @@ async function onRatingChange(value: number | null) {
       @add="addPreviewToLibrary"
       @close="closePreview"
     />
-
-
   </main>
 </template>
 

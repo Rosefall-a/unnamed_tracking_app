@@ -4,7 +4,11 @@
 import { ref, onMounted } from "vue";
 import SegmentedControl from "./SegmentedControl.vue";
 import ToggleButton from "./ToggleButton.vue";
-import { DEFAULT_PREFERENCES, fetchPreferences, updatePreferences } from "../../services/preferences";
+import {
+  DEFAULT_PREFERENCES,
+  fetchPreferences,
+  updatePreferences,
+} from "../../services/preferences";
 import type { Preferences } from "../../services/preferences";
 import { preferences as sharedPreferences } from "../../state/preferences";
 
@@ -64,7 +68,12 @@ const listSortOptions = [
       <SegmentedControl
         :model-value="prefs.library_default_layout"
         :options="layoutOptions"
-        @update:model-value="change({ library_default_layout: $event as Preferences['library_default_layout'] })"
+        @update:model-value="
+          change({
+            library_default_layout:
+              $event as Preferences['library_default_layout'],
+          })
+        "
       />
       <small>Used until you pick a layout on a library page yourself.</small>
     </div>
@@ -73,7 +82,11 @@ const listSortOptions = [
       <SegmentedControl
         :model-value="prefs.lists_default_sort"
         :options="listSortOptions"
-        @update:model-value="change({ lists_default_sort: $event as Preferences['lists_default_sort'] })"
+        @update:model-value="
+          change({
+            lists_default_sort: $event as Preferences['lists_default_sort'],
+          })
+        "
       />
     </div>
     <ToggleButton
@@ -83,8 +96,8 @@ const listSortOptions = [
       @update:model-value="change({ stats_include_plan: $event })"
     >
       <strong>Count Plan to Watch in Statistics</strong>: include titles you
-      have not started in title totals, genre and score charts. Watch time
-      only ever counts episodes you marked watched, whatever this is set to.
+      have not started in title totals, genre and score charts. Watch time only
+      ever counts episodes you marked watched, whatever this is set to.
     </ToggleButton>
   </section>
 </template>

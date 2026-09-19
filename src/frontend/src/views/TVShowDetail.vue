@@ -74,7 +74,8 @@ async function load() {
   try {
     show.value = await getTVShow(showId.value);
   } catch (e) {
-    if (!cached) error.value = e instanceof Error ? e.message : "Failed to load show.";
+    if (!cached)
+      error.value = e instanceof Error ? e.message : "Failed to load show.";
   } finally {
     loading.value = false;
   }
@@ -248,12 +249,19 @@ function afterMarkedWatched() {
   if (!maybePromptMoveToCompleted()) maybePromptMoveToWatching();
 }
 
-async function onSetEpisodeNote(seasonId: string, episodeId: string, note: string | null) {
+async function onSetEpisodeNote(
+  seasonId: string,
+  episodeId: string,
+  note: string | null,
+) {
   if (!show.value) return;
   try {
-    show.value = await updateEpisode(show.value.id, seasonId, episodeId, { note });
+    show.value = await updateEpisode(show.value.id, seasonId, episodeId, {
+      note,
+    });
   } catch (e) {
-    episodesError.value = e instanceof Error ? e.message : "Failed to save note.";
+    episodesError.value =
+      e instanceof Error ? e.message : "Failed to save note.";
   }
 }
 
@@ -266,7 +274,8 @@ async function onRefreshAiring() {
   try {
     show.value = await refreshTVShowAiring(show.value.id);
   } catch (e) {
-    episodesError.value = e instanceof Error ? e.message : "Failed to check the airing schedule.";
+    episodesError.value =
+      e instanceof Error ? e.message : "Failed to check the airing schedule.";
   } finally {
     refreshingAiring.value = false;
   }
@@ -280,9 +289,10 @@ const CADENCE_PRESETS = [
 const cadenceOptions = computed(() => {
   const current = show.value?.airingIntervalDays;
   if (current && !CADENCE_PRESETS.some((p) => p.days === current)) {
-    return [...CADENCE_PRESETS, { days: current, label: `Every ${current} days` }].sort(
-      (a, b) => a.days - b.days,
-    );
+    return [
+      ...CADENCE_PRESETS,
+      { days: current, label: `Every ${current} days` },
+    ].sort((a, b) => a.days - b.days);
   }
   return CADENCE_PRESETS;
 });
@@ -295,7 +305,8 @@ async function onCadenceChange(event: Event) {
       airingIntervalDays: days === 7 ? null : days,
     });
   } catch (e) {
-    episodesError.value = e instanceof Error ? e.message : "Failed to save the schedule.";
+    episodesError.value =
+      e instanceof Error ? e.message : "Failed to save the schedule.";
   }
 }
 
@@ -453,7 +464,10 @@ function closePreview() {
   previewOpen.value = false;
 }
 
-async function onRelatedTitleClick(r: { title: string; posterUrl: string | null }) {
+async function onRelatedTitleClick(r: {
+  title: string;
+  posterUrl: string | null;
+}) {
   const mine = await ensureMyShows();
   const existing = mine.find(
     (s) => s.title.trim().toLowerCase() === r.title.trim().toLowerCase(),
@@ -554,7 +568,10 @@ async function onRatingChange(value: number | null) {
   const previous = show.value.ratingOverall;
   show.value.ratingOverall = value;
   try {
-    show.value = await updateTVShow(show.value.id, { ...tvShowToInput(show.value), ratingOverall: value });
+    show.value = await updateTVShow(show.value.id, {
+      ...tvShowToInput(show.value),
+      ratingOverall: value,
+    });
   } catch {
     if (show.value) show.value.ratingOverall = previous;
   }
@@ -620,7 +637,10 @@ async function onRatingChange(value: number | null) {
                 {{ opt.label }}
               </option>
             </select>
-            <RatingPicker :model-value="show.ratingOverall" @change="onRatingChange" />
+            <RatingPicker
+              :model-value="show.ratingOverall"
+              @change="onRatingChange"
+            />
             <span v-if="firstAirYear" class="badge">{{ firstAirYear }}</span>
             <span v-if="episodeRuntimeLabel" class="badge">{{
               episodeRuntimeLabel
@@ -782,7 +802,9 @@ async function onRatingChange(value: number | null) {
               title="How often new episodes air"
               @change="onCadenceChange"
             >
-              <option v-for="c in cadenceOptions" :key="c.days" :value="c.days">{{ c.label }}</option>
+              <option v-for="c in cadenceOptions" :key="c.days" :value="c.days">
+                {{ c.label }}
+              </option>
             </select>
             <span v-if="show.nextEpisodeAirAt" class="next-episode-banner">
               Episode {{ show.nextEpisodeNumber }} airs in
@@ -814,13 +836,18 @@ async function onRatingChange(value: number | null) {
               :next-episode-air-at="show.nextEpisodeAirAt"
               :episode-count="season.episodeCount"
               :interval-days="show.airingIntervalDays"
-              @toggle-watched="(epId) => onToggleEpisodeWatched(season.id, epId)"
-              @set-note="(epId, note) => onSetEpisodeNote(season.id, epId, note)"
+              @toggle-watched="
+                (epId) => onToggleEpisodeWatched(season.id, epId)
+              "
+              @set-note="
+                (epId, note) => onSetEpisodeNote(season.id, epId, note)
+              "
               @set-rating="
                 (epId, rating) => onSetEpisodeRating(season.id, epId, rating)
               "
               @bulk-set-watched="
-                (epIds, watched) => onBulkSetEpisodesWatched(season.id, epIds, watched)
+                (epIds, watched) =>
+                  onBulkSetEpisodesWatched(season.id, epIds, watched)
               "
             />
           </template>
@@ -915,8 +942,6 @@ async function onRatingChange(value: number | null) {
       @add="addPreviewToLibrary"
       @close="closePreview"
     />
-
-
   </main>
 </template>
 

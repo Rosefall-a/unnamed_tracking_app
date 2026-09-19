@@ -125,16 +125,22 @@ async function searchMetadata() {
 function applyMetadata(result: AnimeMetadataResult) {
   const locked = new Set(props.show?.lockedFields ?? []);
   if (!locked.has("title")) fields.value.title = result.title;
-  if (!locked.has("description")) fields.value.description = result.description ?? "";
-  if (!locked.has("first_air_date")) fields.value.firstAirDate = result.firstAirDate ?? "";
-  if (!locked.has("episode_runtime_minutes") && result.episodeRuntimeMinutes !== null)
+  if (!locked.has("description"))
+    fields.value.description = result.description ?? "";
+  if (!locked.has("first_air_date"))
+    fields.value.firstAirDate = result.firstAirDate ?? "";
+  if (
+    !locked.has("episode_runtime_minutes") &&
+    result.episodeRuntimeMinutes !== null
+  )
     fields.value.episodeRuntimeMinutes = result.episodeRuntimeMinutes;
   if (!locked.has("studios") && result.studios.length)
     fields.value.studiosInput = result.studios.join(", ");
   if (!locked.has("genres") && result.genres.length)
     fields.value.genresInput = result.genres.join(", ");
   if (!locked.has("poster_url")) fields.value.posterUrl = result.posterUrl;
-  if (!locked.has("backdrop_url")) fields.value.backdropUrl = result.backdropUrl;
+  if (!locked.has("backdrop_url"))
+    fields.value.backdropUrl = result.backdropUrl;
   if (!locked.has("anilist_score") && result.anilistScore !== null)
     fields.value.anilistScore = result.anilistScore;
   if (!locked.has("mal_score") && result.malScore !== null)
@@ -145,7 +151,8 @@ function applyMetadata(result: AnimeMetadataResult) {
   // added by hand, or from before this app tracked these ids) gets
   // fixed, so always take the freshly-picked match's ids.
   fields.value.externalId = result.malId;
-  fields.value.anilistId = result.provider === "AniList" ? result.providerId : null;
+  fields.value.anilistId =
+    result.provider === "AniList" ? result.providerId : null;
   metadataResults.value = [];
   metadataQuery.value = result.title;
   metadataMessage.value = locked.size

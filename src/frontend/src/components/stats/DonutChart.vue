@@ -12,7 +12,18 @@ const props = defineProps<{
   empty?: string;
 }>();
 
-const PALETTE = ["#d68a34", "#6fbf73", "#7ba7d9", "#d96f6f", "#9d8cd9", "#e8a552", "#5cc2b8", "#c78fbf", "#b5b35c", "#8a8a8a"];
+const PALETTE = [
+  "#d68a34",
+  "#6fbf73",
+  "#7ba7d9",
+  "#d96f6f",
+  "#9d8cd9",
+  "#e8a552",
+  "#5cc2b8",
+  "#c78fbf",
+  "#b5b35c",
+  "#8a8a8a",
+];
 const RADIUS = 46;
 const CIRC = 2 * Math.PI * RADIUS;
 
@@ -39,9 +50,21 @@ const arcs = computed(() => {
 
 <template>
   <div v-if="arcs.length" class="donut">
-    <svg viewBox="0 0 120 120" class="donut-svg" role="img" :aria-label="`${total} in total`">
+    <svg
+      viewBox="0 0 120 120"
+      class="donut-svg"
+      role="img"
+      :aria-label="`${total} in total`"
+    >
       <g transform="rotate(-90 60 60)">
-        <circle cx="60" cy="60" :r="RADIUS" fill="none" stroke="#222" stroke-width="16" />
+        <circle
+          cx="60"
+          cy="60"
+          :r="RADIUS"
+          fill="none"
+          stroke="#222"
+          stroke-width="16"
+        />
         <circle
           v-for="a in arcs"
           :key="a.name"
@@ -57,8 +80,12 @@ const arcs = computed(() => {
           <title>{{ a.name }}: {{ a.value }} ({{ a.pct }}%)</title>
         </circle>
       </g>
-      <text x="60" y="58" text-anchor="middle" class="donut-total">{{ total }}</text>
-      <text x="60" y="73" text-anchor="middle" class="donut-caption">{{ centerLabel ?? "total" }}</text>
+      <text x="60" y="58" text-anchor="middle" class="donut-total">
+        {{ total }}
+      </text>
+      <text x="60" y="73" text-anchor="middle" class="donut-caption">
+        {{ centerLabel ?? "total" }}
+      </text>
     </svg>
     <ul class="donut-legend">
       <li v-for="a in arcs" :key="a.name">

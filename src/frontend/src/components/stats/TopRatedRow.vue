@@ -21,7 +21,9 @@ defineEmits<{ open: [item: TopTitle] }>();
         class="toprated-art"
         :style="it.posterUrl ? { backgroundImage: `url(${it.posterUrl})` } : {}"
       >
-        <span v-if="!it.posterUrl" class="toprated-initial">{{ it.title.slice(0, 1) }}</span>
+        <span v-if="!it.posterUrl" class="toprated-initial">{{
+          it.title.slice(0, 1)
+        }}</span>
       </span>
       <span class="toprated-title">{{ it.title }}</span>
       <span class="toprated-score">★ {{ it.score }}</span>

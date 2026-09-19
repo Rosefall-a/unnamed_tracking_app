@@ -126,8 +126,10 @@ async function searchMetadata() {
 function applyMetadata(result: MovieMetadataResult) {
   const locked = new Set(props.movie?.lockedFields ?? []);
   if (!locked.has("title")) fields.value.title = result.title;
-  if (!locked.has("description")) fields.value.description = result.description ?? "";
-  if (!locked.has("release_date")) fields.value.releaseDate = result.releaseDate ?? "";
+  if (!locked.has("description"))
+    fields.value.description = result.description ?? "";
+  if (!locked.has("release_date"))
+    fields.value.releaseDate = result.releaseDate ?? "";
   if (!locked.has("runtime_minutes") && result.runtimeMinutes !== null)
     fields.value.runtimeMinutes = result.runtimeMinutes;
   if (!locked.has("director")) fields.value.director = result.director ?? "";
@@ -137,7 +139,8 @@ function applyMetadata(result: MovieMetadataResult) {
   if (!locked.has("genres") && result.genres.length)
     fields.value.genresInput = result.genres.join(", ");
   if (!locked.has("poster_url")) fields.value.posterUrl = result.posterUrl;
-  if (!locked.has("backdrop_url")) fields.value.backdropUrl = result.backdropUrl;
+  if (!locked.has("backdrop_url"))
+    fields.value.backdropUrl = result.backdropUrl;
   if (!locked.has("tmdb_score") && result.tmdbScore !== null)
     fields.value.tmdbScore = result.tmdbScore;
   metadataResults.value = [];

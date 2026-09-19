@@ -19,7 +19,12 @@ import {
   updateMediaList,
   deleteMediaList,
 } from "../services/mediaExtras";
-import type { MediaType, Rewatch, MediaListSummary, ListMembership } from "../services/mediaExtras";
+import type {
+  MediaType,
+  Rewatch,
+  MediaListSummary,
+  ListMembership,
+} from "../services/mediaExtras";
 
 const props = defineProps<{
   mediaType: MediaType;
@@ -36,7 +41,10 @@ const listBtn = ref<HTMLElement | null>(null);
 // backdrop image), which silently clipped them off-screen despite a
 // correct z-index — teleporting sidesteps that ancestor entirely, and
 // any future page with its own clipping/stacking context is safe too.
-const popoverStyle = ref<{ top: string; left: string }>({ top: "0px", left: "0px" });
+const popoverStyle = ref<{ top: string; left: string }>({
+  top: "0px",
+  left: "0px",
+});
 function positionPopover(anchor: HTMLElement | null) {
   if (!anchor) return;
   const rect = anchor.getBoundingClientRect();
@@ -177,7 +185,11 @@ async function commitRename(l: MediaListSummary) {
   const name = renameDraft.value.trim();
   renamingId.value = null;
   if (!name || name === l.name) return;
-  if (lists.value.some((o) => o.id !== l.id && o.name.toLowerCase() === name.toLowerCase())) {
+  if (
+    lists.value.some(
+      (o) => o.id !== l.id && o.name.toLowerCase() === name.toLowerCase(),
+    )
+  ) {
     listError.value = `"${name}" already exists.`;
     return;
   }
@@ -190,10 +202,13 @@ async function commitRename(l: MediaListSummary) {
 }
 async function useAsCover(l: MediaListSummary) {
   try {
-    const updated = await updateMediaList(l.id, { coverMediaId: props.mediaId });
+    const updated = await updateMediaList(l.id, {
+      coverMediaId: props.mediaId,
+    });
     lists.value = lists.value.map((o) => (o.id === l.id ? updated : o));
   } catch (e) {
-    listError.value = e instanceof Error ? e.message : "Failed to set the cover.";
+    listError.value =
+      e instanceof Error ? e.message : "Failed to set the cover.";
   }
 }
 const confirm = useConfirm();
@@ -283,7 +298,9 @@ onBeforeUnmount(() => document.removeEventListener("click", onDocumentClick));
           <path d="M3 12a9 9 0 1 0 3-6.7" />
           <path d="M3 4v5h5" />
         </svg>
-        <span v-if="rewatches.length" class="badge-count">{{ rewatches.length }}</span>
+        <span v-if="rewatches.length" class="badge-count">{{
+          rewatches.length
+        }}</span>
       </button>
     </div>
 
@@ -308,7 +325,9 @@ onBeforeUnmount(() => document.removeEventListener("click", onDocumentClick));
         >
           <path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01" />
         </svg>
-        <span v-if="membership.length" class="badge-count">{{ membership.length }}</span>
+        <span v-if="membership.length" class="badge-count">{{
+          membership.length
+        }}</span>
       </button>
     </div>
   </div>
@@ -337,14 +356,18 @@ onBeforeUnmount(() => document.removeEventListener("click", onDocumentClick));
             <path d="M3 4v5h5" />
           </svg>
           <p class="popover-title">Rewatches</p>
-          <span v-if="rewatches.length" class="popover-count">{{ rewatches.length }}</span>
+          <span v-if="rewatches.length" class="popover-count">{{
+            rewatches.length
+          }}</span>
         </div>
 
         <ul v-if="rewatches.length" class="rewatch-list">
           <li v-for="r in rewatches" :key="r.id">
             <span class="rewatch-dot"></span>
             <div class="rewatch-info">
-              <span class="rewatch-date">{{ formatRewatchDate(r.finishedOn) }}</span>
+              <span class="rewatch-date">{{
+                formatRewatchDate(r.finishedOn)
+              }}</span>
               <span v-if="r.note" class="rewatch-note">{{ r.note }}</span>
             </div>
             <button
@@ -449,15 +472,29 @@ onBeforeUnmount(() => document.removeEventListener("click", onDocumentClick));
               </button>
               <span class="list-row-actions">
                 <button
-                  v-if="membershipByList.has(l.id) && l.coverMediaId !== mediaId"
+                  v-if="
+                    membershipByList.has(l.id) && l.coverMediaId !== mediaId
+                  "
                   type="button"
                   title="Use this title as the list cover"
                   @click="useAsCover(l)"
                 >
                   ★
                 </button>
-                <button type="button" title="Rename list" @click="startRename(l)">✎</button>
-                <button type="button" title="Delete list" @click="removeList(l)">✕</button>
+                <button
+                  type="button"
+                  title="Rename list"
+                  @click="startRename(l)"
+                >
+                  ✎
+                </button>
+                <button
+                  type="button"
+                  title="Delete list"
+                  @click="removeList(l)"
+                >
+                  ✕
+                </button>
               </span>
             </template>
           </li>
@@ -472,7 +509,11 @@ onBeforeUnmount(() => document.removeEventListener("click", onDocumentClick));
             class="new-list-input"
             @keyup.enter="submitNewList"
           />
-          <button type="button" class="popover-primary-btn" @click="submitNewList">
+          <button
+            type="button"
+            class="popover-primary-btn"
+            @click="submitNewList"
+          >
             Create
           </button>
         </div>
@@ -535,7 +576,9 @@ onBeforeUnmount(() => document.removeEventListener("click", onDocumentClick));
 
 .pop-enter-active,
 .pop-leave-active {
-  transition: opacity 0.12s ease, transform 0.12s ease;
+  transition:
+    opacity 0.12s ease,
+    transform 0.12s ease;
 }
 .pop-enter-from,
 .pop-leave-to {

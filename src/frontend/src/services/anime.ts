@@ -377,7 +377,8 @@ function inputToBody(input: AnimeInput): Record<string, unknown> {
     linked_tv_show_id: input.linkedTvShowId ?? null,
     linked_movie_id: input.linkedMovieId ?? null,
   };
-  if (input.airingIntervalDays !== undefined) body.airing_interval_days = input.airingIntervalDays;
+  if (input.airingIntervalDays !== undefined)
+    body.airing_interval_days = input.airingIntervalDays;
   if (input.status) body.status = denormalizeStatus(input.status);
   if (input.seasons) body.seasons = input.seasons.map(seasonInputToBody);
   return body;
@@ -646,7 +647,9 @@ interface BackendAnimeMetadataSearchResponse {
   results: BackendAnimeMetadataResult[];
 }
 
-function mapBackendAnimeMetadataResult(r: BackendAnimeMetadataResult): AnimeMetadataResult {
+function mapBackendAnimeMetadataResult(
+  r: BackendAnimeMetadataResult,
+): AnimeMetadataResult {
   return {
     provider: r.provider,
     providerId: r.provider_id,
@@ -786,7 +789,9 @@ function mapRelatedAnime(r: BackendRelatedAnime): RelatedAnime {
 }
 
 const relationsCache = new Map<string, AnimeRelationsResponse>();
-export const peekAnimeRelations = (id: string): AnimeRelationsResponse | undefined => relationsCache.get(id);
+export const peekAnimeRelations = (
+  id: string,
+): AnimeRelationsResponse | undefined => relationsCache.get(id);
 
 export async function fetchAnimeRelations(
   id: string,
@@ -799,7 +804,10 @@ export async function fetchAnimeRelations(
     "fetch anime relations",
   );
   const result: AnimeRelationsResponse = {
-    chain: raw.chain.map((n) => ({ ...mapRelatedAnime(n), isCurrent: n.is_current })),
+    chain: raw.chain.map((n) => ({
+      ...mapRelatedAnime(n),
+      isCurrent: n.is_current,
+    })),
     branches: raw.branches.map((b) => ({
       ...mapRelatedAnime(b),
       relationLabel: b.relation_label,

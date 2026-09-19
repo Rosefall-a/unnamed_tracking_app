@@ -56,7 +56,11 @@ const weeks = computed<Cell[][]>(() => {
           :key="cell.key"
           class="heat-cell"
           :class="[`l${cell.level}`, { off: !cell.inRange }]"
-          :title="cell.inRange ? `${cell.key}: ${cell.count} episode${cell.count === 1 ? '' : 's'}` : ''"
+          :title="
+            cell.inRange
+              ? `${cell.key}: ${cell.count} episode${cell.count === 1 ? '' : 's'}`
+              : ''
+          "
         ></span>
       </div>
     </div>

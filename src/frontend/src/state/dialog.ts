@@ -67,7 +67,9 @@ export interface PromptOptions {
 }
 
 /** Resolves to the entered text, or null if the dialog was cancelled. */
-export function usePrompt(): (options: PromptOptions) => Promise<string | null> {
+export function usePrompt(): (
+  options: PromptOptions,
+) => Promise<string | null> {
   return (o) =>
     new Promise<string | null>((resolve) =>
       show({

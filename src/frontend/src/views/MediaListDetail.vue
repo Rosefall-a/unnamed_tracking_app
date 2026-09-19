@@ -14,11 +14,20 @@ import {
   updateMediaList,
   deleteMediaList,
 } from "../services/mediaExtras";
-import type { MediaListDetail, MediaListItemVM, MediaType, SmartRule } from "../services/mediaExtras";
+import type {
+  MediaListDetail,
+  MediaListItemVM,
+  MediaType,
+  SmartRule,
+} from "../services/mediaExtras";
 import ListFormModal from "../components/ListFormModal.vue";
 import BackButton from "../components/BackButton.vue";
 import MediaTopBar from "../components/MediaTopBar.vue";
-import { STATUS_BUCKETS, statusBucket, statusBucketLabel } from "../utils/mediaStatus";
+import {
+  STATUS_BUCKETS,
+  statusBucket,
+  statusBucketLabel,
+} from "../utils/mediaStatus";
 import { useConfirm } from "../state/dialog";
 import { fetchMovies } from "../services/movies";
 import { fetchTVShows } from "../services/tvShows";
@@ -52,9 +61,15 @@ const isSystem = computed(() => list.value?.isSystem ?? false);
 const typeFilter = ref<"all" | MediaType>("all");
 const typeCounts = computed(() => list.value?.typeCounts ?? {});
 const presentTypes = computed(() =>
-  (["movie", "tv", "anime"] as MediaType[]).filter((t) => (typeCounts.value[t] ?? 0) > 0),
+  (["movie", "tv", "anime"] as MediaType[]).filter(
+    (t) => (typeCounts.value[t] ?? 0) > 0,
+  ),
 );
-const TYPE_LABEL: Record<MediaType, string> = { movie: "Movies", tv: "TV Shows", anime: "Anime" };
+const TYPE_LABEL: Record<MediaType, string> = {
+  movie: "Movies",
+  tv: "TV Shows",
+  anime: "Anime",
+};
 
 // ---- sorting (view only; "manual" is the stored order) ----
 type SortMode = "manual" | "title" | "status";
@@ -67,14 +82,19 @@ watch(isSmart, (smart) => {
 const STATUS_ORDER = STATUS_BUCKETS.map((s) => s.key as string);
 const shownItems = computed<MediaListItemVM[]>(() => {
   const all = list.value?.items ?? [];
-  const items = typeFilter.value === "all" ? all : all.filter((i) => i.mediaType === typeFilter.value);
+  const items =
+    typeFilter.value === "all"
+      ? all
+      : all.filter((i) => i.mediaType === typeFilter.value);
   if (sortMode.value === "manual") return items;
   const copy = [...items];
-  if (sortMode.value === "title") copy.sort((a, b) => a.title.localeCompare(b.title));
+  if (sortMode.value === "title")
+    copy.sort((a, b) => a.title.localeCompare(b.title));
   else
     copy.sort(
       (a, b) =>
-        STATUS_ORDER.indexOf(statusBucket(a.status)) - STATUS_ORDER.indexOf(statusBucket(b.status)),
+        STATUS_ORDER.indexOf(statusBucket(a.status)) -
+        STATUS_ORDER.indexOf(statusBucket(b.status)),
     );
   return copy;
 });
@@ -87,13 +107,19 @@ async function removeItem(itemId: string) {
     list.value.items = list.value.items.filter((i) => i.id !== itemId);
     list.value.itemCount -= 1;
   } catch (e) {
-    error.value = e instanceof Error ? e.message : "Failed to remove from list.";
+    error.value =
+      e instanceof Error ? e.message : "Failed to remove from list.";
   }
 }
 
 function openItem(item: { mediaType: string; mediaId: string }) {
   if (reorderMode.value) return;
-  const base = item.mediaType === "movie" ? "/movies" : item.mediaType === "tv" ? "/tv" : "/anime";
+  const base =
+    item.mediaType === "movie"
+      ? "/movies"
+      : item.mediaType === "tv"
+        ? "/tv"
+        : "/anime";
   router.push(`${base}/${item.mediaId}`);
 }
 
@@ -126,7 +152,8 @@ async function persistOrder() {
   }
 }
 function moveItem(from: number, to: number) {
-  if (!list.value || to < 0 || to >= list.value.items.length || from === to) return;
+  if (!list.value || to < 0 || to >= list.value.items.length || from === to)
+    return;
   const items = [...list.value.items];
   const [moved] = items.splice(from, 1);
   items.splice(to, 0, moved);
@@ -154,7 +181,9 @@ async function nudge(index: number, delta: number) {
 async function setCover(item: MediaListItemVM) {
   if (!list.value) return;
   try {
-    const updated = await updateMediaList(list.value.id, { coverMediaId: item.mediaId });
+    const updated = await updateMediaList(list.value.id, {
+      coverMediaId: item.mediaId,
+    });
     list.value.coverMediaId = updated.coverMediaId;
     list.value.previewPosters = updated.previewPosters;
   } catch (e) {
@@ -210,7 +239,11 @@ const ruleSummary = computed(() => {
   if (!r) return "";
   const parts: string[] = [];
   if (r.mediaTypes?.length) {
-    const names: Record<MediaType, string> = { movie: "movies", tv: "TV shows", anime: "anime" };
+    const names: Record<MediaType, string> = {
+      movie: "movies",
+      tv: "TV shows",
+      anime: "anime",
+    };
     parts.push(r.mediaTypes.map((t) => names[t]).join(", "));
   }
   if (r.statusBuckets?.length) {
@@ -245,19 +278,42 @@ async function openAdd() {
   addError.value = null;
   if (libraryLoaded.value) return;
   try {
-    const [movies, shows, anime] = await Promise.all([fetchMovies(), fetchTVShows(), fetchAnime()]);
+    const [movies, shows, anime] = await Promise.all([
+      fetchMovies(),
+      fetchTVShows(),
+      fetchAnime(),
+    ]);
     library.value = [
-      ...movies.map((m) => ({ mediaType: "movie" as const, mediaId: m.id, title: m.title, posterUrl: m.posterUrl })),
-      ...shows.map((s) => ({ mediaType: "tv" as const, mediaId: s.id, title: s.title, posterUrl: s.posterUrl })),
-      ...anime.map((a) => ({ mediaType: "anime" as const, mediaId: a.id, title: a.title, posterUrl: a.posterUrl })),
+      ...movies.map((m) => ({
+        mediaType: "movie" as const,
+        mediaId: m.id,
+        title: m.title,
+        posterUrl: m.posterUrl,
+      })),
+      ...shows.map((s) => ({
+        mediaType: "tv" as const,
+        mediaId: s.id,
+        title: s.title,
+        posterUrl: s.posterUrl,
+      })),
+      ...anime.map((a) => ({
+        mediaType: "anime" as const,
+        mediaId: a.id,
+        title: a.title,
+        posterUrl: a.posterUrl,
+      })),
     ];
     libraryLoaded.value = true;
   } catch (e) {
-    addError.value = e instanceof Error ? e.message : "Failed to load your library.";
+    addError.value =
+      e instanceof Error ? e.message : "Failed to load your library.";
   }
 }
 const inList = computed(
-  () => new Set((list.value?.items ?? []).map((i) => `${i.mediaType}-${i.mediaId}`)),
+  () =>
+    new Set(
+      (list.value?.items ?? []).map((i) => `${i.mediaType}-${i.mediaId}`),
+    ),
 );
 const addResults = computed(() => {
   const q = addSearch.value.trim().toLowerCase();
@@ -297,27 +353,72 @@ async function addTitle(m: PickItem) {
         <span class="count-badge"
           >{{ list.itemCount }} title{{ list.itemCount === 1 ? "" : "s" }}</span
         >
-        <span v-if="isSmart" class="smart-pill" title="Fills itself from a filter">Smart</span>
+        <span
+          v-if="isSmart"
+          class="smart-pill"
+          title="Fills itself from a filter"
+          >Smart</span
+        >
         <div class="header-spacer"></div>
-        <select v-model="sortMode" class="ui-field" :disabled="reorderMode" title="Sort">
+        <select
+          v-model="sortMode"
+          class="ui-field"
+          :disabled="reorderMode"
+          title="Sort"
+        >
           <option v-if="!isSmart" value="manual">Manual order</option>
           <option value="title">Title</option>
           <option value="status">Status</option>
         </select>
-        <button v-if="!isSmart && list.items.length > 1" type="button" class="ui-btn ui-btn-secondary" :class="{ on: reorderMode }" @click="toggleReorder">
+        <button
+          v-if="!isSmart && list.items.length > 1"
+          type="button"
+          class="ui-btn ui-btn-secondary"
+          :class="{ on: reorderMode }"
+          @click="toggleReorder"
+        >
           {{ reorderMode ? "Done" : "Reorder" }}
         </button>
-        <button v-if="!isSmart" type="button" class="ui-btn ui-btn-primary" @click="openAdd">+ Add Titles</button>
-        <button v-if="!isSystem" type="button" class="ui-btn ui-btn-secondary" @click="showEdit = true">Edit</button>
-        <button v-if="!isSystem" type="button" class="ui-btn ui-btn-danger" :disabled="deletingList" @click="deleteList">
+        <button
+          v-if="!isSmart"
+          type="button"
+          class="ui-btn ui-btn-primary"
+          @click="openAdd"
+        >
+          + Add Titles
+        </button>
+        <button
+          v-if="!isSystem"
+          type="button"
+          class="ui-btn ui-btn-secondary"
+          @click="showEdit = true"
+        >
+          Edit
+        </button>
+        <button
+          v-if="!isSystem"
+          type="button"
+          class="ui-btn ui-btn-danger"
+          :disabled="deletingList"
+          @click="deleteList"
+        >
           {{ deletingList ? "Deleting…" : "Delete" }}
         </button>
       </div>
       <p v-if="list.description" class="subtitle">{{ list.description }}</p>
-      <p v-if="isSmart && ruleSummary" class="subtitle rule-line">Matches: {{ ruleSummary }}</p>
+      <p v-if="isSmart && ruleSummary" class="subtitle rule-line">
+        Matches: {{ ruleSummary }}
+      </p>
       <p v-if="error" class="ui-state error">{{ error }}</p>
       <div v-if="presentTypes.length > 1" class="type-chips">
-        <button type="button" class="ui-chip" :class="{ on: typeFilter === 'all' }" @click="typeFilter = 'all'">All</button>
+        <button
+          type="button"
+          class="ui-chip"
+          :class="{ on: typeFilter === 'all' }"
+          @click="typeFilter = 'all'"
+        >
+          All
+        </button>
         <button
           v-for="t in presentTypes"
           :key="t"
@@ -329,7 +430,9 @@ async function addTitle(m: PickItem) {
           {{ TYPE_LABEL[t] }} <span class="n">{{ typeCounts[t] }}</span>
         </button>
       </div>
-      <p v-if="reorderMode" class="hint">Drag titles, or use the arrows, to set the order. It saves as you go.</p>
+      <p v-if="reorderMode" class="hint">
+        Drag titles, or use the arrows, to set the order. It saves as you go.
+      </p>
 
       <div v-if="shownItems.length" class="grid">
         <div
@@ -346,13 +449,36 @@ async function addTitle(m: PickItem) {
           <div class="item-cover">
             <div
               class="item-poster"
-              :style="item.posterUrl ? { backgroundImage: `url(${item.posterUrl})` } : {}"
+              :style="
+                item.posterUrl
+                  ? { backgroundImage: `url(${item.posterUrl})` }
+                  : {}
+              "
             ></div>
-            <span v-if="list.coverMediaId === item.mediaId" class="cover-mark" title="List cover">★</span>
+            <span
+              v-if="list.coverMediaId === item.mediaId"
+              class="cover-mark"
+              title="List cover"
+              >★</span
+            >
             <div v-if="reorderMode" class="reorder-arrows">
-              <button type="button" :disabled="index === 0" title="Move earlier" @click.stop="nudge(index, -1)">‹</button>
+              <button
+                type="button"
+                :disabled="index === 0"
+                title="Move earlier"
+                @click.stop="nudge(index, -1)"
+              >
+                ‹
+              </button>
               <span class="reorder-pos">{{ index + 1 }}</span>
-              <button type="button" :disabled="index === shownItems.length - 1" title="Move later" @click.stop="nudge(index, 1)">›</button>
+              <button
+                type="button"
+                :disabled="index === shownItems.length - 1"
+                title="Move later"
+                @click.stop="nudge(index, 1)"
+              >
+                ›
+              </button>
             </div>
             <div v-else class="tile-actions">
               <button
@@ -383,10 +509,12 @@ async function addTitle(m: PickItem) {
         </div>
       </div>
       <p v-else-if="isSmart" class="ui-state">
-        Nothing matches this list's filter right now. Edit the list to loosen it.
+        Nothing matches this list's filter right now. Edit the list to loosen
+        it.
       </p>
       <p v-else class="ui-state">
-        Nothing in this list yet. Use "+ Add Titles", or the list button on any movie, TV or anime page.
+        Nothing in this list yet. Use "+ Add Titles", or the list button on any
+        movie, TV or anime page.
       </p>
     </div>
 
@@ -401,19 +529,44 @@ async function addTitle(m: PickItem) {
     <div v-if="showAdd" class="ui-backdrop" @click.self="showAdd = false">
       <div class="ui-modal add-modal">
         <h3>Add titles</h3>
-        <input v-model="addSearch" type="text" class="ui-field" placeholder="Search your library…" autofocus />
+        <input
+          v-model="addSearch"
+          type="text"
+          class="ui-field"
+          placeholder="Search your library…"
+          autofocus
+        />
         <p v-if="addError" class="ui-error-box">{{ addError }}</p>
         <div class="add-results">
-          <button v-for="m in addResults" :key="`${m.mediaType}-${m.mediaId}`" type="button" class="add-row" @click="addTitle(m)">
-            <span class="add-thumb" :style="m.posterUrl ? { backgroundImage: `url(${m.posterUrl})` } : {}"></span>
+          <button
+            v-for="m in addResults"
+            :key="`${m.mediaType}-${m.mediaId}`"
+            type="button"
+            class="add-row"
+            @click="addTitle(m)"
+          >
+            <span
+              class="add-thumb"
+              :style="
+                m.posterUrl ? { backgroundImage: `url(${m.posterUrl})` } : {}
+              "
+            ></span>
             <span class="add-title">{{ m.title }}</span>
             <span class="add-kind">{{ m.mediaType }}</span>
             <span class="add-plus">+</span>
           </button>
-          <p v-if="libraryLoaded && !addResults.length" class="ui-state">Nothing left to add{{ addSearch ? " for that search" : "" }}.</p>
+          <p v-if="libraryLoaded && !addResults.length" class="ui-state">
+            Nothing left to add{{ addSearch ? " for that search" : "" }}.
+          </p>
         </div>
         <div class="ui-modal-actions">
-          <button type="button" class="ui-btn ui-btn-primary" @click="showAdd = false">Done</button>
+          <button
+            type="button"
+            class="ui-btn ui-btn-primary"
+            @click="showAdd = false"
+          >
+            Done
+          </button>
         </div>
       </div>
     </div>

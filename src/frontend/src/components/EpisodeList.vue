@@ -47,15 +47,23 @@ const props = defineProps<{
 // or rated since there's nothing in the database to act on yet.
 const MAX_SYNTHETIC_WEEKS = 12;
 const displayEpisodes = computed<EpisodeVM[]>(() => {
-  if (!props.nextEpisodeNumber || !props.nextEpisodeAirAt) return props.episodes;
-  const maxReal = props.episodes.reduce((m, e) => Math.max(m, e.episodeNumber), 0);
+  if (!props.nextEpisodeNumber || !props.nextEpisodeAirAt)
+    return props.episodes;
+  const maxReal = props.episodes.reduce(
+    (m, e) => Math.max(m, e.episodeNumber),
+    0,
+  );
   const ceiling =
     props.episodeCount && props.episodeCount > props.nextEpisodeNumber
       ? props.episodeCount
       : props.nextEpisodeNumber + MAX_SYNTHETIC_WEEKS - 1;
   if (maxReal >= ceiling) return props.episodes;
   const synthetic: EpisodeVM[] = [];
-  for (let n = Math.max(maxReal + 1, props.nextEpisodeNumber); n <= ceiling; n++) {
+  for (
+    let n = Math.max(maxReal + 1, props.nextEpisodeNumber);
+    n <= ceiling;
+    n++
+  ) {
     synthetic.push({
       id: `virtual-${n}`,
       episodeNumber: n,
@@ -71,7 +79,9 @@ const displayEpisodes = computed<EpisodeVM[]>(() => {
   return [...props.episodes, ...synthetic];
 });
 
-const intervalSeconds = computed(() => (props.intervalDays ?? 7) * 24 * 60 * 60);
+const intervalSeconds = computed(
+  () => (props.intervalDays ?? 7) * 24 * 60 * 60,
+);
 const cadenceLabel = computed(() => {
   const d = props.intervalDays ?? 7;
   if (d === 7) return "weekly";
@@ -153,7 +163,9 @@ function onCheckboxClick(event: MouseEvent, ep: EpisodeVM) {
   if (ep.isVirtual) return;
   const targetWatched = !ep.watched;
   if (event.shiftKey && lastClickedId.value) {
-    const ids = displayEpisodes.value.filter((e) => !e.isVirtual).map((e) => e.id);
+    const ids = displayEpisodes.value
+      .filter((e) => !e.isVirtual)
+      .map((e) => e.id);
     const fromIndex = ids.indexOf(lastClickedId.value);
     const toIndex = ids.indexOf(ep.id);
     if (fromIndex !== -1 && toIndex !== -1) {
@@ -204,7 +216,8 @@ watch(
       return;
     }
     const firstUnwatchedIndex = episodes.findIndex((e) => !e.watched);
-    const targetIndex = firstUnwatchedIndex === -1 ? episodes.length - 1 : firstUnwatchedIndex;
+    const targetIndex =
+      firstUnwatchedIndex === -1 ? episodes.length - 1 : firstUnwatchedIndex;
     page.value = Math.floor(targetIndex / PAGE_SIZE);
   },
   { immediate: true },
@@ -234,7 +247,10 @@ function goToPage(p: number) {
         >
           ‹ Prev
         </button>
-        <select :value="page" @change="goToPage(Number(($event.target as HTMLSelectElement).value))">
+        <select
+          :value="page"
+          @change="goToPage(Number(($event.target as HTMLSelectElement).value))"
+        >
           <option v-for="p in pageCount" :key="p - 1" :value="p - 1">
             Episodes {{ (p - 1) * PAGE_SIZE + 1 }}–{{
               Math.min(p * PAGE_SIZE, displayEpisodes.length)
@@ -257,122 +273,166 @@ function goToPage(p: number) {
         :class="{
           watched: ep.watched,
           virtual: ep.isVirtual,
-          'next-up': countdownFor(ep.episodeNumber) && !isProjectedFor(ep.episodeNumber),
-          projected: countdownFor(ep.episodeNumber) && isProjectedFor(ep.episodeNumber),
+          'next-up':
+            countdownFor(ep.episodeNumber) && !isProjectedFor(ep.episodeNumber),
+          projected:
+            countdownFor(ep.episodeNumber) && isProjectedFor(ep.episodeNumber),
         }"
       >
-      <button
-        type="button"
-        class="episode-checkbox"
-        :disabled="ep.isVirtual"
-        :title="
-          ep.isVirtual
-            ? 'Not aired yet'
-            : ep.watched
-              ? 'Mark unwatched (shift-click for a range)'
-              : 'Mark watched (shift-click for a range)'
-        "
-        @click="onCheckboxClick($event, ep)"
-      >
-        <CheckIcon v-if="ep.watched" />
-      </button>
-      <div
-        class="episode-thumb"
-        :style="ep.stillUrl ? { backgroundImage: `url(${ep.stillUrl})` } : {}"
-      >
-        <span v-if="!ep.stillUrl">No image</span>
-      </div>
-      <div class="episode-info">
-        <div class="episode-title-row">
-          <span class="episode-number">Ep {{ ep.episodeNumber }}</span>
-          <span class="episode-title">{{ ep.title || (ep.isVirtual ? "Not yet aired" : "Untitled") }}</span>
-          <span
-            v-if="countdownFor(ep.episodeNumber)"
-            class="episode-countdown"
-            :class="{ projected: isProjectedFor(ep.episodeNumber) }"
-            :title="isProjectedFor(ep.episodeNumber) ? `Estimated from a ${cadenceLabel} schedule, not confirmed` : undefined"
-            >{{ isProjectedFor(ep.episodeNumber) ? "Est. " : "" }}Airs in {{ countdownFor(ep.episodeNumber) }}</span
-          >
-          <span v-else-if="ep.airDate" class="episode-air">{{ ep.airDate }}</span>
+        <button
+          type="button"
+          class="episode-checkbox"
+          :disabled="ep.isVirtual"
+          :title="
+            ep.isVirtual
+              ? 'Not aired yet'
+              : ep.watched
+                ? 'Mark unwatched (shift-click for a range)'
+                : 'Mark watched (shift-click for a range)'
+          "
+          @click="onCheckboxClick($event, ep)"
+        >
+          <CheckIcon v-if="ep.watched" />
+        </button>
+        <div
+          class="episode-thumb"
+          :style="ep.stillUrl ? { backgroundImage: `url(${ep.stillUrl})` } : {}"
+        >
+          <span v-if="!ep.stillUrl">No image</span>
         </div>
-        <p v-if="ep.description" class="episode-desc">{{ ep.description }}</p>
-        <div v-if="editingNoteId === ep.id" class="note-editor">
-          <textarea
-            v-model="noteDraft"
-            :rows="Math.min(8, Math.max(3, noteDraft.split('\n').length + 1))"
-            :maxlength="NOTE_MAX"
-            placeholder="Thoughts, theories, where you stopped, what to rewatch…"
-            autofocus
-            @keydown.ctrl.enter="saveNote(ep)"
-            @keydown.meta.enter="saveNote(ep)"
-            @keydown.esc="editingNoteId = null"
-          ></textarea>
-          <div class="note-foot">
-            <span class="note-count" :class="{ near: noteDraft.length > NOTE_MAX - 100 }"
-              >{{ noteDraft.length }} / {{ NOTE_MAX }}</span
+        <div class="episode-info">
+          <div class="episode-title-row">
+            <span class="episode-number">Ep {{ ep.episodeNumber }}</span>
+            <span class="episode-title">{{
+              ep.title || (ep.isVirtual ? "Not yet aired" : "Untitled")
+            }}</span>
+            <span
+              v-if="countdownFor(ep.episodeNumber)"
+              class="episode-countdown"
+              :class="{ projected: isProjectedFor(ep.episodeNumber) }"
+              :title="
+                isProjectedFor(ep.episodeNumber)
+                  ? `Estimated from a ${cadenceLabel} schedule, not confirmed`
+                  : undefined
+              "
+              >{{ isProjectedFor(ep.episodeNumber) ? "Est. " : "" }}Airs in
+              {{ countdownFor(ep.episodeNumber) }}</span
             >
-            <span class="note-hint">Ctrl+Enter to save</span>
-            <span class="note-spacer"></span>
-            <button v-if="ep.note" type="button" class="note-remove" @click="removeNote(ep)">Remove</button>
-            <button type="button" class="note-cancel" @click="editingNoteId = null">Cancel</button>
-            <button type="button" class="note-save" @click="saveNote(ep)">Save</button>
+            <span v-else-if="ep.airDate" class="episode-air">{{
+              ep.airDate
+            }}</span>
           </div>
-        </div>
-        <div v-else-if="ep.note" class="note-card">
-          <div class="note-head">
-            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M12 20h9" />
-              <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
-            </svg>
-            <span>Your note</span>
-            <button type="button" class="note-edit" @click="startNote(ep)">Edit</button>
+          <p v-if="ep.description" class="episode-desc">{{ ep.description }}</p>
+          <div v-if="editingNoteId === ep.id" class="note-editor">
+            <textarea
+              v-model="noteDraft"
+              :rows="Math.min(8, Math.max(3, noteDraft.split('\n').length + 1))"
+              :maxlength="NOTE_MAX"
+              placeholder="Thoughts, theories, where you stopped, what to rewatch…"
+              autofocus
+              @keydown.ctrl.enter="saveNote(ep)"
+              @keydown.meta.enter="saveNote(ep)"
+              @keydown.esc="editingNoteId = null"
+            ></textarea>
+            <div class="note-foot">
+              <span
+                class="note-count"
+                :class="{ near: noteDraft.length > NOTE_MAX - 100 }"
+                >{{ noteDraft.length }} / {{ NOTE_MAX }}</span
+              >
+              <span class="note-hint">Ctrl+Enter to save</span>
+              <span class="note-spacer"></span>
+              <button
+                v-if="ep.note"
+                type="button"
+                class="note-remove"
+                @click="removeNote(ep)"
+              >
+                Remove
+              </button>
+              <button
+                type="button"
+                class="note-cancel"
+                @click="editingNoteId = null"
+              >
+                Cancel
+              </button>
+              <button type="button" class="note-save" @click="saveNote(ep)">
+                Save
+              </button>
+            </div>
           </div>
-          <p
-            class="note-body"
-            :class="{ clamped: ep.note.length > NOTE_CLAMP_CHARS && !expandedNotes.has(ep.id) }"
-          >
-            {{ ep.note }}
-          </p>
+          <div v-else-if="ep.note" class="note-card">
+            <div class="note-head">
+              <svg
+                viewBox="0 0 24 24"
+                width="12"
+                height="12"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M12 20h9" />
+                <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+              </svg>
+              <span>Your note</span>
+              <button type="button" class="note-edit" @click="startNote(ep)">
+                Edit
+              </button>
+            </div>
+            <p
+              class="note-body"
+              :class="{
+                clamped:
+                  ep.note.length > NOTE_CLAMP_CHARS &&
+                  !expandedNotes.has(ep.id),
+              }"
+            >
+              {{ ep.note }}
+            </p>
+            <button
+              v-if="ep.note.length > NOTE_CLAMP_CHARS"
+              type="button"
+              class="note-more"
+              @click="toggleNoteExpanded(ep.id)"
+            >
+              {{ expandedNotes.has(ep.id) ? "Show less" : "Show more" }}
+            </button>
+          </div>
           <button
-            v-if="ep.note.length > NOTE_CLAMP_CHARS"
+            v-else-if="!ep.isVirtual"
             type="button"
-            class="note-more"
-            @click="toggleNoteExpanded(ep.id)"
+            class="add-note-btn"
+            @click="startNote(ep)"
           >
-            {{ expandedNotes.has(ep.id) ? "Show less" : "Show more" }}
+            + Add Note
           </button>
         </div>
         <button
-          v-else-if="!ep.isVirtual"
+          v-if="!ep.watched && !ep.isVirtual"
           type="button"
-          class="add-note-btn"
-          @click="startNote(ep)"
+          class="catch-up-btn"
+          title="Mark watched up to here"
+          @click="markWatchedUpToHere(ep)"
         >
-          + Add Note
+          Catch up ›
         </button>
-      </div>
-      <button
-        v-if="!ep.watched && !ep.isVirtual"
-        type="button"
-        class="catch-up-btn"
-        title="Mark watched up to here"
-        @click="markWatchedUpToHere(ep)"
-      >
-        Catch up ›
-      </button>
-      <div class="episode-rating">
-        <span class="star">★</span>
-        <input
-          type="number"
-          min="0"
-          max="10"
-          step="0.1"
-          placeholder="–"
-          :disabled="ep.isVirtual"
-          :value="ep.rating ?? ''"
-          @change="onRatingInput(ep.id, $event)"
-        />
-      </div>
+        <div class="episode-rating">
+          <span class="star">★</span>
+          <input
+            type="number"
+            min="0"
+            max="10"
+            step="0.1"
+            placeholder="–"
+            :disabled="ep.isVirtual"
+            :value="ep.rating ?? ''"
+            @change="onRatingInput(ep.id, $event)"
+          />
+        </div>
       </div>
       <div v-if="pageCount > 1" class="episode-pager">
         <button
@@ -383,9 +443,7 @@ function goToPage(p: number) {
         >
           ‹ Prev
         </button>
-        <span class="pager-label"
-          >Page {{ page + 1 }} of {{ pageCount }}</span
-        >
+        <span class="pager-label">Page {{ page + 1 }} of {{ pageCount }}</span>
         <button
           type="button"
           class="pager-btn"
@@ -480,7 +538,10 @@ function goToPage(p: number) {
   font-weight: 600;
   cursor: pointer;
   opacity: 0;
-  transition: opacity 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  transition:
+    opacity 0.15s ease,
+    color 0.15s ease,
+    border-color 0.15s ease;
 }
 .episode-row:hover .catch-up-btn,
 .episode-row:focus-within .catch-up-btn {
@@ -503,7 +564,10 @@ function goToPage(p: number) {
   font-weight: 600;
   cursor: pointer;
   opacity: 0;
-  transition: opacity 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  transition:
+    opacity 0.15s ease,
+    color 0.15s ease,
+    border-color 0.15s ease;
 }
 .episode-row:hover .add-note-btn,
 .episode-row:focus-within .add-note-btn {

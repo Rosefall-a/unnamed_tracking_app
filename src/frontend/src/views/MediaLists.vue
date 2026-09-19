@@ -63,13 +63,18 @@ async function onCreate(payload: {
 }) {
   createError.value = null;
   try {
-    const created = await createMediaList(payload.name, payload.description, payload.smartRule);
+    const created = await createMediaList(
+      payload.name,
+      payload.description,
+      payload.smartRule,
+    );
     lists.value.push(created);
     showCreate.value = false;
     router.push(`/lists/${created.id}`);
   } catch (e) {
     showCreate.value = false;
-    createError.value = e instanceof Error ? e.message : "Failed to create list.";
+    createError.value =
+      e instanceof Error ? e.message : "Failed to create list.";
   }
 }
 
@@ -93,7 +98,11 @@ const filteredLists = computed(() => {
 const smartCount = computed(() => lists.value.filter((l) => l.isSmart).length);
 const kindOptions = computed<SegmentOption[]>(() => [
   { value: "all", label: "All", count: lists.value.length },
-  { value: "manual", label: "Manual", count: lists.value.length - smartCount.value },
+  {
+    value: "manual",
+    label: "Manual",
+    count: lists.value.length - smartCount.value,
+  },
   { value: "smart", label: "Smart", count: smartCount.value },
 ]);
 const TYPE_OPTIONS: SegmentOption[] = [
@@ -168,7 +177,11 @@ async function deleteList(id: string) {
             <option value="count">Most Titles</option>
             <option value="recent">Recently Updated</option>
           </select>
-          <button type="button" class="ui-btn ui-btn-primary" @click="showCreate = true">
+          <button
+            type="button"
+            class="ui-btn ui-btn-primary"
+            @click="showCreate = true"
+          >
             + Create List
           </button>
         </div>
@@ -179,13 +192,17 @@ async function deleteList(id: string) {
           :options="kindOptions"
           :model-value="kindFilter"
           aria-label="Filter by kind of list"
-          @update:model-value="kindFilter = $event as 'all' | 'manual' | 'smart'"
+          @update:model-value="
+            kindFilter = $event as 'all' | 'manual' | 'smart'
+          "
         />
         <SegmentedTabs
           :options="TYPE_OPTIONS"
           :model-value="typeFilter"
           aria-label="Filter by type"
-          @update:model-value="typeFilter = $event as 'all' | 'movie' | 'tv' | 'anime'"
+          @update:model-value="
+            typeFilter = $event as 'all' | 'movie' | 'tv' | 'anime'
+          "
         />
       </div>
 

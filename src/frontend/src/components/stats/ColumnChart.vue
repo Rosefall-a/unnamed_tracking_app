@@ -19,7 +19,10 @@ const max = computed(() => Math.max(1, ...props.columns.map((c) => c.value)));
       <div v-for="c in columns" :key="c.label" class="col">
         <span class="col-value">{{ c.value || "" }}</span>
         <span class="col-bar-wrap">
-          <span class="col-bar" :style="{ height: (c.value / max) * 100 + '%' }"></span>
+          <span
+            class="col-bar"
+            :style="{ height: (c.value / max) * 100 + '%' }"
+          ></span>
         </span>
         <span class="col-label">{{ c.label }}</span>
       </div>

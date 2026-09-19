@@ -65,7 +65,8 @@ async function load() {
   try {
     movie.value = await getMovie(movieId.value);
   } catch (e) {
-    if (!cached) error.value = e instanceof Error ? e.message : "Failed to load movie.";
+    if (!cached)
+      error.value = e instanceof Error ? e.message : "Failed to load movie.";
   } finally {
     loading.value = false;
   }
@@ -230,7 +231,10 @@ function closePreview() {
   previewOpen.value = false;
 }
 
-async function onRelatedTitleClick(r: { title: string; posterUrl: string | null }) {
+async function onRelatedTitleClick(r: {
+  title: string;
+  posterUrl: string | null;
+}) {
   const mine = await ensureMyMovies();
   const existing = mine.find(
     (m) => m.title.trim().toLowerCase() === r.title.trim().toLowerCase(),
@@ -320,7 +324,10 @@ async function onRatingChange(value: number | null) {
   const previous = movie.value.ratingOverall;
   movie.value.ratingOverall = value;
   try {
-    movie.value = await updateMovie(movie.value.id, { ...movieToInput(movie.value), ratingOverall: value });
+    movie.value = await updateMovie(movie.value.id, {
+      ...movieToInput(movie.value),
+      ratingOverall: value,
+    });
   } catch {
     if (movie.value) movie.value.ratingOverall = previous;
   }
@@ -388,7 +395,10 @@ async function onRatingChange(value: number | null) {
                 {{ opt.label }}
               </option>
             </select>
-            <RatingPicker :model-value="movie.ratingOverall" @change="onRatingChange" />
+            <RatingPicker
+              :model-value="movie.ratingOverall"
+              @change="onRatingChange"
+            />
             <span v-if="releaseYear" class="badge">{{ releaseYear }}</span>
             <span v-if="runtimeLabel" class="badge">{{ runtimeLabel }}</span>
           </div>

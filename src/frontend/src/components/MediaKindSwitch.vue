@@ -18,5 +18,9 @@ const OPTIONS: SegmentOption[] = [
 </script>
 
 <template>
-  <SegmentedTabs :options="OPTIONS" :model-value="active" aria-label="Library" />
+  <SegmentedTabs
+    :options="OPTIONS"
+    :model-value="active"
+    aria-label="Library"
+  />
 </template>

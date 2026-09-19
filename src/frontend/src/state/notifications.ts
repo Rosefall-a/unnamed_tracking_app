@@ -73,7 +73,12 @@ export async function readAllMediaNotifications() {
 }
 
 export function mediaNotificationRoute(n: MediaNotification): string {
-  const base = n.mediaType === "movie" ? "/movies" : n.mediaType === "tv" ? "/tv" : "/anime";
+  const base =
+    n.mediaType === "movie"
+      ? "/movies"
+      : n.mediaType === "tv"
+        ? "/tv"
+        : "/anime";
   return `${base}/${n.mediaId}`;
 }
 
