@@ -117,6 +117,9 @@ def _map_entry(entry: dict[str, Any]) -> dict[str, Any] | None:
         if node.get("name")
     ]
     score = entry.get("score")
+    average_score = media.get("averageScore")
+    entry_status = entry.get("status")
+    entry_priority = entry.get("priority")
     return {
         "anilist_id": str(media_id),
         "title": title,
@@ -127,13 +130,13 @@ def _map_entry(entry: dict[str, Any]) -> dict[str, Any] | None:
         "countries": [media["countryOfOrigin"]] if media.get("countryOfOrigin") else [],
         "genres": media.get("genres") or [],
         "format": media.get("format"),
-        "anilist_score": media.get("averageScore") / 10 if media.get("averageScore") is not None else None,
+        "anilist_score": average_score / 10 if isinstance(average_score, (int, float)) else None,
         "poster_url": (media.get("coverImage") or {}).get("extraLarge")
         or (media.get("coverImage") or {}).get("large"),
         "backdrop_url": media.get("bannerImage"),
         "site_url": media.get("siteUrl"),
-        "status": _STATUS_MAP.get(entry.get("status"), "WISHLIST"),
-        "priority": _PRIORITY_MAP.get(entry.get("priority")),
+        "status": _STATUS_MAP.get(entry_status, "WISHLIST") if isinstance(entry_status, str) else "WISHLIST",
+        "priority": _PRIORITY_MAP.get(entry_priority) if isinstance(entry_priority, int) else None,
         "rating_overall": score if score not in (None, 0) else None,
         "progress": max(0, int(entry.get("progress") or 0)),
         "repeat": max(0, int(entry.get("repeat") or 0)),
