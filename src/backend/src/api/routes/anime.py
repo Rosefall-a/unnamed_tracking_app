@@ -144,6 +144,7 @@ async def import_anilist_library(
             def parsed(key: str):
                 value = entry[key]
                 return date.fromisoformat(value) if value else None
+            season: AnimeSeason | None = None
             if show is None:
                 show = Anime(user_id=current_user.id, title=entry['title'], sort_title=_derive_sort_title(entry['title']), description=entry['description'], first_air_date=parsed('first_air_date'), episode_runtime_minutes=entry['episode_runtime_minutes'], studios=entry['studios'], countries=entry['countries'], languages=[], genres=entry['genres'], tags=[], features=[], format=entry['format'], anilist_score=entry['anilist_score'], anilist_id=entry['anilist_id'], poster_url=entry['poster_url'], backdrop_url=entry['backdrop_url'], status=entry['status'], priority=entry['priority'], rewatches=entry['repeat'], note=entry['note'], start_date=parsed('start_date'), end_date=parsed('end_date'), rating_overall=entry['rating_overall'])
                 db.add(show)
@@ -155,7 +156,7 @@ async def import_anilist_library(
                 show.sort_title = _derive_sort_title(entry['title'])
                 for field in ('title','description','first_air_date','episode_runtime_minutes','studios','countries','genres','format','anilist_score','poster_url','backdrop_url','status','priority','rewatches','note','start_date','end_date','rating_overall'):
                     setattr(show, field, parsed(field) if field in ('first_air_date','start_date','end_date') else entry[field])
-                season: AnimeSeason | None = show.seasons[0] if show.seasons else None
+                season = show.seasons[0] if show.seasons else None
                 if season is None:
                     season = AnimeSeason(show_id=show.id, season_number=1)
                     db.add(season)
