@@ -13,6 +13,7 @@ export interface DialogRequest {
   confirmLabel: string;
   cancelLabel: string;
   danger: boolean;
+  dismissible: boolean;
   defaultValue: string;
   placeholder: string;
   resolve: (value: boolean | string | null) => void;
@@ -39,6 +40,7 @@ export interface ConfirmOptions {
   confirmLabel?: string;
   cancelLabel?: string;
   danger?: boolean;
+  dismissible?: boolean;
 }
 
 export function useConfirm(): (options: ConfirmOptions) => Promise<boolean> {
@@ -51,6 +53,7 @@ export function useConfirm(): (options: ConfirmOptions) => Promise<boolean> {
         confirmLabel: o.confirmLabel ?? "Confirm",
         cancelLabel: o.cancelLabel ?? "Cancel",
         danger: o.danger ?? false,
+        dismissible: o.dismissible ?? true,
         defaultValue: "",
         placeholder: "",
         resolve: (v) => resolve(v === true),
@@ -79,6 +82,7 @@ export function usePrompt(): (
         confirmLabel: o.confirmLabel ?? "OK",
         cancelLabel: "Cancel",
         danger: false,
+        dismissible: true,
         defaultValue: o.defaultValue ?? "",
         placeholder: o.placeholder ?? "",
         resolve: (v) => resolve(typeof v === "string" ? v : null),
