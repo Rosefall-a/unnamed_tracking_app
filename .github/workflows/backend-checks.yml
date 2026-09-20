@@ -56,7 +56,16 @@ jobs:
         run: python -m pip install -r requirements.txt
 
       - name: Run database migrations
-        run: alembic upgrade head
+        run: |
+          python - <<'PY'
+          from alembic import command
+          from alembic.config import Config
+
+          config = Config("alembic.ini")
+          config.set_main_option("script_location", "src/database/migrations")
+          config.set_main_option("prepend_sys_path", ".")
+          command.upgrade(config, "head")
+          PY
 
       - name: Run tests
         run: pytest
