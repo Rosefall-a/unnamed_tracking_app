@@ -103,8 +103,11 @@ export async function previewApplicationSettings(
     const body = await response.text();
     let message = `Application settings import failed: ${response.status}`;
     try {
-      const parsed = JSON.parse(body) as { detail?: string };
-      if (parsed.detail) message = parsed.detail;
+      const parsed = JSON.parse(body) as { detail?: string | Array<{ msg?: string }> };
+      if (Array.isArray(parsed.detail)) {
+        const details = parsed.detail.map((item) => item.msg).filter(Boolean);
+        if (details.length) message = details.join(" ");
+      } else if (parsed.detail) message = parsed.detail;
     } catch {
       if (body) message = `${message} ${body}`;
     }
