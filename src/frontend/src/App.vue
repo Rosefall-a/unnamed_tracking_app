@@ -92,8 +92,13 @@ watch(
           await confirm({
             title: "Application restored",
             message: "Your application has been restored from a preconfigured backup. All backed-up deployment settings have been configured successfully.",
-            confirmLabel: "Continue",
-            cancelLabel: "Close",
+            confirmLabel: "Acknowledge",
+            cancelLabel: "",
+            dismissible: false,
+          });
+          await fetch("/api/setup/restoration-notice/acknowledge", {
+            method: "POST",
+            credentials: "include",
           });
         }
       } catch {
