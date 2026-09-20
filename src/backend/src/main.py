@@ -1,5 +1,6 @@
 import asyncio
 import json
+import time
 from urllib.parse import urlparse
 
 from fastapi import FastAPI, Request
@@ -45,7 +46,6 @@ from src.api.routes.settings import get_or_create_app_integration_settings
 from src.api.routes.utils.misc import router as misc_router
 from src.core.application_backup import (
     load_application_backup_file,
-    mark_automatic_restore_completed,
     restore_application_backup,
 )
 from src.core.auth import COOKIE_NAMESPACE, ensure_primary_user
@@ -54,6 +54,7 @@ from src.core.crypto import encrypt_secret
 from src.core.data_paths import ensure_data_directories
 from src.core.provider_credentials import apply_deployment_provider_credentials
 from src.core.runtime_settings import apply_runtime_settings
+from src.database.models.app_integration_settings import AppIntegrationSettings
 from src.database.models.oidc_settings import OidcSettings
 from src.database.models.user import User
 from src.database.session import SessionLocal
@@ -206,6 +207,12 @@ async def bootstrap_application_backup() -> None:
             return
         try:
             await restore_application_backup(db, raw, password)
+            restored_settings = await db.scalar(select(AppIntegrationSettings).limit(1))
+            if restored_settings is None:
+                restored_settings = AppIntegrationSettings()
+                db.add(restored_settings)
+            restored_settings.restore_notice_at = int(time.time())
+            await db.commit()
         except (OSError, ValueError, RuntimeError) as exc:
             raise RuntimeError(
                 "APPLICATION_JSON_PASSWORD was supplied, but application.json "
