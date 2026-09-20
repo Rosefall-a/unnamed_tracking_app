@@ -8,7 +8,7 @@ and bounties aren't included in either direction."""
 
 import time
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Response, status
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -19,7 +19,8 @@ from src.api.schemas.anime import AnimeRead
 from src.api.schemas.game import GameCreate, GameRead
 from src.api.schemas.movie import MovieRead
 from src.api.schemas.tv_show import TVShowRead
-from src.core.auth import get_current_user
+from src.core.application_backup import application_backup_path, create_application_backup_file
+from src.core.auth import get_current_admin, get_current_user
 from src.database.models.anime import Anime
 from src.database.models.game import Game, GameLink
 from src.database.models.movies import Movie
@@ -204,3 +205,42 @@ async def import_library(
             errors.append(f"{entry.title}: {exc}")
 
     return ImportResult(created=created, skipped=skipped, errors=errors[:20])
+
+class DeploymentBackupRequest(BaseModel):
+    include_users: bool = False
+    include_sessions: bool = False
+    full_installation: bool = False
+    save_to_setup_path: bool = False
+    password: str
+
+
+@router.post("/export/deployment-backup")
+async def export_deployment_backup(
+    payload: DeploymentBackupRequest,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(get_current_admin),
+) -> Response:
+    """Create a password-protected deployment backup, optionally including accounts."""
+    include_users = payload.include_users or payload.full_installation
+    include_sessions = payload.include_sessions or payload.full_installation
+    if include_sessions and not include_users:
+        raise HTTPException(status_code=400, detail="Sessions require users to be included.")
+    try:
+        content = await create_application_backup_file(
+            db,
+            payload.password,
+            include_users=include_users,
+            include_sessions=include_sessions,
+        )
+        if payload.save_to_setup_path:
+            target = application_backup_path()
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(content)
+    except (OSError, ValueError, RuntimeError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return Response(
+        content=content,
+        media_type="application/json",
+        headers={"Content-Disposition": "attachment; filename=application.json"},
+    )
