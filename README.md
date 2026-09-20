@@ -48,6 +48,16 @@ The central image does **not** embed PostgreSQL. PostgreSQL remains a separate p
 
 See [`docs/SETUP.md`](docs/SETUP.md) for the complete deployment guide, database configuration, generated Fernet key behaviour, Settings configuration, and central-image Compose examples.
 
+## Deployment backups
+
+Administrators can use **Settings → Deployment Backup** to create password-protected deployment archives. Application settings, provider credentials, OIDC, SMTP, users/API keys, and active sessions can be selected independently; sessions require users and **Full installation** enables users plus sessions.
+
+Downloads keep a timestamped filename such as archive-deployment-backup-2026-09-20T06-58-37.json, while the optional setup-path copy is always application.json at APPLICATION_JSON_PATH (default /data/application.json).
+
+On a fresh installation, the /setup wizard discovers a setup-path application.json automatically and lets you review the backup before either accepting all imported settings or using it to populate the setup pages. A full restore can preserve a still-valid browser session and return that browser directly to the home page.
+
+See docs/DEPLOYMENT-BACKUP.md for the complete export/restore workflow, option dependencies, repeatable reset procedure, and security notes.
+
 ## Development checks
 
 ### Backend
