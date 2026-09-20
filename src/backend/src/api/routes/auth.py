@@ -7,7 +7,7 @@ import time
 from pathlib import Path
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -15,11 +15,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.auth import (
     SESSION_COOKIE,
+    SESSION_TTL_SECONDS,
     create_api_key,
     get_current_admin,
     get_current_user,
     hash_password,
     hash_token,
+    revoke_session,
     validate_password,
     verify_password,
 )
@@ -31,7 +33,6 @@ from src.database.session import get_db
 from src.features.metadata.games.psn import PSNClient, PSNError
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
-_SESSION_SECONDS = 30 * 24 * 60 * 60
 
 
 class LoginRequest(BaseModel):
@@ -99,14 +100,14 @@ async def login(
         UserSession(
             user_id=user.id,
             token_hash=hash_token(session_token),
-            expires_at=int(time.time()) + _SESSION_SECONDS,
+            expires_at=int(time.time()) + SESSION_TTL_SECONDS,
         )
     )
     await db.commit()
     response.set_cookie(
         key=SESSION_COOKIE,
         value=session_token,
-        max_age=_SESSION_SECONDS,
+        max_age=SESSION_TTL_SECONDS,
         httponly=True,
         samesite="lax",
         secure=settings.AUTH_COOKIE_SECURE,
@@ -117,10 +118,11 @@ async def login(
 @router.post("/logout")
 async def logout(
     response: Response,
-    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    session_token: str | None = Cookie(default=None, alias=SESSION_COOKIE),
 ) -> dict[str, str]:
-    del user
+    if session_token:
+        await revoke_session(db, session_token)
     response.delete_cookie(SESSION_COOKIE)
     return {"status": "logged_out"}
 
