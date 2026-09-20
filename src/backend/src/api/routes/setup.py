@@ -132,7 +132,11 @@ async def restoration_notice(
     return {"restored": restore_at > 0 and restore_at > acknowledged_at}
 
 
-@router.post("/restoration-notice/acknowledge", status_code=status.HTTP_204_NO_CONTENT)
+@router.post(
+    "/restoration-notice/acknowledge",
+    response_model=None,
+    status_code=status.HTTP_204_NO_CONTENT,
+)
 async def acknowledge_restoration_notice(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_admin),
