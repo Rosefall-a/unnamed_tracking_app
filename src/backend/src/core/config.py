@@ -26,6 +26,12 @@ class Settings(BaseSettings):
     IGDB_CLIENT_ID: str | None = None
     IGDB_CLIENT_SECRET: str | None = None
 
+    PRIMARY_USER_USERNAME: str = ""
+    PRIMARY_USER_EMAIL: str = ""
+    PRIMARY_USER_PASSWORD: str = ""
+    APPLICATION_JSON_PASSWORD: str = ""
+    APPLICATION_JSON_PATH: str = "/data/application.json"
+
     AUTH_COOKIE_SECURE: bool = False
     DEBUG: bool = False
     MAX_UPLOAD_SIZE_MB: int = 15
