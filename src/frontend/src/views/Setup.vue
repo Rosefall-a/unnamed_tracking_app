@@ -80,7 +80,18 @@ async function importPreviousInstallation() {
   }
   importingApplication.value = true;
   try {
-    await importApplicationSettings(applicationFile.value, applicationPassword.value);
+    const result = await importApplicationSettings(
+      applicationFile.value,
+      applicationPassword.value,
+    );
+    if (result.users) {
+      applicationImportSuccess.value =
+        "Full installation restored. Existing users were restored; continue to the login page.";
+      window.setTimeout(() => {
+        window.location.href = "/login";
+      }, 1200);
+      return;
+    }
     applicationImportSuccess.value = true;
     stage.value = "firstuser";
   } catch (err) {
