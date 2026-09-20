@@ -90,19 +90,31 @@ The default host is `db` and the default port is `5432`, which matches the Compo
 There are three supported first-run paths:
 
 1. **Environment bootstrap:** set `PRIMARY_USER_USERNAME`, `PRIMARY_USER_EMAIL`, and `PRIMARY_USER_PASSWORD`. All three must be present; the password must satisfy the normal password policy.
-2. **Encrypted previous-installation import:** put the password-protected deployment backup exported from **Settings → Backup** at `/data/application.json`, set `APPLICATION_JSON_PASSWORD` to its export password, and start the application. The file is only consumed automatically when the database has no users.
-3. **Web setup:** leave the primary-user variables unset and open `/setup`. The first page also accepts the same encrypted deployment backup and its password, then continues to creation of a new administrator.
+2. **Encrypted deployment import:** put a password-protected deployment backup exported from **Settings → Export / Import** at `/data/application.json`, set `APPLICATION_JSON_PASSWORD` to its export password, and start the application. It is only consumed automatically when the database has no users.
+3. **Web setup:** leave the primary-user variables unset and open `/setup`. The first page accepts the same encrypted deployment backup and its password, then continues to administrator creation when the backup contains settings only.
 
-The deployment backup restores application/integration settings, OIDC/SMTP configuration, and persistent encryption keys. User accounts, sessions, libraries, media, and database connection credentials are deliberately not included, so importing a previous installation still requires creation of the first administrator.
+### Deployment backup modes
 
+**Deployment settings** is the portable setup backup. It contains deployment-wide application, provider, SMTP and OIDC settings plus the persistent encryption key, but does not include user accounts or sessions. This is the recommended shape when cloning configuration onto a server that should have a new administrator.
 
-The setup page is the authoritative first-run bootstrap. It creates:
+**Full installation** is an optional expanded export. It includes all user account records, their API keys, and optionally their existing browser sessions, in addition to the deployment settings. Password hashes are exported as hashes; application/provider secrets remain encrypted at rest. It is intended for quickly recreating or cloning an installation.
 
-- the first administrator account;
-- optional OIDC configuration;
-- optional SMTP configuration.
+The export page provides independent toggles for **Include users and their API keys** and **Include active sessions**. Sessions require users. The full-installation button enables both automatically.
 
-Encrypted OIDC and SMTP secrets are stored using the same persistent Fernet key as the rest of the application's recoverable secrets.
+Full-installation restore is intentionally a first-run operation: the setup importer rejects it once a user already exists. Existing session token hashes are restored, so browsers that still hold their original session cookies can continue using those sessions after a clone. The new browser used to perform setup will need to log in normally.
+
+### Repeatable setup-path backups
+
+The export page can also save the encrypted backup directly inside the container. Set `APPLICATION_JSON_PATH` to choose the path; the default is:
+
+```text
+/data/application.json
+```
+
+Enable **Also save to the configured setup path** when exporting. This makes a deployment easy to reset and test repeatedly: keep the JSON on the persistent data volume, clear/recreate the database, start the application, and the empty installation can consume the saved backup automatically.
+
+The setup path contains the encrypted backup only. Keep its password separately; without the password the JSON cannot be imported.
+
 
 ## 5. Application Settings
 
