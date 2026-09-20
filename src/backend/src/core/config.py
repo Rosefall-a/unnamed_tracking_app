@@ -31,6 +31,7 @@ class Settings(BaseSettings):
     PRIMARY_USER_PASSWORD: str = ""
     APPLICATION_JSON_PASSWORD: str = ""
     APPLICATION_JSON_PATH: str = "/data/application.json"
+    BYPASS_SETUP: bool = False
 
     AUTH_COOKIE_SECURE: bool = False
     DEBUG: bool = False
