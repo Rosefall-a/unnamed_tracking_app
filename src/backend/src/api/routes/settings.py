@@ -13,10 +13,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.schemas.appearance_settings import AppearanceSettingsRead, AppearanceSettingsUpdate
 from src.api.schemas.scan_settings import ScanSettingsRead, ScanSettingsUpdate
+from src.core.app_integrations import get_or_create_app_integration_settings
 from src.core.auth import get_current_admin, get_current_user
 from src.core.config import settings
 from src.core.crypto import decrypt_secret, encrypt_secret
-from src.database.models.app_integration_settings import AppIntegrationSettings
 from src.database.models.game import Game
 from src.database.models.user import User
 from src.database.models.user_appearance_settings import UserAppearanceSettings
@@ -32,6 +32,14 @@ from src.features.metadata.games.retroachievements import (
 from src.features.metadata.games.screenscraper import ScreenScraperClient, ScreenScraperError
 from src.features.metadata.games.steam import SteamLibraryError
 from src.features.metadata.games.xbox import XboxClient, XboxError
+from src.features.metadata.refresh import (
+    AIRING_CHECK_INTERVAL_SECONDS,
+    REFRESH_INTERVAL_SECONDS,
+    airing_check_status,
+    check_airing_episodes,
+    full_refresh_status,
+    refresh_all_episode_metadata,
+)
 from src.helpers.save_badge_image import badge_image_path, delete_badge_image, save_badge_image
 
 router = APIRouter(
@@ -131,19 +139,6 @@ async def get_or_create_scan_settings(user_id: UUID, db: AsyncSession) -> UserSc
         await db.commit()
         await db.refresh(scan_settings)
     return scan_settings
-
-
-async def get_or_create_app_integration_settings(db: AsyncSession) -> AppIntegrationSettings:
-    """Exactly one row for the whole deployment — created lazily, on first
-    access, same as get_or_create_scan_settings but with no user_id since
-    this isn't per-user."""
-    row = await db.scalar(select(AppIntegrationSettings).limit(1))
-    if row is None:
-        row = AppIntegrationSettings()
-        db.add(row)
-        await db.commit()
-        await db.refresh(row)
-    return row
 
 
 @router.get("/scan", response_model=ScanSettingsRead)
@@ -318,6 +313,12 @@ async def get_provider_credentials(
         if (app_integrations.igdb_client_id and app_integrations.igdb_client_secret)
         else "not_configured",
     }
+    result["TMDB"] = {
+        "status": "configured" if app_integrations.tmdb_api_key else "not_configured",
+    }
+    result["OMDb"] = {
+        "status": "configured" if app_integrations.omdb_api_key else "not_configured",
+    }
     result["ScreenScraper"]["app_configured"] = bool(
         settings.SCREENSCRAPER_DEVID and settings.SCREENSCRAPER_DEVPASSWORD
     )
@@ -476,6 +477,9 @@ async def delete_provider_credentials(
 class AppIntegrationSettingsRequest(BaseModel):
     igdb_client_id: str | None = None
     igdb_client_secret: str | None = None
+    tmdb_api_key: str | None = None
+    omdb_api_key: str | None = None
+    tvdb_api_key: str | None = None
 
 
 @router.get("/app-integrations")
@@ -493,6 +497,9 @@ async def get_app_integrations(
     return {
         "igdb_client_id": row.igdb_client_id,
         "igdb_configured": bool(row.igdb_client_id and row.igdb_client_secret),
+        "tmdb_configured": bool(row.tmdb_api_key),
+        "omdb_configured": bool(row.omdb_api_key),
+        "tvdb_configured": bool(row.tvdb_api_key),
     }
 
 
@@ -511,10 +518,19 @@ async def update_app_integrations(
         row.igdb_client_secret = (
             encrypt_secret(updates["igdb_client_secret"]) if updates["igdb_client_secret"] else None
         )
+    if "tmdb_api_key" in updates:
+        row.tmdb_api_key = encrypt_secret(updates["tmdb_api_key"]) if updates["tmdb_api_key"] else None
+    if "omdb_api_key" in updates:
+        row.omdb_api_key = encrypt_secret(updates["omdb_api_key"]) if updates["omdb_api_key"] else None
+    if "tvdb_api_key" in updates:
+        row.tvdb_api_key = encrypt_secret(updates["tvdb_api_key"]) if updates["tvdb_api_key"] else None
     await db.commit()
     return {
         "igdb_client_id": row.igdb_client_id,
         "igdb_configured": bool(row.igdb_client_id and row.igdb_client_secret),
+        "tmdb_configured": bool(row.tmdb_api_key),
+        "omdb_configured": bool(row.omdb_api_key),
+        "tvdb_configured": bool(row.tvdb_api_key),
     }
 
 
@@ -527,5 +543,56 @@ async def delete_app_integrations(
     row = await get_or_create_app_integration_settings(db)
     row.igdb_client_id = None
     row.igdb_client_secret = None
+    row.tmdb_api_key = None
+    row.omdb_api_key = None
+    row.tvdb_api_key = None
     await db.commit()
-    return {"igdb_client_id": None, "igdb_configured": False}
+    return {
+        "igdb_client_id": None,
+        "igdb_configured": False,
+        "tmdb_configured": False,
+        "omdb_configured": False,
+        "tvdb_configured": False,
+    }
+
+
+@router.post("/refresh-media-metadata")
+async def refresh_media_metadata(admin: User = Depends(get_current_admin)) -> dict:
+    """Manually runs the same full episode-refresh job the background
+    loop already runs every REFRESH_INTERVAL_SECONDS on its own — useful
+    right after adding a metadata provider key (backfills titles/images
+    on existing placeholder episodes), or to catch up a show without
+    waiting for the next automatic pass."""
+    del admin
+    return await refresh_all_episode_metadata()
+
+
+@router.post("/check-airing-episodes")
+async def check_airing_episodes_now(admin: User = Depends(get_current_admin)) -> dict:
+    """Manually runs the same cheap airing check the background loop
+    already runs every AIRING_CHECK_INTERVAL_SECONDS on its own —
+    useful to force a check right after an episode should have aired
+    instead of waiting for the next automatic pass."""
+    del admin
+    return await check_airing_episodes()
+
+
+@router.get("/media-refresh-status")
+async def media_refresh_status(admin: User = Depends(get_current_admin)) -> dict:
+    """Last-run info for both episode-refresh jobs, for the Tasks page —
+    in-memory only, resets when the backend restarts."""
+    del admin
+    return {
+        "airing_check": {
+            "enabled": airing_check_status.enabled,
+            "interval_seconds": AIRING_CHECK_INTERVAL_SECONDS,
+            "last_run_at": airing_check_status.last_run_at,
+            "last_result": airing_check_status.last_result,
+        },
+        "full_refresh": {
+            "enabled": full_refresh_status.enabled,
+            "interval_seconds": REFRESH_INTERVAL_SECONDS,
+            "last_run_at": full_refresh_status.last_run_at,
+            "last_result": full_refresh_status.last_result,
+        },
+    }

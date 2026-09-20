@@ -3,6 +3,7 @@ import App from "./App.vue";
 import router from "./router";
 import "./style.css";
 import "./consistency.css";
+import "./styles/ui.css";
 
 document.documentElement.classList.toggle(
   "compact",

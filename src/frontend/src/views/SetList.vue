@@ -51,7 +51,7 @@ onMounted(load);
   <main class="sets-page">
     <h1>Sets</h1>
     <p class="section-hint">
-      Group cards with a position and total — assign a card to a set from the
+      Group cards with a position and total. Assign a card to a set from the
       card's own detail page. When every card you expect is in, the set shows as
       complete.
     </p>

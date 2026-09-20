@@ -107,7 +107,7 @@ onMounted(load);
         placeholder="Search Beaten/Mastered games…"
       />
       <p v-if="!eligibleGames.length" class="empty-state">
-        No eligible games — a card can only be made for a game marked Beaten or
+        No eligible games. A card can only be made for a game marked Beaten or
         Mastered that doesn't already have one.
       </p>
       <ul v-else class="picker-list">

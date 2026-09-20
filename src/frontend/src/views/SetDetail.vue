@@ -97,7 +97,7 @@ onMounted(load);
       </div>
 
       <p v-if="!set.cards.length" class="empty-state">
-        No cards in this set yet — assign one from a card's own detail page.
+        No cards in this set yet. Assign one from a card's own detail page.
       </p>
       <div v-else class="cards-grid">
         <button
