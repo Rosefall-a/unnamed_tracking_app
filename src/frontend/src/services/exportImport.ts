@@ -38,6 +38,10 @@ export async function rotateDeploymentKey(): Promise<{ rotated: boolean; session
 
 export interface DeploymentBackupOptions {
   password: string;
+  include_application_settings?: boolean;
+  include_provider_credentials?: boolean;
+  include_oidc_settings?: boolean;
+  include_smtp_settings?: boolean;
   include_users?: boolean;
   include_sessions?: boolean;
   full_installation?: boolean;
