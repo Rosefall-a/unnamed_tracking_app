@@ -260,7 +260,7 @@ async def build_application_backup(
         payload["user_api_keys"] = [_model_payload(key) for key in api_keys]
 
     if include_sessions:
-        sessions = (await db.execute(select(UserSession))).scalars().all()
+        sessions = (await db.execute(select(UserSession).where(UserSession.expires_at > int(__import__("time").time())))).scalars().all()
         payload["user_sessions"] = [_model_payload(session) for session in sessions]
 
     return payload
