@@ -269,8 +269,10 @@ async def setup_admin(
 
 
 @router.get("/application-backup")
-async def application_backup_status() -> dict[str, bool]:
+async def application_backup_status(db: AsyncSession = Depends(get_db)) -> dict[str, bool]:
     """Report whether the configured setup-path deployment backup exists."""
+    if await db.scalar(select(User.id).limit(1)) is not None:
+        return {"available": False}
     return {"available": application_backup_path().is_file()}
 
 
