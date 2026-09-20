@@ -26,14 +26,6 @@ export async function importLibrary(games: unknown[]): Promise<ImportResult> {
   return await response.json();
 }
 
-export async function exportDeploymentBackup(password: string): Promise<Blob> {
-  const response = await fetch("/api/settings/backup/export", {
-    method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password }),
-  });
-  if (!response.ok) throw await apiError(response, "Failed to export deployment backup");
-  return await response.blob();
-}
-
 export async function inspectDeploymentBackup(file: File, password: string): Promise<DeploymentBackupPreview> {
   const form = new FormData(); form.append("password", password); form.append("backup_file", file);
   const response = await fetch("/api/settings/backup/inspect", { method: "POST", credentials: "include", body: form });
