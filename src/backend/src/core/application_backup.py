@@ -73,6 +73,56 @@ def decode_application_backup(raw: bytes, password: str) -> dict[str, Any]:
     return backup
 
 
+def preview_application_backup(raw: bytes, password: str) -> dict[str, Any]:
+    """Return setup-wizard values without mutating the database."""
+    backup = decode_application_backup(raw, password)
+    restore_key = _restore_key(backup)
+    options = backup.get("options") or {}
+    app_payload = backup.get("app_integration_settings") or {}
+    oidc_payload = backup.get("oidc_settings") or {}
+
+    def decrypt(value: Any) -> str | None:
+        if not value:
+            return None
+        try:
+            return Fernet(restore_key.encode()).decrypt(str(value).encode()).decode()
+        except InvalidToken:
+            return str(value)
+
+    oidc: dict[str, Any] = {}
+    if options.get("include_oidc_settings", True) and isinstance(oidc_payload, dict):
+        oidc = {key: value for key, value in oidc_payload.items() if key not in {"id", "updated_at"}}
+        if oidc.get("client_secret"):
+            oidc["client_secret"] = decrypt(oidc["client_secret"])
+        if oidc.get("providers_json"):
+            try:
+                providers = json.loads(str(oidc["providers_json"]))
+            except (TypeError, ValueError):
+                providers = []
+            if isinstance(providers, list):
+                for provider in providers:
+                    if isinstance(provider, dict) and provider.get("client_secret"):
+                        provider["client_secret"] = decrypt(provider["client_secret"])
+                oidc["providers_json"] = json.dumps(providers)
+
+    smtp_fields = {
+        "smtp_enabled", "smtp_host", "smtp_port", "smtp_username",
+        "smtp_password", "smtp_use_tls", "smtp_use_ssl",
+        "smtp_from_email", "smtp_from_name",
+    }
+    smtp = {key: app_payload.get(key) for key in smtp_fields if key in app_payload}
+    if smtp.get("smtp_password"):
+        smtp["smtp_password"] = decrypt(smtp["smtp_password"])
+
+    return {
+        "options": options,
+        "has_users": bool(options.get("include_users") and backup.get("users")),
+        "has_sessions": bool(options.get("include_sessions") and backup.get("user_sessions")),
+        "oidc": oidc,
+        "smtp": smtp,
+    }
+
+
 def _restore_key(backup: dict[str, Any]) -> str:
     valid: list[str] = []
     for value in backup["fernet_keys"]:
