@@ -24,6 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.api.routes.settings import get_or_create_app_integration_settings
 from src.core.application_backup import (
     application_backup_path,
+    consume_automatic_restore_notice,
     load_application_backup_file,
     preview_application_backup,
     restore_application_backup,
@@ -31,6 +32,7 @@ from src.core.application_backup import (
 from src.core.auth import (
     SESSION_COOKIE,
     SESSION_TTL_SECONDS,
+    get_current_admin,
     hash_password,
     hash_token,
     session_cookie_name,
