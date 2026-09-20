@@ -231,7 +231,7 @@ async def restore_application_backup(
                             item["client_secret"] = encrypt_secret(str(item["client_secret"]))
                         normalized.append(item)
                     value = json.dumps(normalized)
-                setattr(oidc, field, value)
+            setattr(oidc, field, value)
 
     options = backup.get("options") or {}
     if options.get("include_users"):
