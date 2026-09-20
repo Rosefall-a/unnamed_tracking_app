@@ -64,7 +64,7 @@ function onApplicationFileSelected(event: Event) {
   const input = event.target as HTMLInputElement;
   applicationFile.value = input.files?.[0] ?? null;
   applicationImportError.value = null;
-  applicationImportSuccess.value = false;
+  applicationImportSuccess.value = null;
 }
 
 async function importPreviousInstallation() {
