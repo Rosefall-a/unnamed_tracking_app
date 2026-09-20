@@ -112,13 +112,14 @@ async def restore_application_backup(
             db.add(app)
             await db.flush()
         app_columns = {column.name for column in app.__table__.columns}
-    for field, value in (app_payload or {}).items():
-        if field in app_columns and field not in {"id", "updated_at"}:
-            setattr(
-                app,
-                field,
-                (str(value) if encrypted_secrets else encrypt_secret(str(value))) if field in SECRET_FIELDS and value else value,
-            )
+    if include_application_settings:
+        for field, value in (app_payload or {}).items():
+            if field in app_columns and field not in {"id", "updated_at"}:
+                setattr(
+                    app,
+                    field,
+                    (str(value) if encrypted_secrets else encrypt_secret(str(value))) if field in SECRET_FIELDS and value else value,
+                )
 
     if include_oidc_settings:
         oidc = await db.scalar(select(OidcSettings).limit(1))
@@ -128,11 +129,12 @@ async def restore_application_backup(
         oidc_columns = {column.name for column in oidc.__table__.columns}
     else:
         oidc_columns = set()
-    for field, value in (oidc_payload or {}).items():
-        if field in oidc_columns and field not in {"id", "updated_at"}:
-            if field == "client_secret":
+    if include_oidc_settings:
+        for field, value in (oidc_payload or {}).items():
+            if field in oidc_columns and field not in {"id", "updated_at"}:
+                if field == "client_secret":
                 value = str(value) if encrypted_secrets else (encrypt_secret(str(value)) if value else None)
-            elif field == "providers_json" and value:
+                elif field == "providers_json" and value:
                 try:
                     providers = json.loads(str(value))
                 except (TypeError, ValueError) as exc:
@@ -148,7 +150,7 @@ async def restore_application_backup(
                         item["client_secret"] = encrypt_secret(str(item["client_secret"]))
                     normalized.append(item)
                 value = json.dumps(normalized)
-            setattr(oidc, field, value)
+                setattr(oidc, field, value)
 
     options = backup.get("options") or {}
     if options.get("include_users"):
