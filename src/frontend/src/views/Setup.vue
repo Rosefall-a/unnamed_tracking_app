@@ -69,7 +69,7 @@ function onApplicationFileSelected(event: Event) {
 
 async function importPreviousInstallation() {
   applicationImportError.value = null;
-  applicationImportSuccess.value = false;
+  applicationImportSuccess.value = null;
   if (!applicationFile.value) {
     applicationImportError.value = "Choose an application settings JSON file first.";
     return;
@@ -92,7 +92,7 @@ async function importPreviousInstallation() {
       }, 1200);
       return;
     }
-    applicationImportSuccess.value = true;
+    applicationImportSuccess.value = "Previous installation settings imported. Continue by creating the new administrator.";
     stage.value = "firstuser";
   } catch (err) {
     applicationImportError.value =
