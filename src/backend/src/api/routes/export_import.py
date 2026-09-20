@@ -8,7 +8,7 @@ and bounties aren't included in either direction."""
 
 import time
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile, status
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -205,6 +205,28 @@ async def import_library(
             errors.append(f"{entry.title}: {exc}")
 
     return ImportResult(created=created, skipped=skipped, errors=errors[:20])
+
+@router.post("/export/deployment-backup/import")
+async def import_deployment_backup(
+    password: str = Form(..., min_length=12, max_length=256),
+    backup_file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(get_current_admin),
+) -> dict[str, bool]:
+    """Restore a deployment backup at any time from the admin settings page."""
+    del admin
+    try:
+        from src.core.application_backup import restore_application_backup
+
+        raw = await backup_file.read()
+        if not raw:
+            raise ValueError("The deployment backup file is empty.")
+        result = await restore_application_backup(db, raw, password)
+        return result
+    except (ValueError, OSError, RuntimeError) as exc:
+        await db.rollback()
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
 
 class DeploymentBackupRequest(BaseModel):
     include_users: bool = False
