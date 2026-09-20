@@ -210,27 +210,25 @@ async def restore_application_backup(
                     else (encrypt_secret(str(value)) if value else None)
                 )
             elif field == "providers_json" and value:
-                    try:
-                        providers = json.loads(str(value))
-                    except (TypeError, ValueError) as exc:
-                        raise ValueError(
-                            "The OIDC provider configuration in the backup is invalid."
-                        ) from exc
-                    if not isinstance(providers, list):
+                try:
+                    providers = json.loads(str(value))
+                except (TypeError, ValueError) as exc:
+                    raise ValueError(
+                        "The OIDC provider configuration in the backup is invalid."
+                    ) from exc
+                if not isinstance(providers, list):
+                    raise ValueError("The OIDC provider configuration in the backup is invalid.")
+                normalized = []
+                for provider in providers:
+                    if not isinstance(provider, dict):
                         raise ValueError(
                             "The OIDC provider configuration in the backup is invalid."
                         )
-                    normalized = []
-                    for provider in providers:
-                        if not isinstance(provider, dict):
-                            raise ValueError(
-                                "The OIDC provider configuration in the backup is invalid."
-                            )
-                        item = dict(provider)
-                        if item.get("client_secret") and not encrypted_secrets:
-                            item["client_secret"] = encrypt_secret(str(item["client_secret"]))
-                        normalized.append(item)
-                    value = json.dumps(normalized)
+                    item = dict(provider)
+                    if item.get("client_secret") and not encrypted_secrets:
+                        item["client_secret"] = encrypt_secret(str(item["client_secret"]))
+                    normalized.append(item)
+                value = json.dumps(normalized)
             setattr(oidc, field, value)
 
     options = backup.get("options") or {}
