@@ -1,20 +1,27 @@
-"""Pytest bootstrap for backend tests.
-
-The application persists its Fernet key during Settings import. Production
-uses /data (or APP_DATA_DIR) for that persistent state, but the CI test runner
-must not depend on a Docker-mounted production volume. Give pytest its own
-writable, process-local data directory before any application modules import
-Settings.
-"""
+"""Pytest setup shared by backend tests."""
 
 from __future__ import annotations
 
 import os
-import tempfile
 from pathlib import Path
 
+from alembic import command
+from alembic.config import Config
 
-os.environ.setdefault(
-    "APP_DATA_DIR",
-    str(Path(tempfile.gettempdir()) / f"unnamed_tracking_app-pytest-{os.getpid()}"),
-)
+
+def pytest_configure() -> None:
+    """Prepare the CI database when a test database URL is configured."""
+    if not os.environ.get("DATABASE_URL"):
+        return
+
+    backend_root = Path(__file__).resolve().parents[1]
+    data_dir = Path(os.environ.get("APP_DATA_DIR", backend_root / ".test-data"))
+    data_dir.mkdir(parents=True, exist_ok=True)
+
+    config = Config(str(backend_root / "alembic.ini"))
+    config.set_main_option(
+        "script_location",
+        str(backend_root / "src" / "database" / "migrations"),
+    )
+    config.set_main_option("prepend_sys_path", str(backend_root))
+    command.upgrade(config, "head")
