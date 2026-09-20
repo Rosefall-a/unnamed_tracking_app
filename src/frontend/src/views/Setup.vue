@@ -1,10 +1,15 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
-import { createInitialAdmin, fetchSetupStatus } from "../services/setup";
+import { createInitialAdmin, fetchSetupStatus, importApplicationSettings } from "../services/setup";
 
 const router = useRouter();
 const stage = ref<"choose" | "firstuser" | "oidc" | "smtp">("choose");
+const applicationFile = ref<File | null>(null);
+const applicationPassword = ref("");
+const importingApplication = ref(false);
+const applicationImportError = ref<string | null>(null);
+const applicationImportSuccess = ref(false);
 const username = ref("");
 const email = ref("");
 const password = ref("");
@@ -54,6 +59,37 @@ const stages = computed(() => {
   if (configureSmtp.value) result.push("SMTP");
   return result;
 });
+
+function onApplicationFileSelected(event: Event) {
+  const input = event.target as HTMLInputElement;
+  applicationFile.value = input.files?.[0] ?? null;
+  applicationImportError.value = null;
+  applicationImportSuccess.value = false;
+}
+
+async function importPreviousInstallation() {
+  applicationImportError.value = null;
+  applicationImportSuccess.value = false;
+  if (!applicationFile.value) {
+    applicationImportError.value = "Choose an application settings JSON file first.";
+    return;
+  }
+  if (!applicationPassword.value) {
+    applicationImportError.value = "Enter the password used when the settings export was created.";
+    return;
+  }
+  importingApplication.value = true;
+  try {
+    await importApplicationSettings(applicationFile.value, applicationPassword.value);
+    applicationImportSuccess.value = true;
+    stage.value = "firstuser";
+  } catch (err) {
+    applicationImportError.value =
+      err instanceof Error ? err.message : "Failed to import the previous installation.";
+  } finally {
+    importingApplication.value = false;
+  }
+}
 
 function nextAfterAccount() {
   if (configureOidc.value) stage.value = "oidc";
@@ -143,7 +179,17 @@ onMounted(async () => {
   <main class="setup-page">
     <form v-if="checking" class="setup-card"><div class="brand"><span>🎮</span><h1>Archive setup</h1></div><p class="subtitle">Checking whether this installation needs setup…</p></form>
     <form v-else-if="stage === 'choose'" class="setup-card" @submit.prevent="stage = 'firstuser'">
-      <div class="brand"><span>🎮</span><h1>Archive setup</h1></div><p class="subtitle">Choose the optional services to configure. Everything is saved together when setup is finished.</p>
+      <div class="brand"><span>🎮</span><h1>Archive setup</h1></div><p class="subtitle">Start from a previous deployment export, or configure this installation manually.</p>
+      <div class="tile">
+        <h2>Import previous installation</h2>
+        <p class="hint">Use the password-protected JSON exported from Settings → Backup. This restores deployment settings, provider credentials, SMTP/OIDC configuration, and encryption keys. Your administrator account is deliberately not included, so you will create a new administrator next.</p>
+        <label><span>Settings JSON</span><input type="file" accept="application/json" @change="onApplicationFileSelected" /></label>
+        <label><span>Settings JSON password</span><input v-model="applicationPassword" type="password" autocomplete="off" placeholder="Enter export password" /></label>
+        <button type="button" :disabled="importingApplication" @click="importPreviousInstallation">{{ importingApplication ? "Importing…" : "Import previous installation" }}</button>
+        <div v-if="applicationImportError" class="error">{{ applicationImportError }}</div>
+        <div v-if="applicationImportSuccess" class="success">Previous installation settings imported. Continue by creating the new administrator.</div>
+      </div>
+      <div class="or-divider">or configure manually</div>
       <div class="progress"><span v-for="(item, index) in stages" :key="item" :class="{ active: index === 0 }">{{ index + 1 }}. {{ item }}</span></div>
       <label class="toggle"><input v-model="configureOidc" type="checkbox" /><span>Configure OpenID Connect / SSO</span></label><label class="toggle"><input v-model="configureSmtp" type="checkbox" /><span>Configure SMTP / password-reset email</span></label>
       <p class="hint">These settings can be changed later from Settings.</p><button>Continue</button>
@@ -168,5 +214,5 @@ onMounted(async () => {
 </template>
 
 <style scoped>
-.setup-page{min-height:100vh;display:flex;align-items:center;justify-content:center;background:#121212;font-family:system-ui,sans-serif;padding:32px 16px}.setup-card{width:100%;max-width:520px;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:14px;padding:32px;display:flex;flex-direction:column;gap:14px;color:#fff}.setup-card.wide{max-width:760px}.brand{display:flex;align-items:center;gap:10px;justify-content:center}.brand h1{font-size:1.4rem;margin:0}.subtitle,.hint{color:#999;font-size:13px;text-align:center;line-height:1.5}.toggle{flex-direction:row!important;align-items:center;padding:10px;border:1px solid #2f2f2f;border-radius:8px;background:#151515}.toggle input{width:16px;height:16px;accent-color:#d68a34}.setup-card label{display:flex;flex-direction:column;gap:6px;color:#ccc;font-size:13px}.setup-card input,.setup-card select{background:#111;border:1px solid #3a3a3a;border-radius:8px;color:#fff;padding:10px;font:inherit}.generated-input{background:#202020!important;color:#777!important;cursor:not-allowed}.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.full{grid-column:1/-1}.options{display:flex;gap:18px;flex-wrap:wrap;color:#bbb;font-size:13px}.options label{flex-direction:row;align-items:center;gap:6px}.options input{accent-color:#d68a34}.progress{display:flex;gap:8px;flex-wrap:wrap}.progress span{padding:6px 9px;border-radius:999px;background:#151515;color:#777;font-size:12px}.progress span.active{background:#2b2117;color:#f0c18a}.actions{display:flex;gap:10px;justify-content:flex-end}.actions button,.setup-card>button{background:#d68a34;border:0;border-radius:8px;padding:11px 14px;font-weight:600;cursor:pointer}.actions .secondary{background:#252525;color:#ddd;border:1px solid #3a3a3a}.setup-card button:disabled{opacity:.6}.error{color:#fca5a5;background:rgba(220,38,38,.1);border:1px solid rgba(220,38,38,.3);border-radius:8px;padding:8px;font-size:13px}@media(max-width:760px){.grid{grid-template-columns:1fr}.full{grid-column:auto}}
+.setup-page{min-height:100vh;display:flex;align-items:center;justify-content:center;background:#121212;font-family:system-ui,sans-serif;padding:32px 16px}.setup-card{width:100%;max-width:520px;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:14px;padding:32px;display:flex;flex-direction:column;gap:14px;color:#fff}.setup-card.wide{max-width:760px}.tile{border:1px solid #2f2f2f;border-radius:10px;background:#151515;padding:16px;display:flex;flex-direction:column;gap:10px}.tile h2{font-size:.95rem;margin:0;color:#fff}.or-divider{text-align:center;color:#777;font-size:12px}.success{color:#86efac;background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.3);border-radius:8px;padding:8px;font-size:13px}.brand{display:flex;align-items:center;gap:10px;justify-content:center}.brand h1{font-size:1.4rem;margin:0}.subtitle,.hint{color:#999;font-size:13px;text-align:center;line-height:1.5}.toggle{flex-direction:row!important;align-items:center;padding:10px;border:1px solid #2f2f2f;border-radius:8px;background:#151515}.toggle input{width:16px;height:16px;accent-color:#d68a34}.setup-card label{display:flex;flex-direction:column;gap:6px;color:#ccc;font-size:13px}.setup-card input,.setup-card select{background:#111;border:1px solid #3a3a3a;border-radius:8px;color:#fff;padding:10px;font:inherit}.generated-input{background:#202020!important;color:#777!important;cursor:not-allowed}.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.full{grid-column:1/-1}.options{display:flex;gap:18px;flex-wrap:wrap;color:#bbb;font-size:13px}.options label{flex-direction:row;align-items:center;gap:6px}.options input{accent-color:#d68a34}.progress{display:flex;gap:8px;flex-wrap:wrap}.progress span{padding:6px 9px;border-radius:999px;background:#151515;color:#777;font-size:12px}.progress span.active{background:#2b2117;color:#f0c18a}.actions{display:flex;gap:10px;justify-content:flex-end}.actions button,.setup-card>button{background:#d68a34;border:0;border-radius:8px;padding:11px 14px;font-weight:600;cursor:pointer}.actions .secondary{background:#252525;color:#ddd;border:1px solid #3a3a3a}.setup-card button:disabled{opacity:.6}.error{color:#fca5a5;background:rgba(220,38,38,.1);border:1px solid rgba(220,38,38,.3);border-radius:8px;padding:8px;font-size:13px}@media(max-width:760px){.grid{grid-template-columns:1fr}.full{grid-column:auto}}
 </style>
