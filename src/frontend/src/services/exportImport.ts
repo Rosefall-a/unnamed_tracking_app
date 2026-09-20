@@ -4,6 +4,29 @@ import { apiError } from "./apiErrors";
 export interface ImportResult { created: number; skipped: number; errors: string[] }
 export interface BackupStatus { enabled: boolean; interval_hours: number; backups_kept: number; last_backup_at: number | null; backup_count: number }
 
+export async function fetchLibraryExport(): Promise<unknown> {
+  const response = await fetch("/api/export/library", { credentials: "include" });
+  if (!response.ok) throw await apiError(response, "Failed to export library");
+  return await response.json();
+}
+
+export async function fetchBackupStatus(): Promise<BackupStatus> {
+  const response = await fetch("/api/export/backup-status", { credentials: "include" });
+  if (!response.ok) throw await apiError(response, "Failed to fetch backup status");
+  return await response.json();
+}
+
+export async function importLibrary(games: unknown[]): Promise<ImportResult> {
+  const response = await fetch("/api/import/library", {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(games),
+  });
+  if (!response.ok) throw await apiError(response, "Failed to import library");
+  return await response.json();
+}
+
 export async function rotateDeploymentKey(): Promise<{ rotated: boolean; sessions_revoked: boolean; message: string }> {
   const response = await fetch("/api/settings/backup/rotate-key", {
     method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ confirm: true }),
