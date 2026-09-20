@@ -5,13 +5,14 @@ import secrets
 import time
 from typing import cast
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile, status
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select, text, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.routes.settings import get_or_create_app_integration_settings
+from src.core.application_backup import restore_application_backup
 from src.core.auth import SESSION_COOKIE, hash_password, hash_token, validate_password
 from src.core.config import settings
 from src.core.crypto import encrypt_secret
@@ -243,3 +244,25 @@ async def setup_admin(
         secure=settings.AUTH_COOKIE_SECURE,
     )
     return {"status": "setup_complete", "user_id": str(user.id), "is_admin": True}
+
+
+@router.post("/import-application")
+async def import_application_settings(
+    password: str = Form(..., min_length=12, max_length=256),
+    application_file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, bool]:
+    """Import an encrypted deployment settings export during first-run setup."""
+    if await db.scalar(select(User.id).limit(1)) is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Setup is already complete.",
+        )
+    try:
+        raw = await application_file.read()
+        if not raw:
+            raise ValueError("The application settings file is empty.")
+        return await restore_application_backup(db, raw, password)
+    except (ValueError, OSError, RuntimeError) as exc:
+        await db.rollback()
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
