@@ -56,11 +56,6 @@ jobs:
       - name: Install backend dependencies
         run: python -m pip install -r requirements.txt
 
-      - name: Run database migrations
-        run: |
-          sed -e 's#script_location = /app/src/database/migrations#script_location = src/database/migrations#' -e 's#prepend_sys_path = /app#prepend_sys_path = .#' alembic.ini > /tmp/alembic-ci.ini
-          alembic -c /tmp/alembic-ci.ini upgrade head
-
       - name: Run tests
         run: pytest
 
