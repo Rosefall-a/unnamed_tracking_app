@@ -178,14 +178,18 @@ async def restore_application_backup(
             await db.flush()
         app_columns = {column.name for column in app.__table__.columns}
         for field, value in (app_payload or {}).items():
-            if field in app_columns and field not in {"id", "updated_at"}:
-                setattr(
-                    app,
-                    field,
-                    (str(value) if encrypted_secrets else encrypt_secret(str(value)))
-                    if field in SECRET_FIELDS and value
-                    else value,
-                )
+            if field not in app_columns or field in {"id", "updated_at"}:
+                continue
+            column = app.__table__.columns[field]
+            if value is None and not column.nullable:
+                continue
+            setattr(
+                app,
+                field,
+                (str(value) if encrypted_secrets else encrypt_secret(str(value)))
+                if field in SECRET_FIELDS and value
+                else value,
+            )
 
     if include_oidc_settings:
         oidc = await db.scalar(select(OidcSettings).limit(1))
@@ -194,8 +198,12 @@ async def restore_application_backup(
             db.add(oidc)
         oidc_columns = {column.name for column in oidc.__table__.columns}
         for field, value in (oidc_payload or {}).items():
-            if field in oidc_columns and field not in {"id", "updated_at"}:
-                if field == "client_secret":
+            if field not in oidc_columns or field in {"id", "updated_at"}:
+                continue
+            column = oidc.__table__.columns[field]
+            if value is None and not column.nullable:
+                continue
+            if field == "client_secret":
                     value = (
                         str(value)
                         if encrypted_secrets
