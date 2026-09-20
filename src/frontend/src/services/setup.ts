@@ -60,3 +60,29 @@ export async function createInitialAdmin(
     throw new Error(message);
   }
 }
+
+
+export async function importApplicationSettings(
+  file: File,
+  password: string,
+): Promise<void> {
+  const form = new FormData();
+  form.append("application_file", file);
+  form.append("password", password);
+  const response = await fetch("/api/setup/import-application", {
+    method: "POST",
+    credentials: "include",
+    body: form,
+  });
+  if (!response.ok) {
+    const body = await response.text();
+    let message = `Application settings import failed: ${response.status}`;
+    try {
+      const parsed = JSON.parse(body) as { detail?: string };
+      if (parsed.detail) message = parsed.detail;
+    } catch {
+      if (body) message = `${message} ${body}`;
+    }
+    throw new Error(message);
+  }
+}
