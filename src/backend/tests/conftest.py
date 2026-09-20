@@ -17,6 +17,7 @@ def pytest_configure() -> None:
     backend_root = Path(__file__).resolve().parents[1]
     data_dir = Path(os.environ.get("APP_DATA_DIR", backend_root / ".test-data"))
     data_dir.mkdir(parents=True, exist_ok=True)
+    os.environ["APP_DATA_DIR"] = str(data_dir)
 
     config = Config(str(backend_root / "alembic.ini"))
     config.set_main_option(
