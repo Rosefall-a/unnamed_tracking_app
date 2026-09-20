@@ -101,7 +101,9 @@ router.beforeEach(async (to, from) => {
 
   if (to.path === "/setup") {
     const state = await refreshSetupState();
-    return state === "required" ? undefined : "/login";
+    if (state === "required") return undefined;
+    if (!authChecked.value) await checkAuth();
+    return currentUser.value ? "/" : "/login";
   }
 
   if (
