@@ -91,23 +91,28 @@ async def restore_application_backup(
     backup = decode_application_backup(raw, password)
     restore_key = _restore_key(backup)
     encrypted_secrets = bool(backup.get("secret_values_encrypted", False))
+    options = backup.get("options") or {}
+    include_application_settings = options.get("include_application_settings", True)
+    include_oidc_settings = options.get("include_oidc_settings", True)
     app_payload = backup.get("app_integration_settings")
     oidc_payload = backup.get("oidc_settings")
-    if not isinstance(app_payload, dict) or not isinstance(oidc_payload, dict):
-        raise ValueError("The application settings backup is missing its settings sections.")
+    if include_application_settings and not isinstance(app_payload, dict):
+        raise ValueError("The application settings backup is missing its application settings section.")
+    if include_oidc_settings and not isinstance(oidc_payload, dict):
+        raise ValueError("The application settings backup is missing its OIDC settings section.")
 
     restore_persistent_fernet_key(restore_key)
     settings.SECRET_KEY = restore_key
     _fernet.cache_clear()
 
-    app = await db.scalar(select(AppIntegrationSettings).limit(1))
-    if app is None:
-        app = AppIntegrationSettings()
-        db.add(app)
-        await db.flush()
-
-    app_columns = {column.name for column in app.__table__.columns}
-    for field, value in app_payload.items():
+    if include_application_settings:
+        app = await db.scalar(select(AppIntegrationSettings).limit(1))
+        if app is None:
+            app = AppIntegrationSettings()
+            db.add(app)
+            await db.flush()
+        app_columns = {column.name for column in app.__table__.columns}
+    for field, value in (app_payload or {}).items():
         if field in app_columns and field not in {"id", "updated_at"}:
             setattr(
                 app,
@@ -115,13 +120,15 @@ async def restore_application_backup(
                 (str(value) if encrypted_secrets else encrypt_secret(str(value))) if field in SECRET_FIELDS and value else value,
             )
 
-    oidc = await db.scalar(select(OidcSettings).limit(1))
-    if oidc is None:
-        oidc = OidcSettings()
-        db.add(oidc)
-
-    oidc_columns = {column.name for column in oidc.__table__.columns}
-    for field, value in oidc_payload.items():
+    if include_oidc_settings:
+        oidc = await db.scalar(select(OidcSettings).limit(1))
+        if oidc is None:
+            oidc = OidcSettings()
+            db.add(oidc)
+        oidc_columns = {column.name for column in oidc.__table__.columns}
+    else:
+        oidc_columns = set()
+    for field, value in (oidc_payload or {}).items():
         if field in oidc_columns and field not in {"id", "updated_at"}:
             if field == "client_secret":
                 value = str(value) if encrypted_secrets else (encrypt_secret(str(value)) if value else None)
@@ -228,6 +235,10 @@ async def build_application_backup(
     *,
     include_users: bool = False,
     include_sessions: bool = False,
+    include_application_settings: bool = True,
+    include_provider_credentials: bool = True,
+    include_oidc_settings: bool = True,
+    include_smtp_settings: bool = False,
 ) -> dict[str, Any]:
     """Build the encrypted deployment archive payload.
 
@@ -237,9 +248,15 @@ async def build_application_backup(
     envelope.
     """
     app = await db.scalar(select(AppIntegrationSettings).limit(1))
+    if app is None:
+        app = AppIntegrationSettings()
+        db.add(app)
+        await db.flush()
     oidc = await db.scalar(select(OidcSettings).limit(1))
-    if app is None or oidc is None:
-        raise ValueError("Application settings have not been initialized.")
+    if oidc is None:
+        oidc = OidcSettings()
+        db.add(oidc)
+        await db.flush()
 
     payload: dict[str, Any] = {
         "format": "archive-deployment-backup",
@@ -247,13 +264,25 @@ async def build_application_backup(
         "secret_values_encrypted": True,
         "exported_at": int(time.time()),
         "fernet_keys": [persistent_fernet_key(), persistent_fernet_key()],
-        "app_integration_settings": _model_payload(app, exclude={"id", "updated_at"}),
-        "oidc_settings": _model_payload(oidc, exclude={"id", "updated_at"}),
         "options": {
             "include_users": include_users,
             "include_sessions": include_sessions,
+            "include_application_settings": include_application_settings,
+            "include_provider_credentials": include_provider_credentials,
+            "include_oidc_settings": include_oidc_settings,
+            "include_smtp_settings": include_smtp_settings,
         },
     }
+    if include_application_settings:
+        app_payload = _model_payload(app, exclude={"id", "updated_at"})
+        if not include_provider_credentials:
+            app_payload = {k: v for k, v in app_payload.items() if k not in SECRET_FIELDS and k not in {"igdb_client_id", "screenscraper_ssid", "screenscraper_devid", "xbox_client_id"}}
+        if not include_smtp_settings:
+            app_payload = {k: v for k, v in app_payload.items() if not k.startswith("smtp_")}
+        payload["app_integration_settings"] = app_payload
+    if include_oidc_settings:
+        payload["oidc_settings"] = _model_payload(oidc, exclude={"id", "updated_at"})
+
 
     if include_users:
         users = (await db.execute(select(User).order_by(User.username))).scalars().all()
@@ -288,10 +317,18 @@ async def create_application_backup_file(
     *,
     include_users: bool = False,
     include_sessions: bool = False,
+    include_application_settings: bool = True,
+    include_provider_credentials: bool = True,
+    include_oidc_settings: bool = True,
+    include_smtp_settings: bool = False,
 ) -> bytes:
     backup = await build_application_backup(
         db,
         include_users=include_users,
         include_sessions=include_sessions,
+        include_application_settings=include_application_settings,
+        include_provider_credentials=include_provider_credentials,
+        include_oidc_settings=include_oidc_settings,
+        include_smtp_settings=include_smtp_settings,
     )
     return encrypt_application_backup(backup, password)
