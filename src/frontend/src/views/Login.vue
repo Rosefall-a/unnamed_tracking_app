@@ -88,132 +88,16 @@ function sso(slug?: string) {
         <h1>Archive</h1>
       </div>
       <p class="login-subtitle">Sign in to your library</p>
-<template>
-  <!-- LOCAL LOGIN FIRST (when loginMethod === 'local' OR OIDC unavailable) -->
-  <template v-if="loginMethod === 'local' || !oidcAvailable">
-    <label class="field">
-      <span>Username or email</span>
-      <input
-        v-model="usernameOrEmail"
-        type="text"
-        autocomplete="username"
-        required
-      />
-    </label>
 
-    <label class="field password-field">
-      <span>Password</span>
-      <span class="password-control">
-        <input
-          v-model="password"
-          :type="showPassword ? 'text' : 'password'"
-          autocomplete="current-password"
-          required
-        />
-        <button
-          type="button"
-          class="password-toggle"
-          :aria-label="showPassword ? 'Hide password' : 'Show password'"
-          :aria-pressed="showPassword"
-          @click="showPassword = !showPassword"
-        >
-          {{ showPassword ? "Hide" : "Show" }}
-        </button>
-      </span>
-    </label>
-
-    <div v-if="error" class="login-error">{{ error }}</div>
-
-    <button
-      type="submit"
-      class="login-button"
-      :disabled="loading || oidcLoading"
-    >
-      {{ loading ? "Signing in…" : "Sign in" }}
-    </button>
-
-    <!-- SSO options if available -->
-    <div v-if="oidcAvailable" class="sso-divider"><span>or</span></div>
-
-    <div v-if="oidcAvailable" class="provider-buttons">
-      <button
-        v-for="provider in oidcProviders"
-        :key="provider.slug"
-        type="button"
-        class="oidc-button"
-        :disabled="oidcLoading"
-        @click="() => sso(provider.slug)"
-      >
-        <img
-          v-if="provider.button_image_url"
-          :src="provider.button_image_url"
-          alt=""
-        />
-        <span>{{ provider.button_text || provider.name }}</span>
-      </button>
-    </div>
-
-    <button
-      v-if="oidcAvailable && !oidcProviders.length"
-      type="button"
-      class="oidc-button"
-      :disabled="oidcLoading"
-      @click="() => sso()"
-    >
-      <span>{{ oidcLoading ? "Opening SSO…" : ssoButtonText }}</span>
-    </button>
-  </template>
-
-  <!-- SSO-FIRST MODE -->
-  <template v-else>
-    <div class="sso-heading">
-      <span class="sso-icon">◉</span>
-      <div>
-        <strong>Single sign-on</strong>
-        <p>Select an identity provider to continue.</p>
-      </div>
-    </div>
-
-    <div v-if="error" class="login-error">{{ error }}</div>
-
-    <div class="provider-buttons">
-      <button
-        v-for="provider in oidcProviders"
-        :key="provider.slug"
-        type="button"
-        class="oidc-button primary"
-        :disabled="oidcLoading"
-        @click="() => sso(provider.slug)"
-      >
-        <img
-          v-if="provider.button_image_url"
-          :src="provider.button_image_url"
-          alt=""
-        />
-        <span>{{ provider.button_text || provider.name }}</span>
-      </button>
-    </div>
-
-    <button
-      v-if="!oidcProviders.length"
-      type="button"
-      class="oidc-button primary"
-      :disabled="oidcLoading"
-      @click="() => sso()"
-    >
-      {{ oidcLoading ? "Opening SSO…" : ssoButtonText }}
-    </button>
-
-    <!-- LOCAL LOGIN FALLBACK -->
-    <details class="local-credentials">
-      <summary>Use local credentials</summary>
-      <div class="local-fields">
+      <!-- LOCAL LOGIN FIRST (when loginMethod === 'local' OR OIDC unavailable) -->
+      <template v-if="loginMethod === 'local' || !oidcAvailable">
         <label class="field">
           <span>Username or email</span>
           <input
             v-model="usernameOrEmail"
             type="text"
             autocomplete="username"
+            required
           />
         </label>
 
@@ -224,6 +108,7 @@ function sso(slug?: string) {
               v-model="password"
               :type="showPassword ? 'text' : 'password'"
               autocomplete="current-password"
+              required
             />
             <button
               type="button"
@@ -237,18 +122,131 @@ function sso(slug?: string) {
           </span>
         </label>
 
+        <div v-if="error" class="login-error">{{ error }}</div>
+
         <button
           type="submit"
           class="login-button"
           :disabled="loading || oidcLoading"
         >
-          {{ loading ? "Signing in…" : "Sign in locally" }}
+          {{ loading ? "Signing in…" : "Sign in" }}
         </button>
-      </div>
-    </details>
-  </template>
-</template>
 
+        <!-- SSO options if available -->
+        <div v-if="oidcAvailable" class="sso-divider"><span>or</span></div>
+
+        <div v-if="oidcAvailable" class="provider-buttons">
+          <button
+            v-for="provider in oidcProviders"
+            :key="provider.slug"
+            type="button"
+            class="oidc-button"
+            :disabled="oidcLoading"
+            @click="() => sso(provider.slug)"
+          >
+            <img
+              v-if="provider.button_image_url"
+              :src="provider.button_image_url"
+              alt=""
+            />
+            <span>{{ provider.button_text || provider.name }}</span>
+          </button>
+        </div>
+
+        <button
+          v-if="oidcAvailable && !oidcProviders.length"
+          type="button"
+          class="oidc-button"
+          :disabled="oidcLoading"
+          @click="() => sso()"
+        >
+          <span>{{ oidcLoading ? "Opening SSO…" : ssoButtonText }}</span>
+        </button>
+      </template>
+
+      <!-- SSO-FIRST MODE -->
+      <template v-else>
+        <div class="sso-heading">
+          <span class="sso-icon">◉</span>
+          <div>
+            <strong>Single sign-on</strong>
+            <p>Select an identity provider to continue.</p>
+          </div>
+        </div>
+
+        <div v-if="error" class="login-error">{{ error }}</div>
+
+        <div class="provider-buttons">
+          <button
+            v-for="provider in oidcProviders"
+            :key="provider.slug"
+            type="button"
+            class="oidc-button primary"
+            :disabled="oidcLoading"
+            @click="() => sso(provider.slug)"
+          >
+            <img
+              v-if="provider.button_image_url"
+              :src="provider.button_image_url"
+              alt=""
+            />
+            <span>{{ provider.button_text || provider.name }}</span>
+          </button>
+        </div>
+
+        <button
+          v-if="!oidcProviders.length"
+          type="button"
+          class="oidc-button primary"
+          :disabled="oidcLoading"
+          @click="() => sso()"
+        >
+          {{ oidcLoading ? "Opening SSO…" : ssoButtonText }}
+        </button>
+
+        <!-- LOCAL LOGIN FALLBACK -->
+        <details class="local-credentials">
+          <summary>Use local credentials</summary>
+          <div class="local-fields">
+            <label class="field">
+              <span>Username or email</span>
+              <input
+                v-model="usernameOrEmail"
+                type="text"
+                autocomplete="username"
+              />
+            </label>
+
+            <label class="field password-field">
+              <span>Password</span>
+              <span class="password-control">
+                <input
+                  v-model="password"
+                  :type="showPassword ? 'text' : 'password'"
+                  autocomplete="current-password"
+                />
+                <button
+                  type="button"
+                  class="password-toggle"
+                  :aria-label="showPassword ? 'Hide password' : 'Show password'"
+                  :aria-pressed="showPassword"
+                  @click="showPassword = !showPassword"
+                >
+                  {{ showPassword ? "Hide" : "Show" }}
+                </button>
+              </span>
+            </label>
+
+            <button
+              type="submit"
+              class="login-button"
+              :disabled="loading || oidcLoading"
+            >
+              {{ loading ? "Signing in…" : "Sign in locally" }}
+            </button>
+          </div>
+        </details>
+      </template>
     </form>
   </main>
 </template>
