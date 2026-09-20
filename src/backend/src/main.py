@@ -46,7 +46,7 @@ from src.api.routes.utils.misc import router as misc_router
 from src.core.application_backup import (
     load_application_backup_file,
     mark_automatic_restore_completed,
-    restore_application_backup
+    restore_application_backup,
 )
 from src.core.auth import COOKIE_NAMESPACE, ensure_primary_user
 from src.core.config import settings as app_settings

@@ -117,8 +117,8 @@ async def restoration_notice(user: User = Depends(get_current_admin)) -> dict[st
     """Return and consume the one-time automatic restore notice for an admin."""
     del user
     return {"restored": consume_automatic_restore_notice()}
-            
-            
+
+
 @router.get("/status")
 async def setup_status(db: AsyncSession = Depends(get_db)) -> dict[str, bool]:
     has_user = await db.scalar(select(User.id).limit(1)) is not None
