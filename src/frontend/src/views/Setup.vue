@@ -93,6 +93,10 @@ async function reviewApplicationImport(source: "file" | "filesystem") {
     applicationImportError.value = "Enter the password used when the settings export was created.";
     return;
   }
+  if (applicationPassword.value.length < 12) {
+    applicationImportError.value = "The deployment backup password must be at least 12 characters long.";
+    return;
+  }
   importingApplication.value = true;
   applicationBackupSource.value = source;
   try {
