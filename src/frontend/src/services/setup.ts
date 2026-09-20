@@ -41,7 +41,7 @@ export async function createInitialAdmin(
   email: string,
   password: string,
   options: SetupOptions = {},
-): Promise<{ users?: boolean; sessions?: boolean }> {
+): Promise<{ status: string; user_id: string; is_admin: boolean }> {
   const response = await fetch("/api/setup", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -59,14 +59,14 @@ export async function createInitialAdmin(
     }
     throw new Error(message);
   }
-  return (await response.json()) as { users?: boolean; sessions?: boolean };
+  return (await response.json()) as { status: string; user_id: string; is_admin: boolean };
 }
 
 
 export async function importApplicationSettings(
   file: File,
   password: string,
-): Promise<void> {
+): Promise<{ users?: boolean; sessions?: boolean }> {
   const form = new FormData();
   form.append("application_file", file);
   form.append("password", password);
@@ -85,5 +85,7 @@ export async function importApplicationSettings(
       if (body) message = `${message} ${body}`;
     }
     throw new Error(message);
+    throw new Error(message);
   }
+  return (await response.json()) as { users?: boolean; sessions?: boolean };
 }
