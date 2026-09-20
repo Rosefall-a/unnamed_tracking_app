@@ -5,6 +5,10 @@ import { fetchSet, deleteSet, updateSet } from "../services/set";
 import { fetchGames } from "../services/games";
 import type { CardSetDetail } from "../types/set";
 import type { Game } from "../types/game";
+import { useConfirm, usePrompt } from "../state/dialog";
+
+const confirm = useConfirm();
+const prompt = usePrompt();
 
 const route = useRoute();
 const router = useRouter();
@@ -32,22 +36,24 @@ async function load() {
 
 async function handleDelete() {
   if (!set.value) return;
-  if (
-    !confirm(
-      `Delete set "${set.value.name}"? Cards in it are just unassigned, not deleted.`,
-    )
-  )
-    return;
+  const ok = await confirm({
+    title: "Delete set",
+    message: `Delete set "${set.value.name}"? Cards in it are just unassigned, not deleted.`,
+    confirmLabel: "Delete",
+    danger: true,
+  });
+  if (!ok) return;
   await deleteSet(setId);
   router.push("/sets");
 }
 
 async function editTarget() {
   if (!set.value) return;
-  const input = prompt(
-    "Total cards expected for this set (blank for unknown):",
-    String(set.value.targetTotal ?? ""),
-  );
+  const input = await prompt({
+    title: "Cards in this set",
+    message: "Total cards expected for this set (blank for unknown).",
+    defaultValue: String(set.value.targetTotal ?? ""),
+  });
   if (input === null) return;
   const target = input.trim() === "" ? null : Number(input);
   await updateSet(setId, {

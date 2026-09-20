@@ -70,6 +70,11 @@ class Anime(Base):
 
     title: Mapped[str] = mapped_column(String(500), nullable=False)
     sort_title: Mapped[str] = mapped_column(String(500), nullable=False)
+    # the same title as AniList spells it, so the app can show whichever the
+    # user prefers (`title` stays the canonical one everything else uses)
+    title_english: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    title_romaji: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    title_native: Mapped[str | None] = mapped_column(String(500), nullable=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     first_air_date: Mapped[date | None] = mapped_column(Date, nullable=True)
 

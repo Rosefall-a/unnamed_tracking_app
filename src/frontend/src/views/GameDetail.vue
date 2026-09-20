@@ -100,6 +100,10 @@ import { computeScore } from "../utils/scoring";
 import { currentUser } from "../state/auth";
 import { marked } from "marked";
 import DOMPurify from "dompurify";
+import { useConfirm, usePrompt } from "../state/dialog";
+
+const confirm = useConfirm();
+const prompt = usePrompt();
 
 const route = useRoute();
 const router = useRouter();
@@ -300,8 +304,13 @@ async function addProfile() {
   }
 }
 
-function promptRenameProfile(profile: GameProfile) {
-  const name = window.prompt("Rename account", profile.name);
+async function promptRenameProfile(profile: GameProfile) {
+  const name = await prompt({
+    title: "Rename account",
+    message: "Account name",
+    defaultValue: profile.name,
+    confirmLabel: "Rename",
+  });
   if (name) void renameProfile(profile, name);
 }
 
@@ -719,9 +728,13 @@ async function addChecklistItem() {
   }
 }
 
-function addChecklistSection() {
+async function addChecklistSection() {
   if (!game.value) return;
-  const name = window.prompt('Section name (e.g. "Quest cape reqs")');
+  const name = await prompt({
+    title: "New section",
+    message: 'Section name (e.g. "Quest cape reqs")',
+    confirmLabel: "Add",
+  });
   const text = name?.trim();
   if (!text) return;
   createChecklistItem(game.value.id, text, activeProfileId.value, true)
@@ -1685,10 +1698,12 @@ async function onNewSaveSelected(files: File[]) {
   const file = files[0];
   if (!file || !game.value) return;
   const gameId = game.value.id;
-  const name = window.prompt(
-    "Name this save:",
-    file.name.replace(/\.[^.]+$/, ""),
-  );
+  const name = await prompt({
+    title: "Name this save",
+    message: "Save name",
+    defaultValue: file.name.replace(/\.[^.]+$/, ""),
+    confirmLabel: "Upload",
+  });
   if (!name || !name.trim()) return;
   const trimmedName = name.trim();
   const taskId = startTask(`Uploading "${trimmedName}"`, 100);
@@ -1741,7 +1756,12 @@ async function onAddSaveVersion(archive: GameArchiveData, files: File[]) {
 
 async function onRenameArchive(archive: GameArchiveData, isWorld: boolean) {
   if (!game.value) return;
-  const name = window.prompt("Rename:", archive.name);
+  const name = await prompt({
+    title: "Rename",
+    message: "Name",
+    defaultValue: archive.name,
+    confirmLabel: "Rename",
+  });
   if (!name || !name.trim() || name.trim() === archive.name) return;
   try {
     await renameArchive(game.value.id, archive.id, name.trim());
@@ -1754,12 +1774,13 @@ async function onRenameArchive(archive: GameArchiveData, isWorld: boolean) {
 
 async function onDeleteArchive(archive: GameArchiveData, isWorld: boolean) {
   if (!game.value) return;
-  if (
-    !window.confirm(
-      `Move "${archive.name}" (${archive.versions.length} version(s)) to trash? It stays recoverable for 7 days, then is purged for good.`,
-    )
-  )
-    return;
+  const ok = await confirm({
+    title: "Move to trash",
+    message: `Move "${archive.name}" (${archive.versions.length} version(s)) to trash? It stays recoverable for 7 days, then is purged for good.`,
+    confirmLabel: "Move to trash",
+    danger: true,
+  });
+  if (!ok) return;
   try {
     await deleteArchive(game.value.id, archive.id);
     if (isWorld) {
@@ -1834,12 +1855,13 @@ async function onDeleteVersion(
       "Delete the whole save to remove its last remaining version.";
     return;
   }
-  if (
-    !window.confirm(
-      `Move this version (${formatFileSize(version.size)}, ${formatArchiveDate(version.uploaded_at)}) to trash? Recoverable for 7 days.`,
-    )
-  )
-    return;
+  const ok = await confirm({
+    title: "Move to trash",
+    message: `Move this version (${formatFileSize(version.size)}, ${formatArchiveDate(version.uploaded_at)}) to trash? Recoverable for 7 days.`,
+    confirmLabel: "Move to trash",
+    danger: true,
+  });
+  if (!ok) return;
   try {
     await deleteArchiveVersion(game.value.id, archive.id, version.id);
     if (isWorld) await refreshWorldMaps();
@@ -1889,10 +1911,12 @@ async function onNewWorldSelected(files: File[]) {
   const file = files[0];
   if (!file || !game.value) return;
   const gameId = game.value.id;
-  const name = window.prompt(
-    "Name this world:",
-    file.name.replace(/\.[^.]+$/, ""),
-  );
+  const name = await prompt({
+    title: "Name this world",
+    message: "World name",
+    defaultValue: file.name.replace(/\.[^.]+$/, ""),
+    confirmLabel: "Upload",
+  });
   if (!name || !name.trim()) return;
   const trimmedName = name.trim();
   const taskId = startTask(`Uploading "${trimmedName}"`, 100);

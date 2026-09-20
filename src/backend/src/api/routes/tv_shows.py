@@ -24,7 +24,7 @@ from src.api.schemas.tv_show import (
 from src.api.routes.media_extras import log_activity, status_change_detail
 from src.core.app_integrations import get_or_create_app_integration_settings
 from src.core.auth import get_current_user
-from src.core.crypto import decrypt_secret
+from src.core.integrations import resolve_integrations
 from src.database.models.media_extras import ActivityEventType
 from src.database.models.tv_show import TVEpisode, TVSeason, TVShow, TVShowStatus
 from src.database.models.user import User
@@ -112,18 +112,14 @@ async def search_metadata(
     """Search TMDB and OMDb for data that can prefill a new show,
     including its full season list where TMDB has it."""
     del current_user
-    app_integrations = await get_or_create_app_integration_settings(db)
+    app_integrations = resolve_integrations(await get_or_create_app_integration_settings(db))
     try:
         result = await asyncio.to_thread(
             search_tv_metadata,
             query.strip(),
             limit,
-            decrypt_secret(app_integrations.tmdb_api_key)
-            if app_integrations.tmdb_api_key
-            else None,
-            decrypt_secret(app_integrations.omdb_api_key)
-            if app_integrations.omdb_api_key
-            else None,
+            app_integrations.tmdb_api_key,
+            app_integrations.omdb_api_key,
         )
     except Exception as exc:
         raise HTTPException(
@@ -517,10 +513,10 @@ async def get_show_relations(
     API key (Settings > Metadata Sources); returns an empty, clearly
     unconfigured result rather than an error when it's not set up yet."""
     show = await _get_show_or_404(show_id, db, current_user.id)
-    app_integrations = await get_or_create_app_integration_settings(db)
+    app_integrations = resolve_integrations(await get_or_create_app_integration_settings(db))
     if not app_integrations.tvdb_api_key:
         return {"listName": None, "related": [], "configured": False}
-    tvdb_api_key = decrypt_secret(app_integrations.tvdb_api_key)
+    tvdb_api_key = app_integrations.tvdb_api_key
     try:
         result = await asyncio.to_thread(
             lambda: TVDBClient(tvdb_api_key).relations(show.title)
@@ -539,10 +535,10 @@ async def get_show_recommended(
     current_user: User = Depends(get_current_user),
 ) -> dict:
     show = await _get_show_or_404(show_id, db, current_user.id)
-    app_integrations = await get_or_create_app_integration_settings(db)
+    app_integrations = resolve_integrations(await get_or_create_app_integration_settings(db))
     if not app_integrations.tmdb_api_key:
         return {"recommended": [], "configured": False}
-    tmdb_api_key = decrypt_secret(app_integrations.tmdb_api_key)
+    tmdb_api_key = app_integrations.tmdb_api_key
     try:
         recommended = await asyncio.to_thread(
             lambda: TMDBClient(tmdb_api_key).tv_recommendations(show.title)

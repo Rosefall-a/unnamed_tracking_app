@@ -670,3 +670,440 @@ async def test_overview_lists_games_being_played_and_counts_achievement_days():
         finally:
             if user is not None:
                 await _cleanup(db, user)
+
+
+@pytest.mark.asyncio
+async def test_two_requests_creating_the_favorites_list_together_make_one():
+    import asyncio
+
+    from src.api.routes.media_lists import _ensure_favorites_list
+    from src.database.models.media_extras import MediaList
+
+    async with SessionLocal() as db:
+        user = None
+        try:
+            user = await _user(db)
+            await db.commit()
+
+            async def one():
+                async with SessionLocal() as other:
+                    await _ensure_favorites_list(user.scratch_id, other)
+
+            await asyncio.gather(one(), one(), one())
+            rows = (await db.execute(select(MediaList).where(MediaList.user_id == user.scratch_id))).scalars().all()
+            assert [r.name for r in rows] == ["Favorites"]
+        finally:
+            if user is not None:
+                await _cleanup(db, user)
+
+
+# ------------------------------------------------------------------ MAL import
+_MAL = b"""<?xml version="1.0" encoding="UTF-8" ?>
+<myanimelist>
+  <myinfo><user_export_type>1</user_export_type></myinfo>
+  <anime>
+    <series_animedb_id>1</series_animedb_id><series_title><![CDATA[Cowboy Bebop]]></series_title>
+    <series_type>TV</series_type><series_episodes>26</series_episodes>
+    <my_watched_episodes>0</my_watched_episodes><my_start_date>0000-00-00</my_start_date>
+    <my_finish_date>2020-05-01</my_finish_date><my_score>9</my_score><my_status>Completed</my_status>
+    <my_times_watched>2</my_times_watched><my_tags><![CDATA[space, jazz]]></my_tags>
+    <my_comments><![CDATA[classic]]></my_comments>
+  </anime>
+  <anime>
+    <series_animedb_id>2</series_animedb_id><series_title><![CDATA[Some Show]]></series_title>
+    <series_type>Movie</series_type><series_episodes>1</series_episodes>
+    <my_watched_episodes>0</my_watched_episodes><my_score>0</my_score><my_status>Plan to Watch</my_status>
+  </anime>
+  <anime>
+    <series_animedb_id>3</series_animedb_id><series_title><![CDATA[Ongoing]]></series_title>
+    <series_episodes>0</series_episodes><my_watched_episodes>5</my_watched_episodes>
+    <my_status>Watching</my_status>
+  </anime>
+</myanimelist>"""
+
+
+def test_mal_export_is_read_exactly_and_completed_means_fully_watched():
+    from src.features.imports.mal import parse_mal_export
+
+    bebop, movie, ongoing = parse_mal_export(_MAL)
+    assert (bebop.title, bebop.episodes, bebop.watched, bebop.assumed_complete) == ("Cowboy Bebop", 26, 26, True)
+    assert bebop.score == 9 and bebop.rewatches == 2 and bebop.tags == ["space", "jazz"]
+    assert bebop.started is None and str(bebop.finished) == "2020-05-01" and bebop.format == "TV"
+    assert movie.score is None and movie.status == AnimeStatus.WATCHLIST and movie.format == "MOVIE"
+    # an unknown length stays unknown, and the watched count is the file's own
+    assert ongoing.episodes is None and ongoing.watched == 5 and not ongoing.assumed_complete
+
+
+def test_mal_import_refuses_other_files_and_entity_tricks():
+    from src.features.imports.mal import MalImportError, parse_mal_export
+
+    for bad in (b"not xml", b"<other/>", b'<!DOCTYPE x [<!ENTITY a "b">]><myanimelist/>'):
+        with pytest.raises(MalImportError):
+            parse_mal_export(bad)
+
+
+def _upload():
+    import io
+
+    from fastapi import UploadFile
+
+    return UploadFile(file=io.BytesIO(_MAL), filename="animelist.xml")
+
+
+@pytest.mark.asyncio
+async def test_mal_import_keeps_existing_titles_unless_chosen_and_is_safe_twice():
+    from src.api.routes.media_io import export_media_csv, import_mal, preview_mal
+
+    async with SessionLocal() as db:
+        user = None
+        try:
+            user = await _user(db)
+            await db.flush()
+            # already on the site, with its own data: a score and progress MAL disagrees with
+            mine = _anime(user, title="Cowboy Bebop", status=AnimeStatus.IN_PROGRESS)
+            mine.rating_overall = 6
+            mine.note = "my own note"
+            db.add(mine)
+            await db.flush()
+            db.add(AnimeSeason(show_id=mine.id, season_number=1, episode_count=26, episodes_watched=5))
+            await db.flush()
+
+            preview = await preview_mal(_upload(), db, user)
+            assert preview["total"] == 3 and preview["new_count"] == 2
+            [entry] = preview["existing"]
+            fields = {d["field"]: (d["site"], d["mal"]) for d in entry["differences"]}
+            assert fields["Status"] == ("In Progress", "Watched")
+            assert fields["Episodes watched"] == ("5", "26") and fields["Score"] == ("6.0", "9.0")
+
+            # keeping it (the default) changes nothing on that title
+            first = await import_mal(_upload(), "[]", False, db, user)
+            assert (first.created, first.updated, first.kept, first.assumed_complete) == (2, 0, 1, 0)
+            await db.refresh(mine)
+            assert mine.status == AnimeStatus.IN_PROGRESS and float(mine.rating_overall) == 6.0
+            again = await import_mal(_upload(), "[]", False, db, user)
+            assert (again.created, again.kept) == (0, 3)
+
+            # choosing MAL's data applies only what MAL states and keeps the rest
+            chosen = await import_mal(_upload(), '["1"]', False, db, user)
+            assert (chosen.created, chosen.updated, chosen.assumed_complete) == (0, 1, 1)
+            await db.refresh(mine, ["seasons"])
+            assert mine.status == AnimeStatus.WATCHED and float(mine.rating_overall) == 9.0
+            assert mine.note == "classic" and mine.rewatches == 2 and mine.external_id == "1"
+            season = (await db.execute(select(AnimeSeason).where(AnimeSeason.show_id == mine.id))).scalars().one()
+            assert season.episodes_watched == 26
+
+            csv_text = (await export_media_csv(db, user)).body.decode()
+            assert "anime,Cowboy Bebop,WATCHED,9.0" in csv_text
+        finally:
+            if user is not None:
+                await _cleanup(db, user)
+
+
+class _FakeAniList:
+    def get_by_mal_ids(self, ids):
+        meta = {"id": 1, "id_mal": 1, "poster_url": "http://p/1.jpg", "genres": ["Sci-Fi"], "studios": ["Sunrise"],
+                "overview": "text", "episode_count": 26, "release_date": "1998-04-03", "score": 8.6, "format": "TV",
+                "episode_runtime_minutes": 24, "countries": ["JP"], "backdrop_url": None}
+        return {1: meta}, 1
+
+
+@pytest.mark.asyncio
+async def test_details_fill_only_blank_fields_and_report_what_was_not_found():
+    from src.features.imports.mal_apply import fill_details
+
+    async with SessionLocal() as db:
+        user = None
+        try:
+            user = await _user(db)
+            await db.flush()
+            have = Anime(user_id=user.scratch_id, title="A", sort_title="a", external_id="1", status=AnimeStatus.WATCHED,
+                         description="mine", studios=[], countries=[], languages=[], genres=[], tags=[], features=[],
+                         locked_fields=[], seasons=[AnimeSeason(season_number=1, episode_count=None)])
+            other = Anime(user_id=user.scratch_id, title="B", sort_title="b", external_id="2", status=AnimeStatus.WATCHED,
+                          studios=[], countries=[], languages=[], genres=[], tags=[], features=[],
+                          locked_fields=[], seasons=[AnimeSeason(season_number=1)])
+            result = await fill_details([have, other], _FakeAniList())  # type: ignore[arg-type]
+            assert result == {"filled": 1, "not_found": 0, "lookup_failed": 1}
+            assert have.poster_url == "http://p/1.jpg" and have.genres == ["Sci-Fi"] and have.anilist_id == "1"
+            assert have.description == "mine"  # what was already there is never replaced
+            assert have.seasons[0].episode_count == 26 and str(have.first_air_date) == "1998-04-03"
+            assert other.poster_url is None
+        finally:
+            if user is not None:
+                await _cleanup(db, user)
+
+
+# ----------------------------------------------------- restoring an own export
+@pytest.mark.asyncio
+async def test_a_library_export_restores_movies_shows_and_anime_with_progress_and_is_safe_twice():
+    import json
+
+    from src.api.routes.export_import import export_library
+    from src.database.models.tv_show import TVShow, TVShowStatus
+    from src.features.imports.restore import restore_media
+
+    async with SessionLocal() as db:
+        source = target = None
+        try:
+            source = await _user(db)
+            target = await _user(db)
+            show = _anime(source, title="Restore Me")
+            db.add(show)
+            db.add(Movie(user_id=source.scratch_id, title="Film", sort_title="film", status=MovieStatus.WATCHED,
+                         studios=[], countries=[], languages=[], genres=["Drama"], tags=[], features=[],
+                         director=[], writer=[], locked_fields=[], rewatches=1))
+            db.add(TVShow(user_id=source.scratch_id, title="Series", sort_title="series", status=TVShowStatus.WATCHED,
+                          creators=[], studios=[], countries=[], languages=[], genres=[], tags=[], features=[],
+                          locked_fields=[]))
+            await db.flush()
+            season = AnimeSeason(show_id=show.id, season_number=1, episode_count=3, episodes_watched=2)
+            db.add(season)
+            await db.flush()
+            db.add_all([AnimeEpisode(season_id=season.id, episode_number=n, title=f"Ep {n}", watched=(n <= 2)) for n in (1, 2, 3)])
+            await db.flush()
+
+            exported = json.loads((await export_library(db, source)).model_dump_json())
+            first = await restore_media(db, target.scratch_id, exported)
+            assert first["created"] == {"movies": 1, "tv_shows": 1, "anime": 1}, first
+            again = await restore_media(db, target.scratch_id, exported)
+            assert again["created"] == {"movies": 0, "tv_shows": 0, "anime": 0}
+            assert again["skipped"] == {"movies": 1, "tv_shows": 1, "anime": 1}
+
+            restored = (await db.execute(select(Anime).where(Anime.user_id == target.scratch_id))).scalars().one()
+            assert restored.id != show.id and restored.status == AnimeStatus.IN_PROGRESS
+            seasons = (await db.execute(select(AnimeSeason).where(AnimeSeason.show_id == restored.id))).scalars().all()
+            assert [(s.episode_count, s.episodes_watched) for s in seasons] == [(3, 2)]
+            eps = (await db.execute(select(AnimeEpisode).where(AnimeEpisode.season_id == seasons[0].id))).scalars().all()
+            assert sorted((e.episode_number, e.watched) for e in eps) == [(1, True), (2, True), (3, False)]
+            movie = (await db.execute(select(Movie).where(Movie.user_id == target.scratch_id))).scalars().one()
+            assert movie.rewatches == 1 and movie.genres == ["Drama"]
+        finally:
+            for u in (source, target):
+                if u is not None:
+                    await _cleanup(db, u)
+
+
+@pytest.mark.asyncio
+async def test_one_bad_entry_is_reported_and_the_rest_still_restore():
+    from src.features.imports.restore import restore_media
+
+    async with SessionLocal() as db:
+        user = None
+        try:
+            user = await _user(db)
+            await db.flush()
+            payload = {"movies": [
+                {"title": "Good", "sort_title": "good", "status": "WATCHED"},
+                {"title": "Bad", "sort_title": "bad", "status": "NOT_A_STATUS"},
+                {"sort_title": "no title"},
+            ]}
+            result = await restore_media(db, user.scratch_id, payload)
+            assert result["created"]["movies"] == 1 and result["skipped"]["movies"] == 1
+            assert any("Bad" in e for e in result["errors"]) and any("no title" in e for e in result["errors"])
+        finally:
+            if user is not None:
+                await _cleanup(db, user)
+
+
+# ------------------------------------------------------ pinning and ordering lists
+@pytest.mark.asyncio
+async def test_lists_can_be_pinned_and_put_in_the_users_own_order():
+    from src.api.routes.media_lists import create_media_list, list_media_lists, order_media_lists, update_media_list
+    from src.api.schemas.media_extras import MediaListCreate, MediaListsOrder, MediaListUpdate
+
+    async with SessionLocal() as db:
+        user = None
+        try:
+            user = await _user(db)
+            await db.commit()
+            a = await create_media_list(MediaListCreate(name="Alpha"), db, user)
+            b = await create_media_list(MediaListCreate(name="Beta"), db, user)
+            c = await create_media_list(MediaListCreate(name="Gamma"), db, user)
+            names = [x["name"] for x in await list_media_lists(db, user)]
+            assert names == ["Favorites", "Alpha", "Beta", "Gamma"]  # new lists go last
+
+            await order_media_lists(MediaListsOrder(list_ids=[c["id"], a["id"], b["id"]]), db, user)
+            assert [x["name"] for x in await list_media_lists(db, user)] == ["Gamma", "Alpha", "Beta", "Favorites"]
+
+            pinned = await update_media_list(b["id"], MediaListUpdate(pinned=True), db, user)
+            assert pinned["pinned"] is True
+            ordered = await list_media_lists(db, user)
+            assert [x["name"] for x in ordered][0] == "Beta" and ordered[0]["pinned"]
+            # an unpin, and a null pin, both leave the list valid
+            assert (await update_media_list(b["id"], MediaListUpdate(pinned=False), db, user))["pinned"] is False
+            assert (await update_media_list(b["id"], MediaListUpdate(pinned=None), db, user))["pinned"] is False
+        finally:
+            if user is not None:
+                await _cleanup(db, user)
+
+
+# ---------------------------------------------------------- title language
+def test_the_preferred_title_spelling_is_used_with_sensible_fallbacks():
+    from types import SimpleNamespace
+
+    from src.core.titles import apply_alt_titles, display_title
+
+    show = SimpleNamespace(title="Canon", title_english="Attack on Titan", title_romaji="Shingeki no Kyojin", title_native="進撃の巨人")
+    assert display_title(show, "english") == "Attack on Titan"
+    assert display_title(show, "romaji") == "Shingeki no Kyojin"
+    assert display_title(show, "native") == "進撃の巨人"
+    only_romaji = SimpleNamespace(title="Canon", title_english=None, title_romaji="Romaji", title_native=None)
+    assert display_title(only_romaji, "english") == "Romaji"  # next best, never blank
+    assert display_title(SimpleNamespace(title="Canon"), "native") == "Canon"  # a movie has no alternates
+
+    empty = SimpleNamespace(title="X", title_english="kept", title_romaji=None, title_native=None)
+    assert apply_alt_titles(empty, {"title_english": "other", "title_romaji": "R", "title_native": "N"})
+    assert (empty.title_english, empty.title_romaji, empty.title_native) == ("kept", "R", "N")  # only blanks are filled
+    assert not apply_alt_titles(empty, {"title_romaji": "again"})
+
+
+@pytest.mark.asyncio
+async def test_the_title_language_preference_changes_titles_in_stats_and_lists():
+    from src.api.routes.media_lists import create_media_list, get_media_list
+    from src.api.schemas.media_extras import MediaListCreate, SmartRule
+    from src.core.preferences import save_preferences
+
+    async with SessionLocal() as db:
+        user = None
+        try:
+            user = await _user(db)
+            await db.commit()
+            show = _anime(user, title="Canon Title", status=AnimeStatus.IN_PROGRESS)
+            show.title_english, show.title_romaji, show.title_native = "English Name", "Romaji Name", "日本語"
+            db.add(show)
+            await db.flush()
+            db.add(AnimeSeason(show_id=show.id, season_number=1, episode_count=12, episodes_watched=3))
+            await db.commit()
+            smart = await create_media_list(MediaListCreate(name="All", smart_rule=SmartRule(media_types=["anime"])), db, user)
+
+            for language, expected in (("english", "English Name"), ("romaji", "Romaji Name"), ("native", "日本語")):
+                await save_preferences(db, user.scratch_id, {"title_language": language})
+                await db.commit()
+                stats = await get_media_stats(db, user)
+                assert [r["title"] for r in stats["overview"]["in_progress"]] == [expected]
+                detail = await get_media_list(smart["id"], db, user)
+                assert [i["title"] for i in detail["items"]] == [expected]
+        finally:
+            if user is not None:
+                await _cleanup(db, user)
+
+
+# ------------------------------------------------- Letterboxd and IMDb imports
+def _letterboxd_zip() -> bytes:
+    import io
+    import zipfile
+
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as z:
+        z.writestr("watched.csv", "Date,Name,Year,Letterboxd URI\n2020-01-01,Alien,1979,x\n2020-01-02,Heat,1995,x\n")
+        z.writestr("ratings.csv", "Date,Name,Year,Letterboxd URI,Rating\n2020-01-01,Alien,1979,x,4.5\n")
+        z.writestr(
+            "diary.csv",
+            "Date,Name,Year,Letterboxd URI,Rating,Rewatch,Tags,Watched Date\n"
+            "2021-02-02,Heat,1995,x,,Yes,,2021-02-01\n2022-03-03,Heat,1995,x,3,Yes,,2022-03-01\n",
+        )
+        z.writestr("watchlist.csv", "Date,Name,Year,Letterboxd URI\n2020-05-05,Ran,1985,x\n")
+        z.writestr("likes/films.csv", "Date,Name,Year,Letterboxd URI\n2020-06-06,Alien,1979,x\n")
+        z.writestr("lists/mine.csv", "Date,Name,Year,Letterboxd URI\n2020-06-06,Ignored,2000,x\n")
+    return buffer.getvalue()
+
+
+def test_letterboxd_export_is_read_exactly():
+    from src.features.imports.lists import parse_letterboxd
+
+    by_name = {t.title: t for t in parse_letterboxd(_letterboxd_zip(), "export.zip")}
+    assert set(by_name) == {"Alien", "Heat", "Ran"}  # custom lists are not treated as films watched
+    alien, heat, ran = by_name["Alien"], by_name["Heat"], by_name["Ran"]
+    assert (alien.status, float(alien.rating), alien.favorite) == ("WATCHED", 9.0, True)  # 4.5 stars, 10 scale
+    assert heat.rewatches == 2 and float(heat.rating) == 6.0 and str(heat.watched_on) == "2022-03-01"
+    assert (ran.status, ran.rating, ran.year) == ("WATCHLIST", None, 1985)
+
+
+_IMDB = (
+    b"Const,Your Rating,Date Rated,Title,Original Title,URL,Title Type,IMDb Rating,Runtime (mins),Year,Genres,Num Votes,Release Date,Directors\n"
+    b'tt0078748,9,2020-01-01,Alien,Alien,u,movie,8.5,117,1979,"Horror, Sci-Fi",1,1979-05-25,x\n'
+    b'tt0903747,10,2020-02-02,Breaking Bad,Breaking Bad,u,tvSeries,9.5,49,2008,"Crime, Drama",1,2008-01-20,x\n'
+    b"tt1234567,7,2020-03-03,An Episode,An Episode,u,tvEpisode,7,45,2010,Drama,1,2010-01-01,x\n"
+    b"tt7654321,,2020-04-04,Later,Later,u,movie,7,90,2021,Drama,1,2021-01-01,x\n"
+)
+
+
+def test_imdb_export_maps_types_and_reports_what_it_skipped():
+    from src.features.imports.lists import parse_imdb
+
+    items, skipped = parse_imdb(_IMDB)
+    assert skipped == 1  # the single episode is not a title
+    by_name = {i.title: i for i in items}
+    assert (by_name["Alien"].kind, float(by_name["Alien"].rating), by_name["Alien"].runtime) == ("movie", 9.0, 117)
+    assert by_name["Alien"].genres == ["Horror", "Sci-Fi"] and by_name["Alien"].year == 1979
+    assert by_name["Breaking Bad"].kind == "tv" and by_name["Later"].status == "WATCHLIST"
+
+
+class _FakeTMDB:
+    def search(self, title, limit=8, year=None):
+        return [{"overview": "text", "release_date": "1979-05-25", "runtime_minutes": 117, "studios": ["Fox"],
+                 "genres": ["Sci-Fi"], "poster_url": "http://p/alien.jpg", "vote_average": 8.1}]
+
+    def search_tv(self, title, limit=8, year=None):
+        return [{"overview": "tv text", "first_air_date": "2008-01-20", "creators": ["Vince"], "genres": ["Crime"],
+                 "poster_url": "http://p/bb.jpg", "vote_average": 9.0,
+                 "seasons": [{"season_number": 1, "name": "S1", "episode_count": 7, "air_date": "2008-01-20", "poster_url": None},
+                             {"season_number": 2, "name": "S2", "episode_count": 13, "air_date": "2009-03-08", "poster_url": None}]}]
+
+
+@pytest.mark.asyncio
+async def test_list_import_keeps_existing_titles_fills_blanks_and_builds_seasons():
+    import io
+
+    from fastapi import UploadFile
+
+    from src.api.routes.media_io import import_list, preview_list
+    from src.database.models.tv_show import TVShow
+    from src.features.imports.list_apply import fill_details as fill
+    from src.features.imports.list_apply import match_titles
+    from src.features.imports.lists import parse_imdb
+
+    def upload():
+        return UploadFile(file=io.BytesIO(_IMDB), filename="ratings.csv")
+
+    async with SessionLocal() as db:
+        user = None
+        try:
+            user = await _user(db)
+            await db.flush()
+            mine = Movie(user_id=user.scratch_id, title="Alien", sort_title="alien", status=MovieStatus.WATCHLIST,
+                         release_date=datetime(1979, 5, 25).date(), description="mine", studios=[], countries=[],
+                         languages=[], genres=[], tags=[], features=[], locked_fields=[])
+            db.add(mine)
+            await db.flush()
+
+            preview = await preview_list(upload(), "imdb", db, user)
+            assert (preview["total"], preview["new_count"], preview["skipped_other"]) == (3, 2, 1)
+            [entry] = preview["existing"]
+            fields = {d["field"]: (d["site"], d["mal"]) for d in entry["differences"]}
+            assert fields["Status"] == ("Watchlist", "Watched") and fields["Score"] == (None, "9.0")
+
+            kept = await import_list(upload(), "imdb", "[]", False, db, user)
+            assert (kept.created, kept.updated, kept.kept) == (2, 0, 1)
+            await db.refresh(mine)
+            assert mine.status == MovieStatus.WATCHLIST and mine.rating_overall is None
+            again = await import_list(upload(), "imdb", "[]", False, db, user)
+            assert (again.created, again.kept) == (0, 3)
+
+            chosen = await import_list(upload(), "imdb", '["movie:alien:1979"]', False, db, user)
+            assert chosen.updated == 1
+            await db.refresh(mine)
+            assert mine.status == MovieStatus.WATCHED and float(mine.rating_overall) == 9.0
+
+            # metadata: blank fields only, and a series gets its seasons, all watched
+            items, _ = parse_imdb(_IMDB)
+            matches = await match_titles(db, user.scratch_id, items)
+            rows = [(m.imported, m.existing, True) for m in matches if m.existing is not None]
+            result = await fill(_FakeTMDB(), rows)
+            assert result["not_found"] == 0 and result["seasons_assumed_watched"] == 1
+            assert mine.description == "mine" and mine.poster_url == "http://p/alien.jpg" and mine.runtime_minutes == 117
+            show = next(r for _, r, _ in rows if isinstance(r, TVShow))
+            assert [(s.season_number, s.episode_count, s.episodes_watched) for s in show.seasons] == [(1, 7, 7), (2, 13, 13)]
+        finally:
+            if user is not None:
+                await _cleanup(db, user)

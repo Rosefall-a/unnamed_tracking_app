@@ -26,7 +26,8 @@ DEFAULTS: dict[str, Any] = {
     "notification_retention_days": 30,  # 0 = keep forever
     # library and lists
     "library_default_layout": "list",  # "list" | "shelf" | "board"
-    "lists_default_sort": "name",  # "name" | "count" | "recent"
+    "title_language": "english",  # which spelling of an anime title to show
+    "lists_default_sort": "custom",  # "custom" | "name" | "count" | "recent"
     # statistics
     "stats_include_plan": True,  # count Plan to Watch titles in title totals
 }
@@ -36,7 +37,8 @@ _CHOICES: dict[str, tuple[Any, ...]] = {
     "calendar_week_start": (0, 1),
     "notification_retention_days": (0, 7, 14, 30, 90),
     "library_default_layout": ("list", "shelf", "board"),
-    "lists_default_sort": ("name", "count", "recent"),
+    "lists_default_sort": ("custom", "name", "count", "recent"),
+    "title_language": ("english", "romaji", "native"),
 }
 
 

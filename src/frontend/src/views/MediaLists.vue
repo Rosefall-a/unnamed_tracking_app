@@ -18,10 +18,11 @@ import {
   createMediaList,
   deleteMediaList,
   updateMediaList,
+  saveListOrder,
 } from "../services/mediaExtras";
 import type { MediaListSummary, SmartRule } from "../services/mediaExtras";
 
-type SortBy = "name" | "count" | "recent";
+type SortBy = "custom" | "name" | "count" | "recent";
 type KindFilter = "all" | "manual" | "smart";
 
 const router = useRouter();
@@ -78,6 +79,31 @@ async function onCreate(payload: {
   }
 }
 
+// pinned lists always come first, then the chosen sort within each group
+function inMyOrder(a: MediaListSummary, b: MediaListSummary): number {
+  return (
+    a.position - b.position ||
+    Number(b.isSystem) - Number(a.isSystem) ||
+    a.name.localeCompare(b.name)
+  );
+}
+const myOrder = computed(() =>
+  [...lists.value].sort(
+    (a, b) => Number(b.pinned) - Number(a.pinned) || inMyOrder(a, b),
+  ),
+);
+
+const filtering = computed(
+  () =>
+    searchQuery.value.trim() !== "" ||
+    kindFilter.value !== "all" ||
+    typeFilter.value !== "all",
+);
+// moving lists only makes sense when every list is in view, in your own order
+const reorderable = computed(
+  () => sortBy.value === "custom" && !filtering.value,
+);
+
 const filteredLists = computed(() => {
   const q = searchQuery.value.trim().toLowerCase();
   let result = lists.value;
@@ -89,11 +115,87 @@ const filteredLists = computed(() => {
   if (kindFilter.value === "manual") result = result.filter((l) => !l.isSmart);
   if (q) result = result.filter((l) => l.name.toLowerCase().includes(q));
   return [...result].sort((a, b) => {
+    const pin = Number(b.pinned) - Number(a.pinned);
+    if (pin) return pin;
     if (sortBy.value === "count") return b.itemCount - a.itemCount;
     if (sortBy.value === "recent") return b.updatedAt - a.updatedAt;
+    if (sortBy.value === "custom") return inMyOrder(a, b);
     return a.name.localeCompare(b.name);
   });
 });
+
+async function togglePin(id: string) {
+  const list = lists.value.find((l) => l.id === id);
+  if (!list) return;
+  try {
+    const updated = await updateMediaList(id, { pinned: !list.pinned });
+    lists.value = lists.value.map((l) => (l.id === updated.id ? updated : l));
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "Failed to pin the list.";
+  }
+}
+
+// The new order is applied at once and saved behind it; if saving fails the
+// page reloads the real order instead of showing one that is not stored.
+async function applyOrder(ordered: MediaListSummary[]) {
+  const position = new Map(ordered.map((l, i) => [l.id, i]));
+  lists.value = lists.value.map((l) => ({
+    ...l,
+    position: position.get(l.id) ?? l.position,
+  }));
+  try {
+    await saveListOrder(ordered.map((l) => l.id));
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "Failed to save the order.";
+    await load();
+  }
+}
+function groupOf(id: string): MediaListSummary[] {
+  const pinned = lists.value.find((l) => l.id === id)?.pinned ?? false;
+  return myOrder.value.filter((l) => l.pinned === pinned);
+}
+function canMove(id: string, direction: -1 | 1): boolean {
+  const group = groupOf(id);
+  const at = group.findIndex((l) => l.id === id);
+  return at + direction >= 0 && at + direction < group.length;
+}
+// the whole order with one group (pinned or not) replaced by `replacement`
+function withGroup(replacement: MediaListSummary[], pinned: boolean) {
+  const pinnedGroup = pinned
+    ? replacement
+    : myOrder.value.filter((l) => l.pinned);
+  const rest = pinned ? myOrder.value.filter((l) => !l.pinned) : replacement;
+  return [...pinnedGroup, ...rest];
+}
+async function moveList(id: string, direction: -1 | 1) {
+  const group = groupOf(id);
+  const at = group.findIndex((l) => l.id === id);
+  const to = at + direction;
+  if (at < 0 || to < 0 || to >= group.length) return;
+  const swapped = [...group];
+  [swapped[at], swapped[to]] = [swapped[to], swapped[at]];
+  await applyOrder(withGroup(swapped, group[0].pinned));
+}
+
+// dragging a card onto another one of the same group puts it in that place
+const dragId = ref<string | null>(null);
+const dropOn = ref<string | null>(null);
+function onDrop(targetId: string) {
+  const from = dragId.value;
+  dragId.value = dropOn.value = null;
+  if (!from || from === targetId) return;
+  const group = groupOf(from);
+  if (!group.some((l) => l.id === targetId)) return; // pinned and other lists stay apart
+  const moving = group.find((l) => l.id === from);
+  if (!moving) return;
+  const rest = group.filter((l) => l.id !== from);
+  rest.splice(
+    group.findIndex((l) => l.id === targetId),
+    0,
+    moving,
+  );
+  void applyOrder(withGroup(rest, moving.pinned));
+}
 
 const smartCount = computed(() => lists.value.filter((l) => l.isSmart).length);
 const kindOptions = computed<SegmentOption[]>(() => [
@@ -173,6 +275,7 @@ async function deleteList(id: string) {
             placeholder="Search lists…"
           />
           <select v-model="sortBy" class="ui-field">
+            <option value="custom">My order</option>
             <option value="name">Name</option>
             <option value="count">Most Titles</option>
             <option value="recent">Recently Updated</option>
@@ -217,11 +320,24 @@ async function deleteList(id: string) {
             v-for="list in filteredLists"
             :key="list.id"
             :list="list"
+            :reorderable="reorderable"
+            :can-move-earlier="canMove(list.id, -1)"
+            :can-move-later="canMove(list.id, 1)"
+            :drag-over="dropOn === list.id && dragId !== list.id"
             @open="openList"
             @edit="editList"
             @delete="deleteList"
+            @pin="togglePin"
+            @move="moveList"
+            @dragstart="dragId = $event"
+            @dragover="dropOn = $event"
+            @drop="onDrop"
+            @dragend="dragId = dropOn = null"
           />
         </div>
+        <p v-if="sortBy === 'custom' && filtering" class="ui-state">
+          Clear the search and filters to move lists around.
+        </p>
         <p v-else class="ui-state">
           No lists yet: create one above, or use a movie/TV/anime page's list
           button to start one. A smart list fills itself from a filter, like

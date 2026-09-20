@@ -72,6 +72,10 @@ class MediaList(Base):
     cover_media_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
     # a list the app keeps for you (Favorites): it cannot be renamed or deleted
     is_system: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
+    # pinned lists sit first; within that, lowest position first (the user's
+    # own order), ties falling back to Favorites then name
+    pinned: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
+    position: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     created_at: Mapped[int] = mapped_column(BigInteger, nullable=False, default=lambda: int(time.time()))
     updated_at: Mapped[int] = mapped_column(
         BigInteger, nullable=False, default=lambda: int(time.time()), onupdate=lambda: int(time.time())

@@ -36,6 +36,7 @@ _MEDIA_FIELDS = """
       title {
         romaji
         english
+        native
       }
       format
       description(asHtml: false)
@@ -135,6 +136,28 @@ def _format_label(raw: str | None) -> str | None:
         return None
     return _FORMAT_LABELS.get(raw, raw.title())
 
+# Up to 50 entries by MyAnimeList id in one request, so filling in a whole
+# imported list takes a handful of calls instead of one per title.
+_BY_MAL_IDS_QUERY = f"""
+query ($ids: [Int], $perPage: Int) {{
+  Page(page: 1, perPage: $perPage) {{
+    media(idMal_in: $ids, type: ANIME) {{
+{_MEDIA_FIELDS}
+    }}
+  }}
+}}
+"""
+_BY_IDS_QUERY = f"""
+query ($ids: [Int], $perPage: Int) {{
+  Page(page: 1, perPage: $perPage) {{
+    media(id_in: $ids, type: ANIME) {{
+{_MEDIA_FIELDS}
+    }}
+  }}
+}}
+"""
+_BATCH_SIZE = 50
+
 
 def _map_media_entry(entry: dict[str, Any]) -> dict[str, Any]:
     """Normalizes one `_MEDIA_FIELDS`-shaped node into the search-result
@@ -148,6 +171,9 @@ def _map_media_entry(entry: dict[str, Any]) -> dict[str, Any]:
         "id": entry.get("id"),
         "id_mal": entry.get("idMal"),
         "title": title.get("english") or title.get("romaji"),
+        "title_english": title.get("english"),
+        "title_romaji": title.get("romaji"),
+        "title_native": title.get("native"),
         "overview": _clean_description(entry.get("description")),
         "release_date": _format_date(entry.get("startDate")),
         "episode_runtime_minutes": entry.get("duration"),
@@ -599,6 +625,34 @@ class AniListClient:
         if not media:
             return None
         return _map_media_entry(media)
+
+    def _batched(self, query: str, ids: list[int], key: str) -> tuple[dict[int, dict[str, Any]], int]:
+        found: dict[int, dict[str, Any]] = {}
+        failed = 0
+        for start in range(0, len(ids), _BATCH_SIZE):
+            chunk = ids[start : start + _BATCH_SIZE]
+            try:
+                payload = self._post_graphql(query, {"ids": chunk, "perPage": _BATCH_SIZE})
+            except AniListError:
+                failed += len(chunk)
+                continue
+            for media in ((payload.get("data") or {}).get("Page") or {}).get("media") or []:
+                mapped = _map_media_entry(media)
+                if mapped.get(key):
+                    found[int(mapped[key])] = mapped
+        return found, failed
+
+    def get_by_mal_ids(self, mal_ids: list[int]) -> tuple[dict[int, dict[str, Any]], int]:
+        """Entries for many MyAnimeList ids at once, keyed by MAL id, in the
+        same shape as `get_by_id`. Ids AniList does not know are simply
+        absent. Also returns how many ids sat in a batch that failed (rate
+        limit or outage), so a caller can say so instead of pretending they
+        were looked up."""
+        return self._batched(_BY_MAL_IDS_QUERY, mal_ids, "id_mal")
+
+    def get_by_ids(self, anilist_ids: list[int]) -> tuple[dict[int, dict[str, Any]], int]:
+        """Same as `get_by_mal_ids`, keyed by AniList's own id."""
+        return self._batched(_BY_IDS_QUERY, anilist_ids, "id")
 
     def episodes(self, anilist_id: str) -> list[dict[str, Any]]:
         """Episode data via AniList's `streamingEpisodes` — thumbnail +

@@ -8,6 +8,7 @@ and reported as "no runtime data" instead of being given a made-up
 number. Game time is the playtime the game platforms reported."""
 
 from collections import Counter
+from contextvars import ContextVar
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import Any
@@ -18,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.auth import get_current_user
 from src.core.preferences import load_preferences
+from src.core.titles import display_title
 from src.database.models.achievement import Achievement
 from src.database.models.anime import Anime, AnimeEpisode, AnimeSeason
 from src.database.models.game import Game, GameStatus
@@ -38,6 +40,15 @@ _BUCKET = {
     "MASTERED": "completed",
 }
 _BUCKETS = ("plan", "hold", "watching", "completed", "dropped")
+
+
+# the viewer's title language for the request being built, so the many row
+# builders below need no extra parameter
+_language: ContextVar[str] = ContextVar("stats_title_language", default="english")
+
+
+def _t(item: Any) -> str:
+    return display_title(item, _language.get())
 
 
 def _hours_label(seconds: int) -> str:
@@ -104,7 +115,7 @@ def _top_rated(items: list[Any], n: int = 10, kind: str = "") -> list[dict[str, 
     rated = [i for i in items if i.rating_overall is not None]
     rated.sort(key=lambda i: float(i.rating_overall), reverse=True)
     return [
-        {"id": str(i.id), "title": i.title, "score": float(i.rating_overall), "poster_url": _poster(i), "kind": kind}
+        {"id": str(i.id), "title": _t(i), "score": float(i.rating_overall), "poster_url": _poster(i), "kind": kind}
         for i in rated[:n]
     ]
 
@@ -237,7 +248,7 @@ async def _episode_stats(
             ranked.append(
                 {
                     "id": str(show_id),
-                    "title": by_show[show_id].title,
+                    "title": _t(by_show[show_id]),
                     "minutes": c["minutes"] * (1 + again),
                     "episodes": c["watched"] * (1 + again),
                 }
@@ -274,7 +285,7 @@ async def _rewatch_counts(db: AsyncSession, user_id: Any, media_type: str) -> in
 def _most_rewatched(items: list[Any], n: int = 5) -> list[dict[str, Any]]:
     again = [i for i in items if (i.rewatches or 0) > 0]
     again.sort(key=lambda i: i.rewatches, reverse=True)
-    return [{"id": str(i.id), "title": i.title, "count": i.rewatches} for i in again[:n]]
+    return [{"id": str(i.id), "title": _t(i), "count": i.rewatches} for i in again[:n]]
 
 
 def _episodic_section(
@@ -468,6 +479,7 @@ async def get_media_stats(
     uid = current_user.id
     prefs = await load_preferences(db, uid)
     include_plan = bool(prefs["stats_include_plan"])
+    _language.set(str(prefs["title_language"]))
 
     def keep(items: list[Any]) -> list[Any]:
         if include_plan:
@@ -493,7 +505,7 @@ async def get_media_stats(
                 continue
             p = progress.get(str(i.id), {"watched": 0, "total": 0})
             rows.append(
-                {"id": str(i.id), "title": i.title, "kind": kind, "watched": p["watched"], "total": p["total"],
+                {"id": str(i.id), "title": _t(i), "kind": kind, "watched": p["watched"], "total": p["total"],
                  "poster_url": i.poster_url, "updated_at": i.updated_at}
             )
         return rows
@@ -523,7 +535,7 @@ async def get_media_stats(
 
     def unrated_completed(items: list[Any], kind: str) -> list[dict[str, Any]]:
         return [
-            {"id": str(i.id), "title": i.title, "kind": kind, "poster_url": _poster(i)}
+            {"id": str(i.id), "title": _t(i), "kind": kind, "poster_url": _poster(i)}
             for i in items
             if _BUCKET.get(_status(i.status)) == "completed" and i.rating_overall is None
         ]

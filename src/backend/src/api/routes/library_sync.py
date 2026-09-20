@@ -33,6 +33,7 @@ from src.api.routes.settings import (
 from src.core.auth import get_current_user
 from src.core.config import settings as app_settings
 from src.core.crypto import decrypt_secret
+from src.core.integrations import resolve_integrations
 from src.database.models.achievement import Achievement
 from src.database.models.game import Game, GameStatus
 from src.database.models.user import User
@@ -501,12 +502,10 @@ async def sync_steam_library(
 
     scan_settings = await get_or_create_scan_settings(current_user.id, db)
     preferences = _scan_settings_to_preferences(scan_settings)
-    app_integrations = await get_or_create_app_integration_settings(db)
+    app_integrations = resolve_integrations(await get_or_create_app_integration_settings(db))
     igdb_client_id = app_integrations.igdb_client_id
     igdb_client_secret = (
-        decrypt_secret(app_integrations.igdb_client_secret)
-        if app_integrations.igdb_client_secret
-        else None
+        app_integrations.igdb_client_secret
     )
     api_key = current_user.steam_api_key
     try:
@@ -635,12 +634,10 @@ async def sync_retroachievements_library(
 
     scan_settings = await get_or_create_scan_settings(current_user.id, db)
     preferences = _scan_settings_to_preferences(scan_settings)
-    app_integrations = await get_or_create_app_integration_settings(db)
+    app_integrations = resolve_integrations(await get_or_create_app_integration_settings(db))
     igdb_client_id = app_integrations.igdb_client_id
     igdb_client_secret = (
-        decrypt_secret(app_integrations.igdb_client_secret)
-        if app_integrations.igdb_client_secret
-        else None
+        app_integrations.igdb_client_secret
     )
     client = RetroAchievementsClient(api_key=current_user.retroachievements_api_key)
     username = current_user.retroachievements_username
@@ -746,12 +743,10 @@ async def sync_psn_library(
 
     scan_settings = await get_or_create_scan_settings(current_user.id, db)
     preferences = _scan_settings_to_preferences(scan_settings)
-    app_integrations = await get_or_create_app_integration_settings(db)
+    app_integrations = resolve_integrations(await get_or_create_app_integration_settings(db))
     igdb_client_id = app_integrations.igdb_client_id
     igdb_client_secret = (
-        decrypt_secret(app_integrations.igdb_client_secret)
-        if app_integrations.igdb_client_secret
-        else None
+        app_integrations.igdb_client_secret
     )
     npsso = decrypt_secret(current_user.psn_npsso_token)
     client = PSNClient(npsso)

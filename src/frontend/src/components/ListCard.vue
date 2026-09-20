@@ -7,12 +7,23 @@ import type { MediaListSummary } from "../services/mediaExtras";
 
 const props = defineProps<{
   list: MediaListSummary;
+  // the page is in "My order" with nothing filtered: show the move controls
+  reorderable?: boolean;
+  canMoveEarlier?: boolean;
+  canMoveLater?: boolean;
+  dragOver?: boolean;
 }>();
 
 const emit = defineEmits<{
   open: [id: string];
   delete: [id: string];
   edit: [id: string];
+  pin: [id: string];
+  move: [id: string, direction: -1 | 1];
+  dragstart: [id: string];
+  dragover: [id: string];
+  drop: [id: string];
+  dragend: [];
 }>();
 
 const covers = computed(() => props.list.previewPosters.slice(0, 4));
@@ -20,7 +31,16 @@ const emptySlots = computed(() => Math.max(0, 4 - covers.value.length));
 </script>
 
 <template>
-  <div class="collection-card-wrap" @click="emit('open', list.id)">
+  <div
+    class="collection-card-wrap"
+    :class="{ 'drop-target': dragOver }"
+    :draggable="reorderable"
+    @click="emit('open', list.id)"
+    @dragstart="emit('dragstart', list.id)"
+    @dragover.prevent="emit('dragover', list.id)"
+    @drop.prevent="emit('drop', list.id)"
+    @dragend="emit('dragend')"
+  >
     <div class="collection-card">
       <div class="cover">
         <div class="cover-grid">
@@ -42,7 +62,46 @@ const emptySlots = computed(() => Math.max(0, 4 - covers.value.length));
           title="Fills itself from a filter"
           >{{ list.isSystem ? "Auto" : "Smart" }}</span
         >
+        <span v-if="list.pinned" class="pin-badge" title="Pinned">
+          <svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true">
+            <path
+              d="M9 3h6l-1 6 3 3v2h-4v6l-1 1-1-1v-6H7v-2l3-3z"
+              fill="currentColor"
+            />
+          </svg>
+        </span>
         <div class="card-actions">
+          <button
+            type="button"
+            :title="list.pinned ? 'Unpin this list' : 'Pin this list'"
+            :class="{ on: list.pinned }"
+            @click.stop="emit('pin', list.id)"
+          >
+            <svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true">
+              <path
+                d="M9 3h6l-1 6 3 3v2h-4v6l-1 1-1-1v-6H7v-2l3-3z"
+                fill="currentColor"
+              />
+            </svg>
+          </button>
+          <template v-if="reorderable">
+            <button
+              type="button"
+              title="Move earlier"
+              :disabled="!canMoveEarlier"
+              @click.stop="emit('move', list.id, -1)"
+            >
+              â—€
+            </button>
+            <button
+              type="button"
+              title="Move later"
+              :disabled="!canMoveLater"
+              @click.stop="emit('move', list.id, 1)"
+            >
+              â–¶
+            </button>
+          </template>
           <template v-if="!list.isSystem">
             <button
               type="button"
@@ -127,8 +186,34 @@ const emptySlots = computed(() => Math.max(0, 4 - covers.value.length));
   font-size: 11px;
   cursor: pointer;
 }
-.card-actions button:hover {
+.card-actions button:hover:not(:disabled),
+.card-actions button.on {
   color: #d68a34;
+}
+.card-actions button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.pin-badge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: rgba(20, 20, 20, 0.8);
+  backdrop-filter: blur(4px);
+  color: #d68a34;
+}
+.collection-card-wrap[draggable="true"] {
+  cursor: grab;
+}
+.collection-card-wrap.drop-target .collection-card {
+  outline: 2px dashed #d68a34;
+  outline-offset: 3px;
 }
 .card-actions button[title^="Delete"]:hover {
   color: #e57373;

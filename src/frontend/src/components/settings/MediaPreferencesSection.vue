@@ -11,6 +11,7 @@ import {
 } from "../../services/preferences";
 import type { Preferences } from "../../services/preferences";
 import { preferences as sharedPreferences } from "../../state/preferences";
+import { fillAlternateTitles } from "../../services/anime";
 
 const prefs = ref<Preferences>({ ...DEFAULT_PREFERENCES });
 const loaded = ref(false);
@@ -42,12 +43,42 @@ async function change(changes: Partial<Preferences>) {
   }
 }
 
+const titleLanguageOptions = [
+  { value: "english", label: "English" },
+  { value: "romaji", label: "Romaji" },
+  { value: "native", label: "Japanese" },
+];
+const fillingTitles = ref(false);
+const titlesNote = ref("");
+async function lookUpTitles() {
+  fillingTitles.value = true;
+  titlesNote.value = "";
+  try {
+    const r = await fillAlternateTitles();
+    titlesNote.value = r.checked
+      ? `Found the alternate titles for ${r.filled} of ${r.checked} anime.` +
+        (r.without_id
+          ? ` ${r.without_id} have no AniList or MyAnimeList id, so they can't be looked up.`
+          : "") +
+        (r.lookup_failed
+          ? ` AniList could not be reached for ${r.lookup_failed}: try again later.`
+          : "")
+      : "Every anime already has its titles.";
+  } catch (e) {
+    titlesNote.value =
+      e instanceof Error ? e.message : "Failed to look up titles.";
+  } finally {
+    fillingTitles.value = false;
+  }
+}
+
 const layoutOptions = [
   { value: "list", label: "List" },
   { value: "shelf", label: "Shelf" },
   { value: "board", label: "Board" },
 ];
 const listSortOptions = [
+  { value: "custom", label: "My order" },
   { value: "name", label: "Name" },
   { value: "count", label: "Most titles" },
   { value: "recent", label: "Recently updated" },
@@ -76,6 +107,32 @@ const listSortOptions = [
         "
       />
       <small>Used until you pick a layout on a library page yourself.</small>
+    </div>
+    <div class="field">
+      <span>Anime title language</span>
+      <SegmentedControl
+        :model-value="prefs.title_language"
+        :options="titleLanguageOptions"
+        @update:model-value="
+          change({
+            title_language: $event as Preferences['title_language'],
+          })
+        "
+      />
+      <small
+        >Which spelling of an anime's title is shown. If one is not known for a
+        title, the next best is used. Anime added before this existed need their
+        titles looked up once.</small
+      >
+      <button
+        type="button"
+        class="ui-btn ui-btn-secondary ui-btn-sm"
+        :disabled="fillingTitles"
+        @click="lookUpTitles"
+      >
+        {{ fillingTitles ? "Looking up…" : "Look up titles for my anime" }}
+      </button>
+      <small v-if="titlesNote">{{ titlesNote }}</small>
     </div>
     <div class="field">
       <span>Lists sort</span>

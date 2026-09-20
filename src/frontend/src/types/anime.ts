@@ -43,6 +43,10 @@ export interface Anime {
   id: string;
   userId: string;
   title: string;
+  // the same title as AniList spells it; see utils/displayTitle.ts
+  titleEnglish: string | null;
+  titleRomaji: string | null;
+  titleNative: string | null;
   sortTitle: string;
   description: string | null;
   firstAirDate: string | null;

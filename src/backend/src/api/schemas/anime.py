@@ -11,6 +11,9 @@ class AnimeBase(BaseModel):
     """Fields shared by create and update payloads."""
 
     title: str = Field(min_length=1, max_length=500)
+    title_english: str | None = Field(default=None, max_length=500)
+    title_romaji: str | None = Field(default=None, max_length=500)
+    title_native: str | None = Field(default=None, max_length=500)
     description: str | None = None
     first_air_date: date | None = None
     episode_runtime_minutes: int | None = Field(default=None, ge=0)
@@ -73,6 +76,9 @@ class AnimeUpdate(BaseModel):
     never touched here; they have their own nested CRUD endpoints."""
 
     title: str | None = Field(default=None, min_length=1, max_length=500)
+    title_english: str | None = Field(default=None, max_length=500)
+    title_romaji: str | None = Field(default=None, max_length=500)
+    title_native: str | None = Field(default=None, max_length=500)
     sort_title: str | None = Field(default=None, max_length=500)
     description: str | None = None
     first_air_date: date | None = None

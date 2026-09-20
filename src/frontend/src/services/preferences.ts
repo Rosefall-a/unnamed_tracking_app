@@ -14,7 +14,8 @@ export interface Preferences {
   notify_movie_released: boolean;
   notification_retention_days: 0 | 7 | 14 | 30 | 90;
   library_default_layout: "list" | "shelf" | "board";
-  lists_default_sort: "name" | "count" | "recent";
+  lists_default_sort: "custom" | "name" | "count" | "recent";
+  title_language: "english" | "romaji" | "native";
   stats_include_plan: boolean;
 }
 
@@ -31,7 +32,8 @@ export const DEFAULT_PREFERENCES: Preferences = {
   notify_movie_released: true,
   notification_retention_days: 30,
   library_default_layout: "list",
-  lists_default_sort: "name",
+  lists_default_sort: "custom",
+  title_language: "english",
   stats_include_plan: true,
 };
 

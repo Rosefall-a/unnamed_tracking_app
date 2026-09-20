@@ -17,6 +17,8 @@ from src.core.app_integrations import get_or_create_app_integration_settings
 from src.core.auth import get_current_admin, get_current_user
 from src.core.config import settings
 from src.core.crypto import decrypt_secret, encrypt_secret
+from src.core.integrations import resolve_integrations
+from src.database.models.app_integration_settings import AppIntegrationSettings
 from src.database.models.game import Game
 from src.database.models.user import User
 from src.database.models.user_appearance_settings import UserAppearanceSettings
@@ -307,18 +309,10 @@ async def get_provider_credentials(
         }
         if saved_fields:
             result[provider]["fields"] = saved_fields
-    app_integrations = await get_or_create_app_integration_settings(db)
-    result["IGDB"] = {
-        "status": "configured"
-        if (app_integrations.igdb_client_id and app_integrations.igdb_client_secret)
-        else "not_configured",
-    }
-    result["TMDB"] = {
-        "status": "configured" if app_integrations.tmdb_api_key else "not_configured",
-    }
-    result["OMDb"] = {
-        "status": "configured" if app_integrations.omdb_api_key else "not_configured",
-    }
+    app_integrations = resolve_integrations(await get_or_create_app_integration_settings(db))
+    result["IGDB"] = {"status": "configured" if app_integrations.igdb_configured else "not_configured"}
+    result["TMDB"] = {"status": "configured" if app_integrations.tmdb_api_key else "not_configured"}
+    result["OMDb"] = {"status": "configured" if app_integrations.omdb_api_key else "not_configured"}
     result["ScreenScraper"]["app_configured"] = bool(
         settings.SCREENSCRAPER_DEVID and settings.SCREENSCRAPER_DEVPASSWORD
     )
@@ -482,6 +476,21 @@ class AppIntegrationSettingsRequest(BaseModel):
     tvdb_api_key: str | None = None
 
 
+def _integrations_view(row: AppIntegrationSettings) -> dict:
+    """What is in effect (a key saved in Settings, else one from the server's
+    environment), never the values themselves. `sources` says which, so the
+    screen can tell a key that Settings can override from one it cannot clear."""
+    keys = resolve_integrations(row)
+    return {
+        "igdb_client_id": row.igdb_client_id or keys.igdb_client_id,
+        "igdb_configured": keys.igdb_configured,
+        "tmdb_configured": bool(keys.tmdb_api_key),
+        "omdb_configured": bool(keys.omdb_api_key),
+        "tvdb_configured": bool(keys.tvdb_api_key),
+        "sources": keys.sources,
+    }
+
+
 @router.get("/app-integrations")
 async def get_app_integrations(
     db: AsyncSession = Depends(get_db),
@@ -494,13 +503,7 @@ async def get_app_integrations(
     is, same rule as every other Fernet-encrypted credential here."""
     del admin
     row = await get_or_create_app_integration_settings(db)
-    return {
-        "igdb_client_id": row.igdb_client_id,
-        "igdb_configured": bool(row.igdb_client_id and row.igdb_client_secret),
-        "tmdb_configured": bool(row.tmdb_api_key),
-        "omdb_configured": bool(row.omdb_api_key),
-        "tvdb_configured": bool(row.tvdb_api_key),
-    }
+    return _integrations_view(row)
 
 
 @router.put("/app-integrations")
@@ -525,13 +528,7 @@ async def update_app_integrations(
     if "tvdb_api_key" in updates:
         row.tvdb_api_key = encrypt_secret(updates["tvdb_api_key"]) if updates["tvdb_api_key"] else None
     await db.commit()
-    return {
-        "igdb_client_id": row.igdb_client_id,
-        "igdb_configured": bool(row.igdb_client_id and row.igdb_client_secret),
-        "tmdb_configured": bool(row.tmdb_api_key),
-        "omdb_configured": bool(row.omdb_api_key),
-        "tvdb_configured": bool(row.tvdb_api_key),
-    }
+    return _integrations_view(row)
 
 
 @router.delete("/app-integrations")
@@ -547,13 +544,7 @@ async def delete_app_integrations(
     row.omdb_api_key = None
     row.tvdb_api_key = None
     await db.commit()
-    return {
-        "igdb_client_id": None,
-        "igdb_configured": False,
-        "tmdb_configured": False,
-        "omdb_configured": False,
-        "tvdb_configured": False,
-    }
+    return _integrations_view(row)
 
 
 @router.post("/refresh-media-metadata")

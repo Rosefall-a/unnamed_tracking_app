@@ -25,7 +25,8 @@ from src.api.schemas.anime import (
 from src.api.routes.media_extras import log_activity, status_change_detail
 from src.core.app_integrations import get_or_create_app_integration_settings
 from src.core.auth import get_current_user
-from src.core.crypto import decrypt_secret
+from src.core.integrations import resolve_integrations
+from src.core.titles import apply_alt_titles
 from src.database.models.anime import Anime, AnimeEpisode, AnimeSeason, AnimeStatus
 from src.database.models.media_extras import ActivityEventType
 from src.database.models.user import User
@@ -130,6 +131,53 @@ async def search_metadata(
     return result
 
 
+@router.post("/fill-titles")
+async def fill_alternate_titles(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Looks up the English, romaji and Japanese spelling of every anime that
+    has none stored yet, from AniList, in batches (50 titles a request). Only
+    blank title fields are set, nothing else changes. Titles with neither an
+    AniList nor a MyAnimeList id cannot be looked up and are counted."""
+    shows = (
+        (
+            await db.execute(
+                select(Anime).where(
+                    Anime.user_id == current_user.id,
+                    Anime.deleted_at.is_(None),
+                    Anime.title_english.is_(None),
+                    Anime.title_romaji.is_(None),
+                    Anime.title_native.is_(None),
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    client = AniListClient()
+    anilist_ids = [int(s.anilist_id) for s in shows if s.anilist_id and s.anilist_id.isdigit()]
+    mal_ids = [int(s.external_id) for s in shows if not s.anilist_id and s.external_id and s.external_id.isdigit()]
+    by_anilist, failed_a = await asyncio.to_thread(client.get_by_ids, anilist_ids) if anilist_ids else ({}, 0)
+    by_mal, failed_m = await asyncio.to_thread(client.get_by_mal_ids, mal_ids) if mal_ids else ({}, 0)
+    filled = 0
+    for show in shows:
+        meta = None
+        if show.anilist_id and show.anilist_id.isdigit():
+            meta = by_anilist.get(int(show.anilist_id))
+        elif show.external_id and show.external_id.isdigit():
+            meta = by_mal.get(int(show.external_id))
+        if meta and apply_alt_titles(show, meta):
+            filled += 1
+    await db.commit()
+    return {
+        "filled": filled,
+        "without_id": sum(1 for s in shows if not s.anilist_id and not s.external_id),
+        "lookup_failed": failed_a + failed_m,
+        "checked": len(shows),
+    }
+
+
 @router.get("/metadata/by-id/{anilist_id}", response_model=dict | None)
 async def get_metadata_by_id(
     anilist_id: int,
@@ -169,6 +217,18 @@ async def create_anime(
     show = Anime(**data, user_id=current_user.id)
     db.add(show)
     await db.flush()
+
+    # keep the English/romaji/Japanese spellings when the entry has an AniList
+    # id; best-effort, a slow AniList never blocks creation
+    if show.anilist_id and show.anilist_id.isdigit() and not (
+        show.title_english or show.title_romaji or show.title_native
+    ):
+        try:
+            found, _ = await asyncio.to_thread(AniListClient().get_by_ids, [int(show.anilist_id)])
+            if meta := found.get(int(show.anilist_id)):
+                apply_alt_titles(show, meta)
+        except Exception:
+            logger.exception("Alternate titles lookup failed for new anime %r", show.title)
 
     if payload.seasons is None:
         first_season = AnimeSeason(season_number=1, show_id=show.id)
@@ -414,9 +474,9 @@ async def delete_season(
 async def _backfill_from_tmdb_if_configured(
     all_episodes: list[dict[str, Any]], show_title: str, db: AsyncSession
 ) -> None:
-    app_integrations = await get_or_create_app_integration_settings(db)
+    app_integrations = resolve_integrations(await get_or_create_app_integration_settings(db))
     if app_integrations.tmdb_api_key:
-        tmdb_api_key = decrypt_secret(app_integrations.tmdb_api_key)
+        tmdb_api_key = app_integrations.tmdb_api_key
         await backfill_from_tmdb(all_episodes, show_title, tmdb_api_key)
 
 

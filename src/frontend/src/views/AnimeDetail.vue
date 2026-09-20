@@ -32,6 +32,7 @@ import RelationsGraph from "../components/RelationsGraph.vue";
 import type { ChainNode, BranchNode } from "../components/RelationsGraph.vue";
 import MediaPreviewModal from "../components/MediaPreviewModal.vue";
 import { useConfirm } from "../state/dialog";
+import { displayTitle } from "../utils/displayTitle";
 import MediaExtrasPanel from "../components/MediaExtrasPanel.vue";
 import MediaTopBar from "../components/MediaTopBar.vue";
 import BackButton from "../components/BackButton.vue";
@@ -884,11 +885,11 @@ async function onRatingChange(value: number | null) {
             show.posterUrl ? { backgroundImage: `url(${show.posterUrl})` } : {}
           "
         >
-          <span v-if="!show.posterUrl">{{ show.title }}</span>
+          <span v-if="!show.posterUrl">{{ displayTitle(show) }}</span>
         </div>
         <div class="hero-text">
           <div class="native-title">{{ nativeTitleLine }}</div>
-          <h1 class="title">{{ show.title }}</h1>
+          <h1 class="title">{{ displayTitle(show) }}</h1>
           <div class="badge-row">
             <select
               v-model="statusBucketModel"
