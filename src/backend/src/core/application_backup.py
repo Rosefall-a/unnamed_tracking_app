@@ -16,9 +16,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.core.config import settings
 from src.core.crypto import _fernet, encrypt_secret
 from src.core.data_paths import DATA_ROOT
-from src.core.fernet_key import restore_persistent_fernet_key
+from src.core.fernet_key import persistent_fernet_key, restore_persistent_fernet_key
 from src.database.models.oidc_settings import OidcSettings
 from src.database.models.app_integration_settings import AppIntegrationSettings
+from src.database.models.auth import UserApiKey, UserSession
+from src.database.models.user import User
 
 KDF_ITERATIONS = 600_000
 SALT_BYTES = 16
@@ -161,3 +163,90 @@ def load_application_backup_file(password: str) -> bytes | None:
         else:
             return None
     return path.read_bytes()
+
+
+def _model_payload(row: Any, *, exclude: set[str] | None = None) -> dict[str, Any]:
+    excluded = exclude or set()
+    result: dict[str, Any] = {}
+    for column in row.__table__.columns:
+        name = column.name
+        if name in excluded:
+            continue
+        value = getattr(row, name)
+        if hasattr(value, "hex"):
+            value = str(value)
+        result[name] = value
+    return result
+
+
+async def build_application_backup(
+    db: AsyncSession,
+    *,
+    include_users: bool = False,
+    include_sessions: bool = False,
+) -> dict[str, Any]:
+    """Build the encrypted deployment archive payload.
+
+    User credentials are kept in their existing encrypted-at-rest form and the
+    installation Fernet key is included, so restoring the archive preserves
+    access to those credentials without placing plaintext secrets in the JSON
+    envelope.
+    """
+    app = await db.scalar(select(AppIntegrationSettings).limit(1))
+    oidc = await db.scalar(select(OidcSettings).limit(1))
+    if app is None or oidc is None:
+        raise ValueError("Application settings have not been initialized.")
+
+    payload: dict[str, Any] = {
+        "format": "archive-deployment-backup",
+        "format_version": 3,
+        "exported_at": int(__import__("time").time()),
+        "fernet_keys": [persistent_fernet_key(), persistent_fernet_key()],
+        "app_integration_settings": _model_payload(app, exclude={"id", "updated_at"}),
+        "oidc_settings": _model_payload(oidc, exclude={"id", "updated_at"}),
+        "options": {
+            "include_users": include_users,
+            "include_sessions": include_sessions,
+        },
+    }
+
+    if include_users:
+        users = (await db.execute(select(User).order_by(User.username))).scalars().all()
+        api_keys = (await db.execute(select(UserApiKey))).scalars().all()
+        payload["users"] = [_model_payload(user) for user in users]
+        payload["user_api_keys"] = [_model_payload(key) for key in api_keys]
+
+    if include_sessions:
+        sessions = (await db.execute(select(UserSession))).scalars().all()
+        payload["user_sessions"] = [_model_payload(session) for session in sessions]
+
+    return payload
+
+
+def encrypt_application_backup(backup: dict[str, Any], password: str) -> bytes:
+    if not password or len(password) < 12:
+        raise ValueError("The backup password must be at least 12 characters long.")
+    salt = __import__("os").urandom(SALT_BYTES)
+    plaintext = json.dumps(backup, separators=(",", ":"), default=str).encode("utf-8")
+    envelope = {
+        "format": "archive-deployment-backup-encrypted",
+        "format_version": 1,
+        "salt": base64.urlsafe_b64encode(salt).decode("ascii"),
+        "ciphertext": Fernet(_password_key(password, salt)).encrypt(plaintext).decode("ascii"),
+    }
+    return json.dumps(envelope, indent=2).encode("utf-8")
+
+
+async def create_application_backup_file(
+    db: AsyncSession,
+    password: str,
+    *,
+    include_users: bool = False,
+    include_sessions: bool = False,
+) -> bytes:
+    backup = await build_application_backup(
+        db,
+        include_users=include_users,
+        include_sessions=include_sessions,
+    )
+    return encrypt_application_backup(backup, password)
