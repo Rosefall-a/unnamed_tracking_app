@@ -3,7 +3,7 @@ import { apiError } from "./apiErrors";
 // Library export/import plus admin deployment configuration backup/restore.
 export interface ImportResult { created: number; skipped: number; errors: string[] }
 export interface BackupStatus { enabled: boolean; interval_hours: number; backups_kept: number; last_backup_at: number | null; backup_count: number }
-export interface DeploymentBackupPreview { format_version: number; exported_at: number; sections: Array<{ id: string; label: string; description: string; available: boolean }> }
+
 export interface DeploymentRestoreResult { restored: boolean; sessions_revoked: boolean; message: string }
 
 export async function fetchLibraryExport(): Promise<unknown> {
