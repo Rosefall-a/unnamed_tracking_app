@@ -41,7 +41,10 @@ async function exportBackup() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = fullInstallation.value ? "application-full-backup.json" : "application.json";
+    const filename = blob.type.includes("json")
+      ? `archive-deployment-backup-${new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19)}.json`
+      : "archive-deployment-backup.json";
+    link.download = filename;
     link.click();
     URL.revokeObjectURL(url);
     exportPassword.value = "";
@@ -69,9 +72,6 @@ async function exportBackup() {
       <form class="form" @submit.prevent="exportBackup">
         <label><span>Backup password</span><input v-model="exportPassword" type="password" minlength="12" maxlength="256" autocomplete="new-password" placeholder="At least 12 characters" required /></label>
         <label><span>Confirm backup password</span><input v-model="exportConfirmPassword" type="password" minlength="12" maxlength="256" autocomplete="new-password" required /></label>
-        <label class="check"><input v-model="includeUsers" type="checkbox" :disabled="fullInstallation" /><span>Include users and API keys</span></label>
-        <label class="check"><input v-model="includeSessions" type="checkbox" :disabled="fullInstallation || !includeUsers" /><span>Include active sessions</span></label>
-        <label class="check"><input v-model="fullInstallation" type="checkbox" /><span>Full installation (users + active sessions)</span></label>
         <label class="check"><input v-model="saveToSetupPath" type="checkbox" /><span>Also save to the configured setup path</span></label>
         <div class="options">
           <h4>What should be copied?</h4>
@@ -84,7 +84,7 @@ async function exportBackup() {
           <label class="check"><input v-model="includeSessions" type="checkbox" :disabled="fullInstallation || !includeUsers" /><span><strong>Active sessions</strong><small>Attempts to preserve currently active browser sessions. Requires users.</small></span></label>
           <label class="check"><input v-model="fullInstallation" type="checkbox" /><span><strong>Full installation</strong><small>Shortcut that includes users and active sessions.</small></span></label>
         </div>
-        <p class="hint">The setup path is APPLICATION_JSON_PATH, defaulting to /data/application.json. Saving it there makes clearing and recreating a test deployment repeatable.</p>
+        <p class="hint">The download is timestamped so you can keep multiple exports. When enabled, the server-side setup copy is always saved as <code>application.json</code> at APPLICATION_JSON_PATH (default /data/application.json).</p>
         <button type="submit" class="primary" :disabled="exporting">{{ exporting ? "Encrypting…" : "Export encrypted deployment backup" }}</button>
       </form>
     </div>
