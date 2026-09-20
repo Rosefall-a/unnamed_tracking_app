@@ -22,19 +22,22 @@ import MediaListDetail from "../views/MediaListDetail.vue";
 import Inbox from "../views/Inbox.vue";
 import Bounties from "../views/Bounties.vue";
 import AchievementDetail from "../views/AchievementDetail.vue";
+import InviteAccept from "../views/InviteAccept.vue";
 import Login from "../views/Login.vue";
-import { currentUser, authChecked, checkAuth } from "../state/auth";
+import OidcStart from "../views/OidcStart.vue";
+import OidcProviderStart from "../views/OidcProviderStart.vue";
+import PasswordReset from "../views/PasswordReset.vue";
+import Setup from "../views/Setup.vue";
 import Settings from "../views/Settings.vue";
+import { currentUser, authChecked, checkAuth } from "../state/auth";
 import { saveLibraryScroll } from "../state/libraryScroll";
 import { appearanceLoaded, loadAppearanceSettings } from "../state/appearance";
+import { waitForServer } from "../state/serverStartup";
+import { fetchSetupStatus } from "../services/setup";
 
 const router = createRouter({
   history: createWebHistory(),
   scrollBehavior(to, _from, savedPosition) {
-    // GameLibrary.vue restores its own scroll position (after its game
-    // list has actually loaded/rendered, restoring before that just gets
-    // clamped back to ~0), don't fight it with the browser's native
-    // history-scroll restore here
     if (to.path === "/games") return false;
     if (savedPosition) return savedPosition;
     return { top: 0 };
@@ -43,11 +46,7 @@ const router = createRouter({
     { path: "/", name: "home", component: HomeHub },
     { path: "/games", name: "library", component: GameLibrary },
     { path: "/collections", name: "collections", component: Collections },
-    {
-      path: "/collections/:name",
-      name: "collection-detail",
-      component: CollectionDetail,
-    },
+    { path: "/collections/:name", name: "collection-detail", component: CollectionDetail },
     { path: "/inbox", name: "inbox", component: Inbox },
     { path: "/bounties", name: "bounties", component: Bounties },
     { path: "/games/:id", name: "game-detail", component: GameDetail },
@@ -65,45 +64,60 @@ const router = createRouter({
     { path: "/statistics", name: "statistics", component: Statistics },
     { path: "/notifications", name: "notifications", component: Notifications },
     { path: "/lists", name: "media-lists", component: MediaLists },
-    {
-      path: "/lists/:id",
-      name: "media-list-detail",
-      component: MediaListDetail,
-    },
-    // History merged into the Calendar page as a second tab
+    { path: "/lists/:id", name: "media-list-detail", component: MediaListDetail },
     { path: "/history", redirect: "/calendar" },
     { path: "/login", name: "login", component: Login },
-    // Profile lives inside Settings now (its own side-nav section)
+    { path: "/login/local", name: "login-local", component: Login },
+    { path: "/login/oidcstart", name: "oidc-start", component: OidcStart },
+    { path: "/login/oidcstart/:provider", name: "oidc-start-legacy", redirect: "/login" },
+    { path: "/login/:provider", name: "oidc-provider-start", component: OidcProviderStart },
+    { path: "/reset-password", name: "password-reset", component: PasswordReset },
+    { path: "/invite", name: "invite-accept", component: InviteAccept },
+    { path: "/setup", name: "setup", component: Setup },
     { path: "/profile", redirect: "/settings" },
     { path: "/settings", name: "settings", component: Settings },
-    {
-      path: "/games/:gameId/achievements/:achievementId",
-      name: "achievement-detail",
-      component: AchievementDetail,
-    },
+    { path: "/games/:gameId/achievements/:achievementId", name: "achievement-detail", component: AchievementDetail },
   ],
 });
 
+let setupState: "unknown" | "required" | "complete" = "unknown";
+
+async function refreshSetupState(): Promise<"required" | "complete"> {
+  try {
+    const status = await fetchSetupStatus();
+    setupState = status.setup_required ? "required" : "complete";
+    return setupState;
+  } catch {
+    setupState = (await waitForServer()) ? "required" : "complete";
+    return setupState;
+  }
+}
+
 router.beforeEach(async (to, from) => {
-  // captured here, not GameLibrary's onUnmounted, this runs before any
-  // DOM change from the navigation, so it's always the real position the
-  // user was looking at when they left
-  if (from.path === "/games") {
-    saveLibraryScroll(window.scrollY);
+  if (from.path === "/games") saveLibraryScroll(window.scrollY);
+  if (to.path === "/settings" && !to.query.section && from.path === "/") {
+    return { path: "/settings", query: { section: "sources" } };
   }
 
-  if (!authChecked.value) {
-    await checkAuth();
+  if (to.path === "/setup") {
+    const state = await refreshSetupState();
+    return state === "required" ? undefined : "/login";
   }
-  if (to.path !== "/login" && !currentUser.value) {
-    return "/login";
+
+  if (
+    to.path === "/login" ||
+    to.path.startsWith("/login/") ||
+    to.path === "/reset-password" ||
+    to.path === "/invite"
+  ) {
+    return;
   }
-  if (to.path === "/login" && currentUser.value) {
-    return "/";
-  }
-  if (currentUser.value && !appearanceLoaded.value) {
-    await loadAppearanceSettings();
-  }
+
+  if (setupState === "unknown") setupState = (await waitForServer()) ? "required" : "complete";
+  if (setupState === "required") return { path: "/setup" };
+  if (!authChecked.value) await checkAuth();
+  if (!currentUser.value) return "/login";
+  if (!appearanceLoaded.value) await loadAppearanceSettings();
 });
 
 export default router;
