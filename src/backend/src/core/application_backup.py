@@ -27,6 +27,22 @@ from src.database.models.user import User
 
 KDF_ITERATIONS = 600_000
 SALT_BYTES = 16
+# Set only when an APPLICATION_JSON_PASSWORD startup restore has completed.
+# The notice is intentionally process-local and is consumed by the first
+# authenticated administrator who reaches the application after startup.
+_automatic_restore_completed = False
+
+def mark_automatic_restore_completed() -> None:
+    global _automatic_restore_completed
+    _automatic_restore_completed = True
+
+def consume_automatic_restore_notice() -> bool:
+    global _automatic_restore_completed
+    if not _automatic_restore_completed:
+        return False
+    _automatic_restore_completed = False
+    return True
+
 SECRET_FIELDS = {
     "steamgriddb_api_key",
     "retroachievements_api_key",
