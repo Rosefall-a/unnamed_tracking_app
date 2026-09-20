@@ -10,6 +10,7 @@ from fastapi import (
     Depends,
     File,
     Form,
+    Response,
     HTTPException,
     Request,
     Response,
@@ -274,6 +275,21 @@ async def application_backup_status(db: AsyncSession = Depends(get_db)) -> dict[
     if await db.scalar(select(User.id).limit(1)) is not None:
         return {"available": False}
     return {"available": application_backup_path().is_file()}
+
+
+@router.get("/application-backup/file")
+async def application_backup_file(db: AsyncSession = Depends(get_db)) -> Response:
+    """Return the configured application.json during first-run setup."""
+    if await db.scalar(select(User.id).limit(1)) is not None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Setup is already complete.")
+    raw = load_application_backup_file("")
+    if not raw:
+        raise HTTPException(status_code=404, detail="No application.json deployment backup was found.")
+    return Response(
+        content=raw,
+        media_type="application/json",
+        headers={"Content-Disposition": 'inline; filename="application.json"'},
+    )
 
 
 @router.post("/application-backup/preview")
