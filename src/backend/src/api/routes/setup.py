@@ -5,15 +5,15 @@ import secrets
 import time
 from typing import cast
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Response, UploadFile, status
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select, text, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.routes.settings import get_or_create_app_integration_settings
-from src.core.application_backup import restore_application_backup
-from src.core.auth import SESSION_COOKIE, hash_password, hash_token, validate_password
+from src.core.application_backup import application_backup_path, load_application_backup_file, preview_application_backup, restore_application_backup
+from src.core.auth import SESSION_COOKIE, SESSION_TTL_SECONDS, hash_password, hash_token, session_cookie_name, validate_password
 from src.core.config import settings
 from src.core.crypto import encrypt_secret
 from src.database.models.auth import UserSession
@@ -246,23 +246,83 @@ async def setup_admin(
     return {"status": "setup_complete", "user_id": str(user.id), "is_admin": True}
 
 
+@router.get("/application-backup")
+async def application_backup_status() -> dict[str, bool]:
+    """Report whether the configured setup-path deployment backup exists."""
+    return {"available": application_backup_path().is_file()}
+
+
+@router.post("/application-backup/preview")
+async def preview_application_settings(
+    password: str = Form(..., min_length=12, max_length=256),
+    application_file: UploadFile | None = File(default=None),
+) -> dict[str, object]:
+    """Preview setup values without changing the database."""
+    try:
+        raw = await application_file.read() if application_file is not None else load_application_backup_file(password)
+        if not raw:
+            raise ValueError("No application.json deployment backup was found on the configured setup path.")
+        return preview_application_backup(raw, password)
+    except (ValueError, OSError, RuntimeError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
 @router.post("/import-application")
 async def import_application_settings(
+    request: Request,
+    response: Response,
     password: str = Form(..., min_length=12, max_length=256),
-    application_file: UploadFile = File(...),
+    mode: str = Form(default="accept"),
+    application_file: UploadFile | None = File(default=None),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, bool]:
-    """Import an encrypted deployment settings export during first-run setup."""
+    """Import an encrypted deployment backup during first-run setup."""
     if await db.scalar(select(User.id).limit(1)) is not None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Setup is already complete.",
         )
+    if mode != "accept":
+        raise HTTPException(status_code=400, detail="Only accept mode changes the installation.")
     try:
-        raw = await application_file.read()
+        raw = await application_file.read() if application_file is not None else load_application_backup_file(password)
         if not raw:
-            raise ValueError("The application settings file is empty.")
-        return await restore_application_backup(db, raw, password)
+            raise ValueError("No application.json deployment backup was found on the configured setup path.")
+        result = await restore_application_backup(db, raw, password)
+        authenticated = False
+        if result.get("sessions"):
+            session_tokens = [
+                value
+                for name, value in request.cookies.items()
+                if name == "session" or name.startswith("session_")
+            ]
+            for token in session_tokens:
+                session = await db.scalar(
+                    select(UserSession).where(
+                        UserSession.token_hash == hash_token(token),
+                        UserSession.expires_at > int(time.time()),
+                    )
+                )
+                if session is not None:
+                    response.set_cookie(
+                        key=session_cookie_name(),
+                        value=token,
+                        max_age=SESSION_TTL_SECONDS,
+                        httponly=True,
+                        samesite="lax",
+                    )
+                    # Keep the pre-restore namespace working until the next restart.
+                    response.set_cookie(
+                        key=SESSION_COOKIE,
+                        value=token,
+                        max_age=SESSION_TTL_SECONDS,
+                        httponly=True,
+                        samesite="lax",
+                    )
+                    authenticated = True
+                    break
+        result["authenticated"] = authenticated
+        return result
     except (ValueError, OSError, RuntimeError) as exc:
         await db.rollback()
         raise HTTPException(status_code=400, detail=str(exc)) from exc
