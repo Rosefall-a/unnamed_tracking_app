@@ -43,7 +43,11 @@ from src.api.routes.session_admin import router as session_admin_router
 from src.api.routes.setup import router as setup_router
 from src.api.routes.settings import get_or_create_app_integration_settings
 from src.api.routes.utils.misc import router as misc_router
-from src.core.application_backup import (\n    load_application_backup_file,\n    mark_automatic_restore_completed,\n    restore_application_backup,\n)
+from src.core.application_backup import (
+    load_application_backup_file,
+    mark_automatic_restore_completed,
+    restore_application_backup
+)
 from src.core.auth import COOKIE_NAMESPACE, ensure_primary_user
 from src.core.config import settings as app_settings
 from src.core.crypto import encrypt_secret
