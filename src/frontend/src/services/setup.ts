@@ -52,8 +52,11 @@ export async function createInitialAdmin(
     const body = await response.text();
     let message = `Setup failed: ${response.status}`;
     try {
-      const parsed = JSON.parse(body) as { detail?: string };
-      if (parsed.detail) message = parsed.detail;
+      const parsed = JSON.parse(body) as { detail?: string | Array<{ msg?: string }> };
+      if (Array.isArray(parsed.detail)) {
+        const details = parsed.detail.map((item) => item.msg).filter(Boolean);
+        if (details.length) message = details.join(" ");
+      } else if (parsed.detail) message = parsed.detail;
     } catch {
       if (body) message = `${message} ${body}`;
     }
@@ -75,6 +78,13 @@ export async function fetchApplicationBackupStatus(): Promise<{ available: boole
   const response = await fetch("/api/setup/application-backup", { credentials: "include" });
   if (!response.ok) throw new Error(`Failed to check for application.json: ${response.status}`);
   return await response.json();
+}
+
+export async function fetchApplicationBackupFile(): Promise<File> {
+  const response = await fetch("/api/setup/application-backup/file", { credentials: "include" });
+  if (!response.ok) throw new Error("The detected application.json could not be loaded.");
+  const blob = await response.blob();
+  return new File([blob], "application.json", { type: "application/json" });
 }
 
 export async function previewApplicationSettings(
