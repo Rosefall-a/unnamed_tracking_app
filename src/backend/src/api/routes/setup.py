@@ -280,8 +280,11 @@ async def application_backup_status(db: AsyncSession = Depends(get_db)) -> dict[
 async def preview_application_settings(
     password: str = Form(..., min_length=12, max_length=256),
     application_file: UploadFile | None = File(default=None),
+    db: AsyncSession = Depends(get_db),
 ) -> dict[str, object]:
     """Preview setup values without changing the database."""
+    if await db.scalar(select(User.id).limit(1)) is not None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Setup is already complete.")
     try:
         raw = (
             await application_file.read()
