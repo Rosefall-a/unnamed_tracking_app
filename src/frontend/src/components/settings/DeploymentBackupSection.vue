@@ -1,18 +1,14 @@
 <script setup lang="ts">
 import { ref } from "vue";
-import { exportDeploymentBackup, importDeploymentBackup } from "../../services/exportImport";
+import { exportDeploymentBackup } from "../../services/exportImport";
 
 const exportPassword = ref("");
 const exportConfirmPassword = ref("");
-const restorePassword = ref("");
-const restoreFile = ref<File | null>(null);
 const includeUsers = ref(false);
 const includeSessions = ref(false);
 const fullInstallation = ref(false);
 const saveToSetupPath = ref(false);
 const exporting = ref(false);
-const importing = ref(false);
-const showRestorePasswordModal = ref(false);
 const error = ref<string | null>(null);
 const message = ref<string | null>(null);
 
@@ -50,55 +46,13 @@ async function exportBackup() {
   }
 }
 
-function onFileSelected(event: Event) {
-  const input = event.target as HTMLInputElement;
-  restoreFile.value = input.files?.[0] ?? null;
-  restorePassword.value = "";
-  error.value = null;
-  message.value = null;
-}
 
-function openRestorePasswordModal() {
-  error.value = null;
-  if (!restoreFile.value) {
-    error.value = "Choose an encrypted deployment backup first.";
-    return;
-  }
-  restorePassword.value = "";
-  showRestorePasswordModal.value = true;
-}
-
-async function restoreBackup() {
-  error.value = null;
-  message.value = null;
-  if (!restoreFile.value) {
-    error.value = "Choose an encrypted deployment backup first.";
-    return;
-  }
-  if (restorePassword.value.length < 12) {
-    error.value = "Enter the backup password (at least 12 characters).";
-    return;
-  }
-  importing.value = true;
-  try {
-    const result = await importDeploymentBackup(restoreFile.value, restorePassword.value);
-    showRestorePasswordModal.value = false;
-    restorePassword.value = "";
-    message.value = result.users
-      ? "Full installation restored. Existing users and configuration were restored."
-      : "Deployment configuration restored successfully.";
-  } catch (err) {
-    error.value = err instanceof Error ? err.message : "Failed to restore deployment backup.";
-  } finally {
-    importing.value = false;
-  }
-}
 </script>
 
 <template>
   <section class="section">
     <h2>Deployment backup</h2>
-    <p class="hint">Create or restore password-protected deployment configuration at any point. This includes application/provider settings, SMTP/OIDC configuration, and the persistent encryption key. User accounts and active sessions are optional.</p>
+    <p class="hint">Create password-protected deployment configuration for use during first-run setup or automated environment bootstrap. This includes application/provider settings, SMTP/OIDC configuration, and the persistent encryption key. User accounts and active sessions are optional.</p>
 
     <div class="warning"><strong>Protect this file.</strong> The archive contains deployment secrets. Keep its password separate from the file.</div>
 
@@ -116,12 +70,6 @@ async function restoreBackup() {
       </form>
     </div>
 
-    <div class="panel">
-      <h3>Import</h3>
-      <p class="hint">Deployment backups can be imported here after setup; they are not restricted to the first-run setup screen. Configuration-only backups can replace deployment settings on an existing installation. A full-installation backup should be used when recreating an installation without existing users.</p>
-      <label class="upload"><span>{{ restoreFile ? restoreFile.name : "Choose encrypted backup…" }}</span><input type="file" accept="application/json" @change="onFileSelected" /></label>
-      <button type="button" class="secondary" :disabled="importing || !restoreFile" @click="openRestorePasswordModal">{{ importing ? "Restoring…" : "Enter password and restore" }}</button>
-    </div>
 
     <div v-if="error" class="error">{{ error }}</div>
     <div v-if="message" class="success">{{ message }}</div>
@@ -138,5 +86,5 @@ async function restoreBackup() {
 </template>
 
 <style scoped>
-.section{display:flex;flex-direction:column;gap:16px}.section h2{margin:0;color:#fff}.hint{color:#999;font-size:13px;line-height:1.5}.warning{background:rgba(214,138,52,.08);border:1px solid rgba(214,138,52,.28);border-radius:9px;padding:12px 14px;color:#c9c9c9;font-size:.8rem;line-height:1.5}.warning strong{color:#d68a34}.panel{border:1px solid #2f2f2f;border-radius:10px;padding:18px;background:#151515}.panel h3{margin:0 0 12px;color:#fff}.form{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:end;max-width:760px}.form label{display:flex;flex-direction:column;gap:6px;color:#ccc;font-size:13px}.form input,.modal input{background:#111;border:1px solid #3a3a3a;border-radius:8px;color:#fff;padding:10px;font:inherit}.check{flex-direction:row!important;align-items:center;gap:8px!important}.check input{accent-color:#d68a34}.form>.hint{grid-column:1/-1;margin:0}.primary,.secondary{border:0;border-radius:8px;padding:10px 14px;font-weight:600;cursor:pointer}.primary{background:#d68a34;color:#111}.secondary{background:rgba(255,255,255,.08);color:#fff}.primary:disabled,.secondary:disabled{opacity:.6;cursor:not-allowed}.upload{display:inline-flex!important;width:max-content;background:rgba(255,255,255,.08);padding:10px 14px;border-radius:8px;cursor:pointer;margin-right:8px;color:#fff}.upload input{display:none}.error{color:#fca5a5;background:rgba(220,38,38,.1);border:1px solid rgba(220,38,38,.3);border-radius:8px;padding:8px 10px}.success{color:#86efac;background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.3);border-radius:8px;padding:8px 10px}.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.72);display:flex;align-items:center;justify-content:center;padding:20px;z-index:100}.modal{width:min(460px,100%);background:#1a1a1a;border:1px solid #363636;border-radius:12px;padding:22px;box-shadow:0 24px 64px rgba(0,0,0,.65);display:flex;flex-direction:column;gap:14px}.modal h3{margin:0;color:#fff}.modal p{margin:0;color:#999;font-size:.85rem;line-height:1.5}.modal label{display:flex;flex-direction:column;gap:6px;color:#ccc;font-size:13px}.modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:4px}@media(max-width:760px){.form{grid-template-columns:1fr}}
+.section{display:flex;flex-direction:column;gap:16px}.section h2{margin:0;color:#fff}.hint{color:#999;font-size:13px;line-height:1.5}.warning{background:rgba(214,138,52,.08);border:1px solid rgba(214,138,52,.28);border-radius:9px;padding:12px 14px;color:#c9c9c9;font-size:.8rem;line-height:1.5}.warning strong{color:#d68a34}.panel{border:1px solid #2f2f2f;border-radius:10px;padding:18px;background:#151515}.panel h3{margin:0 0 12px;color:#fff}.form{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:end;max-width:760px}.form label{display:flex;flex-direction:column;gap:6px;color:#ccc;font-size:13px}.form input,.modal input{background:#111;border:1px solid #3a3a3a;border-radius:8px;color:#fff;padding:10px;font:inherit}.check{flex-direction:row!important;align-items:center;gap:8px!important}.check input{accent-color:#d68a34}.form>.hint{grid-column:1/-1;margin:0}.primary,.secondary{border:0;border-radius:8px;padding:10px 14px;font-weight:600;cursor:pointer}.primary{background:#d68a34;color:#111}.secondary{background:rgba(255,255,255,.08);color:#fff}.primary:disabled,.secondary:disabled{opacity:.6;cursor:not-allowed}.error{color:#fca5a5;background:rgba(220,38,38,.1);border:1px solid rgba(220,38,38,.3);border-radius:8px;padding:8px 10px}.success{color:#86efac;background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.3);border-radius:8px;padding:8px 10px}.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.72);display:flex;align-items:center;justify-content:center;padding:20px;z-index:100}.modal{width:min(460px,100%);background:#1a1a1a;border:1px solid #363636;border-radius:12px;padding:22px;box-shadow:0 24px 64px rgba(0,0,0,.65);display:flex;flex-direction:column;gap:14px}.modal h3{margin:0;color:#fff}.modal p{margin:0;color:#999;font-size:.85rem;line-height:1.5}.modal label{display:flex;flex-direction:column;gap:6px;color:#ccc;font-size:13px}.modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:4px}@media(max-width:760px){.form{grid-template-columns:1fr}}
 </style>
