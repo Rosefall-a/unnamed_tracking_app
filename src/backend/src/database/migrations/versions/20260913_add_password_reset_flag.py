@@ -2,11 +2,13 @@
 
 Revision ID: 20260913_reset_flag
 Revises: 20260913_smtp_reset
+
+The initial schema already contains password_reset_enabled, so this historical
+revision performs no schema changes.
 """
 
 from typing import Sequence, Union
 
-import sqlalchemy as sa
 from alembic import op
 
 revision: str = "20260913_reset_flag"
@@ -16,11 +18,8 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.add_column(
-        "app_integration_settings",
-        sa.Column("password_reset_enabled", sa.Boolean(), nullable=False, server_default=sa.true()),
-    )
+    pass
 
 
 def downgrade() -> None:
-    op.drop_column("app_integration_settings", "password_reset_enabled")
+    pass
