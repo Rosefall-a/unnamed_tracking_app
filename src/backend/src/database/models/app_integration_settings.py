@@ -56,6 +56,10 @@ class AppIntegrationSettings(Base):
     smtp_from_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
     password_reset_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
+    # Timestamp of the most recent automatic application.json restore. Each
+    # administrator acknowledges this event independently through preferences.
+    restore_notice_at: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+
     updated_at: Mapped[int] = mapped_column(
         BigInteger, nullable=False, default=time.time, onupdate=time.time
     )
