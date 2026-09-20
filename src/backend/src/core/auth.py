@@ -6,7 +6,7 @@ import secrets
 import time
 from typing import Final
 
-from fastapi import Cookie, Depends, Header, HTTPException, status
+from fastapi import Depends, Header, HTTPException, Request, status
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -26,8 +26,13 @@ _SCRYPT_P: Final = 1
 # otherwise both use the same cookie named "session". The persistent Fernet
 # key is unique to an installation, so use a short deterministic hash of it
 # as the cookie namespace. This remains stable across restarts.
-COOKIE_NAMESPACE: Final = hashlib.sha256(settings.SECRET_KEY.encode("utf-8")).hexdigest()[:16]
-SESSION_COOKIE: Final = f"session_{COOKIE_NAMESPACE}"
+def session_cookie_name(secret_key: str | None = None) -> str:
+    key = secret_key if secret_key is not None else settings.SECRET_KEY
+    namespace = hashlib.sha256(key.encode("utf-8")).hexdigest()[:16]
+    return f"session_{namespace}"
+
+
+SESSION_COOKIE: Final = session_cookie_name()
 SESSION_TTL_SECONDS: Final = 30 * 24 * 60 * 60
 API_KEY_PREFIX: Final = "utk_"
 
@@ -100,9 +105,9 @@ async def revoke_session(db: AsyncSession, session_token: str) -> bool:
 
 
 async def get_current_user(
+    request: Request,
     db: AsyncSession = Depends(get_db),
     authorization: str | None = Header(default=None),
-    session_token: str | None = Cookie(default=None, alias=SESSION_COOKIE),
 ) -> User:
     user: User | None = None
     now = int(time.time())
@@ -120,16 +125,27 @@ async def get_current_user(
                 )
             )
 
-    if user is None and session_token:
-        user = await db.scalar(
-            select(User)
-            .join(UserSession, UserSession.user_id == User.id)
-            .where(
-                UserSession.token_hash == hash_token(session_token),
-                UserSession.expires_at > now,
-                User.is_active.is_(True),
+    if user is None:
+        # Accept the current installation namespace, legacy cookies, and a
+        # restored installation's namespace. The database hash is the actual
+        # credential check, so unrelated session cookies are harmless.
+        session_tokens = [
+            value
+            for name, value in request.cookies.items()
+            if name == "session" or name.startswith("session_")
+        ]
+        for session_token in session_tokens:
+            user = await db.scalar(
+                select(User)
+                .join(UserSession, UserSession.user_id == User.id)
+                .where(
+                    UserSession.token_hash == hash_token(session_token),
+                    UserSession.expires_at > now,
+                    User.is_active.is_(True),
+                )
             )
-        )
+            if user is not None:
+                break
 
     if user is None:
         raise HTTPException(
