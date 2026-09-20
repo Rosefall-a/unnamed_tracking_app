@@ -3,11 +3,10 @@ name: Build and push Docker images
 on:
   push:
     branches:
-      - main
+      - "**"  
   pull_request:
     branches:
-      - main
-      - merge/media-testing
+      - "**"  
 
 permissions:
   contents: read
