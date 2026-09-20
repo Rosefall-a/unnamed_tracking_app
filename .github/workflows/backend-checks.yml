@@ -58,16 +58,10 @@ jobs:
 
       - name: Run database migrations
         run: |
-          python - <<'PY'
-          from alembic import command
-          from alembic.config import Config
-
-          config = Config("alembic.ini")
-          config.set_main_option("script_location", "src/database/migrations")
-          config.set_main_option("prepend_sys_path", ".")
-          command.upgrade(config, "head")
-          PY
-
+          sed -e 's#script_location = /app/src/database/migrations#script_location = src/database/migrations#' \
+              -e 's#prepend_sys_path = /app#prepend_sys_path = .#' \
+              alembic.ini > /tmp/alembic-ci.ini
+          alembic -c /tmp/alembic-ci.ini upgrade head
       - name: Run tests
         run: pytest
 
