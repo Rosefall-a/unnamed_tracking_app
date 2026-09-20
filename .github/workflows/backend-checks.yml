@@ -40,7 +40,6 @@ jobs:
       PRIMARY_USER_EMAIL: test@example.com
       PRIMARY_USER_PASSWORD: test-password
       SECRET_KEY: test-secret-key
-      APP_DATA_DIR: ${{ runner.temp }}/unnamed-tracking-data
 
     steps:
       - name: Check out repository
