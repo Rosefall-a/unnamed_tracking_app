@@ -41,8 +41,8 @@ function cancel() {
   <div
     v-if="activeDialog"
     class="dialog-overlay"
-    @click.self="cancel"
-    @keydown.esc="cancel"
+    @click.self="activeDialog.dismissible && cancel()"
+    @keydown.esc="activeDialog.dismissible && cancel()"
   >
     <div
       class="dialog"
@@ -64,7 +64,12 @@ function cancel() {
         @keydown.enter.prevent="accept"
       />
       <div class="dialog-actions">
-        <button type="button" class="dialog-cancel" @click="cancel">
+        <button
+          v-if="activeDialog.dismissible && activeDialog.cancelLabel"
+          type="button"
+          class="dialog-cancel"
+          @click="cancel"
+        >
           {{ activeDialog.cancelLabel }}
         </button>
         <button
