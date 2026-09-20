@@ -41,7 +41,7 @@ export async function createInitialAdmin(
   email: string,
   password: string,
   options: SetupOptions = {},
-): Promise<void> {
+): Promise<{ users?: boolean; sessions?: boolean }> {
   const response = await fetch("/api/setup", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -59,6 +59,7 @@ export async function createInitialAdmin(
     }
     throw new Error(message);
   }
+  return (await response.json()) as { users?: boolean; sessions?: boolean };
 }
 
 
