@@ -5,7 +5,6 @@ import router from "./router";
 import SidebarNav from "./components/SidebarNav.vue";
 import DesktopSidebar from "./components/DesktopSidebar.vue";
 import ProfileChip from "./components/ProfileChip.vue";
-import NotificationBell from "./components/NotificationBell.vue";
 import TaskProgressToast from "./components/TaskProgressToast.vue";
 import ShortcutsHelp from "./components/ShortcutsHelp.vue";
 import CommandPalette from "./components/CommandPalette.vue";
@@ -100,7 +99,6 @@ const KEPT_ALIVE = [
     <template v-if="!isPublicRoute()">
       <SidebarNav />
       <DesktopSidebar />
-      <NotificationBell />
       <ProfileChip />
     </template>
 
