@@ -59,7 +59,7 @@ The backend applies pending Alembic migrations with `alembic upgrade heads` befo
 
 Open `http://localhost:5173`. The frontend checks `/api/setup/status`; when there are no users it sends you to `/setup`, where you create the first administrator.
 
-The backend does **not** create a primary user from environment variables anymore. `PRIMARY_USER_USERNAME`, `PRIMARY_USER_EMAIL`, and `PRIMARY_USER_PASSWORD` are no longer part of the normal configuration path.
+If `PRIMARY_USER_USERNAME`, `PRIMARY_USER_EMAIL`, and `PRIMARY_USER_PASSWORD` are all supplied, the backend uses them to create the first administrator automatically. If any of them are missing, startup continues normally and the `/setup` page remains available for manual setup.
 
 ## 3. Database configuration
 
@@ -86,6 +86,15 @@ postgresql+psycopg://POSTGRES_USER:POSTGRES_PASSWORD@POSTGRES_HOST:POSTGRES_PORT
 The default host is `db` and the default port is `5432`, which matches the Compose service. You only need `POSTGRES_HOST` or `POSTGRES_PORT` when your database is somewhere else.
 
 ## 4. First-run setup
+
+There are three supported first-run paths:
+
+1. **Environment bootstrap:** set `PRIMARY_USER_USERNAME`, `PRIMARY_USER_EMAIL`, and `PRIMARY_USER_PASSWORD`. All three must be present; the password must satisfy the normal password policy.
+2. **Encrypted previous-installation import:** put the password-protected deployment backup exported from **Settings → Backup** at `/data/application.json`, set `APPLICATION_JSON_PASSWORD` to its export password, and start the application. The file is only consumed automatically when the database has no users.
+3. **Web setup:** leave the primary-user variables unset and open `/setup`. The first page also accepts the same encrypted deployment backup and its password, then continues to creation of a new administrator.
+
+The deployment backup restores application/integration settings, OIDC/SMTP configuration, and persistent encryption keys. User accounts, sessions, libraries, media, and database connection credentials are deliberately not included, so importing a previous installation still requires creation of the first administrator.
+
 
 The setup page is the authoritative first-run bootstrap. It creates:
 
