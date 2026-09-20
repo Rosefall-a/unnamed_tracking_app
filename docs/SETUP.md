@@ -127,7 +127,7 @@ Full-installation restore is intentionally a first-run operation: the setup impo
 
 ### Repeatable setup-path backups
 
-The deployment backup page can also save the encrypted backup directly inside the container. Set `APPLICATION_JSON_PATH` to choose the path; the default is:
+The deployment backup page can also save the encrypted backup directly inside the container. The browser download remains timestamped (for example `archive-deployment-backup-2026-09-20T06-58-37.json`), while the setup-path copy is always named `application.json`. Set `APPLICATION_JSON_PATH` to choose the path; the default is:
 
 ```text
 /data/application.json
@@ -136,7 +136,7 @@ The deployment backup page can also save the encrypted backup directly inside th
 
 Enable **Also save to the configured setup path** when exporting. This makes a deployment easy to reset and test repeatedly: keep the JSON on the persistent data volume, clear/recreate the database, start the application, and the empty installation can consume the saved backup automatically.
 
-The setup path contains the encrypted backup only. Keep its password separately; without the password the JSON cannot be imported.
+The setup path contains the encrypted backup only. During first-run setup, the wizard discovers this file automatically and offers it as an import source. After the password is verified, you can either accept all imported settings or use the backup to populate the OIDC/SMTP setup pages for review. Keep the password separately; without the password the JSON cannot be imported.
 
 ## 5. Application Settings
 
@@ -248,3 +248,6 @@ PostgreSQL has its own persistent volume. The Fernet key and PostgreSQL data mus
 * Do not delete `/data/config/fernet.key` unless you are deliberately discarding encrypted application secrets and understand the consequences.
 * Do not generate a new Fernet key on every container start.
 * Provider/OIDC/SMTP secrets should normally be entered through Settings rather than copied into deployment files.
+
+
+For the complete deployment export workflow, including the individual export switches, filename behaviour, session-preserving full restores, filesystem discovery, and repeatable reset/testing procedure, see [docs/DEPLOYMENT-BACKUP.md](DEPLOYMENT-BACKUP.md).
