@@ -223,9 +223,8 @@ PostgreSQL has its own persistent volume. The Fernet key and PostgreSQL data mus
 - Provider/OIDC/SMTP secrets should normally be entered through Settings rather than copied into deployment files.
 
 
-# Optional first-admin bootstrap. If all three are set, the server creates this
-# administrator automatically. If they are omitted, the normal web setup remains
-# available at /setup.
+# Optional first-admin bootstrap. If all three are set, the server creates this administrator automatically. If they are omitted, the normal web setup remains available at /setup.
+```
 # PRIMARY_USER_USERNAME=admin
 # PRIMARY_USER_EMAIL=admin@example.com
 # PRIMARY_USER_PASSWORD=Change-this-during-setup
@@ -236,3 +235,4 @@ PostgreSQL has its own persistent volume. The Fernet key and PostgreSQL data mus
 # password. It is only auto-imported when the database has no users.
 # APPLICATION_JSON_PASSWORD=your-settings-export-password
 # APPLICATION_JSON_PATH=/data/application.json
+```
