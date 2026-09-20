@@ -18,6 +18,10 @@ const message = ref<string | null>(null);
 const sessionsRevoked = ref(false);
 const showRestorePasswordModal = ref(false);
 const showEncryptionConfirmModal = ref(false);
+const includeUsers = ref(false);
+const includeSessions = ref(false);
+const saveToSetupPath = ref(false);
+const fullInstallation = ref(false);
 
 function validateExport() {
   if (exportPassword.value.length < 12) throw new Error("Backup passwords must be at least 12 characters.");
@@ -30,7 +34,13 @@ async function exportBackup() {
   try {
     validateExport();
     exporting.value = true;
-    const blob = await exportDeploymentBackup(exportPassword.value);
+    const blob = await exportDeploymentBackup({
+      password: exportPassword.value,
+      include_users: fullInstallation.value || includeUsers.value,
+      include_sessions: fullInstallation.value || includeSessions.value,
+      full_installation: fullInstallation.value,
+      save_to_setup_path: saveToSetupPath.value,
+    });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
@@ -140,13 +150,18 @@ function refreshPage() {
 <template>
   <section class="section">
     <h2>Deployment backup</h2>
-    <p class="hint">Export or restore deployment settings, provider credentials, SMTP/OIDC secrets, and persistent Fernet keys. Users, sessions, libraries, media and other user data are never included.</p>
+    <p class="hint">Export or restore deployment configuration, provider credentials, SMTP/OIDC secrets, and persistent encryption keys. This page is available after setup and can be used at any point by an administrator.</p>
     <div class="warning"><strong>Protect this file.</strong> The archive contains deployment secrets. Keep its password separate from the file.</div>
     <div class="panel">
       <h3>Export</h3>
       <form class="form" @submit.prevent="exportBackup">
         <label><span>Backup password</span><input v-model="exportPassword" type="password" minlength="12" maxlength="256" autocomplete="new-password" placeholder="At least 12 characters" required /></label>
         <label><span>Confirm backup password</span><input v-model="exportConfirmPassword" type="password" minlength="12" maxlength="256" autocomplete="new-password" required /></label>
+        <label class="check"><input v-model="includeUsers" type="checkbox" :disabled="fullInstallation" /><span>Include users and API keys</span></label>
+        <label class="check"><input v-model="includeSessions" type="checkbox" :disabled="fullInstallation || !includeUsers" /><span>Include active sessions</span></label>
+        <label class="check"><input v-model="fullInstallation" type="checkbox" /><span>Full installation (users + active sessions)</span></label>
+        <label class="check"><input v-model="saveToSetupPath" type="checkbox" /><span>Also save to configured setup path</span></label>
+        <p class="hint">The setup path is APPLICATION_JSON_PATH, defaulting to /data/application.json. Full installation restores existing accounts only into an installation without existing users.</p>
         <button type="submit" class="primary" :disabled="exporting">{{ exporting ? "Encrypting…" : "Export encrypted deployment backup" }}</button>
       </form>
     </div>
