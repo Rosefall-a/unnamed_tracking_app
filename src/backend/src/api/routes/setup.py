@@ -284,7 +284,9 @@ async def preview_application_settings(
 ) -> dict[str, object]:
     """Preview setup values without changing the database."""
     if await db.scalar(select(User.id).limit(1)) is not None:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Setup is already complete.")
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="Setup is already complete."
+        )
     try:
         raw = (
             await application_file.read()
