@@ -21,6 +21,7 @@ _SCRYPT_N: Final = 2**14
 _SCRYPT_R: Final = 8
 _SCRYPT_P: Final = 1
 
+
 # Browsers scope cookies by domain/path, but not by port. Two separate
 # self-hosted installs accessed as localhost:8000 and localhost:9000 would
 # otherwise both use the same cookie named "session". The persistent Fernet

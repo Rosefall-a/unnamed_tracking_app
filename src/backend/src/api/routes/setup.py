@@ -5,15 +5,37 @@ import secrets
 import time
 from typing import cast
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Response, UploadFile, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Request,
+    Response,
+    UploadFile,
+    status,
+)
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select, text, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.routes.settings import get_or_create_app_integration_settings
-from src.core.application_backup import application_backup_path, load_application_backup_file, preview_application_backup, restore_application_backup
-from src.core.auth import SESSION_COOKIE, SESSION_TTL_SECONDS, hash_password, hash_token, session_cookie_name, validate_password
+from src.core.application_backup import (
+    application_backup_path,
+    load_application_backup_file,
+    preview_application_backup,
+    restore_application_backup,
+)
+from src.core.auth import (
+    SESSION_COOKIE,
+    SESSION_TTL_SECONDS,
+    hash_password,
+    hash_token,
+    session_cookie_name,
+    validate_password,
+)
 from src.core.config import settings
 from src.core.crypto import encrypt_secret
 from src.database.models.auth import UserSession
@@ -259,9 +281,15 @@ async def preview_application_settings(
 ) -> dict[str, object]:
     """Preview setup values without changing the database."""
     try:
-        raw = await application_file.read() if application_file is not None else load_application_backup_file(password)
+        raw = (
+            await application_file.read()
+            if application_file is not None
+            else load_application_backup_file(password)
+        )
         if not raw:
-            raise ValueError("No application.json deployment backup was found on the configured setup path.")
+            raise ValueError(
+                "No application.json deployment backup was found on the configured setup path."
+            )
         return preview_application_backup(raw, password)
     except (ValueError, OSError, RuntimeError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -285,9 +313,15 @@ async def import_application_settings(
     if mode != "accept":
         raise HTTPException(status_code=400, detail="Only accept mode changes the installation.")
     try:
-        raw = await application_file.read() if application_file is not None else load_application_backup_file(password)
+        raw = (
+            await application_file.read()
+            if application_file is not None
+            else load_application_backup_file(password)
+        )
         if not raw:
-            raise ValueError("No application.json deployment backup was found on the configured setup path.")
+            raise ValueError(
+                "No application.json deployment backup was found on the configured setup path."
+            )
         result = await restore_application_backup(db, raw, password)
         authenticated = False
         if result.get("sessions"):

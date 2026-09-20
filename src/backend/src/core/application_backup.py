@@ -91,7 +91,9 @@ def preview_application_backup(raw: bytes, password: str) -> dict[str, Any]:
 
     oidc: dict[str, Any] = {}
     if options.get("include_oidc_settings", True) and isinstance(oidc_payload, dict):
-        oidc = {key: value for key, value in oidc_payload.items() if key not in {"id", "updated_at"}}
+        oidc = {
+            key: value for key, value in oidc_payload.items() if key not in {"id", "updated_at"}
+        }
         if oidc.get("client_secret"):
             oidc["client_secret"] = decrypt(oidc["client_secret"])
         if oidc.get("providers_json"):
@@ -106,9 +108,15 @@ def preview_application_backup(raw: bytes, password: str) -> dict[str, Any]:
                 oidc["providers_json"] = json.dumps(providers)
 
     smtp_fields = {
-        "smtp_enabled", "smtp_host", "smtp_port", "smtp_username",
-        "smtp_password", "smtp_use_tls", "smtp_use_ssl",
-        "smtp_from_email", "smtp_from_name",
+        "smtp_enabled",
+        "smtp_host",
+        "smtp_port",
+        "smtp_username",
+        "smtp_password",
+        "smtp_use_tls",
+        "smtp_use_ssl",
+        "smtp_from_email",
+        "smtp_from_name",
     }
     smtp = {key: app_payload.get(key) for key in smtp_fields if key in app_payload}
     if smtp.get("smtp_password"):
