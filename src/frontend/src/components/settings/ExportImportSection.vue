@@ -25,6 +25,7 @@ function formatBackupDate(epochSeconds: number): string {
 }
 
 const exporting = ref(false);
+const exportError = ref<string | null>(null);
 async function exportLibrary() {
   exporting.value = true;
   exportError.value = null;
