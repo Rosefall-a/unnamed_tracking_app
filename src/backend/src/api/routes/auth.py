@@ -96,14 +96,14 @@ async def login(
     db.add(
         UserSession(
             user_id=user.id,
-            token_hash=hash_token(session_token),
+            token_hash=hash_token(token),
             expires_at=int(time.time()) + SESSION_TTL_SECONDS,
         )
     )
     await db.commit()
     response.set_cookie(
         key=SESSION_COOKIE,
-        value=session_token,
+        value=token,
         max_age=SESSION_TTL_SECONDS,
         httponly=True,
         samesite="lax",
