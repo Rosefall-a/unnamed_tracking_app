@@ -95,7 +95,7 @@ _PRIORITY_MAP = {
 def _fuzzy_date(value: dict[str, Any] | None) -> str | None:
     if not value or not value.get("year"):
         return None
-    return f'{value["year"]:04d}-{value.get("month") or 1:02d}-{value.get("day") or 1:02d}'
+    return f"{value['year']:04d}-{value.get('month') or 1:02d}-{value.get('day') or 1:02d}"
 
 
 def _map_entry(entry: dict[str, Any]) -> dict[str, Any] | None:
@@ -110,9 +110,7 @@ def _map_entry(entry: dict[str, Any]) -> dict[str, Any] | None:
         return None
 
     studios = [
-        node["name"]
-        for node in (media.get("studios") or {}).get("nodes", [])
-        if node.get("name")
+        node["name"] for node in (media.get("studios") or {}).get("nodes", []) if node.get("name")
     ]
     score = entry.get("score")
     average_score = media.get("averageScore")
@@ -133,7 +131,9 @@ def _map_entry(entry: dict[str, Any]) -> dict[str, Any] | None:
         or (media.get("coverImage") or {}).get("large"),
         "backdrop_url": media.get("bannerImage"),
         "site_url": media.get("siteUrl"),
-        "status": _STATUS_MAP.get(entry_status, "WISHLIST") if isinstance(entry_status, str) else "WISHLIST",
+        "status": _STATUS_MAP.get(entry_status, "WISHLIST")
+        if isinstance(entry_status, str)
+        else "WISHLIST",
         "priority": _PRIORITY_MAP.get(entry_priority) if isinstance(entry_priority, int) else None,
         "rating_overall": score if score not in (None, 0) else None,
         "progress": max(0, int(entry.get("progress") or 0)),
@@ -165,9 +165,7 @@ class AniListImportClient(AniListClient):
             )
             collection = (payload.get("data") or {}).get("MediaListCollection")
             if collection is None:
-                raise AniListError(
-                    "AniList could not find a public anime list for that username."
-                )
+                raise AniListError("AniList could not find a public anime list for that username.")
 
             raw_entries = [
                 entry

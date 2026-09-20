@@ -35,4 +35,6 @@ class Notification(Base):
     event_at: Mapped[int] = mapped_column(BigInteger, nullable=False)
     dedupe_key: Mapped[str] = mapped_column(String(200), nullable=False)
     read_at: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
-    created_at: Mapped[int] = mapped_column(BigInteger, nullable=False, default=lambda: int(time.time()))
+    created_at: Mapped[int] = mapped_column(
+        BigInteger, nullable=False, default=lambda: int(time.time())
+    )

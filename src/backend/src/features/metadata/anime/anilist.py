@@ -231,7 +231,9 @@ query ($id: Int) {
 _EPISODE_TITLE_RE = re.compile(r"^Episode\s+\d+\s*-\s*(.+)$", re.IGNORECASE)
 
 
-def _blank_episode(episode_number: int, still_url: str | None = None, title: str | None = None) -> dict[str, Any]:
+def _blank_episode(
+    episode_number: int, still_url: str | None = None, title: str | None = None
+) -> dict[str, Any]:
     return {
         "episode_number": episode_number,
         "title": title,
@@ -285,6 +287,7 @@ def _pad_to_aired_total(results: list[dict[str, Any]], aired_total: int | None) 
         if n not in known:
             results.append(_blank_episode(n))
     results.sort(key=lambda r: r["episode_number"])
+
 
 _RELATIONS_QUERY = """
 query ($search: String) {
@@ -627,9 +630,7 @@ class AniListClient:
         _pad_to_aired_total(results, _aired_total(media))
         return results
 
-    def airing_status(
-        self, anilist_id: str
-    ) -> tuple[int | None, bool, int | None, int | None]:
+    def airing_status(self, anilist_id: str) -> tuple[int | None, bool, int | None, int | None]:
         """`(aired_episode_count, is_airing, next_episode_air_at,
         next_episode_number)` — the same fields `episodes()` uses to
         compute a total, without the `streamingEpisodes` list, so this is
@@ -679,9 +680,7 @@ class AniListClient:
             current_id = anchor_id
             for _ in range(_MAX_CHAIN_HOPS):
                 edges = (nodes[current_id].get("relations") or {}).get("edges") or []
-                edge = next(
-                    (e for e in edges if e.get("relationType") == relation_type), None
-                )
+                edge = next((e for e in edges if e.get("relationType") == relation_type), None)
                 if not edge or not edge.get("node"):
                     break
                 next_id = edge["node"]["id"]
@@ -745,9 +744,7 @@ class AniListClient:
                 continue
             recommendations.append(_node_to_dict(node))
 
-        branches = self._order_related_branches(
-            _collect_branches(nodes, anchor["id"], chain_ids)
-        )
+        branches = self._order_related_branches(_collect_branches(nodes, anchor["id"], chain_ids))
         seen_ids = set(chain_ids) | {b["id"] for b in branches}
         branches.extend(self._expand_branch_chains(branches, seen_ids))
         for b in branches:
@@ -876,9 +873,7 @@ class AniListClient:
                     prequel_of[b["id"]] = target
         return prequel_of
 
-    def _order_related_branches(
-        self, branches: list[dict[str, Any]]
-    ) -> list[dict[str, Any]]:
+    def _order_related_branches(self, branches: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """A branch group sharing the same anchor and relation label —
         e.g. a two-part movie duology, both tagged ALTERNATIVE to the
         parent show rather than SEQUEL/PREQUEL to it — can still be

@@ -63,7 +63,9 @@ async def load_preferences(db: AsyncSession, user_id: UUID) -> dict[str, Any]:
     return {**DEFAULTS, **(row.data if row else {})}
 
 
-async def save_preferences(db: AsyncSession, user_id: UUID, changes: dict[str, Any]) -> dict[str, Any]:
+async def save_preferences(
+    db: AsyncSession, user_id: UUID, changes: dict[str, Any]
+) -> dict[str, Any]:
     clean = {k: validate_preference(k, v) for k, v in changes.items()}
     row = await db.scalar(select(UserPreferences).where(UserPreferences.user_id == user_id))
     if row is None:

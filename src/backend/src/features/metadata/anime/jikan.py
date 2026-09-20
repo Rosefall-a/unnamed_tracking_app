@@ -67,7 +67,9 @@ class JikanClient:
                 time.sleep(min(delay, _MAX_BACKOFF_SECONDS))
                 continue
             if response.status_code >= 400:
-                raise JikanError(f"Jikan request failed ({response.status_code}): {response.text[:200]}")
+                raise JikanError(
+                    f"Jikan request failed ({response.status_code}): {response.text[:200]}"
+                )
             try:
                 return response.json()
             except ValueError as exc:

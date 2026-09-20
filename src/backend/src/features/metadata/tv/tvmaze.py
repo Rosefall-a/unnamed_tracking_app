@@ -44,7 +44,9 @@ class TVMazeClient:
         except requests.RequestException as exc:
             raise TVMazeError(f"Could not reach TVmaze: {exc}") from exc
         if response.status_code >= 400:
-            raise TVMazeError(f"TVmaze request failed ({response.status_code}): {response.text[:200]}")
+            raise TVMazeError(
+                f"TVmaze request failed ({response.status_code}): {response.text[:200]}"
+            )
         try:
             payload = response.json()
         except ValueError as exc:
@@ -83,7 +85,9 @@ class TVMazeClient:
         except requests.RequestException as exc:
             raise TVMazeError(f"Could not reach TVmaze: {exc}") from exc
         if response.status_code >= 400:
-            raise TVMazeError(f"TVmaze request failed ({response.status_code}): {response.text[:200]}")
+            raise TVMazeError(
+                f"TVmaze request failed ({response.status_code}): {response.text[:200]}"
+            )
         try:
             payload = response.json()
         except ValueError as exc:
@@ -105,7 +109,9 @@ class TVMazeClient:
         except requests.RequestException as exc:
             raise TVMazeError(f"Could not reach TVmaze: {exc}") from exc
         if response.status_code >= 400:
-            raise TVMazeError(f"TVmaze request failed ({response.status_code}): {response.text[:200]}")
+            raise TVMazeError(
+                f"TVmaze request failed ({response.status_code}): {response.text[:200]}"
+            )
         try:
             payload = response.json()
         except ValueError as exc:
@@ -133,7 +139,9 @@ class TVMazeClient:
         except requests.RequestException as exc:
             raise TVMazeError(f"Could not reach TVmaze: {exc}") from exc
         if response.status_code >= 400:
-            raise TVMazeError(f"TVmaze request failed ({response.status_code}): {response.text[:200]}")
+            raise TVMazeError(
+                f"TVmaze request failed ({response.status_code}): {response.text[:200]}"
+            )
         try:
             payload = response.json()
         except ValueError as exc:
