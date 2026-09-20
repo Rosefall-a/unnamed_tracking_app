@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import base64
 import json
+import os
+import time
 from pathlib import Path
 from collections import Counter
 from typing import Any
@@ -243,7 +245,7 @@ async def build_application_backup(
         "format": "archive-deployment-backup",
         "format_version": 3,
         "secret_values_encrypted": True,
-        "exported_at": int(__import__("time").time()),
+        "exported_at": int(time.time()),
         "fernet_keys": [persistent_fernet_key(), persistent_fernet_key()],
         "app_integration_settings": _model_payload(app, exclude={"id", "updated_at"}),
         "oidc_settings": _model_payload(oidc, exclude={"id", "updated_at"}),
@@ -269,7 +271,7 @@ async def build_application_backup(
 def encrypt_application_backup(backup: dict[str, Any], password: str) -> bytes:
     if not password or len(password) < 12:
         raise ValueError("The backup password must be at least 12 characters long.")
-    salt = __import__("os").urandom(SALT_BYTES)
+    salt = os.urandom(SALT_BYTES)
     plaintext = json.dumps(backup, separators=(",", ":"), default=str).encode("utf-8")
     envelope = {
         "format": "archive-deployment-backup-encrypted",
