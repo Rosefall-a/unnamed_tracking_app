@@ -59,7 +59,7 @@ def decode_application_backup(raw: bytes, password: str) -> dict[str, Any]:
     except (ValueError, KeyError, TypeError, json.JSONDecodeError, InvalidToken) as exc:
         raise ValueError("The application settings file or password is invalid.") from exc
 
-    if backup.get("format") != "archive-deployment-backup" or backup.get("format_version") not in {1, 2}:
+    if backup.get("format") != "archive-deployment-backup" or backup.get("format_version") not in {1, 2, 3}:
         raise ValueError("Unsupported application settings backup format.")
     if not isinstance(backup.get("fernet_keys"), list):
         raise ValueError("The application settings backup is missing its Fernet keys.")
@@ -140,8 +140,49 @@ async def restore_application_backup(
                 value = json.dumps(normalized)
             setattr(oidc, field, value)
 
+    options = backup.get("options") or {}
+    if options.get("include_users"):
+        user_payload = backup.get("users")
+        if not isinstance(user_payload, list):
+            raise ValueError("The full installation backup is missing its users.")
+        allowed = {column.name for column in User.__table__.columns}
+        for item in user_payload:
+            if not isinstance(item, dict):
+                raise ValueError("The full installation backup contains an invalid user.")
+            values = {key: value for key, value in item.items() if key in allowed}
+            db.add(User(**values))
+
+        key_payload = backup.get("user_api_keys", [])
+        if not isinstance(key_payload, list):
+            raise ValueError("The full installation backup contains invalid API keys.")
+        allowed = {column.name for column in UserApiKey.__table__.columns}
+        for item in key_payload:
+            if not isinstance(item, dict):
+                raise ValueError("The full installation backup contains an invalid API key.")
+            values = {key: value for key, value in item.items() if key in allowed}
+            db.add(UserApiKey(**values))
+
+    if options.get("include_sessions"):
+        if not options.get("include_users"):
+            raise ValueError("Sessions can only be restored when users are included.")
+        session_payload = backup.get("user_sessions", [])
+        if not isinstance(session_payload, list):
+            raise ValueError("The full installation backup contains invalid sessions.")
+        allowed = {column.name for column in UserSession.__table__.columns}
+        for item in session_payload:
+            if not isinstance(item, dict):
+                raise ValueError("The full installation backup contains an invalid session.")
+            values = {key: value for key, value in item.items() if key in allowed}
+            db.add(UserSession(**values))
+
     await db.commit()
-    return {"application": True, "oidc": True, "encryption": True}
+    return {
+        "application": True,
+        "oidc": True,
+        "encryption": True,
+        "users": bool(options.get("include_users")),
+        "sessions": bool(options.get("include_sessions")),
+    }
 
 
 def application_backup_path() -> Path:
