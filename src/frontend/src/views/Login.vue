@@ -1,26 +1,62 @@
 <script setup lang="ts">
-import { ref } from "vue";
-import { useRouter } from "vue-router";
+import { onMounted, ref } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import { login } from "../services/auth";
+import {
+  oidcLoginStatus,
+  startOidcLogin,
+  type OidcLoginProvider,
+} from "../services/oidc";
 import { checkAuth } from "../state/auth";
 
+const route = useRoute();
 const router = useRouter();
-
 const usernameOrEmail = ref("");
 const password = ref("");
 const showPassword = ref(false);
 const error = ref<string | null>(null);
 const loading = ref(false);
+const oidcAvailable = ref(false);
+const oidcLoading = ref(false);
+const loginMethod = ref<"sso" | "local">("local");
+const ssoButtonText = ref("Continue with SSO");
+const oidcProviders = ref<OidcLoginProvider[]>([]);
+const oidcMessages: Record<string, string> = {
+  not_configured: "SSO is not configured yet.",
+  provider_unavailable: "The SSO provider is currently unavailable.",
+  authentication_failed: "SSO authentication failed. Please try again.",
+  verified_email_required:
+    "Your SSO account must provide a verified email address.",
+  account_disabled: "This account is disabled.",
+  identity_missing:
+    "Your SSO account did not provide the identity field required for account matching.",
+  identity_conflict: "This SSO identity is already linked to another account.",
+  user_creation_disabled:
+    "Your SSO account is not registered and automatic account creation is disabled.",
+};
+
+onMounted(async () => {
+  const oidc = await oidcLoginStatus();
+  oidcAvailable.value = oidc.enabled;
+  oidcProviders.value = oidc.providers;
+  ssoButtonText.value = oidc.login_button_text;
+  loginMethod.value =
+    oidc.enabled && oidc.default_login_method === "sso" ? "sso" : "local";
+  if (route.query.oidc === "success") {
+    await checkAuth();
+    router.replace("/");
+  } else if (typeof route.query.oidc_error === "string") {
+    error.value = oidcMessages[route.query.oidc_error] ?? "SSO sign-in failed.";
+  }
+});
 
 async function submit() {
   if (!usernameOrEmail.value.trim() || !password.value) {
     error.value = "Enter your username/email and password.";
     return;
   }
-
   loading.value = true;
   error.value = null;
-
   try {
     await login(usernameOrEmail.value.trim(), password.value);
     await checkAuth();
@@ -29,6 +65,17 @@ async function submit() {
     error.value = err instanceof Error ? err.message : "Login failed";
   } finally {
     loading.value = false;
+  }
+}
+
+function sso(slug?: string) {
+  oidcLoading.value = true;
+  error.value = null;
+  try {
+    startOidcLogin(slug);
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : "Unable to start SSO.";
+    oidcLoading.value = false;
   }
 }
 </script>
@@ -41,43 +88,167 @@ async function submit() {
         <h1>Archive</h1>
       </div>
       <p class="login-subtitle">Sign in to your library</p>
+<template>
+  <!-- LOCAL LOGIN FIRST (when loginMethod === 'local' OR OIDC unavailable) -->
+  <template v-if="loginMethod === 'local' || !oidcAvailable">
+    <label class="field">
+      <span>Username or email</span>
+      <input
+        v-model="usernameOrEmail"
+        type="text"
+        autocomplete="username"
+        required
+      />
+    </label>
 
-      <label class="field">
-        <span>Username or email</span>
+    <label class="field password-field">
+      <span>Password</span>
+      <span class="password-control">
         <input
-          v-model="usernameOrEmail"
-          type="text"
-          autocomplete="username"
+          v-model="password"
+          :type="showPassword ? 'text' : 'password'"
+          autocomplete="current-password"
           required
         />
-      </label>
+        <button
+          type="button"
+          class="password-toggle"
+          :aria-label="showPassword ? 'Hide password' : 'Show password'"
+          :aria-pressed="showPassword"
+          @click="showPassword = !showPassword"
+        >
+          {{ showPassword ? "Hide" : "Show" }}
+        </button>
+      </span>
+    </label>
 
-      <label class="field password-field">
-        <span>Password</span>
-        <span class="password-control">
-          <input
-            v-model="password"
-            :type="showPassword ? 'text' : 'password'"
-            autocomplete="current-password"
-            required
-          />
-          <button
-            type="button"
-            class="password-toggle"
-            :aria-label="showPassword ? 'Hide password' : 'Show password'"
-            :aria-pressed="showPassword"
-            @click="showPassword = !showPassword"
-          >
-            {{ showPassword ? "Hide" : "Show" }}
-          </button>
-        </span>
-      </label>
+    <div v-if="error" class="login-error">{{ error }}</div>
 
-      <div v-if="error" class="login-error">{{ error }}</div>
+    <button
+      type="submit"
+      class="login-button"
+      :disabled="loading || oidcLoading"
+    >
+      {{ loading ? "Signing in…" : "Sign in" }}
+    </button>
 
-      <button type="submit" class="login-button" :disabled="loading">
-        {{ loading ? "Signing in…" : "Sign in" }}
+    <!-- SSO options if available -->
+    <div v-if="oidcAvailable" class="sso-divider"><span>or</span></div>
+
+    <div v-if="oidcAvailable" class="provider-buttons">
+      <button
+        v-for="provider in oidcProviders"
+        :key="provider.slug"
+        type="button"
+        class="oidc-button"
+        :disabled="oidcLoading"
+        @click="() => sso(provider.slug)"
+      >
+        <img
+          v-if="provider.button_image_url"
+          :src="provider.button_image_url"
+          alt=""
+        />
+        <span>{{ provider.button_text || provider.name }}</span>
       </button>
+    </div>
+
+    <button
+      v-if="oidcAvailable && !oidcProviders.length"
+      type="button"
+      class="oidc-button"
+      :disabled="oidcLoading"
+      @click="() => sso()"
+    >
+      <span>{{ oidcLoading ? "Opening SSO…" : ssoButtonText }}</span>
+    </button>
+  </template>
+
+  <!-- SSO-FIRST MODE -->
+  <template v-else>
+    <div class="sso-heading">
+      <span class="sso-icon">◉</span>
+      <div>
+        <strong>Single sign-on</strong>
+        <p>Select an identity provider to continue.</p>
+      </div>
+    </div>
+
+    <div v-if="error" class="login-error">{{ error }}</div>
+
+    <div class="provider-buttons">
+      <button
+        v-for="provider in oidcProviders"
+        :key="provider.slug"
+        type="button"
+        class="oidc-button primary"
+        :disabled="oidcLoading"
+        @click="() => sso(provider.slug)"
+      >
+        <img
+          v-if="provider.button_image_url"
+          :src="provider.button_image_url"
+          alt=""
+        />
+        <span>{{ provider.button_text || provider.name }}</span>
+      </button>
+    </div>
+
+    <button
+      v-if="!oidcProviders.length"
+      type="button"
+      class="oidc-button primary"
+      :disabled="oidcLoading"
+      @click="() => sso()"
+    >
+      {{ oidcLoading ? "Opening SSO…" : ssoButtonText }}
+    </button>
+
+    <!-- LOCAL LOGIN FALLBACK -->
+    <details class="local-credentials">
+      <summary>Use local credentials</summary>
+      <div class="local-fields">
+        <label class="field">
+          <span>Username or email</span>
+          <input
+            v-model="usernameOrEmail"
+            type="text"
+            autocomplete="username"
+          />
+        </label>
+
+        <label class="field password-field">
+          <span>Password</span>
+          <span class="password-control">
+            <input
+              v-model="password"
+              :type="showPassword ? 'text' : 'password'"
+              autocomplete="current-password"
+            />
+            <button
+              type="button"
+              class="password-toggle"
+              :aria-label="showPassword ? 'Hide password' : 'Show password'"
+              :aria-pressed="showPassword"
+              @click="showPassword = !showPassword"
+            >
+              {{ showPassword ? "Hide" : "Show" }}
+            </button>
+          </span>
+        </label>
+
+        <button
+          type="submit"
+          class="login-button"
+          :disabled="loading || oidcLoading"
+        >
+          {{ loading ? "Signing in…" : "Sign in locally" }}
+        </button>
+      </div>
+    </details>
+  </template>
+</template>
+
     </form>
   </main>
 </template>
@@ -106,7 +277,6 @@ async function submit() {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  z-index: 0;
 }
 .login-card {
   position: relative;
@@ -157,7 +327,6 @@ async function submit() {
   color: #fff;
   padding: 10px 12px;
   font: inherit;
-  transition: border-color 0.15s ease;
 }
 .password-control {
   display: flex;
@@ -191,22 +360,122 @@ async function submit() {
   border-radius: 8px;
   padding: 8px 10px;
 }
-.login-button {
-  background: #d68a34;
-  color: #111;
-  border: none;
+.login-button,
+.oidc-button {
+  border: 0;
   border-radius: 8px;
   padding: 11px;
   font-weight: 600;
   cursor: pointer;
-  margin-top: 4px;
-  transition: background 0.15s ease;
 }
-.login-button:hover:not(:disabled) {
-  background: #e6994a;
+.login-button {
+  background: #d68a34;
+  color: #111;
 }
-.login-button:disabled {
+.login-button:disabled,
+.oidc-button:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+.oidc-button {
+  background: #2a2a2a;
+  color: #fff;
+  border: 1px solid #444;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+.oidc-button.primary {
+  background: #d68a34;
+  color: #111;
+  border-color: #d68a34;
+}
+.oidc-button img {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+  border-radius: 4px;
+}
+.provider-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.sso-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #666;
+  font-size: 12px;
+}
+.sso-divider::before,
+.sso-divider::after {
+  content: "";
+  height: 1px;
+  background: #333;
+  flex: 1;
+}
+.sso-divider span {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.sso-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 2px;
+}
+.sso-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: #242424;
+  border: 1px solid #3a3a3a;
+  display: grid;
+  place-items: center;
+  color: #d68a34;
+  font-size: 20px;
+}
+.sso-heading strong {
+  color: #fff;
+  font-size: 15px;
+}
+.sso-heading p {
+  margin: 3px 0 0;
+  color: #999;
+  font-size: 12px;
+}
+.local-credentials {
+  border-top: 1px solid #2f2f2f;
+  padding-top: 14px;
+  color: #ccc;
+}
+.local-credentials summary {
+  cursor: pointer;
+  list-style: none;
+  text-align: center;
+  color: #aaa;
+  font-size: 13px;
+  padding: 8px 0;
+}
+.local-credentials summary::-webkit-details-marker {
+  display: none;
+}
+.local-credentials summary::before {
+  content: "▸";
+  display: inline-block;
+  margin-right: 7px;
+  color: #d68a34;
+  transition: transform 0.15s ease;
+}
+.local-credentials[open] summary::before {
+  transform: rotate(90deg);
+}
+.local-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: 10px;
 }
 </style>

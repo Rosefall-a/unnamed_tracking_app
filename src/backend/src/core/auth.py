@@ -7,7 +7,7 @@ import time
 from typing import Final
 
 from fastapi import Cookie, Depends, Header, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.config import settings
@@ -21,6 +21,7 @@ _SCRYPT_N: Final = 2**14
 _SCRYPT_R: Final = 8
 _SCRYPT_P: Final = 1
 SESSION_COOKIE: Final = "session"
+SESSION_TTL_SECONDS: Final = 30 * 24 * 60 * 60
 API_KEY_PREFIX: Final = "utk_"
 
 
@@ -76,6 +77,15 @@ def create_api_key() -> tuple[str, str, str]:
     secret = secrets.token_urlsafe(32)
     api_key = f"{API_KEY_PREFIX}{secret}"
     return api_key, api_key[:12], hash_token(api_key)
+
+
+async def revoke_session(db: AsyncSession, session_token: str) -> bool:
+    """Delete one opaque session using only the hash of its cookie value."""
+    result = await db.execute(
+        delete(UserSession).where(UserSession.token_hash == hash_token(session_token))
+    )
+    await db.commit()
+    return bool(result.rowcount)
 
 
 async def get_current_user(
