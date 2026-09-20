@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
-import { createInitialAdmin, fetchSetupStatus, importApplicationSettings } from "../services/setup";
+import { createInitialAdmin, fetchApplicationBackupStatus, fetchSetupStatus, importApplicationSettings, previewApplicationSettings } from "../services/setup";
+import type { ApplicationBackupPreview } from "../services/setup";
 
 const router = useRouter();
 const stage = ref<"choose" | "firstuser" | "oidc" | "smtp">("choose");
@@ -10,6 +11,11 @@ const applicationPassword = ref("");
 const importingApplication = ref(false);
 const applicationImportError = ref<string | null>(null);
 const applicationImportSuccess = ref<string | null>(null);
+const applicationBackupAvailable = ref(false);
+const applicationBackupSource = ref<"file" | "filesystem">("file");
+const applicationBackupPreview = ref<ApplicationBackupPreview | null>(null);
+const showApplicationImportChoices = ref(false);
+const importingApplicationMode = ref(false);
 const username = ref("");
 const email = ref("");
 const password = ref("");
@@ -196,7 +202,8 @@ onMounted(async () => {
         <p class="hint">Use the password-protected JSON exported from Settings → Backup. This restores deployment settings, provider credentials, SMTP/OIDC configuration, and encryption keys. Your administrator account is deliberately not included, so you will create a new administrator next.</p>
         <label><span>Settings JSON</span><input type="file" accept="application/json" @change="onApplicationFileSelected" /></label>
         <label><span>Settings JSON password</span><input v-model="applicationPassword" type="password" autocomplete="off" placeholder="Enter export password" /></label>
-        <button type="button" :disabled="importingApplication" @click="importPreviousInstallation">{{ importingApplication ? "Importing…" : "Import previous installation" }}</button>
+        <button type="button" :disabled="importingApplication" @click="reviewApplicationImport('file')">{{ importingApplication ? "Reading backup…" : "Review imported settings" }}</button>
+        <div v-if="applicationBackupAvailable" class="filesystem-backup"><strong>application.json found on the setup filesystem.</strong><span>The configured setup path contains a deployment backup. You can use it directly without selecting a file.</span><button type="button" class="secondary" :disabled="importingApplication" @click="reviewApplicationImport('filesystem')">Use application.json from the filesystem</button></div>
         <div v-if="applicationImportError" class="error">{{ applicationImportError }}</div>
         <div v-if="applicationImportSuccess" class="success">Previous installation settings imported. Continue by creating the new administrator.</div>
       </div>
