@@ -22,6 +22,7 @@ from src.api.routes.session_admin import router as session_admin_router
 from src.api.routes.setup import router as setup_router
 from src.api.routes.settings import get_or_create_app_integration_settings
 from src.api.routes.utils.misc import router as misc_router
+from src.core.application_backup import load_application_backup_file, restore_application_backup
 from src.core.auth import COOKIE_NAMESPACE, ensure_primary_user
 from src.core.config import settings as app_settings
 from src.core.crypto import encrypt_secret
@@ -142,6 +143,32 @@ async def _migrate_legacy_oidc(db) -> None:
 
 
 @app.on_event("startup")
+async def bootstrap_application_backup() -> None:
+    """Restore an explicitly configured deployment backup before settings load.
+
+    This only runs while the database has no users, so an application.json file
+    cannot unexpectedly overwrite a live installation on every restart.
+    """
+    password = app_settings.APPLICATION_JSON_PASSWORD.strip()
+    if not password:
+        return
+    async with SessionLocal() as db:
+        has_user = await db.scalar(select(User).limit(1)) is not None
+        if has_user:
+            return
+        raw = load_application_backup_file(password)
+        if raw is None:
+            return
+        try:
+            await restore_application_backup(db, raw, password)
+        except (OSError, ValueError, RuntimeError) as exc:
+            raise RuntimeError(
+                "APPLICATION_JSON_PASSWORD was supplied, but application.json "
+                f"could not be imported: {exc}"
+            ) from exc
+
+
+@app.on_event("startup")
 async def bootstrap_application_settings() -> None:
     ensure_data_directories()
     async with SessionLocal() as db:
@@ -161,6 +188,18 @@ async def bootstrap_application_settings() -> None:
 @app.on_event("startup")
 async def bootstrap_primary_user() -> None:
     async with SessionLocal() as db:
+        if await db.scalar(select(User.id).limit(1)) is not None:
+            return
+        if not all(
+            (
+                app_settings.PRIMARY_USER_USERNAME.strip(),
+                app_settings.PRIMARY_USER_EMAIL.strip(),
+                app_settings.PRIMARY_USER_PASSWORD,
+            )
+        ):
+            # No bootstrap credentials means this is a normal first-run install;
+            # leave the API alive so the public setup page can create the admin.
+            return
         await ensure_primary_user(db)
 
 
