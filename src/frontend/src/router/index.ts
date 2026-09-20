@@ -113,7 +113,7 @@ router.beforeEach(async (to, from) => {
     return;
   }
 
-  if (setupState === "unknown") setupState = (await waitForServer()) ? "required" : "complete";
+  if (setupState === "unknown") await refreshSetupState();
   if (setupState === "required") return { path: "/setup" };
   if (!authChecked.value) await checkAuth();
   if (!currentUser.value) return "/login";
