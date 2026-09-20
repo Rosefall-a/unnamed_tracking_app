@@ -200,3 +200,18 @@ PostgreSQL has its own persistent volume. The Fernet key and PostgreSQL data mus
 - Do not delete `/data/config/fernet.key` unless you are deliberately discarding encrypted application secrets and understand the consequences.
 - Do not generate a new Fernet key on every container start.
 - Provider/OIDC/SMTP secrets should normally be entered through Settings rather than copied into deployment files.
+
+
+# Optional first-admin bootstrap. If all three are set, the server creates this
+# administrator automatically. If they are omitted, the normal web setup remains
+# available at /setup.
+# PRIMARY_USER_USERNAME=admin
+# PRIMARY_USER_EMAIL=admin@example.com
+# PRIMARY_USER_PASSWORD=Change-this-during-setup
+
+# Optional encrypted deployment-settings bootstrap.
+# Put the password-protected JSON exported from Settings -> Backup at
+# /data/application.json (or set APPLICATION_JSON_PATH) and provide the export
+# password. It is only auto-imported when the database has no users.
+# APPLICATION_JSON_PASSWORD=your-settings-export-password
+# APPLICATION_JSON_PATH=/data/application.json
