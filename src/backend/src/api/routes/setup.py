@@ -379,6 +379,12 @@ async def import_application_settings(
                     break
         result["authenticated"] = authenticated
         return result
+    except IntegrityError as exc:
+        await db.rollback()
+        raise HTTPException(
+            status_code=400,
+            detail="The deployment backup contains data that conflicts with the empty installation.",
+        ) from exc
     except (ValueError, OSError, RuntimeError) as exc:
         await db.rollback()
         raise HTTPException(status_code=400, detail=str(exc)) from exc
