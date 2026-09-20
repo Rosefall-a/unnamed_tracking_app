@@ -74,14 +74,6 @@ async function exportBackup() {
     <div v-if="error" class="error">{{ error }}</div>
     <div v-if="message" class="success">{{ message }}</div>
 
-    <div v-if="showRestorePasswordModal" class="modal-backdrop" @click.self="showRestorePasswordModal = false">
-      <form class="modal" @submit.prevent="restoreBackup">
-        <h3>Restore deployment backup</h3>
-        <p>Enter the password used when this backup was exported. The backup will be restored only after you submit this dialog.</p>
-        <label><span>Backup password</span><input v-model="restorePassword" type="password" minlength="12" maxlength="256" autocomplete="current-password" placeholder="At least 12 characters" autofocus required /></label>
-        <div class="modal-actions"><button type="button" class="secondary" :disabled="importing" @click="showRestorePasswordModal = false">Cancel</button><button type="submit" class="primary" :disabled="importing">{{ importing ? "Restoring…" : "Restore backup" }}</button></div>
-      </form>
-    </div>
   </section>
 </template>
 
