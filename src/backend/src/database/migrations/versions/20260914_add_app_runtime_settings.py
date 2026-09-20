@@ -2,11 +2,13 @@
 
 Revision ID: 20260914_app_runtime
 Revises: 20260913_smtp_reset
+
+All columns introduced by this historical migration are already present in
+the initial schema, so this revision performs no schema changes.
 """
 
 from typing import Sequence, Union
 
-import sqlalchemy as sa
 from alembic import op
 
 revision: str = "20260914_app_runtime"
@@ -16,36 +18,8 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.add_column(
-        "app_integration_settings",
-        sa.Column("auth_cookie_secure", sa.Boolean(), nullable=False, server_default=sa.false()),
-    )
-    op.add_column(
-        "app_integration_settings",
-        sa.Column("max_upload_size_mb", sa.Integer(), nullable=False, server_default="15"),
-    )
-    op.add_column(
-        "app_integration_settings",
-        sa.Column("max_clip_size_mb", sa.Integer(), nullable=False, server_default="500"),
-    )
-    op.add_column(
-        "app_integration_settings",
-        sa.Column("max_world_save_size_mb", sa.Integer(), nullable=False, server_default="2000"),
-    )
-    op.add_column(
-        "app_integration_settings",
-        sa.Column(
-            "runtime_settings_initialized", sa.Boolean(), nullable=False, server_default=sa.false()
-        ),
-    )
+    pass
 
 
 def downgrade() -> None:
-    for column in (
-        "runtime_settings_initialized",
-        "max_world_save_size_mb",
-        "max_clip_size_mb",
-        "max_upload_size_mb",
-        "auth_cookie_secure",
-    ):
-        op.drop_column("app_integration_settings", column)
+    pass
