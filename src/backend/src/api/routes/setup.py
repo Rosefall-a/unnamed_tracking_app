@@ -44,6 +44,8 @@ from src.database.models.auth import UserSession
 from src.database.models.game import Game
 from src.database.models.oidc_settings import OidcSettings
 from src.database.models.user import User
+from src.database.models.app_integration_settings import AppIntegrationSettings
+from src.database.models.user_preferences import UserPreferences
 from src.database.session import get_db
 
 router = APIRouter(prefix="/api/setup", tags=["setup"])
@@ -115,10 +117,44 @@ def _provider_slug(name: str) -> str:
 
 
 @router.get("/restoration-notice")
-async def restoration_notice(user: User = Depends(get_current_admin)) -> dict[str, bool]:
-    """Return and consume the one-time automatic restore notice for an admin."""
-    del user
-    return {"restored": consume_automatic_restore_notice()}
+async def restoration_notice(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_admin),
+) -> dict[str, bool]:
+    """Return whether this administrator has acknowledged the latest restore."""
+    settings_row = await db.scalar(select(AppIntegrationSettings).limit(1))
+    restore_at = int(settings_row.restore_notice_at) if settings_row else 0
+    preferences = await db.scalar(
+        select(UserPreferences).where(UserPreferences.user_id == user.id)
+    )
+    acknowledged_at = 0
+    if preferences and isinstance(preferences.data, dict):
+        acknowledged_at = int(
+            preferences.data.get("application_restore_notice_acknowledged_at", 0) or 0
+        )
+    return {"restored": restore_at > 0 and restore_at > acknowledged_at}
+
+
+@router.post("/restoration-notice/acknowledge", status_code=status.HTTP_204_NO_CONTENT)
+async def acknowledge_restoration_notice(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_admin),
+) -> None:
+    """Acknowledge the latest restore notice for this administrator."""
+    settings_row = await db.scalar(select(AppIntegrationSettings).limit(1))
+    restore_at = int(settings_row.restore_notice_at) if settings_row else 0
+    if restore_at <= 0:
+        return
+    preferences = await db.scalar(
+        select(UserPreferences).where(UserPreferences.user_id == user.id)
+    )
+    if preferences is None:
+        preferences = UserPreferences(user_id=user.id, data={})
+        db.add(preferences)
+    data = dict(preferences.data or {})
+    data["application_restore_notice_acknowledged_at"] = restore_at
+    preferences.data = data
+    await db.commit()
 
 
 @router.get("/status")
