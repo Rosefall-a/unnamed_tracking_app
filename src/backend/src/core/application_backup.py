@@ -32,9 +32,11 @@ SALT_BYTES = 16
 # authenticated administrator who reaches the application after startup.
 _automatic_restore_completed = False
 
+
 def mark_automatic_restore_completed() -> None:
     global _automatic_restore_completed
     _automatic_restore_completed = True
+
 
 def consume_automatic_restore_notice() -> bool:
     global _automatic_restore_completed
@@ -42,6 +44,7 @@ def consume_automatic_restore_notice() -> bool:
         return False
     _automatic_restore_completed = False
     return True
+
 
 SECRET_FIELDS = {
     "steamgriddb_api_key",
