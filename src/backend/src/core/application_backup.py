@@ -88,6 +88,7 @@ async def restore_application_backup(
 ) -> dict[str, bool]:
     backup = decode_application_backup(raw, password)
     restore_key = _restore_key(backup)
+    encrypted_secrets = bool(backup.get("secret_values_encrypted", False))
     app_payload = backup.get("app_integration_settings")
     oidc_payload = backup.get("oidc_settings")
     if not isinstance(app_payload, dict) or not isinstance(oidc_payload, dict):
@@ -109,7 +110,7 @@ async def restore_application_backup(
             setattr(
                 app,
                 field,
-                encrypt_secret(str(value)) if field in SECRET_FIELDS and value else value,
+                (str(value) if encrypted_secrets else encrypt_secret(str(value))) if field in SECRET_FIELDS and value else value,
             )
 
     oidc = await db.scalar(select(OidcSettings).limit(1))
@@ -121,7 +122,7 @@ async def restore_application_backup(
     for field, value in oidc_payload.items():
         if field in oidc_columns and field not in {"id", "updated_at"}:
             if field == "client_secret":
-                value = encrypt_secret(str(value)) if value else None
+                value = str(value) if encrypted_secrets else (encrypt_secret(str(value)) if value else None)
             elif field == "providers_json" and value:
                 try:
                     providers = json.loads(str(value))
@@ -134,7 +135,7 @@ async def restore_application_backup(
                     if not isinstance(provider, dict):
                         raise ValueError("The OIDC provider configuration in the backup is invalid.")
                     item = dict(provider)
-                    if item.get("client_secret"):
+                    if item.get("client_secret") and not encrypted_secrets:
                         item["client_secret"] = encrypt_secret(str(item["client_secret"]))
                     normalized.append(item)
                 value = json.dumps(normalized)
@@ -241,6 +242,7 @@ async def build_application_backup(
     payload: dict[str, Any] = {
         "format": "archive-deployment-backup",
         "format_version": 3,
+        "secret_values_encrypted": True,
         "exported_at": int(__import__("time").time()),
         "fernet_keys": [persistent_fernet_key(), persistent_fernet_key()],
         "app_integration_settings": _model_payload(app, exclude={"id", "updated_at"}),
