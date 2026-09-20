@@ -7,6 +7,7 @@ separate effort, not a silent gap. Folder assets, screenshots, saves,
 and bounties aren't included in either direction."""
 
 import time
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile, status
 from pydantic import BaseModel
@@ -207,28 +208,6 @@ async def import_library(
     return ImportResult(created=created, skipped=skipped, errors=errors[:20])
 
 
-@router.post("/export/deployment-backup/import")
-async def import_deployment_backup(
-    password: str = Form(..., min_length=12, max_length=256),
-    backup_file: UploadFile = File(...),
-    db: AsyncSession = Depends(get_db),
-    admin: User = Depends(get_current_admin),
-) -> dict[str, bool]:
-    """Restore a deployment backup at any time from the admin settings page."""
-    del admin
-    try:
-        from src.core.application_backup import restore_application_backup
-
-        raw = await backup_file.read()
-        if not raw:
-            raise ValueError("The deployment backup file is empty.")
-        result = await restore_application_backup(db, raw, password)
-        return result
-    except (ValueError, OSError, RuntimeError) as exc:
-        await db.rollback()
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-
 class DeploymentBackupRequest(BaseModel):
     include_application_settings: bool = True
     include_provider_credentials: bool = True
@@ -273,5 +252,10 @@ async def export_deployment_backup(
     return Response(
         content=content,
         media_type="application/json",
-        headers={"Content-Disposition": "attachment; filename=application.json"},
+        headers={
+            "Content-Disposition": (
+                "attachment; filename="
+                f"archive-deployment-backup-{datetime.now(timezone.utc).strftime('%Y-%m-%dT%H-%M-%S')}.json"
+            )
+        },
     )
