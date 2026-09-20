@@ -16,6 +16,8 @@ class AppIntegrationSettings(Base):
     __tablename__ = "app_integration_settings"
 
     id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
+
+    # Metadata/media provider credentials.
     steamgriddb_api_key: Mapped[str | None] = mapped_column(Text, nullable=True)
     retroachievements_api_key: Mapped[str | None] = mapped_column(Text, nullable=True)
     giantbomb_api_key: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -28,20 +30,19 @@ class AppIntegrationSettings(Base):
     xbox_client_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     xbox_client_secret: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    # Application-wide runtime settings. These are intentionally persisted in
-    # PostgreSQL rather than requiring operators to edit .env for normal app
-    # configuration.
+    # Media providers.
+    tmdb_api_key: Mapped[str | None] = mapped_column(Text, nullable=True)
+    omdb_api_key: Mapped[str | None] = mapped_column(Text, nullable=True)
+    tvdb_api_key: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # Application-wide runtime settings.
     auth_cookie_secure: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     max_upload_size_mb: Mapped[int] = mapped_column(nullable=False, default=15)
     max_clip_size_mb: Mapped[int] = mapped_column(nullable=False, default=500)
     max_world_save_size_mb: Mapped[int] = mapped_column(nullable=False, default=2000)
-    runtime_settings_initialized: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, default=False
-    )
+    runtime_settings_initialized: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
-    # Optional deployment SMTP transport. Individual email capabilities are
-    # kept as explicit feature flags so more email features can be added
-    # without coupling them to SMTP transport configuration.
+    # Optional deployment SMTP transport.
     smtp_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     smtp_host: Mapped[str | None] = mapped_column(String(255), nullable=True)
     smtp_port: Mapped[int] = mapped_column(nullable=False, default=587)

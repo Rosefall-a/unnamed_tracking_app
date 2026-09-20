@@ -34,6 +34,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code into src/ subdirectory
 COPY src /app/src
+COPY tests /app/tests
+COPY pyproject.toml /app/pyproject.toml
 
 COPY alembic.ini /app/alembic.ini
 
@@ -44,7 +46,5 @@ RUN chmod +x entrypoint.sh
 # Expose port
 EXPOSE 8000
 
-# Start the application. entrypoint.sh applies Alembic migrations before
-# starting Uvicorn so a freshly built container cannot boot against a schema
-# that is missing columns from the application models.
+# On start: run pending migrations, then launch the app
 ENTRYPOINT ["./entrypoint.sh"]
