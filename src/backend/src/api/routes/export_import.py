@@ -229,6 +229,10 @@ async def import_deployment_backup(
 
 
 class DeploymentBackupRequest(BaseModel):
+    include_application_settings: bool = True
+    include_provider_credentials: bool = True
+    include_oidc_settings: bool = True
+    include_smtp_settings: bool = False
     include_users: bool = False
     include_sessions: bool = False
     full_installation: bool = False
@@ -253,6 +257,10 @@ async def export_deployment_backup(
             payload.password,
             include_users=include_users,
             include_sessions=include_sessions,
+            include_application_settings=payload.include_application_settings,
+            include_provider_credentials=payload.include_provider_credentials,
+            include_oidc_settings=payload.include_oidc_settings,
+            include_smtp_settings=payload.include_smtp_settings,
         )
         if payload.save_to_setup_path:
             target = application_backup_path()
