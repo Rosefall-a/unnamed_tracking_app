@@ -90,8 +90,8 @@ The default host is `db` and the default port is `5432`, which matches the Compo
 There are three supported first-run paths:
 
 1. **Environment bootstrap:** set `PRIMARY_USER_USERNAME`, `PRIMARY_USER_EMAIL`, and `PRIMARY_USER_PASSWORD`. All three must be present; the password must satisfy the normal password policy.
-2. **Encrypted deployment import:** put a password-protected deployment backup exported from **Settings → Export / Import** at `/data/application.json`, set `APPLICATION_JSON_PASSWORD` to its export password, and start the application. It is only consumed automatically when the database has no users.
-3. **Web setup:** leave the primary-user variables unset and open `/setup`. The first page accepts the same encrypted deployment backup and its password, then continues to administrator creation when the backup contains settings only.
+2. **Encrypted deployment import:** put a password-protected deployment backup exported from **Settings → Deployment backup** at `/data/application.json`, set `APPLICATION_JSON_PASSWORD` to its export password, and start the application. It is only consumed automatically when the database has no users.
+3. **Web setup:** leave the primary-user variables unset and open `/setup`. The first page provides an explicit import option for the same encrypted deployment backup, then continues to administrator creation when the backup contains settings only. Deployment backups cannot be imported from the normal Settings pages after setup.
 
 ### Deployment backup modes
 
@@ -99,13 +99,13 @@ There are three supported first-run paths:
 
 **Full installation** is an optional expanded export. It includes all user account records, their API keys, and optionally their existing browser sessions, in addition to the deployment settings. Password hashes are exported as hashes; application/provider secrets remain encrypted at rest. It is intended for quickly recreating or cloning an installation.
 
-The export page provides independent toggles for **Include users and their API keys** and **Include active sessions**. Sessions require users. The full-installation button enables both automatically.
+The deployment backup page provides independent toggles for **Include users and their API keys** and **Include active sessions**. Sessions require users. The full-installation button enables both automatically.
 
 Full-installation restore is intentionally a first-run operation: the setup importer rejects it once a user already exists. Existing session token hashes are restored, so browsers that still hold their original session cookies can continue using those sessions after a clone. The new browser used to perform setup will need to log in normally.
 
 ### Repeatable setup-path backups
 
-The export page can also save the encrypted backup directly inside the container. Set `APPLICATION_JSON_PATH` to choose the path; the default is:
+The deployment backup page can also save the encrypted backup directly inside the container. Set `APPLICATION_JSON_PATH` to choose the path; the default is:
 
 ```text
 /data/application.json
