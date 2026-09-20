@@ -258,7 +258,13 @@ async function onFileSelected(e: Event) {
   font-size: 0.9rem;
   color: #fff;
 }
-.backup-field { display: grid; gap: 6px; margin-bottom: 10px; color: #ccc; font-size: 0.78rem; font-weight: 600; }\n.backup-field input { background: #181818; border: 1px solid #333; border-radius: 7px; color: #fff; padding: 9px 10px; }\n.check-row { display: flex; gap: 8px; align-items: center; margin: 8px 0; color: #aaa; font-size: 0.78rem; }\n.check-row input { accent-color: #d68a34; }\n.setup-path-hint { margin-top: 12px; }\n.button-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }\n.tile-desc {
+.backup-field { display: grid; gap: 6px; margin-bottom: 10px; color: #ccc; font-size: 0.78rem; font-weight: 600; }
+.backup-field input { background: #181818; border: 1px solid #333; border-radius: 7px; color: #fff; padding: 9px 10px; }
+.check-row { display: flex; gap: 8px; align-items: center; margin: 8px 0; color: #aaa; font-size: 0.78rem; }
+.check-row input { accent-color: #d68a34; }
+.setup-path-hint { margin-top: 12px; }
+.button-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.tile-desc {
   color: #999;
   font-size: 0.8rem;
   line-height: 1.5;
