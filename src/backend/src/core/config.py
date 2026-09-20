@@ -35,6 +35,8 @@ class Settings(BaseSettings):
 
     AUTH_COOKIE_SECURE: bool = False
     DEBUG: bool = False
+    # Fernet key used to encrypt secrets at rest (e.g. PSN npsso token).
+    SECRET_KEY: str
     MAX_UPLOAD_SIZE_MB: int = 15
     MAX_CLIP_SIZE_MB: int = 500
     MAX_WORLD_SAVE_SIZE_MB: int = 2000
@@ -43,6 +45,15 @@ class Settings(BaseSettings):
     SCREENSCRAPER_DEVPASSWORD: str | None = None
     SCREENSCRAPER_SSID: str | None = None
     SCREENSCRAPER_SSPASSWORD: str | None = None
+
+    OIDC_ISSUER_URL: str | None = None
+    OIDC_CLIENT_ID: str | None = None
+    OIDC_CLIENT_SECRET: str | None = None
+    OIDC_REDIRECT_URI: str | None = None
+    OIDC_SCOPES: str = "openid profile email"
+    OIDC_GROUPS_CLAIM: str = "groups"
+    OIDC_ADMIN_GROUP: str | None = None
+    OIDC_USER_MATCH_FIELD: str = "email"
 
     OIDC_ISSUER_URL: str | None = None
     OIDC_CLIENT_ID: str | None = None

@@ -30,7 +30,6 @@ import HealthStatusSection from "../components/settings/HealthStatusSection.vue"
 
 const router = useRouter();
 const route = useRoute();
-
 function goBack() {
   if (window.history.length > 1) router.back();
   else router.push("/");
@@ -67,7 +66,6 @@ const groups = computed<SettingsGroup[]>(() => {
       ],
     },
   ];
-
   const systemSections = [
     ...(currentUser.value?.is_admin ? [{ id: "application", label: "Application" }] : []),
     ...(currentUser.value?.is_admin ? [{ id: "oidc", label: "OIDC / SSO" }] : []),
@@ -168,7 +166,6 @@ watch(activeSection, (section) => {
   border: 1px solid rgba(255, 255, 255, 0.14);
   background: rgba(20, 20, 20, 0.55);
   backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
   color: #fff;
   display: flex;
   align-items: center;

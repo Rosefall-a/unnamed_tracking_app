@@ -46,7 +46,6 @@ class User(Base):
     retroachievements_avatar_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     psn_online_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     psn_avatar_url: Mapped[str | None] = mapped_column(Text, nullable=True)
-
     created_at: Mapped[int] = mapped_column(BigInteger, nullable=False, default=time.time)
     updated_at: Mapped[int] = mapped_column(
         BigInteger, nullable=False, default=time.time, onupdate=time.time

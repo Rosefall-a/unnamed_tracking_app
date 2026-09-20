@@ -28,6 +28,7 @@ _SCRYPT_P: Final = 1
 # as the cookie namespace. This remains stable across restarts.
 COOKIE_NAMESPACE: Final = hashlib.sha256(settings.SECRET_KEY.encode("utf-8")).hexdigest()[:16]
 SESSION_COOKIE: Final = f"session_{COOKIE_NAMESPACE}"
+SESSION_TTL_SECONDS: Final = 30 * 24 * 60 * 60
 API_KEY_PREFIX: Final = "utk_"
 
 

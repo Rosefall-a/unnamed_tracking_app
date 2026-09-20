@@ -2,7 +2,11 @@
 import { onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { login } from "../services/auth";
-import { oidcLoginStatus, startOidcLogin, type OidcLoginProvider } from "../services/oidc";
+import {
+  oidcLoginStatus,
+  startOidcLogin,
+  type OidcLoginProvider,
+} from "../services/oidc";
 import { checkAuth } from "../state/auth";
 
 const route = useRoute();

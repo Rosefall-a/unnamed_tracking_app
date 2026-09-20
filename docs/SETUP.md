@@ -22,6 +22,23 @@ POSTGRES_DB=archive
 
 # Optional: replace the POSTGRES_* connection settings with one complete URL.
 # DATABASE_URL=postgresql+psycopg://user:password@db.example.com:5432/archive
+
+# Local HTTP development only. Set true when the app is served over HTTPS.
+AUTH_COOKIE_SECURE=false
+
+# Optional first-admin bootstrap. If all three are set, the server creates this administrator automatically.
+# If they are omitted, the normal web setup remains available at /setup.
+# PRIMARY_USER_USERNAME=admin
+# PRIMARY_USER_EMAIL=admin@example.com
+# PRIMARY_USER_PASSWORD=Change-this-during-setup
+
+# Optional encrypted deployment-settings bootstrap.
+# Put the password-protected JSON exported from Settings -> Backup at
+# /data/application.json (or set APPLICATION_JSON_PATH) and provide the export
+# password. It is only auto-imported when the database has no users.
+# APPLICATION_JSON_PASSWORD=your-settings-export-password
+# APPLICATION_JSON_PATH=/data/application.json
+
 ```
 
 That is normally all the environment configuration required. `POSTGRES_HOST` defaults to `db` and `POSTGRES_PORT` defaults to `5432`.
@@ -34,6 +51,7 @@ If `DATABASE_URL` is supplied, it wins over the individual `POSTGRES_*` values. 
 
 ```text
 /data/config/fernet.key
+
 ```
 
 After that, the persisted key is authoritative and the `SECRET_KEY` environment variable can be removed. This is important: do not delete the persistent application data volume when removing the old variable.
@@ -53,11 +71,12 @@ The repository's `compose.yaml` uses the backend image with the generated-key da
 ```bash
 cp example.env .env
 docker compose up --build
+
 ```
 
 The backend applies pending Alembic migrations with `alembic upgrade heads` before starting Uvicorn. A fresh database therefore has its schema before the setup endpoint is used.
 
-Open `http://localhost:5173`. The frontend checks `/api/setup/status`; when there are no users it sends you to `/setup`, where you create the first administrator.
+Open `http://localhost:5173`. The frontend checks `/api/setup/status`; when there are no users it sends you to `/setup`, where you create the first administrator. If the backend is unreachable, the frontend stays on the setup/unavailable screen rather than incorrectly sending a fresh installation to `/login`.
 
 If `PRIMARY_USER_USERNAME`, `PRIMARY_USER_EMAIL`, and `PRIMARY_USER_PASSWORD` are all supplied, the backend uses them to create the first administrator automatically. If any of them are missing, startup continues normally and the `/setup` page remains available for manual setup.
 
@@ -69,18 +88,21 @@ The backend accepts either:
 POSTGRES_USER=archive
 POSTGRES_PASSWORD=change-this-database-password
 POSTGRES_DB=archive
+
 ```
 
 or a complete URL:
 
 ```dotenv
 DATABASE_URL=postgresql+psycopg://archive:password@db.example.com:5432/archive
+
 ```
 
 When using the individual settings, the effective URL is:
 
 ```text
 postgresql+psycopg://POSTGRES_USER:POSTGRES_PASSWORD@POSTGRES_HOST:POSTGRES_PORT/POSTGRES_DB
+
 ```
 
 The default host is `db` and the default port is `5432`, which matches the Compose service. You only need `POSTGRES_HOST` or `POSTGRES_PORT` when your database is somewhere else.
@@ -109,21 +131,21 @@ The deployment backup page can also save the encrypted backup directly inside th
 
 ```text
 /data/application.json
+
 ```
 
 Enable **Also save to the configured setup path** when exporting. This makes a deployment easy to reset and test repeatedly: keep the JSON on the persistent data volume, clear/recreate the database, start the application, and the empty installation can consume the saved backup automatically.
 
 The setup path contains the encrypted backup only. Keep its password separately; without the password the JSON cannot be imported.
 
-
 ## 5. Application Settings
 
 Administrators can open **Settings → Application** and configure:
 
-- **Secure authentication cookies** — enable when the browser-facing application is served over HTTPS. Restart after changing this setting.
-- **Maximum upload size** — standard image/file uploads.
-- **Maximum clip size** — video clips and soundtrack uploads.
-- **Maximum world/modpack size** — world saves and modpack archives.
+* **Secure authentication cookies** — enable when the browser-facing application is served over HTTPS. Restart after changing this setting.
+* **Maximum upload size** — standard image/file uploads.
+* **Maximum clip size** — video clips and soundtrack uploads.
+* **Maximum world/modpack size** — world saves and modpack archives.
 
 The upload-size values are applied to the running backend immediately. Secure-cookie middleware is initialized when the process starts, so restart after changing that option.
 
@@ -135,12 +157,12 @@ Open **Settings → Server Integrations** as an administrator.
 
 The deployment-wide provider settings include:
 
-- SteamGridDB
-- RetroAchievements
-- Giant Bomb
-- IGDB
-- ScreenScraper
-- Xbox
+* SteamGridDB
+* RetroAchievements
+* Giant Bomb
+* IGDB
+* ScreenScraper
+* Xbox
 
 ScreenScraper has two parts: its developer credentials (`devid`/`devpassword`) are deployment-wide, while a user's ScreenScraper account (`ssid`/`sspassword`) can be supplied per user or as a deployment-wide fallback. The ScreenScraper developer credentials are therefore stored in the same Server Integrations section rather than being required in `.env`.
 
@@ -156,9 +178,10 @@ The redirect URI should be the browser-facing frontend URL, for example:
 
 ```text
 http://localhost:5173/api/auth/oidc/callback
+
 ```
 
-Register that exact URI with the identity provider. Client secrets remain backend-only and are encrypted at rest.
+Register that exact URI with the identity provider. Client secrets remain backend-only and are encrypted at rest. The OIDC flow requires a verified email claim. Existing users are matched by OIDC subject first and verified email second; new OIDC users are created as non-admin users.
 
 ## 8. SMTP / password reset
 
@@ -172,6 +195,7 @@ Build it from the repository root:
 
 ```bash
 docker build -f src/central/Dockerfile -t unnamed-tracking-app-central:local .
+
 ```
 
 ### Combined central deployment
@@ -181,6 +205,7 @@ Copy the central example environment file to the repository root as `.env`, then
 ```bash
 cp src/central/example.env .env
 docker compose -f src/central/docker-compose.yaml up --build
+
 ```
 
 The central container defaults to `APP_MODE=both`, exposing the frontend on `5173` and backend on `8000`. In combined mode the frontend proxy automatically uses `http://127.0.0.1:8000`.
@@ -191,6 +216,7 @@ The same central image can also run as two services:
 
 ```bash
 docker compose -f src/central/docker-compose.separate.yaml up --build
+
 ```
 
 The backend runs with `APP_MODE=backend`; the frontend runs with `APP_MODE=frontend` and proxies to `http://backend:8000`.
@@ -209,30 +235,16 @@ The application data directory should remain persistent across container recreat
     fernet.key
   users/
   ...application data...
+
 ```
 
 PostgreSQL has its own persistent volume. The Fernet key and PostgreSQL data must both survive restarts/redeployments or encrypted provider credentials and user data will no longer be available.
 
 ## 11. Security notes
 
-- Keep `.env` out of source control.
-- Do not expose PostgreSQL publicly.
-- Put the browser-facing application behind HTTPS in production and enable secure authentication cookies.
-- Do not delete `/data/config/fernet.key` unless you are deliberately discarding encrypted application secrets and understand the consequences.
-- Do not generate a new Fernet key on every container start.
-- Provider/OIDC/SMTP secrets should normally be entered through Settings rather than copied into deployment files.
-
-
-# Optional first-admin bootstrap. If all three are set, the server creates this administrator automatically. If they are omitted, the normal web setup remains available at /setup.
-```
-# PRIMARY_USER_USERNAME=admin
-# PRIMARY_USER_EMAIL=admin@example.com
-# PRIMARY_USER_PASSWORD=Change-this-during-setup
-
-# Optional encrypted deployment-settings bootstrap.
-# Put the password-protected JSON exported from Settings -> Backup at
-# /data/application.json (or set APPLICATION_JSON_PATH) and provide the export
-# password. It is only auto-imported when the database has no users.
-# APPLICATION_JSON_PASSWORD=your-settings-export-password
-# APPLICATION_JSON_PATH=/data/application.json
-```
+* Keep `.env` out of source control.
+* Do not expose PostgreSQL publicly.
+* Put the browser-facing application behind HTTPS in production and enable secure authentication cookies.
+* Do not delete `/data/config/fernet.key` unless you are deliberately discarding encrypted application secrets and understand the consequences.
+* Do not generate a new Fernet key on every container start.
+* Provider/OIDC/SMTP secrets should normally be entered through Settings rather than copied into deployment files.
