@@ -8,6 +8,17 @@ import CardCollection from "../views/CardCollection.vue";
 import CardDetail from "../views/CardDetail.vue";
 import SetList from "../views/SetList.vue";
 import SetDetail from "../views/SetDetail.vue";
+import MovieLibrary from "../views/MovieLibrary.vue";
+import MovieDetail from "../views/MovieDetail.vue";
+import TVShowLibrary from "../views/TVShowLibrary.vue";
+import TVShowDetail from "../views/TVShowDetail.vue";
+import AnimeLibrary from "../views/AnimeLibrary.vue";
+import AnimeDetail from "../views/AnimeDetail.vue";
+import Calendar from "../views/Calendar.vue";
+import Statistics from "../views/Statistics.vue";
+import Notifications from "../views/Notifications.vue";
+import MediaLists from "../views/MediaLists.vue";
+import MediaListDetail from "../views/MediaListDetail.vue";
 import Inbox from "../views/Inbox.vue";
 import Bounties from "../views/Bounties.vue";
 import AchievementDetail from "../views/AchievementDetail.vue";
@@ -43,6 +54,18 @@ const router = createRouter({
     { path: "/cards/:cardId", name: "card-detail", component: CardDetail },
     { path: "/sets", name: "set-list", component: SetList },
     { path: "/sets/:id", name: "set-detail", component: SetDetail },
+    { path: "/movies", name: "movie-library", component: MovieLibrary },
+    { path: "/movies/:id", name: "movie-detail", component: MovieDetail },
+    { path: "/tv", name: "tv-show-library", component: TVShowLibrary },
+    { path: "/tv/:id", name: "tv-show-detail", component: TVShowDetail },
+    { path: "/anime", name: "anime-library", component: AnimeLibrary },
+    { path: "/anime/:id", name: "anime-detail", component: AnimeDetail },
+    { path: "/calendar", name: "calendar", component: Calendar },
+    { path: "/statistics", name: "statistics", component: Statistics },
+    { path: "/notifications", name: "notifications", component: Notifications },
+    { path: "/lists", name: "media-lists", component: MediaLists },
+    { path: "/lists/:id", name: "media-list-detail", component: MediaListDetail },
+    { path: "/history", redirect: "/calendar" },
     { path: "/login", name: "login", component: Login },
     { path: "/login/local", name: "login-local", component: Login },
     { path: "/login/oidcstart", name: "oidc-start", component: OidcStart },
@@ -51,7 +74,7 @@ const router = createRouter({
     { path: "/reset-password", name: "password-reset", component: PasswordReset },
     { path: "/invite", name: "invite-accept", component: InviteAccept },
     { path: "/setup", name: "setup", component: Setup },
-    { path: "/profile", redirect: "/settings?section=profile" },
+    { path: "/profile", redirect: "/settings" },
     { path: "/settings", name: "settings", component: Settings },
     { path: "/games/:gameId/achievements/:achievementId", name: "achievement-detail", component: AchievementDetail },
   ],
@@ -76,16 +99,11 @@ router.beforeEach(async (to, from) => {
     return { path: "/settings", query: { section: "sources" } };
   }
 
-  // Setup has exactly one route and is never authenticated. The only gate is
-  // the public server setup-status endpoint. This prevents /api/auth/me (and
-  // its expected 401 on a fresh installation) from participating in setup.
   if (to.path === "/setup") {
     const state = await refreshSetupState();
     return state === "required" ? undefined : "/login";
   }
 
-  // Login, password reset, and invitation acceptance are public. Invitation
-  // acceptance creates the account only after the invite token is verified.
   if (
     to.path === "/login" ||
     to.path.startsWith("/login/") ||

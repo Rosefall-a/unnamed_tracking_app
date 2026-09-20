@@ -558,7 +558,7 @@ const rarities: CardRarity[] = [
                     <div class="bc-stat-grid">
                       <div class="bc-stat">
                         <span class="lbl">Set</span
-                        ><span class="val">{{ setPositionLabel || "—" }}</span>
+                        ><span class="val">{{ setPositionLabel || "–" }}</span>
                       </div>
                       <div class="bc-stat">
                         <span class="lbl">Platform</span
@@ -566,11 +566,11 @@ const rarities: CardRarity[] = [
                       </div>
                       <div class="bc-stat">
                         <span class="lbl">Completed</span
-                        ><span class="val">{{ completionYear || "—" }}</span>
+                        ><span class="val">{{ completionYear || "–" }}</span>
                       </div>
                       <div class="bc-stat">
                         <span class="lbl">Playtime</span
-                        ><span class="val">{{ playtimeLabel || "—" }}</span>
+                        ><span class="val">{{ playtimeLabel || "–" }}</span>
                       </div>
                     </div>
                     <div class="bc-pills">
@@ -836,7 +836,7 @@ const rarities: CardRarity[] = [
                 <label>Prestige</label>
                 <div class="field-hint">
                   Earn every achievement in {{ game?.title }} to unlock a
-                  prestige challenge. There's nothing to pick here — the system
+                  prestige challenge. There's nothing to pick here. The system
                   generates the challenge itself once you're at 100%.
                 </div>
               </div>
@@ -846,7 +846,7 @@ const rarities: CardRarity[] = [
                 <label>Prestige</label>
                 <div class="field-hint">
                   100% complete. Generate the one prestige challenge for this
-                  card — a real goal built from {{ game?.title }}'s own data,
+                  card, a real goal built from {{ game?.title }}'s own data,
                   tracked and verified through Bounties.
                 </div>
                 <button

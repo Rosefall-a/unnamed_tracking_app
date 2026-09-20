@@ -1,0 +1,291 @@
+/* Shared look for the Media area, Calendar, Statistics and Notifications.
+   One set of tokens and a few utility classes (all prefixed `ui-`, so they
+   can never collide with the Games pages' own class names), so buttons,
+   fields, chips, page titles, dialogs and messages are the same size,
+   weight and color everywhere instead of being redefined page by page. */
+
+:root {
+  /* surfaces */
+  --ui-bg: #0d0d0d;
+  --ui-surface: #1a1a1a;
+  --ui-surface-2: #222222;
+  --ui-popover: #171717;
+  --ui-border-soft: #202020;
+  --ui-border: #2b2b2b;
+  /* color */
+  --ui-accent: #d68a34;
+  --ui-accent-soft: rgba(214, 138, 52, 0.16);
+  --ui-accent-line: rgba(214, 138, 52, 0.4);
+  --ui-on-accent: #14100a;
+  --ui-danger: #dc2626;
+  --ui-error: #e57373;
+  --ui-good: #6fbf73;
+  /* text: two tiers of muted */
+  --ui-text: #f2f2f2;
+  --ui-dim: #9c9c9c;
+  --ui-faint: #666666;
+  /* shape */
+  --ui-radius-control: 8px;
+  --ui-radius-row: 10px;
+  --ui-radius-card: 12px;
+  --ui-radius-dialog: 14px;
+  /* page gutters */
+  --ui-edge-left: 24px;
+  --ui-edge-right: 24px;
+  /* stacking */
+  --ui-z-drawer: 150;
+  --ui-z-modal: 300;
+  --ui-z-popover: 350;
+  --ui-z-dialog: 400;
+}
+
+/* ---- page shell ---- */
+.ui-page {
+  position: relative;
+  min-height: 100vh;
+  background: var(--ui-bg);
+  color: var(--ui-text);
+  font-family: system-ui, sans-serif;
+}
+.ui-content {
+  padding: 24px var(--ui-edge-right) 60px var(--ui-edge-left);
+  box-sizing: border-box;
+}
+/* narrow reading pages stay centered in the window */
+.ui-content.narrow {
+  max-width: calc(860px + var(--ui-edge-left) + var(--ui-edge-right));
+  margin: 0 auto;
+}
+.ui-content.medium {
+  max-width: calc(1100px + var(--ui-edge-left) + var(--ui-edge-right));
+  margin: 0 auto;
+}
+.ui-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+.ui-head h1 {
+  margin: 0;
+  font-size: 1.7rem;
+  font-weight: 800;
+}
+.ui-head .sub {
+  margin-top: 4px;
+  color: var(--ui-faint);
+  font-size: 0.85rem;
+}
+@media (max-width: 720px) {
+  :root {
+    --ui-edge-left: 16px;
+    --ui-edge-right: 16px;
+  }
+}
+
+/* ---- buttons: 38px standard, 30px small ---- */
+.ui-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  box-sizing: border-box;
+  height: 38px;
+  padding: 0 18px;
+  border: none;
+  border-radius: var(--ui-radius-control);
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease,
+    filter 0.15s ease;
+}
+.ui-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.ui-btn-sm {
+  height: 30px;
+  padding: 0 12px;
+  font-size: 0.8rem;
+}
+.ui-btn-primary {
+  background: var(--ui-accent);
+  color: var(--ui-on-accent);
+}
+.ui-btn-primary:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+.ui-btn-secondary {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+.ui-btn-secondary:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.13);
+}
+.ui-btn-secondary.on {
+  background: rgba(214, 138, 52, 0.22);
+  color: var(--ui-accent);
+}
+.ui-btn-danger {
+  background: var(--ui-danger);
+  color: #fff;
+}
+.ui-btn-danger:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+/* a quieter destructive action (Remove, Delete in a menu) */
+.ui-btn-danger-soft {
+  background: rgba(217, 111, 111, 0.12);
+  color: #d96f6f;
+}
+.ui-btn-danger-soft:hover:not(:disabled) {
+  background: rgba(217, 111, 111, 0.2);
+}
+.ui-btn-ghost {
+  background: none;
+  border: 1px solid var(--ui-border);
+  color: var(--ui-dim);
+}
+.ui-btn-ghost:hover:not(:disabled) {
+  border-color: #3a3a3a;
+  color: #ccc;
+}
+
+/* ---- fields: 38px ---- */
+.ui-field {
+  box-sizing: border-box;
+  height: 38px;
+  padding: 0 12px;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
+  color: var(--ui-text);
+  font: inherit;
+  font-size: 0.85rem;
+  transition: border-color 0.15s ease;
+}
+.ui-field::placeholder {
+  color: var(--ui-faint);
+}
+.ui-field:hover {
+  border-color: #3a3a3a;
+}
+.ui-field:focus {
+  outline: none;
+  border-color: var(--ui-accent);
+}
+select.ui-field {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 34px;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' stroke='%23999' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+}
+textarea.ui-field {
+  height: auto;
+  padding: 9px 12px;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+/* ---- filter chips: 28px ---- */
+.ui-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  box-sizing: border-box;
+  height: 28px;
+  padding: 0 12px;
+  border: 1px solid var(--ui-border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ui-faint);
+  font-family: inherit;
+  font-size: 0.76rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+.ui-chip:hover {
+  color: #ccc;
+}
+.ui-chip.on {
+  background: var(--ui-accent);
+  border-color: var(--ui-accent);
+  color: var(--ui-on-accent);
+}
+.ui-chip .n {
+  font-size: 0.68rem;
+  opacity: 0.7;
+}
+
+/* ---- messages ---- */
+.ui-state {
+  margin: 0;
+  padding: 16px 0;
+  color: var(--ui-dim);
+  font-size: 0.9rem;
+}
+.ui-state.error,
+.ui-error {
+  color: var(--ui-error);
+}
+.ui-error-box {
+  color: var(--ui-error);
+  font-size: 0.82rem;
+  background: rgba(220, 38, 38, 0.1);
+  border: 1px solid rgba(220, 38, 38, 0.3);
+  border-radius: var(--ui-radius-control);
+  padding: 8px 12px;
+  margin: 0 0 12px;
+}
+
+/* ---- dialogs and modals: one shape ---- */
+.ui-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--ui-z-modal);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.6);
+}
+.ui-modal {
+  width: 100%;
+  max-width: 440px;
+  max-height: 88vh;
+  overflow-y: auto;
+  box-sizing: border-box;
+  padding: 22px;
+  background: var(--ui-popover);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-dialog);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+  color: var(--ui-text);
+  font-family: system-ui, sans-serif;
+}
+.ui-modal h3 {
+  margin: 0 0 8px;
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+.ui-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 6px;
+}
