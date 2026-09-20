@@ -63,13 +63,54 @@ export async function createInitialAdmin(
 }
 
 
-export async function importApplicationSettings(
-  file: File,
+export interface ApplicationBackupPreview {
+  options: Record<string, boolean>;
+  has_users: boolean;
+  has_sessions: boolean;
+  oidc: Record<string, unknown>;
+  smtp: Record<string, unknown>;
+}
+
+export async function fetchApplicationBackupStatus(): Promise<{ available: boolean }> {
+  const response = await fetch("/api/setup/application-backup", { credentials: "include" });
+  if (!response.ok) throw new Error(`Failed to check for application.json: ${response.status}`);
+  return await response.json();
+}
+
+export async function previewApplicationSettings(
+  file: File | null,
   password: string,
-): Promise<{ users?: boolean; sessions?: boolean }> {
+): Promise<ApplicationBackupPreview> {
   const form = new FormData();
-  form.append("application_file", file);
+  if (file) form.append("application_file", file);
   form.append("password", password);
+  const response = await fetch("/api/setup/application-backup/preview", {
+    method: "POST",
+    credentials: "include",
+    body: form,
+  });
+  if (!response.ok) {
+    const body = await response.text();
+    let message = `Application settings import failed: ${response.status}`;
+    try {
+      const parsed = JSON.parse(body) as { detail?: string };
+      if (parsed.detail) message = parsed.detail;
+    } catch {
+      if (body) message = `${message} ${body}`;
+    }
+    throw new Error(message);
+  }
+  return (await response.json()) as ApplicationBackupPreview;
+}
+
+export async function importApplicationSettings(
+  file: File | null,
+  password: string,
+): Promise<{ users?: boolean; sessions?: boolean; authenticated?: boolean }> {
+  const form = new FormData();
+  if (file) form.append("application_file", file);
+  form.append("password", password);
+  form.append("mode", "accept");
   const response = await fetch("/api/setup/import-application", {
     method: "POST",
     credentials: "include",
@@ -86,5 +127,5 @@ export async function importApplicationSettings(
     }
     throw new Error(message);
   }
-  return (await response.json()) as { users?: boolean; sessions?: boolean };
+  return (await response.json()) as { users?: boolean; sessions?: boolean; authenticated?: boolean };
 }
