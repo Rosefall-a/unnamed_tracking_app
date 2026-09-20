@@ -204,12 +204,12 @@ async def restore_application_backup(
             if value is None and not column.nullable:
                 continue
             if field == "client_secret":
-                    value = (
-                        str(value)
-                        if encrypted_secrets
-                        else (encrypt_secret(str(value)) if value else None)
-                    )
-                elif field == "providers_json" and value:
+                value = (
+                    str(value)
+                    if encrypted_secrets
+                    else (encrypt_secret(str(value)) if value else None)
+                )
+            elif field == "providers_json" and value:
                     try:
                         providers = json.loads(str(value))
                     except (TypeError, ValueError) as exc:
