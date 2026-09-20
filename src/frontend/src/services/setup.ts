@@ -85,7 +85,6 @@ export async function importApplicationSettings(
       if (body) message = `${message} ${body}`;
     }
     throw new Error(message);
-    throw new Error(message);
   }
   return (await response.json()) as { users?: boolean; sessions?: boolean };
 }
