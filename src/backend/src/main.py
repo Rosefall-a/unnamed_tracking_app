@@ -30,6 +30,7 @@ from src.core.data_paths import ensure_data_directories
 from src.core.provider_credentials import apply_deployment_provider_credentials
 from src.core.runtime_settings import apply_runtime_settings
 from src.database.models.oidc_settings import OidcSettings
+from src.database.models.user import User
 from src.database.session import SessionLocal
 from src.features.auth.cleanup import cleanup_expired_authentication_records
 from src.features.backup.scheduler import run_backup_loop
