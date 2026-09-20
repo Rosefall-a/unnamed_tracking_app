@@ -12,9 +12,12 @@ import AppDialog from "./components/AppDialog.vue";
 import { authChecked, currentUser } from "./state/auth";
 import { loadSharedPreferences } from "./state/preferences";
 import { serverStartupPhase } from "./state/serverStartup";
+import { useConfirm } from "./state/dialog";
 
 const route = useRoute();
 const navigating = ref(false);
+const confirm = useConfirm();
+let restoreNoticeChecked = false;
 
 router.beforeEach(() => {
   navigating.value = true;
@@ -74,7 +77,29 @@ const startupStep = computed(() => {
 watch(
   () => currentUser.value?.id,
   (id) => {
-    if (id) void loadSharedPreferences();
+    if (!id) return;
+    void loadSharedPreferences();
+    if (restoreNoticeChecked) return;
+    restoreNoticeChecked = true;
+    void (async () => {
+      try {
+        const response = await fetch("/api/setup/restoration-notice", {
+          credentials: "include",
+        });
+        if (!response.ok) return;
+        const result = (await response.json()) as { restored?: boolean };
+        if (result.restored) {
+          await confirm({
+            title: "Application restored",
+            message: "Your application has been restored from a preconfigured backup. All backed-up deployment settings have been configured successfully.",
+            confirmLabel: "Continue",
+            cancelLabel: "Close",
+          });
+        }
+      } catch {
+        // The restore notice is informational; never block application startup.
+      }
+    })();
   },
   { immediate: true },
 );
