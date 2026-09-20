@@ -123,9 +123,7 @@ async def restoration_notice(
     """Return whether this administrator has acknowledged the latest restore."""
     settings_row = await db.scalar(select(AppIntegrationSettings).limit(1))
     restore_at = int(settings_row.restore_notice_at) if settings_row else 0
-    preferences = await db.scalar(
-        select(UserPreferences).where(UserPreferences.user_id == user.id)
-    )
+    preferences = await db.scalar(select(UserPreferences).where(UserPreferences.user_id == user.id))
     acknowledged_at = 0
     if preferences and isinstance(preferences.data, dict):
         acknowledged_at = int(
@@ -144,9 +142,7 @@ async def acknowledge_restoration_notice(
     restore_at = int(settings_row.restore_notice_at) if settings_row else 0
     if restore_at <= 0:
         return
-    preferences = await db.scalar(
-        select(UserPreferences).where(UserPreferences.user_id == user.id)
-    )
+    preferences = await db.scalar(select(UserPreferences).where(UserPreferences.user_id == user.id))
     if preferences is None:
         preferences = UserPreferences(user_id=user.id, data={})
         db.add(preferences)
