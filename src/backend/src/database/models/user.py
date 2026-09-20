@@ -39,7 +39,9 @@ class User(Base):
     steam_api_key: Mapped[str | None] = mapped_column(String(64), nullable=True)
     retroachievements_username: Mapped[str | None] = mapped_column(String(64), nullable=True)
     steam_library_synced_at: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
-    retroachievements_library_synced_at: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    retroachievements_library_synced_at: Mapped[int | None] = mapped_column(
+        BigInteger, nullable=True
+    )
     psn_library_synced_at: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     steam_persona_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
     steam_avatar_url: Mapped[str | None] = mapped_column(Text, nullable=True)

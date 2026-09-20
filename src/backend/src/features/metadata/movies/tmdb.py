@@ -129,7 +129,9 @@ class TMDBClient:
                     "name": s.get("name"),
                     "episode_count": s.get("episode_count"),
                     "air_date": s.get("air_date") or None,
-                    "poster_url": f"{_POSTER_BASE}{s['poster_path']}" if s.get("poster_path") else None,
+                    "poster_url": f"{_POSTER_BASE}{s['poster_path']}"
+                    if s.get("poster_path")
+                    else None,
                 }
                 for s in details.get("seasons", [])
                 if s.get("season_number") is not None and s.get("season_number") > 0

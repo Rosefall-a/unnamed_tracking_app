@@ -87,7 +87,9 @@ async def _get_show_or_404(
         stmt = stmt.where(TVShow.deleted_at.is_(None))
     show = await db.scalar(stmt)
     if show is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Show {show_id} not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"Show {show_id} not found"
+        )
     return show
 
 
@@ -96,7 +98,9 @@ async def _get_season_or_404(season_id: UUID, show_id: UUID, db: AsyncSession) -
         select(TVSeason).where(TVSeason.id == season_id, TVSeason.show_id == show_id)
     )
     if season is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Season {season_id} not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"Season {season_id} not found"
+        )
     return season
 
 
@@ -248,8 +252,13 @@ async def update_show(
         change = status_change_detail(previous_status, show.status)
         if change:
             await log_activity(
-                db, current_user.id, "tv", show.id, show.title,
-                ActivityEventType.STATUS_CHANGED, date.today(),
+                db,
+                current_user.id,
+                "tv",
+                show.id,
+                show.title,
+                ActivityEventType.STATUS_CHANGED,
+                date.today(),
                 detail=change,
             )
 
@@ -371,7 +380,9 @@ async def _get_episode_or_404(episode_id: UUID, season_id: UUID, db: AsyncSessio
         select(TVEpisode).where(TVEpisode.id == episode_id, TVEpisode.season_id == season_id)
     )
     if episode is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Episode {episode_id} not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"Episode {episode_id} not found"
+        )
     return episode
 
 
@@ -391,9 +402,7 @@ async def list_episodes(
     season = await _get_season_or_404(season_id, show_id, db)
 
     if not season.episodes and show.external_id:
-        all_episodes, errors = await fetch_season_episodes(
-            show.external_id, season.season_number
-        )
+        all_episodes, errors = await fetch_season_episodes(show.external_id, season.season_number)
         if not all_episodes and errors:
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
@@ -441,8 +450,14 @@ async def bulk_set_episodes_watched(
             episode.watched = payload.watched
     if newly_watched:
         await log_activity(
-            db, current_user.id, "tv", show.id, show.title,
-            ActivityEventType.EPISODES_WATCHED, date.today(), increment=newly_watched,
+            db,
+            current_user.id,
+            "tv",
+            show.id,
+            show.title,
+            ActivityEventType.EPISODES_WATCHED,
+            date.today(),
+            increment=newly_watched,
         )
     await db.commit()
     return await _get_show_or_404(show_id, db, current_user.id)
@@ -468,8 +483,13 @@ async def update_episode(
 
     if newly_watched:
         await log_activity(
-            db, current_user.id, "tv", show.id, show.title,
-            ActivityEventType.EPISODES_WATCHED, date.today(),
+            db,
+            current_user.id,
+            "tv",
+            show.id,
+            show.title,
+            ActivityEventType.EPISODES_WATCHED,
+            date.today(),
         )
 
     await db.commit()
@@ -492,9 +512,7 @@ async def get_show_relations(
         return {"listName": None, "related": [], "configured": False}
     tvdb_api_key = decrypt_secret(app_integrations.tvdb_api_key)
     try:
-        result = await asyncio.to_thread(
-            lambda: TVDBClient(tvdb_api_key).relations(show.title)
-        )
+        result = await asyncio.to_thread(lambda: TVDBClient(tvdb_api_key).relations(show.title))
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY, detail=f"TheTVDB could not be reached: {exc}"

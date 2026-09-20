@@ -9,10 +9,31 @@ from sqlalchemy import select
 from starlette.middleware.sessions import SessionMiddleware
 
 from src.api.routes import (
-    admin_backup, anime, app_integrations, api_keys, auth, bounties, cards,
-    calendar_feed, default_game_assets, export_import, game_archives, games,
-    invitations, library_sync, media, media_extras, media_lists, media_stats,
-    movies, notifications, preferences, settings, stats, tv_shows, users,
+    admin_backup,
+    anime,
+    app_integrations,
+    api_keys,
+    auth,
+    bounties,
+    cards,
+    calendar_feed,
+    default_game_assets,
+    export_import,
+    game_archives,
+    games,
+    invitations,
+    library_sync,
+    media,
+    media_extras,
+    media_lists,
+    media_stats,
+    movies,
+    notifications,
+    preferences,
+    settings,
+    stats,
+    tv_shows,
+    users,
 )
 from src.api.routes import set as set_routes
 from src.api.routes.auth_oidc import router as auth_oidc_router
@@ -54,8 +75,11 @@ app.add_middleware(
 
 def _safe_validation_errors(exc: RequestValidationError) -> list[dict[str, object]]:
     return [
-        {"type": error.get("type", "value_error"), "loc": error.get("loc", []),
-         "msg": error.get("msg", "Invalid request.")}
+        {
+            "type": error.get("type", "value_error"),
+            "loc": error.get("loc", []),
+            "msg": error.get("msg", "Invalid request."),
+        }
         for error in exc.errors()
     ]
 
@@ -76,12 +100,18 @@ def _provider_identity(issuer: str, fallback_name: str = "OIDC") -> tuple[str, s
 
 
 def _legacy_oidc_provider_from_env() -> dict[str, object] | None:
-    if not (app_settings.OIDC_ISSUER_URL and app_settings.OIDC_CLIENT_ID and app_settings.OIDC_CLIENT_SECRET):
+    if not (
+        app_settings.OIDC_ISSUER_URL
+        and app_settings.OIDC_CLIENT_ID
+        and app_settings.OIDC_CLIENT_SECRET
+    ):
         return None
     issuer = app_settings.OIDC_ISSUER_URL.strip()
     name, slug = _provider_identity(issuer)
     return {
-        "name": name, "slug": slug, "issuer_url": issuer,
+        "name": name,
+        "slug": slug,
+        "issuer_url": issuer,
         "client_id": app_settings.OIDC_CLIENT_ID,
         "client_secret": encrypt_secret(app_settings.OIDC_CLIENT_SECRET),
         "scopes": app_settings.OIDC_SCOPES or "openid profile email",
@@ -89,8 +119,11 @@ def _legacy_oidc_provider_from_env() -> dict[str, object] | None:
         "groups_claim": app_settings.OIDC_GROUPS_CLAIM or "groups",
         "admin_group": app_settings.OIDC_ADMIN_GROUP,
         "user_match_field": getattr(app_settings, "OIDC_USER_MATCH_FIELD", "email"),
-        "allow_new_users": True, "button_text": "Continue with SSO",
-        "button_image_url": None, "enabled": True, "show_on_login": True,
+        "allow_new_users": True,
+        "button_text": "Continue with SSO",
+        "button_image_url": None,
+        "enabled": True,
+        "show_on_login": True,
     }
 
 
@@ -100,14 +133,21 @@ def _legacy_oidc_provider_from_row(row: OidcSettings) -> dict[str, object] | Non
     issuer = row.issuer_url.strip()
     name, slug = _provider_identity(issuer)
     return {
-        "name": name, "slug": slug, "issuer_url": issuer,
-        "client_id": row.client_id, "client_secret": row.client_secret,
-        "scopes": row.scopes or "openid profile email", "redirect_uri": row.redirect_uri,
-        "groups_claim": row.groups_claim or "groups", "admin_group": row.admin_group,
+        "name": name,
+        "slug": slug,
+        "issuer_url": issuer,
+        "client_id": row.client_id,
+        "client_secret": row.client_secret,
+        "scopes": row.scopes or "openid profile email",
+        "redirect_uri": row.redirect_uri,
+        "groups_claim": row.groups_claim or "groups",
+        "admin_group": row.admin_group,
         "user_match_field": row.user_match_field or "email",
         "allow_new_users": row.allow_new_users,
         "button_text": row.login_button_text.strip() or "Continue with SSO",
-        "button_image_url": None, "enabled": True, "show_on_login": True,
+        "button_image_url": None,
+        "enabled": True,
+        "show_on_login": True,
     }
 
 
@@ -217,6 +257,7 @@ async def start_auth_cleanup() -> None:
             await cleanup_expired_authentication_records(db)
     except Exception:
         import logging
+
         logging.getLogger(__name__).exception("Authentication record cleanup failed")
 
 

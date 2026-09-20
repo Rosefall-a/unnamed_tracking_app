@@ -40,7 +40,9 @@ class AppIntegrationSettings(Base):
     max_upload_size_mb: Mapped[int] = mapped_column(nullable=False, default=15)
     max_clip_size_mb: Mapped[int] = mapped_column(nullable=False, default=500)
     max_world_save_size_mb: Mapped[int] = mapped_column(nullable=False, default=2000)
-    runtime_settings_initialized: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    runtime_settings_initialized: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False
+    )
 
     # Optional deployment SMTP transport.
     smtp_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)

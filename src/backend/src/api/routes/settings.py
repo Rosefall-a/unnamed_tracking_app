@@ -519,11 +519,17 @@ async def update_app_integrations(
             encrypt_secret(updates["igdb_client_secret"]) if updates["igdb_client_secret"] else None
         )
     if "tmdb_api_key" in updates:
-        row.tmdb_api_key = encrypt_secret(updates["tmdb_api_key"]) if updates["tmdb_api_key"] else None
+        row.tmdb_api_key = (
+            encrypt_secret(updates["tmdb_api_key"]) if updates["tmdb_api_key"] else None
+        )
     if "omdb_api_key" in updates:
-        row.omdb_api_key = encrypt_secret(updates["omdb_api_key"]) if updates["omdb_api_key"] else None
+        row.omdb_api_key = (
+            encrypt_secret(updates["omdb_api_key"]) if updates["omdb_api_key"] else None
+        )
     if "tvdb_api_key" in updates:
-        row.tvdb_api_key = encrypt_secret(updates["tvdb_api_key"]) if updates["tvdb_api_key"] else None
+        row.tvdb_api_key = (
+            encrypt_secret(updates["tvdb_api_key"]) if updates["tvdb_api_key"] else None
+        )
     await db.commit()
     return {
         "igdb_client_id": row.igdb_client_id,

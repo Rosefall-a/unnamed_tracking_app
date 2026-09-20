@@ -72,6 +72,7 @@ class AnimeMetadataSearchResponse(BaseModel):
     provider_errors: list[str] = []
     results: list[dict]
 
+
 _LEADING_ARTICLE = re.compile(r"^(a|an|the)\s+", flags=re.IGNORECASE)
 
 
@@ -96,7 +97,9 @@ async def _get_show_or_404(
         stmt = stmt.where(Anime.deleted_at.is_(None))
     show = await db.scalar(stmt)
     if show is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Anime {show_id} not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"Anime {show_id} not found"
+        )
     return show
 
 
@@ -105,7 +108,9 @@ async def _get_season_or_404(season_id: UUID, show_id: UUID, db: AsyncSession) -
         select(AnimeSeason).where(AnimeSeason.id == season_id, AnimeSeason.show_id == show_id)
     )
     if season is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Season {season_id} not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"Season {season_id} not found"
+        )
     return season
 
 
@@ -280,8 +285,13 @@ async def update_anime(
         change = status_change_detail(previous_status, show.status)
         if change:
             await log_activity(
-                db, current_user.id, "anime", show.id, show.title,
-                ActivityEventType.STATUS_CHANGED, date.today(),
+                db,
+                current_user.id,
+                "anime",
+                show.id,
+                show.title,
+                ActivityEventType.STATUS_CHANGED,
+                date.today(),
                 detail=change,
             )
 
@@ -409,10 +419,14 @@ async def _backfill_from_tmdb_if_configured(
 
 async def _get_episode_or_404(episode_id: UUID, season_id: UUID, db: AsyncSession) -> AnimeEpisode:
     episode = await db.scalar(
-        select(AnimeEpisode).where(AnimeEpisode.id == episode_id, AnimeEpisode.season_id == season_id)
+        select(AnimeEpisode).where(
+            AnimeEpisode.id == episode_id, AnimeEpisode.season_id == season_id
+        )
     )
     if episode is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Episode {episode_id} not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"Episode {episode_id} not found"
+        )
     return episode
 
 
@@ -496,8 +510,14 @@ async def bulk_set_episodes_watched(
             episode.watched = payload.watched
     if newly_watched:
         await log_activity(
-            db, current_user.id, "anime", show.id, show.title,
-            ActivityEventType.EPISODES_WATCHED, date.today(), increment=newly_watched,
+            db,
+            current_user.id,
+            "anime",
+            show.id,
+            show.title,
+            ActivityEventType.EPISODES_WATCHED,
+            date.today(),
+            increment=newly_watched,
         )
     await db.commit()
     return await _get_show_or_404(show_id, db, current_user.id)
@@ -523,8 +543,13 @@ async def update_episode(
 
     if newly_watched:
         await log_activity(
-            db, current_user.id, "anime", show.id, show.title,
-            ActivityEventType.EPISODES_WATCHED, date.today(),
+            db,
+            current_user.id,
+            "anime",
+            show.id,
+            show.title,
+            ActivityEventType.EPISODES_WATCHED,
+            date.today(),
         )
 
     await db.commit()
@@ -585,7 +610,9 @@ async def _get_or_refresh_anime_relations(show: Anime, db: AsyncSession) -> dict
     nothing stored yet has to wait for the first fetch."""
     cached = show.relations_cache
     if cached is not None:
-        cache_age = int(time.time()) - show.relations_cached_at if show.relations_cached_at else None
+        cache_age = (
+            int(time.time()) - show.relations_cached_at if show.relations_cached_at else None
+        )
         fresh = (
             cached.get("version") == RELATIONS_CACHE_VERSION
             and cache_age is not None

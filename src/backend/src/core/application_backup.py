@@ -1,4 +1,5 @@
 """Bootstrap and restore password-protected deployment settings."""
+
 from __future__ import annotations
 
 import base64
@@ -61,7 +62,11 @@ def decode_application_backup(raw: bytes, password: str) -> dict[str, Any]:
     except (ValueError, KeyError, TypeError, json.JSONDecodeError, InvalidToken) as exc:
         raise ValueError("The application settings file or password is invalid.") from exc
 
-    if backup.get("format") != "archive-deployment-backup" or backup.get("format_version") not in {1, 2, 3}:
+    if backup.get("format") != "archive-deployment-backup" or backup.get("format_version") not in {
+        1,
+        2,
+        3,
+    }:
         raise ValueError("Unsupported application settings backup format.")
     if not isinstance(backup.get("fernet_keys"), list):
         raise ValueError("The application settings backup is missing its Fernet keys.")
@@ -97,7 +102,9 @@ async def restore_application_backup(
     app_payload = backup.get("app_integration_settings")
     oidc_payload = backup.get("oidc_settings")
     if include_application_settings and not isinstance(app_payload, dict):
-        raise ValueError("The application settings backup is missing its application settings section.")
+        raise ValueError(
+            "The application settings backup is missing its application settings section."
+        )
     if include_oidc_settings and not isinstance(oidc_payload, dict):
         raise ValueError("The application settings backup is missing its OIDC settings section.")
 
@@ -286,13 +293,23 @@ async def build_application_backup(
     if include_application_settings:
         app_payload = _model_payload(app, exclude={"id", "updated_at"})
         if not include_provider_credentials:
-            app_payload = {k: v for k, v in app_payload.items() if k not in SECRET_FIELDS and k not in {"igdb_client_id", "screenscraper_ssid", "screenscraper_devid", "xbox_client_id"}}
+            app_payload = {
+                k: v
+                for k, v in app_payload.items()
+                if k not in SECRET_FIELDS
+                and k
+                not in {
+                    "igdb_client_id",
+                    "screenscraper_ssid",
+                    "screenscraper_devid",
+                    "xbox_client_id",
+                }
+            }
         if not include_smtp_settings:
             app_payload = {k: v for k, v in app_payload.items() if not k.startswith("smtp_")}
         payload["app_integration_settings"] = app_payload
     if include_oidc_settings:
         payload["oidc_settings"] = _model_payload(oidc, exclude={"id", "updated_at"})
-
 
     if include_users:
         users = (await db.execute(select(User).order_by(User.username))).scalars().all()
@@ -301,7 +318,17 @@ async def build_application_backup(
         payload["user_api_keys"] = [_model_payload(key) for key in api_keys]
 
     if include_sessions:
-        sessions = (await db.execute(select(UserSession).where(UserSession.expires_at > int(__import__("time").time())))).scalars().all()
+        sessions = (
+            (
+                await db.execute(
+                    select(UserSession).where(
+                        UserSession.expires_at > int(__import__("time").time())
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
         payload["user_sessions"] = [_model_payload(session) for session in sessions]
 
     return payload

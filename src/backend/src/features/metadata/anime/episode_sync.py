@@ -142,9 +142,7 @@ def needs_tmdb_backfill(all_episodes: list[dict[str, Any]]) -> bool:
     already have a real title (from Jikan, which never returns an
     episode image at all) while still missing everything else."""
     return any(
-        entry.get(field) is None
-        for entry in all_episodes
-        for field in _BACKFILLABLE_EPISODE_FIELDS
+        entry.get(field) is None for entry in all_episodes for field in _BACKFILLABLE_EPISODE_FIELDS
     )
 
 

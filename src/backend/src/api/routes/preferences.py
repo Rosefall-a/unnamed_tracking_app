@@ -11,7 +11,9 @@ from src.core.preferences import load_preferences, save_preferences
 from src.database.models.user import User
 from src.database.session import get_db
 
-router = APIRouter(prefix="/api/preferences", tags=["preferences"], dependencies=[Depends(get_current_user)])
+router = APIRouter(
+    prefix="/api/preferences", tags=["preferences"], dependencies=[Depends(get_current_user)]
+)
 
 
 @router.get("")
@@ -30,4 +32,6 @@ async def update_preferences(
     try:
         return await save_preferences(db, current_user.id, changes)
     except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+        ) from exc

@@ -15,7 +15,9 @@ from src.database.models.user import User
 from src.database.session import get_db
 from src.features.notifications import generate_for_user
 
-router = APIRouter(prefix="/api/notifications", tags=["notifications"], dependencies=[Depends(get_current_user)])
+router = APIRouter(
+    prefix="/api/notifications", tags=["notifications"], dependencies=[Depends(get_current_user)]
+)
 
 
 def _read(n: Notification) -> dict:
@@ -38,9 +40,9 @@ async def unread_count(
 ) -> dict:
     await generate_for_user(db, current_user.id)
     count = await db.scalar(
-        select(func.count()).select_from(Notification).where(
-            Notification.user_id == current_user.id, Notification.read_at.is_(None)
-        )
+        select(func.count())
+        .select_from(Notification)
+        .where(Notification.user_id == current_user.id, Notification.read_at.is_(None))
     )
     return {"unread": count or 0}
 
@@ -58,12 +60,14 @@ async def list_notifications(
     if unread_only:
         stmt = stmt.where(Notification.read_at.is_(None))
     rows = (
-        await db.execute(stmt.order_by(Notification.event_at.desc()).limit(limit).offset(offset))
-    ).scalars().all()
+        (await db.execute(stmt.order_by(Notification.event_at.desc()).limit(limit).offset(offset)))
+        .scalars()
+        .all()
+    )
     unread = await db.scalar(
-        select(func.count()).select_from(Notification).where(
-            Notification.user_id == current_user.id, Notification.read_at.is_(None)
-        )
+        select(func.count())
+        .select_from(Notification)
+        .where(Notification.user_id == current_user.id, Notification.read_at.is_(None))
     )
     return {"items": [_read(n) for n in rows], "unread": unread or 0}
 
@@ -96,7 +100,9 @@ async def mark_read(
     await db.commit()
 
 
-@router.post("/{notification_id}/unread", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
+@router.post(
+    "/{notification_id}/unread", status_code=status.HTTP_204_NO_CONTENT, response_model=None
+)
 async def mark_unread(
     notification_id: UUID,
     db: AsyncSession = Depends(get_db),
@@ -119,6 +125,8 @@ async def delete_notification(
     current_user: User = Depends(get_current_user),
 ) -> None:
     await db.execute(
-        delete(Notification).where(Notification.id == notification_id, Notification.user_id == current_user.id)
+        delete(Notification).where(
+            Notification.id == notification_id, Notification.user_id == current_user.id
+        )
     )
     await db.commit()

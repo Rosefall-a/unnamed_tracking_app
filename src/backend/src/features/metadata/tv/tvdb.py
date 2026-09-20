@@ -35,9 +35,7 @@ class TVDBClient:
         except requests.RequestException as exc:
             raise TVDBError(f"Could not reach TheTVDB: {exc}") from exc
         if response.status_code >= 400:
-            raise TVDBError(
-                f"TheTVDB login failed ({response.status_code}): {response.text[:200]}"
-            )
+            raise TVDBError(f"TheTVDB login failed ({response.status_code}): {response.text[:200]}")
         try:
             self._token = response.json()["data"]["token"]
         except (ValueError, KeyError) as exc:

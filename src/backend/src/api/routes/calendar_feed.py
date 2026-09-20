@@ -17,7 +17,9 @@ from src.core.preferences import load_preferences
 from src.database.models.user import User
 from src.database.session import get_db
 
-authed_router = APIRouter(prefix="/api/calendar", tags=["calendar"], dependencies=[Depends(get_current_user)])
+authed_router = APIRouter(
+    prefix="/api/calendar", tags=["calendar"], dependencies=[Depends(get_current_user)]
+)
 public_router = APIRouter(prefix="/api/calendar", tags=["calendar"])
 
 _FEED_DAYS = 90
@@ -50,7 +52,9 @@ def _build_ics(entries: list[dict]) -> str:
         if e["kind"] == "release":
             # a release date has no real time-of-day: an all-day event
             day = datetime.fromtimestamp(e["air_at"], tz=timezone.utc).strftime("%Y%m%d")
-            end = (datetime.fromtimestamp(e["air_at"], tz=timezone.utc) + timedelta(days=1)).strftime("%Y%m%d")
+            end = (
+                datetime.fromtimestamp(e["air_at"], tz=timezone.utc) + timedelta(days=1)
+            ).strftime("%Y%m%d")
             lines.append(f"DTSTART;VALUE=DATE:{day}")
             lines.append(f"DTEND;VALUE=DATE:{end}")
             lines.append(f"SUMMARY:{_ics_escape(e['title'] + ' (release)')}")

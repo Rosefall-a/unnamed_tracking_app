@@ -100,7 +100,9 @@ class AniZipClient:
                     "title": _title(raw),
                     "description": _description(raw),
                     "air_date": raw.get("airDate") or raw.get("airdate"),
-                    "runtime_minutes": int(runtime) if isinstance(runtime, (int, float)) and runtime > 0 else None,
+                    "runtime_minutes": int(runtime)
+                    if isinstance(runtime, (int, float)) and runtime > 0
+                    else None,
                     "still_url": raw.get("image"),
                     "air_at": _air_at(raw),
                 }

@@ -28,8 +28,13 @@ from src.features.notifications import _episode_row, generate_for_user
 
 # ---------------------------------------------------------------- pure logic
 def test_status_change_uses_the_names_shown_in_the_app():
-    assert status_change_detail(AnimeStatus.WISHLIST, AnimeStatus.IN_PROGRESS) == "Plan to Watch → Watching"
-    assert status_change_detail(AnimeStatus.IN_PROGRESS, AnimeStatus.WATCHED) == "Watching → Completed"
+    assert (
+        status_change_detail(AnimeStatus.WISHLIST, AnimeStatus.IN_PROGRESS)
+        == "Plan to Watch → Watching"
+    )
+    assert (
+        status_change_detail(AnimeStatus.IN_PROGRESS, AnimeStatus.WATCHED) == "Watching → Completed"
+    )
 
 
 def test_status_change_between_equivalent_statuses_is_not_recorded():
@@ -62,7 +67,12 @@ class _Item:
 
 
 def test_status_buckets_group_the_eight_statuses_into_five():
-    items = [_Item(AnimeStatus.WISHLIST), _Item(AnimeStatus.WATCHLIST), _Item(AnimeStatus.WATCHED), _Item(AnimeStatus.FAVORITE)]
+    items = [
+        _Item(AnimeStatus.WISHLIST),
+        _Item(AnimeStatus.WATCHLIST),
+        _Item(AnimeStatus.WATCHED),
+        _Item(AnimeStatus.FAVORITE),
+    ]
     counts = _bucket_counts(items)
     assert counts["plan"] == 2
     assert counts["completed"] == 2
@@ -72,7 +82,13 @@ def test_status_buckets_group_the_eight_statuses_into_five():
 def test_score_stats_average_and_distribution():
     from decimal import Decimal
 
-    stats = _score_stats([_Item(AnimeStatus.WATCHED, Decimal("8")), _Item(AnimeStatus.WATCHED, Decimal("9")), _Item(AnimeStatus.WATCHED, None)])
+    stats = _score_stats(
+        [
+            _Item(AnimeStatus.WATCHED, Decimal("8")),
+            _Item(AnimeStatus.WATCHED, Decimal("9")),
+            _Item(AnimeStatus.WATCHED, None),
+        ]
+    )
     assert stats["rated"] == 2
     assert stats["average"] == 8.5
     assert stats["distribution"]["8"] == 1 and stats["distribution"]["9"] == 1
@@ -128,8 +144,14 @@ def test_anizip_keeps_only_this_entrys_numbered_episodes_and_parses_air_time():
     payload = {
         "episodeCount": 2,
         "episodes": {
-            "1": {"title": {"en": "The Journey`s End"}, "overview": "Intro.\nSource: X", "image": "http://img/1.jpg",
-                  "airDate": "2023-09-29", "airDateUtc": "2023-09-29T14:00:00Z", "runtime": 26},
+            "1": {
+                "title": {"en": "The Journey`s End"},
+                "overview": "Intro.\nSource: X",
+                "image": "http://img/1.jpg",
+                "airDate": "2023-09-29",
+                "airDateUtc": "2023-09-29T14:00:00Z",
+                "runtime": 26,
+            },
             "2": {"title": {"en": "Second"}, "runtime": 0},
             "3": {"title": {"en": "belongs to a later season"}},
             "S1": {"title": {"en": "special"}},
@@ -148,7 +170,11 @@ def test_anizip_keeps_only_this_entrys_numbered_episodes_and_parses_air_time():
 
 # ------------------------------------------------------- database, rolled back
 async def _user(db):
-    user = User(username=f"t_{uuid.uuid4().hex[:10]}", email=f"{uuid.uuid4().hex[:10]}@example.test", password_hash="x")
+    user = User(
+        username=f"t_{uuid.uuid4().hex[:10]}",
+        email=f"{uuid.uuid4().hex[:10]}@example.test",
+        password_hash="x",
+    )
     db.add(user)
     await db.flush()
     # a plain attribute: a mapped one expires at commit and can't be re-read
@@ -168,9 +194,19 @@ async def _cleanup(db, user):
 
 def _anime(user, title="Test Anime", status=AnimeStatus.IN_PROGRESS, rewatches=0, runtime=24):
     return Anime(
-        user_id=user.scratch_id, title=title, sort_title=title.lower(), status=status, rewatches=rewatches,
-        episode_runtime_minutes=runtime, studios=[], countries=[], languages=[], genres=[], tags=[],
-        features=[], locked_fields=[],
+        user_id=user.scratch_id,
+        title=title,
+        sort_title=title.lower(),
+        status=status,
+        rewatches=rewatches,
+        episode_runtime_minutes=runtime,
+        studios=[],
+        countries=[],
+        languages=[],
+        genres=[],
+        tags=[],
+        features=[],
+        locked_fields=[],
     )
 
 
@@ -188,8 +224,14 @@ async def test_only_watched_episodes_count_and_half_a_season_is_not_completed():
             db.add_all([done, half])
             await db.flush()
             db.add_all(
-                [AnimeEpisode(season_id=done.id, episode_number=n, watched=True) for n in range(1, 5)]
-                + [AnimeEpisode(season_id=half.id, episode_number=n, watched=(n <= 2)) for n in range(1, 5)]
+                [
+                    AnimeEpisode(season_id=done.id, episode_number=n, watched=True)
+                    for n in range(1, 5)
+                ]
+                + [
+                    AnimeEpisode(season_id=half.id, episode_number=n, watched=(n <= 2))
+                    for n in range(1, 5)
+                ]
             )
             await db.flush()
 
@@ -217,7 +259,12 @@ async def test_each_rewatch_adds_the_watched_episodes_again_and_nothing_more():
             db.add(season)
             await db.flush()
             # only 3 of 4 watched: a rewatch multiplies what was actually watched
-            db.add_all([AnimeEpisode(season_id=season.id, episode_number=n, watched=(n <= 3)) for n in range(1, 5)])
+            db.add_all(
+                [
+                    AnimeEpisode(season_id=season.id, episode_number=n, watched=(n <= 3))
+                    for n in range(1, 5)
+                ]
+            )
             await db.flush()
 
             anime = (await get_media_stats(db, user))["anime"]
@@ -246,8 +293,12 @@ async def test_an_episode_with_no_runtime_is_reported_not_guessed():
             await db.flush()
             db.add_all(
                 [
-                    AnimeEpisode(season_id=season.id, episode_number=1, watched=True, runtime_minutes=20),
-                    AnimeEpisode(season_id=season.id, episode_number=2, watched=True, runtime_minutes=None),
+                    AnimeEpisode(
+                        season_id=season.id, episode_number=1, watched=True, runtime_minutes=20
+                    ),
+                    AnimeEpisode(
+                        season_id=season.id, episode_number=2, watched=True, runtime_minutes=None
+                    ),
                 ]
             )
             await db.flush()
@@ -267,11 +318,33 @@ async def test_movie_time_is_runtime_once_plus_each_rewatch_and_skips_unwatched(
         user = None
         try:
             user = await _user(db)
-            common = dict(user_id=user.scratch_id, genres=[], studios=[], countries=[], languages=[], tags=[], features=[], locked_fields=[])
+            common = dict(
+                user_id=user.scratch_id,
+                genres=[],
+                studios=[],
+                countries=[],
+                languages=[],
+                tags=[],
+                features=[],
+                locked_fields=[],
+            )
             db.add_all(
                 [
-                    Movie(title="Seen twice", sort_title="a", status=MovieStatus.WATCHED, runtime_minutes=100, rewatches=1, **common),
-                    Movie(title="Planned", sort_title="b", status=MovieStatus.WISHLIST, runtime_minutes=200, **common),
+                    Movie(
+                        title="Seen twice",
+                        sort_title="a",
+                        status=MovieStatus.WATCHED,
+                        runtime_minutes=100,
+                        rewatches=1,
+                        **common,
+                    ),
+                    Movie(
+                        title="Planned",
+                        sort_title="b",
+                        status=MovieStatus.WISHLIST,
+                        runtime_minutes=200,
+                        **common,
+                    ),
                 ]
             )
             await db.flush()
@@ -302,7 +375,15 @@ async def test_a_notification_uses_the_exact_air_time_and_is_created_once():
 
             await generate_for_user(db, user.scratch_id)
             await generate_for_user(db, user.scratch_id)  # asking again must not notify twice
-            rows = (await db.execute(select(Notification).where(Notification.user_id == user.scratch_id))).scalars().all()
+            rows = (
+                (
+                    await db.execute(
+                        select(Notification).where(Notification.user_id == user.scratch_id)
+                    )
+                )
+                .scalars()
+                .all()
+            )
             assert len(rows) == 1
             assert rows[0].kind == "episode_aired"
             assert rows[0].body == "Episode 5 aired"
@@ -329,7 +410,15 @@ async def test_completed_and_dropped_titles_never_notify():
                 db.add(AnimeEpisode(season_id=season.id, episode_number=3, air_at=now - 600))
             await db.flush()
             await generate_for_user(db, user.scratch_id)
-            rows = (await db.execute(select(Notification).where(Notification.user_id == user.scratch_id))).scalars().all()
+            rows = (
+                (
+                    await db.execute(
+                        select(Notification).where(Notification.user_id == user.scratch_id)
+                    )
+                )
+                .scalars()
+                .all()
+            )
             assert rows == []
         finally:
             if user is not None:
@@ -348,15 +437,24 @@ async def test_progress_counter_counts_as_watched_even_without_flagged_episode_r
             db.add(show)
             await db.flush()
             # 10 of 12 by counter, 8 rows on record, none flagged: 2 counted with no row
-            season = AnimeSeason(show_id=show.id, season_number=1, episode_count=12, episodes_watched=10)
+            season = AnimeSeason(
+                show_id=show.id, season_number=1, episode_count=12, episodes_watched=10
+            )
             db.add(season)
             await db.flush()
-            db.add_all([AnimeEpisode(season_id=season.id, episode_number=n, runtime_minutes=25) for n in range(1, 9)])
+            db.add_all(
+                [
+                    AnimeEpisode(season_id=season.id, episode_number=n, runtime_minutes=25)
+                    for n in range(1, 9)
+                ]
+            )
             await db.flush()
 
             anime = (await get_media_stats(db, user))["anime"]
             assert anime["episodes_watched"] == 10
-            assert anime["minutes_watched"] == 8 * 25 + 2 * 20  # rows use their own runtime, the rest the show's
+            assert (
+                anime["minutes_watched"] == 8 * 25 + 2 * 20
+            )  # rows use their own runtime, the rest the show's
             assert anime["seasons_completed"] == 0  # 10 of 12 is not a finished season
             assert anime["seasons_in_progress"] == 1
             assert anime["most_watched"][0]["episodes"] == 10
@@ -374,7 +472,9 @@ async def test_a_counter_covering_every_episode_completes_the_season():
             show = _anime(user, status=AnimeStatus.WATCHED)
             db.add(show)
             await db.flush()
-            db.add(AnimeSeason(show_id=show.id, season_number=1, episode_count=26, episodes_watched=26))
+            db.add(
+                AnimeSeason(show_id=show.id, season_number=1, episode_count=26, episodes_watched=26)
+            )
             await db.flush()
             anime = (await get_media_stats(db, user))["anime"]
             assert anime["seasons_completed"] == 1
