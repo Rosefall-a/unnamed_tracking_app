@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { watch } from "vue";
+import { computed, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import router from "./router";
 import SidebarNav from "./components/SidebarNav.vue";
