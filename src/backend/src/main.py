@@ -191,17 +191,23 @@ async def bootstrap_primary_user() -> None:
     async with SessionLocal() as db:
         if await db.scalar(select(User.id).limit(1)) is not None:
             return
-        if not all(
+        credentials_configured = all(
             (
                 app_settings.PRIMARY_USER_USERNAME.strip(),
                 app_settings.PRIMARY_USER_EMAIL.strip(),
                 app_settings.PRIMARY_USER_PASSWORD,
             )
-        ):
-            # No bootstrap credentials means this is a normal first-run install;
-            # leave the API alive so the public setup page can create the admin.
+        )
+        if app_settings.BYPASS_SETUP and not credentials_configured:
+            raise RuntimeError(
+                "BYPASS_SETUP is enabled, but PRIMARY_USER_USERNAME, "
+                "PRIMARY_USER_EMAIL, and PRIMARY_USER_PASSWORD are not all configured."
+            )
+        if credentials_configured:
+            await ensure_primary_user(db)
             return
-        await ensure_primary_user(db)
+        # No bootstrap credentials means this is a normal first-run install;
+        # leave the API alive so the public setup page can create the admin.
 
 
 @app.on_event("startup")
