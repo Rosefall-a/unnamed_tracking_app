@@ -262,7 +262,7 @@ onMounted(async () => {
         <button type="button" :disabled="importingApplication" @click="reviewApplicationImport('file')">{{ importingApplication ? "Reading backup…" : "Review imported settings" }}</button>
         <div v-if="applicationBackupAvailable" class="filesystem-backup"><strong>application.json found on the setup filesystem.</strong><span>The configured setup path contains a deployment backup. You can use it directly without selecting a file.</span><button type="button" class="secondary" :disabled="importingApplication" @click="reviewApplicationImport('filesystem')">Use application.json from the filesystem</button></div>
         <div v-if="applicationImportError" class="error">{{ applicationImportError }}</div>
-        <div v-if="applicationImportSuccess" class="success">Previous installation settings imported. Continue by creating the new administrator.</div>
+        <div v-if="applicationImportSuccess" class="success">{{ applicationImportSuccess }}</div>
       </div>
       <div class="or-divider">or configure manually</div>
       <div class="progress"><span v-for="(item, index) in stages" :key="item" :class="{ active: index === 0 }">{{ index + 1 }}. {{ item }}</span></div>
