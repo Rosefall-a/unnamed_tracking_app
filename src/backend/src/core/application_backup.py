@@ -112,13 +112,14 @@ async def restore_application_backup(
             db.add(app)
             await db.flush()
         app_columns = {column.name for column in app.__table__.columns}
-    if include_application_settings:
         for field, value in (app_payload or {}).items():
             if field in app_columns and field not in {"id", "updated_at"}:
                 setattr(
                     app,
                     field,
-                    (str(value) if encrypted_secrets else encrypt_secret(str(value))) if field in SECRET_FIELDS and value else value,
+                    (str(value) if encrypted_secrets else encrypt_secret(str(value)))
+                    if field in SECRET_FIELDS and value
+                    else value,
                 )
 
     if include_oidc_settings:
@@ -127,29 +128,36 @@ async def restore_application_backup(
             oidc = OidcSettings()
             db.add(oidc)
         oidc_columns = {column.name for column in oidc.__table__.columns}
-    else:
-        oidc_columns = set()
-    if include_oidc_settings:
         for field, value in (oidc_payload or {}).items():
             if field in oidc_columns and field not in {"id", "updated_at"}:
                 if field == "client_secret":
-                value = str(value) if encrypted_secrets else (encrypt_secret(str(value)) if value else None)
+                    value = (
+                        str(value)
+                        if encrypted_secrets
+                        else (encrypt_secret(str(value)) if value else None)
+                    )
                 elif field == "providers_json" and value:
-                try:
-                    providers = json.loads(str(value))
-                except (TypeError, ValueError) as exc:
-                    raise ValueError("The OIDC provider configuration in the backup is invalid.") from exc
-                if not isinstance(providers, list):
-                    raise ValueError("The OIDC provider configuration in the backup is invalid.")
-                normalized = []
-                for provider in providers:
-                    if not isinstance(provider, dict):
-                        raise ValueError("The OIDC provider configuration in the backup is invalid.")
-                    item = dict(provider)
-                    if item.get("client_secret") and not encrypted_secrets:
-                        item["client_secret"] = encrypt_secret(str(item["client_secret"]))
-                    normalized.append(item)
-                value = json.dumps(normalized)
+                    try:
+                        providers = json.loads(str(value))
+                    except (TypeError, ValueError) as exc:
+                        raise ValueError(
+                            "The OIDC provider configuration in the backup is invalid."
+                        ) from exc
+                    if not isinstance(providers, list):
+                        raise ValueError(
+                            "The OIDC provider configuration in the backup is invalid."
+                        )
+                    normalized = []
+                    for provider in providers:
+                        if not isinstance(provider, dict):
+                            raise ValueError(
+                                "The OIDC provider configuration in the backup is invalid."
+                            )
+                        item = dict(provider)
+                        if item.get("client_secret") and not encrypted_secrets:
+                            item["client_secret"] = encrypt_secret(str(item["client_secret"]))
+                        normalized.append(item)
+                    value = json.dumps(normalized)
                 setattr(oidc, field, value)
 
     options = backup.get("options") or {}
