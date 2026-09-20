@@ -73,10 +73,10 @@ function onApplicationFileSelected(event: Event) {
   applicationImportSuccess.value = null;
 }
 
-async function importPreviousInstallation() {
+async function reviewApplicationImport(source: "file" | "filesystem") {
   applicationImportError.value = null;
   applicationImportSuccess.value = null;
-  if (!applicationFile.value) {
+  if (source === "file" && !applicationFile.value) {
     applicationImportError.value = "Choose an application settings JSON file first.";
     return;
   }
@@ -85,26 +85,79 @@ async function importPreviousInstallation() {
     return;
   }
   importingApplication.value = true;
+  applicationBackupSource.value = source;
   try {
-    const result = await importApplicationSettings(
-      applicationFile.value,
+    applicationBackupPreview.value = await previewApplicationSettings(
+      source === "file" ? applicationFile.value : null,
       applicationPassword.value,
     );
+    showApplicationImportChoices.value = true;
+  } catch (err) {
+    applicationImportError.value = err instanceof Error ? err.message : "Failed to read the previous installation backup.";
+  } finally {
+    importingApplication.value = false;
+  }
+}
+
+function applySetupPreview(preview: ApplicationBackupPreview) {
+  const oidc = preview.oidc;
+  const smtp = preview.smtp;
+  const value = (record: Record<string, unknown>, key: string) => record[key];
+  configureOidc.value = preview.options.include_oidc_settings !== false && Boolean(value(oidc, "issuer_url"));
+  oidcName.value = String(value(oidc, "name") ?? "");
+  oidcIssuer.value = String(value(oidc, "issuer_url") ?? "");
+  oidcClientId.value = String(value(oidc, "client_id") ?? "");
+  oidcClientSecret.value = String(value(oidc, "client_secret") ?? "");
+  oidcScopes.value = String(value(oidc, "scopes") ?? "openid profile email");
+  oidcGroupsClaim.value = String(value(oidc, "groups_claim") ?? "groups");
+  oidcAdminGroup.value = String(value(oidc, "admin_group") ?? "");
+  oidcUserMatchField.value = String(value(oidc, "user_match_field") ?? "email");
+  oidcAllowNewUsers.value = Boolean(value(oidc, "allow_new_users") ?? true);
+  oidcButtonText.value = String(value(oidc, "login_button_text") ?? value(oidc, "button_text") ?? "Continue with SSO");
+  oidcButtonImageUrl.value = String(value(oidc, "button_image_url") ?? "");
+  oidcButtonColor.value = String(value(oidc, "button_color") ?? "#d68a34");
+  oidcProviderEnabled.value = Boolean(value(oidc, "provider_enabled") ?? value(oidc, "enabled") ?? true);
+  oidcShowOnLogin.value = Boolean(value(oidc, "show_on_login") ?? true);
+  oidcAutostartEnabled.value = Boolean(value(oidc, "autostart_enabled") ?? true);
+  oidcDefaultLoginMethod.value = String(value(oidc, "default_login_method") ?? "local");
+  configureSmtp.value = Boolean(value(smtp, "smtp_enabled"));
+  smtpEnabled.value = Boolean(value(smtp, "smtp_enabled"));
+  smtpHost.value = String(value(smtp, "smtp_host") ?? "");
+  smtpPort.value = Number(value(smtp, "smtp_port") ?? 587);
+  smtpUsername.value = String(value(smtp, "smtp_username") ?? "");
+  smtpPassword.value = String(value(smtp, "smtp_password") ?? "");
+  smtpUseTls.value = Boolean(value(smtp, "smtp_use_tls") ?? true);
+  smtpUseSsl.value = Boolean(value(smtp, "smtp_use_ssl") ?? false);
+  smtpFromEmail.value = String(value(smtp, "smtp_from_email") ?? "");
+  smtpFromName.value = String(value(smtp, "smtp_from_name") ?? "Archive");
+  showApplicationImportChoices.value = false;
+  applicationImportSuccess.value = "The setup pages have been populated from the backup. Review them before finishing setup.";
+  stage.value = "firstuser";
+}
+
+async function acceptApplicationImport() {
+  importingApplicationMode.value = true;
+  applicationImportError.value = null;
+  try {
+    const result = await importApplicationSettings(
+      applicationBackupSource.value === "file" ? applicationFile.value : null,
+      applicationPassword.value,
+    );
+    showApplicationImportChoices.value = false;
+    if (result.authenticated) {
+      window.location.assign("/");
+      return;
+    }
     if (result.users) {
-      applicationImportSuccess.value =
-        "Full installation restored. Existing users were restored; continue to the login page.";
-      window.setTimeout(() => {
-        window.location.href = "/login";
-      }, 1200);
+      window.location.assign("/login");
       return;
     }
     applicationImportSuccess.value = "Previous installation settings imported. Continue by creating the new administrator.";
     stage.value = "firstuser";
   } catch (err) {
-    applicationImportError.value =
-      err instanceof Error ? err.message : "Failed to import the previous installation.";
+    applicationImportError.value = err instanceof Error ? err.message : "Failed to import the previous installation.";
   } finally {
-    importingApplication.value = false;
+    importingApplicationMode.value = false;
   }
 }
 
