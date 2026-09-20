@@ -243,6 +243,12 @@ async def restore_application_backup(
             values = {key: value for key, value in item.items() if key in allowed}
             db.add(User(**values))
 
+        # UserApiKey and UserSession have database-level foreign keys to users.
+        # The User model does not declare ORM relationships, so SQLAlchemy cannot
+        # infer that dependency when ordering INSERTs. Flush the users first so
+        # PostgreSQL can satisfy those foreign keys during a full-install restore.
+        await db.flush()
+
         key_payload = backup.get("user_api_keys", [])
         if not isinstance(key_payload, list):
             raise ValueError("The full installation backup contains invalid API keys.")
