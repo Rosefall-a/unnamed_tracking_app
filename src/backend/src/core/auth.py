@@ -33,6 +33,7 @@ def session_cookie_name(secret_key: str | None = None) -> str:
     return f"session_{namespace}"
 
 
+COOKIE_NAMESPACE: Final = hashlib.sha256(settings.SECRET_KEY.encode("utf-8")).hexdigest()[:16]
 SESSION_COOKIE: Final = session_cookie_name()
 SESSION_TTL_SECONDS: Final = 30 * 24 * 60 * 60
 API_KEY_PREFIX: Final = "utk_"
