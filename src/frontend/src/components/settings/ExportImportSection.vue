@@ -4,7 +4,6 @@ import {
   fetchLibraryExport,
   importLibrary,
   fetchBackupStatus,
-  exportDeploymentBackup,
 } from "../../services/exportImport";
 import type { ImportResult, BackupStatus } from "../../services/exportImport";
 
@@ -26,38 +25,6 @@ function formatBackupDate(epochSeconds: number): string {
 }
 
 const exporting = ref(false);
-const deploymentExporting = ref(false);
-const deploymentExportError = ref<string | null>(null);
-const deploymentPassword = ref("");
-const includeUsers = ref(false);
-const includeSessions = ref(false);
-const saveToSetupPath = ref(false);
-const exportError = ref<string | null>(null);
-
-async function exportDeployment(kind: "settings" | "full") {
-  deploymentExporting.value = true;
-  deploymentExportError.value = null;
-  try {
-    const include = kind === "full";
-    const blob = await exportDeploymentBackup({
-      password: deploymentPassword.value,
-      include_users: include ? true : includeUsers.value,
-      include_sessions: include ? true : includeSessions.value,
-      full_installation: include,
-      save_to_setup_path: saveToSetupPath.value,
-    });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = include ? "application-full-backup.json" : "application.json";
-    link.click();
-    URL.revokeObjectURL(url);
-  } catch (err) {
-    deploymentExportError.value = err instanceof Error ? err.message : "Failed to create deployment backup";
-  } finally {
-    deploymentExporting.value = false;
-  }
-}
 async function exportLibrary() {
   exporting.value = true;
   exportError.value = null;
@@ -145,41 +112,6 @@ async function onFileSelected(e: Event) {
           >No backup yet, the first one is written within
           {{ backupStatus.interval_hours }} hours of the server starting.</span
         >
-      </p>
-    </div>
-
-    <div class="tile">
-      <h3>Deployment backup</h3>
-      <p class="tile-desc">
-        Create the password-protected JSON used by the first-run import. Secrets
-        remain encrypted with the installation key. Use the optional full
-        installation export to include user accounts, API keys, and existing
-        browser sessions.
-      </p>
-      <label class="backup-field">
-        <span>Backup password</span>
-        <input v-model="deploymentPassword" type="password" autocomplete="new-password" placeholder="At least 12 characters" />
-      </label>
-      <label class="check-row"><input v-model="includeUsers" type="checkbox" /><span>Include users and their API keys</span></label>
-      <label class="check-row"><input v-model="includeSessions" type="checkbox" :disabled="!includeUsers" /><span>Include active sessions (requires users)</span></label>
-      <label class="check-row"><input v-model="saveToSetupPath" type="checkbox" /><span>Also save to the configured setup path</span></label>
-      <p class="tile-desc setup-path-hint">
-        The setup path is APPLICATION_JSON_PATH, defaulting to /data/application.json.
-        Saving here makes clearing and recreating a test deployment repeatable.
-      </p>
-      <div v-if="deploymentExportError" class="form-error">{{ deploymentExportError }}</div>
-      <div class="button-row">
-        <button type="button" class="primary-button" :disabled="deploymentExporting || !deploymentPassword" @click="exportDeployment('settings')">
-          {{ deploymentExporting ? "Creating…" : "Export deployment settings" }}
-        </button>
-        <button type="button" class="secondary-button" :disabled="deploymentExporting || !deploymentPassword" @click="exportDeployment('full')">
-          Export full installation
-        </button>
-      </div>
-      <p class="tile-desc">
-        Deployment settings is intended for a fresh server that will get a new
-        administrator. Full installation also restores existing users, API keys,
-        and sessions, so it is intended for cloning or quickly recreating an installation.
       </p>
     </div>
 
