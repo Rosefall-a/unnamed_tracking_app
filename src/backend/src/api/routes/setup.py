@@ -112,7 +112,7 @@ def _provider_slug(name: str) -> str:
     return slug[:80] or "oidc"
 
 
-@router.get("/status")
+@router.get("/restoration-notice")\nasync def restoration_notice(user: User = Depends(get_current_admin)) -> dict[str, bool]:\n    """Return and consume the one-time automatic restore notice for an admin."""\n    del user\n    return {"restored": consume_automatic_restore_notice()}\n\n\n@router.get("/status")
 async def setup_status(db: AsyncSession = Depends(get_db)) -> dict[str, bool]:
     has_user = await db.scalar(select(User.id).limit(1)) is not None
     return {"setup_required": not has_user}
