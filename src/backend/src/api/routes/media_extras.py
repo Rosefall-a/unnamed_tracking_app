@@ -36,7 +36,7 @@ from src.database.models.media_extras import (
     MediaType,
     RewatchLog,
 )
-from src.database.models.game import Game
+from src.database.models.game import Game, GameStatus
 from src.database.models.movies import Movie, MovieStatus
 from src.database.models.tv_show import TVShow, TVShowStatus
 from src.database.models.user import User
@@ -84,7 +84,7 @@ def _calendar_entries_for_show(show: Any, media_type: str, window_end: int, lang
         {
             "media_type": media_type,
             "media_id": show.id,
-            "title": show.title,
+            "title": display_title(show, language),
             "poster_url": show.poster_url,
             "next_episode_number": show.next_episode_number,
             "air_at": show.next_episode_air_at,
@@ -119,7 +119,7 @@ def _calendar_entries_for_show(show: Any, media_type: str, window_end: int, lang
             {
                 "media_type": media_type,
                 "media_id": show.id,
-                "title": show.title,
+                "title": display_title(show, language),
                 "poster_url": show.poster_url,
                 "next_episode_number": n,
                 "air_at": air_at,
@@ -592,6 +592,7 @@ async def build_calendar_entries(
                 select(Game).where(
                     Game.user_id == user_id,
                     Game.deleted_at.is_(None),
+                    Game.status.in_([GameStatus.WISHLIST, GameStatus.BACKLOG]),
                     Game.release_date.isnot(None),
                     Game.release_date >= date_window_start,
                     Game.release_date <= date_window_end,
