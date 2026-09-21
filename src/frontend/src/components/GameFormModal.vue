@@ -46,14 +46,14 @@ const emit = defineEmits<{
 const isEditing = computed(() => !!props.game);
 
 const statuses: GameStatus[] = [
-  "wishlist",
-  "backlog",
   "playing",
-  "on hold",
   "beaten",
-  "played",
-  "dropped",
   "mastered",
+  "played",
+  "on hold",
+  "dropped",
+  "backlog",
+  "wishlist",
 ];
 
 const tabs = [

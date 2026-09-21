@@ -1,3 +1,4 @@
+import { failedRequest } from "./apiError";
 import type { Movie, MovieStatus } from "../types/movie";
 
 const MOVIES_PAGE_SIZE = 50;
@@ -116,8 +117,8 @@ export function mapBackendMovieRaw(raw: BackendMovie): Movie {
 
 async function handle<T>(response: Response, action: string): Promise<T> {
   if (!response.ok) {
-    const message = await response.text();
-    throw new Error(`Failed to ${action}: ${response.status} ${message}`);
+    console.warn(`Failed to ${action}: ${response.status}`);
+    throw await failedRequest(response);
   }
   return response.json();
 }

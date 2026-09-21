@@ -81,6 +81,12 @@ const router = createRouter({
       name: "achievement-detail",
       component: AchievementDetail,
     },
+    // last, so it only catches addresses no other route claims
+    {
+      path: "/:pathMatch(.*)*",
+      name: "not-found",
+      component: () => import("../views/NotFound.vue"),
+    },
   ],
 });
 

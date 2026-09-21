@@ -49,6 +49,9 @@ import { currentUser } from "../state/auth";
   margin-left: auto;
   display: inline-flex;
   align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  min-width: 0;
   gap: 10px;
 }
 /* With no actions slot the chip still needs to sit at the far right */

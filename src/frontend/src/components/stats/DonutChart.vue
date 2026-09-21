@@ -29,6 +29,11 @@ const CIRC = 2 * Math.PI * RADIUS;
 
 const shown = computed(() => props.slices.filter((s) => s.value > 0));
 const total = computed(() => shown.value.reduce((sum, s) => sum + s.value, 0));
+// thousands separators, and a smaller size once the number would touch the ring
+const totalText = computed(() => total.value.toLocaleString());
+const totalSize = computed(() =>
+  totalText.value.length > 5 ? "14px" : "20px",
+);
 
 const arcs = computed(() => {
   let offset = 0;
@@ -80,8 +85,14 @@ const arcs = computed(() => {
           <title>{{ a.name }}: {{ a.value }} ({{ a.pct }}%)</title>
         </circle>
       </g>
-      <text x="60" y="58" text-anchor="middle" class="donut-total">
-        {{ total }}
+      <text
+        x="60"
+        y="58"
+        text-anchor="middle"
+        class="donut-total"
+        :style="{ fontSize: totalSize }"
+      >
+        {{ totalText }}
       </text>
       <text x="60" y="73" text-anchor="middle" class="donut-caption">
         {{ centerLabel ?? "total" }}
@@ -91,7 +102,7 @@ const arcs = computed(() => {
       <li v-for="a in arcs" :key="a.name">
         <span class="dot" :style="{ background: a.color }"></span>
         <span class="name">{{ a.name }}</span>
-        <span class="num">{{ a.value }}</span>
+        <span class="num">{{ a.value.toLocaleString() }}</span>
         <span class="pct">{{ a.pct }}%</span>
       </li>
     </ul>

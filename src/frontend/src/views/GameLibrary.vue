@@ -460,14 +460,14 @@ if (typeof queryCollection === "string" && queryCollection) {
 
 const statusOptions: (GameStatus | "all")[] = [
   "all",
-  "wishlist",
-  "backlog",
   "playing",
-  "on hold",
   "beaten",
-  "played",
-  "dropped",
   "mastered",
+  "played",
+  "on hold",
+  "dropped",
+  "backlog",
+  "wishlist",
 ];
 
 // arriving from a Home Hub row link (?status=playing, ?sort=recent)

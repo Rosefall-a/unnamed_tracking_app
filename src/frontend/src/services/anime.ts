@@ -1,3 +1,4 @@
+import { failedRequest } from "./apiError";
 import type {
   Anime,
   AnimeEpisode,
@@ -214,8 +215,8 @@ export function mapBackendAnimeRaw(raw: BackendAnime): Anime {
 
 async function handle<T>(response: Response, action: string): Promise<T> {
   if (!response.ok) {
-    const message = await response.text();
-    throw new Error(`Failed to ${action}: ${response.status} ${message}`);
+    console.warn(`Failed to ${action}: ${response.status}`);
+    throw await failedRequest(response);
   }
   return response.json();
 }

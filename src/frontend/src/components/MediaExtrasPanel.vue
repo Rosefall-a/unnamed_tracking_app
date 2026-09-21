@@ -50,7 +50,8 @@ function positionPopover(anchor: HTMLElement | null) {
   const rect = anchor.getBoundingClientRect();
   popoverStyle.value = {
     top: `${rect.bottom + 10}px`,
-    left: `${Math.min(rect.left, window.innerWidth - 296)}px`,
+    // 280px wide: keep it fully on screen with a 16px margin on phones
+    left: `${Math.max(16, Math.min(rect.left, window.innerWidth - 296))}px`,
   };
 }
 
@@ -590,6 +591,8 @@ onBeforeUnmount(() => document.removeEventListener("click", onDocumentClick));
   position: fixed;
   z-index: var(--ui-z-popover);
   width: 280px;
+  max-width: calc(100vw - 32px);
+  box-sizing: border-box;
   background: #171717;
   border: 1px solid #2b2b2b;
   border-radius: 14px;

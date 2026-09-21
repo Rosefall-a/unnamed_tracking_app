@@ -16,6 +16,7 @@ from src.database.models import (
     app_integration_settings,  # noqa: F401
     auth,  # noqa: F401
     bounty,  # noqa: F401
+    calendar_event,  # noqa: F401
     card,  # noqa: F401
     game,  # noqa: F401
     game_archive,  # noqa: F401
@@ -25,6 +26,7 @@ from src.database.models import (
     game_profile,  # noqa: F401
     game_profile_stat_snapshot,  # noqa: F401
     inbox_item,  # noqa: F401
+    job_setting,  # noqa: F401
     media_extras,  # noqa: F401
     media_item,  # noqa: F401
     movies,  # noqa: F401

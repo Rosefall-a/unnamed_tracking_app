@@ -168,6 +168,13 @@ async def _ensure_favorites_list(user_id: UUID, db: AsyncSession) -> None:
         )
         .on_conflict_do_nothing(constraint="uq_media_lists_user_id_name")
     )
+    # a list the user made by hand under the same name blocked the insert:
+    # when it is the same favorites filter, it becomes the system list
+    own = await db.scalar(
+        select(MediaList).where(MediaList.user_id == user_id, MediaList.name == "Favorites", MediaList.is_system.is_(False))
+    )
+    if own is not None and own.smart_rule == {"favorite": True}:
+        own.is_system = True
     await db.commit()
 
 

@@ -49,6 +49,7 @@ function toVM(m: Movie): LibraryCardVM {
     progressLabel: formatRuntime(m.runtimeMinutes),
     canAdvance: false,
     releaseYear: m.releaseDate ? m.releaseDate.slice(0, 4) : null,
+    addedAt: Date.parse(m.createdAt) || null,
   };
 }
 

@@ -38,7 +38,8 @@ _STATUS = {
     "4": AnimeStatus.DROPPED,
     "6": AnimeStatus.WATCHLIST,
 }
-_FORMAT = {"tv": "TV", "movie": "MOVIE", "ova": "OVA", "ona": "ONA", "special": "SPECIAL", "music": "MUSIC"}
+# the same labels the AniList lookup stores, so a title reads the same whichever way it was added
+_FORMAT = {"tv": "TV", "movie": "Movie", "ova": "OVA", "ona": "ONA", "special": "Special", "music": "Music"}
 
 
 class MalImportError(ValueError):

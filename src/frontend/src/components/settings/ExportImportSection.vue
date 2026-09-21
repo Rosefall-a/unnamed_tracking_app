@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
+import SegmentedControl from "./SegmentedControl.vue";
 import {
   fetchLibraryExport,
   importLibrary,
@@ -95,21 +96,21 @@ const SOURCES: {
     label: "MyAnimeList",
     accept: ".xml,.gz,application/xml,text/xml,application/gzip",
     what: "anime",
-    how: "MyAnimeList's export file (the .xml or .xml.gz from its export page). Status, episodes watched, score, rewatches, dates, tags and your comment come across.",
+    how: "Use MyAnimeList's export file (the .xml or .xml.gz from its export page). Status, episodes watched, score, rewatches, dates, tags and your comment come across.",
   },
   {
     value: "letterboxd",
     label: "Letterboxd",
     accept: ".zip,.csv,application/zip,text/csv",
     what: "movies",
-    how: "the zip from Letterboxd's data export (or one of its CSV files). Watched films, ratings (doubled onto the 10-point scale), rewatches from your diary, liked films as favorites, and your watchlist come across.",
+    how: "Use the zip from Letterboxd's data export (or one of its CSV files). Watched films, ratings (doubled onto the 10-point scale), rewatches from your diary, liked films as favorites, and your watchlist come across.",
   },
   {
     value: "imdb",
     label: "IMDb",
     accept: ".csv,text/csv",
     what: "movies and TV shows",
-    how: "an IMDb ratings or watchlist export (the CSV from your list's Export button). Rated titles come in as watched with your rating, unrated ones as plan to watch. Episodes and other kinds are skipped.",
+    how: "Use an IMDb ratings or watchlist export (the CSV from your list's Export button). Rated titles come in as watched with your rating, unrated ones as plan to watch. Episodes and other kinds are skipped.",
   },
 ];
 const source = ref<ImportSource>("mal");
@@ -329,7 +330,7 @@ async function onFileSelected(e: Event) {
         />
       </div>
       <p class="tile-desc">
-        Add your {{ sourceInfo.what }} from {{ sourceInfo.how }} You see what it
+        Add your {{ sourceInfo.what }}. {{ sourceInfo.how }} You see what it
         would add or change before anything happens, and for titles already on
         the site you choose, title by title, whether to keep them as they are or
         use the file's data.

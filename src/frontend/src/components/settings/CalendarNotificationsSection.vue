@@ -8,7 +8,7 @@ import ToggleButton from "./ToggleButton.vue";
 import {
   DEFAULT_PREFERENCES,
   fetchPreferences,
-  updatePreferences,
+  queuePreferences,
 } from "../../services/preferences";
 import type { Preferences } from "../../services/preferences";
 import { preferences as sharedPreferences } from "../../state/preferences";
@@ -33,18 +33,54 @@ async function change(changes: Partial<Preferences>) {
   prefs.value = { ...prefs.value, ...changes };
   error.value = null;
   try {
-    prefs.value = await updatePreferences(changes);
-    sharedPreferences.value = prefs.value;
+    const { prefs: saved, latest } = await queuePreferences(changes);
+    if (latest) {
+      prefs.value = saved;
+      sharedPreferences.value = saved;
+    }
     savedNote.value = "Saved";
     setTimeout(() => (savedNote.value = ""), 1500);
   } catch (e) {
-    prefs.value = previous;
     error.value = e instanceof Error ? e.message : "Failed to save.";
+    try {
+      prefs.value = await fetchPreferences();
+    } catch {
+      prefs.value = previous;
+    }
   }
 }
 
+type NotifyStatus = Preferences["notify_statuses"][number];
+type NotifyType = Preferences["notify_media_types"][number];
+// switch one member of a set-valued preference on or off
+function setMember<T extends string>(list: T[], value: T, on: boolean): T[] {
+  return on
+    ? [...list.filter((v) => v !== value), value]
+    : list.filter((v) => v !== value);
+}
+const NOTIFY_STATUS_ROWS: { key: NotifyStatus; label: string; hint: string }[] =
+  [
+    {
+      key: "watching",
+      label: "Watching",
+      hint: "titles you are in the middle of",
+    },
+    {
+      key: "plan",
+      label: "Plan to Watch",
+      hint: "titles you have not started",
+    },
+    { key: "hold", label: "On Hold", hint: "titles you put aside" },
+  ];
+const NOTIFY_TYPE_ROWS: { key: NotifyType; label: string }[] = [
+  { key: "anime", label: "Anime" },
+  { key: "tv", label: "TV shows" },
+  { key: "movie", label: "Movies" },
+];
+
 const viewOptions = [
   { value: "month", label: "Month" },
+  { value: "week", label: "Week" },
   { value: "agenda", label: "Agenda" },
 ];
 const retentionOptions = [
@@ -76,8 +112,8 @@ const weekOptions = [
       :disabled="!loaded"
       @update:model-value="change({ calendar_game_releases: $event })"
     >
-      <strong>Game releases</strong>: show upcoming release dates for games on
-      your Wishlist or Backlog
+      <strong>Game releases</strong>: show the release date of every game in
+      your library, past and upcoming
     </ToggleButton>
     <ToggleButton
       :model-value="prefs.calendar_game_history"
@@ -107,6 +143,27 @@ const weekOptions = [
     >
       <strong>Hide all Games layers</strong>: keep games off the calendar even
       when the two options above are on
+    </ToggleButton>
+
+    <h4 class="scope-title">Show airing episodes for titles that are</h4>
+    <ToggleButton
+      v-for="row in NOTIFY_STATUS_ROWS"
+      :key="row.key"
+      :model-value="prefs.calendar_airing_statuses.includes(row.key)"
+      :label="row.label"
+      :disabled="!loaded"
+      @update:model-value="
+        change({
+          calendar_airing_statuses: setMember(
+            prefs.calendar_airing_statuses,
+            row.key,
+            $event,
+          ),
+        })
+      "
+    >
+      <strong>{{ row.label }}</strong
+      >: {{ row.hint }}
     </ToggleButton>
 
     <div class="field">
@@ -156,6 +213,48 @@ const weekOptions = [
         "
       />
     </div>
+    <h4 class="scope-title">Notify me about titles that are</h4>
+    <ToggleButton
+      v-for="row in NOTIFY_STATUS_ROWS"
+      :key="row.key"
+      :model-value="prefs.notify_statuses.includes(row.key)"
+      :label="row.label"
+      :disabled="!loaded"
+      @update:model-value="
+        change({
+          notify_statuses: setMember(prefs.notify_statuses, row.key, $event),
+        })
+      "
+    >
+      <strong>{{ row.label }}</strong
+      >: {{ row.hint }}
+    </ToggleButton>
+    <h4 class="scope-title">Notify me about</h4>
+    <ToggleButton
+      v-for="row in NOTIFY_TYPE_ROWS"
+      :key="row.key"
+      :model-value="prefs.notify_media_types.includes(row.key)"
+      :label="row.label"
+      :disabled="!loaded"
+      @update:model-value="
+        change({
+          notify_media_types: setMember(
+            prefs.notify_media_types,
+            row.key,
+            $event,
+          ),
+        })
+      "
+    >
+      <strong>{{ row.label }}</strong>
+    </ToggleButton>
+    <p class="section-hint scope-note">
+      Only watching? Leave Watching on and switch off the other two. Completed
+      and Dropped titles never send episode alerts. New season and sequel
+      notices are about titles you finished, so they follow the kinds above and
+      their own switches below, not this list.
+    </p>
+    <h4 class="scope-title">What to notify me about</h4>
     <ToggleButton
       :model-value="prefs.notify_episode_aired"
       label="Episode aired"
@@ -206,6 +305,17 @@ const weekOptions = [
   margin: 22px 0 8px;
   font-size: 0.86rem;
   color: #ddd;
+}
+.scope-title {
+  margin: 18px 0 8px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #b9b9b9;
+}
+.scope-note {
+  margin-top: 10px;
 }
 .section-hint {
   color: #9c9c9c;

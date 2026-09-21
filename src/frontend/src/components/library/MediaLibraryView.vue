@@ -1,11 +1,20 @@
 <script setup lang="ts">
-import { ref, computed, reactive, watch } from "vue";
+import {
+  ref,
+  computed,
+  reactive,
+  watch,
+  onMounted,
+  onBeforeUnmount,
+} from "vue";
 import { useRouter } from "vue-router";
 import CheckIcon from "../CheckIcon.vue";
 import MediaTopBar from "../MediaTopBar.vue";
 import SegmentedTabs from "../SegmentedTabs.vue";
 import type { SegmentOption } from "../SegmentedTabs.vue";
 import { preferences } from "../../state/preferences";
+import { matchesFilters } from "../../utils/libraryFilters";
+import type { LibraryFilters } from "../../utils/libraryFilters";
 import {
   STATUS_BUCKETS,
   statusBucket,
@@ -45,6 +54,10 @@ export interface LibraryCardVM {
   // Release/first-air year, shown right under the format label — null
   // when the underlying date is unknown.
   releaseYear: string | null;
+  // when it was added to the library (ms), for sorting by recently added
+  addedAt?: number | null;
+  // other spellings of the title, so search finds any of them
+  altTitles?: string[];
 }
 
 export interface SearchResultVM {
@@ -174,15 +187,107 @@ const boardCardWidth = computed(() => {
 });
 const activeStatus = ref<string>("all");
 const searchQuery = ref("");
-const sortKey = ref<"rank" | "title" | "progress">("rank");
+type SortKey =
+  | "rank"
+  | "score"
+  | "title"
+  | "title_desc"
+  | "added"
+  | "year_new"
+  | "year_old"
+  | "progress";
+const SORT_KEYS: SortKey[] = [
+  "rank",
+  "score",
+  "title",
+  "title_desc",
+  "added",
+  "year_new",
+  "year_old",
+  "progress",
+];
+function savedSort(): SortKey {
+  try {
+    const v = localStorage.getItem(`librarySort:${props.kind}`) as SortKey;
+    return SORT_KEYS.includes(v) ? v : "rank";
+  } catch {
+    return "rank";
+  }
+}
+const sortKey = ref<SortKey>(savedSort());
+watch(sortKey, (v) => {
+  try {
+    localStorage.setItem(`librarySort:${props.kind}`, v);
+  } catch {
+    /* remembering the sort is optional */
+  }
+});
 const selectedGenres = ref<Set<string>>(new Set());
-const genreChipsOpen = ref(false);
+const genreMatchAll = ref(false);
+const selectedFormats = ref<Set<string>>(new Set());
+const onlyFavorites = ref(false);
+const onlyUnrated = ref(false);
+const onlyWithNote = ref(false);
+const minScore = ref<number | null>(null);
+// kept as text: v-model on a number input would hand back a Number
+const yearFrom = ref("");
+const yearTo = ref("");
+const filtersOpen = ref(false);
+const SCORE_OPTIONS = [6, 7, 8, 9];
 
 const allGenres = computed(() => {
   const set = new Set<string>();
   props.items.forEach((it) => it.genres.forEach((g) => set.add(g)));
   return [...set].sort();
 });
+
+const allFormats = computed(() => {
+  const set = new Set<string>();
+  props.items.forEach((it) => it.format && set.add(it.format));
+  return [...set].sort();
+});
+
+// the number of separate filters in use, shown on the Filters button
+const activeFilterCount = computed(
+  () =>
+    [
+      selectedGenres.value.size > 0,
+      selectedFormats.value.size > 0,
+      onlyFavorites.value,
+      onlyUnrated.value,
+      onlyWithNote.value,
+      minScore.value !== null,
+      yearFrom.value.trim() !== "" || yearTo.value.trim() !== "",
+    ].filter(Boolean).length,
+);
+function clearFilters() {
+  selectedGenres.value = new Set();
+  selectedFormats.value = new Set();
+  genreMatchAll.value = false;
+  onlyFavorites.value = false;
+  onlyUnrated.value = false;
+  onlyWithNote.value = false;
+  minScore.value = null;
+  yearFrom.value = "";
+  yearTo.value = "";
+}
+
+// Every filter except the status tab (the Board shows the tabs as rows).
+const filters = computed<LibraryFilters>(() => ({
+  search: searchQuery.value,
+  genres: [...selectedGenres.value],
+  genreMatchAll: genreMatchAll.value,
+  formats: [...selectedFormats.value],
+  onlyFavorites: onlyFavorites.value,
+  onlyUnrated: onlyUnrated.value,
+  onlyWithNote: onlyWithNote.value,
+  minScore: minScore.value,
+  yearFrom: yearFrom.value,
+  yearTo: yearTo.value,
+}));
+function matchesFilterState(it: LibraryCardVM): boolean {
+  return matchesFilters(it, filters.value);
+}
 
 // Rank is generated, not manually assigned — a leaderboard position among
 // everything that's been rated, highest score first. Nothing without a
@@ -220,20 +325,37 @@ const filteredItems = computed(() => {
   if (activeStatus.value !== "all") {
     list = list.filter((it) => statusBucket(it.status) === activeStatus.value);
   }
-  if (searchQuery.value.trim()) {
-    const q = searchQuery.value.trim().toLowerCase();
-    list = list.filter((it) => it.title.toLowerCase().includes(q));
-  }
-  if (selectedGenres.value.size) {
-    list = list.filter((it) =>
-      it.genres.some((g) => selectedGenres.value.has(g)),
-    );
-  }
+  list = list.filter(matchesFilterState);
   const sorted = [...list];
+  const year = (it: LibraryCardVM) =>
+    it.releaseYear ? parseInt(it.releaseYear, 10) : null;
+  // titles missing the sorted value always go last, whichever direction
+  const byNullable = (
+    value: (it: LibraryCardVM) => number | null,
+    direction: 1 | -1,
+  ) =>
+    sorted.sort((a, b) => {
+      const va = value(a);
+      const vb = value(b);
+      if (va === null && vb === null) return a.title.localeCompare(b.title);
+      if (va === null) return 1;
+      if (vb === null) return -1;
+      return (va - vb) * direction || a.title.localeCompare(b.title);
+    });
   if (sortKey.value === "title") {
     sorted.sort((a, b) => a.title.localeCompare(b.title));
+  } else if (sortKey.value === "title_desc") {
+    sorted.sort((a, b) => b.title.localeCompare(a.title));
   } else if (sortKey.value === "progress") {
     sorted.sort((a, b) => progressPct(b) - progressPct(a));
+  } else if (sortKey.value === "score") {
+    byNullable((it) => it.score, -1);
+  } else if (sortKey.value === "added") {
+    byNullable((it) => it.addedAt ?? null, -1);
+  } else if (sortKey.value === "year_new") {
+    byNullable(year, -1);
+  } else if (sortKey.value === "year_old") {
+    byNullable(year, 1);
   } else {
     sorted.sort((a, b) => {
       const ra = computedRank(a) ?? 999999;
@@ -254,19 +376,18 @@ const boardGroups = computed(() => {
       let rowItems = props.items.filter(
         (it) => statusBucket(it.status) === s.key,
       );
-      if (searchQuery.value.trim()) {
-        const q = searchQuery.value.trim().toLowerCase();
-        rowItems = rowItems.filter((it) => it.title.toLowerCase().includes(q));
-      }
-      if (selectedGenres.value.size) {
-        rowItems = rowItems.filter((it) =>
-          it.genres.some((g) => selectedGenres.value.has(g)),
-        );
-      }
+      rowItems = rowItems.filter(matchesFilterState);
       return { status: s, rowItems };
     })
     .filter((g) => g.rowItems.length > 0);
 });
+
+function toggleFormat(f: string) {
+  const next = new Set(selectedFormats.value);
+  if (next.has(f)) next.delete(f);
+  else next.add(f);
+  selectedFormats.value = next;
+}
 
 function toggleGenre(g: string) {
   const next = new Set(selectedGenres.value);
@@ -477,6 +598,11 @@ function openQuickAdd() {
   quickAddProviderErrors.value = [];
   quickAddOpen.value = true;
 }
+function onEscape(e: KeyboardEvent) {
+  if (e.key === "Escape" && quickAddOpen.value) closeQuickAdd();
+}
+onMounted(() => window.addEventListener("keydown", onEscape));
+onBeforeUnmount(() => window.removeEventListener("keydown", onEscape));
 function closeQuickAdd() {
   quickAddOpen.value = false;
   quickAddPick.value = null;
@@ -563,7 +689,9 @@ defineExpose({ openQuickAdd });
               kind === "movie" ? "Movies" : kind === "tv" ? "TV Shows" : "Anime"
             }}
           </h1>
-          <div class="sub">{{ items.length }} titles</div>
+          <div class="sub">
+            {{ items.length }} {{ items.length === 1 ? "title" : "titles" }}
+          </div>
         </div>
         <div style="display: flex; gap: 8px">
           <button
@@ -621,18 +749,23 @@ defineExpose({ openQuickAdd });
         </div>
         <select v-model="sortKey" class="sort-select">
           <option value="rank">Sort: Rank</option>
+          <option value="score">Sort: Score, highest first</option>
           <option value="title">Sort: Title A–Z</option>
+          <option value="title_desc">Sort: Title Z–A</option>
+          <option value="added">Sort: Recently added</option>
+          <option value="year_new">Sort: Release year, newest</option>
+          <option value="year_old">Sort: Release year, oldest</option>
           <option value="progress">Sort: Progress</option>
         </select>
         <button
           type="button"
           class="filter-btn"
-          :class="{ 'active-filter': selectedGenres.size }"
-          @click="genreChipsOpen = !genreChipsOpen"
+          :class="{ 'active-filter': activeFilterCount }"
+          @click="filtersOpen = !filtersOpen"
         >
-          Genre
-          <span v-if="selectedGenres.size" class="count">{{
-            selectedGenres.size
+          Filters
+          <span v-if="activeFilterCount" class="count">{{
+            activeFilterCount
           }}</span>
         </button>
         <div
@@ -653,17 +786,116 @@ defineExpose({ openQuickAdd });
           </button>
         </div>
       </div>
-      <div v-if="genreChipsOpen" class="genre-chips">
-        <button
-          v-for="g in allGenres"
-          :key="g"
-          type="button"
-          class="genre-chip"
-          :class="{ selected: selectedGenres.has(g) }"
-          @click="toggleGenre(g)"
-        >
-          {{ g }}
-        </button>
+      <div v-if="filtersOpen" class="filter-panel">
+        <div class="filter-group">
+          <span class="filter-label">Show</span>
+          <button
+            type="button"
+            class="genre-chip"
+            :class="{ selected: onlyFavorites }"
+            @click="onlyFavorites = !onlyFavorites"
+          >
+            Favorites
+          </button>
+          <button
+            type="button"
+            class="genre-chip"
+            :class="{ selected: onlyUnrated }"
+            @click="onlyUnrated = !onlyUnrated"
+          >
+            Not scored yet
+          </button>
+          <button
+            type="button"
+            class="genre-chip"
+            :class="{ selected: onlyWithNote }"
+            @click="onlyWithNote = !onlyWithNote"
+          >
+            Has a note
+          </button>
+        </div>
+        <div class="filter-group">
+          <span class="filter-label">Score</span>
+          <button
+            v-for="s in SCORE_OPTIONS"
+            :key="s"
+            type="button"
+            class="genre-chip"
+            :class="{ selected: minScore === s }"
+            @click="minScore = minScore === s ? null : s"
+          >
+            {{ s }}+
+          </button>
+        </div>
+        <div class="filter-group">
+          <span class="filter-label">Year</span>
+          <input
+            :value="yearFrom"
+            type="number"
+            class="year-input"
+            placeholder="From"
+            aria-label="Released from year"
+            @input="yearFrom = ($event.target as HTMLInputElement).value"
+          />
+          <span class="filter-dash">to</span>
+          <input
+            :value="yearTo"
+            type="number"
+            class="year-input"
+            placeholder="To"
+            aria-label="Released up to year"
+            @input="yearTo = ($event.target as HTMLInputElement).value"
+          />
+        </div>
+        <div v-if="allFormats.length > 1" class="filter-group">
+          <span class="filter-label">Format</span>
+          <button
+            v-for="f in allFormats"
+            :key="f"
+            type="button"
+            class="genre-chip"
+            :class="{ selected: selectedFormats.has(f) }"
+            @click="toggleFormat(f)"
+          >
+            {{ f }}
+          </button>
+        </div>
+        <div v-if="allGenres.length" class="filter-group">
+          <span class="filter-label">Genre</span>
+          <button
+            v-for="g in allGenres"
+            :key="g"
+            type="button"
+            class="genre-chip"
+            :class="{ selected: selectedGenres.has(g) }"
+            @click="toggleGenre(g)"
+          >
+            {{ g }}
+          </button>
+          <button
+            v-if="selectedGenres.size > 1"
+            type="button"
+            class="genre-chip match-mode"
+            :class="{ selected: genreMatchAll }"
+            title="Require every selected genre instead of any of them"
+            @click="genreMatchAll = !genreMatchAll"
+          >
+            {{ genreMatchAll ? "Match all" : "Match any" }}
+          </button>
+        </div>
+        <div class="filter-foot">
+          <span class="filter-result"
+            >{{ filteredItems.length }} of {{ items.length }} shown</span
+          >
+          <button
+            v-if="activeFilterCount"
+            type="button"
+            class="filter-clear"
+            @click="clearFilters"
+          >
+            Clear filters
+          </button>
+        </div>
       </div>
 
       <div class="status-tabs">
@@ -1317,6 +1549,7 @@ defineExpose({ openQuickAdd });
             <div class="qa-search-row">
               <input
                 v-model="quickAddQuery"
+                autofocus
                 placeholder="Search by title..."
                 @keyup.enter="runQuickAddSearch"
               />
@@ -1372,6 +1605,11 @@ defineExpose({ openQuickAdd });
                   + Add
                 </button>
               </div>
+            </div>
+            <div class="qa-search-foot">
+              <button type="button" class="btn-outline" @click="closeQuickAdd">
+                Cancel
+              </button>
             </div>
           </div>
         </div>
@@ -1703,11 +1941,67 @@ defineExpose({ openQuickAdd });
   color: #14100a;
   background: var(--accent);
 }
-.genre-chips {
+.filter-panel {
   margin-top: 10px;
   display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.filter-group {
+  display: flex;
+  align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+}
+.filter-label {
+  min-width: 56px;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.year-input {
+  box-sizing: border-box;
+  width: 84px;
+  height: 28px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  padding: 0 10px;
+  font-size: 0.78rem;
+}
+.filter-dash {
+  font-size: 0.76rem;
+  color: var(--text-dim);
+}
+.match-mode {
+  margin-left: 6px;
+}
+.filter-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-soft);
+}
+.filter-result {
+  font-size: 0.76rem;
+  color: var(--text-dim);
+}
+.filter-clear {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
 }
 .genre-chip {
   box-sizing: border-box;
@@ -2549,6 +2843,11 @@ defineExpose({ openQuickAdd });
   border-bottom: 1px solid var(--border-soft);
   background: linear-gradient(160deg, var(--accent-soft), transparent 70%);
 }
+.qa-search-foot {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 14px;
+}
 .qa-header-row {
   display: flex;
   align-items: center;
@@ -2769,8 +3068,12 @@ defineExpose({ openQuickAdd });
   .list-thumb-wrap {
     width: 56px;
   }
+  .list-thumb {
+    width: 100%;
+  }
+  /* the columns are set inline from the card size, so this needs !important */
   .shelf-grid {
-    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)) !important;
   }
 }
 </style>
