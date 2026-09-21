@@ -26,6 +26,8 @@ class Settings(BaseSettings):
     # Fernet key used to encrypt secrets at rest (e.g. PSN npsso token).
     SECRET_KEY: str
     MAX_UPLOAD_SIZE_MB: int = 15
+    # Save archives are streamed to disk and can be much larger than normal media uploads.
+    MAX_SAVE_ARCHIVE_SIZE_MB: int = 4096
     MAX_CLIP_SIZE_MB: int = 500
     MAX_WORLD_SAVE_SIZE_MB: int = 2000
 
