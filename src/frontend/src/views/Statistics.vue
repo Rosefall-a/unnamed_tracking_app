@@ -172,6 +172,72 @@ function openTitle(t: TopTitle) {
   router.push(`${base}/${t.id}`);
 }
 
+const totalMinutes = computed(() =>
+  stats.value
+    ? stats.value.overview.media_minutes +
+      Math.floor(stats.value.overview.game_seconds / 60)
+    : 0,
+);
+const totalTitles = computed(() =>
+  stats.value
+    ? stats.value.overview.kinds.reduce((n, k) => n + k.titles, 0)
+    : 0,
+);
+const totalCompleted = computed(() =>
+  stats.value
+    ? stats.value.overview.kinds.reduce((n, k) => n + k.completed, 0)
+    : 0,
+);
+const totalFavorites = computed(() =>
+  stats.value
+    ? stats.value.overview.media_favorites + stats.value.games.favorites
+    : 0,
+);
+const unplayedSub = computed(() => {
+  const u = stats.value?.games.insights.unplayed;
+  if (!u) return "";
+  const spent = u.spent
+    .map((s) => `${s.amount.toLocaleString()} ${s.currency}`)
+    .join(", ");
+  return spent ? `owned games, ${spent} spent on them` : "owned games";
+});
+const backlogHours = computed(() => {
+  const b = stats.value?.games.insights.backlog;
+  if (!b || b.count === b.without_estimate) return "–";
+  return `${b.hours} hours`;
+});
+// backlog hours only add games that have a time-to-beat; the rest are named
+const backlogSub = computed(() => {
+  const b = stats.value?.games.insights.backlog;
+  if (!b) return "";
+  const missing = b.without_estimate
+    ? `, ${b.without_estimate} without a time-to-beat`
+    : "";
+  return `${b.count} backlog game${b.count === 1 ? "" : "s"}${missing}`;
+});
+function progressText(p: {
+  label?: string;
+  watched: number;
+  total: number;
+}): string {
+  if (p.label) return p.label;
+  return p.total ? `${p.watched} / ${p.total}` : String(p.watched);
+}
+function secondsRows(rows: { name: string; seconds: number }[]) {
+  return rows.map((r) => ({
+    name: r.name,
+    value: r.seconds,
+    label: fmtSeconds(r.seconds),
+  }));
+}
+function fmtDate(epoch: number): string {
+  return new Date(epoch * 1000).toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+}
+
 // the TV and Anime tabs share one layout
 const episodic = computed<EpisodicStats | null>(() => {
   if (!stats.value) return null;
@@ -206,22 +272,28 @@ const episodic = computed<EpisodicStats | null>(() => {
         <template v-if="tab === 'overview'">
           <div class="stats-summary">
             <StatCard
-              icon="grid"
-              label="Media titles"
-              :value="stats.overview.media_titles"
-              :sub="`${stats.overview.media_completed} completed`"
-            />
-            <StatCard
               icon="clock"
-              label="Media watch time"
-              :value="fmtMinutes(stats.overview.media_minutes)"
-              :sub="`${fmtHours(stats.overview.media_minutes)}, exact runtimes`"
+              label="Total time"
+              :value="fmtMinutes(totalMinutes)"
+              :sub="`${fmtMinutes(stats.overview.media_minutes)} watched, ${fmtSeconds(stats.overview.game_seconds)} played`"
             />
             <StatCard
-              icon="play"
-              label="Game time"
-              :value="fmtSeconds(stats.overview.game_seconds)"
-              :sub="`${(stats.overview.game_seconds / 3600).toLocaleString(undefined, { maximumFractionDigits: 1 })} hours from your platforms`"
+              icon="grid"
+              label="Titles tracked"
+              :value="totalTitles"
+              :sub="`${totalCompleted} completed across movies, TV, anime and games`"
+            />
+            <StatCard
+              icon="heart"
+              label="Favorites"
+              :value="totalFavorites"
+              sub="across every type"
+            />
+            <StatCard
+              icon="trophy"
+              label="Games finished this year"
+              :value="stats.overview.games_finished_this_year"
+              :sub="`${stats.games.achievements_unlocked} achievements unlocked overall`"
             />
             <StatCard
               icon="flame"
@@ -233,13 +305,7 @@ const episodic = computed<EpisodicStats | null>(() => {
               icon="calendar"
               label="Active days"
               :value="stats.overview.activity.active_days_total"
-              sub="days with anything logged"
-            />
-            <StatCard
-              icon="heart"
-              label="Media favorites"
-              :value="stats.overview.media_favorites"
-              sub="movies, TV and anime"
+              sub="days with an episode or achievement logged"
             />
           </div>
 
@@ -285,11 +351,11 @@ const episodic = computed<EpisodicStats | null>(() => {
               v-if="stats.overview.in_progress.length"
               class="stats-panel wide"
             >
-              <h2>Currently watching</h2>
+              <h2>In progress</h2>
               <div class="progress-list">
                 <button
                   v-for="p in stats.overview.in_progress"
-                  :key="p.id"
+                  :key="`${p.kind}-${p.id}`"
                   type="button"
                   class="progress-row"
                   @click="openKind(p.kind, p.id)"
@@ -304,19 +370,33 @@ const episodic = computed<EpisodicStats | null>(() => {
                   ></span>
                   <span class="progress-main">
                     <span class="progress-title">{{ p.title }}</span>
-                    <span class="progress-track"
+                    <span v-if="p.kind !== 'game'" class="progress-track"
                       ><span
                         class="progress-fill"
                         :style="{ width: progressPct(p) + '%' }"
                       ></span
                     ></span>
+                    <span v-else class="dim">Game</span>
                   </span>
-                  <span class="progress-count"
-                    >{{ p.watched
-                    }}<template v-if="p.total"> / {{ p.total }}</template></span
-                  >
+                  <span class="progress-count">{{ progressText(p) }}</span>
                 </button>
               </div>
+            </section>
+            <section class="stats-panel">
+              <h2>Backlog by type</h2>
+              <ul class="plain-list">
+                <li v-for="b in stats.overview.backlog" :key="b.kind">
+                  <span>{{ KIND_LABEL[b.kind] }}</span>
+                  <span class="dim"
+                    >{{ b.waiting }}
+                    {{ b.kind === "game" ? "on the wishlist" : "planned" }},
+                    {{ b.on_hold }} in the backlog</span
+                  >
+                </li>
+              </ul>
+              <p v-if="stats.overview.game_backlog.count" class="note">
+                {{ backlogSub }}
+              </p>
             </section>
             <section class="stats-panel">
               <h2>Average score by type</h2>
@@ -358,11 +438,12 @@ const episodic = computed<EpisodicStats | null>(() => {
               </ul>
             </section>
             <section class="stats-panel wide">
-              <h2>Episodes checked off, last 52 weeks</h2>
+              <h2>Activity, last 52 weeks</h2>
               <ActivityHeatmap :days="stats.overview.activity.per_day" />
               <p v-if="stats.overview.activity.busiest_day" class="note">
                 Busiest day: {{ stats.overview.activity.busiest_day.date }} with
-                {{ stats.overview.activity.busiest_day.count }} episodes.
+                {{ stats.overview.activity.busiest_day.count }} episodes and
+                achievements.
               </p>
             </section>
           </div>
@@ -399,6 +480,38 @@ const episodic = computed<EpisodicStats | null>(() => {
               label="Mean score"
               :value="stats.games.score.average ?? '–'"
               :sub="`${stats.games.score.rated} rated`"
+            />
+            <StatCard
+              icon="clock"
+              label="Average playtime"
+              :value="
+                stats.games.insights.average_seconds === null
+                  ? '–'
+                  : fmtSeconds(stats.games.insights.average_seconds)
+              "
+              :sub="
+                stats.games.insights.median_seconds === null
+                  ? 'no playtime recorded'
+                  : `median ${fmtSeconds(stats.games.insights.median_seconds)}`
+              "
+            />
+            <StatCard
+              icon="grid"
+              label="No playtime recorded"
+              :value="stats.games.insights.unplayed.count"
+              :sub="unplayedSub"
+            />
+            <StatCard
+              icon="play"
+              label="Played last 30 days"
+              :value="stats.games.insights.played_last_30_days"
+              :sub="`${stats.games.insights.finished_this_year} finished this year`"
+            />
+            <StatCard
+              icon="check"
+              label="Backlog"
+              :value="backlogHours"
+              :sub="backlogSub"
             />
             <StatCard
               v-for="s in stats.games.spent"
@@ -473,6 +586,140 @@ const episodic = computed<EpisodicStats | null>(() => {
             <section class="stats-panel">
               <h2>Added, last 12 months</h2>
               <ColumnChart :columns="months(stats.games.added_per_month)" />
+            </section>
+            <section class="stats-panel">
+              <h2>Playtime distribution</h2>
+              <ColumnChart
+                :columns="
+                  stats.games.insights.playtime_buckets.map((b) => ({
+                    label: b.label,
+                    value: b.count,
+                  }))
+                "
+              />
+              <p class="note">
+                "No playtime recorded" means the platform reported none for that
+                game.
+              </p>
+            </section>
+            <section
+              v-if="stats.games.insights.recently_played.length"
+              class="stats-panel"
+            >
+              <h2>Recently played</h2>
+              <ul class="plain-list">
+                <li
+                  v-for="g in stats.games.insights.recently_played"
+                  :key="g.id"
+                >
+                  <button type="button" @click="openKind('game', g.id)">
+                    {{ g.title }}
+                  </button>
+                  <span class="dim">{{ fmtDate(g.last_played_at) }}</span>
+                </li>
+              </ul>
+            </section>
+            <section
+              v-if="stats.games.insights.closest_to_full.length"
+              class="stats-panel"
+            >
+              <h2>Closest to 100%</h2>
+              <BarList
+                :rows="
+                  stats.games.insights.closest_to_full.map((g) => ({
+                    name: g.title,
+                    value: g.unlocked / g.total,
+                    label: `${g.unlocked} / ${g.total}`,
+                  }))
+                "
+              />
+              <p class="note">
+                {{ stats.games.insights.fully_unlocked }} game{{
+                  stats.games.insights.fully_unlocked === 1 ? "" : "s"
+                }}
+                fully unlocked.
+              </p>
+            </section>
+            <section
+              v-if="stats.games.insights.cost_per_hour.length"
+              class="stats-panel"
+            >
+              <h2>Cost per hour</h2>
+              <ul class="plain-list">
+                <li
+                  v-for="c in stats.games.insights.cost_per_hour"
+                  :key="c.currency"
+                >
+                  <span
+                    >{{ c.per_hour.toLocaleString() }} {{ c.currency }} per
+                    hour</span
+                  >
+                  <span class="dim"
+                    >{{ c.hours.toLocaleString() }} hours over
+                    {{ c.games }} priced game{{
+                      c.games === 1 ? "" : "s"
+                    }}</span
+                  >
+                </li>
+              </ul>
+              <p class="note">
+                Only games with both a purchase price and recorded playtime.
+              </p>
+            </section>
+            <section
+              v-if="stats.games.insights.seconds_by_source.length"
+              class="stats-panel"
+            >
+              <h2>Playtime by source</h2>
+              <BarList
+                :rows="secondsRows(stats.games.insights.seconds_by_source)"
+              />
+            </section>
+            <section
+              v-if="stats.games.insights.seconds_by_developer.length"
+              class="stats-panel"
+            >
+              <h2>Playtime by developer</h2>
+              <BarList
+                :rows="secondsRows(stats.games.insights.seconds_by_developer)"
+              />
+            </section>
+            <section
+              v-if="stats.games.insights.seconds_by_series.length"
+              class="stats-panel"
+            >
+              <h2>Playtime by series</h2>
+              <BarList
+                :rows="secondsRows(stats.games.insights.seconds_by_series)"
+              />
+            </section>
+            <section
+              v-if="stats.games.insights.decades.length"
+              class="stats-panel"
+            >
+              <h2>Release decades</h2>
+              <ColumnChart
+                :columns="
+                  stats.games.insights.decades.map((d) => ({
+                    label: `${d.decade}s`,
+                    value: d.count,
+                  }))
+                "
+              />
+            </section>
+            <section
+              v-if="stats.games.insights.age_ratings.length"
+              class="stats-panel"
+            >
+              <h2>Age ratings</h2>
+              <BarList :rows="named(stats.games.insights.age_ratings)" />
+            </section>
+            <section
+              v-if="stats.games.insights.features.length"
+              class="stats-panel"
+            >
+              <h2>Features</h2>
+              <BarList :rows="named(stats.games.insights.features)" />
             </section>
           </div>
         </template>

@@ -13,7 +13,6 @@ import {
   updateScanSettings,
   fetchAppIntegrations,
   updateAppIntegrations,
-  deleteAppIntegrations,
 } from "../../services/settings";
 import type { ProviderCredentialStatus } from "../../services/settings";
 import { syncLibrary } from "../../services/librarySync";
@@ -118,6 +117,16 @@ const omdbConfigured = ref(false);
 const omdbSaving = ref(false);
 const omdbError = ref<string | null>(null);
 
+// a key the server's environment provides is in effect, but Settings can
+// only override it, not clear it
+const keySources = ref<Record<string, string>>({});
+function keyPlaceholder(name: string, configured: boolean, empty: string) {
+  if (!configured) return empty;
+  return keySources.value[name] === "environment"
+    ? "Set by the server: type a key to override it"
+    : "Saved: leave blank to keep";
+}
+
 const tvdbApiKey = ref("");
 const tvdbConfigured = ref(false);
 const tvdbSaving = ref(false);
@@ -132,6 +141,7 @@ onMounted(async () => {
     const result = await fetchAppIntegrations();
     igdbClientId.value = result.igdb_client_id ?? "";
     igdbConfigured.value = result.igdb_configured;
+    keySources.value = result.sources ?? {};
     tmdbConfigured.value = result.tmdb_configured;
     omdbConfigured.value = result.omdb_configured;
     tvdbConfigured.value = result.tvdb_configured;
@@ -177,11 +187,17 @@ async function clearIgdbCredentials() {
   igdbSaving.value = true;
   igdbError.value = null;
   try {
-    await deleteAppIntegrations();
-    igdbClientId.value = "";
+    const result = await updateAppIntegrations({
+      igdb_client_id: "",
+      igdb_client_secret: "",
+    });
+    keySources.value = result.sources ?? {};
+    igdbClientId.value = result.igdb_client_id ?? "";
     igdbClientSecret.value = "";
-    igdbConfigured.value = false;
-    credentialStatus.IGDB = { status: "not_configured" };
+    igdbConfigured.value = result.igdb_configured;
+    credentialStatus.IGDB = {
+      status: igdbConfigured.value ? "configured" : "not_configured",
+    };
   } catch (err) {
     igdbError.value =
       err instanceof Error ? err.message : "Failed to clear IGDB credentials";
@@ -219,10 +235,13 @@ async function clearTmdbKey() {
   tmdbSaving.value = true;
   tmdbError.value = null;
   try {
-    await updateAppIntegrations({ tmdb_api_key: "" });
+    const result = await updateAppIntegrations({ tmdb_api_key: "" });
     tmdbApiKey.value = "";
-    tmdbConfigured.value = false;
-    credentialStatus.TMDB = { status: "not_configured" };
+    keySources.value = result.sources ?? {};
+    tmdbConfigured.value = result.tmdb_configured;
+    credentialStatus.TMDB = {
+      status: tmdbConfigured.value ? "configured" : "not_configured",
+    };
   } catch (err) {
     tmdbError.value =
       err instanceof Error ? err.message : "Failed to clear TMDB key";
@@ -255,10 +274,13 @@ async function clearOmdbKey() {
   omdbSaving.value = true;
   omdbError.value = null;
   try {
-    await updateAppIntegrations({ omdb_api_key: "" });
+    const result = await updateAppIntegrations({ omdb_api_key: "" });
     omdbApiKey.value = "";
-    omdbConfigured.value = false;
-    credentialStatus.OMDb = { status: "not_configured" };
+    keySources.value = result.sources ?? {};
+    omdbConfigured.value = result.omdb_configured;
+    credentialStatus.OMDb = {
+      status: omdbConfigured.value ? "configured" : "not_configured",
+    };
   } catch (err) {
     omdbError.value =
       err instanceof Error ? err.message : "Failed to clear OMDb key";
@@ -291,10 +313,13 @@ async function clearTvdbKey() {
   tvdbSaving.value = true;
   tvdbError.value = null;
   try {
-    await updateAppIntegrations({ tvdb_api_key: "" });
+    const result = await updateAppIntegrations({ tvdb_api_key: "" });
     tvdbApiKey.value = "";
-    tvdbConfigured.value = false;
-    credentialStatus.TVDB = { status: "not_configured" };
+    keySources.value = result.sources ?? {};
+    tvdbConfigured.value = result.tvdb_configured;
+    credentialStatus.TVDB = {
+      status: tvdbConfigured.value ? "configured" : "not_configured",
+    };
   } catch (err) {
     tvdbError.value =
       err instanceof Error ? err.message : "Failed to clear TVDB key";
@@ -858,9 +883,11 @@ async function toggleHltb(enabled: boolean) {
             <MaskedInput
               v-model="igdbClientSecret"
               :placeholder="
-                igdbConfigured
-                  ? 'Saved: leave blank to keep'
-                  : 'Paste your Twitch Client Secret'
+                keyPlaceholder(
+                  'igdb_client_secret',
+                  igdbConfigured,
+                  'Paste your Twitch Client Secret',
+                )
               "
             />
           </label>
@@ -949,9 +976,11 @@ async function toggleHltb(enabled: boolean) {
             <MaskedInput
               v-model="tmdbApiKey"
               :placeholder="
-                tmdbConfigured
-                  ? 'Saved: leave blank to keep'
-                  : 'Paste your TMDB API key'
+                keyPlaceholder(
+                  'tmdb_api_key',
+                  tmdbConfigured,
+                  'Paste your TMDB API key',
+                )
               "
             />
           </label>
@@ -1040,9 +1069,11 @@ async function toggleHltb(enabled: boolean) {
             <MaskedInput
               v-model="omdbApiKey"
               :placeholder="
-                omdbConfigured
-                  ? 'Saved: leave blank to keep'
-                  : 'Paste your OMDb API key'
+                keyPlaceholder(
+                  'omdb_api_key',
+                  omdbConfigured,
+                  'Paste your OMDb API key',
+                )
               "
             />
           </label>
@@ -1131,9 +1162,11 @@ async function toggleHltb(enabled: boolean) {
             <MaskedInput
               v-model="tvdbApiKey"
               :placeholder="
-                tvdbConfigured
-                  ? 'Saved: leave blank to keep'
-                  : 'Paste your TVDB API key'
+                keyPlaceholder(
+                  'tvdb_api_key',
+                  tvdbConfigured,
+                  'Paste your TVDB API key',
+                )
               "
             />
           </label>

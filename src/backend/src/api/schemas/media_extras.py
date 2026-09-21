@@ -47,6 +47,7 @@ class MediaListUpdate(BaseModel):
     description: str | None = None
     smart_rule: SmartRule | None = None
     cover_media_id: UUID | None = None
+    pinned: bool | None = None
 
 
 class MediaListRead(BaseModel):
@@ -57,6 +58,8 @@ class MediaListRead(BaseModel):
     is_smart: bool = False
     # kept by the app (Favorites): cannot be renamed, re-ruled or deleted
     is_system: bool = False
+    pinned: bool = False
+    position: int = 0
     # how many titles of each type it holds, so the overview can filter by type
     type_counts: dict[str, int] = Field(default_factory=dict)
     smart_rule: SmartRule | None = None
@@ -71,6 +74,10 @@ class MediaListRead(BaseModel):
 class MediaListItemCreate(BaseModel):
     media_type: str = Field(pattern="^(movie|tv|anime)$")
     media_id: UUID
+
+
+class MediaListsOrder(BaseModel):
+    list_ids: list[UUID] = Field(min_length=1, max_length=500)
 
 
 class MediaListReorder(BaseModel):

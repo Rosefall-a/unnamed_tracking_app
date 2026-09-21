@@ -32,6 +32,37 @@ class TVMazeClient:
     def __init__(self, *, session: requests.Session | None = None) -> None:
         self.session = session or requests.Session()
 
+    def seasons(self, tvmaze_id: str) -> list[dict[str, Any]]:
+        """Every season TVmaze lists for a show, including announced ones
+        that have not aired: number, name, episode count (when known) and
+        premiere date (when known)."""
+        try:
+            response = self.session.get(f"{_BASE_URL}/shows/{tvmaze_id}/seasons", timeout=15)
+        except requests.RequestException as exc:
+            raise TVMazeError(f"Could not reach TVmaze: {exc}") from exc
+        if response.status_code == 404:
+            return []
+        if response.status_code >= 400:
+            raise TVMazeError(f"TVmaze request failed ({response.status_code}): {response.text[:200]}")
+        try:
+            payload = response.json()
+        except ValueError as exc:
+            raise TVMazeError("TVmaze returned invalid JSON.") from exc
+        seasons: list[dict[str, Any]] = []
+        for entry in payload:
+            number = entry.get("number")
+            if not isinstance(number, int) or number < 1:
+                continue
+            seasons.append(
+                {
+                    "season_number": number,
+                    "name": entry.get("name") or None,
+                    "episode_count": entry.get("episodeOrder"),
+                    "air_date": entry.get("premiereDate") or None,
+                }
+            )
+        return sorted(seasons, key=lambda x: x["season_number"])
+
     def search(self, query: str, limit: int = 8) -> list[dict[str, Any]]:
         if not query.strip():
             return []

@@ -45,6 +45,9 @@ export interface BackendAnime {
   id: string;
   user_id: string;
   title: string;
+  title_english?: string | null;
+  title_romaji?: string | null;
+  title_native?: string | null;
   sort_title: string;
   description: string | null;
   first_air_date: string | null;
@@ -161,6 +164,9 @@ export function mapBackendAnimeRaw(raw: BackendAnime): Anime {
     id: raw.id,
     userId: raw.user_id,
     title: raw.title,
+    titleEnglish: raw.title_english ?? null,
+    titleRomaji: raw.title_romaji ?? null,
+    titleNative: raw.title_native ?? null,
     sortTitle: raw.sort_title,
     description: raw.description,
     firstAirDate: raw.first_air_date,
@@ -856,4 +862,22 @@ export async function refreshAnimeAiring(id: string): Promise<Anime> {
   });
   const raw = await handle<BackendAnime>(response, "refresh airing schedule");
   return mapBackendAnime(raw);
+}
+
+// Looks up the English, romaji and Japanese spelling of every anime that has
+// none stored yet (AniList, in batches). Only blank title fields are set.
+export interface FillTitlesResult {
+  filled: number;
+  without_id: number;
+  lookup_failed: number;
+  checked: number;
+}
+export async function fillAlternateTitles(): Promise<FillTitlesResult> {
+  const response = await fetch("/api/anime/fill-titles", {
+    method: "POST",
+    credentials: "include",
+  });
+  if (!response.ok)
+    throw new Error(`Failed to look up titles: ${response.status}`);
+  return await response.json();
 }

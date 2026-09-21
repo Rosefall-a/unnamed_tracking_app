@@ -1,11 +1,24 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
+import { ref, computed, onMounted } from "vue";
 import {
   fetchLibraryExport,
   importLibrary,
   fetchBackupStatus,
+  previewMal,
+  importMal,
+  previewList,
+  importList,
+  restoreMedia,
+  fetchMediaCsv,
 } from "../../services/exportImport";
-import type { ImportResult, BackupStatus } from "../../services/exportImport";
+import type {
+  ImportResult,
+  BackupStatus,
+  MalImportResult,
+  MalPreview,
+  ImportSource,
+  MediaRestoreResult,
+} from "../../services/exportImport";
 
 const backupStatus = ref<BackupStatus | null>(null);
 onMounted(async () => {
@@ -47,6 +60,163 @@ async function exportLibrary() {
       err instanceof Error ? err.message : "Failed to export library";
   } finally {
     exporting.value = false;
+  }
+}
+
+const csvBusy = ref(false);
+const csvError = ref<string | null>(null);
+async function exportCsv() {
+  csvBusy.value = true;
+  csvError.value = null;
+  try {
+    const url = URL.createObjectURL(await fetchMediaCsv());
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `media-library-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    csvError.value =
+      err instanceof Error ? err.message : "Failed to export the CSV";
+  } finally {
+    csvBusy.value = false;
+  }
+}
+
+const SOURCES: {
+  value: ImportSource;
+  label: string;
+  accept: string;
+  what: string;
+  how: string;
+}[] = [
+  {
+    value: "mal",
+    label: "MyAnimeList",
+    accept: ".xml,.gz,application/xml,text/xml,application/gzip",
+    what: "anime",
+    how: "MyAnimeList's export file (the .xml or .xml.gz from its export page). Status, episodes watched, score, rewatches, dates, tags and your comment come across.",
+  },
+  {
+    value: "letterboxd",
+    label: "Letterboxd",
+    accept: ".zip,.csv,application/zip,text/csv",
+    what: "movies",
+    how: "the zip from Letterboxd's data export (or one of its CSV files). Watched films, ratings (doubled onto the 10-point scale), rewatches from your diary, liked films as favorites, and your watchlist come across.",
+  },
+  {
+    value: "imdb",
+    label: "IMDb",
+    accept: ".csv,text/csv",
+    what: "movies and TV shows",
+    how: "an IMDb ratings or watchlist export (the CSV from your list's Export button). Rated titles come in as watched with your rating, unrated ones as plan to watch. Episodes and other kinds are skipped.",
+  },
+];
+const source = ref<ImportSource>("mal");
+const sourceInfo = computed(
+  () => SOURCES.find((s) => s.value === source.value) ?? SOURCES[0],
+);
+function changeSource(value: string) {
+  source.value = value as ImportSource;
+  cancelMal();
+  malResult.value = null;
+  malError.value = null;
+}
+
+const malBusy = ref(false);
+const malError = ref<string | null>(null);
+const malFile = ref<File | null>(null);
+const malPreview = ref<MalPreview | null>(null);
+const malResult = ref<MalImportResult | null>(null);
+// titles already on the site whose data the user wants replaced by MAL's
+const useMal = ref<Set<string>>(new Set());
+const fetchDetails = ref(true);
+
+async function onMalSelected(e: Event) {
+  const input = e.target as HTMLInputElement;
+  const file = input.files?.[0];
+  if (!file) return;
+  malBusy.value = true;
+  malError.value = null;
+  malResult.value = null;
+  malPreview.value = null;
+  useMal.value = new Set();
+  try {
+    malPreview.value =
+      source.value === "mal"
+        ? await previewMal(file)
+        : await previewList(file, source.value);
+    malFile.value = file;
+  } catch (err) {
+    malError.value =
+      err instanceof Error ? err.message : "Failed to read the file";
+  } finally {
+    malBusy.value = false;
+    input.value = "";
+  }
+}
+function toggleMal(id: string) {
+  const next = new Set(useMal.value);
+  if (next.has(id)) next.delete(id);
+  else next.add(id);
+  useMal.value = next;
+}
+function chooseAllMal(all: boolean) {
+  useMal.value = new Set(
+    all ? (malPreview.value?.existing.map((x) => x.mal_id) ?? []) : [],
+  );
+}
+function cancelMal() {
+  malPreview.value = null;
+  malFile.value = null;
+  useMal.value = new Set();
+}
+async function runMalImport() {
+  if (!malFile.value) return;
+  malBusy.value = true;
+  malError.value = null;
+  try {
+    malResult.value =
+      source.value === "mal"
+        ? await importMal(malFile.value, [...useMal.value], fetchDetails.value)
+        : await importList(
+            malFile.value,
+            source.value,
+            [...useMal.value],
+            fetchDetails.value,
+          );
+    cancelMal();
+  } catch (err) {
+    malError.value =
+      err instanceof Error ? err.message : "Failed to import the list";
+  } finally {
+    malBusy.value = false;
+  }
+}
+
+const restoreBusy = ref(false);
+const restoreError = ref<string | null>(null);
+const restoreResult = ref<MediaRestoreResult | null>(null);
+const RESTORE_LABEL: Record<string, string> = {
+  movies: "movies",
+  tv_shows: "TV shows",
+  anime: "anime",
+};
+async function onRestoreSelected(e: Event) {
+  const input = e.target as HTMLInputElement;
+  const file = input.files?.[0];
+  if (!file) return;
+  restoreBusy.value = true;
+  restoreError.value = null;
+  restoreResult.value = null;
+  try {
+    restoreResult.value = await restoreMedia(file);
+  } catch (err) {
+    restoreError.value =
+      err instanceof Error ? err.message : "Failed to restore the export";
+  } finally {
+    restoreBusy.value = false;
+    input.value = "";
   }
 }
 
@@ -92,8 +262,7 @@ async function onFileSelected(e: Event) {
       A portable JSON snapshot of your whole library (games, movies, TV shows
       and anime) for backups, or moving to a new server. Covers title data and
       metadata only, not attached files (screenshots, saves, docs) or bounties.
-      Import currently only re-creates games; movies/TV/anime are included in
-      the export but not yet re-importable.
+      Games, movies, TV shows and anime can each be brought back below.
     </p>
 
     <div v-if="backupStatus" class="tile backup-status-tile">
@@ -134,7 +303,189 @@ async function onFileSelected(e: Event) {
     </div>
 
     <div class="tile">
-      <h3>Import</h3>
+      <h3>Export as a spreadsheet</h3>
+      <p class="tile-desc">
+        Movies, TV shows and anime as one CSV: status, score, favorite,
+        rewatches, genres and episodes watched.
+      </p>
+      <div v-if="csvError" class="form-error">{{ csvError }}</div>
+      <button
+        type="button"
+        class="secondary-button"
+        :disabled="csvBusy"
+        @click="exportCsv"
+      >
+        {{ csvBusy ? "Exporting…" : "Export CSV" }}
+      </button>
+    </div>
+
+    <div class="tile">
+      <h3>Import from another site</h3>
+      <div class="mal-source">
+        <SegmentedControl
+          :model-value="source"
+          :options="SOURCES.map((s) => ({ value: s.value, label: s.label }))"
+          @update:model-value="changeSource"
+        />
+      </div>
+      <p class="tile-desc">
+        Add your {{ sourceInfo.what }} from {{ sourceInfo.how }} You see what it
+        would add or change before anything happens, and for titles already on
+        the site you choose, title by title, whether to keep them as they are or
+        use the file's data.
+      </p>
+      <div v-if="malError" class="form-error">{{ malError }}</div>
+      <div v-if="malResult" class="form-success">
+        Added {{ malResult.created }}, updated {{ malResult.updated }} from the
+        file, kept {{ malResult.kept }} as they were.
+        <template v-if="malResult.details_filled"
+          >Filled in details for {{ malResult.details_filled }}.</template
+        >
+        <template v-if="malResult.details_not_found">
+          {{ malResult.details_source ?? "AniList" }} had no match for
+          {{ malResult.details_not_found }}.</template
+        >
+        <template v-if="malResult.details_lookup_failed">
+          AniList could not be reached for
+          {{ malResult.details_lookup_failed }}, so their details are still
+          blank: import the same file again later to fill them.</template
+        >
+        <template v-if="malResult.details_unavailable">
+          No TMDB or OMDb key is set, so posters and details were not fetched:
+          add one in Metadata Sources, then import the same file
+          again.</template
+        >
+        <template v-if="malResult.assumed_complete">
+          {{ malResult.assumed_complete }} marked Completed with no episodes
+          listed, so counted as fully watched.</template
+        >
+        <template v-if="malResult.seasons_assumed_watched">
+          {{ malResult.seasons_assumed_watched }} TV show{{
+            malResult.seasons_assumed_watched === 1 ? "" : "s"
+          }}
+          were rated, so all their seasons are counted as fully watched: change
+          any of them in the library.</template
+        >
+        <template v-if="malResult.skipped_other">
+          {{ malResult.skipped_other }} rows were episodes or other kinds and
+          were skipped.</template
+        >
+      </div>
+
+      <div v-if="malPreview" class="mal-review">
+        <p class="tile-desc">
+          {{ malPreview.total }} titles in the file:
+          <strong>{{ malPreview.new_count }} new</strong>,
+          {{ malPreview.existing.length }} already here with differences,
+          {{ malPreview.identical }} already here and identical.
+        </p>
+        <template v-if="malPreview.existing.length">
+          <div class="mal-bulk">
+            <button
+              type="button"
+              class="secondary-button"
+              @click="chooseAllMal(true)"
+            >
+              Use MAL for all
+            </button>
+            <button
+              type="button"
+              class="secondary-button"
+              @click="chooseAllMal(false)"
+            >
+              Keep all as they are
+            </button>
+          </div>
+          <ul class="mal-list">
+            <li v-for="item in malPreview.existing" :key="item.mal_id">
+              <label class="mal-row">
+                <input
+                  type="checkbox"
+                  :checked="useMal.has(item.mal_id)"
+                  @change="toggleMal(item.mal_id)"
+                />
+                <span class="mal-title">{{ item.site_title }}</span>
+                <span class="mal-choice">{{
+                  useMal.has(item.mal_id) ? "Use MAL's" : "Keep as is"
+                }}</span>
+              </label>
+              <ul class="mal-diffs">
+                <li v-for="d in item.differences" :key="d.field">
+                  {{ d.field }}: {{ d.site ?? "empty" }} on the site,
+                  {{ d.mal }} on MAL
+                </li>
+              </ul>
+            </li>
+          </ul>
+        </template>
+        <label class="mal-details">
+          <input v-model="fetchDetails" type="checkbox" />
+          Fill in missing posters, genres and details from
+          {{ source === "mal" ? "AniList" : "TMDB or OMDb" }}. This only fills
+          blank fields and never replaces anything already there.
+        </label>
+        <div class="mal-actions">
+          <button
+            type="button"
+            class="primary-button"
+            :disabled="malBusy"
+            @click="runMalImport"
+          >
+            {{ malBusy ? "Importing…" : "Import" }}
+          </button>
+          <button
+            type="button"
+            class="secondary-button"
+            :disabled="malBusy"
+            @click="cancelMal"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+      <label v-else class="secondary-button upload-label">
+        {{ malBusy ? "Reading…" : "Choose file…" }}
+        <input
+          type="file"
+          :accept="sourceInfo.accept"
+          class="hidden-input"
+          :disabled="malBusy"
+          @change="onMalSelected"
+        />
+      </label>
+    </div>
+
+    <div class="tile">
+      <h3>Restore movies, TV shows and anime</h3>
+      <p class="tile-desc">
+        Add your movies, TV shows and anime back from a library export or a
+        backup file, with their seasons and watched episodes. Anything already
+        in your library (same title and year) is skipped, never overwritten.
+      </p>
+      <div v-if="restoreError" class="form-error">{{ restoreError }}</div>
+      <div v-if="restoreResult" class="form-success">
+        <template v-for="(label, key) in RESTORE_LABEL" :key="key"
+          >{{ label }}: {{ restoreResult.created[key] ?? 0 }} added,
+          {{ restoreResult.skipped[key] ?? 0 }} skipped.
+        </template>
+        <ul v-if="restoreResult.errors.length" class="import-errors">
+          <li v-for="(err, i) in restoreResult.errors" :key="i">{{ err }}</li>
+        </ul>
+      </div>
+      <label class="secondary-button upload-label">
+        {{ restoreBusy ? "Restoring…" : "Choose file…" }}
+        <input
+          type="file"
+          accept="application/json,.json"
+          class="hidden-input"
+          :disabled="restoreBusy"
+          @change="onRestoreSelected"
+        />
+      </label>
+    </div>
+
+    <div class="tile">
+      <h3>Import games</h3>
       <p class="tile-desc">
         Add games from a previously exported file. Existing games are never
         overwritten, a folder name collision gets a numbered suffix instead of
@@ -261,5 +612,69 @@ async function onFileSelected(e: Event) {
   padding-left: 18px;
   color: #fca5a5;
   font-size: 12px;
+}
+.mal-source {
+  margin-bottom: 12px;
+}
+.mal-review {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.mal-bulk,
+.mal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.mal-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 360px;
+  overflow-y: auto;
+  border: 1px solid #2a2a2a;
+  border-radius: 8px;
+}
+.mal-list > li {
+  padding: 10px 12px;
+  border-bottom: 1px solid #1f1f1f;
+}
+.mal-list > li:last-child {
+  border-bottom: none;
+}
+.mal-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  color: #fff;
+  font-size: 0.85rem;
+}
+.mal-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mal-choice {
+  color: #d68a34;
+  font-size: 0.75rem;
+}
+.mal-diffs {
+  list-style: none;
+  margin: 6px 0 0 26px;
+  padding: 0;
+  color: #999;
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+.mal-details {
+  display: flex;
+  gap: 8px;
+  color: #999;
+  font-size: 0.8rem;
+  line-height: 1.5;
 }
 </style>

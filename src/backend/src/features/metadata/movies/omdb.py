@@ -71,6 +71,40 @@ class OMDBClient:
             raise OMDBError(payload.get("Error", "OMDb returned no results."))
         return payload
 
+    def lookup(self, title: str, year: int | None, kind: str) -> dict[str, Any] | None:
+        """One exact title (and year) lookup, for importing a list: a single
+        request, no candidate list. `kind` is "movie" or "tv". None when OMDb
+        does not know the title. OMDb has no season list, so `seasons` is
+        always empty."""
+        params = {"t": title, "type": "movie" if kind == "movie" else "series"}
+        if year:
+            params["y"] = str(year)
+        try:
+            d = self._get(params)
+        except OMDBError as exc:
+            if "not found" in str(exc).lower():
+                return None
+            raise
+        rating = _clean(d.get("imdbRating"))
+        released = _parse_date(d.get("Released"))
+        return {
+            "overview": _clean(d.get("Plot")),
+            "release_date": released,
+            "first_air_date": released,
+            "runtime_minutes": _parse_runtime(d.get("Runtime")),
+            "episode_runtime_minutes": _parse_runtime(d.get("Runtime")),
+            "director": _clean(d.get("Director")),
+            "writer": _clean(d.get("Writer")),
+            "creators": [],
+            "studios": [],
+            "countries": _parse_list(d.get("Country")),
+            "languages": _parse_list(d.get("Language")),
+            "genres": _parse_list(d.get("Genre")),
+            "poster_url": _clean(d.get("Poster")),
+            "vote_average": float(rating) if rating else None,
+            "seasons": [],
+        }
+
     def search(self, query: str, limit: int = 8) -> list[dict[str, Any]]:
         if not query.strip():
             return []

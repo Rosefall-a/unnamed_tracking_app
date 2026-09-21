@@ -15,7 +15,7 @@ from src.api.routes.media_extras import log_activity, status_change_detail
 from src.api.schemas.movie import MovieCreate, MovieRead, MovieUpdate
 from src.core.app_integrations import get_or_create_app_integration_settings
 from src.core.auth import get_current_user
-from src.core.crypto import decrypt_secret
+from src.core.integrations import resolve_integrations
 from src.database.models.media_extras import ActivityEventType
 from src.database.models.movies import Movie, MovieStatus
 from src.database.models.user import User
@@ -86,18 +86,14 @@ async def search_metadata(
     sources on purpose — redundancy, so a missing/rate-limited source
     doesn't leave the search empty."""
     del current_user
-    app_integrations = await get_or_create_app_integration_settings(db)
+    app_integrations = resolve_integrations(await get_or_create_app_integration_settings(db))
     try:
         result = await asyncio.to_thread(
             search_movie_metadata,
             query.strip(),
             limit,
-            decrypt_secret(app_integrations.tmdb_api_key)
-            if app_integrations.tmdb_api_key
-            else None,
-            decrypt_secret(app_integrations.omdb_api_key)
-            if app_integrations.omdb_api_key
-            else None,
+            app_integrations.tmdb_api_key,
+            app_integrations.omdb_api_key,
         )
     except Exception as exc:
         raise HTTPException(
@@ -277,10 +273,10 @@ async def get_movie_relations(
     title belongs to (e.g. every Mad Max film). Most movies aren't in
     one — that's a normal empty result, not an error."""
     movie = await _get_movie_or_404(movie_id, db, current_user.id)
-    app_integrations = await get_or_create_app_integration_settings(db)
+    app_integrations = resolve_integrations(await get_or_create_app_integration_settings(db))
     if not app_integrations.tmdb_api_key:
         return {"collection_name": None, "related": [], "configured": False}
-    tmdb_api_key = decrypt_secret(app_integrations.tmdb_api_key)
+    tmdb_api_key = app_integrations.tmdb_api_key
     try:
         result = await asyncio.to_thread(
             lambda: TMDBClient(tmdb_api_key).movie_relations(movie.title)
@@ -299,10 +295,10 @@ async def get_movie_recommended(
     current_user: User = Depends(get_current_user),
 ) -> dict:
     movie = await _get_movie_or_404(movie_id, db, current_user.id)
-    app_integrations = await get_or_create_app_integration_settings(db)
+    app_integrations = resolve_integrations(await get_or_create_app_integration_settings(db))
     if not app_integrations.tmdb_api_key:
         return {"recommended": [], "configured": False}
-    tmdb_api_key = decrypt_secret(app_integrations.tmdb_api_key)
+    tmdb_api_key = app_integrations.tmdb_api_key
     try:
         recommended = await asyncio.to_thread(
             lambda: TMDBClient(tmdb_api_key).movie_recommendations(movie.title)

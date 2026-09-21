@@ -24,12 +24,14 @@ from src.api.schemas.tv_show import (
 from src.api.routes.media_extras import log_activity, status_change_detail
 from src.core.app_integrations import get_or_create_app_integration_settings
 from src.core.auth import get_current_user
-from src.core.crypto import decrypt_secret
+from src.core.integrations import resolve_integrations
 from src.database.models.media_extras import ActivityEventType
 from src.database.models.tv_show import TVEpisode, TVSeason, TVShow, TVShowStatus
 from src.database.models.user import User
 from src.database.session import get_db
+from src.features.episode_progress import apply_counter, counter_from_flags, materialize_progress
 from src.features.metadata.locked_fields import apply_updates_with_locking
+from src.features.tv_seasons import check_in_background, is_due
 from src.features.metadata.movies.tmdb import TMDBClient
 from src.features.metadata.refresh import quick_check_tv_season
 from src.features.metadata.tv.episode_sync import fetch_season_episodes
@@ -114,18 +116,14 @@ async def search_metadata(
     """Search TMDB and OMDb for data that can prefill a new show,
     including its full season list where TMDB has it."""
     del current_user
-    app_integrations = await get_or_create_app_integration_settings(db)
+    app_integrations = resolve_integrations(await get_or_create_app_integration_settings(db))
     try:
         result = await asyncio.to_thread(
             search_tv_metadata,
             query.strip(),
             limit,
-            decrypt_secret(app_integrations.tmdb_api_key)
-            if app_integrations.tmdb_api_key
-            else None,
-            decrypt_secret(app_integrations.omdb_api_key)
-            if app_integrations.omdb_api_key
-            else None,
+            app_integrations.tmdb_api_key,
+            app_integrations.omdb_api_key,
         )
     except Exception as exc:
         raise HTTPException(
@@ -226,8 +224,13 @@ async def get_show(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> TVShow:
-    """Return one show by ID, with its seasons."""
-    return await _get_show_or_404(show_id, db, current_user.id)
+    """Return one show by ID, with its seasons. If it has been a while,
+    also asks TVmaze in the background whether the show has a new season
+    (see features/tv_seasons.py), which shows up the next time it's opened."""
+    show = await _get_show_or_404(show_id, db, current_user.id)
+    if is_due(show):
+        asyncio.create_task(check_in_background(show.id))
+    return show
 
 
 @router.patch("/update/{show_id}", response_model=TVShowRead)
@@ -350,12 +353,24 @@ async def update_season(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> TVShow:
-    await _get_show_or_404(show_id, db, current_user.id)
+    show = await _get_show_or_404(show_id, db, current_user.id)
     season = await _get_season_or_404(season_id, show_id, db)
 
     updates = payload.model_dump(exclude_unset=True)
+    old_counter = season.episodes_watched or 0
     for field, value in updates.items():
         setattr(season, field, value)
+
+    if "episodes_watched" in updates:
+        new_counter = season.episodes_watched or 0
+        apply_counter(season, new_counter)
+        if new_counter > old_counter:
+            # advancing from the library counts as watching, same as
+            # checking episodes off on the title page
+            await log_activity(
+                db, current_user.id, "tv", show.id, show.title,
+                ActivityEventType.EPISODES_WATCHED, date.today(), increment=new_counter - old_counter,
+            )
 
     await db.commit()
     return await _get_show_or_404(show_id, db, current_user.id)
@@ -443,11 +458,15 @@ async def bulk_set_episodes_watched(
     season = await _get_season_or_404(season_id, show_id, db)
     ids = set(payload.episode_ids)
     newly_watched = 0
+    # progress the counter already held is flagged first, so it is neither
+    # lost nor logged again as new
+    without_row = materialize_progress(season)
     for episode in season.episodes:
         if episode.id in ids:
             if payload.watched and not episode.watched:
                 newly_watched += 1
             episode.watched = payload.watched
+    counter_from_flags(season, without_row)
     if newly_watched:
         await log_activity(
             db,
@@ -473,13 +492,20 @@ async def update_episode(
     current_user: User = Depends(get_current_user),
 ) -> TVShow:
     show = await _get_show_or_404(show_id, db, current_user.id)
-    await _get_season_or_404(season_id, show_id, db)
+    season = await _get_season_or_404(season_id, show_id, db)
     episode = await _get_episode_or_404(episode_id, season_id, db)
 
     updates = payload.model_dump(exclude_unset=True)
+    without_row = 0
+    if "watched" in updates:
+        # progress the counter already held is flagged first, so it is
+        # neither lost nor logged again as new
+        without_row = materialize_progress(season)
     newly_watched = updates.get("watched") is True and not episode.watched
     for field, value in updates.items():
         setattr(episode, field, value)
+    if "watched" in updates:
+        counter_from_flags(season, without_row)
 
     if newly_watched:
         await log_activity(
@@ -507,10 +533,10 @@ async def get_show_relations(
     API key (Settings > Metadata Sources); returns an empty, clearly
     unconfigured result rather than an error when it's not set up yet."""
     show = await _get_show_or_404(show_id, db, current_user.id)
-    app_integrations = await get_or_create_app_integration_settings(db)
+    app_integrations = resolve_integrations(await get_or_create_app_integration_settings(db))
     if not app_integrations.tvdb_api_key:
         return {"listName": None, "related": [], "configured": False}
-    tvdb_api_key = decrypt_secret(app_integrations.tvdb_api_key)
+    tvdb_api_key = app_integrations.tvdb_api_key
     try:
         result = await asyncio.to_thread(lambda: TVDBClient(tvdb_api_key).relations(show.title))
     except Exception as exc:
@@ -527,10 +553,10 @@ async def get_show_recommended(
     current_user: User = Depends(get_current_user),
 ) -> dict:
     show = await _get_show_or_404(show_id, db, current_user.id)
-    app_integrations = await get_or_create_app_integration_settings(db)
+    app_integrations = resolve_integrations(await get_or_create_app_integration_settings(db))
     if not app_integrations.tmdb_api_key:
         return {"recommended": [], "configured": False}
-    tmdb_api_key = decrypt_secret(app_integrations.tmdb_api_key)
+    tmdb_api_key = app_integrations.tmdb_api_key
     try:
         recommended = await asyncio.to_thread(
             lambda: TMDBClient(tmdb_api_key).tv_recommendations(show.title)

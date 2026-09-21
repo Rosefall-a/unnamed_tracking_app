@@ -7,7 +7,8 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select
+from sqlalchemy import func, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.routes.media_extras import _MODEL_BY_TYPE, _resolve_media
@@ -18,9 +19,12 @@ from src.api.schemas.media_extras import (
     MediaListItemRead,
     MediaListRead,
     MediaListReorder,
+    MediaListsOrder,
     MediaListUpdate,
 )
 from src.core.auth import get_current_user
+from src.core.preferences import load_preferences
+from src.core.titles import display_title
 from src.database.models.media_extras import MediaList, MediaListItem, MediaType
 from src.database.models.user import User
 from src.database.session import get_db
@@ -42,19 +46,19 @@ def _status_str(media: Any) -> str:
     return media.status.value if hasattr(media.status, "value") else str(media.status)
 
 
-def _item_dict(item_id: UUID, media_type: str, media: Any, added_at: int) -> dict:
+def _item_dict(item_id: UUID, media_type: str, media: Any, added_at: int, language: str = "english") -> dict:
     return {
         "id": item_id,
         "media_type": media_type,
         "media_id": media.id,
-        "title": media.title,
+        "title": display_title(media, language),
         "poster_url": media.poster_url,
         "status": _status_str(media),
         "added_at": added_at,
     }
 
 
-async def _resolve_smart_items(rule: dict, user_id: UUID, db: AsyncSession) -> list[dict]:
+async def _resolve_smart_items(rule: dict, user_id: UUID, db: AsyncSession, language: str) -> list[dict]:
     wanted_types = rule.get("media_types") or list(_MODEL_BY_TYPE)
     allowed_statuses: set[str] | None = None
     if rule.get("status_buckets"):
@@ -92,12 +96,12 @@ async def _resolve_smart_items(rule: dict, user_id: UUID, db: AsyncSession) -> l
                 continue
             # a smart list has no membership rows, so the media's own id
             # stands in for the item id
-            result.append(_item_dict(media.id, media_type, media, 0))
+            result.append(_item_dict(media.id, media_type, media, 0, language))
     result.sort(key=lambda i: i["title"].lower())
     return result
 
 
-async def _resolve_manual_items(lst: MediaList, db: AsyncSession) -> list[dict]:
+async def _resolve_manual_items(lst: MediaList, db: AsyncSession, language: str) -> list[dict]:
     items = (
         (
             await db.execute(
@@ -115,14 +119,15 @@ async def _resolve_manual_items(lst: MediaList, db: AsyncSession) -> list[dict]:
         media = await db.scalar(select(model).where(model.id == item.media_id)) if model else None
         if media is None or getattr(media, "deleted_at", None) is not None:
             continue
-        resolved.append(_item_dict(item.id, item.media_type, media, item.added_at))
+        resolved.append(_item_dict(item.id, item.media_type, media, item.added_at, language))
     return resolved
 
 
 async def _resolve_items(lst: MediaList, user_id: UUID, db: AsyncSession) -> list[dict]:
+    language = str((await load_preferences(db, user_id))["title_language"])
     if lst.smart_rule is not None:
-        return await _resolve_smart_items(lst.smart_rule, user_id, db)
-    return await _resolve_manual_items(lst, db)
+        return await _resolve_smart_items(lst.smart_rule, user_id, db, language)
+    return await _resolve_manual_items(lst, db, language)
 
 
 def _summary(lst: MediaList, items: list[dict]) -> dict:
@@ -136,6 +141,8 @@ def _summary(lst: MediaList, items: list[dict]) -> dict:
         "item_count": len(items),
         "is_smart": lst.smart_rule is not None,
         "is_system": lst.is_system,
+        "pinned": lst.pinned,
+        "position": lst.position,
         "type_counts": {
             t: sum(1 for i in items if i["media_type"] == t) for t in ("movie", "tv", "anime")
         },
@@ -168,14 +175,18 @@ async def _ensure_favorites_list(user_id: UUID, db: AsyncSession) -> None:
     )
     if exists is not None:
         return
-    db.add(
-        MediaList(
+    # two requests can get here together (the lists page fires several at
+    # once); the unique name makes the loser a no-op instead of an error
+    await db.execute(
+        pg_insert(MediaList)
+        .values(
             user_id=user_id,
             name="Favorites",
             description="Everything you have marked as a favorite",
             smart_rule={"favorite": True},
             is_system=True,
         )
+        .on_conflict_do_nothing(constraint="uq_media_lists_user_id_name")
     )
     await db.commit()
 
@@ -191,7 +202,7 @@ async def list_media_lists(
             await db.execute(
                 select(MediaList)
                 .where(MediaList.user_id == current_user.id)
-                .order_by(MediaList.is_system.desc(), MediaList.name)
+                .order_by(MediaList.pinned.desc(), MediaList.position, MediaList.is_system.desc(), MediaList.name)
             )
         )
         .scalars()
@@ -225,14 +236,34 @@ async def get_list_membership(
     return [{"list_id": list_id, "item_id": item_id} for list_id, item_id in rows]
 
 
+@router.put("/lists/order", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
+async def order_media_lists(
+    payload: MediaListsOrder,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> None:
+    """Saves the user's own order of their lists: each id's place in the
+    request becomes its position. Ids that are not the caller's are ignored,
+    and lists left out of the request keep their relative order after them."""
+    lists = (await db.execute(select(MediaList).where(MediaList.user_id == current_user.id))).scalars().all()
+    by_id = {lst.id: lst for lst in lists}
+    ordered = [by_id[i] for i in dict.fromkeys(payload.list_ids) if i in by_id]
+    left_out = sorted((lst for lst in lists if lst not in ordered), key=lambda lst: (lst.position, lst.name))
+    for position, lst in enumerate([*ordered, *left_out]):
+        lst.position = position
+    await db.commit()
+
+
 @router.post("/lists", response_model=MediaListRead, status_code=status.HTTP_201_CREATED)
 async def create_media_list(
     payload: MediaListCreate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
+    last = await db.scalar(select(func.max(MediaList.position)).where(MediaList.user_id == current_user.id))
     lst = MediaList(
         user_id=current_user.id,
+        position=(last or 0) + 1,
         name=payload.name,
         description=payload.description,
         smart_rule=payload.smart_rule.model_dump(exclude_none=True) if payload.smart_rule else None,
@@ -260,6 +291,8 @@ async def update_media_list(
     if "smart_rule" in updates:
         rule = payload.smart_rule
         updates["smart_rule"] = rule.model_dump(exclude_none=True) if rule else None
+    if updates.get("pinned", True) is None:
+        del updates["pinned"]
     for field, value in updates.items():
         setattr(lst, field, value)
     await db.commit()
@@ -333,7 +366,8 @@ async def add_list_item(
         db.add(item)
         await db.commit()
         await db.refresh(item)
-    return _item_dict(item.id, item.media_type, media, item.added_at)
+    language = str((await load_preferences(db, current_user.id))["title_language"])
+    return _item_dict(item.id, item.media_type, media, item.added_at, language)
 
 
 @router.put("/lists/{list_id}/order", status_code=status.HTTP_204_NO_CONTENT, response_model=None)

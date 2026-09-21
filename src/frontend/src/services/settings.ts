@@ -238,6 +238,8 @@ export interface AppIntegrationSettings {
   tmdb_configured: boolean;
   omdb_configured: boolean;
   tvdb_configured: boolean;
+  // where each key in effect comes from: Settings, or the server environment
+  sources?: Record<string, "database" | "environment">;
 }
 
 export async function fetchAppIntegrations(): Promise<AppIntegrationSettings> {
@@ -290,19 +292,6 @@ export async function updateAppIntegrations(payload: {
     );
   }
   return await response.json();
-}
-
-export async function deleteAppIntegrations(): Promise<void> {
-  if (import.meta.env.VITE_USE_MOCK_DATA === "true") return;
-  const response = await fetch("/api/settings/app-integrations", {
-    method: "DELETE",
-    credentials: "include",
-  });
-  if (!response.ok) {
-    throw new Error(
-      `Failed to clear app integrations: ${response.status} ${response.statusText}`,
-    );
-  }
 }
 
 export interface MediaMetadataRefreshResult {

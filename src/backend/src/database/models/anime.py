@@ -11,10 +11,13 @@ from sqlalchemy import (
     Date,
     Enum as SAEnum,
     ForeignKey,
+    Index,
     Integer,
     Numeric,
     String,
     Text,
+    UniqueConstraint,
+    text,
 )
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -67,6 +70,11 @@ class Anime(Base):
 
     title: Mapped[str] = mapped_column(String(500), nullable=False)
     sort_title: Mapped[str] = mapped_column(String(500), nullable=False)
+    # the same title as AniList spells it, so the app can show whichever the
+    # user prefers (`title` stays the canonical one everything else uses)
+    title_english: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    title_romaji: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    title_native: Mapped[str | None] = mapped_column(String(500), nullable=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     first_air_date: Mapped[date | None] = mapped_column(Date, nullable=True)
 
@@ -283,6 +291,13 @@ class AnimeEpisode(Base):
     local, never touched by a re-sync."""
 
     __tablename__ = "anime_episodes"
+    __table_args__ = (
+        # one row per episode number in a season: a re-sync must never be
+        # able to insert a second "episode 5"
+        UniqueConstraint("season_id", "episode_number", name="uq_anime_episodes_season_id_episode_number"),
+        Index("ix_anime_episodes_season_watched", "season_id", "watched"),
+        Index("ix_anime_episodes_air_at", "air_at", postgresql_where=text("air_at IS NOT NULL")),
+    )
 
     id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
     season_id: Mapped[UUID] = mapped_column(

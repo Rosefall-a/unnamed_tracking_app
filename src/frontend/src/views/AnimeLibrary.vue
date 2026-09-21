@@ -13,6 +13,7 @@ import {
 import type { SeasonUpdateInput } from "../services/anime";
 import type { Anime, AnimeStatus } from "../types/anime";
 import MediaLibraryView from "../components/library/MediaLibraryView.vue";
+import { displayTitle } from "../utils/displayTitle";
 import type {
   LibraryCardVM,
   SearchResultVM,
@@ -85,7 +86,7 @@ function toVM(show: Anime): LibraryCardVM {
   const { watched, total } = seasonProgress(show);
   return {
     id: show.id,
-    title: show.title,
+    title: displayTitle(show),
     poster: show.posterUrl,
     status: show.status,
     favorite: show.favorite,

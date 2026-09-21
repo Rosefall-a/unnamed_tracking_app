@@ -43,10 +43,10 @@ class TMDBClient:
     def _details(self, movie_id: int) -> dict[str, Any]:
         return self._get(f"/movie/{movie_id}", {"append_to_response": "credits"})
 
-    def search(self, query: str, limit: int = 8) -> list[dict[str, Any]]:
+    def search(self, query: str, limit: int = 8, year: int | None = None) -> list[dict[str, Any]]:
         if not query.strip():
             return []
-        payload = self._get("/search/movie", {"query": query})
+        payload = self._get("/search/movie", {"query": query, **({"year": str(year)} if year else {})})
         candidates = payload.get("results") or []
 
         results: list[dict[str, Any]] = []
@@ -99,14 +99,14 @@ class TMDBClient:
     def _tv_details(self, tv_id: int) -> dict[str, Any]:
         return self._get(f"/tv/{tv_id}", {})
 
-    def search_tv(self, query: str, limit: int = 8) -> list[dict[str, Any]]:
+    def search_tv(self, query: str, limit: int = 8, year: int | None = None) -> list[dict[str, Any]]:
         """Like `search`, but for TV shows. Also returns each show's full
         season list (TMDB's `/tv/{id}` details response includes every
         season's number/name/episode_count/air_date in one call) so a new
         show can have its seasons bulk-created instead of typed by hand."""
         if not query.strip():
             return []
-        payload = self._get("/search/tv", {"query": query})
+        payload = self._get("/search/tv", {"query": query, **({"first_air_date_year": str(year)} if year else {})})
         candidates = payload.get("results") or []
 
         results: list[dict[str, Any]] = []

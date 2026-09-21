@@ -106,6 +106,9 @@ export interface MediaListSummary {
   isSmart: boolean;
   // kept by the app (Favorites): can't be renamed, re-ruled or deleted
   isSystem: boolean;
+  // pinned lists sit first; position is the user's own order
+  pinned: boolean;
+  position: number;
   // titles per type, so the overview can filter lists by what they hold
   typeCounts: Partial<Record<MediaType, number>>;
   smartRule: SmartRule | null;
@@ -146,6 +149,8 @@ interface BackendMediaListSummary {
   item_count: number;
   is_smart: boolean;
   is_system?: boolean;
+  pinned?: boolean;
+  position?: number;
   type_counts?: Partial<Record<MediaType, number>>;
   smart_rule: BackendSmartRule | null;
   cover_media_id: string | null;
@@ -196,6 +201,8 @@ function mapListSummary(l: BackendMediaListSummary): MediaListSummary {
     itemCount: l.item_count,
     isSmart: l.is_smart,
     isSystem: l.is_system ?? false,
+    pinned: l.pinned ?? false,
+    position: l.position ?? 0,
     typeCounts: l.type_counts ?? {},
     smartRule: mapSmartRule(l.smart_rule),
     coverMediaId: l.cover_media_id,
@@ -244,6 +251,18 @@ export async function createMediaList(
   return mapListSummary(raw);
 }
 
+// Saves the user's own order of their lists (first id is shown first).
+export async function saveListOrder(listIds: string[]): Promise<void> {
+  const response = await fetch("/api/lists/order", {
+    method: "PUT",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ list_ids: listIds }),
+  });
+  if (!response.ok)
+    throw new Error(`Failed to save the list order: ${response.status}`);
+}
+
 export async function updateMediaList(
   listId: string,
   input: {
@@ -251,9 +270,11 @@ export async function updateMediaList(
     description?: string | null;
     smartRule?: SmartRule | null;
     coverMediaId?: string | null;
+    pinned?: boolean;
   },
 ): Promise<MediaListSummary> {
   const body: Record<string, unknown> = {};
+  if (input.pinned !== undefined) body.pinned = input.pinned;
   if (input.name !== undefined) body.name = input.name;
   if (input.description !== undefined) body.description = input.description;
   if (input.smartRule !== undefined)
