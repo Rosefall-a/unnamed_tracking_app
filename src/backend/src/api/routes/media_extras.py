@@ -90,9 +90,6 @@ def _calendar_entries_for_show(show: Any, media_type: str, window_end: int, lang
             "air_at": show.next_episode_air_at,
             "kind": "episode",
             "is_projected": False,
-            "media_type": media_type, "media_id": show.id, "title": display_title(show, language),
-            "poster_url": show.poster_url, "next_episode_number": show.next_episode_number,
-            "air_at": show.next_episode_air_at, "kind": "episode", "is_projected": False,
         }
     ]
     if not show.next_episode_number:
@@ -128,9 +125,6 @@ def _calendar_entries_for_show(show: Any, media_type: str, window_end: int, lang
                 "air_at": air_at,
                 "kind": "episode",
                 "is_projected": True,
-                "media_type": media_type, "media_id": show.id, "title": display_title(show, language),
-                "poster_url": show.poster_url, "next_episode_number": n,
-                "air_at": air_at, "kind": "episode", "is_projected": True,
             }
         )
         projected += 1
@@ -589,8 +583,6 @@ async def build_calendar_entries(
                 "next_episode_number": None,
                 "air_at": _date_to_unix(a.first_air_date),
                 "kind": "release",
-                "media_type": "anime", "media_id": a.id, "title": display_title(a, language), "poster_url": a.poster_url,
-                "next_episode_number": None, "air_at": _date_to_unix(a.first_air_date), "kind": "release",
             }
         )
 
@@ -708,9 +700,7 @@ async def get_calendar_games(
                 .date()
                 .isoformat(),
                 "count": 1,
-                "kind": "game_finished", "game_id": g.id, "title": g.title,
-                "date": datetime.fromtimestamp(g.completion_date, tz=timezone.utc).date().isoformat(),
-                "count": 1, "poster_url": f"/api/game/{g.id}/assets/key_art",
+                "poster_url": f"/api/game/{g.id}/assets/key_art",
             }
         )
     bought = (
@@ -756,8 +746,7 @@ async def get_calendar_games(
                 "title": title,
                 "date": d.isoformat(),
                 "count": count,
-                "kind": "game_achievements", "game_id": game_id, "title": title, "date": d.isoformat(),
-                "count": count, "poster_url": f"/api/game/{game_id}/assets/key_art",
+                "poster_url": f"/api/game/{game_id}/assets/key_art",
             }
         )
     entries.sort(key=lambda e: e["date"])
