@@ -1,12 +1,26 @@
 #!/bin/sh
 set -e
 
-# Brings the database up to date (waits for it, adopts databases from an
-# older migration history, then runs every newer migration). See
-# src/database/migrate.py. A real failure stops the container with a clear
-# message instead of retrying the same error.
-echo "Preparing database..."
-python -m src.database.migrate
-
 echo "Starting application..."
+
+if [ -z "${SECRET_KEY:-}" ]; then
+  echo "Configuration error: SECRET_KEY is required. Copy example.env to .env and generate the documented Fernet key." >&2
+  exit 1
+fi
+
+echo "Applying database migrations..."
+MAX_RETRIES=30
+RETRY_DELAY=2
+attempt=1
+until alembic upgrade heads; do
+  if [ "$attempt" -ge "$MAX_RETRIES" ]; then
+    echo "Database migrations failed after $MAX_RETRIES attempts. Check the database and configuration above." >&2
+    exit 1
+  fi
+  echo "Migration attempt $attempt failed; retrying in ${RETRY_DELAY}s..." >&2
+  attempt=$((attempt + 1))
+  sleep "$RETRY_DELAY"
+done
+
+echo "Starting API server..."
 exec uvicorn src.main:app --host 0.0.0.0 --port 8000

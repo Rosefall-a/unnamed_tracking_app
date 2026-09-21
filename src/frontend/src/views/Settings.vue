@@ -20,16 +20,15 @@ import ExportImportSection from "../components/settings/ExportImportSection.vue"
 import CalendarNotificationsSection from "../components/settings/CalendarNotificationsSection.vue";
 import MediaPreferencesSection from "../components/settings/MediaPreferencesSection.vue";
 import ComingSoonSection from "../components/settings/ComingSoonSection.vue";
+import ApiKeysSection from "../components/settings/ApiKeysSection.vue";
+import ServerIntegrationsSection from "../components/settings/ServerIntegrationsSection.vue";
+import OidcSettingsSection from "../components/settings/OidcSettingsSection.vue";
 
 const router = useRouter();
 const route = useRoute();
-
 function goBack() {
-  if (window.history.length > 1) {
-    router.back();
-  } else {
-    router.push("/");
-  }
+  if (window.history.length > 1) router.back();
+  else router.push("/");
 }
 
 const groups = computed<SettingsGroup[]>(() => {
@@ -40,6 +39,7 @@ const groups = computed<SettingsGroup[]>(() => {
         { id: "profile", label: "Profile" },
         { id: "interface", label: "User Interface" },
         { id: "appearance", label: "Appearance" },
+        { id: "api-keys", label: "API Keys" },
         { id: "calendar-notifications", label: "Calendar and Notifications" },
       ],
     },
@@ -62,23 +62,25 @@ const groups = computed<SettingsGroup[]>(() => {
       ],
     },
   ];
-
   const systemSections = [
-    ...(currentUser.value?.is_admin ? [{ id: "admin", label: "Admin" }] : []),
+    ...(currentUser.value?.is_admin
+      ? [{ id: "oidc", label: "OIDC / SSO" }]
+      : []),
+    ...(currentUser.value?.is_admin
+      ? [{ id: "server-integrations", label: "Server Integrations" }]
+      : []),
+    ...(currentUser.value?.is_admin ? [{ id: "users", label: "Users" }] : []),
     { id: "stats", label: "Server Stats" },
-    ...(currentUser.value?.is_admin ? [{ id: "tasks", label: "Tasks" }] : []),
+    ...(currentUser.value?.is_admin
+      ? [{ id: "tasks", label: "Tasks", comingSoon: true }]
+      : []),
     ...(currentUser.value?.is_admin
       ? [{ id: "logs", label: "Logs", comingSoon: true }]
       : []),
   ];
   result.push({ label: "System", sections: systemSections });
-
   return result;
 });
-
-// lets other pages (the command palette) deep-link to a section, e.g.
-// /settings?section=scan, Settings itself never writes this back to the
-// URL, so switching sections the normal way doesn't touch history
 const activeSection = ref((route.query.section as string) || "profile");
 
 // on a phone the section list stacks above the content, so a tap would
@@ -113,12 +115,10 @@ watch(activeSection, async () => {
         <path d="M12 19l-7-7 7-7" />
       </svg>
     </button>
-
     <div class="settings-layout">
       <h1>Settings</h1>
       <div class="settings-body">
         <SettingsNav v-model:active-section="activeSection" :groups="groups" />
-
         <div ref="card" class="settings-card">
           <ProfileSection v-if="activeSection === 'profile'" />
           <InterfaceSection v-else-if="activeSection === 'interface'" />
@@ -126,6 +126,7 @@ watch(activeSection, async () => {
           <CalendarNotificationsSection
             v-else-if="activeSection === 'calendar-notifications'"
           />
+          <ApiKeysSection v-else-if="activeSection === 'api-keys'" />
           <UploadSection v-else-if="activeSection === 'upload'" />
           <LibraryManagementSection v-else-if="activeSection === 'library'" />
           <MediaPreferencesSection
@@ -135,8 +136,16 @@ watch(activeSection, async () => {
           <ScanSettingsSection v-else-if="activeSection === 'scan'" />
           <MetadataSourcesSection v-else-if="activeSection === 'sources'" />
           <MediaRefreshSection v-else-if="activeSection === 'media-refresh'" />
+          <OidcSettingsSection
+            v-else-if="activeSection === 'oidc' && currentUser?.is_admin"
+          />
+          <ServerIntegrationsSection
+            v-else-if="
+              activeSection === 'server-integrations' && currentUser?.is_admin
+            "
+          />
           <AdminSection
-            v-else-if="activeSection === 'admin' && currentUser?.is_admin"
+            v-else-if="activeSection === 'users' && currentUser?.is_admin"
           />
           <StatsSection v-else-if="activeSection === 'stats'" />
           <ExportImportSection v-else-if="activeSection === 'export'" />
@@ -177,17 +186,12 @@ watch(activeSection, async () => {
   border: 1px solid rgba(255, 255, 255, 0.14);
   background: rgba(20, 20, 20, 0.55);
   backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
   color: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   z-index: 100;
-  transition: background 0.15s ease;
-}
-.back-arrow-button:hover {
-  background: rgba(40, 40, 40, 0.85);
 }
 .settings-layout {
   width: 100%;
@@ -211,11 +215,6 @@ watch(activeSection, async () => {
   border-radius: 14px;
   padding: 32px;
 }
-
-/* the nav's own fixed width never shrank on a narrow viewport, so the row
-   just overflowed the page horizontally instead of the card ever getting a
-   chance to use its min-width:0: stacking nav above content is the
-   standard settings-page mobile pattern */
 @media (max-width: 760px) {
   .settings-body {
     flex-direction: column;

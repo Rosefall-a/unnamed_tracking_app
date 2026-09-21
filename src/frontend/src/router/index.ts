@@ -23,18 +23,17 @@ import Inbox from "../views/Inbox.vue";
 import Bounties from "../views/Bounties.vue";
 import AchievementDetail from "../views/AchievementDetail.vue";
 import Login from "../views/Login.vue";
+import OidcStart from "../views/OidcStart.vue";
+import Setup from "../views/Setup.vue";
 import { currentUser, authChecked, checkAuth } from "../state/auth";
 import Settings from "../views/Settings.vue";
 import { saveLibraryScroll } from "../state/libraryScroll";
 import { appearanceLoaded, loadAppearanceSettings } from "../state/appearance";
+import { fetchSetupStatus } from "../services/setup";
 
 const router = createRouter({
   history: createWebHistory(),
   scrollBehavior(to, _from, savedPosition) {
-    // GameLibrary.vue restores its own scroll position (after its game
-    // list has actually loaded/rendered, restoring before that just gets
-    // clamped back to ~0), don't fight it with the browser's native
-    // history-scroll restore here
     if (to.path === "/games") return false;
     if (savedPosition) return savedPosition;
     return { top: 0 };
@@ -73,7 +72,8 @@ const router = createRouter({
     // History merged into the Calendar page as a second tab
     { path: "/history", redirect: "/calendar" },
     { path: "/login", name: "login", component: Login },
-    // Profile lives inside Settings now (its own side-nav section)
+    { path: "/login/oidcstart", name: "oidc-start", component: OidcStart },
+    { path: "/setup", name: "setup", component: Setup },
     { path: "/profile", redirect: "/settings" },
     { path: "/settings", name: "settings", component: Settings },
     {
@@ -90,26 +90,50 @@ const router = createRouter({
   ],
 });
 
+let setupState: "unknown" | "required" | "complete" | "error" = "unknown";
+
 router.beforeEach(async (to, from) => {
-  // captured here, not GameLibrary's onUnmounted, this runs before any
-  // DOM change from the navigation, so it's always the real position the
-  // user was looking at when they left
-  if (from.path === "/games") {
-    saveLibraryScroll(window.scrollY);
+  if (from.path === "/games") saveLibraryScroll(window.scrollY);
+
+  if (setupState === "unknown" || setupState === "error") {
+    try {
+      setupState = (await fetchSetupStatus()).setup_required
+        ? "required"
+        : "complete";
+    } catch {
+      setupState = "error";
+    }
   }
 
-  if (!authChecked.value) {
-    await checkAuth();
+  if (setupState === "required" && to.path !== "/setup") {
+    try {
+      setupState = (await fetchSetupStatus()).setup_required
+        ? "required"
+        : "complete";
+    } catch {
+      setupState = "error";
+    }
   }
-  if (to.path !== "/login" && !currentUser.value) {
-    return "/login";
+
+  if (setupState === "required" || setupState === "error") {
+    if (to.path !== "/setup")
+      return {
+        path: "/setup",
+        query: setupState === "error" ? { backend_error: "1" } : undefined,
+      };
+    return;
   }
-  if (to.path === "/login" && currentUser.value) {
-    return "/";
-  }
-  if (currentUser.value && !appearanceLoaded.value) {
+  if (to.path === "/setup") return "/";
+
+  // This public route deliberately bypasses the normal auth redirect so a
+  // bookmark or reverse-proxy login entrypoint can start OIDC immediately.
+  if (to.path === "/login/oidcstart") return;
+
+  if (!authChecked.value) await checkAuth();
+  if (to.path !== "/login" && !currentUser.value) return "/login";
+  if (to.path === "/login" && currentUser.value) return "/";
+  if (currentUser.value && !appearanceLoaded.value)
     await loadAppearanceSettings();
-  }
 });
 
 export default router;

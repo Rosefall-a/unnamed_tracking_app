@@ -12,10 +12,6 @@ from src.database.models.game import (
 )
 from src.helpers.currency_codes import CURRENCY_CODES
 
-# a game's relationship to its parent_game_id — plain strings on the DB
-# side (see database/models/game.py), but validated against a known set
-# here so a typo doesn't silently create a new, slightly-different kind.
-# Adding a new value is a code change here, never a migration.
 GameRelationshipType = Literal[
     "mod", "modpack", "expansion", "dlc", "standalone_expansion", "total_conversion"
 ]
@@ -53,6 +49,10 @@ class GameBase(BaseModel):
         pattern=FOLDER_NAME_PATTERN,
         description="Folder name only — letters, digits, underscore, hyphen. No spaces or path separators.",
     )
+    playnite_guid: UUID | None = Field(
+        default=None,
+        description="Optional GUID of the corresponding Playnite library entry.",
+    )
 
     status: GameStatus = GameStatus.BACKLOG
     priority: str | None = Field(default=None, max_length=20)
@@ -70,9 +70,7 @@ class GameBase(BaseModel):
     playtime_seconds: int = Field(default=0, ge=0)
 
     purchase_date: int | None = Field(
-        default=None,
-        ge=0,
-        description="Unix timestamp in seconds for the purchase date.",
+        default=None, ge=0, description="Unix timestamp in seconds for the purchase date."
     )
     purchase_price: Decimal | None = Field(default=None, ge=0)
     purchase_price_currency_code: str | None = Field(default=None, max_length=3)
@@ -127,10 +125,6 @@ class GameUpdate(BaseModel):
     source: str | None = Field(default=None, max_length=50)
     age_rating: str | None = Field(default=None, max_length=20)
     time_to_beat_hours: Decimal | None = Field(default=None, ge=0)
-    # NULL clears the relationship — a distinct "clear the parent" signal
-    # needs a sentinel elsewhere, but for a modpack/DLC entry no one clears
-    # its parent without renaming its relationship_type too, so treating
-    # unset-vs-null the normal partial-update way (exclude_unset) is fine
     parent_game_id: UUID | None = None
     relationship_type: GameRelationshipType | None = None
 
@@ -139,6 +133,10 @@ class GameUpdate(BaseModel):
         min_length=1,
         max_length=FOLDER_NAME_MAX_LENGTH,
         pattern=FOLDER_NAME_PATTERN,
+    )
+    playnite_guid: UUID | None = Field(
+        default=None,
+        description="Optional GUID of the corresponding Playnite library entry.",
     )
 
     status: GameStatus | None = None
@@ -151,9 +149,7 @@ class GameUpdate(BaseModel):
     playtime_seconds: int | None = Field(default=None, ge=0)
 
     purchase_date: int | None = Field(
-        default=None,
-        ge=0,
-        description="Unix timestamp in seconds for the purchase date.",
+        default=None, ge=0, description="Unix timestamp in seconds for the purchase date."
     )
     purchase_price: Decimal | None = Field(default=None, ge=0)
     purchase_price_currency_code: str | None = Field(default=None, max_length=3)
@@ -221,11 +217,7 @@ class GameRead(GameBase):
     )
     stale_since: int | None = Field(
         default=None,
-        description=(
-            "Unix timestamp in seconds since a library sync last noticed this game missing from the "
-            "account's owned-games list. NULL means currently present (or never synced). Never causes "
-            "deletion by itself, set for the user to review."
-        ),
+        description="Unix timestamp in seconds since a library sync last noticed this game missing from the account's owned-games list. NULL means currently present (or never synced). Never causes deletion by itself, set for the user to review.",
     )
 
 
