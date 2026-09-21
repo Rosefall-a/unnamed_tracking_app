@@ -471,16 +471,9 @@ async def build_calendar_entries(
     date_window_start = today - timedelta(days=1)
 
     result: list[dict] = []
+
+
     anime_rows = (
-        (
-            await db.execute(
-                select(Anime).where(
-                    Anime.user_id == user_id,
-                    Anime.deleted_at.is_(None),
-                    Anime.next_episode_air_at.isnot(None),
-                    Anime.next_episode_air_at >= window_start,
-                    Anime.next_episode_air_at <= window_end,
-                )
         await db.execute(
             select(Anime).where(
                 Anime.user_id == user_id,
@@ -491,21 +484,12 @@ async def build_calendar_entries(
                 Anime.next_episode_air_at <= window_end,
             )
         )
-        .scalars()
-        .all()
-    )
+    ).scalars().all()
+
     for a in anime_rows:
         result.extend(_calendar_entries_for_show(a, "anime", window_end, language))
+
     tv_rows = (
-        (
-            await db.execute(
-                select(TVShow).where(
-                    TVShow.user_id == user_id,
-                    TVShow.deleted_at.is_(None),
-                    TVShow.next_episode_air_at.isnot(None),
-                    TVShow.next_episode_air_at >= window_start,
-                    TVShow.next_episode_air_at <= window_end,
-                )
         await db.execute(
             select(TVShow).where(
                 TVShow.user_id == user_id,
@@ -516,11 +500,12 @@ async def build_calendar_entries(
                 TVShow.next_episode_air_at <= window_end,
             )
         )
-        .scalars()
-        .all()
-    )
+    ).scalars().all()
+
     for t in tv_rows:
         result.extend(_calendar_entries_for_show(t, "tv", window_end, language))
+
+
 
     movie_rows = (
         (
@@ -611,16 +596,6 @@ async def build_calendar_entries(
 
     if game_releases:
         game_rows = (
-            (
-                await db.execute(
-                    select(Game).where(
-                        Game.user_id == user_id,
-                        Game.deleted_at.is_(None),
-                        Game.status.in_([GameStatus.WISHLIST, GameStatus.BACKLOG]),
-                        Game.release_date.isnot(None),
-                        Game.release_date >= date_window_start,
-                        Game.release_date <= date_window_end,
-                    )
             await db.execute(
                 select(Game).where(
                     Game.user_id == user_id,
@@ -630,27 +605,25 @@ async def build_calendar_entries(
                     Game.release_date <= date_window_end,
                 )
             )
-            .scalars()
-            .all()
-        )
+        ).scalars().all()
+
         for g in game_rows:
             result.append(
                 {
                     "media_type": "game",
                     "media_id": g.id,
                     "title": g.title,
-                    "poster_url": None,
+                    "poster_url": f"/api/game/{g.id}/assets/key_art",
                     "next_episode_number": None,
                     "air_at": _date_to_unix(g.release_date),
                     "kind": "release",
-                    "media_type": "game", "media_id": g.id, "title": g.title,
-                    "poster_url": f"/api/game/{g.id}/assets/key_art",
-                    "next_episode_number": None, "air_at": _date_to_unix(g.release_date), "kind": "release",
                 }
             )
 
     result.sort(key=lambda r: r["air_at"])
     return result
+
+
 
 
 @router.get("/calendar", response_model=list[CalendarEntryRead])
