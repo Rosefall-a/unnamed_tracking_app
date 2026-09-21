@@ -1,8 +1,8 @@
 """Media
 
-Revision ID: 054e49ac610c
+Revision ID: f186cf8aa5c4
 Revises: f6bb4f914739
-Create Date: 2026-09-21 03:38:03.963044
+Create Date: 2026-09-21 03:56:51.021199
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = '054e49ac610c'
+revision: str = 'f186cf8aa5c4'
 down_revision: Union[str, None] = 'f6bb4f914739'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -28,6 +28,44 @@ def upgrade() -> None:
     sa.Column('last_result', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
     sa.Column('updated_at', sa.BigInteger(), nullable=False),
     sa.PrimaryKeyConstraint('job_id')
+    )
+    op.create_table('oidc_providers',
+    sa.Column('id', sa.UUID(), nullable=False),
+    sa.Column('name', sa.String(length=100), nullable=False),
+    sa.Column('slug', sa.String(length=64), nullable=False),
+    sa.Column('issuer_url', sa.Text(), nullable=False),
+    sa.Column('client_id', sa.String(length=256), nullable=False),
+    sa.Column('client_secret', sa.Text(), nullable=False),
+    sa.Column('scopes', sa.Text(), nullable=False),
+    sa.Column('redirect_uri', sa.Text(), nullable=True),
+    sa.Column('groups_claim', sa.String(length=128), nullable=False),
+    sa.Column('admin_group', sa.String(length=256), nullable=True),
+    sa.Column('user_match_field', sa.String(length=16), nullable=False),
+    sa.Column('allow_new_users', sa.Boolean(), nullable=False),
+    sa.Column('button_text', sa.String(length=100), nullable=False),
+    sa.Column('button_image_url', sa.Text(), nullable=True),
+    sa.Column('enabled', sa.Boolean(), nullable=False),
+    sa.Column('sort_order', sa.Integer(), nullable=False),
+    sa.Column('updated_at', sa.BigInteger(), nullable=False),
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('slug')
+    )
+    op.create_table('oidc_settings',
+    sa.Column('id', sa.UUID(), nullable=False),
+    sa.Column('issuer_url', sa.Text(), nullable=True),
+    sa.Column('client_id', sa.String(length=256), nullable=True),
+    sa.Column('client_secret', sa.Text(), nullable=True),
+    sa.Column('scopes', sa.Text(), nullable=False),
+    sa.Column('redirect_uri', sa.Text(), nullable=True),
+    sa.Column('groups_claim', sa.String(length=128), nullable=False),
+    sa.Column('admin_group', sa.String(length=256), nullable=True),
+    sa.Column('user_match_field', sa.String(length=16), nullable=False),
+    sa.Column('default_login_method', sa.String(length=16), nullable=False),
+    sa.Column('login_button_text', sa.String(length=100), nullable=False),
+    sa.Column('allow_new_users', sa.Boolean(), nullable=False),
+    sa.Column('providers_json', sa.Text(), nullable=True),
+    sa.Column('updated_at', sa.BigInteger(), nullable=False),
+    sa.PrimaryKeyConstraint('id')
     )
     op.create_table('calendar_events',
     sa.Column('id', sa.UUID(), nullable=False),
@@ -109,5 +147,7 @@ def downgrade() -> None:
     op.drop_column('anime', 'title_english')
     op.drop_index('ix_calendar_events_user_date', table_name='calendar_events')
     op.drop_table('calendar_events')
+    op.drop_table('oidc_settings')
+    op.drop_table('oidc_providers')
     op.drop_table('job_settings')
     # ### end Alembic commands ###
