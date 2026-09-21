@@ -138,7 +138,9 @@ async def fetch_episodes_with_fallback(
                 kitsu_episodes = await asyncio.to_thread(KitsuClient().episodes, trusted_kitsu)
             except KitsuError as exc:
                 errors.append(f"Kitsu: {exc}")
-    merged = _merge_episode_sources(anizip_episodes, jikan_episodes, anilist_episodes, kitsu_episodes)
+    merged = _merge_episode_sources(
+        anizip_episodes, jikan_episodes, anilist_episodes, kitsu_episodes
+    )
     cap = limit or final_total
     if cap:
         merged = [e for e in merged if e["episode_number"] <= cap]

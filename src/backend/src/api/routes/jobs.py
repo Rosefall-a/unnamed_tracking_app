@@ -35,7 +35,9 @@ async def list_jobs(db: AsyncSession = Depends(get_db)) -> list[dict[str, Any]]:
 
 
 @router.put("/{job_id}")
-async def update_job(job_id: str, payload: JobUpdate, db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
+async def update_job(
+    job_id: str, payload: JobUpdate, db: AsyncSession = Depends(get_db)
+) -> dict[str, Any]:
     spec = _spec(job_id)
     row = await get_setting(db, spec)
     if payload.interval_minutes is not None:

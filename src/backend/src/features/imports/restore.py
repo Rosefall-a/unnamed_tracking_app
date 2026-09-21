@@ -26,8 +26,17 @@ from src.database.models.movies import Movie
 from src.database.models.tv_show import TVEpisode, TVSeason, TVShow
 
 _NEVER = {
-    "id", "user_id", "created_at", "updated_at", "deleted_at", "show_id", "season_id",
-    "linked_tv_show_id", "linked_movie_id", "relations_cache", "relations_cached_at",
+    "id",
+    "user_id",
+    "created_at",
+    "updated_at",
+    "deleted_at",
+    "show_id",
+    "season_id",
+    "linked_tv_show_id",
+    "linked_movie_id",
+    "relations_cache",
+    "relations_cached_at",
 }
 MAX_ENTRIES = 20000
 
@@ -65,11 +74,14 @@ def _year(value: Any) -> int | None:
     return value.year if isinstance(value, dt.date) else None
 
 
-async def _existing(db: AsyncSession, model: type, user_id: Any, date_field: str) -> set[tuple[str, int | None]]:
+async def _existing(
+    db: AsyncSession, model: type, user_id: Any, date_field: str
+) -> set[tuple[str, int | None]]:
     rows = (
         await db.execute(
             select(model.title, getattr(model, date_field)).where(  # type: ignore[attr-defined]
-                model.user_id == user_id, model.deleted_at.is_(None)  # type: ignore[attr-defined]
+                model.user_id == user_id,
+                model.deleted_at.is_(None),  # type: ignore[attr-defined]
             )
         )
     ).all()
@@ -77,7 +89,11 @@ async def _existing(db: AsyncSession, model: type, user_id: Any, date_field: str
 
 
 def _add_children(
-    db: AsyncSession, show_id: Any, seasons: list[dict[str, Any]], season_model: type, episode_model: type
+    db: AsyncSession,
+    show_id: Any,
+    seasons: list[dict[str, Any]],
+    season_model: type,
+    episode_model: type,
 ) -> None:
     seen_seasons: set[int] = set()
     for raw in seasons:
@@ -129,7 +145,9 @@ async def restore_media(db: AsyncSession, user_id: Any, payload: dict[str, Any])
                     db.add(item)
                     await db.flush()
                     if season_model is not None and episode_model is not None:
-                        _add_children(db, item.id, raw.get("seasons") or [], season_model, episode_model)
+                        _add_children(
+                            db, item.id, raw.get("seasons") or [], season_model, episode_model
+                        )
                         await db.flush()
                 seen.add(identity)
                 created += 1

@@ -111,7 +111,9 @@ async def import_mal(
     try:
         chosen = {str(x) for x in json.loads(overwrite)}
     except (ValueError, TypeError) as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="overwrite must be a JSON list.") from exc
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="overwrite must be a JSON list."
+        ) from exc
     entries = await _read_mal(file)
     matches = await match_entries(db, current_user.id, entries)
 
@@ -188,7 +190,9 @@ class ListImportResult(BaseModel):
 
 def _parse_list(source: str, raw: bytes, filename: str) -> tuple[list[ImportedTitle], int]:
     if len(raw) > LIST_MAX_BYTES:
-        raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="The file is too large.")
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="The file is too large."
+        )
     try:
         if source == "letterboxd":
             return parse_letterboxd(raw, filename), 0
@@ -244,7 +248,9 @@ async def import_list(
     try:
         chosen = {str(x) for x in json.loads(overwrite)}
     except (ValueError, TypeError) as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="overwrite must be a JSON list.") from exc
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="overwrite must be a JSON list."
+        ) from exc
     items, skipped = _parse_list(source, await file.read(LIST_MAX_BYTES + 1), file.filename or "")
     matches = await match_titles(db, current_user.id, items)
 
@@ -305,11 +311,15 @@ async def import_media(
     included) from a library export or a scheduled backup file."""
     raw = await file.read(200 * 1024 * 1024 + 1)
     if len(raw) > 200 * 1024 * 1024:
-        raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="The file is too large.")
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="The file is too large."
+        )
     try:
         payload = json.loads(raw)
     except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="This is not a JSON file.") from exc
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="This is not a JSON file."
+        ) from exc
     if isinstance(payload, list) or not isinstance(payload, dict):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -324,8 +334,17 @@ async def import_media(
 
 
 _COLUMNS = [
-    "type", "title", "status", "score", "favorite", "rewatches", "released", "genres",
-    "episodes_watched", "episodes_total", "notes",
+    "type",
+    "title",
+    "status",
+    "score",
+    "favorite",
+    "rewatches",
+    "released",
+    "genres",
+    "episodes_watched",
+    "episodes_total",
+    "notes",
 ]
 
 
@@ -360,17 +379,35 @@ async def export_media_csv(
 ) -> Response:
     uid = current_user.id
     movies = (
-        (await db.execute(select(Movie).where(Movie.user_id == uid, Movie.deleted_at.is_(None)).order_by(Movie.sort_title)))
+        (
+            await db.execute(
+                select(Movie)
+                .where(Movie.user_id == uid, Movie.deleted_at.is_(None))
+                .order_by(Movie.sort_title)
+            )
+        )
         .scalars()
         .all()
     )
     shows = (
-        (await db.execute(select(TVShow).where(TVShow.user_id == uid, TVShow.deleted_at.is_(None)).order_by(TVShow.sort_title)))
+        (
+            await db.execute(
+                select(TVShow)
+                .where(TVShow.user_id == uid, TVShow.deleted_at.is_(None))
+                .order_by(TVShow.sort_title)
+            )
+        )
         .scalars()
         .all()
     )
     anime = (
-        (await db.execute(select(Anime).where(Anime.user_id == uid, Anime.deleted_at.is_(None)).order_by(Anime.sort_title)))
+        (
+            await db.execute(
+                select(Anime)
+                .where(Anime.user_id == uid, Anime.deleted_at.is_(None))
+                .order_by(Anime.sort_title)
+            )
+        )
         .scalars()
         .all()
     )
@@ -391,7 +428,10 @@ async def export_media_csv(
             )
         ).all()
         # a total is only given when every season has a known length
-        return {sid: (int(w or 0), int(t) if t is not None and all_known else None) for sid, w, t, all_known in rows}
+        return {
+            sid: (int(w or 0), int(t) if t is not None and all_known else None)
+            for sid, w, t, all_known in rows
+        }
 
     tv_progress = await progress(TVSeason, [s.id for s in shows])
     anime_progress = await progress(AnimeSeason, [a.id for a in anime])

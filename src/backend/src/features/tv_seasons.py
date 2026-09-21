@@ -52,7 +52,9 @@ def new_seasons(known_numbers: set[int], listed: list[dict[str, Any]]) -> list[d
     return [s for s in listed if s["season_number"] > highest]
 
 
-async def check_new_seasons(db: AsyncSession, show: TVShow, client: TVMazeClient | None = None) -> int:
+async def check_new_seasons(
+    db: AsyncSession, show: TVShow, client: TVMazeClient | None = None
+) -> int:
     """Adds any new seasons and notifies. Returns how many were added."""
     if not show.external_id:
         return 0
@@ -64,7 +66,11 @@ async def check_new_seasons(db: AsyncSession, show: TVShow, client: TVMazeClient
         return 0
 
     # read from the database, not the (possibly stale) loaded collection
-    known = set((await db.execute(select(TVSeason.season_number).where(TVSeason.show_id == show.id))).scalars().all())
+    known = set(
+        (await db.execute(select(TVSeason.season_number).where(TVSeason.show_id == show.id)))
+        .scalars()
+        .all()
+    )
     fresh = new_seasons(known, listed)
     for entry in fresh:
         db.add(
@@ -100,7 +106,9 @@ async def check_new_seasons(db: AsyncSession, show: TVShow, client: TVMazeClient
                     }
                 )
             await db.execute(
-                pg_insert(Notification).values(rows).on_conflict_do_nothing(constraint="uq_notifications_user_dedupe")
+                pg_insert(Notification)
+                .values(rows)
+                .on_conflict_do_nothing(constraint="uq_notifications_user_dedupe")
             )
     await db.commit()
     return len(fresh)

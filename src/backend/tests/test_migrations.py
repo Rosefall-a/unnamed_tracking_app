@@ -37,7 +37,10 @@ def test_a_key_saved_in_settings_wins_over_the_environment(monkeypatch):
     monkeypatch.setitem(integrations._ENV, "omdb_api_key", "omdb-env")
     monkeypatch.setitem(integrations._ENV, "tvdb_api_key", None)
     row = SimpleNamespace(
-        igdb_client_id=None, igdb_client_secret=None, tvdb_api_key=None, omdb_api_key=None,
+        igdb_client_id=None,
+        igdb_client_secret=None,
+        tvdb_api_key=None,
+        omdb_api_key=None,
         tmdb_api_key=encrypt_secret("from-settings"),
     )
     keys = integrations.resolve_integrations(row)  # type: ignore[arg-type]

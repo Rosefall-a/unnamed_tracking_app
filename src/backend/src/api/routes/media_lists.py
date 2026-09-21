@@ -46,7 +46,9 @@ def _status_str(media: Any) -> str:
     return media.status.value if hasattr(media.status, "value") else str(media.status)
 
 
-def _item_dict(item_id: UUID, media_type: str, media: Any, added_at: int, language: str = "english") -> dict:
+def _item_dict(
+    item_id: UUID, media_type: str, media: Any, added_at: int, language: str = "english"
+) -> dict:
     return {
         "id": item_id,
         "media_type": media_type,
@@ -58,7 +60,9 @@ def _item_dict(item_id: UUID, media_type: str, media: Any, added_at: int, langua
     }
 
 
-async def _resolve_smart_items(rule: dict, user_id: UUID, db: AsyncSession, language: str) -> list[dict]:
+async def _resolve_smart_items(
+    rule: dict, user_id: UUID, db: AsyncSession, language: str
+) -> list[dict]:
     wanted_types = rule.get("media_types") or list(_MODEL_BY_TYPE)
     allowed_statuses: set[str] | None = None
     if rule.get("status_buckets"):
@@ -191,7 +195,11 @@ async def _ensure_favorites_list(user_id: UUID, db: AsyncSession) -> None:
     # a list the user made by hand under the same name blocked the insert:
     # when it is the same favorites filter, it becomes the system list
     own = await db.scalar(
-        select(MediaList).where(MediaList.user_id == user_id, MediaList.name == "Favorites", MediaList.is_system.is_(False))
+        select(MediaList).where(
+            MediaList.user_id == user_id,
+            MediaList.name == "Favorites",
+            MediaList.is_system.is_(False),
+        )
     )
     if own is not None and own.smart_rule == {"favorite": True}:
         own.is_system = True
@@ -209,7 +217,12 @@ async def list_media_lists(
             await db.execute(
                 select(MediaList)
                 .where(MediaList.user_id == current_user.id)
-                .order_by(MediaList.pinned.desc(), MediaList.position, MediaList.is_system.desc(), MediaList.name)
+                .order_by(
+                    MediaList.pinned.desc(),
+                    MediaList.position,
+                    MediaList.is_system.desc(),
+                    MediaList.name,
+                )
             )
         )
         .scalars()
@@ -252,10 +265,16 @@ async def order_media_lists(
     """Saves the user's own order of their lists: each id's place in the
     request becomes its position. Ids that are not the caller's are ignored,
     and lists left out of the request keep their relative order after them."""
-    lists = (await db.execute(select(MediaList).where(MediaList.user_id == current_user.id))).scalars().all()
+    lists = (
+        (await db.execute(select(MediaList).where(MediaList.user_id == current_user.id)))
+        .scalars()
+        .all()
+    )
     by_id = {lst.id: lst for lst in lists}
     ordered = [by_id[i] for i in dict.fromkeys(payload.list_ids) if i in by_id]
-    left_out = sorted((lst for lst in lists if lst not in ordered), key=lambda lst: (lst.position, lst.name))
+    left_out = sorted(
+        (lst for lst in lists if lst not in ordered), key=lambda lst: (lst.position, lst.name)
+    )
     for position, lst in enumerate([*ordered, *left_out]):
         lst.position = position
     await db.commit()
@@ -267,7 +286,9 @@ async def create_media_list(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
-    last = await db.scalar(select(func.max(MediaList.position)).where(MediaList.user_id == current_user.id))
+    last = await db.scalar(
+        select(func.max(MediaList.position)).where(MediaList.user_id == current_user.id)
+    )
     lst = MediaList(
         user_id=current_user.id,
         position=(last or 0) + 1,

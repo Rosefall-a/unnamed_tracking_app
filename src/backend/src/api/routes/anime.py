@@ -322,8 +322,10 @@ async def create_anime(
 
     # keep the English/romaji/Japanese spellings when the entry has an AniList
     # id; best-effort, a slow AniList never blocks creation
-    if show.anilist_id and show.anilist_id.isdigit() and not (
-        show.title_english or show.title_romaji or show.title_native
+    if (
+        show.anilist_id
+        and show.anilist_id.isdigit()
+        and not (show.title_english or show.title_romaji or show.title_native)
     ):
         try:
             found, _ = await asyncio.to_thread(AniListClient().get_by_ids, [int(show.anilist_id)])
@@ -556,8 +558,14 @@ async def update_season(
             # advancing from the library counts as watching, same as
             # checking episodes off on the title page
             await log_activity(
-                db, current_user.id, "anime", show.id, show.title,
-                ActivityEventType.EPISODES_WATCHED, date.today(), increment=new_counter - old_counter,
+                db,
+                current_user.id,
+                "anime",
+                show.id,
+                show.title,
+                ActivityEventType.EPISODES_WATCHED,
+                date.today(),
+                increment=new_counter - old_counter,
             )
 
     await db.commit()
@@ -632,7 +640,9 @@ async def list_episodes(
         # re-inflate every fresh fetch back up to the same wrong number
         # forever (e.g. once padded to a confirmed-but-not-fully-aired
         # count before that bug was fixed).
-        fresh_total = fetch.final_total or max((e["episode_number"] for e in all_episodes), default=None)
+        fresh_total = fetch.final_total or max(
+            (e["episode_number"] for e in all_episodes), default=None
+        )
         season.episode_count = pad_to_known_total(all_episodes, fresh_total)
         if needs_tmdb_backfill(all_episodes):
             await _backfill_from_tmdb_if_configured(all_episodes, show.title, db)

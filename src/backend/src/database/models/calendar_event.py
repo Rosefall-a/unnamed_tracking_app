@@ -29,7 +29,12 @@ class CalendarEvent(Base):
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
     media_type: Mapped[str | None] = mapped_column(String(10), nullable=True)
     media_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
-    created_at: Mapped[int] = mapped_column(BigInteger, nullable=False, default=lambda: int(time.time()))
+    created_at: Mapped[int] = mapped_column(
+        BigInteger, nullable=False, default=lambda: int(time.time())
+    )
     updated_at: Mapped[int] = mapped_column(
-        BigInteger, nullable=False, default=lambda: int(time.time()), onupdate=lambda: int(time.time())
+        BigInteger,
+        nullable=False,
+        default=lambda: int(time.time()),
+        onupdate=lambda: int(time.time()),
     )

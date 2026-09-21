@@ -5,6 +5,7 @@ Revises: f6bb4f914739
 Create Date: 2026-09-21 03:56:51.021199
 
 """
+
 from typing import Sequence, Union
 
 from alembic import op
@@ -67,50 +68,116 @@ def upgrade() -> None:
     sa.Column('updated_at', sa.BigInteger(), nullable=False),
     sa.PrimaryKeyConstraint('id')
     )
-    op.create_table('calendar_events',
-    sa.Column('id', sa.UUID(), nullable=False),
-    sa.Column('user_id', sa.UUID(), nullable=False),
-    sa.Column('title', sa.String(length=200), nullable=False),
-    sa.Column('event_date', sa.Date(), nullable=False),
-    sa.Column('event_time', sa.String(length=5), nullable=True),
-    sa.Column('note', sa.Text(), nullable=True),
-    sa.Column('media_type', sa.String(length=10), nullable=True),
-    sa.Column('media_id', sa.UUID(), nullable=True),
-    sa.Column('created_at', sa.BigInteger(), nullable=False),
-    sa.Column('updated_at', sa.BigInteger(), nullable=False),
-    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id')
+    op.create_table(
+        "calendar_events",
+        sa.Column("id", sa.UUID(), nullable=False),
+        sa.Column("user_id", sa.UUID(), nullable=False),
+        sa.Column("title", sa.String(length=200), nullable=False),
+        sa.Column("event_date", sa.Date(), nullable=False),
+        sa.Column("event_time", sa.String(length=5), nullable=True),
+        sa.Column("note", sa.Text(), nullable=True),
+        sa.Column("media_type", sa.String(length=10), nullable=True),
+        sa.Column("media_id", sa.UUID(), nullable=True),
+        sa.Column("created_at", sa.BigInteger(), nullable=False),
+        sa.Column("updated_at", sa.BigInteger(), nullable=False),
+        sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index('ix_calendar_events_user_date', 'calendar_events', ['user_id', 'event_date'], unique=False)
-    op.add_column('anime', sa.Column('title_english', sa.String(length=500), nullable=True))
-    op.add_column('anime', sa.Column('title_romaji', sa.String(length=500), nullable=True))
-    op.add_column('anime', sa.Column('title_native', sa.String(length=500), nullable=True))
-    op.create_index('ix_anime_episodes_air_at', 'anime_episodes', ['air_at'], unique=False, postgresql_where=sa.text('air_at IS NOT NULL'))
-    op.create_index('ix_anime_episodes_season_watched', 'anime_episodes', ['season_id', 'watched'], unique=False)
-    op.create_unique_constraint('uq_anime_episodes_season_id_episode_number', 'anime_episodes', ['season_id', 'episode_number'])
-    op.add_column('app_integration_settings', sa.Column('steamgriddb_api_key', sa.Text(), nullable=True))
-    op.add_column('app_integration_settings', sa.Column('retroachievements_api_key', sa.Text(), nullable=True))
-    op.add_column('app_integration_settings', sa.Column('giantbomb_api_key', sa.Text(), nullable=True))
-    op.add_column('app_integration_settings', sa.Column('screenscraper_ssid', sa.String(length=128), nullable=True))
-    op.add_column('app_integration_settings', sa.Column('screenscraper_sspassword', sa.Text(), nullable=True))
-    op.add_column('app_integration_settings', sa.Column('screenscraper_devid', sa.String(length=128), nullable=True))
-    op.add_column('app_integration_settings', sa.Column('screenscraper_devpassword', sa.Text(), nullable=True))
-    op.add_column('app_integration_settings', sa.Column('xbox_client_id', sa.String(length=128), nullable=True))
-    op.add_column('app_integration_settings', sa.Column('xbox_client_secret', sa.Text(), nullable=True))
-    op.create_index('ix_cards_archive_number_user_active', 'cards', ['user_id', 'archive_number'], unique=True, postgresql_where=sa.text('archive_number IS NOT NULL'))
-    op.add_column('games', sa.Column('playnite_guid', sa.UUID(), nullable=True))
-    op.drop_index('ix_games_folder_location_active', table_name='games', postgresql_where='(deleted_at IS NULL)')
-    op.create_index(op.f('ix_games_parent_game_id'), 'games', ['parent_game_id'], unique=False)
-    op.create_index(op.f('ix_games_playnite_guid'), 'games', ['playnite_guid'], unique=False)
-    op.create_index('ix_games_user_folder_location_active', 'games', ['user_id', 'folder_location'], unique=True, postgresql_where=sa.text('deleted_at IS NULL'))
-    op.add_column('media_lists', sa.Column('pinned', sa.Boolean(), server_default='false', nullable=False))
-    op.add_column('media_lists', sa.Column('position', sa.Integer(), server_default='0', nullable=False))
-    op.create_index('ix_tv_episodes_air_at', 'tv_episodes', ['air_at'], unique=False, postgresql_where=sa.text('air_at IS NOT NULL'))
-    op.create_index('ix_tv_episodes_season_watched', 'tv_episodes', ['season_id', 'watched'], unique=False)
-    op.create_unique_constraint('uq_tv_episodes_season_id_episode_number', 'tv_episodes', ['season_id', 'episode_number'])
-    op.add_column('tv_shows', sa.Column('seasons_checked_at', sa.BigInteger(), nullable=True))
-    op.add_column('users', sa.Column('oidc_subject', sa.String(length=512), nullable=True))
-    op.create_unique_constraint(None, 'users', ['oidc_subject'])
+    op.create_index(
+        "ix_calendar_events_user_date", "calendar_events", ["user_id", "event_date"], unique=False
+    )
+    op.add_column("anime", sa.Column("title_english", sa.String(length=500), nullable=True))
+    op.add_column("anime", sa.Column("title_romaji", sa.String(length=500), nullable=True))
+    op.add_column("anime", sa.Column("title_native", sa.String(length=500), nullable=True))
+    op.create_index(
+        "ix_anime_episodes_air_at",
+        "anime_episodes",
+        ["air_at"],
+        unique=False,
+        postgresql_where=sa.text("air_at IS NOT NULL"),
+    )
+    op.create_index(
+        "ix_anime_episodes_season_watched", "anime_episodes", ["season_id", "watched"], unique=False
+    )
+    op.create_unique_constraint(
+        "uq_anime_episodes_season_id_episode_number",
+        "anime_episodes",
+        ["season_id", "episode_number"],
+    )
+    op.add_column(
+        "app_integration_settings", sa.Column("steamgriddb_api_key", sa.Text(), nullable=True)
+    )
+    op.add_column(
+        "app_integration_settings", sa.Column("retroachievements_api_key", sa.Text(), nullable=True)
+    )
+    op.add_column(
+        "app_integration_settings", sa.Column("giantbomb_api_key", sa.Text(), nullable=True)
+    )
+    op.add_column(
+        "app_integration_settings",
+        sa.Column("screenscraper_ssid", sa.String(length=128), nullable=True),
+    )
+    op.add_column(
+        "app_integration_settings", sa.Column("screenscraper_sspassword", sa.Text(), nullable=True)
+    )
+    op.add_column(
+        "app_integration_settings",
+        sa.Column("screenscraper_devid", sa.String(length=128), nullable=True),
+    )
+    op.add_column(
+        "app_integration_settings", sa.Column("screenscraper_devpassword", sa.Text(), nullable=True)
+    )
+    op.add_column(
+        "app_integration_settings",
+        sa.Column("xbox_client_id", sa.String(length=128), nullable=True),
+    )
+    op.add_column(
+        "app_integration_settings", sa.Column("xbox_client_secret", sa.Text(), nullable=True)
+    )
+    op.create_index(
+        "ix_cards_archive_number_user_active",
+        "cards",
+        ["user_id", "archive_number"],
+        unique=True,
+        postgresql_where=sa.text("archive_number IS NOT NULL"),
+    )
+    op.add_column("games", sa.Column("playnite_guid", sa.UUID(), nullable=True))
+    op.drop_index(
+        "ix_games_folder_location_active",
+        table_name="games",
+        postgresql_where="(deleted_at IS NULL)",
+    )
+    op.create_index(op.f("ix_games_parent_game_id"), "games", ["parent_game_id"], unique=False)
+    op.create_index(op.f("ix_games_playnite_guid"), "games", ["playnite_guid"], unique=False)
+    op.create_index(
+        "ix_games_user_folder_location_active",
+        "games",
+        ["user_id", "folder_location"],
+        unique=True,
+        postgresql_where=sa.text("deleted_at IS NULL"),
+    )
+    op.add_column(
+        "media_lists", sa.Column("pinned", sa.Boolean(), server_default="false", nullable=False)
+    )
+    op.add_column(
+        "media_lists", sa.Column("position", sa.Integer(), server_default="0", nullable=False)
+    )
+    op.create_index(
+        "ix_tv_episodes_air_at",
+        "tv_episodes",
+        ["air_at"],
+        unique=False,
+        postgresql_where=sa.text("air_at IS NOT NULL"),
+    )
+    op.create_index(
+        "ix_tv_episodes_season_watched", "tv_episodes", ["season_id", "watched"], unique=False
+    )
+    op.create_unique_constraint(
+        "uq_tv_episodes_season_id_episode_number", "tv_episodes", ["season_id", "episode_number"]
+    )
+    op.add_column("tv_shows", sa.Column("seasons_checked_at", sa.BigInteger(), nullable=True))
+    op.add_column("users", sa.Column("oidc_subject", sa.String(length=512), nullable=True))
+    op.create_unique_constraint(None, "users", ["oidc_subject"])
     # ### end Alembic commands ###
 
 

@@ -39,8 +39,18 @@ def _sort_title(title: str) -> str:
     return lowered
 
 
-async def match_titles(db: AsyncSession, user_id: Any, items: list[ImportedTitle]) -> list[ListMatch]:
-    movies = (await db.execute(select(Movie).where(Movie.user_id == user_id, Movie.deleted_at.is_(None)))).scalars().all()
+async def match_titles(
+    db: AsyncSession, user_id: Any, items: list[ImportedTitle]
+) -> list[ListMatch]:
+    movies = (
+        (
+            await db.execute(
+                select(Movie).where(Movie.user_id == user_id, Movie.deleted_at.is_(None))
+            )
+        )
+        .scalars()
+        .all()
+    )
     shows = (
         (
             await db.execute(
@@ -60,7 +70,10 @@ async def match_titles(db: AsyncSession, user_id: Any, items: list[ImportedTitle
             out[(r.title.lower(), day.year if day else None)] = r
         return out
 
-    by_kind = {"movie": index(list(movies), "release_date"), "tv": index(list(shows), "first_air_date")}
+    by_kind = {
+        "movie": index(list(movies), "release_date"),
+        "tv": index(list(shows), "first_air_date"),
+    }
     matches = []
     for item in items:
         known = by_kind[item.kind]
@@ -78,10 +91,16 @@ def differences(existing: Any, item: ImportedTitle) -> list[dict[str, Any]]:
 
     def add(field: str, site: Any, imported: Any) -> None:
         if imported is not None and site != imported:
-            out.append({"field": field, "site": None if site is None else str(site), "mal": str(imported)})
+            out.append(
+                {"field": field, "site": None if site is None else str(site), "mal": str(imported)}
+            )
 
     add("Status", _label(existing.status), _label(item.status))
-    add("Score", None if existing.rating_overall is None else float(existing.rating_overall), None if item.rating is None else float(item.rating))
+    add(
+        "Score",
+        None if existing.rating_overall is None else float(existing.rating_overall),
+        None if item.rating is None else float(item.rating),
+    )
     if item.rewatches:
         add("Rewatches", existing.rewatches, item.rewatches)
     if item.favorite:
@@ -111,13 +130,24 @@ def new_title(user_id: Any, item: ImportedTitle) -> Movie | TVShow:
         "favorite": item.favorite,
         "rewatches": item.rewatches,
         "genres": item.genres,
-        "studios": [], "countries": [], "languages": [], "tags": [], "features": [], "locked_fields": [],
+        "studios": [],
+        "countries": [],
+        "languages": [],
+        "tags": [],
+        "features": [],
+        "locked_fields": [],
         "end_date": item.watched_on if item.status == "WATCHED" else None,
     }
     if item.kind == "movie":
         movie = Movie(status=MovieStatus(item.status), runtime_minutes=item.runtime, **common)
         return movie
-    return TVShow(status=TVShowStatus(item.status), creators=[], episode_runtime_minutes=item.runtime, seasons=[], **common)
+    return TVShow(
+        status=TVShowStatus(item.status),
+        creators=[],
+        episode_runtime_minutes=item.runtime,
+        seasons=[],
+        **common,
+    )
 
 
 class OmdbLookup:
@@ -131,7 +161,9 @@ class OmdbLookup:
         found = self.client.lookup(title, year, "movie")
         return [found] if found else []
 
-    def search_tv(self, title: str, limit: int = 1, year: int | None = None) -> list[dict[str, Any]]:
+    def search_tv(
+        self, title: str, limit: int = 1, year: int | None = None
+    ) -> list[dict[str, Any]]:
         found = self.client.lookup(title, year, "tv")
         return [found] if found else []
 
@@ -161,7 +193,9 @@ def _day(value: Any) -> dt.date | None:
         return None
 
 
-async def fill_details(client: Any, touched: list[tuple[ImportedTitle, Any, bool]]) -> dict[str, int]:
+async def fill_details(
+    client: Any, touched: list[tuple[ImportedTitle, Any, bool]]
+) -> dict[str, int]:
     """TMDB lookups by title and year, a few at a time, filling blank fields.
     A TV series with no seasons yet gets them from TMDB, but only when the
     import is what is adding or changing it (the flag), never for a title the
@@ -184,4 +218,3 @@ async def fill_details(client: Any, touched: list[tuple[ImportedTitle, Any, bool
             if seasons and row.status == TVShowStatus.WATCHED:
                 assumed += 1
     return {"filled": filled, "not_found": not_found, "seasons_assumed_watched": assumed}
-

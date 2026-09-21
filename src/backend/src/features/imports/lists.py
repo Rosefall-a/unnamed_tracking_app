@@ -53,7 +53,10 @@ class ImportedTitle:
 
 def _rows(raw: bytes) -> list[dict[str, str]]:
     text = raw.decode("utf-8-sig", errors="replace")
-    return [{(k or "").strip(): (v or "").strip() for k, v in row.items()} for row in csv.DictReader(io.StringIO(text))]
+    return [
+        {(k or "").strip(): (v or "").strip() for k, v in row.items()}
+        for row in csv.DictReader(io.StringIO(text))
+    ]
 
 
 def _year(value: str) -> int | None:
@@ -117,9 +120,16 @@ def parse_letterboxd(raw: bytes, filename: str = "") -> list[ImportedTitle]:
         except ArithmeticError:
             return None
 
-    watchlist, watched, ratings, diary = find("watchlist"), find("watched"), find("ratings"), find("diary")
+    watchlist, watched, ratings, diary = (
+        find("watchlist"),
+        find("watched"),
+        find("ratings"),
+        find("diary"),
+    )
     if all(x is None for x in (watchlist, watched, ratings, diary)) and not zipped:
-        watched = _rows(next(iter(files.values())))  # an unrecognised single file: taken as films watched
+        watched = _rows(
+            next(iter(files.values()))
+        )  # an unrecognised single file: taken as films watched
     for row in watchlist or []:
         entry(row)
     for row in watched or []:
@@ -195,16 +205,31 @@ def parse_imdb(raw: bytes) -> tuple[list[ImportedTitle], int]:
 
 # ---------------------------------------------------------------- metadata
 _MOVIE_FILL = (
-    ("description", "overview"), ("release_date", "release_date"), ("runtime_minutes", "runtime_minutes"),
-    ("director", "director"), ("writer", "writer"), ("studios", "studios"), ("countries", "countries"),
-    ("languages", "languages"), ("genres", "genres"), ("poster_url", "poster_url"),
-    ("backdrop_url", "backdrop_url"), ("tmdb_score", "vote_average"),
+    ("description", "overview"),
+    ("release_date", "release_date"),
+    ("runtime_minutes", "runtime_minutes"),
+    ("director", "director"),
+    ("writer", "writer"),
+    ("studios", "studios"),
+    ("countries", "countries"),
+    ("languages", "languages"),
+    ("genres", "genres"),
+    ("poster_url", "poster_url"),
+    ("backdrop_url", "backdrop_url"),
+    ("tmdb_score", "vote_average"),
 )
 _TV_FILL = (
-    ("description", "overview"), ("first_air_date", "first_air_date"),
-    ("episode_runtime_minutes", "episode_runtime_minutes"), ("creators", "creators"), ("studios", "studios"),
-    ("countries", "countries"), ("languages", "languages"), ("genres", "genres"), ("poster_url", "poster_url"),
-    ("backdrop_url", "backdrop_url"), ("tmdb_score", "vote_average"),
+    ("description", "overview"),
+    ("first_air_date", "first_air_date"),
+    ("episode_runtime_minutes", "episode_runtime_minutes"),
+    ("creators", "creators"),
+    ("studios", "studios"),
+    ("countries", "countries"),
+    ("languages", "languages"),
+    ("genres", "genres"),
+    ("poster_url", "poster_url"),
+    ("backdrop_url", "backdrop_url"),
+    ("tmdb_score", "vote_average"),
 )
 
 
@@ -230,11 +255,15 @@ def fill_blanks(item: Any, kind: str, meta: dict[str, Any]) -> bool:
     return changed
 
 
-def lookup_tmdb(client: Any, wanted: list[tuple[str, str, int | None]]) -> dict[tuple[str, str, int | None], dict[str, Any]]:
+def lookup_tmdb(
+    client: Any, wanted: list[tuple[str, str, int | None]]
+) -> dict[tuple[str, str, int | None], dict[str, Any]]:
     """One TMDB lookup per (kind, title, year), a few at a time. A title TMDB
     does not know, or a request that fails, is simply absent from the result."""
 
-    def one(job: tuple[str, str, int | None]) -> tuple[tuple[str, str, int | None], dict[str, Any] | None]:
+    def one(
+        job: tuple[str, str, int | None],
+    ) -> tuple[tuple[str, str, int | None], dict[str, Any] | None]:
         kind, title, year = job
         search = client.search if kind == "movie" else client.search_tv
         try:

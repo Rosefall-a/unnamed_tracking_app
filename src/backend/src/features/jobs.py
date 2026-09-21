@@ -51,7 +51,10 @@ class JobSpec:
 
 
 def _summarize_refresh(r: dict[str, Any]) -> str:
-    parts = [f"{r.get('checked') or 0} refreshed", f"{r.get('skipped_up_to_date') or 0} already fine"]
+    parts = [
+        f"{r.get('checked') or 0} refreshed",
+        f"{r.get('skipped_up_to_date') or 0} already fine",
+    ]
     if r.get("counts_fixed"):
         parts.append(f"{r['counts_fixed']} count(s) corrected")
     return ", ".join(parts)
@@ -146,7 +149,9 @@ async def get_setting(db: AsyncSession, spec: JobSpec) -> JobSetting:
     row = await db.get(JobSetting, spec.id)
     if row is None:
         row = JobSetting(
-            job_id=spec.id, enabled=spec.default_enabled, interval_minutes=spec.default_interval_minutes
+            job_id=spec.id,
+            enabled=spec.default_enabled,
+            interval_minutes=spec.default_interval_minutes,
         )
         db.add(row)
         await db.flush()
@@ -199,7 +204,9 @@ async def run_jobs_loop() -> None:
                 due = []
                 for spec in JOBS.values():
                     row = await get_setting(db, spec)
-                    if not spec.is_running() and is_due(row.enabled, row.last_run_at, row.interval_minutes, now):
+                    if not spec.is_running() and is_due(
+                        row.enabled, row.last_run_at, row.interval_minutes, now
+                    ):
                         due.append(spec)
                 await db.commit()
             for spec in due:

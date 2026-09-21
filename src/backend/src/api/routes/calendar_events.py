@@ -86,7 +86,9 @@ async def _get_or_404(event_id: UUID, user_id: UUID, db: AsyncSession) -> Calend
         select(CalendarEvent).where(CalendarEvent.id == event_id, CalendarEvent.user_id == user_id)
     )
     if event is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Calendar entry not found.")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Calendar entry not found."
+        )
     return event
 
 
@@ -102,7 +104,11 @@ async def list_events(
         stmt = stmt.where(CalendarEvent.event_date >= start)
     if end:
         stmt = stmt.where(CalendarEvent.event_date <= end)
-    rows = (await db.execute(stmt.order_by(CalendarEvent.event_date, CalendarEvent.event_time))).scalars().all()
+    rows = (
+        (await db.execute(stmt.order_by(CalendarEvent.event_date, CalendarEvent.event_time)))
+        .scalars()
+        .all()
+    )
     return [_read(e) for e in rows]
 
 
@@ -113,7 +119,9 @@ async def create_event(
     current_user: User = Depends(get_current_user),
 ) -> dict[str, Any]:
     if (payload.media_type is None) != (payload.media_id is None):
-        raise HTTPException(status_code=400, detail="A linked title needs both its type and its id.")
+        raise HTTPException(
+            status_code=400, detail="A linked title needs both its type and its id."
+        )
     event = CalendarEvent(user_id=current_user.id, **payload.model_dump())
     db.add(event)
     await db.commit()
@@ -139,7 +147,9 @@ async def update_event(
     for field, value in updates.items():
         setattr(event, field, value)
     if (event.media_type is None) != (event.media_id is None):
-        raise HTTPException(status_code=400, detail="A linked title needs both its type and its id.")
+        raise HTTPException(
+            status_code=400, detail="A linked title needs both its type and its id."
+        )
     await db.commit()
     await db.refresh(event)
     return _read(event)

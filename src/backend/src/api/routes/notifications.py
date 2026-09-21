@@ -38,7 +38,9 @@ def _read(n: Notification) -> dict:
     }
 
 
-async def _display_titles(db: AsyncSession, user_id: UUID, rows: Sequence[Notification]) -> dict[UUID, str]:
+async def _display_titles(
+    db: AsyncSession, user_id: UUID, rows: Sequence[Notification]
+) -> dict[UUID, str]:
     """A notification stores the title as it was when it was created. Anime
     titles are shown in the spelling the user picked now, so changing the
     setting also changes the ones already in the list."""
@@ -46,9 +48,15 @@ async def _display_titles(db: AsyncSession, user_id: UUID, rows: Sequence[Notifi
     if not anime_ids:
         return {}
     language = str((await load_preferences(db, user_id))["title_language"])
-    shows = (await db.execute(select(Anime).where(Anime.id.in_(anime_ids), Anime.user_id == user_id))).scalars().all()
+    shows = (
+        (await db.execute(select(Anime).where(Anime.id.in_(anime_ids), Anime.user_id == user_id)))
+        .scalars()
+        .all()
+    )
     by_id = {s.id: display_title(s, language) for s in shows}
-    return {n.id: by_id[n.media_id] for n in rows if n.media_type == "anime" and n.media_id in by_id}
+    return {
+        n.id: by_id[n.media_id] for n in rows if n.media_type == "anime" and n.media_id in by_id
+    }
 
 
 @router.get("/unread-count")
@@ -87,7 +95,10 @@ async def list_notifications(
         .where(Notification.user_id == current_user.id, Notification.read_at.is_(None))
     )
     titles = await _display_titles(db, current_user.id, rows)
-    return {"items": [{**_read(n), "title": titles.get(n.id, n.title)} for n in rows], "unread": unread or 0}
+    return {
+        "items": [{**_read(n), "title": titles.get(n.id, n.title)} for n in rows],
+        "unread": unread or 0,
+    }
 
 
 @router.post("/read-all", status_code=status.HTTP_204_NO_CONTENT, response_model=None)

@@ -580,17 +580,31 @@ async def test_route_level_flow_flags_moves_the_counter_and_the_library_number()
 
             # the library "+" button: counter to 4 flags episodes 1 to 4
             await update_season(show_id, season_id, SeasonUpdate(episodes_watched=4), db, user)
-            rows = (await db.execute(select(AnimeEpisode).where(AnimeEpisode.season_id == season_id))).scalars().all()
+            rows = (
+                (await db.execute(select(AnimeEpisode).where(AnimeEpisode.season_id == season_id)))
+                .scalars()
+                .all()
+            )
             assert sorted(e.episode_number for e in rows if e.watched) == [1, 2, 3, 4]
 
             # checking episode 8 on the title page moves the library number to 5
             await update_episode(show_id, season_id, ids[7], EpisodeUpdate(watched=True), db, user)
-            s = (await db.execute(select(AnimeSeason).where(AnimeSeason.id == season_id))).scalar_one()
+            s = (
+                await db.execute(select(AnimeSeason).where(AnimeSeason.id == season_id))
+            ).scalar_one()
             assert s.episodes_watched == 5
 
             # a range select adds to it too
-            await bulk_set_episodes_watched(show_id, season_id, EpisodesBulkWatched(episode_ids=ids[8:10], watched=True), db, user)
-            s = (await db.execute(select(AnimeSeason).where(AnimeSeason.id == season_id))).scalar_one()
+            await bulk_set_episodes_watched(
+                show_id,
+                season_id,
+                EpisodesBulkWatched(episode_ids=ids[8:10], watched=True),
+                db,
+                user,
+            )
+            s = (
+                await db.execute(select(AnimeSeason).where(AnimeSeason.id == season_id))
+            ).scalar_one()
             assert s.episodes_watched == 7
         finally:
             if user is not None:
@@ -612,23 +626,31 @@ async def test_unchecking_episodes_works_including_ones_the_counter_covered():
             show = _anime(user)
             db.add(show)
             await db.flush()
-            season = AnimeSeason(show_id=show.id, season_number=1, episode_count=6, episodes_watched=4)
+            season = AnimeSeason(
+                show_id=show.id, season_number=1, episode_count=6, episodes_watched=4
+            )
             db.add(season)
             await db.flush()
-            eps = [AnimeEpisode(season_id=season.id, episode_number=n) for n in range(1, 7)]  # nothing flagged
+            eps = [
+                AnimeEpisode(season_id=season.id, episode_number=n) for n in range(1, 7)
+            ]  # nothing flagged
             db.add_all(eps)
             await db.commit()
             show_id, season_id = show.id, season.id
             ids = [e.id for e in eps]
 
             # episode 2 was only counted by the counter; unchecking it must stick
-            result = await update_episode(show_id, season_id, ids[1], EpisodeUpdate(watched=False), db, user)
+            result = await update_episode(
+                show_id, season_id, ids[1], EpisodeUpdate(watched=False), db, user
+            )
             episodes = {e.episode_number: e.watched for e in result.seasons[0].episodes}
             assert episodes == {1: True, 2: False, 3: True, 4: True, 5: False, 6: False}
             assert result.seasons[0].episodes_watched == 3
 
             # and a flagged one
-            result = await update_episode(show_id, season_id, ids[3], EpisodeUpdate(watched=False), db, user)
+            result = await update_episode(
+                show_id, season_id, ids[3], EpisodeUpdate(watched=False), db, user
+            )
             assert result.seasons[0].episodes_watched == 2
             assert {e.episode_number for e in result.seasons[0].episodes if e.watched} == {1, 3}
         finally:
@@ -662,9 +684,19 @@ async def test_new_tv_season_is_added_and_announced_once_but_not_on_the_first_ch
         try:
             user = await _user(db)
             show = TVShow(
-                user_id=user.scratch_id, title="Season Test", sort_title="season test", status=TVShowStatus.WATCHED,
-                external_id="1", creators=[], studios=[], countries=[], languages=[], genres=[], tags=[],
-                features=[], locked_fields=[],
+                user_id=user.scratch_id,
+                title="Season Test",
+                sort_title="season test",
+                status=TVShowStatus.WATCHED,
+                external_id="1",
+                creators=[],
+                studios=[],
+                countries=[],
+                languages=[],
+                genres=[],
+                tags=[],
+                features=[],
+                locked_fields=[],
             )
             db.add(show)
             await db.flush()
@@ -679,18 +711,42 @@ async def test_new_tv_season_is_added_and_announced_once_but_not_on_the_first_ch
             show = (await db.execute(select(TVShow).where(TVShow.id == show_id))).scalar_one()
             # first check: the season is added, but nothing is announced
             assert await check_new_seasons(db, show, _FakeTVMaze(listed)) == 1  # type: ignore[arg-type]
-            notes = (await db.execute(select(Notification).where(Notification.user_id == user.scratch_id))).scalars().all()
+            notes = (
+                (
+                    await db.execute(
+                        select(Notification).where(Notification.user_id == user.scratch_id)
+                    )
+                )
+                .scalars()
+                .all()
+            )
             assert notes == []
 
             # a season 3 appears later: added and announced, with the premiere date
-            listed.append({"season_number": 3, "name": None, "episode_count": None, "air_date": "2028-01-01"})
+            listed.append(
+                {"season_number": 3, "name": None, "episode_count": None, "air_date": "2028-01-01"}
+            )
             show = (await db.execute(select(TVShow).where(TVShow.id == show_id))).scalar_one()
             assert await check_new_seasons(db, show, _FakeTVMaze(listed)) == 1  # type: ignore[arg-type]
-            assert await check_new_seasons(db, show, _FakeTVMaze(listed)) == 0  # nothing new the third time
-            notes = (await db.execute(select(Notification).where(Notification.user_id == user.scratch_id))).scalars().all()
+            assert (
+                await check_new_seasons(db, show, _FakeTVMaze(listed)) == 0
+            )  # nothing new the third time
+            notes = (
+                (
+                    await db.execute(
+                        select(Notification).where(Notification.user_id == user.scratch_id)
+                    )
+                )
+                .scalars()
+                .all()
+            )
             assert len(notes) == 1
             assert notes[0].body == "Season 3 is listed, premiering 2028-01-01"
-            seasons = (await db.execute(select(TVSeason).where(TVSeason.show_id == show_id))).scalars().all()
+            seasons = (
+                (await db.execute(select(TVSeason).where(TVSeason.show_id == show_id)))
+                .scalars()
+                .all()
+            )
             assert sorted(s.season_number for s in seasons) == [1, 2, 3]
         finally:
             if user is not None:
@@ -703,10 +759,21 @@ class _G:
         from types import SimpleNamespace
 
         self.__dict__.update(
-            id=uuid.uuid4(), title=title, status=SimpleNamespace(value=status), playtime_seconds=seconds,
-            purchase_price=price, purchase_price_currency_code=currency, last_played_at=None,
-            completion_date=None, time_to_beat_hours=None, source=None, developer=None, series=None,
-            release_date=None, age_rating=None, features=[],
+            id=uuid.uuid4(),
+            title=title,
+            status=SimpleNamespace(value=status),
+            playtime_seconds=seconds,
+            purchase_price=price,
+            purchase_price_currency_code=currency,
+            last_played_at=None,
+            completion_date=None,
+            time_to_beat_hours=None,
+            source=None,
+            developer=None,
+            series=None,
+            release_date=None,
+            age_rating=None,
+            features=[],
         )
         self.__dict__.update(kw)
 
@@ -716,8 +783,12 @@ def test_game_stats_are_exact_and_report_what_is_missing():
 
     now = datetime(2026, 9, 19, 12, 0)
     day = 86400
-    a = _G("A", seconds=2 * 3600, price=20, source="Steam", last_played_at=now.timestamp() - 3 * day)
-    b = _G("B", seconds=30 * 3600, price=60, source="Steam", last_played_at=now.timestamp() - 90 * day)
+    a = _G(
+        "A", seconds=2 * 3600, price=20, source="Steam", last_played_at=now.timestamp() - 3 * day
+    )
+    b = _G(
+        "B", seconds=30 * 3600, price=60, source="Steam", last_played_at=now.timestamp() - 90 * day
+    )
     c = _G("C", status="BACKLOG", price=10, time_to_beat_hours=12)
     d = _G("D", status="BACKLOG")
     w = _G("W", status="WISHLIST", price=5)
@@ -729,13 +800,21 @@ def test_game_stats_are_exact_and_report_what_is_missing():
     assert stats["played_last_30_days"] == 1
     assert [r["title"] for r in stats["recently_played"]] == ["A", "B"]
     buckets = {r["label"]: r["count"] for r in stats["playtime_buckets"]}
-    assert buckets["No playtime recorded"] == 2 and buckets["1 to 5h"] == 1 and buckets["25 to 50h"] == 1
+    assert (
+        buckets["No playtime recorded"] == 2
+        and buckets["1 to 5h"] == 1
+        and buckets["25 to 50h"] == 1
+    )
     # only the backlog game with an estimate adds hours; the other is reported as missing one
     assert stats["backlog"] == {"count": 2, "hours": 12.0, "without_estimate": 1}
     # (20 + 60) dollars over 32 hours; games with no playtime or no price never enter it
-    assert stats["cost_per_hour"] == [{"currency": "USD", "per_hour": 2.5, "hours": 32.0, "games": 2}]
+    assert stats["cost_per_hour"] == [
+        {"currency": "USD", "per_hour": 2.5, "hours": 32.0, "games": 2}
+    ]
     assert stats["fully_unlocked"] == 1
-    assert [(r["title"], r["unlocked"], r["total"]) for r in stats["closest_to_full"]] == [("A", 5, 10)]
+    assert [(r["title"], r["unlocked"], r["total"]) for r in stats["closest_to_full"]] == [
+        ("A", 5, 10)
+    ]
     assert stats["seconds_by_source"] == [{"name": "Steam", "seconds": 32 * 3600}]
 
 
@@ -757,9 +836,15 @@ async def test_overview_lists_games_being_played_and_counts_achievement_days():
             user = await _user(db)
             db.add(
                 Game(
-                    user_id=user.scratch_id, folder_location=f"scratch-{uuid.uuid4()}", title="Now Playing",
-                    sort_title="now playing", status=GameStatus.PLAYING, playtime_seconds=5400,
-                    tags=[], features=[], collections=[],
+                    user_id=user.scratch_id,
+                    folder_location=f"scratch-{uuid.uuid4()}",
+                    title="Now Playing",
+                    sort_title="now playing",
+                    status=GameStatus.PLAYING,
+                    playtime_seconds=5400,
+                    tags=[],
+                    features=[],
+                    collections=[],
                 )
             )
             await db.flush()
@@ -790,7 +875,11 @@ async def test_two_requests_creating_the_favorites_list_together_make_one():
                     await _ensure_favorites_list(user.scratch_id, other)
 
             await asyncio.gather(one(), one(), one())
-            rows = (await db.execute(select(MediaList).where(MediaList.user_id == user.scratch_id))).scalars().all()
+            rows = (
+                (await db.execute(select(MediaList).where(MediaList.user_id == user.scratch_id)))
+                .scalars()
+                .all()
+            )
             assert [r.name for r in rows] == ["Favorites"]
         finally:
             if user is not None:
@@ -826,7 +915,12 @@ def test_mal_export_is_read_exactly_and_completed_means_fully_watched():
     from src.features.imports.mal import parse_mal_export
 
     bebop, movie, ongoing = parse_mal_export(_MAL)
-    assert (bebop.title, bebop.episodes, bebop.watched, bebop.assumed_complete) == ("Cowboy Bebop", 26, 26, True)
+    assert (bebop.title, bebop.episodes, bebop.watched, bebop.assumed_complete) == (
+        "Cowboy Bebop",
+        26,
+        26,
+        True,
+    )
     assert bebop.score == 9 and bebop.rewatches == 2 and bebop.tags == ["space", "jazz"]
     assert bebop.started is None and str(bebop.finished) == "2020-05-01" and bebop.format == "TV"
     assert movie.score is None and movie.status == AnimeStatus.WATCHLIST and movie.format == "Movie"
@@ -865,7 +959,9 @@ async def test_mal_import_keeps_existing_titles_unless_chosen_and_is_safe_twice(
             mine.note = "my own note"
             db.add(mine)
             await db.flush()
-            db.add(AnimeSeason(show_id=mine.id, season_number=1, episode_count=26, episodes_watched=5))
+            db.add(
+                AnimeSeason(show_id=mine.id, season_number=1, episode_count=26, episodes_watched=5)
+            )
             await db.flush()
 
             preview = await preview_mal(_upload(), db, user)
@@ -877,7 +973,12 @@ async def test_mal_import_keeps_existing_titles_unless_chosen_and_is_safe_twice(
 
             # keeping it (the default) changes nothing on that title
             first = await import_mal(_upload(), "[]", False, db, user)
-            assert (first.created, first.updated, first.kept, first.assumed_complete) == (2, 0, 1, 0)
+            assert (first.created, first.updated, first.kept, first.assumed_complete) == (
+                2,
+                0,
+                1,
+                0,
+            )
             await db.refresh(mine)
             assert mine.status == AnimeStatus.IN_PROGRESS and float(mine.rating_overall) == 6.0
             again = await import_mal(_upload(), "[]", False, db, user)
@@ -889,7 +990,11 @@ async def test_mal_import_keeps_existing_titles_unless_chosen_and_is_safe_twice(
             await db.refresh(mine, ["seasons"])
             assert mine.status == AnimeStatus.WATCHED and float(mine.rating_overall) == 9.0
             assert mine.note == "classic" and mine.rewatches == 2 and mine.external_id == "1"
-            season = (await db.execute(select(AnimeSeason).where(AnimeSeason.show_id == mine.id))).scalars().one()
+            season = (
+                (await db.execute(select(AnimeSeason).where(AnimeSeason.show_id == mine.id)))
+                .scalars()
+                .one()
+            )
             assert season.episodes_watched == 26
 
             csv_text = (await export_media_csv(db, user)).body.decode()
@@ -901,9 +1006,21 @@ async def test_mal_import_keeps_existing_titles_unless_chosen_and_is_safe_twice(
 
 class _FakeAniList:
     def get_by_mal_ids(self, ids):
-        meta = {"id": 1, "id_mal": 1, "poster_url": "http://p/1.jpg", "genres": ["Sci-Fi"], "studios": ["Sunrise"],
-                "overview": "text", "episode_count": 26, "release_date": "1998-04-03", "score": 8.6, "format": "TV",
-                "episode_runtime_minutes": 24, "countries": ["JP"], "backdrop_url": None}
+        meta = {
+            "id": 1,
+            "id_mal": 1,
+            "poster_url": "http://p/1.jpg",
+            "genres": ["Sci-Fi"],
+            "studios": ["Sunrise"],
+            "overview": "text",
+            "episode_count": 26,
+            "release_date": "1998-04-03",
+            "score": 8.6,
+            "format": "TV",
+            "episode_runtime_minutes": 24,
+            "countries": ["JP"],
+            "backdrop_url": None,
+        }
         return {1: meta}, 1
 
 
@@ -916,15 +1033,44 @@ async def test_details_fill_only_blank_fields_and_report_what_was_not_found():
         try:
             user = await _user(db)
             await db.flush()
-            have = Anime(user_id=user.scratch_id, title="A", sort_title="a", external_id="1", status=AnimeStatus.WATCHED,
-                         description="mine", studios=[], countries=[], languages=[], genres=[], tags=[], features=[],
-                         locked_fields=[], seasons=[AnimeSeason(season_number=1, episode_count=None)])
-            other = Anime(user_id=user.scratch_id, title="B", sort_title="b", external_id="2", status=AnimeStatus.WATCHED,
-                          studios=[], countries=[], languages=[], genres=[], tags=[], features=[],
-                          locked_fields=[], seasons=[AnimeSeason(season_number=1)])
+            have = Anime(
+                user_id=user.scratch_id,
+                title="A",
+                sort_title="a",
+                external_id="1",
+                status=AnimeStatus.WATCHED,
+                description="mine",
+                studios=[],
+                countries=[],
+                languages=[],
+                genres=[],
+                tags=[],
+                features=[],
+                locked_fields=[],
+                seasons=[AnimeSeason(season_number=1, episode_count=None)],
+            )
+            other = Anime(
+                user_id=user.scratch_id,
+                title="B",
+                sort_title="b",
+                external_id="2",
+                status=AnimeStatus.WATCHED,
+                studios=[],
+                countries=[],
+                languages=[],
+                genres=[],
+                tags=[],
+                features=[],
+                locked_fields=[],
+                seasons=[AnimeSeason(season_number=1)],
+            )
             result = await fill_details([have, other], _FakeAniList())  # type: ignore[arg-type]
             assert result == {"filled": 1, "not_found": 0, "lookup_failed": 1}
-            assert have.poster_url == "http://p/1.jpg" and have.genres == ["Sci-Fi"] and have.anilist_id == "1"
+            assert (
+                have.poster_url == "http://p/1.jpg"
+                and have.genres == ["Sci-Fi"]
+                and have.anilist_id == "1"
+            )
             assert have.description == "mine"  # what was already there is never replaced
             assert have.seasons[0].episode_count == 26 and str(have.first_air_date) == "1998-04-03"
             assert other.poster_url is None
@@ -949,17 +1095,54 @@ async def test_a_library_export_restores_movies_shows_and_anime_with_progress_an
             target = await _user(db)
             show = _anime(source, title="Restore Me")
             db.add(show)
-            db.add(Movie(user_id=source.scratch_id, title="Film", sort_title="film", status=MovieStatus.WATCHED,
-                         studios=[], countries=[], languages=[], genres=["Drama"], tags=[], features=[],
-                         director=[], writer=[], locked_fields=[], rewatches=1))
-            db.add(TVShow(user_id=source.scratch_id, title="Series", sort_title="series", status=TVShowStatus.WATCHED,
-                          creators=[], studios=[], countries=[], languages=[], genres=[], tags=[], features=[],
-                          locked_fields=[]))
+            db.add(
+                Movie(
+                    user_id=source.scratch_id,
+                    title="Film",
+                    sort_title="film",
+                    status=MovieStatus.WATCHED,
+                    studios=[],
+                    countries=[],
+                    languages=[],
+                    genres=["Drama"],
+                    tags=[],
+                    features=[],
+                    director=[],
+                    writer=[],
+                    locked_fields=[],
+                    rewatches=1,
+                )
+            )
+            db.add(
+                TVShow(
+                    user_id=source.scratch_id,
+                    title="Series",
+                    sort_title="series",
+                    status=TVShowStatus.WATCHED,
+                    creators=[],
+                    studios=[],
+                    countries=[],
+                    languages=[],
+                    genres=[],
+                    tags=[],
+                    features=[],
+                    locked_fields=[],
+                )
+            )
             await db.flush()
-            season = AnimeSeason(show_id=show.id, season_number=1, episode_count=3, episodes_watched=2)
+            season = AnimeSeason(
+                show_id=show.id, season_number=1, episode_count=3, episodes_watched=2
+            )
             db.add(season)
             await db.flush()
-            db.add_all([AnimeEpisode(season_id=season.id, episode_number=n, title=f"Ep {n}", watched=(n <= 2)) for n in (1, 2, 3)])
+            db.add_all(
+                [
+                    AnimeEpisode(
+                        season_id=season.id, episode_number=n, title=f"Ep {n}", watched=(n <= 2)
+                    )
+                    for n in (1, 2, 3)
+                ]
+            )
             await db.flush()
 
             exported = json.loads((await export_library(db, source)).model_dump_json())
@@ -969,13 +1152,37 @@ async def test_a_library_export_restores_movies_shows_and_anime_with_progress_an
             assert again["created"] == {"movies": 0, "tv_shows": 0, "anime": 0}
             assert again["skipped"] == {"movies": 1, "tv_shows": 1, "anime": 1}
 
-            restored = (await db.execute(select(Anime).where(Anime.user_id == target.scratch_id))).scalars().one()
+            restored = (
+                (await db.execute(select(Anime).where(Anime.user_id == target.scratch_id)))
+                .scalars()
+                .one()
+            )
             assert restored.id != show.id and restored.status == AnimeStatus.IN_PROGRESS
-            seasons = (await db.execute(select(AnimeSeason).where(AnimeSeason.show_id == restored.id))).scalars().all()
+            seasons = (
+                (await db.execute(select(AnimeSeason).where(AnimeSeason.show_id == restored.id)))
+                .scalars()
+                .all()
+            )
             assert [(s.episode_count, s.episodes_watched) for s in seasons] == [(3, 2)]
-            eps = (await db.execute(select(AnimeEpisode).where(AnimeEpisode.season_id == seasons[0].id))).scalars().all()
-            assert sorted((e.episode_number, e.watched) for e in eps) == [(1, True), (2, True), (3, False)]
-            movie = (await db.execute(select(Movie).where(Movie.user_id == target.scratch_id))).scalars().one()
+            eps = (
+                (
+                    await db.execute(
+                        select(AnimeEpisode).where(AnimeEpisode.season_id == seasons[0].id)
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            assert sorted((e.episode_number, e.watched) for e in eps) == [
+                (1, True),
+                (2, True),
+                (3, False),
+            ]
+            movie = (
+                (await db.execute(select(Movie).where(Movie.user_id == target.scratch_id)))
+                .scalars()
+                .one()
+            )
             assert movie.rewatches == 1 and movie.genres == ["Drama"]
         finally:
             for u in (source, target):
@@ -992,14 +1199,18 @@ async def test_one_bad_entry_is_reported_and_the_rest_still_restore():
         try:
             user = await _user(db)
             await db.flush()
-            payload = {"movies": [
-                {"title": "Good", "sort_title": "good", "status": "WATCHED"},
-                {"title": "Bad", "sort_title": "bad", "status": "NOT_A_STATUS"},
-                {"sort_title": "no title"},
-            ]}
+            payload = {
+                "movies": [
+                    {"title": "Good", "sort_title": "good", "status": "WATCHED"},
+                    {"title": "Bad", "sort_title": "bad", "status": "NOT_A_STATUS"},
+                    {"sort_title": "no title"},
+                ]
+            }
             result = await restore_media(db, user.scratch_id, payload)
             assert result["created"]["movies"] == 1 and result["skipped"]["movies"] == 1
-            assert any("Bad" in e for e in result["errors"]) and any("no title" in e for e in result["errors"])
+            assert any("Bad" in e for e in result["errors"]) and any(
+                "no title" in e for e in result["errors"]
+            )
         finally:
             if user is not None:
                 await _cleanup(db, user)
@@ -1008,7 +1219,12 @@ async def test_one_bad_entry_is_reported_and_the_rest_still_restore():
 # ------------------------------------------------------ pinning and ordering lists
 @pytest.mark.asyncio
 async def test_lists_can_be_pinned_and_put_in_the_users_own_order():
-    from src.api.routes.media_lists import create_media_list, list_media_lists, order_media_lists, update_media_list
+    from src.api.routes.media_lists import (
+        create_media_list,
+        list_media_lists,
+        order_media_lists,
+        update_media_list,
+    )
     from src.api.schemas.media_extras import MediaListCreate, MediaListsOrder, MediaListUpdate
 
     async with SessionLocal() as db:
@@ -1023,15 +1239,24 @@ async def test_lists_can_be_pinned_and_put_in_the_users_own_order():
             assert names == ["Favorites", "Alpha", "Beta", "Gamma"]  # new lists go last
 
             await order_media_lists(MediaListsOrder(list_ids=[c["id"], a["id"], b["id"]]), db, user)
-            assert [x["name"] for x in await list_media_lists(db, user)] == ["Gamma", "Alpha", "Beta", "Favorites"]
+            assert [x["name"] for x in await list_media_lists(db, user)] == [
+                "Gamma",
+                "Alpha",
+                "Beta",
+                "Favorites",
+            ]
 
             pinned = await update_media_list(b["id"], MediaListUpdate(pinned=True), db, user)
             assert pinned["pinned"] is True
             ordered = await list_media_lists(db, user)
             assert [x["name"] for x in ordered][0] == "Beta" and ordered[0]["pinned"]
             # an unpin, and a null pin, both leave the list valid
-            assert (await update_media_list(b["id"], MediaListUpdate(pinned=False), db, user))["pinned"] is False
-            assert (await update_media_list(b["id"], MediaListUpdate(pinned=None), db, user))["pinned"] is False
+            assert (await update_media_list(b["id"], MediaListUpdate(pinned=False), db, user))[
+                "pinned"
+            ] is False
+            assert (await update_media_list(b["id"], MediaListUpdate(pinned=None), db, user))[
+                "pinned"
+            ] is False
         finally:
             if user is not None:
                 await _cleanup(db, user)
@@ -1043,17 +1268,32 @@ def test_the_preferred_title_spelling_is_used_with_sensible_fallbacks():
 
     from src.core.titles import apply_alt_titles, display_title
 
-    show = SimpleNamespace(title="Canon", title_english="Attack on Titan", title_romaji="Shingeki no Kyojin", title_native="進撃の巨人")
+    show = SimpleNamespace(
+        title="Canon",
+        title_english="Attack on Titan",
+        title_romaji="Shingeki no Kyojin",
+        title_native="進撃の巨人",
+    )
     assert display_title(show, "english") == "Attack on Titan"
     assert display_title(show, "romaji") == "Shingeki no Kyojin"
     assert display_title(show, "native") == "進撃の巨人"
-    only_romaji = SimpleNamespace(title="Canon", title_english=None, title_romaji="Romaji", title_native=None)
+    only_romaji = SimpleNamespace(
+        title="Canon", title_english=None, title_romaji="Romaji", title_native=None
+    )
     assert display_title(only_romaji, "english") == "Romaji"  # next best, never blank
-    assert display_title(SimpleNamespace(title="Canon"), "native") == "Canon"  # a movie has no alternates
+    assert (
+        display_title(SimpleNamespace(title="Canon"), "native") == "Canon"
+    )  # a movie has no alternates
 
     empty = SimpleNamespace(title="X", title_english="kept", title_romaji=None, title_native=None)
-    assert apply_alt_titles(empty, {"title_english": "other", "title_romaji": "R", "title_native": "N"})
-    assert (empty.title_english, empty.title_romaji, empty.title_native) == ("kept", "R", "N")  # only blanks are filled
+    assert apply_alt_titles(
+        empty, {"title_english": "other", "title_romaji": "R", "title_native": "N"}
+    )
+    assert (empty.title_english, empty.title_romaji, empty.title_native) == (
+        "kept",
+        "R",
+        "N",
+    )  # only blanks are filled
     assert not apply_alt_titles(empty, {"title_romaji": "again"})
 
 
@@ -1069,14 +1309,26 @@ async def test_the_title_language_preference_changes_titles_in_stats_and_lists()
             user = await _user(db)
             await db.commit()
             show = _anime(user, title="Canon Title", status=AnimeStatus.IN_PROGRESS)
-            show.title_english, show.title_romaji, show.title_native = "English Name", "Romaji Name", "日本語"
+            show.title_english, show.title_romaji, show.title_native = (
+                "English Name",
+                "Romaji Name",
+                "日本語",
+            )
             db.add(show)
             await db.flush()
-            db.add(AnimeSeason(show_id=show.id, season_number=1, episode_count=12, episodes_watched=3))
+            db.add(
+                AnimeSeason(show_id=show.id, season_number=1, episode_count=12, episodes_watched=3)
+            )
             await db.commit()
-            smart = await create_media_list(MediaListCreate(name="All", smart_rule=SmartRule(media_types=["anime"])), db, user)
+            smart = await create_media_list(
+                MediaListCreate(name="All", smart_rule=SmartRule(media_types=["anime"])), db, user
+            )
 
-            for language, expected in (("english", "English Name"), ("romaji", "Romaji Name"), ("native", "日本語")):
+            for language, expected in (
+                ("english", "English Name"),
+                ("romaji", "Romaji Name"),
+                ("native", "日本語"),
+            ):
                 await save_preferences(db, user.scratch_id, {"title_language": language})
                 await db.commit()
                 stats = await get_media_stats(db, user)
@@ -1095,8 +1347,13 @@ def _letterboxd_zip() -> bytes:
 
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w") as z:
-        z.writestr("watched.csv", "Date,Name,Year,Letterboxd URI\n2020-01-01,Alien,1979,x\n2020-01-02,Heat,1995,x\n")
-        z.writestr("ratings.csv", "Date,Name,Year,Letterboxd URI,Rating\n2020-01-01,Alien,1979,x,4.5\n")
+        z.writestr(
+            "watched.csv",
+            "Date,Name,Year,Letterboxd URI\n2020-01-01,Alien,1979,x\n2020-01-02,Heat,1995,x\n",
+        )
+        z.writestr(
+            "ratings.csv", "Date,Name,Year,Letterboxd URI,Rating\n2020-01-01,Alien,1979,x,4.5\n"
+        )
         z.writestr(
             "diary.csv",
             "Date,Name,Year,Letterboxd URI,Rating,Rewatch,Tags,Watched Date\n"
@@ -1114,8 +1371,14 @@ def test_letterboxd_export_is_read_exactly():
     by_name = {t.title: t for t in parse_letterboxd(_letterboxd_zip(), "export.zip")}
     assert set(by_name) == {"Alien", "Heat", "Ran"}  # custom lists are not treated as films watched
     alien, heat, ran = by_name["Alien"], by_name["Heat"], by_name["Ran"]
-    assert (alien.status, float(alien.rating), alien.favorite) == ("WATCHED", 9.0, True)  # 4.5 stars, 10 scale
-    assert heat.rewatches == 2 and float(heat.rating) == 6.0 and str(heat.watched_on) == "2022-03-01"
+    assert (alien.status, float(alien.rating), alien.favorite) == (
+        "WATCHED",
+        9.0,
+        True,
+    )  # 4.5 stars, 10 scale
+    assert (
+        heat.rewatches == 2 and float(heat.rating) == 6.0 and str(heat.watched_on) == "2022-03-01"
+    )
     assert (ran.status, ran.rating, ran.year) == ("WATCHLIST", None, 1985)
 
 
@@ -1134,21 +1397,56 @@ def test_imdb_export_maps_types_and_reports_what_it_skipped():
     items, skipped = parse_imdb(_IMDB)
     assert skipped == 1  # the single episode is not a title
     by_name = {i.title: i for i in items}
-    assert (by_name["Alien"].kind, float(by_name["Alien"].rating), by_name["Alien"].runtime) == ("movie", 9.0, 117)
+    assert (by_name["Alien"].kind, float(by_name["Alien"].rating), by_name["Alien"].runtime) == (
+        "movie",
+        9.0,
+        117,
+    )
     assert by_name["Alien"].genres == ["Horror", "Sci-Fi"] and by_name["Alien"].year == 1979
     assert by_name["Breaking Bad"].kind == "tv" and by_name["Later"].status == "WATCHLIST"
 
 
 class _FakeTMDB:
     def search(self, title, limit=8, year=None):
-        return [{"overview": "text", "release_date": "1979-05-25", "runtime_minutes": 117, "studios": ["Fox"],
-                 "genres": ["Sci-Fi"], "poster_url": "http://p/alien.jpg", "vote_average": 8.1}]
+        return [
+            {
+                "overview": "text",
+                "release_date": "1979-05-25",
+                "runtime_minutes": 117,
+                "studios": ["Fox"],
+                "genres": ["Sci-Fi"],
+                "poster_url": "http://p/alien.jpg",
+                "vote_average": 8.1,
+            }
+        ]
 
     def search_tv(self, title, limit=8, year=None):
-        return [{"overview": "tv text", "first_air_date": "2008-01-20", "creators": ["Vince"], "genres": ["Crime"],
-                 "poster_url": "http://p/bb.jpg", "vote_average": 9.0,
-                 "seasons": [{"season_number": 1, "name": "S1", "episode_count": 7, "air_date": "2008-01-20", "poster_url": None},
-                             {"season_number": 2, "name": "S2", "episode_count": 13, "air_date": "2009-03-08", "poster_url": None}]}]
+        return [
+            {
+                "overview": "tv text",
+                "first_air_date": "2008-01-20",
+                "creators": ["Vince"],
+                "genres": ["Crime"],
+                "poster_url": "http://p/bb.jpg",
+                "vote_average": 9.0,
+                "seasons": [
+                    {
+                        "season_number": 1,
+                        "name": "S1",
+                        "episode_count": 7,
+                        "air_date": "2008-01-20",
+                        "poster_url": None,
+                    },
+                    {
+                        "season_number": 2,
+                        "name": "S2",
+                        "episode_count": 13,
+                        "air_date": "2009-03-08",
+                        "poster_url": None,
+                    },
+                ],
+            }
+        ]
 
 
 @pytest.mark.asyncio
@@ -1171,9 +1469,21 @@ async def test_list_import_keeps_existing_titles_fills_blanks_and_builds_seasons
         try:
             user = await _user(db)
             await db.flush()
-            mine = Movie(user_id=user.scratch_id, title="Alien", sort_title="alien", status=MovieStatus.WATCHLIST,
-                         release_date=datetime(1979, 5, 25).date(), description="mine", studios=[], countries=[],
-                         languages=[], genres=[], tags=[], features=[], locked_fields=[])
+            mine = Movie(
+                user_id=user.scratch_id,
+                title="Alien",
+                sort_title="alien",
+                status=MovieStatus.WATCHLIST,
+                release_date=datetime(1979, 5, 25).date(),
+                description="mine",
+                studios=[],
+                countries=[],
+                languages=[],
+                genres=[],
+                tags=[],
+                features=[],
+                locked_fields=[],
+            )
             db.add(mine)
             await db.flush()
 
@@ -1201,9 +1511,15 @@ async def test_list_import_keeps_existing_titles_fills_blanks_and_builds_seasons
             rows = [(m.imported, m.existing, True) for m in matches if m.existing is not None]
             result = await fill(_FakeTMDB(), rows)
             assert result["not_found"] == 0 and result["seasons_assumed_watched"] == 1
-            assert mine.description == "mine" and mine.poster_url == "http://p/alien.jpg" and mine.runtime_minutes == 117
+            assert (
+                mine.description == "mine"
+                and mine.poster_url == "http://p/alien.jpg"
+                and mine.runtime_minutes == 117
+            )
             show = next(r for _, r, _ in rows if isinstance(r, TVShow))
-            assert [(s.season_number, s.episode_count, s.episodes_watched) for s in show.seasons] == [(1, 7, 7), (2, 13, 13)]
+            assert [
+                (s.season_number, s.episode_count, s.episodes_watched) for s in show.seasons
+            ] == [(1, 7, 7), (2, 13, 13)]
         finally:
             if user is not None:
                 await _cleanup(db, user)
@@ -1234,11 +1550,19 @@ async def test_manual_calendar_entries_are_private_validated_and_in_the_feed():
             other = await _user(db)
             await db.commit()
             made = await create_event(
-                EventCreate(title="Dune watch party", event_date=date(2026, 12, 18), event_time="19:30", note="bring snacks, tea"),
-                db, owner,
+                EventCreate(
+                    title="Dune watch party",
+                    event_date=date(2026, 12, 18),
+                    event_time="19:30",
+                    note="bring snacks, tea",
+                ),
+                db,
+                owner,
             )
             assert made["event_time"] == "19:30" and made["media_id"] is None
-            await create_event(EventCreate(title="All day", event_date=date(2026, 12, 19)), db, owner)
+            await create_event(
+                EventCreate(title="All day", event_date=date(2026, 12, 19)), db, owner
+            )
 
             days = await list_events(date(2026, 12, 19), None, db, owner)
             assert [e["title"] for e in days] == ["All day"]
@@ -1248,17 +1572,29 @@ async def test_manual_calendar_entries_are_private_validated_and_in_the_feed():
             with pytest.raises(Exception):
                 EventCreate(title="x", event_date=date(2026, 1, 1), event_time="25:99")
             with pytest.raises(HTTPException) as bad:
-                await create_event(EventCreate(title="x", event_date=date(2026, 1, 1), media_type="anime"), db, owner)
+                await create_event(
+                    EventCreate(title="x", event_date=date(2026, 1, 1), media_type="anime"),
+                    db,
+                    owner,
+                )
             assert bad.value.status_code == 400
 
-            moved = await update_event(made["id"], EventUpdate(event_date=date(2026, 12, 20), event_time=None), db, owner)
+            moved = await update_event(
+                made["id"], EventUpdate(event_date=date(2026, 12, 20), event_time=None), db, owner
+            )
             assert moved["event_date"] == "2026-12-20" and moved["event_time"] is None
             with pytest.raises(HTTPException) as foreign:
                 await update_event(made["id"], EventUpdate(title="mine now"), db, other)
             assert foreign.value.status_code == 404
 
             rows = list(
-                (await db.execute(select(CalendarEvent).where(CalendarEvent.user_id == owner.scratch_id))).scalars().all()
+                (
+                    await db.execute(
+                        select(CalendarEvent).where(CalendarEvent.user_id == owner.scratch_id)
+                    )
+                )
+                .scalars()
+                .all()
             )
             ics = _build_ics([], rows)
             assert "SUMMARY:Dune watch party" in ics and "DESCRIPTION:bring snacks\\, tea" in ics
@@ -1280,13 +1616,22 @@ def test_a_bare_carriage_return_in_a_title_cannot_start_a_new_calendar_line():
 
 # -------------------------------------------------- choosing what notifies
 def test_notification_scope_preferences_only_accept_known_choices():
-    assert validate_preference("notify_statuses", ["hold", "watching", "watching"]) == ["watching", "hold"]
+    assert validate_preference("notify_statuses", ["hold", "watching", "watching"]) == [
+        "watching",
+        "hold",
+    ]
     assert validate_preference("notify_statuses", []) == []  # nothing at all is allowed
     assert validate_preference("notify_media_types", ["movie", "anime"]) == ["anime", "movie"]
     for bad in (["dropped"], "watching", None, ["tv", 3]):
         with pytest.raises(ValueError):
-            validate_preference("notify_statuses" if bad != ["tv", 3] else "notify_media_types", bad)
-    assert DEFAULTS["notify_statuses"] == ["watching", "plan", "hold"]  # what it did before the switches existed
+            validate_preference(
+                "notify_statuses" if bad != ["tv", 3] else "notify_media_types", bad
+            )
+    assert DEFAULTS["notify_statuses"] == [
+        "watching",
+        "plan",
+        "hold",
+    ]  # what it did before the switches existed
 
 
 @pytest.mark.asyncio
@@ -1299,7 +1644,11 @@ async def test_only_watching_titles_notify_when_that_is_all_that_is_switched_on(
             user = await _user(db)
             await db.flush()
             aired_at = int(datetime.now(tz=timezone.utc).timestamp()) - 3600
-            for title, status in (("Watching One", AnimeStatus.IN_PROGRESS), ("Planned One", AnimeStatus.WATCHLIST), ("Held One", AnimeStatus.BACKLOG)):
+            for title, status in (
+                ("Watching One", AnimeStatus.IN_PROGRESS),
+                ("Planned One", AnimeStatus.WATCHLIST),
+                ("Held One", AnimeStatus.BACKLOG),
+            ):
                 show = _anime(user, title=title, status=status)
                 db.add(show)
                 await db.flush()
@@ -1311,7 +1660,15 @@ async def test_only_watching_titles_notify_when_that_is_all_that_is_switched_on(
 
             async def titles():
                 await generate_for_user(db, user.scratch_id)
-                rows = (await db.execute(select(Notification).where(Notification.user_id == user.scratch_id))).scalars().all()
+                rows = (
+                    (
+                        await db.execute(
+                            select(Notification).where(Notification.user_id == user.scratch_id)
+                        )
+                    )
+                    .scalars()
+                    .all()
+                )
                 return sorted(r.title for r in rows)
 
             await save_preferences(db, user.scratch_id, {"notify_statuses": ["watching"]})
@@ -1323,7 +1680,11 @@ async def test_only_watching_titles_notify_when_that_is_all_that_is_switched_on(
             assert await titles() == []
 
             # nothing selected means nothing is generated
-            await save_preferences(db, user.scratch_id, {"notify_media_types": ["anime", "tv", "movie"], "notify_statuses": []})
+            await save_preferences(
+                db,
+                user.scratch_id,
+                {"notify_media_types": ["anime", "tv", "movie"], "notify_statuses": []},
+            )
             assert await titles() == []
         finally:
             if user is not None:
@@ -1341,20 +1702,49 @@ async def test_a_movie_only_notifies_when_movies_and_its_status_are_switched_on(
         try:
             user = await _user(db)
             await db.flush()
-            db.add(Movie(user_id=user.scratch_id, title="Out Now", sort_title="out now", status=MovieStatus.WATCHLIST,
-                         release_date=date.today() - timedelta(days=1), studios=[], countries=[], languages=[],
-                         genres=[], tags=[], features=[], locked_fields=[]))
+            db.add(
+                Movie(
+                    user_id=user.scratch_id,
+                    title="Out Now",
+                    sort_title="out now",
+                    status=MovieStatus.WATCHLIST,
+                    release_date=date.today() - timedelta(days=1),
+                    studios=[],
+                    countries=[],
+                    languages=[],
+                    genres=[],
+                    tags=[],
+                    features=[],
+                    locked_fields=[],
+                )
+            )
             await db.commit()
 
             async def count():
-                await db.execute(delete(Notification).where(Notification.user_id == user.scratch_id))
+                await db.execute(
+                    delete(Notification).where(Notification.user_id == user.scratch_id)
+                )
                 await generate_for_user(db, user.scratch_id)
-                return len((await db.execute(select(Notification).where(Notification.user_id == user.scratch_id))).scalars().all())
+                return len(
+                    (
+                        await db.execute(
+                            select(Notification).where(Notification.user_id == user.scratch_id)
+                        )
+                    )
+                    .scalars()
+                    .all()
+                )
 
             assert await count() == 1
-            await save_preferences(db, user.scratch_id, {"notify_statuses": ["watching", "hold"]})  # plan is off
+            await save_preferences(
+                db, user.scratch_id, {"notify_statuses": ["watching", "hold"]}
+            )  # plan is off
             assert await count() == 0
-            await save_preferences(db, user.scratch_id, {"notify_statuses": ["plan"], "notify_media_types": ["anime", "tv"]})
+            await save_preferences(
+                db,
+                user.scratch_id,
+                {"notify_statuses": ["plan"], "notify_media_types": ["anime", "tv"]},
+            )
             assert await count() == 0  # movies are off
         finally:
             if user is not None:
@@ -1371,7 +1761,12 @@ class _Zip:
         self.count, self.kitsu, self.titled = count, kitsu, titled
 
     def lookup(self, _id):
-        return {"episodes": _eps(self.count, self.titled), "episode_count": self.count, "kitsu_id": self.kitsu, "mal_id": None}
+        return {
+            "episodes": _eps(self.count, self.titled),
+            "episode_count": self.count,
+            "kitsu_id": self.kitsu,
+            "mal_id": None,
+        }
 
 
 class _Kitsu:
@@ -1444,7 +1839,9 @@ def test_a_season_inflated_by_a_wrong_match_is_repaired_without_touching_watched
     assert season.episode_count == 20  # a kept row is never hidden by the total
     assert season.episodes_watched == 12
 
-    clean = SimpleNamespace(episodes=[ep(n) for n in range(1, 26)], episode_count=25, episodes_watched=30)
+    clean = SimpleNamespace(
+        episodes=[ep(n) for n in range(1, 26)], episode_count=25, episodes_watched=30
+    )
     _trim_beyond_total(clean, 12)
     assert len(clean.episodes) == 12 and clean.episode_count == 12 and clean.episodes_watched == 12
 
@@ -1455,7 +1852,10 @@ def test_the_refresh_only_touches_titles_that_need_it():
     from src.features.metadata.refresh_job import _anime_needs
 
     def season(count, titled=True):
-        rows = [SimpleNamespace(episode_number=n, title="t" if titled else None) for n in range(1, count + 1)]
+        rows = [
+            SimpleNamespace(episode_number=n, title="t" if titled else None)
+            for n in range(1, count + 1)
+        ]
         return SimpleNamespace(episodes=rows, episode_count=count)
 
     done = SimpleNamespace(is_airing=False)
@@ -1512,14 +1912,20 @@ async def test_the_airing_check_starts_on_and_the_refresh_off_and_intervals_stay
             await db.commit()
 
             airing, refresh = await list_jobs(db)
-            assert airing["id"] == "airing_check" and airing["enabled"] is True  # new episodes appear by themselves
+            assert (
+                airing["id"] == "airing_check" and airing["enabled"] is True
+            )  # new episodes appear by themselves
             assert airing["interval_minutes"] == 30 and airing["last_run_at"] is None
-            assert refresh["id"] == "media_refresh" and refresh["enabled"] is False  # the heavy one is asked for
+            assert (
+                refresh["id"] == "media_refresh" and refresh["enabled"] is False
+            )  # the heavy one is asked for
             assert refresh["interval_minutes"] == 1440
 
             faster = await update_job("airing_check", JobUpdate(interval_minutes=10), db)
             assert faster["interval_minutes"] == 10 and faster["enabled"] is True
-            turned_on = await update_job("media_refresh", JobUpdate(enabled=True, interval_minutes=720), db)
+            turned_on = await update_job(
+                "media_refresh", JobUpdate(enabled=True, interval_minutes=720), db
+            )
             assert turned_on["enabled"] is True and turned_on["interval_minutes"] == 720
             with pytest.raises(HTTPException) as too_often:
                 await update_job("airing_check", JobUpdate(interval_minutes=1), db)
@@ -1535,8 +1941,11 @@ async def test_the_airing_check_starts_on_and_the_refresh_off_and_intervals_stay
             for job_id, enabled, minutes, last_run_at, last_result in saved:
                 db.add(
                     JobSetting(
-                        job_id=job_id, enabled=enabled, interval_minutes=minutes,
-                        last_run_at=last_run_at, last_result=last_result,
+                        job_id=job_id,
+                        enabled=enabled,
+                        interval_minutes=minutes,
+                        last_run_at=last_run_at,
+                        last_result=last_result,
                     )
                 )
             await db.commit()
@@ -1549,13 +1958,23 @@ async def test_a_finished_run_is_recorded_with_the_job():
 
     async with SessionLocal() as db:
         previous = await db.get(JobSetting, "media_refresh")
-        kept = None if previous is None else (
-            previous.enabled, previous.interval_minutes, previous.last_run_at, previous.last_result
+        kept = (
+            None
+            if previous is None
+            else (
+                previous.enabled,
+                previous.interval_minutes,
+                previous.last_run_at,
+                previous.last_result,
+            )
         )
         try:
             await db.execute(delete(JobSetting).where(JobSetting.job_id == "media_refresh"))
             await db.commit()
-            await record_run("media_refresh", {"checked": 4, "counts_fixed": 1, "unreachable": ["a title"], "error": None})
+            await record_run(
+                "media_refresh",
+                {"checked": 4, "counts_fixed": 1, "unreachable": ["a title"], "error": None},
+            )
             row = await db.get(JobSetting, "media_refresh")
             assert row is not None and row.last_run_at is not None
             # simple numbers and text are kept, lists are left out
@@ -1565,8 +1984,11 @@ async def test_a_finished_run_is_recorded_with_the_job():
             if kept is not None:
                 db.add(
                     JobSetting(
-                        job_id="media_refresh", enabled=kept[0], interval_minutes=kept[1],
-                        last_run_at=kept[2], last_result=kept[3],
+                        job_id="media_refresh",
+                        enabled=kept[0],
+                        interval_minutes=kept[1],
+                        last_run_at=kept[2],
+                        last_result=kept[3],
                     )
                 )
             await db.commit()
@@ -1585,18 +2007,34 @@ async def test_calendar_entries_and_notifications_use_the_chosen_anime_name():
             user = await _user(db)
             await db.flush()
             show = _anime(user, title="Canon Title", status=AnimeStatus.IN_PROGRESS)
-            show.title_english, show.title_romaji, show.title_native = "ERASED", "Boku dake ga Inai Machi", "僕だけがいない街"
+            show.title_english, show.title_romaji, show.title_native = (
+                "ERASED",
+                "Boku dake ga Inai Machi",
+                "僕だけがいない街",
+            )
             show.next_episode_air_at = int(datetime.now(tz=timezone.utc).timestamp()) + 3 * 86400
             show.next_episode_number = 4
             db.add(show)
             await db.flush()
             db.add(AnimeSeason(show_id=show.id, season_number=1, episode_count=12))
-            note = Notification(user_id=user.scratch_id, kind="episode_aired", media_type="anime", media_id=show.id,
-                                title="stored at the time", body="Episode 3 aired", event_at=1, dedupe_key="t1")
+            note = Notification(
+                user_id=user.scratch_id,
+                kind="episode_aired",
+                media_type="anime",
+                media_id=show.id,
+                title="stored at the time",
+                body="Episode 3 aired",
+                event_at=1,
+                dedupe_key="t1",
+            )
             db.add(note)
             await db.commit()
 
-            for language, expected in (("english", "ERASED"), ("romaji", "Boku dake ga Inai Machi"), ("native", "僕だけがいない街")):
+            for language, expected in (
+                ("english", "ERASED"),
+                ("romaji", "Boku dake ga Inai Machi"),
+                ("native", "僕だけがいない街"),
+            ):
                 await save_preferences(db, user.scratch_id, {"title_language": language})
                 await db.commit()
                 entries = await build_calendar_entries(db, user.scratch_id, 30)
@@ -1616,11 +2054,18 @@ def test_the_episode_limit_is_what_can_exist_right_now():
     # airing with a plan: the plan, even though fewer have aired
     assert episode_limit({"total": None, "planned": 26, "next": 13, "status": "RELEASING"}) == 26
     # airing with no plan (One Piece): only what has aired, the episode before the next one
-    assert episode_limit({"total": None, "planned": None, "next": 1180, "status": "RELEASING"}) == 1179
+    assert (
+        episode_limit({"total": None, "planned": None, "next": 1180, "status": "RELEASING"}) == 1179
+    )
     # a premiere that has not aired, or nothing known: no limit rather than a wrong one
     assert episode_limit({"total": None, "planned": None, "next": 1, "status": "RELEASING"}) is None
-    assert episode_limit({"total": None, "planned": None, "next": None, "status": "RELEASING"}) is None
-    assert episode_limit({"total": None, "planned": None, "next": 5, "status": "NOT_YET_RELEASED"}) is None
+    assert (
+        episode_limit({"total": None, "planned": None, "next": None, "status": "RELEASING"}) is None
+    )
+    assert (
+        episode_limit({"total": None, "planned": None, "next": 5, "status": "NOT_YET_RELEASED"})
+        is None
+    )
 
 
 @pytest.mark.asyncio
@@ -1656,13 +2101,19 @@ def test_calendar_projects_no_episode_past_the_season_total():
 
     def show(next_number, count):
         return SimpleNamespace(
-            id=uuid.uuid4(), title="S", poster_url=None, next_episode_number=next_number,
-            next_episode_air_at=now + 86400, airing_interval_days=7,
+            id=uuid.uuid4(),
+            title="S",
+            poster_url=None,
+            next_episode_number=next_number,
+            next_episode_air_at=now + 86400,
+            airing_interval_days=7,
             seasons=[SimpleNamespace(episode_count=count)],
         )
 
     window = now + 365 * 86400
-    numbers = lambda s: [e["next_episode_number"] for e in _calendar_entries_for_show(s, "anime", window)]
+    numbers = lambda s: [
+        e["next_episode_number"] for e in _calendar_entries_for_show(s, "anime", window)
+    ]
     assert numbers(show(24, 24)) == [24]  # the next episode is the last one
     assert numbers(show(11, 13)) == [11, 12, 13]
     # a count below the next episode is a lagging snapshot, not a ceiling
@@ -1692,7 +2143,11 @@ def test_new_episode_rows_are_flagged_for_progress_that_was_imported_by_number()
 
 # ------------------------------------------- the airing check only asks about shows that are due
 def test_a_show_is_only_asked_about_when_a_new_episode_could_exist():
-    from src.features.metadata.refresh import RECHECK_SCHEDULED_SECONDS, RECHECK_UNKNOWN_SECONDS, airing_due
+    from src.features.metadata.refresh import (
+        RECHECK_SCHEDULED_SECONDS,
+        RECHECK_UNKNOWN_SECONDS,
+        airing_due,
+    )
 
     now = 1_000_000.0
     soon = int(now) + 3 * 86400
@@ -1700,7 +2155,9 @@ def test_a_show_is_only_asked_about_when_a_new_episode_could_exist():
     assert airing_due(True, int(now) - 60, now - 60, now)  # its episode should have aired
     assert not airing_due(True, soon, now - 3600, now)  # next one is days away: leave it
     assert airing_due(True, soon, None, now)  # unless it has not been looked at since a restart
-    assert airing_due(True, soon, now - RECHECK_SCHEDULED_SECONDS, now)  # a daily look for a moved schedule
+    assert airing_due(
+        True, soon, now - RECHECK_SCHEDULED_SECONDS, now
+    )  # a daily look for a moved schedule
     assert not airing_due(True, None, now - 3600, now)  # airing, no date announced
     assert airing_due(True, None, now - RECHECK_UNKNOWN_SECONDS, now)
 
@@ -1767,13 +2224,18 @@ async def test_deleting_a_rewatch_lowers_the_history_count_for_that_day():
 
             day = datetime.now(tz=timezone.utc).date()
             made = [
-                await create_rewatch(RewatchCreate(media_type="anime", media_id=show_id, finished_on=day), db, me)
+                await create_rewatch(
+                    RewatchCreate(media_type="anime", media_id=show_id, finished_on=day), db, me
+                )
                 for _ in range(3)
             ]
 
             async def history():
                 row = await db.scalar(
-                    select(ActivityLog).where(ActivityLog.media_id == show_id, ActivityLog.event_type == ActivityEventType.REWATCHED)
+                    select(ActivityLog).where(
+                        ActivityLog.media_id == show_id,
+                        ActivityLog.event_type == ActivityEventType.REWATCHED,
+                    )
                 )
                 return None if row is None else row.count
 
@@ -1810,9 +2272,15 @@ async def test_every_games_release_date_reaches_the_calendar_and_the_setting_con
             ):
                 db.add(
                     Game(
-                        user_id=user.scratch_id, folder_location=f"scratch-{uuid.uuid4()}", title=title,
-                        sort_title=title.lower(), status=status, release_date=when,
-                        tags=[], features=[], collections=[],
+                        user_id=user.scratch_id,
+                        folder_location=f"scratch-{uuid.uuid4()}",
+                        title=title,
+                        sort_title=title.lower(),
+                        status=status,
+                        release_date=when,
+                        tags=[],
+                        features=[],
+                        collections=[],
                     )
                 )
             await db.commit()
@@ -1826,11 +2294,14 @@ async def test_every_games_release_date_reaches_the_calendar_and_the_setting_con
 
             await save_preferences(db, user.scratch_id, {"calendar_game_releases": False})
             await db.commit()
-            assert not [e for e in await get_calendar_games(36500, db, me) if e["kind"] == "game_released"]
-            await save_preferences(db, user.scratch_id, {"calendar_game_releases": True, "calendar_hide_games": True})
+            assert not [
+                e for e in await get_calendar_games(36500, db, me) if e["kind"] == "game_released"
+            ]
+            await save_preferences(
+                db, user.scratch_id, {"calendar_game_releases": True, "calendar_hide_games": True}
+            )
             await db.commit()
             assert await get_calendar_games(36500, db, me) == []
         finally:
             if user is not None:
                 await _cleanup(db, user)
-

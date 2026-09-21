@@ -136,6 +136,7 @@ def _format_label(raw: str | None) -> str | None:
         return None
     return _FORMAT_LABELS.get(raw, raw.title())
 
+
 # Up to 50 entries by MyAnimeList id in one request, so filling in a whole
 # imported list takes a handful of calls instead of one per title.
 _BY_MAL_IDS_QUERY = f"""
@@ -644,7 +645,9 @@ class AniListClient:
             return None
         return _map_media_entry(media)
 
-    def _batched(self, query: str, ids: list[int], key: str) -> tuple[dict[int, dict[str, Any]], int]:
+    def _batched(
+        self, query: str, ids: list[int], key: str
+    ) -> tuple[dict[int, dict[str, Any]], int]:
         found: dict[int, dict[str, Any]] = {}
         failed = 0
         for start in range(0, len(ids), _BATCH_SIZE):
@@ -686,13 +689,17 @@ class AniListClient:
                 continue
             for media in ((payload.get("data") or {}).get("Page") or {}).get("media") or []:
                 episodes = media.get("episodes")
-                finished = media.get("status") == "FINISHED" and isinstance(episodes, int) and episodes > 0
+                finished = (
+                    media.get("status") == "FINISHED" and isinstance(episodes, int) and episodes > 0
+                )
                 next_airing = media.get("nextAiringEpisode") or {}
                 upcoming = next_airing.get("episode")
                 out[int(media["id"])] = {
                     "total": episodes if finished else None,
                     # what an airing entry says it will have, when it says
-                    "planned": episodes if isinstance(episodes, int) and episodes > 0 and not finished else None,
+                    "planned": episodes
+                    if isinstance(episodes, int) and episodes > 0 and not finished
+                    else None,
                     "next": upcoming if isinstance(upcoming, int) else None,
                     "air_at": next_airing.get("airingAt"),
                     "episodes": episodes if isinstance(episodes, int) else None,

@@ -294,7 +294,9 @@ class AnimeEpisode(Base):
     __table_args__ = (
         # one row per episode number in a season: a re-sync must never be
         # able to insert a second "episode 5"
-        UniqueConstraint("season_id", "episode_number", name="uq_anime_episodes_season_id_episode_number"),
+        UniqueConstraint(
+            "season_id", "episode_number", name="uq_anime_episodes_season_id_episode_number"
+        ),
         Index("ix_anime_episodes_season_watched", "season_id", "watched"),
         Index("ix_anime_episodes_air_at", "air_at", postgresql_where=text("air_at IS NOT NULL")),
     )

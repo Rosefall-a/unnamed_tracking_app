@@ -67,12 +67,15 @@ def game_stats(
         count = sum(
             1
             for g in played
-            if g.playtime_seconds >= low * _HOUR and (high is None or g.playtime_seconds < high * _HOUR)
+            if g.playtime_seconds >= low * _HOUR
+            and (high is None or g.playtime_seconds < high * _HOUR)
         )
         buckets.append({"label": label, "count": count})
 
     cutoff = now.timestamp() - 30 * 86400
-    recent = sorted((g for g in owned if g.last_played_at), key=lambda g: g.last_played_at, reverse=True)
+    recent = sorted(
+        (g for g in owned if g.last_played_at), key=lambda g: g.last_played_at, reverse=True
+    )
 
     backlog = [g for g in games if _status(g) == "BACKLOG"]
     with_estimate = [g for g in backlog if g.time_to_beat_hours is not None]
@@ -86,7 +89,12 @@ def game_stats(
             row[1] += g.playtime_seconds / _HOUR
             row[2] += 1
     cost_per_hour = [
-        {"currency": code, "per_hour": round(cost / hours, 2), "hours": round(hours, 1), "games": int(count)}
+        {
+            "currency": code,
+            "per_hour": round(cost / hours, 2),
+            "hours": round(hours, 1),
+            "games": int(count),
+        }
         for code, (cost, hours, count) in sorted(priced.items())
     ]
 
@@ -99,7 +107,9 @@ def game_stats(
         if unlocked == total:
             fully += 1
         else:
-            progress.append({"id": str(g.id), "title": g.title, "unlocked": unlocked, "total": total})
+            progress.append(
+                {"id": str(g.id), "title": g.title, "unlocked": unlocked, "total": total}
+            )
     progress.sort(key=lambda r: (r["unlocked"] / r["total"], r["total"]), reverse=True)
 
     decades: Counter = Counter(
@@ -110,16 +120,25 @@ def game_stats(
         "owned": len(owned),
         "with_playtime": len(played),
         "unplayed": {"count": len(unplayed), "spent": _money(unplayed_cost)},
-        "average_seconds": round(sum(g.playtime_seconds for g in played) / len(played)) if played else None,
+        "average_seconds": round(sum(g.playtime_seconds for g in played) / len(played))
+        if played
+        else None,
         "median_seconds": round(median(g.playtime_seconds for g in played)) if played else None,
         "playtime_buckets": buckets,
         "played_last_30_days": sum(1 for g in recent if g.last_played_at >= cutoff),
         "recently_played": [
-            {"id": str(g.id), "title": g.title, "last_played_at": g.last_played_at, "seconds": g.playtime_seconds}
+            {
+                "id": str(g.id),
+                "title": g.title,
+                "last_played_at": g.last_played_at,
+                "seconds": g.playtime_seconds,
+            }
             for g in recent[:8]
         ],
         "finished_this_year": sum(
-            1 for g in games if g.completion_date and datetime.fromtimestamp(g.completion_date).year == now.year
+            1
+            for g in games
+            if g.completion_date and datetime.fromtimestamp(g.completion_date).year == now.year
         ),
         "seconds_by_source": _seconds_by(games, "source"),
         "seconds_by_developer": _seconds_by(games, "developer"),
