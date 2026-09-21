@@ -202,7 +202,12 @@ export interface OverviewStats {
     active_days_total: number;
     current_streak: number;
     longest_streak: number;
-    busiest_day: { date: string; count: number } | null;
+    busiest_day: {
+      date: string;
+      count: number;
+      episodes: number;
+      achievements: number;
+    } | null;
   };
 }
 

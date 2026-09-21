@@ -1,39 +1,83 @@
 <script setup lang="ts">
 import { ref, onMounted } from "vue";
-import {
-  fetchMediaRefreshStatus,
-  checkAiringEpisodes,
-} from "../../services/settings";
-import type { MediaRefreshStatus } from "../../services/settings";
+import { fetchJobs, updateJob, runJobNow } from "../../services/settings";
+import type { CleanupJob } from "../../services/settings";
 
-const status = ref<MediaRefreshStatus | null>(null);
-const loadError = ref<string | null>(null);
-const checking = ref(false);
-const checkError = ref<string | null>(null);
+type Unit = "minutes" | "hours" | "days";
+const UNIT_MINUTES: Record<Unit, number> = {
+  minutes: 1,
+  hours: 60,
+  days: 24 * 60,
+};
 
-async function loadStatus() {
-  loadError.value = null;
+const jobs = ref<CleanupJob[]>([]);
+const jobError = ref<string | null>(null);
+// what is typed in each job's "every" fields, kept apart from what is saved
+const drafts = ref<Record<string, { amount: number; unit: Unit }>>({});
+
+// shows a saved number of minutes in the largest unit that divides it evenly
+function split(minutes: number): { amount: number; unit: Unit } {
+  if (minutes % UNIT_MINUTES.days === 0)
+    return { amount: minutes / UNIT_MINUTES.days, unit: "days" };
+  if (minutes % UNIT_MINUTES.hours === 0)
+    return { amount: minutes / UNIT_MINUTES.hours, unit: "hours" };
+  return { amount: minutes, unit: "minutes" };
+}
+function resetDrafts() {
+  drafts.value = Object.fromEntries(
+    jobs.value.map((j) => [j.id, split(j.intervalMinutes)]),
+  );
+}
+async function loadJobs() {
   try {
-    status.value = await fetchMediaRefreshStatus();
+    jobs.value = await fetchJobs();
+    resetDrafts();
   } catch (err) {
-    loadError.value =
-      err instanceof Error ? err.message : "Failed to load task status";
+    jobError.value = err instanceof Error ? err.message : "Failed to load jobs";
   }
 }
-onMounted(loadStatus);
-
-async function runAiringCheckNow() {
-  checking.value = true;
-  checkError.value = null;
+async function changeJob(
+  job: CleanupJob,
+  changes: { enabled?: boolean; intervalMinutes?: number },
+) {
+  jobError.value = null;
   try {
-    await checkAiringEpisodes();
-    await loadStatus();
+    const saved = await updateJob(job.id, changes);
+    jobs.value = jobs.value.map((j) => (j.id === saved.id ? saved : j));
   } catch (err) {
-    checkError.value = err instanceof Error ? err.message : "Check failed";
-  } finally {
-    checking.value = false;
+    jobError.value = err instanceof Error ? err.message : "Failed to save";
+  }
+  resetDrafts();
+}
+function saveInterval(job: CleanupJob) {
+  const draft = drafts.value[job.id];
+  const minutes = Math.round(draft.amount * UNIT_MINUTES[draft.unit]);
+  if (
+    !Number.isFinite(minutes) ||
+    minutes < job.minIntervalMinutes ||
+    minutes > job.maxIntervalMinutes
+  ) {
+    jobError.value = `Choose between ${describe(job.minIntervalMinutes)} and ${describe(job.maxIntervalMinutes)}.`;
+    resetDrafts();
+    return;
+  }
+  if (minutes !== job.intervalMinutes)
+    void changeJob(job, { intervalMinutes: minutes });
+}
+function describe(minutes: number): string {
+  const { amount, unit } = split(minutes);
+  return `${amount} ${amount === 1 ? unit.slice(0, -1) : unit}`;
+}
+async function runNow(job: CleanupJob) {
+  jobError.value = null;
+  try {
+    await runJobNow(job.id);
+    await loadJobs();
+  } catch (err) {
+    jobError.value = err instanceof Error ? err.message : "Failed to start";
   }
 }
+onMounted(loadJobs);
 
 function formatTime(epochSeconds: number | null): string {
   if (!epochSeconds) return "Never run yet";
@@ -44,92 +88,78 @@ function formatTime(epochSeconds: number | null): string {
     minute: "2-digit",
   });
 }
-
-function formatInterval(seconds: number): string {
-  if (seconds % 3600 === 0) return `every ${seconds / 3600}h`;
-  return `every ${Math.round(seconds / 60)}m`;
-}
 </script>
 
 <template>
   <section class="settings-section">
     <h2>Tasks</h2>
     <p class="section-hint">
-      Recurring jobs run by the app's own in-process scheduler, with no separate
-      worker or server needed.
+      Recurring jobs run by the app's own scheduler, with no separate worker or
+      server needed. Each one can be switched off and given its own schedule.
     </p>
 
-    <div v-if="loadError" class="form-error">{{ loadError }}</div>
-
-    <div v-if="status" class="tile">
+    <div v-if="jobError" class="form-error">{{ jobError }}</div>
+    <div v-for="job in jobs" :key="job.id" class="tile">
       <div class="tile-head">
-        <h3>Airing episode check</h3>
-        <span class="status-badge" :class="{ on: status.airingCheck.enabled }">
-          {{ status.airingCheck.enabled ? "Running automatically" : "Off" }}
+        <h3>{{ job.name }}</h3>
+        <span class="status-badge" :class="{ on: job.enabled }">
+          {{ job.running ? "Running now" : job.enabled ? "On" : "Off" }}
         </span>
       </div>
-      <p class="tile-desc">
-        A cheap check ({{ formatInterval(status.airingCheck.intervalSeconds) }})
-        for whether a tracked show or anime has a newly-aired episode number.
-        Adds a bare placeholder row right away so you can check it off. The real
-        title and image come later from a full refresh.
-      </p>
-      <p class="last-run">
-        Last run: {{ formatTime(status.airingCheck.lastRunAt) }}
-        <template
-          v-if="
-            status.airingCheck.lastRunAt &&
-            (status.airingCheck.lastResult.anime_episodes_added ||
-              status.airingCheck.lastResult.tv_episodes_added)
-          "
+      <p class="tile-desc">{{ job.description }}</p>
+      <div class="job-controls">
+        <label class="job-toggle">
+          <input
+            type="checkbox"
+            :checked="job.enabled"
+            @change="
+              changeJob(job, {
+                enabled: ($event.target as HTMLInputElement).checked,
+              })
+            "
+          />
+          Run by itself
+        </label>
+        <label v-if="drafts[job.id]" class="job-every">
+          Every
+          <input
+            v-model.number="drafts[job.id].amount"
+            type="number"
+            min="1"
+            class="job-amount"
+            :disabled="!job.enabled"
+            :aria-label="`How often ${job.name} runs`"
+            @change="saveInterval(job)"
+          />
+          <select
+            v-model="drafts[job.id].unit"
+            class="job-interval"
+            :disabled="!job.enabled"
+            aria-label="Unit of time"
+            @change="saveInterval(job)"
+          >
+            <option value="minutes">minutes</option>
+            <option value="hours">hours</option>
+            <option value="days">days</option>
+          </select>
+        </label>
+        <button
+          type="button"
+          class="secondary-button"
+          :disabled="job.running"
+          @click="runNow(job)"
         >
-          · +{{
-            status.airingCheck.lastResult.anime_episodes_added || 0
-          }}
-          anime, +{{ status.airingCheck.lastResult.tv_episodes_added || 0 }} TV
-        </template>
-      </p>
-      <div v-if="checkError" class="form-error">{{ checkError }}</div>
-      <button
-        type="button"
-        class="secondary-button"
-        :disabled="checking"
-        @click="runAiringCheckNow"
-      >
-        {{ checking ? "Checking…" : "Check now" }}
-      </button>
-    </div>
-
-    <div v-if="status" class="tile">
-      <div class="tile-head">
-        <h3>Full metadata refresh</h3>
-        <span class="status-badge" :class="{ on: status.fullRefresh.enabled }">
-          {{ status.fullRefresh.enabled ? "Running automatically" : "Off" }}
-        </span>
+          {{ job.running ? "Running…" : "Run now" }}
+        </button>
       </div>
-      <p class="tile-desc">
-        Backfills real titles, descriptions, and images (including a TMDB lookup
-        for anime), on top of whatever the airing check already added. Runs on
-        its own
-        {{ formatInterval(status.fullRefresh.intervalSeconds) }}. Run it early
-        from Metadata &gt; Refresh Media if you don't want to wait.
-      </p>
       <p class="last-run">
-        Last run: {{ formatTime(status.fullRefresh.lastRunAt) }}
-        <template
-          v-if="
-            status.fullRefresh.lastRunAt &&
-            (status.fullRefresh.lastResult.anime_episodes_added ||
-              status.fullRefresh.lastResult.tv_episodes_added ||
-              status.fullRefresh.lastResult.anime_episodes_updated ||
-              status.fullRefresh.lastResult.tv_episodes_updated)
-          "
-        >
-          · +{{ status.fullRefresh.lastResult.anime_episodes_added || 0 }}/upd
-          {{ status.fullRefresh.lastResult.anime_episodes_updated || 0 }} anime,
-          +{{ status.fullRefresh.lastResult.tv_episodes_added || 0 }}/upd
-          {{ status.fullRefresh.lastResult.tv_episodes_updated || 0 }} TV
-        </template>
+        Last run: {{ formatTime(job.lastRunAt) }}
+        <template v-if="job.lastSummary"> · {{ job.lastSummary }}</template>
+      </p>
+      <p class="tile-desc job-note">
+        Allowed: every {{ describe(job.minIntervalMinutes) }} to
+        {{ describe(job.maxIntervalMinutes) }}. "Run now" works whether or not
+        it runs by itself.
       </p>
     </div>
   </section>
@@ -212,5 +242,52 @@ function formatInterval(seconds: number): string {
 .secondary-button:disabled {
   opacity: 0.6;
   cursor: default;
+}
+.job-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin: 4px 0 10px;
+}
+.job-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  color: #e5e5e5;
+}
+.job-every {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  color: #e5e5e5;
+}
+.job-amount {
+  width: 72px;
+  background: #1a1a1a;
+  color: #e5e5e5;
+  border: 1px solid #2a2a2a;
+  border-radius: 8px;
+  padding: 7px 10px;
+  font-size: 0.82rem;
+}
+.job-amount:disabled {
+  opacity: 0.5;
+}
+.job-interval {
+  background: #1a1a1a;
+  color: #e5e5e5;
+  border: 1px solid #2a2a2a;
+  border-radius: 8px;
+  padding: 7px 10px;
+  font-size: 0.82rem;
+}
+.job-interval:disabled {
+  opacity: 0.5;
+}
+.job-note {
+  margin: 8px 0 0;
 }
 </style>

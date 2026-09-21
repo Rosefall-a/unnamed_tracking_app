@@ -2,16 +2,19 @@
 import asyncio
 
 from fastapi import FastAPI
+from fastapi.middleware.gzip import GZipMiddleware
 
 from src.api.routes import (
     anime,
     auth,
     bounties,
+    calendar_events,
     calendar_feed,
     cards,
     export_import,
     game_archives,
     games,
+    jobs,
     library_sync,
     media,
     media_extras,
@@ -31,7 +34,7 @@ from src.api.routes.utils.misc import router as misc_router
 from src.core.auth import ensure_primary_user
 from src.database.session import SessionLocal
 from src.features.backup.scheduler import run_backup_loop
-from src.features.metadata.refresh import run_airing_check_loop, run_metadata_refresh_loop
+from src.features.jobs import run_jobs_loop
 from src.features.trash.sweep import run_sweep_loop
 
 app = FastAPI(
@@ -40,6 +43,9 @@ app = FastAPI(
     redoc_url="/api/redoc",
     openapi_url="/api/openapi.json",
 )
+
+# The anime list alone is several MB of JSON; it compresses roughly tenfold.
+app.add_middleware(GZipMiddleware, minimum_size=1024)
 
 app.include_router(games.router)
 app.include_router(movies.router)
@@ -54,12 +60,14 @@ app.include_router(stats.router)
 app.include_router(library_sync.router)
 app.include_router(bounties.router)
 app.include_router(export_import.router)
+app.include_router(jobs.router)
 app.include_router(media_io.router)
 app.include_router(media_extras.router)
 app.include_router(media_lists.router)
 app.include_router(notifications.router)
 app.include_router(media_stats.router)
 app.include_router(preferences.router)
+app.include_router(calendar_events.router)
 app.include_router(calendar_feed.authed_router)
 app.include_router(calendar_feed.public_router)
 app.include_router(set_routes.router)
@@ -84,13 +92,9 @@ async def start_backup_loop() -> None:
 
 
 @app.on_event("startup")
-async def start_airing_check_loop() -> None:
-    asyncio.create_task(run_airing_check_loop())
-
-
-@app.on_event("startup")
-async def start_metadata_refresh_loop() -> None:
-    asyncio.create_task(run_metadata_refresh_loop())
+async def start_jobs_loop() -> None:
+    # scheduled jobs (see features/jobs.py), including the airing check
+    asyncio.create_task(run_jobs_loop())
 
 
 @app.get("/health")

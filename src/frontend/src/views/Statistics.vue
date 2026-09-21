@@ -116,6 +116,20 @@ function scoreColumns(d: Record<string, number>) {
     value: d[String(i + 1)] ?? 0,
   }));
 }
+// "151 episodes", "3 achievements", or both, from the exact split for the day
+const busiestDayText = computed(() => {
+  const day = stats.value?.overview.activity.busiest_day;
+  if (!day) return "";
+  const parts: string[] = [];
+  if (day.episodes)
+    parts.push(`${day.episodes} episode${day.episodes === 1 ? "" : "s"}`);
+  if (day.achievements)
+    parts.push(
+      `${day.achievements} achievement${day.achievements === 1 ? "" : "s"}`,
+    );
+  return parts.join(" and ") || `${day.count} entries`;
+});
+
 function named(rows: { name: string; count: number }[]) {
   return rows.map((r) => ({ name: r.name, value: r.count }));
 }
@@ -442,8 +456,7 @@ const episodic = computed<EpisodicStats | null>(() => {
               <ActivityHeatmap :days="stats.overview.activity.per_day" />
               <p v-if="stats.overview.activity.busiest_day" class="note">
                 Busiest day: {{ stats.overview.activity.busiest_day.date }} with
-                {{ stats.overview.activity.busiest_day.count }} episodes and
-                achievements.
+                {{ busiestDayText }}.
               </p>
             </section>
           </div>
@@ -829,7 +842,7 @@ const episodic = computed<EpisodicStats | null>(() => {
               <h2>Top genres</h2>
               <DonutChart
                 :slices="named(stats.movie.genres)"
-                center-label="titles"
+                center-label="genre tags"
               />
             </section>
             <section
@@ -965,7 +978,7 @@ const episodic = computed<EpisodicStats | null>(() => {
               <h2>Top genres</h2>
               <DonutChart
                 :slices="named(episodic.genres)"
-                center-label="titles"
+                center-label="genre tags"
               />
             </section>
             <section

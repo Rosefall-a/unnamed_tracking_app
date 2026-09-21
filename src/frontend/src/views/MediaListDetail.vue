@@ -32,6 +32,7 @@ import { useConfirm } from "../state/dialog";
 import { fetchMovies } from "../services/movies";
 import { fetchTVShows } from "../services/tvShows";
 import { fetchAnime } from "../services/anime";
+import { displayTitle } from "../utils/displayTitle";
 
 const route = useRoute();
 const router = useRouter();
@@ -299,7 +300,7 @@ async function openAdd() {
       ...anime.map((a) => ({
         mediaType: "anime" as const,
         mediaId: a.id,
-        title: a.title,
+        title: displayTitle(a),
         posterUrl: a.posterUrl,
       })),
     ];

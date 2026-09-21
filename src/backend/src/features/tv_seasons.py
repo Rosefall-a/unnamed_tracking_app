@@ -80,7 +80,7 @@ async def check_new_seasons(db: AsyncSession, show: TVShow, client: TVMazeClient
 
     if fresh and not first_check and show.status in _NOTIFY_STATUSES:
         prefs = await load_preferences(db, show.user_id)
-        if prefs["notify_sequel_announced"]:
+        if prefs["notify_sequel_announced"] and "tv" in prefs["notify_media_types"]:
             now = int(time.time())
             rows = []
             for entry in fresh:

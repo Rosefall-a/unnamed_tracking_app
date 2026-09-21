@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.api.routes.media_extras import build_calendar_entries
 from src.core.auth import get_current_user
 from src.core.preferences import load_preferences
+from src.database.models.calendar_event import CalendarEvent
 from src.database.models.user import User
 from src.database.session import get_db
 
@@ -26,14 +27,20 @@ _FEED_DAYS = 90
 
 
 def _ics_escape(text: str) -> str:
-    return text.replace("\\", "\\\\").replace(";", "\\;").replace(",", "\\,").replace("\n", "\\n")
+    return (
+        text.replace("\r", "")
+        .replace("\\", "\\\\")
+        .replace(";", "\\;")
+        .replace(",", "\\,")
+        .replace("\n", "\\n")
+    )
 
 
 def _stamp(unix: int) -> str:
     return datetime.fromtimestamp(unix, tz=timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
 
-def _build_ics(entries: list[dict]) -> str:
+def _build_ics(entries: list[dict], events: list[CalendarEvent] | None = None) -> str:
     lines = [
         "BEGIN:VCALENDAR",
         "VERSION:2.0",
@@ -62,6 +69,24 @@ def _build_ics(entries: list[dict]) -> str:
             lines.append(f"DTSTART:{_stamp(e['air_at'])}")
             lines.append(f"DTEND:{_stamp(e['air_at'] + 30 * 60)}")
             lines.append(f"SUMMARY:{_ics_escape(e['title'] + ep + estimated)}")
+        lines.append("END:VEVENT")
+    for ev in events or []:
+        lines.append("BEGIN:VEVENT")
+        lines.append(f"UID:manual-{ev.id}@media-tracker")
+        lines.append(f"DTSTAMP:{now}")
+        day = ev.event_date.strftime("%Y%m%d")
+        if ev.event_time:
+            # a floating local time: no zone is stored, so the calendar app
+            # shows it at that clock time wherever the viewer is
+            stamp = f"{day}T{ev.event_time.replace(':', '')}00"
+            lines.append(f"DTSTART:{stamp}")
+        else:
+            end = (ev.event_date + timedelta(days=1)).strftime("%Y%m%d")
+            lines.append(f"DTSTART;VALUE=DATE:{day}")
+            lines.append(f"DTEND;VALUE=DATE:{end}")
+        lines.append(f"SUMMARY:{_ics_escape(ev.title)}")
+        if ev.note:
+            lines.append(f"DESCRIPTION:{_ics_escape(ev.note)}")
         lines.append("END:VEVENT")
     lines.append("END:VCALENDAR")
     return "\r\n".join(lines) + "\r\n"
@@ -92,11 +117,16 @@ async def regenerate_feed_token(
 
 @public_router.get("/feed/{token}.ics")
 async def calendar_feed(token: str, db: AsyncSession = Depends(get_db)) -> Response:
-    user = await db.scalar(select(User).where(User.calendar_token == token))
+    user = await db.scalar(select(User).where(User.calendar_token == token, User.is_active.is_(True)))
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unknown calendar feed")
     prefs = await load_preferences(db, user.id)
     entries = await build_calendar_entries(
         db, user.id, _FEED_DAYS, game_releases=bool(prefs["calendar_game_releases"])
     )
-    return Response(content=_build_ics(entries), media_type="text/calendar; charset=utf-8")
+    events = (
+        (await db.execute(select(CalendarEvent).where(CalendarEvent.user_id == user.id)))
+        .scalars()
+        .all()
+    )
+    return Response(content=_build_ics(entries, list(events)), media_type="text/calendar; charset=utf-8")

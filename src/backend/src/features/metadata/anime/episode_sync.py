@@ -6,7 +6,7 @@ Jikan + AniList + Kitsu + TMDB merge instead of duplicating it."""
 from __future__ import annotations
 
 import asyncio
-from typing import Any
+from typing import Any, NamedTuple
 
 from src.features.metadata.anime.anilist import AniListClient, AniListError
 from src.features.metadata.anime.anizip import AniZipClient, AniZipError
@@ -17,15 +17,9 @@ from src.features.metadata.movies.tmdb import TMDBClient, TMDBError
 
 def _merge_episode_sources(*sources: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Combines any number of providers' episode lists by episode number
-    instead of picking one — no single provider is complete. Jikan has
-    real titles/synopses/air-dates but its v4 API has no per-episode
-    image field at all; AniList's `streamingEpisodes` has thumbnails but
-    no air date/synopsis and only thinly covers long-running shows;
-    Kitsu has its own independent thumbnails and synopses with its own
-    (also incomplete) coverage. Merged per field — the first source
-    passed wins a field it has a value for, later sources only fill in
-    whatever's still blank — so three thin sources add up to one much
-    more complete one instead of each other's gaps staying permanent."""
+    instead of picking one: no single provider is complete. Merged per field:
+    the first source passed wins a field it has a value for, later sources
+    only fill in whatever is still blank."""
     by_number: dict[int, dict[str, Any]] = {}
     for source in sources:
         for entry in source:
@@ -39,53 +33,116 @@ def _merge_episode_sources(*sources: list[dict[str, Any]]) -> list[dict[str, Any
     return sorted(by_number.values(), key=lambda e: e["episode_number"])
 
 
+class EpisodeFetch(NamedTuple):
+    episodes: list[dict[str, Any]]
+    errors: list[str]
+    # the entry's own episode count, only once it has finished airing
+    final_total: int | None
+    # the highest episode number that can exist: the final total, or for a
+    # show still airing its announced total or what has aired so far
+    limit: int | None
+    # the exact Kitsu id ani.zip gives for this entry, if it knows one
+    kitsu_id: str | None
+
+
+def episode_limit(info: dict[str, Any] | None) -> int | None:
+    """The highest episode number an AniList entry can have right now. A
+    finished one has its final total. One still airing has what it announced,
+    or failing that what has aired (the episode before the next one), because
+    a provider listing a thousand more is listing episodes that do not exist
+    yet. Unknown gives no limit."""
+    if not info:
+        return None
+    if info.get("total"):
+        return int(info["total"])
+    if info.get("status") == "RELEASING":
+        if info.get("planned"):
+            return int(info["planned"])
+        upcoming = info.get("next")
+        if upcoming and upcoming > 1:
+            return int(upcoming) - 1
+    return None
+
+
+def _is_complete(episodes: list[dict[str, Any]], final_total: int | None) -> bool:
+    """Whether one provider's list already covers everything: every episode
+    titled, and (for a finished show) every number up to its total."""
+    if not episodes or any(not e.get("title") for e in episodes):
+        return False
+    if final_total is None:
+        return True
+    return {e["episode_number"] for e in episodes} >= set(range(1, final_total + 1))
+
+
 async def fetch_episodes_with_fallback(
-    external_id: str | None, anilist_id: str | None, kitsu_id: str | None = None
-) -> tuple[list[dict[str, Any]], list[str]]:
-    """Fetches from every provider with a known id — Jikan (richer data —
-    synopsis, air dates, but no episode images at all), AniList
-    (`streamingEpisodes` — thumbnails, but thinner coverage), and Kitsu
-    (its own independent thumbnails/synopses) — and merges them rather
-    than using one as a strict fallback for another, so whatever one
-    provider is structurally missing (Jikan's total lack of episode
-    images, in particular) has two other chances to be filled in instead
-    of staying permanently blank. Returns `(episodes, errors)` rather
-    than raising, so a caller with no HTTP request behind it (the
-    background refresh) can just log errors instead of needing to turn
-    them into an HTTPException."""
-    anizip_episodes: list[dict[str, Any]] = []
+    external_id: str | None,
+    anilist_id: str | None,
+    kitsu_id: str | None = None,
+    *,
+    final_total: int | None = None,
+    limit: int | None = None,
+    total_known: bool = False,
+) -> EpisodeFetch:
+    """The episode list of one anime entry.
+
+    ani.zip is asked first: it has titles, screenshots, synopses and air times
+    for the exact AniList entry in one request, and usually needs nothing
+    else. Jikan, AniList and Kitsu are only asked when it left gaps, because
+    they are slower and Jikan is often down.
+
+    Two rules keep a wrong provider match from inflating a season: a Kitsu
+    list is used only when ani.zip vouches for that exact Kitsu id (a stored
+    id found by title search is not trusted), and once AniList says the entry
+    has finished airing with N episodes, nothing numbered above N is kept.
+    Pass `final_total` and `limit` with `total_known=True` when the caller
+    already has them (the bulk refresh looks them up for every show in a few
+    requests).
+
+    Returns errors instead of raising, so a caller with no HTTP request behind
+    it (the background refresh) can log them."""
+    errors: list[str] = []
+    anizip: dict[str, Any] = {"episodes": [], "kitsu_id": None}
+    if anilist_id:
+        try:
+            anizip = await asyncio.to_thread(AniZipClient().lookup, anilist_id)
+        except AniZipError as exc:
+            errors.append(f"ani.zip: {exc}")
+        if not total_known:
+            try:
+                totals = await asyncio.to_thread(AniListClient().final_totals, [int(anilist_id)])
+                info = totals.get(int(anilist_id))
+                final_total = (info or {}).get("total")
+                limit = episode_limit(info)
+            except (AniListError, ValueError) as exc:
+                errors.append(f"AniList: {exc}")
+    anizip_episodes: list[dict[str, Any]] = anizip["episodes"]
+    mapped_kitsu: str | None = anizip.get("kitsu_id")
+
     jikan_episodes: list[dict[str, Any]] = []
     anilist_episodes: list[dict[str, Any]] = []
     kitsu_episodes: list[dict[str, Any]] = []
-    errors: list[str] = []
-    if anilist_id:
-        # first: for an airing show this is the source that has the new
-        # episode's real title, screenshot and synopsis soonest
-        try:
-            anizip_episodes = await asyncio.to_thread(AniZipClient().episodes, anilist_id)
-        except AniZipError as exc:
-            errors.append(f"ani.zip: {exc}")
-    if external_id:
-        try:
-            jikan_episodes = await asyncio.to_thread(JikanClient().episodes, external_id)
-        except JikanError as exc:
-            errors.append(f"Jikan: {exc}")
-    if anilist_id:
-        try:
-            anilist_episodes = await asyncio.to_thread(AniListClient().episodes, anilist_id)
-        except AniListError as exc:
-            errors.append(f"AniList: {exc}")
-    if kitsu_id:
-        try:
-            kitsu_episodes = await asyncio.to_thread(KitsuClient().episodes, kitsu_id)
-        except KitsuError as exc:
-            errors.append(f"Kitsu: {exc}")
-    if not anizip_episodes and not jikan_episodes and not anilist_episodes and not kitsu_episodes:
-        return [], errors
-    return (
-        _merge_episode_sources(anizip_episodes, jikan_episodes, anilist_episodes, kitsu_episodes),
-        errors,
-    )
+    if not _is_complete(anizip_episodes, final_total):
+        if external_id:
+            try:
+                jikan_episodes = await asyncio.to_thread(JikanClient().episodes, external_id)
+            except JikanError as exc:
+                errors.append(f"Jikan: {exc}")
+        if anilist_id:
+            try:
+                anilist_episodes = await asyncio.to_thread(AniListClient().episodes, anilist_id)
+            except AniListError as exc:
+                errors.append(f"AniList: {exc}")
+        trusted_kitsu = mapped_kitsu or (kitsu_id if not anilist_id else None)
+        if trusted_kitsu:
+            try:
+                kitsu_episodes = await asyncio.to_thread(KitsuClient().episodes, trusted_kitsu)
+            except KitsuError as exc:
+                errors.append(f"Kitsu: {exc}")
+    merged = _merge_episode_sources(anizip_episodes, jikan_episodes, anilist_episodes, kitsu_episodes)
+    cap = limit or final_total
+    if cap:
+        merged = [e for e in merged if e["episode_number"] <= cap]
+    return EpisodeFetch(merged, errors, final_total, cap, mapped_kitsu)
 
 
 async def fetch_airing_status(

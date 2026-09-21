@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import MyNote from "../components/MyNote.vue";
 import { ref, computed, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import {
@@ -83,6 +84,20 @@ async function toggleFavorite() {
     });
   } catch {
     movie.value.favorite = !next;
+  }
+}
+
+async function saveNote(note: string | null) {
+  if (!movie.value) return;
+  const previous = movie.value.note;
+  movie.value.note = note;
+  try {
+    movie.value = await updateMovie(movie.value.id, {
+      ...movieToInput(movie.value),
+      note,
+    });
+  } catch {
+    movie.value.note = previous;
   }
 }
 
@@ -530,6 +545,7 @@ async function onRatingChange(value: number | null) {
             {{ descriptionExpanded ? "Show less" : "Read more" }}
           </button>
         </div>
+        <MyNote :note="movie.note" @save="saveNote" />
       </div>
 
       <div v-else-if="activeTab === 'related'" class="tab-panel">
@@ -818,9 +834,13 @@ async function onRatingChange(value: number | null) {
   background: #1a1a1a;
   border-radius: 10px;
   width: fit-content;
+  max-width: 100%;
+  overflow-x: auto;
   padding: 5px;
 }
 .tab-btn {
+  flex-shrink: 0;
+  white-space: nowrap;
   background: transparent;
   border: none;
   color: #9c9c9c;
@@ -978,10 +998,15 @@ async function onRatingChange(value: number | null) {
     align-items: flex-start;
   }
 }
-.back-spot {
-  position: absolute;
-  top: 84px;
-  left: var(--ui-edge-left);
-  z-index: 100;
+/* Sits under the top bar and stays there while the page scrolls. It is sticky
+   rather than absolute so it never slides over the bar, and the negative
+   bottom margin gives back the room it takes so the hero does not move. */
+.detail > .back-spot {
+  display: flex;
+  width: 38px;
+  position: sticky;
+  top: 76px;
+  z-index: 79;
+  margin: 16px 0 -54px var(--ui-edge-left);
 }
 </style>

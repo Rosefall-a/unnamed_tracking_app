@@ -6,13 +6,25 @@
 // the columns and warped the grid, and a library with dozens of airing
 // shows can't fit names in a cell anyway. Names live in the hover tooltip
 // and the day drawer that opens on click.
-import { ref, reactive, computed, onMounted, watch } from "vue";
+import {
+  ref,
+  reactive,
+  computed,
+  onMounted,
+  onActivated,
+  onDeactivated,
+  watch,
+} from "vue";
 import { useRouter } from "vue-router";
 import {
   fetchCalendar,
   fetchActivity,
   fetchCalendarFeedUrl,
   fetchCalendarGames,
+  fetchCalendarEvents,
+  createCalendarEvent,
+  updateCalendarEvent,
+  deleteCalendarEvent,
   createActivityEntry,
   updateActivityEntry,
   deleteActivityEntry,
@@ -21,29 +33,36 @@ import type {
   ActivityEventType,
   CalendarEntry,
   CalendarGameEntry,
+  CalendarEventEntry,
   ActivityEntry,
   MediaType,
 } from "../services/mediaExtras";
 import AppTopBar from "../components/AppTopBar.vue";
 import SegmentedTabs from "../components/SegmentedTabs.vue";
 import type { SegmentOption } from "../components/SegmentedTabs.vue";
-import { fetchPreferences, DEFAULT_PREFERENCES } from "../services/preferences";
+import {
+  fetchPreferences,
+  queuePreferences,
+  DEFAULT_PREFERENCES,
+} from "../services/preferences";
 import type { Preferences } from "../services/preferences";
 import { useKeptAlive } from "../utils/useKeptAlive";
 import { useConfirm } from "../state/dialog";
 import { fetchMovies } from "../services/movies";
 import { fetchTVShows } from "../services/tvShows";
 import { fetchAnime } from "../services/anime";
+import { displayTitle } from "../utils/displayTitle";
 
 const router = useRouter();
 const tab = ref<"calendar" | "history">("calendar");
-const calView = ref<"month" | "agenda">("month");
+const calView = ref<"month" | "week" | "agenda">("month");
 const TAB_OPTIONS: SegmentOption[] = [
   { value: "calendar", label: "Calendar" },
   { value: "history", label: "History" },
 ];
 const VIEW_OPTIONS: SegmentOption[] = [
   { value: "month", label: "Month" },
+  { value: "week", label: "Week" },
   { value: "agenda", label: "Agenda" },
 ];
 
@@ -85,7 +104,7 @@ async function loadManualLibrary() {
     ...anime.map((a) => ({
       mediaType: "anime" as const,
       mediaId: a.id,
-      title: a.title,
+      title: displayTitle(a),
       posterUrl: a.posterUrl,
     })),
   ];
@@ -102,6 +121,7 @@ const filters = reactive({
   episode: true,
   release: true,
   watched: true,
+  event: true,
   estimated: true,
 });
 try {
@@ -138,6 +158,30 @@ async function loadPreferences() {
   }
 }
 
+// which airing shows appear, by where they sit in the library: saved with the
+// other calendar settings, so it holds on every device
+type AiringStatus = Preferences["calendar_airing_statuses"][number];
+const AIRING_STATUS_CHIPS: { key: AiringStatus; label: string }[] = [
+  { key: "watching", label: "Watching" },
+  { key: "plan", label: "Plan to Watch" },
+  { key: "hold", label: "On Hold" },
+];
+async function toggleAiringStatus(key: AiringStatus) {
+  const previous = prefs.value.calendar_airing_statuses;
+  const next = previous.includes(key)
+    ? previous.filter((s) => s !== key)
+    : [...previous, key];
+  prefs.value = { ...prefs.value, calendar_airing_statuses: next };
+  try {
+    const { latest } = await queuePreferences({
+      calendar_airing_statuses: next,
+    });
+    if (latest) await loadCalendar();
+  } catch {
+    prefs.value = { ...prefs.value, calendar_airing_statuses: previous };
+  }
+}
+
 // ---- calendar data ----
 const gameEntries = ref<CalendarGameEntry[]>([]);
 async function loadGameHistory() {
@@ -146,6 +190,14 @@ async function loadGameHistory() {
     gameEntries.value = await fetchCalendarGames();
   } catch {
     gameEntries.value = [];
+  }
+}
+const eventEntries = ref<CalendarEventEntry[]>([]);
+async function loadEvents() {
+  try {
+    eventEntries.value = await fetchCalendarEvents();
+  } catch {
+    // the rest of the calendar still works without them
   }
 }
 const entries = ref<CalendarEntry[]>([]);
@@ -163,13 +215,17 @@ const isCurrentMonth = computed(
     viewMonth.value === today.getMonth(),
 );
 const CAL_MAX_DAYS = 90;
-// Back as far as the oldest logged entry (never earlier than the current
-// month, so a brand-new account still has somewhere sensible to stand);
-// forward as far as the backend projects airings.
+// Back as far as the oldest entry of any kind (watch history, game history and
+// release dates, your own entries), never earlier than the current month, so a
+// brand-new account still has somewhere sensible to stand; forward as far as
+// the backend projects airings.
 const earliestMonth = computed(() => {
   let min = "";
   for (const a of historyEntries.value)
     if (!min || a.eventDate < min) min = a.eventDate;
+  for (const g of gameEntries.value) if (!min || g.date < min) min = g.date;
+  for (const e of eventEntries.value)
+    if (!min || e.eventDate < min) min = e.eventDate;
   if (!min) return today.getFullYear() * 12 + today.getMonth();
   const d = new Date(`${min}T00:00:00`);
   return Math.min(
@@ -240,7 +296,12 @@ async function refreshAll() {
   refreshing.value = true;
   try {
     await loadPreferences();
-    await Promise.all([loadCalendar(), loadHistory(), loadGameHistory()]);
+    await Promise.all([
+      loadCalendar(),
+      loadHistory(),
+      loadGameHistory(),
+      loadEvents(),
+    ]);
   } finally {
     refreshing.value = false;
   }
@@ -257,8 +318,8 @@ onMounted(async () => {
 useKeptAlive(refreshAll);
 
 // ---- unify everything the grid/agenda draws ----
-type Layer = "episode" | "release" | "watched";
-type CalMediaType = MediaType | "game";
+type Layer = "episode" | "release" | "watched" | "event";
+type CalMediaType = MediaType | "game" | "custom";
 interface CalItem {
   key: string;
   layer: Layer;
@@ -271,6 +332,7 @@ interface CalItem {
   projected: boolean;
   sortAt: number;
   dayKey: string;
+  eventId?: string;
 }
 
 function keyOfDate(d: Date): string {
@@ -306,21 +368,57 @@ function fromEntry(e: CalendarEntry): CalItem {
   };
 }
 function fromGame(g: CalendarGameEntry): CalItem {
-  const finished = g.kind === "game_finished";
+  const detail =
+    g.kind === "game_released"
+      ? "Release date"
+      : g.kind === "game_finished"
+        ? "Finished"
+        : g.kind === "game_purchased"
+          ? "Bought"
+          : `${g.count} achievement${g.count === 1 ? "" : "s"} unlocked`;
   return {
     key: `${g.kind}-${g.gameId}-${g.date}`,
-    layer: "watched",
+    // a release date belongs with the other releases, the rest with what you did
+    layer: g.kind === "game_released" ? "release" : "watched",
     mediaType: "game",
     mediaId: g.gameId,
     title: g.title,
-    posterUrl: null,
-    badge: finished ? "✓" : String(g.count),
-    detail: finished
-      ? "Finished"
-      : `${g.count} achievement${g.count === 1 ? "" : "s"} unlocked`,
+    posterUrl: g.posterUrl,
+    badge:
+      g.kind === "game_released"
+        ? ""
+        : g.kind === "game_finished"
+          ? "✓"
+          : g.kind === "game_purchased"
+            ? "$"
+            : String(g.count),
+    detail,
     projected: false,
     sortAt: new Date(`${g.date}T12:00:00`).getTime() / 1000,
     dayKey: g.date,
+  };
+}
+function fromEvent(e: CalendarEventEntry): CalItem {
+  const linked =
+    e.mediaType && e.mediaId
+      ? (posterByMedia.value.get(`${e.mediaType}-${e.mediaId}`) ?? null)
+      : null;
+  return {
+    key: `event-${e.id}`,
+    layer: "event",
+    mediaType: "custom",
+    mediaId: e.mediaId ?? "",
+    title: e.title,
+    posterUrl: linked,
+    badge: "",
+    detail: [e.eventTime ? e.eventTime : "All day", e.note]
+      .filter(Boolean)
+      .join(" · "),
+    projected: false,
+    sortAt:
+      new Date(`${e.eventDate}T${e.eventTime ?? "00:00"}:00`).getTime() / 1000,
+    dayKey: e.eventDate,
+    eventId: e.id,
   };
 }
 function fromActivity(a: ActivityEntry): CalItem | null {
@@ -356,7 +454,12 @@ function indexByDay(items: CalItem[]): Map<string, CalItem[]> {
   }
   return map;
 }
-const upcomingByDay = computed(() => indexByDay(entries.value.map(fromEntry)));
+const upcomingByDay = computed(() =>
+  indexByDay([
+    ...entries.value.map(fromEntry),
+    ...eventEntries.value.map(fromEvent),
+  ]),
+);
 const watchedByDay = computed(() => {
   const items: CalItem[] = [];
   for (const a of historyEntries.value) {
@@ -367,7 +470,8 @@ const watchedByDay = computed(() => {
   return indexByDay(items);
 });
 function passesFilters(i: CalItem): boolean {
-  if (!filters[i.mediaType] || !filters[i.layer]) return false;
+  if (i.mediaType !== "custom" && !filters[i.mediaType]) return false;
+  if (!filters[i.layer]) return false;
   if (i.mediaType === "game" && prefs.value.calendar_hide_games) return false;
   return !(
     i.projected &&
@@ -455,9 +559,74 @@ function nextMonth() {
     viewMonth.value += 1;
   }
 }
+function startOfWeek(d: Date): Date {
+  const start = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  start.setDate(start.getDate() - ((start.getDay() - weekStart.value + 7) % 7));
+  return start;
+}
+const weekAnchor = ref(startOfWeek(today));
+watch(weekStart, () => (weekAnchor.value = startOfWeek(weekAnchor.value)));
+interface WeekDay {
+  key: string;
+  label: string;
+  isToday: boolean;
+  isPast: boolean;
+  items: CalItem[];
+}
+const weekDays = computed<WeekDay[]>(() =>
+  Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(weekAnchor.value);
+    d.setDate(d.getDate() + i);
+    const key = keyOfDate(d);
+    return {
+      key,
+      label: d.toLocaleDateString(undefined, {
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+      }),
+      isToday: key === todayKey,
+      isPast: key < todayKey,
+      items: itemsForDay(key),
+    };
+  }),
+);
+const weekLabel = computed(() => {
+  const end = new Date(weekAnchor.value);
+  end.setDate(end.getDate() + 6);
+  const fmt = (d: Date, year: boolean) =>
+    d.toLocaleDateString(undefined, {
+      month: "short",
+      day: "numeric",
+      ...(year ? { year: "numeric" } : {}),
+    });
+  return `${fmt(weekAnchor.value, false)} to ${fmt(end, true)}`;
+});
+const isCurrentWeek = computed(
+  () => keyOfDate(weekAnchor.value) === keyOfDate(startOfWeek(today)),
+);
+const canWeekNext = computed(
+  () =>
+    weekAnchor.value.getTime() + 7 * 86_400_000 - today.getTime() <
+    CAL_MAX_DAYS * 86_400_000,
+);
+const canWeekPrev = computed(() => {
+  const first = new Date(
+    Math.floor(earliestMonth.value / 12),
+    earliestMonth.value % 12,
+    1,
+  );
+  return weekAnchor.value.getTime() > first.getTime();
+});
+function shiftWeek(weeks: number) {
+  const next = new Date(weekAnchor.value);
+  next.setDate(next.getDate() + weeks * 7);
+  weekAnchor.value = next;
+}
 function goToday() {
   viewYear.value = today.getFullYear();
   viewMonth.value = today.getMonth();
+  weekAnchor.value = startOfWeek(today);
 }
 
 // Grid chips: up to 6 slots; past that the last slot becomes "+N"
@@ -472,7 +641,12 @@ function chipsFor(cell: DayCell): { shown: CalItem[]; more: number } {
 function itemTooltip(i: CalItem): string {
   return `${i.title}${i.detail ? ` · ${i.detail}` : ""}`;
 }
+function activate(i: CalItem) {
+  if (i.eventId) openEventEditor(i.eventId);
+  else openItem(i);
+}
 function openItem(i: { mediaType: CalMediaType; mediaId: string }) {
+  if (i.mediaType === "custom") return;
   const base =
     i.mediaType === "movie"
       ? "/movies"
@@ -524,7 +698,158 @@ const LAYER_LABEL: Record<Layer, string> = {
   episode: "Airing",
   release: "Release",
   watched: "Watched",
+  event: "Mine",
 };
+
+// ---- entries you add by hand ----
+const showEventForm = ref(false);
+const eventId = ref<string | null>(null);
+const eventTitle = ref("");
+const eventDate = ref(keyOfDate(new Date()));
+const eventTime = ref("");
+const eventNote = ref("");
+const eventLink = ref<PickableMedia | null>(null);
+const eventLinkSearch = ref("");
+const eventError = ref<string | null>(null);
+const eventSaving = ref(false);
+
+async function openEventForm(date?: string) {
+  eventId.value = null;
+  eventTitle.value = "";
+  eventDate.value = date ?? keyOfDate(new Date());
+  eventTime.value = "";
+  eventNote.value = "";
+  eventLink.value = null;
+  eventLinkSearch.value = "";
+  eventError.value = null;
+  showEventForm.value = true;
+  if (!manualLibraryLoaded.value) await loadManualLibrary();
+}
+async function openEventEditor(id: string) {
+  const e = eventEntries.value.find((x) => x.id === id);
+  if (!e) return;
+  if (!manualLibraryLoaded.value) await loadManualLibrary();
+  eventId.value = e.id;
+  eventTitle.value = e.title;
+  eventDate.value = e.eventDate;
+  eventTime.value = e.eventTime ?? "";
+  eventNote.value = e.note ?? "";
+  eventLink.value =
+    manualLibrary.value.find(
+      (m) => m.mediaType === e.mediaType && m.mediaId === e.mediaId,
+    ) ?? null;
+  eventLinkSearch.value = eventLink.value?.title ?? "";
+  eventError.value = null;
+  closeDrawer();
+  showEventForm.value = true;
+}
+function closeEventForm() {
+  showEventForm.value = false;
+}
+const eventLinkResults = computed(() => {
+  const q = eventLinkSearch.value.trim().toLowerCase();
+  if (!q || eventLink.value) return [];
+  return manualLibrary.value
+    .filter((m) => m.title.toLowerCase().includes(q))
+    .slice(0, 6);
+});
+function pickEventLink(m: PickableMedia) {
+  eventLink.value = m;
+  eventLinkSearch.value = m.title;
+}
+async function saveEvent() {
+  if (eventSaving.value) return; // a fast double click must not save twice
+  if (!eventTitle.value.trim()) {
+    eventError.value = "Give the entry a title.";
+    return;
+  }
+  if (!eventDate.value) {
+    eventError.value = "Pick a date.";
+    return;
+  }
+  eventSaving.value = true;
+  eventError.value = null;
+  const input = {
+    title: eventTitle.value.trim(),
+    eventDate: eventDate.value,
+    eventTime: eventTime.value || null,
+    note: eventNote.value.trim() || null,
+    mediaType: eventLink.value?.mediaType ?? null,
+    mediaId: eventLink.value?.mediaId ?? null,
+  };
+  try {
+    if (eventId.value) await updateCalendarEvent(eventId.value, input);
+    else await createCalendarEvent(input);
+    await loadEvents();
+    closeEventForm();
+  } catch (e) {
+    eventError.value = e instanceof Error ? e.message : "Failed to save.";
+  } finally {
+    eventSaving.value = false;
+  }
+}
+async function removeEvent() {
+  if (!eventId.value) return;
+  const ok = await confirm({
+    title: "Delete entry",
+    message: "Delete this calendar entry?",
+    confirmLabel: "Delete",
+    danger: true,
+  });
+  if (!ok) return;
+  try {
+    await deleteCalendarEvent(eventId.value);
+    await loadEvents();
+    closeEventForm();
+  } catch (e) {
+    eventError.value = e instanceof Error ? e.message : "Failed to delete.";
+  }
+}
+function openLinkedTitle() {
+  if (eventLink.value) openItem(eventLink.value);
+}
+
+// ---- keyboard: left and right change month or week, T goes to today ----
+function onKey(e: KeyboardEvent) {
+  if (tab.value !== "calendar" || calView.value === "agenda") return;
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  const target = e.target as HTMLElement | null;
+  if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
+  if (
+    drawerKey.value ||
+    showEventForm.value ||
+    showManualForm.value ||
+    showFeed.value
+  )
+    return;
+  if (e.key === "ArrowLeft") {
+    if (calView.value === "month") prevMonth();
+    else if (canWeekPrev.value) shiftWeek(-1);
+  } else if (e.key === "ArrowRight") {
+    if (calView.value === "month") nextMonth();
+    else if (canWeekNext.value) shiftWeek(1);
+  } else if (e.key.toLowerCase() === "t") {
+    goToday();
+  }
+}
+// Escape closes whichever dialog is open, like every other dialog in the app
+function onEscape(e: KeyboardEvent) {
+  if (e.key !== "Escape") return;
+  if (showEventForm.value) closeEventForm();
+  else if (showManualForm.value) closeManualForm();
+  else if (showFeed.value) showFeed.value = false;
+}
+function listen() {
+  window.addEventListener("keydown", onKey);
+  window.addEventListener("keydown", onEscape);
+}
+function unlisten() {
+  window.removeEventListener("keydown", onKey);
+  window.removeEventListener("keydown", onEscape);
+}
+onActivated(listen);
+onDeactivated(unlisten);
+onMounted(listen);
 
 // ---- subscribe (iCal feed) ----
 const showFeed = ref(false);
@@ -754,6 +1079,11 @@ async function openManualForm(date?: string) {
 function closeManualForm() {
   showManualForm.value = false;
 }
+function addEventForDrawerDay() {
+  const key = drawerKey.value;
+  closeDrawer();
+  void openEventForm(key ?? undefined);
+}
 function logForDrawerDay() {
   const key = drawerKey.value ?? undefined;
   closeDrawer();
@@ -771,6 +1101,7 @@ function pickManualMedia(m: PickableMedia) {
   manualSearch.value = m.title;
 }
 async function submitManualEntry() {
+  if (manualSaving.value) return;
   if (!manualPicked.value) {
     manualError.value = "Pick a title first.";
     return;
@@ -821,11 +1152,20 @@ async function submitManualEntry() {
           Subscribe
         </button>
         <button
+          v-if="tab === 'calendar'"
           type="button"
           class="ui-btn ui-btn-primary"
+          @click="openEventForm()"
+        >
+          + Add Entry
+        </button>
+        <button
+          type="button"
+          class="ui-btn"
+          :class="tab === 'calendar' ? 'ui-btn-secondary' : 'ui-btn-primary'"
           @click="openManualForm()"
         >
-          + Log Entry
+          + Log Watched
         </button>
       </template>
     </AppTopBar>
@@ -862,6 +1202,27 @@ async function submitManualEntry() {
               ›
             </button>
           </div>
+          <div v-else-if="calView === 'week'" class="month-nav">
+            <button
+              type="button"
+              class="nav-btn"
+              :disabled="!canWeekPrev"
+              aria-label="Previous week"
+              @click="shiftWeek(-1)"
+            >
+              ‹
+            </button>
+            <span class="month-label">{{ weekLabel }}</span>
+            <button
+              type="button"
+              class="nav-btn"
+              :disabled="!canWeekNext"
+              aria-label="Next week"
+              @click="shiftWeek(1)"
+            >
+              ›
+            </button>
+          </div>
           <div v-else class="month-nav">
             <span class="month-label agenda-label"
               >Next {{ CAL_MAX_DAYS }} days</span
@@ -872,7 +1233,9 @@ async function submitManualEntry() {
               :options="VIEW_OPTIONS"
               :model-value="calView"
               aria-label="Calendar view"
-              @update:model-value="calView = $event as 'month' | 'agenda'"
+              @update:model-value="
+                calView = $event as 'month' | 'week' | 'agenda'
+              "
             />
             <button
               type="button"
@@ -897,10 +1260,11 @@ async function submitManualEntry() {
               </svg>
             </button>
             <button
-              v-if="calView === 'month'"
+              v-if="calView !== 'agenda'"
               type="button"
               class="ui-btn ui-btn-sm ui-btn-secondary"
-              :disabled="isCurrentMonth"
+              :disabled="calView === 'month' ? isCurrentMonth : isCurrentWeek"
+              title="Jump to today (T)"
               @click="goToday"
             >
               Today
@@ -970,6 +1334,15 @@ async function submitManualEntry() {
               <span class="swatch"></span>Watched
             </button>
             <button
+              type="button"
+              class="ui-chip layer-event"
+              :class="{ on: filters.event }"
+              title="Entries you added yourself"
+              @click="filters.event = !filters.event"
+            >
+              <span class="swatch"></span>My entries
+            </button>
+            <button
               v-if="prefs.calendar_show_estimated"
               type="button"
               class="ui-chip layer-estimated"
@@ -978,6 +1351,20 @@ async function submitManualEntry() {
               @click="filters.estimated = !filters.estimated"
             >
               <span class="swatch"></span>Estimated
+            </button>
+          </div>
+          <div class="filter-group" role="group" aria-label="Airing shows">
+            <span class="filter-caption">Airing shows</span>
+            <button
+              v-for="chip in AIRING_STATUS_CHIPS"
+              :key="chip.key"
+              type="button"
+              class="ui-chip"
+              :class="{ on: prefs.calendar_airing_statuses.includes(chip.key) }"
+              :title="`Show airing episodes for titles on ${chip.label}`"
+              @click="toggleAiringStatus(chip.key)"
+            >
+              {{ chip.label }}
             </button>
           </div>
         </div>
@@ -1029,6 +1416,52 @@ async function submitManualEntry() {
           </div>
         </template>
 
+        <template v-else-if="calView === 'week'">
+          <div class="week-grid" :class="{ loading: calLoading }">
+            <section
+              v-for="d in weekDays"
+              :key="d.key"
+              class="week-day"
+              :class="{ today: d.isToday, past: d.isPast }"
+            >
+              <header class="week-day-head">
+                <span>{{ d.label }}</span>
+                <button
+                  type="button"
+                  class="week-add"
+                  title="Add an entry on this day"
+                  @click="openEventForm(d.key)"
+                >
+                  +
+                </button>
+              </header>
+              <p v-if="!d.items.length" class="week-empty">Nothing</p>
+              <button
+                v-for="i in d.items"
+                :key="i.key"
+                type="button"
+                class="agenda-row"
+                :class="[`layer-${i.layer}`, { projected: i.projected }]"
+                :title="i.title"
+                @click="activate(i)"
+              >
+                <span class="agenda-thumb">
+                  <img
+                    v-if="i.posterUrl"
+                    :src="i.posterUrl"
+                    alt=""
+                    loading="lazy"
+                  />
+                </span>
+                <span class="agenda-main">
+                  <span class="agenda-title">{{ i.title }}</span>
+                  <span class="agenda-detail">{{ i.detail }}</span>
+                </span>
+              </button>
+            </section>
+          </div>
+        </template>
+
         <template v-else>
           <p v-if="!agendaGroups.length && !calLoading" class="ui-state">
             Nothing scheduled in the next {{ CAL_MAX_DAYS }} days with these
@@ -1043,7 +1476,8 @@ async function submitManualEntry() {
                 type="button"
                 class="agenda-row"
                 :class="[`layer-${i.layer}`, { projected: i.projected }]"
-                @click="openItem(i)"
+                :title="i.title"
+                @click="activate(i)"
               >
                 <span class="agenda-thumb">
                   <img
@@ -1086,6 +1520,12 @@ async function submitManualEntry() {
         <p v-if="historyLoading" class="ui-state">Loading…</p>
         <p v-else-if="historyError" class="ui-state error">
           {{ historyError }}
+        </p>
+        <p
+          v-else-if="!groupedHistory.length && historyEntries.length"
+          class="ui-state"
+        >
+          Nothing matches the search and filters.
         </p>
         <p v-else-if="!groupedHistory.length" class="ui-state">
           Nothing logged yet. Checking off episodes or changing a status will
@@ -1258,7 +1698,7 @@ async function submitManualEntry() {
               type="button"
               class="agenda-row"
               :class="[`layer-${i.layer}`, { projected: i.projected }]"
-              @click="openItem(i)"
+              @click="activate(i)"
             >
               <span class="agenda-thumb">
                 <img
@@ -1278,10 +1718,17 @@ async function submitManualEntry() {
           <div class="drawer-foot">
             <button
               type="button"
+              class="ui-btn ui-btn-primary"
+              @click="addEventForDrawerDay"
+            >
+              Add an entry
+            </button>
+            <button
+              type="button"
               class="ui-btn ui-btn-secondary"
               @click="logForDrawerDay"
             >
-              Log something on this day
+              Log something watched
             </button>
           </div>
         </aside>
@@ -1289,7 +1736,7 @@ async function submitManualEntry() {
     </Teleport>
 
     <div v-if="showFeed" class="ui-backdrop" @click.self="showFeed = false">
-      <div class="ui-modal">
+      <div class="ui-modal" role="dialog" aria-modal="true">
         <h3>Subscribe in your calendar app</h3>
         <p class="modal-hint">
           Paste this link into Google Calendar (Other calendars, From URL),
@@ -1328,12 +1775,107 @@ async function submitManualEntry() {
       </div>
     </div>
 
+    <div v-if="showEventForm" class="ui-backdrop" @click.self="closeEventForm">
+      <div class="ui-modal" role="dialog" aria-modal="true">
+        <h3>{{ eventId ? "Edit entry" : "Add a calendar entry" }}</h3>
+        <p class="modal-hint">
+          For anything the sources do not list: a premiere date, a watch party,
+          a reminder. It only appears here and in your calendar feed.
+        </p>
+        <label class="modal-field">
+          <span>Title</span>
+          <input
+            v-model="eventTitle"
+            type="text"
+            class="ui-field"
+            maxlength="200"
+            placeholder="e.g. Dune Part 3 premiere"
+          />
+        </label>
+        <div class="modal-field-row">
+          <label class="modal-field">
+            <span>Date</span>
+            <input v-model="eventDate" type="date" class="ui-field" />
+          </label>
+          <label class="modal-field">
+            <span>Time (optional)</span>
+            <input v-model="eventTime" type="time" class="ui-field" />
+          </label>
+        </div>
+        <label class="modal-field">
+          <span>Related title (optional)</span>
+          <input
+            v-model="eventLinkSearch"
+            type="text"
+            class="ui-field"
+            placeholder="Search your library…"
+            @input="eventLink = null"
+          />
+          <div v-if="eventLinkResults.length" class="modal-search-results">
+            <button
+              v-for="m in eventLinkResults"
+              :key="`${m.mediaType}-${m.mediaId}`"
+              type="button"
+              class="modal-search-result"
+              @click="pickEventLink(m)"
+            >
+              {{ m.title }}
+              <span class="modal-search-kind">{{ m.mediaType }}</span>
+            </button>
+          </div>
+        </label>
+        <label class="modal-field">
+          <span>Note (optional)</span>
+          <input
+            v-model="eventNote"
+            type="text"
+            class="ui-field"
+            maxlength="2000"
+          />
+        </label>
+        <p v-if="eventError" class="ui-error-box">{{ eventError }}</p>
+        <div class="ui-modal-actions">
+          <button
+            v-if="eventId"
+            type="button"
+            class="ui-btn ui-btn-danger"
+            @click="removeEvent"
+          >
+            Delete
+          </button>
+          <button
+            v-if="eventLink"
+            type="button"
+            class="ui-btn ui-btn-secondary"
+            @click="openLinkedTitle"
+          >
+            Open title
+          </button>
+          <button
+            type="button"
+            class="ui-btn ui-btn-secondary"
+            @click="closeEventForm"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            class="ui-btn ui-btn-primary"
+            :disabled="eventSaving"
+            @click="saveEvent"
+          >
+            {{ eventSaving ? "Saving…" : "Save" }}
+          </button>
+        </div>
+      </div>
+    </div>
+
     <div
       v-if="showManualForm"
       class="ui-backdrop"
       @click.self="closeManualForm"
     >
-      <div class="ui-modal">
+      <div class="ui-modal" role="dialog" aria-modal="true">
         <h3>Log a history entry</h3>
         <p class="modal-hint">
           For anything the app didn't catch automatically: watch history from
@@ -1530,7 +2072,14 @@ async function submitManualEntry() {
 .filter-group {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 6px;
+}
+.filter-caption {
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: #9a9a9a;
+  margin-right: 2px;
 }
 .swatch {
   width: 10px;
@@ -1550,6 +2099,9 @@ async function submitManualEntry() {
 }
 .layer-watched {
   --layer: #6fbf73;
+}
+.layer-event {
+  --layer: #c084d9;
 }
 .layer-estimated {
   --layer: #d68a34;
@@ -1820,6 +2372,9 @@ async function submitManualEntry() {
   flex: 1;
 }
 .drawer-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
   border-top: 1px solid #202020;
   padding-top: 14px;
 }
@@ -1935,8 +2490,15 @@ async function submitManualEntry() {
   transition: opacity 0.15s ease;
   flex-shrink: 0;
 }
-.entry-row:hover .entry-actions {
+.entry-row:hover .entry-actions,
+.entry-row:focus-within .entry-actions {
   opacity: 1;
+}
+/* touch screens have no hover, so the buttons must always show */
+@media (hover: none) {
+  .entry-actions {
+    opacity: 1;
+  }
 }
 .entry-action-btn {
   background: rgba(255, 255, 255, 0.06);
@@ -2105,7 +2667,81 @@ async function submitManualEntry() {
   text-transform: uppercase;
 }
 
+/* week view: seven day columns, one per day, stacking on a phone */
+.week-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 8px;
+}
+.week-grid.loading {
+  opacity: 0.6;
+}
+.week-day {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: #171717;
+  border: 1px solid #202020;
+  border-radius: 8px;
+  padding: 8px;
+}
+.week-day.today {
+  border-color: rgba(214, 138, 52, 0.55);
+  background: rgba(214, 138, 52, 0.07);
+}
+.week-day.past {
+  opacity: 0.75;
+}
+.week-day-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: #ccc;
+}
+.week-add {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  border: 1px solid #2b2b2b;
+  background: transparent;
+  color: #999;
+  cursor: pointer;
+}
+.week-add:hover {
+  color: #d68a34;
+  border-color: rgba(214, 138, 52, 0.4);
+}
+.week-empty {
+  margin: 0;
+  font-size: 0.72rem;
+  color: #8a8a8a;
+}
+/* a day column is narrow: drop the poster so the title can wrap */
+.week-day .agenda-row {
+  padding: 6px 8px;
+  gap: 8px;
+}
+.week-day .agenda-thumb {
+  display: none;
+}
+.week-day .agenda-title {
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  -webkit-box-orient: vertical;
+}
+
 @media (max-width: 720px) {
+  .week-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .week-day .agenda-thumb {
+    display: block;
+  }
   .month-grid {
     gap: 3px;
     grid-auto-rows: 70px;

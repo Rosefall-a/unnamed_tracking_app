@@ -159,7 +159,7 @@ async def create_show(
 
     # Otherwise a freshly-added airing show shows no next-episode date
     # anywhere (countdown, calendar) until the next periodic airing-check
-    # pass, up to AIRING_CHECK_INTERVAL_SECONDS later — worth the one
+    # pass, up to one airing-check interval later — worth the one
     # extra TVmaze call at creation time so it's there immediately.
     # Best-effort: a slow/unreachable TVmaze never blocks creation.
     if show.external_id and first_season is not None:
@@ -423,19 +423,21 @@ async def list_episodes(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail=f"Could not sync episodes: {'; '.join(errors)}",
             )
+        created = []
         for entry in all_episodes:
             raw_air_date = entry.get("air_date")
-            db.add(
-                TVEpisode(
-                    season_id=season.id,
-                    episode_number=entry["episode_number"],
-                    title=entry.get("title"),
-                    description=entry.get("description"),
-                    air_date=date.fromisoformat(raw_air_date) if raw_air_date else None,
-                    runtime_minutes=entry.get("runtime_minutes"),
-                    still_url=entry.get("still_url"),
-                )
+            row = TVEpisode(
+                season_id=season.id,
+                episode_number=entry["episode_number"],
+                title=entry.get("title"),
+                description=entry.get("description"),
+                air_date=date.fromisoformat(raw_air_date) if raw_air_date else None,
+                runtime_minutes=entry.get("runtime_minutes"),
+                still_url=entry.get("still_url"),
             )
+            db.add(row)
+            created.append(row)
+        materialize_progress(season, created)
         await db.commit()
 
     return await _get_show_or_404(show_id, db, current_user.id)

@@ -153,9 +153,11 @@ function timeOnly(unix: number): string {
 function ago(unix: number): string {
   const s = Math.max(0, Math.floor(Date.now() / 1000 - unix));
   if (s < 60) return "just now";
-  if (s < 3600) return `${Math.floor(s / 60)} minutes ago`;
-  if (s < 86400) return `${Math.floor(s / 3600)} hours ago`;
-  return `${Math.floor(s / 86400)} days ago`;
+  const unit = (n: number, word: string) =>
+    `${n} ${word}${n === 1 ? "" : "s"} ago`;
+  if (s < 3600) return unit(Math.floor(s / 60), "minute");
+  if (s < 86400) return unit(Math.floor(s / 3600), "hour");
+  return unit(Math.floor(s / 86400), "day");
 }
 function route(n: MediaNotification): string {
   const base =

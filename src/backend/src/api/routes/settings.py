@@ -5,7 +5,7 @@ frontend needs to display (e.g. upload limits)."""
 import asyncio
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlalchemy import func, select
@@ -34,14 +34,7 @@ from src.features.metadata.games.retroachievements import (
 from src.features.metadata.games.screenscraper import ScreenScraperClient, ScreenScraperError
 from src.features.metadata.games.steam import SteamLibraryError
 from src.features.metadata.games.xbox import XboxClient, XboxError
-from src.features.metadata.refresh import (
-    AIRING_CHECK_INTERVAL_SECONDS,
-    REFRESH_INTERVAL_SECONDS,
-    airing_check_status,
-    check_airing_episodes,
-    full_refresh_status,
-    refresh_all_episode_metadata,
-)
+from src.features.metadata import refresh_job
 from src.helpers.save_badge_image import badge_image_path, delete_badge_image, save_badge_image
 
 router = APIRouter(
@@ -554,42 +547,20 @@ async def delete_app_integrations(
 
 
 @router.post("/refresh-media-metadata")
-async def refresh_media_metadata(admin: User = Depends(get_current_admin)) -> dict:
-    """Manually runs the same full episode-refresh job the background
-    loop already runs every REFRESH_INTERVAL_SECONDS on its own — useful
-    right after adding a metadata provider key (backfills titles/images
-    on existing placeholder episodes), or to catch up a show without
-    waiting for the next automatic pass."""
+async def refresh_media_metadata(
+    mode: str = Query(default="needed", pattern="^(needed|all)$"),
+    admin: User = Depends(get_current_admin),
+) -> dict:
+    """Starts the episode refresh in the background and returns at once with
+    its progress (poll /refresh-media-progress). `needed` only touches what
+    needs it (airing titles, ones with missing titles or a total that
+    disagrees with AniList); `all` checks every title. If a run is already
+    going, its progress is returned instead."""
     del admin
-    return await refresh_all_episode_metadata()
+    return refresh_job.start(mode)
 
 
-@router.post("/check-airing-episodes")
-async def check_airing_episodes_now(admin: User = Depends(get_current_admin)) -> dict:
-    """Manually runs the same cheap airing check the background loop
-    already runs every AIRING_CHECK_INTERVAL_SECONDS on its own —
-    useful to force a check right after an episode should have aired
-    instead of waiting for the next automatic pass."""
+@router.get("/refresh-media-progress")
+async def refresh_media_progress(admin: User = Depends(get_current_admin)) -> dict:
     del admin
-    return await check_airing_episodes()
-
-
-@router.get("/media-refresh-status")
-async def media_refresh_status(admin: User = Depends(get_current_admin)) -> dict:
-    """Last-run info for both episode-refresh jobs, for the Tasks page —
-    in-memory only, resets when the backend restarts."""
-    del admin
-    return {
-        "airing_check": {
-            "enabled": airing_check_status.enabled,
-            "interval_seconds": AIRING_CHECK_INTERVAL_SECONDS,
-            "last_run_at": airing_check_status.last_run_at,
-            "last_result": airing_check_status.last_result,
-        },
-        "full_refresh": {
-            "enabled": full_refresh_status.enabled,
-            "interval_seconds": REFRESH_INTERVAL_SECONDS,
-            "last_run_at": full_refresh_status.last_run_at,
-            "last_result": full_refresh_status.last_result,
-        },
-    }
+    return refresh_job.snapshot()

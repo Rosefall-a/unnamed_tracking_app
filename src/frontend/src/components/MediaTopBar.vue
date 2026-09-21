@@ -10,37 +10,10 @@ import AppTopBar from "./AppTopBar.vue";
 import MediaKindSwitch from "./MediaKindSwitch.vue";
 import SegmentedTabs from "./SegmentedTabs.vue";
 import type { SegmentOption } from "./SegmentedTabs.vue";
-import { preferences } from "../state/preferences";
-import { updatePreferences } from "../services/preferences";
-import type { Preferences } from "../services/preferences";
 
-const props = defineProps<{
+defineProps<{
   active: "movie" | "tv" | "anime" | "lists";
 }>();
-
-// which spelling anime titles are shown in; only anime titles have one
-const LANGUAGES: SegmentOption[] = [
-  { value: "english", label: "English" },
-  { value: "romaji", label: "Romaji" },
-  { value: "native", label: "日本語" },
-];
-const showLanguage = computed(
-  () => props.active === "anime" || props.active === "lists",
-);
-async function setLanguage(value: string) {
-  const previous = preferences.value;
-  preferences.value = {
-    ...previous,
-    title_language: value as Preferences["title_language"],
-  };
-  try {
-    preferences.value = await updatePreferences({
-      title_language: value as Preferences["title_language"],
-    });
-  } catch {
-    preferences.value = previous;
-  }
-}
 
 const route = useRoute();
 const LISTS: SegmentOption[] = [
@@ -61,13 +34,6 @@ const listsActive = computed(() =>
     <MediaKindSwitch :active="active" />
     <template #actions>
       <slot name="actions" />
-      <SegmentedTabs
-        v-if="showLanguage"
-        :options="LANGUAGES"
-        :model-value="preferences.title_language"
-        aria-label="Title language"
-        @update:model-value="setLanguage"
-      />
       <SegmentedTabs
         :options="LISTS"
         :model-value="listsActive"

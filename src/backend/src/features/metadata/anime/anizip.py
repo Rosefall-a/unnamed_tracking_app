@@ -79,10 +79,13 @@ class AniZipClient:
             return data if isinstance(data, dict) else {}
         raise AniZipError(f"ani.zip is unavailable right now ({last_error})")
 
-    def episodes(self, anilist_id: str) -> list[dict[str, Any]]:
-        """Episodes of this AniList entry only: numeric keys up to the
-        entry's own episode count, never the `S1`-style special keys and
-        never a later season that TheTVDB files under the same show."""
+    def lookup(self, anilist_id: str) -> dict[str, Any]:
+        """One request, everything ani.zip knows about this AniList entry:
+        its episodes (numeric keys up to the entry's own episode count, never
+        the `S1`-style special keys and never a later season that TheTVDB
+        files under the same show), the entry's episode count, and the exact
+        Kitsu and MyAnimeList ids for it. The Kitsu id is what stops a title
+        search from attaching the wrong entry (season 1's list to season 2)."""
         data = self._get(anilist_id)
         raw_episodes = data.get("episodes") or {}
         limit = data.get("episodeCount")
@@ -107,4 +110,20 @@ class AniZipClient:
                     "air_at": _air_at(raw),
                 }
             )
-        return sorted(results, key=lambda e: e["episode_number"])
+        mappings = data.get("mappings") or {}
+
+        def mapped(name: str) -> str | None:
+            value = mappings.get(name)
+            return str(value) if value not in (None, "", 0) else None
+
+        return {
+            "episodes": sorted(results, key=lambda e: e["episode_number"]),
+            "episode_count": limit if isinstance(limit, int) and limit > 0 else None,
+            "kitsu_id": mapped("kitsu_id"),
+            "mal_id": mapped("mal_id"),
+        }
+
+    def episodes(self, anilist_id: str) -> list[dict[str, Any]]:
+        """Episodes of this AniList entry only (see `lookup`)."""
+        episodes: list[dict[str, Any]] = self.lookup(anilist_id)["episodes"]
+        return episodes

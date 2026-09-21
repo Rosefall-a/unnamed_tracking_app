@@ -100,7 +100,12 @@ function submit() {
 
 <template>
   <div class="ui-backdrop" @click.self="emit('close')">
-    <form class="ui-modal" @submit.prevent="submit">
+    <form
+      class="ui-modal"
+      role="dialog"
+      aria-modal="true"
+      @submit.prevent="submit"
+    >
       <h3>{{ editing ? "Edit list" : "Create a list" }}</h3>
 
       <div v-if="!editing" class="kind-pick">

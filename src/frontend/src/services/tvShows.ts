@@ -1,3 +1,4 @@
+import { failedRequest } from "./apiError";
 import type { Episode, Season, TVShow, TVShowStatus } from "../types/tv_show";
 
 const SHOWS_PAGE_SIZE = 50;
@@ -195,8 +196,8 @@ export function mapBackendTVShowRaw(raw: BackendTVShow): TVShow {
 
 async function handle<T>(response: Response, action: string): Promise<T> {
   if (!response.ok) {
-    const message = await response.text();
-    throw new Error(`Failed to ${action}: ${response.status} ${message}`);
+    console.warn(`Failed to ${action}: ${response.status}`);
+    throw await failedRequest(response);
   }
   return response.json();
 }

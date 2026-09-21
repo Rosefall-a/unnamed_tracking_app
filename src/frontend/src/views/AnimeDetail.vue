@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import MyNote from "../components/MyNote.vue";
 import { ref, computed, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import {
@@ -117,6 +118,20 @@ async function toggleFavorite() {
   }
 }
 
+async function saveNote(note: string | null) {
+  if (!show.value) return;
+  const previous = show.value.note;
+  show.value.note = note;
+  try {
+    show.value = await updateAnime(show.value.id, {
+      ...animeToInput(show.value),
+      note,
+    });
+  } catch {
+    show.value.note = previous;
+  }
+}
+
 async function onStatusChange() {
   if (!show.value) return;
   const previous = show.value.status;
@@ -153,6 +168,22 @@ const nativeTitleLine = computed(() => {
     ? show.value.studios.join(", ")
     : "";
   return studios ? `${kind} · ${studios}` : kind;
+});
+// the spellings that are not the main name, so ERASED shows
+// "Boku dake ga Inai Machi" under it, and the other way round
+const otherTitles = computed(() => {
+  const s = show.value;
+  if (!s) return [];
+  const main = displayTitle(s).toLowerCase();
+  const seen = new Set<string>([main]);
+  const out: string[] = [];
+  for (const name of [s.titleEnglish, s.titleRomaji, s.titleNative, s.title]) {
+    const key = name?.trim().toLowerCase();
+    if (!name || !key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(name.trim());
+  }
+  return out;
 });
 const heroBackdropUrl = computed(
   () => show.value?.backdropUrl ?? show.value?.posterUrl ?? null,
@@ -890,6 +921,9 @@ async function onRatingChange(value: number | null) {
         <div class="hero-text">
           <div class="native-title">{{ nativeTitleLine }}</div>
           <h1 class="title">{{ displayTitle(show) }}</h1>
+          <div v-if="otherTitles.length" class="other-titles">
+            {{ otherTitles.join(" · ") }}
+          </div>
           <div class="badge-row">
             <select
               v-model="statusBucketModel"
@@ -1051,6 +1085,7 @@ async function onRatingChange(value: number | null) {
             {{ descriptionExpanded ? "Show less" : "Read more" }}
           </button>
         </div>
+        <MyNote :note="show.note" @save="saveNote" />
 
         <div v-if="allSeasons.length > 1" class="seasons-section">
           <h3 class="seasons-heading">
@@ -1372,7 +1407,7 @@ async function onRatingChange(value: number | null) {
 }
 .native-title {
   font-size: 0.82rem;
-  color: #666;
+  color: #9a9a9a;
   margin-bottom: 4px;
   font-weight: 500;
 }
@@ -1383,6 +1418,12 @@ async function onRatingChange(value: number | null) {
   margin: 0 0 14px;
   letter-spacing: -0.01em;
   text-shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
+}
+.other-titles {
+  margin: -8px 0 14px;
+  font-size: 0.9rem;
+  color: #b0b0b0;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.6);
 }
 .badge-row {
   display: flex;
@@ -1472,9 +1513,13 @@ async function onRatingChange(value: number | null) {
   background: #1a1a1a;
   border-radius: 10px;
   width: fit-content;
+  max-width: 100%;
+  overflow-x: auto;
   padding: 5px;
 }
 .tab-btn {
+  flex-shrink: 0;
+  white-space: nowrap;
   background: transparent;
   border: none;
   color: #9c9c9c;
@@ -1863,10 +1908,15 @@ async function onRatingChange(value: number | null) {
     align-items: flex-start;
   }
 }
-.back-spot {
-  position: absolute;
-  top: 84px;
-  left: var(--ui-edge-left);
-  z-index: 100;
+/* Sits under the top bar and stays there while the page scrolls. It is sticky
+   rather than absolute so it never slides over the bar, and the negative
+   bottom margin gives back the room it takes so the hero does not move. */
+.detail > .back-spot {
+  display: flex;
+  width: 38px;
+  position: sticky;
+  top: 76px;
+  z-index: 79;
+  margin: 16px 0 -54px var(--ui-edge-left);
 }
 </style>

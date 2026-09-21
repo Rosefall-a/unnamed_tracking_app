@@ -277,8 +277,8 @@ async function deleteList(id: string) {
           <select v-model="sortBy" class="ui-field">
             <option value="custom">My order</option>
             <option value="name">Name</option>
-            <option value="count">Most Titles</option>
-            <option value="recent">Recently Updated</option>
+            <option value="count">Most titles</option>
+            <option value="recent">Recently updated</option>
           </select>
           <button
             type="button"
@@ -335,13 +335,16 @@ async function deleteList(id: string) {
             @dragend="dragId = dropOn = null"
           />
         </div>
-        <p v-if="sortBy === 'custom' && filtering" class="ui-state">
-          Clear the search and filters to move lists around.
+        <p v-if="!filteredLists.length && filtering" class="ui-state">
+          No lists match the search and filters.
         </p>
-        <p v-else class="ui-state">
+        <p v-else-if="!filteredLists.length" class="ui-state">
           No lists yet: create one above, or use a movie/TV/anime page's list
           button to start one. A smart list fills itself from a filter, like
           every anime you rated 9 or higher.
+        </p>
+        <p v-else-if="sortBy === 'custom' && filtering" class="ui-state">
+          Clear the search and filters to move lists around.
         </p>
       </template>
     </div>

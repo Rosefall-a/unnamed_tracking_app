@@ -12,17 +12,23 @@ from src.database.models.user_preferences import UserPreferences
 
 DEFAULTS: dict[str, Any] = {
     # calendar
-    "calendar_game_releases": False,
-    "calendar_game_history": False,
-    "calendar_default_view": "month",  # "month" | "agenda"
+    "calendar_game_releases": True,
+    "calendar_game_history": True,
+    "calendar_default_view": "month",  # "month" | "week" | "agenda"
     "calendar_week_start": 0,  # 0 = Sunday, 1 = Monday
     "calendar_hide_games": False,  # hides every Games layer even if the data exists
     "calendar_show_estimated": True,  # projected later episodes (dashed)
+    # which airing shows appear: by where they sit in the library
+    "calendar_airing_statuses": ["watching", "plan", "hold"],
     # notifications
     "notify_episode_aired": True,
     "notify_season_started": True,
     "notify_sequel_announced": True,
     "notify_movie_released": True,
+    # which titles may notify: by where they sit in the library, and by kind.
+    # (Completed and Dropped titles never get episode alerts.)
+    "notify_statuses": ["watching", "plan", "hold"],
+    "notify_media_types": ["anime", "tv", "movie"],
     "notification_retention_days": 30,  # 0 = keep forever
     # library and lists
     "library_default_layout": "list",  # "list" | "shelf" | "board"
@@ -33,12 +39,20 @@ DEFAULTS: dict[str, Any] = {
 }
 
 _CHOICES: dict[str, tuple[Any, ...]] = {
-    "calendar_default_view": ("month", "agenda"),
+    "calendar_default_view": ("month", "week", "agenda"),
     "calendar_week_start": (0, 1),
     "notification_retention_days": (0, 7, 14, 30, 90),
     "library_default_layout": ("list", "shelf", "board"),
     "lists_default_sort": ("custom", "name", "count", "recent"),
     "title_language": ("english", "romaji", "native"),
+}
+
+
+# preferences that hold a set of choices, kept in this order
+_SET_CHOICES: dict[str, tuple[str, ...]] = {
+    "notify_statuses": ("watching", "plan", "hold"),
+    "calendar_airing_statuses": ("watching", "plan", "hold"),
+    "notify_media_types": ("anime", "tv", "movie"),
 }
 
 
@@ -49,6 +63,11 @@ def validate_preference(key: str, value: Any) -> Any:
     if key not in DEFAULTS:
         raise ValueError(f"Unknown preference {key!r}")
     default = DEFAULTS[key]
+    if key in _SET_CHOICES:
+        allowed = _SET_CHOICES[key]
+        if not isinstance(value, list) or any(v not in allowed for v in value):
+            raise ValueError(f"{key} must be a list drawn from {list(allowed)}")
+        return [v for v in allowed if v in value]  # de-duplicated, in a fixed order
     if key in _CHOICES:
         if value not in _CHOICES[key]:
             raise ValueError(f"{key} must be one of {list(_CHOICES[key])}")

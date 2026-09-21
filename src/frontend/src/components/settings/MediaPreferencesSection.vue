@@ -7,7 +7,7 @@ import ToggleButton from "./ToggleButton.vue";
 import {
   DEFAULT_PREFERENCES,
   fetchPreferences,
-  updatePreferences,
+  queuePreferences,
 } from "../../services/preferences";
 import type { Preferences } from "../../services/preferences";
 import { preferences as sharedPreferences } from "../../state/preferences";
@@ -33,19 +33,26 @@ async function change(changes: Partial<Preferences>) {
   prefs.value = { ...prefs.value, ...changes };
   error.value = null;
   try {
-    prefs.value = await updatePreferences(changes);
-    sharedPreferences.value = prefs.value;
+    const { prefs: saved, latest } = await queuePreferences(changes);
+    if (latest) {
+      prefs.value = saved;
+      sharedPreferences.value = saved;
+    }
     savedNote.value = "Saved";
     setTimeout(() => (savedNote.value = ""), 1500);
   } catch (e) {
-    prefs.value = previous;
     error.value = e instanceof Error ? e.message : "Failed to save.";
+    try {
+      prefs.value = await fetchPreferences();
+    } catch {
+      prefs.value = previous;
+    }
   }
 }
 
 const titleLanguageOptions = [
-  { value: "english", label: "English" },
-  { value: "romaji", label: "Romaji" },
+  { value: "english", label: "Translated (English)" },
+  { value: "romaji", label: "Original (romaji)" },
   { value: "native", label: "Japanese" },
 ];
 const fillingTitles = ref(false);
@@ -109,7 +116,7 @@ const listSortOptions = [
       <small>Used until you pick a layout on a library page yourself.</small>
     </div>
     <div class="field">
-      <span>Anime title language</span>
+      <span>Anime names</span>
       <SegmentedControl
         :model-value="prefs.title_language"
         :options="titleLanguageOptions"
@@ -120,9 +127,10 @@ const listSortOptions = [
         "
       />
       <small
-        >Which spelling of an anime's title is shown. If one is not known for a
-        title, the next best is used. Anime added before this existed need their
-        titles looked up once.</small
+        >Which spelling is the main name, for example ERASED or Boku dake ga
+        Inai Machi. The other spellings are shown under the name on the anime
+        page. If a spelling is not known for a title, the next best is used.
+        Anime added before this existed need their titles looked up once.</small
       >
       <button
         type="button"

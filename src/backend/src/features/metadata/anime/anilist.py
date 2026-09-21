@@ -156,6 +156,21 @@ query ($ids: [Int], $perPage: Int) {{
   }}
 }}
 """
+_TOTALS_QUERY = """
+query ($ids: [Int], $perPage: Int) {
+  Page(page: 1, perPage: $perPage) {
+    media(id_in: $ids, type: ANIME) {
+      id
+      episodes
+      status
+      nextAiringEpisode {
+        episode
+        airingAt
+      }
+    }
+  }
+}
+"""
 _BATCH_SIZE = 50
 
 
@@ -652,6 +667,38 @@ class AniListClient:
         limit or outage), so a caller can say so instead of pretending they
         were looked up."""
         return self._batched(_BY_MAL_IDS_QUERY, mal_ids, "id_mal")
+
+    def final_totals(self, anilist_ids: list[int]) -> dict[int, dict[str, Any]]:
+        """For many AniList ids at once: {id: {"total", "planned", "next", "status"}}.
+        `total` is the entry's own episode count and only when it has finished
+        airing (an airing or cancelled entry's count is a plan, not a fact),
+        so it can safely be used to trim episodes some provider attached from
+        another entry. `planned` is the count an airing entry announces and
+        `next` the number of its next episode and `air_at` when it airs;
+        `episodes` is the raw count AniList holds. A batch that fails is
+        simply absent from the result."""
+        out: dict[int, dict[str, Any]] = {}
+        for start in range(0, len(anilist_ids), _BATCH_SIZE):
+            chunk = anilist_ids[start : start + _BATCH_SIZE]
+            try:
+                payload = self._post_graphql(_TOTALS_QUERY, {"ids": chunk, "perPage": _BATCH_SIZE})
+            except AniListError:
+                continue
+            for media in ((payload.get("data") or {}).get("Page") or {}).get("media") or []:
+                episodes = media.get("episodes")
+                finished = media.get("status") == "FINISHED" and isinstance(episodes, int) and episodes > 0
+                next_airing = media.get("nextAiringEpisode") or {}
+                upcoming = next_airing.get("episode")
+                out[int(media["id"])] = {
+                    "total": episodes if finished else None,
+                    # what an airing entry says it will have, when it says
+                    "planned": episodes if isinstance(episodes, int) and episodes > 0 and not finished else None,
+                    "next": upcoming if isinstance(upcoming, int) else None,
+                    "air_at": next_airing.get("airingAt"),
+                    "episodes": episodes if isinstance(episodes, int) else None,
+                    "status": media.get("status"),
+                }
+        return out
 
     def get_by_ids(self, anilist_ids: list[int]) -> tuple[dict[int, dict[str, Any]], int]:
         """Same as `get_by_mal_ids`, keyed by AniList's own id."""

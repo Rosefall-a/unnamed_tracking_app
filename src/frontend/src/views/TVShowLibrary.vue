@@ -13,6 +13,7 @@ import {
 import type { SeasonUpdateInput } from "../services/tvShows";
 import type { TVShow, TVShowStatus } from "../types/tv_show";
 import MediaLibraryView from "../components/library/MediaLibraryView.vue";
+import { statusBucket, bucketToReal } from "../utils/mediaStatus";
 import type {
   LibraryCardVM,
   SearchResultVM,
@@ -60,6 +61,7 @@ function toVM(show: TVShow): LibraryCardVM {
     progressLabel: total !== null ? `${watched}/${total}` : `${watched}/–`,
     canAdvance: !!currentSeason(show),
     releaseYear: show.firstAirDate ? show.firstAirDate.slice(0, 4) : null,
+    addedAt: Date.parse(show.createdAt) || null,
   };
 }
 
@@ -114,11 +116,21 @@ async function onAdvanceEpisode(id: string) {
   const show = findShow(id);
   const season = currentSeason(show);
   if (!season) return;
-  replaceShow(
-    await updateSeason(id, season.id, {
-      episodesWatched: season.episodesWatched + 1,
-    }),
-  );
+  const updated = await updateSeason(id, season.id, {
+    episodesWatched: season.episodesWatched + 1,
+  });
+  replaceShow(updated);
+  // pressing + on a show that is still Plan to Watch or On Hold means it has
+  // been started (or picked up again), so it moves to Watching
+  const bucket = statusBucket(updated.status);
+  if (bucket === "plan" || bucket === "hold") {
+    replaceShow(
+      await updateTVShow(id, {
+        ...tvShowToInput(updated),
+        status: bucketToReal("watching") as TVShowStatus,
+      }),
+    );
+  }
 }
 
 async function onSaveEdit(id: string, form: EditForm) {

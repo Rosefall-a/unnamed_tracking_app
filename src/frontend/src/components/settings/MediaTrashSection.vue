@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useConfirm } from "../../state/dialog";
-import { ref, onMounted } from "vue";
+import { ref, computed, onMounted } from "vue";
 import {
   fetchMovieTrash,
   restoreMovie,
@@ -24,8 +24,52 @@ const movieTrash = ref<TrashedMovie[]>([]);
 const tvTrash = ref<TrashedTVShow[]>([]);
 const animeTrash = ref<TrashedAnime[]>([]);
 const loading = ref(false);
+// the list stays on screen while it reloads after a restore or delete
+const loadedOnce = ref(false);
 const error = ref<string | null>(null);
 const busyId = ref<string | null>(null);
+const search = ref("");
+const PAGE = 50;
+const limits = ref<Record<Kind, number>>({
+  movie: PAGE,
+  tv: PAGE,
+  anime: PAGE,
+});
+
+type Kind = "movie" | "tv" | "anime";
+interface TrashRow {
+  id: string;
+  title: string;
+  deleted_at: number;
+}
+const groups = computed<
+  {
+    kind: Kind;
+    label: string;
+    total: number;
+    matches: number;
+    rows: TrashRow[];
+  }[]
+>(() => {
+  const q = search.value.trim().toLowerCase();
+  const build = (kind: Kind, label: string, all: TrashRow[]) => {
+    const found = q
+      ? all.filter((r) => r.title.toLowerCase().includes(q))
+      : all;
+    return {
+      kind,
+      label,
+      total: all.length,
+      matches: found.length,
+      rows: found.slice(0, limits.value[kind]),
+    };
+  };
+  return [
+    build("movie", "Movies", movieTrash.value),
+    build("tv", "TV Shows", tvTrash.value),
+    build("anime", "Anime", animeTrash.value),
+  ];
+});
 
 async function loadAll() {
   loading.value = true;
@@ -41,6 +85,7 @@ async function loadAll() {
       e instanceof Error ? e.message : "Failed to load deleted media";
   } finally {
     loading.value = false;
+    loadedOnce.value = true;
   }
 }
 onMounted(loadAll);
@@ -52,7 +97,7 @@ function formatDate(epochSeconds: number): string {
   });
 }
 
-async function restore(kind: "movie" | "tv" | "anime", id: string) {
+async function restore(kind: Kind, id: string) {
   busyId.value = id;
   error.value = null;
   try {
@@ -68,11 +113,7 @@ async function restore(kind: "movie" | "tv" | "anime", id: string) {
 }
 
 const confirm = useConfirm();
-async function purge(
-  kind: "movie" | "tv" | "anime",
-  id: string,
-  title: string,
-) {
+async function purge(kind: Kind, id: string, title: string) {
   const ok = await confirm({
     message: `Permanently delete "${title}"? This can't be undone.`,
     confirmLabel: "Delete forever",
@@ -104,15 +145,28 @@ async function purge(
       to remove it for good.
     </p>
 
-    <p v-if="loading">Loading…</p>
+    <p v-if="!loadedOnce">Loading…</p>
     <div v-if="error" class="form-error">{{ error }}</div>
 
-    <template v-if="!loading">
-      <div class="trash-group">
-        <h3>Movies</h3>
-        <p v-if="!movieTrash.length" class="empty-hint">Nothing in trash.</p>
+    <template v-if="loadedOnce">
+      <input
+        v-model="search"
+        type="search"
+        class="trash-search"
+        placeholder="Search deleted titles"
+        aria-label="Search deleted titles"
+      />
+      <div v-for="group in groups" :key="group.kind" class="trash-group">
+        <h3>
+          {{ group.label }}
+          <span v-if="group.total" class="trash-count">{{ group.total }}</span>
+        </h3>
+        <p v-if="!group.total" class="empty-hint">Nothing in trash.</p>
+        <p v-else-if="!group.matches" class="empty-hint">
+          Nothing here matches the search.
+        </p>
         <ul v-else class="trash-list">
-          <li v-for="item in movieTrash" :key="item.id" class="trash-row">
+          <li v-for="item in group.rows" :key="item.id" class="trash-row">
             <span class="trash-name">{{ item.title }}</span>
             <span class="trash-meta"
               >deleted {{ formatDate(item.deleted_at) }}</span
@@ -121,7 +175,7 @@ async function purge(
               type="button"
               class="secondary-button"
               :disabled="busyId === item.id"
-              @click="restore('movie', item.id)"
+              @click="restore(group.kind, item.id)"
             >
               Restore
             </button>
@@ -129,70 +183,20 @@ async function purge(
               type="button"
               class="danger-button"
               :disabled="busyId === item.id"
-              @click="purge('movie', item.id, item.title)"
+              @click="purge(group.kind, item.id, item.title)"
             >
               Delete forever
             </button>
           </li>
         </ul>
-      </div>
-
-      <div class="trash-group">
-        <h3>TV Shows</h3>
-        <p v-if="!tvTrash.length" class="empty-hint">Nothing in trash.</p>
-        <ul v-else class="trash-list">
-          <li v-for="item in tvTrash" :key="item.id" class="trash-row">
-            <span class="trash-name">{{ item.title }}</span>
-            <span class="trash-meta"
-              >deleted {{ formatDate(item.deleted_at) }}</span
-            >
-            <button
-              type="button"
-              class="secondary-button"
-              :disabled="busyId === item.id"
-              @click="restore('tv', item.id)"
-            >
-              Restore
-            </button>
-            <button
-              type="button"
-              class="danger-button"
-              :disabled="busyId === item.id"
-              @click="purge('tv', item.id, item.title)"
-            >
-              Delete forever
-            </button>
-          </li>
-        </ul>
-      </div>
-
-      <div class="trash-group">
-        <h3>Anime</h3>
-        <p v-if="!animeTrash.length" class="empty-hint">Nothing in trash.</p>
-        <ul v-else class="trash-list">
-          <li v-for="item in animeTrash" :key="item.id" class="trash-row">
-            <span class="trash-name">{{ item.title }}</span>
-            <span class="trash-meta"
-              >deleted {{ formatDate(item.deleted_at) }}</span
-            >
-            <button
-              type="button"
-              class="secondary-button"
-              :disabled="busyId === item.id"
-              @click="restore('anime', item.id)"
-            >
-              Restore
-            </button>
-            <button
-              type="button"
-              class="danger-button"
-              :disabled="busyId === item.id"
-              @click="purge('anime', item.id, item.title)"
-            >
-              Delete forever
-            </button>
-          </li>
-        </ul>
+        <button
+          v-if="group.matches > group.rows.length"
+          type="button"
+          class="secondary-button more-button"
+          @click="limits[group.kind] += PAGE"
+        >
+          Show more ({{ group.matches - group.rows.length }} left)
+        </button>
       </div>
     </template>
   </section>
@@ -219,6 +223,27 @@ async function purge(
   margin: 0 0 8px;
   font-size: 0.85rem;
   color: #ccc;
+}
+.trash-search {
+  width: 100%;
+  max-width: 360px;
+  box-sizing: border-box;
+  margin-bottom: 18px;
+  background: #1a1a1a;
+  color: #e5e5e5;
+  border: 1px solid #2a2a2a;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 0.85rem;
+}
+.trash-count {
+  margin-left: 6px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #8a8a8a;
+}
+.more-button {
+  margin-top: 10px;
 }
 .empty-hint {
   color: #777;

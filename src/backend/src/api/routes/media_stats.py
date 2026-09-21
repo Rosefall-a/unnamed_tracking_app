@@ -514,7 +514,14 @@ async def _activity_section(db: AsyncSession, user_id: Any) -> dict[str, Any]:
         "active_days_total": len(all_days),
         "current_streak": current,
         "longest_streak": longest,
-        "busiest_day": {"date": busiest[0].isoformat(), "count": busiest[1]} if busiest else None,
+        "busiest_day": {
+            "date": busiest[0].isoformat(),
+            "count": busiest[1],
+            "episodes": episodes_per_day.get(busiest[0], 0),
+            "achievements": unlocked_days.get(busiest[0], 0),
+        }
+        if busiest
+        else None,
     }
 
 

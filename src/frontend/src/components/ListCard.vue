@@ -86,20 +86,20 @@ const emptySlots = computed(() => Math.max(0, 4 - covers.value.length));
           </button>
           <template v-if="reorderable">
             <button
+              v-if="canMoveEarlier"
               type="button"
               title="Move earlier"
-              :disabled="!canMoveEarlier"
               @click.stop="emit('move', list.id, -1)"
             >
-              â—€
+              &#9664;
             </button>
             <button
+              v-if="canMoveLater"
               type="button"
               title="Move later"
-              :disabled="!canMoveLater"
               @click.stop="emit('move', list.id, 1)"
             >
-              â–¶
+              &#9654;
             </button>
           </template>
           <template v-if="!list.isSystem">
@@ -186,13 +186,9 @@ const emptySlots = computed(() => Math.max(0, 4 - covers.value.length));
   font-size: 11px;
   cursor: pointer;
 }
-.card-actions button:hover:not(:disabled),
+.card-actions button:hover,
 .card-actions button.on {
   color: #d68a34;
-}
-.card-actions button:disabled {
-  opacity: 0.35;
-  cursor: default;
 }
 .pin-badge {
   position: absolute;

@@ -557,15 +557,17 @@ export async function fetchCalendarFeedUrl(
   return `${window.location.origin}${raw.path}`;
 }
 
-// Games history for the calendar: the day a game was finished and how many
-// achievements were unlocked on a day. Empty unless "Games history" is on
-// in Settings.
+// The past side of Games on the calendar: release dates (Settings > Game
+// releases), and the day a game was finished or bought and how many
+// achievements were unlocked on a day (Settings > Games history).
 export interface CalendarGameEntry {
-  kind: "game_finished" | "game_achievements";
+  kind:
+    "game_released" | "game_finished" | "game_achievements" | "game_purchased";
   gameId: string;
   title: string;
   date: string;
   count: number;
+  posterUrl: string | null;
 }
 
 export async function fetchCalendarGames(): Promise<CalendarGameEntry[]> {
@@ -579,6 +581,7 @@ export async function fetchCalendarGames(): Promise<CalendarGameEntry[]> {
       title: string;
       date: string;
       count: number;
+      poster_url?: string | null;
     }[]
   >(response, "load games history");
   return raw.map((g) => ({
@@ -587,5 +590,100 @@ export async function fetchCalendarGames(): Promise<CalendarGameEntry[]> {
     title: g.title,
     date: g.date,
     count: g.count,
+    posterUrl: g.poster_url ?? null,
   }));
+}
+
+// Entries the user put on the calendar by hand.
+export interface CalendarEventEntry {
+  id: string;
+  title: string;
+  eventDate: string; // YYYY-MM-DD
+  eventTime: string | null; // HH:MM, or null for all day
+  note: string | null;
+  mediaType: MediaType | "game" | null;
+  mediaId: string | null;
+}
+export interface CalendarEventInput {
+  title: string;
+  eventDate: string;
+  eventTime: string | null;
+  note: string | null;
+  mediaType: MediaType | "game" | null;
+  mediaId: string | null;
+}
+interface BackendCalendarEvent {
+  id: string;
+  title: string;
+  event_date: string;
+  event_time: string | null;
+  note: string | null;
+  media_type: MediaType | "game" | null;
+  media_id: string | null;
+}
+function mapCalendarEvent(e: BackendCalendarEvent): CalendarEventEntry {
+  return {
+    id: e.id,
+    title: e.title,
+    eventDate: e.event_date,
+    eventTime: e.event_time,
+    note: e.note,
+    mediaType: e.media_type,
+    mediaId: e.media_id,
+  };
+}
+function eventBody(input: CalendarEventInput) {
+  return {
+    title: input.title,
+    event_date: input.eventDate,
+    event_time: input.eventTime || null,
+    note: input.note || null,
+    media_type: input.mediaType,
+    media_id: input.mediaId,
+  };
+}
+export async function fetchCalendarEvents(): Promise<CalendarEventEntry[]> {
+  const response = await fetch("/api/calendar/events", {
+    credentials: "include",
+  });
+  const raw = await handle<BackendCalendarEvent[]>(
+    response,
+    "load calendar entries",
+  );
+  return raw.map(mapCalendarEvent);
+}
+export async function createCalendarEvent(
+  input: CalendarEventInput,
+): Promise<CalendarEventEntry> {
+  const response = await fetch("/api/calendar/events", {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(eventBody(input)),
+  });
+  return mapCalendarEvent(
+    await handle<BackendCalendarEvent>(response, "add the calendar entry"),
+  );
+}
+export async function updateCalendarEvent(
+  id: string,
+  input: CalendarEventInput,
+): Promise<CalendarEventEntry> {
+  const response = await fetch(`/api/calendar/events/${id}`, {
+    method: "PATCH",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(eventBody(input)),
+  });
+  return mapCalendarEvent(
+    await handle<BackendCalendarEvent>(response, "save the calendar entry"),
+  );
+}
+export async function deleteCalendarEvent(id: string): Promise<void> {
+  const response = await fetch(`/api/calendar/events/${id}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  if (!response.ok)
+    throw new Error(`Failed to delete the calendar entry: ${response.status}`);
 }

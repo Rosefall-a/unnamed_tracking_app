@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, nextTick, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { currentUser } from "../state/auth";
 import SettingsNav from "../components/settings/SettingsNav.vue";
@@ -80,6 +80,15 @@ const groups = computed<SettingsGroup[]>(() => {
 // /settings?section=scan, Settings itself never writes this back to the
 // URL, so switching sections the normal way doesn't touch history
 const activeSection = ref((route.query.section as string) || "profile");
+
+// on a phone the section list stacks above the content, so a tap would
+// change something far below the fold: bring the content into view
+const card = ref<HTMLElement | null>(null);
+watch(activeSection, async () => {
+  if (!window.matchMedia("(max-width: 760px)").matches) return;
+  await nextTick();
+  card.value?.scrollIntoView({ behavior: "smooth", block: "start" });
+});
 </script>
 
 <template>
@@ -110,7 +119,7 @@ const activeSection = ref((route.query.section as string) || "profile");
       <div class="settings-body">
         <SettingsNav v-model:active-section="activeSection" :groups="groups" />
 
-        <div class="settings-card">
+        <div ref="card" class="settings-card">
           <ProfileSection v-if="activeSection === 'profile'" />
           <InterfaceSection v-else-if="activeSection === 'interface'" />
           <AppearanceSection v-else-if="activeSection === 'appearance'" />
@@ -196,6 +205,7 @@ const activeSection = ref((route.query.section as string) || "profile");
 .settings-card {
   flex: 1;
   min-width: 0;
+  scroll-margin-top: 64px;
   background: #1a1a1a;
   border: 1px solid #2a2a2a;
   border-radius: 14px;

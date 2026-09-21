@@ -27,6 +27,7 @@ from src.core.app_integrations import get_or_create_app_integration_settings
 from src.core.auth import get_current_user
 from src.core.integrations import resolve_integrations
 from src.core.titles import apply_alt_titles
+from src.features.metadata.anime.alt_titles import fill_missing_titles
 from src.database.models.anime import Anime, AnimeEpisode, AnimeSeason, AnimeStatus
 from src.database.models.media_extras import ActivityEventType
 from src.database.models.user import User
@@ -272,46 +273,11 @@ async def fill_alternate_titles(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
-    """Looks up the English, romaji and Japanese spelling of every anime that
-    has none stored yet, from AniList, in batches (50 titles a request). Only
-    blank title fields are set, nothing else changes. Titles with neither an
-    AniList nor a MyAnimeList id cannot be looked up and are counted."""
-    shows = (
-        (
-            await db.execute(
-                select(Anime).where(
-                    Anime.user_id == current_user.id,
-                    Anime.deleted_at.is_(None),
-                    Anime.title_english.is_(None),
-                    Anime.title_romaji.is_(None),
-                    Anime.title_native.is_(None),
-                )
-            )
-        )
-        .scalars()
-        .all()
-    )
-    client = AniListClient()
-    anilist_ids = [int(s.anilist_id) for s in shows if s.anilist_id and s.anilist_id.isdigit()]
-    mal_ids = [int(s.external_id) for s in shows if not s.anilist_id and s.external_id and s.external_id.isdigit()]
-    by_anilist, failed_a = await asyncio.to_thread(client.get_by_ids, anilist_ids) if anilist_ids else ({}, 0)
-    by_mal, failed_m = await asyncio.to_thread(client.get_by_mal_ids, mal_ids) if mal_ids else ({}, 0)
-    filled = 0
-    for show in shows:
-        meta = None
-        if show.anilist_id and show.anilist_id.isdigit():
-            meta = by_anilist.get(int(show.anilist_id))
-        elif show.external_id and show.external_id.isdigit():
-            meta = by_mal.get(int(show.external_id))
-        if meta and apply_alt_titles(show, meta):
-            filled += 1
-    await db.commit()
-    return {
-        "filled": filled,
-        "without_id": sum(1 for s in shows if not s.anilist_id and not s.external_id),
-        "lookup_failed": failed_a + failed_m,
-        "checked": len(shows),
-    }
+    """Looks up the English, romaji and Japanese spelling of every anime of
+    yours that has none stored yet (see alt_titles.fill_missing_titles). The
+    media refresh does the same for everyone, so this is only needed to do it
+    right now."""
+    return await fill_missing_titles(db, current_user.id)
 
 
 @router.get("/metadata/by-id/{anilist_id}", response_model=dict | None)
@@ -379,7 +345,7 @@ async def create_anime(
 
     # Otherwise a freshly-added airing show shows no next-episode date
     # anywhere (countdown, calendar) until the next periodic airing-check
-    # pass, up to AIRING_CHECK_INTERVAL_SECONDS later — worth the one
+    # pass, up to one airing-check interval later — worth the one
     # extra AniList call at creation time so it's there immediately.
     # Best-effort: a slow/unreachable AniList never blocks creation.
     if show.anilist_id and first_season is not None:
@@ -652,9 +618,10 @@ async def list_episodes(
     season = await _get_season_or_404(season_id, show_id, db)
 
     if not season.episodes and (show.external_id or show.anilist_id or show.kitsu_id):
-        all_episodes, errors = await fetch_episodes_with_fallback(
-            show.external_id, show.anilist_id, show.kitsu_id
-        )
+        fetch = await fetch_episodes_with_fallback(show.external_id, show.anilist_id, show.kitsu_id)
+        all_episodes, errors = fetch.episodes, fetch.errors
+        if fetch.kitsu_id and show.kitsu_id != fetch.kitsu_id:
+            show.kitsu_id = fetch.kitsu_id
         if not all_episodes and errors:
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
@@ -665,23 +632,25 @@ async def list_episodes(
         # re-inflate every fresh fetch back up to the same wrong number
         # forever (e.g. once padded to a confirmed-but-not-fully-aired
         # count before that bug was fixed).
-        fresh_total = max((e["episode_number"] for e in all_episodes), default=None)
+        fresh_total = fetch.final_total or max((e["episode_number"] for e in all_episodes), default=None)
         season.episode_count = pad_to_known_total(all_episodes, fresh_total)
         if needs_tmdb_backfill(all_episodes):
             await _backfill_from_tmdb_if_configured(all_episodes, show.title, db)
+        created = []
         for entry in all_episodes:
             raw_air_date = entry.get("air_date")
-            db.add(
-                AnimeEpisode(
-                    season_id=season.id,
-                    episode_number=entry["episode_number"],
-                    title=entry.get("title"),
-                    description=entry.get("description"),
-                    air_date=date.fromisoformat(raw_air_date) if raw_air_date else None,
-                    runtime_minutes=entry.get("runtime_minutes"),
-                    still_url=entry.get("still_url"),
-                )
+            row = AnimeEpisode(
+                season_id=season.id,
+                episode_number=entry["episode_number"],
+                title=entry.get("title"),
+                description=entry.get("description"),
+                air_date=date.fromisoformat(raw_air_date) if raw_air_date else None,
+                runtime_minutes=entry.get("runtime_minutes"),
+                still_url=entry.get("still_url"),
             )
+            db.add(row)
+            created.append(row)
+        materialize_progress(season, created)
         await db.commit()
 
     return await _get_show_or_404(show_id, db, current_user.id)

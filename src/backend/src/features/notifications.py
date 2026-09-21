@@ -30,16 +30,17 @@ from src.database.models.tv_show import TVEpisode, TVSeason, TVShow, TVShowStatu
 WINDOW_SECONDS = 7 * 24 * 60 * 60
 
 
-def _tracked(enum_cls: Any) -> list[Any]:
-    """Statuses worth alerting on: watching, plan to watch, on hold.
-    Completed and Dropped titles are done with."""
-    return [
-        enum_cls.IN_PROGRESS,
-        enum_cls.REWATCH,
-        enum_cls.WISHLIST,
-        enum_cls.WATCHLIST,
-        enum_cls.BACKLOG,
-    ]
+def tracked_statuses(enum_cls: Any, buckets: list[str]) -> list[Any]:
+    """The statuses behind the library buckets the user switched on: watching,
+    plan to watch and on hold. Used for who gets alerts and which airing shows
+    reach the calendar. Completed and Dropped titles are done with and never
+    appear in either."""
+    by_bucket = {
+        "watching": [enum_cls.IN_PROGRESS, enum_cls.REWATCH],
+        "plan": [enum_cls.WISHLIST, enum_cls.WATCHLIST],
+        "hold": [enum_cls.BACKLOG],
+    }
+    return [status for bucket in buckets for status in by_bucket.get(bucket, [])]
 
 
 def _noon_utc(d: date) -> int:
@@ -120,7 +121,11 @@ async def generate_for_user(db: AsyncSession, user_id: UUID) -> int:
         ("anime", Anime, AnimeSeason, AnimeEpisode, AnimeStatus),
         ("tv", TVShow, TVSeason, TVEpisode, TVShowStatus),
     ]
+    buckets = list(prefs["notify_statuses"])
+    kinds_on = set(prefs["notify_media_types"])
     for media_type, show_model, season_model, episode_model, status_enum in kinds:
+        if media_type not in kinds_on or not buckets:
+            continue
         # 1) episodes with their own exact air time
         ep_stmt = (
             select(
@@ -134,7 +139,7 @@ async def generate_for_user(db: AsyncSession, user_id: UUID) -> int:
             .where(
                 show_model.user_id == user_id,
                 show_model.deleted_at.is_(None),
-                show_model.status.in_(_tracked(status_enum)),
+                show_model.status.in_(tracked_statuses(status_enum, buckets)),
                 episode_model.air_at.is_not(None),
                 episode_model.air_at.between(since, now),
             )
@@ -151,7 +156,7 @@ async def generate_for_user(db: AsyncSession, user_id: UUID) -> int:
         next_stmt = select(show_model).where(
             show_model.user_id == user_id,
             show_model.deleted_at.is_(None),
-            show_model.status.in_(_tracked(status_enum)),
+            show_model.status.in_(tracked_statuses(status_enum, buckets)),
             show_model.next_episode_air_at.is_not(None),
             show_model.next_episode_air_at.between(since, now),
             show_model.next_episode_number.is_not(None),
@@ -168,13 +173,14 @@ async def generate_for_user(db: AsyncSession, user_id: UUID) -> int:
                 rows.append(row)
 
     # 3) movies that have come out
-    if prefs["notify_movie_released"]:
+    movie_statuses = tracked_statuses(MovieStatus, [b for b in buckets if b != "watching"])
+    if prefs["notify_movie_released"] and "movie" in kinds_on and movie_statuses:
         today = date.today()
         first_day = date.fromtimestamp(since)
         movie_stmt = select(Movie).where(
             Movie.user_id == user_id,
             Movie.deleted_at.is_(None),
-            Movie.status.in_([MovieStatus.WISHLIST, MovieStatus.WATCHLIST, MovieStatus.BACKLOG]),
+            Movie.status.in_(movie_statuses),
             Movie.release_date.is_not(None),
             Movie.release_date.between(first_day, today),
         )
@@ -212,7 +218,9 @@ async def record_sequel_announcements(
     only for shows the user completed. The time is when we learned of it,
     since AniList does not say when a sequel was announced."""
     prefs = await load_preferences(db, user_id)
-    if not prefs["notify_sequel_announced"] or old_chain is None:
+    if not prefs["notify_sequel_announced"] or "anime" not in prefs["notify_media_types"]:
+        return
+    if old_chain is None:
         return
     if show.status not in (AnimeStatus.WATCHED, AnimeStatus.FAVORITE):
         return

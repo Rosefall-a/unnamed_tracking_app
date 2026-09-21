@@ -22,22 +22,27 @@ lowest-numbered unflagged episodes, the way progress is normally made.
   the lowest number up, and if it went down, the highest flags are cleared
   (`apply_counter`)"""
 
+from collections.abc import Iterable
 from typing import Any
 
 
-def unbacked_progress(season: Any) -> int:
-    """Progress the counter holds that no episode flag accounts for."""
-    flagged = sum(1 for e in season.episodes if e.watched)
+def unbacked_progress(season: Any, extra: Iterable[Any] = ()) -> int:
+    """Progress the counter holds that no episode flag accounts for. `extra`
+    is episode rows just created and not yet in `season.episodes`."""
+    flagged = sum(1 for e in [*season.episodes, *extra] if e.watched)
     return max(0, (season.episodes_watched or 0) - flagged)
 
 
-def materialize_progress(season: Any) -> int:
+def materialize_progress(season: Any, extra: Iterable[Any] = ()) -> int:
     """Flags the lowest-numbered unflagged episodes to cover unbacked
     progress. Returns how much progress is left over that has no episode
     row to hold it (a season tracked by number before its episode list
-    existed), which stays in the counter."""
-    remaining = unbacked_progress(season)
-    for episode in sorted(season.episodes, key=lambda e: e.episode_number):
+    existed), which stays in the counter. Call it with `extra` right after
+    creating a season's episode rows, so a show imported by number alone
+    (a MAL list) shows those episodes as watched once they exist."""
+    extra = list(extra)
+    remaining = unbacked_progress(season, extra)
+    for episode in sorted([*season.episodes, *extra], key=lambda e: e.episode_number):
         if remaining <= 0:
             break
         if not episode.watched:

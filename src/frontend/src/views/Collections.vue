@@ -174,14 +174,14 @@ function openCollection(name: string) {
 
 // --- smart collections -----------------------------------------------
 const STATUS_OPTIONS: GameStatus[] = [
-  "wishlist",
-  "backlog",
   "playing",
-  "on hold",
   "beaten",
-  "played",
-  "dropped",
   "mastered",
+  "played",
+  "on hold",
+  "dropped",
+  "backlog",
+  "wishlist",
 ];
 const showSmartForm = ref(false);
 const smartName = ref("");
