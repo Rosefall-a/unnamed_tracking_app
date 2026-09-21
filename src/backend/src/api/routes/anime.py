@@ -75,6 +75,7 @@ class AnimeMetadataSearchResponse(BaseModel):
     provider_errors: list[str] = []
     results: list[dict]
 
+
 _LEADING_ARTICLE = re.compile(r"^(a|an|the)\s+", flags=re.IGNORECASE)
 
 
@@ -99,7 +100,9 @@ async def _get_show_or_404(
         stmt = stmt.where(Anime.deleted_at.is_(None))
     show = await db.scalar(stmt)
     if show is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Anime {show_id} not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"Anime {show_id} not found"
+        )
     return show
 
 
@@ -108,8 +111,141 @@ async def _get_season_or_404(season_id: UUID, show_id: UUID, db: AsyncSession) -
         select(AnimeSeason).where(AnimeSeason.id == season_id, AnimeSeason.show_id == show_id)
     )
     if season is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Season {season_id} not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"Season {season_id} not found"
+        )
     return season
+
+
+class AniListImportRequest(BaseModel):
+    username: str
+    update_existing: bool = False
+
+
+class AniListImportResult(BaseModel):
+    fetched: int
+    created: int
+    updated: int
+    skipped: int
+    errors: list[str] = []
+
+
+@router.post("/import/anilist", response_model=AniListImportResult)
+async def import_anilist_library(
+    payload: AniListImportRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> AniListImportResult:
+    """Import a public AniList anime list without modifying AniList."""
+    from src.features.metadata.anime.anilist_import import AniListImportClient
+
+    try:
+        entries = await asyncio.to_thread(AniListImportClient().fetch_user_anime, payload.username)
+    except AniListError as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+    created = updated = skipped = 0
+    errors: list[str] = []
+    for entry in entries:
+        try:
+            show = await db.scalar(
+                select(Anime).where(
+                    Anime.user_id == current_user.id,
+                    Anime.anilist_id == entry["anilist_id"],
+                    Anime.deleted_at.is_(None),
+                )
+            )
+            if show is not None and not payload.update_existing:
+                skipped += 1
+                continue
+
+            def parsed(key: str):
+                value = entry[key]
+                return date.fromisoformat(value) if value else None
+
+            season: AnimeSeason | None = None
+            if show is None:
+                show = Anime(
+                    user_id=current_user.id,
+                    title=entry["title"],
+                    sort_title=_derive_sort_title(entry["title"]),
+                    description=entry["description"],
+                    first_air_date=parsed("first_air_date"),
+                    episode_runtime_minutes=entry["episode_runtime_minutes"],
+                    studios=entry["studios"],
+                    countries=entry["countries"],
+                    languages=[],
+                    genres=entry["genres"],
+                    tags=[],
+                    features=[],
+                    format=entry["format"],
+                    anilist_score=entry["anilist_score"],
+                    anilist_id=entry["anilist_id"],
+                    poster_url=entry["poster_url"],
+                    backdrop_url=entry["backdrop_url"],
+                    status=entry["status"],
+                    priority=entry["priority"],
+                    rewatches=entry["repeat"],
+                    note=entry["note"],
+                    start_date=parsed("start_date"),
+                    end_date=parsed("end_date"),
+                    rating_overall=entry["rating_overall"],
+                )
+                db.add(show)
+                await db.flush()
+                season = AnimeSeason(
+                    show_id=show.id,
+                    season_number=1,
+                    episode_count=entry["episode_count"],
+                    episodes_watched=entry["progress"],
+                    status=entry["status"],
+                )
+                db.add(season)
+                created += 1
+            else:
+                show.sort_title = _derive_sort_title(entry["title"])
+                for field in (
+                    "title",
+                    "description",
+                    "first_air_date",
+                    "episode_runtime_minutes",
+                    "studios",
+                    "countries",
+                    "genres",
+                    "format",
+                    "anilist_score",
+                    "poster_url",
+                    "backdrop_url",
+                    "status",
+                    "priority",
+                    "rewatches",
+                    "note",
+                    "start_date",
+                    "end_date",
+                    "rating_overall",
+                ):
+                    setattr(
+                        show,
+                        field,
+                        parsed(field)
+                        if field in ("first_air_date", "start_date", "end_date")
+                        else entry[field],
+                    )
+                season = show.seasons[0] if show.seasons else None
+                if season is None:
+                    season = AnimeSeason(show_id=show.id, season_number=1)
+                    db.add(season)
+                season.episode_count = entry["episode_count"]
+                season.episodes_watched = entry["progress"]
+                season.status = entry["status"]
+                updated += 1
+            await db.commit()
+        except Exception as exc:
+            await db.rollback()
+            skipped += 1
+            errors.append(f"{entry.get('title', 'Unknown title')}: {exc}")
+    return AniListImportResult(
+        fetched=len(entries), created=created, updated=updated, skipped=skipped, errors=errors[:20]
+    )
 
 
 @router.get("/metadata/search", response_model=AnimeMetadataSearchResponse)
@@ -307,8 +443,13 @@ async def update_anime(
         change = status_change_detail(previous_status, show.status)
         if change:
             await log_activity(
-                db, current_user.id, "anime", show.id, show.title,
-                ActivityEventType.STATUS_CHANGED, date.today(),
+                db,
+                current_user.id,
+                "anime",
+                show.id,
+                show.title,
+                ActivityEventType.STATUS_CHANGED,
+                date.today(),
                 detail=change,
             )
 
@@ -448,10 +589,14 @@ async def _backfill_from_tmdb_if_configured(
 
 async def _get_episode_or_404(episode_id: UUID, season_id: UUID, db: AsyncSession) -> AnimeEpisode:
     episode = await db.scalar(
-        select(AnimeEpisode).where(AnimeEpisode.id == episode_id, AnimeEpisode.season_id == season_id)
+        select(AnimeEpisode).where(
+            AnimeEpisode.id == episode_id, AnimeEpisode.season_id == season_id
+        )
     )
     if episode is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Episode {episode_id} not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"Episode {episode_id} not found"
+        )
     return episode
 
 
@@ -542,8 +687,14 @@ async def bulk_set_episodes_watched(
     counter_from_flags(season, without_row)
     if newly_watched:
         await log_activity(
-            db, current_user.id, "anime", show.id, show.title,
-            ActivityEventType.EPISODES_WATCHED, date.today(), increment=newly_watched,
+            db,
+            current_user.id,
+            "anime",
+            show.id,
+            show.title,
+            ActivityEventType.EPISODES_WATCHED,
+            date.today(),
+            increment=newly_watched,
         )
     await db.commit()
     return await _get_show_or_404(show_id, db, current_user.id)
@@ -576,8 +727,13 @@ async def update_episode(
 
     if newly_watched:
         await log_activity(
-            db, current_user.id, "anime", show.id, show.title,
-            ActivityEventType.EPISODES_WATCHED, date.today(),
+            db,
+            current_user.id,
+            "anime",
+            show.id,
+            show.title,
+            ActivityEventType.EPISODES_WATCHED,
+            date.today(),
         )
 
     await db.commit()
@@ -638,7 +794,9 @@ async def _get_or_refresh_anime_relations(show: Anime, db: AsyncSession) -> dict
     nothing stored yet has to wait for the first fetch."""
     cached = show.relations_cache
     if cached is not None:
-        cache_age = int(time.time()) - show.relations_cached_at if show.relations_cached_at else None
+        cache_age = (
+            int(time.time()) - show.relations_cached_at if show.relations_cached_at else None
+        )
         fresh = (
             cached.get("version") == RELATIONS_CACHE_VERSION
             and cache_age is not None

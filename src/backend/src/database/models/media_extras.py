@@ -11,7 +11,18 @@ from datetime import date
 from enum import Enum
 from uuid import UUID, uuid4
 
-from sqlalchemy import BigInteger, Boolean, Date, Enum as SAEnum, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    Date,
+    Enum as SAEnum,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -36,13 +47,20 @@ class RewatchLog(Base):
 
     id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
     user_id: Mapped[UUID] = mapped_column(
-        PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+        PG_UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
-    media_type: Mapped[MediaType] = mapped_column(SAEnum(MediaType, native_enum=False, length=10), nullable=False)
+    media_type: Mapped[MediaType] = mapped_column(
+        SAEnum(MediaType, native_enum=False, length=10), nullable=False
+    )
     media_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False, index=True)
     finished_on: Mapped[date] = mapped_column(Date, nullable=False)
     note: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    created_at: Mapped[int] = mapped_column(BigInteger, nullable=False, default=lambda: int(time.time()))
+    created_at: Mapped[int] = mapped_column(
+        BigInteger, nullable=False, default=lambda: int(time.time())
+    )
 
 
 class MediaList(Base):
@@ -58,7 +76,10 @@ class MediaList(Base):
 
     id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
     user_id: Mapped[UUID] = mapped_column(
-        PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+        PG_UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -71,14 +92,21 @@ class MediaList(Base):
     # default 2x2 collage of its first four titles.
     cover_media_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
     # a list the app keeps for you (Favorites): it cannot be renamed or deleted
-    is_system: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
+    is_system: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
     # pinned lists sit first; within that, lowest position first (the user's
     # own order), ties falling back to Favorites then name
     pinned: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
     position: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
-    created_at: Mapped[int] = mapped_column(BigInteger, nullable=False, default=lambda: int(time.time()))
+    created_at: Mapped[int] = mapped_column(
+        BigInteger, nullable=False, default=lambda: int(time.time())
+    )
     updated_at: Mapped[int] = mapped_column(
-        BigInteger, nullable=False, default=lambda: int(time.time()), onupdate=lambda: int(time.time())
+        BigInteger,
+        nullable=False,
+        default=lambda: int(time.time()),
+        onupdate=lambda: int(time.time()),
     )
 
 
@@ -87,19 +115,28 @@ class MediaListItem(Base):
 
     __tablename__ = "media_list_items"
     __table_args__ = (
-        UniqueConstraint("list_id", "media_type", "media_id", name="uq_media_list_items_list_media"),
+        UniqueConstraint(
+            "list_id", "media_type", "media_id", name="uq_media_list_items_list_media"
+        ),
     )
 
     id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
     list_id: Mapped[UUID] = mapped_column(
-        PG_UUID(as_uuid=True), ForeignKey("media_lists.id", ondelete="CASCADE"), nullable=False, index=True
+        PG_UUID(as_uuid=True),
+        ForeignKey("media_lists.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
-    media_type: Mapped[MediaType] = mapped_column(SAEnum(MediaType, native_enum=False, length=10), nullable=False)
+    media_type: Mapped[MediaType] = mapped_column(
+        SAEnum(MediaType, native_enum=False, length=10), nullable=False
+    )
     media_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False, index=True)
     # user-defined order within the list (lowest first); ties fall back
     # to newest-added-first, the old behavior
     position: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    added_at: Mapped[int] = mapped_column(BigInteger, nullable=False, default=lambda: int(time.time()))
+    added_at: Mapped[int] = mapped_column(
+        BigInteger, nullable=False, default=lambda: int(time.time())
+    )
 
 
 class ActivityEventType(str, Enum):
@@ -122,16 +159,26 @@ class ActivityLog(Base):
     __tablename__ = "activity_log"
     __table_args__ = (
         UniqueConstraint(
-            "user_id", "media_type", "media_id", "event_type", "event_date", name="uq_activity_log_bucket"
+            "user_id",
+            "media_type",
+            "media_id",
+            "event_type",
+            "event_date",
+            name="uq_activity_log_bucket",
         ),
         Index("ix_activity_log_user_event_date", "user_id", "event_date"),
     )
 
     id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
     user_id: Mapped[UUID] = mapped_column(
-        PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+        PG_UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
-    media_type: Mapped[MediaType] = mapped_column(SAEnum(MediaType, native_enum=False, length=10), nullable=False)
+    media_type: Mapped[MediaType] = mapped_column(
+        SAEnum(MediaType, native_enum=False, length=10), nullable=False
+    )
     media_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False)
     media_title: Mapped[str] = mapped_column(String(500), nullable=False)
     event_type: Mapped[ActivityEventType] = mapped_column(
@@ -141,5 +188,8 @@ class ActivityLog(Base):
     count: Mapped[int] = mapped_column(BigInteger, nullable=False, default=1)
     detail: Mapped[str | None] = mapped_column(String(200), nullable=True)
     updated_at: Mapped[int] = mapped_column(
-        BigInteger, nullable=False, default=lambda: int(time.time()), onupdate=lambda: int(time.time())
+        BigInteger,
+        nullable=False,
+        default=lambda: int(time.time()),
+        onupdate=lambda: int(time.time()),
     )

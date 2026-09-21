@@ -168,7 +168,9 @@ async def _refresh_anime_season(
         # season 2 ended up with season 1's Kitsu entry
         show.kitsu_id = fetch.kitsu_id
     if errors:
-        logger.warning("Anime refresh couldn't reach a provider for %r: %s", show.title, "; ".join(errors))
+        logger.warning(
+            "Anime refresh couldn't reach a provider for %r: %s", show.title, "; ".join(errors)
+        )
     if not all_episodes:
         if fetch.limit:
             _trim_beyond_total(season, fetch.limit)
@@ -218,7 +220,9 @@ async def quick_check_anime_season(show: Anime, season: AnimeSeason) -> int:
         return 0
     aired_total, is_airing, air_at, next_number, errors = await fetch_airing_status(show.anilist_id)
     if errors:
-        logger.warning("Airing check couldn't reach AniList for %r: %s", show.title, "; ".join(errors))
+        logger.warning(
+            "Airing check couldn't reach AniList for %r: %s", show.title, "; ".join(errors)
+        )
         return 0
     return await _apply_airing(show, season, aired_total, is_airing, air_at, next_number)
 
@@ -295,7 +299,9 @@ async def quick_check_tv_season(show: TVShow, season: TVSeason, db) -> int:
         return 0
     is_airing, errors = await fetch_is_airing(show.external_id)
     if errors:
-        logger.warning("Airing check couldn't reach TVmaze for %r: %s", show.title, "; ".join(errors))
+        logger.warning(
+            "Airing check couldn't reach TVmaze for %r: %s", show.title, "; ".join(errors)
+        )
         return 0
     if is_airing is not None:
         show.is_airing = is_airing

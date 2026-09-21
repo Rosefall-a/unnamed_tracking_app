@@ -51,6 +51,7 @@ class MovieMetadataSearchResponse(BaseModel):
     provider_errors: list[str] = []
     results: list[dict]
 
+
 _LEADING_ARTICLE = re.compile(r"^(a|an|the)\s+", flags=re.IGNORECASE)
 
 
@@ -182,8 +183,13 @@ async def update_movie(
         change = status_change_detail(previous_status, movie.status)
         if change:
             await log_activity(
-                db, current_user.id, "movie", movie.id, movie.title,
-                ActivityEventType.STATUS_CHANGED, date.today(),
+                db,
+                current_user.id,
+                "movie",
+                movie.id,
+                movie.title,
+                ActivityEventType.STATUS_CHANGED,
+                date.today(),
                 detail=change,
             )
 
@@ -220,7 +226,9 @@ async def list_movie_trash(
     )
     trashed = []
     for movie in result.scalars().all():
-        assert movie.deleted_at is not None  # guaranteed by the deleted_at.is_not(None) filter above
+        assert (
+            movie.deleted_at is not None
+        )  # guaranteed by the deleted_at.is_not(None) filter above
         trashed.append({"id": str(movie.id), "title": movie.title, "deleted_at": movie.deleted_at})
     return trashed
 

@@ -76,10 +76,16 @@ def _episode_row(
     later_season = media_type == "tv" and season_number is not None and season_number > 1
     if started:
         kind = "season_started"
-        body = f"Season {season_number} has started airing" if later_season else "Has started airing"
+        body = (
+            f"Season {season_number} has started airing" if later_season else "Has started airing"
+        )
     else:
         kind = "episode_aired"
-        body = f"Season {season_number} episode {episode_number} aired" if later_season else f"Episode {episode_number} aired"
+        body = (
+            f"Season {season_number} episode {episode_number} aired"
+            if later_season
+            else f"Episode {episode_number} aired"
+        )
     return {
         "kind": kind,
         "media_type": media_type,
@@ -106,7 +112,9 @@ async def generate_for_user(db: AsyncSession, user_id: UUID) -> int:
     if retention_days:
         cutoff = min(now - retention_days * 86400, since)
         await db.execute(
-            delete(Notification).where(Notification.user_id == user_id, Notification.event_at < cutoff)
+            delete(Notification).where(
+                Notification.user_id == user_id, Notification.event_at < cutoff
+            )
         )
 
     kinds: list[tuple[str, Any, Any, Any, Any]] = [
@@ -120,7 +128,12 @@ async def generate_for_user(db: AsyncSession, user_id: UUID) -> int:
             continue
         # 1) episodes with their own exact air time
         ep_stmt = (
-            select(show_model, season_model.season_number, episode_model.episode_number, episode_model.air_at)
+            select(
+                show_model,
+                season_model.season_number,
+                episode_model.episode_number,
+                episode_model.air_at,
+            )
             .join(season_model, season_model.show_id == show_model.id)
             .join(episode_model, episode_model.season_id == season_model.id)
             .where(
@@ -153,7 +166,9 @@ async def generate_for_user(db: AsyncSession, user_id: UUID) -> int:
             if number is None or (show.id, number) in seen_numbers:
                 continue
             season_number = max((s.season_number for s in show.seasons), default=1)
-            row = _episode_row(media_type, show, season_number, number, show.next_episode_air_at, prefs)
+            row = _episode_row(
+                media_type, show, season_number, number, show.next_episode_air_at, prefs
+            )
             if row:
                 rows.append(row)
 

@@ -75,8 +75,14 @@ async def _resolve_smart_items(rule: dict, user_id: UUID, db: AsyncSession, lang
         if model is None:
             continue
         rows = (
-            await db.execute(select(model).where(model.user_id == user_id, model.deleted_at.is_(None)))
-        ).scalars().all()
+            (
+                await db.execute(
+                    select(model).where(model.user_id == user_id, model.deleted_at.is_(None))
+                )
+            )
+            .scalars()
+            .all()
+        )
         for media in rows:
             if allowed_statuses is not None and _status_str(media) not in allowed_statuses:
                 continue
@@ -84,7 +90,9 @@ async def _resolve_smart_items(rule: dict, user_id: UUID, db: AsyncSession, lang
                 continue
             if genre and genre not in [g.lower() for g in (media.genres or [])]:
                 continue
-            if min_score is not None and (media.rating_overall is None or float(media.rating_overall) < min_score):
+            if min_score is not None and (
+                media.rating_overall is None or float(media.rating_overall) < min_score
+            ):
                 continue
             # a smart list has no membership rows, so the media's own id
             # stands in for the item id
@@ -95,12 +103,16 @@ async def _resolve_smart_items(rule: dict, user_id: UUID, db: AsyncSession, lang
 
 async def _resolve_manual_items(lst: MediaList, db: AsyncSession, language: str) -> list[dict]:
     items = (
-        await db.execute(
-            select(MediaListItem)
-            .where(MediaListItem.list_id == lst.id)
-            .order_by(MediaListItem.position.asc(), MediaListItem.added_at.desc())
+        (
+            await db.execute(
+                select(MediaListItem)
+                .where(MediaListItem.list_id == lst.id)
+                .order_by(MediaListItem.position.asc(), MediaListItem.added_at.desc())
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     resolved: list[dict] = []
     for item in items:
         model = _MODEL_BY_TYPE.get(item.media_type)
@@ -131,7 +143,9 @@ def _summary(lst: MediaList, items: list[dict]) -> dict:
         "is_system": lst.is_system,
         "pinned": lst.pinned,
         "position": lst.position,
-        "type_counts": {t: sum(1 for i in items if i["media_type"] == t) for t in ("movie", "tv", "anime")},
+        "type_counts": {
+            t: sum(1 for i in items if i["media_type"] == t) for t in ("movie", "tv", "anime")
+        },
         "smart_rule": lst.smart_rule,
         "cover_media_id": lst.cover_media_id,
         "preview_posters": [i["poster_url"] for i in ordered[:4]],
@@ -141,9 +155,13 @@ def _summary(lst: MediaList, items: list[dict]) -> dict:
 
 
 async def _get_list_or_404(list_id: UUID, user_id: UUID, db: AsyncSession) -> MediaList:
-    lst = await db.scalar(select(MediaList).where(MediaList.id == list_id, MediaList.user_id == user_id))
+    lst = await db.scalar(
+        select(MediaList).where(MediaList.id == list_id, MediaList.user_id == user_id)
+    )
     if lst is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"List {list_id} not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"List {list_id} not found"
+        )
     return lst
 
 
@@ -151,7 +169,9 @@ async def _ensure_favorites_list(user_id: UUID, db: AsyncSession) -> None:
     """Everyone gets a Favorites list that fills itself from the favorite
     flag on every title, so starring something is enough to file it."""
     exists = await db.scalar(
-        select(MediaList.id).where(MediaList.user_id == user_id, MediaList.is_system.is_(True)).limit(1)
+        select(MediaList.id)
+        .where(MediaList.user_id == user_id, MediaList.is_system.is_(True))
+        .limit(1)
     )
     if exists is not None:
         return
@@ -185,12 +205,16 @@ async def list_media_lists(
 ) -> list[dict]:
     await _ensure_favorites_list(current_user.id, db)
     lists = (
-        await db.execute(
-            select(MediaList)
-            .where(MediaList.user_id == current_user.id)
-            .order_by(MediaList.pinned.desc(), MediaList.position, MediaList.is_system.desc(), MediaList.name)
+        (
+            await db.execute(
+                select(MediaList)
+                .where(MediaList.user_id == current_user.id)
+                .order_by(MediaList.pinned.desc(), MediaList.position, MediaList.is_system.desc(), MediaList.name)
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     return [_summary(lst, await _resolve_items(lst, current_user.id, db)) for lst in lists]
 
 
@@ -291,7 +315,9 @@ async def delete_media_list(
 ) -> None:
     lst = await _get_list_or_404(list_id, current_user.id, db)
     if lst.is_system:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Favorites can't be deleted.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Favorites can't be deleted."
+        )
     await db.delete(lst)
     await db.commit()
 
@@ -307,7 +333,9 @@ async def get_media_list(
     return {**_summary(lst, items), "items": items}
 
 
-@router.post("/lists/{list_id}/items", response_model=MediaListItemRead, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/lists/{list_id}/items", response_model=MediaListItemRead, status_code=status.HTTP_201_CREATED
+)
 async def add_list_item(
     list_id: UUID,
     payload: MediaListItemCreate,
@@ -359,8 +387,10 @@ async def reorder_list_items(
     """Sets the manual order: `item_ids` is the full desired sequence."""
     await _get_list_or_404(list_id, current_user.id, db)
     items = (
-        await db.execute(select(MediaListItem).where(MediaListItem.list_id == list_id))
-    ).scalars().all()
+        (await db.execute(select(MediaListItem).where(MediaListItem.list_id == list_id)))
+        .scalars()
+        .all()
+    )
     by_id = {i.id: i for i in items}
     for position, item_id in enumerate(payload.item_ids):
         item = by_id.get(item_id)
@@ -369,7 +399,9 @@ async def reorder_list_items(
     await db.commit()
 
 
-@router.delete("/lists/{list_id}/items/{item_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
+@router.delete(
+    "/lists/{list_id}/items/{item_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None
+)
 async def remove_list_item(
     list_id: UUID,
     item_id: UUID,
@@ -377,8 +409,12 @@ async def remove_list_item(
     current_user: User = Depends(get_current_user),
 ) -> None:
     await _get_list_or_404(list_id, current_user.id, db)
-    item = await db.scalar(select(MediaListItem).where(MediaListItem.id == item_id, MediaListItem.list_id == list_id))
+    item = await db.scalar(
+        select(MediaListItem).where(MediaListItem.id == item_id, MediaListItem.list_id == list_id)
+    )
     if item is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"List item {item_id} not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"List item {item_id} not found"
+        )
     await db.delete(item)
     await db.commit()

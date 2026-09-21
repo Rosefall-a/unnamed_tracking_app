@@ -149,11 +149,7 @@ def search_movie_metadata(
     a provider that's configured but fails at request time contributes a
     message to `provider_errors` without failing the other provider."""
     ctx = ProviderContext(tmdb_api_key=tmdb_api_key, omdb_api_key=omdb_api_key)
-    specs = [
-        PROVIDERS[name]
-        for name in DEFAULT_PROVIDER_ORDER
-        if PROVIDERS[name].available(ctx)
-    ]
+    specs = [PROVIDERS[name] for name in DEFAULT_PROVIDER_ORDER if PROVIDERS[name].available(ctx)]
 
     results: list[dict[str, Any]] = []
     provider_errors: list[str] = []

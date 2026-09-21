@@ -14,7 +14,7 @@ from decimal import Decimal
 from typing import Any
 
 from fastapi import APIRouter, Depends
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.auth import get_current_user
@@ -30,13 +30,24 @@ from src.database.models.user import User
 from src.database.session import get_db
 from src.features.game_stats import game_stats
 
-router = APIRouter(prefix="/api/media-stats", tags=["stats"], dependencies=[Depends(get_current_user)])
+router = APIRouter(
+    prefix="/api/media-stats", tags=["stats"], dependencies=[Depends(get_current_user)]
+)
 
 _BUCKET = {
-    "WISHLIST": "plan", "WATCHLIST": "plan", "BACKLOG": "hold", "IN_PROGRESS": "watching",
-    "REWATCH": "watching", "WATCHED": "completed", "FAVORITE": "completed", "DROPPED": "dropped",
+    "WISHLIST": "plan",
+    "WATCHLIST": "plan",
+    "BACKLOG": "hold",
+    "IN_PROGRESS": "watching",
+    "REWATCH": "watching",
+    "WATCHED": "completed",
+    "FAVORITE": "completed",
+    "DROPPED": "dropped",
     # games
-    "ON_HOLD": "hold", "PLAYING": "watching", "PLAYED": "completed", "BEATEN": "completed",
+    "ON_HOLD": "hold",
+    "PLAYING": "watching",
+    "PLAYED": "completed",
+    "BEATEN": "completed",
     "MASTERED": "completed",
 }
 _BUCKETS = ("plan", "hold", "watching", "completed", "dropped")
@@ -95,7 +106,11 @@ def _genre_rows(items: list[Any], field: str = "genres", n: int = 10) -> list[di
             if s is not None:
                 sums.setdefault(g, []).append(s)
     return [
-        {"name": g, "count": c, "average": round(sum(sums[g]) / len(sums[g]), 2) if g in sums else None}
+        {
+            "name": g,
+            "count": c,
+            "average": round(sum(sums[g]) / len(sums[g]), 2) if g in sums else None,
+        }
         for g, c in counts.most_common(n)
     ]
 
@@ -115,7 +130,13 @@ def _top_rated(items: list[Any], n: int = 10, kind: str = "") -> list[dict[str, 
     rated = [i for i in items if i.rating_overall is not None]
     rated.sort(key=lambda i: float(i.rating_overall), reverse=True)
     return [
-        {"id": str(i.id), "title": _t(i), "score": float(i.rating_overall), "poster_url": _poster(i), "kind": kind}
+        {
+            "id": str(i.id),
+            "title": _t(i),
+            "score": float(i.rating_overall),
+            "poster_url": _poster(i),
+            "kind": kind,
+        }
         for i in rated[:n]
     ]
 
@@ -135,7 +156,12 @@ def _added_per_month(items: list[Any], months: int = 12) -> list[dict[str, Any]]
 
 
 async def _episode_stats(
-    db: AsyncSession, show_model: Any, season_model: Any, ep_model: Any, user_id: Any, shows: list[Any]
+    db: AsyncSession,
+    show_model: Any,
+    season_model: Any,
+    ep_model: Any,
+    user_id: Any,
+    shows: list[Any],
 ) -> dict[str, Any]:
     """What was actually watched, from both places the app records it.
 
@@ -152,6 +178,9 @@ async def _episode_stats(
     (against the larger of the rows on record and the known total), so a
     half-finished season never shows up as a finished one."""
     runtime = func.coalesce(ep_model.runtime_minutes, show_model.episode_runtime_minutes)
+    counted = or_(
+        ep_model.watched.is_(True), ep_model.episode_number <= season_model.episodes_watched
+    )
     flagged = ep_model.watched.is_(True)
     season_rows = (
         await db.execute(
@@ -274,9 +303,9 @@ async def _episode_stats(
 async def _rewatch_counts(db: AsyncSession, user_id: Any, media_type: str) -> int:
     return (
         await db.scalar(
-            select(func.count()).select_from(RewatchLog).where(
-                RewatchLog.user_id == user_id, RewatchLog.media_type == MediaType(media_type)
-            )
+            select(func.count())
+            .select_from(RewatchLog)
+            .where(RewatchLog.user_id == user_id, RewatchLog.media_type == MediaType(media_type))
         )
         or 0
     )
@@ -294,7 +323,11 @@ def _episodic_section(
     studios: Counter = Counter()
     for s in shows:
         studios.update(getattr(s, studios_field) or [])
-    formats = Counter(getattr(s, "format", None) for s in shows) if shows and hasattr(shows[0], "format") else Counter()
+    formats = (
+        Counter(getattr(s, "format", None) for s in shows)
+        if shows and hasattr(shows[0], "format")
+        else Counter()
+    )
     return {
         "titles": len(shows),
         "by_status": _bucket_counts(shows),
@@ -313,7 +346,11 @@ def _episodic_section(
 
 
 def _movie_section(movies: list[Movie], rewatch_logs: int) -> dict[str, Any]:
-    seen = [m for m in movies if _BUCKET.get(_status(m.status)) == "completed" or _status(m.status) == "REWATCH"]
+    seen = [
+        m
+        for m in movies
+        if _BUCKET.get(_status(m.status)) == "completed" or _status(m.status) == "REWATCH"
+    ]
     with_runtime = [m for m in seen if m.runtime_minutes]
     minutes_first = sum(m.runtime_minutes or 0 for m in with_runtime)
     minutes_again = sum((m.runtime_minutes or 0) * (m.rewatches or 0) for m in with_runtime)
@@ -344,9 +381,13 @@ def _movie_section(movies: list[Movie], rewatch_logs: int) -> dict[str, Any]:
     }
 
 
-async def _games_section(db: AsyncSession, user_id: Any, include_plan: bool = True) -> dict[str, Any]:
+async def _games_section(
+    db: AsyncSession, user_id: Any, include_plan: bool = True
+) -> dict[str, Any]:
     games = list(
-        (await db.execute(select(Game).where(Game.user_id == user_id, Game.deleted_at.is_(None)))).scalars().all()
+        (await db.execute(select(Game).where(Game.user_id == user_id, Game.deleted_at.is_(None))))
+        .scalars()
+        .all()
     )
     if not include_plan:
         games = [g for g in games if _BUCKET.get(_status(g.status), "plan") != "plan"]
@@ -383,7 +424,9 @@ async def _games_section(db: AsyncSession, user_id: Any, include_plan: bool = Tr
     finished_years = Counter(
         date.fromtimestamp(g.completion_date).year for g in games if g.completion_date
     )
-    by_playtime = sorted((g for g in games if g.playtime_seconds), key=lambda g: g.playtime_seconds, reverse=True)
+    by_playtime = sorted(
+        (g for g in games if g.playtime_seconds), key=lambda g: g.playtime_seconds, reverse=True
+    )
     return {
         "titles": len(games),
         "by_status": _bucket_counts(games),
@@ -392,7 +435,8 @@ async def _games_section(db: AsyncSession, user_id: Any, include_plan: bool = Tr
         "playtime_seconds": sum(g.playtime_seconds or 0 for g in games),
         "games_with_playtime": len(by_playtime),
         "most_played": [
-            {"id": str(g.id), "title": g.title, "seconds": g.playtime_seconds} for g in by_playtime[:10]
+            {"id": str(g.id), "title": g.title, "seconds": g.playtime_seconds}
+            for g in by_playtime[:10]
         ],
         "achievements_unlocked": unlocked,
         "achievements_total": total,
@@ -445,7 +489,9 @@ async def _activity_section(db: AsyncSession, user_id: Any) -> dict[str, Any]:
     all_days = set(unlocked_days) | {
         d
         for (d,) in (
-            await db.execute(select(ActivityLog.event_date).where(ActivityLog.user_id == user_id).distinct())
+            await db.execute(
+                select(ActivityLog.event_date).where(ActivityLog.user_id == user_id).distinct()
+            )
         ).all()
     }
     longest = run = 0
@@ -493,32 +539,73 @@ async def get_media_stats(
             return items
         return [i for i in items if _BUCKET.get(_status(i.status), "plan") != "plan"]
 
-    movies = keep(list((await db.execute(select(Movie).where(Movie.user_id == uid, Movie.deleted_at.is_(None)))).scalars().all()))
-    tv = keep(list((await db.execute(select(TVShow).where(TVShow.user_id == uid, TVShow.deleted_at.is_(None)))).scalars().all()))
-    anime = keep(list((await db.execute(select(Anime).where(Anime.user_id == uid, Anime.deleted_at.is_(None)))).scalars().all()))
+    movies = keep(
+        list(
+            (
+                await db.execute(
+                    select(Movie).where(Movie.user_id == uid, Movie.deleted_at.is_(None))
+                )
+            )
+            .scalars()
+            .all()
+        )
+    )
+    tv = keep(
+        list(
+            (
+                await db.execute(
+                    select(TVShow).where(TVShow.user_id == uid, TVShow.deleted_at.is_(None))
+                )
+            )
+            .scalars()
+            .all()
+        )
+    )
+    anime = keep(
+        list(
+            (
+                await db.execute(
+                    select(Anime).where(Anime.user_id == uid, Anime.deleted_at.is_(None))
+                )
+            )
+            .scalars()
+            .all()
+        )
+    )
 
     movie_section = _movie_section(movies, await _rewatch_counts(db, uid, "movie"))
     tv_episodes = await _episode_stats(db, TVShow, TVSeason, TVEpisode, uid, tv)
     anime_episodes = await _episode_stats(db, Anime, AnimeSeason, AnimeEpisode, uid, anime)
-    tv_section = _episodic_section(tv, tv_episodes, await _rewatch_counts(db, uid, "tv"), "creators", "tv")
+    tv_section = _episodic_section(
+        tv, tv_episodes, await _rewatch_counts(db, uid, "tv"), "creators", "tv"
+    )
     anime_section = _episodic_section(
         anime, anime_episodes, await _rewatch_counts(db, uid, "anime"), "studios", "anime"
     )
 
-    def watching_now(items: list[Any], progress: dict[str, dict[str, int]], kind: str) -> list[dict[str, Any]]:
+    def watching_now(
+        items: list[Any], progress: dict[str, dict[str, int]], kind: str
+    ) -> list[dict[str, Any]]:
         rows = []
         for i in items:
             if _BUCKET.get(_status(i.status)) != "watching":
                 continue
             p = progress.get(str(i.id), {"watched": 0, "total": 0})
             rows.append(
-                {"id": str(i.id), "title": _t(i), "kind": kind, "watched": p["watched"], "total": p["total"],
-                 "poster_url": i.poster_url, "updated_at": i.updated_at}
+                {
+                    "id": str(i.id),
+                    "title": _t(i),
+                    "kind": kind,
+                    "watched": p["watched"],
+                    "total": p["total"],
+                    "poster_url": i.poster_url,
+                    "updated_at": i.updated_at,
+                }
             )
         return rows
 
-    in_progress = (
-        watching_now(anime, anime_episodes["_progress"], "anime") + watching_now(tv, tv_episodes["_progress"], "tv")
+    in_progress = watching_now(anime, anime_episodes["_progress"], "anime") + watching_now(
+        tv, tv_episodes["_progress"], "tv"
     )
     in_progress.sort(key=lambda r: r["updated_at"], reverse=True)
     for r in in_progress:
@@ -548,25 +635,50 @@ async def get_media_stats(
         ]
 
     needs_score_all = (
-        unrated_completed(movies, "movie") + unrated_completed(tv, "tv") + unrated_completed(anime, "anime")
+        unrated_completed(movies, "movie")
+        + unrated_completed(tv, "tv")
+        + unrated_completed(anime, "anime")
     )
     needs_score = {"count": len(needs_score_all), "items": needs_score_all[:8]}
 
-    media_minutes = movie_section["minutes_watched"] + tv_section["minutes_watched"] + anime_section["minutes_watched"]
+    media_minutes = (
+        movie_section["minutes_watched"]
+        + tv_section["minutes_watched"]
+        + anime_section["minutes_watched"]
+    )
     every_top = (
-        movie_section["top_rated"] + tv_section["top_rated"] + anime_section["top_rated"] + games_section["top_rated"]
+        movie_section["top_rated"]
+        + tv_section["top_rated"]
+        + anime_section["top_rated"]
+        + games_section["top_rated"]
     )
     every_top.sort(key=lambda t: t["score"], reverse=True)
     overview = {
         "kinds": [
-            {"kind": "movie", "titles": movie_section["titles"], "completed": movie_section["by_status"]["completed"],
-             "minutes": movie_section["minutes_watched"]},
-            {"kind": "tv", "titles": tv_section["titles"], "completed": tv_section["by_status"]["completed"],
-             "minutes": tv_section["minutes_watched"]},
-            {"kind": "anime", "titles": anime_section["titles"], "completed": anime_section["by_status"]["completed"],
-             "minutes": anime_section["minutes_watched"]},
-            {"kind": "game", "titles": games_section["titles"], "completed": games_section["by_status"]["completed"],
-             "minutes": games_section["playtime_seconds"] // 60},
+            {
+                "kind": "movie",
+                "titles": movie_section["titles"],
+                "completed": movie_section["by_status"]["completed"],
+                "minutes": movie_section["minutes_watched"],
+            },
+            {
+                "kind": "tv",
+                "titles": tv_section["titles"],
+                "completed": tv_section["by_status"]["completed"],
+                "minutes": tv_section["minutes_watched"],
+            },
+            {
+                "kind": "anime",
+                "titles": anime_section["titles"],
+                "completed": anime_section["by_status"]["completed"],
+                "minutes": anime_section["minutes_watched"],
+            },
+            {
+                "kind": "game",
+                "titles": games_section["titles"],
+                "completed": games_section["by_status"]["completed"],
+                "minutes": games_section["playtime_seconds"] // 60,
+            },
         ],
         "media_minutes": media_minutes,
         "game_seconds": games_section["playtime_seconds"],
@@ -576,7 +688,9 @@ async def get_media_stats(
             + tv_section["by_status"]["completed"]
             + anime_section["by_status"]["completed"]
         ),
-        "media_favorites": movie_section["favorites"] + tv_section["favorites"] + anime_section["favorites"],
+        "media_favorites": movie_section["favorites"]
+        + tv_section["favorites"]
+        + anime_section["favorites"],
         "top_rated": every_top[:10],
         "in_progress": (in_progress + playing_rows)[:16],
         "backlog": [
@@ -587,7 +701,12 @@ async def get_media_stats(
         "games_finished_this_year": games_section["insights"]["finished_this_year"],
         "score_by_type": [
             {"kind": k, "average": sec["score"]["average"], "rated": sec["score"]["rated"]}
-            for k, sec in (("movie", movie_section), ("tv", tv_section), ("anime", anime_section), ("game", games_section))
+            for k, sec in (
+                ("movie", movie_section),
+                ("tv", tv_section),
+                ("anime", anime_section),
+                ("game", games_section),
+            )
         ],
         "needs_score": needs_score,
         "activity": await _activity_section(db, uid),
