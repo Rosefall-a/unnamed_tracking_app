@@ -222,7 +222,7 @@ async def _complete_callback(request, db, config, client_name):
 
     subject = str(claims.get("sub", "")).strip()
     email = str(claims.get("email", "")).strip().lower()
-    if not subject or not email or claims.get("email_verified") is False:
+    if not subject or not email: #or claims.get("email_verified") is False:
         return RedirectResponse("/login?oidc_error=verified_email_required", 303)
 
     field = config.user_match_field if config.user_match_field in {"email", "username"} else "email"
