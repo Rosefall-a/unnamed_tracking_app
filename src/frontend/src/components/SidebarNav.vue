@@ -702,7 +702,11 @@ async function handleLogout() {
         </svg>
         <span>Settings</span>
       </router-link>
-      <button type="button" class="sidebar-item logout-item" @click="handleLogout">
+      <button
+        type="button"
+        class="sidebar-item logout-item"
+        @click="handleLogout"
+      >
         <svg
           viewBox="0 0 24 24"
           width="18"

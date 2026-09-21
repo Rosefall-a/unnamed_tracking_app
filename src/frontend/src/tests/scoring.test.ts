@@ -35,13 +35,22 @@ const baseGame = {
   language: null,
   achievementsProvider: null,
   links: [],
-  ownership: { format: null, purchaseDate: null, price: null, priceCurrency: null, condition: null },
+  ownership: {
+    format: null,
+    purchaseDate: null,
+    price: null,
+    priceCurrency: null,
+    condition: null,
+  },
   favorite: false,
   collections: [],
   tags: [],
   features: [],
   platforms: [],
-} satisfies Omit<Game, "ratingOverall" | "ratingStory" | "ratingGameplay" | "ratingSound">;
+} satisfies Omit<
+  Game,
+  "ratingOverall" | "ratingStory" | "ratingGameplay" | "ratingSound"
+>;
 
 describe("computeScore", () => {
   it("sums only ratings that are present", () => {

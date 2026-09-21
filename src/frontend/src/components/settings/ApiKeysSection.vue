@@ -20,7 +20,8 @@ async function loadKeys() {
   try {
     keys.value = await fetchApiKeys();
   } catch (err) {
-    error.value = err instanceof Error ? err.message : "Failed to load API keys.";
+    error.value =
+      err instanceof Error ? err.message : "Failed to load API keys.";
   } finally {
     isLoading.value = false;
   }
@@ -39,7 +40,8 @@ async function handleCreate() {
     name.value = "";
     await loadKeys();
   } catch (err) {
-    error.value = err instanceof Error ? err.message : "Failed to create API key.";
+    error.value =
+      err instanceof Error ? err.message : "Failed to create API key.";
   } finally {
     isCreating.value = false;
   }
@@ -57,7 +59,8 @@ async function handleRevoke(key: ApiKeySummary) {
     await revokeApiKey(key.id);
     keys.value = keys.value.filter((item) => item.id !== key.id);
   } catch (err) {
-    error.value = err instanceof Error ? err.message : "Failed to revoke API key.";
+    error.value =
+      err instanceof Error ? err.message : "Failed to revoke API key.";
   }
 }
 
@@ -252,7 +255,11 @@ code {
   border-radius: 6px;
   background: #0d0d0d;
   color: #fff;
-  font: 0.85rem/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+  font:
+    0.85rem/1.5 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
   user-select: all;
 }
 
