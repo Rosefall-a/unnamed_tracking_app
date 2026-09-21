@@ -368,8 +368,14 @@ async def update_season(
             # advancing from the library counts as watching, same as
             # checking episodes off on the title page
             await log_activity(
-                db, current_user.id, "tv", show.id, show.title,
-                ActivityEventType.EPISODES_WATCHED, date.today(), increment=new_counter - old_counter,
+                db,
+                current_user.id,
+                "tv",
+                show.id,
+                show.title,
+                ActivityEventType.EPISODES_WATCHED,
+                date.today(),
+                increment=new_counter - old_counter,
             )
 
     await db.commit()

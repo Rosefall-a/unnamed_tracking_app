@@ -557,7 +557,9 @@ async def check_airing_episodes(force: bool = False) -> dict[str, int]:
     async with SessionLocal() as db:
         anime_rows = (
             await db.execute(
-                select(Anime.id, Anime.anilist_id, Anime.is_airing, Anime.next_episode_air_at).where(
+                select(
+                    Anime.id, Anime.anilist_id, Anime.is_airing, Anime.next_episode_air_at
+                ).where(
                     Anime.deleted_at.is_(None),
                     Anime.status != AnimeStatus.DROPPED,
                     or_(Anime.is_airing.is_(True), Anime.is_airing.is_(None)),
@@ -570,7 +572,10 @@ async def check_airing_episodes(force: bool = False) -> dict[str, int]:
             for r in anime_rows
             if r.anilist_id
             and str(r.anilist_id).isdigit()
-            and (force or airing_due(r.is_airing, r.next_episode_air_at, _last_checked.get(str(r.id)), now))
+            and (
+                force
+                or airing_due(r.is_airing, r.next_episode_air_at, _last_checked.get(str(r.id)), now)
+            )
         }
         if due:
             infos = await asyncio.to_thread(AniListClient().final_totals, sorted(set(due.values())))
@@ -584,7 +589,12 @@ async def check_airing_episodes(force: bool = False) -> dict[str, int]:
                 aired_total = upcoming - 1 if upcoming else info.get("episodes")
                 try:
                     anime_added += await _apply_airing(
-                        anime_show, season, aired_total, bool(upcoming), info.get("air_at"), upcoming
+                        anime_show,
+                        season,
+                        aired_total,
+                        bool(upcoming),
+                        info.get("air_at"),
+                        upcoming,
                     )
                     _last_checked[str(anime_show.id)] = now
                     checked += 1
@@ -604,10 +614,13 @@ async def check_airing_episodes(force: bool = False) -> dict[str, int]:
         tv_due = [
             r.id
             for r in tv_rows
-            if force or airing_due(r.is_airing, r.next_episode_air_at, _last_checked.get(str(r.id)), now)
+            if force
+            or airing_due(r.is_airing, r.next_episode_air_at, _last_checked.get(str(r.id)), now)
         ]
         if tv_due:
-            tv_shows = (await db.execute(select(TVShow).where(TVShow.id.in_(tv_due)))).scalars().all()
+            tv_shows = (
+                (await db.execute(select(TVShow).where(TVShow.id.in_(tv_due)))).scalars().all()
+            )
             for tv_show in tv_shows:
                 tv_season = tv_show.seasons[-1] if tv_show.seasons else None
                 if tv_season is None or not tv_season.episodes:
@@ -622,7 +635,9 @@ async def check_airing_episodes(force: bool = False) -> dict[str, int]:
         await db.commit()
 
     if anime_added or tv_added:
-        logger.info("Airing check added %d anime episode(s), %d TV episode(s)", anime_added, tv_added)
+        logger.info(
+            "Airing check added %d anime episode(s), %d TV episode(s)", anime_added, tv_added
+        )
     return {
         "anime_episodes_added": anime_added,
         "tv_episodes_added": tv_added,

@@ -63,12 +63,18 @@ def differences(show: Anime, entry: MalEntry) -> list[dict[str, Any]]:
 
     def add(field: str, site: Any, mal: Any) -> None:
         if mal is not None and site != mal:
-            out.append({"field": field, "site": None if site is None else str(site), "mal": str(mal)})
+            out.append(
+                {"field": field, "site": None if site is None else str(site), "mal": str(mal)}
+            )
 
     add("Status", _label(show.status), _label(entry.status) if entry.status else None)
     if len(show.seasons) == 1:
         add("Episodes watched", show.seasons[0].episodes_watched, entry.watched)
-    add("Score", None if show.rating_overall is None else float(show.rating_overall), None if entry.score is None else float(entry.score))
+    add(
+        "Score",
+        None if show.rating_overall is None else float(show.rating_overall),
+        None if entry.score is None else float(entry.score),
+    )
     add("Rewatches", show.rewatches, entry.rewatches if entry.rewatches else None)
     add("Started", show.start_date, entry.started)
     add("Finished", show.end_date, entry.finished)
@@ -154,7 +160,11 @@ async def fill_details(shows: list[Anime], client: AniListClient | None = None) 
     found, failed = await asyncio.to_thread((client or AniListClient()).get_by_mal_ids, ids)
     filled = 0
     for show in shows:
-        meta = found.get(int(show.external_id)) if show.external_id and show.external_id.isdigit() else None
+        meta = (
+            found.get(int(show.external_id))
+            if show.external_id and show.external_id.isdigit()
+            else None
+        )
         if meta and fill_blanks(show, meta):
             filled += 1
     return {"filled": filled, "not_found": len(ids) - len(found) - failed, "lookup_failed": failed}

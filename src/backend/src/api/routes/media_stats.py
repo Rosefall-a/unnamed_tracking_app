@@ -229,7 +229,16 @@ async def _episode_stats(
     by_show = {show.id: show for show in shows}
     counts: dict[Any, dict[str, int]] = {}
     seasons_completed = seasons_in_progress = known = 0
-    for season_id, show_id, expected, counter, total_rows, flagged_rows, flagged_minutes, flagged_unknown in season_rows:
+    for (
+        season_id,
+        show_id,
+        expected,
+        counter,
+        total_rows,
+        flagged_rows,
+        flagged_minutes,
+        flagged_unknown,
+    ) in season_rows:
         show = by_show.get(show_id)
         if show is None:  # filtered out (Plan to Watch hidden in Statistics)
             continue
@@ -406,7 +415,11 @@ async def _games_section(
         gid: (int(u), int(n))
         for gid, u, n in (
             await db.execute(
-                select(Achievement.game_id, func.count().filter(Achievement.unlocked.is_(True)), func.count())
+                select(
+                    Achievement.game_id,
+                    func.count().filter(Achievement.unlocked.is_(True)),
+                    func.count(),
+                )
                 .join(Game, Game.id == Achievement.game_id)
                 .where(Game.user_id == user_id, Game.deleted_at.is_(None))
                 .group_by(Achievement.game_id)
@@ -469,17 +482,21 @@ async def _activity_section(db: AsyncSession, user_id: Any) -> dict[str, Any]:
     ).all()
     episodes_per_day = {d: int(c) for d, c in rows}
     unlocked_ts = (
-        await db.execute(
-            select(Achievement.unlocked_at)
-            .join(Game, Game.id == Achievement.game_id)
-            .where(
-                Game.user_id == user_id,
-                Game.deleted_at.is_(None),
-                Achievement.unlocked.is_(True),
-                Achievement.unlocked_at.is_not(None),
+        (
+            await db.execute(
+                select(Achievement.unlocked_at)
+                .join(Game, Game.id == Achievement.game_id)
+                .where(
+                    Game.user_id == user_id,
+                    Game.deleted_at.is_(None),
+                    Achievement.unlocked.is_(True),
+                    Achievement.unlocked_at.is_not(None),
+                )
             )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     unlocked_days = Counter(date.fromtimestamp(ts) for ts in unlocked_ts if ts is not None)
     per_day = {
         d: episodes_per_day.get(d, 0) + n
@@ -508,7 +525,12 @@ async def _activity_section(db: AsyncSession, user_id: Any) -> dict[str, Any]:
     busiest = max(per_day.items(), key=lambda kv: kv[1], default=None)
     return {
         "per_day": [
-            {"date": d.isoformat(), "count": c, "episodes": episodes_per_day.get(d, 0), "achievements": unlocked_days.get(d, 0)}
+            {
+                "date": d.isoformat(),
+                "count": c,
+                "episodes": episodes_per_day.get(d, 0),
+                "achievements": unlocked_days.get(d, 0),
+            }
             for d, c in sorted(per_day.items())
         ],
         "active_days_total": len(all_days),
@@ -615,15 +637,30 @@ async def get_media_stats(
         (
             await db.execute(
                 select(Game)
-                .where(Game.user_id == uid, Game.deleted_at.is_(None), Game.status == GameStatus.PLAYING)
+                .where(
+                    Game.user_id == uid,
+                    Game.deleted_at.is_(None),
+                    Game.status == GameStatus.PLAYING,
+                )
                 .order_by(Game.last_played_at.desc().nulls_last(), Game.updated_at.desc())
                 .limit(12)
             )
-        ).scalars().all()
+        )
+        .scalars()
+        .all()
     )
     playing_rows = [
-        {"id": str(g.id), "title": g.title, "kind": "game", "watched": 0, "total": 0,
-         "poster_url": _poster(g), "label": _hours_label(g.playtime_seconds) if g.playtime_seconds else "No playtime recorded"}
+        {
+            "id": str(g.id),
+            "title": g.title,
+            "kind": "game",
+            "watched": 0,
+            "total": 0,
+            "poster_url": _poster(g),
+            "label": _hours_label(g.playtime_seconds)
+            if g.playtime_seconds
+            else "No playtime recorded",
+        }
         for g in playing
     ]
 
@@ -695,7 +732,12 @@ async def get_media_stats(
         "in_progress": (in_progress + playing_rows)[:16],
         "backlog": [
             {"kind": kind, "waiting": sec["by_status"]["plan"], "on_hold": sec["by_status"]["hold"]}
-            for kind, sec in (("movie", movie_section), ("tv", tv_section), ("anime", anime_section), ("game", games_section))
+            for kind, sec in (
+                ("movie", movie_section),
+                ("tv", tv_section),
+                ("anime", anime_section),
+                ("game", games_section),
+            )
         ],
         "game_backlog": games_section["insights"]["backlog"],
         "games_finished_this_year": games_section["insights"]["finished_this_year"],

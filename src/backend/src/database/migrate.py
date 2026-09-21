@@ -55,7 +55,9 @@ def decide(current: set[str], known: set[str], has_tables: bool) -> Plan:
         return Plan("adopt", "tables exist but no recorded version")
     unknown = sorted(current - known)
     if unknown:
-        return Plan("adopt", f"recorded version {', '.join(unknown)} is not in this migration history")
+        return Plan(
+            "adopt", f"recorded version {', '.join(unknown)} is not in this migration history"
+        )
     return Plan("upgrade", "recorded version is in the history")
 
 
@@ -97,7 +99,9 @@ def _wait_for_database(engine: Engine) -> None:
         except Exception as exc:  # noqa: BLE001
             last = str(exc).splitlines()[0]
             if time.time() > deadline:
-                raise SystemExit(f"Database is not reachable after {_WAIT_SECONDS}s: {last}") from exc
+                raise SystemExit(
+                    f"Database is not reachable after {_WAIT_SECONDS}s: {last}"
+                ) from exc
             print(f"Waiting for the database ({last})...", flush=True)
             time.sleep(2)
 
@@ -124,7 +128,10 @@ def main() -> None:
             has_tables = bool(tables - {"alembic_version"})
             current: set[str] = set()
             if "alembic_version" in tables:
-                current = {row[0] for row in lock_conn.execute(text("SELECT version_num FROM alembic_version"))}
+                current = {
+                    row[0]
+                    for row in lock_conn.execute(text("SELECT version_num FROM alembic_version"))
+                }
             lock_conn.commit()
 
             plan = decide(current, known, has_tables)
@@ -136,7 +143,10 @@ def main() -> None:
                 # and check afterwards: checking the models first would refuse every
                 # database that predates a migration this version ships
                 base = bases[0]
-                print(f"Attaching the database to migration {base}. Its data is untouched.", flush=True)
+                print(
+                    f"Attaching the database to migration {base}. Its data is untouched.",
+                    flush=True,
+                )
                 command.stamp(cfg, base, purge=True)
                 command.upgrade(cfg, "head")
                 problems = missing_from_database(engine)

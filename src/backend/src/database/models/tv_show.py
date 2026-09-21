@@ -244,7 +244,9 @@ class TVEpisode(Base):
 
     __tablename__ = "tv_episodes"
     __table_args__ = (
-        UniqueConstraint("season_id", "episode_number", name="uq_tv_episodes_season_id_episode_number"),
+        UniqueConstraint(
+            "season_id", "episode_number", name="uq_tv_episodes_season_id_episode_number"
+        ),
         Index("ix_tv_episodes_season_watched", "season_id", "watched"),
         Index("ix_tv_episodes_air_at", "air_at", postgresql_where=text("air_at IS NOT NULL")),
     )

@@ -32,9 +32,17 @@ async def fill_missing_titles(db: AsyncSession, user_id: UUID | None = None) -> 
     shows = list((await db.execute(stmt)).scalars().all())
     client = AniListClient()
     anilist_ids = [int(s.anilist_id) for s in shows if s.anilist_id and s.anilist_id.isdigit()]
-    mal_ids = [int(s.external_id) for s in shows if not s.anilist_id and s.external_id and s.external_id.isdigit()]
-    by_anilist, failed_a = await asyncio.to_thread(client.get_by_ids, anilist_ids) if anilist_ids else ({}, 0)
-    by_mal, failed_m = await asyncio.to_thread(client.get_by_mal_ids, mal_ids) if mal_ids else ({}, 0)
+    mal_ids = [
+        int(s.external_id)
+        for s in shows
+        if not s.anilist_id and s.external_id and s.external_id.isdigit()
+    ]
+    by_anilist, failed_a = (
+        await asyncio.to_thread(client.get_by_ids, anilist_ids) if anilist_ids else ({}, 0)
+    )
+    by_mal, failed_m = (
+        await asyncio.to_thread(client.get_by_mal_ids, mal_ids) if mal_ids else ({}, 0)
+    )
     filled = 0
     for show in shows:
         meta = None

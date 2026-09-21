@@ -504,9 +504,7 @@ async def sync_steam_library(
     preferences = _scan_settings_to_preferences(scan_settings)
     app_integrations = resolve_integrations(await get_or_create_app_integration_settings(db))
     igdb_client_id = app_integrations.igdb_client_id
-    igdb_client_secret = (
-        app_integrations.igdb_client_secret
-    )
+    igdb_client_secret = app_integrations.igdb_client_secret
     api_key = current_user.steam_api_key
     try:
         # cheap no-op once the credentials-save flow has already resolved
@@ -636,9 +634,7 @@ async def sync_retroachievements_library(
     preferences = _scan_settings_to_preferences(scan_settings)
     app_integrations = resolve_integrations(await get_or_create_app_integration_settings(db))
     igdb_client_id = app_integrations.igdb_client_id
-    igdb_client_secret = (
-        app_integrations.igdb_client_secret
-    )
+    igdb_client_secret = app_integrations.igdb_client_secret
     client = RetroAchievementsClient(api_key=current_user.retroachievements_api_key)
     username = current_user.retroachievements_username
 
@@ -745,9 +741,7 @@ async def sync_psn_library(
     preferences = _scan_settings_to_preferences(scan_settings)
     app_integrations = resolve_integrations(await get_or_create_app_integration_settings(db))
     igdb_client_id = app_integrations.igdb_client_id
-    igdb_client_secret = (
-        app_integrations.igdb_client_secret
-    )
+    igdb_client_secret = app_integrations.igdb_client_secret
     npsso = decrypt_secret(current_user.psn_npsso_token)
     client = PSNClient(npsso)
 

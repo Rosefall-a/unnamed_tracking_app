@@ -103,7 +103,11 @@ def _tv_needs(show: TVShow, season: TVSeason) -> bool:
 
 
 async def _refresh_one_anime(
-    season_id: Any, show_id: Any, info: dict[str, Any] | None, total_known: bool, sem: asyncio.Semaphore
+    season_id: Any,
+    show_id: Any,
+    info: dict[str, Any] | None,
+    total_known: bool,
+    sem: asyncio.Semaphore,
 ) -> None:
     async with sem:
         async with SessionLocal() as db:
@@ -184,7 +188,12 @@ def _begin(mode: str) -> bool:
     global _progress
     if _progress.running:
         return False
-    _progress = Progress(running=True, mode=mode if mode in MODES else "needed", phase="Starting", started_at=int(time.time()))
+    _progress = Progress(
+        running=True,
+        mode=mode if mode in MODES else "needed",
+        phase="Starting",
+        started_at=int(time.time()),
+    )
     return True
 
 

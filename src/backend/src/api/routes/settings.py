@@ -303,7 +303,9 @@ async def get_provider_credentials(
         if saved_fields:
             result[provider]["fields"] = saved_fields
     app_integrations = resolve_integrations(await get_or_create_app_integration_settings(db))
-    result["IGDB"] = {"status": "configured" if app_integrations.igdb_configured else "not_configured"}
+    result["IGDB"] = {
+        "status": "configured" if app_integrations.igdb_configured else "not_configured"
+    }
     result["TMDB"] = {"status": "configured" if app_integrations.tmdb_api_key else "not_configured"}
     result["OMDb"] = {"status": "configured" if app_integrations.omdb_api_key else "not_configured"}
     result["ScreenScraper"]["app_configured"] = bool(

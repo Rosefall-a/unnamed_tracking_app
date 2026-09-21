@@ -117,7 +117,9 @@ async def regenerate_feed_token(
 
 @public_router.get("/feed/{token}.ics")
 async def calendar_feed(token: str, db: AsyncSession = Depends(get_db)) -> Response:
-    user = await db.scalar(select(User).where(User.calendar_token == token, User.is_active.is_(True)))
+    user = await db.scalar(
+        select(User).where(User.calendar_token == token, User.is_active.is_(True))
+    )
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unknown calendar feed")
     prefs = await load_preferences(db, user.id)
@@ -129,4 +131,6 @@ async def calendar_feed(token: str, db: AsyncSession = Depends(get_db)) -> Respo
         .scalars()
         .all()
     )
-    return Response(content=_build_ics(entries, list(events)), media_type="text/calendar; charset=utf-8")
+    return Response(
+        content=_build_ics(entries, list(events)), media_type="text/calendar; charset=utf-8"
+    )

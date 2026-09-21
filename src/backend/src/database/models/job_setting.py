@@ -16,10 +16,17 @@ class JobSetting(Base):
     __tablename__ = "job_settings"
 
     job_id: Mapped[str] = mapped_column(String(50), primary_key=True)
-    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
-    interval_minutes: Mapped[int] = mapped_column(Integer, nullable=False, default=1440, server_default="1440")
+    enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+    interval_minutes: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=1440, server_default="1440"
+    )
     last_run_at: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     last_result: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     updated_at: Mapped[int] = mapped_column(
-        BigInteger, nullable=False, default=lambda: int(time.time()), onupdate=lambda: int(time.time())
+        BigInteger,
+        nullable=False,
+        default=lambda: int(time.time()),
+        onupdate=lambda: int(time.time()),
     )
