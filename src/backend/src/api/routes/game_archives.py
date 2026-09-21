@@ -37,13 +37,44 @@ from src.database.session import get_db
 from src.features.trash import archive_trash
 from src.features.trash.sweep import RETENTION_SECONDS
 from src.features.world_map import bluemap
-from src.helpers.media import save_media_bytes
+from src.helpers.media import safe_filename
 
 router = APIRouter(
     prefix="/api/game", tags=["game-archives"], dependencies=[Depends(get_current_user)]
 )
 
 ArchiveKind = Literal["save", "world_save"]
+
+_UPLOAD_CHUNK_SIZE = 1024 * 1024
+
+
+async def _save_upload_stream(
+    file: UploadFile, dest_dir: Path, original_name: str, limit_mb: int
+) -> tuple[Path, int]:
+    """Stream an uploaded archive to disk without buffering it in memory."""
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    path = dest_dir / safe_filename(original_name)
+    limit_bytes = limit_mb * 1024 * 1024
+    size = 0
+    try:
+        with path.open("wb") as output:
+            while True:
+                chunk = await file.read(_UPLOAD_CHUNK_SIZE)
+                if not chunk:
+                    break
+                size += len(chunk)
+                if size > limit_bytes:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Larger than {limit_mb} MB.",
+                    )
+                output.write(chunk)
+    except Exception:
+        path.unlink(missing_ok=True)
+        raise
+    return path, size
+
+
 
 _ARCHIVE_SUBDIRS: dict[ArchiveKind, str] = {"save": "saves", "world_save": "world_saves"}
 
@@ -184,22 +215,26 @@ async def create_archive(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Name is required.")
 
     limit_mb = (
-        settings.MAX_WORLD_SAVE_SIZE_MB if kind == "world_save" else settings.MAX_UPLOAD_SIZE_MB
+        settings.MAX_WORLD_SAVE_SIZE_MB
+        if kind == "world_save"
+        else settings.MAX_SAVE_ARCHIVE_SIZE_MB
     )
-    data = await file.read()
-    if len(data) > limit_mb * 1024 * 1024:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=f"Larger than {limit_mb} MB."
-        )
 
     archive = GameArchive(id=uuid4(), game_id=game_id, kind=kind, name=name.strip())
     db.add(archive)
     await db.flush()
 
     dest_dir = _archive_dir(game.folder_location, kind, archive.id)
-    saved_path = save_media_bytes(data, dest_dir, file.filename or "file")
+    try:
+        saved_path, size = await _save_upload_stream(
+            file, dest_dir, file.filename or "file", limit_mb
+        )
+    except Exception:
+        await db.rollback()
+        raise
+
     version = GameArchiveVersion(
-        id=uuid4(), archive_id=archive.id, filename=saved_path.name, size=len(data)
+        id=uuid4(), archive_id=archive.id, filename=saved_path.name, size=size
     )
     db.add(version)
     await db.commit()
@@ -227,18 +262,20 @@ async def add_archive_version(
     limit_mb = (
         settings.MAX_WORLD_SAVE_SIZE_MB
         if archive.kind == "world_save"
-        else settings.MAX_UPLOAD_SIZE_MB
+        else settings.MAX_SAVE_ARCHIVE_SIZE_MB
     )
-    data = await file.read()
-    if len(data) > limit_mb * 1024 * 1024:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=f"Larger than {limit_mb} MB."
-        )
 
     dest_dir = _archive_dir(game.folder_location, archive.kind, archive.id)  # type: ignore[arg-type]
-    saved_path = save_media_bytes(data, dest_dir, file.filename or "file")
+    try:
+        saved_path, size = await _save_upload_stream(
+            file, dest_dir, file.filename or "file", limit_mb
+        )
+    except Exception:
+        await db.rollback()
+        raise
+
     version = GameArchiveVersion(
-        id=uuid4(), archive_id=archive.id, filename=saved_path.name, size=len(data)
+        id=uuid4(), archive_id=archive.id, filename=saved_path.name, size=size
     )
     db.add(version)
     archive.updated_at = int(time.time())
