@@ -1,7 +1,12 @@
+from unittest.mock import AsyncMock, Mock
+
+import pytest
+
 from src.core.auth import (
     create_api_key,
     hash_password,
     hash_token,
+    revoke_session,
     validate_password,
     verify_password,
 )
@@ -50,3 +55,25 @@ def test_api_key_contains_only_safe_persisted_derivatives() -> None:
     assert prefix == api_key[:12]
     assert key_hash == hash_token(api_key)
     assert len(key_hash) == 64
+
+
+@pytest.mark.asyncio
+async def test_revoke_session_deletes_hash_and_commits() -> None:
+    db = AsyncMock()
+    db.execute.return_value = Mock(rowcount=1)
+
+    assert await revoke_session(db, "raw-browser-cookie") is True
+
+    statement = db.execute.await_args.args[0]
+    assert "DELETE FROM user_sessions" in str(statement)
+    assert hash_token("raw-browser-cookie") in statement.compile().params.values()
+    db.commit.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_revoke_session_is_idempotent() -> None:
+    db = AsyncMock()
+    db.execute.return_value = Mock(rowcount=0)
+
+    assert await revoke_session(db, "already-revoked") is False
+    db.commit.assert_awaited_once()
