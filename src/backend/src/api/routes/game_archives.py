@@ -48,8 +48,8 @@ ArchiveKind = Literal["save", "world_save"]
 _ARCHIVE_SUBDIRS: dict[ArchiveKind, str] = {"save": "saves", "world_save": "world_saves"}
 
 
-def _archive_dir(game_folder: str, kind: ArchiveKind, archive_id: UUID) -> Path:
-    return _DATA_ROOT / game_folder / _ARCHIVE_SUBDIRS[kind] / str(archive_id)
+def _archive_dir(game_folder: str, kind: ArchiveKind, archive_id: UUID, user_id: UUID) -> Path:
+    return _DATA_ROOT / str(user_id) / "games" / game_folder / _ARCHIVE_SUBDIRS[kind] / str(archive_id)
 
 
 async def _get_archive_or_404(
@@ -196,7 +196,7 @@ async def create_archive(
     db.add(archive)
     await db.flush()
 
-    dest_dir = _archive_dir(game.folder_location, kind, archive.id)
+    dest_dir = _archive_dir(game.folder_location, kind, archive.id, user_id=current_user.id)  # type: ignore[arg-type]
     saved_path = save_media_bytes(data, dest_dir, file.filename or "file")
     version = GameArchiveVersion(
         id=uuid4(), archive_id=archive.id, filename=saved_path.name, size=len(data)
@@ -235,7 +235,7 @@ async def add_archive_version(
             status_code=status.HTTP_400_BAD_REQUEST, detail=f"Larger than {limit_mb} MB."
         )
 
-    dest_dir = _archive_dir(game.folder_location, archive.kind, archive.id)  # type: ignore[arg-type]
+    dest_dir = _archive_dir(game.folder_location, archive.kind, archive.id, user_id=current_user.id)  # type: ignore[arg-type]
     saved_path = save_media_bytes(data, dest_dir, file.filename or "file")
     version = GameArchiveVersion(
         id=uuid4(), archive_id=archive.id, filename=saved_path.name, size=len(data)
@@ -277,8 +277,8 @@ async def delete_archive(
     archive = await _get_archive_or_404(game_id, archive_id, db, current_user.id)
     game = await _get_game_or_404(game_id, db, current_user.id)
     if game.folder_location:
-        game_dir = _DATA_ROOT / game.folder_location
-        dir_path = _archive_dir(game.folder_location, archive.kind, archive.id)  # type: ignore[arg-type]
+        game_dir = _DATA_ROOT  / str(current_user.id) / "games"/ game.folder_location
+        dir_path = _archive_dir(game.folder_location, archive.kind, archive.id, current_user.id)  # type: ignore[arg-type]
         work_dir = game_dir / "world_map" / str(archive.id)
         archive_trash.move_archive_to_trash(dir_path, work_dir, game_dir, archive.kind, archive.id)
     archive.deleted_at = int(time.time())
@@ -302,8 +302,8 @@ async def restore_archive(
         )
     game = await _get_game_or_404(game_id, db, current_user.id)
     if game.folder_location:
-        game_dir = _DATA_ROOT / game.folder_location
-        dir_path = _archive_dir(game.folder_location, archive.kind, archive.id)  # type: ignore[arg-type]
+        game_dir = _DATA_ROOT  / str(current_user.id) / "games"/ game.folder_location
+        dir_path = _archive_dir(game.folder_location, archive.kind, archive.id, current_user.id)  # type: ignore[arg-type]
         work_dir = game_dir / "world_map" / str(archive.id)
         archive_trash.restore_archive_from_trash(
             dir_path, work_dir, game_dir, archive.kind, archive.id
@@ -338,8 +338,8 @@ async def delete_archive_version(
             detail="Delete the whole save to remove its last remaining version.",
         )
     if game.folder_location:
-        game_dir = _DATA_ROOT / game.folder_location
-        path = _archive_dir(game.folder_location, archive.kind, archive.id) / version.filename  # type: ignore[arg-type]
+        game_dir = _DATA_ROOT / str(current_user.id) / "games" / game.folder_location
+        path = _archive_dir(game.folder_location, archive.kind, archive.id, current_user.id) / version.filename  # type: ignore[arg-type]
         archive_trash.move_file_to_trash(path, game_dir, archive.kind, archive.id)
     version.deleted_at = int(time.time())
     await db.commit()
@@ -367,8 +367,8 @@ async def restore_archive_version(
             status_code=status.HTTP_404_NOT_FOUND, detail="Deleted version not found."
         )
     if game.folder_location:
-        game_dir = _DATA_ROOT / game.folder_location
-        dir_path = _archive_dir(game.folder_location, archive.kind, archive.id)  # type: ignore[arg-type]
+        game_dir = _DATA_ROOT / str(current_user.id) / "games" / game.folder_location
+        dir_path = _archive_dir(game.folder_location, archive.kind, archive.id, current_user.id)  # type: ignore[arg-type]
         archive_trash.restore_file_from_trash(
             version.filename, dir_path, game_dir, archive.kind, archive.id
         )
@@ -395,7 +395,7 @@ async def download_archive_version(
     )
     if version is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Version not found.")
-    path = _archive_dir(game.folder_location or "", archive.kind, archive.id) / version.filename  # type: ignore[arg-type]
+    path = _archive_dir(game.folder_location or "", archive.kind, archive.id, current_user.id) / version.filename  # type: ignore[arg-type]
     if not path.is_file():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found.")
     original_name = version.filename.split("_", 1)[-1]
@@ -434,7 +434,7 @@ async def list_world_maps(
         worlds.append(entry)
 
     if game.folder_location:
-        game_dir = _DATA_ROOT / game.folder_location
+        game_dir = _DATA_ROOT / str(current_user.id) / "games" / game.folder_location
         for entry, archive in zip(worlds, archives):
             entry["has_thumbnail"] = bluemap.thumbnail_path(game_dir, archive.id).is_file()
     return worlds
@@ -470,8 +470,8 @@ async def render_world_map_route(
         )
 
     latest = active_versions[0]  # ordered newest-first (see GameArchive.versions)
-    world_zip = _archive_dir(game.folder_location, "world_save", archive_id) / latest.filename
-    game_dir = _DATA_ROOT / game.folder_location
+    world_zip = _archive_dir(game.folder_location, "world_save", archive_id, current_user.id) / latest.filename
+    game_dir = _DATA_ROOT / str(current_user.id) / "games" / game.folder_location
     background_tasks.add_task(bluemap.render_world_map, game_id, archive_id, game_dir, world_zip)
     return {"status": "rendering"}
 
@@ -495,7 +495,7 @@ async def get_world_map_thumbnail(
     current_user: User = Depends(get_current_user),
 ) -> FileResponse:
     game = await _get_game_or_404(game_id, db, current_user.id)
-    path = bluemap.thumbnail_path(_DATA_ROOT / (game.folder_location or ""), archive_id)
+    path = bluemap.thumbnail_path(_DATA_ROOT / str(current_user.id) / "games" / (game.folder_location or ""), archive_id)
     if not path.is_file():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No thumbnail yet.")
     return FileResponse(
@@ -516,7 +516,7 @@ async def get_world_map_file(
     index.html when empty, matching how a static webapp normally resolves
     its root."""
     game = await _get_game_or_404(game_id, db, current_user.id)
-    root = bluemap.web_root(_DATA_ROOT / (game.folder_location or ""), archive_id)
+    root = bluemap.web_root(_DATA_ROOT / str(current_user.id) / "games" / (game.folder_location or ""), archive_id)
     target = root / (file_path or "index.html")
     resolved = target.resolve()
     if root.resolve() not in resolved.parents and resolved != root.resolve():
