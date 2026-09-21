@@ -1,3 +1,5 @@
+import { apiError } from "./apiErrors";
+
 export type BadgeStyle = "none" | "glow" | "border" | "ribbon" | "corner_badge";
 export type BadgePlacement =
   "top-left" | "top-right" | "bottom-left" | "bottom-right";
@@ -41,9 +43,7 @@ export async function fetchAppearanceSettings(): Promise<AppearanceSettings> {
     credentials: "include",
   });
   if (!response.ok) {
-    throw new Error(
-      `Failed to fetch appearance settings: ${response.status} ${response.statusText}`,
-    );
+    throw await apiError(response, "Failed to fetch appearance settings");
   }
   return await response.json();
 }
@@ -62,10 +62,7 @@ export async function updateAppearanceSettings(
     body: JSON.stringify(payload),
   });
   if (!response.ok) {
-    const message = await response.text();
-    throw new Error(
-      `Failed to update appearance settings: ${response.status} ${response.statusText} ${message}`,
-    );
+    throw await apiError(response, "Failed to update appearance settings");
   }
   return await response.json();
 }
@@ -85,10 +82,7 @@ export async function uploadBadgeImage(
     body: form,
   });
   if (!response.ok) {
-    const message = await response.text();
-    throw new Error(
-      `Failed to upload badge image: ${response.status} ${response.statusText} ${message}`,
-    );
+    throw await apiError(response, "Failed to upload badge image");
   }
   return await response.json();
 }
@@ -103,9 +97,7 @@ export async function deleteBadgeImage(): Promise<AppearanceSettings> {
     credentials: "include",
   });
   if (!response.ok) {
-    throw new Error(
-      `Failed to delete badge image: ${response.status} ${response.statusText}`,
-    );
+    throw await apiError(response, "Failed to delete badge image");
   }
   return await response.json();
 }

@@ -1,0 +1,105 @@
+/* Shared page chrome: keep the dark application canvas consistent even
+   when individual views use their own scoped surfaces. */
+html,
+body,
+#app {
+  background: #121212;
+}
+
+/* Persistent desktop navigation owns the left edge on wide screens. The
+   sidebar publishes its current width so resizing/collapsing it moves the
+   application canvas with it without disturbing fixed overlays. */
+@media (min-width: 1025px) {
+  #app:has(.desktop-sidebar) {
+    padding-left: var(--desktop-sidebar-width, 260px);
+    box-sizing: border-box;
+  }
+
+  .profile-chip-global {
+    display: none !important;
+  }
+
+  .profile-dock,
+  .menu-toggle {
+    display: none !important;
+  }
+}
+
+/* Older views still contain their own profile chip markup. The shared app
+   chrome now owns that action so every authenticated page gets the same
+   clickable profile control without duplicates. */
+.profile-chip {
+  display: none !important;
+}
+
+/* Game cards keep metadata readable even when titles are long or several
+   metadata badges are present. */
+.game-card-wrap .card-info {
+  min-height: 42px;
+}
+
+.game-card-wrap .title {
+  margin: 0 0 7px;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.game-card-wrap .meta-row {
+  flex-wrap: wrap;
+  row-gap: 3px;
+  line-height: 1.2;
+}
+
+.game-card-wrap .meta-row > span {
+  min-width: 0;
+}
+
+/* Keep page subtitles separated from headings rather than relying on each
+   view's browser-default paragraph margins. */
+.cards-page .section-hint,
+.sets-page .section-hint {
+  margin: 7px 0 18px;
+  line-height: 1.5;
+}
+
+/* A starter template that has already been used is disabled by Collections.
+   Hiding that disabled row makes the starter menu behave like a set of
+   one-time suggestions instead of leaving used templates around as clutter. */
+.templates-dropdown .template-item:disabled {
+  display: none;
+}
+
+/* The original sidebar profile entry sat at the top and duplicated the
+   persistent profile dock. Keep one profile action, at the bottom. */
+.sidebar > a:first-of-type {
+  display: none;
+}
+
+/* Notifications now live in the top-bar popover; the old sidebar control
+   should not present a second notification interaction. */
+.sidebar .notification-toggle {
+  display: none;
+}
+
+/* Admin tables remain complete on desktop but become horizontally scrollable
+   on narrow screens instead of shrinking action columns until their controls
+   become unusable. */
+@media (max-width: 760px) {
+  .settings-section .user-table {
+    display: block;
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .settings-section .user-table th,
+  .settings-section .user-table td {
+    white-space: nowrap;
+  }
+
+  .settings-section .user-table .actions {
+    justify-content: flex-start;
+  }
+}

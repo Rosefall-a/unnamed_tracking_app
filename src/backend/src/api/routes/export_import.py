@@ -1,20 +1,31 @@
-"""Library export/import, a portable JSON snapshot of a user's games, for
-backups or moving to a new server. Scoped to game data only (folder assets,
-screenshots, saves, and bounties aren't included in this pass, those are
-each a bigger, separate lift)."""
+"""Library export/import, a portable JSON snapshot of a user's data, for
+backups or moving to a new server. Export covers games, movies, TV shows,
+and anime; import (re-creating rows from a snapshot) still only handles
+games — movies/TV/anime each have their own creation quirks (seasons,
+episodes, per-provider ids) that make a safe generic importer a real
+separate effort, not a silent gap. Folder assets, screenshots, saves,
+and bounties aren't included in either direction."""
 
 import time
+from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.routes.games import _derive_sort_title, _validate_game_relationship
+from src.api.schemas.anime import AnimeRead
 from src.api.schemas.game import GameCreate, GameRead
-from src.core.auth import get_current_user
+from src.api.schemas.movie import MovieRead
+from src.api.schemas.tv_show import TVShowRead
+from src.core.application_backup import application_backup_path, create_application_backup_file
+from src.core.auth import get_current_admin, get_current_user
+from src.database.models.anime import Anime
 from src.database.models.game import Game, GameLink
+from src.database.models.movies import Movie
+from src.database.models.tv_show import TVShow
 from src.database.models.user import User
 from src.database.session import get_db
 from src.features.backup.scheduler import (
@@ -28,10 +39,13 @@ router = APIRouter(prefix="/api", tags=["export"], dependencies=[Depends(get_cur
 
 
 class LibraryExport(BaseModel):
-    format_version: int = 1
+    format_version: int = 2
     exported_at: int
     game_count: int
     games: list[GameRead]
+    movies: list[MovieRead] = []
+    tv_shows: list[TVShowRead] = []
+    anime: list[AnimeRead] = []
 
 
 @router.get("/export/library", response_model=LibraryExport)
@@ -39,14 +53,58 @@ async def export_library(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> LibraryExport:
-    stmt = (
-        select(Game)
-        .where(Game.user_id == current_user.id, Game.deleted_at.is_(None))
-        .order_by(Game.sort_title)
+    games = list(
+        (
+            await db.execute(
+                select(Game)
+                .where(Game.user_id == current_user.id, Game.deleted_at.is_(None))
+                .order_by(Game.sort_title)
+            )
+        )
+        .scalars()
+        .all()
     )
-    result = await db.execute(stmt)
-    games = list(result.scalars().all())
-    return LibraryExport(exported_at=int(time.time()), game_count=len(games), games=games)  # type: ignore[arg-type]
+    movies = list(
+        (
+            await db.execute(
+                select(Movie)
+                .where(Movie.user_id == current_user.id, Movie.deleted_at.is_(None))
+                .order_by(Movie.sort_title)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    tv_shows = list(
+        (
+            await db.execute(
+                select(TVShow)
+                .where(TVShow.user_id == current_user.id, TVShow.deleted_at.is_(None))
+                .order_by(TVShow.sort_title)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    anime = list(
+        (
+            await db.execute(
+                select(Anime)
+                .where(Anime.user_id == current_user.id, Anime.deleted_at.is_(None))
+                .order_by(Anime.sort_title)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    return LibraryExport(  # type: ignore[arg-type]
+        exported_at=int(time.time()),
+        game_count=len(games),
+        games=games,
+        movies=movies,
+        tv_shows=tv_shows,
+        anime=anime,
+    )
 
 
 class BackupStatus(BaseModel):
@@ -148,3 +206,56 @@ async def import_library(
             errors.append(f"{entry.title}: {exc}")
 
     return ImportResult(created=created, skipped=skipped, errors=errors[:20])
+
+
+class DeploymentBackupRequest(BaseModel):
+    include_application_settings: bool = True
+    include_provider_credentials: bool = True
+    include_oidc_settings: bool = True
+    include_smtp_settings: bool = False
+    include_users: bool = False
+    include_sessions: bool = False
+    full_installation: bool = False
+    save_to_setup_path: bool = False
+    password: str
+
+
+@router.post("/export/deployment-backup")
+async def export_deployment_backup(
+    payload: DeploymentBackupRequest,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(get_current_admin),
+) -> Response:
+    """Create a password-protected deployment backup, optionally including accounts."""
+    include_users = payload.include_users or payload.full_installation
+    include_sessions = payload.include_sessions or payload.full_installation
+    if include_sessions and not include_users:
+        raise HTTPException(status_code=400, detail="Sessions require users to be included.")
+    try:
+        content = await create_application_backup_file(
+            db,
+            payload.password,
+            include_users=include_users,
+            include_sessions=include_sessions,
+            include_application_settings=payload.include_application_settings,
+            include_provider_credentials=payload.include_provider_credentials,
+            include_oidc_settings=payload.include_oidc_settings,
+            include_smtp_settings=payload.include_smtp_settings,
+        )
+        if payload.save_to_setup_path:
+            target = application_backup_path()
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(content)
+    except (OSError, ValueError, RuntimeError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return Response(
+        content=content,
+        media_type="application/json",
+        headers={
+            "Content-Disposition": (
+                "attachment; filename="
+                f"archive-deployment-backup-{datetime.now(timezone.utc).strftime('%Y-%m-%dT%H-%M-%S')}.json"
+            )
+        },
+    )

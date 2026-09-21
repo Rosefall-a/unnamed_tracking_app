@@ -11,7 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.responses import RedirectResponse
 
-from src.core.auth import SESSION_COOKIE, SESSION_TTL_SECONDS, hash_password, hash_token
+from src.core.auth import SESSION_COOKIE, hash_password, hash_token
 from src.core.config import settings
 from src.core.crypto import decrypt_secret
 from src.core.oidc import OidcConfig, begin_oidc, oauth, register_oidc_provider
@@ -21,6 +21,7 @@ from src.database.models.user import User
 from src.database.session import get_db
 
 router = APIRouter(prefix="/api/auth/oidc", tags=["auth"])
+_SESSION_SECONDS = 30 * 24 * 60 * 60
 logger = logging.getLogger(__name__)
 
 
@@ -37,7 +38,7 @@ def _env_config():
         groups_claim=settings.OIDC_GROUPS_CLAIM,
         admin_group=settings.OIDC_ADMIN_GROUP,
         user_match_field=getattr(settings, "OIDC_USER_MATCH_FIELD", "email"),
-        discovery_url=issuer if issuer.endswith("/.well-known/openid-configuration") else None,
+        discovery_url=(issuer if issuer.endswith("/.well-known/openid-configuration") else None),
     )
 
 
@@ -46,11 +47,7 @@ def _named_rows(row):
         data = json.loads(row.providers_json or "[]")
     except (TypeError, ValueError):
         return []
-    return [
-        provider
-        for provider in data
-        if isinstance(provider, dict) and provider.get("slug") and provider.get("enabled", True)
-    ]
+    return [provider for provider in data if isinstance(provider, dict) and provider.get("slug")]
 
 
 def _config_from_provider(provider):
@@ -65,7 +62,7 @@ def _config_from_provider(provider):
         admin_group=provider.get("admin_group") or None,
         user_match_field=provider.get("user_match_field") or "email",
         allow_new_users=bool(provider.get("allow_new_users", True)),
-        discovery_url=issuer if issuer.endswith("/.well-known/openid-configuration") else None,
+        discovery_url=(issuer if issuer.endswith("/.well-known/openid-configuration") else None),
         name=provider.get("name") or provider["slug"],
         slug=provider["slug"],
         button_text=provider.get("button_text") or "Continue with SSO",
@@ -73,17 +70,25 @@ def _config_from_provider(provider):
     )
 
 
-async def _get_config(db, slug="default"):
+async def _get_config(db, slug="default", *, autostart=False):
     row = await db.scalar(select(OidcSettings).limit(1))
+
     if row and slug != "default":
         for provider in _named_rows(row):
-            if provider.get("slug") == slug and provider.get("client_secret"):
-                return _config_from_provider(provider)
+            if provider.get("slug") != slug:
+                continue
+            if not provider.get("enabled", True):
+                return None
+            if not provider.get("client_secret"):
+                return None
+            if autostart and not provider.get("autostart_enabled", True):
+                return None
+            return _config_from_provider(provider)
         return None
+
     if row and row.issuer_url and row.client_id and row.client_secret:
-        issuer = row.issuer_url.strip()
         return OidcConfig(
-            issuer_url=issuer,
+            issuer_url=row.issuer_url.strip(),
             client_id=row.client_id,
             client_secret=decrypt_secret(row.client_secret),
             scopes=row.scopes or "openid profile email",
@@ -103,14 +108,17 @@ async def oidc_status(db: AsyncSession = Depends(get_db)):
     providers = []
     if row:
         for provider in _named_rows(row):
-            providers.append(
-                {
-                    "name": provider.get("name", provider["slug"]),
-                    "slug": provider["slug"],
-                    "button_text": provider.get("button_text") or "Continue with SSO",
-                    "button_image_url": provider.get("button_image_url"),
-                }
-            )
+            if provider.get("enabled", True) and provider.get("show_on_login", True):
+                providers.append(
+                    {
+                        "name": provider.get("name", provider["slug"]),
+                        "slug": provider["slug"],
+                        "button_text": provider.get("button_text") or "Continue with SSO",
+                        "button_image_url": provider.get("button_image_url"),
+                        "button_color": provider.get("button_color") or "#d68a34",
+                        "autostart_enabled": bool(provider.get("autostart_enabled", True)),
+                    }
+                )
     if not providers and config:
         providers = [
             {
@@ -122,6 +130,8 @@ async def oidc_status(db: AsyncSession = Depends(get_db)):
                     else config.button_text
                 ),
                 "button_image_url": config.button_image_url,
+                "button_color": "#d68a34",
+                "autostart_enabled": True,
             }
         ]
     return {
@@ -151,11 +161,13 @@ async def oidc_login(request: Request, db: AsyncSession = Depends(get_db)):
 
 @router.get("/login/{provider_slug}")
 async def oidc_provider_login(
-    provider_slug: str, request: Request, db: AsyncSession = Depends(get_db)
+    provider_slug: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
 ):
-    config = await _get_config(db, provider_slug)
+    config = await _get_config(db, provider_slug, autostart=True)
     if config is None:
-        raise HTTPException(404, "OIDC provider is not configured.")
+        return RedirectResponse("/login", 303)
     return await begin_oidc(request, config)
 
 
@@ -203,7 +215,7 @@ def _match_value(claims, field, email):
 
 
 def _safe_username(value, email):
-    username = "".join(char for char in value.strip() if char.isalnum() or char in "._-")[:100]
+    username = "".join(c for c in value.strip() if c.isalnum() or c in "._-")[:100]
     return username or email.split("@", 1)[0][:90] or f"user-{secrets.token_hex(4)}"
 
 
@@ -215,21 +227,18 @@ async def _complete_callback(request, db, config, client_name):
     try:
         token = await _fetch_oidc_token(request, client)
         claims = dict(token.get("userinfo") or await client.userinfo(token=token))
-        claims.update({key: value for key, value in token.items() if key not in claims})
+        claims.update({k: v for k, v in token.items() if k not in claims})
     except Exception:
         logger.exception("OIDC callback token/userinfo exchange failed")
         return RedirectResponse("/login?oidc_error=authentication_failed", 303)
-
     subject = str(claims.get("sub", "")).strip()
     email = str(claims.get("email", "")).strip().lower()
     if not subject or not email or claims.get("email_verified") is False:
         return RedirectResponse("/login?oidc_error=verified_email_required", 303)
-
     field = config.user_match_field if config.user_match_field in {"email", "username"} else "email"
     match = _match_value(claims, field, email)
     if not match:
         return RedirectResponse("/login?oidc_error=identity_missing", 303)
-
     linked_subject = f"{config.slug}:{subject}"
     user = await db.scalar(select(User).where(User.oidc_subject == linked_subject))
     if user is None:
@@ -237,7 +246,6 @@ async def _complete_callback(request, db, config, client_name):
             user = await db.scalar(select(User).where(User.username == match))
         else:
             user = await db.scalar(select(User).where(User.email == email))
-
     is_admin = bool(
         config.admin_group and config.admin_group in _groups(claims, config.groups_claim)
     )
@@ -245,7 +253,8 @@ async def _complete_callback(request, db, config, client_name):
         if not config.allow_new_users:
             return RedirectResponse("/login?oidc_error=user_creation_disabled", 303)
         username = _safe_username(
-            str(claims.get("preferred_username") or claims.get("name") or ""), email
+            str(claims.get("preferred_username") or claims.get("name") or ""),
+            email,
         )
         base = username
         suffix = 1
@@ -271,13 +280,12 @@ async def _complete_callback(request, db, config, client_name):
         user.email = email
         if config.admin_group:
             user.is_admin = is_admin
-
     session_token = secrets.token_urlsafe(32)
     db.add(
         UserSession(
             user_id=user.id,
             token_hash=hash_token(session_token),
-            expires_at=int(time.time()) + SESSION_TTL_SECONDS,
+            expires_at=int(time.time()) + _SESSION_SECONDS,
         )
     )
     await db.commit()
@@ -285,7 +293,7 @@ async def _complete_callback(request, db, config, client_name):
     response.set_cookie(
         key=SESSION_COOKIE,
         value=session_token,
-        max_age=SESSION_TTL_SECONDS,
+        max_age=_SESSION_SECONDS,
         httponly=True,
         samesite="lax",
         secure=settings.AUTH_COOKIE_SECURE,
@@ -304,7 +312,9 @@ async def oidc_callback(request: Request, db: AsyncSession = Depends(get_db)):
 
 @router.get("/callback/{provider_slug}", name="oidc_callback_provider")
 async def oidc_callback_provider(
-    provider_slug: str, request: Request, db: AsyncSession = Depends(get_db)
+    provider_slug: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
 ):
     config = await _get_config(db, provider_slug)
     if config is None:

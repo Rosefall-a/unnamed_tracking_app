@@ -1,29 +1,100 @@
-# Running the API
+# Unnamed Tracking App
 
-docker compose down -v
-docker compose up -d --build
-docker compose run --rm backend
+## Quick start
 
-# Backend checks
+The recommended self-hosted deployment uses PostgreSQL plus the separate backend and frontend images/services.
+
+```bash
+cp example.env .env
+docker compose up --build
+```
+
+Then open `http://localhost:5173`. On a new database the first-run setup page creates the administrator and can configure OIDC and SMTP.
+
+### Environment configuration
+
+Normal `.env` configuration is intentionally small:
+
+```dotenv
+POSTGRES_USER=archive
+POSTGRES_PASSWORD=change-this-database-password
+POSTGRES_DB=archive
+# POSTGRES_HOST=db
+# POSTGRES_PORT=5432
+```
+
+You can instead provide a complete `DATABASE_URL`; it takes precedence over the `POSTGRES_*` values. The default PostgreSQL host is `db` and the default port is `5432`.
+  
+The application generates its Fernet encryption key automatically and persists it under `/data/config/fernet.key`. Existing deployments may temporarily provide `SECRET_KEY` as a migration/bootstrap value; new deployments do not need to generate one manually.
+
+Normal application settings are managed from the web UI:
+
+- **Settings → Application** — upload limits and secure authentication cookies.
+- **Settings → Server Integrations** — provider credentials, including ScreenScraper and SteamGridDB.
+- **Settings → OIDC / SSO** — OIDC configuration.
+- **Settings → SMTP / Email** — SMTP and password-reset configuration.
+
+`PRIMARY_USER_*` environment variables are no longer used for normal first-run setup.
+
+## Docker image layouts
+
+All three application images remain supported independently:
+
+- `src/backend/dockerfile` — backend image.
+- `src/frontend/Dockerfile` — frontend image.
+- `src/central/Dockerfile` — optional combined application image containing both runtimes.
+
+The central image does **not** embed PostgreSQL. PostgreSQL remains a separate persistent service, while `APP_MODE=both` runs the frontend and backend together. The same image can also run as `APP_MODE=backend` or `APP_MODE=frontend`.
+
+See [`docs/SETUP.md`](docs/SETUP.md) for the complete deployment guide, database configuration, generated Fernet key behaviour, Settings configuration, and central-image Compose examples.
+
+## Deployment backups
+
+Administrators can use **Settings → Deployment Backup** to create password-protected deployment archives. Application settings, provider credentials, OIDC, SMTP, users/API keys, and active sessions can be selected independently; sessions require users and **Full installation** enables users plus sessions.
+
+Downloads keep a timestamped filename such as archive-deployment-backup-2026-09-20T06-58-37.json, while the optional setup-path copy is always application.json at APPLICATION_JSON_PATH (default /data/application.json).
+
+On a fresh installation, the /setup wizard discovers a setup-path application.json automatically and lets you review the backup before either accepting all imported settings or using it to populate the setup pages. A full restore can preserve a still-valid browser session and return that browser directly to the home page.
+
+See docs/DEPLOYMENT-BACKUP.md for the complete export/restore workflow, option dependencies, repeatable reset procedure, and security notes.
+
+## Development checks
+
+### Backend
+
+```bash
 cd src/backend
 mypy --config-file pyproject.toml src
 pylint --rcfile=pyproject.toml src
+```
 
-# Frontend checks
-cd /src/frontend
-npm run lint
-npm run format # if this fails run npm run format:fix
-npm run typecheck
-
-## Recommended VS Code extensions
-- Ruff by charliermarsh
-
-# Database updates
+### Frontend
 
 ```bash
-docker compose exec backend alembic -c alembic.ini revision --autogenerate -m "your changes here eg add playtime to game table"
+cd src/frontend
+npm run lint
+npm run format
+npm run typecheck
 ```
+
+## Database migrations
+
+Generate a migration from the backend environment with:
+
+```bash
+docker compose exec backend alembic -c alembic.ini revision --autogenerate -m "describe the schema change"
+```
+
+Application startup applies all migration heads with `alembic upgrade heads`.
 
 ## Security
 
-This project is not currently hardened for direct public-internet exposure. Keep the API behind an appropriate network boundary and do not expose it directly to the public internet.
+This project is not currently hardened for direct public-internet exposure. Keep the API behind an appropriate network boundary and do not expose it directly to the public internet. Keep PostgreSQL private, persist `/data`, and never delete the persisted Fernet key from an installation that contains encrypted secrets.
+
+Browser sessions use opaque random credentials; only SHA-256 token hashes are
+stored in PostgreSQL. Logout is idempotent and revokes the matching database
+session before clearing the browser cookie, so that cookie cannot be reused.
+
+## Recommended VS Code extensions
+
+- Ruff by charliermarsh

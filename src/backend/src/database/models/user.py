@@ -22,6 +22,8 @@ class User(Base):
     oidc_subject: Mapped[str | None] = mapped_column(String(512), unique=True, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     is_admin: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    calendar_token: Mapped[str | None] = mapped_column(String(64), unique=True, nullable=True)
+
     steamgriddb_api_key: Mapped[str | None] = mapped_column(String(64), nullable=True)
     psn_npsso_token: Mapped[str | None] = mapped_column(Text, nullable=True)
     psn_validated_at: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
@@ -32,6 +34,7 @@ class User(Base):
     xbox_client_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     xbox_client_secret: Mapped[str | None] = mapped_column(Text, nullable=True)
     gog_refresh_token: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     steam_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     steam_api_key: Mapped[str | None] = mapped_column(String(64), nullable=True)
     retroachievements_username: Mapped[str | None] = mapped_column(String(64), nullable=True)

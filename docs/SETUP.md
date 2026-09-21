@@ -1,143 +1,253 @@
 # Self-hosted setup
 
-This branch uses a first-run web setup for the administrator. Provider API keys and deployment-wide OIDC credentials can be entered from **Settings → Server Integrations** after the first administrator is created.
+The normal installation path is **environment-light**:
+
+- PostgreSQL connection details stay in `.env` because they are needed before the application can open its database.
+- The first administrator is created from the first-run web setup page.
+- OIDC and SMTP can be configured during first run and edited later from Settings.
+- Provider credentials, including ScreenScraper and SteamGridDB, are managed from the admin Settings UI and stored encrypted in PostgreSQL.
+- Upload limits and secure-cookie behaviour are managed from **Settings → Application**.
+- The Fernet encryption key is generated automatically and persisted under the application data directory.
 
 ## 1. Example `.env`
 
-Copy `example.env` to `.env` at the repository root, then replace its
-placeholders. Do not commit your real `.env`.
+Copy `example.env` to `.env` at the repository root. Do not commit your real `.env`.
+
+```dotenv
+POSTGRES_USER=archive
+POSTGRES_PASSWORD=change-this-database-password
+POSTGRES_DB=archive
+# POSTGRES_HOST=db
+# POSTGRES_PORT=5432
+
+# Optional: replace the POSTGRES_* connection settings with one complete URL.
+# DATABASE_URL=postgresql+psycopg://user:password@db.example.com:5432/archive
+
+# Local HTTP development only. Set true when the app is served over HTTPS.
+AUTH_COOKIE_SECURE=false
+
+# Optional first-admin bootstrap. If all three are set, the server creates this administrator automatically.
+# If they are omitted, the normal web setup remains available at /setup.
+# PRIMARY_USER_USERNAME=admin
+# PRIMARY_USER_EMAIL=admin@example.com
+# PRIMARY_USER_PASSWORD=Change-this-during-setup
+
+# Optional encrypted deployment-settings bootstrap.
+# Put the password-protected JSON exported from Settings -> Backup at
+# /data/application.json (or set APPLICATION_JSON_PATH) and provide the export
+# password. It is only auto-imported when the database has no users.
+# APPLICATION_JSON_PASSWORD=your-settings-export-password
+# APPLICATION_JSON_PATH=/data/application.json
+
+```
+
+That is normally all the environment configuration required. `POSTGRES_HOST` defaults to `db` and `POSTGRES_PORT` defaults to `5432`.
+
+If `DATABASE_URL` is supplied, it wins over the individual `POSTGRES_*` values. `postgres://...` and `postgresql://...` URLs are normalized to the async psycopg dialect used by the backend.
+
+### Existing installations with `SECRET_KEY`
+
+`SECRET_KEY` is still accepted as a **one-time backwards-compatible bootstrap value**. If no persisted key exists, the application validates that value and writes it to:
+
+```text
+/data/config/fernet.key
+
+```
+
+After that, the persisted key is authoritative and the `SECRET_KEY` environment variable can be removed. This is important: do not delete the persistent application data volume when removing the old variable.
+
+New installations should not set `SECRET_KEY` at all.
+
+## 2. Standard three-image Docker Compose
+
+The standard deployment continues to use the three separate application images/services:
+
+1. PostgreSQL
+2. Backend
+3. Frontend
+
+The repository's `compose.yaml` uses the backend image with the generated-key data directory mounted at `/data` and the frontend proxy pointed at `http://backend:8000`.
+
+```bash
+cp example.env .env
+docker compose up --build
+
+```
+
+The backend applies pending Alembic migrations with `alembic upgrade heads` before starting Uvicorn. A fresh database therefore has its schema before the setup endpoint is used.
+
+Open `http://localhost:5173`. The frontend checks `/api/setup/status`; when there are no users it sends you to `/setup`, where you create the first administrator. If the backend is unreachable, the frontend stays on the setup/unavailable screen rather than incorrectly sending a fresh installation to `/login`.
+
+If `PRIMARY_USER_USERNAME`, `PRIMARY_USER_EMAIL`, and `PRIMARY_USER_PASSWORD` are all supplied, the backend uses them to create the first administrator automatically. If any of them are missing, startup continues normally and the `/setup` page remains available for manual setup.
+
+## 3. Database configuration
+
+The backend accepts either:
 
 ```dotenv
 POSTGRES_USER=archive
 POSTGRES_PASSWORD=change-this-database-password
 POSTGRES_DB=archive
 
-# Required: used for Fernet encryption and signing the server-side session.
-# Generate one with:
-# python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
-SECRET_KEY=replace-with-a-generated-fernet-key
-
-# Local HTTP development only. Set true when the app is served over HTTPS.
-AUTH_COOKIE_SECURE=false
-
-# No provider API keys are required here for a new install.
-# Configure deployment-wide provider credentials from Settings instead.
-
-# Optional legacy first-admin bootstrap. Leave unset for the normal web setup.
-# PRIMARY_USER_USERNAME=admin
-# PRIMARY_USER_EMAIL=admin@example.com
-# PRIMARY_USER_PASSWORD=Change-this-during-setup
-
-# Optional OIDC environment fallback. Prefer Settings → Server Integrations.
-# OIDC_ISSUER_URL=https://login.example.com/realms/archive
-# OIDC_CLIENT_ID=archive
-# OIDC_CLIENT_SECRET=replace-me
-# OIDC_REDIRECT_URI=http://localhost:5173/api/auth/oidc/callback
-# OIDC_SCOPES=openid profile email
 ```
 
-## 2. Example Docker Compose
+or a complete URL:
 
-The repository's `compose.yaml` is the recommended Compose configuration. The backend Dockerfile is named `dockerfile` (lowercase), and Compose references it explicitly so the setup works on case-sensitive Linux hosts.
+```dotenv
+DATABASE_URL=postgresql+psycopg://archive:password@db.example.com:5432/archive
 
-```yaml
-services:
-  db:
-    image: postgres:18
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
-    volumes:
-      - pgdata:/var/lib/postgresql
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
-  backend:
-    build:
-      context: ./src/backend
-      dockerfile: dockerfile
-    restart: unless-stopped
-    env_file: .env
-    environment:
-      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
-    depends_on:
-      db:
-        condition: service_healthy
-
-  frontend:
-    build: ./src/frontend
-    restart: unless-stopped
-    env_file: .env
-    depends_on:
-      - backend
-    ports:
-      - "5173:80"
-
-volumes:
-  pgdata:
 ```
 
-The frontend's Vite proxy sends `/api` requests to the `backend` service, so the browser uses one origin. That also means the OIDC callback should normally point at the browser-facing frontend URL, for example `http://localhost:5173/api/auth/oidc/callback`.
+When using the individual settings, the effective URL is:
 
-## 3. Start the application
+```text
+postgresql+psycopg://POSTGRES_USER:POSTGRES_PASSWORD@POSTGRES_HOST:POSTGRES_PORT/POSTGRES_DB
+
+```
+
+The default host is `db` and the default port is `5432`, which matches the Compose service. You only need `POSTGRES_HOST` or `POSTGRES_PORT` when your database is somewhere else.
+
+## 4. First-run setup
+
+There are three supported first-run paths:
+
+1. **Environment bootstrap:** set `PRIMARY_USER_USERNAME`, `PRIMARY_USER_EMAIL`, and `PRIMARY_USER_PASSWORD`. All three must be present; the password must satisfy the normal password policy.
+2. **Encrypted deployment import:** put a password-protected deployment backup exported from **Settings → Deployment backup** at `/data/application.json`, set `APPLICATION_JSON_PASSWORD` to its export password, and start the application. It is only consumed automatically when the database has no users.
+3. **Web setup:** leave the primary-user variables unset and open `/setup`. The first page provides an explicit import option for the same encrypted deployment backup, then continues to administrator creation when the backup contains settings only. Deployment backups cannot be imported from the normal Settings pages after setup.
+
+### Deployment backup modes
+
+**Deployment settings** is the portable setup backup. It contains deployment-wide application, provider, SMTP and OIDC settings plus the persistent encryption key, but does not include user accounts or sessions. This is the recommended shape when cloning configuration onto a server that should have a new administrator.
+
+**Full installation** is an optional expanded export. It includes all user account records, their API keys, and optionally their existing browser sessions, in addition to the deployment settings. Password hashes are exported as hashes; application/provider secrets remain encrypted at rest. It is intended for quickly recreating or cloning an installation.
+
+The deployment backup page provides independent toggles for **Include users and their API keys** and **Include active sessions**. Sessions require users. The full-installation button enables both automatically.
+
+Full-installation restore is intentionally a first-run operation: the setup importer rejects it once a user already exists. Existing session token hashes are restored, so browsers that still hold their original session cookies can continue using those sessions after a clone. The new browser used to perform setup will need to log in normally.
+
+### Repeatable setup-path backups
+
+The deployment backup page can also save the encrypted backup directly inside the container. The browser download remains timestamped (for example `archive-deployment-backup-2026-09-20T06-58-37.json`), while the setup-path copy is always named `application.json`. Set `APPLICATION_JSON_PATH` to choose the path; the default is:
+
+```text
+/data/application.json
+
+```
+
+Enable **Also save to the configured setup path** when exporting. This makes a deployment easy to reset and test repeatedly: keep the JSON on the persistent data volume, clear/recreate the database, start the application, and the empty installation can consume the saved backup automatically.
+
+The setup path contains the encrypted backup only. During first-run setup, the wizard discovers this file automatically and offers it as an import source. After the password is verified, you can either accept all imported settings or use the backup to populate the OIDC/SMTP setup pages for review. Keep the password separately; without the password the JSON cannot be imported.
+
+## 5. Application Settings
+
+Administrators can open **Settings → Application** and configure:
+
+* **Secure authentication cookies** — enable when the browser-facing application is served over HTTPS. Restart after changing this setting.
+* **Maximum upload size** — standard image/file uploads.
+* **Maximum clip size** — video clips and soundtrack uploads.
+* **Maximum world/modpack size** — world saves and modpack archives.
+
+The upload-size values are applied to the running backend immediately. Secure-cookie middleware is initialized when the process starts, so restart after changing that option.
+
+For upgrades, existing `AUTH_COOKIE_SECURE`, `MAX_UPLOAD_SIZE_MB`, `MAX_CLIP_SIZE_MB`, and `MAX_WORLD_SAVE_SIZE_MB` environment values are migrated into the database once. After that, the database Settings values are authoritative.
+
+## 6. Provider credentials
+
+Open **Settings → Server Integrations** as an administrator.
+
+The deployment-wide provider settings include:
+
+* SteamGridDB
+* RetroAchievements
+* Giant Bomb
+* IGDB
+* ScreenScraper
+* Xbox
+
+ScreenScraper has two parts: its developer credentials (`devid`/`devpassword`) are deployment-wide, while a user's ScreenScraper account (`ssid`/`sspassword`) can be supplied per user or as a deployment-wide fallback. The ScreenScraper developer credentials are therefore stored in the same Server Integrations section rather than being required in `.env`.
+
+Secret fields are encrypted at rest and are never returned to the browser after saving. Existing per-user credentials continue to take precedence over deployment-wide credentials.
+
+Legacy provider environment variables remain readable as fallbacks for existing deployments, but new installations should use Settings.
+
+## 7. OIDC / SSO
+
+OIDC is configured from the first-run setup page or **Settings → OIDC / SSO**.
+
+The redirect URI should be the browser-facing frontend URL, for example:
+
+```text
+http://localhost:5173/api/auth/oidc/callback
+
+```
+
+Register that exact URI with the identity provider. Client secrets remain backend-only and are encrypted at rest. The OIDC flow requires a verified email claim. Existing users are matched by OIDC subject first and verified email second; new OIDC users are created as non-admin users.
+
+## 8. SMTP / password reset
+
+SMTP is configured from the first-run setup page or **Settings → SMTP / Email**. The saved SMTP password is encrypted at rest. The Settings page also provides an SMTP test path using the same transport used by password-reset email.
+
+## 9. Central application image
+
+The repository also contains a reusable central image under `src/central/`. It packages the existing backend and frontend runtimes into one application image while keeping PostgreSQL as a separate service.
+
+Build it from the repository root:
 
 ```bash
-docker compose up --build
+docker build -f src/central/Dockerfile -t unnamed-tracking-app-central:local .
+
 ```
 
-The backend applies pending Alembic migrations with `alembic upgrade heads` before starting Uvicorn. This is intentional: a fresh PostgreSQL volume has no application tables, so the first-run setup endpoint cannot work until the schema exists. The migration command targets **all migration heads**, avoiding the earlier `upgrade head` ambiguity while still applying every branch of a legitimate migration graph.
+### Combined central deployment
 
-Open `http://localhost:5173`. The frontend checks `/api/setup/status` before checking authentication. On a database with no users it sends you to `/setup`, where you create the first administrator.
-
-If the backend is stopped, the frontend stays on the setup/unavailable screen instead of incorrectly sending a fresh installation to `/login`.
-
-## 4. Configure provider credentials
-
-After signing in as an administrator, open **Settings → Server Integrations**. Deployment-wide credentials are stored encrypted in PostgreSQL. The browser never receives the saved secret values; password/API-key fields show that a value exists and require a new value to replace it.
-
-Per-user credentials already available in the Metadata/API settings continue to take precedence over deployment-wide fallbacks.
-
-## 5. Configure OIDC / SSO
-
-In **Settings → Server Integrations → OpenID Connect / SSO**, enter:
-
-- **Issuer URL** — the OIDC issuer, such as `https://login.example.com/realms/archive`.
-- **Client ID** — the client/application ID registered with your identity provider.
-- **Client secret** — the confidential client secret. It stays on the backend and is encrypted at rest.
-- **Scopes** — normally `openid profile email`.
-- **Redirect URI** — the exact browser-facing callback URL. With the example Compose setup this is `http://localhost:5173/api/auth/oidc/callback`.
-
-Register that exact redirect URI with the identity provider. After saving, the login page displays **Continue with SSO**. The UI starts the redirect and displays friendly error messages, while the backend performs the authorization-code exchange and creates the application's local session.
-
-The OIDC flow requires a verified email claim. Existing users are matched by OIDC subject first and verified email second; new OIDC users are created as non-admin users.
-
-## 6. Is `SECRET_KEY` required?
-
-**Yes.** `SECRET_KEY` remains the one important application secret that should stay in the environment rather than the Settings UI.
-
-This application uses it for two security-critical purposes:
-
-1. FastAPI/Starlette's server-side session middleware signs the session data used by the OAuth/OIDC flow.
-2. The application's Fernet encryption layer uses it to encrypt recoverable secrets such as provider credentials and PSN tokens.
-
-It must be a valid Fernet key and must remain stable across restarts. Generate it with:
+Copy the central example environment file to the repository root as `.env`, then run:
 
 ```bash
-python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+cp src/central/example.env .env
+docker compose -f src/central/docker-compose.yaml up --build
+
 ```
 
-Do **not** regenerate it on every container start: changing it makes previously encrypted values unreadable and invalidates signed sessions.
+The central container defaults to `APP_MODE=both`, exposing the frontend on `5173` and backend on `8000`. In combined mode the frontend proxy automatically uses `http://127.0.0.1:8000`.
 
-## Production notes
+### Split central deployment
 
-- Put the application behind HTTPS and set `AUTH_COOKIE_SECURE=true`.
-- Keep PostgreSQL private; it does not need to be exposed to the public internet.
-- Keep `.env` out of source control.
-- Use a long, randomly generated Fernet `SECRET_KEY`.
-- Prefer the Settings UI for provider and OIDC credentials so they are encrypted in the database instead of copied into deployment files.
-- The environment variables for provider/OIDC credentials remain as backwards-compatible fallbacks for existing deployments.
+The same central image can also run as two services:
+
+```bash
+docker compose -f src/central/docker-compose.separate.yaml up --build
+
+```
+
+The backend runs with `APP_MODE=backend`; the frontend runs with `APP_MODE=frontend` and proxies to `http://backend:8000`.
+
+`BACKEND_URL` is an explicit override for unusual deployments. It takes precedence over the automatic defaults.
+
+The central image uses the exact same application source as the three separate images; it is an additional packaging option, not a replacement for the separate backend/frontend images.
+
+## 10. Persistent data
+
+The application data directory should remain persistent across container recreation. At minimum it contains:
+
+```text
+/data/
+  config/
+    fernet.key
+  users/
+  ...application data...
+
+```
+
+PostgreSQL has its own persistent volume. The Fernet key and PostgreSQL data must both survive restarts/redeployments or encrypted provider credentials and user data will no longer be available.
+
+## 11. Security notes
+
+* Keep `.env` out of source control.
+* Do not expose PostgreSQL publicly.
+* Put the browser-facing application behind HTTPS in production and enable secure authentication cookies.
+* Do not delete `/data/config/fernet.key` unless you are deliberately discarding encrypted application secrets and understand the consequences.
+* Do not generate a new Fernet key on every container start.
+* Provider/OIDC/SMTP secrets should normally be entered through Settings rather than copied into deployment files.
+
+
+For the complete deployment export workflow, including the individual export switches, filename behaviour, session-preserving full restores, filesystem discovery, and repeatable reset/testing procedure, see [docs/DEPLOYMENT-BACKUP.md](DEPLOYMENT-BACKUP.md).

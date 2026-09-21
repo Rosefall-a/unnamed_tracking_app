@@ -2,10 +2,14 @@ import vue from "@vitejs/plugin-vue";
 import { defineConfig } from "vite";
 
 // https://vite.dev/config/
+const backendUrl =
+  process.env.BACKEND_URL ||
+  (process.env.APP_MODE === "both" ? "http://127.0.0.1:8000" : "http://backend:8000");
+
 export default defineConfig({
   plugins: [vue()],
   server: {
-    host: true, // listen on 0.0.0.0 so the container's port mapping works
+    host: true,
     port: 80,
     watch: {
       // Docker Desktop on Windows doesn't forward native filesystem
@@ -15,7 +19,7 @@ export default defineConfig({
     },
     proxy: {
       "/api": {
-        target: "http://backend:8000",
+        target: backendUrl,
         changeOrigin: true,
       },
     },

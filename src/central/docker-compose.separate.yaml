@@ -1,0 +1,49 @@
+# Uses the exact same central image twice, while retaining the three-image
+# deployment as an option for installations that prefer separate frontend and
+# backend images.
+services:
+  db:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - unnamed_tracking_app_split_db:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ../..
+      dockerfile: src/central/Dockerfile
+    image: unnamed-tracking-app-central:local
+    environment:
+      APP_MODE: backend
+      APP_DATA_DIR: /data
+      PYTHONUNBUFFERED: 1
+    env_file:
+      - ./example.env
+    ports:
+      - "8000:8000"
+    volumes:
+      - ../../data:/data
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    image: unnamed-tracking-app-central:local
+    environment:
+      APP_MODE: frontend
+      BACKEND_URL: http://backend:8000
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+
+volumes:
+  unnamed_tracking_app_split_db:

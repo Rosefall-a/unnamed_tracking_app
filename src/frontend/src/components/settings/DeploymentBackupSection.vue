@@ -1,0 +1,101 @@
+<script setup lang="ts">
+import { ref } from "vue";
+import { exportDeploymentBackup } from "../../services/exportImport";
+
+const exportPassword = ref("");
+const exportConfirmPassword = ref("");
+const includeApplicationSettings = ref(true);
+const includeProviderCredentials = ref(true);
+const includeOidcSettings = ref(true);
+const includeSmtpSettings = ref(false);
+const includeUsers = ref(false);
+const includeSessions = ref(false);
+const fullInstallation = ref(false);
+const saveToSetupPath = ref(false);
+const exporting = ref(false);
+const error = ref<string | null>(null);
+const message = ref<string | null>(null);
+
+function validateExport() {
+  if (exportPassword.value.length < 12) throw new Error("Backup passwords must be at least 12 characters.");
+  if (exportConfirmPassword.value !== exportPassword.value) throw new Error("The backup passwords do not match.");
+}
+
+async function exportBackup() {
+  error.value = null;
+  message.value = null;
+  try {
+    validateExport();
+    exporting.value = true;
+    const blob = await exportDeploymentBackup({
+      password: exportPassword.value,
+      include_application_settings: includeApplicationSettings.value,
+      include_provider_credentials: includeProviderCredentials.value,
+      include_oidc_settings: includeOidcSettings.value,
+      include_smtp_settings: includeSmtpSettings.value,
+      include_users: fullInstallation.value || includeUsers.value,
+      include_sessions: fullInstallation.value || includeSessions.value,
+      full_installation: fullInstallation.value,
+      save_to_setup_path: saveToSetupPath.value,
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    const filename = blob.type.includes("json")
+      ? `archive-deployment-backup-${new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19)}.json`
+      : "archive-deployment-backup.json";
+    link.download = filename;
+    link.click();
+    URL.revokeObjectURL(url);
+    exportPassword.value = "";
+    exportConfirmPassword.value = "";
+    message.value = "Encrypted deployment backup created. Keep the backup and its password separate.";
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : "Failed to export deployment backup.";
+  } finally {
+    exporting.value = false;
+  }
+}
+
+
+</script>
+
+<template>
+  <section class="section">
+    <h2>Deployment backup</h2>
+    <p class="hint">Create password-protected deployment configuration for use during first-run setup or automated environment bootstrap. This includes application/provider settings, SMTP/OIDC configuration, and the persistent encryption key. User accounts and active sessions are optional.</p>
+
+    <div class="warning"><strong>Protect this file.</strong> The archive contains deployment secrets. Keep its password separate from the file.</div>
+
+    <div class="panel">
+      <h3>Export</h3>
+      <form class="form" @submit.prevent="exportBackup">
+        <label><span>Backup password</span><input v-model="exportPassword" type="password" minlength="12" maxlength="256" autocomplete="new-password" placeholder="At least 12 characters" required /></label>
+        <label><span>Confirm backup password</span><input v-model="exportConfirmPassword" type="password" minlength="12" maxlength="256" autocomplete="new-password" required /></label>
+        <label class="check"><input v-model="saveToSetupPath" type="checkbox" /><span>Also save to the configured setup path</span></label>
+        <div class="options">
+          <h4>What should be copied?</h4>
+          <p class="hint">Choose exactly which deployment configuration should travel with this backup. Unselected sections are not exported.</p>
+          <label class="check"><input v-model="includeApplicationSettings" type="checkbox" /><span><strong>Application settings</strong><small>Runtime limits and deployment-wide behaviour.</small></span></label>
+          <label class="check"><input v-model="includeProviderCredentials" type="checkbox" :disabled="!includeApplicationSettings" /><span><strong>Provider credentials</strong><small>Media/provider API credentials and identifiers. Disable this when the new server should use its own credentials.</small></span></label>
+          <label class="check"><input v-model="includeOidcSettings" type="checkbox" /><span><strong>OIDC / SSO</strong><small>SSO provider configuration and encrypted client credentials. Leave this off to configure SSO separately.</small></span></label>
+          <label class="check"><input v-model="includeSmtpSettings" type="checkbox" :disabled="!includeApplicationSettings" /><span><strong>SMTP</strong><small>Email transport and password-reset mail settings. Off by default.</small></span></label>
+          <label class="check"><input v-model="includeUsers" type="checkbox" :disabled="fullInstallation" /><span><strong>Users and API keys</strong><small>Copies user accounts and their API keys. Off by default.</small></span></label>
+          <label class="check"><input v-model="includeSessions" type="checkbox" :disabled="fullInstallation || !includeUsers" /><span><strong>Active sessions</strong><small>Attempts to preserve currently active browser sessions. Requires users.</small></span></label>
+          <label class="check"><input v-model="fullInstallation" type="checkbox" /><span><strong>Full installation</strong><small>Shortcut that includes users and active sessions.</small></span></label>
+        </div>
+        <p class="hint">The download is timestamped so you can keep multiple exports. When enabled, the server-side setup copy is always saved as <code>application.json</code> at APPLICATION_JSON_PATH (default /data/application.json).</p>
+        <button type="submit" class="primary" :disabled="exporting">{{ exporting ? "Encrypting…" : "Export encrypted deployment backup" }}</button>
+      </form>
+    </div>
+
+
+    <div v-if="error" class="error">{{ error }}</div>
+    <div v-if="message" class="success">{{ message }}</div>
+
+  </section>
+</template>
+
+<style scoped>
+.section{display:flex;flex-direction:column;gap:16px}.section h2{margin:0;color:#fff}.hint{color:#999;font-size:13px;line-height:1.5}.warning{background:rgba(214,138,52,.08);border:1px solid rgba(214,138,52,.28);border-radius:9px;padding:12px 14px;color:#c9c9c9;font-size:.8rem;line-height:1.5}.warning strong{color:#d68a34}.panel{border:1px solid #2f2f2f;border-radius:10px;padding:18px;background:#151515}.panel h3{margin:0 0 12px;color:#fff}.form{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:end;max-width:760px}.form label{display:flex;flex-direction:column;gap:6px;color:#ccc;font-size:13px}.form input,.modal input{background:#111;border:1px solid #3a3a3a;border-radius:8px;color:#fff;padding:10px;font:inherit}.check{flex-direction:row!important;align-items:center;gap:8px!important}.check input{accent-color:#d68a34}.form>.hint{grid-column:1/-1;margin:0}.options{grid-column:1/-1;display:flex;flex-direction:column;gap:9px;border-top:1px solid #2f2f2f;padding-top:14px}.options h4{margin:0;color:#fff}.options .check{align-items:flex-start!important}.options .check span{display:flex;flex-direction:column;gap:2px}.options small{color:#888;font-size:12px;line-height:1.35}.primary,.secondary{border:0;border-radius:8px;padding:10px 14px;font-weight:600;cursor:pointer}.primary{background:#d68a34;color:#111}.secondary{background:rgba(255,255,255,.08);color:#fff}.primary:disabled,.secondary:disabled{opacity:.6;cursor:not-allowed}.error{color:#fca5a5;background:rgba(220,38,38,.1);border:1px solid rgba(220,38,38,.3);border-radius:8px;padding:8px 10px}.success{color:#86efac;background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.3);border-radius:8px;padding:8px 10px}.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.72);display:flex;align-items:center;justify-content:center;padding:20px;z-index:100}.modal{width:min(460px,100%);background:#1a1a1a;border:1px solid #363636;border-radius:12px;padding:22px;box-shadow:0 24px 64px rgba(0,0,0,.65);display:flex;flex-direction:column;gap:14px}.modal h3{margin:0;color:#fff}.modal p{margin:0;color:#999;font-size:.85rem;line-height:1.5}.modal label{display:flex;flex-direction:column;gap:6px;color:#ccc;font-size:13px}.modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:4px}@media(max-width:760px){.form{grid-template-columns:1fr}}
+</style>

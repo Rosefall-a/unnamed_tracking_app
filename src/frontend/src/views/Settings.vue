@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { currentUser } from "../state/auth";
 import SettingsNav from "../components/settings/SettingsNav.vue";
@@ -9,15 +9,24 @@ import InterfaceSection from "../components/settings/InterfaceSection.vue";
 import AppearanceSection from "../components/settings/AppearanceSection.vue";
 import UploadSection from "../components/settings/UploadSection.vue";
 import LibraryManagementSection from "../components/settings/LibraryManagementSection.vue";
+import MediaTrashSection from "../components/settings/MediaTrashSection.vue";
 import ScanSettingsSection from "../components/settings/ScanSettingsSection.vue";
 import MetadataSourcesSection from "../components/settings/MetadataSourcesSection.vue";
+import MediaRefreshSection from "../components/settings/MediaRefreshSection.vue";
+import TasksSection from "../components/settings/TasksSection.vue";
 import AdminSection from "../components/settings/AdminSection.vue";
 import StatsSection from "../components/settings/StatsSection.vue";
 import ExportImportSection from "../components/settings/ExportImportSection.vue";
+import CalendarNotificationsSection from "../components/settings/CalendarNotificationsSection.vue";
+import MediaPreferencesSection from "../components/settings/MediaPreferencesSection.vue";
 import ComingSoonSection from "../components/settings/ComingSoonSection.vue";
 import ApiKeysSection from "../components/settings/ApiKeysSection.vue";
 import ServerIntegrationsSection from "../components/settings/ServerIntegrationsSection.vue";
+import ApplicationSettingsSection from "../components/settings/ApplicationSettingsSection.vue";
 import OidcSettingsSection from "../components/settings/OidcSettingsSection.vue";
+import SmtpSettingsSection from "../components/settings/SmtpSettingsSection.vue";
+import DeploymentBackupSection from "../components/settings/DeploymentBackupSection.vue";
+import HealthStatusSection from "../components/settings/HealthStatusSection.vue";
 
 const router = useRouter();
 const route = useRoute();
@@ -35,6 +44,7 @@ const groups = computed<SettingsGroup[]>(() => {
         { id: "interface", label: "User Interface" },
         { id: "appearance", label: "Appearance" },
         { id: "api-keys", label: "API Keys" },
+        { id: "calendar-notifications", label: "Calendar and Notifications" },
       ],
     },
     {
@@ -42,6 +52,8 @@ const groups = computed<SettingsGroup[]>(() => {
       sections: [
         { id: "upload", label: "Upload" },
         { id: "library", label: "Library Management" },
+        { id: "media-prefs", label: "Media Preferences" },
+        { id: "media-trash", label: "Media Trash" },
       ],
     },
     {
@@ -49,50 +61,49 @@ const groups = computed<SettingsGroup[]>(() => {
       sections: [
         { id: "scan", label: "Scan Settings" },
         { id: "sources", label: "Metadata/API" },
+        { id: "media-refresh", label: "Refresh Media" },
         { id: "export", label: "Export / Import" },
       ],
     },
   ];
   const systemSections = [
-    ...(currentUser.value?.is_admin
-      ? [{ id: "oidc", label: "OIDC / SSO" }]
-      : []),
-    ...(currentUser.value?.is_admin
-      ? [{ id: "server-integrations", label: "Server Integrations" }]
-      : []),
+    ...(currentUser.value?.is_admin ? [{ id: "application", label: "Application" }] : []),
+    ...(currentUser.value?.is_admin ? [{ id: "oidc", label: "OIDC / SSO" }] : []),
+    ...(currentUser.value?.is_admin ? [{ id: "smtp", label: "SMTP / Email" }] : []),
+    ...(currentUser.value?.is_admin ? [{ id: "server-integrations", label: "Server Integrations" }] : []),
+    ...(currentUser.value?.is_admin ? [{ id: "deployment-backup", label: "Deployment Backup" }] : []),
     ...(currentUser.value?.is_admin ? [{ id: "users", label: "Users" }] : []),
+    ...(currentUser.value?.is_admin ? [{ id: "health", label: "System Status" }] : []),
+    ...(currentUser.value?.is_admin ? [{ id: "admin", label: "Admin" }] : []),
     { id: "stats", label: "Server Stats" },
-    ...(currentUser.value?.is_admin
-      ? [{ id: "tasks", label: "Tasks", comingSoon: true }]
-      : []),
-    ...(currentUser.value?.is_admin
-      ? [{ id: "logs", label: "Logs", comingSoon: true }]
-      : []),
+    ...(currentUser.value?.is_admin ? [{ id: "tasks", label: "Tasks" }] : []),
+    ...(currentUser.value?.is_admin ? [{ id: "logs", label: "Logs", comingSoon: true }] : []),
   ];
   result.push({ label: "System", sections: systemSections });
   return result;
 });
+
 const activeSection = ref((route.query.section as string) || "profile");
+
+watch(
+  () => route.query.section,
+  (section) => {
+    const next = typeof section === "string" && section ? section : "profile";
+    if (activeSection.value !== next) activeSection.value = next;
+  },
+);
+
+watch(activeSection, (section) => {
+  const current = typeof route.query.section === "string" ? route.query.section : "profile";
+  if (current === section) return;
+  void router.replace({ query: { ...route.query, section } });
+});
 </script>
 
 <template>
   <main class="settings-page">
-    <button
-      type="button"
-      class="back-arrow-button"
-      title="Back"
-      @click="goBack"
-    >
-      <svg
-        viewBox="0 0 24 24"
-        width="18"
-        height="18"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-      >
+    <button type="button" class="back-arrow-button" title="Back" @click="goBack">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M19 12H5" />
         <path d="M12 19l-7-7 7-7" />
       </svg>
@@ -106,42 +117,30 @@ const activeSection = ref((route.query.section as string) || "profile");
           <InterfaceSection v-else-if="activeSection === 'interface'" />
           <AppearanceSection v-else-if="activeSection === 'appearance'" />
           <ApiKeysSection v-else-if="activeSection === 'api-keys'" />
+          <CalendarNotificationsSection v-else-if="activeSection === 'calendar-notifications'" />
           <UploadSection v-else-if="activeSection === 'upload'" />
           <LibraryManagementSection v-else-if="activeSection === 'library'" />
+          <MediaPreferencesSection v-else-if="activeSection === 'media-prefs'" />
+          <MediaTrashSection v-else-if="activeSection === 'media-trash'" />
           <ScanSettingsSection v-else-if="activeSection === 'scan'" />
           <MetadataSourcesSection v-else-if="activeSection === 'sources'" />
-          <OidcSettingsSection
-            v-else-if="activeSection === 'oidc' && currentUser?.is_admin"
-          />
-          <ServerIntegrationsSection
-            v-else-if="
-              activeSection === 'server-integrations' && currentUser?.is_admin
-            "
-          />
-          <AdminSection
-            v-else-if="activeSection === 'users' && currentUser?.is_admin"
-          />
+          <MediaRefreshSection v-else-if="activeSection === 'media-refresh'" />
+          <ApplicationSettingsSection v-else-if="activeSection === 'application' && currentUser?.is_admin" />
+          <OidcSettingsSection v-else-if="activeSection === 'oidc' && currentUser?.is_admin" />
+          <SmtpSettingsSection v-else-if="activeSection === 'smtp' && currentUser?.is_admin" />
+          <ServerIntegrationsSection v-else-if="activeSection === 'server-integrations' && currentUser?.is_admin" />
+          <DeploymentBackupSection v-else-if="activeSection === 'deployment-backup' && currentUser?.is_admin" />
+          <AdminSection v-else-if="activeSection === 'users' && currentUser?.is_admin" />
+          <HealthStatusSection v-else-if="activeSection === 'health' && currentUser?.is_admin" />
+          <AdminSection v-else-if="activeSection === 'admin' && currentUser?.is_admin" />
           <StatsSection v-else-if="activeSection === 'stats'" />
           <ExportImportSection v-else-if="activeSection === 'export'" />
-          <ComingSoonSection
-            v-else-if="activeSection === 'tasks' && currentUser?.is_admin"
-            title="Tasks"
-            description="Schedule recurring jobs, run by an in-process scheduler: no extra server required."
-            :planned-features="[
-              'Scheduled metadata refreshes',
-              'Automatic library rescans',
-              'Storage cleanup jobs',
-            ]"
-          />
+          <TasksSection v-else-if="activeSection === 'tasks' && currentUser?.is_admin" />
           <ComingSoonSection
             v-else-if="activeSection === 'logs' && currentUser?.is_admin"
             title="Logs"
             description="An audit trail of edits made across the library, including changes made by other users."
-            :planned-features="[
-              'Who changed what, and when',
-              'Filter by user, game, or field',
-              'Restore a previous value',
-            ]"
+            :planned-features="['Who changed what, and when', 'Filter by user, game, or field', 'Restore a previous value']"
           />
         </div>
       </div>
@@ -154,7 +153,7 @@ const activeSection = ref((route.query.section as string) || "profile");
   position: relative;
   min-height: 100vh;
   padding: 84px 40px 40px;
-  background: #121212;
+  background: var(--ui-bg);
   font-family: system-ui, sans-serif;
 }
 .back-arrow-button {
@@ -173,20 +172,12 @@ const activeSection = ref((route.query.section as string) || "profile");
   justify-content: center;
   cursor: pointer;
   z-index: 100;
+  transition: background 0.15s ease;
 }
-.settings-layout {
-  width: 100%;
-  color: #fff;
-}
-.settings-layout h1 {
-  margin: 0 0 24px;
-  font-size: 1.5rem;
-}
-.settings-body {
-  display: flex;
-  gap: 32px;
-  align-items: flex-start;
-}
+.back-arrow-button:hover { background: rgba(40, 40, 40, 0.85); }
+.settings-layout { width: 100%; color: #fff; }
+.settings-layout h1 { margin: 0 0 24px; font-size: 1.5rem; }
+.settings-body { display: flex; gap: 32px; align-items: flex-start; }
 .settings-card {
   flex: 1;
   min-width: 0;
@@ -196,12 +187,7 @@ const activeSection = ref((route.query.section as string) || "profile");
   padding: 32px;
 }
 @media (max-width: 760px) {
-  .settings-body {
-    flex-direction: column;
-  }
-  .settings-card {
-    width: 100%;
-    padding: 20px;
-  }
+  .settings-body { flex-direction: column; }
+  .settings-card { width: 100%; padding: 20px; }
 }
 </style>

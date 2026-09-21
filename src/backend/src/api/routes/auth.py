@@ -68,8 +68,6 @@ class PsnConnectRequest(BaseModel):
 class UserProfileUpdateRequest(BaseModel):
     username: str | None = Field(default=None, min_length=1, max_length=100)
     email: str | None = Field(default=None, min_length=3, max_length=320)
-    # only required when actually setting a new password — everything else
-    # here (username/email/steamgriddb key) doesn't need it
     current_password: str | None = Field(default=None, min_length=1)
     new_password: str | None = Field(default=None, min_length=1)
     steamgriddb_api_key: str | None = Field(default=None, max_length=64)
@@ -94,19 +92,18 @@ async def login(
         or not verify_password(payload.password, user.password_hash)
     ):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials.")
-
-    session_token = secrets.token_urlsafe(32)
+    token = secrets.token_urlsafe(32)
     db.add(
         UserSession(
             user_id=user.id,
-            token_hash=hash_token(session_token),
+            token_hash=hash_token(token),
             expires_at=int(time.time()) + SESSION_TTL_SECONDS,
         )
     )
     await db.commit()
     response.set_cookie(
         key=SESSION_COOKIE,
-        value=session_token,
+        value=token,
         max_age=SESSION_TTL_SECONDS,
         httponly=True,
         samesite="lax",
@@ -121,6 +118,8 @@ async def logout(
     db: AsyncSession = Depends(get_db),
     session_token: str | None = Cookie(default=None, alias=SESSION_COOKIE),
 ) -> dict[str, str]:
+    # Deliberately idempotent: a missing, expired, or already-revoked cookie
+    # still gets cleared and returns success.
     if session_token:
         await revoke_session(db, session_token)
     response.delete_cookie(SESSION_COOKIE)
@@ -144,15 +143,14 @@ async def update_current_user(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, str | bool | None]:
-    if payload.new_password is not None:
-        if not payload.current_password or not verify_password(
-            payload.current_password, user.password_hash
-        ):
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Current password is required to set a new password.",
-            )
-
+    if payload.new_password is not None and (
+        not payload.current_password
+        or not verify_password(payload.current_password, user.password_hash)
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Current password is required to set a new password.",
+        )
     if payload.username is not None:
         user.username = payload.username.strip()
     if payload.email is not None:
@@ -161,12 +159,10 @@ async def update_current_user(
         user.password_hash = hash_password(payload.new_password)
     if payload.steamgriddb_api_key is not None:
         user.steamgriddb_api_key = payload.steamgriddb_api_key.strip() or None
-
     if not user.username or not user.email:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Username and email are required."
         )
-
     try:
         await db.commit()
         await db.refresh(user)
@@ -175,7 +171,6 @@ async def update_current_user(
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail="Username or email already exists."
         ) from exc
-
     return {
         "id": str(user.id),
         "username": user.username,
@@ -191,13 +186,10 @@ async def connect_psn(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, str | int | None]:
-    """Validate a PSN npsso token against Sony's OAuth flow before persisting
-    it — never store a token that doesn't actually work."""
     try:
         result = await asyncio.to_thread(PSNClient(payload.npsso_token).validate)
     except PSNError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
-
     user.psn_npsso_token = encrypt_secret(payload.npsso_token)
     user.psn_validated_at = int(time.time())
     user.psn_online_id = result.get("profile_name")
@@ -213,22 +205,15 @@ async def connect_psn(
 
 @router.delete("/me/psn")
 async def disconnect_psn(
-    user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
 ) -> dict[str, str]:
-    user.psn_npsso_token = None
-    user.psn_validated_at = None
-    user.psn_online_id = None
-    user.psn_avatar_url = None
+    user.psn_npsso_token = user.psn_validated_at = user.psn_online_id = user.psn_avatar_url = None
     await db.commit()
     return {"status": "disconnected"}
 
 
 @router.get("/me/psn/status")
 async def psn_status(user: User = Depends(get_current_user)) -> dict[str, bool | int | str | None]:
-    """Never echoes the token itself — connected/validated_at only. Does not
-    re-validate against Sony on every call; reconnect (POST /me/psn) to
-    re-check a token that may have expired."""
     return {
         "connected": user.psn_npsso_token is not None,
         "validated_at": user.psn_validated_at,
@@ -239,21 +224,20 @@ async def psn_status(user: User = Depends(get_current_user)) -> dict[str, bool |
 
 @router.get("/users")
 async def list_users(
-    admin: User = Depends(get_current_admin),
-    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(get_current_admin), db: AsyncSession = Depends(get_db)
 ) -> list[dict[str, str | bool | int]]:
     del admin
     users = await db.scalars(select(User).order_by(User.username))
     return [
         {
-            "id": str(user.id),
-            "username": user.username,
-            "email": user.email,
-            "is_admin": user.is_admin,
-            "is_active": user.is_active,
-            "created_at": user.created_at,
+            "id": str(u.id),
+            "username": u.username,
+            "email": u.email,
+            "is_admin": u.is_admin,
+            "is_active": u.is_active,
+            "created_at": u.created_at,
         }
-        for user in users
+        for u in users
     ]
 
 
@@ -263,20 +247,20 @@ async def create_user_api_key(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, str | list[str]]:
-    api_key, key_prefix, key_hash = create_api_key()
+    key, prefix, key_hash = create_api_key()
     db.add(
         UserApiKey(
             user_id=user.id,
             name=payload.name,
-            key_prefix=key_prefix,
+            key_prefix=prefix,
             key_hash=key_hash,
             scopes=payload.scopes,
         )
     )
     await db.commit()
     return {
-        "api_key": api_key,
-        "key_prefix": key_prefix,
+        "api_key": key,
+        "key_prefix": prefix,
         "name": payload.name,
         "scopes": payload.scopes,
         "warning": "Store this key now. It will not be shown again.",
@@ -285,9 +269,7 @@ async def create_user_api_key(
 
 @router.delete("/api-keys/{key_id}")
 async def revoke_user_api_key(
-    key_id: UUID,
-    user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    key_id: UUID, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
 ) -> dict[str, str]:
     api_key = await db.scalar(
         select(UserApiKey).where(UserApiKey.id == key_id, UserApiKey.user_id == user.id)
@@ -306,20 +288,17 @@ async def create_user(
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, str | bool]:
     del admin
-    username = payload.username.strip()
-    email = payload.email.strip().lower()
-    if not username or not email:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Username and email are required."
-        )
-
     user = User(
-        username=username,
-        email=email,
+        username=payload.username.strip(),
+        email=payload.email.strip().lower(),
         password_hash=hash_password(payload.password),
         is_active=True,
         is_admin=payload.is_admin,
     )
+    if not user.username or not user.email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Username and email are required."
+        )
     db.add(user)
     try:
         await db.commit()
@@ -329,7 +308,6 @@ async def create_user(
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail="Username or email already exists."
         ) from exc
-
     return {
         "id": str(user.id),
         "username": user.username,
@@ -348,9 +326,10 @@ async def update_user_admin_status(
     user = await db.scalar(select(User).where(User.id == user_id))
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
-    if (
-        user.username == settings.PRIMARY_USER_USERNAME
-        or user.email == settings.PRIMARY_USER_EMAIL.lower()
+    primary_username = getattr(settings, "PRIMARY_USER_USERNAME", "").strip()
+    primary_email = getattr(settings, "PRIMARY_USER_EMAIL", "").strip().lower()
+    if (primary_username and user.username == primary_username) or (
+        primary_email and user.email == primary_email
     ):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -361,7 +340,6 @@ async def update_user_admin_status(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="You cannot remove your own admin access.",
         )
-
     user.is_admin = payload.is_admin
     await db.commit()
     await db.refresh(user)
@@ -375,16 +353,15 @@ async def update_user_admin_status(
 
 @router.delete("/users/{user_id}")
 async def delete_user(
-    user_id: UUID,
-    admin: User = Depends(get_current_admin),
-    db: AsyncSession = Depends(get_db),
+    user_id: UUID, admin: User = Depends(get_current_admin), db: AsyncSession = Depends(get_db)
 ) -> dict[str, str]:
     user = await db.scalar(select(User).where(User.id == user_id))
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
-    if (
-        user.username == settings.PRIMARY_USER_USERNAME
-        or user.email == settings.PRIMARY_USER_EMAIL.lower()
+    primary_username = getattr(settings, "PRIMARY_USER_USERNAME", "").strip()
+    primary_email = getattr(settings, "PRIMARY_USER_EMAIL", "").strip().lower()
+    if (primary_username and user.username == primary_username) or (
+        primary_email and user.email == primary_email
     ):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="The primary user cannot be deleted."
@@ -393,7 +370,6 @@ async def delete_user(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="You cannot delete your own account."
         )
-
     await db.delete(user)
     await db.commit()
     shutil.rmtree(Path("/data/user") / str(user_id), ignore_errors=True)

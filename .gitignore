@@ -3,3 +3,5 @@
 *__pycache__*
 .mypy_cache
 data
+# Password-protected deployment settings bootstrap
+application.json

@@ -10,7 +10,7 @@ const emit = defineEmits<{
 </script>
 
 <template>
-  <div class="segmented-control">
+  <div class="segmented-control" role="group">
     <button
       v-for="option in options"
       :key="option.value"
@@ -26,7 +26,12 @@ const emit = defineEmits<{
 
 <style scoped>
 .segmented-control {
-  display: inline-flex;
+  display: flex;
+  width: fit-content;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow-x: auto;
+  scrollbar-width: thin;
   background: #111;
   border: 1px solid #3a3a3a;
   border-radius: 8px;
@@ -34,6 +39,8 @@ const emit = defineEmits<{
   gap: 2px;
 }
 .segment {
+  flex: 0 0 auto;
+  white-space: nowrap;
   background: none;
   border: none;
   border-radius: 6px;
@@ -52,5 +59,14 @@ const emit = defineEmits<{
 .segment.active {
   background: #d68a34;
   color: #111;
+}
+@media (max-width: 760px) {
+  .segmented-control {
+    width: 100%;
+  }
+  .segment {
+    flex: 1 0 auto;
+    min-width: max-content;
+  }
 }
 </style>

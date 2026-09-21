@@ -26,7 +26,6 @@ function formatBackupDate(epochSeconds: number): string {
 
 const exporting = ref(false);
 const exportError = ref<string | null>(null);
-
 async function exportLibrary() {
   exporting.value = true;
   exportError.value = null;
@@ -89,9 +88,11 @@ async function onFileSelected(e: Event) {
   <section class="settings-section">
     <h2>Export / Import</h2>
     <p class="section-hint">
-      A portable JSON snapshot of your games, for backups, or moving to a new
-      server. This covers game data and metadata only, not attached files
-      (screenshots, saves, docs) or bounties.
+      A portable JSON snapshot of your whole library (games, movies, TV shows
+      and anime) for backups, or moving to a new server. Covers title data and
+      metadata only, not attached files (screenshots, saves, docs) or bounties.
+      Import currently only re-creates games; movies/TV/anime are included in
+      the export but not yet re-importable.
     </p>
 
     <div v-if="backupStatus" class="tile backup-status-tile">
@@ -118,7 +119,7 @@ async function onFileSelected(e: Event) {
     <div class="tile">
       <h3>Export</h3>
       <p class="tile-desc">
-        Downloads every game in your library as a single JSON file.
+        Downloads your games, movies, TV shows, and anime as a single JSON file.
       </p>
       <div v-if="exportError" class="form-error">{{ exportError }}</div>
       <button
@@ -190,6 +191,12 @@ async function onFileSelected(e: Event) {
   font-size: 0.9rem;
   color: #fff;
 }
+.backup-field { display: grid; gap: 6px; margin-bottom: 10px; color: #ccc; font-size: 0.78rem; font-weight: 600; }
+.backup-field input { background: #181818; border: 1px solid #333; border-radius: 7px; color: #fff; padding: 9px 10px; }
+.check-row { display: flex; gap: 8px; align-items: center; margin: 8px 0; color: #aaa; font-size: 0.78rem; }
+.check-row input { accent-color: #d68a34; }
+.setup-path-hint { margin-top: 12px; }
+.button-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
 .tile-desc {
   color: #999;
   font-size: 0.8rem;

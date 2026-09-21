@@ -1,14 +1,15 @@
 from __future__ import annotations
-
-import json
+import asyncio, json, logging, re
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from src.api.routes.settings import get_or_create_app_integration_settings
 from src.core.auth import get_current_admin
-from src.core.crypto import decrypt_secret, encrypt_secret
+from src.core.crypto import encrypt_secret
+from src.core.email import send_email
 from src.core.provider_credentials import apply_deployment_provider_credentials
+from src.core.runtime_settings import apply_runtime_settings
 from src.database.models.oidc_settings import OidcSettings
 from src.database.models.user import User
 from src.database.session import get_db
@@ -16,6 +17,7 @@ from src.database.session import get_db
 router = APIRouter(
     prefix="/api/settings/deployment", tags=["settings"], dependencies=[Depends(get_current_admin)]
 )
+logger = logging.getLogger(__name__)
 
 
 class OidcProviderRequest(BaseModel):
@@ -32,7 +34,10 @@ class OidcProviderRequest(BaseModel):
     allow_new_users: bool = True
     button_text: str = "Continue with SSO"
     button_image_url: str | None = None
+    button_color: str = "#d68a34"
     enabled: bool = True
+    show_on_login: bool = True
+    autostart_enabled: bool = True
 
 
 class DeploymentSettingsRequest(BaseModel):
@@ -59,6 +64,20 @@ class DeploymentSettingsRequest(BaseModel):
     oidc_login_button_text: str | None = None
     oidc_allow_new_users: bool | None = None
     oidc_providers_json: str | None = None
+    smtp_enabled: bool | None = None
+    smtp_host: str | None = None
+    smtp_port: int | None = None
+    smtp_username: str | None = None
+    smtp_password: str | None = None
+    smtp_use_tls: bool | None = None
+    smtp_use_ssl: bool | None = None
+    smtp_from_email: str | None = None
+    smtp_from_name: str | None = None
+    password_reset_enabled: bool | None = None
+    auth_cookie_secure: bool | None = None
+    max_upload_size_mb: int | None = None
+    max_clip_size_mb: int | None = None
+    max_world_save_size_mb: int | None = None
 
 
 _SECRET_FIELDS = {
@@ -70,12 +89,8 @@ _SECRET_FIELDS = {
     "screenscraper_devpassword",
     "xbox_client_secret",
 }
-_SAFE_PROVIDER_FIELDS = {
-    "igdb_client_id",
-    "screenscraper_ssid",
-    "screenscraper_devid",
-    "xbox_client_id",
-}
+_SAFE_PROVIDER_FIELDS = {"igdb_client_id", "screenscraper_ssid", "screenscraper_devid"}
+_HEX_COLOR = re.compile(r"^#[0-9a-fA-F]{6}$")
 
 
 async def _oidc_row(db):
@@ -89,8 +104,10 @@ async def _oidc_row(db):
 
 def _provider_view(raw):
     item = dict(raw)
-    secret = item.pop("client_secret", "")
-    item["client_secret_configured"] = bool(secret)
+    item["client_secret_configured"] = bool(item.pop("client_secret", None))
+    item.setdefault("show_on_login", True)
+    item.setdefault("button_color", "#d68a34")
+    item.setdefault("autostart_enabled", True)
     return item
 
 
@@ -99,7 +116,31 @@ def _provider_rows(row):
         data = json.loads(row.providers_json or "[]")
     except (TypeError, ValueError):
         data = []
-    return [p for p in data if isinstance(p, dict) and p.get("enabled", True) and p.get("slug")]
+    return [p for p in data if isinstance(p, dict) and p.get("slug")]
+
+
+def _smtp_view(app):
+    return {
+        "enabled": app.smtp_enabled,
+        "host": app.smtp_host,
+        "port": app.smtp_port,
+        "username": app.smtp_username,
+        "password_configured": bool(app.smtp_password),
+        "use_tls": app.smtp_use_tls,
+        "use_ssl": app.smtp_use_ssl,
+        "from_email": app.smtp_from_email,
+        "from_name": app.smtp_from_name,
+        "password_reset_enabled": app.password_reset_enabled,
+    }
+
+
+def _runtime_view(app):
+    return {
+        "auth_cookie_secure": app.auth_cookie_secure,
+        "max_upload_size_mb": app.max_upload_size_mb,
+        "max_clip_size_mb": app.max_clip_size_mb,
+        "max_world_save_size_mb": app.max_world_save_size_mb,
+    }
 
 
 async def get_deployment_settings(db: AsyncSession, admin: User) -> dict:
@@ -109,7 +150,6 @@ async def get_deployment_settings(db: AsyncSession, admin: User) -> dict:
     providers = {field: getattr(app, field) for field in _SAFE_PROVIDER_FIELDS}
     for field in _SECRET_FIELDS:
         providers[field + "_configured"] = bool(getattr(app, field))
-    named = [_provider_view(p) for p in _provider_rows(oidc)]
     return {
         "providers": providers,
         "oidc": {
@@ -126,8 +166,10 @@ async def get_deployment_settings(db: AsyncSession, admin: User) -> dict:
             "login_button_text": oidc.login_button_text.strip() or "Continue with SSO",
             "allow_new_users": oidc.allow_new_users,
             "client_secret_configured": bool(oidc.client_secret),
-            "named_providers": named,
+            "named_providers": [_provider_view(p) for p in _provider_rows(oidc)],
         },
+        "smtp": _smtp_view(app),
+        "runtime": _runtime_view(app),
     }
 
 
@@ -177,6 +219,9 @@ async def update_deployment_settings(
                     )
                 if item.get("user_match_field", "email") not in {"email", "username"}:
                     raise HTTPException(400, "OIDC user matching must be email or username.")
+                button_color = str(item.get("button_color") or "#d68a34").strip()
+                if not _HEX_COLOR.fullmatch(button_color):
+                    raise HTTPException(400, "OIDC button color must be a six-digit hex color.")
                 secret = item.get("client_secret") or existing.get(slug, {}).get("client_secret")
                 if not secret:
                     raise HTTPException(
@@ -192,7 +237,10 @@ async def update_deployment_settings(
                         "issuer_url": issuer,
                         "client_id": client_id,
                         "client_secret": secret,
+                        "button_color": button_color,
                         "enabled": bool(item.get("enabled", True)),
+                        "show_on_login": bool(item.get("show_on_login", True)),
+                        "autostart_enabled": bool(item.get("autostart_enabled", True)),
                     }
                 )
                 slugs.add(slug)
@@ -218,11 +266,59 @@ async def update_deployment_settings(
                 oidc.allow_new_users = bool(value)
             elif value is not None:
                 setattr(oidc, field.removeprefix("oidc_"), value or None)
+        elif field == "smtp_password":
+            if value:
+                app.smtp_password = encrypt_secret(value)
+        elif field == "smtp_port":
+            if value < 1 or value > 65535:
+                raise HTTPException(400, "SMTP port must be between 1 and 65535.")
+            app.smtp_port = value
+        elif field in {"smtp_enabled", "smtp_use_tls", "smtp_use_ssl", "password_reset_enabled"}:
+            setattr(app, field, bool(value))
+        elif field.startswith("smtp_"):
+            setattr(app, field, value.strip() if isinstance(value, str) else value)
         elif field in _SECRET_FIELDS:
             if value:
                 setattr(app, field, encrypt_secret(value))
         elif field in _SAFE_PROVIDER_FIELDS:
             setattr(app, field, value or None)
+        elif field in {
+            "auth_cookie_secure",
+            "max_upload_size_mb",
+            "max_clip_size_mb",
+            "max_world_save_size_mb",
+        }:
+            if field != "auth_cookie_secure" and (value is None or value < 1):
+                raise HTTPException(400, f"{field} must be at least 1.")
+            setattr(app, field, bool(value) if field == "auth_cookie_secure" else value)
+    app.runtime_settings_initialized = True
     await db.commit()
+    apply_runtime_settings(app)
     apply_deployment_provider_credentials(app)
     return await get_deployment_settings(db, admin)
+
+
+@router.post("/test-smtp")
+async def test_smtp(
+    db: AsyncSession = Depends(get_db), admin: User = Depends(get_current_admin)
+) -> dict[str, str]:
+    app = await get_or_create_app_integration_settings(db)
+    if not app.smtp_enabled or not app.smtp_host or not app.smtp_from_email:
+        raise HTTPException(400, "SMTP must be enabled with a host and sender email first.")
+    if not admin.email:
+        raise HTTPException(400, "Your admin account needs an email address for the test message.")
+    try:
+        await asyncio.to_thread(
+            send_email,
+            app,
+            admin.email,
+            "Archive SMTP test",
+            "Your Archive SMTP settings are working. This is a test message.",
+        )
+    except Exception as exc:
+        logger.exception("SMTP test email could not be sent")
+        raise HTTPException(
+            502,
+            "SMTP test failed. Check the SMTP settings and server logs for details.",
+        ) from exc
+    return {"message": f"Test email sent to {admin.email}."}

@@ -235,11 +235,20 @@ export async function deleteProviderCredentials(
 export interface AppIntegrationSettings {
   igdb_client_id: string | null;
   igdb_configured: boolean;
+  tmdb_configured: boolean;
+  omdb_configured: boolean;
+  tvdb_configured: boolean;
 }
 
 export async function fetchAppIntegrations(): Promise<AppIntegrationSettings> {
   if (import.meta.env.VITE_USE_MOCK_DATA === "true") {
-    return { igdb_client_id: null, igdb_configured: false };
+    return {
+      igdb_client_id: null,
+      igdb_configured: false,
+      tmdb_configured: false,
+      omdb_configured: false,
+      tvdb_configured: false,
+    };
   }
   const response = await fetch("/api/settings/app-integrations", {
     credentials: "include",
@@ -255,11 +264,17 @@ export async function fetchAppIntegrations(): Promise<AppIntegrationSettings> {
 export async function updateAppIntegrations(payload: {
   igdb_client_id?: string;
   igdb_client_secret?: string;
+  tmdb_api_key?: string;
+  omdb_api_key?: string;
+  tvdb_api_key?: string;
 }): Promise<AppIntegrationSettings> {
   if (import.meta.env.VITE_USE_MOCK_DATA === "true") {
     return {
       igdb_client_id: payload.igdb_client_id ?? null,
       igdb_configured: true,
+      tmdb_configured: !!payload.tmdb_api_key,
+      omdb_configured: !!payload.omdb_api_key,
+      tvdb_configured: !!payload.tvdb_api_key,
     };
   }
   const response = await fetch("/api/settings/app-integrations", {
@@ -288,4 +303,108 @@ export async function deleteAppIntegrations(): Promise<void> {
       `Failed to clear app integrations: ${response.status} ${response.statusText}`,
     );
   }
+}
+
+export interface MediaMetadataRefreshResult {
+  animeEpisodesAdded: number;
+  animeEpisodesUpdated: number;
+  tvEpisodesAdded: number;
+  tvEpisodesUpdated: number;
+}
+
+// Manually triggers the same full episode-refresh job the backend
+// already runs on its own every 24h (src/backend/src/features/metadata
+// /refresh.py) — lets a newly-added provider key (or an airing show) get
+// picked up right away instead of waiting for the next automatic run.
+export async function refreshMediaMetadata(): Promise<MediaMetadataRefreshResult> {
+  const response = await fetch("/api/settings/refresh-media-metadata", {
+    method: "POST",
+    credentials: "include",
+  });
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(
+      `Failed to refresh media metadata: ${response.status} ${response.statusText} ${message}`,
+    );
+  }
+  const data = await response.json();
+  return {
+    animeEpisodesAdded: data.anime_episodes_added,
+    animeEpisodesUpdated: data.anime_episodes_updated,
+    tvEpisodesAdded: data.tv_episodes_added,
+    tvEpisodesUpdated: data.tv_episodes_updated,
+  };
+}
+
+export interface AiringCheckResult {
+  animeEpisodesAdded: number;
+  tvEpisodesAdded: number;
+}
+
+// Manually runs the same lightweight airing check the background loop
+// already runs every ~20 minutes on its own — just checks whether a
+// tracked show/anime has a newly-aired episode number and adds a bare
+// placeholder row for it (no title/image yet; that comes from the full
+// refresh). Exists so a check can be forced right after an episode
+// should have aired instead of waiting for the next automatic pass.
+export async function checkAiringEpisodes(): Promise<AiringCheckResult> {
+  const response = await fetch("/api/settings/check-airing-episodes", {
+    method: "POST",
+    credentials: "include",
+  });
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(
+      `Failed to check airing episodes: ${response.status} ${response.statusText} ${message}`,
+    );
+  }
+  const data = await response.json();
+  return {
+    animeEpisodesAdded: data.anime_episodes_added,
+    tvEpisodesAdded: data.tv_episodes_added,
+  };
+}
+
+export interface MediaRefreshTaskStatus {
+  enabled: boolean;
+  intervalSeconds: number;
+  lastRunAt: number | null;
+  lastResult: Record<string, number>;
+}
+
+export interface MediaRefreshStatus {
+  airingCheck: MediaRefreshTaskStatus;
+  fullRefresh: MediaRefreshTaskStatus;
+}
+
+function mapTaskStatus(raw: {
+  enabled: boolean;
+  interval_seconds: number;
+  last_run_at: number | null;
+  last_result: Record<string, number>;
+}): MediaRefreshTaskStatus {
+  return {
+    enabled: raw.enabled,
+    intervalSeconds: raw.interval_seconds,
+    lastRunAt: raw.last_run_at,
+    lastResult: raw.last_result,
+  };
+}
+
+// Last-run info for both episode-refresh jobs — powers the Tasks page.
+// In-memory on the backend, so this resets whenever the server restarts.
+export async function fetchMediaRefreshStatus(): Promise<MediaRefreshStatus> {
+  const response = await fetch("/api/settings/media-refresh-status", {
+    credentials: "include",
+  });
+  if (!response.ok) {
+    throw new Error(
+      `Failed to load media refresh status: ${response.status} ${response.statusText}`,
+    );
+  }
+  const data = await response.json();
+  return {
+    airingCheck: mapTaskStatus(data.airing_check),
+    fullRefresh: mapTaskStatus(data.full_refresh),
+  };
 }
