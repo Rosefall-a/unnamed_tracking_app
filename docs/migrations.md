@@ -10,7 +10,7 @@ database up to date on its own.
 | --- | --- |
 | Empty | Builds everything from the migrations |
 | Version is in this code's history | Runs the migrations newer than it |
-| Version is not in the history, or tables exist with no version | Checks the models' tables and columns exist in the database. If they do, attaches the database to the starting migration (data untouched) and continues. If something is missing it stops and names it |
+| Version is not in the history, or tables exist with no version | Attaches the database to the starting migration (data untouched) and runs every migration after it. Then checks the models' tables and columns exist. If something is still missing (no migration creates it) it stops, names it, and forgets the attachment so the next start checks again |
 
 Two containers starting together are safe (a database lock serialises them).
 A real failure stops the container with the reason, instead of retrying.
