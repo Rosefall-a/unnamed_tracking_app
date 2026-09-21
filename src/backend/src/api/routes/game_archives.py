@@ -215,25 +215,28 @@ async def create_archive(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Name is required.")
 
     limit_mb = (
-        settings.MAX_WORLD_SAVE_SIZE_MB if kind == "world_save" else settings.MAX_UPLOAD_SIZE_MB
+        settings.MAX_WORLD_SAVE_SIZE_MB
+        if kind == "world_save"
+        else settings.MAX_SAVE_ARCHIVE_SIZE_MB
     )
-    data = await file.read()
-    if len(data) > limit_mb * 1024 * 1024:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=f"Larger than {limit_mb} MB."
-        )
 
     archive = GameArchive(id=uuid4(), game_id=game_id, kind=kind, name=name.strip())
     db.add(archive)
     await db.flush()
 
     dest_dir = _archive_dir(game.folder_location, kind, archive.id, user_id=current_user.id)  # type: ignore[arg-type]
-    saved_path = save_media_bytes(data, dest_dir, file.filename or "file")
-    version = GameArchiveVersion(
-        id=uuid4(), archive_id=archive.id, filename=saved_path.name, size=len(data)
-    )
-    db.add(version)
-    await db.commit()
+    try:
+        saved_path, size = await _save_upload_stream(
+            file, dest_dir, file.filename or "file", limit_mb
+        )
+        version = GameArchiveVersion(
+            id=uuid4(), archive_id=archive.id, filename=saved_path.name, size=size
+        )
+        db.add(version)
+        await db.commit()
+    except Exception:
+        await db.rollback()
+        raise
     await db.refresh(archive, attribute_names=["versions"])
     return _archive_to_dict(game_id, archive)
 
@@ -258,22 +261,23 @@ async def add_archive_version(
     limit_mb = (
         settings.MAX_WORLD_SAVE_SIZE_MB
         if archive.kind == "world_save"
-        else settings.MAX_UPLOAD_SIZE_MB
+        else settings.MAX_SAVE_ARCHIVE_SIZE_MB
     )
-    data = await file.read()
-    if len(data) > limit_mb * 1024 * 1024:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=f"Larger than {limit_mb} MB."
-        )
 
     dest_dir = _archive_dir(game.folder_location, archive.kind, archive.id, user_id=current_user.id)  # type: ignore[arg-type]
-    saved_path = save_media_bytes(data, dest_dir, file.filename or "file")
-    version = GameArchiveVersion(
-        id=uuid4(), archive_id=archive.id, filename=saved_path.name, size=len(data)
-    )
-    db.add(version)
-    archive.updated_at = int(time.time())
-    await db.commit()
+    try:
+        saved_path, size = await _save_upload_stream(
+            file, dest_dir, file.filename or "file", limit_mb
+        )
+        version = GameArchiveVersion(
+            id=uuid4(), archive_id=archive.id, filename=saved_path.name, size=size
+        )
+        db.add(version)
+        archive.updated_at = int(time.time())
+        await db.commit()
+    except Exception:
+        await db.rollback()
+        raise
     await db.refresh(archive, attribute_names=["versions"])
     return _archive_to_dict(game_id, archive)
 
