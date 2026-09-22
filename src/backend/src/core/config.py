@@ -14,8 +14,6 @@ class Settings(BaseSettings):
     STEAMGRIDDB_API_KEY: str | None = None
     RETROACHIEVEMENTS_API_KEY: str | None = None
     GIANTBOMB_API_KEY: str | None = None
-    IGDB_CLIENT_ID: str | None = None
-    IGDB_CLIENT_SECRET: str | None = None
 
     PRIMARY_USER_USERNAME: str = ""
     PRIMARY_USER_EMAIL: str = ""
