@@ -14,7 +14,7 @@ from __future__ import annotations
 import datetime as dt
 import enum
 from decimal import Decimal, InvalidOperation
-from typing import Any
+from typing import Any, TypeAlias
 
 from sqlalchemy import Date, Numeric, select
 from sqlalchemy import Enum as SAEnum
@@ -39,6 +39,8 @@ _NEVER = {
     "relations_cached_at",
 }
 MAX_ENTRIES = 20000
+
+MediaModel: TypeAlias = type[Movie] | type[TVShow] | type[Anime]
 
 
 def _convert(column: Any, value: Any) -> Any:
@@ -75,13 +77,13 @@ def _year(value: Any) -> int | None:
 
 
 async def _existing(
-    db: AsyncSession, model: type, user_id: Any, date_field: str
+    db: AsyncSession, model: MediaModel, user_id: Any, date_field: str
 ) -> set[tuple[str, int | None]]:
     rows = (
         await db.execute(
             select(model.title, getattr(model, date_field)).where(  # type: ignore[attr-defined]
                 model.user_id == user_id,
-                model.deleted_at.is_(None),  # type: ignore[attr-defined]
+                model.deleted_at.is_(None),
             )
         )
     ).all()
