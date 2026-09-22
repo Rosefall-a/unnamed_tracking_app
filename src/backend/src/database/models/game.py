@@ -75,7 +75,7 @@ class Game(Base):
 
     user_id: Mapped[UUID] = mapped_column(
         PG_UUID(as_uuid=True),
-        ForeignKey("users.id"),
+        ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
