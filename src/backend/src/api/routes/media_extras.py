@@ -600,7 +600,6 @@ async def build_calendar_entries(
                     select(Game).where(
                         Game.user_id == user_id,
                         Game.deleted_at.is_(None),
-                        Game.status.in_([GameStatus.WISHLIST, GameStatus.BACKLOG]),
                         Game.release_date.isnot(None),
                         Game.release_date >= date_window_start,
                         Game.release_date <= date_window_end,
