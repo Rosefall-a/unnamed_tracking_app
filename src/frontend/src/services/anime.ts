@@ -221,16 +221,24 @@ async function handle<T>(response: Response, action: string): Promise<T> {
   return response.json();
 }
 
+export interface AnimePage {
+  items: Anime[];
+  total: number;
+}
+
 export async function fetchAnimePage(
   skip = 0,
   limit = SHOWS_PAGE_SIZE,
-): Promise<Anime[]> {
+): Promise<AnimePage> {
   const response = await fetch(
     `/api/anime/list?skip=${skip}&limit=${limit}`,
     { credentials: "include" },
   );
   const page = await handle<BackendAnime[]>(response, "fetch anime");
-  return page.map(mapBackendAnime);
+  return {
+    items: page.map(mapBackendAnime),
+    total: Number(response.headers.get("X-Total-Count") ?? page.length),
+  };
 }
 
 export async function fetchAnime(): Promise<Anime[]> {
@@ -238,8 +246,8 @@ export async function fetchAnime(): Promise<Anime[]> {
   let skip = 0;
   while (true) {
     const page = await fetchAnimePage(skip, SHOWS_PAGE_SIZE);
-    all.push(...page);
-    if (page.length < SHOWS_PAGE_SIZE) break;
+    all.push(...page.items);
+    if (page.items.length < SHOWS_PAGE_SIZE) break;
     skip += SHOWS_PAGE_SIZE;
   }
   animeCache.markListLoaded();
