@@ -97,7 +97,12 @@ def _archive_dir(
     if type(kind) is not ArchiveKind:
         kind = get_archive_kind_from_string(kind)
     return (
-        _DATA_ROOT / str(user_id) / "games" / game_folder / _ARCHIVE_SUBDIRS[kind] / str(archive_id)
+        _DATA_ROOT
+        / str(user_id)
+        / "games"
+        / game_folder
+        / _ARCHIVE_SUBDIRS[kind.name]
+        / str(archive_id)
     )
 
 
