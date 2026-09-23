@@ -77,10 +77,11 @@ jobs:
       - name: Verify production application
         run: |
           for i in $(seq 1 90); do
-            if curl -fsS http://127.0.0.1:18080/ | grep -q "<html"; then break; fi
+            if curl -fsS http://127.0.0.1:18080/_startup/status.json | grep -q '"overall":"ready"'; then break; fi
             sleep 2
           done
           curl -fsS http://127.0.0.1:18080/_startup/status.json | grep -q '"overall":"ready"'
+          curl -fsS http://127.0.0.1:18080/ | grep -q "<html"
           curl -fsS http://127.0.0.1:18080/api/health | grep -q '"status":"ok"'
 
       - name: Publish production image
