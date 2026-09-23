@@ -59,7 +59,8 @@ class SetupRequest(BaseModel):
 @router.get("/status")
 async def setup_status(db: AsyncSession = Depends(get_db)) -> dict[str, bool]:
     has_user = await db.scalar(select(User.id).limit(1)) is not None
-    ui_enabled = setup_configuration.setup_enabled(settings.SETUP_MODE)\n    return {"setup_required": not has_user and ui_enabled, "setup_ui_enabled": ui_enabled}
+    ui_enabled = setup_configuration.setup_enabled(settings.SETUP_MODE)
+    return {"setup_required": not has_user and ui_enabled, "setup_ui_enabled": ui_enabled}
 
 
 @router.get("/application-backup")
