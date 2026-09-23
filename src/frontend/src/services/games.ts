@@ -159,7 +159,7 @@ export function mapBackendGame(raw: BackendGame): Game {
 // /api/game/list caps a single page at 200, page through until a page
 // comes back short, otherwise only the first 50 (the endpoint's default)
 // ever reached the library view once a synced library grew past that.
-const GAMES_PAGE_SIZE = 200;
+const GAMES_PAGE_SIZE = 50;
 
 export async function fetchGames(): Promise<Game[]> {
   if (import.meta.env.VITE_USE_MOCK_DATA === "true") {
