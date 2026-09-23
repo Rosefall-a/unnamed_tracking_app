@@ -39,10 +39,12 @@ COPY src/docker-container/nginx/nginx.conf /etc/nginx/nginx.conf
 COPY src/docker-container/nginx/startup.conf /etc/nginx/startup.conf
 COPY src/docker-container/nginx/ready.conf /etc/nginx/ready.conf
 COPY src/docker-container/startup /srv/startup
-COPY src/docker-container/entrypoint.sh /entrypoint.sh
+#COPY src/docker-container/entrypoint.sh ./entrypoint.sh
+COPY src/docker-container/loggingpoint.sh ./entrypoint.sh
 
 RUN mkdir -p /run/unnamed-tracking /var/log/nginx \
-    && chmod +x /entrypoint.sh
+    && chmod +x ./entrypoint.sh
 
 EXPOSE 80
-ENTRYPOINT ["/entrypoint.sh"]
+#ENTRYPOINT ["ls ./"]
+ENTRYPOINT ["./entrypoint.sh"]
