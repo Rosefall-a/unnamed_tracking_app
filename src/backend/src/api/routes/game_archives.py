@@ -85,15 +85,15 @@ _ARCHIVE_SUBDIRS: dict[ArchiveKind, str] = {"save": "saves", "world_save": "worl
 def _archive_dir(
     game_folder: str, kind: str, archive_id: UUID, user_id: UUID
 ) -> Path:  # Kind should be ArchiveKind, however its easier to accept type of string and let the caller handle the type checking. This is because the kind is passed in from the route path parameter which is a string.
+    kind = (
+        ArchiveKind("save")
+        if kind == "save"
+        else ArchiveKind("world_save")
+        if kind == "world_save"
+        else None
+    )
     return (
-        _DATA_ROOT
-        / str(user_id)
-        / "games"
-        / game_folder
-        / _ARCHIVE_SUBDIRS[
-            ArchiveKind(kind)
-        ]  # Convert kind to ArchiveKind to ensure it is a valid kind. This will raise a ValueError if the kind is not valid.
-        / str(archive_id)
+        _DATA_ROOT / str(user_id) / "games" / game_folder / _ARCHIVE_SUBDIRS(kind) / str(archive_id)
     )
 
 
