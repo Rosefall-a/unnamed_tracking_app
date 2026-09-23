@@ -66,6 +66,7 @@ def _config_from_provider(provider):
         user_match_field=provider.get("user_match_field") or "email",
         allow_new_users=bool(provider.get("allow_new_users", True)),
         require_verified_email=bool(provider.get("require_verified_email", False)),
+        require_verified_email=bool(provider.get("require_verified_email", False)),
         discovery_url=issuer if issuer.endswith("/.well-known/openid-configuration") else None,
         name=provider.get("name") or provider["slug"],
         slug=provider["slug"],
@@ -74,11 +75,11 @@ def _config_from_provider(provider):
     )
 
 
-async def _get_config(db, slug="default"):
+async def _get_config(db, slug="default", *, autostart=False):
     row = await db.scalar(select(OidcSettings).limit(1))
     if row and slug != "default":
         for provider in _named_rows(row):
-            if provider.get("slug") == slug and provider.get("client_secret"):
+            if provider.get("slug") == slug and provider.get("client_secret"):\n                if autostart and not provider.get("autostart_enabled", True):\n                    return None
                 return _config_from_provider(provider)
         return None
     if row and row.issuer_url and row.client_id and row.client_secret:
@@ -109,8 +110,7 @@ async def oidc_status(db: AsyncSession = Depends(get_db)):
                     "name": provider.get("name", provider["slug"]),
                     "slug": provider["slug"],
                     "button_text": provider.get("button_text") or "Continue with SSO",
-                    "button_image_url": provider.get("button_image_url"),
-                }
+                    "button_image_url": provider.get("button_image_url"),\n                    "button_color": provider.get("button_color") or "#d68a34",\n                    "autostart_enabled": bool(provider.get("autostart_enabled", True)),\n                }
             )
     if not providers and config:
         providers = [
@@ -154,7 +154,7 @@ async def oidc_login(request: Request, db: AsyncSession = Depends(get_db)):
 async def oidc_provider_login(
     provider_slug: str, request: Request, db: AsyncSession = Depends(get_db)
 ):
-    config = await _get_config(db, provider_slug)
+    config = await _get_config(db, provider_slug, autostart=True)
     if config is None:
         raise HTTPException(404, "OIDC provider is not configured.")
     return await begin_oidc(request, config)
