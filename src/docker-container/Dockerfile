@@ -34,7 +34,7 @@ COPY src/backend/tests /app/tests
 COPY src/backend/pyproject.toml /app/pyproject.toml
 COPY src/backend/alembic.ini /app/alembic.ini
 
-COPY src/frontend/dist /srv/frontend
+COPY --from=frontend-build /frontend/dist /srv/frontend
 COPY src/docker-container/nginx/nginx.conf /etc/nginx/nginx.conf
 COPY src/docker-container/nginx/startup.conf /etc/nginx/startup.conf
 COPY src/docker-container/nginx/ready.conf /etc/nginx/ready.conf
