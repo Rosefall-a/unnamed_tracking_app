@@ -2,7 +2,7 @@ import vue from "@vitejs/plugin-vue";
 import { defineConfig } from "vite";
 
 const backendTarget = process.env.BACKEND_URL ||
-  (process.env.APP_MODE === "both" ? "http://127.0.0.1:8000" : "http://backend:8000");
+  (process.env.APP_MODE === "both" ? "http://127.0.0.1:8000" : (process.env.DEFAULT_BACKEND_URL || "http://backend:8000"));
 
 // https://vite.dev/config/
 export default defineConfig({
