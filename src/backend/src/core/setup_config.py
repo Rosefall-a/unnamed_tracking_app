@@ -11,13 +11,18 @@ values are authoritative and always override browser-supplied values.
 from __future__ import annotations
 
 import os
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
 
+TRUE_VALUES = {"true", "yes", "on", "enabled", "1"}
+FALSE_VALUES = {"false", "no", "off", "disabled", "0"}
+
+
 def _coerce(value: str) -> str | bool | int:
     lowered = value.strip().lower()
-    if lowered in {"true", "yes", "on"}:
+    if lowered in TRUE_VALUES:
         return True
     if lowered in {"false", "no", "off"}:
         return False
@@ -39,7 +44,7 @@ class SetupPage:
 class SetupConfiguration:
     """Build setup pages and resolve authoritative environment overrides."""
 
-    def __init__(self, environ: dict[str, str] | None = None) -> None:
+    def __init__(self, environ: Mapping[str, str] | None = None) -> None:
         self.environ = dict(os.environ if environ is None else environ)
         self.pages: dict[str, SetupPage] = {}
 
@@ -64,6 +69,14 @@ class SetupConfiguration:
     def overrides_for(self, page_key: str) -> dict[str, Any]:
         return self.tree().get(page_key.upper(), {})
 
+    def controlled_tree(self) -> dict[str, Any]:
+        """Return the environment namespace shape without exposing values."""
+        def mark(value: Any) -> Any:
+            if isinstance(value, dict):
+                return {key: mark(child) for key, child in value.items()}
+            return True
+        return mark(self.tree())
+
     def has_override(self, page_key: str) -> bool:
         return bool(self.overrides_for(page_key))
 
@@ -87,7 +100,7 @@ class SetupConfiguration:
         return merge(values, forced)
 
 
-def default_setup_configuration(environ: dict[str, str] | None = None) -> SetupConfiguration:
+def default_setup_configuration(environ: Mapping[str, str] | None = None) -> SetupConfiguration:
     config = SetupConfiguration(environ)
     config.register_page("ACCOUNT", "Administrator", "Initial administrator account.")
     config.register_page("OIDC", "OpenID Connect / SSO", "Identity provider configuration.")
