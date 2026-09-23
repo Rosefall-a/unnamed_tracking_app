@@ -19,6 +19,12 @@ export interface OidcProviderSetting {
   client_secret_configured: boolean;
 }
 export interface DeploymentSettings {
+  runtime: {
+    auth_cookie_secure: boolean;
+    max_upload_size_mb: number;
+    max_clip_size_mb: number;
+    max_world_save_size_mb: number;
+  };
   providers: Record<string, string | boolean | null>;
   oidc: {
     issuer_url: string | null;
@@ -44,7 +50,7 @@ export async function fetchDeploymentSettings(): Promise<DeploymentSettings> {
   return await response.json();
 }
 export async function updateDeploymentSettings(
-  payload: Record<string, string>,
+  payload: Record<string, string | number | boolean>,
 ): Promise<DeploymentSettings> {
   const response = await fetch("/api/settings/deployment", {
     method: "PUT",
