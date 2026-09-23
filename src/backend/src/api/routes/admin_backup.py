@@ -1,14 +1,12 @@
 """Administrative deployment backup export/import.
 
-Backups are stored server-side by default. Direct browser downloads are an
-explicit opt-in through ALLOW_DEPLOYMENT_SECRETS_DOWNLOAD.
-
-This router intentionally delegates archive construction/restoration to
-core.application_backup so the setup flow and Settings page use one format.
-SMTP fields are excluded by that core service.
+The settings page and first-run setup use the same password-protected archive
+format. Exports can optionally persist an application.json copy for bootstrap.
 """
 
 from __future__ import annotations
+
+import time
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -36,53 +34,59 @@ async def backup_status(admin: User = Depends(get_current_admin)) -> dict[str, b
     path = application_backup_path()
     return {
         "available": path.is_file(),
-        "download_enabled": bool(settings.ALLOW_DEPLOYMENT_SECRETS_DOWNLOAD),
+        "download_enabled": True,
         "path": str(path),
     }
 
 
-@router.post("/export", response_model=None)
+@router.post("/export")
 async def export_backup(
     password: str = Form(..., min_length=12, max_length=256),
+    include_application_settings: bool = Form(True),
+    include_provider_credentials: bool = Form(True),
+    include_oidc_settings: bool = Form(True),
+    include_smtp_settings: bool = Form(False),
     include_users: bool = Form(False),
     include_sessions: bool = Form(False),
-    download: bool = Form(False),
+    full_installation: bool = Form(False),
+    save_to_setup_path: bool = Form(False),
     db: AsyncSession = Depends(get_db),
     admin: User = Depends(get_current_admin),
-) -> Response | dict[str, bool | str]:
+) -> Response:
     del admin
-    if download and not settings.ALLOW_DEPLOYMENT_SECRETS_DOWNLOAD:
-        raise HTTPException(403, "Direct deployment-secret downloads are disabled.")
 
+    if full_installation:
+        include_users = True
+        include_sessions = True
     if include_sessions and not include_users:
-        raise HTTPException(400, "Sessions can only be included when users are included.")
+        raise HTTPException(400, "Active sessions require users to be included.")
 
     body = await create_application_backup_file(
         db,
         password,
         include_users=include_users,
         include_sessions=include_sessions,
-        include_application_settings=True,
-        include_provider_credentials=True,
-        include_oidc_settings=True,
+        include_application_settings=include_application_settings,
+        include_provider_credentials=include_provider_credentials,
+        include_oidc_settings=include_oidc_settings,
+        include_smtp_settings=include_smtp_settings,
     )
 
-    path = application_backup_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_bytes(body)
+    if save_to_setup_path:
+        path = application_backup_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(body)
 
-    if download:
-        return Response(
-            content=body,
-            media_type="application/json",
-            headers={
-                "Content-Disposition": 'attachment; filename="application.json"',
-                "Cache-Control": "no-store",
-                "Pragma": "no-cache",
-            },
-        )
-
-    return {"saved": True, "path": str(path), "download_enabled": bool(settings.ALLOW_DEPLOYMENT_SECRETS_DOWNLOAD)}
+    filename = f"archive-deployment-backup-{time.strftime('%Y%m%d-%H%M%S', time.gmtime())}.json"
+    return Response(
+        content=body,
+        media_type="application/json",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Cache-Control": "no-store",
+            "Pragma": "no-cache",
+        },
+    )
 
 
 @router.post("/import")
