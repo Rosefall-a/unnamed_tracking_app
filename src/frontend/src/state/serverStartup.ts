@@ -20,8 +20,10 @@ function phaseForAttempt(attempt: number): ServerStartupPhase {
 }
 
 export function isBackendUnavailable(error: unknown): boolean {
-  return error instanceof TypeError ||
-    (error instanceof Error && /fetch|network|failed to check setup/i.test(error.message));
+  if (error instanceof TypeError) return true;
+  if (!(error instanceof Error)) return false;
+  return /fetch|network|failed to check setup/i.test(error.message)
+    || /failed to check setup:\s*5\d\d/i.test(error.message);
 }
 
 /**
