@@ -207,7 +207,7 @@ export async function fetchTVShows(): Promise<TVShow[]> {
   let skip = 0;
   while (true) {
     const response = await fetch(
-      `/api/tv/list?skip=${skip}&limit=${size}`,
+      `/api/tv/list?skip=${skip}&limit=${SHOWS_PAGE_SIZE}`,
       { credentials: "include" },
     );
     const page = await handle<BackendTVShow[]>(response, "fetch tvshow");
