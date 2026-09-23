@@ -21,6 +21,11 @@ async function refreshStatus() {
   downloadEnabled.value = result.download_enabled;
 }
 
+function onFileChange(event: Event) {
+  const input = event.target as HTMLInputElement;
+  selectedFile.value = input.files?.[0] ?? null;
+}
+
 function validatePassword() {
   if (password.value.length < 12) throw new Error("Backup passwords must be at least 12 characters.");
   if (password.value !== confirmPassword.value) throw new Error("The backup passwords do not match.");
@@ -115,7 +120,7 @@ onMounted(() => { void refreshStatus().catch((err) => { error.value = err instan
       <button v-if="downloadEnabled" :disabled="loading" class="secondary" @click="downloadBackup">Download backup</button>
     </div>
 
-    <label><span>Import backup file</span><input type="file" accept="application/json,.json" @change="selectedFile = ($event.target as HTMLInputElement).files?.[0] ?? null" /></label>
+    <label><span>Import backup file</span><input type="file" accept="application/json,.json" @change="onFileChange" /></label>
     <button class="secondary" :disabled="importing || !selectedFile" @click="importBackup">{{ importing ? "Restoring…" : "Import backup" }}</button>
 
     <p v-if="!downloadEnabled" class="hint">Direct deployment-secret downloads are disabled by default. Set ALLOW_DEPLOYMENT_SECRETS_DOWNLOAD=true on the server to enable them.</p>
