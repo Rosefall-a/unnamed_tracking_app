@@ -110,7 +110,9 @@ async def oidc_status(db: AsyncSession = Depends(get_db)):
                     "name": provider.get("name", provider["slug"]),
                     "slug": provider["slug"],
                     "button_text": provider.get("button_text") or "Continue with SSO",
-                    "button_image_url": provider.get("button_image_url"),\n                    "button_color": provider.get("button_color") or "#d68a34",\n                    "autostart_enabled": bool(provider.get("autostart_enabled", True)),\n                }
+                    "button_image_url": provider.get("button_image_url"),
+                    "button_color": provider.get("button_color") or "#d68a34",\n                    "autostart_enabled": bool(provider.get("autostart_enabled", True)),
+                }
             )
     if not providers and config:
         providers = [
