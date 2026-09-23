@@ -94,12 +94,16 @@ async def setup_status(db: AsyncSession = Depends(get_db)) -> dict[str, bool]:
 
 
 @router.get("/application-backup")
-async def application_backup_status() -> dict[str, bool]:
+async def application_backup_status(db: AsyncSession = Depends(get_db)) -> dict[str, bool]:
+    if await db.scalar(select(User.id).limit(1)) is not None:
+        return {"available": False}
     return {"available": application_backup_path().is_file()}
 
 
 @router.get("/application-backup/file")
-async def application_backup_file() -> Response:
+async def application_backup_file(db: AsyncSession = Depends(get_db)) -> Response:
+    if await db.scalar(select(User.id).limit(1)) is not None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Setup is already complete.")
     path = application_backup_path()
     if not path.is_file():
         raise HTTPException(status_code=404, detail="No preconfigured application backup was found.")
@@ -110,7 +114,10 @@ async def application_backup_file() -> Response:
 async def application_backup_preview(
     password: str = Form(..., min_length=12, max_length=256),
     application_file: UploadFile | None = File(None),
+    db: AsyncSession = Depends(get_db),
 ) -> dict:
+    if await db.scalar(select(User.id).limit(1)) is not None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Setup is already complete.")
     raw = await application_file.read() if application_file else (
         application_backup_path().read_bytes() if application_backup_path().is_file() else b""
     )
@@ -128,6 +135,8 @@ async def import_application_backup(
     application_file: UploadFile | None = File(None),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, bool]:
+    if await db.scalar(select(User.id).limit(1)) is not None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Setup is already complete.")
     raw = await application_file.read() if application_file else (
         application_backup_path().read_bytes() if application_backup_path().is_file() else b""
     )
