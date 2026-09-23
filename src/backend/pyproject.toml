@@ -8,7 +8,9 @@ exclude = ["src/database/migrations/.*"]
 plugins = ["pydantic.mypy"]
 
 [tool.pytest.ini_options]
+asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
 pythonpath = ["."]
 
 [tool.pylint.main]
@@ -26,3 +28,5 @@ max-line-length = 120
 
 [tool.pylint.design]
 max-args = 6
+
+

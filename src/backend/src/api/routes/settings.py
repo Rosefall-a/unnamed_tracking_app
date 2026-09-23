@@ -5,7 +5,7 @@ frontend needs to display (e.g. upload limits)."""
 import asyncio
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlalchemy import func, select
@@ -13,9 +13,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.schemas.appearance_settings import AppearanceSettingsRead, AppearanceSettingsUpdate
 from src.api.schemas.scan_settings import ScanSettingsRead, ScanSettingsUpdate
+from src.core.app_integrations import get_or_create_app_integration_settings
 from src.core.auth import get_current_admin, get_current_user
 from src.core.config import settings
 from src.core.crypto import decrypt_secret, encrypt_secret
+from src.core.integrations import resolve_integrations
 from src.database.models.app_integration_settings import AppIntegrationSettings
 from src.database.models.game import Game
 from src.database.models.user import User
@@ -32,6 +34,7 @@ from src.features.metadata.games.retroachievements import (
 from src.features.metadata.games.screenscraper import ScreenScraperClient, ScreenScraperError
 from src.features.metadata.games.steam import SteamLibraryError
 from src.features.metadata.games.xbox import XboxClient, XboxError
+from src.features.metadata import refresh_job
 from src.helpers.save_badge_image import badge_image_path, delete_badge_image, save_badge_image
 
 router = APIRouter(
@@ -131,19 +134,6 @@ async def get_or_create_scan_settings(user_id: UUID, db: AsyncSession) -> UserSc
         await db.commit()
         await db.refresh(scan_settings)
     return scan_settings
-
-
-async def get_or_create_app_integration_settings(db: AsyncSession) -> AppIntegrationSettings:
-    """Exactly one row for the whole deployment — created lazily, on first
-    access, same as get_or_create_scan_settings but with no user_id since
-    this isn't per-user."""
-    row = await db.scalar(select(AppIntegrationSettings).limit(1))
-    if row is None:
-        row = AppIntegrationSettings()
-        db.add(row)
-        await db.commit()
-        await db.refresh(row)
-    return row
 
 
 @router.get("/scan", response_model=ScanSettingsRead)
@@ -312,12 +302,12 @@ async def get_provider_credentials(
         }
         if saved_fields:
             result[provider]["fields"] = saved_fields
-    app_integrations = await get_or_create_app_integration_settings(db)
+    app_integrations = resolve_integrations(await get_or_create_app_integration_settings(db))
     result["IGDB"] = {
-        "status": "configured"
-        if (app_integrations.igdb_client_id and app_integrations.igdb_client_secret)
-        else "not_configured",
+        "status": "configured" if app_integrations.igdb_configured else "not_configured"
     }
+    result["TMDB"] = {"status": "configured" if app_integrations.tmdb_api_key else "not_configured"}
+    result["OMDb"] = {"status": "configured" if app_integrations.omdb_api_key else "not_configured"}
     result["ScreenScraper"]["app_configured"] = bool(
         settings.SCREENSCRAPER_DEVID and settings.SCREENSCRAPER_DEVPASSWORD
     )
@@ -476,6 +466,24 @@ async def delete_provider_credentials(
 class AppIntegrationSettingsRequest(BaseModel):
     igdb_client_id: str | None = None
     igdb_client_secret: str | None = None
+    tmdb_api_key: str | None = None
+    omdb_api_key: str | None = None
+    tvdb_api_key: str | None = None
+
+
+def _integrations_view(row: AppIntegrationSettings) -> dict:
+    """What is in effect (a key saved in Settings, else one from the server's
+    environment), never the values themselves. `sources` says which, so the
+    screen can tell a key that Settings can override from one it cannot clear."""
+    keys = resolve_integrations(row)
+    return {
+        "igdb_client_id": row.igdb_client_id or keys.igdb_client_id,
+        "igdb_configured": keys.igdb_configured,
+        "tmdb_configured": bool(keys.tmdb_api_key),
+        "omdb_configured": bool(keys.omdb_api_key),
+        "tvdb_configured": bool(keys.tvdb_api_key),
+        "sources": keys.sources,
+    }
 
 
 @router.get("/app-integrations")
@@ -490,10 +498,7 @@ async def get_app_integrations(
     is, same rule as every other Fernet-encrypted credential here."""
     del admin
     row = await get_or_create_app_integration_settings(db)
-    return {
-        "igdb_client_id": row.igdb_client_id,
-        "igdb_configured": bool(row.igdb_client_id and row.igdb_client_secret),
-    }
+    return _integrations_view(row)
 
 
 @router.put("/app-integrations")
@@ -511,11 +516,20 @@ async def update_app_integrations(
         row.igdb_client_secret = (
             encrypt_secret(updates["igdb_client_secret"]) if updates["igdb_client_secret"] else None
         )
+    if "tmdb_api_key" in updates:
+        row.tmdb_api_key = (
+            encrypt_secret(updates["tmdb_api_key"]) if updates["tmdb_api_key"] else None
+        )
+    if "omdb_api_key" in updates:
+        row.omdb_api_key = (
+            encrypt_secret(updates["omdb_api_key"]) if updates["omdb_api_key"] else None
+        )
+    if "tvdb_api_key" in updates:
+        row.tvdb_api_key = (
+            encrypt_secret(updates["tvdb_api_key"]) if updates["tvdb_api_key"] else None
+        )
     await db.commit()
-    return {
-        "igdb_client_id": row.igdb_client_id,
-        "igdb_configured": bool(row.igdb_client_id and row.igdb_client_secret),
-    }
+    return _integrations_view(row)
 
 
 @router.delete("/app-integrations")
@@ -527,5 +541,28 @@ async def delete_app_integrations(
     row = await get_or_create_app_integration_settings(db)
     row.igdb_client_id = None
     row.igdb_client_secret = None
+    row.tmdb_api_key = None
+    row.omdb_api_key = None
+    row.tvdb_api_key = None
     await db.commit()
-    return {"igdb_client_id": None, "igdb_configured": False}
+    return _integrations_view(row)
+
+
+@router.post("/refresh-media-metadata")
+async def refresh_media_metadata(
+    mode: str = Query(default="needed", pattern="^(needed|all)$"),
+    admin: User = Depends(get_current_admin),
+) -> dict:
+    """Starts the episode refresh in the background and returns at once with
+    its progress (poll /refresh-media-progress). `needed` only touches what
+    needs it (airing titles, ones with missing titles or a total that
+    disagrees with AniList); `all` checks every title. If a run is already
+    going, its progress is returned instead."""
+    del admin
+    return refresh_job.start(mode)
+
+
+@router.get("/refresh-media-progress")
+async def refresh_media_progress(admin: User = Depends(get_current_admin)) -> dict:
+    del admin
+    return refresh_job.snapshot()

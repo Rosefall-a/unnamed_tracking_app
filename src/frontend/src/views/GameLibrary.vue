@@ -28,6 +28,9 @@ import {
 import { GENRE_OPTIONS } from "../utils/genres";
 import type { Game, GameStatus } from "../types/game";
 import { currentUser } from "../state/auth";
+import { usePrompt } from "../state/dialog";
+
+const prompt = usePrompt();
 
 type ViewMode = "cards" | "list" | "detail" | "shelves";
 type SortBy = "name" | "recent" | "rating" | "playtime" | "neglected";
@@ -130,9 +133,11 @@ const bulkEditResultCount = ref<number | null>(null);
 const bulkAddingToCollection = ref(false);
 async function bulkAddToCollection() {
   if (!selectedIds.value.size) return;
-  const name = window.prompt(
-    `Add ${selectedIds.value.size} selected game(s) to which collection?`,
-  );
+  const name = await prompt({
+    title: "Add to collection",
+    message: `Add ${selectedIds.value.size} selected game(s) to which collection?`,
+    confirmLabel: "Add",
+  });
   if (!name || !name.trim()) return;
   const trimmed = name.trim();
   bulkAddingToCollection.value = true;
@@ -395,8 +400,12 @@ function currentFilterValues(): FilterPreset["filters"] {
     tagsFilter: [...tagsFilter.value],
   };
 }
-function saveCurrentAsPreset() {
-  const name = window.prompt("Name this filter combo:");
+async function saveCurrentAsPreset() {
+  const name = await prompt({
+    title: "Save filters",
+    message: "Name this filter combo.",
+    confirmLabel: "Save",
+  });
   if (!name || !name.trim()) return;
   const trimmed = name.trim();
   const next = [
@@ -451,14 +460,14 @@ if (typeof queryCollection === "string" && queryCollection) {
 
 const statusOptions: (GameStatus | "all")[] = [
   "all",
-  "wishlist",
-  "backlog",
   "playing",
-  "on hold",
   "beaten",
-  "played",
-  "dropped",
   "mastered",
+  "played",
+  "on hold",
+  "dropped",
+  "backlog",
+  "wishlist",
 ];
 
 // arriving from a Home Hub row link (?status=playing, ?sort=recent)

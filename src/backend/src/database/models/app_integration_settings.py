@@ -31,6 +31,15 @@ class AppIntegrationSettings(Base):
 
     igdb_client_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     igdb_client_secret: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # movies metadata search — a bare API key grants access by itself
+    # (unlike igdb_client_id), so both are Fernet-encrypted and never
+    # echoed back to the client, same rule as igdb_client_secret
+    tmdb_api_key: Mapped[str | None] = mapped_column(Text, nullable=True)
+    omdb_api_key: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # TheTVDB v4 — the only real franchise/relations source for TV shows
+    # (TMDB has no collection concept for TV). Same treatment as the keys
+    # above: Fernet-encrypted, never echoed back.
+    tvdb_api_key: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     screenscraper_ssid: Mapped[str | None] = mapped_column(String(128), nullable=True)
     screenscraper_sspassword: Mapped[str | None] = mapped_column(Text, nullable=True)
