@@ -9,6 +9,12 @@ from sqlalchemy import select, text, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.application_backup import (
+    application_backup_path,
+    preview_application_backup,
+    restore_application_backup,
+)
+from src.api.routes.settings import get_or_create_app_integration_settings
 from src.core.auth import (
     SESSION_COOKIE,
     SESSION_TTL_SECONDS,
@@ -42,11 +48,35 @@ class SetupRequest(BaseModel):
     oidc_groups_claim: str = "groups"
     oidc_admin_group: str | None = None
     oidc_user_match_field: str = "email"
+    oidc_allow_new_users: bool = True
+    oidc_button_text: str = "Continue with SSO"
+    oidc_button_image_url: str | None = None
+    oidc_button_color: str = "#d68a34"
+    oidc_provider_enabled: bool = True
+    oidc_show_on_login: bool = True
+    oidc_autostart_enabled: bool = True
+    oidc_default_login_method: str = "local"
+    smtp_enabled: bool = False
+    smtp_host: str | None = None
+    smtp_port: int = 587
+    smtp_username: str | None = None
+    smtp_password: str | None = None
+    smtp_use_tls: bool = True
+    smtp_use_ssl: bool = False
+    smtp_from_email: str | None = None
+    smtp_from_name: str | None = None
 
     @field_validator("password")
     @classmethod
     def validate_setup_password(cls, value: str) -> str:
         return validate_password(value)
+
+    @field_validator("smtp_port")
+    @classmethod
+    def validate_smtp_port(cls, value: int) -> int:
+        if not 1 <= value <= 65535:
+            raise ValueError("SMTP port must be between 1 and 65535.")
+        return value
 
     @field_validator("oidc_user_match_field")
     @classmethod
@@ -64,12 +94,16 @@ async def setup_status(db: AsyncSession = Depends(get_db)) -> dict[str, bool]:
 
 
 @router.get("/application-backup")
-async def application_backup_status() -> dict[str, bool]:
+async def application_backup_status(db: AsyncSession = Depends(get_db)) -> dict[str, bool]:
+    if await db.scalar(select(User.id).limit(1)) is not None:
+        return {"available": False}
     return {"available": application_backup_path().is_file()}
 
 
 @router.get("/application-backup/file")
-async def application_backup_file() -> Response:
+async def application_backup_file(db: AsyncSession = Depends(get_db)) -> Response:
+    if await db.scalar(select(User.id).limit(1)) is not None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Setup is already complete.")
     path = application_backup_path()
     if not path.is_file():
         raise HTTPException(status_code=404, detail="No preconfigured application backup was found.")
@@ -80,7 +114,10 @@ async def application_backup_file() -> Response:
 async def application_backup_preview(
     password: str = Form(..., min_length=12, max_length=256),
     application_file: UploadFile | None = File(None),
+    db: AsyncSession = Depends(get_db),
 ) -> dict:
+    if await db.scalar(select(User.id).limit(1)) is not None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Setup is already complete.")
     raw = await application_file.read() if application_file else (
         application_backup_path().read_bytes() if application_backup_path().is_file() else b""
     )
@@ -98,6 +135,8 @@ async def import_application_backup(
     application_file: UploadFile | None = File(None),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, bool]:
+    if await db.scalar(select(User.id).limit(1)) is not None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Setup is already complete.")
     raw = await application_file.read() if application_file else (
         application_backup_path().read_bytes() if application_backup_path().is_file() else b""
     )
@@ -129,6 +168,14 @@ async def setup_admin(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Username and email are required.",
         )
+
+    smtp_host = (payload.smtp_host or "").strip() or None
+    smtp_from_email = (payload.smtp_from_email or "").strip() or None
+    smtp_username = (payload.smtp_username or "").strip() or None
+    smtp_password = (payload.smtp_password or "").strip() or None
+    smtp_from_name = (payload.smtp_from_name or "").strip() or None
+    if payload.smtp_enabled and (not smtp_host or not smtp_from_email):
+        raise HTTPException(status_code=400, detail="SMTP requires a host and sender email address.")
 
     oidc_values = {
         "issuer_url": (payload.oidc_issuer_url or "").strip() or None,
@@ -190,8 +237,23 @@ async def setup_admin(
                 groups_claim=oidc_values["groups_claim"],
                 admin_group=oidc_values["admin_group"],
                 user_match_field=oidc_values["user_match_field"],
+                allow_new_users=payload.oidc_allow_new_users,
+                login_button_text=payload.oidc_button_text.strip() or "Continue with SSO",
+                default_login_method=payload.oidc_default_login_method,
             )
             db.add(oidc)
+
+        if payload.smtp_enabled:
+            app_integrations = await get_or_create_app_integration_settings(db)
+            app_integrations.smtp_enabled = True
+            app_integrations.smtp_host = smtp_host
+            app_integrations.smtp_port = payload.smtp_port
+            app_integrations.smtp_username = smtp_username
+            app_integrations.smtp_password = encrypt_secret(smtp_password) if smtp_password else None
+            app_integrations.smtp_use_tls = payload.smtp_use_tls
+            app_integrations.smtp_use_ssl = payload.smtp_use_ssl
+            app_integrations.smtp_from_email = smtp_from_email
+            app_integrations.smtp_from_name = smtp_from_name
 
         session_token = secrets.token_urlsafe(32)
         db.add(
