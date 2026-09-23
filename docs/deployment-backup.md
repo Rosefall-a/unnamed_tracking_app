@@ -10,9 +10,9 @@ A deployment-settings export contains deployment-wide application/provider confi
 
 An optional full-installation export also includes user accounts and their API keys. Active sessions can be included only when users are included.
 
-The normal browser download uses a timestamped filename. An optional persistent setup-path copy is stored as application.json at APPLICATION_JSON_PATH, which defaults to /data/application.json.
+The normal browser download uses a timestamped filename. An optional persistent setup-path copy is stored as `application.json` at `APPLICATION_JSON_PATH`, which defaults to `/data/application.json`.
 
-Direct browser downloads of deployment-secret archives are disabled unless ALLOW_DEPLOYMENT_SECRETS_DOWNLOAD=true.
+Direct browser downloads of deployment-secret archives are disabled unless `ALLOW_DEPLOYMENT_SECRETS_DOWNLOAD=true`.
 
 ## Setup restore
 
