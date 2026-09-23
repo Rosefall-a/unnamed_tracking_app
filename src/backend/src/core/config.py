@@ -1,11 +1,11 @@
 """
 src/core/config.py
 
-Application settings loaded from environment variables (and .env, if present).
+Application runtime settings loaded from environment variables.
 
-The setup configuration registry is intentionally separate from this runtime
-settings model. This model owns process-level configuration; the registry owns
-setup-page discovery and environment precedence.
+SetupConfiguration is deliberately separate: it owns setup-page environment
+namespaces and precedence, while Settings owns runtime values consumed by the
+application.
 """
 
 from pydantic import Field
@@ -15,7 +15,7 @@ from src.core.fernet_key import persistent_fernet_key
 
 
 class Settings(BaseSettings):
-    """Application settings loaded from environment variables."""
+    """Application settings loaded from environment variables and .env."""
 
     DATABASE_URL: str
     STEAMGRIDDB_API_KEY: str | None = None
@@ -30,8 +30,6 @@ class Settings(BaseSettings):
 
     AUTH_COOKIE_SECURE: bool = False
     DEBUG: bool = False
-    # Fernet key used to encrypt secrets at rest. If omitted, a persistent key
-    # is generated under APP_DATA_DIR/config and reused across restarts.
     SECRET_KEY: str = Field(default_factory=persistent_fernet_key)
     MAX_UPLOAD_SIZE_MB: int = 15
     MAX_CLIP_SIZE_MB: int = 500
