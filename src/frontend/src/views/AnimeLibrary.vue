@@ -138,7 +138,7 @@ const items = computed(() => shows.value.map(toVM));
 async function load() {
   if (!shows.value.length) loading.value = true;
   try {
-    shows.value = await fetchAnime();
+    shows.value = await fetchAnimePage(0);
   } catch (e) {
     error.value = e instanceof Error ? e.message : "Failed to load anime.";
   } finally {
