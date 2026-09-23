@@ -69,6 +69,14 @@ class SetupConfiguration:
     def overrides_for(self, page_key: str) -> dict[str, Any]:
         return self.tree().get(page_key.upper(), {})
 
+    def controlled_tree(self) -> dict[str, Any]:
+        """Return the environment namespace shape without exposing values."""
+        def mark(value: Any) -> Any:
+            if isinstance(value, dict):
+                return {key: mark(child) for key, child in value.items()}
+            return True
+        return mark(self.tree())
+
     def has_override(self, page_key: str) -> bool:
         return bool(self.overrides_for(page_key))
 
