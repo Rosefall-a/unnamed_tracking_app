@@ -9,6 +9,12 @@ from sqlalchemy import select, text, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.application_backup import (
+    application_backup_path,
+    preview_application_backup,
+    restore_application_backup,
+)
+from src.api.routes.settings import get_or_create_app_integration_settings
 from src.core.auth import (
     SESSION_COOKIE,
     SESSION_TTL_SECONDS,
@@ -42,11 +48,35 @@ class SetupRequest(BaseModel):
     oidc_groups_claim: str = "groups"
     oidc_admin_group: str | None = None
     oidc_user_match_field: str = "email"
+    oidc_allow_new_users: bool = True
+    oidc_button_text: str = "Continue with SSO"
+    oidc_button_image_url: str | None = None
+    oidc_button_color: str = "#d68a34"
+    oidc_provider_enabled: bool = True
+    oidc_show_on_login: bool = True
+    oidc_autostart_enabled: bool = True
+    oidc_default_login_method: str = "local"
+    smtp_enabled: bool = False
+    smtp_host: str | None = None
+    smtp_port: int = 587
+    smtp_username: str | None = None
+    smtp_password: str | None = None
+    smtp_use_tls: bool = True
+    smtp_use_ssl: bool = False
+    smtp_from_email: str | None = None
+    smtp_from_name: str | None = None
 
     @field_validator("password")
     @classmethod
     def validate_setup_password(cls, value: str) -> str:
         return validate_password(value)
+
+    @field_validator("smtp_port")
+    @classmethod
+    def validate_smtp_port(cls, value: int) -> int:
+        if not 1 <= value <= 65535:
+            raise ValueError("SMTP port must be between 1 and 65535.")
+        return value
 
     @field_validator("oidc_user_match_field")
     @classmethod
@@ -130,6 +160,14 @@ async def setup_admin(
             detail="Username and email are required.",
         )
 
+    smtp_host = (payload.smtp_host or "").strip() or None
+    smtp_from_email = (payload.smtp_from_email or "").strip() or None
+    smtp_username = (payload.smtp_username or "").strip() or None
+    smtp_password = (payload.smtp_password or "").strip() or None
+    smtp_from_name = (payload.smtp_from_name or "").strip() or None
+    if payload.smtp_enabled and (not smtp_host or not smtp_from_email):
+        raise HTTPException(status_code=400, detail="SMTP requires a host and sender email address.")
+
     oidc_values = {
         "issuer_url": (payload.oidc_issuer_url or "").strip() or None,
         "client_id": (payload.oidc_client_id or "").strip() or None,
@@ -190,8 +228,28 @@ async def setup_admin(
                 groups_claim=oidc_values["groups_claim"],
                 admin_group=oidc_values["admin_group"],
                 user_match_field=oidc_values["user_match_field"],
+                allow_new_users=payload.oidc_allow_new_users,
+                login_button_text=payload.oidc_button_text.strip() or "Continue with SSO",
+                button_image_url=(payload.oidc_button_image_url or "").strip() or None,
+                button_color=payload.oidc_button_color,
+                enabled=payload.oidc_provider_enabled,
+                show_on_login=payload.oidc_show_on_login,
+                autostart_enabled=payload.oidc_autostart_enabled,
+                default_login_method=payload.oidc_default_login_method,
             )
             db.add(oidc)
+
+        if payload.smtp_enabled:
+            app_integrations = await get_or_create_app_integration_settings(db)
+            app_integrations.smtp_enabled = True
+            app_integrations.smtp_host = smtp_host
+            app_integrations.smtp_port = payload.smtp_port
+            app_integrations.smtp_username = smtp_username
+            app_integrations.smtp_password = encrypt_secret(smtp_password) if smtp_password else None
+            app_integrations.smtp_use_tls = payload.smtp_use_tls
+            app_integrations.smtp_use_ssl = payload.smtp_use_ssl
+            app_integrations.smtp_from_email = smtp_from_email
+            app_integrations.smtp_from_name = smtp_from_name
 
         session_token = secrets.token_urlsafe(32)
         db.add(
