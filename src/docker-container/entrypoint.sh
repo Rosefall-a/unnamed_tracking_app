@@ -22,7 +22,8 @@ fail_startup() {
   phase="$1"; message="$2"
   printf '%s\n' "$message" > "$DETAILS_FILE"
   write_status "$phase" "failed" "unknown" "unknown" "failed" "waiting" "$message"
-  exit 1
+  # Keep Nginx alive so the diagnostic page remains available after failure.
+  while :; do sleep 3600; done
 }
 
 cleanup() {
@@ -91,7 +92,7 @@ while :; do
   if ! kill -0 "$BACKEND_PID" 2>/dev/null; then
     cat "$BACKEND_LOG" > "$DETAILS_FILE" 2>/dev/null || true
     write_status "BACKEND_CRASHED" "failed" "ready" "ready" "failed" "ready" "The backend stopped unexpectedly."
-    exit 1
+    while :; do sleep 3600; done
   fi
   sleep 2
 done
