@@ -152,6 +152,19 @@ async def oidc_status(db: AsyncSession = Depends(get_db)):
                     "autostart_enabled": bool(provider.get("autostart_enabled", True)),
                 }
             )
+    existing_slugs = {str(item.get("slug")) for item in providers}
+    for slug, raw in _environment_providers().items():
+        provider = dict(raw)
+        provider.setdefault("slug", slug)
+        provider.setdefault("name", slug)
+        if (slug not in existing_slugs and _environment_provider_complete(provider)
+                and provider.get("enabled", True) and provider.get("show_on_login", True)):
+            providers.append({"name": provider.get("name", slug), "slug": slug,
+                              "button_text": provider.get("button_text") or "Continue with SSO",
+                              "button_image_url": provider.get("button_image_url"),
+                              "button_color": provider.get("button_color") or "#d68a34",
+                              "autostart_enabled": bool(provider.get("autostart_enabled", True))})
+
     if not providers and config:
         providers = [
             {
