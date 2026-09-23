@@ -1560,8 +1560,6 @@ defineExpose({ openQuickAdd });
         >
           <span v-if="props.loadingMore">Loading more…</span>
         </div>
-      </div>
-    </div>
 
     <!-- ===== Quick Add ===== -->
     <div v-if="quickAddOpen" class="modal-overlay" @click.self="closeQuickAdd">
