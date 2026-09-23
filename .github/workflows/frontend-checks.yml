@@ -2,7 +2,13 @@ name: Frontend Checks
 
 on:
   push:
+    paths:
+      - "src/frontend/**"
+      - ".github/workflows/frontend-checks.yml"
   pull_request:
+    paths:
+      - "src/frontend/**"
+      - ".github/workflows/frontend-checks.yml"
 
 permissions:
   contents: write
@@ -13,10 +19,8 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.head_ref || github.ref_name }}
-          fetch-depth: 0
+      - name: Check out repository
+        uses: actions/checkout@v4
 
       - name: Set up Node
         uses: actions/setup-node@v4
