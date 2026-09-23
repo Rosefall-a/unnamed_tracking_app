@@ -943,12 +943,15 @@ defineExpose({ openQuickAdd });
                 @click="handleCardClick(it)"
               >
                 <div class="list-thumb-wrap">
-                  <div
-                    class="list-thumb"
-                    :style="
-                      it.poster ? { backgroundImage: `url(${it.poster})` } : {}
-                    "
-                  ></div>
+                  <div class="list-thumb">
+                    <img
+                      v-if="it.poster"
+                      :src="it.poster"
+                      :alt="it.title"
+                      loading="lazy"
+                      decoding="async"
+                    />
+                  </div>
                   <div
                     v-if="selectMode"
                     class="select-checkbox"
@@ -1102,12 +1105,15 @@ defineExpose({ openQuickAdd });
               @click="handleCardClick(it)"
             >
               <div class="shelf-art-wrap">
-                <div
-                  class="shelf-art"
-                  :style="
-                    it.poster ? { backgroundImage: `url(${it.poster})` } : {}
-                  "
-                ></div>
+                <div class="shelf-art">
+                  <img
+                    v-if="it.poster"
+                    :src="it.poster"
+                    :alt="it.title"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                </div>
                 <div
                   v-if="selectMode"
                   class="select-checkbox"
@@ -1270,12 +1276,15 @@ defineExpose({ openQuickAdd });
                 @click="handleCardClick(it)"
               >
                 <div class="board-art-wrap">
-                  <div
-                    class="board-art"
-                    :style="
-                      it.poster ? { backgroundImage: `url(${it.poster})` } : {}
-                    "
-                  ></div>
+                  <div class="board-art">
+                    <img
+                      v-if="it.poster"
+                      :src="it.poster"
+                      :alt="it.title"
+                      loading="lazy"
+                      decoding="async"
+                    />
+                  </div>
                   <div
                     v-if="selectMode"
                     class="select-checkbox"
@@ -2362,9 +2371,14 @@ defineExpose({ openQuickAdd });
   width: 76px;
   aspect-ratio: 2 / 3;
   border-radius: 6px;
-  background-size: cover;
-  background-position: center;
   background-color: var(--surface-2);
+  overflow: hidden;
+}
+.list-thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 .list-title-col {
   min-width: 0;
@@ -2462,10 +2476,15 @@ defineExpose({ openQuickAdd });
 }
 .shelf-art {
   aspect-ratio: 2 / 3;
-  background-size: cover;
-  background-position: center;
   background-color: var(--surface-2);
+  overflow: hidden;
   transition: transform 0.2s ease;
+}
+.shelf-art img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 .shelf-art-wrap:hover .shelf-art {
   transform: scale(1.04);
@@ -2616,10 +2635,15 @@ defineExpose({ openQuickAdd });
 }
 .board-art {
   aspect-ratio: 2 / 3;
-  background-size: cover;
-  background-position: center;
   background-color: var(--surface-2);
+  overflow: hidden;
   transition: transform 0.2s ease;
+}
+.board-art img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 .board-art-wrap:hover .board-art {
   transform: scale(1.04);
