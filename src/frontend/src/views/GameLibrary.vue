@@ -47,7 +47,8 @@ const loading = ref(true);
 const error = ref<string | null>(null);
 const loadingMore = ref(false);
 const hasMore = ref(true);
-let nextSkip = 50;
+const PAGE_SIZE = 50;
+let nextSkip = PAGE_SIZE;
 
 async function loadMore() {
   if (loadingMore.value || !hasMore.value) return;
@@ -56,7 +57,7 @@ async function loadMore() {
     const page = await fetchGamesPage(nextSkip);
     games.value.push(...page);
     nextSkip += page.length;
-    if (page.length < 50) hasMore.value = false;
+    if (page.length < PAGE_SIZE) hasMore.value = false;
   } catch (e) {
     error.value = e instanceof Error ? e.message : "Failed to load more games";
   } finally {
@@ -610,8 +611,8 @@ async function loadGames() {
     const fetched = await fetchGamesPage(0);
     if (token !== loadGamesToken) return;
     games.value = fetched;
-    nextSkip = 50;
-    hasMore.value = fetched.length === 50;
+    nextSkip = PAGE_SIZE;
+    hasMore.value = fetched.length === PAGE_SIZE;
     // best-effort, a failed summary fetch just means no completion badges,
     // not a broken library page
     try {
