@@ -1,35 +1,15 @@
-# OIDC setup integration
+# OIDC setup architecture
 
-OIDC setup is built on the declarative SetupConfiguration tree.
+OIDC uses the declarative setup configuration tree from PR #192.
 
-A provider is addressed by:
+Each named provider owns its credentials, enabled state, login visibility, ordering, autostart policy, presentation, user matching, new-user policy, and verified-email policy.
 
-    OIDC__<provider-name>__<field>
+Do not collapse named providers into one global configuration.
 
-Nested fields are supported for future policy groups.
+The require_verified_email policy defaults to false. The callback only rejects an unverified identity when that provider explicitly enables the policy.
 
-## Adding an OIDC provider setting
+OIDC login creates the same server-side session type used by password login. Session credentials are hashed at rest and logout revokes the matching database session.
 
-1. Add the field to the provider data model/interface.
-2. Add its default to the provider creation helper.
-3. Load the field from stored provider JSON.
-4. Apply environment overrides before validation/save.
-5. Add the field to the setup form if it is user-configurable.
-6. Document the variable under /docs.
-7. Add a regression test for both the default and an environment override.
+Environment-controlled provider fields are applied before validation and save and remain authoritative over setup-form values.
 
-## Verified-email policy
-
-The require_verified_email field is deliberately stored per provider. The
-authentication callback must test this value before rejecting an unverified
-email claim.
-
-The default is false for backwards-compatible deployments that do not require
-the identity provider to assert email verification.
-
-## Multiple providers
-
-Do not collapse named providers into one global OIDC configuration. Each provider
-has its own slug, credentials, display settings, enabled state, login visibility,
-and autostart policy. This allows /login/<slug> to select one provider without
-changing the normal login page.
+Regression coverage should include multiple providers, presentation and ordering, user matching, new-user policy, verified-email policy, environment overrides, and session logout/revocation.
