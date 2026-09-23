@@ -8,25 +8,13 @@ OIDC__AUTHENTIK__NAME=Authentik
 OIDC__AUTHENTIK__ISSUER_URL=https://auth.example.com
 OIDC__AUTHENTIK__CLIENT_ID=archive
 OIDC__AUTHENTIK__CLIENT_SECRET=replace-me
+OIDC__AUTHENTIK__SHOW_ON_LOGIN=true
+OIDC__AUTHENTIK__AUTOSTART_ENABLED=true
 
-The first component selects a setup page, the second selects a named object on that page, and later components select fields. Environment values are authoritative over values submitted by the setup browser.
+The first component selects a setup page, the second selects a named object, and later components select fields. Environment values are authoritative over setup-form values.
 
-## Setup mode
+SETUP_MODE=auto keeps interactive setup available when required. SETUP_MODE=dev keeps it available for development. SETUP_MODE=false disables the interactive setup surface for environment-only deployments.
 
-SETUP_MODE=auto keeps interactive setup available when setup is required.
+If SECRET_KEY is omitted, a persistent Fernet key is generated under the application data directory. Preserve that data across redeployments.
 
-SETUP_MODE=dev keeps interactive setup available for development.
-
-SETUP_MODE=false disables the interactive setup surface for environment-only deployments. Disabling the UI does not disable environment configuration.
-
-## Persistent encryption key
-
-If SECRET_KEY is not supplied, the application generates and persists a Fernet key under the application data directory. The persistent key must survive container recreation because it protects encrypted application secrets.
-
-## Deployment backup downloads
-
-Direct browser downloads of deployment-secret archives are disabled unless ALLOW_DEPLOYMENT_SECRETS_DOWNLOAD=true. Server-side setup-path copies remain available to the restore flow.
-
-## Extending setup
-
-New setup pages should register a stable namespace, consume overrides at the save boundary, expose only a sanitized environment tree to the frontend, and document every variable under docs.
+Direct browser downloads of deployment-secret backups are disabled unless ALLOW_DEPLOYMENT_SECRETS_DOWNLOAD=true. APPLICATION_JSON_PATH selects the persistent setup backup path and defaults to /data/application.json.
