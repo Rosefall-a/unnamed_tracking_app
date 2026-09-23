@@ -9,6 +9,7 @@ import BulkEditModal from "../components/BulkEditModal.vue";
 import FilterCombobox from "../components/FilterCombobox.vue";
 import {
   fetchGames,
+  fetchGamesPage,
   deleteGame,
   setFavorite,
   fetchAchievementsSummary,
@@ -44,6 +45,24 @@ const route = useRoute();
 const games = ref<Game[]>([]);
 const loading = ref(true);
 const error = ref<string | null>(null);
+const loadingMore = ref(false);
+const hasMore = ref(true);
+let nextSkip = 50;
+
+async function loadMore() {
+  if (loadingMore.value || !hasMore.value) return;
+  loadingMore.value = true;
+  try {
+    const page = await fetchGamesPage(nextSkip);
+    games.value.push(...page);
+    nextSkip += page.length;
+    if (page.length < 50) hasMore.value = false;
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "Failed to load more games";
+  } finally {
+    loadingMore.value = false;
+  }
+}
 
 const showFormModal = ref(false);
 const editingGame = ref<Game | null>(null);
@@ -591,6 +610,8 @@ async function loadGames() {
     const fetched = await fetchGames();
     if (token !== loadGamesToken) return;
     games.value = fetched;
+    nextSkip = 50;
+    hasMore.value = fetched.length === 50;
     // best-effort, a failed summary fetch just means no completion badges,
     // not a broken library page
     try {
