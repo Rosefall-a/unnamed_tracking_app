@@ -94,6 +94,7 @@ const props = defineProps<{
   kind: "movie" | "tv" | "anime";
   addLabel: string;
   items: LibraryCardVM[];
+  totalCount?: number;
   loading: boolean;
   error: string | null;
   detailRoute: (id: string) => string;
@@ -716,7 +717,8 @@ defineExpose({ openQuickAdd });
             }}
           </h1>
           <div class="sub">
-            {{ items.length }} {{ items.length === 1 ? "title" : "titles" }}
+            {{ props.totalCount ?? items.length }}
+            {{ (props.totalCount ?? items.length) === 1 ? "title" : "titles" }}
           </div>
         </div>
         <div style="display: flex; gap: 8px">
