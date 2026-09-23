@@ -26,6 +26,7 @@ onMounted(async () => {
 });
 
 async function save() {
+  const previousSecure = values.auth_cookie_secure;
   saving.value = true;
   error.value = null;
   saved.value = false;
@@ -33,7 +34,7 @@ async function save() {
   try {
     await updateDeploymentSettings({ ...values });
     saved.value = true;
-    restartRequired.value = values.auth_cookie_secure !== undefined;
+    restartRequired.value = previousSecure !== values.auth_cookie_secure;
   } catch (err) {
     error.value = err instanceof Error ? err.message : "Failed to save application settings.";
   } finally {
