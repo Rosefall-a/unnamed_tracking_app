@@ -31,7 +31,12 @@ const backupFile = ref<File | null>(null);
 const restoring = ref(false);
 const restoreMessage = ref<string | null>(null);
 
-async function restoreBackup() {
+async function onBackupFileChange(event: Event) {
+  const input = event.target as HTMLInputElement;
+  backupFile.value = input.files?.[0] ?? null;
+}
+
+function restoreBackup() {
   error.value = null; restoreMessage.value = null;
   if (!backupPassword.value) { error.value = "Enter the backup password."; return; }
   restoring.value = true;
