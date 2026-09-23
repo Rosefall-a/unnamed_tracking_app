@@ -226,7 +226,7 @@ export async function fetchAnime(): Promise<Anime[]> {
   let skip = 0;
   while (true) {
     const response = await fetch(
-      `/api/anime/list?skip=${skip}&limit=${size}`,
+      `/api/anime/list?skip=${skip}&limit=${SHOWS_PAGE_SIZE}`,
       { credentials: "include" },
     );
     const page = await handle<BackendAnime[]>(response, "fetch anime");
