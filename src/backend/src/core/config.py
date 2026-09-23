@@ -8,7 +8,9 @@ namespaces and precedence, while Settings owns runtime values consumed by the
 application.
 """
 
-from pydantic import Field
+from urllib.parse import quote
+
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from src.core.fernet_key import persistent_fernet_key
@@ -17,7 +19,13 @@ from src.core.fernet_key import persistent_fernet_key
 class Settings(BaseSettings):
     """Application settings loaded from environment variables and .env."""
 
-    DATABASE_URL: str
+    DATABASE_URL: str | None = None
+    POSTGRES_USER: str | None = None
+    POSTGRES_PASSWORD: str | None = None
+    POSTGRES_DB: str | None = None
+    POSTGRES_HOST: str = "db"
+    POSTGRES_PORT: int = 5432
+
     STEAMGRIDDB_API_KEY: str | None = None
     RETROACHIEVEMENTS_API_KEY: str | None = None
     GIANTBOMB_API_KEY: str | None = None
@@ -54,6 +62,26 @@ class Settings(BaseSettings):
     ALLOW_DEPLOYMENT_SECRETS_DOWNLOAD: bool = False
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+    @model_validator(mode="after")
+    def resolve_database_url(self) -> "Settings":
+        """Accept either DATABASE_URL or the standard PostgreSQL variables."""
+        if self.DATABASE_URL:
+            return self
+
+        if not self.POSTGRES_USER or self.POSTGRES_PASSWORD is None or not self.POSTGRES_DB:
+            raise ValueError(
+                "Configure DATABASE_URL or POSTGRES_USER, POSTGRES_PASSWORD, and POSTGRES_DB."
+            )
+
+        user = quote(self.POSTGRES_USER, safe="")
+        password = quote(self.POSTGRES_PASSWORD, safe="")
+        database = quote(self.POSTGRES_DB, safe="")
+        self.DATABASE_URL = (
+            f"postgresql+psycopg://{user}:{password}@"
+            f"{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{database}"
+        )
+        return self
 
 
 settings = Settings()  # type: ignore[call-arg]
