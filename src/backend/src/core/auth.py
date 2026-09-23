@@ -6,7 +6,7 @@ import secrets
 import time
 from typing import Final
 
-from fastapi import Cookie, Depends, Header, HTTPException, status
+from fastapi import Depends, Header, HTTPException, Request, status
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -20,7 +20,21 @@ _HASH_BYTES: Final = 32
 _SCRYPT_N: Final = 2**14
 _SCRYPT_R: Final = 8
 _SCRYPT_P: Final = 1
-SESSION_COOKIE: Final = "session"
+
+
+# Browsers scope cookies by domain/path, but not by port. Two separate
+# self-hosted installs accessed as localhost:8000 and localhost:9000 would
+# otherwise both use the same cookie named "session". The persistent Fernet
+# key is unique to an installation, so use a short deterministic hash of it
+# as the cookie namespace. This remains stable across restarts.
+def session_cookie_name(secret_key: str | None = None) -> str:
+    key = secret_key if secret_key is not None else settings.SECRET_KEY
+    namespace = hashlib.sha256(key.encode("utf-8")).hexdigest()[:16]
+    return f"session_{namespace}"
+
+
+COOKIE_NAMESPACE: Final = hashlib.sha256(settings.SECRET_KEY.encode("utf-8")).hexdigest()[:16]
+SESSION_COOKIE: Final = session_cookie_name()
 SESSION_TTL_SECONDS: Final = 30 * 24 * 60 * 60
 API_KEY_PREFIX: Final = "utk_"
 
@@ -80,7 +94,11 @@ def create_api_key() -> tuple[str, str, str]:
 
 
 async def revoke_session(db: AsyncSession, session_token: str) -> bool:
-    """Delete one opaque session using only the hash of its cookie value."""
+    """Revoke one opaque browser session by its raw cookie value.
+
+    Only the token hash is compared with the database. Logout can therefore
+    remain idempotent without exposing or persisting the raw credential.
+    """
     result = await db.execute(
         delete(UserSession).where(UserSession.token_hash == hash_token(session_token))
     )
@@ -89,9 +107,9 @@ async def revoke_session(db: AsyncSession, session_token: str) -> bool:
 
 
 async def get_current_user(
+    request: Request,
     db: AsyncSession = Depends(get_db),
     authorization: str | None = Header(default=None),
-    session_token: str | None = Cookie(default=None, alias=SESSION_COOKIE),
 ) -> User:
     user: User | None = None
     now = int(time.time())
@@ -109,16 +127,27 @@ async def get_current_user(
                 )
             )
 
-    if user is None and session_token:
-        user = await db.scalar(
-            select(User)
-            .join(UserSession, UserSession.user_id == User.id)
-            .where(
-                UserSession.token_hash == hash_token(session_token),
-                UserSession.expires_at > now,
-                User.is_active.is_(True),
+    if user is None:
+        # Accept the current installation namespace, legacy cookies, and a
+        # restored installation's namespace. The database hash is the actual
+        # credential check, so unrelated session cookies are harmless.
+        session_tokens = [
+            value
+            for name, value in request.cookies.items()
+            if name == "session" or name.startswith("session_")
+        ]
+        for session_token in session_tokens:
+            user = await db.scalar(
+                select(User)
+                .join(UserSession, UserSession.user_id == User.id)
+                .where(
+                    UserSession.token_hash == hash_token(session_token),
+                    UserSession.expires_at > now,
+                    User.is_active.is_(True),
+                )
             )
-        )
+            if user is not None:
+                break
 
     if user is None:
         raise HTTPException(
@@ -130,13 +159,14 @@ async def get_current_user(
 
 
 async def ensure_primary_user(db: AsyncSession) -> User:
-    """Create the configured admin account once and return it."""
-    username = settings.PRIMARY_USER_USERNAME.strip()
-    email = settings.PRIMARY_USER_EMAIL.strip().lower()
-    if not username or not email or not settings.PRIMARY_USER_PASSWORD:
+    """Create the legacy configured admin account once and return it."""
+    username = getattr(settings, "PRIMARY_USER_USERNAME", "").strip()
+    email = getattr(settings, "PRIMARY_USER_EMAIL", "").strip().lower()
+    password = getattr(settings, "PRIMARY_USER_PASSWORD", "")
+    if not username or not email or not password:
         raise RuntimeError("Primary user username, email, and password must be configured.")
     try:
-        validate_password(settings.PRIMARY_USER_PASSWORD)
+        validate_password(password)
     except ValueError as exc:
         raise RuntimeError(f"Invalid primary user password: {exc}") from exc
 
@@ -148,7 +178,7 @@ async def ensure_primary_user(db: AsyncSession) -> User:
         user = User(
             username=username,
             email=email,
-            password_hash=hash_password(settings.PRIMARY_USER_PASSWORD),
+            password_hash=hash_password(password),
             is_admin=True,
             is_active=True,
         )
