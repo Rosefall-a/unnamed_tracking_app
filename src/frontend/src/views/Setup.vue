@@ -43,7 +43,7 @@ function restoreBackup() {
   if (!backupPassword.value) { error.value = "Enter the backup password."; return; }
   restoring.value = true;
   try {
-    await importApplicationBackup(backupPassword.value, backupFile.value ?? undefined);
+    importApplicationBackup(backupPassword.value, backupFile.value ?? undefined);
     restoreMessage.value = "Application restored successfully. Reloading…";
     window.setTimeout(() => window.location.assign("/"), 800);
   } catch (err) { error.value = err instanceof Error ? err.message : "Backup restore failed."; }
