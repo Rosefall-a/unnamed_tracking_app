@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from "vue";
 import { useKeptAlive } from "../utils/useKeptAlive";
 import {
   fetchTVShows,
+  fetchTVShowsPage,
   updateTVShow,
   deleteTVShow,
   tvShowToInput,
@@ -24,6 +25,24 @@ import type {
 const shows = ref<TVShow[]>([]);
 const loading = ref(true);
 const error = ref<string | null>(null);
+const loadingMore = ref(false);
+const hasMore = ref(true);
+let nextSkip = 50;
+
+async function loadMore() {
+  if (loadingMore.value || !hasMore.value) return;
+  loadingMore.value = true;
+  try {
+    const page = await fetchTVShowsPage(nextSkip);
+    shows.value.push(...page);
+    nextSkip += page.length;
+    if (page.length < 50) hasMore.value = false;
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "Failed to load more.";
+  } finally {
+    loadingMore.value = false;
+  }
+}
 
 function seasonProgress(show: TVShow): {
   watched: number;
@@ -73,6 +92,8 @@ async function load() {
   if (!shows.value.length) loading.value = true;
   try {
     shows.value = await fetchTVShows();
+    nextSkip = 50;
+    hasMore.value = shows.value.length === 50;
   } catch (e) {
     error.value = e instanceof Error ? e.message : "Failed to load TV shows.";
   } finally {
@@ -274,6 +295,9 @@ function detailRoute(id: string): string {
     :items="items"
     :loading="loading"
     :error="error"
+    :load-more="loadMore"
+    :loading-more="loadingMore"
+    :has-more="hasMore"
     :detail-route="detailRoute"
     :search="search"
     :create-from-result="createFromResult"
