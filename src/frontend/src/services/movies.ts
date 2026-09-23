@@ -124,19 +124,14 @@ async function handle<T>(response: Response, action: string): Promise<T> {
 }
 
 export async function fetchMovies(): Promise<Movie[]> {
-  const all: BackendMovie[] = [];
-  let skip = 0;
-  while (true) {
-    const response = await fetch(
-      `/api/movie/list?skip=${skip}&limit=${MOVIES_PAGE_SIZE}`,
-      { credentials: "include" },
-    );
-    const page = await handle<BackendMovie[]>(response, "fetch movies");
-    all.push(...page);
-    if (page.length < MOVIES_PAGE_SIZE) break;
-    skip += MOVIES_PAGE_SIZE;
-  }
-  const list = all.map(mapBackendMovie);
+  // Load only the first page. Additional pages will be requested explicitly
+  // as the library UI needs them instead of downloading the entire library.
+  const response = await fetch(
+    `/api/movie/list?skip=0&limit=${MOVIES_PAGE_SIZE}`,
+    { credentials: "include" },
+  );
+  const page = await handle<BackendMovie[]>(response, "fetch movies");
+  const list = page.map(mapBackendMovie);
   movieCache.markListLoaded();
   return list;
 }
