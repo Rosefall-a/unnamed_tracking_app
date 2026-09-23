@@ -123,7 +123,7 @@ async function handle<T>(response: Response, action: string): Promise<T> {
   return response.json();
 }
 
-export async function fetchMovies(): Promise<Movie[]> {
+export async function fetchMovies(search = ""): Promise<Movie[]> {
   const all: BackendMovie[] = [];
   let skip = 0;
   while (true) {
