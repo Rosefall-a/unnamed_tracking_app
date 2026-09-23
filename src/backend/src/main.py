@@ -22,6 +22,7 @@ from src.api.routes import (
 )
 from src.api.routes import set as set_routes
 from src.api.routes.auth_oidc import router as auth_oidc_router
+from src.api.routes.admin_backup import router as admin_backup_router
 from src.api.routes.deployment_settings import router as deployment_settings_router
 from src.api.routes.setup import router as setup_router
 from src.api.routes.settings import get_or_create_app_integration_settings
@@ -51,6 +52,7 @@ app.include_router(users.router)
 app.include_router(api_keys.router)
 app.include_router(auth.router)
 app.include_router(auth_oidc_router)
+app.include_router(admin_backup_router)
 app.include_router(setup_router)
 app.include_router(settings.router)
 app.include_router(deployment_settings_router)
