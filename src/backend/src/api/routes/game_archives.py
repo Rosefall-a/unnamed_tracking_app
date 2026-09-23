@@ -82,20 +82,16 @@ async def _save_upload_stream(
 _ARCHIVE_SUBDIRS: dict[ArchiveKind, str] = {"save": "saves", "world_save": "world_saves"}
 
 
-def get_archive_kind_from_string(kind_str: str) -> ArchiveKind:
-    """Converts a string representation to an ArchiveKind enum."""
-    try:
-        # Assuming ArchiveKind is an Enum where members match the lowercase string names
-        return getattr(ArchiveKind, kind_str.lower())
-    except AttributeError:
-        raise ValueError(f"Unknown archive kind: {kind_str}") from ValueError
+def _get_archive_kind_from_string(kind_str: str) -> ArchiveKind:
+    if kind_str in ("save", "world_save"):
+        return kind_str  # type: ignore[return-value]
+    raise ValueError(f"Unknown archive kind: {kind_str}")
 
 
 def _archive_dir(
     game_folder: str, kind: str, archive_id: UUID, user_id: UUID
 ) -> Path:  # Kind should be ArchiveKind, however its easier to accept type of string and let the caller handle the type checking. This is because the kind is passed in from the route path parameter which is a string.
-    if type(kind) is not ArchiveKind:
-        kind = get_archive_kind_from_string(kind)
+    kind = _get_archive_kind_from_string(kind)
     return (
         _DATA_ROOT / str(user_id) / "games" / game_folder / _ARCHIVE_SUBDIRS[kind] / str(archive_id)
     )
