@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { createInitialAdmin } from "../services/setup";
+import { createInitialAdmin, fetchApplicationBackupStatus, importApplicationBackup } from "../services/setup";
 import { checkAuth } from "../state/auth";
 
 const route = useRoute();
@@ -24,9 +24,9 @@ const error = ref<string | null>(
     ? "The frontend cannot reach the backend yet. Start the backend service, then reload this page."
     : null,
 );
-const loading = ref(false);
+const loading = ref(false);\nconst backupAvailable = ref(false);\nconst backupPassword = ref("");\nconst backupFile = ref<File | null>(null);\nconst restoring = ref(false);\nconst restoreMessage = ref<string | null>(null);
 
-async function submit() {
+async function restoreBackup() {\n  error.value = null; restoreMessage.value = null;\n  if (!backupPassword.value) { error.value = "Enter the backup password."; return; }\n  restoring.value = true;\n  try {\n    await importApplicationBackup(backupPassword.value, backupFile.value ?? undefined);\n    restoreMessage.value = "Application restored successfully. Reloading…";\n    window.setTimeout(() => window.location.assign("/"), 800);\n  } catch (err) { error.value = err instanceof Error ? err.message : "Backup restore failed."; }\n  finally { restoring.value = false; }\n}\n\nasync function submit() {
   error.value = null;
   if (password.value !== confirmPassword.value) {
     error.value = "Passwords do not match.";
@@ -73,7 +73,7 @@ async function submit() {
     loading.value = false;
   }
 }
-</script>
+onMounted(async () => {\n  try { backupAvailable.value = (await fetchApplicationBackupStatus()).available; } catch { backupAvailable.value = false; }\n});\n</script>
 <template>
   <main class="setup-page">
     <form class="setup-card" @submit.prevent="submit">
@@ -253,7 +253,7 @@ async function submit() {
   height: 16px;
   accent-color: #d68a34;
 }
-.oidc-panel {
+.backup-panel { display:flex; flex-direction:column; gap:10px; padding:14px; border:1px solid #4a3925; border-radius:10px; background:#191510; color:#fff; }\n.success { color:#86efac; font-size:13px; }\n.oidc-panel {
   display: flex;
   flex-direction: column;
   gap: 12px;
