@@ -49,7 +49,7 @@ def _named_rows(row):
     return [
         provider
         for provider in data
-        if isinstance(provider, dict) and provider.get("slug") and provider.get("enabled", True)
+        if isinstance(provider, dict) and provider.get("slug")
     ]
 
 
@@ -105,6 +105,8 @@ async def oidc_status(db: AsyncSession = Depends(get_db)):
     providers = []
     if row:
         for provider in _named_rows(row):
+            if not provider.get("enabled", True) or not provider.get("show_on_login", True):
+                continue
             providers.append(
                 {
                     "name": provider.get("name", provider["slug"]),
