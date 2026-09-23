@@ -203,19 +203,14 @@ async function handle<T>(response: Response, action: string): Promise<T> {
 }
 
 export async function fetchTVShows(): Promise<TVShow[]> {
-  const all: BackendTVShow[] = [];
-  let skip = 0;
-  while (true) {
-    const response = await fetch(
-      `/api/tv/list?skip=${skip}&limit=${SHOWS_PAGE_SIZE}`,
-      { credentials: "include" },
-    );
-    const page = await handle<BackendTVShow[]>(response, "fetch TV shows");
-    all.push(...page);
-    if (page.length < SHOWS_PAGE_SIZE) break;
-    skip += SHOWS_PAGE_SIZE;
-  }
-  const list = all.map(mapBackendTVShow);
+  // Load only the first page. Additional pages will be requested explicitly
+  // as the library UI needs them instead of downloading the entire library.
+  const response = await fetch(
+    `/api/tv/list?skip=0&limit=${SHOWS_PAGE_SIZE}`,
+    { credentials: "include" },
+  );
+  const page = await handle<BackendTVShow[]>(response, "fetch TV shows");
+  const list = page.map(mapBackendTVShow);
   tvShowCache.markListLoaded();
   return list;
 }
