@@ -15,7 +15,7 @@ permissions:
   packages: write
 
 env:
-  IMAGE_NAME: ghcr.io/olie-ob/unnamed_tracking_app
+  IMAGE_NAME: ghcr.io/rosefall-a/unnamed_tracking_app
 
 jobs:
   container:

@@ -2,7 +2,7 @@
 
 ## Architecture
 
-The production image has two build stages. The Node stage installs the locked frontend dependencies and runs npm run build. The Python runtime stage contains the backend, runtime dependencies, Nginx, compiled frontend, and startup assets. Node and the Vite development server are not present in the runtime image.
+The production image has two build stages. The package lives under `src/docker-container/` so it remains isolated from the existing development container definitions. The Node stage installs the locked frontend dependencies and runs npm run build. The Python runtime stage contains the backend, runtime dependencies, Nginx, compiled frontend, and startup assets. Node and the Vite development server are not present in the runtime image.
 
 ## Process model
 

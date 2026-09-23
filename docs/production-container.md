@@ -1,12 +1,12 @@
 # Production container
 
-The production image is a separate deployment target from the development frontend/backend images.
+The production image is a separate deployment target from the development frontend/backend images and is intended for deployment from the Rosefall-a Unnamed Tracking repository.
 
 ## User guide
 
 Use src/docker-container/compose.yaml as the starting point for a production Compose deployment. Set a strong SECRET_KEY and primary-user password.
 
-The published image is ghcr.io/olie-ob/unnamed_tracking_app:<tag>. The container exposes one public HTTP port. PostgreSQL is a separate service with a persistent volume.
+The published image is ghcr.io/rosefall-a/unnamed_tracking_app:<tag>. The container exposes one public HTTP port. PostgreSQL is a separate service with a persistent volume.
 
 On first access, Nginx immediately serves the production startup page. It reports database, migration, backend, and frontend state. When the application is ready, Nginx reloads and begins serving the built Vue application at /.
 
