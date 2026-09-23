@@ -24,9 +24,26 @@ const error = ref<string | null>(
     ? "The frontend cannot reach the backend yet. Start the backend service, then reload this page."
     : null,
 );
-const loading = ref(false);\nconst backupAvailable = ref(false);\nconst backupPassword = ref("");\nconst backupFile = ref<File | null>(null);\nconst restoring = ref(false);\nconst restoreMessage = ref<string | null>(null);
+const loading = ref(false);
+const backupAvailable = ref(false);
+const backupPassword = ref("");
+const backupFile = ref<File | null>(null);
+const restoring = ref(false);
+const restoreMessage = ref<string | null>(null);
 
-async function restoreBackup() {\n  error.value = null; restoreMessage.value = null;\n  if (!backupPassword.value) { error.value = "Enter the backup password."; return; }\n  restoring.value = true;\n  try {\n    await importApplicationBackup(backupPassword.value, backupFile.value ?? undefined);\n    restoreMessage.value = "Application restored successfully. Reloading…";\n    window.setTimeout(() => window.location.assign("/"), 800);\n  } catch (err) { error.value = err instanceof Error ? err.message : "Backup restore failed."; }\n  finally { restoring.value = false; }\n}\n\nasync function submit() {
+async function restoreBackup() {
+  error.value = null; restoreMessage.value = null;
+  if (!backupPassword.value) { error.value = "Enter the backup password."; return; }
+  restoring.value = true;
+  try {
+    await importApplicationBackup(backupPassword.value, backupFile.value ?? undefined);
+    restoreMessage.value = "Application restored successfully. Reloading…";
+    window.setTimeout(() => window.location.assign("/"), 800);
+  } catch (err) { error.value = err instanceof Error ? err.message : "Backup restore failed."; }
+  finally { restoring.value = false; }
+}
+
+async function submit() {
   error.value = null;
   if (password.value !== confirmPassword.value) {
     error.value = "Passwords do not match.";
@@ -73,7 +90,10 @@ async function restoreBackup() {\n  error.value = null; restoreMessage.value = n
     loading.value = false;
   }
 }
-onMounted(async () => {\n  try { backupAvailable.value = (await fetchApplicationBackupStatus()).available; } catch { backupAvailable.value = false; }\n});\n</script>
+onMounted(async () => {
+  try { backupAvailable.value = (await fetchApplicationBackupStatus()).available; } catch { backupAvailable.value = false; }
+});
+</script>
 <template>
   <main class="setup-page">
     <form class="setup-card" @submit.prevent="submit">
@@ -253,7 +273,9 @@ onMounted(async () => {\n  try { backupAvailable.value = (await fetchApplication
   height: 16px;
   accent-color: #d68a34;
 }
-.backup-panel { display:flex; flex-direction:column; gap:10px; padding:14px; border:1px solid #4a3925; border-radius:10px; background:#191510; color:#fff; }\n.success { color:#86efac; font-size:13px; }\n.oidc-panel {
+.backup-panel { display:flex; flex-direction:column; gap:10px; padding:14px; border:1px solid #4a3925; border-radius:10px; background:#191510; color:#fff; }
+.success { color:#86efac; font-size:13px; }
+.oidc-panel {
   display: flex;
   flex-direction: column;
   gap: 12px;
