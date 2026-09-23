@@ -165,24 +165,19 @@ export async function fetchGames(): Promise<Game[]> {
   if (import.meta.env.VITE_USE_MOCK_DATA === "true") {
     return mockGames;
   }
-  const all: BackendGame[] = [];
-  let skip = 0;
-  while (true) {
-    const response = await fetch(
-      `/api/game/list?skip=${skip}&limit=${GAMES_PAGE_SIZE}`,
-      { credentials: "include" },
+  // Load only the first page. Additional pages will be requested explicitly
+  // as the library UI needs them instead of downloading the entire library.
+  const response = await fetch(
+    `/api/game/list?skip=0&limit=${GAMES_PAGE_SIZE}`,
+    { credentials: "include" },
+  );
+  if (!response.ok) {
+    throw new Error(
+      `Failed to fetch games: ${response.status} ${response.statusText}`,
     );
-    if (!response.ok) {
-      throw new Error(
-        `Failed to fetch games: ${response.status} ${response.statusText}`,
-      );
-    }
-    const page: BackendGame[] = await response.json();
-    all.push(...page);
-    if (page.length < GAMES_PAGE_SIZE) break;
-    skip += GAMES_PAGE_SIZE;
   }
-  return all.map(mapBackendGame);
+  const page: BackendGame[] = await response.json();
+  return page.map(mapBackendGame);
 }
 
 interface BackendAchievement {
