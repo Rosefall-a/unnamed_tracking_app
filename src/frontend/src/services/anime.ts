@@ -221,22 +221,29 @@ async function handle<T>(response: Response, action: string): Promise<T> {
   return response.json();
 }
 
+export async function fetchAnimePage(
+  skip = 0,
+  limit = SHOWS_PAGE_SIZE,
+): Promise<Anime[]> {
+  const response = await fetch(
+    `/api/anime/list?skip=${skip}&limit=${limit}`,
+    { credentials: "include" },
+  );
+  const page = await handle<BackendAnime[]>(response, "fetch anime");
+  return page.map(mapBackendAnime);
+}
+
 export async function fetchAnime(): Promise<Anime[]> {
-  const all: BackendAnime[] = [];
+  const all: Anime[] = [];
   let skip = 0;
   while (true) {
-    const response = await fetch(
-      `/api/anime/list?skip=${skip}&limit=${SHOWS_PAGE_SIZE}`,
-      { credentials: "include" },
-    );
-    const page = await handle<BackendAnime[]>(response, "fetch anime");
+    const page = await fetchAnimePage(skip, SHOWS_PAGE_SIZE);
     all.push(...page);
     if (page.length < SHOWS_PAGE_SIZE) break;
     skip += SHOWS_PAGE_SIZE;
   }
-  const list = all.map(mapBackendAnime);
   animeCache.markListLoaded();
-  return list;
+  return all;
 }
 
 export async function getAnime(id: string): Promise<Anime> {
