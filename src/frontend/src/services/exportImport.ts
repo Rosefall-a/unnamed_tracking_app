@@ -55,3 +55,40 @@ export async function importLibrary(games: unknown[]): Promise<ImportResult> {
   }
   return await response.json();
 }
+
+
+export interface DeploymentBackupOptions {
+  password: string;
+  include_application_settings?: boolean;
+  include_provider_credentials?: boolean;
+  include_oidc_settings?: boolean;
+  include_smtp_settings?: boolean;
+  include_users?: boolean;
+  include_sessions?: boolean;
+  full_installation?: boolean;
+  save_to_setup_path?: boolean;
+}
+
+export async function exportDeploymentBackup(options: DeploymentBackupOptions): Promise<Blob> {
+  const form = new FormData();
+  for (const [key, value] of Object.entries(options)) {
+    if (value !== undefined) form.append(key, String(value));
+  }
+  const response = await fetch("/api/settings/backup/export", {
+    method: "POST",
+    credentials: "include",
+    body: form,
+  });
+  if (!response.ok) {
+    const body = await response.text();
+    let message = `Deployment backup failed: ${response.status}`;
+    try {
+      const parsed = JSON.parse(body) as { detail?: string };
+      if (parsed.detail) message = parsed.detail;
+    } catch {
+      if (body) message = `${message} ${body}`;
+    }
+    throw new Error(message);
+  }
+  return response.blob();
+}
