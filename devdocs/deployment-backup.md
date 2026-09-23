@@ -1,28 +1,25 @@
 # Deployment backup architecture
 
-`core/application_backup.py` is the single archive engine used by both the setup flow and the administrator Settings page.
+core/application_backup.py is the shared archive engine used by setup and administrator deployment settings.
 
-## Archive lifecycle
+Export builds a structured archive, preserves encrypted-at-rest secret representations, and wraps the archive in a password-derived encryption envelope. The persistent application Fernet key is included only in the protected form required to restore encrypted values.
 
-1. `build_application_backup()` reads the deployment models.
-2. SMTP fields are explicitly filtered out.
-3. The installation Fernet key copies are included so encrypted values remain decryptable after restore.
-4. `encrypt_application_backup()` wraps the JSON in a password-derived Fernet envelope.
-5. The admin route writes the encrypted bytes to `application_backup_path()`.
-6. Setup can preview or restore the same file before normal authentication exists.
+The setup route can preview or restore the same archive before normal authentication exists. The administrator export route writes a persistent setup-path copy when requested.
 
-## Persistent location
+The setup-path copy is application.json. Browser downloads are timestamped and direct deployment-secret downloads are opt-in.
 
-The default path is `<APP_DATA_DIR>/application.json`. A future deployment may override the path through `APPLICATION_JSON_PATH` without changing the backup format.
+## Restore boundary
 
-## Adding a new secret
+Restore is intended for an empty installation. The setup route validates the archive before changing the database and reports database conflicts rather than silently overwriting unrelated state.
 
-Add its model field to the secret-field list in `application_backup.py`, ensure export preserves the encrypted-at-rest representation, and add a restore test. Never put a plaintext secret into a backup merely because it is convenient.
+When users and sessions are restored, authentication accepts the restored session namespace. This is why authentication and backup documentation must be kept consistent.
 
-## Adding a new setup page
+## Extending the archive
 
-Register its namespace with `SetupConfiguration`, expose its environment tree to the setup status endpoint, and consume overrides at the page's save boundary. Do not add direct environment parsing to the backup route.
+Add new deployment fields to the archive schema deliberately. Secret fields must remain encrypted at rest and require a restore test. Do not add plaintext credentials for convenience.
 
-## Security boundary
+Any new setup namespace should be registered with SetupConfiguration and documented separately from the archive engine.
 
-The password protects the archive in transit/storage; the persistent Fernet key protects application secrets at rest. Both are required for a correct restore. Direct downloads therefore remain opt-in.
+## Testing
+
+Cover password round trips, wrong passwords, malformed archives, empty optional settings, encrypted secret preservation, users/API keys, optional sessions, filesystem discovery, preview, and restore conflict handling.
