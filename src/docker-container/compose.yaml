@@ -5,7 +5,7 @@ services:
     ports:
       - "${UNNAMED_TRACKING_APP_PORT:-8080}:80"
     environment:
-      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-unnamed_tracking}:${POSTGRES_PASSWORD:-change-me}@db:5432/${POSTGRES_DB:-unnamed_tracking}
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-unnamed_tracking}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@db:5432/${POSTGRES_DB:-unnamed_tracking}
       SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY in .env}
       PRIMARY_USER_USERNAME: ${PRIMARY_USER_USERNAME:-admin}
       PRIMARY_USER_EMAIL: ${PRIMARY_USER_EMAIL:-admin@example.invalid}
@@ -20,7 +20,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-unnamed_tracking}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
       POSTGRES_DB: ${POSTGRES_DB:-unnamed_tracking}
     volumes:
       - pgdata:/var/lib/postgresql
