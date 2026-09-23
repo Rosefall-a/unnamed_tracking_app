@@ -1,17 +1,22 @@
-"""Application configuration.
+"""
+src/core/config.py
 
-Runtime settings remain explicit Pydantic settings. SetupConfiguration is kept
-separate because it describes setup-page precedence rather than runtime config.
+Application settings loaded from environment variables (and .env, if present).
+
+The setup configuration registry is intentionally separate from this runtime
+settings model. This model owns process-level configuration; the registry owns
+setup-page discovery and environment precedence.
 """
 
-from __future__ import annotations
-
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from src.core.fernet_key import persistent_fernet_key
 
 
 class Settings(BaseSettings):
+    """Application settings loaded from environment variables."""
+
     DATABASE_URL: str
     STEAMGRIDDB_API_KEY: str | None = None
     RETROACHIEVEMENTS_API_KEY: str | None = None
@@ -25,6 +30,9 @@ class Settings(BaseSettings):
 
     AUTH_COOKIE_SECURE: bool = False
     DEBUG: bool = False
+    # Fernet key used to encrypt secrets at rest. If omitted, a persistent key
+    # is generated under APP_DATA_DIR/config and reused across restarts.
+    SECRET_KEY: str = Field(default_factory=persistent_fernet_key)
     MAX_UPLOAD_SIZE_MB: int = 15
     MAX_CLIP_SIZE_MB: int = 500
     MAX_WORLD_SAVE_SIZE_MB: int = 2000
@@ -43,15 +51,9 @@ class Settings(BaseSettings):
     OIDC_ADMIN_GROUP: str | None = None
     OIDC_USER_MATCH_FIELD: str = "email"
 
-    # SETUP_MODE controls the interactive setup surface. It is intentionally
-    # separate from the declarative OIDC__... setup tree.
     SETUP_MODE: str = "auto"
     APP_DATA_DIR: str = "/data"
     ALLOW_DEPLOYMENT_SECRETS_DOWNLOAD: bool = False
-
-    # If SECRET_KEY is omitted, persistent_fernet_key() creates it once and
-    # stores redundant copies below APP_DATA_DIR/config.
-    SECRET_KEY: str = persistent_fernet_key()
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
