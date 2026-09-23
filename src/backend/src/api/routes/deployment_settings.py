@@ -99,7 +99,7 @@ def _provider_rows(row):
         data = json.loads(row.providers_json or "[]")
     except (TypeError, ValueError):
         data = []
-    return [p for p in data if isinstance(p, dict) and p.get("enabled", True) and p.get("slug")]
+    return [p for p in data if isinstance(p, dict) and p.get("slug")]
 
 
 async def get_deployment_settings(db: AsyncSession, admin: User) -> dict:
