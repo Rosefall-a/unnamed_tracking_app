@@ -45,3 +45,34 @@ export async function createInitialAdmin(
     throw new Error(message);
   }
 }
+
+export interface ApplicationBackupPreview {
+  options: Record<string, boolean>;
+  has_users: boolean;
+  has_sessions: boolean;
+  oidc: Record<string, unknown>;
+}
+
+export async function fetchApplicationBackupStatus(): Promise<{available: boolean}> {
+  const response = await fetch("/api/setup/application-backup", {credentials: "include"});
+  if (!response.ok) throw new Error("Unable to check for a preconfigured application backup.");
+  return await response.json();
+}
+
+export async function previewApplicationBackup(password: string, file?: File): Promise<ApplicationBackupPreview> {
+  const form = new FormData();
+  form.append("password", password);
+  if (file) form.append("application_file", file);
+  const response = await fetch("/api/setup/application-backup/preview", {method: "POST", credentials: "include", body: form});
+  if (!response.ok) throw new Error(await response.text());
+  return await response.json();
+}
+
+export async function importApplicationBackup(password: string, file?: File): Promise<Record<string, boolean>> {
+  const form = new FormData();
+  form.append("password", password);
+  if (file) form.append("application_file", file);
+  const response = await fetch("/api/setup/import-application", {method: "POST", credentials: "include", body: form});
+  if (!response.ok) throw new Error(await response.text());
+  return await response.json();
+}
