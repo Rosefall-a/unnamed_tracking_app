@@ -374,7 +374,9 @@ async def build_application_backup(
                     "xbox_client_id",
                 }
             }
-        # SMTP is intentionally excluded from deployment backups.\n        app_payload = {k: v for k, v in app_payload.items() if not k.startswith("smtp_")}\n        payload["app_integration_settings"] = app_payload
+        # SMTP is intentionally excluded from deployment backups.
+        app_payload = {k: v for k, v in app_payload.items() if not k.startswith("smtp_")}
+        payload["app_integration_settings"] = app_payload
     if include_oidc_settings:
         payload["oidc_settings"] = _model_payload(oidc, exclude={"id", "updated_at"})
 
