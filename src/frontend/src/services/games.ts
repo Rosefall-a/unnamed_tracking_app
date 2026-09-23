@@ -161,6 +161,16 @@ export function mapBackendGame(raw: BackendGame): Game {
 // ever reached the library view once a synced library grew past that.
 const GAMES_PAGE_SIZE = 50;
 
+async function handle<T>(response: Response, action: string): Promise<T> {
+  if (!response.ok) {
+    console.warn(`Failed to ${action}: ${response.status}`);
+    throw await failedRequest(response);
+  }
+  return response.json();
+}
+
+
+
 export async function fetchGames(): Promise<Game[]> {
   if (import.meta.env.VITE_USE_MOCK_DATA === "true") {
     return mockGames;
