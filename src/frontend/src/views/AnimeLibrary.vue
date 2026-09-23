@@ -23,6 +23,7 @@ import type {
 } from "../components/library/MediaLibraryView.vue";
 
 const shows = ref<Anime[]>([]);
+const totalCount = ref(0);
 const loading = ref(true);
 const loadingMore = ref(false);
 const hasMore = ref(true);
@@ -123,8 +124,9 @@ async function load() {
   if (!shows.value.length) loading.value = true;
   try {
     const firstPage = await fetchAnimePage(0, PAGE_SIZE);
-    shows.value = firstPage;
-    hasMore.value = firstPage.length === PAGE_SIZE;
+    shows.value = firstPage.items;
+    totalCount.value = firstPage.total;
+    hasMore.value = shows.value.length < totalCount.value;
   } catch (e) {
     error.value = e instanceof Error ? e.message : "Failed to load anime.";
   } finally {
@@ -137,8 +139,9 @@ async function loadMore() {
   loadingMore.value = true;
   try {
     const page = await fetchAnimePage(shows.value.length, PAGE_SIZE);
-    shows.value.push(...page);
-    hasMore.value = page.length === PAGE_SIZE;
+    shows.value.push(...page.items);
+    totalCount.value = page.total;
+    hasMore.value = shows.value.length < totalCount.value;
   } catch (e) {
     error.value = e instanceof Error ? e.message : "Failed to load more anime.";
   } finally {
@@ -260,7 +263,9 @@ async function onBulkDelete(ids: string[]) {
   for (const id of ids) {
     await deleteAnime(id);
   }
+  const removedCount = shows.value.filter((s) => ids.includes(s.id)).length;
   shows.value = shows.value.filter((s) => !ids.includes(s.id));
+  totalCount.value = Math.max(0, totalCount.value - removedCount);
 }
 
 async function search(
@@ -322,6 +327,7 @@ async function createFromResult(
     });
   }
   shows.value.push(finalShow);
+  totalCount.value += 1;
 }
 
 function detailRoute(id: string): string {
@@ -334,6 +340,7 @@ function detailRoute(id: string): string {
     kind="anime"
     add-label="+ Add Anime"
     :items="items"
+    :total-count="totalCount"
     :loading="loading"
     :error="error"
     :detail-route="detailRoute"
