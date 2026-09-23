@@ -30,6 +30,7 @@ from src.api.routes.utils.misc import router as misc_router
 from src.core.auth import ensure_primary_user
 from src.core.config import settings as app_settings
 from src.core.provider_credentials import apply_deployment_provider_credentials
+from src.core.runtime_settings import apply_runtime_settings
 from src.database.session import SessionLocal
 from src.features.backup.scheduler import run_backup_loop
 from src.features.trash.sweep import run_sweep_loop
@@ -77,6 +78,14 @@ async def bootstrap_primary_user() -> None:
         ):
             await ensure_primary_user(db)
         app_integrations_row = await get_or_create_app_integration_settings(db)
+        if not app_integrations_row.runtime_settings_initialized:
+            app_integrations_row.auth_cookie_secure = app_settings.AUTH_COOKIE_SECURE
+            app_integrations_row.max_upload_size_mb = app_settings.MAX_UPLOAD_SIZE_MB
+            app_integrations_row.max_clip_size_mb = app_settings.MAX_CLIP_SIZE_MB
+            app_integrations_row.max_world_save_size_mb = app_settings.MAX_WORLD_SAVE_SIZE_MB
+            app_integrations_row.runtime_settings_initialized = True
+            await db.commit()
+        apply_runtime_settings(app_integrations_row)
         apply_deployment_provider_credentials(app_integrations_row)
 
 
