@@ -73,6 +73,10 @@ def _merge_environment_provider(provider: dict) -> dict:
     return merged
 
 
+def _environment_provider_complete(provider: dict) -> bool:
+    return all(provider.get(key) for key in ("issuer_url", "client_id", "client_secret"))
+
+
 def _config_from_provider(provider):
     issuer = str(provider["issuer_url"]).strip()
     return OidcConfig(
