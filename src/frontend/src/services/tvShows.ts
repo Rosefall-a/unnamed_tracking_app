@@ -202,7 +202,7 @@ async function handle<T>(response: Response, action: string): Promise<T> {
   return response.json();
 }
 
-export async function fetchTVShows(): Promise<TVShow[]> {
+export async function fetchTVShows(search = ""): Promise<TVShow[]> {
   const all: BackendTVShow[] = [];
   let skip = 0;
   while (true) {
