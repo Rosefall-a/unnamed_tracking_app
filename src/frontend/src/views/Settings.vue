@@ -19,6 +19,7 @@ import ApiKeysSection from "../components/settings/ApiKeysSection.vue";
 import ServerIntegrationsSection from "../components/settings/ServerIntegrationsSection.vue";
 import OidcSettingsSection from "../components/settings/OidcSettingsSection.vue";
 import DeploymentBackupSection from "../components/settings/DeploymentBackupSection.vue";
+import ApplicationSettingsSection from "../components/settings/ApplicationSettingsSection.vue";
 
 const router = useRouter();
 const route = useRoute();
@@ -112,6 +113,7 @@ const activeSection = ref((route.query.section as string) || "profile");
           <LibraryManagementSection v-else-if="activeSection === 'library'" />
           <ScanSettingsSection v-else-if="activeSection === 'scan'" />
           <MetadataSourcesSection v-else-if="activeSection === 'sources'" />
+          <ApplicationSettingsSection v-else-if="activeSection === 'application' && currentUser?.is_admin" />
           <OidcSettingsSection
             v-else-if="activeSection === 'oidc' && currentUser?.is_admin"
           />
