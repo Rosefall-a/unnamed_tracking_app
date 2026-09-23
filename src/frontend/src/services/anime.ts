@@ -222,18 +222,31 @@ async function handle<T>(response: Response, action: string): Promise<T> {
 }
 
 export async function fetchAnime(): Promise<Anime[]> {
-  // Load only the first page. Additional pages will be requested explicitly
-  // as the library UI needs them instead of downloading the entire library.
-  const response = await fetch(
-    `/api/anime/list?skip=0&limit=${SHOWS_PAGE_SIZE}`,
-    { credentials: "include" },
-  );
-  const page = await handle<BackendAnime[]>(response, "fetch anime");
-  const list = page.map(mapBackendAnime);
+  const all: BackendAnime[] = [];
+  let skip = 0;
+  while (true) {
+    const response = await fetch(
+      `/api/anime/list?skip=${skip}&limit=${size}`,
+      { credentials: "include" },
+    );
+    const page = await handle<BackendAnime[]>(response, "fetch anime");
+    all.push(...page);
+    if (page.length < SHOWS_PAGE_SIZE) break;
+    skip += SHOWS_PAGE_SIZE;
+  }
+  const list = all.map(mapBackendAnime);
   animeCache.markListLoaded();
   return list;
 }
 
+export async function fetchAnimePage(skip: number): Promise<Anime[]> {
+  const response = await fetch(
+    `/api/anime/list?skip=${skip}&limit=${size}`,
+    { credentials: "include" },
+  );
+  const page = await handle<BackendAnime[]>(response, "fetch anime page");
+  return page.map(mapBackendAnime);
+}
 export async function getAnime(id: string): Promise<Anime> {
   const response = await fetch(`/api/anime/get/${id}`, {
     credentials: "include",
