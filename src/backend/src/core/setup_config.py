@@ -24,7 +24,7 @@ def _coerce(value: str) -> str | bool | int:
     lowered = value.strip().lower()
     if lowered in TRUE_VALUES:
         return True
-    if lowered in {"false", "no", "off"}:
+    if lowered in FALSE_VALUES:
         return False
     try:
         return int(value)
