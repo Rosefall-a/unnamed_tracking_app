@@ -41,7 +41,7 @@ async def backup_status(admin: User = Depends(get_current_admin)) -> dict[str, b
     }
 
 
-@router.post("/export")
+@router.post("/export", response_model=None)
 async def export_backup(
     password: str = Form(..., min_length=12, max_length=256),
     include_users: bool = Form(False),
