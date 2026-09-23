@@ -38,14 +38,6 @@ from src.features.trash.sweep import run_sweep_loop
 app = FastAPI(
     title="My API", docs_url="/api/docs", redoc_url="/api/redoc", openapi_url="/api/openapi.json"
 )
-app.add_middleware(
-    SessionMiddleware,
-    secret_key=app_settings.SECRET_KEY,
-    session_cookie="oidc_state",
-    same_site="lax",
-    https_only=app_settings.AUTH_COOKIE_SECURE,
-)
-
 app.include_router(default_game_assets.router)
 app.include_router(games.router)
 app.include_router(game_archives.router)
@@ -86,6 +78,13 @@ async def bootstrap_primary_user() -> None:
             app_integrations_row.runtime_settings_initialized = True
             await db.commit()
         apply_runtime_settings(app_integrations_row)
+        app.add_middleware(
+            SessionMiddleware,
+            secret_key=app_settings.SECRET_KEY,
+            session_cookie="oidc_state",
+            same_site="lax",
+            https_only=app_settings.AUTH_COOKIE_SECURE,
+        )
         apply_deployment_provider_credentials(app_integrations_row)
 
 
