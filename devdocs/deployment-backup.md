@@ -1,12 +1,12 @@
 # Deployment backup architecture
 
-core/application_backup.py is the shared archive engine used by setup and administrator deployment settings.
+`core/application_backup.py` is the shared archive engine used by setup and administrator deployment settings.
 
 Export builds a structured archive, preserves encrypted-at-rest secret representations, and wraps the archive in a password-derived encryption envelope. The persistent application Fernet key is included only in the protected form required to restore encrypted values.
 
 The setup route can preview or restore the same archive before normal authentication exists. The administrator export route writes a persistent setup-path copy when requested.
 
-The setup-path copy is application.json. Browser downloads are timestamped and direct deployment-secret downloads are opt-in.
+The setup-path copy is `application.json`. Browser downloads are timestamped and direct deployment-secret downloads are opt-in.
 
 ## Restore boundary
 
