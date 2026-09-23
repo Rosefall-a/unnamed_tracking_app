@@ -1,25 +1,13 @@
 # Deployment backup architecture
 
-`core/application_backup.py` is the shared archive engine used by setup and administrator deployment settings.
+core/application_backup.py is the shared archive engine used by first-run setup and administrator deployment settings.
 
-Export builds a structured archive, preserves encrypted-at-rest secret representations, and wraps the archive in a password-derived encryption envelope. The persistent application Fernet key is included only in the protected form required to restore encrypted values.
+The archive records explicit section options and keeps deployment secrets encrypted at rest. The password envelope protects the archive in transit/storage, while the installation Fernet key protects stored secret values after restore.
 
-The setup route can preview or restore the same archive before normal authentication exists. The administrator export route writes a persistent setup-path copy when requested.
+The Settings → Deployment Backup UI exposes independent controls for application settings, provider credentials, OIDC, SMTP, users/API keys, sessions, and full-installation restore/export. save_to_setup_path writes the encrypted archive to APPLICATION_JSON_PATH.
 
-The setup-path copy is `application.json`. Browser downloads are timestamped and direct deployment-secret downloads are opt-in.
+The setup wizard consumes the same archive format. It previews the archive without mutating the database, then lets the administrator either accept it or populate the multi-page setup flow.
 
-## Restore boundary
+SMTP is a supported deployment-backup section; it is not silently excluded. It is opt-in by default.
 
-Restore is intended for an empty installation. The setup route validates the archive before changing the database and reports database conflicts rather than silently overwriting unrelated state.
-
-When users and sessions are restored, authentication accepts the restored session namespace. This is why authentication and backup documentation must be kept consistent.
-
-## Extending the archive
-
-Add new deployment fields to the archive schema deliberately. Secret fields must remain encrypted at rest and require a restore test. Do not add plaintext credentials for convenience.
-
-Any new setup namespace should be registered with SetupConfiguration and documented separately from the archive engine.
-
-## Testing
-
-Cover password round trips, wrong passwords, malformed archives, empty optional settings, encrypted secret preservation, users/API keys, optional sessions, filesystem discovery, preview, and restore conflict handling.
+Any new deployment field must be assigned to an explicit backup section and must preserve encrypted-at-rest semantics. Add regression coverage for password round trips, wrong passwords, malformed archives, section selection, SMTP/secret preservation, users/API keys, sessions, filesystem discovery, and setup-page population.
