@@ -13,6 +13,9 @@ export interface OidcProviderSetting {
   button_text: string;
   button_image_url: string | null;
   enabled: boolean;
+  show_on_login: boolean;
+  autostart_enabled: boolean;
+  require_verified_email: boolean;
   client_secret_configured: boolean;
 }
 export interface DeploymentSettings {
