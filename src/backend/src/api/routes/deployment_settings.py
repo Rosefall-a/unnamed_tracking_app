@@ -10,6 +10,7 @@ from src.core.auth import get_current_admin
 from src.core.crypto import decrypt_secret, encrypt_secret
 from src.core.provider_credentials import apply_deployment_provider_credentials
 from src.core.setup_config import default_setup_configuration
+from src.core.runtime_settings import apply_runtime_settings
 from src.database.models.oidc_settings import OidcSettings
 from src.database.models.user import User
 from src.database.session import get_db
@@ -60,6 +61,10 @@ class DeploymentSettingsRequest(BaseModel):
     oidc_login_button_text: str | None = None
     oidc_allow_new_users: bool | None = None
     oidc_providers_json: str | None = None
+    auth_cookie_secure: bool | None = None
+    max_upload_size_mb: int | None = None
+    max_clip_size_mb: int | None = None
+    max_world_save_size_mb: int | None = None
 
 
 _SECRET_FIELDS = {
@@ -127,6 +132,12 @@ async def get_deployment_settings(db: AsyncSession, admin: User) -> dict:
     named = list(by_slug.values())
     return {
         "providers": providers,
+        "runtime": {
+            "auth_cookie_secure": app.auth_cookie_secure,
+            "max_upload_size_mb": app.max_upload_size_mb,
+            "max_clip_size_mb": app.max_clip_size_mb,
+            "max_world_save_size_mb": app.max_world_save_size_mb,
+        },
         "oidc": {
             "issuer_url": oidc.issuer_url,
             "client_id": oidc.client_id,
@@ -238,6 +249,17 @@ async def update_deployment_settings(
                 setattr(app, field, encrypt_secret(value))
         elif field in _SAFE_PROVIDER_FIELDS:
             setattr(app, field, value or None)
+        elif field in {
+            "auth_cookie_secure",
+            "max_upload_size_mb",
+            "max_clip_size_mb",
+            "max_world_save_size_mb",
+        }:
+            if field != "auth_cookie_secure" and (value is None or value < 1):
+                raise HTTPException(400, f"{field} must be at least 1.")
+            setattr(app, field, bool(value) if field == "auth_cookie_secure" else value)
+    app.runtime_settings_initialized = True
     await db.commit()
+    apply_runtime_settings(app)
     apply_deployment_provider_credentials(app)
     return await get_deployment_settings(db, admin)
