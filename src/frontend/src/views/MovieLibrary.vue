@@ -79,7 +79,7 @@ const items = computed(() => movies.value.map(toVM));
 async function load() {
   if (!movies.value.length) loading.value = true;
   try {
-    movies.value = await fetchMovies();
+    movies.value = await fetchMoviesPage(0);
   } catch (e) {
     error.value = e instanceof Error ? e.message : "Failed to load movies.";
   } finally {
