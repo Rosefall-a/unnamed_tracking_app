@@ -51,6 +51,18 @@ class AppIntegrationSettings(Base):
     max_world_save_size_mb: Mapped[int] = mapped_column(Integer, nullable=False, default=2000)
     runtime_settings_initialized: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
+    # Optional deployment SMTP transport.
+    smtp_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    smtp_host: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    smtp_port: Mapped[int] = mapped_column(nullable=False, default=587)
+    smtp_username: Mapped[str | None] = mapped_column(String(320), nullable=True)
+    smtp_password: Mapped[str | None] = mapped_column(Text, nullable=True)
+    smtp_use_tls: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    smtp_use_ssl: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    smtp_from_email: Mapped[str | None] = mapped_column(String(320), nullable=True)
+    smtp_from_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    password_reset_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
     updated_at: Mapped[int] = mapped_column(
         BigInteger, nullable=False, default=time.time, onupdate=time.time
     )
