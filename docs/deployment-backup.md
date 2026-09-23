@@ -2,43 +2,53 @@
 
 Administrators can create password-protected deployment backups from Settings → Deployment Backup.
 
-The archive is encrypted with a password-derived Fernet envelope. Application secrets remain protected by the installation Fernet key. Keep the backup file and its password separate.
+The archive uses a password-derived Fernet envelope. Stored application secrets remain encrypted with the installation Fernet key, which is included in protected form so a restore can preserve the encrypted values.
 
-## Export
+## Export controls
 
-A deployment-settings export contains deployment-wide application/provider configuration and the encrypted secret values required to restore that configuration.
+The deployment backup UI can independently include:
 
-An optional full-installation export also includes user accounts and their API keys. Active sessions can be included only when users are included.
+- application/deployment settings;
+- provider credentials;
+- OIDC / SSO configuration;
+- SMTP transport and password-reset settings;
+- user accounts and API keys;
+- active sessions, when users are included;
+- full-installation mode, which includes users and active sessions.
 
-The normal browser download uses a timestamped filename. An optional persistent setup-path copy is stored as `application.json` at `APPLICATION_JSON_PATH`, which defaults to `/data/application.json`.
+The browser download is timestamped. You can optionally save the same encrypted archive to APPLICATION_JSON_PATH (default /data/application.json) for first-run bootstrap.
 
-Direct browser downloads of deployment-secret archives are disabled unless `ALLOW_DEPLOYMENT_SECRETS_DOWNLOAD=true`.
+**SMTP is not excluded.** It is an explicit backup option and is off by default unless selected.
 
 ## Setup restore
 
-A fresh installation can discover application.json automatically. The setup page can review the backup before changing the installation.
+A fresh installation can discover application.json automatically. The first setup page offers two sources:
 
-The restore flow validates the password and archive before applying it. If a backup contains settings only, the administrator continues by creating a new administrator. A full installation can restore users and, when selected, sessions.
+1. a manually selected deployment backup file;
+2. the detected application.json on the setup filesystem.
 
-The setup flow can also accept a manually uploaded backup file.
+The password is verified before the backup is applied. The setup wizard can either accept the imported deployment configuration or populate the subsequent setup pages so the administrator can review it.
+
+The setup wizard is multi-page:
+
+1. choose/import the deployment configuration;
+2. create the administrator;
+3. optionally configure OIDC;
+4. optionally configure SMTP.
 
 ## Restore safety
 
-A restore is intended for an empty installation during setup. Invalid passwords, malformed archives, incompatible data, and database conflicts are rejected without silently applying partial settings.
+Invalid passwords, malformed archives, unsupported versions, conflicting Fernet key copies, and invalid full-installation data are rejected rather than silently applied.
 
-Optional settings with empty values are tolerated. Existing encrypted secret representations are preserved rather than accidentally converted to plaintext.
+Optional empty settings are tolerated. Existing encrypted secret values remain encrypted during restore.
 
-## Repeatable deployment testing
+## Testing
 
-1. Export a backup and save it to the persistent setup path.
-2. Keep the backup password separately.
-3. Recreate an empty database while retaining application data.
-4. Start the application.
-5. Confirm the setup wizard discovers application.json.
-6. Review the backup and accept it.
-7. Verify deployment settings and encrypted credentials.
-8. For a full installation, verify users, API keys, and selected sessions.
-
-## Security
-
-Do not expose deployment-secret downloads unless there is a deliberate operational reason. Losing the persistent Fernet key prevents encrypted application secrets from being decrypted.
+- Export settings with and without provider credentials.
+- Export with OIDC enabled.
+- Export with SMTP enabled and verify SMTP fields are restored.
+- Export users and API keys.
+- Export full installation with active sessions.
+- Save an export to the setup path and verify a fresh setup detects it.
+- Preview a backup with the correct and incorrect password.
+- Choose “populate setup pages” and verify imported OIDC/SMTP values appear in their respective pages.
