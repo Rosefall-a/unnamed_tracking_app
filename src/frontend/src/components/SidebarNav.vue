@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
+import { ref, onMounted, onUnmounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { logout } from "../services/auth";
 import { currentUser } from "../state/auth";
@@ -8,10 +8,35 @@ import {
   notifications,
   notificationsLoaded,
   refreshNotifications,
+  mediaNotifications,
+  mediaUnread,
+  refreshMediaNotifications,
+  readMediaNotification,
+  readAllMediaNotifications,
+  mediaNotificationRoute,
 } from "../state/notifications";
 
 onMounted(refreshInboxCount);
 onMounted(refreshNotifications);
+// Asking the server for notifications is also what makes it create the
+// newly due ones, so this poll is the whole "delivery" mechanism: cheap,
+// every 5 minutes while the app is open, nothing running when it is not.
+let notificationTimer: number | undefined;
+onMounted(() => {
+  refreshMediaNotifications();
+  notificationTimer = window.setInterval(
+    refreshMediaNotifications,
+    5 * 60 * 1000,
+  );
+});
+onUnmounted(() => window.clearInterval(notificationTimer));
+function timeAgo(unix: number): string {
+  const s = Math.max(0, Math.floor(Date.now() / 1000 - unix));
+  if (s < 60) return "just now";
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+  return `${Math.floor(s / 86400)}d ago`;
+}
 const notificationsExpanded = ref(false);
 
 const route = useRoute();
@@ -23,6 +48,12 @@ function isActive(path: string) {
 
 const gamesExpanded = ref(isActive("/games") || isActive("/collections"));
 const cardsExpanded = ref(isActive("/cards") || isActive("/sets"));
+const mediaExpanded = ref(
+  isActive("/movies") ||
+    isActive("/tv") ||
+    isActive("/anime") ||
+    isActive("/lists"),
+);
 
 const isMockData = import.meta.env.VITE_USE_MOCK_DATA === "true";
 
@@ -55,7 +86,10 @@ async function handleLogout() {
       <line x1="3" y1="12" x2="21" y2="12" />
       <line x1="3" y1="18" x2="21" y2="18" />
     </svg>
-    <span v-if="notifications.length" class="menu-toggle-dot"></span>
+    <span
+      v-if="notifications.length + mediaUnread"
+      class="menu-toggle-dot"
+    ></span>
   </button>
 
   <Transition name="sidebar-backdrop">
@@ -305,8 +339,8 @@ async function handleLogout() {
             <path d="M13.7 21a2 2 0 0 1-3.4 0" />
           </svg>
           <span>Notifications</span>
-          <span v-if="notifications.length" class="inbox-badge">{{
-            notifications.length
+          <span v-if="notifications.length + mediaUnread" class="inbox-badge">{{
+            notifications.length + mediaUnread
           }}</span>
         </button>
         <button
@@ -332,9 +366,61 @@ async function handleLogout() {
       </div>
       <div v-if="notificationsExpanded" class="sidebar-subitems">
         <p v-if="!notificationsLoaded" class="notification-empty">Loading…</p>
-        <p v-else-if="!notifications.length" class="notification-empty">
+        <p
+          v-else-if="!notifications.length && !mediaNotifications.length"
+          class="notification-empty"
+        >
           Nothing to flag right now.
         </p>
+        <router-link
+          to="/notifications"
+          class="notification-see-all"
+          @click="close"
+        >
+          See All Notifications
+        </router-link>
+        <div v-if="mediaNotifications.length" class="notification-group-head">
+          <span>Episodes and releases</span>
+          <button
+            v-if="mediaUnread"
+            type="button"
+            @click="readAllMediaNotifications"
+          >
+            Mark All Read
+          </button>
+        </div>
+        <router-link
+          v-for="n in mediaNotifications.slice(0, 15)"
+          :key="n.id"
+          :to="mediaNotificationRoute(n)"
+          class="notification-row"
+          :class="{ read: n.read }"
+          @click="
+            readMediaNotification(n.id);
+            close();
+          "
+        >
+          <span
+            v-if="n.posterUrl"
+            class="notification-poster"
+            :style="{ backgroundImage: `url(${n.posterUrl})` }"
+          ></span>
+          <span
+            v-else
+            class="notification-dot"
+            :class="{ unread: !n.read }"
+          ></span>
+          <span class="notification-text">
+            <span class="notification-title">{{ n.title }}</span>
+            <span class="notification-detail"
+              >{{ n.body }} · {{ timeAgo(n.eventAt) }}</span
+            >
+          </span>
+          <span v-if="!n.read" class="notification-unread-dot"></span>
+        </router-link>
+        <div v-if="notifications.length" class="notification-group-head">
+          <span>Bounties</span>
+        </div>
         <router-link
           v-for="n in notifications"
           :key="n.id"
@@ -398,7 +484,158 @@ async function handleLogout() {
         <span>Bounties</span>
       </router-link>
 
-      <div class="sidebar-item disabled">
+      <div
+        class="sidebar-parent-row"
+        :class="{
+          active:
+            isActive('/movies') ||
+            isActive('/tv') ||
+            isActive('/anime') ||
+            isActive('/lists'),
+        }"
+      >
+        <router-link
+          to="/movies"
+          class="sidebar-item sidebar-parent-link"
+          @click="close"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            width="18"
+            height="18"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <rect x="3" y="4" width="18" height="16" rx="2" />
+            <line x1="3" y1="9" x2="21" y2="9" />
+          </svg>
+          <span>Media</span>
+        </router-link>
+        <button
+          type="button"
+          class="sidebar-expand-toggle"
+          :class="{ expanded: mediaExpanded }"
+          :title="mediaExpanded ? 'Collapse' : 'Expand'"
+          @click="mediaExpanded = !mediaExpanded"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            width="14"
+            height="14"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M9 18l6-6-6-6" />
+          </svg>
+        </button>
+      </div>
+
+      <div v-if="mediaExpanded" class="sidebar-subitems">
+        <router-link
+          to="/movies"
+          class="sidebar-item sidebar-subitem"
+          :class="{ active: isActive('/movies') }"
+          @click="close"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            width="16"
+            height="16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <rect x="3" y="4" width="18" height="16" rx="2" />
+            <line x1="3" y1="9" x2="21" y2="9" />
+          </svg>
+          <span>Movies</span>
+        </router-link>
+        <router-link
+          to="/tv"
+          class="sidebar-item sidebar-subitem"
+          :class="{ active: isActive('/tv') }"
+          @click="close"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            width="16"
+            height="16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <rect x="2" y="5" width="20" height="14" rx="2" />
+            <line x1="8" y1="21" x2="16" y2="21" />
+            <line x1="12" y1="19" x2="12" y2="21" />
+          </svg>
+          <span>TV</span>
+        </router-link>
+        <router-link
+          to="/anime"
+          class="sidebar-item sidebar-subitem"
+          :class="{ active: isActive('/anime') }"
+          @click="close"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            width="16"
+            height="16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <circle cx="12" cy="12" r="9" />
+            <path
+              d="M8 9c.5-1.5 2-2 4-2s3.5.5 4 2M9 13c.7.8 1.8 1.3 3 1.3s2.3-.5 3-1.3"
+            />
+          </svg>
+          <span>Anime</span>
+        </router-link>
+        <router-link
+          to="/lists"
+          class="sidebar-item sidebar-subitem"
+          :class="{ active: isActive('/lists') }"
+          @click="close"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            width="16"
+            height="16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <line x1="8" y1="6" x2="21" y2="6" />
+            <line x1="8" y1="12" x2="21" y2="12" />
+            <line x1="8" y1="18" x2="21" y2="18" />
+            <line x1="3" y1="6" x2="3.01" y2="6" />
+            <line x1="3" y1="12" x2="3.01" y2="12" />
+            <line x1="3" y1="18" x2="3.01" y2="18" />
+          </svg>
+          <span>Lists</span>
+        </router-link>
+      </div>
+
+      <router-link
+        to="/calendar"
+        class="sidebar-item"
+        :class="{ active: isActive('/calendar') }"
+        @click="close"
+      >
         <svg
           viewBox="0 0 24 24"
           width="18"
@@ -409,12 +646,36 @@ async function handleLogout() {
           stroke-linecap="round"
           stroke-linejoin="round"
         >
-          <rect x="3" y="4" width="18" height="16" rx="2" />
-          <line x1="3" y1="9" x2="21" y2="9" />
+          <rect x="3" y="4" width="18" height="18" rx="2" />
+          <line x1="3" y1="10" x2="21" y2="10" />
+          <line x1="8" y1="2" x2="8" y2="6" />
+          <line x1="16" y1="2" x2="16" y2="6" />
         </svg>
-        <span>Movies & TV</span>
-        <span class="soon-badge">soon</span>
-      </div>
+        <span>Calendar</span>
+      </router-link>
+      <router-link
+        to="/statistics"
+        class="sidebar-item"
+        :class="{ active: isActive('/statistics') }"
+        @click="close"
+      >
+        <svg
+          viewBox="0 0 24 24"
+          width="18"
+          height="18"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <line x1="4" y1="20" x2="20" y2="20" />
+          <rect x="6" y="12" width="3" height="8" rx="0.5" />
+          <rect x="12" y="7" width="3" height="13" rx="0.5" />
+          <rect x="18" y="3" width="3" height="17" rx="0.5" />
+        </svg>
+        <span>Statistics</span>
+      </router-link>
 
       <div class="sidebar-spacer"></div>
 
@@ -441,7 +702,11 @@ async function handleLogout() {
         </svg>
         <span>Settings</span>
       </router-link>
-      <button type="button" class="sidebar-item logout-item" @click="handleLogout">
+      <button
+        type="button"
+        class="sidebar-item logout-item"
+        @click="handleLogout"
+      >
         <svg
           viewBox="0 0 24 24"
           width="18"
@@ -570,13 +835,6 @@ async function handleLogout() {
   background: rgba(214, 138, 52, 0.14);
   color: #d68a34;
 }
-.sidebar-item.disabled {
-  color: #555;
-  cursor: not-allowed;
-}
-.sidebar-item.disabled:hover {
-  background: none;
-}
 .sidebar-parent-row {
   display: flex;
   align-items: center;
@@ -632,14 +890,6 @@ async function handleLogout() {
 .sidebar-subitem {
   font-size: 13px;
 }
-.soon-badge {
-  margin-left: auto;
-  font-size: 10px;
-  color: #777;
-  background: rgba(255, 255, 255, 0.06);
-  padding: 2px 6px;
-  border-radius: 999px;
-}
 .notification-toggle {
   background: none;
   border: none;
@@ -694,6 +944,60 @@ async function handleLogout() {
 .notification-detail {
   color: #888;
   font-size: 11.5px;
+}
+.notification-see-all {
+  display: block;
+  padding: 6px 8px 2px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #d68a34;
+  text-decoration: none;
+}
+.notification-see-all:hover {
+  text-decoration: underline;
+}
+.notification-group-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 8px 2px;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #666;
+}
+.notification-group-head button {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-size: 11px;
+  text-transform: none;
+  letter-spacing: 0;
+  color: #d68a34;
+  cursor: pointer;
+}
+.notification-row.read {
+  opacity: 0.55;
+}
+.notification-poster {
+  width: 26px;
+  height: 38px;
+  border-radius: 4px;
+  flex-shrink: 0;
+  background: #222 center / cover;
+}
+.notification-dot.unread {
+  background: #6fbf73;
+}
+.notification-unread-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #d68a34;
+  flex-shrink: 0;
+  margin: 5px 0 0 auto;
 }
 .inbox-badge {
   margin-left: auto;

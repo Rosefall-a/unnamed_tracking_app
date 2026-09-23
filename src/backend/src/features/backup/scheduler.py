@@ -16,8 +16,14 @@ from pathlib import Path
 
 from sqlalchemy import select
 
+from src.api.schemas.anime import AnimeRead
 from src.api.schemas.game import GameRead
+from src.api.schemas.movie import MovieRead
+from src.api.schemas.tv_show import TVShowRead
+from src.database.models.anime import Anime
 from src.database.models.game import Game
+from src.database.models.movies import Movie
+from src.database.models.tv_show import TVShow
 from src.database.models.user import User
 from src.database.session import SessionLocal
 
@@ -30,20 +36,61 @@ BACKUPS_TO_KEEP_PER_USER = 7
 
 async def run_backup_for_user(user_id) -> Path | None:
     async with SessionLocal() as db:
-        stmt = (
-            select(Game)
-            .where(Game.user_id == user_id, Game.deleted_at.is_(None))
-            .order_by(Game.sort_title)
+        games = list(
+            (
+                await db.execute(
+                    select(Game)
+                    .where(Game.user_id == user_id, Game.deleted_at.is_(None))
+                    .order_by(Game.sort_title)
+                )
+            )
+            .scalars()
+            .all()
         )
-        games = list((await db.execute(stmt)).scalars().all())
-        if not games:
+        movies = list(
+            (
+                await db.execute(
+                    select(Movie)
+                    .where(Movie.user_id == user_id, Movie.deleted_at.is_(None))
+                    .order_by(Movie.sort_title)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        tv_shows = list(
+            (
+                await db.execute(
+                    select(TVShow)
+                    .where(TVShow.user_id == user_id, TVShow.deleted_at.is_(None))
+                    .order_by(TVShow.sort_title)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        anime = list(
+            (
+                await db.execute(
+                    select(Anime)
+                    .where(Anime.user_id == user_id, Anime.deleted_at.is_(None))
+                    .order_by(Anime.sort_title)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        if not games and not movies and not tv_shows and not anime:
             return None
 
         payload = {
-            "format_version": 1,
+            "format_version": 2,
             "exported_at": int(time.time()),
             "game_count": len(games),
             "games": [GameRead.model_validate(g).model_dump(mode="json") for g in games],
+            "movies": [MovieRead.model_validate(m).model_dump(mode="json") for m in movies],
+            "tv_shows": [TVShowRead.model_validate(t).model_dump(mode="json") for t in tv_shows],
+            "anime": [AnimeRead.model_validate(a).model_dump(mode="json") for a in anime],
         }
 
         user_dir = _BACKUP_ROOT / str(user_id)

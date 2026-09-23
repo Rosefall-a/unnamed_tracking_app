@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, nextTick, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { currentUser } from "../state/auth";
 import SettingsNav from "../components/settings/SettingsNav.vue";
@@ -9,11 +9,16 @@ import InterfaceSection from "../components/settings/InterfaceSection.vue";
 import AppearanceSection from "../components/settings/AppearanceSection.vue";
 import UploadSection from "../components/settings/UploadSection.vue";
 import LibraryManagementSection from "../components/settings/LibraryManagementSection.vue";
+import MediaTrashSection from "../components/settings/MediaTrashSection.vue";
 import ScanSettingsSection from "../components/settings/ScanSettingsSection.vue";
 import MetadataSourcesSection from "../components/settings/MetadataSourcesSection.vue";
+import MediaRefreshSection from "../components/settings/MediaRefreshSection.vue";
+import TasksSection from "../components/settings/TasksSection.vue";
 import AdminSection from "../components/settings/AdminSection.vue";
 import StatsSection from "../components/settings/StatsSection.vue";
 import ExportImportSection from "../components/settings/ExportImportSection.vue";
+import CalendarNotificationsSection from "../components/settings/CalendarNotificationsSection.vue";
+import MediaPreferencesSection from "../components/settings/MediaPreferencesSection.vue";
 import ComingSoonSection from "../components/settings/ComingSoonSection.vue";
 import ApiKeysSection from "../components/settings/ApiKeysSection.vue";
 import ServerIntegrationsSection from "../components/settings/ServerIntegrationsSection.vue";
@@ -35,6 +40,7 @@ const groups = computed<SettingsGroup[]>(() => {
         { id: "interface", label: "User Interface" },
         { id: "appearance", label: "Appearance" },
         { id: "api-keys", label: "API Keys" },
+        { id: "calendar-notifications", label: "Calendar and Notifications" },
       ],
     },
     {
@@ -42,6 +48,8 @@ const groups = computed<SettingsGroup[]>(() => {
       sections: [
         { id: "upload", label: "Upload" },
         { id: "library", label: "Library Management" },
+        { id: "media-prefs", label: "Media Preferences" },
+        { id: "media-trash", label: "Media Trash" },
       ],
     },
     {
@@ -49,6 +57,7 @@ const groups = computed<SettingsGroup[]>(() => {
       sections: [
         { id: "scan", label: "Scan Settings" },
         { id: "sources", label: "Metadata/API" },
+        { id: "media-refresh", label: "Refresh Media" },
         { id: "export", label: "Export / Import" },
       ],
     },
@@ -73,6 +82,15 @@ const groups = computed<SettingsGroup[]>(() => {
   return result;
 });
 const activeSection = ref((route.query.section as string) || "profile");
+
+// on a phone the section list stacks above the content, so a tap would
+// change something far below the fold: bring the content into view
+const card = ref<HTMLElement | null>(null);
+watch(activeSection, async () => {
+  if (!window.matchMedia("(max-width: 760px)").matches) return;
+  await nextTick();
+  card.value?.scrollIntoView({ behavior: "smooth", block: "start" });
+});
 </script>
 
 <template>
@@ -101,15 +119,23 @@ const activeSection = ref((route.query.section as string) || "profile");
       <h1>Settings</h1>
       <div class="settings-body">
         <SettingsNav v-model:active-section="activeSection" :groups="groups" />
-        <div class="settings-card">
+        <div ref="card" class="settings-card">
           <ProfileSection v-if="activeSection === 'profile'" />
           <InterfaceSection v-else-if="activeSection === 'interface'" />
           <AppearanceSection v-else-if="activeSection === 'appearance'" />
+          <CalendarNotificationsSection
+            v-else-if="activeSection === 'calendar-notifications'"
+          />
           <ApiKeysSection v-else-if="activeSection === 'api-keys'" />
           <UploadSection v-else-if="activeSection === 'upload'" />
           <LibraryManagementSection v-else-if="activeSection === 'library'" />
+          <MediaPreferencesSection
+            v-else-if="activeSection === 'media-prefs'"
+          />
+          <MediaTrashSection v-else-if="activeSection === 'media-trash'" />
           <ScanSettingsSection v-else-if="activeSection === 'scan'" />
           <MetadataSourcesSection v-else-if="activeSection === 'sources'" />
+          <MediaRefreshSection v-else-if="activeSection === 'media-refresh'" />
           <OidcSettingsSection
             v-else-if="activeSection === 'oidc' && currentUser?.is_admin"
           />
@@ -123,15 +149,8 @@ const activeSection = ref((route.query.section as string) || "profile");
           />
           <StatsSection v-else-if="activeSection === 'stats'" />
           <ExportImportSection v-else-if="activeSection === 'export'" />
-          <ComingSoonSection
+          <TasksSection
             v-else-if="activeSection === 'tasks' && currentUser?.is_admin"
-            title="Tasks"
-            description="Schedule recurring jobs, run by an in-process scheduler: no extra server required."
-            :planned-features="[
-              'Scheduled metadata refreshes',
-              'Automatic library rescans',
-              'Storage cleanup jobs',
-            ]"
           />
           <ComingSoonSection
             v-else-if="activeSection === 'logs' && currentUser?.is_admin"
@@ -154,7 +173,7 @@ const activeSection = ref((route.query.section as string) || "profile");
   position: relative;
   min-height: 100vh;
   padding: 84px 40px 40px;
-  background: #121212;
+  background: var(--ui-bg);
   font-family: system-ui, sans-serif;
 }
 .back-arrow-button {
@@ -190,6 +209,7 @@ const activeSection = ref((route.query.section as string) || "profile");
 .settings-card {
   flex: 1;
   min-width: 0;
+  scroll-margin-top: 64px;
   background: #1a1a1a;
   border: 1px solid #2a2a2a;
   border-radius: 14px;

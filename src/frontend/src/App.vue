@@ -4,9 +4,29 @@ import SidebarNav from "./components/SidebarNav.vue";
 import TaskProgressToast from "./components/TaskProgressToast.vue";
 import ShortcutsHelp from "./components/ShortcutsHelp.vue";
 import CommandPalette from "./components/CommandPalette.vue";
-import { authChecked } from "./state/auth";
+import AppDialog from "./components/AppDialog.vue";
+import { authChecked, currentUser } from "./state/auth";
+import { loadSharedPreferences } from "./state/preferences";
+import { watch } from "vue";
 
 const route = useRoute();
+// preferences are per user, so load them once someone is signed in
+watch(
+  () => currentUser.value?.id,
+  (id) => {
+    if (id) loadSharedPreferences();
+  },
+  { immediate: true },
+);
+const KEPT_ALIVE = [
+  "MovieLibrary",
+  "TVShowLibrary",
+  "AnimeLibrary",
+  "Calendar",
+  "MediaLists",
+  "Statistics",
+  "Notifications",
+];
 </script>
 
 <template>
@@ -26,10 +46,18 @@ const route = useRoute();
         route.path !== '/login/oidcstart'
       "
     />
-    <router-view />
+    <!-- Library, calendar and list pages stay mounted when you leave them, so
+         switching tabs is instant instead of reloading from empty. Detail
+         pages are deliberately not kept: they must reload per title. -->
+    <router-view v-slot="{ Component }">
+      <KeepAlive :include="KEPT_ALIVE" :max="8">
+        <component :is="Component" />
+      </KeepAlive>
+    </router-view>
     <TaskProgressToast
       v-if="route.path !== '/setup' && route.path !== '/login/oidcstart'"
     />
+    <AppDialog />
     <ShortcutsHelp
       v-if="
         route.path !== '/login' &&

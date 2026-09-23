@@ -40,7 +40,7 @@ from src.api.schemas.game import (
 )
 from src.core.auth import get_current_user
 from src.core.config import settings
-from src.core.crypto import decrypt_secret
+from src.core.integrations import resolve_integrations
 from src.database.models.achievement import Achievement
 from src.database.models.game import Game, GameLink, GameStatus
 from src.database.models.game_checklist_item import GameChecklistItem
@@ -132,7 +132,7 @@ async def search_metadata(
     """
     scan_settings = await get_or_create_scan_settings(current_user.id, db)
     preferences = _scan_settings_to_preferences(scan_settings)
-    app_integrations = await get_or_create_app_integration_settings(db)
+    app_integrations = resolve_integrations(await get_or_create_app_integration_settings(db))
     try:
         result = await asyncio.to_thread(
             search_game_metadata,
@@ -142,9 +142,7 @@ async def search_metadata(
             preferences,
             current_user,
             app_integrations.igdb_client_id,
-            decrypt_secret(app_integrations.igdb_client_secret)
-            if app_integrations.igdb_client_secret
-            else None,
+            app_integrations.igdb_client_secret,
         )
     except Exception as exc:
         raise HTTPException(

@@ -17,6 +17,9 @@ import {
   describeSmartCollection,
   removeSmartCollection,
 } from "../state/smartCollections";
+import { useConfirm } from "../state/dialog";
+
+const confirm = useConfirm();
 
 const route = useRoute();
 const router = useRouter();
@@ -205,14 +208,15 @@ function goBack() {
   }
 }
 
-function deleteSmartRule() {
+async function deleteSmartRule() {
   if (!smartRule.value) return;
-  if (
-    !window.confirm(
-      `Delete the smart collection "${collectionName.value}"? This only removes the rule, no games are affected.`,
-    )
-  )
-    return;
+  const ok = await confirm({
+    title: "Delete smart collection",
+    message: `Delete the smart collection "${collectionName.value}"? This only removes the rule, no games are affected.`,
+    confirmLabel: "Delete",
+    danger: true,
+  });
+  if (!ok) return;
   removeSmartCollection(smartRule.value.id);
   router.push("/collections");
 }
@@ -221,12 +225,13 @@ const deletingCollection = ref(false);
 const deleteCollectionError = ref<string | null>(null);
 
 async function deleteCollection() {
-  if (
-    !window.confirm(
-      `Delete "${collectionName.value}"? This removes it from every game.`,
-    )
-  )
-    return;
+  const ok = await confirm({
+    title: "Delete collection",
+    message: `Delete "${collectionName.value}"? This removes it from every game.`,
+    confirmLabel: "Delete",
+    danger: true,
+  });
+  if (!ok) return;
   deletingCollection.value = true;
   deleteCollectionError.value = null;
   try {
