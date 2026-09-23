@@ -8,9 +8,9 @@ from datetime import date
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.schemas.anime import (
@@ -389,6 +389,7 @@ async def refresh_airing(
 
 @router.get("/list", response_model=list[AnimeRead])
 async def list_anime(
+    response: Response,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
     status_filter: AnimeStatus | None = Query(default=None, alias="status"),
@@ -397,7 +398,7 @@ async def list_anime(
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=50, ge=1, le=200),
 ) -> list[Anime]:
-    """Return the current user's anime, filtered by status, favorite flag, or title search."""
+    """Return a page of the current user's anime plus the total matching count."""
     stmt = select(Anime).where(Anime.user_id == current_user.id, Anime.deleted_at.is_(None))
 
     if status_filter is not None:
@@ -406,6 +407,9 @@ async def list_anime(
         stmt = stmt.where(Anime.favorite == favorite)
     if search:
         stmt = stmt.where(Anime.title.ilike(f"%{search}%"))
+
+    total = await db.scalar(select(func.count()).select_from(stmt.subquery()))
+    response.headers["X-Total-Count"] = str(total or 0)
 
     stmt = stmt.order_by(Anime.sort_title).offset(skip).limit(limit)
 
