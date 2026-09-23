@@ -85,6 +85,13 @@ h1 {
     flex: 0 0 auto
 }
 
+.ready-icon {
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    margin-right: 12px;
+}
+
 @keyframes spin {
     to {
         transform: rotate(360deg)
