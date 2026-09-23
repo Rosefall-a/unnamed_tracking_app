@@ -64,3 +64,16 @@ def _write_current_key(key: str, paths: tuple[Path, Path, Path]) -> None:
             f"Could not persist the Fernet key in {config_dir}. "
             "Mount APP_DATA_DIR as a writable persistent volume."
         ) from exc
+
+
+def restore_persistent_fernet_key(key: str) -> None:
+    """Install an exported Fernet key and preserve the previous key."""
+    Fernet(key.encode())
+    paths = _paths()
+    old_key = persistent_fernet_key()
+    if old_key != key:
+        previous = paths[0].parent / "fernet.key.previous"
+        previous.parent.mkdir(parents=True, exist_ok=True)
+        previous.write_text(old_key + "\n", encoding="utf-8")
+        previous.chmod(0o600)
+    _write_current_key(key, paths)
