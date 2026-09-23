@@ -47,6 +47,8 @@ COPY src/frontend/. /app/frontend/
 WORKDIR /app
 
 ENV APP_MODE=both
+# Global frontend default; vite.config.ts selects localhost for combined mode.
+ENV DEFAULT_BACKEND_URL=http://backend:8000
 EXPOSE 80 8000
 
 COPY src/central/entrypoint.sh /usr/local/bin/central-entrypoint.sh
