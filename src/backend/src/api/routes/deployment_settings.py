@@ -9,6 +9,7 @@ from src.api.routes.settings import get_or_create_app_integration_settings
 from src.core.auth import get_current_admin
 from src.core.crypto import decrypt_secret, encrypt_secret
 from src.core.provider_credentials import apply_deployment_provider_credentials
+from src.core.setup_config import default_setup_configuration
 from src.database.models.oidc_settings import OidcSettings
 from src.database.models.user import User
 from src.database.session import get_db
@@ -110,6 +111,20 @@ async def get_deployment_settings(db: AsyncSession, admin: User) -> dict:
     for field in _SECRET_FIELDS:
         providers[field + "_configured"] = bool(getattr(app, field))
     named = [_provider_view(p) for p in _provider_rows(oidc)]
+    env_tree = default_setup_configuration().overrides_for("OIDC")
+    by_slug = {str(p.get("slug")): p for p in named}
+    for slug, overrides in env_tree.items():
+        if not isinstance(overrides, dict):
+            continue
+        provider = dict(by_slug.get(str(slug).lower(), {"name": slug, "slug": str(slug).lower()}))
+        provider.update(overrides)
+        # Never send an environment-provided client secret back to the browser.
+        if "client_secret" in provider:
+            provider["client_secret_configured"] = bool(provider["client_secret"])
+            provider["client_secret"] = ""
+        provider.setdefault("client_secret_configured", False)
+        by_slug[str(slug).lower()] = provider
+    named = list(by_slug.values())
     return {
         "providers": providers,
         "oidc": {
