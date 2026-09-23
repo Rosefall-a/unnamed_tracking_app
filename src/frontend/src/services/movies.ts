@@ -128,7 +128,7 @@ export async function fetchMovies(): Promise<Movie[]> {
   let skip = 0;
   while (true) {
     const response = await fetch(
-      `/api/movie/list?skip=${skip}&limit=${size}`,
+      `/api/movie/list?skip=${skip}&limit=${MOVIES_PAGE_SIZE}`,
       { credentials: "include" },
     );
     const page = await handle<BackendMovie[]>(response, "fetch movie");
