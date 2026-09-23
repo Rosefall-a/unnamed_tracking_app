@@ -104,6 +104,8 @@ const props = defineProps<{
     result: SearchResultVM,
     form: QuickAddForm,
   ) => Promise<void>;
+  hasMore?: boolean;
+  loadingMore?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -114,9 +116,33 @@ const emit = defineEmits<{
   (e: "bulk-set-status", ids: string[], status: string): void;
   (e: "bulk-favorite", ids: string[]): void;
   (e: "bulk-delete", ids: string[]): void;
+  (e: "load-more"): void;
 }>();
 
 const router = useRouter();
+
+const loadMoreSentinel = ref<HTMLElement | null>(null);
+let loadMoreObserver: IntersectionObserver | null = null;
+
+function setupLoadMoreObserver() {
+  loadMoreObserver?.disconnect();
+  if (!props.hasMore || !loadMoreSentinel.value) return;
+  loadMoreObserver = new IntersectionObserver(
+    (entries) => {
+      if (entries[0]?.isIntersecting && !props.loadingMore) emit("load-more");
+    },
+    { rootMargin: "800px 0px", threshold: 0 },
+  );
+  loadMoreObserver.observe(loadMoreSentinel.value);
+}
+
+watch(
+  () => [props.hasMore, props.loadingMore, props.items.length] as const,
+  () => requestAnimationFrame(setupLoadMoreObserver),
+);
+
+onMounted(() => requestAnimationFrame(setupLoadMoreObserver));
+onBeforeUnmount(() => loadMoreObserver?.disconnect());
 
 // The mockup's per-item "type" field (TV/Movie/OVA/Series/Anthology) has
 // no real per-item equivalent — none of the three entities carry a
@@ -1526,6 +1552,17 @@ defineExpose({ openQuickAdd });
       </div>
     </div>
 
+        <div
+          v-if="props.hasMore"
+          ref="loadMoreSentinel"
+          class="load-more-sentinel"
+          aria-hidden="true"
+        >
+          <span v-if="props.loadingMore">Loading more…</span>
+        </div>
+      </div>
+    </div>
+
     <!-- ===== Quick Add ===== -->
     <div v-if="quickAddOpen" class="modal-overlay" @click.self="closeQuickAdd">
       <div class="modal-card qa-card">
@@ -1715,6 +1752,16 @@ defineExpose({ openQuickAdd });
 </template>
 
 <style scoped>
+.load-more-sentinel {
+  min-height: 1px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 20px;
+  color: var(--text-dim);
+  font-size: 0.9rem;
+}
+
 /* Ported 1:1 from the "Library Layouts" design mockup — same tokens,
    same component shapes. */
 .lib-root {
