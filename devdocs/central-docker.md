@@ -1,27 +1,16 @@
 # Central Docker architecture
 
-The central image deliberately reuses the repository's backend dependency manifest and frontend package manifest rather than maintaining a second application implementation.
+The central image reuses the existing backend dependency manifest and frontend package manifest.
 
-## Build layout
+vite.config.ts resolves the proxy target in this order:
 
-`src/central/Dockerfile` uses a Node build/runtime layer and the existing Python runtime. It copies `src/backend/src` into `/app/src` so the normal `uvicorn src.main:app` import layout is retained.
+1. BACKEND_URL when explicitly supplied.
+2. localhost:8000 when APP_MODE=both.
+3. DEFAULT_BACKEND_URL from the image, which is backend:8000.
+4. backend:8000 as the code-level fallback when no image default exists.
 
-`entrypoint.sh` owns process selection. In `both` mode it starts both processes and exits if either process terminates, preventing a half-alive container.
+The Dockerfile sets DEFAULT_BACKEND_URL rather than hard-coding the combined-container address. This keeps backend:8000 as the global split deployment default while allowing combined mode to select localhost.
 
-## Backend URL resolution
+entrypoint.sh owns process selection. In both mode both processes are started and the container exits if either process stops.
 
-The Vite configuration already resolves the proxy target as:
-
-1. explicit `BACKEND_URL`;
-2. localhost in `APP_MODE=both`;
-3. `backend:8000` for separate frontend/backend containers.
-
-Do not hard-code `backend:8000` into application code. This is important because a combined container has no Docker DNS service named `backend`.
-
-## Adding a central mode
-
-If a new mode is needed, update the case statement in `entrypoint.sh`, document its ports and process lifecycle here, and add a compose example. Avoid adding a supervisor unless process requirements become materially more complex.
-
-## Docker CI
-
-The existing Docker checks should remain unchanged. The central image can have a dedicated build check, but existing backend/frontend checks must not be removed or weakened.
+Do not introduce a supervisor unless process requirements materially change.
