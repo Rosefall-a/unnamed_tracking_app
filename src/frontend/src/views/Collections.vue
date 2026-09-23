@@ -14,6 +14,10 @@ import {
 } from "../state/smartCollections";
 import type { SmartField } from "../state/smartCollections";
 import type { GameStatus } from "../types/game";
+import { useConfirm, usePrompt } from "../state/dialog";
+
+const confirm = useConfirm();
+const prompt = usePrompt();
 
 type SortBy = "name" | "count";
 
@@ -62,11 +66,14 @@ function addCollectionName(trimmed: string): boolean {
   return true;
 }
 
-function createCollection() {
+async function createCollection() {
   createError.value = null;
-  const name = window.prompt(
-    'Name your new collection (use "Parent/Child" to nest it under another):',
-  );
+  const name = await prompt({
+    title: "New collection",
+    message:
+      'Name your new collection (use "Parent/Child" to nest it under another).',
+    confirmLabel: "Create",
+  });
   if (!name || !name.trim()) return;
   addCollectionName(name.trim());
 }
@@ -167,14 +174,14 @@ function openCollection(name: string) {
 
 // --- smart collections -----------------------------------------------
 const STATUS_OPTIONS: GameStatus[] = [
-  "wishlist",
-  "backlog",
   "playing",
-  "on hold",
   "beaten",
-  "played",
-  "dropped",
   "mastered",
+  "played",
+  "on hold",
+  "dropped",
+  "backlog",
+  "wishlist",
 ];
 const showSmartForm = ref(false);
 const smartName = ref("");
@@ -227,14 +234,15 @@ function createSmartCollection() {
   showSmartForm.value = false;
 }
 
-function deleteSmartCollection(id: string) {
-  if (
-    window.confirm(
+async function deleteSmartCollection(id: string) {
+  const ok = await confirm({
+    title: "Delete smart collection",
+    message:
       "Delete this smart collection? This only removes the rule, no games are affected.",
-    )
-  ) {
-    removeSmartCollection(id);
-  }
+    confirmLabel: "Delete",
+    danger: true,
+  });
+  if (ok) removeSmartCollection(id);
 }
 function smartIdForName(name: string): string | undefined {
   return smartCollections.value.find((c) => c.name === name)?.id;

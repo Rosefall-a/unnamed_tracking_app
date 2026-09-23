@@ -12,9 +12,11 @@ from src.database.base import Base
 # Base.metadata before autogenerate compares it against the database.
 from src.database.models import (
     achievement,  # noqa: F401
+    anime,  # noqa: F401
     app_integration_settings,  # noqa: F401
     auth,  # noqa: F401
     bounty,  # noqa: F401
+    calendar_event,  # noqa: F401
     card,  # noqa: F401
     game,  # noqa: F401
     game_archive,  # noqa: F401
@@ -24,9 +26,17 @@ from src.database.models import (
     game_profile,  # noqa: F401
     game_profile_stat_snapshot,  # noqa: F401
     inbox_item,  # noqa: F401
+    job_setting,  # noqa: F401
+    media_extras,  # noqa: F401
     media_item,  # noqa: F401
+    movies,  # noqa: F401
+    notification,  # noqa: F401
+    oidc_provider,
+    oidc_settings,
+    tv_show,  # noqa: F401
     user,  # noqa: F401
     user_appearance_settings,  # noqa: F401
+    user_preferences,  # noqa: F401
     user_scan_settings,  # noqa: F401
 )
 from src.database.models import set as set_model  # noqa: F401

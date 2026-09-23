@@ -4,7 +4,7 @@ import time
 from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
-from sqlalchemy import BigInteger, ForeignKey, String
+from sqlalchemy import BigInteger, ForeignKey, Index, String, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -33,6 +33,16 @@ class Card(Base):
     card itself."""
 
     __tablename__ = "cards"
+    __table_args__ = (
+        # an archive number belongs to one card per user
+        Index(
+            "ix_cards_archive_number_user_active",
+            "user_id",
+            "archive_number",
+            unique=True,
+            postgresql_where=text("archive_number IS NOT NULL"),
+        ),
+    )
 
     id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
     user_id: Mapped[UUID] = mapped_column(
