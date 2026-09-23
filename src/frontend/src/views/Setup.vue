@@ -19,6 +19,8 @@ const oidcRedirectUri = ref(`${window.location.origin}/api/auth/oidc/callback`);
 const oidcGroupsClaim = ref("groups");
 const oidcAdminGroup = ref("");
 const oidcUserMatchField = ref("email");
+const oidcRequireVerifiedEmail = ref(false);
+const oidcEnvironmentManaged = ref(false);
 const error = ref<string | null>(
   route.query.backend_error
     ? "The frontend cannot reach the backend yet. Start the backend service, then reload this page."
@@ -78,6 +80,7 @@ async function submit() {
               oidc_groups_claim: oidcGroupsClaim.value.trim() || "groups",
               oidc_admin_group: oidcAdminGroup.value.trim(),
               oidc_user_match_field: oidcUserMatchField.value,
+              oidc_require_verified_email: oidcRequireVerifiedEmail.value,
             }
           : {}),
       },
@@ -92,6 +95,16 @@ async function submit() {
 }
 onMounted(async () => {
   try { backupAvailable.value = (await fetchApplicationBackupStatus()).available; } catch { backupAvailable.value = false; }
+  try {
+    const status = await fetchSetupStatus();
+    const oidc = status.environment_controlled?.OIDC as Record<string, unknown> | undefined;
+    if (oidc) {
+      const providers = Object.values(oidc).filter((value): value is Record<string, unknown> => typeof value === "object" && value !== null);
+      oidcEnvironmentManaged.value = providers.some((provider) => Boolean(provider.issuer_url && provider.client_id && provider.client_secret));
+    }
+  } catch {
+    // Normal setup remains available if environment metadata cannot be read.
+  }
 });
 </script>
 <template>
@@ -275,7 +288,7 @@ onMounted(async () => {
 }
 .backup-panel { display:flex; flex-direction:column; gap:10px; padding:14px; border:1px solid #4a3925; border-radius:10px; background:#191510; color:#fff; }
 .success { color:#86efac; font-size:13px; }
-.oidc-panel {
+.env-managed{padding:12px;border:1px solid #4a3925;border-radius:8px;background:#191510;color:#ddd;font-size:13px}.env-managed p{margin:4px 0 0;color:#999}.oidc-panel {
   display: flex;
   flex-direction: column;
   gap: 12px;
