@@ -233,10 +233,10 @@ async function save() {
         </div>
 
         <div class="provider-options">
-          <label><input v-model="provider.allow_new_users" type="checkbox" /> Allow new users</label><label><input v-model="provider.require_verified_email" type="checkbox" /> Require verified email</label>
+          <label><input v-model="provider.allow_new_users" type="checkbox" /> Allow new users</label>
           <label><input v-model="provider.enabled" type="checkbox" /> Provider enabled</label>
           <label><input v-model="provider.show_on_login" type="checkbox" /> Show on login page</label>
-          <label><input v-model="provider.autostart_enabled" type="checkbox" /> Enable autostart URLs</label>
+          <label><input v-model="provider.autostart_enabled" type="checkbox" /> Enable autostart URLs</label><label><input v-model="provider.require_verified_email" type="checkbox" /> Require verified email</label>
         </div>
 
         <div class="autostart">
