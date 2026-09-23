@@ -124,11 +124,27 @@ def preview_application_backup(raw: bytes, password: str) -> dict[str, Any]:
                         provider["client_secret"] = decrypt(provider["client_secret"])
                 oidc["providers_json"] = json.dumps(providers)
 
+    smtp_fields = {
+        "smtp_enabled",
+        "smtp_host",
+        "smtp_port",
+        "smtp_username",
+        "smtp_password",
+        "smtp_use_tls",
+        "smtp_use_ssl",
+        "smtp_from_email",
+        "smtp_from_name",
+    }
+    smtp = {key: app_payload.get(key) for key in smtp_fields if key in app_payload}
+    if smtp.get("smtp_password"):
+        smtp["smtp_password"] = decrypt(smtp["smtp_password"])
+
     return {
         "options": options,
         "has_users": bool(options.get("include_users") and backup.get("users")),
         "has_sessions": bool(options.get("include_sessions") and backup.get("user_sessions")),
         "oidc": oidc,
+        "smtp": smtp,
     }
 
 
@@ -326,6 +342,7 @@ async def build_application_backup(
     include_application_settings: bool = True,
     include_provider_credentials: bool = True,
     include_oidc_settings: bool = True,
+    include_smtp_settings: bool = False,
 ) -> dict[str, Any]:
     """Build the encrypted deployment archive payload.
 
@@ -357,6 +374,7 @@ async def build_application_backup(
             "include_application_settings": include_application_settings,
             "include_provider_credentials": include_provider_credentials,
             "include_oidc_settings": include_oidc_settings,
+            "include_smtp_settings": include_smtp_settings,
         },
     }
     if include_application_settings:
@@ -374,8 +392,8 @@ async def build_application_backup(
                     "xbox_client_id",
                 }
             }
-        # SMTP is intentionally excluded from deployment backups.
-        app_payload = {k: v for k, v in app_payload.items() if not k.startswith("smtp_")}
+        if not include_smtp_settings:
+            app_payload = {k: v for k, v in app_payload.items() if not k.startswith("smtp_")}
         payload["app_integration_settings"] = app_payload
     if include_oidc_settings:
         payload["oidc_settings"] = _model_payload(oidc, exclude={"id", "updated_at"})
@@ -435,5 +453,6 @@ async def create_application_backup_file(
         include_application_settings=include_application_settings,
         include_provider_credentials=include_provider_credentials,
         include_oidc_settings=include_oidc_settings,
+        include_smtp_settings=include_smtp_settings,
     )
     return encrypt_application_backup(backup, password)
