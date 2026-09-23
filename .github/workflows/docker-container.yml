@@ -86,7 +86,7 @@ jobs:
 
 
       - name: Publish production image
-        if: github.event_name != 'pull_request'
+        if: github.event_name != 'pull_request' && github.repository == 'Rosefall-a/unnamed_tracking_app'
         env:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
