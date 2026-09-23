@@ -91,7 +91,7 @@ const items = computed(() => shows.value.map(toVM));
 async function load() {
   if (!shows.value.length) loading.value = true;
   try {
-    shows.value = await fetchTVShows();
+    shows.value = await fetchTVShowsPage(0);
     nextSkip = 50;
     hasMore.value = shows.value.length === 50;
   } catch (e) {
