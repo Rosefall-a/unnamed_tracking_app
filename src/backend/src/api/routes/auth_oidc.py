@@ -15,6 +15,7 @@ from src.core.auth import SESSION_COOKIE, SESSION_TTL_SECONDS, hash_password, ha
 from src.core.config import settings
 from src.core.crypto import decrypt_secret
 from src.core.oidc import OidcConfig, begin_oidc, oauth, register_oidc_provider
+from src.core.setup_config import default_setup_configuration
 from src.database.models.auth import UserSession
 from src.database.models.oidc_settings import OidcSettings
 from src.database.models.user import User
@@ -51,6 +52,25 @@ def _named_rows(row):
         for provider in data
         if isinstance(provider, dict) and provider.get("slug")
     ]
+
+
+def _environment_providers() -> dict[str, dict]:
+    tree = default_setup_configuration().overrides_for("OIDC")
+    return {
+        str(name).lower(): value
+        for name, value in tree.items()
+        if isinstance(value, dict)
+    }
+
+
+def _merge_environment_provider(provider: dict) -> dict:
+    name = str(provider.get("slug") or provider.get("name") or "").lower()
+    override = _environment_providers().get(name, {})
+    if not override:
+        return provider
+    merged = dict(provider)
+    merged.update(override)
+    return merged
 
 
 def _config_from_provider(provider):
@@ -105,6 +125,7 @@ async def oidc_status(db: AsyncSession = Depends(get_db)):
     providers = []
     if row:
         for provider in _named_rows(row):
+            provider = _merge_environment_provider(provider)
             if not provider.get("enabled", True) or not provider.get("show_on_login", True):
                 continue
             providers.append(
