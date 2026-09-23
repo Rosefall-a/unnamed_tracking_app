@@ -103,8 +103,18 @@ async def _get_config(db, slug="default", *, autostart=False):
     row = await db.scalar(select(OidcSettings).limit(1))
     if row and slug != "default":
         for provider in _named_rows(row):
-            if provider.get("slug") == slug and provider.get("client_secret"):\n                if autostart and not provider.get("autostart_enabled", True):\n                    return None
+            provider = _merge_environment_provider(provider)
+            if provider.get("slug") == slug and provider.get("client_secret"):
+                if autostart and not provider.get("autostart_enabled", True):
+                    return None
                 return _config_from_provider(provider)
+        env_provider = _environment_providers().get(slug.lower())
+        if env_provider and _environment_provider_complete(env_provider):
+            env_provider = dict(env_provider)
+            env_provider.setdefault("slug", slug)
+            env_provider.setdefault("name", slug)
+            if not autostart or env_provider.get("autostart_enabled", True):
+                return _config_from_provider(env_provider)
         return None
     if row and row.issuer_url and row.client_id and row.client_secret:
         issuer = row.issuer_url.strip()
@@ -138,7 +148,8 @@ async def oidc_status(db: AsyncSession = Depends(get_db)):
                     "slug": provider["slug"],
                     "button_text": provider.get("button_text") or "Continue with SSO",
                     "button_image_url": provider.get("button_image_url"),
-                    "button_color": provider.get("button_color") or "#d68a34",\n                    "autostart_enabled": bool(provider.get("autostart_enabled", True)),
+                    "button_color": provider.get("button_color") or "#d68a34",
+                    "autostart_enabled": bool(provider.get("autostart_enabled", True)),
                 }
             )
     if not providers and config:
