@@ -10,31 +10,6 @@
     <link rel="stylesheet" href="/_startup/startup.css">
 </head>
 
-<script>
-    async function checkReady() {
-        try {
-            const res = await fetch('/_startup/status.json', { cache: 'no-store' });
-            const status = await res.json();
-
-            if (status.phase === 'READY') {
-                // Mark that we've switched so reload never happens again
-                sessionStorage.setItem("startup-switched", "true");
-
-                // Reload the page once
-                window.location.replace('/');
-                return;
-            }
-        } catch (_) {
-            // ignore errors
-        }
-
-        setTimeout(checkReady, 100);
-    }
-
-    checkReady();
-</script>
-
-
 <body>
     <main class="shell">
         <section class="card" aria-live="polite">

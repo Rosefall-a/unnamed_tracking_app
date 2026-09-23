@@ -23,4 +23,4 @@ async function poll() {
     }
 }
 poll();
-setInterval(poll, 1000);
+setInterval(poll, 50);
