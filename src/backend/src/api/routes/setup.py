@@ -3,7 +3,7 @@ from __future__ import annotations
 import secrets
 import time
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile, status
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select, text, update
 from sqlalchemy.exc import IntegrityError
@@ -59,7 +59,54 @@ class SetupRequest(BaseModel):
 @router.get("/status")
 async def setup_status(db: AsyncSession = Depends(get_db)) -> dict[str, bool]:
     has_user = await db.scalar(select(User.id).limit(1)) is not None
-    ui_enabled = setup_configuration.setup_enabled(settings.SETUP_MODE)\n    return {"setup_required": not has_user and ui_enabled, "setup_ui_enabled": ui_enabled}
+    ui_enabled = setup_configuration.setup_enabled(settings.SETUP_MODE)
+    return {"setup_required": not has_user and ui_enabled, "setup_ui_enabled": ui_enabled}
+
+
+@router.get("/application-backup")
+async def application_backup_status() -> dict[str, bool]:
+    return {"available": application_backup_path().is_file()}
+
+
+@router.get("/application-backup/file")
+async def application_backup_file() -> Response:
+    path = application_backup_path()
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="No preconfigured application backup was found.")
+    return Response(content=path.read_bytes(), media_type="application/json")
+
+
+@router.post("/application-backup/preview")
+async def application_backup_preview(
+    password: str = Form(..., min_length=12, max_length=256),
+    application_file: UploadFile | None = File(None),
+) -> dict:
+    raw = await application_file.read() if application_file else (
+        application_backup_path().read_bytes() if application_backup_path().is_file() else b""
+    )
+    if not raw:
+        raise HTTPException(status_code=404, detail="No application backup was provided.")
+    try:
+        return preview_application_backup(raw, password)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/import-application")
+async def import_application_backup(
+    password: str = Form(..., min_length=12, max_length=256),
+    application_file: UploadFile | None = File(None),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, bool]:
+    raw = await application_file.read() if application_file else (
+        application_backup_path().read_bytes() if application_backup_path().is_file() else b""
+    )
+    if not raw:
+        raise HTTPException(status_code=404, detail="No application backup was provided.")
+    try:
+        return await restore_application_backup(db, raw, password)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
