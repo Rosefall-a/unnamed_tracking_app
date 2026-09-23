@@ -104,6 +104,9 @@ const props = defineProps<{
     result: SearchResultVM,
     form: QuickAddForm,
   ) => Promise<void>;
+  loadMore?: () => Promise<void>;
+  loadingMore?: boolean;
+  hasMore?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -115,6 +118,34 @@ const emit = defineEmits<{
   (e: "bulk-favorite", ids: string[]): void;
   (e: "bulk-delete", ids: string[]): void;
 }>();
+
+let loadingMoreRequest: Promise<void> | null = null;
+
+async function maybeLoadMore() {
+  if (
+    !props.loadMore ||
+    props.loadingMore ||
+    props.hasMore === false ||
+    loadingMoreRequest
+  )
+    return;
+
+  const remaining =
+    document.documentElement.scrollHeight -
+    (window.scrollY + window.innerHeight);
+
+  if (remaining > 800) return;
+
+  loadingMoreRequest = props.loadMore();
+  try {
+    await loadingMoreRequest;
+  } finally {
+    loadingMoreRequest = null;
+  }
+}
+
+onMounted(() => window.addEventListener("scroll", maybeLoadMore, { passive: true }));
+onBeforeUnmount(() => window.removeEventListener("scroll", maybeLoadMore));
 
 const router = useRouter();
 
@@ -1709,6 +1740,12 @@ defineExpose({ openQuickAdd });
             </div>
           </div>
         </div>
+      <div
+        v-if="!loading && !error && hasMore && loadingMore"
+        class="load-more-indicator"
+      >
+        Loading more…
+      </div>
       </div>
     </div>
   </div>
@@ -2065,7 +2102,14 @@ defineExpose({ openQuickAdd });
   padding: 40px 0;
   text-align: center;
 }
-.empty-state.error {
+.empty-state.load-more-indicator {
+  text-align: center;
+  padding: 24px 0 40px;
+  color: var(--text-faint);
+  font-size: 0.82rem;
+}
+
+.error {
   color: #e57373;
 }
 
