@@ -90,7 +90,6 @@ def _config_from_provider(provider):
         user_match_field=provider.get("user_match_field") or "email",
         allow_new_users=bool(provider.get("allow_new_users", True)),
         require_verified_email=bool(provider.get("require_verified_email", False)),
-        require_verified_email=bool(provider.get("require_verified_email", False)),
         discovery_url=issuer if issuer.endswith("/.well-known/openid-configuration") else None,
         name=provider.get("name") or provider["slug"],
         slug=provider["slug"],
