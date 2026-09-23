@@ -607,7 +607,7 @@ async function loadGames() {
   const token = ++loadGamesToken;
   loading.value = true;
   try {
-    const fetched = await fetchGames();
+    const fetched = await fetchGamesPage(0);
     if (token !== loadGamesToken) return;
     games.value = fetched;
     nextSkip = 50;
