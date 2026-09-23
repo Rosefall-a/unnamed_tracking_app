@@ -82,7 +82,9 @@ async def _save_upload_stream(
 _ARCHIVE_SUBDIRS: dict[ArchiveKind, str] = {"save": "saves", "world_save": "world_saves"}
 
 
-def _archive_dir(game_folder: str, kind: ArchiveKind, archive_id: UUID, user_id: UUID) -> Path:
+def _archive_dir(
+    game_folder: str, kind: str, archive_id: UUID, user_id: UUID
+) -> Path:  # Kind should be ArchiveKind, however its easier to accept type of string and let the caller handle the type checking. This is because the kind is passed in from the route path parameter which is a string.
     return (
         _DATA_ROOT / str(user_id) / "games" / game_folder / _ARCHIVE_SUBDIRS[kind] / str(archive_id)
     )
