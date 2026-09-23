@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="theme-color" content="#0b0d12">
+    <title>Unnamed Tracking — Starting</title>
+    <link rel="icon" href="/_startup/favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="/_startup/startup.css">
+</head>
+
+<body>
+    <main class="shell">
+        <section class="card" aria-live="polite">
+            <div class="brand">
+                <div class="mark" aria-hidden="true">UT</div>
+                <div>
+                    <p class="eyebrow">UNNAMED TRACKING</p>
+                    <h1 id="title">Starting application</h1>
+                </div>
+            </div>
+
+            <div class="hero">
+                <span id="spinner" class="spinner" aria-hidden="true"></span>
+
+                <span id="ready-icon" class="ready-icon" aria-hidden="true" style="display: none;">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none">
+                        <path d="M20 6L9 17L4 12" stroke="#4CAF50" stroke-width="3" stroke-linecap="round"
+                            stroke-linejoin="round" />
+                    </svg>
+                </span>
+
+                <div>
+                    <strong id="phase">Initialising</strong>
+                    <p id="message">Starting production services.</p>
+                </div>
+            </div>
+
+            <div class="steps" id="steps"></div>
+
+            <details>
+                <summary>Startup details</summary>
+                <pre id="details">Waiting for startup information…</pre>
+            </details>
+
+            <p class="hint">This diagnostic page is always accessible.</p>
+        </section>
+    </main>
+
+    <script src="/_startup/startup.js" defer></script>
+</body>
+
+</html>

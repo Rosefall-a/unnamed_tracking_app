@@ -8,42 +8,57 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}" ]
       interval: 5s
       timeout: 5s
       retries: 10
 
-  backend:
+  #  backend:
+  #    build:
+  #      context: ./src/backend
+  #      dockerfile: dockerfile
+  #    environment:
+  #      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+  #      PYTHONUNBUFFERED: 1
+  #    env_file:
+  #      - .env
+  #    volumes:
+  #      - ./src/backend/src:/app/src
+  #      - ./data:/data
+  #    stdin_open: true
+  #    tty: true
+  #    depends_on:
+  #      db:
+  #        condition: service_healthy
+
+  #  frontend:
+  #    build:
+  #      context: ./src/frontend
+  #      dockerfile: Dockerfile
+  #    env_file:
+  #      - .env
+  #    ports:
+  #      - "5173:80"
+  #    volumes:
+  #      - ./src/frontend:/app
+  #      - /app/node_modules
+  #    depends_on:
+  #      - backend
+
+  app:
     build:
-      context: ./src/backend
-      dockerfile: dockerfile
+      context: .
+      dockerfile: ./src/docker-container/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "${UNNAMED_TRACKING_APP_PORT:-5181}:80"
+    env_file:
+      - .env
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       PYTHONUNBUFFERED: 1
-    env_file:
-      - .env
-    volumes:
-      - ./src/backend/src:/app/src
-      - ./data:/data
     stdin_open: true
     tty: true
-    depends_on:
-      db:
-        condition: service_healthy
-
-  frontend:
-    build:
-      context: ./src/frontend
-      dockerfile: Dockerfile
-    env_file:
-      - .env
-    ports:
-      - "5173:80"
-    volumes:
-      - ./src/frontend:/app
-      - /app/node_modules
-    depends_on:
-      - backend
 
 volumes:
   pgdata:
