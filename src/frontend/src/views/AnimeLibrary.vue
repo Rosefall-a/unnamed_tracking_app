@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from "vue";
 import { useKeptAlive } from "../utils/useKeptAlive";
 import {
   fetchAnime,
+  fetchAnimePage,
   updateAnime,
   deleteAnime,
   animeToInput,
@@ -25,6 +26,24 @@ import type {
 const shows = ref<Anime[]>([]);
 const loading = ref(true);
 const error = ref<string | null>(null);
+const loadingMore = ref(false);
+const hasMore = ref(true);
+let nextSkip = 50;
+
+async function loadMore() {
+  if (loadingMore.value || !hasMore.value) return;
+  loadingMore.value = true;
+  try {
+    const page = await fetchAnimePage(nextSkip);
+    shows.value.push(...page);
+    nextSkip += page.length;
+    if (page.length < 50) hasMore.value = false;
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "Failed to load more.";
+  } finally {
+    loadingMore.value = false;
+  }
+}
 const showAniListImport = ref(false);
 const aniListUsername = ref("");
 const aniListUpdateExisting = ref(false);
@@ -317,6 +336,9 @@ function detailRoute(id: string): string {
     :items="items"
     :loading="loading"
     :error="error"
+    :load-more="loadMore"
+    :loading-more="loadingMore"
+    :has-more="hasMore"
     :detail-route="detailRoute"
     :search="search"
     :create-from-result="createFromResult"
