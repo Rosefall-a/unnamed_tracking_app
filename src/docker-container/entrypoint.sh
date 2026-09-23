@@ -40,8 +40,9 @@ if [ -z "${SECRET_KEY:-}" ]; then fail_startup "CONFIGURATION_FAILED" "SECRET_KE
 if [ -z "${DATABASE_URL:-}" ]; then fail_startup "CONFIGURATION_FAILED" "DATABASE_URL is required."; fi
 
 write_status "WAITING_FOR_DATABASE" "starting" "starting" "waiting" "waiting" "ready" "Waiting for PostgreSQL."
+DB_HEALTH_URL="$(printf "%s" "$DATABASE_URL" | sed "s#^postgresql+psycopg://#postgresql://#")"
 attempt=1
-while ! pg_isready -d "$DATABASE_URL" >/dev/null 2>&1; do
+while ! pg_isready -d "$DB_HEALTH_URL" >/dev/null 2>&1; do
   if [ "$attempt" -ge 60 ]; then fail_startup "DATABASE_FAILED" "PostgreSQL did not become ready within 120 seconds."; fi
   attempt=$((attempt + 1)); sleep 2
 done
