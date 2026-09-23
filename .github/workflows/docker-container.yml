@@ -37,6 +37,21 @@ jobs:
           cache-from: type=gha,scope=production-container
           cache-to: type=gha,mode=max,scope=production-container
 
+      - name: Verify startup UI survives application configuration failure
+        run: |
+          docker run -d --name unnamed-tracking-failed -p 18081:80             -e DATABASE_URL=postgresql+psycopg://invalid:invalid@127.0.0.1:5432/invalid             unnamed_tracking_app:ci
+          for i in $(seq 1 15); do
+            if curl -fsS http://127.0.0.1:18081/_startup/status.json | grep -q '"overall":"failed"'; then
+              curl -fsS http://127.0.0.1:18081/ | grep -q "Starting application"
+              docker rm -f unnamed-tracking-failed
+              exit 0
+            fi
+            sleep 1
+          done
+          docker logs unnamed-tracking-failed
+          docker rm -f unnamed-tracking-failed
+          exit 1
+
       - name: Start PostgreSQL
         run: |
           docker network create unnamed-tracking-ci
