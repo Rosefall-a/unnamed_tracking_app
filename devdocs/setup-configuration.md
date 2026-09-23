@@ -13,3 +13,8 @@ Each setup page should register a stable namespace, consume overrides immediatel
 Tests should cover tree parsing, boolean/integer coercion, recursive merge, environment-over-form precedence, sanitisation, and setup-mode parsing.
 
 The deployment backup system is a consumer of the setup configuration architecture, not a replacement for it. Backup encryption and environment precedence are separate security boundaries.
+
+
+## Database environment
+
+The backend accepts either `DATABASE_URL` or the standard PostgreSQL variables `POSTGRES_USER`, `POSTGRES_PASSWORD`, and `POSTGRES_DB`. When `DATABASE_URL` is omitted, it builds a `postgresql+psycopg` URL using `POSTGRES_HOST` (default `db`) and `POSTGRES_PORT` (default `5432`). Docker Compose passes the same `POSTGRES_*` values to PostgreSQL and the backend, so a normal deployment does not need to duplicate the database URL.
