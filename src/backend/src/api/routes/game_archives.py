@@ -93,7 +93,7 @@ def _archive_dir(
         else None
     )
     return (
-        _DATA_ROOT / str(user_id) / "games" / game_folder / _ARCHIVE_SUBDIRS(kind) / str(archive_id)
+        _DATA_ROOT / str(user_id) / "games" / game_folder / _ARCHIVE_SUBDIRS[kind] / str(archive_id)
     )
 
 
