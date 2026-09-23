@@ -128,7 +128,7 @@ export async function fetchMovies(search = ""): Promise<Movie[]> {
   let skip = 0;
   while (true) {
     const response = await fetch(
-      `/api/movie/list?skip=${skip}&limit=${MOVIES_PAGE_SIZE}`,
+      `/api/movie/list?skip=${skip}&limit=${MOVIES_PAGE_SIZE}${search.trim() ? `&search=${encodeURIComponent(search.trim())}` : ""}`,
       { credentials: "include" },
     );
     const page = await handle<BackendMovie[]>(response, "fetch movies");
