@@ -18,6 +18,7 @@ import ComingSoonSection from "../components/settings/ComingSoonSection.vue";
 import ApiKeysSection from "../components/settings/ApiKeysSection.vue";
 import ServerIntegrationsSection from "../components/settings/ServerIntegrationsSection.vue";
 import OidcSettingsSection from "../components/settings/OidcSettingsSection.vue";
+import DeploymentBackupSection from "../components/settings/DeploymentBackupSection.vue";
 
 const router = useRouter();
 const route = useRoute();
@@ -61,6 +62,7 @@ const groups = computed<SettingsGroup[]>(() => {
       ? [{ id: "server-integrations", label: "Server Integrations" }]
       : []),
     ...(currentUser.value?.is_admin ? [{ id: "users", label: "Users" }] : []),
+    ...(currentUser.value?.is_admin ? [{ id: "deployment-backup", label: "Deployment Backup" }] : []),
     { id: "stats", label: "Server Stats" },
     ...(currentUser.value?.is_admin
       ? [{ id: "tasks", label: "Tasks", comingSoon: true }]
@@ -120,6 +122,9 @@ const activeSection = ref((route.query.section as string) || "profile");
           />
           <AdminSection
             v-else-if="activeSection === 'users' && currentUser?.is_admin"
+          />
+          <DeploymentBackupSection
+            v-else-if="activeSection === 'deployment-backup' && currentUser?.is_admin"
           />
           <StatsSection v-else-if="activeSection === 'stats'" />
           <ExportImportSection v-else-if="activeSection === 'export'" />
