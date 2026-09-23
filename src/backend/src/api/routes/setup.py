@@ -230,11 +230,6 @@ async def setup_admin(
                 user_match_field=oidc_values["user_match_field"],
                 allow_new_users=payload.oidc_allow_new_users,
                 login_button_text=payload.oidc_button_text.strip() or "Continue with SSO",
-                button_image_url=(payload.oidc_button_image_url or "").strip() or None,
-                button_color=payload.oidc_button_color,
-                enabled=payload.oidc_provider_enabled,
-                show_on_login=payload.oidc_show_on_login,
-                autostart_enabled=payload.oidc_autostart_enabled,
                 default_login_method=payload.oidc_default_login_method,
             )
             db.add(oidc)
