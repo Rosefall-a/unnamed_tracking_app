@@ -18,6 +18,7 @@ from src.core.auth import (
 )
 from src.core.config import settings
 from src.core.crypto import encrypt_secret
+from src.core.setup_config import default_setup_configuration
 from src.database.models.auth import UserSession
 from src.database.models.game import Game
 from src.database.models.oidc_settings import OidcSettings
@@ -25,6 +26,7 @@ from src.database.models.user import User
 from src.database.session import get_db
 
 router = APIRouter(prefix="/api/setup", tags=["setup"])
+setup_configuration = default_setup_configuration()
 
 
 class SetupRequest(BaseModel):
@@ -57,7 +59,7 @@ class SetupRequest(BaseModel):
 @router.get("/status")
 async def setup_status(db: AsyncSession = Depends(get_db)) -> dict[str, bool]:
     has_user = await db.scalar(select(User.id).limit(1)) is not None
-    return {"setup_required": not has_user}
+    ui_enabled = setup_configuration.setup_enabled(settings.SETUP_MODE)\n    return {"setup_required": not has_user and ui_enabled, "setup_ui_enabled": ui_enabled}
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
