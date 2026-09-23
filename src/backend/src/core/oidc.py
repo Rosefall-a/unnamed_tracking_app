@@ -22,6 +22,7 @@ class OidcConfig:
     admin_group: str | None = None
     user_match_field: str = "email"
     allow_new_users: bool = True
+    require_verified_email: bool = False
     discovery_url: str | None = None
     name: str = "SSO"
     slug: str = "default"
