@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { createInitialAdmin } from "../services/setup";
+import { createInitialAdmin, fetchApplicationBackupStatus, importApplicationBackup } from "../services/setup";
 import { checkAuth } from "../state/auth";
 
 const route = useRoute();
@@ -25,6 +25,23 @@ const error = ref<string | null>(
     : null,
 );
 const loading = ref(false);
+const backupAvailable = ref(false);
+const backupPassword = ref("");
+const backupFile = ref<File | null>(null);
+const restoring = ref(false);
+const restoreMessage = ref<string | null>(null);
+
+async function restoreBackup() {
+  error.value = null; restoreMessage.value = null;
+  if (!backupPassword.value) { error.value = "Enter the backup password."; return; }
+  restoring.value = true;
+  try {
+    await importApplicationBackup(backupPassword.value, backupFile.value ?? undefined);
+    restoreMessage.value = "Application restored successfully. Reloading…";
+    window.setTimeout(() => window.location.assign("/"), 800);
+  } catch (err) { error.value = err instanceof Error ? err.message : "Backup restore failed."; }
+  finally { restoring.value = false; }
+}
 
 async function submit() {
   error.value = null;
@@ -73,6 +90,9 @@ async function submit() {
     loading.value = false;
   }
 }
+onMounted(async () => {
+  try { backupAvailable.value = (await fetchApplicationBackupStatus()).available; } catch { backupAvailable.value = false; }
+});
 </script>
 <template>
   <main class="setup-page">
@@ -253,6 +273,8 @@ async function submit() {
   height: 16px;
   accent-color: #d68a34;
 }
+.backup-panel { display:flex; flex-direction:column; gap:10px; padding:14px; border:1px solid #4a3925; border-radius:10px; background:#191510; color:#fff; }
+.success { color:#86efac; font-size:13px; }
 .oidc-panel {
   display: flex;
   flex-direction: column;
