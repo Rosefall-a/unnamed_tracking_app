@@ -2,7 +2,7 @@
 import { ref, computed, onMounted } from "vue";
 import { useKeptAlive } from "../utils/useKeptAlive";
 import {
-  fetchAnime,
+  fetchAnimePage,
   updateAnime,
   deleteAnime,
   animeToInput,
@@ -24,6 +24,9 @@ import type {
 
 const shows = ref<Anime[]>([]);
 const loading = ref(true);
+const loadingMore = ref(false);
+const hasMore = ref(true);
+const PAGE_SIZE = 50;
 const error = ref<string | null>(null);
 const showAniListImport = ref(false);
 const aniListUsername = ref("");
@@ -119,11 +122,27 @@ const items = computed(() => shows.value.map(toVM));
 async function load() {
   if (!shows.value.length) loading.value = true;
   try {
-    shows.value = await fetchAnime();
+    const firstPage = await fetchAnimePage(0, PAGE_SIZE);
+    shows.value = firstPage;
+    hasMore.value = firstPage.length === PAGE_SIZE;
   } catch (e) {
     error.value = e instanceof Error ? e.message : "Failed to load anime.";
   } finally {
     loading.value = false;
+  }
+}
+
+async function loadMore() {
+  if (!hasMore.value || loadingMore.value) return;
+  loadingMore.value = true;
+  try {
+    const page = await fetchAnimePage(shows.value.length, PAGE_SIZE);
+    shows.value.push(...page);
+    hasMore.value = page.length === PAGE_SIZE;
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "Failed to load more anime.";
+  } finally {
+    loadingMore.value = false;
   }
 }
 onMounted(load);
@@ -320,6 +339,9 @@ function detailRoute(id: string): string {
     :detail-route="detailRoute"
     :search="search"
     :create-from-result="createFromResult"
+    :has-more="hasMore"
+    :loading-more="loadingMore"
+    @load-more="loadMore"
     @toggle-favorite="onToggleFavorite"
     @advance-episode="onAdvanceEpisode"
     @save-note="onSaveNote"
