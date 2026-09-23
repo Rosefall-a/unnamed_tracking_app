@@ -17,7 +17,6 @@ from src.core.application_backup import (
     restore_application_backup,
 )
 from src.core.auth import get_current_admin
-from src.core.config import settings
 from src.database.models.user import User
 from src.database.session import get_db
 
