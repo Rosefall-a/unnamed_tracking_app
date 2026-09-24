@@ -467,3 +467,4 @@ async function submit() {
 button.primary,.setup-card button.primary{background:#d68a34;color:#111;border:0;border-radius:8px;padding:11px 14px;font-weight:700;cursor:pointer}.secondary{background:#252525!important;color:#ddd!important;border:1px solid #3a3a3a!important;border-radius:8px;padding:11px 14px;cursor:pointer}.setup-card button:disabled{opacity:.6;cursor:not-allowed}
 .error{color:#fca5a5;background:rgba(220,38,38,.1);border:1px solid rgba(220,38,38,.3);border-radius:8px;padding:9px;font-size:13px}.success{color:#86efac;background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.2);border-radius:8px;padding:9px;font-size:13px}
 @media(max-width:800px){.setup-page{align-items:flex-start}.setup-shell{grid-template-columns:1fr}.setup-nav{position:static}.fields{grid-template-columns:1fr}.section-choice{align-items:flex-start;flex-direction:column}}
+</style>
