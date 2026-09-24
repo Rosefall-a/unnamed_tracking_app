@@ -25,10 +25,12 @@ const error = ref<string | null>(null);
 const saved = ref(false);
 const providers = reactive<Record<string, string>>({});
 const configured = reactive<Record<string, boolean>>({});
+const deploymentSettings = ref<Awaited<ReturnType<typeof fetchDeploymentSettings>> | null>(null);
 
 onMounted(async () => {
   try {
     const result = await fetchDeploymentSettings();
+    deploymentSettings.value = result;
     for (const [key, value] of Object.entries(result.providers)) {
       if (key.endsWith("_configured"))
         configured[key.replace(/_configured$/, "")] = Boolean(value);
@@ -93,8 +95,8 @@ async function save() {
                 ? 'password'
                 : 'text'
             "
-            :placeholder="
-              result.provider_locks[key]
+             :placeholder="
+              deploymentSettings?.provider_locks[key] ?? false
                 ? 'Managed by deployment environment'
                 : configured[key]
                   ? 'Already saved — enter a new value to replace it'
