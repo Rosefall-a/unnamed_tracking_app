@@ -91,13 +91,6 @@ class EnvConfigHandler:
         """
         return self.mode is not DefaultMode.DEVELOPMENT
 
-    def oidc_enabled(self, persisted: dict[str, Any] | None = None) -> bool:
-        if self.has("OIDC_ENABLED"):
-            return self._bool(self.environ.get("OIDC_ENABLED"), True)
-        if persisted and "OIDC_ENABLED" in persisted:
-            return self._bool(persisted.get("OIDC_ENABLED"), True)
-        return True
-
     def bootstrap_primary_user(self) -> dict[str, str]:
         return {
             "username": str(self.get("PRIMARY_USER_USERNAME") or ""),
