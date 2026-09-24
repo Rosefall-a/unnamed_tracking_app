@@ -195,7 +195,7 @@ class SeasonRead(BaseModel):
     updated_at: int
 
 
-class AnimeRead(AnimeBase):
+class AnimeReadBase(AnimeBase):
     """Full representation returned to clients, seasons included so the
     detail page loads everything in one request."""
 
@@ -205,7 +205,6 @@ class AnimeRead(AnimeBase):
     user_id: UUID
     sort_title: str
     locked_fields: list[str] = Field(default_factory=list)
-    seasons: list[SeasonRead] = Field(default_factory=list)
     created_at: int = Field(description="Unix timestamp in seconds when the entry was created.")
     updated_at: int = Field(
         description="Unix timestamp in seconds when the entry was last updated."
@@ -238,7 +237,14 @@ class AnimeLibrarySeasonRead(BaseModel):
     updated_at: int
 
 
-class AnimeLibraryRead(AnimeRead):
+class AnimeRead(AnimeReadBase):
+    """Full representation returned to clients, seasons included so the
+    detail page loads everything in one request."""
+
+    seasons: list[SeasonRead] = Field(default_factory=list)
+
+
+class AnimeLibraryRead(AnimeReadBase):
     """Lightweight library representation without episode rows."""
 
     seasons: list[AnimeLibrarySeasonRead] = Field(default_factory=list)
