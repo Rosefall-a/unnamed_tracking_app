@@ -74,13 +74,19 @@ if [ -n "$CONFIG_REPORT" ]; then
   printf "%s\n" "$CONFIG_REPORT" >> "$DETAILS_FILE"
 fi
 
-if [ -n "\${POSTGRES_USER:-}" ] || [ -n "\${POSTGRES_PASSWORD:-}" ] || [ -n "\${POSTGRES_DB:-}" ]; then
-  if [ -z "\${POSTGRES_USER:-}" ] || [ -z "\${POSTGRES_PASSWORD:-}" ] || [ -z "\${POSTGRES_DB:-}" ]; then
+if [ -n "${POSTGRES_USER:-}" ] || [ -n "${POSTGRES_PASSWORD:-}" ] || [ -n "${POSTGRES_DB:-}" ]; then
+  if [ -z "${POSTGRES_USER:-}" ] || [ -z "${POSTGRES_PASSWORD:-}" ] || [ -z "${POSTGRES_DB:-}" ]; then
     fail_startup "CONFIGURATION_FAILED" "POSTGRES_USER, POSTGRES_PASSWORD, and POSTGRES_DB must be supplied together." "unknown" "unknown" "unknown" "unknown"
   fi
-  DB_HEALTH_URL="postgresql://\${POSTGRES_USER}:\${POSTGRES_PASSWORD}@\${POSTGRES_HOST:-db}:\${POSTGRES_PORT:-5432}/\${POSTGRES_DB}"
-elif [ -n "\${DATABASE_URL:-}" ]; then
+  DB_HEALTH_MODE="components"
+  DB_HEALTH_HOST="${POSTGRES_HOST:-db}"
+  DB_HEALTH_PORT="${POSTGRES_PORT:-5432}"
+  DB_HEALTH_USER="${POSTGRES_USER}"
+  DB_HEALTH_DB="${POSTGRES_DB}"
+  export PGPASSWORD="${POSTGRES_PASSWORD}"
+elif [ -n "${DATABASE_URL:-}" ]; then
   printf "%s\n" "WARNING: DATABASE_URL is deprecated; use POSTGRES_USER, POSTGRES_PASSWORD, and POSTGRES_DB." >> "$DETAILS_FILE"
+  DB_HEALTH_MODE="url"
   DB_HEALTH_URL="$(printf "%s" "$DATABASE_URL" | sed "s#^postgresql+psycopg://#postgresql://#")"
 else
   fail_startup "CONFIGURATION_FAILED" "Database configuration is missing. Set POSTGRES_USER, POSTGRES_PASSWORD, and POSTGRES_DB." "unknown" "unknown" "unknown" "unknown"
@@ -90,7 +96,13 @@ log "Waiting for PostgreSQL"
 write_status "WAITING_FOR_DATABASE" "starting" "starting" "unknown" "unknown" "unknown" "Waiting for PostgreSQL."
 
 attempt=1
-while ! pg_isready -d "$DB_HEALTH_URL" >/dev/null 2>&1; do
+while {
+  if [ "${DB_HEALTH_MODE:-url}" = "components" ]; then
+    pg_isready -h "$DB_HEALTH_HOST" -p "$DB_HEALTH_PORT" -U "$DB_HEALTH_USER" -d "$DB_HEALTH_DB"
+  else
+    pg_isready -d "$DB_HEALTH_URL"
+  fi
+} >/dev/null 2>&1; do
   log "PostgreSQL not ready (attempt $attempt)"
   if [ "$attempt" -ge 60 ]; then fail_startup "DATABASE_FAILED" "PostgreSQL did not become ready within 120 seconds." "failed" "unknown" "unknown" "unknown"; fi
   attempt=$((attempt + 1)); sleep 2
