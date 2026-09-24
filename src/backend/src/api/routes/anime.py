@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.api.schemas.pagination import PaginatedResponse
 from src.api.schemas.anime import (
     AnimeCreate,
+    AnimeLibraryRead,
     AnimeRead,
     AnimeUpdate,
     EpisodesBulkWatched,
@@ -388,7 +389,7 @@ async def refresh_airing(
     return await _get_show_or_404(show_id, db, current_user.id)
 
 
-@router.get("/list", response_model=PaginatedResponse[AnimeRead])
+@router.get("/list", response_model=PaginatedResponse[AnimeLibraryRead])
 async def list_anime(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -397,7 +398,7 @@ async def list_anime(
     search: str | None = Query(default=None, description="Case-insensitive title search"),
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=100, ge=1, le=200),
-) -> PaginatedResponse[AnimeRead]:
+)-> PaginatedResponse[AnimeLibraryRead]:
     """Return one page of the current user's anime and the total matching it."""
     stmt = select(Anime).where(Anime.user_id == current_user.id, Anime.deleted_at.is_(None))
 
