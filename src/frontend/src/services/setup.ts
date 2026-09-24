@@ -1,24 +1,50 @@
+export type SetupSectionStatus =
+  | "not_configured"
+  | "partial"
+  | "configured"
+  | "completed_by_env";
+
+export interface SetupChoice {
+  value: string;
+  label: string;
+}
+
+export interface SetupField {
+  name: string;
+  label: string;
+  type: "text" | "secret" | "boolean" | "integer" | "choice" | "url" | "email";
+  choices: SetupChoice[];
+  description: string;
+  hint: string;
+  placeholder: string;
+  required: boolean;
+  secret: boolean;
+  generated: boolean;
+  deprecated: boolean;
+  locked: boolean;
+  configured: boolean;
+  source: "env" | "database" | "default" | "unset";
+  value: unknown;
+}
+
+export interface SetupSection {
+  id: string;
+  title: string;
+  description: string;
+  required: boolean;
+  removable: boolean;
+  status: SetupSectionStatus;
+  fields: SetupField[];
+}
+
 export interface SetupStatus {
   setup_required: boolean;
   startup_ui: "auto" | "forced";
   forced: boolean;
 }
 
-export interface SetupConfigurationSetting {
-  name: string;
-  source: "env" | "setup" | "both";
-  default: unknown;
-  resolved?: unknown;
-  required: boolean;
-  generated: boolean;
-  secret: boolean;
-  deprecated?: boolean;
-  locked?: boolean;
-  description: string;
-}
-
 export interface SetupConfiguration {
-  settings: SetupConfigurationSetting[];
+  sections: SetupSection[];
   startup_mode: string;
   startup_ui: "auto" | "forced";
   forced: boolean;
@@ -37,51 +63,66 @@ export interface SetupOptions {
   oidc_user_match_field?: string;
   oidc_allow_new_users?: boolean;
   oidc_button_text?: string;
-  oidc_button_image_url?: string | null;
-  oidc_button_color?: string;
-  oidc_provider_enabled?: boolean;
-  oidc_show_on_login?: boolean;
-  oidc_autostart_enabled?: boolean;
   oidc_default_login_method?: string;
+}
+
+export interface SetupSubmission {
+  sections: string[];
+  configuration: Record<string, unknown>;
+  username?: string;
+  email?: string;
+  password?: string;
+}
+
+async function parseError(response: Response, fallback: string): Promise<Error> {
+  const body = await response.text();
+  try {
+    const parsed = JSON.parse(body) as { detail?: string | Array<{ msg?: string }> };
+    if (Array.isArray(parsed.detail)) {
+      const details = parsed.detail.map((item) => item.msg).filter(Boolean);
+      if (details.length) return new Error(details.join(" "));
+    }
+    if (parsed.detail) return new Error(parsed.detail);
+  } catch {
+    // Keep the HTTP status when the backend did not return JSON.
+  }
+  return new Error(body ? `${fallback} ${body}` : fallback);
 }
 
 export async function fetchSetupStatus(): Promise<SetupStatus> {
   const response = await fetch("/api/setup/status", { credentials: "include" });
-  if (!response.ok) throw new Error(`Failed to check setup status: ${response.status}`);
+  if (!response.ok) throw await parseError(response, `Failed to check setup status: ${response.status}`);
   return (await response.json()) as SetupStatus;
 }
 
 export async function fetchSetupConfiguration(): Promise<SetupConfiguration> {
   const response = await fetch("/api/setup/configuration", { credentials: "include" });
-  if (!response.ok) throw new Error(`Failed to load setup configuration: ${response.status}`);
+  if (!response.ok) throw await parseError(response, `Failed to load setup configuration: ${response.status}`);
+  return (await response.json()) as SetupConfiguration;
+}
+
+export async function saveSetupConfiguration(
+  submission: SetupSubmission,
+): Promise<SetupConfiguration> {
+  const response = await fetch("/api/setup/configuration", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify(submission),
+  });
+  if (!response.ok) throw await parseError(response, `Failed to save configuration: ${response.status}`);
   return (await response.json()) as SetupConfiguration;
 }
 
 export async function createInitialAdmin(
-  username: string,
-  email: string,
-  password: string,
-  options: SetupOptions = {},
+  submission: SetupSubmission,
 ): Promise<{ status: string; user_id: string; is_admin: boolean }> {
   const response = await fetch("/api/setup", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
-    body: JSON.stringify({ username, email, password, ...options }),
+    body: JSON.stringify(submission),
   });
-  if (!response.ok) {
-    const body = await response.text();
-    let message = `Setup failed: ${response.status}`;
-    try {
-      const parsed = JSON.parse(body) as { detail?: string | Array<{ msg?: string }> };
-      if (Array.isArray(parsed.detail)) {
-        const details = parsed.detail.map((item) => item.msg).filter(Boolean);
-        if (details.length) message = details.join(" ");
-      } else if (parsed.detail) message = parsed.detail;
-    } catch {
-      if (body) message = `${message} ${body}`;
-    }
-    throw new Error(message);
-  }
+  if (!response.ok) throw await parseError(response, `Setup failed: ${response.status}`);
   return (await response.json()) as { status: string; user_id: string; is_admin: boolean };
 }
