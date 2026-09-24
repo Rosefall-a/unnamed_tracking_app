@@ -117,7 +117,8 @@ async def oidc_status(db: AsyncSession = Depends(get_db)):
     row = await db.scalar(select(OidcSettings).limit(1))
     config = await _get_config(db)
     providers = []
-    if row:
+    oidc_master_enabled = EnvConfigHandler().oidc_enabled() and (row is None or row.enabled)
+    if row and oidc_master_enabled:
         for provider in _named_rows(row):
             if provider.get("show_on_login", True) is False:
                 continue
@@ -143,7 +144,7 @@ async def oidc_status(db: AsyncSession = Depends(get_db)):
             }
         ]
     return {
-        "enabled": config is not None or bool(providers),
+        "enabled": oidc_master_enabled and (config is not None or bool(providers)),
         "issuer": urlparse(config.issuer_url).hostname if config else None,
         "default_login_method": (
             row.default_login_method
