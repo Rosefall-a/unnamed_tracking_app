@@ -13,8 +13,14 @@ def isolated_app_data(monkeypatch, tmp_path):
     monkeypatch.delenv("SECRET_KEY", raising=False)
 
 
-def test_default_database_components_are_available():
-    handler = EnvConfigHandler({"POSTGRES_PASSWORD": "secret"})
+def test_database_components_are_resolved():
+    handler = EnvConfigHandler(
+        {
+            "POSTGRES_USER": "archive",
+            "POSTGRES_PASSWORD": "secret",
+            "POSTGRES_DB": "archive",
+        }
+    )
     values = handler.resolved()
     assert values["POSTGRES_USER"] == "archive"
     assert values["POSTGRES_DB"] == "archive"
