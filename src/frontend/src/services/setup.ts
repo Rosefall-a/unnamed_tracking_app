@@ -51,15 +51,12 @@ export interface SetupSection {
 
 export interface SetupStatus {
   setup_required: boolean;
-  startup_ui: "enabled" | "disabled";
-  startup_ui_enabled: boolean;
+  startup_mode: string;
 }
 
 export interface SetupConfiguration {
   sections: SetupSection[];
   startup_mode: string;
-  startup_ui: "enabled" | "disabled";
-  startup_ui_enabled: boolean;
 }
 
 export interface SetupOptions {

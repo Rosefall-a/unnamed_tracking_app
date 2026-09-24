@@ -198,3 +198,43 @@ def test_field_headings_are_exposed():
     assert fields["DEBUG"]["heading"] == "Debug mode"
     assert fields["MAX_UPLOAD_SIZE_MB"]["heading"] == "Max sizes"
     assert fields["MAX_SAVE_ARCHIVE_SIZE_MB"]["heading"] == "Max sizes"
+
+
+def test_startup_mode_controls_ui_and_development_defaults():
+    development = EnvConfigHandler({"STARTUP_MODE": "dev"})
+    assert development.mode.value == "development"
+    assert development.startup_ui_enabled() is False
+    assert development.get("DEBUG") is True
+    assert development.get("PRIMARY_USER_USERNAME") == "admin"
+
+
+def test_testing_mode_shows_ui_and_falls_back_to_development_defaults():
+    testing = EnvConfigHandler({"STARTUP_MODE": "testing"})
+    assert testing.mode.value == "testing"
+    assert testing.startup_ui_enabled() is True
+    assert testing.get("DEBUG") is True
+    assert testing.get("PRIMARY_USER_PASSWORD") == "Change-this-during-setup"
+
+
+def test_normal_mode_shows_ui_and_uses_normal_defaults():
+    normal = EnvConfigHandler({"STARTUP_MODE": ""})
+    assert normal.startup_ui_enabled() is True
+    assert normal.get("DEBUG") is False
+    assert normal.get("PRIMARY_USER_USERNAME") == "admin"
+
+
+def test_unknown_startup_mode_uses_normal_mode():
+    normal = EnvConfigHandler({"STARTUP_MODE": "something-else"})
+    assert normal.mode.value == "default"
+    assert normal.startup_ui_enabled() is True
+    assert normal.get("DEBUG") is False
+
+
+def test_environment_values_override_mode_defaults():
+    handler = EnvConfigHandler({
+        "STARTUP_MODE": "dev",
+        "DEBUG": "false",
+        "PRIMARY_USER_USERNAME": "developer",
+    })
+    assert handler.get("DEBUG") is False
+    assert handler.get("PRIMARY_USER_USERNAME") == "developer"

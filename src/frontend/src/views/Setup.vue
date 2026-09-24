@@ -170,7 +170,7 @@ onMounted(async () => {
       fetchSetupConfiguration(),
     ]);
 
-    if (!status.setup_required && !status.startup_ui_enabled) {
+    if (!status.setup_required && status.startup_mode === "development") {
       await checkAuth();
       await router.replace("/");
       return;
