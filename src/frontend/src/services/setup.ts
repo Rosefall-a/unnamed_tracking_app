@@ -2,6 +2,25 @@ export interface SetupStatus {
   setup_required: boolean;
 }
 
+export interface SetupConfigurationSetting {
+  name: string;
+  source: string;
+  default: unknown;
+  resolved?: unknown;
+  required: boolean;
+  generated: boolean;
+  secret: boolean;
+  deprecated: boolean;
+  locked?: boolean;
+  description: string;
+}
+export interface SetupConfiguration {
+  settings: SetupConfigurationSetting[];
+  startup_mode: string;
+  startup_ui: "auto" | "forced";
+  forced: boolean;
+}
+
 export interface SetupOptions {
   oidc_enabled?: boolean;
   oidc_issuer_url?: string;
