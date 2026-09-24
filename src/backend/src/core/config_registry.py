@@ -53,6 +53,9 @@ class ConfigSpec:
     development_default: Any = None
     testing_default: Any = None
     required: bool = False
+    # "group:variant" means all fields in a variant are required together;
+    # variants within the same group are alternatives (OR).
+    required_group: str | None = None
     secret: bool = False
     generated: bool = False
     deprecated: bool = False
@@ -113,7 +116,7 @@ CONFIG_REGISTRY: tuple[ConfigSpec, ...] = (
         "database",
         ConfigSource.ENV,
         label="PostgreSQL user",
-        required=True,
+        required_group="database:postgres",
         visible=False,
     ),
     ConfigSpec(
@@ -122,7 +125,7 @@ CONFIG_REGISTRY: tuple[ConfigSpec, ...] = (
         ConfigSource.ENV,
         label="PostgreSQL password",
         input_type="secret",
-        required=True,
+        required_group="database:postgres",
         secret=True,
         visible=False,
     ),
@@ -131,7 +134,7 @@ CONFIG_REGISTRY: tuple[ConfigSpec, ...] = (
         "database",
         ConfigSource.ENV,
         label="PostgreSQL database",
-        required=True,
+        required_group="database:postgres",
         visible=False,
     ),
     ConfigSpec(
@@ -156,6 +159,7 @@ CONFIG_REGISTRY: tuple[ConfigSpec, ...] = (
         "database",
         ConfigSource.ENV,
         label="Legacy database URL",
+        required_group="database:url",
         deprecated=True,
         description="Legacy compatibility setting; prefer the individual PostgreSQL variables.",
         deprecated_message="DATABASE_URL is deprecated; use POSTGRES_USER, POSTGRES_PASSWORD, and POSTGRES_DB instead.",
