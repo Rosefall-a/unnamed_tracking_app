@@ -38,26 +38,11 @@ class ConfigSpec:
 
 
 CONFIG_REGISTRY: tuple[ConfigSpec, ...] = (
-    ConfigSpec(
-        "POSTGRES_USER",
-        default="archive",
-        required=True,
-        description="PostgreSQL username.",
-    ),
-    ConfigSpec(
-        "POSTGRES_PASSWORD",
-        required=True,
-        secret=True,
-        description="PostgreSQL password.",
-    ),
-    ConfigSpec(
-        "POSTGRES_DB",
-        default="archive",
-        required=True,
-        description="PostgreSQL database name.",
-    ),
-    ConfigSpec("POSTGRES_HOST", default="db"),
-    ConfigSpec("POSTGRES_PORT", default=5432),
+    ConfigSpec("POSTGRES_USER", source=ConfigSource.ENV, default="archive", required=True),
+    ConfigSpec("POSTGRES_PASSWORD", source=ConfigSource.ENV, required=True, secret=True),
+    ConfigSpec("POSTGRES_DB", source=ConfigSource.ENV, default="archive", required=True),
+    ConfigSpec("POSTGRES_HOST", source=ConfigSource.ENV, default="db"),
+    ConfigSpec("POSTGRES_PORT", source=ConfigSource.ENV, default=5432),
     ConfigSpec(
         "SECRET_KEY",
         source=ConfigSource.ENV,
@@ -71,11 +56,27 @@ CONFIG_REGISTRY: tuple[ConfigSpec, ...] = (
         "STARTUP_MODE",
         source=ConfigSource.ENV,
         default="",
-        description="Optional default profile: development, testing, or empty/default.",
+        description="Optional profile: development, testing, or empty/default.",
     ),
-    ConfigSpec("PRIMARY_USER_USERNAME", source=ConfigSource.BOTH, default=""),
-    ConfigSpec("PRIMARY_USER_EMAIL", source=ConfigSource.BOTH, default=""),
-    ConfigSpec("PRIMARY_USER_PASSWORD", source=ConfigSource.BOTH, secret=True, default=""),
+    ConfigSpec(
+        "PRIMARY_USER_USERNAME",
+        default="",
+        development_default="admin",
+        source=ConfigSource.BOTH,
+    ),
+    ConfigSpec(
+        "PRIMARY_USER_EMAIL",
+        default="",
+        development_default="admin@localhost",
+        source=ConfigSource.BOTH,
+    ),
+    ConfigSpec(
+        "PRIMARY_USER_PASSWORD",
+        default="",
+        development_default="Admin123!",
+        source=ConfigSource.BOTH,
+        secret=True,
+    ),
     ConfigSpec("MAX_UPLOAD_SIZE_MB", default=15),
     ConfigSpec("MAX_SAVE_ARCHIVE_SIZE_MB", default=4096),
     ConfigSpec("MAX_CLIP_SIZE_MB", default=500),
