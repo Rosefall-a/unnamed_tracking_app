@@ -202,12 +202,12 @@ async function handle<T>(response: Response, action: string): Promise<T> {
   return response.json();
 }
 
-export async function fetchTVShows(): Promise<TVShow[]> {
+export async function fetchTVShows(search = ""): Promise<TVShow[]> {
   const all: BackendTVShow[] = [];
   let skip = 0;
   while (true) {
     const response = await fetch(
-      `/api/tv/list?skip=${skip}&limit=${SHOWS_PAGE_SIZE}`,
+      `/api/tv/list?skip=${skip}&limit=${SHOWS_PAGE_SIZE}${search.trim() ? `&search=${encodeURIComponent(search.trim())}` : ""}`,
       { credentials: "include" },
     );
     const page = await handle<BackendTVShow[]>(response, "fetch TV shows");

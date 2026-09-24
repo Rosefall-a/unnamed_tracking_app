@@ -10,7 +10,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.schemas.anime import (
@@ -405,7 +405,15 @@ async def list_anime(
     if favorite is not None:
         stmt = stmt.where(Anime.favorite == favorite)
     if search:
-        stmt = stmt.where(Anime.title.ilike(f"%{search}%"))
+        pattern = f"%{search.strip()}%"
+        stmt = stmt.where(
+            or_(
+                Anime.title.ilike(pattern),
+                Anime.title_english.ilike(pattern),
+                Anime.title_romaji.ilike(pattern),
+                Anime.title_native.ilike(pattern),
+            )
+        )
 
     stmt = stmt.order_by(Anime.sort_title).offset(skip).limit(limit)
 

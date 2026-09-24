@@ -116,10 +116,14 @@ const items = computed(() => shows.value.map(toVM));
 
 // Only the very first load shows the loading state; a refresh when the
 // page comes back swaps data in quietly, so titles never blink away.
-async function load() {
+let loadRequest = 0;
+async function load(search = "") {
+  const request = ++loadRequest;
   if (!shows.value.length) loading.value = true;
   try {
-    shows.value = await fetchAnime();
+    const next = await fetchAnime(search);
+    if (request !== loadRequest) return;
+    shows.value = next;
   } catch (e) {
     error.value = e instanceof Error ? e.message : "Failed to load anime.";
   } finally {
@@ -320,6 +324,7 @@ function detailRoute(id: string): string {
     :detail-route="detailRoute"
     :search="search"
     :create-from-result="createFromResult"
+    @search="load"
     @toggle-favorite="onToggleFavorite"
     @advance-episode="onAdvanceEpisode"
     @save-note="onSaveNote"

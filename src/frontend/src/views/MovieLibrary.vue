@@ -57,10 +57,14 @@ const items = computed(() => movies.value.map(toVM));
 
 // Only the very first load shows the loading state; a refresh when the
 // page comes back swaps data in quietly, so titles never blink away.
-async function load() {
+let loadRequest = 0;
+async function load(search = "") {
+  const request = ++loadRequest;
   if (!movies.value.length) loading.value = true;
   try {
-    movies.value = await fetchMovies();
+    const next = await fetchMovies(search);
+    if (request !== loadRequest) return;
+    movies.value = next;
   } catch (e) {
     error.value = e instanceof Error ? e.message : "Failed to load movies.";
   } finally {
@@ -196,6 +200,7 @@ function detailRoute(id: string): string {
     :detail-route="detailRoute"
     :search="search"
     :create-from-result="createFromResult"
+    @search="load"
     @toggle-favorite="onToggleFavorite"
     @save-note="onSaveNote"
     @save-edit="onSaveEdit"
