@@ -96,13 +96,14 @@ log "Waiting for PostgreSQL"
 write_status "WAITING_FOR_DATABASE" "starting" "starting" "unknown" "unknown" "unknown" "Waiting for PostgreSQL."
 
 attempt=1
-while {
+while :; do
   if [ "${DB_HEALTH_MODE:-url}" = "components" ]; then
-    pg_isready -h "$DB_HEALTH_HOST" -p "$DB_HEALTH_PORT" -U "$DB_HEALTH_USER" -d "$DB_HEALTH_DB"
-  else
-    pg_isready -d "$DB_HEALTH_URL"
+    if pg_isready -h "$DB_HEALTH_HOST" -p "$DB_HEALTH_PORT" -U "$DB_HEALTH_USER" -d "$DB_HEALTH_DB" >/dev/null 2>&1; then
+      break
+    fi
+  elif pg_isready -d "$DB_HEALTH_URL" >/dev/null 2>&1; then
+    break
   fi
-} >/dev/null 2>&1; do
   log "PostgreSQL not ready (attempt $attempt)"
   if [ "$attempt" -ge 60 ]; then fail_startup "DATABASE_FAILED" "PostgreSQL did not become ready within 120 seconds." "failed" "unknown" "unknown" "unknown"; fi
   attempt=$((attempt + 1)); sleep 2
