@@ -2,7 +2,8 @@ export type SetupSectionStatus =
   | "not_configured"
   | "partial"
   | "configured"
-  | "completed_by_env";
+  | "completed_by_env"
+  | "blocked_by_env";
 
 export interface SetupChoice {
   value: string;
@@ -21,6 +22,9 @@ export interface SetupField {
   secret: boolean;
   generated: boolean;
   deprecated: boolean;
+  deprecated_message: string;
+  visible: boolean;
+  env_only: boolean;
   locked: boolean;
   configured: boolean;
   source: "env" | "database" | "default" | "unset";
@@ -34,6 +38,9 @@ export interface SetupSection {
   required: boolean;
   removable: boolean;
   status: SetupSectionStatus;
+  blocked: boolean;
+  blocked_message: string;
+  env_configured: boolean;
   fields: SetupField[];
 }
 
