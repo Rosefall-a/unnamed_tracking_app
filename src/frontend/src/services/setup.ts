@@ -41,7 +41,7 @@ export interface SetupSection {
   required: boolean;
   removable: boolean;
   visible: boolean;
-  default_selected: boolean;
+  default: boolean;
   status: SetupSectionStatus;
   blocked: boolean;
   blocked_message: string;
