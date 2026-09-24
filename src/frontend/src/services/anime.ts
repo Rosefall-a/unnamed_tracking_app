@@ -1,4 +1,5 @@
 import { failedRequest } from "./apiError";
+import type { PaginatedResponse } from "../types/pagination";
 import type {
   Anime,
   AnimeEpisode,
@@ -221,22 +222,40 @@ async function handle<T>(response: Response, action: string): Promise<T> {
   return response.json();
 }
 
+export async function fetchAnimePage(
+  offset = 0,
+  limit = 100,
+  search = "",
+): Promise<{ items: Anime[]; total: number; offset: number; limit: number }> {
+  const params = new URLSearchParams({
+    skip: String(offset),
+    limit: String(limit),
+  });
+  if (search.trim()) params.set("search", search.trim());
+  const response = await fetch(`/api/anime/list?${params}`, {
+    credentials: "include",
+  });
+  const page = await handle<PaginatedResponse<BackendAnime>>(response, "fetch anime");
+  return {
+    items: page.items.map(mapBackendAnime),
+    total: page.total,
+    offset: page.offset,
+    limit: page.limit,
+  };
+}
+
 export async function fetchAnime(search = ""): Promise<Anime[]> {
-  const all: BackendAnime[] = [];
-  let skip = 0;
+  const all: Anime[] = [];
+  let offset = 0;
+  const limit = 100;
   while (true) {
-    const response = await fetch(
-      `/api/anime/list?skip=${skip}&limit=${SHOWS_PAGE_SIZE}${search.trim() ? `&search=${encodeURIComponent(search.trim())}` : ""}`,
-      { credentials: "include" },
-    );
-    const page = await handle<BackendAnime[]>(response, "fetch anime");
-    all.push(...page);
-    if (page.length < SHOWS_PAGE_SIZE) break;
-    skip += SHOWS_PAGE_SIZE;
+    const page = await fetchAnimePage(offset, limit, search);
+    all.push(...page.items);
+    if (all.length >= page.total || page.items.length === 0) break;
+    offset += page.items.length;
   }
-  const list = all.map(mapBackendAnime);
   animeCache.markListLoaded();
-  return list;
+  return all;
 }
 
 export async function getAnime(id: string): Promise<Anime> {
