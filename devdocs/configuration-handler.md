@@ -91,3 +91,16 @@ POSTGRES_USER + POSTGRES_PASSWORD + POSTGRES_DB
 8. Add focused tests before unrelated configuration work.
 
 Do not duplicate a default across Vue, example.env, startup scripts, and backend validators when it can be derived from the registry.
+
+## Test matrix
+
+Use a fresh database for each setup-path test where practical.
+
+- **Minimal:** only PostgreSQL variables. Setup should expose normal editable account fields.
+- **OIDC from ENV:** add `OIDC_ISSUER_URL`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`. The setup UI should populate and lock those fields.
+- **OIDC defaults from ENV:** also set scopes/groups/matching/admin-group values and verify they are populated.
+- **Forced UI:** add `STARTUP_UI=forced` after setup is complete. Restart and open `/setup`; it should remain available and show resolved deployment values.
+- **Named OIDC:** use Settings → OIDC / SSO to create two providers, reorder them, toggle login visibility, and test each generated `/login/<slug>` URL.
+- **Invalid dependency:** remove one OIDC credential while leaving the issuer configured. Verify startup reports the dependency error.
+
+No SMTP configuration is part of this release's setup flow.
