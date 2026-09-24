@@ -45,6 +45,7 @@ const optionalSections = computed(() =>
 const requiredSections = computed(() =>
   sections.value.filter((section) => section.required),
 );
+const isLastSection = computed(() => currentSection.value === selected.value[selected.value.length - 1]?.id);
 const allRequiredComplete = computed(() =>
   requiredSections.value.every((section) => {
     if (section.id === "first_admin" && forced.value) return true;
