@@ -102,7 +102,7 @@ async function save() {
                   ? 'Already saved — enter a new value to replace it'
                   : ''
             "
-            :disabled="result.provider_locks[key]"
+            :disabled="deploymentSettings?.provider_locks[key] ?? false"
         /></label>
       </div>
       <p class="hint">
