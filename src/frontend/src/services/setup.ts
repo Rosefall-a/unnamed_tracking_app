@@ -62,7 +62,6 @@ export interface SetupConfiguration {
 }
 
 export interface SetupOptions {
-  oidc_enabled?: boolean;
   oidc_name?: string;
   oidc_issuer_url?: string;
   oidc_client_id?: string;
