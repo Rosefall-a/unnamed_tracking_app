@@ -30,7 +30,7 @@ A partially configured environment is supported. For example:
     OIDC_CLIENT_ID=archive
     # OIDC_CLIENT_SECRET is omitted
 
-The setup page shows the issuer and client ID from .env as locked fields. The missing client secret remains editable and, when OIDC is enabled, required.
+The setup page shows the issuer and client ID from .env as locked fields. The missing client secret remains editable and required when the OIDC section is selected.
 
 ## Secrets and Fernet encryption
 
@@ -40,9 +40,7 @@ Secrets saved through setup are encrypted before database persistence with the F
 
 OIDC is optional and is selected by default on the Welcome screen. It can still be removed because it is not required. Selecting the OIDC section means it is being configured; there is no separate OIDC enable switch in setup.
 
-If OIDC is enabled, issuer URL, client ID, and client secret are required.
-
-If OIDC is disabled, partially entered provider values are allowed to be saved. This is useful when an administrator wants to enter the non-secret parts before obtaining a client secret. OIDC login remains disabled until the master switch is enabled and a usable provider exists.
+When OIDC is selected, issuer URL, client ID, and client secret are required. A complete provider is enabled automatically when setup saves it.
 
 The redirect URI is not user-entered. Setup displays a read-only URI generated from the address currently used to access the application (`/api/auth/oidc/callback`). Named providers use the same rule with their provider slug. This prevents setup from retaining a redirect URI copied from a different hostname or deployment.
 
@@ -74,7 +72,6 @@ Copy example.env to .env and replace placeholders:
     STARTUP_MODE=
 
     # Optional OIDC deployment ownership.
-    # OIDC_ENABLED=true
     # OIDC_ISSUER_URL=https://login.example.com/realms/archive
     # OIDC_CLIENT_ID=archive
     # OIDC_CLIENT_SECRET=replace-me
