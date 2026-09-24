@@ -100,8 +100,8 @@ CONFIG_REGISTRY: tuple[ConfigSpec, ...] = (
     ConfigSpec("POSTGRES_PORT", "database", ConfigSource.ENV, label="PostgreSQL port", input_type="integer", default=5432),
     ConfigSpec("DATABASE_URL", "database", ConfigSource.ENV, label="Legacy database URL", deprecated=True, description="Legacy compatibility setting; prefer the individual PostgreSQL variables."),
     ConfigSpec("SECRET_KEY", "database", ConfigSource.ENV, label="Secret key", input_type="secret", secret=True, generated=True, description="Stable Fernet/session signing key; generated and persisted when omitted."),
-    ConfigSpec("AUTH_COOKIE_SECURE", "database", label="Secure authentication cookies", input_type="boolean", default=False, description="Use secure cookies when the application is served over HTTPS."),
-    ConfigSpec("DEBUG", "database", label="Debug mode", input_type="boolean", default=False, development_default=True),
+    ConfigSpec("AUTH_COOKIE_SECURE", "database", ConfigSource.ENV, label="Secure authentication cookies", input_type="boolean", default=False, description="Use secure cookies when the application is served over HTTPS."),
+    ConfigSpec("DEBUG", "database", ConfigSource.ENV, label="Debug mode", input_type="boolean", default=False, development_default=True),
 
     ConfigSpec("PRIMARY_USER_USERNAME", "first_admin", label="Username", required=True, storage="bootstrap"),
     ConfigSpec("PRIMARY_USER_EMAIL", "first_admin", label="Email", input_type="email", required=True, storage="bootstrap"),
@@ -137,10 +137,10 @@ CONFIG_REGISTRY: tuple[ConfigSpec, ...] = (
 
     ConfigSpec("STARTUP_UI", "database", ConfigSource.ENV, label="Startup UI policy", default="", description="Set to forced to keep the setup/configuration UI reachable after installation."),
     ConfigSpec("STARTUP_MODE", "database", ConfigSource.ENV, label="Startup mode", default="", description="Optional profile: development, testing, or empty/default."),
-    ConfigSpec("MAX_UPLOAD_SIZE_MB", "database", label="Maximum upload size (MB)", input_type="integer", default=15),
-    ConfigSpec("MAX_SAVE_ARCHIVE_SIZE_MB", "database", label="Maximum save archive size (MB)", input_type="integer", default=4096),
-    ConfigSpec("MAX_CLIP_SIZE_MB", "database", label="Maximum clip size (MB)", input_type="integer", default=500),
-    ConfigSpec("MAX_WORLD_SAVE_SIZE_MB", "database", label="Maximum world save size (MB)", input_type="integer", default=2000),
+    ConfigSpec("MAX_UPLOAD_SIZE_MB", "database", ConfigSource.ENV, label="Maximum upload size (MB)", input_type="integer", default=15),
+    ConfigSpec("MAX_SAVE_ARCHIVE_SIZE_MB", "database", ConfigSource.ENV, label="Maximum save archive size (MB)", input_type="integer", default=4096),
+    ConfigSpec("MAX_CLIP_SIZE_MB", "database", ConfigSource.ENV, label="Maximum clip size (MB)", input_type="integer", default=500),
+    ConfigSpec("MAX_WORLD_SAVE_SIZE_MB", "database", ConfigSource.ENV, label="Maximum world save size (MB)", input_type="integer", default=2000),
 
     ConfigSpec("VITE_USE_MOCK_DATA", "database", ConfigSource.ENV, label="Frontend mock data", input_type="boolean", default=False, description="Early-stage frontend development/testing switch; never exposed through the backend setup schema."),
 )
