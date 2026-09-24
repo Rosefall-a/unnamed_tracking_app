@@ -268,6 +268,18 @@ async def update_deployment_settings(
                     }
                 )
                 slugs.add(slug)
+            if handler.oidc_enabled():
+                incomplete = [
+                    item["name"]
+                    for item in normalized
+                    if not item["issuer_url"] or not item["client_id"] or not item["client_secret"]
+                ]
+                if incomplete:
+                    raise HTTPException(
+                        400,
+                        "OIDC is enabled, so every enabled provider must have an issuer, client ID, and client secret: "
+                        + ", ".join(incomplete),
+                    )
             oidc.providers_json = json.dumps(normalized)
         elif field.startswith("oidc_"):
             if field == "oidc_enabled":
