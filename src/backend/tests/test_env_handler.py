@@ -79,3 +79,16 @@ def test_fernet_key_is_generated_and_persisted(monkeypatch, tmp_path):
     assert (tmp_path / "config" / "fernet.key").read_text(encoding="utf-8").strip() == key
     assert (tmp_path / "config" / "fernet.key.1").read_text(encoding="utf-8").strip() == key
     assert (tmp_path / "config" / "fernet.key.2").read_text(encoding="utf-8").strip() == key
+
+
+def test_legacy_database_url_is_only_a_warning():
+    handler = EnvConfigHandler(
+        {"DATABASE_URL": "postgresql+psycopg://archive:secret@db:5432/archive"}
+    )
+    issue = next(issue for issue in handler.validate() if issue.name == "database")
+    assert issue.severity == "warning"
+
+
+def test_env_only_values_are_not_exposed_to_setup():
+    handler = EnvConfigHandler({"VITE_USE_MOCK_DATA": "true"})
+    assert all(item["name"] != "VITE_USE_MOCK_DATA" for item in handler.setup_schema())
