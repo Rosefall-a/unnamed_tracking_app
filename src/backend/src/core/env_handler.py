@@ -123,6 +123,7 @@ class EnvConfigHandler:
             required_fields = 0
             required_configured = 0
             env_configured_required = 0
+            env_only_missing_required = 0
 
             for spec in CONFIG_REGISTRY:
                 if spec.section != section.id or spec.name == "VITE_USE_MOCK_DATA":
@@ -158,6 +159,8 @@ class EnvConfigHandler:
                     configured_count += 1
                 if required:
                     required_fields += 1
+                    if spec.source is ConfigSource.ENV and not env_set:
+                        env_only_missing_required += 1
                     if configured:
                         required_configured += 1
                     if env_set:
@@ -175,13 +178,18 @@ class EnvConfigHandler:
                     "secret": spec.secret,
                     "generated": spec.generated,
                     "deprecated": spec.deprecated,
+                    "deprecated_message": spec.deprecated_message if spec.deprecated else "",
+                    "visible": spec.visible and not spec.secret,
+                    "env_only": spec.source is ConfigSource.ENV,
                     "locked": spec.source is ConfigSource.ENV or env_set,
                     "configured": configured,
                     "source": source,
                     "value": value,
                 })
 
-            if required_fields and required_configured == required_fields:
+            if env_only_missing_required:
+                status = "blocked_by_env"
+            elif required_fields and required_configured == required_fields:
                 status = "completed_by_env" if env_configured_required == required_fields else "configured"
             elif configured_count:
                 status = "partial"
@@ -195,6 +203,14 @@ class EnvConfigHandler:
                 "required": section.required,
                 "removable": section.removable,
                 "status": status,
+                "blocked": env_only_missing_required > 0,
+                "blocked_message": (
+                    "This section has required deployment-only values missing from .env: "
+                    + ", ".join(
+                        field["name"] for field in fields
+                        if field["required"] and field["env_only"] and not field["configured"]
+                    )
+                ) if env_only_missing_required else "",
                 "fields": fields,
             })
 
