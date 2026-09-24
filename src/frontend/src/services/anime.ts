@@ -37,7 +37,7 @@ interface BackendSeason {
   status: string;
   air_date: string | null;
   poster_url: string | null;
-  episodes: BackendEpisode[];
+  episodes?: BackendEpisode[];
   created_at: number;
   updated_at: number;
 }
@@ -154,7 +154,7 @@ function mapBackendSeason(raw: BackendSeason): AnimeSeason {
     status: normalizeStatus(raw.status),
     airDate: raw.air_date,
     posterUrl: raw.poster_url,
-    episodes: raw.episodes.map(mapBackendEpisode),
+    episodes: (raw.episodes ?? []).map(mapBackendEpisode),
     createdAt: unixSecondsToIso(raw.created_at),
     updatedAt: unixSecondsToIso(raw.updated_at),
   };
