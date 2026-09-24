@@ -102,9 +102,18 @@ def _persisted_values(app: AppIntegrationSettings, oidc: OidcSettings) -> dict[s
             if spec_name in {"IGDB_CLIENT_ID", "SCREENSCRAPER_DEVID", "SCREENSCRAPER_SSID", "XBOX_CLIENT_ID"}:
                 values[spec_name] = value
 
+    provider_name = "Provider 1"
+    provider_slug = "provider-1"
+    try:
+        providers = json.loads(oidc.providers_json or "[]")
+        if providers and isinstance(providers[0], dict):
+            provider_name = str(providers[0].get("name") or provider_name)
+            provider_slug = str(providers[0].get("slug") or provider_slug)
+    except (TypeError, ValueError):
+        pass
     values.update({
-        "OIDC_PROVIDER_NAME": "Provider 1",
-        "OIDC_PROVIDER_SLUG": "provider-1",
+        "OIDC_PROVIDER_NAME": provider_name,
+        "OIDC_PROVIDER_SLUG": provider_slug,
         "OIDC_ENABLED": oidc.enabled,
         "OIDC_ENABLED__configured": bool(oidc.issuer_url or oidc.client_id or oidc.client_secret or oidc.providers_json),
         "OIDC_ISSUER_URL": oidc.issuer_url,
