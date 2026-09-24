@@ -218,3 +218,29 @@ class AnimeRead(AnimeBase):
     airing_interval_days: int | None = None
     linked_tv_show_id: UUID | None = None
     linked_movie_id: UUID | None = None
+
+
+class AnimeLibrarySeasonRead(BaseModel):
+    """Season progress returned by library list endpoints; episode rows stay on detail endpoints."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    show_id: UUID
+    season_number: int
+    name: str | None
+    episode_count: int | None
+    episodes_watched: int
+    status: AnimeStatus
+    air_date: date | None
+    poster_url: str | None
+    created_at: int
+    updated_at: int
+
+
+class AnimeLibraryRead(AnimeRead):
+    """Lightweight library representation without episode rows."""
+
+    seasons: list[AnimeLibrarySeasonRead] = Field(default_factory=list)
+
+
