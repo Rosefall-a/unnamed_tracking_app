@@ -25,7 +25,7 @@ import AchievementDetail from "../views/AchievementDetail.vue";
 import Login from "../views/Login.vue";
 import OidcStart from "../views/OidcStart.vue";
 import Setup from "../views/Setup.vue";
-import { currentUser, authChecked, checkAuth } from "../state/auth";
+import { currentUser, authChecked, checkAuth, startupError } from "../state/auth";
 import Settings from "../views/Settings.vue";
 import { saveLibraryScroll } from "../state/libraryScroll";
 import { appearanceLoaded, loadAppearanceSettings } from "../state/appearance";
@@ -102,6 +102,7 @@ router.beforeEach(async (to, from) => {
         : "complete";
     } catch {
       setupState = "error";
+      startupError.value = true;
     }
   }
 
@@ -112,6 +113,7 @@ router.beforeEach(async (to, from) => {
         : "complete";
     } catch {
       setupState = "error";
+      startupError.value = true;
     }
   }
 
