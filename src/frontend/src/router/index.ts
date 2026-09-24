@@ -193,7 +193,6 @@ router.beforeEach(async (to, from) => {
     if (to.path !== "/setup")
       return {
         path: "/setup",
-        query: setupState === "error" ? { backend_error: "1" } : undefined,
       };
     return;
   }
