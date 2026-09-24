@@ -73,6 +73,7 @@ class EnvConfigHandler:
                 "required": spec.required,
                 "generated": spec.generated,
                 "secret": spec.secret,
+                "deprecated": spec.deprecated,
                 "description": spec.description,
             }
             for spec in CONFIG_REGISTRY
@@ -103,13 +104,22 @@ class EnvConfigHandler:
 
         database_names = ("POSTGRES_USER", "POSTGRES_PASSWORD", "POSTGRES_DB")
         missing_db = [name for name in database_names if not str(values.get(name) or "").strip()]
-        if missing_db:
+        legacy_database_url = str(self.environ.get("DATABASE_URL") or "").strip()
+        if missing_db and not legacy_database_url:
             issues.append(
                 ConfigIssue(
                     "database",
                     "error",
                     "Database configuration is incomplete: " + ", ".join(missing_db),
                     recoverable=False,
+                )
+            )
+        elif legacy_database_url and missing_db == list(database_names):
+            issues.append(
+                ConfigIssue(
+                    "database",
+                    "warning",
+                    "DATABASE_URL is deprecated; use POSTGRES_USER, POSTGRES_PASSWORD, and POSTGRES_DB.",
                 )
             )
 
