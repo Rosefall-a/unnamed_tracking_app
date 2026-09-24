@@ -269,7 +269,7 @@ async def setup_admin(
     selected = set(payload.sections)
     if handler.has("OIDC_ENABLED"):
         values["OIDC_ENABLED"] = handler.get("OIDC_ENABLED")
-    if handler.has("OIDC_ISSUER_URL"):
+    if any(handler.has(name) for name in CONFIG_REGISTRY if name.name.startswith("OIDC_")):
         selected.add("oidc")
 
     if "oidc" in selected and "OIDC_ENABLED" not in values:
