@@ -70,16 +70,7 @@ class Settings(BaseSettings):
         }
         present = [bool(value and str(value).strip()) for value in components.values()]
 
-        if any(present):
-            missing = [name for name, value in components.items() if not value or not str(value).strip()]
-            if missing:
-                raise ValueError(
-                    "Database configuration is incomplete. Set "
-                    + ", ".join(components)
-                    + "; missing: "
-                    + ", ".join(missing)
-                    + "."
-                )
+        if all(present):
             self.DATABASE_URL = (
                 "postgresql+psycopg://"
                 f"{quote_plus(str(self.POSTGRES_USER))}:"
@@ -89,6 +80,10 @@ class Settings(BaseSettings):
             )
             return self
 
+        # DATABASE_URL is an alternative to the component form. If both are
+        # supplied, the explicit component set remains authoritative when it
+        # is complete; a partial component set must not make an otherwise
+        # valid DATABASE_URL deployment fail.
         if self.DATABASE_URL.strip():
             # Compatibility for existing deployments. New deployments should use
             # POSTGRES_USER/POSTGRES_PASSWORD/POSTGRES_DB instead.
