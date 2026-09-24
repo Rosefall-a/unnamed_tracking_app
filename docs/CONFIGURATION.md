@@ -28,7 +28,7 @@ Resolution is:
           v
     registry default
 
-This is why a half-complete .env file works correctly: fields supplied by the environment are populated and locked, while missing application-owned fields remain editable.
+This is why a half-complete `.env` file works correctly: fields supplied by the environment are populated and locked, while missing application-owned fields remain editable. The handler reads the process environment and discovers `.env` from the current directory/parents (or `ENV_FILE` when explicitly supplied), preventing the setup process from accidentally reading a different working directory than the application.
 
 `visible` is separate from source ownership. An ENV-owned non-secret value such as `AUTH_COOKIE_SECURE` can be shown as its resolved value while remaining read-only. Sensitive deployment-only values can be hidden. Setup-owned secret inputs remain available for entering a new secret, but existing secret material is never returned.
 
@@ -70,6 +70,7 @@ A registry field can declare:
 - choices
 - default and development/testing defaults
 - required
+- required_group (`group:variant`; all fields in a variant are required together, variants are alternatives)
 - secret
 - generated
 - deprecated and deprecated_message
@@ -77,6 +78,21 @@ A registry field can declare:
 - storage ownership
 
 The setup frontend consumes these properties directly. A normal new field should not require a field-specific change to Setup.vue.
+
+## Required configuration groups
+
+`required=True` means an individual field is mandatory. `required_group` is for alternatives where one complete configuration form can satisfy a requirement. The syntax is `group:variant`:
+
+```text
+required_group="database:postgres"
+required_group="database:url"
+```
+
+All fields in `database:postgres` must be configured together, while `database:url` is an alternative. The database requirement therefore becomes **PostgreSQL user + password + database OR DATABASE_URL**. This pattern is generic and can be reused for future configuration alternatives without adding special-case UI code.
+
+## Generated and persisted SECRET_KEY
+
+`SECRET_KEY` is intentionally marked `generated=True`, `secret=True`, and `visible=False`. When no deployment `SECRET_KEY` is supplied, `EnvConfigHandler` calls the persistent Fernet-key handler. That handler generates a cryptographically valid Fernet key and writes it to `APP_DATA_DIR/config/fernet.key`, plus two redundant copies (`fernet.key.1` and `fernet.key.2`), with restrictive file permissions. Subsequent starts recover the same key from those files, so encrypted application secrets and session signing remain stable across restarts. If a valid environment key is supplied, it is authoritative and is persisted as the installation key. The actual secret is never returned by the setup API.
 
 ## Adding a new environment variable
 
