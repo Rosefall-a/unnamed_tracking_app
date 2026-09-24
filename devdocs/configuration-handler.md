@@ -1,106 +1,103 @@
 # Configuration Handler Implementation Notes
 
-## Components
+## Architecture
 
-- `src/core/config_registry.py` — declarative metadata and source policy.
-- `src/core/env_handler.py` — environment/.env resolution, startup modes, setup-safe metadata, dependency validation, and initial-admin bootstrap inputs.
-- `src/core/fernet_key.py` — persistent Fernet generation, redundancy, restore, and rotation.
-- `src/core/config.py` — Pydantic runtime settings and database URL compatibility.
-- `src/api/routes/setup.py` — exposes non-secret configuration metadata to setup.
-- `src/docker-container/entrypoint.sh` — validates configuration before PostgreSQL readiness and records warnings in startup diagnostics.
+The configuration system has three layers:
 
-## Resolution flow
-
-```text
-environment / .env
+    Config registry
+        |
+        +-- sections
+        +-- field types
+        +-- labels/hints
+        +-- defaults
+        +-- requiredness
+        +-- source ownership
+        +-- storage ownership
         |
         v
-Config Registry -> source policy + defaults + requirements
+    EnvConfigHandler
+        |
+        +-- .env + process environment
+        +-- persisted values
+        +-- field/section status
+        +-- dependency validation
         |
         v
-EnvConfigHandler
-   |          |
-   |          +--> dependency issues
-   |                 |-- warning: recoverable
-   |                 `-- error: unrecoverable
-   |
-   +--> generated/persistent SECRET_KEY
-   +--> setup-safe schema
-   `--> runtime configuration
-```
+    /api/setup/configuration
+        |
+        v
+    Setup.vue generic renderer
 
-The handler does not write users, sessions, OIDC provider rows, or other database entities.
+The frontend should not recreate configuration rules that already exist in the registry.
 
-## Initial administrator bootstrap
+## Adding an environment variable
 
-The handler has a small bootstrap role: it resolves the three initial-admin inputs and reports their completeness. It does not create the account. Existing authentication/setup code remains authoritative for hashing, database writes, sessions, and administrator promotion.
+1. Add a ConfigSpec to CONFIG_REGISTRY.
+2. Choose ConfigSource.ENV, SETUP, or BOTH.
+3. Choose the UI type: text, secret, boolean, integer, choice, URL, or email.
+4. Add label, description, hint, placeholder, and choices as appropriate.
+5. Mark secrets with secret=True.
+6. If application-owned, add an explicit persistence mapping.
+7. Add dependency validation in EnvConfigHandler when requiredness depends on it.
+8. Add a safe entry to example.env.
+9. Update docs/CONFIGURATION.md and docs/SETUP.md.
+10. Add a focused backend test.
 
-## Dependency tree
+Do not add a normal field directly to Setup.vue.
 
-```text
-database
-  `-- required for runtime
+## Environment precedence
 
-OIDC issuer
-  |-- client id
-  |-- client secret
-  `-- recommended scopes
-       |-- openid
-       |-- profile
-       `-- email
+The handler uses:
 
-primary user
-  |-- username
-  |-- email
-  `-- password
-```
+    environment/.env > persisted database value > registry default
 
-The long-term design should move dependency relationships into registry metadata instead of accumulating unrelated validators.
+An environment-owned field is returned with:
 
-## Setup/startup contract
+- locked: true
+- source: env
+- configured: true
 
-The setup endpoint returns configuration name, source policy, non-secret default, required/generated/secret flags, description, and active startup mode. It never returns raw secret values.
+For secrets the value is always null. This prevents the setup endpoint from becoming a secret-disclosure endpoint.
 
-The same issue model is suitable for the startup page, preventing Vue setup and startup scripts from implementing different validation rules.
+## Section state
 
-## Database URL transition
+The backend returns:
 
-The external deployment contract is moving to individual PostgreSQL variables:
+- not_configured
+- partial
+- configured
+- completed_by_env
 
-```text
-POSTGRES_USER + POSTGRES_PASSWORD + POSTGRES_DB
-                 |
-                 v
-        central handler/config
-                 |
-                 v
-       internal DATABASE_URL
-```
+The first-run frontend uses these states to select optional sections automatically. Required sections cannot be removed.
 
-`DATABASE_URL` remains accepted temporarily for compatibility. New examples and startup diagnostics prefer the individual variables.
+## First administrator
 
-## Maintenance rules
+The first administrator is deliberately special. The registry describes its fields, but the handler does not create users. POST /api/setup performs bootstrap account creation after configuration has been accepted.
 
-1. Add configuration to the registry first.
-2. Choose ENV/SETUP/BOTH ownership explicitly.
-3. Define defaults and startup-mode behavior.
-4. Mark secret/generated values.
-5. Add dependency validation.
-6. Expose only non-secret metadata to setup.
-7. Update `/docs` and `/devdocs`.
-8. Add focused tests before unrelated configuration work.
+When all bootstrap values are supplied by the environment, the browser does not need to receive the password. The backend reads it directly from EnvConfigHandler.
 
-Do not duplicate a default across Vue, example.env, startup scripts, and backend validators when it can be derived from the registry.
+## Forced startup UI
 
-## Test matrix
+STARTUP_UI=forced keeps /setup reachable after the first administrator exists.
 
-Use a fresh database for each setup-path test where practical.
+The configuration endpoint remains the same, so there is only one setup UI contract. Forced mode uses PUT /api/setup/configuration and is protected by the normal admin dependency. It never calls the first-admin creation path.
 
-- **Minimal:** only PostgreSQL variables. Setup should expose normal editable account fields.
-- **OIDC from ENV:** add `OIDC_ISSUER_URL`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`. The setup UI should populate and lock those fields.
-- **OIDC defaults from ENV:** also set scopes/groups/matching/admin-group values and verify they are populated.
-- **Forced UI:** add `STARTUP_UI=forced` after setup is complete. Restart and open `/setup`; it should remain available and show resolved deployment values.
-- **Named OIDC:** use Settings → OIDC / SSO to create two providers, reorder them, toggle login visibility, and test each generated `/login/<slug>` URL.
-- **Invalid dependency:** remove one OIDC credential while leaving the issuer configured. Verify startup reports the dependency error.
+## OIDC
 
-No SMTP configuration is part of this release's setup flow.
+OIDC_ENABLED defaults to true.
+
+When enabled, issuer/client ID/client secret are required if the OIDC section is selected. When disabled, partial provider values can be stored without enabling OIDC login.
+
+Environment values still override the database setting.
+
+## Frontend-only Vite setting
+
+VITE_USE_MOCK_DATA is intentionally not returned by the backend registry schema. It is an early-stage frontend development switch read directly through import.meta.env. Its TypeScript declaration lives in src/frontend/src/vite-env.d.ts.
+
+## Security rules
+
+- Never return raw secret values.
+- Never let a request override an environment-owned field.
+- Never duplicate field defaults in Vue.
+- Keep persistence mappings explicit.
+- Keep bootstrap account creation separate from ordinary configuration.
