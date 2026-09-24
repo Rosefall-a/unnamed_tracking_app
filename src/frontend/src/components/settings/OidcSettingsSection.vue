@@ -12,8 +12,10 @@ const error = ref<string | null>(null);
 const saved = ref(false);
 const dragIndex = ref<number | null>(null);
 const browserOrigin = window.location.origin;
-const login = reactive({ default_login_method: "local" });
+const login = reactive({ default_login_method: "local", enabled: true });
 const providers = ref<OidcProviderSetting[]>([]);
+const lockedFields = ref<Record<string, boolean>>({});
+function responseLocked(name: string) { return lockedFields.value[name] === true; }
 
 function newProvider(): OidcProviderSetting {
   return {
@@ -105,6 +107,8 @@ onMounted(async () => {
   try {
     const response = await fetchDeploymentSettings();
     login.default_login_method = response.oidc.default_login_method === "sso" ? "sso" : "local";
+    login.enabled = response.oidc.enabled !== false;
+    lockedFields.value = response.oidc.locked_fields ?? {};
     providers.value = (response.oidc.named_providers ?? []).map((provider) => ({
       ...provider,
       client_secret: "",
@@ -131,6 +135,7 @@ async function save() {
       redirect_uri: redirectUri(provider),
     }));
     const response = await updateDeploymentSettings({
+      oidc_enabled: login.enabled,
       oidc_default_login_method: login.default_login_method,
       oidc_providers_json: JSON.stringify(providersToSave),
     });
@@ -159,6 +164,14 @@ async function save() {
 
     <div v-if="loading">Loading…</div>
     <template v-else>
+      <div class="login-panel">
+        <div>
+          <strong>Enable OIDC</strong>
+          <p class="hint">When disabled, partially configured providers may be saved without being used for login.</p>
+        </div>
+        <input v-model="login.enabled" type="checkbox" :disabled="responseLocked('oidc_enabled')" />
+      </div>
+
       <div class="login-panel">
         <div>
           <strong>Default login method</strong>
