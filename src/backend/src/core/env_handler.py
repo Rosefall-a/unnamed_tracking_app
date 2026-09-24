@@ -10,6 +10,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from dotenv import dotenv_values
+
 from .config_registry import CONFIG_REGISTRY, ConfigSource, DefaultMode
 from .fernet_key import persistent_fernet_key
 
@@ -26,7 +28,15 @@ class EnvConfigHandler:
     """Resolve declared configuration and report dependency-aware issues."""
 
     def __init__(self, environ: dict[str, str] | None = None) -> None:
-        self.environ = {str(key).upper(): str(value) for key, value in (environ or {}).items()}
+        file_values = {
+            str(key).upper(): str(value)
+            for key, value in dotenv_values(".env").items()
+            if value is not None
+        }
+        file_values.update(
+            {str(key).upper(): str(value) for key, value in (environ or {}).items()}
+        )
+        self.environ = file_values
         self.mode = self._parse_mode(self.environ.get("STARTUP_MODE", ""))
 
     @staticmethod
