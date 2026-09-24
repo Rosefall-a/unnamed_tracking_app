@@ -34,7 +34,7 @@ This is why a half-complete `.env` file works correctly: fields supplied by the 
 
 ## Sections and status
 
-Each section has an ID, title, description, order, required/optional status, removal policy, visibility, and optional menu/default-selection metadata. `required=True` always forces a section to be selected; `default_selected=True` selects an optional section initially, but the administrator can remove it on the Welcome screen. `menu` lets multiple sections share a future navigation/menu grouping without forcing them onto one setup page.
+Each section has an ID, title, description, order, required/optional status, removal policy, visibility, and optional menu/default-selection metadata. `required=True` always forces a section to be selected; `default=True` selects an optional section initially, but the administrator can remove it on the Welcome screen. `menu` lets multiple sections share a future navigation/menu grouping without forcing them onto one setup page.
 
 Current sections are:
 
