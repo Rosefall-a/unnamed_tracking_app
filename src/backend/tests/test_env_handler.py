@@ -186,9 +186,9 @@ def test_required_group_metadata_is_exposed_to_generated_schema():
 
 def test_default_selected_section_is_exposed_and_required_sections_override_it():
     sections = {section["id"]: section for section in EnvConfigHandler({}).setup_schema()}
-    assert sections["oidc"]["default_selected"] is True
-    assert sections["first_admin"]["default_selected"] is True
-    assert sections["api_keys"]["default_selected"] is False
+    assert sections["oidc"]["default"] is True
+    assert sections["first_admin"]["default"] is True
+    assert sections["api_keys"]["default"] is False
 
 
 def test_generated_values_are_exposed_as_locked_setup_fields():
