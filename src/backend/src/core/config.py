@@ -102,7 +102,17 @@ class Settings(BaseSettings):
         )
 
 
-settings = Settings()  # type: ignore[call-arg]
 _handler = EnvConfigHandler()
+_settings_values = {
+    name: _handler.get(name)
+    for name in (
+        "PRIMARY_USER_USERNAME",
+        "PRIMARY_USER_EMAIL",
+        "PRIMARY_USER_PASSWORD",
+        "STARTUP_MODE",
+    )
+    if _handler.get(name) is not None
+}
+settings = Settings(**_settings_values)  # type: ignore[call-arg]
 if not settings.SECRET_KEY:
     settings.SECRET_KEY = _handler.resolved()["SECRET_KEY"]
