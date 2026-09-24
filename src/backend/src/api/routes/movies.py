@@ -146,12 +146,28 @@ async def list_movies(
     if search:
         stmt = stmt.where(Movie.title.ilike(f"%{search}%"))
 
+    status_count_stmt = select(Movie.status, func.count()).where(
+        Movie.user_id == current_user.id, Movie.deleted_at.is_(None)
+    )
+    if favorite is not None:
+        status_count_stmt = status_count_stmt.where(Movie.favorite == favorite)
+    if search:
+        status_count_stmt = status_count_stmt.where(Movie.title.ilike(f"%{search}%"))
+    status_counts_result = await db.execute(status_count_stmt.group_by(Movie.status))
+    status_counts = {status.value: count for status, count in status_counts_result.all()}
+
     total = await db.scalar(select(func.count()).select_from(stmt.subquery()))
     stmt = stmt.order_by(Movie.sort_title).offset(skip).limit(limit)
 
     result = await db.execute(stmt)
     items = list(result.scalars().all())
-    return PaginatedResponse(items=items, total=total or 0, offset=skip, limit=limit)
+    return PaginatedResponse(
+        items=items,
+        total=total or 0,
+        offset=skip,
+        limit=limit,
+        status_counts=status_counts,
+    )
 
 @router.get("/get/{movie_id}", response_model=MovieRead)
 async def get_movie(
