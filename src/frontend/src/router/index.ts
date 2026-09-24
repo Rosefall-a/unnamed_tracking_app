@@ -160,15 +160,20 @@ const router = createRouter({
 });
 
 let setupState: "unknown" | "required" | "complete" | "error" = "unknown";
+let startupUiShown = false;
 
 router.beforeEach(async (to, from) => {
   if (from.path === "/games") saveLibraryScroll(window.scrollY);
 
   if (setupState === "unknown" || setupState === "error") {
     try {
-      setupState = (await fetchSetupStatus()).setup_required
-        ? "required"
-        : "complete";
+      const status = await fetchSetupStatus();
+      setupState = status.setup_required ? "required" : "complete";
+      if (!status.setup_required && status.startup_ui_enabled && to.path !== "/setup" && !startupUiShown) {
+        startupUiShown = true;
+        return { path: "/setup" };
+      }
+      startupUiShown = true;
     } catch {
       setupState = "error";
     }
@@ -194,7 +199,7 @@ router.beforeEach(async (to, from) => {
   }
   if (to.path === "/setup") {
     const status = await fetchSetupStatus();
-    if (status.setup_required || status.forced) return;
+    if (status.setup_required || status.startup_ui_enabled) { startupUiShown = true; return; }
     return currentUser.value ? "/" : "/login";
   }
 
