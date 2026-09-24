@@ -34,7 +34,7 @@ The setup page shows the issuer and client ID from .env as locked fields. The mi
 
 ## Secrets and Fernet encryption
 
-Secrets saved through setup are encrypted before database persistence with the Fernet key from `SECRET_KEY`. A valid deployment-provided key is used directly; otherwise a stable key is generated and persisted under `APP_DATA_DIR/config/fernet.key` with redundant copies. Plaintext secret values are never returned by the setup API.
+Secrets saved through setup are encrypted before database persistence with the Fernet key from `SECRET_KEY`. A valid deployment-provided key is used directly; otherwise a stable key is generated and persisted under `APP_DATA_DIR/config/fernet.key` with redundant copies. The generated key is restored on later starts, so omitting `SECRET_KEY` does not create a new encryption/session key on every restart. Plaintext secret values are never returned by the setup API.
 
 ## OIDC
 
