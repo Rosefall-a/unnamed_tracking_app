@@ -400,12 +400,13 @@ function moveBoard(status: string, direction: -1 | 1, available: number) {
 }
 watch([activeStatus, filters], resetBoardPages);
 watch(boardViewportWidth, resetBoardPages);
-onMounted(() => {
-  const update = () => { boardViewportWidth.value = boardContainer.value?.clientWidth ?? 0; };
-  window.addEventListener("resize", update);
-  update();
-  onBeforeUnmount(() => window.removeEventListener("resize", update));
-});
+function updateBoardViewport() {
+  boardViewportWidth.value = boardContainer.value?.clientWidth ?? 0;
+}
+onMounted(updateBoardViewport);
+watch(shelfCardSize, () => requestAnimationFrame(updateBoardViewport));
+window.addEventListener("resize", updateBoardViewport);
+onBeforeUnmount(() => window.removeEventListener("resize", updateBoardViewport));
 
 const boardGroups = computed(() => {
   const statuses =
@@ -2648,6 +2649,30 @@ defineExpose({ openQuickAdd });
   margin-bottom: 12px;
   padding-bottom: 8px;
   border-bottom: 1px solid var(--border-soft);
+}
+.board-nav {
+  margin-left: auto;
+  display: flex;
+  gap: 6px;
+}
+.board-nav button {
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--border-soft);
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--text);
+  cursor: pointer;
+}
+.board-nav button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.load-more-indicator {
+  padding: 14px;
+  text-align: center;
+  color: var(--text-faint);
+  font-size: 0.8rem;
 }
 .board-heading h2 {
   font-size: 1rem;
