@@ -174,7 +174,7 @@ async def get_deployment_settings(db: AsyncSession, admin: User) -> dict:
             "groups_claim": None if oidc_locks["groups_claim"] else oidc.groups_claim,
             "admin_group": None if oidc_locks["admin_group"] else oidc.admin_group,
             "user_match_field": None if oidc_locks["user_match_field"] else (oidc.user_match_field or "email"),
-            "enabled": handler.oidc_enabled({"OIDC_ENABLED": oidc.enabled}),
+            "enabled": oidc.enabled,
             "default_login_method": oidc.default_login_method
             if oidc.default_login_method in {"local", "sso"}
             else "local",
@@ -185,7 +185,7 @@ async def get_deployment_settings(db: AsyncSession, admin: User) -> dict:
             "locked_fields": {
                 **{f"oidc_{name}": locked for name, locked in oidc_locks.items()},
                 "oidc_allow_new_users": handler.has("OIDC_ISSUER_URL"),
-                "oidc_enabled": handler.has("OIDC_ENABLED"),
+                "oidc_enabled": False,
             },
         },
     }
@@ -216,9 +216,9 @@ async def update_deployment_settings(
         for name, env_name in _OIDC_ENV_NAMES.items()
     }
     locked_fields["oidc_allow_new_users"] = handler.has("OIDC_ISSUER_URL")
-    locked_fields["oidc_enabled"] = handler.has("OIDC_ENABLED")
-    effective_oidc_enabled = handler.oidc_enabled({"OIDC_ENABLED": oidc.enabled})
-    if payload.oidc_enabled is not None and not handler.has("OIDC_ENABLED"):
+    locked_fields["oidc_enabled"] = False
+    effective_oidc_enabled = bool(oidc.enabled)
+    if payload.oidc_enabled is not None:
         effective_oidc_enabled = bool(payload.oidc_enabled)
     for field, value in payload.model_dump(exclude_unset=True).items():
         if provider_locks.get(field) or field in _OIDC_ENV_LOCKED_FIELDS and locked_fields.get(field):
