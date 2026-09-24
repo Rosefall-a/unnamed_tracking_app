@@ -34,6 +34,9 @@ onMounted(async () => {
         configured[key.replace(/_configured$/, "")] = Boolean(value);
       else if (typeof value === "string") providers[key] = value;
     }
+    for (const [key, value] of Object.entries(result.provider_locks)) {
+      if (value) configured[key] = true;
+    }
   } catch (err) {
     error.value =
       err instanceof Error
@@ -73,8 +76,8 @@ async function save() {
     <p class="hint">
       Admin-only deployment credentials for metadata and external services.
       Secrets are encrypted in the database and are never returned to the
-      browser after saving. Existing environment variables remain supported as
-      fallbacks.
+      browser after saving. Values supplied by the deployment environment are
+      managed there and cannot be replaced from this page.
     </p>
     <div v-if="loading">Loading…</div>
     <template v-else>
@@ -91,10 +94,13 @@ async function save() {
                 : 'text'
             "
             :placeholder="
-              configured[key]
-                ? 'Already saved — enter a new value to replace it'
-                : ''
+              result.provider_locks[key]
+                ? 'Managed by deployment environment'
+                : configured[key]
+                  ? 'Already saved — enter a new value to replace it'
+                  : ''
             "
+            :disabled="result.provider_locks[key]"
         /></label>
       </div>
       <p class="hint">
