@@ -20,10 +20,16 @@ Every registry field declares a source:
 
 Resolution is:
 
-    environment/.env
+    process environment
+          |
+          v
+    .env
           |
           v
     persisted value
+          |
+          v
+    startup-mode default
           |
           v
     registry default
@@ -140,8 +146,6 @@ If the setting is ENV-only, it normally does not need a database column.
 ### 4. Add validation and dependencies
 
 If the new field changes whether another field is required, implement that relationship in EnvConfigHandler.
-
-For example, OIDC requires issuer/client ID/client secret only while OIDC is enabled. When OIDC is disabled, partial provider data can be stored without enabling OIDC login.
 
 ### 5. Add it to example.env
 
