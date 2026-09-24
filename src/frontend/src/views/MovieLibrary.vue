@@ -61,7 +61,9 @@ let loadRequest = 0;
 const total = ref(0);
 const statusCounts = ref<Record<string, number>>({});
 const pageSize = 100;
+const currentSearch = ref("");
 async function load(search = "") {
+  currentSearch.value = search;
   const request = ++loadRequest;
   if (!movies.value.length) loading.value = true;
   try {
@@ -80,7 +82,7 @@ async function loadMore() {
   if (loading.value || movies.value.length >= total.value) return;
   loading.value = true;
   try {
-    const page = await fetchMoviesPage(movies.value.length, pageSize);
+    const page = await fetchMoviesPage(movies.value.length, pageSize, currentSearch.value);
     movies.value.push(...page.items);
   } catch (e) {
     error.value = e instanceof Error ? e.message : "Failed to load more movies.";
