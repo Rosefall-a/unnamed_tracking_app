@@ -130,7 +130,8 @@ async def _configuration(db: AsyncSession, request: Request) -> dict[str, Any]:
             generated_values={"OIDC_REDIRECT_URI": redirect_uri},
         ),
         "startup_mode": handler.mode.value,
-        "startup_ui": "forced" if handler.startup_ui_forced else "auto",
+        "startup_ui": "enabled" if handler.startup_ui_enabled() else "disabled",
+        "startup_ui_enabled": handler.startup_ui_enabled(),
         "forced": handler.startup_ui_forced,
     }
 
@@ -191,13 +192,20 @@ async def _save_configuration(
         if "OIDC_ENABLED" in values and not handler.has("OIDC_ENABLED"):
             oidc.enabled = bool(values["OIDC_ENABLED"])
         for name, attribute in oidc_fields.items():
-            if name not in values or handler.has(name):
+            if handler.has(name):
+                # Environment overrides remain authoritative, but mirror them into
+                # the OIDC row so status/settings recognise a complete provider.
+                value = handler.get(name)
+            elif name in values:
+                value = values[name]
+            else:
                 continue
-            value = values[name]
             if value is None or value == "":
                 continue
             setattr(oidc, attribute, value)
-        if "OIDC_CLIENT_SECRET" in values and not handler.has("OIDC_CLIENT_SECRET") and values["OIDC_CLIENT_SECRET"]:
+        if handler.has("OIDC_CLIENT_SECRET"):
+            oidc.client_secret = encrypt_secret(str(handler.get("OIDC_CLIENT_SECRET")))
+        elif "OIDC_CLIENT_SECRET" in values and values["OIDC_CLIENT_SECRET"]:
             oidc.client_secret = encrypt_secret(str(values["OIDC_CLIENT_SECRET"]))
 
         if not oidc.enabled:
@@ -225,7 +233,8 @@ async def setup_status(db: AsyncSession = Depends(get_db)) -> dict[str, bool | s
     handler = EnvConfigHandler()
     return {
         "setup_required": not has_user,
-        "startup_ui": "forced" if handler.startup_ui_forced else "auto",
+        "startup_ui": "enabled" if handler.startup_ui_enabled() else "disabled",
+        "startup_ui_enabled": handler.startup_ui_enabled(),
         "forced": handler.startup_ui_forced,
     }
 
