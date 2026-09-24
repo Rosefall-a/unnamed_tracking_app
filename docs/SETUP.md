@@ -24,7 +24,7 @@ Secrets are never returned. A configured secret appears as a configured field wi
 
 ## Environment precedence
 
-A partially configured environment is supported. For example:
+The effective precedence is process environment > `.env` > persisted application configuration > startup-mode default > registry default. A partially configured environment is supported. For example:
 
     OIDC_ISSUER_URL=https://login.example.com/realms/archive
     OIDC_CLIENT_ID=archive
@@ -118,11 +118,7 @@ Set only some OIDC variables. Confirm:
 
 Confirm optional sections marked `default=True` start selected but can be removed, while required sections remain selected regardless of their default. Confirm fields without `heading` appear first and fields sharing the same heading are grouped under one heading without creating additional pages.
 
-### OIDC disabled
-
-Select OIDC, turn Enable OIDC off, enter only an issuer URL, and save. The partial provider data should be accepted and OIDC login should remain disabled.
-
-### Startup mode checks
+#### Startup mode checks
 
 After creating the administrator, verify each mode:
 
