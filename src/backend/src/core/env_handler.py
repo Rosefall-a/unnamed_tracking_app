@@ -48,11 +48,13 @@ class EnvConfigHandler:
             for key, value in dotenv_values(self._find_env_file()).items()
             if value is not None
         }
-        # Real process environment overrides .env values. Explicit test/config
-        # dictionaries then override both, which keeps this handler deterministic
-        # in unit tests while matching deployment precedence in production.
-        file_values.update({str(key).upper(): str(value) for key, value in os.environ.items()})
-        file_values.update({str(key).upper(): str(value) for key, value in (environ or {}).items()})
+        # In production, the real process environment overrides .env values.
+        # When an explicit mapping is supplied, it is intentionally isolated from
+        # the host environment so tests and callers can model a complete environment.
+        if environ is None:
+            file_values.update({str(key).upper(): str(value) for key, value in os.environ.items()})
+        else:
+            file_values.update({str(key).upper(): str(value) for key, value in environ.items()})
         self.environ = file_values
         self.mode = self._parse_mode(self.environ.get("STARTUP_MODE", ""))
 
