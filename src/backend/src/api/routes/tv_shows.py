@@ -19,6 +19,7 @@ from src.api.schemas.tv_show import (
     SeasonCreate,
     SeasonUpdate,
     TVShowCreate,
+    TVShowLibraryRead,
     TVShowRead,
     TVShowUpdate,
 )
@@ -193,7 +194,7 @@ async def refresh_airing(
     return await _get_show_or_404(show_id, db, current_user.id)
 
 
-@router.get("/list", response_model=PaginatedResponse[TVShowRead])
+@router.get("/list", response_model=PaginatedResponse[TVShowLibraryRead])
 async def list_shows(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -202,7 +203,7 @@ async def list_shows(
     search: str | None = Query(default=None, description="Case-insensitive title search"),
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=100, ge=1, le=200),
-) -> PaginatedResponse[TVShowRead]:
+) -> PaginatedResponse[TVShowLibraryRead]:
     """Return one page of the current user's shows and the total matching it."""
     stmt = select(TVShow).where(TVShow.user_id == current_user.id, TVShow.deleted_at.is_(None))
 
