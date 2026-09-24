@@ -55,6 +55,10 @@ class EnvConfigHandler:
         spec = next(spec for spec in CONFIG_REGISTRY if spec.name == name)
         return spec.source in {ConfigSource.BOTH, source}
 
+    @property
+    def startup_ui_forced(self) -> bool:
+        return str(self.get("STARTUP_UI") or "").strip().lower() == "forced"
+
     def bootstrap_primary_user(self) -> dict[str, str]:
         """Return initial-admin inputs without creating or mutating a user record."""
         return {
@@ -181,6 +185,7 @@ class EnvConfigHandler:
         issues = self.validate()
         return {
             "mode": self.mode.value,
+            "startup_ui": "forced" if self.startup_ui_forced else "auto",
             "ready": not any(issue.severity == "error" for issue in issues),
             "issues": [issue.__dict__ for issue in issues],
         }
