@@ -7,6 +7,7 @@ from urllib.parse import quote_plus
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from src.core.config_registry import CONFIG_REGISTRY
 from src.core.env_handler import EnvConfigHandler
 
 
@@ -105,7 +106,7 @@ class Settings(BaseSettings):
 _handler = EnvConfigHandler()
 _settings_values = {
     spec.name: _handler.get(spec.name)
-    for spec in __import__("src.core.config_registry", fromlist=["CONFIG_REGISTRY"]).CONFIG_REGISTRY
+    for spec in CONFIG_REGISTRY
     if spec.name != "VITE_USE_MOCK_DATA" and _handler.get(spec.name) is not None
 }
 settings = Settings(**_settings_values)  # type: ignore[call-arg]
