@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import secrets
 import time
 
@@ -139,16 +140,6 @@ async def setup_admin(
         "user_match_field": payload.oidc_user_match_field,
     }
     handler = EnvConfigHandler()
-    env_oidc = {
-        "issuer_url": handler.has("OIDC_ISSUER_URL"),
-        "client_id": handler.has("OIDC_CLIENT_ID"),
-        "client_secret": handler.has("OIDC_CLIENT_SECRET"),
-        "scopes": handler.has("OIDC_SCOPES"),
-        "redirect_uri": handler.has("OIDC_REDIRECT_URI"),
-        "groups_claim": handler.has("OIDC_GROUPS_CLAIM"),
-        "admin_group": handler.has("OIDC_ADMIN_GROUP"),
-        "user_match_field": handler.has("OIDC_USER_MATCH_FIELD"),
-    }
     if handler.has("OIDC_ISSUER_URL"):
         payload.oidc_enabled = True
     if payload.oidc_enabled and not all(
@@ -189,7 +180,7 @@ async def setup_admin(
             if not isinstance(client_secret, str) or not isinstance(issuer_url, str) or not isinstance(client_id, str):
                 raise HTTPException(status_code=400, detail="OIDC requires an issuer URL, client ID, and client secret.")
             encrypted_client_secret = encrypt_secret(client_secret)
-            provider_name = (payload.oidc_name if hasattr(payload, "oidc_name") else None) or issuer_url
+            provider_name = payload.oidc_name or issuer_url
             provider_slug = "".join(c if c.isalnum() else "-" for c in provider_name.lower()).strip("-")[:80] or "oidc"
             oidc = OidcSettings(
                 issuer_url=issuer_url,
