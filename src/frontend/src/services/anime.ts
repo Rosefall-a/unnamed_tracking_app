@@ -7,7 +7,6 @@ import type {
   AnimeStatus,
 } from "../types/anime";
 
-const SHOWS_PAGE_SIZE = 50;
 
 // The exact shape FastAPI sends, snake_case, matching the Python model
 // field-for-field. Nothing outside this file should ever see raw backend
