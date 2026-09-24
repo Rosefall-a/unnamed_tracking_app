@@ -25,6 +25,10 @@ logger = logging.getLogger(__name__)
 
 
 def _env_config():
+    # OIDC_ENABLED is resolved centrally so an environment value can disable
+    # OIDC without deleting a partially configured provider from the database.
+    if not EnvConfigHandler().oidc_enabled():
+        return None
     if not (settings.OIDC_ISSUER_URL and settings.OIDC_CLIENT_ID and settings.OIDC_CLIENT_SECRET):
         return None
     issuer = settings.OIDC_ISSUER_URL.strip()
@@ -86,6 +90,9 @@ async def _get_config(db, slug="default", require_autostart=False):
     environment_config = _env_config()
     if environment_config is not None:
         return environment_config
+
+    if row and not row.enabled:
+        return None
 
     if row and row.issuer_url and row.client_id and row.client_secret:
         issuer = row.issuer_url.strip()
