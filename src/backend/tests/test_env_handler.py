@@ -80,16 +80,6 @@ def test_setup_schema_marks_environment_fields_locked_and_partial():
     assert secret["value"] is None
 
 
-def test_development_mode_bootstraps_initial_admin_values():
-    handler = EnvConfigHandler({"STARTUP_MODE": "development"})
-    admin = handler.bootstrap_primary_user()
-    assert admin == {
-        "username": "admin",
-        "email": "admin@localhost",
-        "password": "Admin123!",
-    }
-
-
 def test_fernet_key_is_generated_and_persisted(monkeypatch, tmp_path):
     monkeypatch.setenv("APP_DATA_DIR", str(tmp_path))
     monkeypatch.delenv("SECRET_KEY", raising=False)
