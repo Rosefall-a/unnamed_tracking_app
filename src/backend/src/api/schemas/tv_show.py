@@ -179,7 +179,7 @@ class SeasonRead(BaseModel):
     updated_at: int
 
 
-class TVShowRead(TVShowBase):
+class TVShowReadBase(TVShowBase):
     """Full representation returned to clients, seasons included so the
     detail page loads everything in one request."""
 
@@ -189,7 +189,6 @@ class TVShowRead(TVShowBase):
     user_id: UUID
     sort_title: str
     locked_fields: list[str] = Field(default_factory=list)
-    seasons: list[SeasonRead] = Field(default_factory=list)
     created_at: int = Field(description="Unix timestamp in seconds when the show was created.")
     updated_at: int = Field(description="Unix timestamp in seconds when the show was last updated.")
 
@@ -217,7 +216,14 @@ class TVShowLibrarySeasonRead(BaseModel):
     updated_at: int
 
 
-class TVShowLibraryRead(TVShowRead):
+class TVShowRead(TVShowReadBase):
+    """Full representation returned to clients, seasons included so the
+    detail page loads everything in one request."""
+
+    seasons: list[SeasonRead] = Field(default_factory=list)
+
+
+class TVShowLibraryRead(TVShowReadBase):
     """Lightweight library representation without episode rows."""
 
     seasons: list[TVShowLibrarySeasonRead] = Field(default_factory=list)
