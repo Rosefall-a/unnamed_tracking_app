@@ -1,7 +1,7 @@
 import { failedRequest } from "./apiError";
+import type { PaginatedResponse } from "../types/pagination";
 import type { Episode, Season, TVShow, TVShowStatus } from "../types/tv_show";
 
-const SHOWS_PAGE_SIZE = 50;
 
 // The exact shape FastAPI sends, snake_case, matching the Python model
 // field-for-field. Nothing outside this file should ever see raw backend
@@ -32,7 +32,7 @@ interface BackendSeason {
   status: string;
   air_date: string | null;
   poster_url: string | null;
-  episodes: BackendEpisode[];
+  episodes?: BackendEpisode[];
   created_at: number;
   updated_at: number;
 }
@@ -143,7 +143,7 @@ function mapBackendSeason(raw: BackendSeason): Season {
     status: normalizeStatus(raw.status),
     airDate: raw.air_date,
     posterUrl: raw.poster_url,
-    episodes: raw.episodes.map(mapBackendEpisode),
+    episodes: (raw.episodes ?? []).map(mapBackendEpisode),
     createdAt: unixSecondsToIso(raw.created_at),
     updatedAt: unixSecondsToIso(raw.updated_at),
   };
@@ -202,22 +202,41 @@ async function handle<T>(response: Response, action: string): Promise<T> {
   return response.json();
 }
 
-export async function fetchTVShows(): Promise<TVShow[]> {
-  const all: BackendTVShow[] = [];
-  let skip = 0;
+export async function fetchTVShowsPage(
+  offset = 0,
+  limit = 100,
+  search = "",
+): Promise<{ items: TVShow[]; total: number; offset: number; limit: number; statusCounts: Record<string, number> }> {
+  const params = new URLSearchParams({
+    skip: String(offset),
+    limit: String(limit),
+  });
+  if (search.trim()) params.set("search", search.trim());
+  const response = await fetch(`/api/tv/list?${params}`, {
+    credentials: "include",
+  });
+  const page = await handle<PaginatedResponse<BackendTVShow>>(response, "fetch TV shows");
+  return {
+    items: page.items.map(mapBackendTVShow),
+    total: page.total,
+    offset: page.offset,
+    limit: page.limit,
+    statusCounts: page.status_counts,
+  };
+}
+
+export async function fetchTVShows(search = ""): Promise<TVShow[]> {
+  const all: TVShow[] = [];
+  let offset = 0;
+  const limit = 100;
   while (true) {
-    const response = await fetch(
-      `/api/tv/list?skip=${skip}&limit=${SHOWS_PAGE_SIZE}`,
-      { credentials: "include" },
-    );
-    const page = await handle<BackendTVShow[]>(response, "fetch TV shows");
-    all.push(...page);
-    if (page.length < SHOWS_PAGE_SIZE) break;
-    skip += SHOWS_PAGE_SIZE;
+    const page = await fetchTVShowsPage(offset, limit, search);
+    all.push(...page.items);
+    if (all.length >= page.total || page.items.length === 0) break;
+    offset += page.items.length;
   }
-  const list = all.map(mapBackendTVShow);
   tvShowCache.markListLoaded();
-  return list;
+  return all;
 }
 
 export async function getTVShow(id: string): Promise<TVShow> {
