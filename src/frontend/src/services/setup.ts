@@ -20,6 +20,7 @@ export interface SetupField {
   placeholder: string;
   required: boolean;
   required_group: string | null;
+  heading: string | null;
   secret: boolean;
   generated: boolean;
   deprecated: boolean;
@@ -28,7 +29,7 @@ export interface SetupField {
   env_only: boolean;
   locked: boolean;
   configured: boolean;
-  source: "env" | "database" | "default" | "unset";
+  source: "env" | "database" | "default" | "generated" | "unset";
   value: unknown;
 }
 
