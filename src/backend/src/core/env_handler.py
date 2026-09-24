@@ -95,7 +95,7 @@ class EnvConfigHandler:
             return self._bool(self.environ.get("OIDC_ENABLED"), True)
         if persisted and "OIDC_ENABLED" in persisted:
             return self._bool(persisted.get("OIDC_ENABLED"), True)
-        return self._bool(self.get("OIDC_ENABLED"), True)
+        return True
 
     def bootstrap_primary_user(self) -> dict[str, str]:
         return {
@@ -140,7 +140,7 @@ class EnvConfigHandler:
         """Build the complete schema consumed by Setup.vue.
 
         Environment values always win over persisted values. The same method
-        is used for first-run setup and forced post-install configuration.
+        is used for first-run setup and post-install configuration.
         """
         persisted = persisted or {}
         generated_values = generated_values or {}
