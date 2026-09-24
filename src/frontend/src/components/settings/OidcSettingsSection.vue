@@ -26,6 +26,8 @@ const oidc = reactive({
   allow_new_users: true,
 });
 const providers = ref<OidcProviderSetting[]>([]);
+const lockedFields = reactive<Record<string, boolean>>({});
+const locked = (field: string) => Boolean(lockedFields[field]);
 const newProvider = (): OidcProviderSetting => ({
   name: "",
   slug: "",
@@ -60,6 +62,9 @@ onMounted(async () => {
       o.default_login_method === "sso" ? "sso" : "local";
     oidc.login_button_text = o.login_button_text?.trim() || "Continue with SSO";
     oidc.allow_new_users = o.allow_new_users !== false;
+    for (const [field, value] of Object.entries(o.locked_fields ?? {})) {
+      lockedFields[field] = Boolean(value);
+    }
     providers.value = (o.named_providers ?? []).map(
       (p) =>
         ({ ...p, client_secret: "" }) as OidcProviderSetting & {
@@ -87,20 +92,24 @@ async function save() {
   saved.value = false;
   try {
     const payload: Record<string, string> = {
-      oidc_issuer_url: oidc.issuer_url.trim(),
-      oidc_client_id: oidc.client_id.trim(),
-      oidc_scopes: oidc.scopes.trim() || "openid profile email",
-      oidc_redirect_uri: oidc.redirect_uri.trim() || defaultRedirectUri(),
-      oidc_groups_claim: oidc.groups_claim.trim() || "groups",
-      oidc_admin_group: oidc.admin_group.trim(),
-      oidc_user_match_field: oidc.user_match_field,
       oidc_default_login_method: oidc.default_login_method,
       oidc_login_button_text:
         oidc.login_button_text.trim() || "Continue with SSO",
-      oidc_allow_new_users: String(oidc.allow_new_users),
       oidc_providers_json: JSON.stringify(providers.value),
     };
-    if (oidc.client_secret) payload.oidc_client_secret = oidc.client_secret;
+    if (!locked("oidc_issuer_url")) payload.oidc_issuer_url = oidc.issuer_url.trim();
+    if (!locked("oidc_client_id")) payload.oidc_client_id = oidc.client_id.trim();
+    if (!locked("oidc_scopes")) payload.oidc_scopes = oidc.scopes.trim() || "openid profile email";
+    if (!locked("oidc_redirect_uri")) {
+      payload.oidc_redirect_uri = oidc.redirect_uri.trim() || defaultRedirectUri();
+    }
+    if (!locked("oidc_groups_claim")) payload.oidc_groups_claim = oidc.groups_claim.trim() || "groups";
+    if (!locked("oidc_admin_group")) payload.oidc_admin_group = oidc.admin_group.trim();
+    if (!locked("oidc_user_match_field")) payload.oidc_user_match_field = oidc.user_match_field;
+    if (!locked("oidc_allow_new_users")) payload.oidc_allow_new_users = String(oidc.allow_new_users);
+    if (!locked("oidc_client_secret") && oidc.client_secret) {
+      payload.oidc_client_secret = oidc.client_secret;
+    }
     const r = await updateDeploymentSettings(payload);
     oidc.redirect_uri = r.oidc.redirect_uri || defaultRedirectUri();
     oidc.login_button_text =
@@ -128,7 +137,8 @@ async function save() {
     <h2>OpenID Connect / SSO</h2>
     <p class="hint">
       Configure browser-based SSO. Client secrets stay encrypted on the backend
-      and are never returned to the browser.
+      and are never returned to the browser. Fields managed by the deployment
+      environment are locked here; presentation settings remain editable.
     </p>
     <div v-if="loading">Loading…</div>
     <template v-else>
@@ -137,28 +147,30 @@ async function save() {
           ><span>Issuer / discovery URL</span
           ><input
             v-model="oidc.issuer_url"
+            :disabled="locked('oidc_issuer_url')"
             placeholder="https://login.example.com/realms/archive"
         /></label>
-        <label><span>Client ID</span><input v-model="oidc.client_id" /></label>
+        <label><span>Client ID</span><input v-model="oidc.client_id" :disabled="locked('oidc_client_id')" /></label>
         <label
           ><span>Client secret</span
           ><input
             v-model="oidc.client_secret"
             type="password"
+            :disabled="locked('oidc_client_secret')"
             placeholder="Leave blank to keep the saved secret"
         /></label>
-        <label><span>Scopes</span><input v-model="oidc.scopes" /></label>
+        <label><span>Scopes</span><input v-model="oidc.scopes" :disabled="locked('oidc_scopes')" /></label>
         <label class="full"
           ><span>Redirect URI</span
-          ><input v-model="oidc.redirect_uri" autocomplete="url"
+          ><input v-model="oidc.redirect_uri" autocomplete="url" :disabled="locked('oidc_redirect_uri')"
         /></label>
         <label
           ><span>Groups claim</span
-          ><input v-model="oidc.groups_claim" placeholder="groups"
+          ><input v-model="oidc.groups_claim" placeholder="groups" :disabled="locked('oidc_groups_claim')"
         /></label>
         <label
           ><span>Admin group</span
-          ><input v-model="oidc.admin_group" placeholder="archive-admins"
+          ><input v-model="oidc.admin_group" placeholder="archive-admins" :disabled="locked('oidc_admin_group')"
         /></label>
       </div>
 
@@ -175,6 +187,7 @@ async function save() {
             ><input
               v-model="oidc.user_match_field"
               type="radio"
+              :disabled="locked('oidc_user_match_field')"
               value="email"
             /><span
               ><strong>Email</strong
@@ -224,6 +237,7 @@ async function save() {
         <div class="policy-toggle">
           <ToggleButton
             v-model="oidc.allow_new_users"
+            :disabled="locked('oidc_allow_new_users')"
             label="Create new users"
           />
         </div>
