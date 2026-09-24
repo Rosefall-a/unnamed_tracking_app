@@ -174,7 +174,7 @@ async def get_deployment_settings(db: AsyncSession, admin: User) -> dict:
             "groups_claim": None if oidc_locks["groups_claim"] else oidc.groups_claim,
             "admin_group": None if oidc_locks["admin_group"] else oidc.admin_group,
             "user_match_field": None if oidc_locks["user_match_field"] else (oidc.user_match_field or "email"),
-            "enabled": oidc.enabled,
+            "enabled": handler.oidc_enabled({"OIDC_ENABLED": oidc.enabled}),
             "default_login_method": oidc.default_login_method
             if oidc.default_login_method in {"local", "sso"}
             else "local",
@@ -240,8 +240,7 @@ async def update_deployment_settings(
                 if (
                     not slug
                     or not name
-                    or not issuer
-                    or not client_id
+                    or (handler.oidc_enabled() and (not issuer or not client_id))
                     or slug in slugs
                     or any(c not in "abcdefghijklmnopqrstuvwxyz0123456789-_" for c in slug)
                 ):
@@ -251,9 +250,9 @@ async def update_deployment_settings(
                 if item.get("user_match_field", "email") not in {"email", "username"}:
                     raise HTTPException(400, "OIDC user matching must be email or username.")
                 secret = item.get("client_secret") or existing.get(slug, {}).get("client_secret")
-                if not secret:
+                if not secret and handler.oidc_enabled():
                     raise HTTPException(
-                        400, f"Client secret is required for OIDC provider '{name}'."
+                        400, f"Client secret is required for OIDC provider '{name}' while OIDC is enabled."
                     )
                 if item.get("client_secret"):
                     secret = encrypt_secret(str(item["client_secret"]))
