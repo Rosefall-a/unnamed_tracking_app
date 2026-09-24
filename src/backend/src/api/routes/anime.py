@@ -416,12 +416,28 @@ async def list_anime(
             )
         )
 
+    status_count_stmt = select(Anime.status, func.count()).where(
+        Anime.user_id == current_user.id, Anime.deleted_at.is_(None)
+    )
+    if favorite is not None:
+        status_count_stmt = status_count_stmt.where(Anime.favorite == favorite)
+    if search:
+        status_count_stmt = status_count_stmt.where(Anime.title.ilike(f"%{search}%"))
+    status_counts_result = await db.execute(status_count_stmt.group_by(Anime.status))
+    status_counts = {status.value: count for status, count in status_counts_result.all()}
+
     total = await db.scalar(select(func.count()).select_from(stmt.subquery()))
     stmt = stmt.order_by(Anime.sort_title).offset(skip).limit(limit)
 
     result = await db.execute(stmt)
     items = list(result.scalars().unique().all())
-    return PaginatedResponse(items=items, total=total or 0, offset=skip, limit=limit)
+    return PaginatedResponse(
+        items=items,
+        total=total or 0,
+        offset=skip,
+        limit=limit,
+        status_counts=status_counts,
+    )
 
 
 @router.get("/get/{show_id}", response_model=AnimeRead)
