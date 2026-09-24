@@ -97,9 +97,14 @@ async def setup_configuration() -> dict[str, object]:
 
 
 @router.get("/status")
-async def setup_status(db: AsyncSession = Depends(get_db)) -> dict[str, bool]:
+async def setup_status(db: AsyncSession = Depends(get_db)) -> dict[str, bool | str]:
     has_user = await db.scalar(select(User.id).limit(1)) is not None
-    return {"setup_required": not has_user}
+    handler = EnvConfigHandler()
+    return {
+        "setup_required": not has_user,
+        "startup_ui": "forced" if handler.startup_ui_forced else "auto",
+        "forced": handler.startup_ui_forced,
+    }
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
