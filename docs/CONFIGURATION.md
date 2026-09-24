@@ -46,3 +46,33 @@ The startup page remains separate from the setup page. Startup validates whether
 `application_url` is intentionally deferred. It can later become a central origin/redirect security setting without changing the handler architecture.
 
 `VITE_API_BASE_URL` is not part of the registry because the current frontend uses relative `/api` requests and the development proxy.
+
+## Startup UI and environment-owned setup
+
+Set `STARTUP_UI=forced` when an administrator needs the setup/configuration UI to remain reachable after setup has already completed. The page is read-only for deployment-managed flows and uses the same configuration registry as startup.
+
+Example local/development environment:
+
+```dotenv
+STARTUP_MODE=development
+STARTUP_UI=forced
+POSTGRES_USER=archive
+POSTGRES_PASSWORD=archive-dev-password
+POSTGRES_DB=archive
+OIDC_ISSUER_URL=https://sso.example.test/application/o/archive/
+OIDC_CLIENT_ID=archive
+OIDC_CLIENT_SECRET=replace-me
+OIDC_SCOPES=openid profile email
+OIDC_GROUPS_CLAIM=groups
+OIDC_USER_MATCH_FIELD=email
+```
+
+Example minimal normal environment:
+
+```dotenv
+POSTGRES_USER=archive
+POSTGRES_PASSWORD=change-me
+POSTGRES_DB=archive
+```
+
+When an OIDC value is supplied through the environment, the setup page resolves it from the central handler and disables the corresponding setup control. Secrets are never returned by the setup metadata endpoint.
