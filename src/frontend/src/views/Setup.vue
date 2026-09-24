@@ -29,7 +29,7 @@ const error = ref<string | null>(
 const saved = ref(false);
 
 const forced = computed(() => configuration.value?.forced === true);
-const sections = computed(() => configuration.value?.sections ?? []);
+const sections = computed(() => (configuration.value?.sections ?? []).filter((section) => section.visible));
 const current = computed(() =>
   sections.value.find((section) => section.id === currentSection.value),
 );
@@ -68,8 +68,30 @@ function setField(field: SetupField, value: unknown) {
 
 function sectionIsComplete(section: SetupSection): boolean {
   if (section.id === "oidc" && !oidcEnabled.value) return true;
+
+  const groups = new Map<string, SetupField[]>();
+  for (const field of section.fields) {
+    if (!field.required_group) continue;
+    const group = field.required_group.split(":")[0];
+    const variant = field.required_group.split(":")[1] ?? "default";
+    const key = `${group}:${variant}`;
+    const members = groups.get(key) ?? [];
+    members.push(field);
+    groups.set(key, members);
+  }
+
+  for (const [group, members] of groups) {
+    const groupName = group.split(":")[0];
+    const variants = [...groups.entries()]
+      .filter(([key]) => key.startsWith(`${groupName}:`))
+      .map(([, fields]) => fields);
+    if (!variants.some((fields) => fields.every((field) => field.configured || hasValue(fieldValue(field))))) {
+      return false;
+    }
+  }
+
   return section.fields
-    .filter((field) => field.required)
+    .filter((field) => field.required && !field.required_group)
     .every((field) => field.configured || hasValue(fieldValue(field)));
 }
 
@@ -239,10 +261,33 @@ async function submit() {
     if (section.id === "first_admin" && forced.value) continue;
     if (section.id === "oidc" && !oidcEnabled.value) continue;
 
+    const groupVariants = new Map<string, SetupField[]>();
+    for (const field of visibleFields(section)) {
+      if (field.required_group) {
+        const [group, variant = "default"] = field.required_group.split(":");
+        const key = `${group}:${variant}`;
+        groupVariants.set(key, [...(groupVariants.get(key) ?? []), field]);
+      }
+    }
+
+    const groups = new Set(
+      [...groupVariants.keys()].map((key) => key.split(":")[0]),
+    );
+    for (const group of groups) {
+      const satisfied = [...groupVariants.entries()]
+        .filter(([key]) => key.startsWith(`${group}:`))
+        .some(([, fields]) => fields.every((field) => field.configured || hasValue(fieldValue(field))));
+      if (!satisfied) {
+        currentSection.value = section.id;
+        error.value = `A complete configuration is required for one of the “${group}” options.`;
+        return;
+      }
+    }
+
     for (const field of visibleFields(section)) {
       const required = section.id === "oidc"
         ? oidcEnabled.value && ["OIDC_ISSUER_URL", "OIDC_CLIENT_ID", "OIDC_CLIENT_SECRET"].includes(field.name)
-        : field.required;
+        : field.required && !field.required_group;
       if (required && !field.configured && !hasValue(fieldValue(field))) {
         currentSection.value = section.id;
         error.value = `“${field.label}” is required before continuing.`;
