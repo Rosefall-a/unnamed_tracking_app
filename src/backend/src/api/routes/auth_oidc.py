@@ -80,6 +80,11 @@ async def _get_config(db, slug="default"):
             if provider.get("slug") == slug and provider.get("client_secret"):
                 return _config_from_provider(provider)
         return None
+
+    environment_config = _env_config()
+    if environment_config is not None:
+        return environment_config
+
     if row and row.issuer_url and row.client_id and row.client_secret:
         issuer = row.issuer_url.strip()
         return OidcConfig(
