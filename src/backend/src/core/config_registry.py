@@ -106,7 +106,7 @@ CONFIG_SECTIONS: tuple[ConfigSectionSpec, ...] = (
     ConfigSectionSpec(
         "oidc",
         "OpenID Connect / SSO",
-        "Optional SSO configuration. OIDC is enabled by default, but disabling it permits a provider to be saved while it is only partially configured.",
+        "Optional SSO configuration. Selecting this section enables OIDC once its provider credentials are saved.",
         40,
         default=True,
     ),
@@ -344,15 +344,6 @@ CONFIG_REGISTRY: tuple[ConfigSpec, ...] = (
         storage="app_integration",
     ),
     ConfigSpec(
-        "OIDC_ENABLED",
-        "oidc",
-        label="Enable OIDC",
-        input_type="boolean",
-        default=True,
-        description="When off, incomplete provider credentials are allowed and OIDC login remains disabled.",
-        storage="oidc",
-    ),
-    ConfigSpec(
         "OIDC_PROVIDER_NAME",
         "oidc",
         label="Provider name",
@@ -448,7 +439,7 @@ CONFIG_REGISTRY: tuple[ConfigSpec, ...] = (
         ConfigSource.ENV,
         label="Startup UI policy",
         default="",
-        description="Set to forced to keep the setup/configuration UI reachable after installation.",
+        description="Set to disabled or false to skip the setup/configuration UI on application startup.",
         visible=False,
     ),
     ConfigSpec(
