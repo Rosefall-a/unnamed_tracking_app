@@ -104,14 +104,9 @@ class Settings(BaseSettings):
 
 _handler = EnvConfigHandler()
 _settings_values = {
-    name: _handler.get(name)
-    for name in (
-        "PRIMARY_USER_USERNAME",
-        "PRIMARY_USER_EMAIL",
-        "PRIMARY_USER_PASSWORD",
-        "STARTUP_MODE",
-    )
-    if _handler.get(name) is not None
+    spec.name: _handler.get(spec.name)
+    for spec in __import__("src.core.config_registry", fromlist=["CONFIG_REGISTRY"]).CONFIG_REGISTRY
+    if spec.name != "VITE_USE_MOCK_DATA" and _handler.get(spec.name) is not None
 }
 settings = Settings(**_settings_values)  # type: ignore[call-arg]
 if not settings.SECRET_KEY:
