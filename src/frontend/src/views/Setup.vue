@@ -152,7 +152,7 @@ function initialize(config: SetupConfiguration) {
     .filter(
       (section) =>
         section.required ||
-        (!section.required && section.default_selected) ||
+        (!section.required && section.default) ||
         section.status === "partial" ||
         section.status === "configured" ||
         section.env_configured ||
