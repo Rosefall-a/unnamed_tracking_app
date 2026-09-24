@@ -238,8 +238,13 @@ class AnimeLibrarySeasonRead(BaseModel):
     updated_at: int
 
 
-class AnimeLibraryRead(AnimeRead):
+class AnimeLibraryRead(BaseModel):
     """Lightweight library representation without episode rows."""
+
+    seasons: list[AnimeLibrarySeasonRead] = Field(default_factory=list)
+
+
+
 
     seasons: list[AnimeLibrarySeasonRead] = Field(default_factory=list)
 
