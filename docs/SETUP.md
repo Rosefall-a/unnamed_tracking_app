@@ -7,15 +7,20 @@ The setup page is generated from the backend configuration registry. It starts w
 1. The frontend requests /api/setup/status and /api/setup/configuration.
 2. The backend builds the schema from CONFIG_REGISTRY.
 3. Environment values are resolved first.
-4. Environment-owned fields are populated and locked.
-5. Persisted application values are used for fields not owned by the environment.
+4. Environment-owned fields are populated and locked when visible.
+5. Sensitive deployment-only fields are hidden.
+6. Persisted application values are used for fields not owned by the environment.
 6. The welcome screen selects required sections and optional sections that already contain configuration.
 7. The user can add or remove optional sections.
-8. The generic renderer displays fields according to their registry type.
-9. On first setup, selected configuration is saved and the first administrator is created.
-10. With STARTUP_UI=forced, the same UI is available after installation and only saves configuration; it cannot create another administrator.
+9. The generic renderer displays fields according to their registry type.
+10. On first setup, selected configuration is saved and the first administrator is created.
+11. With STARTUP_UI=forced, the same UI is available after installation and only saves configuration; it cannot create another administrator.
 
 Secrets are never returned. A configured secret appears as a configured field with an empty password input.
+
+## Missing .env values
+
+`ConfigSource.ENV` fields are deployment-owned and cannot be completed from setup. If a required ENV-only value is missing, the section is marked **Needs .env**, the Welcome page displays a prominent warning with the missing variable, and Continue is disabled. This prevents PostgreSQL variables such as `POSTGRES_USER` from being incorrectly presented as setup inputs.
 
 ## Environment precedence
 
@@ -26,6 +31,10 @@ A partially configured environment is supported. For example:
     # OIDC_CLIENT_SECRET is omitted
 
 The setup page shows the issuer and client ID from .env as locked fields. The missing client secret remains editable and, when OIDC is enabled, required.
+
+## Secrets and Fernet encryption
+
+Secrets saved through setup are encrypted before database persistence with the Fernet key from `SECRET_KEY`. A valid deployment-provided key is used directly; otherwise a stable key is generated and persisted under `APP_DATA_DIR/config/fernet.key` with redundant copies. Plaintext secret values are never returned by the setup API.
 
 ## OIDC
 
