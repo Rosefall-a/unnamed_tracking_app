@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import secrets
 import time
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from pydantic import BaseModel, Field, field_validator
@@ -13,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.core.auth import (
     SESSION_COOKIE,
     SESSION_TTL_SECONDS,
+    get_current_admin,
     hash_password,
     hash_token,
     validate_password,
@@ -20,6 +22,7 @@ from src.core.auth import (
 from src.core.config import settings
 from src.core.crypto import encrypt_secret
 from src.core.env_handler import EnvConfigHandler
+from src.database.models.app_integration_settings import AppIntegrationSettings
 from src.database.models.auth import UserSession
 from src.database.models.game import Game
 from src.database.models.oidc_settings import OidcSettings
@@ -30,10 +33,15 @@ router = APIRouter(prefix="/api/setup", tags=["setup"])
 
 
 class SetupRequest(BaseModel):
-    username: str = Field(min_length=1, max_length=100)
-    email: str = Field(min_length=3, max_length=320)
-    password: str = Field(min_length=1)
-    oidc_enabled: bool = False
+    username: str = ""
+    email: str = ""
+    password: str = ""
+    sections: list[str] = Field(default_factory=list)
+    configuration: dict[str, Any] = Field(default_factory=dict)
+
+    # Kept for compatibility with older setup clients. New clients submit the
+    # registry-driven configuration object instead.
+    oidc_enabled: bool | None = None
     oidc_name: str | None = None
     oidc_issuer_url: str | None = None
     oidc_client_id: str | None = None
@@ -45,56 +53,163 @@ class SetupRequest(BaseModel):
     oidc_user_match_field: str = "email"
     oidc_allow_new_users: bool = True
     oidc_button_text: str = "Continue with SSO"
-    oidc_button_image_url: str | None = None
-    oidc_button_color: str = "#d68a34"
-    oidc_provider_enabled: bool = True
-    oidc_show_on_login: bool = True
-    oidc_autostart_enabled: bool = True
     oidc_default_login_method: str = "local"
 
     @field_validator("password")
     @classmethod
     def validate_setup_password(cls, value: str) -> str:
-        return validate_password(value)
-
-    @field_validator("oidc_user_match_field")
-    @classmethod
-    def validate_oidc_user_match_field(cls, value: str) -> str:
-        if value not in {"email", "username"}:
-            raise ValueError("OIDC user matching must be email or username.")
-        return value
-
-    @field_validator("oidc_default_login_method")
-    @classmethod
-    def validate_oidc_default_login_method(cls, value: str) -> str:
-        if value not in {"local", "sso"}:
-            raise ValueError("OIDC default login method must be local or sso.")
-        return value
+        return validate_password(value) if value else value
 
 
-@router.get("/configuration")
-async def setup_configuration() -> dict[str, object]:
-    """Return setup metadata, resolved non-secret values, and environment locks."""
-    from src.core.env_handler import EnvConfigHandler
+async def _app_row(db: AsyncSession) -> AppIntegrationSettings:
+    from src.api.routes.settings import get_or_create_app_integration_settings
 
+    return await get_or_create_app_integration_settings(db)
+
+
+async def _oidc_row(db: AsyncSession) -> OidcSettings:
+    row = await db.scalar(select(OidcSettings).limit(1))
+    if row is None:
+        row = OidcSettings()
+        db.add(row)
+        await db.flush()
+    return row
+
+
+def _persisted_values(app: AppIntegrationSettings, oidc: OidcSettings) -> dict[str, Any]:
+    values: dict[str, Any] = {}
+    for spec_name, attribute in {
+        "STEAMGRIDDB_API_KEY": "steamgriddb_api_key",
+        "RETROACHIEVEMENTS_API_KEY": "retroachievements_api_key",
+        "GIANTBOMB_API_KEY": "giantbomb_api_key",
+        "IGDB_CLIENT_ID": "igdb_client_id",
+        "IGDB_CLIENT_SECRET": "igdb_client_secret",
+        "TMDB_API_KEY": "tmdb_api_key",
+        "OMDB_API_KEY": "omdb_api_key",
+        "TVDB_API_KEY": "tvdb_api_key",
+        "SCREENSCRAPER_DEVID": "screenscraper_devid",
+        "SCREENSCRAPER_DEVPASSWORD": "screenscraper_devpassword",
+        "SCREENSCRAPER_SSID": "screenscraper_ssid",
+        "SCREENSCRAPER_SSPASSWORD": "screenscraper_sspassword",
+        "XBOX_CLIENT_ID": "xbox_client_id",
+        "XBOX_CLIENT_SECRET": "xbox_client_secret",
+    }.items():
+        value = getattr(app, attribute)
+        if value:
+            values[f"{spec_name}__configured"] = True
+            if spec_name in {"IGDB_CLIENT_ID", "SCREENSCRAPER_DEVID", "SCREENSCRAPER_SSID", "XBOX_CLIENT_ID"}:
+                values[spec_name] = value
+
+    values.update({
+        "OIDC_ENABLED": oidc.enabled,
+        "OIDC_ISSUER_URL": oidc.issuer_url,
+        "OIDC_CLIENT_ID": oidc.client_id,
+        "OIDC_CLIENT_SECRET__configured": bool(oidc.client_secret),
+        "OIDC_REDIRECT_URI": oidc.redirect_uri,
+        "OIDC_SCOPES": oidc.scopes,
+        "OIDC_GROUPS_CLAIM": oidc.groups_claim,
+        "OIDC_ADMIN_GROUP": oidc.admin_group,
+        "OIDC_USER_MATCH_FIELD": oidc.user_match_field,
+        "OIDC_ALLOW_NEW_USERS": oidc.allow_new_users,
+        "OIDC_DEFAULT_LOGIN_METHOD": oidc.default_login_method,
+        "OIDC_LOGIN_BUTTON_TEXT": oidc.login_button_text,
+    })
+    return values
+
+
+async def _configuration(db: AsyncSession) -> dict[str, Any]:
+    app = await _app_row(db)
+    oidc = await _oidc_row(db)
     handler = EnvConfigHandler()
-    settings_data = []
-    for item in handler.setup_schema():
-        name = str(item["name"])
-        spec_value = handler.get(name)
-        env_set = handler.has(name)
-        item["locked"] = env_set
-        if not bool(item["secret"]):
-            item["resolved"] = spec_value
-            if env_set:
-                item["default"] = spec_value
-        settings_data.append(item)
     return {
-        "settings": settings_data,
+        "sections": handler.setup_schema(_persisted_values(app, oidc)),
         "startup_mode": handler.mode.value,
         "startup_ui": "forced" if handler.startup_ui_forced else "auto",
         "forced": handler.startup_ui_forced,
     }
+
+
+async def _save_configuration(
+    db: AsyncSession,
+    values: dict[str, Any],
+    selected_sections: set[str],
+) -> None:
+    """Persist only fields owned by the setup registry.
+
+    Environment-owned values are deliberately ignored here: the environment
+    remains authoritative even when a malicious/old client sends them.
+    """
+    app = await _app_row(db)
+    oidc = await _oidc_row(db)
+    handler = EnvConfigHandler()
+
+    app_fields = {
+        "STEAMGRIDDB_API_KEY": "steamgriddb_api_key",
+        "RETROACHIEVEMENTS_API_KEY": "retroachievements_api_key",
+        "GIANTBOMB_API_KEY": "giantbomb_api_key",
+        "IGDB_CLIENT_ID": "igdb_client_id",
+        "IGDB_CLIENT_SECRET": "igdb_client_secret",
+        "TMDB_API_KEY": "tmdb_api_key",
+        "OMDB_API_KEY": "omdb_api_key",
+        "TVDB_API_KEY": "tvdb_api_key",
+        "SCREENSCRAPER_DEVID": "screenscraper_devid",
+        "SCREENSCRAPER_DEVPASSWORD": "screenscraper_devpassword",
+        "SCREENSCRAPER_SSID": "screenscraper_ssid",
+        "SCREENSCRAPER_SSPASSWORD": "screenscraper_sspassword",
+        "XBOX_CLIENT_ID": "xbox_client_id",
+        "XBOX_CLIENT_SECRET": "xbox_client_secret",
+    }
+    for name, attribute in app_fields.items():
+        if name not in values or handler.has(name):
+            continue
+        value = values[name]
+        if value in (None, ""):
+            continue
+        spec = next(spec for spec in __import__("src.core.config_registry", fromlist=["CONFIG_REGISTRY"]).CONFIG_REGISTRY if spec.name == name)
+        setattr(app, attribute, encrypt_secret(str(value)) if spec.secret else str(value))
+
+    if "oidc" in selected_sections or handler.has("OIDC_ISSUER_URL") or handler.has("OIDC_CLIENT_ID") or handler.has("OIDC_CLIENT_SECRET"):
+        oidc_fields = {
+            "OIDC_ISSUER_URL": "issuer_url",
+            "OIDC_CLIENT_ID": "client_id",
+            "OIDC_REDIRECT_URI": "redirect_uri",
+            "OIDC_SCOPES": "scopes",
+            "OIDC_GROUPS_CLAIM": "groups_claim",
+            "OIDC_ADMIN_GROUP": "admin_group",
+            "OIDC_USER_MATCH_FIELD": "user_match_field",
+            "OIDC_ALLOW_NEW_USERS": "allow_new_users",
+            "OIDC_DEFAULT_LOGIN_METHOD": "default_login_method",
+            "OIDC_LOGIN_BUTTON_TEXT": "login_button_text",
+        }
+        if "OIDC_ENABLED" in values and not handler.has("OIDC_ENABLED"):
+            oidc.enabled = bool(values["OIDC_ENABLED"])
+        for name, attribute in oidc_fields.items():
+            if name not in values or handler.has(name):
+                continue
+            value = values[name]
+            if value is None or value == "":
+                continue
+            setattr(oidc, attribute, value)
+        if "OIDC_CLIENT_SECRET" in values and not handler.has("OIDC_CLIENT_SECRET") and values["OIDC_CLIENT_SECRET"]:
+            oidc.client_secret = encrypt_secret(str(values["OIDC_CLIENT_SECRET"]))
+
+        if not oidc.enabled:
+            # Keep partial credentials for later completion, but do not make
+            # them usable for login until the administrator enables OIDC.
+            return
+
+        missing = [
+            name
+            for name in ("OIDC_ISSUER_URL", "OIDC_CLIENT_ID", "OIDC_CLIENT_SECRET")
+            if not (handler.has(name) or (values.get(name) or getattr(oidc, {"OIDC_ISSUER_URL": "issuer_url", "OIDC_CLIENT_ID": "client_id"}.get(name, "client_secret"))))
+        ]
+        if missing:
+            raise HTTPException(400, "OIDC requires an issuer URL, client ID, and client secret when enabled.")
+
+
+@router.get("/configuration")
+async def setup_configuration(db: AsyncSession = Depends(get_db)) -> dict[str, object]:
+    return await _configuration(db)
 
 
 @router.get("/status")
@@ -108,6 +223,19 @@ async def setup_status(db: AsyncSession = Depends(get_db)) -> dict[str, bool | s
     }
 
 
+@router.put("/configuration")
+async def update_setup_configuration(
+    payload: SetupRequest,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(get_current_admin),
+) -> dict[str, object]:
+    del admin
+    selected = set(payload.sections)
+    await _save_configuration(db, payload.configuration, selected)
+    await db.commit()
+    return await _configuration(db)
+
+
 @router.post("", status_code=status.HTTP_201_CREATED)
 async def setup_admin(
     payload: SetupRequest,
@@ -117,54 +245,39 @@ async def setup_admin(
     await db.execute(text("SELECT pg_advisory_xact_lock(hashtext('unnamed_tracking_app_setup'))"))
 
     if await db.scalar(select(User.id).limit(1)) is not None:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT, detail="Setup is already complete."
-        )
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Setup is already complete.")
 
-    username = payload.username.strip()
-    email = payload.email.strip().lower()
-    if not username or not email:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Username and email are required.",
-        )
-
-    oidc_values = {
-        "issuer_url": (payload.oidc_issuer_url or "").strip() or None,
-        "client_id": (payload.oidc_client_id or "").strip() or None,
-        "client_secret": (payload.oidc_client_secret or "").strip() or None,
-        "scopes": payload.oidc_scopes.strip() or "openid profile email",
-        "redirect_uri": (payload.oidc_redirect_uri or "").strip() or None,
-        "groups_claim": payload.oidc_groups_claim.strip() or "groups",
-        "admin_group": (payload.oidc_admin_group or "").strip() or None,
-        "user_match_field": payload.oidc_user_match_field,
-    }
     handler = EnvConfigHandler()
+    values = dict(payload.configuration)
+
+    # The browser only submits editable fields. Deployment values therefore
+    # come directly from EnvConfigHandler and cannot be replaced by the UI.
+    admin_values = handler.bootstrap_primary_user()
+    username = (payload.username or values.get("PRIMARY_USER_USERNAME") or admin_values["username"]).strip()
+    email = (payload.email or values.get("PRIMARY_USER_EMAIL") or admin_values["email"]).strip().lower()
+    password = payload.password or values.get("PRIMARY_USER_PASSWORD") or admin_values["password"]
+
+    if not username or not email or not password:
+        raise HTTPException(status_code=400, detail="Username, email, and password are required.")
+
+    # OIDC is optional as a section. If it is selected, its enabled switch
+    # defaults to true; if it is explicitly disabled, incomplete credentials
+    # are accepted and can be finished later from Settings.
+    selected = set(payload.sections)
+    if handler.has("OIDC_ENABLED"):
+        values["OIDC_ENABLED"] = handler.get("OIDC_ENABLED")
     if handler.has("OIDC_ISSUER_URL"):
-        payload.oidc_enabled = True
-    if payload.oidc_enabled and not all(
-        (
-            oidc_values["issuer_url"] or handler.has("OIDC_ISSUER_URL"),
-            oidc_values["client_id"] or handler.has("OIDC_CLIENT_ID"),
-            oidc_values["client_secret"] or handler.has("OIDC_CLIENT_SECRET"),
-        )
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="OIDC requires an issuer URL, client ID, and client secret.",
-        )
-    if not payload.oidc_enabled and any(
-        oidc_values[key] for key in ("issuer_url", "client_id", "client_secret")
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Enable OIDC before entering OIDC provider credentials.",
-        )
+        selected.add("oidc")
+
+    if "oidc" in selected and "OIDC_ENABLED" not in values:
+        values["OIDC_ENABLED"] = True
+
+    await _save_configuration(db, values, selected)
 
     user = User(
         username=username,
         email=email,
-        password_hash=hash_password(payload.password),
+        password_hash=hash_password(password),
         is_active=True,
         is_admin=True,
     )
@@ -172,49 +285,6 @@ async def setup_admin(
     try:
         await db.flush()
         await db.execute(update(Game).where(Game.user_id.is_(None)).values(user_id=user.id))
-
-        if payload.oidc_enabled:
-            client_secret = oidc_values["client_secret"] or handler.get("OIDC_CLIENT_SECRET")
-            issuer_url = oidc_values["issuer_url"] or handler.get("OIDC_ISSUER_URL")
-            client_id = oidc_values["client_id"] or handler.get("OIDC_CLIENT_ID")
-            if not isinstance(client_secret, str) or not isinstance(issuer_url, str) or not isinstance(client_id, str):
-                raise HTTPException(status_code=400, detail="OIDC requires an issuer URL, client ID, and client secret.")
-            encrypted_client_secret = encrypt_secret(client_secret)
-            provider_name = payload.oidc_name or issuer_url
-            provider_slug = "".join(c if c.isalnum() else "-" for c in provider_name.lower()).strip("-")[:80] or "oidc"
-            oidc = OidcSettings(
-                issuer_url=issuer_url,
-                client_id=client_id,
-                client_secret=encrypted_client_secret,
-                scopes=oidc_values["scopes"] or str(handler.get("OIDC_SCOPES") or "openid profile email"),
-                redirect_uri=oidc_values["redirect_uri"] or handler.get("OIDC_REDIRECT_URI"),
-                groups_claim=oidc_values["groups_claim"] or str(handler.get("OIDC_GROUPS_CLAIM") or "groups"),
-                admin_group=oidc_values["admin_group"] or handler.get("OIDC_ADMIN_GROUP"),
-                user_match_field=oidc_values["user_match_field"] or str(handler.get("OIDC_USER_MATCH_FIELD") or "email"),
-                default_login_method=payload.oidc_default_login_method,
-                login_button_text=payload.oidc_button_text.strip() or "Continue with SSO",
-                allow_new_users=payload.oidc_allow_new_users,
-                providers_json=json.dumps([{
-                    "name": provider_name,
-                    "slug": provider_slug,
-                    "issuer_url": issuer_url,
-                    "client_id": client_id,
-                    "client_secret": encrypted_client_secret,
-                    "scopes": oidc_values["scopes"] or str(handler.get("OIDC_SCOPES") or "openid profile email"),
-                    "redirect_uri": oidc_values["redirect_uri"] or handler.get("OIDC_REDIRECT_URI"),
-                    "groups_claim": oidc_values["groups_claim"] or str(handler.get("OIDC_GROUPS_CLAIM") or "groups"),
-                    "admin_group": oidc_values["admin_group"] or handler.get("OIDC_ADMIN_GROUP"),
-                    "user_match_field": oidc_values["user_match_field"] or str(handler.get("OIDC_USER_MATCH_FIELD") or "email"),
-                    "allow_new_users": payload.oidc_allow_new_users,
-                    "button_text": payload.oidc_button_text.strip() or "Continue with SSO",
-                    "button_image_url": (payload.oidc_button_image_url or "").strip() or None,
-                    "button_color": payload.oidc_button_color,
-                    "enabled": payload.oidc_provider_enabled,
-                    "show_on_login": payload.oidc_show_on_login,
-                    "autostart_enabled": payload.oidc_autostart_enabled,
-                }]),
-            )
-            db.add(oidc)
 
         session_token = secrets.token_urlsafe(32)
         db.add(
@@ -228,10 +298,7 @@ async def setup_admin(
         await db.refresh(user)
     except IntegrityError as exc:
         await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Username or email already exists.",
-        ) from exc
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Username or email already exists.") from exc
 
     response.set_cookie(
         key=SESSION_COOKIE,
