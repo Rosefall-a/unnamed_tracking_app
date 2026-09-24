@@ -42,6 +42,8 @@ class Settings(BaseSettings):
     TMDB_API_KEY: str | None = None
     OMDB_API_KEY: str | None = None
     TVDB_API_KEY: str | None = None
+    XBOX_CLIENT_ID: str | None = None
+    XBOX_CLIENT_SECRET: str | None = None
     SCREENSCRAPER_DEVID: str | None = None
     SCREENSCRAPER_DEVPASSWORD: str | None = None
     SCREENSCRAPER_SSID: str | None = None
