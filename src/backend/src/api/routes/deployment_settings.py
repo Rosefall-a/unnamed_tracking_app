@@ -217,6 +217,9 @@ async def update_deployment_settings(
     }
     locked_fields["oidc_allow_new_users"] = handler.has("OIDC_ISSUER_URL")
     locked_fields["oidc_enabled"] = handler.has("OIDC_ENABLED")
+    effective_oidc_enabled = handler.oidc_enabled({"OIDC_ENABLED": oidc.enabled})
+    if payload.oidc_enabled is not None and not handler.has("OIDC_ENABLED"):
+        effective_oidc_enabled = bool(payload.oidc_enabled)
     for field, value in payload.model_dump(exclude_unset=True).items():
         if provider_locks.get(field) or field in _OIDC_ENV_LOCKED_FIELDS and locked_fields.get(field):
             raise HTTPException(409, f"{field} is managed by the deployment environment and cannot be changed here.")
@@ -240,7 +243,7 @@ async def update_deployment_settings(
                 if (
                     not slug
                     or not name
-                    or (handler.oidc_enabled() and (not issuer or not client_id))
+                    or (effective_oidc_enabled and (not issuer or not client_id))
                     or slug in slugs
                     or any(c not in "abcdefghijklmnopqrstuvwxyz0123456789-_" for c in slug)
                 ):
@@ -250,7 +253,7 @@ async def update_deployment_settings(
                 if item.get("user_match_field", "email") not in {"email", "username"}:
                     raise HTTPException(400, "OIDC user matching must be email or username.")
                 secret = item.get("client_secret") or existing.get(slug, {}).get("client_secret")
-                if not secret and handler.oidc_enabled():
+                if not secret and effective_oidc_enabled:
                     raise HTTPException(
                         400, f"Client secret is required for OIDC provider '{name}' while OIDC is enabled."
                     )
@@ -268,7 +271,7 @@ async def update_deployment_settings(
                     }
                 )
                 slugs.add(slug)
-            if handler.oidc_enabled():
+            if effective_oidc_enabled:
                 incomplete = [
                     item["name"]
                     for item in normalized
