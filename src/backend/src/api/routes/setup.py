@@ -18,6 +18,7 @@ from src.core.auth import (
 )
 from src.core.config import settings
 from src.core.crypto import encrypt_secret
+from src.core.env_handler import EnvConfigHandler
 from src.database.models.auth import UserSession
 from src.database.models.game import Game
 from src.database.models.oidc_settings import OidcSettings
@@ -131,8 +132,25 @@ async def setup_admin(
         "admin_group": (payload.oidc_admin_group or "").strip() or None,
         "user_match_field": payload.oidc_user_match_field,
     }
+    handler = EnvConfigHandler()
+    env_oidc = {
+        "issuer_url": handler.has("OIDC_ISSUER_URL"),
+        "client_id": handler.has("OIDC_CLIENT_ID"),
+        "client_secret": handler.has("OIDC_CLIENT_SECRET"),
+        "scopes": handler.has("OIDC_SCOPES"),
+        "redirect_uri": handler.has("OIDC_REDIRECT_URI"),
+        "groups_claim": handler.has("OIDC_GROUPS_CLAIM"),
+        "admin_group": handler.has("OIDC_ADMIN_GROUP"),
+        "user_match_field": handler.has("OIDC_USER_MATCH_FIELD"),
+    }
+    if handler.has("OIDC_ISSUER_URL"):
+        payload.oidc_enabled = True
     if payload.oidc_enabled and not all(
-        (oidc_values["issuer_url"], oidc_values["client_id"], oidc_values["client_secret"])
+        (
+            oidc_values["issuer_url"] or handler.has("OIDC_ISSUER_URL"),
+            oidc_values["client_id"] or handler.has("OIDC_CLIENT_ID"),
+            oidc_values["client_secret"] or handler.has("OIDC_CLIENT_SECRET"),
+        )
     ):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -159,28 +177,45 @@ async def setup_admin(
         await db.execute(update(Game).where(Game.user_id.is_(None)).values(user_id=user.id))
 
         if payload.oidc_enabled:
-            client_secret = oidc_values["client_secret"]
-            if not isinstance(client_secret, str):
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="OIDC requires a client secret.",
-                )
-            try:
-                encrypted_client_secret = encrypt_secret(client_secret)
-            except RuntimeError as exc:
-                raise HTTPException(
-                    status_code=400,
-                    detail='SECRET_KEY must be a valid Fernet key before OIDC secrets can be saved. Generate one with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"',
-                ) from exc
+            client_secret = oidc_values["client_secret"] or handler.get("OIDC_CLIENT_SECRET")
+            issuer_url = oidc_values["issuer_url"] or handler.get("OIDC_ISSUER_URL")
+            client_id = oidc_values["client_id"] or handler.get("OIDC_CLIENT_ID")
+            if not isinstance(client_secret, str) or not isinstance(issuer_url, str) or not isinstance(client_id, str):
+                raise HTTPException(status_code=400, detail="OIDC requires an issuer URL, client ID, and client secret.")
+            encrypted_client_secret = encrypt_secret(client_secret)
+            provider_name = (payload.oidc_name if hasattr(payload, "oidc_name") else None) or issuer_url
+            provider_slug = "".join(c if c.isalnum() else "-" for c in provider_name.lower()).strip("-")[:80] or "oidc"
             oidc = OidcSettings(
-                issuer_url=oidc_values["issuer_url"],
-                client_id=oidc_values["client_id"],
+                issuer_url=issuer_url,
+                client_id=client_id,
                 client_secret=encrypted_client_secret,
-                scopes=oidc_values["scopes"],
-                redirect_uri=oidc_values["redirect_uri"],
-                groups_claim=oidc_values["groups_claim"],
-                admin_group=oidc_values["admin_group"],
-                user_match_field=oidc_values["user_match_field"],
+                scopes=oidc_values["scopes"] or str(handler.get("OIDC_SCOPES") or "openid profile email"),
+                redirect_uri=oidc_values["redirect_uri"] or handler.get("OIDC_REDIRECT_URI"),
+                groups_claim=oidc_values["groups_claim"] or str(handler.get("OIDC_GROUPS_CLAIM") or "groups"),
+                admin_group=oidc_values["admin_group"] or handler.get("OIDC_ADMIN_GROUP"),
+                user_match_field=oidc_values["user_match_field"] or str(handler.get("OIDC_USER_MATCH_FIELD") or "email"),
+                default_login_method=payload.oidc_default_login_method,
+                login_button_text=payload.oidc_button_text.strip() or "Continue with SSO",
+                allow_new_users=payload.oidc_allow_new_users,
+                providers_json=json.dumps([{
+                    "name": provider_name,
+                    "slug": provider_slug,
+                    "issuer_url": issuer_url,
+                    "client_id": client_id,
+                    "client_secret": encrypted_client_secret,
+                    "scopes": oidc_values["scopes"] or str(handler.get("OIDC_SCOPES") or "openid profile email"),
+                    "redirect_uri": oidc_values["redirect_uri"] or handler.get("OIDC_REDIRECT_URI"),
+                    "groups_claim": oidc_values["groups_claim"] or str(handler.get("OIDC_GROUPS_CLAIM") or "groups"),
+                    "admin_group": oidc_values["admin_group"] or handler.get("OIDC_ADMIN_GROUP"),
+                    "user_match_field": oidc_values["user_match_field"] or str(handler.get("OIDC_USER_MATCH_FIELD") or "email"),
+                    "allow_new_users": payload.oidc_allow_new_users,
+                    "button_text": payload.oidc_button_text.strip() or "Continue with SSO",
+                    "button_image_url": (payload.oidc_button_image_url or "").strip() or None,
+                    "button_color": payload.oidc_button_color,
+                    "enabled": payload.oidc_provider_enabled,
+                    "show_on_login": payload.oidc_show_on_login,
+                    "autostart_enabled": payload.oidc_autostart_enabled,
+                }]),
             )
             db.add(oidc)
 
