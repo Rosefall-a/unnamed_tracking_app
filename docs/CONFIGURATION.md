@@ -53,7 +53,7 @@ The handler calculates:
 
 A required ENV-only field that is missing makes its section `blocked_by_env`; the generated UI reports the missing variable and does not offer it as a setup input.
 
-Required fields may be conditional. OIDC issuer/client ID/client secret are required only when the OIDC section is selected and OIDC is enabled.
+Required fields may be conditional. OIDC issuer/client ID/client secret are required when the OIDC section is selected.
 
 ## Field metadata
 
@@ -204,7 +204,7 @@ The TypeScript declaration is in src/frontend/src/vite-env.d.ts.
 - `testing`: shows the setup/configuration UI. A field uses its testing-specific default when defined; otherwise it falls back to its development default, then its normal default.
 - Empty or any other value: selects normal defaults and shows the setup/configuration UI.
 
-Environment values have higher precedence than all mode defaults. The normal precedence is process environment > `.env` > persisted configuration > mode/default values. The setup UI can edit setup-owned values, so displayed mode defaults are intended to be starting values rather than forced values.
+Environment values have higher precedence than all mode defaults. For setup schema values, the effective precedence is process environment > `.env` > persisted configuration > mode/default values. The setup UI can edit setup-owned values, so displayed mode defaults are intended to be starting values rather than forced values.
 
 There is deliberately no separate `STARTUP_UI` setting.
 
