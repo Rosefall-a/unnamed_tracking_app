@@ -19,7 +19,7 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       PYTHONUNBUFFERED: 1
-      # STARTUP_MODE: development # uncomment this line once setup flow has been validated to skip setup flow in development mode
+      STARTUP_MODE: testing # Valid options = development, testing, default/empty. dev = bypass UI using defaults or .env, testing = testing/dev defaults + UI, default/empty = normal startup with UI
     env_file:
       - .env
     volumes:
