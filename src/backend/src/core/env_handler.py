@@ -76,6 +76,15 @@ class EnvConfigHandler:
         spec = next(spec for spec in CONFIG_REGISTRY if spec.name == name)
         return spec.source in {ConfigSource.BOTH, source}
 
+    def startup_ui_enabled(self) -> bool:
+        """Return whether the startup/setup UI should be shown on each application start.
+
+        The UI is enabled by default. Explicit disabled/false values turn it off;
+        forced remains supported as an enabled compatibility value.
+        """
+        value = str(self.get("STARTUP_UI") or "").strip().lower()
+        return value not in {"disabled", "false", "0", "no", "off"}
+
     @property
     def startup_ui_forced(self) -> bool:
         return str(self.get("STARTUP_UI") or "").strip().lower() == "forced"
@@ -324,7 +333,7 @@ class EnvConfigHandler:
         issues = self.validate()
         return {
             "mode": self.mode.value,
-            "startup_ui": "forced" if self.startup_ui_forced else "auto",
+            "startup_ui": "enabled" if self.startup_ui_enabled() else "disabled",
             "ready": not any(issue.severity == "error" for issue in issues),
             "issues": [issue.__dict__ for issue in issues],
         }
