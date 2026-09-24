@@ -14,7 +14,6 @@ from starlette.responses import RedirectResponse
 from src.core.auth import SESSION_COOKIE, SESSION_TTL_SECONDS, hash_password, hash_token
 from src.core.config import settings
 from src.core.crypto import decrypt_secret
-from src.core.env_handler import EnvConfigHandler
 from src.core.oidc import OidcConfig, begin_oidc, oauth, register_oidc_provider
 from src.database.models.auth import UserSession
 from src.database.models.oidc_settings import OidcSettings
@@ -26,10 +25,6 @@ logger = logging.getLogger(__name__)
 
 
 def _env_config(request: Request):
-    # OIDC_ENABLED is resolved centrally so an environment value can disable
-    # OIDC without deleting a partially configured provider from the database.
-    if not EnvConfigHandler().oidc_enabled():
-        return None
     if not (settings.OIDC_ISSUER_URL and settings.OIDC_CLIENT_ID and settings.OIDC_CLIENT_SECRET):
         return None
     issuer = settings.OIDC_ISSUER_URL.strip()
@@ -80,10 +75,7 @@ def _config_from_provider(provider, redirect_uri: str):
 
 async def _get_config(db, request: Request, slug="default", require_autostart=False):
     row = await db.scalar(select(OidcSettings).limit(1))
-    handler = EnvConfigHandler()
-    if not handler.oidc_enabled():
-        return None
-    if row and not row.enabled and not handler.has("OIDC_ENABLED"):
+    if row and not row.enabled:
         return None
     if row and slug != "default":
         for provider in _named_rows(row):
@@ -118,10 +110,7 @@ async def oidc_status(request: Request, db: AsyncSession = Depends(get_db)):
     row = await db.scalar(select(OidcSettings).limit(1))
     config = await _get_config(db, request)
     providers = []
-    handler = EnvConfigHandler()
-    oidc_master_enabled = handler.oidc_enabled()
-    if not handler.has("OIDC_ENABLED") and row is not None:
-        oidc_master_enabled = row.enabled
+    oidc_master_enabled = row.enabled if row is not None else config is not None
     if row and oidc_master_enabled:
         for provider in _named_rows(row):
             if provider.get("show_on_login", True) is False:
