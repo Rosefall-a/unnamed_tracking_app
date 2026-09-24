@@ -102,6 +102,8 @@ def _persisted_values(app: AppIntegrationSettings, oidc: OidcSettings) -> dict[s
                 values[spec_name] = value
 
     values.update({
+        "OIDC_PROVIDER_NAME": "Provider 1",
+        "OIDC_PROVIDER_SLUG": "provider-1",
         "OIDC_ENABLED": oidc.enabled,
         "OIDC_ENABLED__configured": bool(oidc.issuer_url or oidc.client_id or oidc.client_secret or oidc.providers_json),
         "OIDC_ISSUER_URL": oidc.issuer_url,
@@ -207,6 +209,34 @@ async def _save_configuration(
             oidc.client_secret = encrypt_secret(str(handler.get("OIDC_CLIENT_SECRET")))
         elif "OIDC_CLIENT_SECRET" in values and values["OIDC_CLIENT_SECRET"]:
             oidc.client_secret = encrypt_secret(str(values["OIDC_CLIENT_SECRET"]))
+
+        if oidc.enabled and oidc.issuer_url and oidc.client_id and oidc.client_secret:
+            # Register the initial/default provider in the same provider format
+            # used by the OIDC settings UI. This makes an OIDC configured during
+            # first-run setup visible to the normal application OIDC status/login
+            # endpoints immediately after setup.
+            try:
+                providers = json.loads(oidc.providers_json or "[]")
+            except (TypeError, ValueError):
+                providers = []
+            providers = [item for item in providers if isinstance(item, dict) and item.get("slug") != (values.get("OIDC_PROVIDER_SLUG") or "provider-1")]
+            providers.insert(0, {
+                "name": values.get("OIDC_PROVIDER_NAME") or "Provider 1",
+                "slug": values.get("OIDC_PROVIDER_SLUG") or "provider-1",
+                "issuer_url": oidc.issuer_url,
+                "client_id": oidc.client_id,
+                "client_secret": oidc.client_secret,
+                "scopes": oidc.scopes or "openid profile email",
+                "groups_claim": oidc.groups_claim or "groups",
+                "admin_group": oidc.admin_group,
+                "user_match_field": oidc.user_match_field or "email",
+                "allow_new_users": oidc.allow_new_users,
+                "button_text": oidc.login_button_text or "Continue with SSO",
+                "enabled": True,
+                "show_on_login": True,
+                "autostart_enabled": True,
+            })
+            oidc.providers_json = json.dumps(providers)
 
         if not oidc.enabled:
             # Keep partial credentials for later completion, but do not make
