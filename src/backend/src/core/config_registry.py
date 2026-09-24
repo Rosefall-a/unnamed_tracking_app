@@ -108,7 +108,6 @@ CONFIG_SECTIONS: tuple[ConfigSectionSpec, ...] = (
         "OpenID Connect / SSO",
         "Optional SSO configuration. Selecting this section enables OIDC once its provider credentials are saved.",
         40,
-        default=True,
     ),
 )
 
@@ -219,6 +218,7 @@ CONFIG_REGISTRY: tuple[ConfigSpec, ...] = (
         "first_admin",
         label="Username",
         required=True,
+        default="admin",
         development_default="admin",
         storage="bootstrap",
     ),
@@ -228,6 +228,7 @@ CONFIG_REGISTRY: tuple[ConfigSpec, ...] = (
         label="Email",
         input_type="email",
         required=True,
+        default="admin@localhost",
         development_default="admin@localhost",
         storage="bootstrap",
     ),
@@ -238,7 +239,7 @@ CONFIG_REGISTRY: tuple[ConfigSpec, ...] = (
         input_type="secret",
         required=True,
         secret=True,
-        development_default="Admin123!",
+        development_default="Change-this-during-setup",
         storage="bootstrap",
     ),
     ConfigSpec(
