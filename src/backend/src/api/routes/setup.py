@@ -33,6 +33,7 @@ class SetupRequest(BaseModel):
     email: str = Field(min_length=3, max_length=320)
     password: str = Field(min_length=1)
     oidc_enabled: bool = False
+    oidc_name: str | None = None
     oidc_issuer_url: str | None = None
     oidc_client_id: str | None = None
     oidc_client_secret: str | None = None
