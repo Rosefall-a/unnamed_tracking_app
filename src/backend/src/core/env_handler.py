@@ -242,6 +242,7 @@ class EnvConfigHandler:
                 "title": section.title,
                 "description": section.description,
                 "required": section.required,
+                "menu": section.menu,
                 "removable": section.removable,
                 "visible": section.visible,
                 "status": status,
