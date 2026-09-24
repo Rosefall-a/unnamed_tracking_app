@@ -4,6 +4,15 @@ from src.core.env_handler import EnvConfigHandler
 from src.core.fernet_key import persistent_fernet_key
 
 
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def isolated_app_data(monkeypatch, tmp_path):
+    monkeypatch.setenv("APP_DATA_DIR", str(tmp_path))
+    monkeypatch.delenv("SECRET_KEY", raising=False)
+
+
 def test_default_database_components_are_available():
     handler = EnvConfigHandler({"POSTGRES_PASSWORD": "secret"})
     values = handler.resolved()
