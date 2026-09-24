@@ -35,6 +35,7 @@ class ConfigSectionSpec:
     order: int
     required: bool = False
     removable: bool = True
+    visible: bool = True
 
 
 @dataclass(frozen=True)
@@ -71,6 +72,7 @@ CONFIG_SECTIONS: tuple[ConfigSectionSpec, ...] = (
         1000,
         required=True,
         removable=False,
+        visible=False,
     ),
     ConfigSectionSpec(
         "first_admin",
