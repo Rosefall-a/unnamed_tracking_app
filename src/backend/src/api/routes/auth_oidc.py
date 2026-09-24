@@ -14,6 +14,7 @@ from starlette.responses import RedirectResponse
 from src.core.auth import SESSION_COOKIE, SESSION_TTL_SECONDS, hash_password, hash_token
 from src.core.config import settings
 from src.core.crypto import decrypt_secret
+from src.core.env_handler import EnvConfigHandler
 from src.core.oidc import OidcConfig, begin_oidc, oauth, register_oidc_provider
 from src.database.models.auth import UserSession
 from src.database.models.oidc_settings import OidcSettings
