@@ -80,8 +80,8 @@ function sectionIsComplete(section: SetupSection): boolean {
     groups.set(key, members);
   }
 
-  for (const [group, members] of groups) {
-    const groupName = group.split(":")[0];
+  for (const group of new Set([...groups.keys()].map((key) => key.split(":")[0]))) {
+    const groupName = group;
     const variants = [...groups.entries()]
       .filter(([key]) => key.startsWith(`${groupName}:`))
       .map(([, fields]) => fields);
