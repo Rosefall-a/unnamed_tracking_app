@@ -28,7 +28,6 @@ const error = ref<string | null>(
 );
 const saved = ref(false);
 
-const forced = computed(() => configuration.value?.forced === true);
 const sections = computed(() => (configuration.value?.sections ?? []).filter((section) => section.visible));
 const current = computed(() =>
   sections.value.find((section) => section.id === currentSection.value),
@@ -48,15 +47,10 @@ const optionalSections = computed(() =>
 const requiredSections = computed(() =>
   sections.value.filter((section) => section.required),
 );
-const actionLabel = computed(() => saving.value ? "Saving…" : forced.value ? "Save configuration" : "Finish setup");
+const actionLabel = computed(() => saving.value ? "Saving…" : "Finish setup");
 const welcomeBlocked = computed(() =>
   requiredSections.value.some((section) => section.blocked),
 );
-const oidcEnabled = computed(() => {
-  const value = values.value.OIDC_ENABLED;
-  return typeof value === "boolean" ? value : value !== "false";
-});
-
 function fieldValue(field: SetupField): unknown {
   if (field.name in values.value) return values.value[field.name];
   return field.value;
@@ -67,8 +61,6 @@ function setField(field: SetupField, value: unknown) {
 }
 
 function sectionIsComplete(section: SetupSection): boolean {
-  if (section.id === "oidc" && !oidcEnabled.value) return true;
-
   const groups = new Map<string, SetupField[]>();
   for (const field of section.fields) {
     if (!field.required_group) continue;
@@ -172,12 +164,7 @@ function initialize(config: SetupConfiguration) {
     }
   }
 
-  if (!forced.value && selectedSections.value.includes("first_admin")) {
-    currentSection.value = "welcome";
-  } else {
-    currentSection.value =
-      selectedSections.value.find((id) => id !== "database") ?? "welcome";
-  }
+  currentSection.value = "welcome";
 }
 
 onMounted(async () => {
@@ -187,7 +174,7 @@ onMounted(async () => {
       fetchSetupConfiguration(),
     ]);
 
-    if (!status.setup_required && !status.forced) {
+    if (!status.setup_required) {
       await checkAuth();
       await router.replace("/");
       return;
@@ -210,7 +197,6 @@ function toggleOptional(section: SetupSection) {
     if (currentSection.value === section.id) currentSection.value = "welcome";
   } else {
     selectedSections.value.push(section.id);
-    currentSection.value = section.id;
   }
 }
 
@@ -235,11 +221,9 @@ function inputType(field: SetupField): string {
 }
 
 function fieldRequired(field: SetupField): boolean {
-  if (
-    current.value?.id === "oidc" &&
-    ["OIDC_ISSUER_URL", "OIDC_CLIENT_ID", "OIDC_CLIENT_SECRET"].includes(field.name)
-  ) {
-    return oidcEnabled.value;
+  if (current.value?.id === "oidc" &&
+    ["OIDC_ISSUER_URL", "OIDC_CLIENT_ID", "OIDC_CLIENT_SECRET"].includes(field.name)) {
+    return true;
   }
   return field.required;
 }
@@ -273,8 +257,6 @@ async function submit() {
 
   for (const section of selected.value) {
     if (section.id === "first_admin" && forced.value) continue;
-    if (section.id === "oidc" && !oidcEnabled.value) continue;
-
     const groupVariants = new Map<string, SetupField[]>();
     for (const field of visibleFields(section)) {
       if (field.required_group) {
@@ -300,7 +282,7 @@ async function submit() {
 
     for (const field of visibleFields(section)) {
       const required = section.id === "oidc"
-        ? oidcEnabled.value && ["OIDC_ISSUER_URL", "OIDC_CLIENT_ID", "OIDC_CLIENT_SECRET"].includes(field.name)
+        ? ["OIDC_ISSUER_URL", "OIDC_CLIENT_ID", "OIDC_CLIENT_SECRET"].includes(field.name)
         : field.required && !field.required_group;
       if (required && !field.configured && !hasValue(fieldValue(field))) {
         currentSection.value = section.id;
@@ -316,13 +298,6 @@ async function submit() {
       sections: selectedSections.value,
       configuration: payloadValues(),
     };
-
-    if (forced.value) {
-      await saveSetupConfiguration(submission);
-      saved.value = true;
-      configuration.value = await fetchSetupConfiguration();
-      return;
-    }
 
     const admin = sections.value.find((section) => section.id === "first_admin");
     const username = textFieldValue(
@@ -389,14 +364,6 @@ async function submit() {
             added or removed without changing this Vue component.
           </p>
 
-          <div v-if="forced" class="forced-banner">
-            <strong>STARTUP_UI=forced</strong>
-            <span>
-              Configuration is available after installation. The first
-              administrator cannot be recreated from this screen.
-            </span>
-          </div>
-
           <div class="section-list">
             <article v-for="section in requiredSections" :key="section.id" class="section-choice required">
               <div>
@@ -445,14 +412,6 @@ async function submit() {
             </div>
             <span class="badge">{{ statusLabel(current) }}</span>
           </header>
-
-          <div
-            v-if="current.id === 'oidc' && !oidcEnabled"
-            class="info-banner"
-          >
-            OIDC is disabled. Provider fields may be saved partially so they
-            can be completed later, but they will not be used for login.
-          </div>
 
           <div class="field-groups">
             <section
