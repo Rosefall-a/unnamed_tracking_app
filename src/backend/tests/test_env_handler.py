@@ -153,3 +153,32 @@ def test_oidc_section_is_environment_configured_when_any_oidc_value_is_supplied(
     handler = EnvConfigHandler({"OIDC_ENABLED": "true"})
     section = next(section for section in handler.setup_schema() if section["id"] == "oidc")
     assert section["env_configured"] is True
+
+
+def test_database_url_satisfies_required_database_group():
+    handler = EnvConfigHandler({
+        "DATABASE_URL": "postgresql+psycopg://archive:secret@db:5432/archive",
+    })
+    assert not any(issue.name == "database" and issue.severity == "error" for issue in handler.validate())
+
+
+def test_database_url_satisfies_group_even_with_partial_postgres_components():
+    handler = EnvConfigHandler({
+        "POSTGRES_USER": "archive",
+        "DATABASE_URL": "postgresql+psycopg://archive:secret@db:5432/archive",
+    })
+    assert not any(issue.name == "database" and issue.severity == "error" for issue in handler.validate())
+
+
+def test_required_group_metadata_is_exposed_to_generated_schema():
+    handler = EnvConfigHandler({
+        "POSTGRES_USER": "archive",
+        "POSTGRES_PASSWORD": "secret",
+        "POSTGRES_DB": "archive",
+    })
+    database = next(section for section in handler.setup_schema() if section["id"] == "database")
+    groups = {field["name"]: field["required_group"] for field in database["fields"]}
+    assert groups["POSTGRES_USER"] == "database:postgres"
+    assert groups["POSTGRES_PASSWORD"] == "database:postgres"
+    assert groups["POSTGRES_DB"] == "database:postgres"
+    assert groups["DATABASE_URL"] == "database:url"
