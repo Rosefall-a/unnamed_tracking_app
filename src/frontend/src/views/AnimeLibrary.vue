@@ -2,7 +2,7 @@
 import { ref, computed, onMounted } from "vue";
 import { useKeptAlive } from "../utils/useKeptAlive";
 import {
-  fetchAnime,
+  fetchAnimePage,
   updateAnime,
   deleteAnime,
   animeToInput,
@@ -116,12 +116,35 @@ const items = computed(() => shows.value.map(toVM));
 
 // Only the very first load shows the loading state; a refresh when the
 // page comes back swaps data in quietly, so titles never blink away.
-async function load() {
+let loadRequest = 0;
+const total = ref(0);
+const statusCounts = ref<Record<string, number>>({});
+const pageSize = 100;
+const currentSearch = ref("");
+async function load(search = "") {
+  currentSearch.value = search;
+  const request = ++loadRequest;
   if (!shows.value.length) loading.value = true;
   try {
-    shows.value = await fetchAnime();
+    const page = await fetchAnimePage(0, pageSize, search);
+    if (request !== loadRequest) return;
+    shows.value = page.items;
+    total.value = page.total;
+    statusCounts.value = page.statusCounts;
   } catch (e) {
     error.value = e instanceof Error ? e.message : "Failed to load anime.";
+  } finally {
+    loading.value = false;
+  }
+}
+async function loadMore() {
+  if (loading.value || shows.value.length >= total.value) return;
+  loading.value = true;
+  try {
+    const page = await fetchAnimePage(shows.value.length, pageSize, currentSearch.value);
+    shows.value.push(...page.items);
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "Failed to load more anime.";
   } finally {
     loading.value = false;
   }
@@ -315,11 +338,15 @@ function detailRoute(id: string): string {
     kind="anime"
     add-label="+ Add Anime"
     :items="items"
+    :total="total"
+    :status-counts="statusCounts"
     :loading="loading"
     :error="error"
     :detail-route="detailRoute"
     :search="search"
     :create-from-result="createFromResult"
+    @search="load"
+    @load-more="loadMore"
     @toggle-favorite="onToggleFavorite"
     @advance-episode="onAdvanceEpisode"
     @save-note="onSaveNote"

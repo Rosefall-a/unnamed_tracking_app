@@ -37,7 +37,7 @@ jobs:
           git diff --quiet || echo "changes=true" >> "$GITHUB_OUTPUT"
 
       - name: Commit formatting changes
-        if: steps.diff.outputs.changes == 'true'
+        if: steps.diff.outputs.changes == 'true' && github.event_name == 'pull_request' && github.head_repository.full_name == github.repository
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
