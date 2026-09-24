@@ -114,6 +114,7 @@ _OIDC_ENV_LOCKED_FIELDS = {
     "oidc_admin_group",
     "oidc_user_match_field",
     "oidc_allow_new_users",
+    "oidc_enabled",
 }
 
 
