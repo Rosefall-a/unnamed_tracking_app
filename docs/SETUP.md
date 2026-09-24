@@ -14,7 +14,7 @@ The setup page is generated from the backend configuration registry. It starts w
 8. The user can add or remove optional sections; `required` overrides `default`, so required sections cannot be removed.
 9. The generic renderer displays fields according to their registry type.
 10. On first setup, selected configuration is saved and the first administrator is created.
-11. The startup/configuration UI is shown on every application startup by default, including after the first administrator exists. Set `STARTUP_UI=disabled` or `STARTUP_UI=false` to disable this behavior. `STARTUP_UI=forced` remains supported and keeps the same post-install configuration behavior; it cannot create another administrator.
+11. The startup/configuration UI is shown on every application startup by default, including after the first administrator exists. Set `STARTUP_UI=disabled` or `STARTUP_UI=false` to disable this behavior. After the first administrator exists, the page is a configuration editor and saving requires an authenticated administrator.
 
 Secrets are never returned. A configured secret appears as a configured field with an empty password input.
 
