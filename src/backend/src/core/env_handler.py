@@ -328,10 +328,6 @@ class EnvConfigHandler:
                     if not str(values.get(name) or "").strip():
                         issues.append(ConfigIssue("oidc", "error", f"OIDC issuer is configured but {name} is missing.", recoverable=False))
 
-        startup_mode = str(values.get("STARTUP_MODE") or "").strip().lower()
-        if startup_mode not in {"", "dev", "development", "testing"}:
-            issues.append(ConfigIssue("STARTUP_MODE", "error", "STARTUP_MODE must be empty, dev, development, or testing.", recoverable=False))
-
         return issues
 
     def startup_summary(self) -> dict[str, Any]:
