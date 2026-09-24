@@ -35,6 +35,7 @@ class ConfigSpec:
     secret: bool = False
     generated: bool = False
     description: str = ""
+    deprecated: bool = False
 
 
 CONFIG_REGISTRY: tuple[ConfigSpec, ...] = (
@@ -43,6 +44,7 @@ CONFIG_REGISTRY: tuple[ConfigSpec, ...] = (
     ConfigSpec("POSTGRES_DB", source=ConfigSource.ENV, required=True),
     ConfigSpec("POSTGRES_HOST", source=ConfigSource.ENV, default="db"),
     ConfigSpec("POSTGRES_PORT", source=ConfigSource.ENV, default=5432),
+    ConfigSpec("DATABASE_URL", source=ConfigSource.ENV, deprecated=True, description="Legacy database connection string."),
     ConfigSpec(
         "SECRET_KEY",
         source=ConfigSource.ENV,
