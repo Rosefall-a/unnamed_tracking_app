@@ -319,7 +319,7 @@ async def _complete_callback(request, db, config, client_name):
 
 @router.get("/callback", name="oidc_callback")
 async def oidc_callback(request: Request, db: AsyncSession = Depends(get_db)):
-    config = await _get_config(db)
+    config = await _get_config(db, request)
     if config is None:
         return RedirectResponse("/login?oidc_error=not_configured", 303)
     return await _complete_callback(request, db, config, "oidc")
