@@ -180,7 +180,7 @@ Application-owned secrets saved by setup are encrypted with `encrypt_secret()` b
 - When enabled, selecting OIDC for setup requires issuer URL, client ID, and client secret.
 - When disabled, incomplete credentials are allowed and can be completed later.
 - When disabled, OIDC login is not used.
-- The OIDC section is selected by default, but remains removable because it is optional. If any OIDC environment variable is supplied, it is also surfaced automatically. If OIDC_ENABLED is supplied through .env, it is locked and wins over the database value.
+- The OIDC section is selected by default, but remains removable because it is optional. If any OIDC environment variable is supplied, it is also surfaced automatically. Selecting OIDC during setup means it is enabled once complete provider credentials are saved; there is no separate enable switch in the setup flow.
 - `OIDC_REDIRECT_URI` is generated from the current application URL and the `/api/auth/oidc/callback` route. It is displayed read-only in setup and is not accepted as a user-defined setup value. Runtime OIDC configuration also derives the redirect URI from the current request, so a stale saved URI cannot override the current address.
 - Named OIDC providers similarly derive `/api/auth/oidc/callback/<provider-slug>` from the current request.
 
