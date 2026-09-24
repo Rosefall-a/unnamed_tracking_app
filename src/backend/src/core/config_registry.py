@@ -34,6 +34,7 @@ class ConfigSectionSpec:
     description: str
     order: int
     required: bool = False
+    default: bool = False
     removable: bool = True
     visible: bool = True
     # Optional navigation/menu grouping. Multiple sections may share one menu
@@ -48,6 +49,7 @@ class ConfigSpec:
     source: ConfigSource = ConfigSource.BOTH
     input_type: str = "text"
     label: str = ""
+    heading: str = ""
     description: str = ""
     hint: str = ""
     placeholder: str = ""
@@ -93,6 +95,7 @@ CONFIG_SECTIONS: tuple[ConfigSectionSpec, ...] = (
         20,
         required=False,
         removable=False,
+        default=True,
     ),
     ConfigSectionSpec(
         "api_keys",
@@ -190,7 +193,7 @@ CONFIG_REGISTRY: tuple[ConfigSpec, ...] = (
     ConfigSpec(
         "AUTH_COOKIE_SECURE",
         "general",
-        ConfigSource.ENV,
+        ConfigSource.BOTH,
         label="Secure authentication cookies",
         input_type="boolean",
         default=False,
@@ -199,7 +202,7 @@ CONFIG_REGISTRY: tuple[ConfigSpec, ...] = (
     ConfigSpec(
         "DEBUG",
         "general",
-        ConfigSource.ENV,
+        ConfigSource.BOTH,
         label="Debug mode",
         input_type="boolean",
         default=False,
