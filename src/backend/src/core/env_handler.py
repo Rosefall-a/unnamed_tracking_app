@@ -9,7 +9,9 @@ Secrets are represented only by a configured flag.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
+import os
 
 from dotenv import dotenv_values
 
@@ -28,10 +30,22 @@ class ConfigIssue:
 class EnvConfigHandler:
     """Resolve declared configuration and report dependency-aware issues."""
 
+    @staticmethod
+    def _find_env_file() -> str:
+        explicit = os.getenv("ENV_FILE", "").strip()
+        if explicit:
+            return explicit
+        current = Path.cwd().resolve()
+        for directory in (current, *current.parents):
+            candidate = directory / ".env"
+            if candidate.is_file():
+                return str(candidate)
+        return ".env"
+
     def __init__(self, environ: dict[str, str] | None = None) -> None:
         file_values = {
             str(key).upper(): str(value)
-            for key, value in dotenv_values(".env").items()
+            for key, value in dotenv_values(self._find_env_file()).items()
             if value is not None
         }
         file_values.update({str(key).upper(): str(value) for key, value in (environ or {}).items()})
@@ -124,6 +138,7 @@ class EnvConfigHandler:
             required_configured = 0
             env_configured_required = 0
             env_only_missing_required = 0
+            required_groups: dict[str, dict[str, list[tuple[Any, bool, bool]]]] =
 
             for spec in CONFIG_REGISTRY:
                 if spec.section != section.id or spec.name == "VITE_USE_MOCK_DATA":
@@ -157,7 +172,10 @@ class EnvConfigHandler:
 
                 if configured:
                     configured_count += 1
-                if required:
+                if spec.required_group:
+                    group, _, variant = spec.required_group.partition(":")
+                    required_groups.setdefault(group, {}).setdefault(variant or "default", []).append((spec, configured, env_set))
+                elif required:
                     required_fields += 1
                     if spec.source is ConfigSource.ENV and not env_set:
                         env_only_missing_required += 1
@@ -175,6 +193,7 @@ class EnvConfigHandler:
                     "hint": spec.hint,
                     "placeholder": spec.placeholder,
                     "required": required,
+                    "required_group": spec.required_group,
                     "secret": spec.secret,
                     "generated": spec.generated,
                     "deprecated": spec.deprecated,
@@ -187,8 +206,30 @@ class EnvConfigHandler:
                     "value": value,
                 })
 
+            group_satisfied: dict[str, str | None] = {}
+            for group, variants in required_groups.items():
+                group_satisfied[group] = next(
+                    (variant for variant, members in variants.items() if all(configured for _, configured, _ in members)),
+                    None,
+                )
+                if group_satisfied[group] is None and all(
+                    spec.source is ConfigSource.ENV
+                    for members in variants.values()
+                    for spec, _, _ in members
+                ):
+                    env_only_missing_required += 1
+
             if env_only_missing_required:
                 status = "blocked_by_env"
+            elif required_fields and required_configured != required_fields:
+                status = "partial" if configured_count else "not_configured"
+            elif any(value is None for value in group_satisfied.values()):
+                status = "partial" if configured_count else "not_configured"
+            elif required_groups and all(
+                variant is not None and all(env_set for _, _, env_set in required_groups[group][variant])
+                for group, variant in group_satisfied.items()
+            ) and not required_fields:
+                status = "completed_by_env"
             elif required_fields and required_configured == required_fields:
                 status = "completed_by_env" if env_configured_required == required_fields else "configured"
             elif configured_count:
@@ -221,13 +262,26 @@ class EnvConfigHandler:
         values = self.resolved()
         issues: list[ConfigIssue] = []
 
-        database_names = ("POSTGRES_USER", "POSTGRES_PASSWORD", "POSTGRES_DB")
-        missing_db = [name for name in database_names if not str(values.get(name) or "").strip()]
-        legacy_database_url = str(self.environ.get("DATABASE_URL") or "").strip()
-        if missing_db and not legacy_database_url:
-            issues.append(ConfigIssue("database", "error", "Database configuration is incomplete: " + ", ".join(missing_db), recoverable=False))
-        elif legacy_database_url and missing_db == list(database_names):
-            issues.append(ConfigIssue("database", "warning", "DATABASE_URL is deprecated; use POSTGRES_USER, POSTGRES_PASSWORD, and POSTGRES_DB."))
+        required_groups: dict[str, dict[str, list[str]]] = {}
+        for spec in CONFIG_REGISTRY:
+            if not spec.required_group:
+                continue
+            group, _, variant = spec.required_group.partition(":")
+            required_groups.setdefault(group, {}).setdefault(variant or "default", []).append(spec.name)
+
+        for group, variants in required_groups.items():
+            satisfied = next(
+                (variant for variant, names in variants.items() if all(str(values.get(name) or "").strip() for name in names)),
+                None,
+            )
+            if satisfied is not None:
+                if group == "database" and satisfied == "url":
+                    issues.append(ConfigIssue("database", "warning", "DATABASE_URL is deprecated; use POSTGRES_USER, POSTGRES_PASSWORD, and POSTGRES_DB."))
+                continue
+            if group == "database":
+                issues.append(ConfigIssue("database", "error", "Database configuration is required. Configure either POSTGRES_USER, POSTGRES_PASSWORD, and POSTGRES_DB OR DATABASE_URL.", recoverable=False))
+            else:
+                issues.append(ConfigIssue(group, "error", "Required configuration group is incomplete.", recoverable=False))
 
         primary_names = ("PRIMARY_USER_USERNAME", "PRIMARY_USER_EMAIL", "PRIMARY_USER_PASSWORD")
         primary_present = [bool(str(values.get(name) or "").strip()) for name in primary_names]
