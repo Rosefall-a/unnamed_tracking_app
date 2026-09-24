@@ -5,6 +5,7 @@ from collections import Counter
 from pathlib import Path
 
 from cryptography.fernet import Fernet
+from dotenv import dotenv_values
 
 
 def _app_data_dir() -> Path:
@@ -36,7 +37,7 @@ def persistent_fernet_key() -> str:
     silent loss of encrypted application secrets.
     """
     paths = _paths()
-    env_key = os.getenv("SECRET_KEY", "").strip()
+    env_key = os.getenv("SECRET_KEY", "").strip() or str(dotenv_values(".env").get("SECRET_KEY") or "").strip()
 
     valid: list[str] = []
     for path in paths:
