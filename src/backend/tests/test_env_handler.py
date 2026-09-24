@@ -182,3 +182,31 @@ def test_required_group_metadata_is_exposed_to_generated_schema():
     assert groups["POSTGRES_PASSWORD"] == "database:postgres"
     assert groups["POSTGRES_DB"] == "database:postgres"
     assert groups["DATABASE_URL"] == "database:url"
+
+
+def test_default_selected_section_is_exposed_and_required_sections_override_it():
+    sections = {section["id"]: section for section in EnvConfigHandler({}).setup_schema()}
+    assert sections["oidc"]["default_selected"] is True
+    assert sections["first_admin"]["default_selected"] is True
+    assert sections["api_keys"]["default_selected"] is False
+
+
+def test_generated_values_are_exposed_as_locked_setup_fields():
+    handler = EnvConfigHandler()
+    sections = {section["id"]: section for section in handler.setup_schema(
+        generated_values={"OIDC_REDIRECT_URI": "https://archive.example/api/auth/oidc/callback"}
+    )}
+    redirect = next(field for field in sections["oidc"]["fields"] if field["name"] == "OIDC_REDIRECT_URI")
+    assert redirect["value"] == "https://archive.example/api/auth/oidc/callback"
+    assert redirect["source"] == "generated"
+    assert redirect["generated"] is True
+    assert redirect["locked"] is True
+
+
+def test_field_headings_are_exposed():
+    handler = EnvConfigHandler()
+    general = next(section for section in handler.setup_schema() if section["id"] == "general")
+    fields = {field["name"]: field for field in general["fields"]}
+    assert fields["DEBUG"]["heading"] == "Debug mode"
+    assert fields["MAX_UPLOAD_SIZE_MB"]["heading"] == "Max sizes"
+    assert fields["MAX_SAVE_ARCHIVE_SIZE_MB"]["heading"] == "Max sizes"
