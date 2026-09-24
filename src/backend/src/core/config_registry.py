@@ -61,7 +61,7 @@ class ConfigSpec:
     development_default: Any = None
     testing_default: Any = None
     required: bool = False
-    required_group: str = None
+    required_group: str | None = None
     secret: bool = False
     generated: bool = False
     deprecated: bool = False
