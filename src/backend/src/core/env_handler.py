@@ -67,14 +67,6 @@ class EnvConfigHandler:
             return DefaultMode.TESTING
         return DefaultMode.DEFAULT
 
-    @staticmethod
-    def _bool(value: Any, default: bool = False) -> bool:
-        if isinstance(value, bool):
-            return value
-        if value is None:
-            return default
-        return str(value).strip().lower() in {"1", "true", "yes", "on"}
-
     def has(self, name: str) -> bool:
         return bool(self.environ.get(name, "").strip())
 
