@@ -179,7 +179,7 @@ class EnvConfigHandler:
                     "generated": spec.generated,
                     "deprecated": spec.deprecated,
                     "deprecated_message": spec.deprecated_message if spec.deprecated else "",
-                    "visible": spec.visible and not spec.secret,
+                    "visible": spec.visible and not (spec.source is ConfigSource.ENV and spec.secret),
                     "env_only": spec.source is ConfigSource.ENV,
                     "locked": spec.source is ConfigSource.ENV or env_set,
                     "configured": configured,
@@ -204,6 +204,7 @@ class EnvConfigHandler:
                 "removable": section.removable,
                 "status": status,
                 "blocked": env_only_missing_required > 0,
+                "env_configured": any(field["env_only"] and field["configured"] for field in fields),
                 "blocked_message": (
                     "This section has required deployment-only values missing from .env: "
                     + ", ".join(
