@@ -10,7 +10,7 @@ import {
   type SetupField,
   type SetupSection,
 } from "../services/setup";
-import { checkAuth } from "../state/auth";
+import { currentUser, checkAuth } from "../state/auth";
 
 const route = useRoute();
 const router = useRouter();
@@ -21,11 +21,7 @@ const values = ref<Record<string, unknown>>({});
 const currentSection = ref("welcome");
 const loading = ref(true);
 const saving = ref(false);
-const error = ref<string | null>(
-  route.query.backend_error
-    ? "The backend is not ready yet. Reload once it is available."
-    : null,
-);
+const error = ref<string | null>(null);
 const saved = ref(false);
 
 const sections = computed(() => (configuration.value?.sections ?? []).filter((section) => section.visible));
@@ -174,10 +170,24 @@ onMounted(async () => {
       fetchSetupConfiguration(),
     ]);
 
-    if (!status.setup_required) {
+    if (!status.setup_required && !status.startup_ui_enabled) {
       await checkAuth();
       await router.replace("/");
       return;
+    }
+
+    if (!status.setup_required) {
+      await checkAuth();
+      if (!currentUser.value) {
+        await router.replace("/login");
+        return;
+      }
+    }
+
+    if (route.query.backend_error) {
+      const query = { ...route.query };
+      delete query.backend_error;
+      await router.replace({ path: "/setup", query });
     }
 
     initialize(config);
@@ -256,7 +266,6 @@ async function submit() {
   saved.value = false;
 
   for (const section of selected.value) {
-    if (section.id === "first_admin" && forced.value) continue;
     const groupVariants = new Map<string, SetupField[]>();
     for (const field of visibleFields(section)) {
       if (field.required_group) {
@@ -298,6 +307,13 @@ async function submit() {
       sections: selectedSections.value,
       configuration: payloadValues(),
     };
+
+    if (configuration.value && !(await fetchSetupStatus()).setup_required) {
+      await saveSetupConfiguration(submission);
+      saved.value = true;
+      configuration.value = await fetchSetupConfiguration();
+      return;
+    }
 
     const admin = sections.value.find((section) => section.id === "first_admin");
     const username = textFieldValue(
