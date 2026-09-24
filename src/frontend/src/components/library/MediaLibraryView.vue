@@ -324,7 +324,10 @@ function computedRank(it: LibraryCardVM): number | null {
   return rankByItemId.value.get(it.id) ?? null;
 }
 
-const statusCounts = computed(() => ({ all: props.total, ...props.statusCounts }));
+const statusCounts = computed<Record<string, number>>(() => ({
+  all: props.total,
+  ...props.statusCounts,
+}));
 
 function progressPct(it: LibraryCardVM): number {
   if (!it.isEpisodic) return it.watched > 0 ? 100 : 0;
