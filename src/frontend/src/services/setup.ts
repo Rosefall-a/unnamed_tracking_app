@@ -60,7 +60,6 @@ export interface SetupConfiguration {
   startup_mode: string;
   startup_ui: "enabled" | "disabled";
   startup_ui_enabled: boolean;
-  forced: boolean;
 }
 
 export interface SetupOptions {
