@@ -61,7 +61,7 @@ class EnvConfigHandler:
     @staticmethod
     def _parse_mode(value: str) -> DefaultMode:
         normalized = value.strip().lower()
-        if normalized == "development":
+        if normalized in {"dev", "development"}:
             return DefaultMode.DEVELOPMENT
         if normalized == "testing":
             return DefaultMode.TESTING
@@ -83,12 +83,13 @@ class EnvConfigHandler:
         return spec.source in {ConfigSource.BOTH, source}
 
     def startup_ui_enabled(self) -> bool:
-        """Return whether the startup/setup UI should be shown on each application start.
+        """Return whether startup/setup UI should be shown for the current mode.
 
-        The UI is enabled by default. Explicit disabled/false values turn it off.
+        Development mode deliberately skips the setup UI. Testing and normal
+        modes show it so developers can exercise configuration while still
+        receiving development-friendly defaults in testing.
         """
-        value = str(self.get("STARTUP_UI") or "").strip().lower()
-        return value not in {"disabled", "false", "0", "no", "off"}
+        return self.mode is not DefaultMode.DEVELOPMENT
 
     def oidc_enabled(self, persisted: dict[str, Any] | None = None) -> bool:
         if self.has("OIDC_ENABLED"):
@@ -111,8 +112,13 @@ class EnvConfigHandler:
             return self._coerce(spec.input_type, raw)
         if self.mode is DefaultMode.DEVELOPMENT and spec.development_default is not None:
             return spec.development_default
-        if self.mode is DefaultMode.TESTING and spec.testing_default is not None:
-            return spec.testing_default
+        if self.mode is DefaultMode.TESTING:
+            if spec.testing_default is not None:
+                return spec.testing_default
+            if spec.development_default is not None:
+                return spec.development_default
+        if self.mode is DefaultMode.DEVELOPMENT and spec.development_default is not None:
+            return spec.development_default
         return spec.default
 
     @staticmethod
@@ -325,8 +331,8 @@ class EnvConfigHandler:
                         issues.append(ConfigIssue("oidc", "error", f"OIDC issuer is configured but {name} is missing.", recoverable=False))
 
         startup_mode = str(values.get("STARTUP_MODE") or "").strip().lower()
-        if startup_mode not in {"", "development", "testing"}:
-            issues.append(ConfigIssue("STARTUP_MODE", "error", "STARTUP_MODE must be empty, development, or testing.", recoverable=False))
+        if startup_mode not in {"", "dev", "development", "testing"}:
+            issues.append(ConfigIssue("STARTUP_MODE", "error", "STARTUP_MODE must be empty, dev, development, or testing.", recoverable=False))
 
         return issues
 
@@ -334,7 +340,6 @@ class EnvConfigHandler:
         issues = self.validate()
         return {
             "mode": self.mode.value,
-            "startup_ui": "enabled" if self.startup_ui_enabled() else "disabled",
             "ready": not any(issue.severity == "error" for issue in issues),
             "issues": [issue.__dict__ for issue in issues],
         }
