@@ -51,14 +51,6 @@ def test_oidc_missing_recommended_scope_is_warning():
     assert "email" in issue.message
 
 
-def test_oidc_can_be_disabled_with_partial_credentials():
-    handler = EnvConfigHandler({
-        "OIDC_ENABLED": "false",
-        "OIDC_ISSUER_URL": "https://login.example.test",
-    })
-    assert handler.oidc_enabled() is False
-    assert not any(issue.name == "oidc" and issue.severity == "error" for issue in handler.validate())
-
 
 def test_setup_schema_marks_environment_fields_locked_and_partial():
     handler = EnvConfigHandler({
@@ -187,6 +179,7 @@ def test_required_group_metadata_is_exposed_to_generated_schema():
 def test_default_selected_section_is_exposed_and_required_sections_override_it():
     sections = {section["id"]: section for section in EnvConfigHandler({}).setup_schema()}
     assert sections["oidc"]["default"] is True
+    assert all(field["name"] != "OIDC_ENABLED" for field in sections["oidc"]["fields"])
     assert sections["first_admin"]["default"] is True
     assert sections["api_keys"]["default"] is False
 
