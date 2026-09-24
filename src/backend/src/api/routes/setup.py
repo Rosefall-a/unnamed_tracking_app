@@ -40,6 +40,14 @@ class SetupRequest(BaseModel):
     oidc_groups_claim: str = "groups"
     oidc_admin_group: str | None = None
     oidc_user_match_field: str = "email"
+    oidc_allow_new_users: bool = True
+    oidc_button_text: str = "Continue with SSO"
+    oidc_button_image_url: str | None = None
+    oidc_button_color: str = "#d68a34"
+    oidc_provider_enabled: bool = True
+    oidc_show_on_login: bool = True
+    oidc_autostart_enabled: bool = True
+    oidc_default_login_method: str = "local"
 
     @field_validator("password")
     @classmethod
@@ -53,14 +61,37 @@ class SetupRequest(BaseModel):
             raise ValueError("OIDC user matching must be email or username.")
         return value
 
+    @field_validator("oidc_default_login_method")
+    @classmethod
+    def validate_oidc_default_login_method(cls, value: str) -> str:
+        if value not in {"local", "sso"}:
+            raise ValueError("OIDC default login method must be local or sso.")
+        return value
+
 
 @router.get("/configuration")
 async def setup_configuration() -> dict[str, object]:
-    """Return backend-owned setup metadata without exposing secret values."""
+    """Return setup metadata, resolved non-secret values, and environment locks."""
     from src.core.env_handler import EnvConfigHandler
 
     handler = EnvConfigHandler()
-    return {"settings": handler.setup_schema(), "startup_mode": handler.mode.value}
+    settings_data = []
+    for item in handler.setup_schema():
+        name = str(item["name"])
+        spec_value = handler.get(name)
+        env_set = handler.has(name)
+        item["locked"] = env_set
+        if not bool(item["secret"]):
+            item["resolved"] = spec_value
+            if env_set:
+                item["default"] = spec_value
+        settings_data.append(item)
+    return {
+        "settings": settings_data,
+        "startup_mode": handler.mode.value,
+        "startup_ui": "forced" if handler.startup_ui_forced else "auto",
+        "forced": handler.startup_ui_forced,
+    }
 
 
 @router.get("/status")
