@@ -58,9 +58,9 @@ def resolve_metadata_provider_credentials(
     """Resolve credentials using user > database > environment precedence.
 
     User credentials remain the most specific and therefore win. The
-    deployment-wide database row is the administrator-managed fallback.
-    Environment variables remain useful for bootstrap and installations that
-    have not configured the database row yet.
+    deployment-wide database row is the fallback when no environment value is set.
+    Environment values intentionally override setup/database values so deployment
+    administrators can centrally lock a credential source.
     """
     user_steamgriddb = user.steamgriddb_api_key if user else None
     user_retroachievements = user.retroachievements_api_key if user else None
@@ -71,44 +71,44 @@ def resolve_metadata_provider_credentials(
     return MetadataProviderCredentials(
         steamgriddb_api_key=_prefer(
             user_steamgriddb,
-            _decrypt(app_integrations.steamgriddb_api_key) if app_integrations else None,
             _ENVIRONMENT_FALLBACKS["steamgriddb_api_key"],
+            _decrypt(app_integrations.steamgriddb_api_key) if app_integrations else None,
         ),
         igdb_client_id=_prefer(
             app_integrations.igdb_client_id if app_integrations else None,
             _ENVIRONMENT_FALLBACKS["igdb_client_id"],
         ),
         igdb_client_secret=_prefer(
-            _decrypt(app_integrations.igdb_client_secret) if app_integrations else None,
             _ENVIRONMENT_FALLBACKS["igdb_client_secret"],
+            _decrypt(app_integrations.igdb_client_secret) if app_integrations else None,
         ),
         retroachievements_api_key=_prefer(
             user_retroachievements,
-            _decrypt(app_integrations.retroachievements_api_key) if app_integrations else None,
             _ENVIRONMENT_FALLBACKS["retroachievements_api_key"],
+            _decrypt(app_integrations.retroachievements_api_key) if app_integrations else None,
         ),
         giantbomb_api_key=_prefer(
             user_giantbomb,
-            _decrypt(app_integrations.giantbomb_api_key) if app_integrations else None,
             _ENVIRONMENT_FALLBACKS["giantbomb_api_key"],
+            _decrypt(app_integrations.giantbomb_api_key) if app_integrations else None,
         ),
         screenscraper_ssid=_prefer(
             user_screenscraper_ssid,
-            app_integrations.screenscraper_ssid if app_integrations else None,
             _ENVIRONMENT_FALLBACKS["screenscraper_ssid"],
+            app_integrations.screenscraper_ssid if app_integrations else None,
         ),
         screenscraper_sspassword=_prefer(
             user_screenscraper_password,
-            _decrypt(app_integrations.screenscraper_sspassword) if app_integrations else None,
             _ENVIRONMENT_FALLBACKS["screenscraper_sspassword"],
+            _decrypt(app_integrations.screenscraper_sspassword) if app_integrations else None,
         ),
         screenscraper_devid=_prefer(
-            app_integrations.screenscraper_devid if app_integrations else None,
             _ENVIRONMENT_FALLBACKS["screenscraper_devid"],
+            app_integrations.screenscraper_devid if app_integrations else None,
         ),
         screenscraper_devpassword=_prefer(
-            _decrypt(app_integrations.screenscraper_devpassword) if app_integrations else None,
             _ENVIRONMENT_FALLBACKS["screenscraper_devpassword"],
+            _decrypt(app_integrations.screenscraper_devpassword) if app_integrations else None,
         ),
         xbox_client_id=_prefer(
             user.xbox_client_id if user else None,
