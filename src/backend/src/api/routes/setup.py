@@ -114,8 +114,6 @@ def _persisted_values(app: AppIntegrationSettings, oidc: OidcSettings) -> dict[s
     values.update({
         "OIDC_PROVIDER_NAME": provider_name,
         "OIDC_PROVIDER_SLUG": provider_slug,
-        "OIDC_ENABLED": oidc.enabled,
-        "OIDC_ENABLED__configured": bool(oidc.issuer_url or oidc.client_id or oidc.client_secret or oidc.providers_json),
         "OIDC_ISSUER_URL": oidc.issuer_url,
         "OIDC_CLIENT_ID": oidc.client_id,
         "OIDC_CLIENT_SECRET__configured": bool(oidc.client_secret),
@@ -144,7 +142,6 @@ async def _configuration(db: AsyncSession, request: Request) -> dict[str, Any]:
         "startup_mode": handler.mode.value,
         "startup_ui": "enabled" if handler.startup_ui_enabled() else "disabled",
         "startup_ui_enabled": handler.startup_ui_enabled(),
-        "forced": handler.startup_ui_forced,
     }
 
 
@@ -201,8 +198,6 @@ async def _save_configuration(
             "OIDC_DEFAULT_LOGIN_METHOD": "default_login_method",
             "OIDC_LOGIN_BUTTON_TEXT": "login_button_text",
         }
-        if "OIDC_ENABLED" in values and not handler.has("OIDC_ENABLED"):
-            oidc.enabled = bool(values["OIDC_ENABLED"])
         for name, attribute in oidc_fields.items():
             if handler.has(name):
                 # Environment overrides remain authoritative, but mirror them into
@@ -248,10 +243,11 @@ async def _save_configuration(
             })
             oidc.providers_json = json.dumps(providers)
 
-        if not oidc.enabled:
-            # Keep partial credentials for later completion, but do not make
-            # them usable for login until the administrator enables OIDC.
-            return
+        # Selecting OIDC in setup means it is being configured and therefore
+        # enables it once a complete provider has been supplied. An explicit
+        # deployment environment value remains authoritative.
+        if not handler.has("OIDC_ENABLED"):
+            oidc.enabled = True
 
         missing = [
             name
@@ -319,17 +315,11 @@ async def setup_admin(
     if not username or not email or not password:
         raise HTTPException(status_code=400, detail="Username, email, and password are required.")
 
-    # OIDC is optional as a section. If it is selected, its enabled switch
-    # defaults to true; if it is explicitly disabled, incomplete credentials
-    # are accepted and can be finished later from Settings.
+    # OIDC is optional as a section. Selecting it means it is being configured
+    # and will enable OIDC after complete provider credentials are saved.
     selected = set(payload.sections)
-    if handler.has("OIDC_ENABLED"):
-        values["OIDC_ENABLED"] = handler.get("OIDC_ENABLED")
     if any(handler.has(spec.name) for spec in CONFIG_REGISTRY if spec.name.startswith("OIDC_")):
         selected.add("oidc")
-
-    if "oidc" in selected and "OIDC_ENABLED" not in values:
-        values["OIDC_ENABLED"] = True
 
     await _save_configuration(db, values, selected, str(request.url_for("oidc_callback")))
     await db.flush()
