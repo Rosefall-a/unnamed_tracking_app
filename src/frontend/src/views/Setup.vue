@@ -455,58 +455,68 @@ async function submit() {
           </div>
 
           <div class="field-groups">
-            <section v-for="group in fieldGroups(current)" :key="group.heading ?? '__unheaded'" class="field-group">
+            <section
+              v-for="group in fieldGroups(current)"
+              :key="group.heading ?? '__unheaded'"
+              class="field-group"
+            >
               <h3 v-if="group.heading">{{ group.heading }}</h3>
               <div class="fields">
-            <label v-for="field in group.fields" :key="field.name">
-              <span>
-                {{ field.label }}
-                <b v-if="fieldRequired(field)" class="required-mark">*</b>
-                <em v-if="field.locked">Managed by .env</em>
-              </span>
+                <label v-for="field in group.fields" :key="field.name">
+                  <span>
+                    {{ field.label }}
+                    <b v-if="fieldRequired(field)" class="required-mark">*</b>
+                    <em v-if="field.locked && !field.generated">Managed by .env</em>
+                    <em v-if="field.generated">Generated automatically</em>
+                  </span>
 
-              <select
-                v-if="field.type === 'choice'"
-                :value="fieldValue(field) as string"
-                :disabled="field.locked"
-                @change="setField(field, ($event.target as HTMLSelectElement).value)"
-              >
-                <option
-                  v-for="choice in field.choices"
-                  :key="choice.value"
-                  :value="choice.value"
-                >
-                  {{ choice.label }}
-                </option>
-              </select>
+                  <select
+                    v-if="field.type === 'choice'"
+                    :value="fieldValue(field) as string"
+                    :disabled="field.locked"
+                    @change="setField(field, ($event.target as HTMLSelectElement).value)"
+                  >
+                    <option
+                      v-for="choice in field.choices"
+                      :key="choice.value"
+                      :value="choice.value"
+                    >
+                      {{ choice.label }}
+                    </option>
+                  </select>
 
-              <input
-                v-else-if="field.type === 'boolean'"
-                :checked="Boolean(fieldValue(field))"
-                type="checkbox"
-                :disabled="field.locked"
-                @change="setField(field, ($event.target as HTMLInputElement).checked)"
-              />
+                  <input
+                    v-else-if="field.type === 'boolean'"
+                    :checked="Boolean(fieldValue(field))"
+                    type="checkbox"
+                    :disabled="field.locked"
+                    @change="setField(field, ($event.target as HTMLInputElement).checked)"
+                  />
 
-              <input
-                v-else
-                :value="inputValue(field)"
-                :type="inputType(field)"
-                :placeholder="fieldPlaceholder(field)"
-                :required="fieldRequired(field) && !field.configured"
-                :disabled="field.locked || (field.generated && field.configured)"
-                @input="setField(field, ($event.target as HTMLInputElement).value)"
-              />
+                  <input
+                    v-else
+                    :value="inputValue(field)"
+                    :type="inputType(field)"
+                    :placeholder="fieldPlaceholder(field)"
+                    :required="fieldRequired(field) && !field.configured"
+                    :disabled="field.locked || (field.generated && field.configured)"
+                    @input="setField(field, ($event.target as HTMLInputElement).value)"
+                  />
 
-              <small v-if="field.description">{{ field.description }}</small>
-              <small v-if="field.hint">{{ field.hint }}</small>
-              <small v-if="field.env_only && !field.configured" class="env-help">
-                This flag must be changed in .env. It is deployment-only.
-              </small>
-              <small v-else-if="field.locked" class="env-help">
-                This value comes from the deployment environment and cannot be changed here.
-              </small>
-            </label>
+                  <small v-if="field.description">{{ field.description }}</small>
+                  <small v-if="field.hint">{{ field.hint }}</small>
+                  <small v-if="field.env_only && !field.configured" class="env-help">
+                    This flag must be changed in .env. It is deployment-only.
+                  </small>
+                  <small v-else-if="field.generated" class="env-help">
+                    This value is generated from the address currently used to access the application.
+                  </small>
+                  <small v-else-if="field.locked" class="env-help">
+                    This value comes from the deployment environment and cannot be changed here.
+                  </small>
+                </label>
+              </div>
+            </section>
           </div>
 
           <div v-if="error" class="error">{{ error }}</div>
