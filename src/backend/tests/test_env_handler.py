@@ -147,3 +147,9 @@ def test_deprecated_setting_exposes_replacement_message():
     assert field["deprecated_message"] == (
         "DATABASE_URL is deprecated; use POSTGRES_USER, POSTGRES_PASSWORD, and POSTGRES_DB instead."
     )
+
+
+def test_oidc_section_is_environment_configured_when_any_oidc_value_is_supplied():
+    handler = EnvConfigHandler({"OIDC_ENABLED": "true"})
+    section = next(section for section in handler.setup_schema() if section["id"] == "oidc")
+    assert section["env_configured"] is True
