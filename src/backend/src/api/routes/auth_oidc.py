@@ -108,6 +108,8 @@ async def oidc_status(db: AsyncSession = Depends(get_db)):
     providers = []
     if row:
         for provider in _named_rows(row):
+            if provider.get("show_on_login", True) is False:
+                continue
             providers.append(
                 {
                     "name": provider.get("name", provider["slug"]),
