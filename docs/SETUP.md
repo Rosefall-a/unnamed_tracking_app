@@ -107,7 +107,7 @@ Set only some OIDC variables. Confirm:
 
 ### Default selection and headings
 
-Confirm optional sections marked `default_selected=True` start selected but can be removed, while required sections remain selected regardless of their default. Confirm fields without `heading` appear first and fields sharing the same heading are grouped under one heading without creating additional pages.
+Confirm optional sections marked `default=True` start selected but can be removed, while required sections remain selected regardless of their default. Confirm fields without `heading` appear first and fields sharing the same heading are grouped under one heading without creating additional pages.
 
 ### OIDC disabled
 
