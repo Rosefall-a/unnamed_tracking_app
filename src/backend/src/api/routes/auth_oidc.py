@@ -114,7 +114,7 @@ async def _get_config(db, request: Request, slug="default", require_autostart=Fa
 
 
 @router.get("/status")
-async def oidc_status(db: AsyncSession = Depends(get_db)):
+async def oidc_status(request: Request, db: AsyncSession = Depends(get_db)):
     row = await db.scalar(select(OidcSettings).limit(1))
     config = await _get_config(db, request)
     providers = []
