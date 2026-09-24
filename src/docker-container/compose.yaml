@@ -11,9 +11,8 @@ services:
       PRIMARY_USER_EMAIL: ${PRIMARY_USER_EMAIL:-admin@example.invalid}
       PRIMARY_USER_PASSWORD: ${PRIMARY_USER_PASSWORD:?Set PRIMARY_USER_PASSWORD in .env}
       AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:-false}
-    depends_on:
-      db:
-        condition: service_healthy
+    volumes:
+      - ./data:/data
 
   db:
     image: postgres:18
