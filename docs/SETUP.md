@@ -14,7 +14,7 @@ The setup page is generated from the backend configuration registry. It starts w
 8. The user can add or remove optional sections; `required` overrides `default`, so required sections cannot be removed.
 9. The generic renderer displays fields according to their registry type.
 10. On first setup, selected configuration is saved and the first administrator is created.
-11. The startup/configuration UI is shown on every application startup by default, including after the first administrator exists. Set `STARTUP_UI=disabled` or `STARTUP_UI=false` to disable this behavior. After the first administrator exists, the page is a configuration editor and saving requires an authenticated administrator.
+11. Startup behavior follows `STARTUP_MODE`. In `dev`/development mode, the setup/configuration UI is skipped after installation. In `testing` mode, the UI is shown and development defaults are used unless a testing-specific default exists. In normal mode (empty or unrecognized value), the UI is shown and normal defaults are used. After the first administrator exists, the page is a configuration editor and saving requires an authenticated administrator.
 
 Secrets are never returned. A configured secret appears as a configured field with an empty password input.
 
@@ -48,6 +48,18 @@ The redirect URI is not user-entered. Setup displays a read-only URI generated f
 
 Settings → OIDC / SSO continues to provide named providers, ordering, login presentation, login visibility, and autostart controls.
 
+## Startup modes
+
+`STARTUP_MODE` controls both the default profile and whether the startup configuration UI is shown:
+
+- `dev` or `development`: use development defaults and skip the setup/configuration UI after installation.
+- `testing`: show the setup/configuration UI; use a testing-specific default when one is defined, otherwise fall back to the development default, then the normal default.
+- Empty or any other value: show the setup/configuration UI and use normal defaults.
+
+Explicit values from the process environment or `.env` still override these mode defaults. Values entered or changed in the setup UI can override defaults for configuration that is owned by setup.
+
+There is no separate startup-UI environment variable.
+
 ## Example .env
 
 Copy example.env to .env and replace placeholders:
@@ -58,8 +70,8 @@ Copy example.env to .env and replace placeholders:
     POSTGRES_HOST=db
     POSTGRES_PORT=5432
 
-    # Optional: keep /setup available after installation.
-    # STARTUP_UI=forced
+    # Startup profile. Leave empty for normal behavior.
+    STARTUP_MODE=
 
     # Optional OIDC deployment ownership.
     # OIDC_ENABLED=true
@@ -113,15 +125,17 @@ Confirm optional sections marked `default=True` start selected but can be remove
 
 Select OIDC, turn Enable OIDC off, enter only an issuer URL, and save. The partial provider data should be accepted and OIDC login should remain disabled.
 
-### Forced setup
+### Startup mode checks
 
-After creating the administrator, set:
+After creating the administrator, verify each mode:
 
-    STARTUP_UI=forced
+- `STARTUP_MODE=dev` skips /setup and uses development defaults.
+- `STARTUP_MODE=testing` opens /setup and uses testing defaults where defined, otherwise development defaults.
+- An empty or unrecognized `STARTUP_MODE` opens /setup and uses normal defaults.
 
-and restart. Open /setup. The same dynamic configuration screen should appear, but no administrator fields should be recreated or submitted as a new account.
+Confirm an explicit value in `.env` still populates the corresponding field and takes precedence over the mode default.
 
-### Frontend mock mode
+## Frontend mock mode
 
 Set:
 
