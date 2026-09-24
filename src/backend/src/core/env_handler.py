@@ -85,15 +85,10 @@ class EnvConfigHandler:
     def startup_ui_enabled(self) -> bool:
         """Return whether the startup/setup UI should be shown on each application start.
 
-        The UI is enabled by default. Explicit disabled/false values turn it off;
-        forced remains supported as an enabled compatibility value.
+        The UI is enabled by default. Explicit disabled/false values turn it off.
         """
         value = str(self.get("STARTUP_UI") or "").strip().lower()
         return value not in {"disabled", "false", "0", "no", "off"}
-
-    @property
-    def startup_ui_forced(self) -> bool:
-        return str(self.get("STARTUP_UI") or "").strip().lower() == "forced"
 
     def oidc_enabled(self, persisted: dict[str, Any] | None = None) -> bool:
         if self.has("OIDC_ENABLED"):
