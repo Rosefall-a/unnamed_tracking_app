@@ -43,7 +43,6 @@ class SetupRequest(BaseModel):
 
     # Kept for compatibility with older setup clients. New clients submit the
     # registry-driven configuration object instead.
-    oidc_enabled: bool | None = None
     oidc_name: str | None = None
     oidc_issuer_url: str | None = None
     oidc_client_id: str | None = None
@@ -243,11 +242,10 @@ async def _save_configuration(
             })
             oidc.providers_json = json.dumps(providers)
 
-        # Selecting OIDC in setup means it is being configured and therefore
-        # enables it once a complete provider has been supplied. An explicit
-        # deployment environment value remains authoritative.
-        if not handler.has("OIDC_ENABLED"):
-            oidc.enabled = True
+        # Selecting OIDC in setup means it is being configured. There is no
+        # separate enable switch in setup, so a complete provider is enabled
+        # automatically.
+        oidc.enabled = True
 
         missing = [
             name
@@ -271,7 +269,6 @@ async def setup_status(db: AsyncSession = Depends(get_db)) -> dict[str, bool | s
         "setup_required": not has_user,
         "startup_ui": "enabled" if handler.startup_ui_enabled() else "disabled",
         "startup_ui_enabled": handler.startup_ui_enabled(),
-        "forced": handler.startup_ui_forced,
     }
 
 
