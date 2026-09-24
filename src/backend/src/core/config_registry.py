@@ -1,0 +1,104 @@
+"""Declarative application configuration metadata.
+
+The registry is the single place where backend-owned configuration declares its
+defaults, source policy, and validation requirements. Resolution is handled by
+EnvConfigHandler; account creation remains in the authentication/setup layer.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from enum import Enum
+from typing import Any
+
+
+class ConfigSource(str, Enum):
+    ENV = "env"
+    SETUP = "setup"
+    BOTH = "both"
+
+
+class DefaultMode(str, Enum):
+    DEFAULT = "default"
+    DEVELOPMENT = "development"
+    TESTING = "testing"
+
+
+@dataclass(frozen=True)
+class ConfigSpec:
+    name: str
+    source: ConfigSource = ConfigSource.BOTH
+    default: Any = None
+    development_default: Any = None
+    testing_default: Any = None
+    required: bool = False
+    secret: bool = False
+    generated: bool = False
+    description: str = ""
+
+
+CONFIG_REGISTRY: tuple[ConfigSpec, ...] = (
+    ConfigSpec(
+        "POSTGRES_USER",
+        default="archive",
+        required=True,
+        description="PostgreSQL username.",
+    ),
+    ConfigSpec(
+        "POSTGRES_PASSWORD",
+        required=True,
+        secret=True,
+        description="PostgreSQL password.",
+    ),
+    ConfigSpec(
+        "POSTGRES_DB",
+        default="archive",
+        required=True,
+        description="PostgreSQL database name.",
+    ),
+    ConfigSpec("POSTGRES_HOST", default="db"),
+    ConfigSpec("POSTGRES_PORT", default=5432),
+    ConfigSpec(
+        "SECRET_KEY",
+        source=ConfigSource.ENV,
+        secret=True,
+        generated=True,
+        description="Stable Fernet/session signing key; generated and persisted when omitted.",
+    ),
+    ConfigSpec("AUTH_COOKIE_SECURE", default=False),
+    ConfigSpec("DEBUG", default=False),
+    ConfigSpec(
+        "STARTUP_MODE",
+        source=ConfigSource.ENV,
+        default="",
+        description="Optional default profile: development, testing, or empty/default.",
+    ),
+    ConfigSpec("PRIMARY_USER_USERNAME", source=ConfigSource.BOTH, default=""),
+    ConfigSpec("PRIMARY_USER_EMAIL", source=ConfigSource.BOTH, default=""),
+    ConfigSpec("PRIMARY_USER_PASSWORD", source=ConfigSource.BOTH, secret=True, default=""),
+    ConfigSpec("MAX_UPLOAD_SIZE_MB", default=15),
+    ConfigSpec("MAX_SAVE_ARCHIVE_SIZE_MB", default=4096),
+    ConfigSpec("MAX_CLIP_SIZE_MB", default=500),
+    ConfigSpec("MAX_WORLD_SAVE_SIZE_MB", default=2000),
+    ConfigSpec("OIDC_ISSUER_URL", default=None),
+    ConfigSpec("OIDC_CLIENT_ID", default=None),
+    ConfigSpec("OIDC_CLIENT_SECRET", secret=True, default=None),
+    ConfigSpec("OIDC_REDIRECT_URI", default=None),
+    ConfigSpec("OIDC_SCOPES", default="openid profile email"),
+    ConfigSpec("OIDC_GROUPS_CLAIM", default="groups"),
+    ConfigSpec("OIDC_ADMIN_GROUP", default=None),
+    ConfigSpec("OIDC_USER_MATCH_FIELD", default="email"),
+    ConfigSpec(
+        "VITE_USE_MOCK_DATA",
+        source=ConfigSource.ENV,
+        default=False,
+        description="Frontend development/testing switch; never exposed as a setup setting.",
+    ),
+)
+
+
+def get_config_spec(name: str) -> ConfigSpec:
+    for spec in CONFIG_REGISTRY:
+        if spec.name == name:
+            return spec
+    raise KeyError(name)
