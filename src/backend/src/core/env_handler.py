@@ -204,7 +204,7 @@ class EnvConfigHandler:
                 "removable": section.removable,
                 "status": status,
                 "blocked": env_only_missing_required > 0,
-                "env_configured": any(field["env_only"] and field["configured"] for field in fields),
+                "env_configured": any(field["source"] == "env" and field["configured"] for field in fields),
                 "blocked_message": (
                     "This section has required deployment-only values missing from .env: "
                     + ", ".join(
