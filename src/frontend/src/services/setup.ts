@@ -21,6 +21,27 @@ export async function fetchSetupStatus(): Promise<SetupStatus> {
   return await response.json();
 }
 
+export interface SetupConfiguration {
+  settings: Array<{
+    name: string;
+    source: "env" | "setup" | "both";
+    default: unknown;
+    required: boolean;
+    generated: boolean;
+    secret: boolean;
+    deprecated?: boolean;
+    description: string;
+  }>;
+  startup_mode: string;
+}
+
+export async function fetchSetupConfiguration(): Promise<SetupConfiguration> {
+  const response = await fetch("/api/setup/configuration", { credentials: "include" });
+  if (!response.ok)
+    throw new Error(`Failed to load configuration defaults: ${response.status}`);
+  return await response.json();
+}
+
 export async function createInitialAdmin(
   username: string,
   email: string,
