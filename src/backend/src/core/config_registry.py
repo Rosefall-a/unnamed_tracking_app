@@ -37,9 +37,6 @@ class ConfigSectionSpec:
     default: bool = False
     removable: bool = True
     visible: bool = True
-    # Optional sections can opt into being selected on the Welcome screen by default.
-    # Required sections are always selected regardless of this value.
-    default_selected: bool = False
     # Optional navigation/menu grouping. Multiple sections may share one menu
     # identifier, allowing future multi-screen menus without changing the registry shape.
     menu: str | None = None
@@ -66,9 +63,6 @@ class ConfigSpec:
     generated: bool = False
     deprecated: bool = False
     deprecated_message: str = "This setting is deprecated and will be removed in a future release."
-    # Optional visual grouping inside a section. Unheaded fields render first;
-    # fields sharing a heading render together under one heading.
-    heading: str | None = None
     # visible controls whether the field appears in generated UI.
     # It is deliberately separate from source ownership: an ENV-owned boolean
     # can be visible/read-only, while a sensitive deployment field can be hidden entirely.
@@ -114,7 +108,7 @@ CONFIG_SECTIONS: tuple[ConfigSectionSpec, ...] = (
         "OpenID Connect / SSO",
         "Optional SSO configuration. OIDC is enabled by default, but disabling it permits a provider to be saved while it is only partially configured.",
         40,
-        default_selected=True,
+        default=True,
     ),
 )
 
