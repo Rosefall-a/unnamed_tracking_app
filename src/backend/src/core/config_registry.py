@@ -38,9 +38,9 @@ class ConfigSpec:
 
 
 CONFIG_REGISTRY: tuple[ConfigSpec, ...] = (
-    ConfigSpec("POSTGRES_USER", source=ConfigSource.ENV, default="archive", required=True),
+    ConfigSpec("POSTGRES_USER", source=ConfigSource.ENV, required=True),
     ConfigSpec("POSTGRES_PASSWORD", source=ConfigSource.ENV, required=True, secret=True),
-    ConfigSpec("POSTGRES_DB", source=ConfigSource.ENV, default="archive", required=True),
+    ConfigSpec("POSTGRES_DB", source=ConfigSource.ENV, required=True),
     ConfigSpec("POSTGRES_HOST", source=ConfigSource.ENV, default="db"),
     ConfigSpec("POSTGRES_PORT", source=ConfigSource.ENV, default=5432),
     ConfigSpec(
