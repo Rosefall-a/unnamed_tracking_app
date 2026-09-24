@@ -26,7 +26,7 @@ class EnvConfigHandler:
     """Resolve declared configuration and report dependency-aware issues."""
 
     def __init__(self, environ: dict[str, str] | None = None) -> None:
-        self.environ = dict(environ or {})
+        self.environ = {str(key).upper(): str(value) for key, value in (environ or {}).items()}
         self.mode = self._parse_mode(self.environ.get("STARTUP_MODE", ""))
 
     @staticmethod
@@ -42,7 +42,32 @@ class EnvConfigHandler:
         return bool(self.environ.get(name, "").strip())
 
     def source_allowed(self, name: str, source: ConfigSource) -> bool:
-        return source in {ConfigSource.BOTH, ConfigSource.ENV}
+        spec = next(spec for spec in CONFIG_REGISTRY if spec.name == name)
+        return spec.source in {ConfigSource.BOTH, source}
+
+    def bootstrap_primary_user(self) -> dict[str, str]:
+        """Return initial-admin inputs without creating or mutating a user record."""
+        return {
+            "username": str(self.get("PRIMARY_USER_USERNAME") or ""),
+            "email": str(self.get("PRIMARY_USER_EMAIL") or ""),
+            "password": str(self.get("PRIMARY_USER_PASSWORD") or ""),
+        }
+
+    def setup_schema(self) -> list[dict[str, Any]]:
+        """Return non-secret setup metadata; raw secrets are never exposed."""
+        return [
+            {
+                "name": spec.name,
+                "source": spec.source.value,
+                "default": None if spec.secret else self.get(spec.name),
+                "required": spec.required,
+                "generated": spec.generated,
+                "secret": spec.secret,
+                "description": spec.description,
+            }
+            for spec in CONFIG_REGISTRY
+            if spec.source in {ConfigSource.SETUP, ConfigSource.BOTH}
+        ]
 
     def get(self, name: str) -> Any:
         spec = next(spec for spec in CONFIG_REGISTRY if spec.name == name)
