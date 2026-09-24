@@ -226,7 +226,7 @@ export async function fetchAnimePage(
   offset = 0,
   limit = 100,
   search = "",
-): Promise<{ items: Anime[]; total: number; offset: number; limit: number }> {
+): Promise<{ items: Anime[]; total: number; offset: number; limit: number; statusCounts: Record<string, number> }> {
   const params = new URLSearchParams({
     skip: String(offset),
     limit: String(limit),
@@ -241,6 +241,7 @@ export async function fetchAnimePage(
     total: page.total,
     offset: page.offset,
     limit: page.limit,
+    statusCounts: page.status_counts,
   };
 }
 
