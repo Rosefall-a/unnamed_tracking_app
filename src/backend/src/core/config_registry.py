@@ -1,8 +1,11 @@
 """Declarative application configuration metadata.
 
-The registry is the single place where backend-owned configuration declares its
-defaults, source policy, and validation requirements. Resolution is handled by
-EnvConfigHandler; account creation remains in the authentication/setup layer.
+The registry is intentionally the single source of truth for configuration
+that can be presented by the setup/settings UI. The frontend receives sections,
+field types, labels, defaults, requirements, and source ownership from here.
+
+Runtime resolution is handled by EnvConfigHandler. Database persistence is
+described by the storage attribute and is applied by setup/settings routes.
 """
 
 from __future__ import annotations
@@ -25,98 +28,121 @@ class DefaultMode(str, Enum):
 
 
 @dataclass(frozen=True)
+class ConfigSectionSpec:
+    id: str
+    title: str
+    description: str
+    order: int
+    required: bool = False
+    removable: bool = True
+
+
+@dataclass(frozen=True)
 class ConfigSpec:
     name: str
+    section: str
     source: ConfigSource = ConfigSource.BOTH
+    input_type: str = "text"
+    label: str = ""
+    description: str = ""
+    hint: str = ""
+    placeholder: str = ""
+    choices: tuple[tuple[str, str], ...] = ()
     default: Any = None
     development_default: Any = None
     testing_default: Any = None
     required: bool = False
     secret: bool = False
     generated: bool = False
-    description: str = ""
     deprecated: bool = False
+    storage: str | None = None
 
 
+CONFIG_SECTIONS: tuple[ConfigSectionSpec, ...] = (
+    ConfigSectionSpec(
+        "database",
+        "Database",
+        "Deployment-owned PostgreSQL connection settings.",
+        10,
+        required=True,
+        removable=False,
+    ),
+    ConfigSectionSpec(
+        "first_admin",
+        "First administrator",
+        "Create the first local administrator. Environment-provided bootstrap values can complete this section automatically.",
+        20,
+        required=True,
+        removable=False,
+    ),
+    ConfigSectionSpec(
+        "api_keys",
+        "API keys",
+        "Optional deployment-wide metadata and integration credentials.",
+        30,
+    ),
+    ConfigSectionSpec(
+        "oidc",
+        "OpenID Connect / SSO",
+        "Optional SSO configuration. OIDC is enabled by default, but disabling it permits a provider to be saved while it is only partially configured.",
+        40,
+    ),
+)
+
+# Add a field here first when introducing a new deployment/setup variable.
+# docs/CONFIGURATION.md contains the complete workflow for wiring that variable
+# through resolution, validation, persistence, and the generated UI.
 CONFIG_REGISTRY: tuple[ConfigSpec, ...] = (
-    ConfigSpec("POSTGRES_USER", source=ConfigSource.ENV, required=True),
-    ConfigSpec("POSTGRES_PASSWORD", source=ConfigSource.ENV, required=True, secret=True),
-    ConfigSpec("POSTGRES_DB", source=ConfigSource.ENV, required=True),
-    ConfigSpec("POSTGRES_HOST", source=ConfigSource.ENV, default="db"),
-    ConfigSpec("POSTGRES_PORT", source=ConfigSource.ENV, default=5432),
-    ConfigSpec("DATABASE_URL", source=ConfigSource.ENV, deprecated=True, description="Legacy database connection string."),
-    ConfigSpec(
-        "SECRET_KEY",
-        source=ConfigSource.ENV,
-        secret=True,
-        generated=True,
-        description="Stable Fernet/session signing key; generated and persisted when omitted.",
-    ),
-    ConfigSpec("AUTH_COOKIE_SECURE", default=False),
-    ConfigSpec("DEBUG", default=False, development_default=True),
-    ConfigSpec(
-        "STARTUP_UI",
-        source=ConfigSource.ENV,
-        default="",
-        description="Optional startup UI policy; forced always exposes the setup/configuration UI.",
-    ),
-    ConfigSpec(
-        "STARTUP_MODE",
-        source=ConfigSource.ENV,
-        default="",
-        description="Optional profile: development, testing, or empty/default.",
-    ),
-    ConfigSpec(
-        "PRIMARY_USER_USERNAME",
-        default="",
-        development_default="admin",
-        source=ConfigSource.BOTH,
-    ),
-    ConfigSpec(
-        "PRIMARY_USER_EMAIL",
-        default="",
-        development_default="admin@localhost",
-        source=ConfigSource.BOTH,
-    ),
-    ConfigSpec(
-        "PRIMARY_USER_PASSWORD",
-        default="",
-        development_default="Admin123!",
-        source=ConfigSource.BOTH,
-        secret=True,
-    ),
-    ConfigSpec("MAX_UPLOAD_SIZE_MB", default=15),
-    ConfigSpec("MAX_SAVE_ARCHIVE_SIZE_MB", default=4096),
-    ConfigSpec("MAX_CLIP_SIZE_MB", default=500),
-    ConfigSpec("MAX_WORLD_SAVE_SIZE_MB", default=2000),
-    ConfigSpec("STEAMGRIDDB_API_KEY", secret=True, default=None),
-    ConfigSpec("RETROACHIEVEMENTS_API_KEY", secret=True, default=None),
-    ConfigSpec("GIANTBOMB_API_KEY", secret=True, default=None),
-    ConfigSpec("IGDB_CLIENT_ID", default=None),
-    ConfigSpec("IGDB_CLIENT_SECRET", secret=True, default=None),
-    ConfigSpec("TMDB_API_KEY", secret=True, default=None),
-    ConfigSpec("OMDB_API_KEY", secret=True, default=None),
-    ConfigSpec("TVDB_API_KEY", secret=True, default=None),
-    ConfigSpec("SCREENSCRAPER_DEVID", default=None),
-    ConfigSpec("SCREENSCRAPER_DEVPASSWORD", secret=True, default=None),
-    ConfigSpec("SCREENSCRAPER_SSID", default=None),
-    ConfigSpec("SCREENSCRAPER_SSPASSWORD", secret=True, default=None),
-    ConfigSpec("XBOX_CLIENT_ID", default=None),
-    ConfigSpec("XBOX_CLIENT_SECRET", secret=True, default=None),
-    ConfigSpec("OIDC_ISSUER_URL", default=None),
-    ConfigSpec("OIDC_CLIENT_ID", default=None),
-    ConfigSpec("OIDC_CLIENT_SECRET", secret=True, default=None),
-    ConfigSpec("OIDC_REDIRECT_URI", default=None),
-    ConfigSpec("OIDC_SCOPES", default="openid profile email"),
-    ConfigSpec("OIDC_GROUPS_CLAIM", default="groups"),
-    ConfigSpec("OIDC_ADMIN_GROUP", default=None),
-    ConfigSpec("OIDC_USER_MATCH_FIELD", default="email"),
-    ConfigSpec(
-        "VITE_USE_MOCK_DATA",
-        source=ConfigSource.ENV,
-        default=False,
-        description="Frontend development/testing switch; never exposed as a setup setting.",
-    ),
+    ConfigSpec("POSTGRES_USER", "database", ConfigSource.ENV, label="PostgreSQL user", required=True),
+    ConfigSpec("POSTGRES_PASSWORD", "database", ConfigSource.ENV, label="PostgreSQL password", input_type="secret", required=True, secret=True),
+    ConfigSpec("POSTGRES_DB", "database", ConfigSource.ENV, label="PostgreSQL database", required=True),
+    ConfigSpec("POSTGRES_HOST", "database", ConfigSource.ENV, label="PostgreSQL host", default="db"),
+    ConfigSpec("POSTGRES_PORT", "database", ConfigSource.ENV, label="PostgreSQL port", input_type="integer", default=5432),
+    ConfigSpec("DATABASE_URL", "database", ConfigSource.ENV, label="Legacy database URL", deprecated=True, description="Legacy compatibility setting; prefer the individual PostgreSQL variables."),
+    ConfigSpec("SECRET_KEY", "database", ConfigSource.ENV, label="Secret key", input_type="secret", secret=True, generated=True, description="Stable Fernet/session signing key; generated and persisted when omitted."),
+    ConfigSpec("AUTH_COOKIE_SECURE", "database", label="Secure authentication cookies", input_type="boolean", default=False, description="Use secure cookies when the application is served over HTTPS."),
+    ConfigSpec("DEBUG", "database", label="Debug mode", input_type="boolean", default=False, development_default=True),
+
+    ConfigSpec("PRIMARY_USER_USERNAME", "first_admin", label="Username", required=True, storage="bootstrap"),
+    ConfigSpec("PRIMARY_USER_EMAIL", "first_admin", label="Email", input_type="email", required=True, storage="bootstrap"),
+    ConfigSpec("PRIMARY_USER_PASSWORD", "first_admin", label="Password", input_type="secret", required=True, secret=True, storage="bootstrap"),
+
+    ConfigSpec("STEAMGRIDDB_API_KEY", "api_keys", label="SteamGridDB API key", input_type="secret", secret=True, storage="app_integration"),
+    ConfigSpec("RETROACHIEVEMENTS_API_KEY", "api_keys", label="RetroAchievements API key", input_type="secret", secret=True, storage="app_integration"),
+    ConfigSpec("GIANTBOMB_API_KEY", "api_keys", label="GiantBomb API key", input_type="secret", secret=True, storage="app_integration"),
+    ConfigSpec("IGDB_CLIENT_ID", "api_keys", label="IGDB client ID", storage="app_integration"),
+    ConfigSpec("IGDB_CLIENT_SECRET", "api_keys", label="IGDB client secret", input_type="secret", secret=True, storage="app_integration"),
+    ConfigSpec("TMDB_API_KEY", "api_keys", label="TMDB API key", input_type="secret", secret=True, storage="app_integration"),
+    ConfigSpec("OMDB_API_KEY", "api_keys", label="OMDB API key", input_type="secret", secret=True, storage="app_integration"),
+    ConfigSpec("TVDB_API_KEY", "api_keys", label="TVDB API key", input_type="secret", secret=True, storage="app_integration"),
+    ConfigSpec("SCREENSCRAPER_DEVID", "api_keys", label="ScreenScraper developer ID", storage="app_integration"),
+    ConfigSpec("SCREENSCRAPER_DEVPASSWORD", "api_keys", label="ScreenScraper developer password", input_type="secret", secret=True, storage="app_integration"),
+    ConfigSpec("SCREENSCRAPER_SSID", "api_keys", label="ScreenScraper session ID", storage="app_integration"),
+    ConfigSpec("SCREENSCRAPER_SSPASSWORD", "api_keys", label="ScreenScraper session password", input_type="secret", secret=True, storage="app_integration"),
+    ConfigSpec("XBOX_CLIENT_ID", "api_keys", label="Xbox client ID", storage="app_integration"),
+    ConfigSpec("XBOX_CLIENT_SECRET", "api_keys", label="Xbox client secret", input_type="secret", secret=True, storage="app_integration"),
+
+    ConfigSpec("OIDC_ENABLED", "oidc", label="Enable OIDC", input_type="boolean", default=True, description="When off, incomplete provider credentials are allowed and OIDC login remains disabled.", storage="oidc"),
+    ConfigSpec("OIDC_ISSUER_URL", "oidc", label="Issuer / discovery URL", input_type="url", placeholder="https://login.example.com/realms/archive", required=True, storage="oidc"),
+    ConfigSpec("OIDC_CLIENT_ID", "oidc", label="Client ID", required=True, storage="oidc"),
+    ConfigSpec("OIDC_CLIENT_SECRET", "oidc", label="Client secret", input_type="secret", secret=True, required=True, storage="oidc"),
+    ConfigSpec("OIDC_REDIRECT_URI", "oidc", label="Redirect URI", input_type="url", storage="oidc"),
+    ConfigSpec("OIDC_SCOPES", "oidc", label="Scopes", default="openid profile email", hint="Space-separated OIDC scopes.", storage="oidc"),
+    ConfigSpec("OIDC_GROUPS_CLAIM", "oidc", label="Groups claim", default="groups", storage="oidc"),
+    ConfigSpec("OIDC_ADMIN_GROUP", "oidc", label="Admin group", storage="oidc"),
+    ConfigSpec("OIDC_USER_MATCH_FIELD", "oidc", label="Match users by", input_type="choice", choices=(("email", "Email"), ("username", "Username")), default="email", storage="oidc"),
+    ConfigSpec("OIDC_ALLOW_NEW_USERS", "oidc", label="Allow new users", input_type="boolean", default=True, storage="oidc"),
+    ConfigSpec("OIDC_DEFAULT_LOGIN_METHOD", "oidc", label="Default login method", input_type="choice", choices=(("local", "Local username & password"), ("sso", "SSO")), default="local", storage="oidc"),
+    ConfigSpec("OIDC_LOGIN_BUTTON_TEXT", "oidc", label="Login button text", default="Continue with SSO", storage="oidc"),
+
+    ConfigSpec("STARTUP_UI", "database", ConfigSource.ENV, label="Startup UI policy", default="", description="Set to forced to keep the setup/configuration UI reachable after installation."),
+    ConfigSpec("STARTUP_MODE", "database", ConfigSource.ENV, label="Startup mode", default="", description="Optional profile: development, testing, or empty/default."),
+    ConfigSpec("MAX_UPLOAD_SIZE_MB", "database", label="Maximum upload size (MB)", input_type="integer", default=15),
+    ConfigSpec("MAX_SAVE_ARCHIVE_SIZE_MB", "database", label="Maximum save archive size (MB)", input_type="integer", default=4096),
+    ConfigSpec("MAX_CLIP_SIZE_MB", "database", label="Maximum clip size (MB)", input_type="integer", default=500),
+    ConfigSpec("MAX_WORLD_SAVE_SIZE_MB", "database", label="Maximum world save size (MB)", input_type="integer", default=2000),
+
+    ConfigSpec("VITE_USE_MOCK_DATA", "database", ConfigSource.ENV, label="Frontend mock data", input_type="boolean", default=False, description="Early-stage frontend development/testing switch; never exposed through the backend setup schema."),
 )
 
 
@@ -125,3 +151,10 @@ def get_config_spec(name: str) -> ConfigSpec:
         if spec.name == name:
             return spec
     raise KeyError(name)
+
+
+def get_config_section(section_id: str) -> ConfigSectionSpec:
+    for section in CONFIG_SECTIONS:
+        if section.id == section_id:
+            return section
+    raise KeyError(section_id)
