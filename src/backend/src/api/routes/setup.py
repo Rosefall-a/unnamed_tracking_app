@@ -54,6 +54,15 @@ class SetupRequest(BaseModel):
         return value
 
 
+@router.get("/configuration")
+async def setup_configuration() -> dict[str, object]:
+    """Return backend-owned setup metadata without exposing secret values."""
+    from src.core.env_handler import EnvConfigHandler
+
+    handler = EnvConfigHandler()
+    return {"settings": handler.setup_schema(), "startup_mode": handler.mode.value}
+
+
 @router.get("/status")
 async def setup_status(db: AsyncSession = Depends(get_db)) -> dict[str, bool]:
     has_user = await db.scalar(select(User.id).limit(1)) is not None
