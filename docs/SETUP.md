@@ -10,8 +10,8 @@ The setup page is generated from the backend configuration registry. It starts w
 4. Environment-owned fields are populated and locked when visible.
 5. Sensitive deployment-only fields are hidden.
 6. Persisted application values are used for fields not owned by the environment.
-6. The welcome screen selects required sections and optional sections that already contain configuration.
-7. The user can add or remove optional sections.
+7. The welcome screen selects required sections and optional sections that already contain configuration.
+8. The user can add or remove optional sections.
 9. The generic renderer displays fields according to their registry type.
 10. On first setup, selected configuration is saved and the first administrator is created.
 11. With STARTUP_UI=forced, the same UI is available after installation and only saves configuration; it cannot create another administrator.
@@ -90,6 +90,7 @@ Use only the required PostgreSQL values. Confirm:
 - Database is marked completed by environment when its required values are supplied.
 - First administrator remains required.
 - API keys and OIDC are optional.
+- Continue can be pressed to reach the configuration sections; final submission still validates the first administrator.
 
 ### Partial environment configuration
 
@@ -98,7 +99,7 @@ Set only some OIDC variables. Confirm:
 - supplied values are populated;
 - supplied values are locked;
 - missing values remain editable;
-- OIDC is marked partial.
+- OIDC is marked partial and selected automatically when any OIDC environment value is present.
 
 ### OIDC disabled
 
