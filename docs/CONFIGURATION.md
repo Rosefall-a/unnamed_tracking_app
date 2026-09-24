@@ -198,13 +198,18 @@ It remains documented in example.env, but it must not be exposed by /api/setup/c
 
 The TypeScript declaration is in src/frontend/src/vite-env.d.ts.
 
-## Forced startup UI
+## Startup modes
 
-Set STARTUP_UI=forced to keep /setup reachable after the first administrator exists.
+`STARTUP_MODE` is the single control for startup profile and setup UI behavior.
 
-The same registry schema is used. Environment-owned fields remain locked.
+- `dev` or `development`: selects development defaults and skips the setup/configuration UI after installation.
+- `testing`: shows the setup/configuration UI. A field uses its testing-specific default when defined; otherwise it falls back to its development default, then its normal default.
+- Empty or any other value: selects normal defaults and shows the setup/configuration UI.
 
-Forced mode never recreates or replaces the first administrator; it only exposes post-install configuration.
+Environment values have higher precedence than all mode defaults. The normal precedence is process environment > `.env` > persisted configuration > mode/default values. The setup UI can edit setup-owned values, so displayed mode defaults are intended to be starting values rather than forced values.
+
+There is deliberately no separate `STARTUP_UI` setting.
+
 
 ## Security rules
 
