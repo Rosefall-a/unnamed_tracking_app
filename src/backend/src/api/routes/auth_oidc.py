@@ -25,7 +25,7 @@ router = APIRouter(prefix="/api/auth/oidc", tags=["auth"])
 logger = logging.getLogger(__name__)
 
 
-def _env_config():
+def _env_config(request: Request):
     # OIDC_ENABLED is resolved centrally so an environment value can disable
     # OIDC without deleting a partially configured provider from the database.
     if not EnvConfigHandler().oidc_enabled():
@@ -38,7 +38,7 @@ def _env_config():
         client_id=settings.OIDC_CLIENT_ID,
         client_secret=settings.OIDC_CLIENT_SECRET,
         scopes=settings.OIDC_SCOPES,
-        redirect_uri=settings.OIDC_REDIRECT_URI,
+        redirect_uri=str(request.url_for("oidc_callback")),
         groups_claim=settings.OIDC_GROUPS_CLAIM,
         admin_group=settings.OIDC_ADMIN_GROUP,
         user_match_field=getattr(settings, "OIDC_USER_MATCH_FIELD", "email"),
@@ -58,14 +58,14 @@ def _named_rows(row):
     ]
 
 
-def _config_from_provider(provider):
+def _config_from_provider(provider, redirect_uri: str):
     issuer = str(provider["issuer_url"]).strip()
     return OidcConfig(
         issuer_url=issuer,
         client_id=str(provider["client_id"]),
         client_secret=decrypt_secret(str(provider["client_secret"])),
         scopes=provider.get("scopes") or "openid profile email",
-        redirect_uri=provider.get("redirect_uri") or None,
+        redirect_uri=redirect_uri,
         groups_claim=provider.get("groups_claim") or "groups",
         admin_group=provider.get("admin_group") or None,
         user_match_field=provider.get("user_match_field") or "email",
@@ -78,7 +78,7 @@ def _config_from_provider(provider):
     )
 
 
-async def _get_config(db, slug="default", require_autostart=False):
+async def _get_config(db, request: Request, slug="default", require_autostart=False):
     row = await db.scalar(select(OidcSettings).limit(1))
     handler = EnvConfigHandler()
     if not handler.oidc_enabled():
@@ -90,10 +90,10 @@ async def _get_config(db, slug="default", require_autostart=False):
             if provider.get("slug") == slug and provider.get("client_secret"):
                 if require_autostart and provider.get("autostart_enabled", True) is False:
                     return None
-                return _config_from_provider(provider)
+                return _config_from_provider(provider, str(request.url_for("oidc_callback_provider", provider_slug=slug)))
         return None
 
-    environment_config = _env_config()
+    environment_config = _env_config(request)
     if environment_config is not None:
         return environment_config
 
@@ -104,19 +104,19 @@ async def _get_config(db, slug="default", require_autostart=False):
             client_id=row.client_id,
             client_secret=decrypt_secret(row.client_secret),
             scopes=row.scopes or "openid profile email",
-            redirect_uri=row.redirect_uri,
+            redirect_uri=str(request.url_for("oidc_callback")),
             groups_claim=row.groups_claim or "groups",
             admin_group=row.admin_group,
             user_match_field=row.user_match_field or "email",
             allow_new_users=row.allow_new_users,
         )
-    return _env_config() if slug == "default" else None
+    return _env_config(request) if slug == "default" else None
 
 
 @router.get("/status")
 async def oidc_status(db: AsyncSession = Depends(get_db)):
     row = await db.scalar(select(OidcSettings).limit(1))
-    config = await _get_config(db)
+    config = await _get_config(db, request)
     providers = []
     handler = EnvConfigHandler()
     oidc_master_enabled = handler.oidc_enabled()
@@ -166,7 +166,7 @@ async def oidc_status(db: AsyncSession = Depends(get_db)):
 
 @router.get("/login", name="oidc_login")
 async def oidc_login(request: Request, db: AsyncSession = Depends(get_db)):
-    config = await _get_config(db)
+    config = await _get_config(db, request)
     if config is None:
         raise HTTPException(404, "OIDC login is not configured.")
     return await begin_oidc(request, config)
@@ -176,7 +176,7 @@ async def oidc_login(request: Request, db: AsyncSession = Depends(get_db)):
 async def oidc_provider_login(
     provider_slug: str, request: Request, db: AsyncSession = Depends(get_db)
 ):
-    config = await _get_config(db, provider_slug, require_autostart=True)
+    config = await _get_config(db, request, provider_slug, require_autostart=True)
     if config is None:
         raise HTTPException(404, "OIDC provider autostart is not enabled.")
     return await begin_oidc(request, config)
@@ -329,7 +329,7 @@ async def oidc_callback(request: Request, db: AsyncSession = Depends(get_db)):
 async def oidc_callback_provider(
     provider_slug: str, request: Request, db: AsyncSession = Depends(get_db)
 ):
-    config = await _get_config(db, provider_slug)
+    config = await _get_config(db, request, provider_slug)
     if config is None:
         return RedirectResponse("/login?oidc_error=not_configured", 303)
     return await _complete_callback(request, db, config, f"oidc_{provider_slug}")
