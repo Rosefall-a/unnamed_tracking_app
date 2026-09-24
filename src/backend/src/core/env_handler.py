@@ -122,13 +122,18 @@ class EnvConfigHandler:
             values["SECRET_KEY"] = persistent_fernet_key()
         return values
 
-    def setup_schema(self, persisted: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+    def setup_schema(
+        self,
+        persisted: dict[str, Any] | None = None,
+        generated_values: dict[str, Any] | None = None,
+    ) -> list[dict[str, Any]]:
         """Build the complete schema consumed by Setup.vue.
 
         Environment values always win over persisted values. The same method
         is used for first-run setup and forced post-install configuration.
         """
         persisted = persisted or {}
+        generated_values = generated_values or {}
         sections: list[dict[str, Any]] = []
 
         for section in sorted(CONFIG_SECTIONS, key=lambda item: item.order):
@@ -149,12 +154,17 @@ class EnvConfigHandler:
                     required = self.oidc_enabled(persisted)
 
                 env_set = self.has(spec.name)
+                generated_value = generated_values.get(spec.name)
                 persisted_value = persisted.get(spec.name)
                 persisted_configured = bool(persisted.get(f"{spec.name}__configured", False)) or (
                     persisted_value is not None and str(persisted_value).strip() != ""
                 )
 
-                if env_set:
+                if generated_value is not None and spec.generated:
+                    value = generated_value
+                    source = "generated"
+                    configured = True
+                elif env_set:
                     value = self.get(spec.name)
                     source = "env"
                     configured = True
@@ -194,13 +204,14 @@ class EnvConfigHandler:
                     "placeholder": spec.placeholder,
                     "required": required,
                     "required_group": spec.required_group,
+                    "heading": spec.heading,
                     "secret": spec.secret,
                     "generated": spec.generated,
                     "deprecated": spec.deprecated,
                     "deprecated_message": spec.deprecated_message if spec.deprecated else "",
                     "visible": spec.visible and not (spec.source is ConfigSource.ENV and spec.secret),
                     "env_only": spec.source is ConfigSource.ENV,
-                    "locked": spec.source is ConfigSource.ENV or env_set,
+                    "locked": spec.generated or spec.source is ConfigSource.ENV or env_set,
                     "configured": configured,
                     "source": source,
                     "value": value,
