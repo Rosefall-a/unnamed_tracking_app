@@ -80,6 +80,10 @@ def _config_from_provider(provider):
 
 async def _get_config(db, slug="default", require_autostart=False):
     row = await db.scalar(select(OidcSettings).limit(1))
+    if not EnvConfigHandler().oidc_enabled():
+        return None
+    if row and not row.enabled:
+        return None
     if row and slug != "default":
         for provider in _named_rows(row):
             if provider.get("slug") == slug and provider.get("client_secret"):
@@ -91,9 +95,6 @@ async def _get_config(db, slug="default", require_autostart=False):
     environment_config = _env_config()
     if environment_config is not None:
         return environment_config
-
-    if row and not row.enabled:
-        return None
 
     if row and row.issuer_url and row.client_id and row.client_secret:
         issuer = row.issuer_url.strip()
