@@ -217,14 +217,7 @@ class TVShowLibrarySeasonRead(BaseModel):
     updated_at: int
 
 
-class TVShowLibraryRead(BaseModel):
+class TVShowLibraryRead(TVShowRead):
     """Lightweight library representation without episode rows."""
 
     seasons: list[TVShowLibrarySeasonRead] = Field(default_factory=list)
-
-
-
-
-    seasons: list[TVShowLibrarySeasonRead] = Field(default_factory=list)
-
-
