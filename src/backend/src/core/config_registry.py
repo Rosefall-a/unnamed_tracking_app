@@ -435,15 +435,6 @@ CONFIG_REGISTRY: tuple[ConfigSpec, ...] = (
         storage="oidc",
     ),
     ConfigSpec(
-        "STARTUP_UI",
-        "general",
-        ConfigSource.ENV,
-        label="Startup UI policy",
-        default="",
-        description="Set to disabled or false to skip the setup/configuration UI on application startup.",
-        visible=False,
-    ),
-    ConfigSpec(
         "STARTUP_MODE",
         "general",
         ConfigSource.ENV,
