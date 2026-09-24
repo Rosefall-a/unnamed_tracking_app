@@ -10,8 +10,8 @@ The setup page is generated from the backend configuration registry. It starts w
 4. Environment-owned fields are populated and locked when visible.
 5. Sensitive deployment-only fields are hidden.
 6. Persisted application values are used for fields not owned by the environment.
-7. The welcome screen selects required sections and optional sections that already contain configuration.
-8. The user can add or remove optional sections.
+7. The welcome screen selects required sections, registry-default-selected sections, and optional sections that already contain configuration.
+8. The user can add or remove optional sections; `required` overrides `default_selected`, so required sections cannot be removed.
 9. The generic renderer displays fields according to their registry type.
 10. On first setup, selected configuration is saved and the first administrator is created.
 11. With STARTUP_UI=forced, the same UI is available after installation and only saves configuration; it cannot create another administrator.
@@ -38,11 +38,13 @@ Secrets saved through setup are encrypted before database persistence with the F
 
 ## OIDC
 
-OIDC is optional. Its master switch defaults to enabled when the OIDC section is selected.
+OIDC is optional and is selected by default on the Welcome screen. It can still be removed because it is not required. Its master switch defaults to enabled when the OIDC section is selected.
 
 If OIDC is enabled, issuer URL, client ID, and client secret are required.
 
 If OIDC is disabled, partially entered provider values are allowed to be saved. This is useful when an administrator wants to enter the non-secret parts before obtaining a client secret. OIDC login remains disabled until the master switch is enabled and a usable provider exists.
+
+The redirect URI is not user-entered. Setup displays a read-only URI generated from the address currently used to access the application (`/api/auth/oidc/callback`). Named providers use the same rule with their provider slug. This prevents setup from retaining a redirect URI copied from a different hostname or deployment.
 
 Settings → OIDC / SSO continues to provide named providers, ordering, login presentation, login visibility, and autostart controls.
 
@@ -68,6 +70,7 @@ Copy example.env to .env and replace placeholders:
     # OIDC_GROUPS_CLAIM=groups
     # OIDC_ADMIN_GROUP=archive-admins
     # OIDC_USER_MATCH_FIELD=email
+    # OIDC_REDIRECT_URI is intentionally not configured: it is generated from the current request.
 
     # Frontend-only early-stage development switch.
     VITE_USE_MOCK_DATA=false
@@ -99,7 +102,12 @@ Set only some OIDC variables. Confirm:
 - supplied values are populated;
 - supplied values are locked;
 - missing values remain editable;
-- OIDC is marked partial and selected automatically when any OIDC environment value is present.
+- OIDC is selected by default, and remains selected automatically when any OIDC environment value is present;
+- the redirect URI is displayed but cannot be edited.
+
+### Default selection and headings
+
+Confirm optional sections marked `default_selected=True` start selected but can be removed, while required sections remain selected regardless of their default. Confirm fields without `heading` appear first and fields sharing the same heading are grouped under one heading without creating additional pages.
 
 ### OIDC disabled
 
