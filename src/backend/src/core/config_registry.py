@@ -63,16 +63,6 @@ class ConfigSpec:
     storage: str | None = None
 
 
-@dataclass(frozen=True)
-class ConfigSectionSpec:
-    id: str
-    title: str
-    description: str
-    order: int
-    required: bool = False
-    removable: bool = True
-
-
 CONFIG_SECTIONS: tuple[ConfigSectionSpec, ...] = (
     ConfigSectionSpec(
         "database",
