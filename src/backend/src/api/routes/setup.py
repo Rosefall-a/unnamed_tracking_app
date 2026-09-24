@@ -139,8 +139,6 @@ async def _configuration(db: AsyncSession, request: Request) -> dict[str, Any]:
             generated_values={"OIDC_REDIRECT_URI": redirect_uri},
         ),
         "startup_mode": handler.mode.value,
-        "startup_ui": "enabled" if handler.startup_ui_enabled() else "disabled",
-        "startup_ui_enabled": handler.startup_ui_enabled(),
     }
 
 
@@ -267,8 +265,7 @@ async def setup_status(db: AsyncSession = Depends(get_db)) -> dict[str, bool | s
     handler = EnvConfigHandler()
     return {
         "setup_required": not has_user,
-        "startup_ui": "enabled" if handler.startup_ui_enabled() else "disabled",
-        "startup_ui_enabled": handler.startup_ui_enabled(),
+        "startup_mode": handler.mode.value,
     }
 
 
