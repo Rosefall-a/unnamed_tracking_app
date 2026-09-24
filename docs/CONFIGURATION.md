@@ -1,78 +1,179 @@
 # Central Configuration
 
-The central configuration boundary is built around `EnvConfigHandler` and the declarative registry. It resolves deployment inputs, generated secrets, defaults, and dependency-aware validation. It deliberately does not own user accounts.
+The deployment and setup UI is generated from the backend configuration registry. The frontend does not maintain a second hard-coded list of setup fields.
 
-## Source policy
+The main components are:
 
-- **ENV** — deployment-owned and unavailable to the setup page.
-- **SETUP** — application-owned and configured through setup/settings.
-- **BOTH** — setup may provide it, but an environment value always wins.
+- src/backend/src/core/config_registry.py — sections and field metadata.
+- src/backend/src/core/env_handler.py — environment resolution, precedence, section/field status, validation, and startup policy.
+- src/backend/src/api/routes/setup.py — exposes the schema and persists fields explicitly assigned to application storage.
+- src/frontend/src/services/setup.ts — frontend representation of the backend schema.
+- src/frontend/src/views/Setup.vue — generic renderer for the registry schema.
 
-`VITE_USE_MOCK_DATA` is ENV-only. `SECRET_KEY` is also deployment-owned; when omitted, it is generated and persisted under `APP_DATA_DIR/config`.
+## Source ownership
 
-## Fernet lifecycle
+Every registry field declares a source:
 
-The persistent Fernet implementation keeps three `0600` copies. A missing single copy is repaired from the valid majority. If valid copies disagree, startup fails closed. If no valid key exists and no environment key was supplied, a new key is generated and persisted. Restore and rotation retain the previous key for recovery.
+- ENV — deployment-owned. A value in the environment or .env is authoritative and the generated UI locks the field.
+- SETUP — application-owned. The setup UI may provide it.
+- BOTH — the UI may provide it, but an environment value always wins.
 
-## Database configuration
+Resolution is:
 
-New deployments use `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `POSTGRES_HOST`, and `POSTGRES_PORT`. The runtime still constructs an internal SQLAlchemy URL. `DATABASE_URL` remains a compatibility path and is deprecated for new deployments.
+    environment/.env
+          |
+          v
+    persisted value
+          |
+          v
+    registry default
 
-## Dependency validation
+This is why a half-complete .env file works correctly: fields supplied by the environment are populated and locked, while missing fields remain editable.
 
-- A partial database component set is an unrecoverable error.
-- A partial primary-user set is an unrecoverable error.
-- An OIDC issuer without client ID/secret is an unrecoverable error.
-- Missing recommended OIDC scopes produce a warning.
-- Invalid `STARTUP_MODE` is an unrecoverable error.
+## Sections and status
 
-The design intentionally distinguishes something that cannot start safely from something an administrator can correct or ignore.
+Each section has an ID, title, description, order, required/optional status, and removal policy.
 
-## Startup modes
+Current sections are:
 
-`STARTUP_MODE` is ENV-only:
-- empty/unset: ordinary defaults only;
-- `development`: disposable development defaults, including initial-admin inputs;
-- `testing`: reduced test-oriented defaults.
+- Database — required and deployment-owned.
+- First administrator — required during first-run setup; account creation remains a bootstrap operation.
+- API keys — optional.
+- OpenID Connect / SSO — optional.
 
-The handler only supplies the initial-admin inputs. Existing authentication/setup code remains responsible for creating the account, hashing the password, and creating the session.
+The handler calculates:
 
-## Startup vs setup
+- not_configured
+- partial
+- configured
+- completed_by_env
 
-The startup page remains separate from the setup page. Startup validates whether the deployment can safely become ready and records warnings/errors before database readiness and backend health. Setup configures a new installation and can consume `/api/setup/configuration` for backend-owned defaults and source metadata without receiving secrets.
+Required fields may be conditional. OIDC issuer/client ID/client secret are required only when the OIDC section is selected and OIDC is enabled.
 
-## Future hardening
+## Field metadata
 
-`application_url` is intentionally deferred. It can later become a central origin/redirect security setting without changing the handler architecture.
+A registry field can declare:
 
-`VITE_API_BASE_URL` is not part of the registry because the current frontend uses relative `/api` requests and the development proxy.
+- name
+- section
+- source
+- input type: text, secret, boolean, integer, choice, URL, or email
+- label
+- description
+- hint
+- placeholder
+- choices
+- default and development/testing defaults
+- required
+- secret
+- generated
+- deprecated
+- storage ownership
 
-## Startup UI and environment-owned setup
+The setup frontend consumes these properties directly. A normal new field should not require a field-specific change to Setup.vue.
 
-Set `STARTUP_UI=forced` when an administrator needs the setup/configuration UI to remain reachable after setup has already completed. The page is read-only for deployment-managed flows and uses the same configuration registry as startup.
+## Adding a new environment variable
 
-Example local/development environment:
+Use this procedure whenever a new deployment variable is introduced.
 
-```dotenv
-STARTUP_MODE=development
-STARTUP_UI=forced
-POSTGRES_USER=archive
-POSTGRES_PASSWORD=archive-dev-password
-POSTGRES_DB=archive
-OIDC_ISSUER_URL=https://sso.example.test/application/o/archive/
-OIDC_CLIENT_ID=archive
-OIDC_CLIENT_SECRET=replace-me
-OIDC_SCOPES=openid profile email
-OIDC_GROUPS_CLAIM=groups
-OIDC_USER_MATCH_FIELD=email
-```
+### 1. Add it to the registry
 
-Example minimal normal environment:
+Add a ConfigSpec to CONFIG_REGISTRY:
 
-```dotenv
-POSTGRES_USER=archive
-POSTGRES_PASSWORD=change-me
-POSTGRES_DB=archive
-```
+    ConfigSpec(
+        "MY_NEW_SETTING",
+        "api_keys",
+        source=ConfigSource.BOTH,
+        input_type="choice",
+        label="My new setting",
+        choices=(("one", "One"), ("two", "Two")),
+        default="one",
+        hint="Choose the deployment mode.",
+    )
 
-When an OIDC value is supplied through the environment, the setup page resolves it from the central handler and disables the corresponding setup control. Secrets are never returned by the setup metadata endpoint.
+Choose the source deliberately. Use ConfigSource.ENV when deployment operators must control the value through .env. Use BOTH or SETUP when the application is allowed to own it.
+
+### 2. Decide whether it is secret
+
+Credentials and tokens should use:
+
+    input_type="secret"
+    secret=True
+
+Secret values are never returned to the browser. The schema only reports whether a secret is configured and whether the environment owns it.
+
+### 3. Decide how it is persisted
+
+If the setting is application-owned, add an explicit storage mapping to the appropriate database model and to _save_configuration() in setup.py.
+
+Do not silently persist arbitrary registry fields. The explicit mapping is a security boundary.
+
+If the setting is ENV-only, it normally does not need a database column.
+
+### 4. Add validation and dependencies
+
+If the new field changes whether another field is required, implement that relationship in EnvConfigHandler.
+
+For example, OIDC requires issuer/client ID/client secret only while OIDC is enabled. When OIDC is disabled, partial provider data can be stored without enabling OIDC login.
+
+### 5. Add it to example.env
+
+Add a safe example:
+
+    MY_NEW_SETTING=one
+
+Never put real credentials in example.env.
+
+### 6. Update documentation
+
+Document:
+
+- what the variable controls;
+- whether it is ENV-only or editable;
+- whether an environment value locks the UI;
+- whether it is secret;
+- its default;
+- dependencies and validation.
+
+Update docs/CONFIGURATION.md and, for user-facing setup changes, docs/SETUP.md.
+
+### 7. Add focused tests
+
+At minimum test environment resolution, partial configuration, requiredness, secret masking, environment locking, and dependency validation.
+
+The maintenance rule is: registry first, handler second, persistence/validation third, documentation and tests last. The generic Vue setup component should normally require no field-specific change.
+
+## OIDC enabled behavior
+
+OIDC_ENABLED defaults to true.
+
+- When enabled, selecting OIDC for setup requires issuer URL, client ID, and client secret.
+- When disabled, incomplete credentials are allowed and can be completed later.
+- When disabled, OIDC login is not used.
+- If OIDC_ENABLED is supplied through .env, it is locked and wins over the database value.
+
+This is separate from named-provider controls such as enabled, show_on_login, and autostart_enabled.
+
+## Frontend-only Vite configuration
+
+VITE_USE_MOCK_DATA intentionally remains outside the backend registry. It is an early-stage frontend development/testing switch consumed directly by Vite through import.meta.env.VITE_USE_MOCK_DATA.
+
+It remains documented in example.env, but it must not be exposed by /api/setup/configuration or treated as a normal application setting.
+
+The TypeScript declaration is in src/frontend/src/vite-env.d.ts.
+
+## Forced startup UI
+
+Set STARTUP_UI=forced to keep /setup reachable after the first administrator exists.
+
+The same registry schema is used. Environment-owned fields remain locked.
+
+Forced mode never recreates or replaces the first administrator; it only exposes post-install configuration.
+
+## Security rules
+
+- Never return raw secret values from setup/configuration APIs.
+- Never allow a request body to override an ENV-owned value.
+- Do not duplicate defaults in Vue.
+- Do not add real secrets to example.env.
+- Keep first-admin creation separate from ordinary configuration.
