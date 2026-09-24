@@ -48,6 +48,7 @@ const optionalSections = computed(() =>
 const requiredSections = computed(() =>
   sections.value.filter((section) => section.required),
 );
+const actionLabel = computed(() => saving.value ? "Saving…" : forced.value ? "Save configuration" : "Finish setup");
 const allRequiredComplete = computed(() =>
   requiredSections.value.every((section) => {
     if (section.id === "first_admin" && forced.value) return true;
@@ -436,7 +437,7 @@ async function submit() {
               Next
             </button>
             <button class="primary" :disabled="saving" @click="submit">
-              {{ saving ? "Saving…" : forced ? "Save configuration" : "Finish setup" }}
+              {{ actionLabel }}
             </button>
           </div>
         </div>
