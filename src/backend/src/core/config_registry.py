@@ -103,9 +103,9 @@ CONFIG_REGISTRY: tuple[ConfigSpec, ...] = (
     ConfigSpec("AUTH_COOKIE_SECURE", "database", ConfigSource.ENV, label="Secure authentication cookies", input_type="boolean", default=False, description="Use secure cookies when the application is served over HTTPS."),
     ConfigSpec("DEBUG", "database", ConfigSource.ENV, label="Debug mode", input_type="boolean", default=False, development_default=True),
 
-    ConfigSpec("PRIMARY_USER_USERNAME", "first_admin", label="Username", required=True, storage="bootstrap"),
-    ConfigSpec("PRIMARY_USER_EMAIL", "first_admin", label="Email", input_type="email", required=True, storage="bootstrap"),
-    ConfigSpec("PRIMARY_USER_PASSWORD", "first_admin", label="Password", input_type="secret", required=True, secret=True, storage="bootstrap"),
+    ConfigSpec("PRIMARY_USER_USERNAME", "first_admin", label="Username", required=True, development_default="admin", storage="bootstrap"),
+    ConfigSpec("PRIMARY_USER_EMAIL", "first_admin", label="Email", input_type="email", required=True, development_default="admin@localhost", storage="bootstrap"),
+    ConfigSpec("PRIMARY_USER_PASSWORD", "first_admin", label="Password", input_type="secret", required=True, secret=True, development_default="Admin123!", storage="bootstrap"),
 
     ConfigSpec("STEAMGRIDDB_API_KEY", "api_keys", label="SteamGridDB API key", input_type="secret", secret=True, storage="app_integration"),
     ConfigSpec("RETROACHIEVEMENTS_API_KEY", "api_keys", label="RetroAchievements API key", input_type="secret", secret=True, storage="app_integration"),
