@@ -55,6 +55,12 @@ CONFIG_REGISTRY: tuple[ConfigSpec, ...] = (
     ConfigSpec("AUTH_COOKIE_SECURE", default=False),
     ConfigSpec("DEBUG", default=False, development_default=True),
     ConfigSpec(
+        "STARTUP_UI",
+        source=ConfigSource.ENV,
+        default="",
+        description="Optional startup UI policy; forced always exposes the setup/configuration UI.",
+    ),
+    ConfigSpec(
         "STARTUP_MODE",
         source=ConfigSource.ENV,
         default="",
