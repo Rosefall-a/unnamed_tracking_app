@@ -99,7 +99,7 @@ CONFIG_SECTIONS: tuple[ConfigSectionSpec, ...] = (
 # through resolution, validation, persistence, and the generated UI.
 CONFIG_REGISTRY: tuple[ConfigSpec, ...] = (
     ConfigSpec("POSTGRES_USER", "database", ConfigSource.ENV, label="PostgreSQL user", required=True),
-    ConfigSpec("POSTGRES_PASSWORD", "database", ConfigSource.ENV, label="PostgreSQL password", input_type="secret", required=True, secret=True, visible=False),
+    ConfigSpec("POSTGRES_PASSWORD", "database", ConfigSource.ENV, label="PostgreSQL password", input_type="secret", required=True, secret=True),
     ConfigSpec("POSTGRES_DB", "database", ConfigSource.ENV, label="PostgreSQL database", required=True),
     ConfigSpec("POSTGRES_HOST", "database", ConfigSource.ENV, label="PostgreSQL host", default="db"),
     ConfigSpec("POSTGRES_PORT", "database", ConfigSource.ENV, label="PostgreSQL port", input_type="integer", default=5432),
@@ -123,8 +123,8 @@ CONFIG_REGISTRY: tuple[ConfigSpec, ...] = (
     ConfigSpec("DEBUG", "database", ConfigSource.ENV, label="Debug mode", input_type="boolean", default=False, development_default=True),
     ConfigSpec("PRIMARY_USER_USERNAME", "first_admin", label="Username", required=True, development_default="admin", storage="bootstrap"),
     ConfigSpec("PRIMARY_USER_EMAIL", "first_admin", label="Email", input_type="email", required=True, development_default="admin@localhost", storage="bootstrap"),
-    ConfigSpec("PRIMARY_USER_PASSWORD", "first_admin", label="Password", input_type="secret", required=True, secret=True, visible=False, development_default="Admin123!", storage="bootstrap"),
-    ConfigSpec("STEAMGRIDDB_API_KEY", "api_keys", label="SteamGridDB API key", input_type="secret", secret=True, visible=False, storage="app_integration"),
+    ConfigSpec("PRIMARY_USER_PASSWORD", "first_admin", label="Password", input_type="secret", required=True, secret=True, development_default="Admin123!", storage="bootstrap"),
+    ConfigSpec("STEAMGRIDDB_API_KEY", "api_keys", label="SteamGridDB API key", input_type="secret", secret=True, storage="app_integration"),
     ConfigSpec("RETROACHIEVEMENTS_API_KEY", "api_keys", label="RetroAchievements API key", input_type="secret", secret=True, visible=False, storage="app_integration"),
     ConfigSpec("GIANTBOMB_API_KEY", "api_keys", label="GiantBomb API key", input_type="secret", secret=True, visible=False, storage="app_integration"),
     ConfigSpec("IGDB_CLIENT_ID", "api_keys", label="IGDB client ID", storage="app_integration"),
@@ -141,7 +141,7 @@ CONFIG_REGISTRY: tuple[ConfigSpec, ...] = (
     ConfigSpec("OIDC_ENABLED", "oidc", label="Enable OIDC", input_type="boolean", default=True, description="When off, incomplete provider credentials are allowed and OIDC login remains disabled.", storage="oidc"),
     ConfigSpec("OIDC_ISSUER_URL", "oidc", label="Issuer / discovery URL", input_type="url", placeholder="https://login.example.com/realms/archive", required=True, storage="oidc"),
     ConfigSpec("OIDC_CLIENT_ID", "oidc", label="Client ID", required=True, storage="oidc"),
-    ConfigSpec("OIDC_CLIENT_SECRET", "oidc", label="Client secret", input_type="secret", secret=True, visible=False, required=True, storage="oidc"),
+    ConfigSpec("OIDC_CLIENT_SECRET", "oidc", label="Client secret", input_type="secret", secret=True, required=True, storage="oidc"),
     ConfigSpec("OIDC_REDIRECT_URI", "oidc", label="Redirect URI", input_type="url", storage="oidc"),
     ConfigSpec("OIDC_SCOPES", "oidc", label="Scopes", default="openid profile email", hint="Space-separated OIDC scopes.", storage="oidc"),
     ConfigSpec("OIDC_GROUPS_CLAIM", "oidc", label="Groups claim", default="groups", storage="oidc"),
