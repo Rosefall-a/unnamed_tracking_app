@@ -192,7 +192,11 @@ router.beforeEach(async (to, from) => {
       };
     return;
   }
-  if (to.path === "/setup") return "/";
+  if (to.path === "/setup") {
+    const status = await fetchSetupStatus();
+    if (status.setup_required || status.forced) return;
+    return currentUser.value ? "/" : "/login";
+  }
 
   // This public route deliberately bypasses the normal auth redirect so a
   // bookmark or reverse-proxy login entrypoint can start OIDC immediately.
