@@ -36,6 +36,9 @@ const current = computed(() =>
 const selected = computed(() =>
   sections.value.filter((section) => selectedSections.value.includes(section.id)),
 );
+const isLastSelectedSection = computed(() =>
+  currentSection.value === selected.value[selected.value.length - 1]?.id,
+);
 const optionalSections = computed(() =>
   sections.value.filter((section) => !section.required),
 );
@@ -427,7 +430,7 @@ async function submit() {
           <div class="actions">
             <button class="secondary" @click="previousSection">Back</button>
             <button
-              v-if="currentSection !== 'welcome' && currentSection !== selected[selected.length - 1]?.id"
+              v-if="currentSection !== 'welcome' && !isLastSelectedSection"
               class="secondary"
               @click="nextSection"
             >
