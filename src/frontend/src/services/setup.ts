@@ -82,7 +82,7 @@ async function parseError(response: Response, fallback: string): Promise<Error> 
       const details = parsed.detail.map((item) => item.msg).filter(Boolean);
       if (details.length) return new Error(details.join(" "));
     }
-    if (parsed.detail) return new Error(parsed.detail);
+    if (typeof parsed.detail === "string") return new Error(parsed.detail);
   } catch {
     // Keep the HTTP status when the backend did not return JSON.
   }
