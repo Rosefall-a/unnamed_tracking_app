@@ -57,13 +57,37 @@ cp /etc/nginx/startup.conf /etc/nginx/nginx.conf
 nginx
 
 
-log "Validating environment variables"
-if [ -z "${SECRET_KEY:-}" ]; then fail_startup "CONFIGURATION_FAILED" "SECRET_KEY is required." "unknown" "unknown" "unknown" "unknown"; fi
-if [ -z "${DATABASE_URL:-}" ]; then fail_startup "CONFIGURATION_FAILED" "DATABASE_URL is required." "unknown" "unknown" "unknown" "unknown"; fi
+log "Resolving application configuration"
+write_status "CONFIGURING" "starting" "unknown" "unknown" "unknown" "unknown" "Resolving environment and persistent configuration."
+CONFIG_REPORT="$(python - <<'PY'
+from src.core.env_handler import EnvConfigHandler
+
+handler = EnvConfigHandler()
+summary = handler.startup_summary()
+for issue in summary["issues"]:
+    print(f"{issue['severity'].upper()}: {issue['message']}")
+if not summary["ready"]:
+    raise SystemExit(1)
+PY
+)" || fail_startup "CONFIGURATION_FAILED" "Application configuration contains an unrecoverable error. See startup details for the exact fields." "unknown" "unknown" "unknown" "unknown"
+if [ -n "$CONFIG_REPORT" ]; then
+  printf "%s\n" "$CONFIG_REPORT" >> "$DETAILS_FILE"
+fi
+
+if [ -n "\${POSTGRES_USER:-}" ] || [ -n "\${POSTGRES_PASSWORD:-}" ] || [ -n "\${POSTGRES_DB:-}" ]; then
+  if [ -z "\${POSTGRES_USER:-}" ] || [ -z "\${POSTGRES_PASSWORD:-}" ] || [ -z "\${POSTGRES_DB:-}" ]; then
+    fail_startup "CONFIGURATION_FAILED" "POSTGRES_USER, POSTGRES_PASSWORD, and POSTGRES_DB must be supplied together." "unknown" "unknown" "unknown" "unknown"
+  fi
+  DB_HEALTH_URL="postgresql://\${POSTGRES_USER}:\${POSTGRES_PASSWORD}@\${POSTGRES_HOST:-db}:\${POSTGRES_PORT:-5432}/\${POSTGRES_DB}"
+elif [ -n "\${DATABASE_URL:-}" ]; then
+  printf "%s\n" "WARNING: DATABASE_URL is deprecated; use POSTGRES_USER, POSTGRES_PASSWORD, and POSTGRES_DB." >> "$DETAILS_FILE"
+  DB_HEALTH_URL="$(printf "%s" "$DATABASE_URL" | sed "s#^postgresql+psycopg://#postgresql://#")"
+else
+  fail_startup "CONFIGURATION_FAILED" "Database configuration is missing. Set POSTGRES_USER, POSTGRES_PASSWORD, and POSTGRES_DB." "unknown" "unknown" "unknown" "unknown"
+fi
 
 log "Waiting for PostgreSQL"
 write_status "WAITING_FOR_DATABASE" "starting" "starting" "unknown" "unknown" "unknown" "Waiting for PostgreSQL."
-DB_HEALTH_URL="$(printf "%s" "$DATABASE_URL" | sed "s#^postgresql+psycopg://#postgresql://#")"
 
 attempt=1
 while ! pg_isready -d "$DB_HEALTH_URL" >/dev/null 2>&1; do
