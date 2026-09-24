@@ -125,7 +125,7 @@ CONFIG_REGISTRY: tuple[ConfigSpec, ...] = (
     ConfigSpec("PRIMARY_USER_EMAIL", "first_admin", label="Email", input_type="email", required=True, development_default="admin@localhost", storage="bootstrap"),
     ConfigSpec("PRIMARY_USER_PASSWORD", "first_admin", label="Password", input_type="secret", required=True, secret=True, development_default="Admin123!", storage="bootstrap"),
     ConfigSpec("STEAMGRIDDB_API_KEY", "api_keys", label="SteamGridDB API key", input_type="secret", secret=True, storage="app_integration"),
-    ConfigSpec("RETROACHIEVEMENTS_API_KEY", "api_keys", label="RetroAchievements API key", input_type="secret", secret=True, visible=False, storage="app_integration"),
+    ConfigSpec("RETROACHIEVEMENTS_API_KEY", "api_keys", label="RetroAchievements API key", input_type="secret", secret=True, storage="app_integration"),
     ConfigSpec("GIANTBOMB_API_KEY", "api_keys", label="GiantBomb API key", input_type="secret", secret=True, visible=False, storage="app_integration"),
     ConfigSpec("IGDB_CLIENT_ID", "api_keys", label="IGDB client ID", storage="app_integration"),
     ConfigSpec("IGDB_CLIENT_SECRET", "api_keys", label="IGDB client secret", input_type="secret", secret=True, visible=False, storage="app_integration"),
