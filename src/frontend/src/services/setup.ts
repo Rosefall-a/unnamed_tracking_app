@@ -1,19 +1,22 @@
 export interface SetupStatus {
   setup_required: boolean;
+  startup_ui: "auto" | "forced";
+  forced: boolean;
 }
 
 export interface SetupConfigurationSetting {
   name: string;
-  source: string;
+  source: "env" | "setup" | "both";
   default: unknown;
   resolved?: unknown;
   required: boolean;
   generated: boolean;
   secret: boolean;
-  deprecated: boolean;
+  deprecated?: boolean;
   locked?: boolean;
   description: string;
 }
+
 export interface SetupConfiguration {
   settings: SetupConfigurationSetting[];
   startup_mode: string;
@@ -23,6 +26,7 @@ export interface SetupConfiguration {
 
 export interface SetupOptions {
   oidc_enabled?: boolean;
+  oidc_name?: string;
   oidc_issuer_url?: string;
   oidc_client_id?: string;
   oidc_client_secret?: string;
@@ -31,36 +35,26 @@ export interface SetupOptions {
   oidc_groups_claim?: string;
   oidc_admin_group?: string;
   oidc_user_match_field?: string;
+  oidc_allow_new_users?: boolean;
+  oidc_button_text?: string;
+  oidc_button_image_url?: string | null;
+  oidc_button_color?: string;
+  oidc_provider_enabled?: boolean;
+  oidc_show_on_login?: boolean;
+  oidc_autostart_enabled?: boolean;
+  oidc_default_login_method?: string;
 }
 
 export async function fetchSetupStatus(): Promise<SetupStatus> {
   const response = await fetch("/api/setup/status", { credentials: "include" });
-  if (!response.ok)
-    throw new Error(`Failed to check setup status: ${response.status}`);
-  return await response.json();
-}
-
-export interface SetupConfiguration {
-  settings: Array<{
-    name: string;
-    source: "env" | "setup" | "both";
-    default: unknown;
-    required: boolean;
-    generated: boolean;
-    secret: boolean;
-    deprecated?: boolean;
-    description: string;
-  }>;
-  startup_mode: string;
+  if (!response.ok) throw new Error(`Failed to check setup status: ${response.status}`);
+  return (await response.json()) as SetupStatus;
 }
 
 export async function fetchSetupConfiguration(): Promise<SetupConfiguration> {
-  const response = await fetch("/api/setup/configuration", {
-    credentials: "include",
-  });
-  if (!response.ok)
-    throw new Error(`Failed to load configuration defaults: ${response.status}`);
-  return await response.json();
+  const response = await fetch("/api/setup/configuration", { credentials: "include" });
+  if (!response.ok) throw new Error(`Failed to load setup configuration: ${response.status}`);
+  return (await response.json()) as SetupConfiguration;
 }
 
 export async function createInitialAdmin(
@@ -68,7 +62,7 @@ export async function createInitialAdmin(
   email: string,
   password: string,
   options: SetupOptions = {},
-): Promise<void> {
+): Promise<{ status: string; user_id: string; is_admin: boolean }> {
   const response = await fetch("/api/setup", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -79,11 +73,15 @@ export async function createInitialAdmin(
     const body = await response.text();
     let message = `Setup failed: ${response.status}`;
     try {
-      const parsed = JSON.parse(body) as { detail?: string };
-      if (parsed.detail) message = parsed.detail;
+      const parsed = JSON.parse(body) as { detail?: string | Array<{ msg?: string }> };
+      if (Array.isArray(parsed.detail)) {
+        const details = parsed.detail.map((item) => item.msg).filter(Boolean);
+        if (details.length) message = details.join(" ");
+      } else if (parsed.detail) message = parsed.detail;
     } catch {
       if (body) message = `${message} ${body}`;
     }
     throw new Error(message);
   }
+  return (await response.json()) as { status: string; user_id: string; is_admin: boolean };
 }
