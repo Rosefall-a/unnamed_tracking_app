@@ -6,6 +6,7 @@ import { checkAuth } from "../state/auth";
 
 const route = useRoute();
 const router = useRouter();
+const browserOrigin = window.location.origin;
 const stage = ref<"account" | "oidc">("account");
 const username = ref("");
 const email = ref("");
@@ -100,7 +101,7 @@ async function submit() {
       oidc_client_id: locked("OIDC_CLIENT_ID") ? undefined : oidcClientId.value.trim() || undefined,
       oidc_client_secret: locked("OIDC_CLIENT_SECRET") ? undefined : oidcClientSecret.value || undefined,
       oidc_scopes: oidcScopes.value.trim(),
-      oidc_redirect_uri: locked("OIDC_REDIRECT_URI") ? undefined : window.location.origin + "/api/auth/oidc/callback/" + slugify(oidcName.value || oidcIssuer.value),
+      oidc_redirect_uri: locked("OIDC_REDIRECT_URI") ? undefined : browserOrigin + "/api/auth/oidc/callback/" + slugify(oidcName.value || oidcIssuer.value),
       oidc_groups_claim: oidcGroupsClaim.value.trim(),
       oidc_admin_group: oidcAdminGroup.value.trim() || undefined,
       oidc_user_match_field: oidcUserMatchField.value,
@@ -157,7 +158,7 @@ function slugify(value: string) {
         <label><span>Login button text</span><input v-model="oidcButtonText" /></label>
         <label><span>Button image URL</span><input v-model="oidcButtonImageUrl" /></label>
         <label><span>Button color</span><input v-model="oidcButtonColor" type="color" /></label>
-        <label class="full"><span>Redirect URI</span><input :value="window.location.origin + '/api/auth/oidc/callback/' + slugify(oidcName || oidcIssuer)" readonly class="generated-input" /></label>
+        <label class="full"><span>Redirect URI</span><input :value="browserOrigin + '/api/auth/oidc/callback/' + slugify(oidcName || oidcIssuer)" readonly class="generated-input" /></label>
       </div>
       <div class="options">
         <label><input v-model="oidcAllowNewUsers" type="checkbox" :disabled="locked('OIDC_ISSUER_URL')" /> Allow new users</label>
