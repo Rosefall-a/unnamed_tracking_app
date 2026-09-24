@@ -182,6 +182,11 @@ function fieldRequired(field: SetupField): boolean {
   return field.required;
 }
 
+function textFieldValue(field: SetupField | undefined): string {
+  const value = field ? fieldValue(field) : undefined;
+  return value === null || value === undefined ? "" : String(value);
+}
+
 function payloadValues(): Record<string, unknown> {
   const result: Record<string, unknown> = {};
 
@@ -236,30 +241,14 @@ async function submit() {
     }
 
     const admin = sections.value.find((section) => section.id === "first_admin");
-    const username = String(
-      admin?.fields.find((field) => field.name === "PRIMARY_USER_USERNAME")
-        ? fieldValue(
-            admin.fields.find(
-              (field) => field.name === "PRIMARY_USER_USERNAME",
-            ) as SetupField,
-          )
-        : "",
+    const username = textFieldValue(
+      admin?.fields.find((field) => field.name === "PRIMARY_USER_USERNAME"),
     );
-    const email = String(
-      admin?.fields.find((field) => field.name === "PRIMARY_USER_EMAIL")
-        ? fieldValue(
-            admin.fields.find((field) => field.name === "PRIMARY_USER_EMAIL") as SetupField,
-          )
-        : "",
+    const email = textFieldValue(
+      admin?.fields.find((field) => field.name === "PRIMARY_USER_EMAIL"),
     );
-    const password = String(
-      admin?.fields.find((field) => field.name === "PRIMARY_USER_PASSWORD")
-        ? fieldValue(
-            admin.fields.find(
-              (field) => field.name === "PRIMARY_USER_PASSWORD",
-            ) as SetupField,
-          )
-        : "",
+    const password = textFieldValue(
+      admin?.fields.find((field) => field.name === "PRIMARY_USER_PASSWORD"),
     );
 
     await createInitialAdmin({
