@@ -15,12 +15,17 @@ _ENVIRONMENT_FALLBACKS = {
     "steamgriddb_api_key": settings.STEAMGRIDDB_API_KEY,
     "retroachievements_api_key": settings.RETROACHIEVEMENTS_API_KEY,
     "giantbomb_api_key": settings.GIANTBOMB_API_KEY,
+    "tmdb_api_key": settings.TMDB_API_KEY,
+    "omdb_api_key": settings.OMDB_API_KEY,
+    "tvdb_api_key": settings.TVDB_API_KEY,
     "igdb_client_id": settings.IGDB_CLIENT_ID,
     "igdb_client_secret": settings.IGDB_CLIENT_SECRET,
     "screenscraper_ssid": settings.SCREENSCRAPER_SSID,
     "screenscraper_sspassword": settings.SCREENSCRAPER_SSPASSWORD,
     "screenscraper_devid": settings.SCREENSCRAPER_DEVID,
     "screenscraper_devpassword": settings.SCREENSCRAPER_DEVPASSWORD,
+    "xbox_client_id": getattr(settings, "XBOX_CLIENT_ID", None),
+    "xbox_client_secret": getattr(settings, "XBOX_CLIENT_SECRET", None),
 }
 
 
@@ -47,6 +52,9 @@ class MetadataProviderCredentials:
     screenscraper_sspassword: str | None
     screenscraper_devid: str | None
     screenscraper_devpassword: str | None
+    tmdb_api_key: str | None
+    omdb_api_key: str | None
+    tvdb_api_key: str | None
     xbox_client_id: str | None
     xbox_client_secret: str | None
 
@@ -92,6 +100,18 @@ def resolve_metadata_provider_credentials(
             _ENVIRONMENT_FALLBACKS["giantbomb_api_key"],
             _decrypt(app_integrations.giantbomb_api_key) if app_integrations else None,
         ),
+        tmdb_api_key=_prefer(
+            _ENVIRONMENT_FALLBACKS["tmdb_api_key"],
+            _decrypt(app_integrations.tmdb_api_key) if app_integrations else None,
+        ),
+        omdb_api_key=_prefer(
+            _ENVIRONMENT_FALLBACKS["omdb_api_key"],
+            _decrypt(app_integrations.omdb_api_key) if app_integrations else None,
+        ),
+        tvdb_api_key=_prefer(
+            _ENVIRONMENT_FALLBACKS["tvdb_api_key"],
+            _decrypt(app_integrations.tvdb_api_key) if app_integrations else None,
+        ),
         screenscraper_ssid=_prefer(
             user_screenscraper_ssid,
             _ENVIRONMENT_FALLBACKS["screenscraper_ssid"],
@@ -133,9 +153,14 @@ def apply_deployment_provider_credentials(app_integrations: "AppIntegrationSetti
     settings.STEAMGRIDDB_API_KEY = credentials.steamgriddb_api_key
     settings.RETROACHIEVEMENTS_API_KEY = credentials.retroachievements_api_key
     settings.GIANTBOMB_API_KEY = credentials.giantbomb_api_key
+    settings.TMDB_API_KEY = credentials.tmdb_api_key
+    settings.OMDB_API_KEY = credentials.omdb_api_key
+    settings.TVDB_API_KEY = credentials.tvdb_api_key
     settings.IGDB_CLIENT_ID = credentials.igdb_client_id
     settings.IGDB_CLIENT_SECRET = credentials.igdb_client_secret
     settings.SCREENSCRAPER_SSID = credentials.screenscraper_ssid
     settings.SCREENSCRAPER_SSPASSWORD = credentials.screenscraper_sspassword
     settings.SCREENSCRAPER_DEVID = credentials.screenscraper_devid
     settings.SCREENSCRAPER_DEVPASSWORD = credentials.screenscraper_devpassword
+    settings.XBOX_CLIENT_ID = credentials.xbox_client_id
+    settings.XBOX_CLIENT_SECRET = credentials.xbox_client_secret
