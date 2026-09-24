@@ -38,7 +38,7 @@ Secrets saved through setup are encrypted before database persistence with the F
 
 ## OIDC
 
-OIDC is optional and is selected by default on the Welcome screen. It can still be removed because it is not required. Its master switch defaults to enabled when the OIDC section is selected.
+OIDC is optional and is selected by default on the Welcome screen. It can still be removed because it is not required. Selecting the OIDC section means it is being configured; there is no separate OIDC enable switch in setup.
 
 If OIDC is enabled, issuer URL, client ID, and client secret are required.
 
