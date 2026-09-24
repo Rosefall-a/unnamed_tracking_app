@@ -107,3 +107,43 @@ def test_env_only_frontend_value_is_not_exposed_to_setup():
         for section in handler.setup_schema()
         for field in section["fields"]
     )
+
+
+def test_env_only_required_fields_block_setup_and_are_marked():
+    handler = EnvConfigHandler({"POSTGRES_USER": "archive"})
+    sections = {section["id"]: section for section in handler.setup_schema()}
+    database = sections["database"]
+    assert database["blocked"] is True
+    assert database["status"] == "blocked_by_env"
+    assert "POSTGRES_PASSWORD" in database["blocked_message"]
+    password = next(field for field in database["fields"] if field["name"] == "POSTGRES_PASSWORD")
+    assert password["env_only"] is True
+    assert password["visible"] is False
+
+
+def test_env_owned_non_secret_values_remain_visible_and_locked():
+    handler = EnvConfigHandler({
+        "POSTGRES_USER": "archive",
+        "POSTGRES_PASSWORD": "secret",
+        "POSTGRES_DB": "archive",
+        "AUTH_COOKIE_SECURE": "true",
+    })
+    fields = {
+        field["name"]: field
+        for section in handler.setup_schema()
+        for field in section["fields"]
+    }
+    assert fields["AUTH_COOKIE_SECURE"]["value"] is True
+    assert fields["AUTH_COOKIE_SECURE"]["visible"] is True
+    assert fields["AUTH_COOKIE_SECURE"]["locked"] is True
+
+
+def test_deprecated_setting_exposes_replacement_message():
+    handler = EnvConfigHandler({"DATABASE_URL": "postgresql+psycopg://archive:secret@db/archive"})
+    field = next(
+        field for section in handler.setup_schema() for field in section["fields"]
+        if field["name"] == "DATABASE_URL"
+    )
+    assert field["deprecated_message"] == (
+        "DATABASE_URL is deprecated; use POSTGRES_USER, POSTGRES_PASSWORD, and POSTGRES_DB instead."
+    )
