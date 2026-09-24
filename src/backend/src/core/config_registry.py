@@ -143,6 +143,7 @@ CONFIG_REGISTRY: tuple[ConfigSpec, ...] = (
         label="PostgreSQL password",
         input_type="secret",
         required=True,
+        required_group="database:postgres",
         secret=True,
         visible=False,
     ),
