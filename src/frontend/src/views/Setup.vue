@@ -39,7 +39,7 @@ const selected = computed(() =>
 const isLastSelectedSection = computed(() =>
   currentSection.value === selected.value[selected.value.length - 1]?.id,
 );
-const showNextButton = computed(() =>
+const canAdvance = computed(() =>
   currentSection.value !== "welcome" && !isLastSelectedSection.value,
 );
 const optionalSections = computed(() =>
@@ -48,7 +48,6 @@ const optionalSections = computed(() =>
 const requiredSections = computed(() =>
   sections.value.filter((section) => section.required),
 );
-const isLastSection = computed(() => currentSection.value === selected.value[selected.value.length - 1]?.id);
 const allRequiredComplete = computed(() =>
   requiredSections.value.every((section) => {
     if (section.id === "first_admin" && forced.value) return true;
@@ -434,7 +433,7 @@ async function submit() {
           <div class="actions">
             <button class="secondary" @click="previousSection">Back</button>
             <button
-              v-if="showNextButton"
+              v-if="canAdvance"
               class="secondary"
               @click="nextSection"
             >
