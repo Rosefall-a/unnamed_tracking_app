@@ -80,9 +80,10 @@ def _config_from_provider(provider):
 
 async def _get_config(db, slug="default", require_autostart=False):
     row = await db.scalar(select(OidcSettings).limit(1))
-    if not EnvConfigHandler().oidc_enabled():
+    handler = EnvConfigHandler()
+    if not handler.oidc_enabled():
         return None
-    if row and not row.enabled:
+    if row and not row.enabled and not handler.has("OIDC_ENABLED"):
         return None
     if row and slug != "default":
         for provider in _named_rows(row):
