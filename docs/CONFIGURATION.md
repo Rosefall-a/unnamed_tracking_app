@@ -176,7 +176,6 @@ Application-owned secrets saved by setup are encrypted with `encrypt_secret()` b
 
 ## OIDC enabled behavior
 
-OIDC_ENABLED defaults to true.
 
 - When enabled, selecting OIDC for setup requires issuer URL, client ID, and client secret.
 - When disabled, incomplete credentials are allowed and can be completed later.
