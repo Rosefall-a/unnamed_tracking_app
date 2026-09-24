@@ -86,6 +86,11 @@ function optionalSectionAction(section: SetupSection): string {
   return selectedSections.value.includes(section.id) ? "Remove" : "Add";
 }
 
+function inputValue(field: SetupField): string | number | undefined {
+  const value = fieldValue(field);
+  return typeof value === "string" || typeof value === "number" ? value : undefined;
+}
+
 function fieldPlaceholder(field: SetupField): string {
   return field.secret && field.configured
     ? "Already configured — leave blank to keep it"
@@ -417,7 +422,7 @@ async function submit() {
 
               <input
                 v-else
-                :value="fieldValue(field) as string | number | undefined"
+                :value="inputValue(field)"
                 :type="inputType(field)"
                 :placeholder="fieldPlaceholder(field)"
                 :required="fieldRequired(field) && !field.configured"
