@@ -21,6 +21,7 @@ export interface DeploymentSettings {
   providers: Record<string, string | boolean | null>;
   provider_locks: Record<string, boolean>;
   oidc: {
+    enabled: boolean;
     issuer_url: string | null;
     client_id: string | null;
     scopes: string | null;
