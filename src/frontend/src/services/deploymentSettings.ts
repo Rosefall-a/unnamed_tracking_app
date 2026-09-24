@@ -4,6 +4,7 @@ export interface OidcProviderSetting {
   issuer_url: string;
   client_id: string;
   client_secret?: string;
+  button_color: string;
   scopes: string;
   redirect_uri: string | null;
   groups_claim: string;
@@ -22,6 +23,7 @@ export interface DeploymentSettings {
   providers: Record<string, string | boolean | null>;
   provider_locks: Record<string, boolean>;
   oidc: {
+    enabled: boolean;
     issuer_url: string | null;
     client_id: string | null;
     scopes: string | null;
@@ -46,7 +48,7 @@ export async function fetchDeploymentSettings(): Promise<DeploymentSettings> {
   return await response.json();
 }
 export async function updateDeploymentSettings(
-  payload: Record<string, string>,
+  payload: Record<string, string | boolean | null>,
 ): Promise<DeploymentSettings> {
   const response = await fetch("/api/settings/deployment", {
     method: "PUT",

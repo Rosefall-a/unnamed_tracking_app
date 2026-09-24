@@ -1,175 +1,114 @@
 # Self-hosted setup
 
-This branch uses a first-run web setup for the administrator. Provider API keys and deployment-wide OIDC credentials can be entered from **Settings → Server Integrations** after the first administrator is created.
+The setup page is generated from the backend configuration registry. It starts with a Welcome to setup screen, keeps required sections automatically, and lets the administrator add or remove optional sections such as API keys and OIDC.
 
-## 1. Example `.env`
+## Setup flow
 
-Copy `example.env` to `.env` at the repository root, then replace its
-placeholders. Do not commit your real `.env`.
+1. The frontend requests /api/setup/status and /api/setup/configuration.
+2. The backend builds the schema from CONFIG_REGISTRY.
+3. Environment values are resolved first.
+4. Environment-owned fields are populated and locked.
+5. Persisted application values are used for fields not owned by the environment.
+6. The welcome screen selects required sections and optional sections that already contain configuration.
+7. The user can add or remove optional sections.
+8. The generic renderer displays fields according to their registry type.
+9. On first setup, selected configuration is saved and the first administrator is created.
+10. With STARTUP_UI=forced, the same UI is available after installation and only saves configuration; it cannot create another administrator.
 
-```dotenv
-POSTGRES_USER=archive
-POSTGRES_PASSWORD=change-this-database-password
-POSTGRES_DB=archive
+Secrets are never returned. A configured secret appears as a configured field with an empty password input.
 
-# Optional: deployment-owned Fernet/session key. If omitted, the application
-# generates and persists a stable key under APP_DATA_DIR/config.
-SECRET_KEY=
+## Environment precedence
 
-# Local HTTP development only. Set true when the app is served over HTTPS.
-AUTH_COOKIE_SECURE=false
+A partially configured environment is supported. For example:
 
-# No provider API keys are required here for a new install.
-# Configure deployment-wide provider credentials from Settings instead.
+    OIDC_ISSUER_URL=https://login.example.com/realms/archive
+    OIDC_CLIENT_ID=archive
+    # OIDC_CLIENT_SECRET is omitted
 
-# Optional legacy first-admin bootstrap. Leave unset for the normal web setup.
-# PRIMARY_USER_USERNAME=admin
-# PRIMARY_USER_EMAIL=admin@example.com
-# PRIMARY_USER_PASSWORD=Change-this-during-setup
+The setup page shows the issuer and client ID from .env as locked fields. The missing client secret remains editable and, when OIDC is enabled, required.
 
-# Optional OIDC environment fallback. Prefer Settings → Server Integrations.
-# OIDC_ISSUER_URL=https://login.example.com/realms/archive
-# OIDC_CLIENT_ID=archive
-# OIDC_CLIENT_SECRET=replace-me
-# OIDC_REDIRECT_URI=http://localhost:5173/api/auth/oidc/callback
-# OIDC_SCOPES=openid profile email
-```
+## OIDC
 
-## 2. Example Docker Compose
+OIDC is optional. Its master switch defaults to enabled when the OIDC section is selected.
 
-The repository's `compose.yaml` is the recommended Compose configuration. The backend Dockerfile is named `dockerfile` (lowercase), and Compose references it explicitly so the setup works on case-sensitive Linux hosts.
+If OIDC is enabled, issuer URL, client ID, and client secret are required.
 
-```yaml
-services:
-  db:
-    image: postgres:18
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
-    volumes:
-      - pgdata:/var/lib/postgresql
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
+If OIDC is disabled, partially entered provider values are allowed to be saved. This is useful when an administrator wants to enter the non-secret parts before obtaining a client secret. OIDC login remains disabled until the master switch is enabled and a usable provider exists.
 
-  backend:
-    build:
-      context: ./src/backend
-      dockerfile: dockerfile
-    restart: unless-stopped
-    env_file: .env
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_HOST: db
-      POSTGRES_PORT: 5432
-    depends_on:
-      db:
-        condition: service_healthy
+Settings → OIDC / SSO continues to provide named providers, ordering, login presentation, login visibility, and autostart controls.
 
-  frontend:
-    build: ./src/frontend
-    restart: unless-stopped
-    env_file: .env
-    depends_on:
-      - backend
-    ports:
-      - "5173:80"
+## Example .env
 
-volumes:
-  pgdata:
-```
+Copy example.env to .env and replace placeholders:
 
-The frontend's Vite proxy sends `/api` requests to the `backend` service, so the browser uses one origin. That also means the OIDC callback should normally point at the browser-facing frontend URL, for example `http://localhost:5173/api/auth/oidc/callback`.
+    POSTGRES_USER=archive
+    POSTGRES_PASSWORD=change-this-database-password
+    POSTGRES_DB=archive
+    POSTGRES_HOST=db
+    POSTGRES_PORT=5432
 
-## 3. Start the application
+    # Optional: keep /setup available after installation.
+    # STARTUP_UI=forced
 
-```bash
-docker compose up --build
-```
+    # Optional OIDC deployment ownership.
+    # OIDC_ENABLED=true
+    # OIDC_ISSUER_URL=https://login.example.com/realms/archive
+    # OIDC_CLIENT_ID=archive
+    # OIDC_CLIENT_SECRET=replace-me
+    # OIDC_SCOPES=openid profile email
+    # OIDC_GROUPS_CLAIM=groups
+    # OIDC_ADMIN_GROUP=archive-admins
+    # OIDC_USER_MATCH_FIELD=email
 
-The backend applies pending Alembic migrations with `alembic upgrade heads` before starting Uvicorn. This is intentional: a fresh PostgreSQL volume has no application tables, so the first-run setup endpoint cannot work until the schema exists. The migration command targets **all migration heads**, avoiding the earlier `upgrade head` ambiguity while still applying every branch of a legitimate migration graph.
+    # Frontend-only early-stage development switch.
+    VITE_USE_MOCK_DATA=false
 
-Open `http://localhost:5173`. The frontend checks `/api/setup/status` before checking authentication. On a database with no users it sends you to `/setup`, where you create the first administrator.
+Keep the real .env out of source control.
 
-If the backend is stopped, the frontend stays on the setup/unavailable screen instead of incorrectly sending a fresh installation to `/login`.
+## Adding configuration
 
-## 4. Configure provider credentials
+For a new environment variable, follow the complete procedure in docs/CONFIGURATION.md under “Adding a new environment variable”.
 
-After signing in as an administrator, open **Settings → Server Integrations**. Deployment-wide credentials are stored encrypted in PostgreSQL. The browser never receives the saved secret values; password/API-key fields show that a value exists and require a new value to replace it.
+A normal field should be added to the registry rather than hard-coded into Setup.vue.
 
-Per-user credentials already available in the Metadata/API settings continue to take precedence over deployment-wide fallbacks.
+## Validation checklist
 
-## 5. Configure OIDC / SSO
+### Fresh minimal installation
 
-In **Settings → Server Integrations → OpenID Connect / SSO**, enter:
+Use only the required PostgreSQL values. Confirm:
 
-- **Issuer URL** — the OIDC issuer, such as `https://login.example.com/realms/archive`.
-- **Client ID** — the client/application ID registered with your identity provider.
-- **Client secret** — the confidential client secret. It stays on the backend and is encrypted at rest.
-- **Scopes** — normally `openid profile email`.
-- **Redirect URI** — the exact browser-facing callback URL. With the example Compose setup this is `http://localhost:5173/api/auth/oidc/callback`.
+- Welcome to setup appears.
+- Database is marked completed by environment when its required values are supplied.
+- First administrator remains required.
+- API keys and OIDC are optional.
 
-Register that exact redirect URI with the identity provider. After saving, the login page displays **Continue with SSO**. The UI starts the redirect and displays friendly error messages, while the backend performs the authorization-code exchange and creates the application's local session.
+### Partial environment configuration
 
-The OIDC flow requires a verified email claim. Existing users are matched by OIDC subject first and verified email second; new OIDC users are created as non-admin users.
+Set only some OIDC variables. Confirm:
 
-## 6. Is `SECRET_KEY` required?
+- supplied values are populated;
+- supplied values are locked;
+- missing values remain editable;
+- OIDC is marked partial.
 
-**Yes.** `SECRET_KEY` remains the one important application secret that should stay in the environment rather than the Settings UI.
+### OIDC disabled
 
-This application uses it for two security-critical purposes:
+Select OIDC, turn Enable OIDC off, enter only an issuer URL, and save. The partial provider data should be accepted and OIDC login should remain disabled.
 
-1. FastAPI/Starlette's server-side session middleware signs the session data used by the OAuth/OIDC flow.
-2. The application's Fernet encryption layer uses it to encrypt recoverable secrets such as provider credentials and PSN tokens.
+### Forced setup
 
-It must be a valid Fernet key and must remain stable across restarts. Generate it with:
+After creating the administrator, set:
 
-```bash
-python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
-```
+    STARTUP_UI=forced
 
-Do **not** regenerate it on every container start: changing it makes previously encrypted values unreadable and invalidates signed sessions.
+and restart. Open /setup. The same dynamic configuration screen should appear, but no administrator fields should be recreated or submitted as a new account.
 
-## Production notes
+### Frontend mock mode
 
-- Put the application behind HTTPS and set `AUTH_COOKIE_SECURE=true`.
-- Keep PostgreSQL private; it does not need to be exposed to the public internet.
-- Keep `.env` out of source control.
-- Use a long, randomly generated Fernet `SECRET_KEY`.
-- Prefer the Settings UI for provider and OIDC credentials so they are encrypted in the database instead of copied into deployment files.
-- The environment variables for provider/OIDC credentials remain as backwards-compatible fallbacks for existing deployments.
+Set:
 
+    VITE_USE_MOCK_DATA=true
 
-## Central configuration behavior
+and rebuild the frontend. Mock scan/settings data should be used. This variable is an early-stage frontend development feature and is intentionally not editable from the backend setup page.
 
-New deployments should use the individual POSTGRES_* variables rather than
-DATABASE_URL. DATABASE_URL remains accepted for existing installations and is
-reported as deprecated by the startup diagnostics.
-
-STARTUP_MODE is an optional environment-only profile. Leave it unset for normal
-defaults, use development for disposable local-development initial-admin
-defaults, or testing for reduced test defaults.
-
-The setup flow obtains backend-owned defaults and source metadata from
-/api/setup/configuration. Secret values are never returned by that endpoint.
-See CONFIGURATION.md for the source-policy and dependency-validation rules.
-
-
-## Validating the setup/configuration flow
-
-1. Start with a fresh database and the minimal environment. Confirm `/setup` asks for the administrator and optional OIDC configuration.
-2. Add `OIDC_ISSUER_URL`, `OIDC_CLIENT_ID`, and `OIDC_CLIENT_SECRET`. Reload `/setup`; the OIDC flow should be enabled automatically and those environment-owned fields should be locked.
-3. Add `OIDC_SCOPES`, `OIDC_GROUPS_CLAIM`, `OIDC_ADMIN_GROUP`, and `OIDC_USER_MATCH_FIELD`. Confirm those values are populated and locked.
-4. Complete setup, then set `STARTUP_UI=forced` and restart. `/setup` should remain reachable even though an administrator already exists, with the environment-owned OIDC values populated.
-5. Remove `STARTUP_UI=forced` and restart. Normal routing should again send a completed installation away from `/setup`.
-6. In **Settings → OIDC / SSO**, test adding a named provider, changing its order, changing its login button presentation, enabling/disabling login visibility, and using its generated autostart URL.
-7. Change an OIDC credential in `.env`, restart, and confirm Settings reflects the deployment-managed state rather than exposing the saved secret.
-8. Remove one required OIDC environment value and restart. Startup diagnostics should report the incomplete OIDC configuration rather than silently accepting a half-configured provider.
-
-Do not use real production OIDC secrets in a test environment. Use a disposable identity provider or test tenant.
+No SMTP configuration is part of this configuration work.

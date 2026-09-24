@@ -56,6 +56,7 @@ class DeploymentSettingsRequest(BaseModel):
     oidc_groups_claim: str | None = None
     oidc_admin_group: str | None = None
     oidc_user_match_field: str | None = None
+    oidc_enabled: bool | None = None
     oidc_default_login_method: str | None = None
     oidc_login_button_text: str | None = None
     oidc_allow_new_users: bool | None = None
@@ -113,6 +114,7 @@ _OIDC_ENV_LOCKED_FIELDS = {
     "oidc_admin_group",
     "oidc_user_match_field",
     "oidc_allow_new_users",
+    "oidc_enabled",
 }
 
 
@@ -172,6 +174,7 @@ async def get_deployment_settings(db: AsyncSession, admin: User) -> dict:
             "groups_claim": None if oidc_locks["groups_claim"] else oidc.groups_claim,
             "admin_group": None if oidc_locks["admin_group"] else oidc.admin_group,
             "user_match_field": None if oidc_locks["user_match_field"] else (oidc.user_match_field or "email"),
+            "enabled": handler.oidc_enabled({"OIDC_ENABLED": oidc.enabled}),
             "default_login_method": oidc.default_login_method
             if oidc.default_login_method in {"local", "sso"}
             else "local",
@@ -182,6 +185,7 @@ async def get_deployment_settings(db: AsyncSession, admin: User) -> dict:
             "locked_fields": {
                 **{f"oidc_{name}": locked for name, locked in oidc_locks.items()},
                 "oidc_allow_new_users": handler.has("OIDC_ISSUER_URL"),
+                "oidc_enabled": handler.has("OIDC_ENABLED"),
             },
         },
     }
@@ -212,6 +216,10 @@ async def update_deployment_settings(
         for name, env_name in _OIDC_ENV_NAMES.items()
     }
     locked_fields["oidc_allow_new_users"] = handler.has("OIDC_ISSUER_URL")
+    locked_fields["oidc_enabled"] = handler.has("OIDC_ENABLED")
+    effective_oidc_enabled = handler.oidc_enabled({"OIDC_ENABLED": oidc.enabled})
+    if payload.oidc_enabled is not None and not handler.has("OIDC_ENABLED"):
+        effective_oidc_enabled = bool(payload.oidc_enabled)
     for field, value in payload.model_dump(exclude_unset=True).items():
         if provider_locks.get(field) or field in _OIDC_ENV_LOCKED_FIELDS and locked_fields.get(field):
             raise HTTPException(409, f"{field} is managed by the deployment environment and cannot be changed here.")
@@ -235,8 +243,7 @@ async def update_deployment_settings(
                 if (
                     not slug
                     or not name
-                    or not issuer
-                    or not client_id
+                    or (effective_oidc_enabled and (not issuer or not client_id))
                     or slug in slugs
                     or any(c not in "abcdefghijklmnopqrstuvwxyz0123456789-_" for c in slug)
                 ):
@@ -246,9 +253,9 @@ async def update_deployment_settings(
                 if item.get("user_match_field", "email") not in {"email", "username"}:
                     raise HTTPException(400, "OIDC user matching must be email or username.")
                 secret = item.get("client_secret") or existing.get(slug, {}).get("client_secret")
-                if not secret:
+                if not secret and effective_oidc_enabled:
                     raise HTTPException(
-                        400, f"Client secret is required for OIDC provider '{name}'."
+                        400, f"Client secret is required for OIDC provider '{name}' while OIDC is enabled."
                     )
                 if item.get("client_secret"):
                     secret = encrypt_secret(str(item["client_secret"]))
@@ -264,9 +271,23 @@ async def update_deployment_settings(
                     }
                 )
                 slugs.add(slug)
+            if effective_oidc_enabled:
+                incomplete = [
+                    item["name"]
+                    for item in normalized
+                    if not item["issuer_url"] or not item["client_id"] or not item["client_secret"]
+                ]
+                if incomplete:
+                    raise HTTPException(
+                        400,
+                        "OIDC is enabled, so every enabled provider must have an issuer, client ID, and client secret: "
+                        + ", ".join(incomplete),
+                    )
             oidc.providers_json = json.dumps(normalized)
         elif field.startswith("oidc_"):
-            if field == "oidc_client_secret":
+            if field == "oidc_enabled":
+                oidc.enabled = bool(value)
+            elif field == "oidc_client_secret":
                 if value:
                     oidc.client_secret = encrypt_secret(value)
             elif field == "oidc_user_match_field":
