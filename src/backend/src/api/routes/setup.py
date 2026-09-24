@@ -22,6 +22,7 @@ from src.core.auth import (
 from src.core.config import settings
 from src.core.crypto import encrypt_secret
 from src.core.env_handler import EnvConfigHandler
+from src.core.config_registry import CONFIG_REGISTRY
 from src.database.models.app_integration_settings import AppIntegrationSettings
 from src.database.models.auth import UserSession
 from src.database.models.game import Game
@@ -102,6 +103,7 @@ def _persisted_values(app: AppIntegrationSettings, oidc: OidcSettings) -> dict[s
 
     values.update({
         "OIDC_ENABLED": oidc.enabled,
+        "OIDC_ENABLED__configured": bool(oidc.issuer_url or oidc.client_id or oidc.client_secret or oidc.providers_json),
         "OIDC_ISSUER_URL": oidc.issuer_url,
         "OIDC_CLIENT_ID": oidc.client_id,
         "OIDC_CLIENT_SECRET__configured": bool(oidc.client_secret),
@@ -165,7 +167,7 @@ async def _save_configuration(
         value = values[name]
         if value in (None, ""):
             continue
-        spec = next(spec for spec in __import__("src.core.config_registry", fromlist=["CONFIG_REGISTRY"]).CONFIG_REGISTRY if spec.name == name)
+        spec = next(spec for spec in CONFIG_REGISTRY if spec.name == name)
         setattr(app, attribute, encrypt_secret(str(value)) if spec.secret else str(value))
 
     if "oidc" in selected_sections or handler.has("OIDC_ISSUER_URL") or handler.has("OIDC_CLIENT_ID") or handler.has("OIDC_CLIENT_SECRET"):
