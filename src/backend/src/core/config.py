@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from urllib.parse import quote_plus
 
 from pydantic import model_validator
@@ -105,7 +106,13 @@ class Settings(BaseSettings):
         )
 
 
+logger = logging.getLogger(__name__)
+
 _handler = EnvConfigHandler()
+for _spec in CONFIG_REGISTRY:
+    if _spec.deprecated and _handler.has(_spec.name):
+        logger.warning("%s", _spec.deprecated_message)
+
 _settings_values = {
     spec.name: _handler.get(spec.name)
     for spec in CONFIG_REGISTRY
