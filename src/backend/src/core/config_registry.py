@@ -133,6 +133,7 @@ CONFIG_REGISTRY: tuple[ConfigSpec, ...] = (
         ConfigSource.ENV,
         label="PostgreSQL user",
         required=True,
+        required_group="database:postgres",
         visible=False,
     ),
     ConfigSpec(
@@ -151,6 +152,7 @@ CONFIG_REGISTRY: tuple[ConfigSpec, ...] = (
         ConfigSource.ENV,
         label="PostgreSQL database",
         required=True,
+        required_group="database:postgres",
         visible=False,
     ),
     ConfigSpec(
@@ -178,6 +180,7 @@ CONFIG_REGISTRY: tuple[ConfigSpec, ...] = (
         deprecated=True,
         description="Legacy compatibility setting; prefer the individual PostgreSQL variables.",
         deprecated_message="DATABASE_URL is deprecated; use POSTGRES_USER, POSTGRES_PASSWORD, and POSTGRES_DB instead.",
+        required_group="database:url",
         visible=False,
     ),
     ConfigSpec(
