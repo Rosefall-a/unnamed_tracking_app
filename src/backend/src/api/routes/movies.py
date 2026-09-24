@@ -8,10 +8,11 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.routes.media_extras import log_activity, status_change_detail
+from src.api.schemas.pagination import PaginatedResponse
 from src.api.schemas.movie import MovieCreate, MovieRead, MovieUpdate
 from src.core.app_integrations import get_or_create_app_integration_settings
 from src.core.auth import get_current_user
@@ -125,7 +126,7 @@ async def create_movie(
     return movie
 
 
-@router.get("/list", response_model=list[MovieRead])
+@router.get("/list", response_model=PaginatedResponse[MovieRead])
 async def list_movies(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -133,9 +134,9 @@ async def list_movies(
     favorite: bool | None = Query(default=None),
     search: str | None = Query(default=None, description="Case-insensitive title search"),
     skip: int = Query(default=0, ge=0),
-    limit: int = Query(default=50, ge=1, le=200),
-) -> list[Movie]:
-    """Return the current user's movies, filtered by status, favorite flag, or title search."""
+    limit: int = Query(default=100, ge=1, le=200),
+) -> PaginatedResponse[MovieRead]:
+    """Return one page of the current user's movies and the total matching it."""
     stmt = select(Movie).where(Movie.user_id == current_user.id, Movie.deleted_at.is_(None))
 
     if status_filter is not None:
@@ -145,11 +146,12 @@ async def list_movies(
     if search:
         stmt = stmt.where(Movie.title.ilike(f"%{search}%"))
 
+    total = await db.scalar(select(func.count()).select_from(stmt.subquery()))
     stmt = stmt.order_by(Movie.sort_title).offset(skip).limit(limit)
 
     result = await db.execute(stmt)
-    return list(result.scalars().all())
-
+    items = list(result.scalars().all())
+    return PaginatedResponse(items=items, total=total or 0, offset=skip, limit=limit)
 
 @router.get("/get/{movie_id}", response_model=MovieRead)
 async def get_movie(
