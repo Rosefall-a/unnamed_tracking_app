@@ -34,7 +34,7 @@ This is why a half-complete `.env` file works correctly: fields supplied by the 
 
 ## Sections and status
 
-Each section has an ID, title, description, order, required/optional status, and removal policy.
+Each section has an ID, title, description, order, required/optional status, removal policy, visibility, and optional menu/default-selection metadata. `required=True` always forces a section to be selected; `default_selected=True` selects an optional section initially, but the administrator can remove it on the Welcome screen. `menu` lets multiple sections share a future navigation/menu grouping without forcing them onto one setup page.
 
 Current sections are:
 
@@ -75,9 +75,14 @@ A registry field can declare:
 - generated
 - deprecated and deprecated_message
 - visible
+- heading (optional visual group within the section)
 - storage ownership
 
 The setup frontend consumes these properties directly. A normal new field should not require a field-specific change to Setup.vue.
+
+### Field headings
+
+`heading` groups fields visually without creating another setup page. Fields without a heading are rendered first. Headed fields are then grouped by heading in the order their first field appears. For example, the General section can put all size limits under `heading="Max sizes"` while leaving `DEBUG` under `heading="Debug mode"`; both remain on the same General page.
 
 ## Required configuration groups
 
@@ -176,7 +181,9 @@ OIDC_ENABLED defaults to true.
 - When enabled, selecting OIDC for setup requires issuer URL, client ID, and client secret.
 - When disabled, incomplete credentials are allowed and can be completed later.
 - When disabled, OIDC login is not used.
-- If any OIDC environment variable is supplied, the OIDC section is surfaced automatically. If OIDC_ENABLED is supplied through .env, it is locked and wins over the database value.
+- The OIDC section is selected by default, but remains removable because it is optional. If any OIDC environment variable is supplied, it is also surfaced automatically. If OIDC_ENABLED is supplied through .env, it is locked and wins over the database value.
+- `OIDC_REDIRECT_URI` is generated from the current application URL and the `/api/auth/oidc/callback` route. It is displayed read-only in setup and is not accepted as a user-defined setup value. Runtime OIDC configuration also derives the redirect URI from the current request, so a stale saved URI cannot override the current address.
+- Named OIDC providers similarly derive `/api/auth/oidc/callback/<provider-slug>` from the current request.
 
 This is separate from named-provider controls such as enabled, show_on_login, and autostart_enabled.
 
