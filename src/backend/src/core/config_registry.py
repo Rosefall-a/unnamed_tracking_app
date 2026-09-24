@@ -108,6 +108,7 @@ CONFIG_SECTIONS: tuple[ConfigSectionSpec, ...] = (
         "OpenID Connect / SSO",
         "Optional SSO configuration. Selecting this section enables OIDC once its provider credentials are saved.",
         40,
+        default=True,
     ),
 )
 
