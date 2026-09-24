@@ -197,3 +197,29 @@ class TVShowRead(TVShowBase):
     next_episode_air_at: int | None = None
     next_episode_number: int | None = None
     airing_interval_days: int | None = None
+
+
+class TVShowLibrarySeasonRead(BaseModel):
+    """Season progress returned by library list endpoints; episode rows stay on detail endpoints."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    show_id: UUID
+    season_number: int
+    name: str | None
+    episode_count: int | None
+    episodes_watched: int
+    status: TVShowStatus
+    air_date: date | None
+    poster_url: str | None
+    created_at: int
+    updated_at: int
+
+
+class TVShowLibraryRead(TVShowRead):
+    """Lightweight library representation without episode rows."""
+
+    seasons: list[TVShowLibrarySeasonRead] = Field(default_factory=list)
+
+
