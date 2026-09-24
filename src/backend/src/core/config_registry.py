@@ -53,7 +53,7 @@ CONFIG_REGISTRY: tuple[ConfigSpec, ...] = (
         description="Stable Fernet/session signing key; generated and persisted when omitted.",
     ),
     ConfigSpec("AUTH_COOKIE_SECURE", default=False),
-    ConfigSpec("DEBUG", default=False),
+    ConfigSpec("DEBUG", default=False, development_default=True),
     ConfigSpec(
         "STARTUP_MODE",
         source=ConfigSource.ENV,
