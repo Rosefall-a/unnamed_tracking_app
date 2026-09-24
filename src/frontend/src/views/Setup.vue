@@ -67,6 +67,7 @@ onMounted(async () => {
       return;
     }
     applyConfiguration(config);
+    if (config.forced && Boolean(config.settings.find((item) => item.name === "OIDC_ISSUER_URL")?.resolved)) stage.value = "oidc";
   } catch (err) {
     error.value = err instanceof Error ? err.message : "Unable to load setup configuration.";
   } finally {
