@@ -432,19 +432,10 @@ async function submit() {
 
           <div class="actions">
             <button class="secondary" @click="previousSection">Back</button>
-            <button
-              v-if="canAdvance"
-              class="secondary"
-              @click="nextSection"
-            >
+            <button class="secondary" :disabled="!canAdvance" @click="nextSection">
               Next
             </button>
-            <button
-              v-else
-              class="primary"
-              :disabled="saving"
-              @click="submit"
-            >
+            <button class="primary" :disabled="saving" @click="submit">
               {{ saving ? "Saving…" : forced ? "Save configuration" : "Finish setup" }}
             </button>
           </div>
