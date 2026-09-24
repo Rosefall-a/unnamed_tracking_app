@@ -81,6 +81,17 @@ function hasValue(value: unknown): boolean {
   return value !== null && value !== undefined && String(value).trim() !== "";
 }
 
+function optionalSectionAction(section: SetupSection): string {
+  if (section.status === "completed_by_env") return "Completed by .env";
+  return selectedSections.value.includes(section.id) ? "Remove" : "Add";
+}
+
+function fieldPlaceholder(field: SetupField): string {
+  return field.secret && field.configured
+    ? "Already configured — leave blank to keep it"
+    : field.placeholder;
+}
+
 function statusLabel(section: SetupSection): string {
   if (section.status === "completed_by_env") return "Completed by .env";
   if (sectionIsComplete(section)) return "Complete";
@@ -345,13 +356,7 @@ async function submit() {
                 :disabled="section.status === 'completed_by_env'"
                 @click="toggleOptional(section)"
               >
-                {{
-                  section.status === "completed_by_env"
-                    ? "Completed by .env"
-                    : selectedSections.includes(section.id)
-                      ? "Remove"
-                      : "Add"
-                }}
+{{ optionalSectionAction(section) }}
               </button>
             </article>
           </div>
@@ -414,7 +419,7 @@ async function submit() {
                 v-else
                 :value="fieldValue(field) as string | number | undefined"
                 :type="inputType(field)"
-                :placeholder="field.secret && field.configured ? 'Already configured — leave blank to keep it' : field.placeholder"
+                :placeholder="fieldPlaceholder(field)"
                 :required="fieldRequired(field) && !field.configured"
                 :disabled="field.locked || (field.generated && field.configured)"
                 @input="setField(field, ($event.target as HTMLInputElement).value)"
