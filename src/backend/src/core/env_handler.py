@@ -110,8 +110,6 @@ class EnvConfigHandler:
         raw = self.environ.get(name)
         if raw is not None and raw.strip():
             return self._coerce(spec.input_type, raw)
-        if self.mode is DefaultMode.DEVELOPMENT and spec.development_default is not None:
-            return spec.development_default
         if self.mode is DefaultMode.TESTING:
             if spec.testing_default is not None:
                 return spec.testing_default
