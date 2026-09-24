@@ -73,11 +73,13 @@ def _config_from_provider(provider):
     )
 
 
-async def _get_config(db, slug="default"):
+async def _get_config(db, slug="default", require_autostart=False):
     row = await db.scalar(select(OidcSettings).limit(1))
     if row and slug != "default":
         for provider in _named_rows(row):
             if provider.get("slug") == slug and provider.get("client_secret"):
+                if require_autostart and provider.get("autostart_enabled", True) is False:
+                    return None
                 return _config_from_provider(provider)
         return None
 
@@ -160,9 +162,9 @@ async def oidc_login(request: Request, db: AsyncSession = Depends(get_db)):
 async def oidc_provider_login(
     provider_slug: str, request: Request, db: AsyncSession = Depends(get_db)
 ):
-    config = await _get_config(db, provider_slug)
+    config = await _get_config(db, provider_slug, require_autostart=True)
     if config is None:
-        raise HTTPException(404, "OIDC provider is not configured.")
+        raise HTTPException(404, "OIDC provider autostart is not enabled.")
     return await begin_oidc(request, config)
 
 
