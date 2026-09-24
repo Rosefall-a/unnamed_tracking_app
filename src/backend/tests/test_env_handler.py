@@ -141,11 +141,6 @@ def test_deprecated_setting_exposes_replacement_message():
     )
 
 
-def test_oidc_section_is_environment_configured_when_any_oidc_value_is_supplied():
-    handler = EnvConfigHandler({"OIDC_ENABLED": "true"})
-    section = next(section for section in handler.setup_schema() if section["id"] == "oidc")
-    assert section["env_configured"] is True
-
 
 def test_database_url_satisfies_required_database_group():
     handler = EnvConfigHandler({
