@@ -49,11 +49,8 @@ const requiredSections = computed(() =>
   sections.value.filter((section) => section.required),
 );
 const actionLabel = computed(() => saving.value ? "Saving…" : forced.value ? "Save configuration" : "Finish setup");
-const allRequiredComplete = computed(() =>
-  requiredSections.value.every((section) => {
-    if (section.id === "first_admin" && forced.value) return true;
-    return sectionIsComplete(section);
-  }),
+const welcomeBlocked = computed(() =>
+  requiredSections.value.some((section) => section.blocked),
 );
 const oidcEnabled = computed(() => {
   const value = values.value.OIDC_ENABLED;
@@ -82,6 +79,7 @@ function hasValue(value: unknown): boolean {
 }
 
 function optionalSectionAction(section: SetupSection): string {
+  if (section.status === "blocked_by_env") return "Needs .env";
   if (section.status === "completed_by_env") return "Completed by .env";
   return selectedSections.value.includes(section.id) ? "Remove" : "Add";
 }
@@ -95,6 +93,10 @@ function fieldPlaceholder(field: SetupField): string {
   return field.secret && field.configured
     ? "Already configured — leave blank to keep it"
     : field.placeholder;
+}
+
+function visibleFields(section: SetupSection): SetupField[] {
+  return section.fields.filter((field) => field.visible);
 }
 
 function statusLabel(section: SetupSection): string {
@@ -117,12 +119,13 @@ function initialize(config: SetupConfiguration) {
         section.required ||
         section.status === "partial" ||
         section.status === "configured" ||
+        section.env_configured ||
         section.status === "completed_by_env",
     )
     .map((section) => section.id);
 
   for (const section of config.sections) {
-    for (const field of section.fields) {
+    for (const field of visibleFields(section)) {
       if (field.secret) {
         // Secrets are intentionally never returned. A configured secret is
         // represented by an empty input plus configured/locked metadata.
@@ -214,7 +217,7 @@ function payloadValues(): Record<string, unknown> {
   const result: Record<string, unknown> = {};
 
   for (const section of selected.value) {
-    for (const field of section.fields) {
+    for (const field of visibleFields(section)) {
       if (field.locked) continue;
       const value = fieldValue(field);
 
@@ -366,8 +369,12 @@ async function submit() {
             </article>
           </div>
 
+          <div v-for="section in requiredSections.filter((item) => item.blocked)" :key="section.id" class="error env-blocker">
+            <strong>{{ section.title }} cannot be configured here.</strong>
+            <span>{{ section.blocked_message }}. These deployment-only flags must be changed in .env.</span>
+          </div>
           <div v-if="error" class="error">{{ error }}</div>
-          <button class="primary" :disabled="!allRequiredComplete && forced === false" @click="nextSection">
+          <button class="primary" :disabled="welcomeBlocked" @click="nextSection">
             Continue
           </button>
         </div>
@@ -390,7 +397,7 @@ async function submit() {
           </div>
 
           <div class="fields">
-            <label v-for="field in current.fields" :key="field.name">
+            <label v-for="field in visibleFields(current)" :key="field.name">
               <span>
                 {{ field.label }}
                 <b v-if="fieldRequired(field)" class="required-mark">*</b>
@@ -432,7 +439,10 @@ async function submit() {
 
               <small v-if="field.description">{{ field.description }}</small>
               <small v-if="field.hint">{{ field.hint }}</small>
-              <small v-if="field.locked" class="env-help">
+              <small v-if="field.env_only && !field.configured" class="env-help">
+                This flag must be changed in .env. It is deployment-only.
+              </small>
+              <small v-else-if="field.locked" class="env-help">
                 This value comes from the deployment environment and cannot be changed here.
               </small>
             </label>
@@ -473,6 +483,6 @@ async function submit() {
 .fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin:24px 0}.fields label{display:flex;flex-direction:column;gap:6px;color:#ccc;font-size:13px}.fields label:has(input[type=checkbox]){flex-direction:row;align-items:center}.fields label>span{display:flex;gap:5px;align-items:center}.fields em{font-style:normal;color:#d8c39a;font-size:10px;margin-left:auto}.fields input,.fields select{background:#111;border:1px solid #3a3a3a;border-radius:8px;color:#fff;padding:10px;font:inherit}.fields input[type=checkbox]{width:18px;height:18px;accent-color:#d68a34}.fields input:focus,.fields select:focus{outline:none;border-color:#d68a34}.fields input:disabled,.fields select:disabled{opacity:.55}.fields small{color:#777;font-size:11px;line-height:1.4}.env-help{color:#d8c39a!important}.required-mark{color:#fca5a5}
 .actions{display:flex;gap:10px;margin-top:20px}.actions button{flex:1}
 button.primary,.setup-card button.primary{background:#d68a34;color:#111;border:0;border-radius:8px;padding:11px 14px;font-weight:700;cursor:pointer}.secondary{background:#252525!important;color:#ddd!important;border:1px solid #3a3a3a!important;border-radius:8px;padding:11px 14px;cursor:pointer}.setup-card button:disabled{opacity:.6;cursor:not-allowed}
-.error{color:#fca5a5;background:rgba(220,38,38,.1);border:1px solid rgba(220,38,38,.3);border-radius:8px;padding:9px;font-size:13px}.success{color:#86efac;background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.2);border-radius:8px;padding:9px;font-size:13px}
+.env-blocker{display:flex;flex-direction:column;gap:4px;margin-bottom:10px}.error{color:#fca5a5;background:rgba(220,38,38,.1);border:1px solid rgba(220,38,38,.3);border-radius:8px;padding:9px;font-size:13px}.success{color:#86efac;background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.2);border-radius:8px;padding:9px;font-size:13px}
 @media(max-width:800px){.setup-page{align-items:flex-start}.setup-shell{grid-template-columns:1fr}.setup-nav{position:static}.fields{grid-template-columns:1fr}.section-choice{align-items:flex-start;flex-direction:column}}
 </style>
