@@ -2,13 +2,6 @@ name: Frontend Checks
 
 on:
   push:
-    paths:
-      - "src/frontend/**"
-      - ".github/workflows/frontend-checks.yml"
-  pull_request:
-    paths:
-      - "src/frontend/**"
-      - ".github/workflows/frontend-checks.yml"
 
 permissions:
   contents: write

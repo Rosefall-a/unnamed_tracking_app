@@ -2,13 +2,6 @@ name: Backend checks
 
 on:
   push:
-    paths:
-      - "src/backend/**"
-      - ".github/workflows/backend-checks.yml"
-  pull_request:
-    paths:
-      - "src/backend/**"
-      - ".github/workflows/backend-checks.yml"
 
 jobs:
   backend-checks:

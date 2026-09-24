@@ -229,9 +229,9 @@ export interface AnimePage {
 export async function fetchAnimePage(
   skip = 0,
   limit = SHOWS_PAGE_SIZE,
-): Promise<AnimePage> {
+search = ""): Promise<AnimePage> {
   const response = await fetch(
-    `/api/anime/list?skip=${skip}&limit=${limit}`,
+    `/api/anime/list?skip=${skip}&limit=${limit}${search.trim() ? `&search=${encodeURIComponent(search.trim())}` : ""}`,
     { credentials: "include" },
   );
   const page = await handle<BackendAnime[]>(response, "fetch anime");

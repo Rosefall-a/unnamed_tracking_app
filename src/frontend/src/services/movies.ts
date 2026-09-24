@@ -123,12 +123,12 @@ async function handle<T>(response: Response, action: string): Promise<T> {
   return response.json();
 }
 
-export async function fetchMovies(): Promise<Movie[]> {
+export async function fetchMovies(search = ""): Promise<Movie[]> {
   const all: BackendMovie[] = [];
   let skip = 0;
   while (true) {
     const response = await fetch(
-      `/api/movie/list?skip=${skip}&limit=${MOVIES_PAGE_SIZE}`,
+      `/api/movie/list?skip=${skip}&limit=${MOVIES_PAGE_SIZE}${search.trim() ? `&search=${encodeURIComponent(search.trim())}` : ""}`,
       { credentials: "include" },
     );
     const page = await handle<BackendMovie[]>(response, "fetch movies");

@@ -120,9 +120,14 @@ const items = computed(() => shows.value.map(toVM));
 
 // Only the very first load shows the loading state; a refresh when the
 // page comes back swaps data in quietly, so titles never blink away.
-async function load() {
+let loadRequest = 0;
+async function load(search = "") {
+  const request = ++loadRequest;
   if (!shows.value.length) loading.value = true;
   try {
+    const next = await fetchAnime(search);
+    if (request !== loadRequest) return;
+    shows.value = next;
     const firstPage = await fetchAnimePage(0, PAGE_SIZE);
     shows.value = firstPage.items;
     totalCount.value = firstPage.total;
@@ -346,6 +351,7 @@ function detailRoute(id: string): string {
     :detail-route="detailRoute"
     :search="search"
     :create-from-result="createFromResult"
+    @search="load"
     :has-more="hasMore"
     :loading-more="loadingMore"
     @load-more="loadMore"

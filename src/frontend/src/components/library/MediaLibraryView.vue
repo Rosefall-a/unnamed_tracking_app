@@ -117,6 +117,7 @@ const emit = defineEmits<{
   (e: "bulk-set-status", ids: string[], status: string): void;
   (e: "bulk-favorite", ids: string[]): void;
   (e: "bulk-delete", ids: string[]): void;
+  (e: "search", query: string): void;
   (e: "load-more"): void;
 }>();
 
@@ -214,6 +215,11 @@ const boardCardWidth = computed(() => {
 });
 const activeStatus = ref<string>("all");
 const searchQuery = ref("");
+let searchTimer: ReturnType<typeof setTimeout> | null = null;
+watch(searchQuery, (query) => {
+  if (searchTimer !== null) clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => emit("search", query.trim()), 250);
+});
 type SortKey =
   | "rank"
   | "score"

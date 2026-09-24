@@ -3,9 +3,6 @@ name: Build and push Docker images
 on:
   push:
     branches:
-      - "**"        # build on ALL branches
-  pull_request:
-    branches:
       - "**"
 
 permissions:
