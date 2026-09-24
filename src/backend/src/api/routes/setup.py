@@ -22,6 +22,7 @@ from src.core.auth import (
 from src.core.config import settings
 from src.core.crypto import encrypt_secret
 from src.core.env_handler import EnvConfigHandler
+from src.core.provider_credentials import apply_deployment_provider_credentials
 from src.core.config_registry import CONFIG_REGISTRY
 from src.database.models.app_integration_settings import AppIntegrationSettings
 from src.database.models.auth import UserSession
@@ -235,6 +236,7 @@ async def update_setup_configuration(
     selected = set(payload.sections)
     await _save_configuration(db, payload.configuration, selected)
     await db.commit()
+    apply_deployment_provider_credentials(await _app_row(db))
     return await _configuration(db)
 
 
@@ -275,6 +277,8 @@ async def setup_admin(
         values["OIDC_ENABLED"] = True
 
     await _save_configuration(db, values, selected)
+    await db.flush()
+    apply_deployment_provider_credentials(await _app_row(db))
 
     user = User(
         username=username,
