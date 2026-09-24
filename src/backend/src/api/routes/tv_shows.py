@@ -213,12 +213,28 @@ async def list_shows(
     if search:
         stmt = stmt.where(TVShow.title.ilike(f"%{search}%"))
 
+    status_count_stmt = select(TVShow.status, func.count()).where(
+        TVShow.user_id == current_user.id, TVShow.deleted_at.is_(None)
+    )
+    if favorite is not None:
+        status_count_stmt = status_count_stmt.where(TVShow.favorite == favorite)
+    if search:
+        status_count_stmt = status_count_stmt.where(TVShow.title.ilike(f"%{search}%"))
+    status_counts_result = await db.execute(status_count_stmt.group_by(TVShow.status))
+    status_counts = {status.value: count for status, count in status_counts_result.all()}
+
     total = await db.scalar(select(func.count()).select_from(stmt.subquery()))
     stmt = stmt.order_by(TVShow.sort_title).offset(skip).limit(limit)
 
     result = await db.execute(stmt)
     items = list(result.scalars().unique().all())
-    return PaginatedResponse(items=items, total=total or 0, offset=skip, limit=limit)
+    return PaginatedResponse(
+        items=items,
+        total=total or 0,
+        offset=skip,
+        limit=limit,
+        status_counts=status_counts,
+    )
 
 @router.get("/get/{show_id}", response_model=TVShowRead)
 async def get_show(
