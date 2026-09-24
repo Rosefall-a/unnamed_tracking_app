@@ -256,6 +256,7 @@ class EnvConfigHandler:
                 "menu": section.menu,
                 "removable": section.removable,
                 "visible": section.visible,
+                "default_selected": section.required or section.default_selected,
                 "status": status,
                 "blocked": env_only_missing_required > 0,
                 "env_configured": any(field["source"] == "env" and field["configured"] for field in fields),
