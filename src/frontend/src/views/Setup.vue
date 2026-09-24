@@ -121,6 +121,19 @@ function visibleFields(section: SetupSection): SetupField[] {
   return section.fields.filter((field) => field.visible);
 }
 
+function fieldGroups(section: SetupSection): Array<{ heading: string | null; fields: SetupField[] }> {
+  const unheaded = visibleFields(section).filter((field) => !field.heading);
+  const groups = new Map<string, SetupField[]>();
+  for (const field of visibleFields(section)) {
+    if (!field.heading) continue;
+    groups.set(field.heading, [...(groups.get(field.heading) ?? []), field]);
+  }
+  const result: Array<{ heading: string | null; fields: SetupField[] }> = [];
+  if (unheaded.length) result.push({ heading: null, fields: unheaded });
+  for (const [heading, fields] of groups) result.push({ heading, fields });
+  return result;
+}
+
 function statusLabel(section: SetupSection): string {
   if (section.status === "completed_by_env") return "Completed by .env";
   if (sectionIsComplete(section)) return "Complete";
@@ -139,6 +152,7 @@ function initialize(config: SetupConfiguration) {
     .filter(
       (section) =>
         section.required ||
+        (!section.required && section.default_selected) ||
         section.status === "partial" ||
         section.status === "configured" ||
         section.env_configured ||
@@ -440,8 +454,11 @@ async function submit() {
             can be completed later, but they will not be used for login.
           </div>
 
-          <div class="fields">
-            <label v-for="field in visibleFields(current)" :key="field.name">
+          <div class="field-groups">
+            <section v-for="group in fieldGroups(current)" :key="group.heading ?? '__unheaded'" class="field-group">
+              <h3 v-if="group.heading">{{ group.heading }}</h3>
+              <div class="fields">
+            <label v-for="field in group.fields" :key="field.name">
               <span>
                 {{ field.label }}
                 <b v-if="fieldRequired(field)" class="required-mark">*</b>
@@ -524,7 +541,7 @@ async function submit() {
 .badge{white-space:nowrap;border:1px solid #3a3a3a;border-radius:999px;padding:4px 8px;color:#aaa;font-size:11px}.small{padding:7px 10px!important;font-size:12px}
 .forced-banner,.info-banner{display:flex;flex-direction:column;gap:5px;padding:12px;border:1px solid #57411f;background:#211b11;border-radius:8px;color:#d8c39a;font-size:12px;line-height:1.5}
 .section-editor header{display:flex;justify-content:space-between;gap:16px;align-items:flex-start}.section-editor h1{margin:0;color:#fff;font-size:1.35rem}
-.fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin:24px 0}.fields label{display:flex;flex-direction:column;gap:6px;color:#ccc;font-size:13px}.fields label:has(input[type=checkbox]){flex-direction:row;align-items:center}.fields label>span{display:flex;gap:5px;align-items:center}.fields em{font-style:normal;color:#d8c39a;font-size:10px;margin-left:auto}.fields input,.fields select{background:#111;border:1px solid #3a3a3a;border-radius:8px;color:#fff;padding:10px;font:inherit}.fields input[type=checkbox]{width:18px;height:18px;accent-color:#d68a34}.fields input:focus,.fields select:focus{outline:none;border-color:#d68a34}.fields input:disabled,.fields select:disabled{opacity:.55}.fields small{color:#777;font-size:11px;line-height:1.4}.env-help{color:#d8c39a!important}.required-mark{color:#fca5a5}
+.field-groups{display:flex;flex-direction:column;gap:24px;margin:24px 0}.field-group h3{margin:0 0 12px;color:#fff;font-size:1rem}.fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.fields label{display:flex;flex-direction:column;gap:6px;color:#ccc;font-size:13px}.fields label:has(input[type=checkbox]){flex-direction:row;align-items:center}.fields label>span{display:flex;gap:5px;align-items:center}.fields em{font-style:normal;color:#d8c39a;font-size:10px;margin-left:auto}.fields input,.fields select{background:#111;border:1px solid #3a3a3a;border-radius:8px;color:#fff;padding:10px;font:inherit}.fields input[type=checkbox]{width:18px;height:18px;accent-color:#d68a34}.fields input:focus,.fields select:focus{outline:none;border-color:#d68a34}.fields input:disabled,.fields select:disabled{opacity:.55}.fields small{color:#777;font-size:11px;line-height:1.4}.env-help{color:#d8c39a!important}.required-mark{color:#fca5a5}
 .actions{display:flex;gap:10px;margin-top:20px}.actions button{flex:1}
 button.primary,.setup-card button.primary{background:#d68a34;color:#111;border:0;border-radius:8px;padding:11px 14px;font-weight:700;cursor:pointer}.secondary{background:#252525!important;color:#ddd!important;border:1px solid #3a3a3a!important;border-radius:8px;padding:11px 14px;cursor:pointer}.setup-card button:disabled{opacity:.6;cursor:not-allowed}
 .env-blocker{display:flex;flex-direction:column;gap:4px;margin-bottom:10px}.error{color:#fca5a5;background:rgba(220,38,38,.1);border:1px solid rgba(220,38,38,.3);border-radius:8px;padding:9px;font-size:13px}.success{color:#86efac;background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.2);border-radius:8px;padding:9px;font-size:13px}
