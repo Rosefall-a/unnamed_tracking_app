@@ -22,6 +22,7 @@ The configuration system has three layers:
         +-- persisted values
         +-- field/section status
         +-- dependency validation
+        +-- startup policy
         |
         v
     /api/setup/configuration
@@ -48,21 +49,41 @@ Do not add a normal field directly to Setup.vue.
 
 ## Environment precedence
 
-The handler uses:
+The effective precedence is:
 
-    environment/.env > persisted database value > registry default
+    process environment
+          >
+    .env
+          >
+    persisted application configuration
+          >
+    startup-mode default
+          >
+    registry default
 
-An environment-owned field is returned with:
+Process environment values override values loaded from .env. The handler's environment resolution is field-based, so an environment value locks only that field; missing application-owned values can still be supplied through setup.
+
+Environment-owned fields are returned with:
 
 - locked: true
 - source: env
-- configured: true
+- configured: true when supplied
 - env_only: true for ConfigSource.ENV
 - visible: false for sensitive deployment-only fields
 
-A required ENV-only field that is absent blocks its section with `blocked_by_env`; the Welcome page must direct the operator back to `.env` rather than asking for the value in setup.
+A required ENV-only field that is absent blocks its section with `blocked_by_env`; the setup page directs the operator back to .env rather than asking for the value in setup.
 
 For secrets the value is always null. This prevents the setup endpoint from becoming a secret-disclosure endpoint.
+
+## Startup policy
+
+`STARTUP_MODE` is the only operator-facing startup policy.
+
+- `dev` or `development`: development defaults and no post-install setup/configuration UI.
+- `testing`: setup/configuration UI is shown. Testing-specific defaults are used when defined; otherwise development defaults are used, then normal defaults.
+- empty or any other value: setup/configuration UI is shown and normal defaults are used.
+
+The backend exposes the derived `startup_ui_enabled` status to the frontend. The frontend should consume that policy rather than interpreting mode aliases itself. There is deliberately no `STARTUP_UI` setting.
 
 ## Section state
 
@@ -82,23 +103,17 @@ The first administrator is deliberately special. The registry describes its fiel
 
 When all bootstrap values are supplied by the environment, the browser does not need to receive the password. The backend reads it directly from EnvConfigHandler.
 
-## Forced startup UI
-
-STARTUP_UI=forced keeps /setup reachable after the first administrator exists.
-
-The configuration endpoint remains the same, so there is only one setup UI contract. Forced mode uses PUT /api/setup/configuration and is protected by the normal admin dependency. It never calls the first-admin creation path.
-
 ## OIDC
 
-OIDC_ENABLED defaults to true.
+Selecting OIDC means it is being configured. Issuer URL, client ID, and client secret are required when the OIDC section is selected, and a complete provider is enabled automatically when setup saves it. There is no separate OIDC enable switch in the generated setup flow.
 
-When enabled, issuer/client ID/client secret are required if the OIDC section is selected. If any OIDC environment variable is present, the section is surfaced automatically. When disabled, partial provider values can be stored without enabling OIDC login.
+The setup redirect URI is generated from the current request URL and displayed read-only. It is not accepted as a user-defined setup value. Named providers derive their callback from the current request and provider slug as well.
 
-Environment values still override the database setting.
+Environment-provided OIDC values remain authoritative and lock their corresponding fields. Secrets remain masked.
 
 ## Frontend-only Vite setting
 
-VITE_USE_MOCK_DATA is intentionally not returned by the backend registry schema. It is an early-stage frontend development switch read directly through import.meta.env. Its TypeScript declaration lives in src/frontend/src/vite-env.d.ts.
+`VITE_USE_MOCK_DATA` is intentionally not returned by the backend registry schema. It is an early-stage frontend development switch read directly through import.meta.env. Its TypeScript declaration lives in src/frontend/src/vite-env.d.ts.
 
 ## Fernet encryption
 
