@@ -36,6 +36,7 @@ export interface SetupSection {
   id: string;
   title: string;
   description: string;
+  menu: string | null;
   required: boolean;
   removable: boolean;
   visible: boolean;
