@@ -195,7 +195,7 @@ class SeasonRead(BaseModel):
     updated_at: int
 
 
-class AnimeRead(AnimeBase):
+class AnimeReadBase(AnimeBase):
     """Full representation returned to clients, seasons included so the
     detail page loads everything in one request."""
 
@@ -205,7 +205,6 @@ class AnimeRead(AnimeBase):
     user_id: UUID
     sort_title: str
     locked_fields: list[str] = Field(default_factory=list)
-    seasons: list[SeasonRead] = Field(default_factory=list)
     created_at: int = Field(description="Unix timestamp in seconds when the entry was created.")
     updated_at: int = Field(
         description="Unix timestamp in seconds when the entry was last updated."
@@ -218,3 +217,34 @@ class AnimeRead(AnimeBase):
     airing_interval_days: int | None = None
     linked_tv_show_id: UUID | None = None
     linked_movie_id: UUID | None = None
+
+
+class AnimeLibrarySeasonRead(BaseModel):
+    """Season progress returned by library list endpoints; episode rows stay on detail endpoints."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    show_id: UUID
+    season_number: int
+    name: str | None
+    episode_count: int | None
+    episodes_watched: int
+    status: AnimeStatus
+    air_date: date | None
+    poster_url: str | None
+    created_at: int
+    updated_at: int
+
+
+class AnimeRead(AnimeReadBase):
+    """Full representation returned to clients, seasons included so the
+    detail page loads everything in one request."""
+
+    seasons: list[SeasonRead] = Field(default_factory=list)
+
+
+class AnimeLibraryRead(AnimeReadBase):
+    """Lightweight library representation without episode rows."""
+
+    seasons: list[AnimeLibrarySeasonRead] = Field(default_factory=list)

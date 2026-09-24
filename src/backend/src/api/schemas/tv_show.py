@@ -179,7 +179,7 @@ class SeasonRead(BaseModel):
     updated_at: int
 
 
-class TVShowRead(TVShowBase):
+class TVShowReadBase(TVShowBase):
     """Full representation returned to clients, seasons included so the
     detail page loads everything in one request."""
 
@@ -189,7 +189,6 @@ class TVShowRead(TVShowBase):
     user_id: UUID
     sort_title: str
     locked_fields: list[str] = Field(default_factory=list)
-    seasons: list[SeasonRead] = Field(default_factory=list)
     created_at: int = Field(description="Unix timestamp in seconds when the show was created.")
     updated_at: int = Field(description="Unix timestamp in seconds when the show was last updated.")
 
@@ -197,3 +196,34 @@ class TVShowRead(TVShowBase):
     next_episode_air_at: int | None = None
     next_episode_number: int | None = None
     airing_interval_days: int | None = None
+
+
+class TVShowLibrarySeasonRead(BaseModel):
+    """Season progress returned by library list endpoints; episode rows stay on detail endpoints."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    show_id: UUID
+    season_number: int
+    name: str | None
+    episode_count: int | None
+    episodes_watched: int
+    status: TVShowStatus
+    air_date: date | None
+    poster_url: str | None
+    created_at: int
+    updated_at: int
+
+
+class TVShowRead(TVShowReadBase):
+    """Full representation returned to clients, seasons included so the
+    detail page loads everything in one request."""
+
+    seasons: list[SeasonRead] = Field(default_factory=list)
+
+
+class TVShowLibraryRead(TVShowReadBase):
+    """Lightweight library representation without episode rows."""
+
+    seasons: list[TVShowLibrarySeasonRead] = Field(default_factory=list)

@@ -2,7 +2,7 @@
 import { ref, computed, onMounted } from "vue";
 import { useKeptAlive } from "../utils/useKeptAlive";
 import {
-  fetchTVShows,
+  fetchTVShowsPage,
   updateTVShow,
   deleteTVShow,
   tvShowToInput,
@@ -70,15 +70,34 @@ const items = computed(() => shows.value.map(toVM));
 // Only the very first load shows the loading state; a refresh when the
 // page comes back swaps data in quietly, so titles never blink away.
 let loadRequest = 0;
+const total = ref(0);
+const statusCounts = ref<Record<string, number>>({});
+const pageSize = 100;
+const currentSearch = ref("");
 async function load(search = "") {
+  currentSearch.value = search;
   const request = ++loadRequest;
   if (!shows.value.length) loading.value = true;
   try {
-    const next = await fetchTVShows(search);
+    const page = await fetchTVShowsPage(0, pageSize, search);
     if (request !== loadRequest) return;
-    shows.value = next;
+    shows.value = page.items;
+    total.value = page.total;
+    statusCounts.value = page.statusCounts;
   } catch (e) {
     error.value = e instanceof Error ? e.message : "Failed to load TV shows.";
+  } finally {
+    loading.value = false;
+  }
+}
+async function loadMore() {
+  if (loading.value || shows.value.length >= total.value) return;
+  loading.value = true;
+  try {
+    const page = await fetchTVShowsPage(shows.value.length, pageSize, currentSearch.value);
+    shows.value.push(...page.items);
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "Failed to load more TV shows.";
   } finally {
     loading.value = false;
   }
@@ -276,12 +295,15 @@ function detailRoute(id: string): string {
     kind="tv"
     add-label="+ Add Show"
     :items="items"
+    :total="total"
+    :status-counts="statusCounts"
     :loading="loading"
     :error="error"
     :detail-route="detailRoute"
     :search="search"
     :create-from-result="createFromResult"
     @search="load"
+    @load-more="loadMore"
     @toggle-favorite="onToggleFavorite"
     @advance-episode="onAdvanceEpisode"
     @save-note="onSaveNote"
