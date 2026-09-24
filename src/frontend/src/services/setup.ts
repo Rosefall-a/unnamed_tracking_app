@@ -53,7 +53,6 @@ export interface SetupStatus {
   setup_required: boolean;
   startup_ui: "enabled" | "disabled";
   startup_ui_enabled: boolean;
-  forced: boolean;
 }
 
 export interface SetupConfiguration {
