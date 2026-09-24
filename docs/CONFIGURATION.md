@@ -10,7 +10,7 @@ The main components are:
 - src/frontend/src/services/setup.ts — frontend representation of the backend schema.
 - src/frontend/src/views/Setup.vue — generic renderer for the registry schema.
 
-## Source ownership
+## Source ownership and visibility
 
 Every registry field declares a source:
 
@@ -28,7 +28,9 @@ Resolution is:
           v
     registry default
 
-This is why a half-complete .env file works correctly: fields supplied by the environment are populated and locked, while missing fields remain editable.
+This is why a half-complete .env file works correctly: fields supplied by the environment are populated and locked, while missing application-owned fields remain editable.
+
+`visible` is separate from source ownership. An ENV-owned non-secret value such as `AUTH_COOKIE_SECURE` can be shown as its resolved value while remaining read-only. Sensitive deployment-only values can be hidden. Setup-owned secret inputs remain available for entering a new secret, but existing secret material is never returned.
 
 ## Sections and status
 
@@ -47,6 +49,9 @@ The handler calculates:
 - partial
 - configured
 - completed_by_env
+- blocked_by_env
+
+A required ENV-only field that is missing makes its section `blocked_by_env`; the generated UI reports the missing variable and does not offer it as a setup input.
 
 Required fields may be conditional. OIDC issuer/client ID/client secret are required only when the OIDC section is selected and OIDC is enabled.
 
@@ -67,7 +72,8 @@ A registry field can declare:
 - required
 - secret
 - generated
-- deprecated
+- deprecated and deprecated_message
+- visible
 - storage ownership
 
 The setup frontend consumes these properties directly. A normal new field should not require a field-specific change to Setup.vue.
@@ -93,14 +99,14 @@ Add a ConfigSpec to CONFIG_REGISTRY:
 
 Choose the source deliberately. Use ConfigSource.ENV when deployment operators must control the value through .env. Use BOTH or SETUP when the application is allowed to own it.
 
-### 2. Decide whether it is secret
+### 2. Decide visibility and secrecy
 
-Credentials and tokens should use:
+For a normal non-secret ENV variable, leave `visible=True`; it is shown but read-only. For an ENV-only secret, use `secret=True`; its value is never returned and the generated form hides it. For a setup-owned secret, use:
 
     input_type="secret"
     secret=True
 
-Secret values are never returned to the browser. The schema only reports whether a secret is configured and whether the environment owns it.
+Secret values are never returned to the browser. Use `visible=False` when the field itself should not appear. The schema only reports whether a secret is configured and whether the environment owns it.
 
 ### 3. Decide how it is persisted
 
@@ -143,6 +149,10 @@ At minimum test environment resolution, partial configuration, requiredness, sec
 
 The maintenance rule is: registry first, handler second, persistence/validation third, documentation and tests last. The generic Vue setup component should normally require no field-specific change.
 
+## Secrets and Fernet
+
+Application-owned secrets saved by setup are encrypted with `encrypt_secret()` before database persistence. It uses `settings.SECRET_KEY`. A valid supplied `SECRET_KEY` is used directly; if omitted, the persistent Fernet-key handler generates a stable key under `APP_DATA_DIR/config/fernet.key` and maintains redundant copies. Existing ciphertext requires the same key, so changing it without the old key intentionally fails closed.
+
 ## OIDC enabled behavior
 
 OIDC_ENABLED defaults to true.
@@ -150,9 +160,13 @@ OIDC_ENABLED defaults to true.
 - When enabled, selecting OIDC for setup requires issuer URL, client ID, and client secret.
 - When disabled, incomplete credentials are allowed and can be completed later.
 - When disabled, OIDC login is not used.
-- If OIDC_ENABLED is supplied through .env, it is locked and wins over the database value.
+- If any OIDC environment variable is supplied, the OIDC section is surfaced automatically. If OIDC_ENABLED is supplied through .env, it is locked and wins over the database value.
 
 This is separate from named-provider controls such as enabled, show_on_login, and autostart_enabled.
+
+## Deprecated configuration
+
+Deprecated registry fields carry a `deprecated_message`. When a deprecated environment variable is supplied, startup logging emits that message, including the replacement to use. For example, `DATABASE_URL` points operators to `POSTGRES_USER`, `POSTGRES_PASSWORD`, and `POSTGRES_DB`.
 
 ## Frontend-only Vite configuration
 
