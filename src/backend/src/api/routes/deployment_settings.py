@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.api.routes.settings import get_or_create_app_integration_settings
 from src.core.auth import get_current_admin
 from src.core.crypto import decrypt_secret, encrypt_secret
+from src.core.env_handler import EnvConfigHandler
 from src.core.provider_credentials import apply_deployment_provider_credentials
 from src.database.models.oidc_settings import OidcSettings
 from src.database.models.user import User
@@ -77,6 +78,43 @@ _SAFE_PROVIDER_FIELDS = {
     "xbox_client_id",
 }
 
+_PROVIDER_ENV_NAMES = {
+    "steamgriddb_api_key": "STEAMGRIDDB_API_KEY",
+    "retroachievements_api_key": "RETROACHIEVEMENTS_API_KEY",
+    "giantbomb_api_key": "GIANTBOMB_API_KEY",
+    "igdb_client_id": "IGDB_CLIENT_ID",
+    "igdb_client_secret": "IGDB_CLIENT_SECRET",
+    "screenscraper_ssid": "SCREENSCRAPER_SSID",
+    "screenscraper_sspassword": "SCREENSCRAPER_SSPASSWORD",
+    "screenscraper_devid": "SCREENSCRAPER_DEVID",
+    "screenscraper_devpassword": "SCREENSCRAPER_DEVPASSWORD",
+    "xbox_client_id": "XBOX_CLIENT_ID",
+    "xbox_client_secret": "XBOX_CLIENT_SECRET",
+}
+
+_OIDC_ENV_NAMES = {
+    "issuer_url": "OIDC_ISSUER_URL",
+    "client_id": "OIDC_CLIENT_ID",
+    "client_secret": "OIDC_CLIENT_SECRET",
+    "scopes": "OIDC_SCOPES",
+    "redirect_uri": "OIDC_REDIRECT_URI",
+    "groups_claim": "OIDC_GROUPS_CLAIM",
+    "admin_group": "OIDC_ADMIN_GROUP",
+    "user_match_field": "OIDC_USER_MATCH_FIELD",
+}
+
+_OIDC_ENV_LOCKED_FIELDS = {
+    "oidc_issuer_url",
+    "oidc_client_id",
+    "oidc_client_secret",
+    "oidc_scopes",
+    "oidc_redirect_uri",
+    "oidc_groups_claim",
+    "oidc_admin_group",
+    "oidc_user_match_field",
+    "oidc_allow_new_users",
+}
+
 
 async def _oidc_row(db):
     row = await db.scalar(select(OidcSettings).limit(1))
@@ -109,10 +147,21 @@ async def get_deployment_settings(db: AsyncSession, admin: User) -> dict:
     providers = {field: getattr(app, field) for field in _SAFE_PROVIDER_FIELDS}
     for field in _SECRET_FIELDS:
         providers[field + "_configured"] = bool(getattr(app, field))
+    handler = EnvConfigHandler()
+    provider_locks = {
+        field: handler.has(env_name)
+        for field, env_name in _PROVIDER_ENV_NAMES.items()
+    }
+    oidc_locks = {
+        field: handler.has(env_name)
+        for field, env_name in _OIDC_ENV_NAMES.items()
+    }
     named = [_provider_view(p) for p in _provider_rows(oidc)]
     return {
         "providers": providers,
+        "provider_locks": provider_locks,
         "oidc": {
+
             "issuer_url": oidc.issuer_url,
             "client_id": oidc.client_id,
             "scopes": oidc.scopes,
@@ -127,6 +176,10 @@ async def get_deployment_settings(db: AsyncSession, admin: User) -> dict:
             "allow_new_users": oidc.allow_new_users,
             "client_secret_configured": bool(oidc.client_secret),
             "named_providers": named,
+            "locked_fields": {
+                **{f"oidc_{name}": locked for name, locked in oidc_locks.items()},
+                "oidc_allow_new_users": handler.has("OIDC_ISSUER_URL"),
+            },
         },
     }
 
@@ -146,7 +199,19 @@ async def update_deployment_settings(
 ) -> dict:
     app = await get_or_create_app_integration_settings(db)
     oidc = await _oidc_row(db)
+    handler = EnvConfigHandler()
+    provider_locks = {
+        field: handler.has(env_name)
+        for field, env_name in _PROVIDER_ENV_NAMES.items()
+    }
+    locked_fields = {
+        f"oidc_{name}": handler.has(env_name)
+        for name, env_name in _OIDC_ENV_NAMES.items()
+    }
+    locked_fields["oidc_allow_new_users"] = handler.has("OIDC_ISSUER_URL")
     for field, value in payload.model_dump(exclude_unset=True).items():
+        if provider_locks.get(field) or field in _OIDC_ENV_LOCKED_FIELDS and locked_fields.get(field):
+            raise HTTPException(409, f"{field} is managed by the deployment environment and cannot be changed here.")
         if field == "oidc_providers_json":
             try:
                 incoming = json.loads(value or "[]")
