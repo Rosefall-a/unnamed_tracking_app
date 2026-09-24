@@ -159,3 +159,17 @@ defaults, or testing for reduced test defaults.
 The setup flow obtains backend-owned defaults and source metadata from
 /api/setup/configuration. Secret values are never returned by that endpoint.
 See CONFIGURATION.md for the source-policy and dependency-validation rules.
+
+
+## Validating the setup/configuration flow
+
+1. Start with a fresh database and the minimal environment. Confirm `/setup` asks for the administrator and optional OIDC configuration.
+2. Add `OIDC_ISSUER_URL`, `OIDC_CLIENT_ID`, and `OIDC_CLIENT_SECRET`. Reload `/setup`; the OIDC flow should be enabled automatically and those environment-owned fields should be locked.
+3. Add `OIDC_SCOPES`, `OIDC_GROUPS_CLAIM`, `OIDC_ADMIN_GROUP`, and `OIDC_USER_MATCH_FIELD`. Confirm those values are populated and locked.
+4. Complete setup, then set `STARTUP_UI=forced` and restart. `/setup` should remain reachable even though an administrator already exists, with the environment-owned OIDC values populated.
+5. Remove `STARTUP_UI=forced` and restart. Normal routing should again send a completed installation away from `/setup`.
+6. In **Settings → OIDC / SSO**, test adding a named provider, changing its order, changing its login button presentation, enabling/disabling login visibility, and using its generated autostart URL.
+7. Change an OIDC credential in `.env`, restart, and confirm Settings reflects the deployment-managed state rather than exposing the saved secret.
+8. Remove one required OIDC environment value and restart. Startup diagnostics should report the incomplete OIDC configuration rather than silently accepting a half-configured provider.
+
+Do not use real production OIDC secrets in a test environment. Use a disposable identity provider or test tenant.
