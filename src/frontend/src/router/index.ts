@@ -198,7 +198,7 @@ router.beforeEach(async (to, from) => {
   }
   if (to.path === "/setup") {
     const status = await fetchSetupStatus();
-    if (status.setup_required || status.startup_ui_enabled) { startupUiShown = true; return; }
+    if (status.setup_required || status.startup_mode !== "development") { startupUiShown = true; return; }
     return currentUser.value ? "/" : "/login";
   }
 
