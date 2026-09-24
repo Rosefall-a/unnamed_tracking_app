@@ -11,6 +11,7 @@ export interface OidcProviderSetting {
   user_match_field: string;
   allow_new_users: boolean;
   button_text: string;
+  button_colour: string;
   button_image_url: string | null;
   enabled: boolean;
   show_on_login: boolean;
