@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { createInitialAdmin } from "../services/setup";
+import { createInitialAdmin, fetchSetupConfiguration } from "../services/setup";
 import { checkAuth } from "../state/auth";
 
 const route = useRoute();
@@ -25,6 +25,29 @@ const error = ref<string | null>(
     : null,
 );
 const loading = ref(false);
+const configurationLoading = ref(true);
+
+onMounted(async () => {
+  try {
+    const configuration = await fetchSetupConfiguration();
+    const defaults = new Map(
+      configuration.settings.map((setting) => [setting.name, setting.default]),
+    );
+    if (typeof defaults.get("OIDC_SCOPES") === "string") {
+      oidcScopes.value = defaults.get("OIDC_SCOPES") as string;
+    }
+    if (typeof defaults.get("OIDC_GROUPS_CLAIM") === "string") {
+      oidcGroupsClaim.value = defaults.get("OIDC_GROUPS_CLAIM") as string;
+    }
+    if (defaults.get("OIDC_USER_MATCH_FIELD") === "email" || defaults.get("OIDC_USER_MATCH_FIELD") === "username") {
+      oidcUserMatchField.value = defaults.get("OIDC_USER_MATCH_FIELD") as "email" | "username";
+    }
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : "Unable to load setup defaults.";
+  } finally {
+    configurationLoading.value = false;
+  }
+});
 
 async function submit() {
   error.value = null;
@@ -176,7 +199,7 @@ async function submit() {
       </div>
 
       <div v-if="error" class="error">{{ error }}</div>
-      <button :disabled="loading || Boolean(route.query.backend_error)">
+      <button :disabled="loading || configurationLoading || Boolean(route.query.backend_error)">
         {{ loading ? "Creating account…" : "Create administrator" }}
       </button>
     </form>
