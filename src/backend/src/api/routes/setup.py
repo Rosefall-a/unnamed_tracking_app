@@ -4,7 +4,7 @@ import secrets
 import time
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select, text, update
 from sqlalchemy.exc import IntegrityError
@@ -119,12 +119,16 @@ def _persisted_values(app: AppIntegrationSettings, oidc: OidcSettings) -> dict[s
     return values
 
 
-async def _configuration(db: AsyncSession) -> dict[str, Any]:
+async def _configuration(db: AsyncSession, request: Request) -> dict[str, Any]:
     app = await _app_row(db)
     oidc = await _oidc_row(db)
     handler = EnvConfigHandler()
+    redirect_uri = str(request.url_for("oidc_callback"))
     return {
-        "sections": handler.setup_schema(_persisted_values(app, oidc)),
+        "sections": handler.setup_schema(
+            _persisted_values(app, oidc),
+            generated_values={"OIDC_REDIRECT_URI": redirect_uri},
+        ),
         "startup_mode": handler.mode.value,
         "startup_ui": "forced" if handler.startup_ui_forced else "auto",
         "forced": handler.startup_ui_forced,
@@ -135,6 +139,7 @@ async def _save_configuration(
     db: AsyncSession,
     values: dict[str, Any],
     selected_sections: set[str],
+    generated_redirect_uri: str,
 ) -> None:
     """Persist only fields owned by the setup registry.
 
@@ -171,10 +176,10 @@ async def _save_configuration(
         setattr(app, attribute, encrypt_secret(str(value)) if spec.secret else str(value))
 
     if "oidc" in selected_sections or handler.has("OIDC_ISSUER_URL") or handler.has("OIDC_CLIENT_ID") or handler.has("OIDC_CLIENT_SECRET"):
+        oidc.redirect_uri = generated_redirect_uri
         oidc_fields = {
             "OIDC_ISSUER_URL": "issuer_url",
             "OIDC_CLIENT_ID": "client_id",
-            "OIDC_REDIRECT_URI": "redirect_uri",
             "OIDC_SCOPES": "scopes",
             "OIDC_GROUPS_CLAIM": "groups_claim",
             "OIDC_ADMIN_GROUP": "admin_group",
@@ -210,8 +215,8 @@ async def _save_configuration(
 
 
 @router.get("/configuration")
-async def setup_configuration(db: AsyncSession = Depends(get_db)) -> dict[str, object]:
-    return await _configuration(db)
+async def setup_configuration(request: Request, db: AsyncSession = Depends(get_db)) -> dict[str, object]:
+    return await _configuration(db, request)
 
 
 @router.get("/status")
@@ -228,20 +233,22 @@ async def setup_status(db: AsyncSession = Depends(get_db)) -> dict[str, bool | s
 @router.put("/configuration")
 async def update_setup_configuration(
     payload: SetupRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     admin: User = Depends(get_current_admin),
 ) -> dict[str, object]:
     del admin
     selected = set(payload.sections)
-    await _save_configuration(db, payload.configuration, selected)
+    await _save_configuration(db, payload.configuration, selected, str(request.url_for("oidc_callback")))
     await db.commit()
     apply_deployment_provider_credentials(await _app_row(db))
-    return await _configuration(db)
+    return await _configuration(db, request)
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
 async def setup_admin(
     payload: SetupRequest,
+    request: Request,
     response: Response,
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, str | bool]:
@@ -275,7 +282,7 @@ async def setup_admin(
     if "oidc" in selected and "OIDC_ENABLED" not in values:
         values["OIDC_ENABLED"] = True
 
-    await _save_configuration(db, values, selected)
+    await _save_configuration(db, values, selected, str(request.url_for("oidc_callback")))
     await db.flush()
     apply_deployment_provider_credentials(await _app_row(db))
 
