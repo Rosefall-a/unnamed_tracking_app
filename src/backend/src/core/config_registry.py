@@ -37,6 +37,9 @@ class ConfigSectionSpec:
     default: bool = False
     removable: bool = True
     visible: bool = True
+    # Optional sections can opt into being selected on the Welcome screen by default.
+    # Required sections are always selected regardless of this value.
+    default_selected: bool = False
     # Optional navigation/menu grouping. Multiple sections may share one menu
     # identifier, allowing future multi-screen menus without changing the registry shape.
     menu: str | None = None
@@ -63,6 +66,9 @@ class ConfigSpec:
     generated: bool = False
     deprecated: bool = False
     deprecated_message: str = "This setting is deprecated and will be removed in a future release."
+    # Optional visual grouping inside a section. Unheaded fields render first;
+    # fields sharing a heading render together under one heading.
+    heading: str | None = None
     # visible controls whether the field appears in generated UI.
     # It is deliberately separate from source ownership: an ENV-owned boolean
     # can be visible/read-only, while a sensitive deployment field can be hidden entirely.
@@ -108,6 +114,7 @@ CONFIG_SECTIONS: tuple[ConfigSectionSpec, ...] = (
         "OpenID Connect / SSO",
         "Optional SSO configuration. OIDC is enabled by default, but disabling it permits a provider to be saved while it is only partially configured.",
         40,
+        default_selected=True,
     ),
 )
 
@@ -207,6 +214,7 @@ CONFIG_REGISTRY: tuple[ConfigSpec, ...] = (
         input_type="boolean",
         default=False,
         development_default=True,
+        heading="Debug mode",
     ),
     ConfigSpec(
         "PRIMARY_USER_USERNAME",
@@ -365,7 +373,16 @@ CONFIG_REGISTRY: tuple[ConfigSpec, ...] = (
         required=True,
         storage="oidc",
     ),
-    ConfigSpec("OIDC_REDIRECT_URI", "oidc", label="Redirect URI", input_type="url", storage="oidc"),
+    ConfigSpec(
+        "OIDC_REDIRECT_URI",
+        "oidc",
+        label="Redirect URI",
+        input_type="url",
+        generated=True,
+        visible=True,
+        description="Automatically generated from the address currently used to access the application.",
+        storage="oidc",
+    ),
     ConfigSpec(
         "OIDC_SCOPES",
         "oidc",
@@ -433,6 +450,7 @@ CONFIG_REGISTRY: tuple[ConfigSpec, ...] = (
         ConfigSource.BOTH,
         label="Maximum upload size (MB)",
         input_type="integer",
+        heading="Max sizes",
         default=15,
     ),
     ConfigSpec(
@@ -441,6 +459,7 @@ CONFIG_REGISTRY: tuple[ConfigSpec, ...] = (
         ConfigSource.BOTH,
         label="Maximum save archive size (MB)",
         input_type="integer",
+        heading="Max sizes",
         default=4096,
     ),
     ConfigSpec(
@@ -449,6 +468,7 @@ CONFIG_REGISTRY: tuple[ConfigSpec, ...] = (
         ConfigSource.BOTH,
         label="Maximum clip size (MB)",
         input_type="integer",
+        heading="Max sizes",
         default=500,
     ),
     ConfigSpec(
@@ -457,6 +477,7 @@ CONFIG_REGISTRY: tuple[ConfigSpec, ...] = (
         ConfigSource.BOTH,
         label="Maximum world save size (MB)",
         input_type="integer",
+        heading="Max sizes",
         default=2000,
     ),
     ConfigSpec(
