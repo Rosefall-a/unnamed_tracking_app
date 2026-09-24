@@ -175,7 +175,7 @@ class EnvConfigHandler:
                     "secret": spec.secret,
                     "generated": spec.generated,
                     "deprecated": spec.deprecated,
-                    "locked": env_set,
+                    "locked": spec.source is ConfigSource.ENV or env_set,
                     "configured": configured,
                     "source": source,
                     "value": value,
