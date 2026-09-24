@@ -144,14 +144,17 @@ async def get_deployment_settings(db: AsyncSession, admin: User) -> dict:
     del admin
     app = await get_or_create_app_integration_settings(db)
     oidc = await _oidc_row(db)
-    providers = {field: getattr(app, field) for field in _SAFE_PROVIDER_FIELDS}
-    for field in _SECRET_FIELDS:
-        providers[field + "_configured"] = bool(getattr(app, field))
     handler = EnvConfigHandler()
     provider_locks = {
         field: handler.has(env_name)
         for field, env_name in _PROVIDER_ENV_NAMES.items()
     }
+    providers = {
+        field: None if provider_locks[field] else getattr(app, field)
+        for field in _SAFE_PROVIDER_FIELDS
+    }
+    for field in _SECRET_FIELDS:
+        providers[field + "_configured"] = bool(getattr(app, field)) or provider_locks[field]
     oidc_locks = {
         field: handler.has(env_name)
         for field, env_name in _OIDC_ENV_NAMES.items()
@@ -162,13 +165,13 @@ async def get_deployment_settings(db: AsyncSession, admin: User) -> dict:
         "provider_locks": provider_locks,
         "oidc": {
 
-            "issuer_url": oidc.issuer_url,
-            "client_id": oidc.client_id,
-            "scopes": oidc.scopes,
-            "redirect_uri": oidc.redirect_uri,
-            "groups_claim": oidc.groups_claim,
-            "admin_group": oidc.admin_group,
-            "user_match_field": oidc.user_match_field or "email",
+            "issuer_url": None if oidc_locks["issuer_url"] else oidc.issuer_url,
+            "client_id": None if oidc_locks["client_id"] else oidc.client_id,
+            "scopes": None if oidc_locks["scopes"] else oidc.scopes,
+            "redirect_uri": None if oidc_locks["redirect_uri"] else oidc.redirect_uri,
+            "groups_claim": None if oidc_locks["groups_claim"] else oidc.groups_claim,
+            "admin_group": None if oidc_locks["admin_group"] else oidc.admin_group,
+            "user_match_field": None if oidc_locks["user_match_field"] else (oidc.user_match_field or "email"),
             "default_login_method": oidc.default_login_method
             if oidc.default_login_method in {"local", "sso"}
             else "local",
