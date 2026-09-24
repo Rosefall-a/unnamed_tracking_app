@@ -158,7 +158,7 @@ class EnvConfigHandler:
 
                 required = spec.required
                 if section.id == "oidc" and spec.name in {"OIDC_ISSUER_URL", "OIDC_CLIENT_ID", "OIDC_CLIENT_SECRET"}:
-                    required = self.oidc_enabled(persisted)
+                    required = True
 
                 env_set = self.has(spec.name)
                 generated_value = generated_values.get(spec.name)
@@ -310,7 +310,7 @@ class EnvConfigHandler:
             missing = [name for name, present in zip(primary_names, primary_present) if not present]
             issues.append(ConfigIssue("primary_user", "error", "Primary user configuration is incomplete: " + ", ".join(missing), recoverable=False))
 
-        if self.oidc_enabled():
+        if any(str(values.get(name) or "").strip() for name in ("OIDC_ISSUER_URL", "OIDC_CLIENT_ID", "OIDC_CLIENT_SECRET")):
             issuer = str(values.get("OIDC_ISSUER_URL") or "").strip()
             if issuer:
                 scopes = set(str(values.get("OIDC_SCOPES") or "").split())
