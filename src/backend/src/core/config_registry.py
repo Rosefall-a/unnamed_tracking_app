@@ -36,6 +36,9 @@ class ConfigSectionSpec:
     required: bool = False
     removable: bool = True
     visible: bool = True
+    # Optional navigation/menu grouping. Multiple sections may share one menu
+    # identifier, allowing future multi-screen menus without changing the registry shape.
+    menu: str | None = None
 
 
 @dataclass(frozen=True)

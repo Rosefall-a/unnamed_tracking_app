@@ -138,7 +138,7 @@ class EnvConfigHandler:
             required_configured = 0
             env_configured_required = 0
             env_only_missing_required = 0
-            required_groups: dict[str, dict[str, list[tuple[Any, bool, bool]]]] =
+            required_groups: dict[str, dict[str, list[tuple[Any, bool, bool]]]] = {}
 
             for spec in CONFIG_REGISTRY:
                 if spec.section != section.id or spec.name == "VITE_USE_MOCK_DATA":
@@ -242,7 +242,9 @@ class EnvConfigHandler:
                 "title": section.title,
                 "description": section.description,
                 "required": section.required,
+                "menu": section.menu,
                 "removable": section.removable,
+                "visible": section.visible,
                 "status": status,
                 "blocked": env_only_missing_required > 0,
                 "env_configured": any(field["source"] == "env" and field["configured"] for field in fields),

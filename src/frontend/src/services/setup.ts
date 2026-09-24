@@ -19,6 +19,7 @@ export interface SetupField {
   hint: string;
   placeholder: string;
   required: boolean;
+  required_group: string | null;
   secret: boolean;
   generated: boolean;
   deprecated: boolean;
@@ -35,8 +36,10 @@ export interface SetupSection {
   id: string;
   title: string;
   description: string;
+  menu: string | null;
   required: boolean;
   removable: boolean;
+  visible: boolean;
   status: SetupSectionStatus;
   blocked: boolean;
   blocked_message: string;
