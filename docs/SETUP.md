@@ -12,10 +12,9 @@ POSTGRES_USER=archive
 POSTGRES_PASSWORD=change-this-database-password
 POSTGRES_DB=archive
 
-# Required: used for Fernet encryption and signing the server-side session.
-# Generate one with:
-# python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
-SECRET_KEY=replace-with-a-generated-fernet-key
+# Optional: deployment-owned Fernet/session key. If omitted, the application
+# generates and persists a stable key under APP_DATA_DIR/config.
+SECRET_KEY=
 
 # Local HTTP development only. Set true when the app is served over HTTPS.
 AUTH_COOKIE_SECURE=false
@@ -64,7 +63,11 @@ services:
     restart: unless-stopped
     env_file: .env
     environment:
-      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
     depends_on:
       db:
         condition: service_healthy
@@ -141,3 +144,18 @@ Do **not** regenerate it on every container start: changing it makes previously 
 - Use a long, randomly generated Fernet `SECRET_KEY`.
 - Prefer the Settings UI for provider and OIDC credentials so they are encrypted in the database instead of copied into deployment files.
 - The environment variables for provider/OIDC credentials remain as backwards-compatible fallbacks for existing deployments.
+
+
+## Central configuration behavior
+
+New deployments should use the individual POSTGRES_* variables rather than
+DATABASE_URL. DATABASE_URL remains accepted for existing installations and is
+reported as deprecated by the startup diagnostics.
+
+STARTUP_MODE is an optional environment-only profile. Leave it unset for normal
+defaults, use development for disposable local-development initial-admin
+defaults, or testing for reduced test defaults.
+
+The setup flow obtains backend-owned defaults and source metadata from
+/api/setup/configuration. Secret values are never returned by that endpoint.
+See CONFIGURATION.md for the source-policy and dependency-validation rules.
