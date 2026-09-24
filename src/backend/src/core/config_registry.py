@@ -412,7 +412,7 @@ CONFIG_REGISTRY: tuple[ConfigSpec, ...] = (
     ConfigSpec(
         "MAX_UPLOAD_SIZE_MB",
         "general",
-        ConfigSource.ENV,
+        ConfigSource.BOTH,
         label="Maximum upload size (MB)",
         input_type="integer",
         default=15,
@@ -420,7 +420,7 @@ CONFIG_REGISTRY: tuple[ConfigSpec, ...] = (
     ConfigSpec(
         "MAX_SAVE_ARCHIVE_SIZE_MB",
         "general",
-        ConfigSource.ENV,
+        ConfigSource.BOTH,
         label="Maximum save archive size (MB)",
         input_type="integer",
         default=4096,
@@ -428,7 +428,7 @@ CONFIG_REGISTRY: tuple[ConfigSpec, ...] = (
     ConfigSpec(
         "MAX_CLIP_SIZE_MB",
         "general",
-        ConfigSource.ENV,
+        ConfigSource.BOTH,
         label="Maximum clip size (MB)",
         input_type="integer",
         default=500,
@@ -436,7 +436,7 @@ CONFIG_REGISTRY: tuple[ConfigSpec, ...] = (
     ConfigSpec(
         "MAX_WORLD_SAVE_SIZE_MB",
         "general",
-        ConfigSource.ENV,
+        ConfigSource.BOTH,
         label="Maximum world save size (MB)",
         input_type="integer",
         default=2000,
@@ -448,6 +448,7 @@ CONFIG_REGISTRY: tuple[ConfigSpec, ...] = (
         label="Frontend mock data",
         input_type="boolean",
         default=False,
+        visible=False,
         description="Early-stage frontend development/testing switch; never exposed through the backend setup schema.",
     ),
 )
