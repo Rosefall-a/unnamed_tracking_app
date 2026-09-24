@@ -56,9 +56,9 @@ class ConfigSpec:
     generated: bool = False
     deprecated: bool = False
     deprecated_message: str = "This setting is deprecated and will be removed in a future release."
-    # visible controls whether a non-secret value is shown by generated UI.
+    # visible controls whether the field appears in generated UI.
     # It is deliberately separate from source ownership: an ENV-owned boolean
-    # can be visible/read-only, while a sensitive value can be hidden entirely.
+    # can be visible/read-only, while a sensitive deployment field can be hidden entirely.
     visible: bool = True
     storage: str | None = None
 
