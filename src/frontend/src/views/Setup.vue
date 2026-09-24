@@ -239,12 +239,11 @@ async function submit() {
     if (section.id === "first_admin" && forced.value) continue;
     if (section.id === "oidc" && !oidcEnabled.value) continue;
 
-    for (const field of section.fields) {
-      if (
-        fieldRequired(field) &&
-        !field.configured &&
-        !hasValue(fieldValue(field))
-      ) {
+    for (const field of visibleFields(section)) {
+      const required = section.id === "oidc"
+        ? oidcEnabled.value && ["OIDC_ISSUER_URL", "OIDC_CLIENT_ID", "OIDC_CLIENT_SECRET"].includes(field.name)
+        : field.required;
+      if (required && !field.configured && !hasValue(fieldValue(field))) {
         currentSection.value = section.id;
         error.value = `“${field.label}” is required before continuing.`;
         return;
