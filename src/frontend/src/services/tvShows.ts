@@ -2,7 +2,6 @@ import { failedRequest } from "./apiError";
 import type { PaginatedResponse } from "../types/pagination";
 import type { Episode, Season, TVShow, TVShowStatus } from "../types/tv_show";
 
-const SHOWS_PAGE_SIZE = 50;
 
 // The exact shape FastAPI sends, snake_case, matching the Python model
 // field-for-field. Nothing outside this file should ever see raw backend
