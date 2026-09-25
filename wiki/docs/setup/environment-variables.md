@@ -38,13 +38,11 @@ These are legacy bootstrap options. The normal setup UI is preferred.
 | `PRIMARY_USER_EMAIL` | Email address for the initial administrator when using environment-based bootstrap. |
 | `PRIMARY_USER_PASSWORD` | Password for the initial administrator when using environment-based bootstrap. |
 
-## Metadata and provider integrations
+## Metadata providers
 
 | Variable | Description |
 |---|---|
 | `STEAMGRIDDB_API_KEY` | API key used to access SteamGridDB metadata/art assets. |
-| `RETROACHIEVEMENTS_API_KEY` | API key used to access RetroAchievements data. |
-| `GIANTBOMB_API_KEY` | API key used to access GiantBomb game metadata. |
 | `IGDB_CLIENT_ID` | IGDB client ID used for game metadata access. |
 | `IGDB_CLIENT_SECRET` | IGDB client secret used for game metadata access. |
 | `TMDB_API_KEY` | TMDB API key used for movie and TV metadata. |
@@ -54,8 +52,17 @@ These are legacy bootstrap options. The normal setup UI is preferred.
 | `SCREENSCRAPER_DEVPASSWORD` | ScreenScraper developer password. |
 | `SCREENSCRAPER_SSID` | ScreenScraper session ID. |
 | `SCREENSCRAPER_SSPASSWORD` | ScreenScraper session password. |
+
+## Account & data integrations
+
+These integrations are used for external account connections, user-specific data, libraries, achievements, or importing data rather than general media metadata.
+
+| Variable | Description |
+|---|---|
 | `XBOX_CLIENT_ID` | Xbox integration client ID. |
 | `XBOX_CLIENT_SECRET` | Xbox integration client secret. |
+| `GIANTBOMB_API_KEY` | API key used for GiantBomb integration and related game data. |
+| `RETROACHIEVEMENTS_API_KEY` | API key used to access RetroAchievements data. |
 
 ## OpenID Connect / SSO
 
