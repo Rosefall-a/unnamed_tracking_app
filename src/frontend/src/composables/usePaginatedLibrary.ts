@@ -42,7 +42,7 @@ export function usePaginatedLibrary<T>({ pageSize, fetchPage }: Options<T>) {
     try {
       const page = await fetchPage(items.value.length, pageSize, search);
       if (token !== requestToken) return;
-      items.value.push(...page.items);
+      items.value = [...items.value, ...page.items];
       totalCount.value = page.total;
       hasMore.value = items.value.length < totalCount.value;
     } finally {
