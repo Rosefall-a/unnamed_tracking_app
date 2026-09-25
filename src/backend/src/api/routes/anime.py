@@ -418,7 +418,26 @@ async def list_anime(
 
     stmt = stmt.order_by(Anime.sort_title).offset(skip).limit(limit)
 
+    count_stmt = select(func.count()).select_from(Anime).where(
+        Anime.user_id == current_user.id, Anime.deleted_at.is_(None)
+    )
+    if status_filter is not None:
+        count_stmt = count_stmt.where(Anime.status == status_filter)
+    if favorite is not None:
+        count_stmt = count_stmt.where(Anime.favorite == favorite)
+    if search:
+        count_stmt = count_stmt.where(
+            or_(
+                Anime.title.ilike(pattern),
+                Anime.title_english.ilike(pattern),
+                Anime.title_romaji.ilike(pattern),
+                Anime.title_native.ilike(pattern),
+            )
+        )
+    total = await db.scalar(count_stmt)
+
     result = await db.execute(stmt)
+    response.headers["X-Total-Count"] = str(total or 0)
     return list(result.scalars().unique().all())
 
 
