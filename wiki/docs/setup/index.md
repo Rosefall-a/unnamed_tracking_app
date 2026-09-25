@@ -62,88 +62,27 @@ volumes:
   pgdata:
 ```
 
-## 3. Environment variables
+## 3. Required environment variables
 
-Paste the following into Arcane's **Environment** text box.
-
-You can change the values that you want to customize. At minimum, set a strong value for `POSTGRES_PASSWORD`.
+Paste the following into Arcane's **Environment** text box:
 
 ```dotenv
-# PostgreSQL deployment inputs. New deployments should use these instead of DATABASE_URL.
-POSTGRES_USER=archive
 POSTGRES_PASSWORD=change-this-database-password
-POSTGRES_DB=archive
-POSTGRES_HOST=db
-POSTGRES_PORT=5432
-
-# Startup profile:
-#   dev/development = development defaults, skip setup UI after installation
-#   testing = show setup UI, use testing defaults where defined, otherwise development defaults
-#   empty/anything else = show setup UI and use normal defaults
-STARTUP_MODE=
-
-# SECRET_KEY is deployment-owned. If omitted, the application generates and
-# persists a stable Fernet key under APP_DATA_DIR/config.
-SECRET_KEY=
-
-AUTH_COOKIE_SECURE=false
-DEBUG=false
-MAX_UPLOAD_SIZE_MB=15
-MAX_SAVE_ARCHIVE_SIZE_MB=4096
-MAX_CLIP_SIZE_MB=500
-MAX_WORLD_SAVE_SIZE_MB=2000
-
-# Frontend-only early-stage development/testing switch. It is consumed by Vite,
-# remains outside the backend configuration registry, and is intentionally not
-# editable through /setup.
-VITE_USE_MOCK_DATA=false
-
-# Optional deployment-wide provider credentials. Values supplied here are
-# authoritative and will be shown as locked fields by /setup.
-STEAMGRIDDB_API_KEY=
-RETROACHIEVEMENTS_API_KEY=
-GIANTBOMB_API_KEY=
-IGDB_CLIENT_ID=
-IGDB_CLIENT_SECRET=
-TMDB_API_KEY=
-OMDB_API_KEY=
-TVDB_API_KEY=
-SCREENSCRAPER_DEVID=
-SCREENSCRAPER_DEVPASSWORD=
-SCREENSCRAPER_SSID=
-SCREENSCRAPER_SSPASSWORD=
-XBOX_CLIENT_ID=
-XBOX_CLIENT_SECRET=
-
-OIDC_ISSUER_URL=
-OIDC_CLIENT_ID=
-OIDC_CLIENT_SECRET=
-# OIDC_REDIRECT_URI is generated automatically from the URL used to access the application.
-OIDC_SCOPES=openid profile email
-OIDC_GROUPS_CLAIM=groups
-OIDC_ADMIN_GROUP=
-OIDC_USER_MATCH_FIELD=email
-
-# Legacy compatibility only; prefer the three POSTGRES_* variables above.
-# DATABASE_URL=postgresql+psycopg://archive:change-this-database-password@db:5432/archive
-
-# Legacy first-user bootstrap. The normal setup UI is preferred.
-# PRIMARY_USER_USERNAME=admin
-# PRIMARY_USER_EMAIL=admin@example.com
-# PRIMARY_USER_PASSWORD=Change-this-during-setup
 ```
 
-### Important values to change
+That's all that is required for a basic deployment. The Compose file supplies defaults for the other PostgreSQL settings.
 
-Before deploying, review these values:
+Change `POSTGRES_PASSWORD` to a strong, unique password before deploying.
 
-- **`POSTGRES_PASSWORD`** — change this to a strong, unique database password.
-- **`SECRET_KEY`** — optional. If left empty, the application generates and persists its own key.
-- **`AUTH_COOKIE_SECURE`** — set this appropriately when the application is served over HTTPS.
-- **Provider API keys** — only configure these if you want the corresponding integrations.
-- **OIDC settings** — only configure these if you are using an OpenID Connect provider such as Authentik.
+### Optional environment variables
 
-See [Environment Variables](../environment-variables.md) for a description of the available variables.
+The application supports additional environment variables for application behavior, uploads, metadata providers, integrations, OIDC/SSO, and other configuration.
+
+You do **not** need to copy all of those variables into Arcane. Only add the variables you actually want to customize.
+
+See the [Environment Variables](environment-variables.md) page for the complete list and an explanation of what each variable does.
+
+For example, if you want to use OIDC/SSO, add the relevant `OIDC_*` variables from that page to Arcane's Environment field.
 
 ## 4. Deploy the stack
 
@@ -161,7 +100,7 @@ Open:
 http://your-server:8080
 ```
 
-If you need a different host port, change the `UNNAMED_TRACKING_APP_PORT` value in the Arcane Environment field.
+If you need a different host port, add `UNNAMED_TRACKING_APP_PORT` to the Arcane Environment field.
 
 For example:
 
@@ -197,5 +136,5 @@ Removing the stack does **not** remove the named PostgreSQL volume or the bind-m
 
 ## Next steps
 
-- See [Environment Variables](../environment-variables.md) for configuration details.
+- See [Environment Variables](environment-variables.md) for all available configuration options.
 - See [API Documentation](../development/api.md) for the automatically generated API documentation.
