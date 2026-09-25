@@ -37,6 +37,9 @@ nav:
       - Overview: administration/index.md
       - Users: administration/users.md
       - Scheduled Tasks: administration/tasks.md
+  - Deployment:
+      - Overview: deployment/index.md
+      - Production Docker Image: deployment/production-docker.md
   - Development:
       - Overview: development/index.md
       - Architecture: development/architecture.md
