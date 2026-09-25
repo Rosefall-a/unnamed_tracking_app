@@ -1,4 +1,4 @@
-import { ref } from "vue";
+import { ref, shallowRef } from "vue";
 
 export interface LibraryPage<T> {
   items: T[];
@@ -11,7 +11,7 @@ interface Options<T> {
 }
 
 export function usePaginatedLibrary<T>({ pageSize, fetchPage }: Options<T>) {
-  const items = ref<T[]>([]);
+  const items = shallowRef<T[]>([]);
   const totalCount = ref(0);
   const loading = ref(true);
   const loadingMore = ref(false);
