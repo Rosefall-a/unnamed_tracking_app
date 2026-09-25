@@ -37,19 +37,64 @@ from src.database.session import get_db
 from src.features.trash import archive_trash
 from src.features.trash.sweep import RETENTION_SECONDS
 from src.features.world_map import bluemap
-from src.helpers.media import save_media_bytes
+from src.helpers.media import safe_filename
+
+_DB_DEPENDENCY = Depends(get_db)
+_CURRENT_USER_DEPENDENCY = Depends(get_current_user)
+_FILE_UPLOAD = File(...)
 
 router = APIRouter(
-    prefix="/api/game", tags=["game-archives"], dependencies=[Depends(get_current_user)]
+    prefix="/api/game", tags=["game-archives"], dependencies=[_CURRENT_USER_DEPENDENCY]
 )
 
 ArchiveKind = Literal["save", "world_save"]
 
+_UPLOAD_CHUNK_SIZE = 1024 * 1024
+
+
+async def _save_upload_stream(
+    file: UploadFile, dest_dir: Path, original_name: str, limit_mb: int
+) -> tuple[Path, int]:
+    """Stream an uploaded archive to disk without buffering it in memory."""
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    path = dest_dir / safe_filename(original_name)
+    limit_bytes = limit_mb * 1024 * 1024
+    size = 0
+    try:
+        with path.open("wb") as output:
+            while True:
+                chunk = await file.read(_UPLOAD_CHUNK_SIZE)
+                if not chunk:
+                    break
+                size += len(chunk)
+                if size > limit_bytes:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Larger than {limit_mb} MB.",
+                    )
+                output.write(chunk)
+    except Exception:
+        path.unlink(missing_ok=True)
+        raise
+    return path, size
+
+
 _ARCHIVE_SUBDIRS: dict[ArchiveKind, str] = {"save": "saves", "world_save": "world_saves"}
 
 
-def _archive_dir(game_folder: str, kind: ArchiveKind, archive_id: UUID) -> Path:
-    return _DATA_ROOT / game_folder / _ARCHIVE_SUBDIRS[kind] / str(archive_id)
+def _get_archive_kind_from_string(kind_str: str) -> ArchiveKind:
+    if kind_str in ("save", "world_save"):
+        return kind_str  # type: ignore[return-value]
+    raise ValueError(f"Unknown archive kind: {kind_str}")
+
+
+def _archive_dir(
+    game_folder: str, kind: str, archive_id: UUID, user_id: UUID
+) -> Path:  # Kind should be ArchiveKind, however its easier to accept type of string and let the caller handle the type checking. This is because the kind is passed in from the route path parameter which is a string.
+    kind = _get_archive_kind_from_string(kind)
+    return (
+        _DATA_ROOT / str(user_id) / "games" / game_folder / _ARCHIVE_SUBDIRS[kind] / str(archive_id)
+    )
 
 
 async def _get_archive_or_404(
@@ -122,8 +167,8 @@ class RenameArchiveRequest(BaseModel):
 async def list_archives(
     game_id: UUID,
     kind: ArchiveKind,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = _DB_DEPENDENCY,
+    current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> list[dict]:
     await _get_game_or_404(game_id, db, current_user.id)
     result = await db.execute(
@@ -144,8 +189,8 @@ async def list_archives(
 async def list_archive_trash(
     game_id: UUID,
     kind: ArchiveKind,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = _DB_DEPENDENCY,
+    current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> list[dict]:
     """Soft-deleted archives of this kind, newest-deleted first — each still
     restorable until its purge_at passes (see features/trash/sweep.py)."""
@@ -168,9 +213,9 @@ async def create_archive(
     game_id: UUID,
     kind: ArchiveKind,
     name: str = Form(...),
-    file: UploadFile = File(...),
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    file: UploadFile = _FILE_UPLOAD,
+    db: AsyncSession = _DB_DEPENDENCY,
+    current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> dict:
     """Creates a new named archive and uploads its first version in one
     call — e.g. dropping a world save creates the "Main World" slot and
@@ -184,25 +229,28 @@ async def create_archive(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Name is required.")
 
     limit_mb = (
-        settings.MAX_WORLD_SAVE_SIZE_MB if kind == "world_save" else settings.MAX_UPLOAD_SIZE_MB
+        settings.MAX_WORLD_SAVE_SIZE_MB
+        if kind == "world_save"
+        else settings.MAX_SAVE_ARCHIVE_SIZE_MB
     )
-    data = await file.read()
-    if len(data) > limit_mb * 1024 * 1024:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=f"Larger than {limit_mb} MB."
-        )
 
     archive = GameArchive(id=uuid4(), game_id=game_id, kind=kind, name=name.strip())
     db.add(archive)
     await db.flush()
 
-    dest_dir = _archive_dir(game.folder_location, kind, archive.id)
-    saved_path = save_media_bytes(data, dest_dir, file.filename or "file")
-    version = GameArchiveVersion(
-        id=uuid4(), archive_id=archive.id, filename=saved_path.name, size=len(data)
-    )
-    db.add(version)
-    await db.commit()
+    dest_dir = _archive_dir(game.folder_location, kind, archive.id, user_id=current_user.id)  # type: ignore[arg-type]
+    try:
+        saved_path, size = await _save_upload_stream(
+            file, dest_dir, file.filename or "file", limit_mb
+        )
+        version = GameArchiveVersion(
+            id=uuid4(), archive_id=archive.id, filename=saved_path.name, size=size
+        )
+        db.add(version)
+        await db.commit()
+    except Exception:
+        await db.rollback()
+        raise
     await db.refresh(archive, attribute_names=["versions"])
     return _archive_to_dict(game_id, archive)
 
@@ -211,9 +259,9 @@ async def create_archive(
 async def add_archive_version(
     game_id: UUID,
     archive_id: UUID,
-    file: UploadFile = File(...),
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    file: UploadFile = _FILE_UPLOAD,
+    db: AsyncSession = _DB_DEPENDENCY,
+    current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> dict:
     """Uploads a new version to an existing archive — the previous
     version(s) stay as history rather than being replaced."""
@@ -227,22 +275,23 @@ async def add_archive_version(
     limit_mb = (
         settings.MAX_WORLD_SAVE_SIZE_MB
         if archive.kind == "world_save"
-        else settings.MAX_UPLOAD_SIZE_MB
+        else settings.MAX_SAVE_ARCHIVE_SIZE_MB
     )
-    data = await file.read()
-    if len(data) > limit_mb * 1024 * 1024:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=f"Larger than {limit_mb} MB."
-        )
 
-    dest_dir = _archive_dir(game.folder_location, archive.kind, archive.id)  # type: ignore[arg-type]
-    saved_path = save_media_bytes(data, dest_dir, file.filename or "file")
-    version = GameArchiveVersion(
-        id=uuid4(), archive_id=archive.id, filename=saved_path.name, size=len(data)
-    )
-    db.add(version)
-    archive.updated_at = int(time.time())
-    await db.commit()
+    dest_dir = _archive_dir(game.folder_location, archive.kind, archive.id, user_id=current_user.id)  # type: ignore[arg-type]
+    try:
+        saved_path, size = await _save_upload_stream(
+            file, dest_dir, file.filename or "file", limit_mb
+        )
+        version = GameArchiveVersion(
+            id=uuid4(), archive_id=archive.id, filename=saved_path.name, size=size
+        )
+        db.add(version)
+        archive.updated_at = int(time.time())
+        await db.commit()
+    except Exception:
+        await db.rollback()
+        raise
     await db.refresh(archive, attribute_names=["versions"])
     return _archive_to_dict(game_id, archive)
 
@@ -252,8 +301,8 @@ async def rename_archive(
     game_id: UUID,
     archive_id: UUID,
     payload: RenameArchiveRequest,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = _DB_DEPENDENCY,
+    current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> dict:
     archive = await _get_archive_or_404(game_id, archive_id, db, current_user.id)
     if not payload.name.strip():
@@ -268,8 +317,8 @@ async def rename_archive(
 async def delete_archive(
     game_id: UUID,
     archive_id: UUID,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = _DB_DEPENDENCY,
+    current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> dict[str, str]:
     """Soft-delete: moves the archive's files to trash and marks it deleted
     rather than removing anything — restorable for 7 days (see
@@ -277,8 +326,8 @@ async def delete_archive(
     archive = await _get_archive_or_404(game_id, archive_id, db, current_user.id)
     game = await _get_game_or_404(game_id, db, current_user.id)
     if game.folder_location:
-        game_dir = _DATA_ROOT / game.folder_location
-        dir_path = _archive_dir(game.folder_location, archive.kind, archive.id)  # type: ignore[arg-type]
+        game_dir = _DATA_ROOT / str(current_user.id) / "games" / game.folder_location
+        dir_path = _archive_dir(game.folder_location, archive.kind, archive.id, current_user.id)  # type: ignore[arg-type]
         work_dir = game_dir / "world_map" / str(archive.id)
         archive_trash.move_archive_to_trash(dir_path, work_dir, game_dir, archive.kind, archive.id)
     archive.deleted_at = int(time.time())
@@ -290,8 +339,8 @@ async def delete_archive(
 async def restore_archive(
     game_id: UUID,
     archive_id: UUID,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = _DB_DEPENDENCY,
+    current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> dict:
     archive = await _get_archive_or_404(
         game_id, archive_id, db, current_user.id, include_deleted=True
@@ -302,8 +351,8 @@ async def restore_archive(
         )
     game = await _get_game_or_404(game_id, db, current_user.id)
     if game.folder_location:
-        game_dir = _DATA_ROOT / game.folder_location
-        dir_path = _archive_dir(game.folder_location, archive.kind, archive.id)  # type: ignore[arg-type]
+        game_dir = _DATA_ROOT / str(current_user.id) / "games" / game.folder_location
+        dir_path = _archive_dir(game.folder_location, archive.kind, archive.id, current_user.id)  # type: ignore[arg-type]
         work_dir = game_dir / "world_map" / str(archive.id)
         archive_trash.restore_archive_from_trash(
             dir_path, work_dir, game_dir, archive.kind, archive.id
@@ -321,8 +370,8 @@ async def delete_archive_version(
     game_id: UUID,
     archive_id: UUID,
     version_id: UUID,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = _DB_DEPENDENCY,
+    current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> dict:
     archive = await _get_archive_or_404(game_id, archive_id, db, current_user.id)
     game = await _get_game_or_404(game_id, db, current_user.id)
@@ -338,8 +387,11 @@ async def delete_archive_version(
             detail="Delete the whole save to remove its last remaining version.",
         )
     if game.folder_location:
-        game_dir = _DATA_ROOT / game.folder_location
-        path = _archive_dir(game.folder_location, archive.kind, archive.id) / version.filename  # type: ignore[arg-type]
+        game_dir = _DATA_ROOT / str(current_user.id) / "games" / game.folder_location
+        path = (
+            _archive_dir(game.folder_location, archive.kind, archive.id, current_user.id)
+            / version.filename
+        )  # type: ignore[arg-type]
         archive_trash.move_file_to_trash(path, game_dir, archive.kind, archive.id)
     version.deleted_at = int(time.time())
     await db.commit()
@@ -352,8 +404,8 @@ async def restore_archive_version(
     game_id: UUID,
     archive_id: UUID,
     version_id: UUID,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = _DB_DEPENDENCY,
+    current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> dict:
     archive = await _get_archive_or_404(
         game_id, archive_id, db, current_user.id, include_deleted=True
@@ -367,8 +419,8 @@ async def restore_archive_version(
             status_code=status.HTTP_404_NOT_FOUND, detail="Deleted version not found."
         )
     if game.folder_location:
-        game_dir = _DATA_ROOT / game.folder_location
-        dir_path = _archive_dir(game.folder_location, archive.kind, archive.id)  # type: ignore[arg-type]
+        game_dir = _DATA_ROOT / str(current_user.id) / "games" / game.folder_location
+        dir_path = _archive_dir(game.folder_location, archive.kind, archive.id, current_user.id)  # type: ignore[arg-type]
         archive_trash.restore_file_from_trash(
             version.filename, dir_path, game_dir, archive.kind, archive.id
         )
@@ -385,8 +437,8 @@ async def download_archive_version(
     game_id: UUID,
     archive_id: UUID,
     version_id: UUID,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = _DB_DEPENDENCY,
+    current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> FileResponse:
     archive = await _get_archive_or_404(game_id, archive_id, db, current_user.id)
     game = await _get_game_or_404(game_id, db, current_user.id)
@@ -395,7 +447,10 @@ async def download_archive_version(
     )
     if version is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Version not found.")
-    path = _archive_dir(game.folder_location or "", archive.kind, archive.id) / version.filename  # type: ignore[arg-type]
+    path = (
+        _archive_dir(game.folder_location or "", archive.kind, archive.id, current_user.id)
+        / version.filename
+    )  # type: ignore[arg-type]
     if not path.is_file():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found.")
     original_name = version.filename.split("_", 1)[-1]
@@ -408,8 +463,8 @@ async def download_archive_version(
 @router.get("/{game_id}/world-map/worlds")
 async def list_world_maps(
     game_id: UUID,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = _DB_DEPENDENCY,
+    current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> list[dict]:
     """Every world_save archive for this game, each with its own render
     status and thumbnail — a game (e.g. a modpack) can have several
@@ -434,8 +489,8 @@ async def list_world_maps(
         worlds.append(entry)
 
     if game.folder_location:
-        game_dir = _DATA_ROOT / game.folder_location
-        for entry, archive in zip(worlds, archives):
+        game_dir = _DATA_ROOT / str(current_user.id) / "games" / game.folder_location
+        for entry, archive in zip(worlds, archives, strict=True):
             entry["has_thumbnail"] = bluemap.thumbnail_path(game_dir, archive.id).is_file()
     return worlds
 
@@ -445,8 +500,8 @@ async def render_world_map_route(
     game_id: UUID,
     archive_id: UUID,
     background_tasks: BackgroundTasks,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = _DB_DEPENDENCY,
+    current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> dict[str, str]:
     """Kicks off a BlueMap render of a world_save archive's latest version
     as a background task — this can take a long time for a real world, so
@@ -470,8 +525,11 @@ async def render_world_map_route(
         )
 
     latest = active_versions[0]  # ordered newest-first (see GameArchive.versions)
-    world_zip = _archive_dir(game.folder_location, "world_save", archive_id) / latest.filename
-    game_dir = _DATA_ROOT / game.folder_location
+    world_zip = (
+        _archive_dir(game.folder_location, "world_save", archive_id, current_user.id)
+        / latest.filename
+    )
+    game_dir = _DATA_ROOT / str(current_user.id) / "games" / game.folder_location
     background_tasks.add_task(bluemap.render_world_map, game_id, archive_id, game_dir, world_zip)
     return {"status": "rendering"}
 
@@ -480,8 +538,8 @@ async def render_world_map_route(
 async def get_world_map_status(
     game_id: UUID,
     archive_id: UUID,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = _DB_DEPENDENCY,
+    current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> dict:
     await _get_archive_or_404(game_id, archive_id, db, current_user.id, kind="world_save")
     return bluemap.get_status(game_id, archive_id)
@@ -491,11 +549,13 @@ async def get_world_map_status(
 async def get_world_map_thumbnail(
     game_id: UUID,
     archive_id: UUID,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = _DB_DEPENDENCY,
+    current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> FileResponse:
     game = await _get_game_or_404(game_id, db, current_user.id)
-    path = bluemap.thumbnail_path(_DATA_ROOT / (game.folder_location or ""), archive_id)
+    path = bluemap.thumbnail_path(
+        _DATA_ROOT / str(current_user.id) / "games" / (game.folder_location or ""), archive_id
+    )
     if not path.is_file():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No thumbnail yet.")
     return FileResponse(
@@ -508,15 +568,17 @@ async def get_world_map_file(
     game_id: UUID,
     archive_id: UUID,
     file_path: str,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = _DB_DEPENDENCY,
+    current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> FileResponse:
     """Serves one world's rendered BlueMap webapp (index.html + its assets)
     so the frontend can embed it in an iframe. `file_path` defaults to
     index.html when empty, matching how a static webapp normally resolves
     its root."""
     game = await _get_game_or_404(game_id, db, current_user.id)
-    root = bluemap.web_root(_DATA_ROOT / (game.folder_location or ""), archive_id)
+    root = bluemap.web_root(
+        _DATA_ROOT / str(current_user.id) / "games" / (game.folder_location or ""), archive_id
+    )
     target = root / (file_path or "index.html")
     resolved = target.resolve()
     if root.resolve() not in resolved.parents and resolved != root.resolve():

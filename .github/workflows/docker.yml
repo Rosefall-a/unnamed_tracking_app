@@ -2,9 +2,8 @@ name: Build and push Docker images
 
 on:
   push:
-    branches:
-      - "**"        # build on ALL branches
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     branches:
       - "**"
 
@@ -14,6 +13,7 @@ permissions:
 
 jobs:
   build-and-push:
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     runs-on: ubuntu-latest
 
     strategy:

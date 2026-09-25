@@ -94,6 +94,8 @@ const props = defineProps<{
   kind: "movie" | "tv" | "anime";
   addLabel: string;
   items: LibraryCardVM[];
+  total: number;
+  statusCounts: Record<string, number>;
   loading: boolean;
   error: string | null;
   detailRoute: (id: string) => string;
@@ -114,9 +116,34 @@ const emit = defineEmits<{
   (e: "bulk-set-status", ids: string[], status: string): void;
   (e: "bulk-favorite", ids: string[]): void;
   (e: "bulk-delete", ids: string[]): void;
+  (e: "search", query: string): void;
+  (e: "load-more"): void;
 }>();
 
 const router = useRouter();
+
+function maybeLoadMore() {
+  if (
+    layout.value === "board" ||
+    props.loading ||
+    props.items.length >= props.total
+  )
+    return;
+  if (
+    window.innerHeight + window.scrollY >=
+    document.documentElement.scrollHeight - 1000
+  ) {
+    emit("load-more");
+  }
+}
+onMounted(() =>
+  window.addEventListener("scroll", maybeLoadMore, { passive: true }),
+);
+onBeforeUnmount(() => window.removeEventListener("scroll", maybeLoadMore));
+watch(
+  () => props.items.length,
+  () => requestAnimationFrame(maybeLoadMore),
+);
 
 // The mockup's per-item "type" field (TV/Movie/OVA/Series/Anthology) has
 // no real per-item equivalent — none of the three entities carry a
@@ -187,6 +214,11 @@ const boardCardWidth = computed(() => {
 });
 const activeStatus = ref<string>("all");
 const searchQuery = ref("");
+let searchTimer: ReturnType<typeof setTimeout> | null = null;
+watch(searchQuery, (query) => {
+  if (searchTimer !== null) clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => emit("search", query.trim()), 250);
+});
 type SortKey =
   | "rank"
   | "score"
@@ -305,15 +337,10 @@ function computedRank(it: LibraryCardVM): number | null {
   return rankByItemId.value.get(it.id) ?? null;
 }
 
-const statusCounts = computed(() => {
-  const counts: Record<string, number> = { all: props.items.length };
-  STATUSES.forEach((s) => {
-    counts[s.key] = props.items.filter(
-      (it) => statusBucket(it.status) === s.key,
-    ).length;
-  });
-  return counts;
-});
+const statusCounts = computed<Record<string, number>>(() => ({
+  all: props.total,
+  ...props.statusCounts,
+}));
 
 function progressPct(it: LibraryCardVM): number {
   if (!it.isEpisodic) return it.watched > 0 ? 100 : 0;
@@ -366,6 +393,50 @@ const filteredItems = computed(() => {
   return sorted;
 });
 
+const boardPageStarts = reactive<Record<string, number>>({});
+const boardViewportWidth = ref(0);
+const boardContainer = ref<HTMLElement | null>(null);
+const boardVisibleCount = computed(() => {
+  const cardWidth =
+    shelfCardSize.value === "compact"
+      ? 150
+      : shelfCardSize.value === "large"
+        ? 260
+        : 196;
+  return Math.max(
+    1,
+    Math.floor((boardViewportWidth.value + 14) / (cardWidth + 14)) || 1,
+  );
+});
+function resetBoardPages() {
+  Object.keys(boardPageStarts).forEach((key) => delete boardPageStarts[key]);
+}
+function moveBoard(status: string, direction: -1 | 1, available: number) {
+  const current = boardPageStarts[status] ?? 0;
+  if (direction < 0) {
+    boardPageStarts[status] = Math.max(0, current - available);
+    return;
+  }
+  if (
+    current + available >= props.items.length &&
+    props.items.length < props.total
+  ) {
+    emit("load-more");
+  }
+  boardPageStarts[status] = current + available;
+}
+watch([activeStatus, filters], resetBoardPages);
+watch(boardViewportWidth, resetBoardPages);
+function updateBoardViewport() {
+  boardViewportWidth.value = boardContainer.value?.clientWidth ?? 0;
+}
+onMounted(updateBoardViewport);
+watch(shelfCardSize, () => requestAnimationFrame(updateBoardViewport));
+window.addEventListener("resize", updateBoardViewport);
+onBeforeUnmount(() =>
+  window.removeEventListener("resize", updateBoardViewport),
+);
+
 const boardGroups = computed(() => {
   const statuses =
     activeStatus.value === "all"
@@ -377,7 +448,13 @@ const boardGroups = computed(() => {
         (it) => statusBucket(it.status) === s.key,
       );
       rowItems = rowItems.filter(matchesFilterState);
-      return { status: s, rowItems };
+      const start = boardPageStarts[s.key] ?? 0;
+      return {
+        status: s,
+        rowItems,
+        visibleItems: rowItems.slice(start, start + boardVisibleCount.value),
+        start,
+      };
     })
     .filter((g) => g.rowItems.length > 0);
 });
@@ -690,7 +767,7 @@ defineExpose({ openQuickAdd });
             }}
           </h1>
           <div class="sub">
-            {{ items.length }} {{ items.length === 1 ? "title" : "titles" }}
+            {{ total }} {{ total === 1 ? "title" : "titles" }}
           </div>
         </div>
         <div style="display: flex; gap: 8px">
@@ -886,7 +963,7 @@ defineExpose({ openQuickAdd });
         </div>
         <div class="filter-foot">
           <span class="filter-result"
-            >{{ filteredItems.length }} of {{ items.length }} shown</span
+            >{{ filteredItems.length }} of {{ total }} loaded/matching</span
           >
           <button
             v-if="activeFilterCount"
@@ -943,12 +1020,15 @@ defineExpose({ openQuickAdd });
                 @click="handleCardClick(it)"
               >
                 <div class="list-thumb-wrap">
-                  <div
-                    class="list-thumb"
-                    :style="
-                      it.poster ? { backgroundImage: `url(${it.poster})` } : {}
-                    "
-                  ></div>
+                  <div class="list-thumb">
+                    <img
+                      v-if="it.poster"
+                      :src="it.poster"
+                      :alt="it.title"
+                      loading="lazy"
+                      decoding="async"
+                    />
+                  </div>
                   <div
                     v-if="selectMode"
                     class="select-checkbox"
@@ -1081,6 +1161,9 @@ defineExpose({ openQuickAdd });
               </div>
             </div>
           </div>
+          <div v-if="items.length < total" class="load-more-indicator">
+            {{ loading ? "Loading more…" : "Scroll for more" }}
+          </div>
         </template>
 
         <!-- ===== SHELF ===== -->
@@ -1102,12 +1185,15 @@ defineExpose({ openQuickAdd });
               @click="handleCardClick(it)"
             >
               <div class="shelf-art-wrap">
-                <div
-                  class="shelf-art"
-                  :style="
-                    it.poster ? { backgroundImage: `url(${it.poster})` } : {}
-                  "
-                ></div>
+                <div class="shelf-art">
+                  <img
+                    v-if="it.poster"
+                    :src="it.poster"
+                    :alt="it.title"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                </div>
                 <div
                   v-if="selectMode"
                   class="select-checkbox"
@@ -1226,6 +1312,9 @@ defineExpose({ openQuickAdd });
               </div>
             </div>
           </div>
+          <div v-if="items.length < total" class="load-more-indicator">
+            {{ loading ? "Loading more…" : "Scroll for more" }}
+          </div>
         </template>
 
         <!-- ===== BOARD ===== -->
@@ -1241,22 +1330,44 @@ defineExpose({ openQuickAdd });
             <div class="board-heading">
               <h2>{{ group.status.label }}</h2>
               <span class="n">{{ group.rowItems.length }}</span>
+              <div class="board-nav">
+                <button
+                  type="button"
+                  :disabled="group.start === 0"
+                  @click="moveBoard(group.status.key, -1, boardVisibleCount)"
+                >
+                  ‹
+                </button>
+                <button
+                  type="button"
+                  :disabled="
+                    group.start + boardVisibleCount >= group.rowItems.length &&
+                    items.length >= total
+                  "
+                  @click="moveBoard(group.status.key, 1, boardVisibleCount)"
+                >
+                  ›
+                </button>
+              </div>
             </div>
-            <div class="board-shelf">
+            <div ref="boardContainer" class="board-shelf">
               <div
-                v-for="it in group.rowItems"
+                v-for="it in group.visibleItems"
                 :key="it.id"
                 class="board-card"
                 :style="{ width: boardCardWidth }"
                 @click="handleCardClick(it)"
               >
                 <div class="board-art-wrap">
-                  <div
-                    class="board-art"
-                    :style="
-                      it.poster ? { backgroundImage: `url(${it.poster})` } : {}
-                    "
-                  ></div>
+                  <div class="board-art">
+                    <img
+                      v-if="it.poster"
+                      :src="it.poster"
+                      :alt="it.title"
+                      loading="lazy"
+                      decoding="async"
+                    />
+                  </div>
                   <div
                     v-if="selectMode"
                     class="select-checkbox"
@@ -2343,9 +2454,14 @@ defineExpose({ openQuickAdd });
   width: 76px;
   aspect-ratio: 2 / 3;
   border-radius: 6px;
-  background-size: cover;
-  background-position: center;
   background-color: var(--surface-2);
+  overflow: hidden;
+}
+.list-thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 .list-title-col {
   min-width: 0;
@@ -2443,10 +2559,15 @@ defineExpose({ openQuickAdd });
 }
 .shelf-art {
   aspect-ratio: 2 / 3;
-  background-size: cover;
-  background-position: center;
   background-color: var(--surface-2);
+  overflow: hidden;
   transition: transform 0.2s ease;
+}
+.shelf-art img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 .shelf-art-wrap:hover .shelf-art {
   transform: scale(1.04);
@@ -2639,6 +2760,30 @@ defineExpose({ openQuickAdd });
   padding-bottom: 8px;
   border-bottom: 1px solid var(--border-soft);
 }
+.board-nav {
+  margin-left: auto;
+  display: flex;
+  gap: 6px;
+}
+.board-nav button {
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--border-soft);
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--text);
+  cursor: pointer;
+}
+.board-nav button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.load-more-indicator {
+  padding: 14px;
+  text-align: center;
+  color: var(--text-faint);
+  font-size: 0.8rem;
+}
 .board-heading h2 {
   font-size: 1rem;
   font-weight: 800;
@@ -2652,7 +2797,7 @@ defineExpose({ openQuickAdd });
 .board-shelf {
   display: flex;
   gap: 14px;
-  overflow-x: auto;
+  overflow: hidden;
   padding-bottom: 8px;
 }
 .board-card {
@@ -2677,10 +2822,15 @@ defineExpose({ openQuickAdd });
 }
 .board-art {
   aspect-ratio: 2 / 3;
-  background-size: cover;
-  background-position: center;
   background-color: var(--surface-2);
+  overflow: hidden;
   transition: transform 0.2s ease;
+}
+.board-art img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 .board-art-wrap:hover .board-art {
   transform: scale(1.04);

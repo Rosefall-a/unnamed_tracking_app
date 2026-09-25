@@ -3,20 +3,20 @@ name: Frontend Checks
 on:
   push:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
 
 permissions:
   contents: write
 
 jobs:
   frontend-checks:
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     name: Frontend
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.head_ref || github.ref_name }}
-          fetch-depth: 0
+      - name: Check out repository
+        uses: actions/checkout@v4
 
       - name: Set up Node
         uses: actions/setup-node@v4

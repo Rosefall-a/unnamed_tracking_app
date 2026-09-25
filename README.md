@@ -69,7 +69,7 @@ there) and run by hand. There are two:
   and corrects a show whose episode count is wrong.
 
 Jobs are registered in `src/backend/src/features/jobs.py`.
-
+     
 ## Security
 
 This project is not currently hardened for direct public-internet exposure. Keep the API behind an appropriate network boundary and do not expose it directly to the public internet.
