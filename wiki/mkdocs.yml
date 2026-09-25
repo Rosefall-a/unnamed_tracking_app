@@ -1,0 +1,14 @@
+site_name: Unnamed Tracking App
+site_description: Documentation for Unnamed Tracking App
+
+theme:
+  name: material
+  features:
+    - navigation.sections
+    - navigation.expand
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+
+nav:
+  - Home: index.md
