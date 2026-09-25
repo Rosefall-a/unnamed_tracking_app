@@ -142,7 +142,7 @@ def search_anime_metadata(query: str, limit: int = 8) -> dict[str, Any]:
     with ThreadPoolExecutor(max_workers=len(PROVIDERS)) as executor:
         for spec, outcome, error in executor.map(_call, PROVIDERS):
             if error is not None:
-                provider_errors.append(_friendly_provider_error(spec.name, error))
+                provider_errors.append(format_provider_error(spec.name, error))
                 continue
             if outcome:
                 for candidate in outcome:
