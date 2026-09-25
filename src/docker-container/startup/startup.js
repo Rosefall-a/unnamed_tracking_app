@@ -25,20 +25,28 @@ function render(s) {
     const titleEl = document.querySelector("#title");
     const spinnerEl = document.querySelector("#spinner");
     const tickEl = document.querySelector("#ready-icon");
+    const failureEl = document.querySelector("#failure-icon");
+    const reloadButtonEl = document.querySelector("#reload-button");
+
+    const failed = s.overall === "failed";
 
     // Title + heading
     if (s.overall === "ready") {
         document.title = "Unnamed Tracking";
         titleEl.textContent = "Application Started";
+    } else if (failed) {
+        document.title = "Unnamed Tracking — Failed";
+        titleEl.textContent = "Application failed";
     } else {
         document.title = "Unnamed Tracking — Starting";
         titleEl.textContent = "Starting application";
-        tickEl.style.display = "none";
     }
 
     // Phase + message
     document.querySelector("#phase").textContent = phaseNames[s.phase] || s.phase;
-    document.querySelector("#message").textContent = s.message || "";
+    document.querySelector("#message").textContent = failed
+        ? (s.message || "The application could not finish starting.")
+        : (s.message || "");
 
     // Steps
     document.querySelector("#steps").innerHTML = labels.map(k =>
@@ -50,30 +58,46 @@ function render(s) {
 
     // Details on failure
     const details = document.querySelector("details");
-    if (s.overall === "failed") {
+    if (failed) {
         spinnerEl.style.animationPlayState = "paused";
         details.open = true;
     }
 
-    // Icon logic: ONLY ONE visible, always consistent
+    // Icon and reload logic: only one status icon is visible
     if (s.phase === "READY") {
         if (!ready) {
             ready = true;
-            pollInterval = 10000; // slow down after READY
+            pollInterval = 10000;
         }
 
-        // show tick, hide spinner
         spinnerEl.hidden = true;
         tickEl.style.display = "inline-flex";
+        failureEl.style.display = "none";
+        reloadButtonEl.style.display = "none";
+    } else if (failed) {
+        ready = false;
+        pollInterval = 10000;
+
+        spinnerEl.hidden = true;
+        tickEl.style.display = "none";
+        failureEl.style.display = "inline-flex";
+        reloadButtonEl.style.display = "inline-block";
     } else {
-        // not ready: show spinner, hide tick
         ready = false;
         pollInterval = 200;
 
         spinnerEl.hidden = false;
         tickEl.style.display = "none";
+        failureEl.style.display = "none";
+        reloadButtonEl.style.display = "none";
     }
 }
+
+function reloadApplication() {
+    window.location.reload();
+}
+
+document.querySelector("#reload-button").addEventListener("click", reloadApplication);
 
 async function poll() {
     try {

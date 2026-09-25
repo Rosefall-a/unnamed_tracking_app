@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory } from "vue-router";
-import { currentUser, authChecked, checkAuth, startupError } from "../state/auth";
+import { currentUser, authChecked, checkAuth } from "../state/auth";
 import { saveLibraryScroll } from "../state/libraryScroll";
 import { appearanceLoaded, loadAppearanceSettings } from "../state/appearance";
 import { fetchSetupStatus } from "../services/setup";
@@ -176,7 +176,6 @@ router.beforeEach(async (to, from) => {
       startupUiShown = true;
     } catch {
       setupState = "error";
-      startupError.value = true;
     }
   }
 

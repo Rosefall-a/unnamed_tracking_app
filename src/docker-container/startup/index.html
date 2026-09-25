@@ -56,6 +56,8 @@
                     </svg>
                 </span>
 
+                <span id="failure-icon" class="failure-icon" aria-hidden="true" style="display: none;">×</span>
+
                 <div>
                     <strong id="phase">Initialising</strong>
                     <p id="message">Starting production services.</p>
@@ -68,6 +70,10 @@
                 <summary>Startup details</summary>
                 <pre id="details">Waiting for startup information…</pre>
             </details>
+
+            <button id="reload-button" class="reload-button" type="button" style="display: none;">
+                Reload application
+            </button>
 
             <p class="hint">This diagnostic page is always accessible.</p>
         </section>
