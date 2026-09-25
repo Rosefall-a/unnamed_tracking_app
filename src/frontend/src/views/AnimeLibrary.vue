@@ -52,6 +52,48 @@ const aniListImportResult = ref<{
   errors: string[];
 } | null>(null);
 
+function seasonProgress(show: Anime): { watched: number; total: number | null } {
+  const watched = show.seasons.reduce((sum, s) => sum + s.episodesWatched, 0);
+  const known = show.seasons.every((s) => s.episodeCount !== null);
+  const total = known
+    ? show.seasons.reduce((sum, s) => sum + (s.episodeCount ?? 0), 0)
+    : null;
+  return { watched, total };
+}
+
+function currentSeason(show: Anime) {
+  return show.seasons.find(
+    (s) => s.episodeCount === null || s.episodesWatched < s.episodeCount,
+  );
+}
+
+function toVM(show: Anime): LibraryCardVM {
+  const { watched, total } = seasonProgress(show);
+  return {
+    id: show.id,
+    title: displayTitle(show),
+    poster: show.posterUrl,
+    status: show.status,
+    favorite: show.favorite,
+    score: show.ratingOverall,
+    personalRank: show.personalRank,
+    note: show.note,
+    genres: show.genres,
+    isEpisodic: true,
+    watched,
+    total,
+    progressLabel: total !== null ? watched + "/" + total : watched + "/–",
+    canAdvance: !!currentSeason(show),
+    format: show.format,
+    releaseYear: show.firstAirDate ? show.firstAirDate.slice(0, 4) : null,
+    addedAt: Date.parse(show.createdAt) || null,
+    altTitles: [show.title, show.titleEnglish, show.titleRomaji, show.titleNative]
+      .filter((t): t is string => !!t),
+  };
+}
+
+const items = computed(() => shows.value.map(toVM));
+
 function findShow(id: string): Anime {
   const show = shows.value.find((s) => s.id === id);
   if (!show) throw new Error(`Anime ${id} not in the loaded list`);
