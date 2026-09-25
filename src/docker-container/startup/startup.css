@@ -160,21 +160,6 @@ h1 {
     color: #FF5C5C;
 }
 
-.reload-button {
-    margin-top: 20px;
-    border: 1px solid #FF5C5C;
-    border-radius: 10px;
-    padding: 10px 16px;
-    background: transparent;
-    color: #FF5C5C;
-    font: inherit;
-    font-weight: 600;
-    cursor: pointer;
-}
-
-.reload-button:hover {
-    background: rgba(255, 92, 92, .1);
-}
 
 details {
     border-top: 1px solid var(--border);
