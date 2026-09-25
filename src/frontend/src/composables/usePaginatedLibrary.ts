@@ -17,9 +17,11 @@ export function usePaginatedLibrary<T>({ pageSize, fetchPage }: Options<T>) {
   const loadingMore = ref(false);
   const hasMore = ref(true);
   let requestToken = 0;
+  let currentSearch = "";
 
   async function load(search = "") {
     const token = ++requestToken;
+    currentSearch = search;
     loading.value = true;
     loadingMore.value = false;
     try {
@@ -33,7 +35,7 @@ export function usePaginatedLibrary<T>({ pageSize, fetchPage }: Options<T>) {
     }
   }
 
-  async function loadMore(search = "") {
+  async function loadMore(search = currentSearch) {
     if (!hasMore.value || loadingMore.value) return;
     const token = requestToken;
     loadingMore.value = true;
@@ -48,10 +50,10 @@ export function usePaginatedLibrary<T>({ pageSize, fetchPage }: Options<T>) {
     }
   }
 
-  async function loadAll(search = "") {
-    while (hasMore.value && requestToken === requestToken) {
-      await loadMore(search);
-      if (!hasMore.value) break;
+  async function loadAll(search = currentSearch) {
+    if (search !== currentSearch) await load(search);
+    while (hasMore.value) {
+      await loadMore();
     }
   }
 
