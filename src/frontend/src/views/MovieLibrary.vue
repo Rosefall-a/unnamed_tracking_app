@@ -4,6 +4,7 @@ import { usePaginatedLibrary } from "../composables/usePaginatedLibrary";
 import { useKeptAlive } from "../utils/useKeptAlive";
 import {
   fetchMovies,
+  fetchMoviesPage,
   updateMovie,
   deleteMovie,
   movieToInput,
