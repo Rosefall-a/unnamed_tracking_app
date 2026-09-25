@@ -138,7 +138,13 @@ http://your-server:9000
 
 On the first launch, open the application in your browser and follow the setup process.
 
-The normal setup UI is preferred for creating the first user and configuring application settings.
+The first-time setup flow can also be used to configure OIDC if you want to enable it during the initial boot. This is supported for the initial configuration.
+
+However, the **preferred method is to configure OIDC from Settings → OIDC / SSO after the application has been installed**. The Settings page is the normal place to manage OIDC providers and makes it easier to return to the configuration later.
+
+See the [OIDC user guide](../user-guide/oidc.md) for the provider settings, callback URI, account matching, and troubleshooting.
+
+The normal setup UI is preferred for creating the first user and configuring other initial application settings.
 
 If you configured deployment-owned values in Arcane, those values are available to the application during setup.
 
