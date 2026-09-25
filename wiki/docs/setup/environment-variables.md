@@ -1,55 +1,73 @@
 # Environment Variables
 
-Environment variables are optional deployment configuration unless explicitly marked otherwise.
+The backend configuration registry is the source of truth for application configuration exposed through environment variables. Environment values take precedence over values stored by setup.
 
-For the Arcane deployment guide, the only environment values needed for a basic deployment are `POSTGRES_PASSWORD` and `AUTH_COOKIE_SECURE`. The Compose file supplies defaults for the remaining PostgreSQL connection settings.
+The application also reads a small number of deployment/runtime variables directly, and the Docker Compose deployment has its own interpolation variables. They are listed separately below.
 
 ## Database
 
-| Variable | Description |
-|---|---|
-| `POSTGRES_USER` | PostgreSQL username. The Compose deployment defaults to `unnamed_tracking`. |
-| `POSTGRES_PASSWORD` | PostgreSQL password. **Required for the standard Compose deployment.** Use a strong, unique value. |
-| `POSTGRES_DB` | PostgreSQL database name. The Compose deployment defaults to `unnamed_tracking`. |
-| `POSTGRES_HOST` | PostgreSQL host. Defaults to `db`. |
-| `POSTGRES_PORT` | PostgreSQL port. Defaults to `5432`. |
-| `DATABASE_URL` | Legacy database connection URL. Prefer the individual `POSTGRES_*` variables. |
+The application accepts either the individual PostgreSQL variables or the legacy `DATABASE_URL` alternative.
+
+| Variable | Source | Default / requirement | Purpose |
+|---|---|---|---|
+| `POSTGRES_USER` | ENV | Required with `POSTGRES_PASSWORD` and `POSTGRES_DB` | PostgreSQL username. |
+| `POSTGRES_PASSWORD` | ENV | Required with `POSTGRES_USER` and `POSTGRES_DB` | PostgreSQL password. |
+| `POSTGRES_DB` | ENV | Required with `POSTGRES_USER` and `POSTGRES_DB` | PostgreSQL database name. |
+| `POSTGRES_HOST` | ENV | `db` | PostgreSQL host. |
+| `POSTGRES_PORT` | ENV | `5432` | PostgreSQL port. |
+| `DATABASE_URL` | ENV | Alternative; deprecated | Legacy PostgreSQL connection URL. If the three component variables are complete, they take precedence. |
+
+`DATABASE_URL` is still supported for compatibility. New deployments should use the individual PostgreSQL variables.
 
 ## Application
 
-| Variable | Description |
+| Variable | Source | Default | Purpose |
+|---|---|---|---|
+| `SECRET_KEY` | ENV | Generated/persisted when omitted | Stable Fernet encryption and session-signing key. It is hidden from the setup UI. |
+| `AUTH_COOKIE_SECURE` | BOTH | `false` | Makes authentication cookies require HTTPS when enabled. |
+| `DEBUG` | BOTH | `false` | Enables backend debug mode. |
+| `STARTUP_MODE` | ENV | Empty/default | Selects startup defaults and whether the setup UI is shown. |
+| `MAX_UPLOAD_SIZE_MB` | BOTH | `15` | General upload limit in MB. |
+| `MAX_SAVE_ARCHIVE_SIZE_MB` | BOTH | `4096` | Game save archive limit in MB. |
+| `MAX_CLIP_SIZE_MB` | BOTH | `500` | Clip upload limit in MB. |
+| `MAX_WORLD_SAVE_SIZE_MB` | BOTH | `2000` | Game world-save limit in MB. |
+
+### Startup modes
+
+`STARTUP_MODE=dev` or `development` selects development defaults and skips the setup/configuration UI after installation.
+
+`STARTUP_MODE=testing` shows the setup UI and uses testing defaults where defined, otherwise development defaults.
+
+An empty or unrecognized value uses normal defaults and shows the setup UI.
+
+Explicit environment values still take precedence over these mode defaults.
+
+## First administrator
+
+These values are used for environment-based bootstrap of the initial administrator:
+
+| Variable | Source | Purpose |
+|---|---|---|
+| `PRIMARY_USER_USERNAME` | SETUP/BOTH | Initial administrator username. |
+| `PRIMARY_USER_EMAIL` | SETUP/BOTH | Initial administrator email. |
+| `PRIMARY_USER_PASSWORD` | SETUP/BOTH | Initial administrator password. |
+
+The normal setup flow can collect these values instead of providing them through the environment.
+
+## Metadata/provider credentials
+
+These registry fields can be supplied through the environment and are deployment-owned when an environment value is present:
+
+| Variable | Purpose |
 |---|---|
-| `SECRET_KEY` | Stable key used for encryption and session/authentication signing. If omitted, the application generates and persists one. |
-| `AUTH_COOKIE_SECURE` | Controls whether authentication cookies require HTTPS. Use `false` for direct HTTP access and `true` when users access the app through HTTPS, including HTTPS terminated by a reverse proxy. |
-| `DEBUG` | Enables debug mode. Defaults to `false`. |
-| `STARTUP_MODE` | Selects the startup profile. `dev`/`development` skips setup after installation; `testing` shows setup with testing/development defaults; empty or other values use normal setup behavior. |
-| `MAX_UPLOAD_SIZE_MB` | Maximum general upload size in MB. Defaults to `15`. |
-| `MAX_SAVE_ARCHIVE_SIZE_MB` | Maximum game save archive size in MB. Defaults to `4096`. |
-| `MAX_CLIP_SIZE_MB` | Maximum clip size in MB. Defaults to `500`. |
-| `MAX_WORLD_SAVE_SIZE_MB` | Maximum game world save size in MB. Defaults to `2000`. |
-
-## First-user bootstrap
-
-These are legacy bootstrap options. The normal setup UI is preferred.
-
-| Variable | Description |
-|---|---|
-| `PRIMARY_USER_USERNAME` | Username for the initial administrator when using environment-based bootstrap. |
-| `PRIMARY_USER_EMAIL` | Email address for the initial administrator when using environment-based bootstrap. |
-| `PRIMARY_USER_PASSWORD` | Password for the initial administrator when using environment-based bootstrap. |
-
-## Metadata and provider integrations
-
-| Variable | Description |
-|---|---|
-| `STEAMGRIDDB_API_KEY` | API key used to access SteamGridDB metadata/art assets. |
-| `RETROACHIEVEMENTS_API_KEY` | API key used to access RetroAchievements data. |
-| `GIANTBOMB_API_KEY` | API key used to access GiantBomb game metadata. |
-| `IGDB_CLIENT_ID` | IGDB client ID used for game metadata access. |
-| `IGDB_CLIENT_SECRET` | IGDB client secret used for game metadata access. |
-| `TMDB_API_KEY` | TMDB API key used for movie and TV metadata. |
-| `OMDB_API_KEY` | OMDb API key used for movie/TV metadata. |
-| `TVDB_API_KEY` | TVDB API key used for TV metadata. |
+| `STEAMGRIDDB_API_KEY` | SteamGridDB game artwork/metadata access. |
+| `RETROACHIEVEMENTS_API_KEY` | RetroAchievements data access. |
+| `GIANTBOMB_API_KEY` | GiantBomb game metadata access. |
+| `IGDB_CLIENT_ID` | IGDB client ID. |
+| `IGDB_CLIENT_SECRET` | IGDB client secret. |
+| `TMDB_API_KEY` | TMDB movie/TV metadata access. |
+| `OMDB_API_KEY` | OMDb movie/TV metadata access. |
+| `TVDB_API_KEY` | TheTVDB metadata access. |
 | `SCREENSCRAPER_DEVID` | ScreenScraper developer ID. |
 | `SCREENSCRAPER_DEVPASSWORD` | ScreenScraper developer password. |
 | `SCREENSCRAPER_SSID` | ScreenScraper session ID. |
@@ -57,31 +75,68 @@ These are legacy bootstrap options. The normal setup UI is preferred.
 | `XBOX_CLIENT_ID` | Xbox integration client ID. |
 | `XBOX_CLIENT_SECRET` | Xbox integration client secret. |
 
+Secret fields are not returned as plaintext by the setup configuration API.
+
 ## OpenID Connect / SSO
 
-| Variable | Description |
-|---|---|
-| `OIDC_ISSUER_URL` | OpenID Connect issuer/discovery URL. |
-| `OIDC_CLIENT_ID` | OpenID Connect client ID. |
-| `OIDC_CLIENT_SECRET` | OpenID Connect client secret. |
-| `OIDC_SCOPES` | Space-separated OpenID Connect scopes. Defaults to `openid profile email`. |
-| `OIDC_GROUPS_CLAIM` | Claim containing group memberships. Defaults to `groups`. |
-| `OIDC_ADMIN_GROUP` | Optional OIDC group whose members receive administrator access. |
-| `OIDC_USER_MATCH_FIELD` | Field used to match an OIDC user to an existing account: `email` or `username`. Defaults to `email`. |
+| Variable | Default | Purpose |
+|---|---|---|
+| `OIDC_PROVIDER_NAME` | `Provider 1` | Name of the setup-created provider. |
+| `OIDC_PROVIDER_SLUG` | `provider-1` | URL-safe provider identifier used by named-provider routes. |
+| `OIDC_ISSUER_URL` | — | OIDC issuer or discovery URL. |
+| `OIDC_CLIENT_ID` | — | OIDC client ID. |
+| `OIDC_CLIENT_SECRET` | — | OIDC client secret. |
+| `OIDC_REDIRECT_URI` | Generated when omitted | Optional deployment-provided callback URI; otherwise the current request is used. |
+| `OIDC_SCOPES` | `openid profile email` | Space-separated OIDC scopes. |
+| `OIDC_GROUPS_CLAIM` | `groups` | Claim containing group membership. |
+| `OIDC_ADMIN_GROUP` | — | Optional group whose members receive administrator access. |
+| `OIDC_USER_MATCH_FIELD` | `email` | Match an OIDC identity by `email` or `username`. |
+| `OIDC_ALLOW_NEW_USERS` | `true` | Allow unmatched OIDC identities to create local accounts. |
+| `OIDC_DEFAULT_LOGIN_METHOD` | `local` | Default login choice: `local` or `sso`. |
+| `OIDC_LOGIN_BUTTON_TEXT` | `Continue with SSO` | Text used for the SSO login button. |
 
-> **OIDC redirect URI:** Do not set `OIDC_REDIRECT_URI`. The application generates the callback URL from the current request. See [OIDC / SSO](../integrations/oidc.md).
+OIDC issuer, client ID, and client secret become required when the OIDC section is selected. See [OIDC / SSO](../integrations/oidc.md) for the callback and account-linking behavior.
 
 ## Frontend development
 
-| Variable | Description |
+The frontend has one documented environment switch outside the backend registry:
+
+| Variable | Purpose |
 |---|---|
-| `VITE_API_BASE_URL` | Frontend build-time API base URL. |
-| `VITE_USE_MOCK_DATA` | Enables frontend mock data/development behavior instead of normal API-backed behavior. This is a frontend-only development setting. |
+| `VITE_USE_MOCK_DATA` | When `true`, frontend services use their development/mock behavior instead of normal API-backed behavior. It is consumed by Vite and is not exposed through the backend setup schema. |
 
-## Legacy and application-managed settings
+Do not add a `VITE_API_BASE_URL` setting unless the frontend code actually introduces one; the current frontend does not define it.
 
-Some settings are stored through the application's setup/settings system rather than being intended as environment variables.
+## Runtime variables outside the registry
 
-Environment-provided values take precedence wherever the application defines an environment-backed setting.
+Two backend runtime variables are read directly rather than being configuration-registry fields:
 
-Never put real credentials or secrets into `example.env`.
+| Variable | Default | Purpose |
+|---|---|---|
+| `APP_DATA_DIR` | `/data` | Root directory used for the persistent generated Fernet key. |
+| `ENV_FILE` | Searches for `.env` from the current directory upward | Explicit path to the environment file used by the configuration handler. |
+
+## Docker Compose variables
+
+These are Compose interpolation variables from `src/docker-container/compose.yaml`, not additional application configuration fields:
+
+| Variable | Default / requirement | Purpose |
+|---|---|---|
+| `UNNAMED_TRACKING_APP_VERSION` | `latest` | Published image tag. |
+| `UNNAMED_TRACKING_APP_PORT` | `8080` | Host port mapped to the application's container port 80. |
+| `POSTGRES_USER` | `unnamed_tracking` in the production Compose file | Database container username. |
+| `POSTGRES_DB` | `unnamed_tracking` in the production Compose file | Database container database name. |
+| `POSTGRES_PASSWORD` | Required | Database container password. |
+| `SECRET_KEY` | Required by the production Compose file | Application encryption/session key. |
+| `PRIMARY_USER_USERNAME` | `admin` | Production Compose bootstrap username. |
+| `PRIMARY_USER_EMAIL` | `admin@example.invalid` | Production Compose bootstrap email. |
+| `PRIMARY_USER_PASSWORD` | Required | Production Compose bootstrap password. |
+| `AUTH_COOKIE_SECURE` | `false` | Production Compose cookie security setting. |
+
+The production Compose file builds `DATABASE_URL` from the PostgreSQL variables, so the application receives a complete database URL even though the Compose file does not pass `POSTGRES_HOST` or `POSTGRES_PORT` separately.
+
+## Secrets
+
+Never commit real credentials to `example.env`, the wiki, or source control.
+
+For `SECRET_KEY`, omitting the variable is supported by the backend: a stable Fernet key is generated under `APP_DATA_DIR/config/fernet.key` with redundant copies and recovered on later starts. If you provide a deployment key, preserve it for the lifetime of the installation because existing encrypted values depend on it.

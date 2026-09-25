@@ -8,45 +8,72 @@ Keep backend-only logic in the backend and frontend-only behavior in the fronten
 
 ## Backend checks
 
-The backend CI runs its checks from `src/backend`.
+The backend CI uses Python 3.12 and runs:
 
-The normal checks include:
+- pytest;
+- Alembic migration graph validation;
+- mypy;
+- pylint.
 
-- pytest
-- mypy
-- pylint
+The CI migration check requires a valid single Alembic head.
 
-The backend uses Python 3.12 in CI.
+For local checks:
 
-When adding backend functionality, update or add tests with the change and keep type-checking and linting clean.
+```bash
+cd src/backend
+mypy --config-file pyproject.toml src
+pylint --rcfile=pyproject.toml src
+```
+
+Run tests with the development database available:
+
+```bash
+docker compose exec -e PYTHONPATH=/app backend python -m pytest tests -q
+```
 
 ## Frontend checks
 
-Frontend changes should pass the repository's frontend linting and build checks.
+From `src/frontend`:
 
-When changing shared frontend types, services, or list-loading behavior, check all media/library views that consume the affected service rather than fixing only the first view that exposes the error.
+```bash
+npm run format
+npm run lint
+npm run typecheck
+npm run test
+```
 
 ## Database changes
 
-Use Alembic migrations for schema changes.
+Use Alembic for schema changes.
 
-- Add a new migration rather than editing a migration that has already shipped.
+- Add a new migration instead of editing a migration that has already shipped.
 - Keep one migration head.
 - Test migrations against a fresh database and an existing database where practical.
-- Do not use destructive database recreation as a normal development workflow.
+- Do not use destructive database recreation as the normal development workflow.
 
 ## Configuration changes
 
-For a new environment variable:
+For a new environment-backed setting:
 
 1. Add it to the backend configuration registry.
-2. Decide whether it is deployment-owned (`ENV`), application-owned (`SETUP`), or supports both.
-3. Add validation/dependencies where needed.
-4. Add a safe example to `example.env`.
-5. Document it on the [Environment Variables](../setup/environment-variables.md) page.
-6. Add focused tests.
+2. Choose ENV, SETUP, or BOTH ownership.
+3. Define validation, defaults, visibility, and secrecy.
+4. Add explicit persistence mapping if application-owned.
+5. Add a safe example to `example.env`.
+6. Update the wiki Environment Variables page.
+7. Add focused tests for resolution, validation, locking, and secret handling as applicable.
 
 Do not add real credentials to `example.env`.
+
+## Integration changes
+
+If changing OIDC or Playnite behavior, verify the actual API/client contract before documenting it.
+
+In particular:
+
+- OIDC callback paths are generated from the current application address unless a deployment callback URI is explicitly configured.
+- OIDC login requires `sub` and an email identity claim, but does not require `email_verified=true`.
+- Playnite authenticates with a user API key and uses the `playnite_guid`/folder association for game matching.
 
 ## Pull requests
 
