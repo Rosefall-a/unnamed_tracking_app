@@ -49,7 +49,6 @@ const library = usePaginatedLibrary<Game>({
 });
 const games = library.items;
 const loading = library.loading;
-const totalGameCount = library.totalCount;
 
 const showFormModal = ref(false);
 const editingGame = ref<Game | null>(null);
