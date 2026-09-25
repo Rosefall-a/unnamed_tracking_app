@@ -2,16 +2,17 @@
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useWindowVirtualizer } from "@tanstack/vue-virtual";
+import { usePaginatedLibrary } from "../composables/usePaginatedLibrary";
 import GameCard from "../components/GameCard.vue";
 import SkeletonBlock from "../components/SkeletonBlock.vue";
 import GameFormModal from "../components/GameFormModal.vue";
 import BulkEditModal from "../components/BulkEditModal.vue";
 import FilterCombobox from "../components/FilterCombobox.vue";
 import {
-  fetchGames,
   deleteGame,
   setFavorite,
   fetchAchievementsSummary,
+  fetchGamesPage,
   addGameToCollection,
 } from "../services/games";
 import { takeLibraryScroll } from "../state/libraryScroll";
@@ -41,9 +42,14 @@ type CardDensity = "compact" | "cozy" | "large";
 const router = useRouter();
 const route = useRoute();
 
-const games = ref<Game[]>([]);
-const loading = ref(true);
 const error = ref<string | null>(null);
+const library = usePaginatedLibrary<Game>({
+  pageSize: 50,
+  fetchPage: (offset, limit, search) => fetchGamesPage(offset, limit, search),
+});
+const games = library.items;
+const loading = library.loading;
+const totalGameCount = library.totalCount;
 
 const showFormModal = ref(false);
 const editingGame = ref<Game | null>(null);
@@ -586,27 +592,34 @@ let loadGamesToken = 0;
 
 async function loadGames() {
   const token = ++loadGamesToken;
-  loading.value = true;
   try {
-    const fetched = await fetchGames();
+    await library.load("");
     if (token !== loadGamesToken) return;
-    games.value = fetched;
-    // best-effort, a failed summary fetch just means no completion badges,
-    // not a broken library page
-    try {
-      const summary = await fetchAchievementsSummary();
-      if (token !== loadGamesToken) return;
-      for (const game of games.value) {
-        const entry = summary[game.id];
-        if (!entry) continue;
-        game.achievementTotal = entry.total;
-        game.achievementPercent = entry.total
-          ? Math.round((entry.unlocked / entry.total) * 100)
-          : 0;
+
+    // Render the first page immediately. The existing row virtualization keeps
+    // only visible game cards mounted while the rest of the library hydrates
+    // in the background, matching the progressive loading used by media.
+    const applyAchievements = async () => {
+      try {
+        const summary = await fetchAchievementsSummary();
+        if (token !== loadGamesToken) return;
+        for (const game of games.value) {
+          const entry = summary[game.id];
+          if (!entry) continue;
+          game.achievementTotal = entry.total;
+          game.achievementPercent = entry.total
+            ? Math.round((entry.unlocked / entry.total) * 100)
+            : 0;
+        }
+      } catch {
+        // Completion badges are best-effort and never block library rendering.
       }
-    } catch {
-      // ignore
-    }
+    };
+
+    void library.loadAll("").then(() => {
+      if (token === loadGamesToken) void applyAchievements();
+    });
+
     if (
       viewMode.value === "detail" &&
       !selectedGame.value &&
@@ -617,10 +630,9 @@ async function loadGames() {
   } catch (err) {
     if (token !== loadGamesToken) return;
     error.value = err instanceof Error ? err.message : "Failed to load games";
-  } finally {
-    if (token === loadGamesToken) loading.value = false;
   }
 }
+
 
 onMounted(async () => {
   await loadGames();
