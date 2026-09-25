@@ -1,14 +1,16 @@
 # Environment Variables
 
-This page lists the environment variables currently used by the application.
+Environment variables are optional deployment configuration unless explicitly marked otherwise.
+
+For the Arcane deployment guide, the only environment values needed for a basic deployment are `POSTGRES_PASSWORD` and `AUTH_COOKIE_SECURE`. The Compose file supplies defaults for the remaining PostgreSQL connection settings.
 
 ## Database
 
 | Variable | Description |
 |---|---|
-| `POSTGRES_USER` | PostgreSQL username. Required for the normal PostgreSQL configuration. |
-| `POSTGRES_PASSWORD` | PostgreSQL password. Required for the normal PostgreSQL configuration. |
-| `POSTGRES_DB` | PostgreSQL database name. Required for the normal PostgreSQL configuration. |
+| `POSTGRES_USER` | PostgreSQL username. The Compose deployment defaults to `unnamed_tracking`. |
+| `POSTGRES_PASSWORD` | PostgreSQL password. **Required for the standard Compose deployment.** Use a strong, unique value. |
+| `POSTGRES_DB` | PostgreSQL database name. The Compose deployment defaults to `unnamed_tracking`. |
 | `POSTGRES_HOST` | PostgreSQL host. Defaults to `db`. |
 | `POSTGRES_PORT` | PostgreSQL port. Defaults to `5432`. |
 | `DATABASE_URL` | Legacy database connection URL. Prefer the individual `POSTGRES_*` variables. |
@@ -17,10 +19,10 @@ This page lists the environment variables currently used by the application.
 
 | Variable | Description |
 |---|---|
-| `SECRET_KEY` | Stable key used for encryption at rest and session/authentication signing. If omitted, the application generates and persists one. |
-| `AUTH_COOKIE_SECURE` | Controls whether authentication cookies require HTTPS. Defaults to `false`. |
+| `SECRET_KEY` | Stable key used for encryption and session/authentication signing. If omitted, the application generates and persists one. |
+| `AUTH_COOKIE_SECURE` | Controls whether authentication cookies require HTTPS. Use `false` for direct HTTP access and `true` when users access the app through HTTPS, including HTTPS terminated by a reverse proxy. |
 | `DEBUG` | Enables debug mode. Defaults to `false`. |
-| `STARTUP_MODE` | Selects a startup profile. `development`/ `dev` uses development defaults, `testing` uses testing defaults, and other values use normal setup behavior. |
+| `STARTUP_MODE` | Selects the startup profile. `dev`/`development` skips setup after installation; `testing` shows setup with testing/development defaults; empty or other values use normal setup behavior. |
 | `MAX_UPLOAD_SIZE_MB` | Maximum general upload size in MB. Defaults to `15`. |
 | `MAX_SAVE_ARCHIVE_SIZE_MB` | Maximum game save archive size in MB. Defaults to `4096`. |
 | `MAX_CLIP_SIZE_MB` | Maximum clip size in MB. Defaults to `500`. |
@@ -28,7 +30,7 @@ This page lists the environment variables currently used by the application.
 
 ## First-user bootstrap
 
-These variables are legacy bootstrap options. The normal setup UI is preferred.
+These are legacy bootstrap options. The normal setup UI is preferred.
 
 | Variable | Description |
 |---|---|
@@ -62,21 +64,24 @@ These variables are legacy bootstrap options. The normal setup UI is preferred.
 | `OIDC_ISSUER_URL` | OpenID Connect issuer/discovery URL. |
 | `OIDC_CLIENT_ID` | OpenID Connect client ID. |
 | `OIDC_CLIENT_SECRET` | OpenID Connect client secret. |
-| `OIDC_REDIRECT_URI` | OpenID Connect callback URL. Normally generated automatically from the URL used to access the application. |
 | `OIDC_SCOPES` | Space-separated OpenID Connect scopes. Defaults to `openid profile email`. |
 | `OIDC_GROUPS_CLAIM` | Claim containing group memberships. Defaults to `groups`. |
 | `OIDC_ADMIN_GROUP` | Optional OIDC group whose members receive administrator access. |
 | `OIDC_USER_MATCH_FIELD` | Field used to match an OIDC user to an existing account: `email` or `username`. Defaults to `email`. |
+
+> **OIDC redirect URI:** Do not set `OIDC_REDIRECT_URI`. The application generates the callback URL from the current request. See [OIDC / SSO](../integrations/oidc.md).
 
 ## Frontend development
 
 | Variable | Description |
 |---|---|
 | `VITE_API_BASE_URL` | Frontend build-time API base URL. |
-| `VITE_USE_MOCK_DATA` | Enables frontend mock data/development behavior instead of normal API-backed behavior. |
+| `VITE_USE_MOCK_DATA` | Enables frontend mock data/development behavior instead of normal API-backed behavior. This is a frontend-only development setting. |
 
 ## Legacy and application-managed settings
 
-Some configuration settings are stored through the application's setup/settings system rather than being intended as environment variables. They are therefore not listed above even though they appear in the application's configuration registry.
+Some settings are stored through the application's setup/settings system rather than being intended as environment variables.
 
-Environment-provided values take precedence where the application defines an environment-backed setting.
+Environment-provided values take precedence wherever the application defines an environment-backed setting.
+
+Never put real credentials or secrets into `example.env`.
