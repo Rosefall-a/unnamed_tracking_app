@@ -40,7 +40,7 @@ from src.api.schemas.game import (
 )
 from src.core.auth import get_current_user
 from src.core.config import settings
-from src.core.crypto import decrypt_secret
+from src.core.integrations import resolve_integrations
 from src.database.models.achievement import Achievement
 from src.database.models.game import Game, GameLink, GameStatus
 from src.database.models.game_checklist_item import GameChecklistItem
@@ -74,6 +74,13 @@ router = APIRouter(
 _DATA_ROOT = Path("/data/users")
 _NOTE_NAME_PATTERN = re.compile(r"^[A-Za-z0-9_-]+$")
 _LEADING_ARTICLE = re.compile(r"^(a|an|the)\s+", flags=re.IGNORECASE)
+
+_DB_DEPENDENCY = Depends(get_db)
+_CURRENT_USER_DEPENDENCY = Depends(get_current_user)
+_FILE_UPLOAD = File(...)
+_BODY_DOTDOTDOT = Body(...)
+_NONE_FORM = Form(None)
+_NONE_QUERY_STATUS = Query(default=None, alias="status")
 
 
 class NoteWrite(BaseModel):
@@ -121,8 +128,8 @@ def _scan_settings_to_preferences(scan_settings: UserScanSettings) -> dict:
 async def search_metadata(
     query: str = Query(..., min_length=2, max_length=100),
     limit: int = Query(default=8, ge=1, le=20),
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = _DB_DEPENDENCY,
+    current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> dict:
     """Search external providers for data that can prefill a new game.
 
@@ -132,7 +139,7 @@ async def search_metadata(
     """
     scan_settings = await get_or_create_scan_settings(current_user.id, db)
     preferences = _scan_settings_to_preferences(scan_settings)
-    app_integrations = await get_or_create_app_integration_settings(db)
+    app_integrations = resolve_integrations(await get_or_create_app_integration_settings(db))
     try:
         result = await asyncio.to_thread(
             search_game_metadata,
@@ -142,9 +149,7 @@ async def search_metadata(
             preferences,
             current_user,
             app_integrations.igdb_client_id,
-            decrypt_secret(app_integrations.igdb_client_secret)
-            if app_integrations.igdb_client_secret
-            else None,
+            app_integrations.igdb_client_secret,
         )
     except Exception as exc:
         raise HTTPException(
@@ -166,8 +171,8 @@ async def search_metadata(
 async def get_game_asset(
     game_id: UUID,
     asset_kind: AssetKind,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = _DB_DEPENDENCY,
+    current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> FileResponse:
     """Return a stored PNG asset for a game."""
     if asset_kind not in ALLOWED_ASSET_KINDS:
@@ -328,8 +333,8 @@ async def _get_game_or_404(
 
 @router.get("/achievements-summary")
 async def get_achievements_summary(
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = _DB_DEPENDENCY,
+    current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> dict[str, dict[str, int]]:
     """Per-game {total, unlocked} counts for every one of the caller's games
     that has any achievements at all, in one grouped query — powers the
@@ -353,8 +358,8 @@ async def get_achievements_summary(
 @router.get("/{game_id}/achievements")
 async def list_game_achievements(
     game_id: UUID,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = _DB_DEPENDENCY,
+    current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> list[dict]:
     """Achievements/trophies pulled in by a library sync (Settings ->
     Metadata/API -> Steam/PlayStation/RetroAchievements). Empty until that
@@ -391,9 +396,9 @@ async def list_game_achievements(
 async def upload_game_asset(
     game_id: UUID,
     asset_kind: AssetKind,
-    file: UploadFile = File(...),
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    file: UploadFile = _FILE_UPLOAD,
+    db: AsyncSession = _DB_DEPENDENCY,
+    current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> dict[str, str]:
     """Upload and persist artwork for a game."""
     if asset_kind not in ALLOWED_ASSET_KINDS:
@@ -450,8 +455,8 @@ async def download_game_asset(
     game_id: UUID,
     asset_kind: AssetKind,
     payload: AssetUrlRequest,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = _DB_DEPENDENCY,
+    current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> dict[str, str]:
     """Download an image URL and persist it as a normalized game asset."""
     if asset_kind not in ALLOWED_ASSET_KINDS:
@@ -522,10 +527,10 @@ def _media_item_to_dict(item: MediaItem, game_id: UUID) -> dict:
 @router.post("/{game_id}/screenshots")
 async def upload_game_screenshots(
     game_id: UUID,
-    files: list[UploadFile] = File(...),
-    profile_id: UUID | None = Form(None),
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    files: list[UploadFile] = _FILE_UPLOAD,
+    profile_id: UUID | None = _NONE_FORM,
+    db: AsyncSession = _DB_DEPENDENCY,
+    current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> dict[str, list[dict]]:
     """Bulk upload — accepts any mix of images, videos, and audio in one
     request. Images become screenshots, videos become clips, audio becomes
@@ -591,10 +596,10 @@ async def upload_game_screenshots(
 @router.get("/{game_id}/screenshots")
 async def list_game_screenshots(
     game_id: UUID,
-    profile_id: UUID | None = Query(None),
+    profile_id: UUID | None = _NONE_FORM,
     unscoped_only: bool = Query(False, description="Only items with no profile_id set."),
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = _DB_DEPENDENCY,
+    current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> dict[str, list[dict]]:
     await _get_game_or_404(game_id, db, current_user.id)
     stmt = select(MediaItem).where(MediaItem.game_id == game_id, MediaItem.deleted_at.is_(None))
@@ -611,8 +616,8 @@ async def get_game_screenshot(
     game_id: UUID,
     kind: MediaKind,
     filename: str,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = _DB_DEPENDENCY,
+    current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> FileResponse:
     game = await _get_game_or_404(game_id, db, current_user.id)
     path = (
@@ -640,8 +645,8 @@ async def update_media_item(
     game_id: UUID,
     media_id: UUID,
     payload: MediaItemUpdate,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = _DB_DEPENDENCY,
+    current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> dict:
     await _get_game_or_404(game_id, db, current_user.id)
     item = await db.scalar(
@@ -661,8 +666,8 @@ async def delete_game_screenshot(
     game_id: UUID,
     kind: MediaKind,
     filename: str,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = _DB_DEPENDENCY,
+    current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> dict[str, str]:
     """Soft-delete: moves the file to trash and marks its row deleted
     rather than removing it — restorable for 7 days, same as game
@@ -689,8 +694,8 @@ async def delete_game_screenshot(
 @router.get("/{game_id}/screenshots/trash")
 async def list_game_screenshot_trash(
     game_id: UUID,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = _DB_DEPENDENCY,
+    current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> dict[str, list[dict]]:
     await _get_game_or_404(game_id, db, current_user.id)
     result = await db.execute(
@@ -716,8 +721,8 @@ async def restore_game_screenshot(
     game_id: UUID,
     kind: MediaKind,
     filename: str,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = _DB_DEPENDENCY,
+    current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> dict:
     game = await _get_game_or_404(game_id, db, current_user.id)
     item = await db.scalar(
@@ -786,9 +791,9 @@ async def _sync_game_file_items(game_id: UUID, game_dir: Path, db: AsyncSession)
 async def upload_game_files(
     game_id: UUID,
     kind: GameFileKind,
-    files: list[UploadFile] = File(...),
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    files: list[UploadFile] = _FILE_UPLOAD,
+    db: AsyncSession = _DB_DEPENDENCY,
+    current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> dict[str, list[dict]]:
     """Generic file attachments for a game — docs/manuals and modpacks can
     be almost any format, so unlike screenshots/clips there's no
@@ -834,8 +839,8 @@ async def upload_game_files(
 async def list_game_files(
     game_id: UUID,
     kind: GameFileKind,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = _DB_DEPENDENCY,
+    current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> dict[str, list[dict]]:
     game = await _get_game_or_404(game_id, db, current_user.id)
     if not game.folder_location:
@@ -869,8 +874,8 @@ async def list_game_files(
 async def list_game_file_trash(
     game_id: UUID,
     kind: GameFileKind,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = _DB_DEPENDENCY,
+    current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> dict[str, list[dict]]:
     await _get_game_or_404(game_id, db, current_user.id)
     result = await db.execute(
@@ -900,8 +905,8 @@ async def get_game_file(
     game_id: UUID,
     kind: GameFileKind,
     filename: str,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = _DB_DEPENDENCY,
+    current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> FileResponse:
     game = await _get_game_or_404(game_id, db, current_user.id)
     path = (
@@ -927,8 +932,8 @@ async def delete_game_file(
     game_id: UUID,
     kind: GameFileKind,
     filename: str,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = _DB_DEPENDENCY,
+    current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> dict[str, str]:
     """Soft-delete: moves the file to trash and marks its row deleted
     rather than removing it — restorable for 7 days, same as every other
@@ -960,8 +965,8 @@ async def restore_game_file(
     game_id: UUID,
     kind: GameFileKind,
     filename: str,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = _DB_DEPENDENCY,
+    current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> dict[str, str]:
     game = await _get_game_or_404(game_id, db, current_user.id)
     name = Path(filename).name
@@ -993,9 +998,9 @@ async def restore_game_file(
 async def set_game_note(
     game_id: UUID,
     note_name: str,
-    payload: NoteWrite = Body(...),
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    payload: NoteWrite = _BODY_DOTDOTDOT,
+    db: AsyncSession = _DB_DEPENDENCY,
+    current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> dict[str, str | None]:
     """Create or replace a markdown note for a game."""
     game = await _get_game_or_404(game_id, db, current_user.id)
@@ -1019,8 +1024,8 @@ async def set_game_note(
 )
 async def list_game_notes(
     game_id: UUID,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = _DB_DEPENDENCY,
+    current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> dict[str, list[str]]:
     """Return the markdown note names associated with a game."""
     game = await _get_game_or_404(game_id, db, current_user.id)
@@ -1051,8 +1056,8 @@ async def list_game_notes(
 async def get_game_note(
     game_id: UUID,
     note_name: str,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = _DB_DEPENDENCY,
+    current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> Response:
     """Return the contents of one game note as markdown."""
     game = await _get_game_or_404(game_id, db, current_user.id)
@@ -1079,8 +1084,8 @@ async def get_game_note(
 async def delete_game_note(
     game_id: UUID,
     note_name: str,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = _DB_DEPENDENCY,
+    current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> dict[str, str]:
     """Delete one markdown note from a game."""
     game = await _get_game_or_404(game_id, db, current_user.id)
@@ -1167,8 +1172,8 @@ class ProfileUpdate(BaseModel):
 @router.get("/{game_id}/profiles")
 async def list_game_profiles(
     game_id: UUID,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = _DB_DEPENDENCY,
+    current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> dict[str, list[dict]]:
     """Named sub-scopes for a game (e.g. separate OSRS accounts) — lets
     checklist items and screenshots be filtered down to one instead of
@@ -1186,8 +1191,8 @@ async def list_game_profiles(
 async def create_game_profile(
     game_id: UUID,
     payload: ProfileWrite,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = _DB_DEPENDENCY,
+    current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> dict:
     await _get_game_or_404(game_id, db, current_user.id)
     name = payload.name.strip()
@@ -1205,8 +1210,8 @@ async def update_game_profile(
     game_id: UUID,
     profile_id: UUID,
     payload: ProfileUpdate,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = _DB_DEPENDENCY,
+    current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> dict:
     await _get_game_or_404(game_id, db, current_user.id)
     profile = await _get_profile_or_404(profile_id, game_id, db)
@@ -1229,13 +1234,16 @@ class WiseOldManSyncRequest(BaseModel):
     username: str | None = None
 
 
+_WISEOLDMAN_SYNC_BODY = Body(default=WiseOldManSyncRequest())
+
+
 @router.post("/{game_id}/profiles/{profile_id}/sync-wiseoldman")
 async def sync_profile_wiseoldman(
     game_id: UUID,
     profile_id: UUID,
-    payload: WiseOldManSyncRequest = Body(default=WiseOldManSyncRequest()),
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    payload: WiseOldManSyncRequest = _WISEOLDMAN_SYNC_BODY,
+    db: AsyncSession = _DB_DEPENDENCY,
+    current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> dict:
     """Pulls current skill levels from wiseoldman.net (OSRS's community
     stat tracker, no account/API key needed) into this profile's stats.
@@ -1292,8 +1300,8 @@ async def sync_profile_wiseoldman(
 async def get_profile_stat_history(
     game_id: UUID,
     profile_id: UUID,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = _DB_DEPENDENCY,
+    current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> dict[str, list[dict]]:
     await _get_game_or_404(game_id, db, current_user.id)
     await _get_profile_or_404(profile_id, game_id, db)
@@ -1320,8 +1328,8 @@ async def get_profile_stat_history(
 async def delete_game_profile(
     game_id: UUID,
     profile_id: UUID,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = _DB_DEPENDENCY,
+    current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> dict[str, str]:
     """Soft-delete only — no files involved, so this just flips the flag
     (features/trash/sweep.py purges the row itself after 7 days). Checklist
@@ -1337,8 +1345,8 @@ async def delete_game_profile(
 @router.get("/{game_id}/profiles/trash")
 async def list_game_profile_trash(
     game_id: UUID,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = _DB_DEPENDENCY,
+    current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> dict[str, list[dict]]:
     await _get_game_or_404(game_id, db, current_user.id)
     result = await db.execute(
@@ -1363,8 +1371,8 @@ async def list_game_profile_trash(
 async def restore_game_profile(
     game_id: UUID,
     profile_id: UUID,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = _DB_DEPENDENCY,
+    current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> dict:
     await _get_game_or_404(game_id, db, current_user.id)
     profile = await _get_profile_or_404(profile_id, game_id, db, include_deleted=True)
@@ -1407,10 +1415,10 @@ class ChecklistItemUpdate(BaseModel):
 @router.get("/{game_id}/checklist")
 async def list_game_checklist(
     game_id: UUID,
-    profile_id: UUID | None = Query(None),
+    profile_id: UUID | None = _NONE_FORM,
     unscoped_only: bool = Query(False, description="Only items with no profile_id set."),
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = _DB_DEPENDENCY,
+    current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> dict[str, list[dict]]:
     await _get_game_or_404(game_id, db, current_user.id)
     stmt = select(GameChecklistItem).where(
@@ -1430,8 +1438,8 @@ async def list_game_checklist(
 async def create_checklist_item(
     game_id: UUID,
     payload: ChecklistItemWrite,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = _DB_DEPENDENCY,
+    current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> dict:
     await _get_game_or_404(game_id, db, current_user.id)
     text = payload.text.strip()
@@ -1470,8 +1478,8 @@ class ChecklistReorder(BaseModel):
 async def reorder_checklist(
     game_id: UUID,
     payload: ChecklistReorder,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = _DB_DEPENDENCY,
+    current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> dict[str, str]:
     await _get_game_or_404(game_id, db, current_user.id)
     result = await db.execute(
@@ -1495,8 +1503,8 @@ async def update_checklist_item(
     game_id: UUID,
     item_id: UUID,
     payload: ChecklistItemUpdate,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = _DB_DEPENDENCY,
+    current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> dict:
     await _get_game_or_404(game_id, db, current_user.id)
     item = await db.scalar(
@@ -1521,8 +1529,8 @@ async def update_checklist_item(
 async def delete_checklist_item(
     game_id: UUID,
     item_id: UUID,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = _DB_DEPENDENCY,
+    current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> dict[str, str]:
     await _get_game_or_404(game_id, db, current_user.id)
     item = await db.scalar(
@@ -1599,8 +1607,8 @@ async def _validate_game_relationship(
 )
 async def create_game(
     payload: GameCreate,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = _DB_DEPENDENCY,
+    current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> Game:
     """Create a game after validating its folder location."""
     await _ensure_folder_location_available(payload.folder_location, current_user.id, db)
@@ -1634,9 +1642,9 @@ async def create_game(
 
 @router.get("/list", response_model=list[GameRead])
 async def list_games(
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-    status_filter: GameStatus | None = Query(default=None, alias="status"),
+    db: AsyncSession = _DB_DEPENDENCY,
+    current_user: User = _CURRENT_USER_DEPENDENCY,
+    status_filter: GameStatus | None = _NONE_QUERY_STATUS,
     favorite: bool | None = Query(default=None),
     search: str | None = Query(default=None, description="Case-insensitive title search"),
     skip: int = Query(default=0, ge=0),
@@ -1661,8 +1669,8 @@ async def list_games(
 @router.get("/get/{game_id}", response_model=GameRead)
 async def get_game(
     game_id: UUID,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = _DB_DEPENDENCY,
+    current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> Game:
     """Return one game by ID."""
     return await _get_game_or_404(game_id, db, current_user.id)
@@ -1671,8 +1679,8 @@ async def get_game(
 @router.get("/{game_id}/variants", response_model=list[GameRead])
 async def get_game_variants(
     game_id: UUID,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = _DB_DEPENDENCY,
+    current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> list[Game]:
     """Every game whose parent_game_id points at this one — the reverse of
     the parent breadcrumb (GameDetail.vue's `parentGameTitle`). A base game
@@ -1716,8 +1724,8 @@ async def get_game_variants(
 async def update_game(
     game_id: UUID,
     payload: GameUpdate,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = _DB_DEPENDENCY,
+    current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> Game:
     """Update a game and keep its derived sort title synchronized."""
     game = await _get_game_or_404(game_id, db, current_user.id)
@@ -1771,8 +1779,8 @@ async def update_game(
 @router.get("/{game_id}/field-changes", response_model=list[GameFieldChangeRead])
 async def list_field_changes(
     game_id: UUID,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = _DB_DEPENDENCY,
+    current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> list[GameFieldChange]:
     """Most-recent-first metadata history for one game."""
     await _get_game_or_404(game_id, db, current_user.id)
@@ -1789,8 +1797,8 @@ async def list_field_changes(
 @router.patch("/bulk-update")
 async def bulk_update_games(
     payload: GameBulkUpdate,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = _DB_DEPENDENCY,
+    current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> dict[str, int]:
     """Apply the same field values to many of the caller's games at once —
     e.g. fixing status across a batch, or filling in developer/publisher
@@ -1819,8 +1827,8 @@ async def bulk_update_games(
 @router.delete("/delete/{game_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_game(
     game_id: UUID,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = _DB_DEPENDENCY,
+    current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> None:
     """Soft-delete: moves the game's entire folder to trash and marks the
     row deleted rather than removing anything — restorable for 7 days.
@@ -1839,8 +1847,8 @@ async def delete_game(
 
 @router.get("/trash")
 async def list_game_trash(
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = _DB_DEPENDENCY,
+    current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> list[dict]:
     result = await db.execute(
         select(Game)
@@ -1864,8 +1872,8 @@ async def list_game_trash(
 @router.post("/{game_id}/restore", response_model=GameRead)
 async def restore_game(
     game_id: UUID,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = _DB_DEPENDENCY,
+    current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> Game:
     game = await _get_game_or_404(game_id, db, current_user.id, include_deleted=True)
     if game.deleted_at is None:

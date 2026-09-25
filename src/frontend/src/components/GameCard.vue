@@ -91,14 +91,14 @@ onUnmounted(() => {
 });
 
 const statuses: GameStatus[] = [
-  "wishlist",
-  "backlog",
   "playing",
-  "on hold",
   "beaten",
-  "played",
-  "dropped",
   "mastered",
+  "played",
+  "on hold",
+  "dropped",
+  "backlog",
+  "wishlist",
 ];
 
 function openGame(e?: MouseEvent) {

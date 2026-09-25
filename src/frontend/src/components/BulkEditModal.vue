@@ -14,14 +14,14 @@ const emit = defineEmits<{
 }>();
 
 const statuses: GameStatus[] = [
-  "wishlist",
-  "backlog",
   "playing",
-  "on hold",
   "beaten",
-  "played",
-  "dropped",
   "mastered",
+  "played",
+  "on hold",
+  "dropped",
+  "backlog",
+  "wishlist",
 ];
 
 // each field is opt-in via its own checkbox, leaving one unchecked means

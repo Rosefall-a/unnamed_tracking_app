@@ -235,11 +235,22 @@ export async function deleteProviderCredentials(
 export interface AppIntegrationSettings {
   igdb_client_id: string | null;
   igdb_configured: boolean;
+  tmdb_configured: boolean;
+  omdb_configured: boolean;
+  tvdb_configured: boolean;
+  // where each key in effect comes from: Settings, or the server environment
+  sources?: Record<string, "database" | "environment">;
 }
 
 export async function fetchAppIntegrations(): Promise<AppIntegrationSettings> {
   if (import.meta.env.VITE_USE_MOCK_DATA === "true") {
-    return { igdb_client_id: null, igdb_configured: false };
+    return {
+      igdb_client_id: null,
+      igdb_configured: false,
+      tmdb_configured: false,
+      omdb_configured: false,
+      tvdb_configured: false,
+    };
   }
   const response = await fetch("/api/settings/app-integrations", {
     credentials: "include",
@@ -255,11 +266,17 @@ export async function fetchAppIntegrations(): Promise<AppIntegrationSettings> {
 export async function updateAppIntegrations(payload: {
   igdb_client_id?: string;
   igdb_client_secret?: string;
+  tmdb_api_key?: string;
+  omdb_api_key?: string;
+  tvdb_api_key?: string;
 }): Promise<AppIntegrationSettings> {
   if (import.meta.env.VITE_USE_MOCK_DATA === "true") {
     return {
       igdb_client_id: payload.igdb_client_id ?? null,
       igdb_configured: true,
+      tmdb_configured: !!payload.tmdb_api_key,
+      omdb_configured: !!payload.omdb_api_key,
+      tvdb_configured: !!payload.tvdb_api_key,
     };
   }
   const response = await fetch("/api/settings/app-integrations", {
@@ -277,15 +294,170 @@ export async function updateAppIntegrations(payload: {
   return await response.json();
 }
 
-export async function deleteAppIntegrations(): Promise<void> {
-  if (import.meta.env.VITE_USE_MOCK_DATA === "true") return;
-  const response = await fetch("/api/settings/app-integrations", {
-    method: "DELETE",
+export interface MediaRefreshProgress {
+  running: boolean;
+  mode: "needed" | "all";
+  phase: string;
+  total: number;
+  done: number;
+  current: string;
+  checked: number;
+  skippedUpToDate: number;
+  animeEpisodesAdded: number;
+  animeEpisodesUpdated: number;
+  tvEpisodesAdded: number;
+  tvEpisodesUpdated: number;
+  countsFixed: number;
+  animeMetadataHealed: number;
+  unreachable: string[];
+  startedAt: number | null;
+  finishedAt: number | null;
+  error: string | null;
+}
+
+interface BackendRefreshProgress {
+  running: boolean;
+  mode: "needed" | "all";
+  phase: string;
+  total: number;
+  done: number;
+  current: string;
+  checked: number;
+  skipped_up_to_date: number;
+  anime_episodes_added: number;
+  anime_episodes_updated: number;
+  tv_episodes_added: number;
+  tv_episodes_updated: number;
+  counts_fixed: number;
+  anime_metadata_healed: number;
+  unreachable: string[];
+  started_at: number | null;
+  finished_at: number | null;
+  error: string | null;
+}
+
+function mapRefreshProgress(d: BackendRefreshProgress): MediaRefreshProgress {
+  return {
+    running: d.running,
+    mode: d.mode,
+    phase: d.phase,
+    total: d.total,
+    done: d.done,
+    current: d.current,
+    checked: d.checked,
+    skippedUpToDate: d.skipped_up_to_date,
+    animeEpisodesAdded: d.anime_episodes_added,
+    animeEpisodesUpdated: d.anime_episodes_updated,
+    tvEpisodesAdded: d.tv_episodes_added,
+    tvEpisodesUpdated: d.tv_episodes_updated,
+    countsFixed: d.counts_fixed,
+    animeMetadataHealed: d.anime_metadata_healed,
+    unreachable: d.unreachable,
+    startedAt: d.started_at,
+    finishedAt: d.finished_at,
+    error: d.error,
+  };
+}
+
+// Starts the episode refresh in the background and returns at once; poll
+// fetchMediaRefreshProgress for how far it has got. "needed" only touches
+// titles that need it, "all" checks every title.
+export async function startMediaRefresh(
+  mode: "needed" | "all",
+): Promise<MediaRefreshProgress> {
+  const response = await fetch(
+    `/api/settings/refresh-media-metadata?mode=${mode}`,
+    { method: "POST", credentials: "include" },
+  );
+  if (!response.ok) {
+    throw new Error(`Failed to start the refresh: ${response.status}`);
+  }
+  return mapRefreshProgress(await response.json());
+}
+
+export async function fetchMediaRefreshProgress(): Promise<MediaRefreshProgress> {
+  const response = await fetch("/api/settings/refresh-media-progress", {
     credentials: "include",
   });
   if (!response.ok) {
-    throw new Error(
-      `Failed to clear app integrations: ${response.status} ${response.statusText}`,
-    );
+    throw new Error(`Failed to read the refresh progress: ${response.status}`);
   }
+  return mapRefreshProgress(await response.json());
+}
+
+// Jobs the app runs on a schedule (see backend features/jobs.py). The airing
+// check starts on, the heavy media refresh starts off.
+export interface CleanupJob {
+  id: string;
+  name: string;
+  description: string;
+  enabled: boolean;
+  intervalMinutes: number;
+  minIntervalMinutes: number;
+  maxIntervalMinutes: number;
+  lastRunAt: number | null;
+  lastSummary: string;
+  lastResult: Record<string, number | string | boolean | null>;
+  running: boolean;
+}
+interface BackendJob {
+  id: string;
+  name: string;
+  description: string;
+  enabled: boolean;
+  interval_minutes: number;
+  min_interval_minutes: number;
+  max_interval_minutes: number;
+  last_run_at: number | null;
+  last_summary: string;
+  last_result: Record<string, number | string | boolean | null>;
+  running: boolean;
+}
+function mapJob(j: BackendJob): CleanupJob {
+  return {
+    id: j.id,
+    name: j.name,
+    description: j.description,
+    enabled: j.enabled,
+    intervalMinutes: j.interval_minutes,
+    minIntervalMinutes: j.min_interval_minutes,
+    maxIntervalMinutes: j.max_interval_minutes,
+    lastRunAt: j.last_run_at,
+    lastSummary: j.last_summary,
+    lastResult: j.last_result,
+    running: j.running,
+  };
+}
+export async function fetchJobs(): Promise<CleanupJob[]> {
+  const response = await fetch("/api/settings/jobs", {
+    credentials: "include",
+  });
+  if (!response.ok)
+    throw new Error(`Failed to load the jobs: ${response.status}`);
+  return ((await response.json()) as BackendJob[]).map(mapJob);
+}
+export async function updateJob(
+  id: string,
+  changes: { enabled?: boolean; intervalMinutes?: number },
+): Promise<CleanupJob> {
+  const response = await fetch(`/api/settings/jobs/${id}`, {
+    method: "PUT",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      enabled: changes.enabled,
+      interval_minutes: changes.intervalMinutes,
+    }),
+  });
+  if (!response.ok)
+    throw new Error(`Failed to save the job: ${response.status}`);
+  return mapJob(await response.json());
+}
+export async function runJobNow(id: string): Promise<void> {
+  const response = await fetch(`/api/settings/jobs/${id}/run`, {
+    method: "POST",
+    credentials: "include",
+  });
+  if (!response.ok)
+    throw new Error(`Failed to start the job: ${response.status}`);
 }
