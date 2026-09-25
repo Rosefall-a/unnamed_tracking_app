@@ -1,6 +1,6 @@
 # Integrations
 
-Unnamed Tracking App can connect to external services to provide authentication, metadata, game information, and other supplemental data.
+Unnamed Tracking App can connect to external services for authentication, metadata, game data, account linking, and other supplemental features.
 
 ## Available integrations
 
@@ -25,23 +25,30 @@ See the [Playnite guide](playnite.md).
 
 ### Metadata providers
 
-External metadata services can be used to enrich games and other media with information such as titles, artwork, descriptions, and related metadata.
+Metadata providers enrich games and other media with information such as titles, artwork, descriptions, release information, and related metadata.
 
-Available provider configuration includes services such as:
+Available metadata providers include:
 
 - SteamGridDB
-- RetroAchievements
-- GiantBomb
 - IGDB
 - TMDB
 - OMDb
 - TVDB
 - ScreenScraper
-- Xbox
-
-Provider availability and required configuration depend on the type of data being imported or displayed.
 
 See the [Metadata Providers guide](metadata-providers.md).
+
+### Account & data integrations
+
+These integrations are separate from metadata providers. They can connect to external accounts or services to support importing user-specific data, libraries, achievements, or other account-related information.
+
+Current account and data integrations include:
+
+- Xbox
+- GiantBomb
+- RetroAchievements
+
+The exact capabilities of each integration depend on the service and the features implemented by Unnamed Tracking App.
 
 ## General configuration
 

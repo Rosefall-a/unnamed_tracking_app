@@ -72,8 +72,17 @@ These registry fields can be supplied through the environment and are deployment
 | `SCREENSCRAPER_DEVPASSWORD` | ScreenScraper developer password. |
 | `SCREENSCRAPER_SSID` | ScreenScraper session ID. |
 | `SCREENSCRAPER_SSPASSWORD` | ScreenScraper session password. |
+
+## Account & data integrations
+
+These integrations are used for external account connections, user-specific data, libraries, achievements, or importing data rather than general media metadata.
+
+| Variable | Description |
+|---|---|
 | `XBOX_CLIENT_ID` | Xbox integration client ID. |
 | `XBOX_CLIENT_SECRET` | Xbox integration client secret. |
+| `GIANTBOMB_API_KEY` | API key used for GiantBomb integration and related game data. |
+| `RETROACHIEVEMENTS_API_KEY` | API key used to access RetroAchievements data. |
 
 Secret fields are not returned as plaintext by the setup configuration API.
 
