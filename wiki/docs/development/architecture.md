@@ -55,7 +55,7 @@ Schema changes are managed with Alembic migrations. The application startup proc
 
 Migrations should remain on a single history line. Multiple Alembic heads are treated as an error and should be resolved before deployment.
 
-See [Database Migrations](../setup/migrations.md) for deployment and migration guidance.
+The application applies pending Alembic migrations during startup. Keep the migration history on a single head and add a new migration rather than editing one that has already shipped.
 
 ## Production container
 
