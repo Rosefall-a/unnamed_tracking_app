@@ -116,17 +116,6 @@ CONFIG_SECTIONS: tuple[ConfigSectionSpec, ...] = (
 # through resolution, validation, persistence, and the generated UI.
 CONFIG_REGISTRY: tuple[ConfigSpec, ...] = (
     ConfigSpec(
-        "VITE_API_BASE_URL",
-        "general",
-        ConfigSource.BOTH,
-        label="Frontend API base URL or something",
-        description="The base URL for the frontend to reach the backend API. This is used to construct API requests from the frontend.",
-        hint="We don't know why this is here...",
-        input_type="url",
-        deprecated=True,
-        deprecated_message="VITE_API_BASE_URL is deprecated; No-one understands it",
-    ),
-    ConfigSpec(
         "POSTGRES_USER",
         "database",
         ConfigSource.ENV,
