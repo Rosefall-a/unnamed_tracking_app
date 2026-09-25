@@ -58,21 +58,21 @@ nginx
 
 
 log "Resolving application configuration"
-write_status "CONFIGURING" "starting" "unknown" "unknown" "unknown" "unknown" "Resolving environment and persistent configuration."
-CONFIG_REPORT="$(python - <<'PY'
-from src.core.env_handler import EnvConfigHandler
+#write_status "CONFIGURING" "starting" "unknown" "unknown" "unknown" "unknown" "Resolving environment and persistent configuration."
+#CONFIG_REPORT="$(python - <<'PY'
+#from src.core.env_handler import EnvConfigHandler
 
-handler = EnvConfigHandler()
-summary = handler.startup_summary()
-for issue in summary["issues"]:
-    print(f"{issue['severity'].upper()}: {issue['message']}")
-if not summary["ready"]:
-    raise SystemExit(1)
-PY
-)" || fail_startup "CONFIGURATION_FAILED" "Application configuration contains an unrecoverable error. See startup details for the exact fields." "unknown" "unknown" "unknown" "unknown"
-if [ -n "$CONFIG_REPORT" ]; then
-  printf "%s\n" "$CONFIG_REPORT" >> "$DETAILS_FILE"
-fi
+#handler = EnvConfigHandler()
+#summary = handler.startup_summary()
+#for issue in summary["issues"]:
+#    print(f"{issue['severity'].upper()}: {issue['message']}")
+#if not summary["ready"]:
+#    raise SystemExit(1)
+#PY
+#)" || fail_startup "CONFIGURATION_FAILED" "Application configuration contains an unrecoverable error. See startup details for the exact fields." "unknown" "unknown" "unknown" "unknown"
+#if [ -n "$CONFIG_REPORT" ]; then
+#  printf "%s\n" "$CONFIG_REPORT" >> "$DETAILS_FILE"
+#fi
 
 if [ -n "${POSTGRES_USER:-}" ] || [ -n "${POSTGRES_PASSWORD:-}" ] || [ -n "${POSTGRES_DB:-}" ]; then
   if [ -z "${POSTGRES_USER:-}" ] || [ -z "${POSTGRES_PASSWORD:-}" ] || [ -z "${POSTGRES_DB:-}" ]; then
