@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
+import { usePaginatedLibrary } from "../composables/usePaginatedLibrary";
 import { useKeptAlive } from "../utils/useKeptAlive";
 import {
   fetchMovies,
@@ -11,16 +12,19 @@ import {
 } from "../services/movies";
 import type { Movie, MovieStatus } from "../types/movie";
 import MediaLibraryView from "../components/library/MediaLibraryView.vue";
-import type {
-  LibraryCardVM,
-  SearchResultVM,
-  QuickAddForm,
-  EditForm,
-} from "../components/library/MediaLibraryView.vue";
+import type { LibraryCardVM, SearchResultVM, QuickAddForm, EditForm } from "../types/library";
 
-const movies = ref<Movie[]>([]);
-const loading = ref(true);
 const error = ref<string | null>(null);
+const PAGE_SIZE = 50;
+const library = usePaginatedLibrary<Movie>({
+  pageSize: PAGE_SIZE,
+  fetchPage: async (offset, limit, search) => fetchMoviesPage(offset, limit, search),
+});
+const movies = library.items;
+const totalCount = library.totalCount;
+const loading = library.loading;
+const loadingMore = library.loadingMore;
+const hasMore = library.hasMore;
 
 const COMPLETED_STATUSES: MovieStatus[] = ["watched", "favorite", "rewatch"];
 
@@ -28,26 +32,16 @@ function formatRuntime(minutes: number | null): string {
   if (!minutes) return "–";
   const hrs = Math.floor(minutes / 60);
   const mins = minutes % 60;
-  return hrs > 0 ? `${hrs}h ${mins}m` : `${mins}m`;
+  return hrs > 0 ? hrs + "h " + mins + "m" : mins + "m";
 }
 
 function toVM(m: Movie): LibraryCardVM {
   const seen = COMPLETED_STATUSES.includes(m.status);
   return {
-    id: m.id,
-    title: m.title,
-    poster: m.posterUrl,
-    status: m.status,
-    favorite: m.favorite,
-    score: m.ratingOverall,
-    personalRank: m.personalRank,
-    note: m.note,
-    genres: m.genres,
-    isEpisodic: false,
-    watched: seen ? 1 : 0,
-    total: 1,
-    progressLabel: formatRuntime(m.runtimeMinutes),
-    canAdvance: false,
+    id: m.id, title: m.title, poster: m.posterUrl, status: m.status,
+    favorite: m.favorite, score: m.ratingOverall, personalRank: m.personalRank,
+    note: m.note, genres: m.genres, isEpisodic: false, watched: seen ? 1 : 0,
+    total: 1, progressLabel: formatRuntime(m.runtimeMinutes), canAdvance: false,
     releaseYear: m.releaseDate ? m.releaseDate.slice(0, 4) : null,
     addedAt: Date.parse(m.createdAt) || null,
   };
@@ -55,21 +49,13 @@ function toVM(m: Movie): LibraryCardVM {
 
 const items = computed(() => movies.value.map(toVM));
 
-// Only the very first load shows the loading state; a refresh when the
-// page comes back swaps data in quietly, so titles never blink away.
-let loadRequest = 0;
 async function load(search = "") {
-  const request = ++loadRequest;
-  if (!movies.value.length) loading.value = true;
-  try {
-    const next = await fetchMovies(search);
-    if (request !== loadRequest) return;
-    movies.value = next;
-  } catch (e) {
-    error.value = e instanceof Error ? e.message : "Failed to load movies.";
-  } finally {
-    loading.value = false;
-  }
+  try { await library.load(search); }
+  catch (e) { error.value = e instanceof Error ? e.message : "Failed to load movies."; }
+}
+async function loadMore() {
+  try { await library.loadMore(); }
+  catch (e) { error.value = e instanceof Error ? e.message : "Failed to load more movies."; }
 }
 onMounted(load);
 useKeptAlive(load);
