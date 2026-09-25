@@ -6,9 +6,9 @@ import time
 from datetime import date
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.routes.media_extras import log_activity, status_change_detail
@@ -127,6 +127,7 @@ async def create_movie(
 
 @router.get("/list", response_model=list[MovieRead])
 async def list_movies(
+    response: Response,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
     status_filter: MovieStatus | None = Query(default=None, alias="status"),
@@ -147,7 +148,19 @@ async def list_movies(
 
     stmt = stmt.order_by(Movie.sort_title).offset(skip).limit(limit)
 
+    count_stmt = select(func.count()).select_from(Movie).where(
+        Movie.user_id == current_user.id, Movie.deleted_at.is_(None)
+    )
+    if status_filter is not None:
+        count_stmt = count_stmt.where(Movie.status == status_filter)
+    if favorite is not None:
+        count_stmt = count_stmt.where(Movie.favorite == favorite)
+    if search:
+        count_stmt = count_stmt.where(Movie.title.ilike(f"%{search}%"))
+    total = await db.scalar(count_stmt)
+
     result = await db.execute(stmt)
+    response.headers["X-Total-Count"] = str(total or 0)
     return list(result.scalars().all())
 
 
