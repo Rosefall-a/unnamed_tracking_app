@@ -26,9 +26,7 @@ function render(s) {
     const spinnerEl = document.querySelector("#spinner");
     const tickEl = document.querySelector("#ready-icon");
     const failureEl = document.querySelector("#failure-icon");
-    const reloadButtonEl = document.querySelector("#reload-button");
-
-    const failed = s.overall === "failed";
+    const failed = s.overall === "failed" || /(?:_FAILED|_CRASHED)$/.test(s.phase || "");
 
     // Title + heading
     if (s.overall === "ready") {
@@ -73,7 +71,6 @@ function render(s) {
         spinnerEl.hidden = true;
         tickEl.style.display = "inline-flex";
         failureEl.style.display = "none";
-        reloadButtonEl.style.display = "none";
     } else if (failed) {
         ready = false;
         pollInterval = 10000;
@@ -81,7 +78,6 @@ function render(s) {
         spinnerEl.hidden = true;
         tickEl.style.display = "none";
         failureEl.style.display = "inline-flex";
-        reloadButtonEl.style.display = "inline-block";
     } else {
         ready = false;
         pollInterval = 200;
@@ -93,11 +89,6 @@ function render(s) {
     }
 }
 
-function reloadApplication() {
-    window.location.reload();
-}
-
-document.querySelector("#reload-button").addEventListener("click", reloadApplication);
 
 async function poll() {
     try {
