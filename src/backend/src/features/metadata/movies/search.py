@@ -139,7 +139,7 @@ def search_movie_metadata(
         with ThreadPoolExecutor(max_workers=len(specs)) as executor:
             for spec, outcome, error in executor.map(_call, specs):
                 if error is not None:
-                    provider_errors.append(_friendly_provider_error(spec.name, error))
+                    provider_errors.append(format_provider_error(spec.name, error))
                     continue
                 if outcome:
                     for candidate in outcome:
