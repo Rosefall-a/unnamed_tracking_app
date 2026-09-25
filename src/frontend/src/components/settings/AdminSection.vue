@@ -8,6 +8,7 @@ import {
   setUserAdmin,
 } from "../../services/admin";
 import ToggleButton from "./ToggleButton.vue";
+import PasswordInput from "../PasswordInput.vue";
 import type { AdminUser } from "../../services/admin";
 
 const users = ref<AdminUser[]>([]);
@@ -184,12 +185,7 @@ function openCreateForm() {
         /></label>
         <label class="field"
           ><span>Password</span
-          ><input
-            v-model="newPassword"
-            type="password"
-            required
-            autocomplete="new-password"
-        /></label>
+          ><PasswordInput v-model="newPassword" autocomplete="new-password" :required="true" /></label>
         <ToggleButton v-model="newIsAdmin" label="Grant admin access"
           >Grant admin access</ToggleButton
         >
