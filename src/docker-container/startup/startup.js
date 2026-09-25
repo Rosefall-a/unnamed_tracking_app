@@ -72,6 +72,7 @@ function render(s) {
         tickEl.style.display = "inline-flex";
         failureEl.style.display = "none";
     } else if (failed) {
+        // failed: show failure icon, hide spinner and tick
         ready = false;
         pollInterval = 10000;
 
@@ -79,13 +80,13 @@ function render(s) {
         tickEl.style.display = "none";
         failureEl.style.display = "inline-flex";
     } else {
+        // not ready: show spinner, hide tick and failure icon
         ready = false;
         pollInterval = 200;
 
         spinnerEl.hidden = false;
         tickEl.style.display = "none";
         failureEl.style.display = "none";
-        reloadButtonEl.style.display = "none";
     }
 }
 

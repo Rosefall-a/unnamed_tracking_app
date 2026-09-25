@@ -184,3 +184,18 @@ pre {
     font-size: 12px;
     opacity: .5;
 }
+
+.failure-icon {
+    display: inline-flex;
+    width: 48px;
+    height: 48px;
+    justify-content: center;
+    align-items: center;
+    border: 3px solid #FF5C5C;
+    border-radius: 50%;
+    color: #FF5C5C;
+    font-size: 42px;
+    font-weight: 700;
+    line-height: 1;
+    flex: 0 0 auto;
+}
