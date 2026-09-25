@@ -33,6 +33,13 @@ import type {
   EditForm,
 } from "../../types/library";
 
+export type {
+  LibraryCardVM,
+  SearchResultVM,
+  QuickAddForm,
+  EditForm,
+} from "../../types/library";
+
 // The pill/tab labels shown everywhere in this view come from the shared
 // 5-value bucket set in utils/mediaStatus.ts — the pill's CSS modifier
 // class is just the bucket key itself (see .pill.watching etc below).
