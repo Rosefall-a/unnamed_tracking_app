@@ -28,18 +28,18 @@ const showPassword = ref(false);
   <div class="password-input">
     <input
       :value="modelValue"
-      :type="showPassword ? "text" : "password""
+      :type="showPassword ? 'text' : 'password'"
       :autocomplete="autocomplete"
       :required="required"
       :placeholder="placeholder"
       :disabled="disabled"
-      @input="emit("update:modelValue", ($event.target as HTMLInputElement).value)"
+      @input="emit('update:modelValue', ($event.target as HTMLInputElement).value)"
     />
     <button
       type="button"
       class="visibility-button"
-      :aria-label="showPassword ? "Hide password" : "Show password""
-      :title="showPassword ? "Hide password" : "Show password""
+      :aria-label="showPassword ? 'Hide password' : 'Show password'"
+      :title="showPassword ? 'Hide password' : 'Show password'"
       :disabled="disabled"
       @click="showPassword = !showPassword"
     >
