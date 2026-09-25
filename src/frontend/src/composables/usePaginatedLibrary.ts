@@ -52,7 +52,8 @@ export function usePaginatedLibrary<T>({ pageSize, fetchPage }: Options<T>) {
 
   async function loadAll(search = currentSearch) {
     if (search !== currentSearch) await load(search);
-    while (hasMore.value) {
+    const token = requestToken;
+    while (hasMore.value && token === requestToken) {
       await loadMore();
     }
   }
