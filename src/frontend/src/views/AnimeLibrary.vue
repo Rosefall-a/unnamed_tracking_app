@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
+import { usePaginatedLibrary } from "../composables/usePaginatedLibrary";
 import { useKeptAlive } from "../utils/useKeptAlive";
 import {
   fetchAnimePage,
@@ -15,20 +16,19 @@ import type { Anime, AnimeStatus } from "../types/anime";
 import MediaLibraryView from "../components/library/MediaLibraryView.vue";
 import { displayTitle } from "../utils/displayTitle";
 import { statusBucket, bucketToReal } from "../utils/mediaStatus";
-import type {
-  LibraryCardVM,
-  SearchResultVM,
-  QuickAddForm,
-  EditForm,
-} from "../components/library/MediaLibraryView.vue";
+import type { LibraryCardVM, SearchResultVM, QuickAddForm, EditForm } from "../types/library";
 
-const shows = ref<Anime[]>([]);
-const totalCount = ref(0);
-const loading = ref(true);
-const loadingMore = ref(false);
-const hasMore = ref(true);
-const PAGE_SIZE = 50;
 const error = ref<string | null>(null);
+const PAGE_SIZE = 50;
+const library = usePaginatedLibrary<Anime>({
+  pageSize: PAGE_SIZE,
+  fetchPage: (offset, limit, search) => fetchAnimePage(offset, limit, search),
+});
+const shows = library.items;
+const totalCount = library.totalCount;
+const loading = library.loading;
+const loadingMore = library.loadingMore;
+const hasMore = library.hasMore;
 const showAniListImport = ref(false);
 const aniListUsername = ref("");
 const aniListUpdateExisting = ref(false);
@@ -120,37 +120,18 @@ const items = computed(() => shows.value.map(toVM));
 
 // Only the very first load shows the loading state; a refresh when the
 // page comes back swaps data in quietly, so titles never blink away.
-let loadRequest = 0;
 async function load(search = "") {
-  const request = ++loadRequest;
-  if (!shows.value.length) loading.value = true;
   try {
-    const next = await fetchAnime(search);
-    if (request !== loadRequest) return;
-    shows.value = next;
-    const firstPage = await fetchAnimePage(0, PAGE_SIZE);
-    shows.value = firstPage.items;
-    totalCount.value = firstPage.total;
-    hasMore.value = shows.value.length < totalCount.value;
+    await library.load(search);
   } catch (e) {
     error.value = e instanceof Error ? e.message : "Failed to load anime.";
-  } finally {
-    loading.value = false;
   }
 }
-
 async function loadMore() {
-  if (!hasMore.value || loadingMore.value) return;
-  loadingMore.value = true;
   try {
-    const page = await fetchAnimePage(shows.value.length, PAGE_SIZE);
-    shows.value.push(...page.items);
-    totalCount.value = page.total;
-    hasMore.value = shows.value.length < totalCount.value;
+    await library.loadMore();
   } catch (e) {
     error.value = e instanceof Error ? e.message : "Failed to load more anime.";
-  } finally {
-    loadingMore.value = false;
   }
 }
 onMounted(load);

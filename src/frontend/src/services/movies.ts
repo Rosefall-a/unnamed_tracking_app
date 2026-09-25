@@ -123,6 +123,27 @@ async function handle<T>(response: Response, action: string): Promise<T> {
   return response.json();
 }
 
+export interface MoviePage {
+  items: Movie[];
+  total: number;
+}
+
+export async function fetchMoviesPage(
+  skip = 0,
+  limit = MOVIES_PAGE_SIZE,
+  search = "",
+): Promise<MoviePage> {
+  const response = await fetch(
+    `/api/movie/list?skip=${skip}&limit=${limit}${search.trim() ? `&search=${encodeURIComponent(search.trim())}` : ""}`,
+    { credentials: "include" },
+  );
+  const page = await handle<BackendMovie[]>(response, "fetch movies");
+  return {
+    items: page.map(mapBackendMovie),
+    total: Number(response.headers.get("X-Total-Count") ?? page.length),
+  };
+}
+
 export async function fetchMovies(search = ""): Promise<Movie[]> {
   const all: BackendMovie[] = [];
   let skip = 0;

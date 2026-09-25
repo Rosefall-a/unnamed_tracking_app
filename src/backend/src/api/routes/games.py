@@ -1632,6 +1632,7 @@ async def create_game(
 
 @router.get("/list", response_model=list[GameRead])
 async def list_games(
+    response: Response,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
     status_filter: GameStatus | None = Query(default=None, alias="status"),
@@ -1652,7 +1653,19 @@ async def list_games(
 
     stmt = stmt.order_by(Game.sort_title).offset(skip).limit(limit)
 
+    count_stmt = select(func.count()).select_from(Game).where(
+        Game.user_id == current_user.id, Game.deleted_at.is_(None)
+    )
+    if status_filter is not None:
+        count_stmt = count_stmt.where(Game.status == status_filter)
+    if favorite is not None:
+        count_stmt = count_stmt.where(Game.favorite == favorite)
+    if search:
+        count_stmt = count_stmt.where(Game.title.ilike(f"%{search}%"))
+    total = await db.scalar(count_stmt)
+
     result = await db.execute(stmt)
+    response.headers["X-Total-Count"] = str(total or 0)
     return list(result.scalars().all())
 
 

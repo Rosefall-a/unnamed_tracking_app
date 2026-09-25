@@ -161,6 +161,36 @@ export function mapBackendGame(raw: BackendGame): Game {
 // ever reached the library view once a synced library grew past that.
 const GAMES_PAGE_SIZE = 200;
 
+export interface GamePage {
+  items: Game[];
+  total: number;
+}
+
+export async function fetchGamesPage(
+  skip = 0,
+  limit = GAMES_PAGE_SIZE,
+  search = "",
+): Promise<GamePage> {
+  if (import.meta.env.VITE_USE_MOCK_DATA === "true") {
+    const filtered = search.trim()
+      ? mockGames.filter((game) => game.title.toLowerCase().includes(search.trim().toLowerCase()))
+      : mockGames;
+    return { items: filtered.slice(skip, skip + limit), total: filtered.length };
+  }
+  const response = await fetch(
+    `/api/game/list?skip=${skip}&limit=${limit}${search.trim() ? `&search=${encodeURIComponent(search.trim())}` : ""}`,
+    { credentials: "include" },
+  );
+  if (!response.ok) {
+    throw new Error(`Failed to fetch games: ${response.status} ${response.statusText}`);
+  }
+  const raw: BackendGame[] = await response.json();
+  return {
+    items: raw.map(mapBackendGame),
+    total: Number(response.headers.get("X-Total-Count") ?? raw.length),
+  };
+}
+
 export async function fetchGames(): Promise<Game[]> {
   if (import.meta.env.VITE_USE_MOCK_DATA === "true") {
     return mockGames;
