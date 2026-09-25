@@ -68,11 +68,31 @@ Paste the following into Arcane's **Environment** text box:
 
 ```dotenv
 POSTGRES_PASSWORD=change-this-database-password
+AUTH_COOKIE_SECURE=false
 ```
 
-That's all that is required for a basic deployment. The Compose file supplies defaults for the other PostgreSQL settings.
-
 Change `POSTGRES_PASSWORD` to a strong, unique password before deploying.
+
+### AUTH_COOKIE_SECURE
+
+This setting controls whether the application's authentication cookies require HTTPS.
+
+- `false` — the application is **not** being accessed through HTTPS.
+- `true` — the application **is** being accessed through HTTPS.
+
+If you are putting Unnamed Tracking App behind a reverse proxy, such as Nginx, Caddy, Traefik, or another proxy that provides HTTPS, set:
+
+```dotenv
+AUTH_COOKIE_SECURE=true
+```
+
+If the application is being accessed directly over HTTP, leave it as:
+
+```dotenv
+AUTH_COOKIE_SECURE=false
+```
+
+The value should match how users access the application from their browser. For example, if the reverse proxy terminates HTTPS and forwards HTTP internally to the application, use `AUTH_COOKIE_SECURE=true`.
 
 ### Optional environment variables
 
