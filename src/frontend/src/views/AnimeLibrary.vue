@@ -94,6 +94,17 @@ function toVM(show: Anime): LibraryCardVM {
 
 const items = computed(() => shows.value.map(toVM));
 
+async function load(search = "") {
+  try { await library.load(search); }
+  catch (e) { error.value = e instanceof Error ? e.message : "Failed to load anime."; }
+}
+async function loadMore() {
+  try { await library.loadMore(); }
+  catch (e) { error.value = e instanceof Error ? e.message : "Failed to load more anime."; }
+}
+onMounted(load);
+useKeptAlive(load);
+
 function findShow(id: string): Anime {
   const show = shows.value.find((s) => s.id === id);
   if (!show) throw new Error(`Anime ${id} not in the loaded list`);
@@ -432,17 +443,7 @@ function detailRoute(id: string): string {
   border-radius: 7px;
   cursor: pointer;
 }
-</style>async function load(search = "") {
-  try { await library.load(search); }
-  catch (e) { error.value = e instanceof Error ? e.message : "Failed to load anime."; }
-}
-async function loadMore() {
-  try { await library.loadMore(); }
-  catch (e) { error.value = e instanceof Error ? e.message : "Failed to load more anime."; }
-}
-onMounted(load);
-useKeptAlive(load);
-
+</style>
 function findShow(id: string): Anime {
   const show = shows.value.find((s) => s.id === id);
   if (!show) throw new Error(`Anime ${id} not in the loaded list`);
