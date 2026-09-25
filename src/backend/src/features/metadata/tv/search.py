@@ -41,13 +41,6 @@ def _blank_result(provider: str, provider_id: str, title: str) -> dict[str, Any]
     }
 
 
-def format_provider_error(name: str, message: str) -> str:
-    lowered = message.lower()
-    if "429" in message or "rate limit" in lowered or "too many requests" in lowered:
-        return f"{name}: rate limited by the provider, try again in a few minutes."
-    return f"{name}: {message}"
-
-
 @dataclass
 class ProviderContext:
     tmdb_api_key: str | None
