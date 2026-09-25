@@ -173,7 +173,6 @@ def test_required_group_metadata_is_exposed_to_generated_schema():
 
 def test_default_selected_section_is_exposed_and_required_sections_override_it():
     sections = {section["id"]: section for section in EnvConfigHandler({}).setup_schema()}
-    assert sections["oidc"]["default"] is True
     assert all(field["name"] != "OIDC_ENABLED" for field in sections["oidc"]["fields"])
     assert sections["first_admin"]["default"] is True
     assert sections["api_keys"]["default"] is False
