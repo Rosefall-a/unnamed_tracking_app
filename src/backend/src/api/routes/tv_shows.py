@@ -9,15 +9,17 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.api.schemas.pagination import PaginatedResponse
 from src.api.schemas.tv_show import (
     EpisodesBulkWatched,
     EpisodeUpdate,
     SeasonCreate,
     SeasonUpdate,
     TVShowCreate,
+    TVShowLibraryRead,
     TVShowRead,
     TVShowUpdate,
 )
@@ -192,7 +194,7 @@ async def refresh_airing(
     return await _get_show_or_404(show_id, db, current_user.id)
 
 
-@router.get("/list", response_model=list[TVShowRead])
+@router.get("/list", response_model=PaginatedResponse[TVShowLibraryRead])
 async def list_shows(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -200,9 +202,9 @@ async def list_shows(
     favorite: bool | None = Query(default=None),
     search: str | None = Query(default=None, description="Case-insensitive title search"),
     skip: int = Query(default=0, ge=0),
-    limit: int = Query(default=50, ge=1, le=200),
-) -> list[TVShow]:
-    """Return the current user's shows, filtered by status, favorite flag, or title search."""
+    limit: int = Query(default=100, ge=1, le=200),
+) -> PaginatedResponse[TVShowLibraryRead]:
+    """Return one page of the current user's shows and the total matching it."""
     stmt = select(TVShow).where(TVShow.user_id == current_user.id, TVShow.deleted_at.is_(None))
 
     if status_filter is not None:
@@ -212,11 +214,28 @@ async def list_shows(
     if search:
         stmt = stmt.where(TVShow.title.ilike(f"%{search}%"))
 
+    status_count_stmt = select(TVShow.status, func.count()).where(
+        TVShow.user_id == current_user.id, TVShow.deleted_at.is_(None)
+    )
+    if favorite is not None:
+        status_count_stmt = status_count_stmt.where(TVShow.favorite == favorite)
+    if search:
+        status_count_stmt = status_count_stmt.where(TVShow.title.ilike(f"%{search}%"))
+    status_counts_result = await db.execute(status_count_stmt.group_by(TVShow.status))
+    status_counts = {status.value: count for status, count in status_counts_result.all()}
+
+    total = await db.scalar(select(func.count()).select_from(stmt.subquery()))
     stmt = stmt.order_by(TVShow.sort_title).offset(skip).limit(limit)
 
     result = await db.execute(stmt)
-    return list(result.scalars().unique().all())
-
+    items = list(result.scalars().unique().all())
+    return PaginatedResponse(
+        items=items,
+        total=total or 0,
+        offset=skip,
+        limit=limit,
+        status_counts=status_counts,
+    )
 
 @router.get("/get/{show_id}", response_model=TVShowRead)
 async def get_show(

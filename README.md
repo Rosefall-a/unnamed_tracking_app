@@ -1,29 +1,38 @@
+# Wiki page https://rosefall-a.github.io/unnamed_tracking_app/
+
+
 # Running the API
 
 docker compose down -v
 docker compose up -d --build
 docker compose run --rm backend
 
-# Backend checks
+
+# checks
+## Backend checks
 cd src/backend
 mypy --config-file pyproject.toml src
 pylint --rcfile=pyproject.toml src
 
-# Backend tests
+## Backend tests
 The tests use the running database, so start the stack first.
 
 ```bash
 docker compose exec -e PYTHONPATH=/app backend python -m pytest tests -q
 ```
 
-# Frontend checks
+## Frontend checks
 cd /src/frontend
 npm run lint
 npm run format # if this fails run npm run format:fix
 npm run typecheck
 npx vitest run
 
-## Recommended VS Code extensions
+# running the wiki
+run `mkdocs serve -a 0.0.0.0:999` inside the wiki folder (requires sudo on linux)
+
+
+# Recommended VS Code extensions
 - Ruff by charliermarsh
 
 # Database updates
@@ -69,7 +78,7 @@ there) and run by hand. There are two:
   and corrects a show whose episode count is wrong.
 
 Jobs are registered in `src/backend/src/features/jobs.py`.
-
+     
 ## Security
 
 This project is not currently hardened for direct public-internet exposure. Keep the API behind an appropriate network boundary and do not expose it directly to the public internet.

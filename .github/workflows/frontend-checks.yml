@@ -2,12 +2,15 @@ name: Frontend Checks
 
 on:
   push:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
 
 permissions:
   contents: write
 
 jobs:
   frontend-checks:
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     name: Frontend
     runs-on: ubuntu-latest
 

@@ -1,32 +1,5 @@
 import { createRouter, createWebHistory } from "vue-router";
-import HomeHub from "../views/HomeHub.vue";
-import GameLibrary from "../views/GameLibrary.vue";
-import Collections from "../views/Collections.vue";
-import CollectionDetail from "../views/CollectionDetail.vue";
-import GameDetail from "../views/GameDetail.vue";
-import CardCollection from "../views/CardCollection.vue";
-import CardDetail from "../views/CardDetail.vue";
-import SetList from "../views/SetList.vue";
-import SetDetail from "../views/SetDetail.vue";
-import MovieLibrary from "../views/MovieLibrary.vue";
-import MovieDetail from "../views/MovieDetail.vue";
-import TVShowLibrary from "../views/TVShowLibrary.vue";
-import TVShowDetail from "../views/TVShowDetail.vue";
-import AnimeLibrary from "../views/AnimeLibrary.vue";
-import AnimeDetail from "../views/AnimeDetail.vue";
-import Calendar from "../views/Calendar.vue";
-import Statistics from "../views/Statistics.vue";
-import Notifications from "../views/Notifications.vue";
-import MediaLists from "../views/MediaLists.vue";
-import MediaListDetail from "../views/MediaListDetail.vue";
-import Inbox from "../views/Inbox.vue";
-import Bounties from "../views/Bounties.vue";
-import AchievementDetail from "../views/AchievementDetail.vue";
-import Login from "../views/Login.vue";
-import OidcStart from "../views/OidcStart.vue";
-import Setup from "../views/Setup.vue";
 import { currentUser, authChecked, checkAuth, startupError } from "../state/auth";
-import Settings from "../views/Settings.vue";
 import { saveLibraryScroll } from "../state/libraryScroll";
 import { appearanceLoaded, loadAppearanceSettings } from "../state/appearance";
 import { fetchSetupStatus } from "../services/setup";
@@ -39,47 +12,143 @@ const router = createRouter({
     return { top: 0 };
   },
   routes: [
-    { path: "/", name: "home", component: HomeHub },
-    { path: "/games", name: "library", component: GameLibrary },
-    { path: "/collections", name: "collections", component: Collections },
+    {
+      path: "/",
+      name: "home",
+      component: () => import("../views/HomeHub.vue"),
+    },
+    {
+      path: "/games",
+      name: "library",
+      component: () => import("../views/GameLibrary.vue"),
+    },
+    {
+      path: "/collections",
+      name: "collections",
+      component: () => import("../views/Collections.vue"),
+    },
     {
       path: "/collections/:name",
       name: "collection-detail",
-      component: CollectionDetail,
+      component: () => import("../views/CollectionDetail.vue"),
     },
-    { path: "/inbox", name: "inbox", component: Inbox },
-    { path: "/bounties", name: "bounties", component: Bounties },
-    { path: "/games/:id", name: "game-detail", component: GameDetail },
-    { path: "/cards", name: "card-collection", component: CardCollection },
-    { path: "/cards/:cardId", name: "card-detail", component: CardDetail },
-    { path: "/sets", name: "set-list", component: SetList },
-    { path: "/sets/:id", name: "set-detail", component: SetDetail },
-    { path: "/movies", name: "movie-library", component: MovieLibrary },
-    { path: "/movies/:id", name: "movie-detail", component: MovieDetail },
-    { path: "/tv", name: "tv-show-library", component: TVShowLibrary },
-    { path: "/tv/:id", name: "tv-show-detail", component: TVShowDetail },
-    { path: "/anime", name: "anime-library", component: AnimeLibrary },
-    { path: "/anime/:id", name: "anime-detail", component: AnimeDetail },
-    { path: "/calendar", name: "calendar", component: Calendar },
-    { path: "/statistics", name: "statistics", component: Statistics },
-    { path: "/notifications", name: "notifications", component: Notifications },
-    { path: "/lists", name: "media-lists", component: MediaLists },
+    {
+      path: "/inbox",
+      name: "inbox",
+      component: () => import("../views/Inbox.vue"),
+    },
+    {
+      path: "/bounties",
+      name: "bounties",
+      component: () => import("../views/Bounties.vue"),
+    },
+    {
+      path: "/games/:id",
+      name: "game-detail",
+      component: () => import("../views/GameDetail.vue"),
+    },
+    {
+      path: "/cards",
+      name: "card-collection",
+      component: () => import("../views/CardCollection.vue"),
+    },
+    {
+      path: "/cards/:cardId",
+      name: "card-detail",
+      component: () => import("../views/CardDetail.vue"),
+    },
+    {
+      path: "/sets",
+      name: "set-list",
+      component: () => import("../views/SetList.vue"),
+    },
+    {
+      path: "/sets/:id",
+      name: "set-detail",
+      component: () => import("../views/SetDetail.vue"),
+    },
+    {
+      path: "/movies",
+      name: "movie-library",
+      component: () => import("../views/MovieLibrary.vue"),
+    },
+    {
+      path: "/movies/:id",
+      name: "movie-detail",
+      component: () => import("../views/MovieDetail.vue"),
+    },
+    {
+      path: "/tv",
+      name: "tv-show-library",
+      component: () => import("../views/TVShowLibrary.vue"),
+    },
+    {
+      path: "/tv/:id",
+      name: "tv-show-detail",
+      component: () => import("../views/TVShowDetail.vue"),
+    },
+    {
+      path: "/anime",
+      name: "anime-library",
+      component: () => import("../views/AnimeLibrary.vue"),
+    },
+    {
+      path: "/anime/:id",
+      name: "anime-detail",
+      component: () => import("../views/AnimeDetail.vue"),
+    },
+    {
+      path: "/calendar",
+      name: "calendar",
+      component: () => import("../views/Calendar.vue"),
+    },
+    {
+      path: "/statistics",
+      name: "statistics",
+      component: () => import("../views/Statistics.vue"),
+    },
+    {
+      path: "/notifications",
+      name: "notifications",
+      component: () => import("../views/Notifications.vue"),
+    },
+    {
+      path: "/lists",
+      name: "media-lists",
+      component: () => import("../views/MediaLists.vue"),
+    },
     {
       path: "/lists/:id",
       name: "media-list-detail",
-      component: MediaListDetail,
+      component: () => import("../views/MediaListDetail.vue"),
     },
     // History merged into the Calendar page as a second tab
     { path: "/history", redirect: "/calendar" },
-    { path: "/login", name: "login", component: Login },
-    { path: "/login/oidcstart", name: "oidc-start", component: OidcStart },
-    { path: "/setup", name: "setup", component: Setup },
+    {
+      path: "/login",
+      name: "login",
+      component: () => import("../views/Login.vue"),
+    },
+    {
+      path: "/login/oidcstart",
+      name: "oidc-start",
+      component: () => import("../views/OidcStart.vue"),
+    },
+    {
+      path: "/setup",
+      name: "setup",
+      component: () => import("../views/Setup.vue"),
+    },
     { path: "/profile", redirect: "/settings" },
-    { path: "/settings", name: "settings", component: Settings },
+    {
+      path: "/settings",
+      name: "settings",
+      component: () => import("../views/Settings.vue"),
+    },
     {
       path: "/games/:gameId/achievements/:achievementId",
       name: "achievement-detail",
-      component: AchievementDetail,
+      component: () => import("../views/AchievementDetail.vue"),
     },
     // last, so it only catches addresses no other route claims
     {
@@ -91,15 +160,20 @@ const router = createRouter({
 });
 
 let setupState: "unknown" | "required" | "complete" | "error" = "unknown";
+let startupUiShown = false;
 
 router.beforeEach(async (to, from) => {
   if (from.path === "/games") saveLibraryScroll(window.scrollY);
 
   if (setupState === "unknown" || setupState === "error") {
     try {
-      setupState = (await fetchSetupStatus()).setup_required
-        ? "required"
-        : "complete";
+      const status = await fetchSetupStatus();
+      setupState = status.setup_required ? "required" : "complete";
+      if (!status.setup_required && !status.startup_ui_enabled && to.path !== "/setup" && !startupUiShown) {
+        startupUiShown = true;
+        return { path: "/setup" };
+      }
+      startupUiShown = true;
     } catch {
       setupState = "error";
       startupError.value = true;
@@ -113,7 +187,6 @@ router.beforeEach(async (to, from) => {
         : "complete";
     } catch {
       setupState = "error";
-      startupError.value = true;
     }
   }
 
@@ -121,11 +194,14 @@ router.beforeEach(async (to, from) => {
     if (to.path !== "/setup")
       return {
         path: "/setup",
-        query: setupState === "error" ? { backend_error: "1" } : undefined,
       };
     return;
   }
-  if (to.path === "/setup") return "/";
+  if (to.path === "/setup") {
+    const status = await fetchSetupStatus();
+    if (status.setup_required || !status.startup_ui_enabled) { startupUiShown = true; return; }
+    return currentUser.value ? "/" : "/login";
+  }
 
   // This public route deliberately bypasses the normal auth redirect so a
   // bookmark or reverse-proxy login entrypoint can start OIDC immediately.

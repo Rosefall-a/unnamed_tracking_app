@@ -83,6 +83,22 @@ const groups = computed<SettingsGroup[]>(() => {
 });
 const activeSection = ref((route.query.section as string) || "profile");
 
+watch(
+  () => route.query.section,
+  (section) => {
+    const next =
+      typeof section === "string" && section ? section : "profile";
+    if (activeSection.value !== next) activeSection.value = next;
+  },
+);
+
+watch(activeSection, (section) => {
+  const current =
+    typeof route.query.section === "string" ? route.query.section : "profile";
+  if (current === section) return;
+  void router.replace({ query: { ...route.query, section } });
+});
+
 // on a phone the section list stacks above the content, so a tap would
 // change something far below the fold: bring the content into view
 const card = ref<HTMLElement | null>(null);

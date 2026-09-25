@@ -1,7 +1,7 @@
 import { failedRequest } from "./apiError";
+import type { PaginatedResponse } from "../types/pagination";
 import type { Movie, MovieStatus } from "../types/movie";
 
-const MOVIES_PAGE_SIZE = 50;
 
 // The exact shape FastAPI sends, snake_case, matching the Python model
 // field-for-field. Nothing outside this file should ever see raw backend
@@ -123,22 +123,41 @@ async function handle<T>(response: Response, action: string): Promise<T> {
   return response.json();
 }
 
+export async function fetchMoviesPage(
+  offset = 0,
+  limit = 100,
+  search = "",
+): Promise<{ items: Movie[]; total: number; offset: number; limit: number; statusCounts: Record<string, number> }> {
+  const params = new URLSearchParams({
+    skip: String(offset),
+    limit: String(limit),
+  });
+  if (search.trim()) params.set("search", search.trim());
+  const response = await fetch(`/api/movie/list?${params}`, {
+    credentials: "include",
+  });
+  const page = await handle<PaginatedResponse<BackendMovie>>(response, "fetch movies");
+  return {
+    items: page.items.map(mapBackendMovie),
+    total: page.total,
+    offset: page.offset,
+    limit: page.limit,
+    statusCounts: page.status_counts,
+  };
+}
+
 export async function fetchMovies(search = ""): Promise<Movie[]> {
-  const all: BackendMovie[] = [];
-  let skip = 0;
+  const all: Movie[] = [];
+  let offset = 0;
+  const limit = 100;
   while (true) {
-    const response = await fetch(
-      `/api/movie/list?skip=${skip}&limit=${MOVIES_PAGE_SIZE}${search.trim() ? `&search=${encodeURIComponent(search.trim())}` : ""}`,
-      { credentials: "include" },
-    );
-    const page = await handle<BackendMovie[]>(response, "fetch movies");
-    all.push(...page);
-    if (page.length < MOVIES_PAGE_SIZE) break;
-    skip += MOVIES_PAGE_SIZE;
+    const page = await fetchMoviesPage(offset, limit, search);
+    all.push(...page.items);
+    if (all.length >= page.total || page.items.length === 0) break;
+    offset += page.items.length;
   }
-  const list = all.map(mapBackendMovie);
   movieCache.markListLoaded();
-  return list;
+  return all;
 }
 
 export async function getMovie(id: string): Promise<Movie> {
