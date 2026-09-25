@@ -262,8 +262,8 @@ async function onFileSelected(e: Event) {
     <p class="section-hint">
       A portable JSON snapshot of your whole library (games, movies, TV shows
       and anime) for backups, or moving to a new server. Covers title data and
-      metadata only, not attached files (screenshots, saves, docs) or bounties.
-      Games, movies, TV shows and anime can each be brought back below.
+      metadata only, not attached files (screenshots, saves, docs). Games,
+      movies, TV shows and anime can each be brought back below.
     </p>
 
     <div v-if="backupStatus" class="tile backup-status-tile">

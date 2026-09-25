@@ -4,10 +4,6 @@ import GameLibrary from "../views/GameLibrary.vue";
 import Collections from "../views/Collections.vue";
 import CollectionDetail from "../views/CollectionDetail.vue";
 import GameDetail from "../views/GameDetail.vue";
-import CardCollection from "../views/CardCollection.vue";
-import CardDetail from "../views/CardDetail.vue";
-import SetList from "../views/SetList.vue";
-import SetDetail from "../views/SetDetail.vue";
 import MovieLibrary from "../views/MovieLibrary.vue";
 import MovieDetail from "../views/MovieDetail.vue";
 import TVShowLibrary from "../views/TVShowLibrary.vue";
@@ -19,8 +15,6 @@ import Statistics from "../views/Statistics.vue";
 import Notifications from "../views/Notifications.vue";
 import MediaLists from "../views/MediaLists.vue";
 import MediaListDetail from "../views/MediaListDetail.vue";
-import Inbox from "../views/Inbox.vue";
-import Bounties from "../views/Bounties.vue";
 import AchievementDetail from "../views/AchievementDetail.vue";
 import Login from "../views/Login.vue";
 import OidcStart from "../views/OidcStart.vue";
@@ -47,13 +41,9 @@ const router = createRouter({
       name: "collection-detail",
       component: CollectionDetail,
     },
-    { path: "/inbox", name: "inbox", component: Inbox },
-    { path: "/bounties", name: "bounties", component: Bounties },
+    { path: "/upload", redirect: "/settings?section=upload" },
+    { path: "/inbox", redirect: "/settings?section=upload" },
     { path: "/games/:id", name: "game-detail", component: GameDetail },
-    { path: "/cards", name: "card-collection", component: CardCollection },
-    { path: "/cards/:cardId", name: "card-detail", component: CardDetail },
-    { path: "/sets", name: "set-list", component: SetList },
-    { path: "/sets/:id", name: "set-detail", component: SetDetail },
     { path: "/movies", name: "movie-library", component: MovieLibrary },
     { path: "/movies/:id", name: "movie-detail", component: MovieDetail },
     { path: "/tv", name: "tv-show-library", component: TVShowLibrary },

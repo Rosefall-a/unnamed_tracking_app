@@ -5,10 +5,9 @@ import GameCard from "../components/GameCard.vue";
 import GameFormModal from "../components/GameFormModal.vue";
 import { fetchGames, deleteGame } from "../services/games";
 import CollectionPickerModal from "../components/CollectionPickerModal.vue";
+import AccountChip from "../components/AccountChip.vue";
 import type { Game } from "../types/game";
 import { currentUser } from "../state/auth";
-import { fetchBounties } from "../services/bounties";
-import type { Bounty } from "../services/bounties";
 import { fetchWeeklyDigest } from "../services/stats";
 import type { WeeklyDigest } from "../services/stats";
 
@@ -29,30 +28,6 @@ const totalGames = computed(() => games.value.length);
 const favoriteCount = computed(
   () => games.value.filter((g) => g.favorite).length,
 );
-
-const bgLayers = ref<{ url: string | null; visible: boolean }[]>([
-  { url: null, visible: false },
-  { url: null, visible: false },
-]);
-const activeLayer = ref(0);
-
-// only crossfade once the cursor has settled on a card briefly, gliding
-// across many cards shouldn't flicker the ambient background
-let hoverDebounceTimer: ReturnType<typeof setTimeout> | null = null;
-
-function setHoverImage(url: string | null) {
-  if (hoverDebounceTimer) clearTimeout(hoverDebounceTimer);
-  hoverDebounceTimer = setTimeout(() => {
-    if (url === null) {
-      bgLayers.value[activeLayer.value].visible = false;
-      return;
-    }
-    const nextLayer = activeLayer.value === 0 ? 1 : 0;
-    bgLayers.value[nextLayer] = { url, visible: true };
-    bgLayers.value[activeLayer.value].visible = false;
-    activeLayer.value = nextLayer;
-  }, 400);
-}
 
 function pickRandomGame() {
   if (!games.value.length) return;
@@ -104,24 +79,6 @@ window.addEventListener("resize", updateAllShelfArrows);
 onUnmounted(() => window.removeEventListener("resize", updateAllShelfArrows));
 
 onMounted(loadGames);
-
-// --- Bounties: self-set goals inside a game, full list lives at /bounties
-const activeBounties = ref<Bounty[]>([]);
-const bountiesLoading = ref(true);
-
-async function loadBounties() {
-  bountiesLoading.value = true;
-  try {
-    activeBounties.value = await fetchBounties({ status: "active" });
-  } catch {
-    // no points, no stakes, a failed fetch just means the widget shows
-    // nothing today, not worth surfacing an error for
-    activeBounties.value = [];
-  } finally {
-    bountiesLoading.value = false;
-  }
-}
-onMounted(loadBounties);
 
 function openEditModal(game: Game) {
   editingGame.value = game;
@@ -270,12 +227,6 @@ const onboardingSteps = computed(() => [
     hint: "The heart icon on any card",
     to: "/games",
   },
-  {
-    done: activeBounties.value.length > 0,
-    label: "Set a goal",
-    hint: "A lightweight bounty for something you want to finish",
-    to: "/bounties",
-  },
 ]);
 const showChecklist = computed(
   () => !checklistDismissed.value && onboardingSteps.value.some((s) => !s.done),
@@ -297,7 +248,7 @@ function dismissWelcomeTour() {
 const TOUR_STEPS = [
   {
     title: "Find anything fast",
-    body: "Press Ctrl/Cmd+K anywhere to jump straight to a game, collection, bounty, or Settings section.",
+    body: "Press Ctrl/Cmd+K anywhere to jump straight to a game, collection, or Settings section.",
   },
   {
     title: "Filter and save combos",
@@ -308,10 +259,6 @@ const TOUR_STEPS = [
     body: "Group games however you like, in any order, open a collection and hit Reorder to arrange it.",
   },
   {
-    title: "Bounties",
-    body: "Optional personal goals with points if you want the extra structure, set one, or let the random picker suggest something.",
-  },
-  {
     title: "Press ? anytime",
     body: "Shows every keyboard shortcut this app supports.",
   },
@@ -319,9 +266,8 @@ const TOUR_STEPS = [
 
 // --- "this week" recap: playtime data has no history (just a running
 // total + lastPlayedAt), so "minutes logged this week" isn't derivable,
-// this counts what actually is: games touched, bounties finished,
-// achievements unlocked, and metadata edited/refreshed ------
-const weeklyBounties = ref<Bounty[]>([]);
+// this counts what actually is: games touched, achievements unlocked,
+// and metadata edited/refreshed ------
 const weeklyDigestSetting = ref(
   localStorage.getItem("weeklyDigestEnabled") !== "false",
 );
@@ -329,14 +275,8 @@ const weeklyDigest = ref<WeeklyDigest | null>(null);
 onMounted(async () => {
   if (!weeklyDigestSetting.value) return;
   try {
-    const [bounties, digest] = await Promise.all([
-      fetchBounties({ status: "completed" }),
-      fetchWeeklyDigest(),
-    ]);
-    weeklyBounties.value = bounties;
-    weeklyDigest.value = digest;
+    weeklyDigest.value = await fetchWeeklyDigest();
   } catch {
-    weeklyBounties.value = [];
     weeklyDigest.value = null;
   }
 });
@@ -344,12 +284,6 @@ const gamesPlayedThisWeek = computed(() => {
   const weekAgo = Date.now() - 7 * 86_400_000;
   return games.value.filter(
     (g) => g.lastPlayedAt && new Date(g.lastPlayedAt).getTime() >= weekAgo,
-  ).length;
-});
-const bountiesCompletedThisWeek = computed(() => {
-  const weekAgo = Date.now() / 1000 - 7 * 86_400;
-  return weeklyBounties.value.filter(
-    (b) => b.completed_at !== null && b.completed_at >= weekAgo,
   ).length;
 });
 const achievementsUnlockedThisWeek = computed(
@@ -362,7 +296,6 @@ const showWeeklyRecap = computed(
   () =>
     weeklyDigestSetting.value &&
     (gamesPlayedThisWeek.value > 0 ||
-      bountiesCompletedThisWeek.value > 0 ||
       achievementsUnlockedThisWeek.value > 0 ||
       metadataChangesThisWeek.value > 0),
 );
@@ -412,20 +345,7 @@ function scrollShelf(e: MouseEvent, dir: 1 | -1) {
 
 <template>
   <main class="home">
-    <div
-      v-for="(layer, i) in bgLayers"
-      :key="i"
-      class="ambient-bg"
-      :class="{ visible: layer.visible }"
-      :style="layer.url ? { backgroundImage: `url(${layer.url})` } : {}"
-    ></div>
-
-    <div v-if="currentUser" class="profile-chip">
-      <span class="profile-name">{{ currentUser.username }}</span>
-      <div class="profile-avatar">
-        {{ currentUser.username.slice(0, 2).toUpperCase() }}
-      </div>
-    </div>
+    <AccountChip fixed />
 
     <div
       v-if="showWelcomeTour"
@@ -469,12 +389,6 @@ function scrollShelf(e: MouseEvent, dir: 1 | -1) {
                 achievementsUnlockedThisWeek === 1 ? "" : "s"
               }}
               unlocked</span
-            >
-            <span v-if="bountiesCompletedThisWeek" class="weekly-recap-item"
-              >{{ bountiesCompletedThisWeek }} bount{{
-                bountiesCompletedThisWeek === 1 ? "y" : "ies"
-              }}
-              done</span
             >
             <span v-if="metadataChangesThisWeek" class="weekly-recap-item"
               >{{ metadataChangesThisWeek }} metadata change{{
@@ -603,68 +517,6 @@ function scrollShelf(e: MouseEvent, dir: 1 | -1) {
             <span class="widget-subtitle">Can't decide? Let us choose.</span>
           </div>
         </button>
-
-        <router-link
-          v-if="activeBounties.length"
-          to="/bounties"
-          class="widget-card bounty-widget"
-        >
-          <svg
-            class="widget-icon"
-            viewBox="0 0 24 24"
-            width="22"
-            height="22"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <circle cx="12" cy="12" r="9" />
-            <circle cx="12" cy="12" r="5" />
-            <circle cx="12" cy="12" r="1" fill="currentColor" stroke="none" />
-          </svg>
-          <div class="bounty-body">
-            <span class="widget-title"
-              >{{ activeBounties.length }} active
-              {{ activeBounties.length === 1 ? "bounty" : "bounties" }}</span
-            >
-            <span
-              class="widget-subtitle"
-              v-for="b in activeBounties.slice(0, 2)"
-              :key="b.id"
-            >
-              {{ b.title }}{{ b.game_title ? `, ${b.game_title}` : "" }}
-            </span>
-          </div>
-        </router-link>
-        <router-link
-          v-else-if="!bountiesLoading"
-          to="/bounties"
-          class="widget-card goals-widget"
-        >
-          <svg
-            class="widget-icon"
-            viewBox="0 0 24 24"
-            width="22"
-            height="22"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <circle cx="12" cy="12" r="9" />
-            <circle cx="12" cy="12" r="5" />
-            <circle cx="12" cy="12" r="1" fill="currentColor" stroke="none" />
-          </svg>
-          <div>
-            <span class="widget-title">Goals & bounties</span>
-            <span class="widget-subtitle"
-              >Set a goal for one of your games</span
-            >
-          </div>
-        </router-link>
 
         <router-link
           v-if="staleBacklogGames.length"
@@ -796,7 +648,6 @@ function scrollShelf(e: MouseEvent, dir: 1 | -1) {
                 v-for="game in playingGames"
                 :key="game.id"
                 :game="game"
-                @hover="setHoverImage"
                 @edit="openEditModal"
                 @add-to-collection="handleAddToCollection"
               />
@@ -851,7 +702,6 @@ function scrollShelf(e: MouseEvent, dir: 1 | -1) {
                 v-for="game in recentlyAdded"
                 :key="game.id"
                 :game="game"
-                @hover="setHoverImage"
                 @edit="openEditModal"
                 @add-to-collection="handleAddToCollection"
               />
@@ -916,7 +766,6 @@ function scrollShelf(e: MouseEvent, dir: 1 | -1) {
                 v-for="game in group.games"
                 :key="game.id"
                 :game="game"
-                @hover="setHoverImage"
                 @edit="openEditModal"
                 @add-to-collection="handleAddToCollection"
               />
@@ -988,7 +837,7 @@ function scrollShelf(e: MouseEvent, dir: 1 | -1) {
   position: relative;
   padding: 84px 24px 24px;
   font-family: system-ui, sans-serif;
-  background: #121212;
+  background: #0d0d0d;
   min-height: 100vh;
   color: #fff;
   overflow: hidden;
@@ -1008,55 +857,9 @@ function scrollShelf(e: MouseEvent, dir: 1 | -1) {
   z-index: 0;
   pointer-events: none;
 }
-.ambient-bg {
-  position: fixed;
-  inset: 0;
-  background-size: cover;
-  background-position: center;
-  filter: blur(90px);
-  opacity: 0;
-  transform: scale(1.2);
-  transition: opacity 1.4s cubic-bezier(0.22, 1, 0.36, 1);
-  z-index: 0;
-}
-.ambient-bg.visible {
-  opacity: 0.35;
-}
 .content {
   position: relative;
   z-index: 1;
-}
-.profile-chip {
-  position: fixed;
-  top: 16px;
-  right: 16px;
-  z-index: 100;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  background: rgba(20, 20, 20, 0.55);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  border-radius: 999px;
-  padding: 6px 6px 6px 16px;
-}
-.profile-avatar {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: #d68a34;
-  color: #111;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  font-weight: 700;
-}
-.profile-name {
-  color: #fff;
-  font-size: 13px;
-  font-weight: 600;
 }
 .home-header {
   display: flex;
@@ -1284,16 +1087,6 @@ function scrollShelf(e: MouseEvent, dir: 1 | -1) {
   border-color: #3a3a3a;
   transform: translateY(-2px);
 }
-.bounty-widget {
-  max-width: 340px;
-  text-decoration: none;
-  color: inherit;
-}
-.bounty-widget:hover {
-  background: rgba(255, 255, 255, 0.06);
-  border-color: #3a3a3a;
-  transform: translateY(-2px);
-}
 .backlog-widget,
 .on-this-day-widget {
   max-width: 340px;
@@ -1304,15 +1097,6 @@ function scrollShelf(e: MouseEvent, dir: 1 | -1) {
   background: rgba(255, 255, 255, 0.06);
   border-color: #3a3a3a;
   transform: translateY(-2px);
-}
-.bounty-body {
-  flex: 1;
-  min-width: 0;
-}
-.bounty-body .widget-title {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 .widget-icon {
   color: #d68a34;
