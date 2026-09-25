@@ -7,6 +7,7 @@ from typing import Any, Callable, Literal
 from src.features.metadata.movies.omdb import OMDBClient
 from src.features.metadata.movies.tmdb import TMDBClient
 from src.features.metadata.tv.tvmaze import TVMazeClient
+from src.features.metadata.search_utils import format_provider_error, merge_search_result
 
 # Reuses the TMDB/OMDb clients built for Movies (same API keys, same
 # deployment-wide AppIntegrationSettings) rather than duplicating a whole
@@ -40,34 +41,11 @@ def _blank_result(provider: str, provider_id: str, title: str) -> dict[str, Any]
     }
 
 
-def _friendly_provider_error(name: str, message: str) -> str:
+def format_provider_error(name: str, message: str) -> str:
     lowered = message.lower()
     if "429" in message or "rate limit" in lowered or "too many requests" in lowered:
         return f"{name}: rate limited by the provider, try again in a few minutes."
     return f"{name}: {message}"
-
-
-def _titles_match(a: str, b: str) -> bool:
-    normalize = lambda s: "".join(ch.lower() for ch in s if ch.isalnum())  # noqa: E731
-    return normalize(a) == normalize(b) and bool(normalize(a))
-
-
-def _merge_or_append(results: list[dict[str, Any]], candidate: dict[str, Any]) -> None:
-    """A later provider can turn up a title an earlier one already found —
-    merge onto the existing entry (filling only blanks) instead of creating
-    a visually duplicate second result. `seasons` is never merged: TMDB's
-    season list is treated as authoritative when present, never mixed
-    with a different provider's (which never has one anyway — see
-    OMDBClient.search_tv)."""
-    for existing in results:
-        if _titles_match(existing["title"], candidate["title"]):
-            for key, value in candidate.items():
-                if key in ("provider", "provider_id", "title", "seasons"):
-                    continue
-                if not existing.get(key) and value:
-                    existing[key] = value
-            return
-    results.append(candidate)
 
 
 @dataclass
@@ -220,7 +198,7 @@ def search_tv_metadata(
                     continue
                 if outcome:
                     for candidate in outcome:
-                        _merge_or_append(results, candidate)
+                        merge_search_result(results, candidate)
                 providers_used.append(spec.name)
 
     # anime belongs in the Anime library (AniList, its own episode numbering
