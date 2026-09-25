@@ -24,6 +24,9 @@ nav:
       - Environment Variables: setup/environment-variables.md
   - User Guide:
       - Overview: user-guide/index.md
+      - Authentication: user-guide/authentication.md
+      - OpenID Connect / SSO: user-guide/oidc.md
+      - Data, Exports & Backups: user-guide/data-and-backups.md
       - Games: user-guide/games.md
       - Anime: user-guide/anime.md
       - TV Shows: user-guide/tv-shows.md
@@ -31,7 +34,6 @@ nav:
   - Integrations:
       - Overview: integrations/index.md
       - Playnite: integrations/playnite.md
-      - OpenID Connect / SSO: integrations/oidc.md
       - Metadata Providers: integrations/metadata.md
   - Administration:
       - Overview: administration/index.md
@@ -40,8 +42,10 @@ nav:
   - Deployment:
       - Overview: deployment/index.md
       - Production Docker Image: deployment/production-docker.md
+      - Startup & Troubleshooting: deployment/startup-and-troubleshooting.md
   - Development:
       - Overview: development/index.md
       - Architecture: development/architecture.md
       - API: development/api.md
+      - API Examples: development/api-examples.md
       - Contributing: development/contributing.md
