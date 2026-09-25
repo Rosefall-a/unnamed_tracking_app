@@ -21,7 +21,6 @@ const library = usePaginatedLibrary<Movie>({
   fetchPage: async (offset, limit, search) => fetchMoviesPage(offset, limit, search),
 });
 const movies = library.items;
-const totalCount = library.totalCount;
 const loading = library.loading;
 const loadingMore = library.loadingMore;
 const hasMore = library.hasMore;
