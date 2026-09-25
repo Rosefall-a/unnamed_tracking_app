@@ -1632,6 +1632,7 @@ async def create_game(
 
 @router.get("/list", response_model=list[GameRead])
 async def list_games(
+    response: Response,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
     status_filter: GameStatus | None = Query(default=None, alias="status"),
