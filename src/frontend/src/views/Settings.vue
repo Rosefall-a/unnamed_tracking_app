@@ -17,6 +17,7 @@ import TasksSection from "../components/settings/TasksSection.vue";
 import AdminSection from "../components/settings/AdminSection.vue";
 import StatsSection from "../components/settings/StatsSection.vue";
 import ExportImportSection from "../components/settings/ExportImportSection.vue";
+import YamtrackImport from "../components/settings/YamtrackImport.vue";
 import CalendarNotificationsSection from "../components/settings/CalendarNotificationsSection.vue";
 import MediaPreferencesSection from "../components/settings/MediaPreferencesSection.vue";
 import ComingSoonSection from "../components/settings/ComingSoonSection.vue";
@@ -164,7 +165,10 @@ watch(activeSection, async () => {
             v-else-if="activeSection === 'users' && currentUser?.is_admin"
           />
           <StatsSection v-else-if="activeSection === 'stats'" />
-          <ExportImportSection v-else-if="activeSection === 'export'" />
+          <template v-else-if="activeSection === 'export'">
+            <ExportImportSection />
+            <YamtrackImport />
+          </template>
           <TasksSection
             v-else-if="activeSection === 'tasks' && currentUser?.is_admin"
           />
