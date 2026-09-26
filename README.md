@@ -58,10 +58,16 @@ ships with the app.
 
 Settings > Export / Import can bring in a MyAnimeList export (anime), a
 Letterboxd export (movies) and an IMDb ratings or watchlist CSV (movies and TV
-shows). Each import shows what it would add or change first, and for a title
-you already have you choose between keeping it as it is and using the file's
-data. It can also restore movies, TV shows and anime from the app's own export,
-and export everything as a CSV.
+shows). It can also import a native YamTrack CSV export (movies and TV shows,
+including watched TV episode progress). Each import shows what it would add or
+change first, and for a title you already have you choose between keeping it
+as it is and using the file's data. It can also restore movies, TV shows and
+anime from the app's own export, and export everything as a CSV.
+
+YamTrack migration uses its native CSV export, so no YamTrack database access
+or plugin is required. Unsupported media types are skipped and reported; TV
+rows are matched by title and release year when available, while episode and
+season rows are folded into the matching TV show's watched-episode progress.
 
 # Scheduled jobs
 
