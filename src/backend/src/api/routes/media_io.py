@@ -338,7 +338,8 @@ async def import_yamtrack(
     for group in groups:
         key = {"movie": "movies", "tv": "tv_shows", "anime": "anime"}[group.media_type]
         try:
-            item = build_yamtrack_item(group)
+            async with db.begin_nested():
+                item = build_yamtrack_item(group)
             item.user_id = current_user.id
             date_field = "release_date" if group.media_type == "movie" else "first_air_date"
 
@@ -370,17 +371,16 @@ async def import_yamtrack(
                 skipped[key] += 1
                 continue
 
-            db.add(item)
-            await db.flush()
-            if group.media_type != "movie":
-                seasons = getattr(item, "seasons", [])
-                seasons_created += len(seasons)
-                episodes_created += sum(len(s.episodes) for s in seasons)
-            created[key] += 1
+                db.add(item)
+                await db.flush()
+                if group.media_type != "movie":
+                    seasons = getattr(item, "seasons", [])
+                    seasons_created += len(seasons)
+                    episodes_created += sum(len(s.episodes) for s in seasons)
+                created[key] += 1
         except Exception as exc:  # noqa: BLE001
             skipped[key] += 1
             errors.append(f"{group.parent.get('title', group.media_id)}: {exc}")
-            await db.rollback()
 
     await db.commit()
     return YamtrackImportResult(
