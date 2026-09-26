@@ -32,6 +32,7 @@ from src.api.routes import (
     stats,
     tv_shows,
     users,
+    yamtrack_import,
 )
 from src.api.routes import set as set_routes
 from src.api.routes.auth_oidc import router as auth_oidc_router
@@ -82,6 +83,7 @@ app.include_router(bounties.router)
 app.include_router(export_import.router)
 app.include_router(jobs.router)
 app.include_router(media_io.router)
+app.include_router(yamtrack_import.router)
 app.include_router(media_extras.router)
 app.include_router(media_lists.router)
 app.include_router(notifications.router)
