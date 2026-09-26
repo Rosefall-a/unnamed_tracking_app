@@ -75,7 +75,7 @@ def _score(value: str | None) -> Decimal | None:
         return None
 
 
-def _status(value: str | None, enum_class: type) -> Any:
+def _status(value: str | None, enum_class: Any) -> Any:
     mapped = _STATUS.get((value or "").strip().lower())
     if mapped is None:
         return enum_class.WATCHLIST
@@ -132,10 +132,7 @@ def parse_yamtrack(raw: bytes) -> list[YamtrackGroup]:
         season_number = _int(row.get("season_number"))
         if season_number is None:
             continue
-        season = group.seasons.setdefault(
-            season_number,
-            {"row": None, "episodes": {}},
-        )
+        season = group.seasons.setdefault(season_number, {"row": None, "episodes": {}})
         if media_type == "season":
             season["row"] = row
         else:
@@ -146,20 +143,15 @@ def parse_yamtrack(raw: bytes) -> list[YamtrackGroup]:
     return [g for g in groups.values() if g.parent is not None]
 
 
-def _season_rows(group: YamtrackGroup, season_cls: type, episode_cls: type, enum_class: type) -> list[Any]:
+def _season_rows(group: YamtrackGroup, season_cls: type, episode_cls: type, enum_class: Any) -> list[Any]:
     result = []
     parent_progress = _int((group.parent or {}).get("progress")) or 0
     for number in sorted(group.seasons):
         data = group.seasons[number]
         raw = data["row"] or {}
         episodes = data["episodes"]
-
         watched_from_episodes = sum(_watched(ep) for ep in episodes.values())
         season_progress = _int(raw.get("progress"))
-        # Season rows are authoritative for that season. Only fall back to
-        # the parent progress when Yamtrack omitted the season row entirely.
-        # The parent progress is total-series progress, so applying it to every
-        # season would incorrectly give each season the whole show's count.
         if season_progress is not None:
             watched = max(season_progress, watched_from_episodes)
         elif episodes:
@@ -167,7 +159,6 @@ def _season_rows(group: YamtrackGroup, season_cls: type, episode_cls: type, enum
         else:
             watched = parent_progress
         episode_count = max(episodes) if episodes else None
-
         season = season_cls(
             season_number=number,
             episode_count=episode_count,
@@ -176,11 +167,7 @@ def _season_rows(group: YamtrackGroup, season_cls: type, episode_cls: type, enum
             air_date=_date(raw.get("start_date")),
         )
         season.episodes = [
-            episode_cls(
-                episode_number=ep_number,
-                watched=_watched(ep),
-                note=ep.get("notes") or None,
-            )
+            episode_cls(episode_number=ep_number, watched=_watched(ep), note=ep.get("notes") or None)
             for ep_number, ep in sorted(episodes.items())
         ]
         result.append(season)
@@ -207,43 +194,9 @@ def build_yamtrack_item(group: YamtrackGroup) -> Movie | TVShow | Anime:
     row = group.parent or {}
     if group.media_type == "movie":
         p = _parent_fields(group)
-        return Movie(
-            title=p["title"],
-            sort_title=p["sort_title"],
-            source=p["source"],
-            status=_status(row.get("status"), MovieStatus),
-            rating_overall=p["rating"],
-            note=p["note"],
-            start_date=p["start_date"],
-            end_date=p["end_date"],
-            poster_url=p["poster_url"],
-        )
+        return Movie(title=p["title"], sort_title=p["sort_title"], source=p["source"], status=_status(row.get("status"), MovieStatus), rating_overall=p["rating"], note=p["note"], start_date=p["start_date"], end_date=p["end_date"], poster_url=p["poster_url"])
     if group.media_type == "anime":
         p = _parent_fields(group)
-        return Anime(
-            title=p["title"],
-            sort_title=p["sort_title"],
-            source=p["source"],
-            external_id=p["external_id"],
-            status=_status(row.get("status"), AnimeStatus),
-            rating_overall=p["rating"],
-            note=p["note"],
-            start_date=p["start_date"],
-            end_date=p["end_date"],
-            poster_url=p["poster_url"],
-            seasons=_season_rows(group, AnimeSeason, AnimeEpisode, AnimeStatus),
-        )
+        return Anime(title=p["title"], sort_title=p["sort_title"], source=p["source"], external_id=p["external_id"], status=_status(row.get("status"), AnimeStatus), rating_overall=p["rating"], note=p["note"], start_date=p["start_date"], end_date=p["end_date"], poster_url=p["poster_url"], seasons=_season_rows(group, AnimeSeason, AnimeEpisode, AnimeStatus))
     p = _parent_fields(group)
-    return TVShow(
-        title=p["title"],
-        sort_title=p["sort_title"],
-        source=p["source"],
-        external_id=p["external_id"],
-        status=_status(row.get("status"), TVShowStatus),
-        rating_overall=p["rating"],
-        note=p["note"],
-        start_date=p["start_date"],
-        end_date=p["end_date"],
-        poster_url=p["poster_url"],
-        seasons=_season_rows(group, TVSeason, TVEpisode, TVShowStatus),
-    )
+    return TVShow(title=p["title"], sort_title=p["sort_title"], source=p["source"], external_id=p["external_id"], status=_status(row.get("status"), TVShowStatus), rating_overall=p["rating"], note=p["note"], start_date=p["start_date"], end_date=p["end_date"], poster_url=p["poster_url"], seasons=_season_rows(group, TVSeason, TVEpisode, TVShowStatus))
