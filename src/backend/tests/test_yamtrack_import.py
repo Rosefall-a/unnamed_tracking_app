@@ -49,7 +49,7 @@ def test_yamtrack_movie_maps_tracking_fields():
 
 
 def test_yamtrack_anime_is_supported():
-    raw = b"""media_id,mal,media_type,title,image,season_number,episode_number,score,status,notes,start_date,end_date,progress
+    raw = b"""media_id,source,media_type,title,image,season_number,episode_number,score,status,notes,start_date,end_date,progress
 50265,mal,anime,SPYxFAMILY,https://example/poster.jpg,,,9,Completed,,,2026-01-01,12
 50265,mal,season,SPYxFAMILY,,1,,,Completed,,,2026-01-01,,12
 """
