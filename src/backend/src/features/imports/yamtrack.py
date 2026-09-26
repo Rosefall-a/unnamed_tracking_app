@@ -146,7 +146,7 @@ def parse_yamtrack(raw: bytes) -> list[YamtrackGroup]:
     return [g for g in groups.values() if g.parent is not None]
 
 
-def _season_rows(group: YamtrackGroup, season_cls: type, episode_cls: type) -> list[Any]:
+def _season_rows(group: YamtrackGroup, season_cls: type, episode_cls: type, enum_class: type) -> list[Any]:
     result = []
     for number in sorted(group.seasons):
         data = group.seasons[number]
@@ -162,7 +162,7 @@ def _season_rows(group: YamtrackGroup, season_cls: type, episode_cls: type) -> l
             season_number=number,
             episode_count=episode_count,
             episodes_watched=watched,
-            status=_status(raw.get("status"), season_cls.status.property.columns[0].type.enum_class),
+            status=_status(raw.get("status"), enum_class),
             air_date=_date(raw.get("start_date")),
         )
         season.episodes = [
@@ -221,7 +221,7 @@ def build_yamtrack_item(group: YamtrackGroup) -> Movie | TVShow | Anime:
             start_date=p["start_date"],
             end_date=p["end_date"],
             poster_url=p["poster_url"],
-            seasons=_season_rows(group, AnimeSeason, AnimeEpisode),
+            seasons=_season_rows(group, AnimeSeason, AnimeEpisode, AnimeStatus),
         )
     p = _parent_fields(group)
     return TVShow(
@@ -235,5 +235,5 @@ def build_yamtrack_item(group: YamtrackGroup) -> Movie | TVShow | Anime:
         start_date=p["start_date"],
         end_date=p["end_date"],
         poster_url=p["poster_url"],
-        seasons=_season_rows(group, TVSeason, TVEpisode),
+        seasons=_season_rows(group, TVSeason, TVEpisode, TVShowStatus),
     )
