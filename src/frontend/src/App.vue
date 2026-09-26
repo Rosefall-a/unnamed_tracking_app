@@ -84,7 +84,7 @@ const KEPT_ALIVE = [
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #121212;
+  background: #0d0d0d;
   color: #999;
   font-family: system-ui, sans-serif;
 }

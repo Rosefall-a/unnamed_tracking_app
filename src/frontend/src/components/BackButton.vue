@@ -1,13 +1,16 @@
 <script setup lang="ts">
 // The round back arrow, one look on every page that has one (title pages,
-// a single list). The page decides where it sits.
+// a single list). The page decides where it sits; `fixed` pins it to the
+// spot beside the sidebar's menu button for pages with no top bar.
 defineEmits<{ click: [] }>();
+defineProps<{ fixed?: boolean }>();
 </script>
 
 <template>
   <button
     type="button"
     class="back-button"
+    :class="{ 'back-button-fixed': fixed }"
     title="Back"
     aria-label="Back"
     @click="$emit('click')"
@@ -47,5 +50,11 @@ defineEmits<{ click: [] }>();
 }
 .back-button:hover {
   background: rgba(40, 40, 40, 0.85);
+}
+.back-button-fixed {
+  position: fixed;
+  top: 16px;
+  left: 62px;
+  z-index: 100;
 }
 </style>

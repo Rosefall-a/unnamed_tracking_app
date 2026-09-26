@@ -32,40 +32,12 @@ const router = createRouter({
       name: "collection-detail",
       component: () => import("../views/CollectionDetail.vue"),
     },
-    {
-      path: "/inbox",
-      name: "inbox",
-      component: () => import("../views/Inbox.vue"),
-    },
-    {
-      path: "/bounties",
-      name: "bounties",
-      component: () => import("../views/Bounties.vue"),
-    },
+    { path: "/upload", redirect: "/settings?section=upload" },
+    { path: "/inbox", redirect: "/settings?section=upload" },
     {
       path: "/games/:id",
       name: "game-detail",
       component: () => import("../views/GameDetail.vue"),
-    },
-    {
-      path: "/cards",
-      name: "card-collection",
-      component: () => import("../views/CardCollection.vue"),
-    },
-    {
-      path: "/cards/:cardId",
-      name: "card-detail",
-      component: () => import("../views/CardDetail.vue"),
-    },
-    {
-      path: "/sets",
-      name: "set-list",
-      component: () => import("../views/SetList.vue"),
-    },
-    {
-      path: "/sets/:id",
-      name: "set-detail",
-      component: () => import("../views/SetDetail.vue"),
     },
     {
       path: "/movies",

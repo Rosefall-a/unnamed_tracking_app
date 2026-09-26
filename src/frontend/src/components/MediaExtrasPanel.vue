@@ -797,6 +797,7 @@ onBeforeUnmount(() => document.removeEventListener("click", onDocumentClick));
 }
 .rename-input:focus {
   outline: none;
+  box-shadow: 0 0 0 2px rgba(214, 138, 52, 0.35);
 }
 .list-option {
   display: flex;

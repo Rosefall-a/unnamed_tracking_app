@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from "vue";
+import { SHORTCUT_GROUPS } from "../utils/shortcuts";
 
 const open = ref(false);
 
@@ -29,44 +30,7 @@ function onKeydown(e: KeyboardEvent) {
 onMounted(() => window.addEventListener("keydown", onKeydown));
 onUnmounted(() => window.removeEventListener("keydown", onKeydown));
 
-const GROUPS = [
-  {
-    title: "Library",
-    shortcuts: [
-      { keys: "/", label: "Focus search" },
-      { keys: "n", label: "Add a game" },
-      { keys: "j / k or ↓ / ↑", label: "Move selection (List + preview view)" },
-      {
-        keys: "← ↑ → ↓, Enter",
-        label: "Move focus between cards, open the focused one (Cards view)",
-      },
-      {
-        keys: "a–z",
-        label: "Jump to the first game starting with that letter (Cards view)",
-      },
-      { keys: "Esc", label: "Clear search, close panels" },
-    ],
-  },
-  {
-    title: "Game page",
-    shortcuts: [
-      {
-        keys: "j / k",
-        label: "Next / previous game (from the library you came from)",
-      },
-    ],
-  },
-  {
-    title: "Anywhere",
-    shortcuts: [
-      {
-        keys: "Ctrl/Cmd + K",
-        label: "Jump to a game, collection, bounty, or settings section",
-      },
-      { keys: "?", label: "Show this list" },
-    ],
-  },
-];
+const GROUPS = SHORTCUT_GROUPS;
 </script>
 
 <template>
