@@ -45,14 +45,7 @@ LIST_MAX_BYTES = 30 * 1024 * 1024
 router = APIRouter(prefix="/api", tags=["import"], dependencies=[Depends(get_current_user)])
 
 class MalImportResult(BaseModel):
-    created: int
-    updated: int
-    kept: int
-    assumed_complete: int
-    total_in_file: int
-    details_filled: int
-    details_not_found: int
-    details_lookup_failed: int
+    created: int; updated: int; kept: int; assumed_complete: int; total_in_file: int; details_filled: int; details_not_found: int; details_lookup_failed: int
 
 async def _read_mal(file: UploadFile) -> list[MalEntry]:
     raw = await file.read(MAX_BYTES + 1)
@@ -137,8 +130,8 @@ async def import_yamtrack(file: UploadFile, db: AsyncSession = Depends(get_db), 
                 model: Any = TVShow if group.media_type == "tv" else Anime
                 existing = await db.scalar(select(model).where(model.user_id == current_user.id, model.deleted_at.is_(None), func.lower(model.source) == group.source.lower(), model.external_id == group.media_id))
             if existing is None:
-                model: Any = Movie if group.media_type == "movie" else TVShow if group.media_type == "tv" else Anime; title = item.title.lower(); release = getattr(item, date_field)
-                existing = await db.scalar(select(model).where(model.user_id == current_user.id, model.deleted_at.is_(None), func.lower(model.title) == title, getattr(model, date_field) == release))
+                match_model: Any = Movie if group.media_type == "movie" else TVShow if group.media_type == "tv" else Anime; title = item.title.lower(); release = getattr(item, date_field)
+                existing = await db.scalar(select(match_model).where(match_model.user_id == current_user.id, match_model.deleted_at.is_(None), func.lower(match_model.title) == title, getattr(match_model, date_field) == release))
             if existing is not None: skipped[key] += 1; continue
             async with db.begin_nested():
                 db.add(item); await db.flush()
