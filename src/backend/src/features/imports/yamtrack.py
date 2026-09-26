@@ -155,10 +155,17 @@ def _season_rows(group: YamtrackGroup, season_cls: type, episode_cls: type, enum
         episodes = data["episodes"]
 
         watched_from_episodes = sum(_watched(ep) for ep in episodes.values())
-        season_progress = _int(raw.get("progress")) or 0
-        # Yamtrack normally supplies season progress, but some exports only
-        # carry the watched count on the parent row. Never lose that progress.
-        watched = max(season_progress, parent_progress, watched_from_episodes)
+        season_progress = _int(raw.get("progress"))
+        # Season rows are authoritative for that season. Only fall back to
+        # the parent progress when Yamtrack omitted the season row entirely.
+        # The parent progress is total-series progress, so applying it to every
+        # season would incorrectly give each season the whole show's count.
+        if season_progress is not None:
+            watched = max(season_progress, watched_from_episodes)
+        elif episodes:
+            watched = watched_from_episodes
+        else:
+            watched = parent_progress
         episode_count = max(episodes) if episodes else None
 
         season = season_cls(
