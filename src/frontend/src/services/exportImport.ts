@@ -138,7 +138,7 @@ export async function importMal(
   ).json();
 }
 
-export type ImportSource = "mal" | "letterboxd" | "imdb";
+export type ImportSource = "mal" | "letterboxd" | "imdb" | "yamtrack";
 
 // Sites other than MyAnimeList (Letterboxd, IMDb): the same review-then-import
 // flow, for movies and TV shows.
