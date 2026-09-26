@@ -196,15 +196,20 @@ async function runMalImport() {
   malBusy.value = true;
   malError.value = null;
   try {
-    malResult.value =
-      source.value === "mal"
-        ? await importMal(malFile.value, [...useMal.value], fetchDetails.value)
-        : await importList(
-            malFile.value,
-            source.value,
-            [...useMal.value],
-            fetchDetails.value,
-          );
+    if (source.value === "mal") {
+      malResult.value = await importMal(
+        malFile.value,
+        [...useMal.value],
+        fetchDetails.value,
+      );
+    } else if (source.value === "letterboxd" || source.value === "imdb") {
+      malResult.value = await importList(
+        malFile.value,
+        source.value,
+        [...useMal.value],
+        fetchDetails.value,
+      );
+    }
     cancelMal();
   } catch (err) {
     malError.value =
@@ -349,10 +354,15 @@ async function onFileSelected(e: Event) {
         />
       </div>
       <p class="tile-desc">
-        Add your {{ sourceInfo.what }}. {{ sourceInfo.how }} You see what it
-        would add or change before anything happens, and for titles already on
-        the site you choose, title by title, whether to keep them as they are or
-        use the file's data.
+        Add your {{ sourceInfo.what }}. {{ sourceInfo.how }}
+        <template v-if="source !== 'yamtrack'">
+          You see what it would add or change before anything happens, and for
+          titles already on the site you choose, title by title, whether to keep
+          them as they are or use the file's data.
+        </template>
+        <template v-else>
+          Yamtrack imports directly and skips items already in your library.
+        </template>
       </p>
       <div v-if="malError" class="form-error">{{ malError }}</div>
       <div v-if="yamtrackError" class="form-error">{{ yamtrackError }}</div>
