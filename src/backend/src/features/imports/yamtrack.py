@@ -10,7 +10,6 @@ from __future__ import annotations
 import csv
 import datetime as dt
 import io
-from collections import defaultdict
 from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
 from typing import Any
@@ -202,7 +201,6 @@ def build_yamtrack_item(group: YamtrackGroup) -> Movie | TVShow | Anime:
             title=p["title"],
             sort_title=p["sort_title"],
             source=p["source"],
-            external_id=p["external_id"],
             status=_status(row.get("status"), MovieStatus),
             rating_overall=p["rating"],
             note=p["note"],
