@@ -11,6 +11,7 @@ import {
   type SetupSection,
 } from "../services/setup";
 import { currentUser, checkAuth } from "../state/auth";
+import PasswordInput from "../components/PasswordInput.vue";
 
 const route = useRoute();
 const router = useRouter();
@@ -471,6 +472,15 @@ async function submit() {
                     @change="setField(field, ($event.target as HTMLInputElement).checked)"
                   />
 
+                  <PasswordInput
+                    v-else-if="field.type === 'secret'"
+                    :model-value="String(fieldValue(field) ?? '')"
+                    :placeholder="fieldPlaceholder(field)"
+                    :required="fieldRequired(field) && !field.configured"
+                    :disabled="field.locked || (field.generated && field.configured)"
+                    autocomplete="new-password"
+                    @update:model-value="setField(field, $event)"
+                  />
                   <input
                     v-else
                     :value="inputValue(field)"
