@@ -148,14 +148,17 @@ def parse_yamtrack(raw: bytes) -> list[YamtrackGroup]:
 
 def _season_rows(group: YamtrackGroup, season_cls: type, episode_cls: type, enum_class: type) -> list[Any]:
     result = []
+    parent_progress = _int((group.parent or {}).get("progress")) or 0
     for number in sorted(group.seasons):
         data = group.seasons[number]
         raw = data["row"] or {}
         episodes = data["episodes"]
 
         watched_from_episodes = sum(_watched(ep) for ep in episodes.values())
-        progress = _int(raw.get("progress")) or 0
-        watched = max(progress, watched_from_episodes)
+        season_progress = _int(raw.get("progress")) or 0
+        # Yamtrack normally supplies season progress, but some exports only
+        # carry the watched count on the parent row. Never lose that progress.
+        watched = max(season_progress, parent_progress, watched_from_episodes)
         episode_count = max(episodes) if episodes else None
 
         season = season_cls(
