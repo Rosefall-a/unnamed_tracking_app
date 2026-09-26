@@ -33,6 +33,7 @@ nav:
       - Movies: user-guide/movies.md
   - Integrations:
       - Overview: integrations/index.md
+      - Data Importers: integrations/importers.md
       - Playnite: integrations/playnite.md
       - Metadata Providers: integrations/metadata.md
   - Administration:
