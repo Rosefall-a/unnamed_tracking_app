@@ -11,7 +11,7 @@ def test_yamtrack_parser_keeps_tv_episode_progress_and_movie_tracking_data():
     raw = (
         HEADER
         + '100,tmdb,tv,Example Show,,,,8.5,In progress,Good show,2025-01-01 00:00:00+00:00,,20,,\n'
-        + '100,tmdb,season,,"",1,,Completed,,,,,,\n'
+        + '100,tmdb,season,,"",1,,,Completed,,,,,,\n'
         + '100,tmdb,episode,,"",1,1,,Completed,,2025-01-02 00:00:00+00:00,2025-01-02 01:00:00+00:00,0,,\n'
         + '100,tmdb,episode,,"",1,2,,Completed,,2025-01-03 00:00:00+00:00,2025-01-03 01:00:00+00:00,0,,\n'
         + '200,tmdb,movie,Example Movie,, , ,9.0,Completed,Great,2025-02-01 00:00:00+00:00,2025-02-01 01:00:00+00:00,,,\n'
