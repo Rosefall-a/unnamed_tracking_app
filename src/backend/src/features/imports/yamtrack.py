@@ -1,9 +1,8 @@
 """Parser for YamTrack's native CSV export format.
 
 YamTrack exports one row for a movie/show plus optional season and episode
-rows.  This parser intentionally accepts both the compact export columns and
-newer exports with additional metadata columns.  Unsupported media types are
-reported to the caller instead of aborting the whole import.
+rows. This parser accepts the documented export columns and newer exports with
+additional metadata columns. Unsupported media types are skipped and counted.
 """
 
 from __future__ import annotations
@@ -75,6 +74,11 @@ def _day(value: str) -> date | None:
         return None
 
 
+def _year(value: str) -> int | None:
+    match = re.match(r"(\d{4})", _text(value))
+    return int(match.group(1)) if match else None
+
+
 def _status(value: str) -> str:
     normalized = _text(value).lower().replace("-", " ")
     return _STATUS_MAP.get(normalized, "WATCHLIST")
@@ -104,6 +108,7 @@ class YamtrackEntry:
     item: ImportedTitle
     media_id: str
     source: str
+    notes: str = ""
     episodes_by_season: dict[int, set[int]] = field(default_factory=lambda: defaultdict(set))
     season_completed: set[int] = field(default_factory=set)
 
@@ -113,12 +118,7 @@ class YamtrackEntry:
 
 
 def parse_yamtrack(raw: bytes) -> tuple[list[YamtrackEntry], int]:
-    """Parse a YamTrack export.
-
-    The title row is authoritative for status/score/dates/notes. Episode rows
-    are folded into progress so a TV migration does not lose watched episodes.
-    Seasons and unsupported media types are not emitted as standalone titles.
-    """
+    """Parse a YamTrack export while retaining TV episode progress."""
     rows = _rows(raw)
     entries: dict[tuple[str, str, str], YamtrackEntry] = {}
     skipped = 0
@@ -131,16 +131,10 @@ def parse_yamtrack(raw: bytes) -> tuple[list[YamtrackEntry], int]:
             skipped += 1
             continue
 
-        # Episode/season rows are progress information for the parent TV title.
         if media_type in {"season", "episode"}:
-            if source == "" or media_id == "":
-                skipped += 1
-                continue
             key = (media_id, source, "tv")
             entry = entries.get(key)
             if entry is None:
-                # A valid TV row may appear later in the file; create a
-                # placeholder so progress is retained either way.
                 entry = YamtrackEntry(
                     ImportedTitle("tv", _text(row.get("series_name")) or "", None, "WATCHLIST"),
                     media_id,
@@ -156,13 +150,7 @@ def parse_yamtrack(raw: bytes) -> tuple[list[YamtrackEntry], int]:
                 entry.season_completed.add(season)
             continue
 
-        if media_type in _ANIME_TYPES:
-            # Anime support is deliberately left to the existing MAL/AniList
-            # importers because YamTrack anime IDs can come from several
-            # providers and are not interchangeable with the app's IDs.
-            skipped += 1
-            continue
-        if media_type not in _SUPPORTED_TYPES:
+        if media_type in _ANIME_TYPES or media_type not in _SUPPORTED_TYPES:
             skipped += 1
             continue
 
@@ -173,35 +161,34 @@ def parse_yamtrack(raw: bytes) -> tuple[list[YamtrackEntry], int]:
         key = (media_id, source, media_type)
         status = _status(row.get("status", ""))
         progress = _int(row.get("progress", "")) or 0
+        year = _year(row.get("release_datetime", ""))
         entry = entries.get(key)
         if entry is None:
             entry = YamtrackEntry(
                 ImportedTitle(
                     kind=media_type,
                     title=title,
-                    year=None,
+                    year=year,
                     status=status,
                     rating=_decimal(row.get("score", "")),
                     watched_on=_day(row.get("end_date", "")),
                 ),
                 media_id,
                 source,
+                notes=_text(row.get("notes", "")),
             )
             entries[key] = entry
         else:
-            # Prefer the actual title row over a placeholder created by an
-            # episode/season row earlier in the file.
             entry.item.title = title
+            entry.item.year = year
             entry.item.status = status
             entry.item.rating = _decimal(row.get("score", ""))
             entry.item.watched_on = _day(row.get("end_date", ""))
+            entry.notes = _text(row.get("notes", ""))
 
         if media_type == "movie" and progress > 0 and status == "WATCHLIST":
             entry.item.status = "WATCHED"
 
-    # A completed season row can tell us the show was watched even if an export
-    # has no episode rows. Do not invent an episode count; metadata refresh can
-    # supply the season lengths later.
     result: list[YamtrackEntry] = []
     for entry in entries.values():
         if not entry.item.title:
