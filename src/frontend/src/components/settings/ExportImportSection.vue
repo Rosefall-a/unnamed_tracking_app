@@ -135,6 +135,10 @@ function changeSource(value: string) {
   yamtrackError.value = null;
 }
 
+const yamtrackBusy = ref(false);
+const yamtrackError = ref<string | null>(null);
+const yamtrackResult = ref<YamtrackImportResult | null>(null);
+
 const malBusy = ref(false);
 const malError = ref<string | null>(null);
 const malFile = ref<File | null>(null);
