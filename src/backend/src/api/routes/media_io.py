@@ -39,6 +39,7 @@ from src.features.metadata.movies.tmdb import TMDBClient
 from src.features.imports.mal import MAX_BYTES, MalEntry, MalImportError, parse_mal_export
 from src.features.imports.mal_apply import apply_tracking, differences, fill_details, match_entries
 from src.features.imports.restore import restore_media
+from src.features.imports.yamtrack import MAX_BYTES as YAMTRACK_MAX_BYTES, build_yamtrack_item, parse_yamtrack
 
 LIST_MAX_BYTES = 30 * 1024 * 1024
 
@@ -298,6 +299,98 @@ async def import_list(
         details_unavailable=unavailable,
         details_source=details_source,
         seasons_assumed_watched=details["seasons_assumed_watched"],
+    )
+
+
+class YamtrackImportResult(BaseModel):
+    created: dict[str, int]
+    skipped: dict[str, int]
+    total_rows: int
+    total_items: int
+    seasons_created: int
+    episodes_created: int
+    errors: list[str]
+
+
+@router.post("/import/yamtrack", response_model=YamtrackImportResult)
+async def import_yamtrack(
+    file: UploadFile,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> YamtrackImportResult:
+    """Import a Yamtrack CSV, grouping parent/season/episode rows by provider ID."""
+    raw = await file.read(YAMTRACK_MAX_BYTES + 1)
+    if len(raw) > YAMTRACK_MAX_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail="The Yamtrack export is too large.",
+        )
+    try:
+        groups = parse_yamtrack(raw)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    created = {"movies": 0, "tv_shows": 0, "anime": 0}
+    skipped = {"movies": 0, "tv_shows": 0, "anime": 0}
+    errors: list[str] = []
+    seasons_created = episodes_created = 0
+
+    for group in groups:
+        key = {"movie": "movies", "tv": "tv_shows", "anime": "anime"}[group.media_type]
+        try:
+            item = build_yamtrack_item(group)
+            item.user_id = current_user.id
+            date_field = "release_date" if group.media_type == "movie" else "first_air_date"
+
+            existing = None
+            if group.media_type in {"tv", "anime"}:
+                model = TVShow if group.media_type == "tv" else Anime
+                existing = await db.scalar(
+                    select(model).where(
+                        model.user_id == current_user.id,
+                        model.deleted_at.is_(None),
+                        func.lower(model.source) == group.source.lower(),
+                        model.external_id == group.media_id,
+                    )
+                )
+            if existing is None:
+                model = Movie if group.media_type == "movie" else TVShow if group.media_type == "tv" else Anime
+                title = item.title.lower()
+                release = getattr(item, date_field)
+                existing = await db.scalar(
+                    select(model).where(
+                        model.user_id == current_user.id,
+                        model.deleted_at.is_(None),
+                        func.lower(model.title) == title,
+                        getattr(model, date_field) == release,
+                    )
+                )
+
+            if existing is not None:
+                skipped[key] += 1
+                continue
+
+            db.add(item)
+            await db.flush()
+            if group.media_type != "movie":
+                seasons = getattr(item, "seasons", [])
+                seasons_created += len(seasons)
+                episodes_created += sum(len(s.episodes) for s in seasons)
+            created[key] += 1
+        except Exception as exc:  # noqa: BLE001
+            skipped[key] += 1
+            errors.append(f"{group.parent.get('title', group.media_id)}: {exc}")
+            await db.rollback()
+
+    await db.commit()
+    return YamtrackImportResult(
+        created=created,
+        skipped=skipped,
+        total_rows=sum(1 for _ in __import__("csv").DictReader(__import__("io").StringIO(raw.decode("utf-8-sig")))),
+        total_items=len(groups),
+        seasons_created=seasons_created,
+        episodes_created=episodes_created,
+        errors=errors[:30],
     )
 
 
