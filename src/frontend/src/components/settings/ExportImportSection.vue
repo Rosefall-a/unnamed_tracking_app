@@ -11,6 +11,7 @@ import {
   importList,
   restoreMedia,
   fetchMediaCsv,
+  importYamtrack,
 } from "../../services/exportImport";
 import type {
   ImportResult,
@@ -19,6 +20,7 @@ import type {
   MalPreview,
   ImportSource,
   MediaRestoreResult,
+  YamtrackImportResult,
 } from "../../services/exportImport";
 
 const backupStatus = ref<BackupStatus | null>(null);
@@ -192,6 +194,27 @@ async function runMalImport() {
       err instanceof Error ? err.message : "Failed to import the list";
   } finally {
     malBusy.value = false;
+  }
+}
+
+const yamtrackBusy = ref(false);
+const yamtrackError = ref<string | null>(null);
+const yamtrackResult = ref<YamtrackImportResult | null>(null);
+async function onYamtrackSelected(e: Event) {
+  const input = e.target as HTMLInputElement;
+  const file = input.files?.[0];
+  if (!file) return;
+  yamtrackBusy.value = true;
+  yamtrackError.value = null;
+  yamtrackResult.value = null;
+  try {
+    yamtrackResult.value = await importYamtrack(file);
+  } catch (err) {
+    yamtrackError.value =
+      err instanceof Error ? err.message : "Failed to import Yamtrack";
+  } finally {
+    yamtrackBusy.value = false;
+    input.value = "";
   }
 }
 
@@ -452,6 +475,40 @@ async function onFileSelected(e: Event) {
           class="hidden-input"
           :disabled="malBusy"
           @change="onMalSelected"
+        />
+      </label>
+    </div>
+
+    <div class="tile">
+      <h3>Import from Yamtrack</h3>
+      <p class="tile-desc">
+        Import a Yamtrack CSV export. Movies, TV shows and anime are grouped by
+        Yamtrack's provider ID, and TV/anime seasons plus watched episodes are
+        restored instead of being treated as duplicate titles.
+      </p>
+      <div v-if="yamtrackError" class="form-error">{{ yamtrackError }}</div>
+      <div v-if="yamtrackResult" class="form-success">
+        Movies: {{ yamtrackResult.created.movies ?? 0 }} added,
+        TV shows: {{ yamtrackResult.created.tv_shows ?? 0 }} added,
+        anime: {{ yamtrackResult.created.anime ?? 0 }} added.
+        {{ yamtrackResult.seasons_created }} seasons and
+        {{ yamtrackResult.episodes_created }} episodes imported.
+        <template v-if="yamtrackResult.skipped.movies || yamtrackResult.skipped.tv_shows || yamtrackResult.skipped.anime">
+          Existing items skipped:
+          {{ (yamtrackResult.skipped.movies ?? 0) + (yamtrackResult.skipped.tv_shows ?? 0) + (yamtrackResult.skipped.anime ?? 0) }}.
+        </template>
+        <ul v-if="yamtrackResult.errors.length" class="import-errors">
+          <li v-for="(err, i) in yamtrackResult.errors" :key="i">{{ err }}</li>
+        </ul>
+      </div>
+      <label class="secondary-button upload-label">
+        {{ yamtrackBusy ? "Importing…" : "Choose Yamtrack CSV…" }}
+        <input
+          type="file"
+          accept=".csv,text/csv"
+          class="hidden-input"
+          :disabled="yamtrackBusy"
+          @change="onYamtrackSelected"
         />
       </label>
     </div>
