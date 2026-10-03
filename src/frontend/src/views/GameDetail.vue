@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import { usePageTitle } from "../state/pageTitle";
+import { formatDisplayDate } from "../utils/dates";
+import { activePriority, priorityLabel } from "../utils/priority";
 import { computed, ref, watch, onMounted, onUnmounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import {
@@ -119,6 +122,7 @@ function goBackToLibrary() {
 }
 
 const game = ref<Game | null>(null);
+usePageTitle(() => game.value?.title);
 const loading = ref(true);
 const error = ref<string | null>(null);
 const showEditModal = ref(false);
@@ -1179,7 +1183,7 @@ const lastUnlockedAt = computed(() => {
 });
 function formatStatsDate(iso: string | null): string {
   if (!iso) return "N/A";
-  return new Date(iso).toLocaleDateString(undefined, {
+  return formatDisplayDate(iso, {
     year: "numeric",
     month: "short",
     day: "numeric",
@@ -2454,7 +2458,7 @@ function formatPlaytime(minutes: number) {
         <div v-if="game.releaseDate" class="detail-row">
           <span class="detail-label">Release Date</span>
           <span class="detail-value">{{
-            new Date(game.releaseDate).toLocaleDateString()
+            formatDisplayDate(game.releaseDate)
           }}</span>
         </div>
         <div class="detail-row">
@@ -2529,6 +2533,12 @@ function formatPlaytime(minutes: number) {
           <span class="detail-label">Source</span>
           <span class="detail-value">{{ game.source }}</span>
         </div>
+        <div v-if="activePriority(game) !== null" class="detail-row">
+          <span class="detail-label">Priority</span>
+          <span class="detail-value">{{
+            priorityLabel(activePriority(game)!)
+          }}</span>
+        </div>
         <div v-if="game.ageRating" class="detail-row">
           <span class="detail-label">Age Rating</span>
           <span class="detail-value">{{ game.ageRating }}</span>
@@ -2578,7 +2588,7 @@ function formatPlaytime(minutes: number) {
             }}</span>
             <span v-if="game.ownership.purchaseDate">
               Purchased
-              {{ new Date(game.ownership.purchaseDate).toLocaleDateString() }}
+              {{ formatDisplayDate(game.ownership.purchaseDate) }}
             </span>
             <span v-if="game.ownership.price !== null">
               {{ game.ownership.priceCurrency ?? "USD" }}
@@ -4221,7 +4231,8 @@ function formatPlaytime(minutes: number) {
   width: 100%;
   max-width: 1600px;
   margin: 0 auto;
-  padding: 0 24px 28px;
+  /* clear of the floating menu/back buttons */
+  padding: 72px 24px 28px;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -4230,7 +4241,14 @@ function formatPlaytime(minutes: number) {
 .hero-inner h1 {
   margin: 0;
   font-size: 2.4rem;
+  /* the inherited line height is a fixed 23px */
+  line-height: 1.15;
   text-shadow: 0 2px 12px rgba(0, 0, 0, 0.6);
+}
+@media (max-width: 600px) {
+  .hero-inner h1 {
+    font-size: 1.8rem;
+  }
 }
 .parent-breadcrumb {
   display: flex;
@@ -4534,7 +4552,9 @@ function formatPlaytime(minutes: number) {
   font-size: 12.5px;
   font-weight: 600;
   cursor: pointer;
-  padding: 0;
+  /* larger tap target without moving the text */
+  padding: 6px 4px;
+  margin: -6px -4px;
 }
 .text-button:hover {
   text-decoration: underline;
@@ -4550,7 +4570,7 @@ function formatPlaytime(minutes: number) {
 }
 .log-playtime-button {
   display: block;
-  margin-top: 10px;
+  margin-top: 4px;
 }
 .related-bounties {
   display: flex;
