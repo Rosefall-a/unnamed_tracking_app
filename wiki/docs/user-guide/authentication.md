@@ -12,11 +12,11 @@ Passwords are not stored in plaintext. API requests made by the web application 
 
 Users can create API keys for integrations that need to authenticate without a browser session.
 
-API keys use the \`utk_\` prefix and are sent as:
+API keys use the `utk_` prefix and are sent as:
 
-\`\`\`http
+```http
 Authorization: Bearer utk_<secret>
-\`\`\`
+```
 
 Keys are associated with the user who created them and can be revoked. The server stores a hash of the key rather than the full secret.
 
@@ -32,5 +32,13 @@ See [OpenID Connect / SSO](oidc.md) for provider settings and account matching.
 
 Sessions are stored server-side and have an expiry. Authenticated requests can use a bearer API key or the normal session cookie.
 
-For HTTPS deployments, configure \`AUTH_COOKIE_SECURE=true\` so the authentication cookie is restricted to secure connections.
+For HTTPS deployments, configure `AUTH_COOKIE_SECURE=true` so the authentication cookie is restricted to secure connections.
+
+## Startup routing and backend availability
+
+The frontend distinguishes a backend/network failure from a confirmed unauthenticated or setup-required response. A failed backend setup-status request is presented as **backend unavailable** with retry rather than incorrectly entering setup.
+
+Protected startup routes retain a validated same-origin relative return path through login/setup. Query strings and hashes are preserved. External and protocol-relative return URLs are rejected.
+
+OIDC preserves the intended internal route across its callback using tab-scoped session storage. Missing or invalid return paths fall back to the normal home route.
 
