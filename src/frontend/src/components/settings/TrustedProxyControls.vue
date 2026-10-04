@@ -35,7 +35,7 @@ function addCustom() {
   error.value = null;
   const values = tokens(custom.value);
   if (!values.length) return;
-  if (values.some((value) => !/^[0-9A-Fa-f:.\/]+$/.test(value))) {
+  if (values.some((value) => !/^[0-9A-Fa-f:./]+$/.test(value))) {
     error.value = "Custom entries must be IP addresses or CIDR ranges.";
     return;
   }
