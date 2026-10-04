@@ -65,26 +65,16 @@ If TLS is enabled but the certificate/key is missing, unreadable, malformed, or 
 
 ## Client IPs behind reverse proxies
 
-Production Nginx restores the originating client address when the request comes through a trusted reverse proxy. The default configuration uses `X-Forwarded-For` with recursive real-IP processing. Nginx only accepts the forwarded address when the immediate peer is in the trusted-proxy set; with recursive processing enabled it selects the last non-trusted address in the forwarded chain. This prevents an arbitrary direct client from making a forwarded header authoritative. See the [NGINX real-IP module documentation](https://nginx.org/en/docs/http/ngx_http_realip_module.html).
+Production Nginx restores the originating client address when the request comes through a trusted reverse proxy. The default configuration uses `X-Forwarded-For` with recursive real-IP processing, but only loopback is trusted initially. Settings/setup provides explicit Cloudflare, local/private, CGNAT/VPS, and custom range controls. Nginx only accepts the forwarded address when the immediate peer is in the trusted-proxy set; with recursive processing enabled it selects the last non-trusted address in the forwarded chain. This prevents an arbitrary direct client from making a forwarded header authoritative. See the [NGINX real-IP module documentation](https://nginx.org/en/docs/http/ngx_http_realip_module.html).
 
-The built-in trusted set covers common container/proxy topologies:
+The built-in trusted set is deliberately limited to IPv4/IPv6 loopback (`127.0.0.1/32` and `::1/128`). Cloudflare, local/private, CGNAT/VPS, and custom ranges are opt-in through Settings/setup. The backend owns the preset definitions, and the combined production container asks the backend for the effective configuration before rendering Nginx.
 
-- IPv4 loopback
-- RFC1918 private IPv4 ranges
-- IPv4 link-local
-- CGNAT (`100.64.0.0/10`)
-- IPv6 loopback, ULA, and link-local
-- Cloudflare's published IPv4 and IPv6 proxy ranges
-
-This makes the production container work out of the box when it is directly behind a local/private reverse proxy or Cloudflare. The default list is not a blanket trust of every Internet address.
-
-The defaults can be completely replaced through environment variables:
+Environment values take precedence over saved Settings/setup values:
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
 | `NGINX_REALIP_HEADER` | `X-Forwarded-For` | Request header Nginx uses as the source of the client address. For Cloudflare-specific deployments, `CF-Connecting-IP` can be used. |
-| `NGINX_REALIP_TRUSTED_PROXIES` | Built-in local/CGNAT/Cloudflare ranges | Space-separated addresses/CIDRs that are allowed to supply the configured real-IP header. Setting this variable replaces the built-in list completely. |
-| `NGINX_REALIP_TRUSTED_PROXIES` = empty | Empty trust list | Explicitly disables trusted real-IP sources. |
+| `NGINX_REALIP_TRUSTED_PROXIES` | Loopback only | Space-separated addresses/CIDRs. A non-empty environment value overrides the saved/default list; when unset, Settings/setup can persist the selected ranges. |
 
 For a deployment behind a known proxy/load-balancer network, set `NGINX_REALIP_TRUSTED_PROXIES` to only the ranges that can actually reach the container. Do not use a blanket public range merely to make forwarded client addresses appear correct.
 
