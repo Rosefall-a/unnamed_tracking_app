@@ -17,11 +17,12 @@ import {
   fetchAchievementsSummary,
   addGameToCollection,
 } from "../services/games";
-import { takeLibraryScroll } from "../state/libraryScroll";
 import { setLibraryNavOrder } from "../state/libraryNav";
 import { isCommandPaletteOpen } from "../state/commandPalette";
 import CollectionPickerModal from "../components/CollectionPickerModal.vue";
-import AppTopBar from "../components/AppTopBar.vue";
+import GameTopBar from "../components/GameTopBar.vue";
+import SegmentedTabs from "../components/SegmentedTabs.vue";
+import type { SegmentOption } from "../components/SegmentedTabs.vue";
 import { computeScore } from "../utils/scoring";
 import DOMPurify from "dompurify";
 import {
@@ -354,6 +355,15 @@ const advancedFilterCount = computed(() => {
   return count;
 });
 
+// every filter that narrows the list except the status tabs, which have
+// their own row; platform and genre live in the Filters panel too
+const filterCount = computed(
+  () =>
+    advancedFilterCount.value +
+    (platformFilter.value !== "all" ? 1 : 0) +
+    (genreFilter.value !== "all" ? 1 : 0),
+);
+
 function clearAdvancedFilters() {
   franchiseFilter.value = "all";
   collectionFilter.value = "all";
@@ -486,6 +496,37 @@ const statusOptions: (GameStatus | "all")[] = [
   "wishlist",
 ];
 
+const VIEW_OPTIONS: SegmentOption[] = [
+  {
+    value: "cards",
+    label: "Cards",
+    icon: '<rect x="3" y="3" width="8" height="8" rx="1" /><rect x="13" y="3" width="8" height="8" rx="1" /><rect x="3" y="13" width="8" height="8" rx="1" /><rect x="13" y="13" width="8" height="8" rx="1" />',
+  },
+  {
+    value: "list",
+    label: "List",
+    icon: '<line x1="4" y1="6" x2="20" y2="6" /><line x1="4" y1="12" x2="20" y2="12" /><line x1="4" y1="18" x2="20" y2="18" />',
+  },
+  {
+    value: "detail",
+    label: "Preview",
+    title: "List + preview",
+    icon: '<rect x="3" y="3" width="7" height="18" rx="1" /><rect x="13" y="3" width="8" height="18" rx="1" />',
+  },
+  {
+    value: "shelves",
+    label: "Shelves",
+    title: "Shelves (by source)",
+    icon: '<line x1="4" y1="6" x2="20" y2="6" /><line x1="4" y1="12" x2="20" y2="12" /><line x1="4" y1="18" x2="20" y2="18" /><rect x="4" y="3.5" width="5" height="5" rx="1" />',
+  },
+];
+
+const statusCounts = computed(() => {
+  const counts: Record<string, number> = { all: games.value.length };
+  for (const g of games.value) counts[g.status] = (counts[g.status] ?? 0) + 1;
+  return counts;
+});
+
 // arriving from a Home Hub row link (?status=playing, ?sort=recent)
 const queryStatus = route.query.status;
 if (
@@ -614,18 +655,7 @@ async function loadGames() {
   }
 }
 
-onMounted(async () => {
-  await loadGames();
-  // the page has no real height until games render, so restoring scroll
-  // before that just gets clamped back to ~0, wait for the grid/list to
-  // actually paint, then scroll for real. The position itself was captured
-  // by a router guard (state/libraryScroll.ts), not onUnmounted here,
-  // that runs before any DOM change from the navigation, so it's reliably
-  // the position the user was actually looking at when they left.
-  await nextTick();
-  const y = takeLibraryScroll();
-  if (y > 0) window.scrollTo(0, y);
-});
+onMounted(loadGames);
 
 // filters are only remembered while you stay on this page, leaving it
 // (any other route) wipes them so the next visit starts from a clean slate
@@ -1208,6 +1238,12 @@ const rowVirtualizer = useWindowVirtualizer(
     overscan: 3,
   })),
 );
+// The list sits below the header, toolbar and tabs, which the window
+// virtualizer doesn't know about. As each row is measured and replaces its
+// 330px estimate it "corrects" the page scroll to compensate, which pushed
+// the page a third of the way down the moment it loaded. (An instance
+// property in this version, not a constructor option.)
+rowVirtualizer.value.shouldAdjustScrollPositionOnItemSizeChange = () => false;
 function cardsInRow(rowIndex: number): Game[] {
   const start = rowIndex * CARD_COLUMNS.value;
   return filteredGames.value.slice(start, start + CARD_COLUMNS.value);
@@ -1255,254 +1291,31 @@ watch(viewMode, (mode) => {
 
 <template>
   <main class="library" :class="{ locked: viewMode === 'detail' }">
-    <AppTopBar />
+    <GameTopBar active="games">
+      <template #actions>
+        <SegmentedTabs
+          :options="VIEW_OPTIONS"
+          :model-value="viewMode"
+          aria-label="View"
+          @update:model-value="setView($event as ViewMode)"
+        />
+      </template>
+    </GameTopBar>
 
     <div ref="contentEl" class="content">
-      <div class="header-row">
+      <div class="page-head">
         <div>
           <h1>Games</h1>
           <div class="sub">
             {{ games.length }} {{ games.length === 1 ? "game" : "games" }}
           </div>
         </div>
-        <div class="header-actions">
-          <div class="search-wrap">
-            <input
-              ref="searchInputRef"
-              v-model="searchQuery"
-              type="text"
-              class="search-input"
-              placeholder="Search games… (/)"
-              aria-label="Search games"
-              @focus="showRecentSearches = true"
-              @blur="
-                showRecentSearches = false;
-                commitSearchToRecent();
-              "
-              @keydown.enter="commitSearchToRecent"
-            />
-            <div
-              v-if="
-                showRecentSearches &&
-                !searchQuery.trim() &&
-                recentSearches.length
-              "
-              class="recent-searches-dropdown"
-            >
-              <div class="recent-searches-label">Recent searches</div>
-              <button
-                v-for="q in recentSearches"
-                :key="q"
-                type="button"
-                class="recent-search-item"
-                @mousedown.prevent="pickRecentSearch(q)"
-              >
-                <span>{{ q }}</span>
-                <span
-                  class="recent-search-remove"
-                  @mousedown.prevent.stop="removeRecentSearch(q)"
-                  >✕</span
-                >
-              </button>
-            </div>
-          </div>
-          <select
-            v-model="statusFilter"
-            class="filter-select"
-            aria-label="Filter by status"
-          >
-            <option v-for="s in statusOptions" :key="s" :value="s">
-              {{ s === "all" ? "All statuses" : s }}
-            </option>
-          </select>
-          <FilterCombobox
-            v-model="platformFilter"
-            :options="platformOptions"
-            :extra-options="platformExtraOptions"
-            extra-label="Retro"
-            placeholder="Platform"
-            all-label="All platforms"
-          />
-          <FilterCombobox
-            v-model="genreFilter"
-            :options="genreOptions"
-            placeholder="Genre"
-            all-label="All genres"
-          />
-          <select v-model="sortBy" class="filter-select" aria-label="Sort by">
-            <option value="name">Name (A–Z)</option>
-            <option value="name_desc">Name (Z–A)</option>
-            <option value="recent">Recently added</option>
-            <option value="rating">Rating</option>
-            <option value="playtime">Most Played</option>
-            <option value="last_played">Recently played</option>
-            <option value="neglected">Neglected (least recently played)</option>
-            <option value="priority">Priority</option>
-            <option value="release">Release date (newest)</option>
-            <option value="length">Time to beat (shortest)</option>
-          </select>
-
-          <div
-            v-if="viewMode === 'cards'"
-            class="density-toggle"
-            title="Card size"
-          >
-            <button
-              v-for="d in ['compact', 'cozy', 'large'] as CardDensity[]"
-              :key="d"
-              type="button"
-              class="density-button"
-              :class="{ active: cardDensity === d }"
-              :title="d"
-              @click="cardDensity = d"
-            >
-              {{ d === "compact" ? "S" : d === "cozy" ? "M" : "L" }}
-            </button>
-          </div>
-
-          <div class="view-toggle">
-            <button
-              type="button"
-              class="view-toggle-button"
-              :class="{ active: viewMode === 'cards' }"
-              title="Cards"
-              @click="setView('cards')"
-            >
-              <svg
-                viewBox="0 0 24 24"
-                width="16"
-                height="16"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <rect x="3" y="3" width="8" height="8" rx="1" />
-                <rect x="13" y="3" width="8" height="8" rx="1" />
-                <rect x="3" y="13" width="8" height="8" rx="1" />
-                <rect x="13" y="13" width="8" height="8" rx="1" />
-              </svg>
-            </button>
-            <button
-              type="button"
-              class="view-toggle-button"
-              :class="{ active: viewMode === 'list' }"
-              title="List"
-              @click="setView('list')"
-            >
-              <svg
-                viewBox="0 0 24 24"
-                width="16"
-                height="16"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <line x1="4" y1="6" x2="20" y2="6" />
-                <line x1="4" y1="12" x2="20" y2="12" />
-                <line x1="4" y1="18" x2="20" y2="18" />
-              </svg>
-            </button>
-            <button
-              type="button"
-              class="view-toggle-button"
-              :class="{ active: viewMode === 'detail' }"
-              title="List + preview"
-              @click="setView('detail')"
-            >
-              <svg
-                viewBox="0 0 24 24"
-                width="16"
-                height="16"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <rect x="3" y="3" width="7" height="18" rx="1" />
-                <rect x="13" y="3" width="8" height="18" rx="1" />
-              </svg>
-            </button>
-            <button
-              type="button"
-              class="view-toggle-button"
-              :class="{ active: viewMode === 'shelves' }"
-              title="Shelves (by source)"
-              @click="setView('shelves')"
-            >
-              <svg
-                viewBox="0 0 24 24"
-                width="16"
-                height="16"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <line x1="4" y1="6" x2="20" y2="6" />
-                <line x1="4" y1="12" x2="20" y2="12" />
-                <line x1="4" y1="18" x2="20" y2="18" />
-                <rect x="4" y="3.5" width="5" height="5" rx="1" />
-              </svg>
-            </button>
-          </div>
-
-          <button
-            type="button"
-            class="advanced-toggle"
-            :class="{ active: showAdvancedFilters }"
-            @click="showAdvancedFilters = !showAdvancedFilters"
-          >
-            Advanced Filters
-            <span v-if="advancedFilterCount" class="advanced-count">{{
-              advancedFilterCount
-            }}</span>
-          </button>
-
-          <div class="presets-wrap">
-            <button
-              type="button"
-              class="advanced-toggle"
-              @click="showPresetsMenu = !showPresetsMenu"
-            >
-              Presets
-            </button>
-            <div v-if="showPresetsMenu" class="presets-dropdown">
-              <button
-                v-for="p in filterPresets"
-                :key="p.name"
-                type="button"
-                class="preset-item"
-                @click="applyPreset(p)"
-              >
-                <span>{{ p.name }}</span>
-                <span class="preset-remove" @click.stop="deletePreset(p.name)"
-                  >✕</span
-                >
-              </button>
-              <p v-if="!filterPresets.length" class="preset-empty">
-                No saved presets yet.
-              </p>
-              <button
-                type="button"
-                class="preset-save"
-                @click="saveCurrentAsPreset"
-              >
-                + Save current filters
-              </button>
-            </div>
-          </div>
-
+        <div class="head-actions">
           <div class="select-button-wrap">
             <button
               type="button"
-              class="advanced-toggle"
-              :class="{ active: selectMode }"
+              class="select-btn"
+              :class="{ on: selectMode }"
               @click="
                 toggleSelectMode();
                 dismissBulkEditHint();
@@ -1524,18 +1337,16 @@ watch(viewMode, (mode) => {
               </button>
             </div>
           </div>
-
           <button
             type="button"
-            class="advanced-toggle"
+            class="select-btn"
             :disabled="!games.length"
             title="Pick a game to play, filtered by status, platform, genre, length and priority"
             @click="showRandomPicker = true"
           >
             Random
           </button>
-
-          <button type="button" class="add-button" @click="openAddModal">
+          <button type="button" class="add-btn" @click="openAddModal">
             + Add Game
           </button>
         </div>
@@ -1585,7 +1396,145 @@ watch(viewMode, (mode) => {
         }}.
       </div>
 
+      <div class="toolbar">
+        <div class="search-wrap">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+          >
+            <circle cx="11" cy="11" r="7" />
+            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+          </svg>
+          <input
+            ref="searchInputRef"
+            v-model="searchQuery"
+            type="text"
+            class="search-input"
+            placeholder="Search your library… (/)"
+            aria-label="Search games"
+            @focus="showRecentSearches = true"
+            @blur="
+              showRecentSearches = false;
+              commitSearchToRecent();
+            "
+            @keydown.enter="commitSearchToRecent"
+          />
+          <div
+            v-if="
+              showRecentSearches && !searchQuery.trim() && recentSearches.length
+            "
+            class="recent-searches-dropdown"
+          >
+            <div class="recent-searches-label">Recent searches</div>
+            <button
+              v-for="q in recentSearches"
+              :key="q"
+              type="button"
+              class="recent-search-item"
+              @mousedown.prevent="pickRecentSearch(q)"
+            >
+              <span>{{ q }}</span>
+              <span
+                class="recent-search-remove"
+                @mousedown.prevent.stop="removeRecentSearch(q)"
+                >✕</span
+              >
+            </button>
+          </div>
+        </div>
+        <select v-model="sortBy" class="sort-select" aria-label="Sort by">
+          <option value="name">Name (A–Z)</option>
+          <option value="name_desc">Name (Z–A)</option>
+          <option value="recent">Recently added</option>
+          <option value="rating">Rating</option>
+          <option value="playtime">Most Played</option>
+          <option value="last_played">Recently played</option>
+          <option value="neglected">Neglected (least recently played)</option>
+          <option value="priority">Priority</option>
+          <option value="release">Release date (newest)</option>
+          <option value="length">Time to beat (shortest)</option>
+        </select>
+        <button
+          type="button"
+          class="filter-btn"
+          :class="{ 'active-filter': filterCount }"
+          @click="showAdvancedFilters = !showAdvancedFilters"
+        >
+          Filters
+          <span v-if="filterCount" class="count">{{ filterCount }}</span>
+        </button>
+        <div class="presets-wrap">
+          <button
+            type="button"
+            class="filter-btn"
+            @click="showPresetsMenu = !showPresetsMenu"
+          >
+            Presets
+          </button>
+          <div v-if="showPresetsMenu" class="presets-dropdown">
+            <button
+              v-for="p in filterPresets"
+              :key="p.name"
+              type="button"
+              class="preset-item"
+              @click="applyPreset(p)"
+            >
+              <span>{{ p.name }}</span>
+              <span class="preset-remove" @click.stop="deletePreset(p.name)"
+                >✕</span
+              >
+            </button>
+            <p v-if="!filterPresets.length" class="preset-empty">
+              No saved presets yet.
+            </p>
+            <button
+              type="button"
+              class="preset-save"
+              @click="saveCurrentAsPreset"
+            >
+              + Save current filters
+            </button>
+          </div>
+        </div>
+        <div
+          v-if="viewMode === 'cards'"
+          class="density-toggle"
+          title="Card size"
+        >
+          <button
+            v-for="d in ['compact', 'cozy', 'large'] as CardDensity[]"
+            :key="d"
+            type="button"
+            class="density-button"
+            :class="{ active: cardDensity === d }"
+            :title="d"
+            @click="cardDensity = d"
+          >
+            {{ d === "compact" ? "S" : d === "cozy" ? "M" : "L" }}
+          </button>
+        </div>
+      </div>
+
       <div v-if="showAdvancedFilters" class="advanced-panel">
+        <div class="filter-group platform-genre-group">
+          <FilterCombobox
+            v-model="platformFilter"
+            :options="platformOptions"
+            :extra-options="platformExtraOptions"
+            extra-label="Retro"
+            placeholder="Platform"
+            all-label="All platforms"
+          />
+          <FilterCombobox
+            v-model="genreFilter"
+            :options="genreOptions"
+            placeholder="Genre"
+            all-label="All genres"
+          />
+        </div>
         <div class="advanced-field">
           <label>Franchise</label>
           <FilterCombobox
@@ -1716,6 +1665,20 @@ watch(viewMode, (mode) => {
             Clear advanced filters
           </button>
         </div>
+      </div>
+
+      <div class="status-tabs">
+        <button
+          v-for="s in statusOptions"
+          :key="s"
+          type="button"
+          class="status-tab"
+          :class="{ active: statusFilter === s }"
+          @click="statusFilter = s"
+        >
+          {{ s === "all" ? "All" : s }}
+          <span class="n">{{ statusCounts[s] }}</span>
+        </button>
       </div>
 
       <div v-if="activeFilterPills.length" class="active-filter-pills">
@@ -1924,7 +1887,11 @@ watch(viewMode, (mode) => {
             <img class="list-cover" :src="game.coverImageUrl" alt="" />
             <span class="list-title">{{ game.title }}</span>
             <span class="list-status"
-              ><span class="status-pill">{{ game.status }}</span></span
+              ><span
+                class="status-pill"
+                :class="`st-${game.status.replace(' ', '-')}`"
+                >{{ game.status }}</span
+              ></span
             >
             <span class="list-genre">{{ game.tags[0] ?? "N/A" }}</span>
             <span class="list-platform">{{
@@ -2401,62 +2368,207 @@ watch(viewMode, (mode) => {
     padding: 16px 14px 24px;
   }
 }
-.header-row {
+.library {
+  --bg: #0d0d0d;
+  --surface: #1a1a1a;
+  --surface-2: #222222;
+  --border: #2b2b2b;
+  --border-soft: #202020;
+  --accent: #d68a34;
+  --accent-soft: rgba(214, 138, 52, 0.16);
+  --accent-line: rgba(214, 138, 52, 0.4);
+  --text: #f2f2f2;
+  --text-dim: #9c9c9c;
+  --text-faint: #666;
+  --good: #6fbf73;
+  --good-soft: rgba(111, 191, 115, 0.16);
+  --hold: #7ba7d9;
+  --hold-soft: rgba(123, 167, 217, 0.16);
+  --dropped: #d96f6f;
+  --dropped-soft: rgba(217, 111, 111, 0.16);
+  --plan: #9d8cd9;
+  --plan-soft: rgba(157, 140, 217, 0.16);
+}
+.page-head {
   display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
   align-items: center;
+  justify-content: space-between;
   gap: 16px;
-  margin-bottom: 24px;
-  /* keeps search/filters reachable without scrolling back up through a long
-     grid, only kicks in outside "List + preview" mode, which scrolls its
-     own panes instead of the page */
-  position: sticky;
-  top: 0;
-  z-index: 5;
-  background: #0d0d0d;
-  padding: 20px 0 16px;
-  margin-top: -20px;
-}
-.header-row h1 {
-  margin: 0;
-  font-size: 1.7rem;
-  font-weight: 800;
-}
-.header-row .sub {
-  margin-top: 2px;
-  color: #888;
-  font-size: 0.85rem;
-}
-.header-actions {
-  display: flex;
   flex-wrap: wrap;
+}
+.page-head h1 {
+  font-weight: 800;
+  font-size: 1.7rem;
+  margin: 0;
+}
+.page-head .sub {
+  color: var(--text-faint);
+  font-size: 0.85rem;
+  margin-top: 4px;
+}
+.head-actions {
+  display: flex;
+  gap: 8px;
+}
+.add-btn {
+  background: var(--accent);
+  border: none;
+  color: #14100a;
+  border-radius: 8px;
+  padding: 0 18px;
+  height: 38px;
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.select-btn {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  border-radius: 8px;
+  padding: 0 16px;
+  height: 38px;
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.select-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.select-btn.on {
+  background: var(--accent-soft);
+  border-color: var(--accent-line);
+  color: var(--accent);
+}
+.toolbar {
+  margin-top: 16px;
+  display: flex;
   align-items: center;
   gap: 10px;
-}
-.search-input,
-.filter-select {
-  height: 38px;
-  box-sizing: border-box;
-  background: #111;
-  border: 1px solid #3a3a3a;
-  border-radius: 8px;
-  color: #fff;
-  padding: 0 14px;
-  font: inherit;
-  font-size: 13px;
-  transition: border-color 0.15s ease;
+  flex-wrap: wrap;
 }
 .search-wrap {
   position: relative;
+  flex: 1;
+  min-width: 140px;
+  max-width: 340px;
+}
+.search-wrap > svg {
+  position: absolute;
+  left: 11px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 15px;
+  height: 15px;
+  color: var(--text-faint);
+  pointer-events: none;
 }
 .search-input {
-  width: 200px;
+  box-sizing: border-box;
+  height: 38px;
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 0 12px 0 34px;
+  font-family: inherit;
+  font-size: 0.85rem;
 }
-.search-input:focus,
+.search-input:focus {
+  outline: none;
+  border-color: var(--accent-line);
+}
+.sort-select,
+.filter-select {
+  box-sizing: border-box;
+  height: 38px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 0 12px;
+  font-family: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.sort-select:focus,
 .filter-select:focus {
   outline: none;
-  border-color: #d68a34;
+  border-color: var(--accent-line);
+}
+.filter-btn {
+  box-sizing: border-box;
+  height: 38px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  border-radius: 8px;
+  padding: 0 14px;
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.filter-btn.active-filter {
+  border-color: var(--accent-line);
+  color: var(--accent);
+}
+.filter-btn .count {
+  background: var(--accent);
+  color: #14100a;
+  border-radius: 999px;
+  font-size: 0.66rem;
+  font-weight: 800;
+  padding: 1px 6px;
+}
+.status-tabs {
+  margin-top: 14px;
+  margin-bottom: 20px;
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--border-soft);
+}
+.status-tab {
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 10px 14px;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  text-transform: capitalize;
+}
+.status-tab.active {
+  color: var(--text);
+  border-bottom-color: var(--accent);
+}
+.status-tab .n {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-faint);
+  font-weight: 500;
+}
+.status-tab.active .n {
+  color: var(--text-dim);
+}
+.platform-genre-group {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 .recent-searches-dropdown {
   position: absolute;
@@ -2691,22 +2803,21 @@ watch(viewMode, (mode) => {
 .density-toggle {
   display: flex;
   gap: 2px;
-  background: rgba(0, 0, 0, 0.3);
-  border: 1px solid #2a2a2a;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 8px;
   padding: 3px;
-  height: 38px;
   box-sizing: border-box;
 }
 .density-button {
   background: none;
   border: none;
-  color: #999;
-  width: 28px;
-  height: 32px;
+  color: var(--text-faint);
+  width: 26px;
+  height: 30px;
   border-radius: 6px;
   cursor: pointer;
-  font-size: 11px;
+  font-size: 0.7rem;
   font-weight: 700;
 }
 .density-button:hover {
@@ -2714,8 +2825,8 @@ watch(viewMode, (mode) => {
   background: rgba(255, 255, 255, 0.06);
 }
 .density-button.active {
-  color: #111;
-  background: #d68a34;
+  color: #14100a;
+  background: var(--accent);
 }
 .active-filter-pills {
   display: flex;
@@ -2806,51 +2917,6 @@ watch(viewMode, (mode) => {
   background-repeat: no-repeat;
   background-position: right 16px center;
 }
-.view-toggle {
-  display: flex;
-  gap: 2px;
-  background: rgba(0, 0, 0, 0.3);
-  border: 1px solid #2a2a2a;
-  border-radius: 8px;
-  padding: 3px;
-  height: 38px;
-  box-sizing: border-box;
-}
-.view-toggle-button {
-  background: none;
-  border: none;
-  color: #999;
-  width: 32px;
-  height: 32px;
-  border-radius: 6px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition:
-    background 0.15s ease,
-    color 0.15s ease;
-}
-.view-toggle-button:hover {
-  color: #fff;
-  background: rgba(255, 255, 255, 0.06);
-}
-.view-toggle-button.active {
-  color: #111;
-  background: #d68a34;
-  box-shadow: 0 2px 8px rgba(214, 138, 52, 0.4);
-}
-.add-button {
-  height: 38px;
-  box-sizing: border-box;
-  background: #d68a34;
-  color: #111;
-  border: none;
-  border-radius: 8px;
-  padding: 0 18px;
-  font-weight: 600;
-  cursor: pointer;
-}
 /* fixed 10-per-row grid, column width only depends on the container, never
    on how many games there are, so adding one more game just starts filling
    the next row instead of resizing every existing card */
@@ -2874,46 +2940,19 @@ watch(viewMode, (mode) => {
 }
 
 /* Advanced filters */
-.advanced-toggle {
-  height: 38px;
-  box-sizing: border-box;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid #3a3a3a;
-  border-radius: 8px;
-  color: #ccc;
-  padding: 0 16px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  transition:
-    background 0.15s ease,
-    border-color 0.15s ease,
-    color 0.15s ease;
-}
-.advanced-toggle:hover {
-  color: #fff;
-  border-color: #4a4a4a;
-}
-.advanced-toggle.active {
-  color: #d68a34;
-  border-color: rgba(214, 138, 52, 0.5);
-  background: rgba(214, 138, 52, 0.1);
-}
 .bulk-toolbar {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 12px;
-  background: rgba(214, 138, 52, 0.08);
-  border: 1px solid rgba(214, 138, 52, 0.3);
+  margin-top: 12px;
+  padding: 10px 16px;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-line);
   border-radius: 10px;
-  padding: 12px 16px;
-  margin-bottom: 20px;
-  color: #d68a34;
-  font-size: 13px;
-  font-weight: 600;
+  color: var(--accent);
+  font-size: 0.85rem;
+  font-weight: 700;
 }
 .bulk-toolbar .primary-button {
   margin-left: auto;
@@ -2947,28 +2986,15 @@ watch(viewMode, (mode) => {
   background: #d68a34;
   border-color: #d68a34;
 }
-.advanced-count {
-  background: #d68a34;
-  color: #111;
-  font-size: 11px;
-  font-weight: 700;
-  border-radius: 999px;
-  min-width: 18px;
-  height: 18px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0 5px;
-}
 .advanced-panel {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   gap: 14px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid #232323;
+  margin-top: 10px;
+  padding: 14px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 10px;
-  padding: 18px 20px;
-  margin-bottom: 24px;
 }
 .advanced-field {
   display: flex;
@@ -2984,29 +3010,31 @@ watch(viewMode, (mode) => {
   gap: 6px;
 }
 .tag-chip {
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid #3a3a3a;
-  color: #ccc;
+  box-sizing: border-box;
+  height: 28px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
   border-radius: 999px;
-  padding: 5px 12px;
-  font-size: 12px;
+  padding: 0 12px;
+  font-size: 0.76rem;
+  font-weight: 700;
   cursor: pointer;
 }
 .tag-chip:hover {
   border-color: #4a4a4a;
 }
 .tag-chip.active {
-  background: #d68a34;
-  border-color: #d68a34;
-  color: #111;
-  font-weight: 600;
+  background: var(--accent-soft);
+  border-color: var(--accent-line);
+  color: var(--accent);
 }
 .advanced-field label {
-  color: #888;
-  font-size: 11px;
+  color: var(--text-dim);
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  font-weight: 600;
 }
 .advanced-field .combobox,
 .advanced-field .filter-select {
@@ -3023,26 +3051,24 @@ watch(viewMode, (mode) => {
   margin-top: 4px;
 }
 .toggle-chip {
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid #3a3a3a;
-  color: #ccc;
+  box-sizing: border-box;
+  height: 28px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
   border-radius: 999px;
-  padding: 7px 14px;
-  font-size: 12.5px;
-  font-weight: 600;
+  padding: 0 12px;
+  font-size: 0.76rem;
+  font-weight: 700;
   cursor: pointer;
-  transition:
-    background 0.15s ease,
-    border-color 0.15s ease,
-    color 0.15s ease;
 }
 .toggle-chip:hover {
   border-color: #4a4a4a;
 }
 .toggle-chip.active {
-  color: #d68a34;
-  border-color: rgba(214, 138, 52, 0.5);
-  background: rgba(214, 138, 52, 0.14);
+  color: var(--accent);
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
 }
 .clear-advanced {
   margin-left: auto;
@@ -3105,21 +3131,26 @@ watch(viewMode, (mode) => {
 .list-view {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
+  overflow-x: auto;
+}
+.list-header,
+.list-row {
+  min-width: 1040px;
 }
 .list-header {
   display: flex;
   align-items: center;
-  gap: 24px;
-  padding: 0 28px 8px;
+  gap: 20px;
+  padding: 0 16px 8px;
 }
 .list-header span,
 .list-header .sortable {
-  color: #666;
-  font-size: 11px;
+  color: var(--text-faint);
+  font-size: 0.66rem;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  font-weight: 600;
+  letter-spacing: 0.06em;
+  font-weight: 700;
 }
 .list-header .sortable {
   background: none;
@@ -3134,7 +3165,7 @@ watch(viewMode, (mode) => {
   color: #d68a34;
 }
 .list-header-spacer {
-  width: 44px;
+  width: 76px;
   flex-shrink: 0;
 }
 .list-actions-spacer {
@@ -3144,37 +3175,30 @@ watch(viewMode, (mode) => {
 .list-row {
   display: flex;
   align-items: center;
-  gap: 24px;
-  padding: 12px 28px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid #232323;
+  gap: 20px;
+  padding: 10px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border-soft);
   border-radius: 10px;
   cursor: pointer;
-  transition:
-    background 0.15s ease,
-    transform 0.15s ease,
-    box-shadow 0.15s ease,
-    border-color 0.15s ease;
+  transition: border-color 0.15s ease;
 }
 .list-row:hover {
-  background: rgba(255, 255, 255, 0.06);
-  border-color: #333;
-  transform: translateX(2px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  border-color: var(--accent-line);
 }
 .list-cover {
-  width: 44px;
-  height: 58px;
+  width: 76px;
+  aspect-ratio: 2 / 3;
   object-fit: cover;
   border-radius: 6px;
+  background: var(--surface-2);
   flex-shrink: 0;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
 }
 .list-title {
   flex: 1;
-  font-weight: 600;
-  font-size: 14.5px;
-  color: #fff;
+  font-weight: 700;
+  font-size: 1.02rem;
+  color: var(--text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -3189,11 +3213,39 @@ watch(viewMode, (mode) => {
   font-size: 12px;
 }
 .status-pill {
-  width: 82px;
+  width: 96px;
   text-align: center;
-  background: rgba(255, 255, 255, 0.06);
-  padding: 4px 0;
+  background: var(--surface-2);
+  color: var(--text-dim);
+  padding: 5px 0;
   border-radius: 999px;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.01em;
+}
+.status-pill.st-playing {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.status-pill.st-beaten,
+.status-pill.st-mastered,
+.status-pill.st-played {
+  background: var(--good-soft);
+  color: var(--good);
+}
+.status-pill.st-on-hold {
+  background: var(--hold-soft);
+  color: var(--hold);
+}
+.status-pill.st-dropped {
+  background: var(--dropped-soft);
+  color: var(--dropped);
+}
+.status-pill.st-backlog,
+.status-pill.st-wishlist {
+  background: var(--plan-soft);
+  color: var(--plan);
 }
 .list-header .list-status {
   text-align: center;
@@ -3229,12 +3281,12 @@ watch(viewMode, (mode) => {
   flex-shrink: 0;
 }
 .icon-button {
-  background: rgba(255, 255, 255, 0.08);
-  color: #999;
-  border: none;
-  border-radius: 8px;
-  width: 34px;
-  height: 34px;
+  background: var(--surface-2);
+  color: var(--text-faint);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  width: 30px;
+  height: 30px;
   flex-shrink: 0;
   cursor: pointer;
   display: flex;
@@ -3242,15 +3294,17 @@ watch(viewMode, (mode) => {
   justify-content: center;
   transition:
     background 0.15s ease,
-    color 0.15s ease;
+    color 0.15s ease,
+    border-color 0.15s ease;
 }
 .icon-button:hover {
-  background: rgba(255, 255, 255, 0.14);
-  color: #ccc;
+  border-color: var(--accent-line);
+  color: var(--text);
 }
 .icon-button.active {
-  color: #d68a34;
-  background: rgba(214, 138, 52, 0.16);
+  color: var(--accent);
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
 }
 
 /* Detail (list + preview) view, a bounded-height split panel so the list

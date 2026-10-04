@@ -496,16 +496,13 @@ function copyFolderPath() {
   position: relative;
   width: 100%;
   border-radius: 10px;
-  transition:
-    transform 0.32s cubic-bezier(0.22, 1, 0.36, 1),
-    box-shadow 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
   will-change: transform;
   z-index: 1;
 }
 .game-card:hover,
 .game-card.menu-open {
-  transform: scale(1.07) translateY(-4px);
-  box-shadow: 0 24px 56px rgba(0, 0, 0, 0.5);
+  transform: translateY(-3px);
   z-index: 10;
 }
 .game-card.keyboard-focused .cover {
@@ -590,13 +587,27 @@ function copyFolderPath() {
   border-radius: 10px;
   overflow: hidden;
   cursor: pointer;
-  background: #1a1a1a;
+  background: #222222;
+  border: 1px solid #202020;
+  box-sizing: border-box;
+  transition:
+    box-shadow 0.28s ease,
+    border-color 0.2s ease;
 }
 .cover-image {
   width: 100%;
   height: 100%;
   object-fit: cover;
   display: block;
+  transition: transform 0.2s ease;
+}
+.game-card:hover .cover,
+.game-card.menu-open .cover {
+  border-color: #2b2b2b;
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.45);
+}
+.game-card:hover .cover-image {
+  transform: scale(1.04);
 }
 .select-checkbox {
   position: absolute;
@@ -812,22 +823,27 @@ function copyFolderPath() {
   margin: 4px 2px;
 }
 .card-info {
-  padding: 10px 2px 0;
+  padding: 8px 2px 0;
 }
 .title {
   margin: 0 0 2px;
-  font-size: 14px;
-  font-weight: 600;
-  color: #fff;
-  white-space: nowrap;
+  font-size: 0.85rem;
+  font-weight: 700;
+  line-height: 1.3;
+  color: #f2f2f2;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
-  text-overflow: ellipsis;
+  /* two lines are always reserved so a one-line title doesn't pull the
+     status row up and leave cards in the same row misaligned */
+  min-height: calc(1.3em * 2);
 }
 .meta-row {
   display: flex;
   gap: 8px;
-  font-size: 12px;
-  color: #999;
+  font-size: 0.72rem;
+  color: #666;
 }
 .meta-row .status {
   text-transform: capitalize;
