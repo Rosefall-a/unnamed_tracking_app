@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, nextTick, watch } from "vue";
+import { ref, computed, onMounted, onUnmounted, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useWindowVirtualizer } from "@tanstack/vue-virtual";
 import GameCard from "../components/GameCard.vue";
@@ -36,7 +36,7 @@ import { usePrompt } from "../state/dialog";
 
 const prompt = usePrompt();
 
-type ViewMode = "cards" | "list" | "detail" | "shelves";
+type ViewMode = "cards" | "list" | "detail";
 const SORT_KEYS = [
   "name",
   "name_desc",
@@ -68,8 +68,11 @@ const deletingGame = ref<Game | null>(null);
 const deleting = ref(false);
 const deleteError = ref<string | null>(null);
 
+const storedView = localStorage.getItem("gameLibraryViewMode");
+// "shelves" used to be the by-source layout, since removed; "cards" is the
+// grid, which is now what's labelled Shelves
 const viewMode = ref<ViewMode>(
-  (localStorage.getItem("gameLibraryViewMode") as ViewMode) || "cards",
+  storedView === "list" || storedView === "detail" ? storedView : "cards",
 );
 const selectedGame = ref<Game | null>(null);
 // keyboard focus within the Cards grid (arrow keys + Enter), separate from
@@ -498,26 +501,20 @@ const statusOptions: (GameStatus | "all")[] = [
 
 const VIEW_OPTIONS: SegmentOption[] = [
   {
-    value: "cards",
-    label: "Cards",
-    icon: '<rect x="3" y="3" width="8" height="8" rx="1" /><rect x="13" y="3" width="8" height="8" rx="1" /><rect x="3" y="13" width="8" height="8" rx="1" /><rect x="13" y="13" width="8" height="8" rx="1" />',
-  },
-  {
     value: "list",
     label: "List",
-    icon: '<line x1="4" y1="6" x2="20" y2="6" /><line x1="4" y1="12" x2="20" y2="12" /><line x1="4" y1="18" x2="20" y2="18" />',
+    icon: '<line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" /><line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" />',
+  },
+  {
+    value: "cards",
+    label: "Shelves",
+    icon: '<rect x="3" y="3" width="7" height="18" rx="1" /><rect x="14" y="3" width="7" height="10" rx="1" />',
   },
   {
     value: "detail",
     label: "Preview",
     title: "List + preview",
     icon: '<rect x="3" y="3" width="7" height="18" rx="1" /><rect x="13" y="3" width="8" height="18" rx="1" />',
-  },
-  {
-    value: "shelves",
-    label: "Shelves",
-    title: "Shelves (by source)",
-    icon: '<line x1="4" y1="6" x2="20" y2="6" /><line x1="4" y1="12" x2="20" y2="12" /><line x1="4" y1="18" x2="20" y2="18" /><rect x="4" y="3.5" width="5" height="5" rx="1" />',
   },
 ];
 
@@ -1194,7 +1191,6 @@ watch(cardDensity, (d) => localStorage.setItem("gameLibraryDensity", d));
 const viewportWidth = ref(window.innerWidth);
 function onResize() {
   viewportWidth.value = window.innerWidth;
-  if (viewMode.value === "shelves") updateAllShelfArrows();
 }
 onMounted(() => window.addEventListener("resize", onResize));
 onUnmounted(() => window.removeEventListener("resize", onResize));
@@ -1231,6 +1227,15 @@ const CARD_COLUMNS = computed(() => {
 const cardRowCount = computed(() =>
   Math.ceil(filteredGames.value.length / CARD_COLUMNS.value),
 );
+// Same as Media: a leaderboard position among everything that has a rating,
+// highest first, generated rather than assigned
+const rankByGameId = computed(() => {
+  const rated = games.value
+    .map((g) => ({ id: g.id, sum: computeScore(g)?.sum ?? null }))
+    .filter((g): g is { id: string; sum: number } => g.sum !== null)
+    .sort((a, b) => b.sum - a.sum);
+  return new Map(rated.map((g, i) => [g.id, i + 1]));
+});
 const rowVirtualizer = useWindowVirtualizer(
   computed(() => ({
     count: cardRowCount.value,
@@ -1248,45 +1253,6 @@ function cardsInRow(rowIndex: number): Game[] {
   const start = rowIndex * CARD_COLUMNS.value;
   return filteredGames.value.slice(start, start + CARD_COLUMNS.value);
 }
-
-// "Shelves" view, Home Hub's grouped-row layout, applied to the whole
-// (filtered) library instead of just Continue Playing/Recently Added
-const sourceShelves = computed(() => {
-  const map = new Map<string, Game[]>();
-  for (const g of filteredGames.value) {
-    const key = g.source || "Other";
-    if (!map.has(key)) map.set(key, []);
-    map.get(key)!.push(g);
-  }
-  return [...map.entries()]
-    .sort((a, b) => b[1].length - a[1].length)
-    .map(([name, list]) => ({ name, games: list }));
-});
-function scrollShelf(e: MouseEvent, dir: 1 | -1) {
-  const wrap = (e.currentTarget as HTMLElement).closest(".shelf-wrap");
-  const shelf = wrap?.querySelector(".shelf") as HTMLElement | null;
-  if (!shelf) return;
-  shelf.scrollBy({ left: dir * shelf.clientWidth * 0.9, behavior: "smooth" });
-}
-// same arrow-visibility pattern as Home Hub's shelves, only shown once
-// there's actually somewhere left to scroll
-function updateShelfArrows(shelf: HTMLElement) {
-  const wrap = shelf.closest(".shelf-wrap");
-  if (!wrap) return;
-  const left = wrap.querySelector(".shelf-arrow.left");
-  const right = wrap.querySelector(".shelf-arrow.right");
-  const maxScroll = shelf.scrollWidth - shelf.clientWidth;
-  left?.classList.toggle("can-scroll", shelf.scrollLeft > 4);
-  right?.classList.toggle("can-scroll", shelf.scrollLeft < maxScroll - 4);
-}
-function updateAllShelfArrows() {
-  document
-    .querySelectorAll<HTMLElement>(".shelves-view .shelf")
-    .forEach(updateShelfArrows);
-}
-watch(viewMode, (mode) => {
-  if (mode === "shelves") nextTick(updateAllShelfArrows);
-});
 </script>
 
 <template>
@@ -1801,6 +1767,7 @@ watch(viewMode, (mode) => {
               v-for="(game, colIndex) in cardsInRow(virtualRow.index)"
               :key="game.id"
               :game="game"
+              :rank="rankByGameId.get(game.id) ?? null"
               :select-mode="selectMode"
               :selected="selectedIds.has(game.id)"
               :keyboard-focused="
@@ -1815,29 +1782,19 @@ watch(viewMode, (mode) => {
 
         <div v-else-if="viewMode === 'list'" class="list-view">
           <div v-if="filteredGames.length" class="list-header">
-            <span class="list-header-spacer"></span>
+            <span></span>
             <button
               type="button"
-              class="list-title sortable"
+              class="sortable left"
               :class="{ active: sortBy === 'name' }"
               @click="sortBy = 'name'"
             >
               Name
             </button>
-            <span class="list-status">Status</span>
-            <span class="list-genre">Genre</span>
-            <span class="list-platform">Platform</span>
+            <span></span>
             <button
               type="button"
-              class="list-score sortable"
-              :class="{ active: sortBy === 'rating' }"
-              @click="sortBy = 'rating'"
-            >
-              Rating
-            </button>
-            <button
-              type="button"
-              class="list-playtime sortable"
+              class="sortable"
               :class="{ active: sortBy === 'playtime' }"
               @click="sortBy = 'playtime'"
             >
@@ -1845,14 +1802,23 @@ watch(viewMode, (mode) => {
             </button>
             <button
               type="button"
-              class="list-last-played sortable"
+              class="sortable"
+              :class="{ active: sortBy === 'rating' }"
+              @click="sortBy = 'rating'"
+            >
+              Rating
+            </button>
+            <span>Rank</span>
+            <button
+              type="button"
+              class="sortable"
               :class="{ active: sortBy === 'neglected' }"
               @click="sortBy = 'neglected'"
             >
               Last played
             </button>
-            <span class="list-release">Released</span>
-            <span class="list-actions-spacer"></span>
+            <span>Released</span>
+            <span>Status</span>
           </div>
           <div
             v-for="game in filteredGames"
@@ -1860,88 +1826,42 @@ watch(viewMode, (mode) => {
             class="list-row"
             @click="selectMode ? toggleSelect(game) : openGame(game)"
           >
-            <div
-              v-if="selectMode"
-              class="list-checkbox"
-              :class="{ checked: selectedIds.has(game.id) }"
-              @click.stop="toggleSelect(game)"
-            >
-              <svg
-                v-if="selectedIds.has(game.id)"
-                viewBox="0 0 24 24"
-                width="12"
-                height="12"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="3"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <path d="M20 6L9 17l-5-5" />
-              </svg>
-            </div>
-            <img class="list-cover" :src="game.coverImageUrl" alt="" />
-            <span class="list-title">{{ game.title }}</span>
-            <span class="list-status"
-              ><span
-                class="status-pill"
-                :class="`st-${game.status.replace(' ', '-')}`"
-                >{{ game.status }}</span
-              ></span
-            >
-            <span class="list-genre">{{ game.tags[0] ?? "N/A" }}</span>
-            <span class="list-platform">{{
-              game.platforms[0]?.platform ?? "N/A"
-            }}</span>
-            <span class="list-score">
-              <template v-if="computeScore(game)"
-                >★ {{ computeScore(game)!.sum.toFixed(1) }}</template
-              >
-              <template v-else>N/A</template>
-            </span>
-            <span class="list-playtime">{{ totalPlaytime(game) }}</span>
-            <span class="list-last-played">
-              {{
-                gameLastPlayed(game)
-                  ? new Date(gameLastPlayed(game)!).toLocaleDateString()
-                  : "N/A"
-              }}
-            </span>
-            <span class="list-release">
-              {{
-                game.releaseDate ? formatDisplayDate(game.releaseDate) : "N/A"
-              }}
-            </span>
-            <div class="list-actions">
-              <button
-                type="button"
-                class="small-button"
-                @click.stop="openEditModal(game)"
-              >
-                Edit
-              </button>
-              <button
-                type="button"
-                class="icon-button"
-                title="Add to collection"
-                @click.stop="handleAddToCollection(game)"
+            <div class="list-thumb-wrap">
+              <img class="list-cover" :src="game.coverImageUrl" alt="" />
+              <div
+                v-if="selectMode"
+                class="list-checkbox"
+                :class="{ checked: selectedIds.has(game.id) }"
+                @click.stop="toggleSelect(game)"
               >
                 <svg
+                  v-if="selectedIds.has(game.id)"
                   viewBox="0 0 24 24"
-                  width="16"
-                  height="16"
+                  width="12"
+                  height="12"
                   fill="none"
                   stroke="currentColor"
-                  stroke-width="2"
+                  stroke-width="3"
                   stroke-linecap="round"
                   stroke-linejoin="round"
                 >
-                  <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+                  <path d="M20 6L9 17l-5-5" />
                 </svg>
-              </button>
+              </div>
+            </div>
+            <div class="list-title-col">
+              <div class="list-title">{{ game.title }}</div>
+              <div class="list-sub">
+                {{ game.tags[0] ?? "No genre"
+                }}<template v-if="game.platforms[0]">
+                  · {{ game.platforms[0].platform }}</template
+                >
+              </div>
+            </div>
+            <div class="icon-cluster">
               <button
                 type="button"
-                class="icon-button"
+                class="icon-btn"
                 :class="{ active: game.favorite }"
                 :title="
                   game.favorite ? 'Remove from favorites' : 'Add to favorites'
@@ -1950,8 +1870,6 @@ watch(viewMode, (mode) => {
               >
                 <svg
                   viewBox="0 0 24 24"
-                  width="16"
-                  height="16"
                   :fill="game.favorite ? 'currentColor' : 'none'"
                   stroke="currentColor"
                   stroke-width="2"
@@ -1963,51 +1881,74 @@ watch(viewMode, (mode) => {
                   />
                 </svg>
               </button>
+              <button
+                type="button"
+                class="icon-btn"
+                title="Add to collection"
+                @click.stop="handleAddToCollection(game)"
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                class="icon-btn"
+                title="Edit"
+                @click.stop="openEditModal(game)"
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M12 20h9" />
+                  <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                </svg>
+              </button>
+            </div>
+            <div class="stat-cell strong">{{ totalPlaytime(game) }}</div>
+            <div class="score-cell" :class="{ empty: !computeScore(game) }">
+              {{
+                computeScore(game)
+                  ? `★ ${computeScore(game)!.sum.toFixed(1)}`
+                  : "–"
+              }}
+            </div>
+            <div class="rank-cell">
+              <span v-if="rankByGameId.get(game.id)" class="rank-badge"
+                >#{{ rankByGameId.get(game.id) }}</span
+              >
+              <span v-else class="rank-empty">–</span>
+            </div>
+            <div class="stat-cell">
+              {{
+                gameLastPlayed(game)
+                  ? new Date(gameLastPlayed(game)!).toLocaleDateString()
+                  : "–"
+              }}
+            </div>
+            <div class="stat-cell">
+              {{ game.releaseDate ? formatDisplayDate(game.releaseDate) : "–" }}
+            </div>
+            <div class="status-cell">
+              <span
+                class="status-pill"
+                :class="`st-${game.status.replace(' ', '-')}`"
+                >{{ game.status }}</span
+              >
             </div>
           </div>
-        </div>
-
-        <div v-else-if="viewMode === 'shelves'" class="shelves-view">
-          <section
-            v-for="shelf in sourceShelves"
-            :key="shelf.name"
-            class="shelf-row"
-          >
-            <div class="shelf-row-header">
-              <h2>{{ shelf.name }}</h2>
-              <span class="shelf-row-count">{{ shelf.games.length }}</span>
-            </div>
-            <div class="shelf-wrap">
-              <button
-                type="button"
-                class="shelf-arrow left"
-                @click="scrollShelf($event, -1)"
-                aria-label="Scroll left"
-              >
-                ‹
-              </button>
-              <div
-                class="shelf"
-                @scroll="updateShelfArrows($event.target as HTMLElement)"
-              >
-                <GameCard
-                  v-for="game in shelf.games"
-                  :key="game.id"
-                  :game="game"
-                  @edit="openEditModal"
-                  @add-to-collection="handleAddToCollection"
-                />
-              </div>
-              <button
-                type="button"
-                class="shelf-arrow right"
-                @click="scrollShelf($event, 1)"
-                aria-label="Scroll right"
-              >
-                ›
-              </button>
-            </div>
-          </section>
         </div>
 
         <div v-else class="detail-view">
@@ -2615,81 +2556,6 @@ watch(viewMode, (mode) => {
 .presets-wrap {
   position: relative;
 }
-.shelves-view {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.shelf-row-header {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding-left: 12px;
-  border-left: 3px solid #d68a34;
-  margin-bottom: 4px;
-}
-.shelf-row-header h2 {
-  margin: 0;
-  font-size: 1.05rem;
-  color: #fff;
-}
-.shelf-row-count {
-  background: rgba(255, 255, 255, 0.06);
-  color: #999;
-  font-size: 12px;
-  font-weight: 600;
-  padding: 3px 10px;
-  border-radius: 999px;
-}
-.shelf-wrap {
-  position: relative;
-}
-.shelf {
-  display: flex;
-  gap: 16px;
-  overflow-x: auto;
-  scroll-behavior: smooth;
-  padding: 16px 4px 24px;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
-.shelf::-webkit-scrollbar {
-  display: none;
-}
-.shelf-arrow {
-  position: absolute;
-  top: 0;
-  bottom: 24px;
-  width: 40px;
-  border: none;
-  background: linear-gradient(to right, rgba(10, 10, 10, 0.85), transparent);
-  color: #fff;
-  font-size: 26px;
-  line-height: 1;
-  cursor: pointer;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.15s ease;
-  z-index: 20;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.shelf-arrow.right {
-  left: auto;
-  right: 0;
-  background: linear-gradient(to left, rgba(10, 10, 10, 0.85), transparent);
-}
-.shelf-arrow.left {
-  left: 0;
-}
-.shelf-wrap:hover .shelf-arrow.can-scroll {
-  opacity: 1;
-  pointer-events: auto;
-}
-.shelf-arrow:hover {
-  color: #d68a34;
-}
 .presets-dropdown {
   position: absolute;
   top: calc(100% + 6px);
@@ -2963,11 +2829,15 @@ watch(viewMode, (mode) => {
   margin-bottom: 20px;
 }
 .list-checkbox {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  z-index: 4;
   width: 22px;
   height: 22px;
   border-radius: 6px;
-  border: 2px solid #4a4a4a;
-  background: rgba(0, 0, 0, 0.3);
+  border: 2px solid rgba(255, 255, 255, 0.45);
+  background: rgba(10, 10, 10, 0.8);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -3132,12 +3002,15 @@ watch(viewMode, (mode) => {
 }
 .list-header,
 .list-row {
-  min-width: 1040px;
-}
-.list-header {
-  display: flex;
+  display: grid;
+  grid-template-columns:
+    76px minmax(200px, 1fr)
+    100px 84px 64px 46px 104px 104px 128px;
   align-items: center;
   gap: 20px;
+  min-width: 1066px;
+}
+.list-header {
   padding: 0 16px 8px;
 }
 .list-header span,
@@ -3147,31 +3020,23 @@ watch(viewMode, (mode) => {
   text-transform: uppercase;
   letter-spacing: 0.06em;
   font-weight: 700;
+  text-align: center;
 }
 .list-header .sortable {
   background: none;
   border: none;
   padding: 0;
   font-family: inherit;
-  text-align: left;
   cursor: pointer;
+}
+.list-header .sortable.left {
+  text-align: left;
 }
 .list-header .sortable:hover,
 .list-header .sortable.active {
-  color: #d68a34;
-}
-.list-header-spacer {
-  width: 76px;
-  flex-shrink: 0;
-}
-.list-actions-spacer {
-  width: 130px;
-  flex-shrink: 0;
+  color: var(--accent);
 }
 .list-row {
-  display: flex;
-  align-items: center;
-  gap: 20px;
   padding: 10px 16px;
   background: var(--surface);
   border: 1px solid var(--border-soft);
@@ -3182,43 +3047,141 @@ watch(viewMode, (mode) => {
 .list-row:hover {
   border-color: var(--accent-line);
 }
+.list-thumb-wrap {
+  position: relative;
+  width: 76px;
+}
 .list-cover {
+  display: block;
   width: 76px;
   aspect-ratio: 2 / 3;
   object-fit: cover;
   border-radius: 6px;
   background: var(--surface-2);
-  flex-shrink: 0;
+}
+.list-title-col {
+  min-width: 0;
 }
 .list-title {
-  flex: 1;
   font-weight: 700;
   font-size: 1.02rem;
+  line-height: 1.3;
   color: var(--text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.list-status {
-  width: 100px;
-  flex-shrink: 0;
+.list-sub {
+  font-size: 0.72rem;
+  color: var(--text-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.icon-cluster {
   display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.icon-btn {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-faint);
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  display: flex;
+  align-items: center;
   justify-content: center;
-  text-transform: capitalize;
-  color: #ccc;
-  font-size: 12px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.icon-btn svg {
+  width: 12px;
+  height: 12px;
+}
+.icon-btn:hover {
+  border-color: var(--accent-line);
+  color: var(--text);
+}
+.icon-btn.active {
+  color: var(--accent);
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
+}
+.rank-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 5px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  border: 1px solid var(--accent-line);
+  font-size: 0.68rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.rank-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.rank-empty {
+  color: var(--text-faint);
+  font-size: 0.75rem;
+}
+.status-cell,
+.stat-cell,
+.score-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.stat-cell {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+.stat-cell.strong {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text);
+}
+.score-cell {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--accent);
+  white-space: nowrap;
+}
+.score-cell.empty {
+  justify-self: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 5px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-faint);
+  font-weight: 600;
 }
 .status-pill {
-  width: 96px;
+  display: inline-block;
+  width: 128px;
   text-align: center;
   background: var(--surface-2);
   color: var(--text-dim);
-  padding: 5px 0;
+  padding: 5px 10px;
   border-radius: 999px;
   font-size: 0.6875rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.01em;
+  white-space: nowrap;
 }
 .status-pill.st-playing {
   background: var(--accent-soft);
@@ -3242,32 +3205,6 @@ watch(viewMode, (mode) => {
 .status-pill.st-wishlist {
   background: var(--plan-soft);
   color: var(--plan);
-}
-.list-header .list-status {
-  text-align: center;
-}
-.list-genre,
-.list-platform,
-.list-last-played,
-.list-release {
-  color: #999;
-  font-size: 12px;
-  min-width: 100px;
-}
-.list-score {
-  min-width: 60px;
-  color: #d68a34;
-  font-size: 12px;
-  font-weight: 700;
-}
-.list-header .list-score {
-  color: #666;
-  font-weight: 600;
-}
-.list-playtime {
-  width: 60px;
-  color: #999;
-  font-size: 12px;
 }
 .list-actions {
   display: flex;
@@ -3585,15 +3522,7 @@ watch(viewMode, (mode) => {
   }
   .list-header,
   .list-row {
-    min-width: 640px;
-  }
-  .list-title {
-    /* flex:1's default flex-basis:0% let this shrink all the way to 0,
-       invisible: once the row's other fixed-width columns took priority.
-       A real floor forces the row to actually grow past the viewport
-       (triggering the horizontal scroll above) instead of hiding the one
-       thing worth reading. */
-    min-width: 140px;
+    min-width: 900px;
   }
   .detail-view {
     grid-template-columns: 1fr;
