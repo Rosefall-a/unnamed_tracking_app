@@ -58,3 +58,23 @@ Test installation, retained data, restart, denied new permissions, update failur
 rollback and uninstall through the real host/runtime. Review desktop, phone,
 light and dark UI separately. See [manifest compatibility](plugin-manifest.md),
 [UI protocol](plugin-ui.md) and [integration verification](plugin-integration-verification.md).
+
+The host CI also runs `tools/check_plugin_contract_upgrade.py` against the actual
+companion repository. It verifies a published signed Playtime Report archive,
+starts its real historical worker to simulate the predecessor host, then checks
+that the current registry stops it and refuses restart. It rebuilds the migrated
+source through the companion builder with a disposable signing identity and
+verifies that the new worker runs with the original installation identity,
+settings and stored report. The published archive remains byte-identical.
+
+Run this process-mode acceptance only in a disposable environment:
+
+```sh
+NONBUBBLE_ENV=true python tools/check_plugin_contract_upgrade.py \
+  --plugins-root /path/to/unnamed_tracking_app_plugins \
+  --work-root /tmp/contract-upgrade-acceptance
+```
+
+The work directory must not already exist. The check creates no browser or media
+captures. Strict sandbox execution is verified separately by the official
+Jellyfin acceptance runner.
