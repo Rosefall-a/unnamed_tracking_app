@@ -1,0 +1,487 @@
+
+=== versions (20:18:16)
+Panel 1.0.0-beta38
+wings v1.0.0-beta29
+
+=== test worlds A and B (20:18:17)
+bot: {"ok":true,"username":"UTPlayer","uuid":"cb7a3738-66fe-3787-b260-0bcade701863","version":"26.1","position":{"x":0.5,"y":74,"z":0.5},"dimension":"overworld","timeOfDay":0,"raining":true,"pillarTop":{"y":77,"name":"gold_block"},"padTop":{"y":70,"name":"gold_block"},"onlinePlayers":["UTPlayer"]}
+[20:18:20] [Server thread/INFO]: Level "UT Test World A" seed 424242 spawn 0,74,0
+[20:18:20] [Server thread/INFO]: Marker minecraft:gold_block built at pillar (0,66,0) and pad (12..20,70,12..20)
+[20:18:24] [Server thread/INFO]: Teleported UTPlayer to 4.0, 100.0, 4.0
+ut-test-world-a.tar.gz 357224 1f1f95ec51414cb8e6fe59bca9e37b8ef9ef26d3ad330d90ab0e72a41cc940d3
+ut-test-world-a.zip 358451 625ae75a6d4dd779da9a87a5f4d061314efdf2e05603cdf529b56ea170cad935
+files: ['world/dimensions/minecraft/overworld/region/r.-1.-1.mca', 'world/dimensions/minecraft/overworld/region/r.-1.0.mca', 'world/dimensions/minecraft/overworld/region/r.0.-1.mca', 'world/dimensions/minecraft/overworld/region/r.0.0.mca', 'world/level.dat', 'world/players/data/cb7a3738-66fe-3787-b260-0bcade701863.dat']
+bot: {"ok":true,"username":"UTPlayer","uuid":"cb7a3738-66fe-3787-b260-0bcade701863","version":"26.1","position":{"x":0.5,"y":74,"z":0.5},"dimension":"overworld","timeOfDay":0,"raining":true,"pillarTop":{"y":81,"name":"diamond_block"},"padTop":{"y":74,"name":"diamond_block"},"onlinePlayers":["UTPlayer"]}
+[20:18:34] [Server thread/INFO]: Level "UT Test World B" seed 1337 spawn 0,74,0
+[20:18:34] [Server thread/INFO]: Marker minecraft:diamond_block built at pillar (0,70,0) and pad (12..20,74,12..20)
+[20:18:38] [Server thread/INFO]: Teleported UTPlayer to -6.0, 100.0, 9.0
+ut-test-world-b.tar.gz 384786 2bffbe2101bb4a4698819c703f69e83966ed4fe42d888ae6330d3d17071a9fd7
+ut-test-world-b.zip 386006 61ea1013d3ad1056c9a02ce2367dd5e6330f44cab0ec4c9bef10daa58b31226b
+files: ['world/dimensions/minecraft/overworld/region/r.-1.-1.mca', 'world/dimensions/minecraft/overworld/region/r.-1.0.mca', 'world/dimensions/minecraft/overworld/region/r.0.-1.mca', 'world/dimensions/minecraft/overworld/region/r.0.0.mca', 'world/level.dat', 'world/players/data/cb7a3738-66fe-3787-b260-0bcade701863.dat']
+
+=== E01 create a server for world A (20:18:46)
+create: 201 1.12s
+{"id": 1, "uuid": "65988f50-e0af-408d-8e51-518203b1ef84", "identifier": "65988f50", "external_id": "ut-world:demo-a", "status": "installing", "node": 1, "allocation": 1}
+install finished after 3.12s
+lookup by external_id: 200 True
+duplicate external_id create: 422 {"errors": [{"code": "ValidationException", "status": "422", "detail": "The external id has already been taken.", "meta": {"source_field": "external_id", "rule": "unique"}}, {"code": "ValidationException", "status": "422", "detail": "The selected allocation.default is invalid.", "meta": {"source_fie
+
+=== E02 lifecycle and readiness (20:18:52)
+join info: {'ip': '0.0.0.0', 'alias': '127.0.0.1', 'port': 25581} | sftp: {'ip': '127.0.0.1', 'alias': '', 'port': 2022} | limits: {'memory': 1536, 'swap': 0, 'disk': 4096, 'io': 500, 'cpu': 200, 'threads': None, 'oom_disabled': True, 'oom_killer': False}
+state before: offline
+start->console Done: 3.69s -> console output ['[20:19:03] [Server thread/INFO]: Done (2.123s)! For help, type "help"']
+status events seen during start: ['offline', 'starting']
+resources while running: {'current_state': 'offline', 'is_suspended': False}
+stop->offline: 1.05s -> status ['offline']
+start again->Done: 3.49s -> console output ['[20:19:08] [Server thread/INFO]: Done (1.985s)! For help, type "help"']
+restart->Done: 4.18s -> console output ['[20:19:12] [Server thread/INFO]: Done (1.887s)! For help, type "help"']
+status events during restart: ['running', 'stopping', 'offline', 'starting']
+kill->offline: 0.56s -> status ['offline']
+console tail after kill: ['[20:19:12] [Server thread/INFO]: Preparing level "world"', '[20:19:12] [Server thread/INFO]: Level "world" seed -8846400401068711200 spawn 0,74,0', '[20:19:12] [Server thread/INFO]: Done (1.887s)! For help, type "help"']
+websocket event types observed: ['console output', 'stats', 'status']
+
+=== E03 deploy world B (20:19:13)
+  stop: {'step': 'stop', 's': 0.53}
+  upload: {'step': 'upload', 's': 0.5, 'status': 200, 'bytes': 384786}
+  rename current world aside: {'step': 'rename current world aside', 's': 0.96, 'status': 204, 'to': 'world.ut-prev-1791145160'}
+  decompress: {'step': 'decompress', 's': 0.54, 'status': 204, 'body': ''}
+  verify listing /world: {'step': 'verify listing /world', 's': 1.15, 'entries': ['dimensions', 'players', 'level.dat']}
+  delete uploaded archive: {'step': 'delete uploaded archive', 's': 1.68, 'status': 204}
+  start -> status running: {'step': 'start -> status running', 's': 3.51}
+  console seed via websocket: {'step': 'console seed via websocket', 's': 3.52, 'seed': 'Seed: [1337]', 'level': 'Level "UT Test World B" seed 1337 spawn 0,74,0'}
+  bot verification: {'step': 'bot verification', 's': 12.15, 'join': '127.0.0.1:25581', 'spawn_position': {'x': -6, 'y': 62, 'z': 9}, 'pillar': {'y': 81, 'name': 'diamond_block'}, 'pad': {'y': 74, 'name': 'diamond_block'}, 'verified': True}
+  player events from console: {'step': 'player events from console', 's': 14.42, 'lines': ['UTPlayer joined the game', 'UTPlayer left the game', 'UTPlayer[/172.18.0.1:47828] logged in with entity id 1 at (-6.0, 62.0, 9.0)']}
+RESULT: PASS
+
+=== E03 deploy world A (20:19:36)
+  stop: {'step': 'stop', 's': 1.47}
+  upload: {'step': 'upload', 's': 0.65, 'status': 200, 'bytes': 357224}
+  rename current world aside: {'step': 'rename current world aside', 's': 1.0, 'status': 204, 'to': 'world.ut-prev-1791145181'}
+  decompress: {'step': 'decompress', 's': 0.63, 'status': 204, 'body': ''}
+  verify listing /world: {'step': 'verify listing /world', 's': 1.16, 'entries': ['dimensions', 'players', 'level.dat']}
+  delete uploaded archive: {'step': 'delete uploaded archive', 's': 1.68, 'status': 204}
+  start -> status running: {'step': 'start -> status running', 's': 3.44}
+  console seed via websocket: {'step': 'console seed via websocket', 's': 3.48, 'seed': 'Seed: [424242]', 'level': 'Level "UT Test World A" seed 424242 spawn 0,74,0'}
+  bot verification: {'step': 'bot verification', 's': 12.05, 'join': '127.0.0.1:25581', 'spawn_position': {'x': 4, 'y': 68, 'z': 4}, 'pillar': {'y': 77, 'name': 'gold_block'}, 'pad': {'y': 70, 'name': 'gold_block'}, 'verified': True}
+  player events from console: {'step': 'player events from console', 's': 14.18, 'lines': ['UTPlayer joined the game', 'UTPlayer left the game', 'UTPlayer[/172.18.0.1:52060] logged in with entity id 1 at (4.0, 68.0, 4.0)']}
+RESULT: PASS
+
+=== E03 deploy world B (E04 start) (20:19:57)
+  stop: {'step': 'stop', 's': 1.62}
+  upload: {'step': 'upload', 's': 0.54, 'status': 200, 'bytes': 384786}
+  rename current world aside: {'step': 'rename current world aside', 's': 1.12, 'status': 204, 'to': 'world.ut-prev-1791145202'}
+  decompress: {'step': 'decompress', 's': 0.58, 'status': 204, 'body': ''}
+  verify listing /world: {'step': 'verify listing /world', 's': 1.21, 'entries': ['dimensions', 'players', 'level.dat']}
+  delete uploaded archive: {'step': 'delete uploaded archive', 's': 1.74, 'status': 204}
+  start -> status running: {'step': 'start -> status running', 's': 3.69}
+  console seed via websocket: {'step': 'console seed via websocket', 's': 3.71, 'seed': 'Seed: [1337]', 'level': 'Level "UT Test World B" seed 1337 spawn 0,74,0'}
+  bot verification: {'step': 'bot verification', 's': 12.5, 'join': '127.0.0.1:25581', 'spawn_position': {'x': -6, 'y': 62, 'z': 9}, 'pillar': {'y': 81, 'name': 'diamond_block'}, 'pad': {'y': 74, 'name': 'diamond_block'}, 'verified': True}
+  player events from console: {'step': 'player events from console', 's': 15.37, 'lines': ['UTPlayer joined the game', 'UTPlayer left the game', 'UTPlayer[/172.18.0.1:43416] logged in with entity id 1 at (-6.0, 62.0, 9.0)']}
+RESULT: PASS
+
+=== E04 backups as capture/restore (20:20:20)
+server running; seed line: [20:20:22] [Server thread/INFO]: Seed: [1337]
+[20:20:22] [Server thread/INFO]: Automatic saving is now disabled
+[20:20:23] [Server thread/INFO]: Saved the game
+backup created: {'uuid': '96d82c87-89c3-46cd-98c0-0b4f5fcf9339', 'name': 'ut-capture-world-b', 'ignored_files': ['world.ut-prev-*', 'server.jar'], 'is_successful': False, 'is_locked': False, 'completed_at': None}
+websocket backup event: backup completed ['{"checksum":"5c23232968cce1031ff2fff3bb5246446ca02608","checksum_type":"sha1","file_size":433594,"is_successful":true,"uuid":"96d82c87-89c3-46cd-98c0-0b4f5fcf9339"}']
+backup finished after 1.59s: {'is_successful': True, 'checksum': 'sha1:5c23232968cce1031ff2fff3bb5246446ca02608', 'bytes': 433594, 'completed_at': '2026-10-04T20:20:24+00:00'}
+[20:20:25] [Server thread/INFO]: Automatic saving is now enabled
+downloaded 433594 bytes sha256 d973c9f6cb3dd61a entries: ['server.properties', 'world/level.dat', 'world/level.dat_old']
+backups: [('ut-capture-world-b', True, 433594)]
+after deploying A: [20:20:49] [Server thread/INFO]: Seed: [424242]
+restore while running -> 204 
+events during restore: [('status', ['stopping']), ('console output', ['stop']), ('console output', ['[20:20:49] [Server thread/INFO]: Stopping the server']), ('console output', ['[20:20:49] [Server thread/INFO]: Stopping server']), ('console output', ['[20:20:49] [Server thread/INFO]: Saving players']), ('console output', ['[20:20:49] [Server thread/INFO]: Saving worlds']), ('console output', ['java.nio.file.NoSuchFileException: world/level.dat']), ('console output', ['\tat java.base/sun.nio.fs.UnixException.translateToIOException(UnixException.java:92)']), ('console output', ['\tat java.base/sun.nio.fs.UnixException.rethrowAsIOException(UnixException.java:106)']), ('console output', ['\tat java.base/sun.nio.fs.UnixException.rethrowAsIOException(UnixException.java:111)']), ('console output', ['\tat java.base/sun.nio.fs.UnixFileSystemProvider.newFileChannel(UnixFileSystemProvider.java:213)']), ('console output', ['\tat java.base/sun.nio.fs.UnixFileSystemProvider.newByteChannel(UnixFileSystemProvider.java:244)'])]
+restore finished after 2.72s; power state: offline
+root after truncate restore: ['server.properties', 'world']
+server did not reach running after the truncate restore (runtime removed): hazard reproduced
+
+=== E04b truncate-restore recovery (20:21:55)
+start without server.jar -> statuses ['starting', 'offline', 'starting', 'offline'] | console tail: ['\x1b[33m\x1b[1m[pelican Daemon]:\x1b[39m Exit code: 1\x1b[0m', '\x1b[33m\x1b[1m[pelican Daemon]:\x1b[39m Out of memory: false\x1b[0m', '\x1b[33m\x1b[1m[pelican Daemon]:\x1b[39m Aborting automatic restart, last crash occurred less than 60 seconds ago.\x1b[0m']
+reinstall -> 202
+reinstall finished after 4.09s; root: ['server.jar', 'server.properties', 'world']
+after recovery: [20:22:22] [Server thread/INFO]: Seed: [1337]
+identical: 1 | differ: ['world/dimensions/minecraft/overworld/region/r.0.-1.mca', 'world/dimensions/minecraft/overworld/region/r.-1.0.mca', 'world/dimensions/minecraft/overworld/region/r.0.0.mca', 'world/dimensions/minecraft/overworld/region/r.-1.-1.mca', 'world/level.dat', 'world/level.dat_old']
+
+=== E03 deploy world A (E04c start) (20:22:27)
+  stop: {'step': 'stop', 's': 0.61}
+  upload: {'step': 'upload', 's': 0.56, 'status': 200, 'bytes': 357224}
+  rename current world aside: {'step': 'rename current world aside', 's': 0.99, 'status': 204, 'to': 'world.ut-prev-1791145354'}
+  decompress: {'step': 'decompress', 's': 0.55, 'status': 204, 'body': ''}
+  verify listing /world: {'step': 'verify listing /world', 's': 1.11, 'entries': ['dimensions', 'players', 'level.dat']}
+  delete uploaded archive: {'step': 'delete uploaded archive', 's': 1.68, 'status': 204}
+  start -> status running: {'step': 'start -> status running', 's': 3.58}
+  console seed via websocket: {'step': 'console seed via websocket', 's': 3.61, 'seed': 'Seed: [424242]', 'level': 'Level "UT Test World A" seed 424242 spawn 0,74,0'}
+  bot verification: {'step': 'bot verification', 's': 12.1, 'join': '127.0.0.1:25581', 'spawn_position': {'x': 4, 'y': 68, 'z': 4}, 'pillar': {'y': 77, 'name': 'gold_block'}, 'pad': {'y': 70, 'name': 'gold_block'}, 'verified': True}
+  player events from console: {'step': 'player events from console', 's': 14.35, 'lines': ['UTPlayer joined the game', 'UTPlayer left the game', 'UTPlayer[/172.18.0.1:56604] logged in with entity id 1 at (4.0, 68.0, 4.0)']}
+RESULT: PASS
+
+=== E04c safe restore (20:22:50)
+  stop -> offline: {'step': 'stop -> offline', 's': 1.54}
+  rename world aside: {'step': 'rename world aside', 's': 0.58, 'status': 204, 'to': 'world.ut-prev-1791145374'}
+  restore request: {'step': 'restore request', 's': 0.52, 'status': 204}
+  websocket restore event: {'step': 'websocket restore event', 's': 1.05, 'event': 'backup restore completed'}
+  panel status cleared: {'step': 'panel status cleared', 's': 1.53}
+  byte comparison before first start: {'step': 'byte comparison before first start', 's': 3.73, 'identical': 7, 'differ': []}
+  start -> running: {'step': 'start -> running', 's': 3.33, 'seed': 'Seed: [1337]', 'seed_ok': True}
+  protocol client: {'step': 'protocol client', 's': 8.13, 'pillar': {'y': 81, 'name': 'diamond_block'}, 'position': {'x': 8, 'y': 67, 'z': 8}, 'verified': True}
+RESULT: PASS
+
+=== E05 files/pull reachability (20:23:08)
+loopback                                 -> HTTP 500 in 0.64s; intact=None; detail=An unexpected error was encountered while processing this request, please try again.
+pelican0 gateway (172.16/12)             -> HTTP 500 in 0.52s; intact=None; detail=An unexpected error was encountered while processing this request, please try again.
+host address (192.0.2.2, not RFC1918)    -> HTTP 204 in 1.67s; intact=True; detail=None
+
+=== E06 least privilege (20:23:11)
+created a utfriend-owned server for the cross-tenant probes -> 201
+owner grants subuser -> 200
+bridge server list: [('65988f50', False)]
+permissions the Panel reports for the bridge: ['allocation.read', 'backup.create', 'backup.download', 'backup.read', 'backup.restore', 'control.console', 'control.restart', 'control.start', 'control.stop', 'file.create', 'file.delete', 'file.read', 'file.read-content', 'file.update', 'settings.reinstall', 'startup.read', 'websocket.connect']
+  OK  allow 200 GET resources
+  OK  allow 200 GET websocket credentials
+  OK  allow 200 GET files/list
+  OK  allow 200 GET files/upload (signed URL)
+  OK  allow 204 POST files/create-folder
+  OK  allow 204 PUT files/rename
+  OK  allow 204 POST files/delete
+  OK  allow 200 GET backups
+  OK  allow 200 GET network/allocations
+  OK  allow 200 GET startup
+  OK  allow 204 POST command (list)
+  OK  deny  403 PUT startup/variable
+  OK  deny  403 PUT settings/docker-image
+  OK  deny  403 POST settings/rename
+  OK  deny  403 GET users (subusers)
+  OK  deny  403 POST users (add subuser)
+  OK  deny  403 POST files/compress
+  OK  deny  403 GET databases
+  OK  deny  403 GET schedules
+  OK  deny  403 GET activity
+  BAD deny  200 POST account/api-keys (mint new key)
+  OK  deny  403 GET application/servers
+  OK  deny  403 key with allowed_ips [203.0.113.7], called from 127.0.0.1
+  OK  allow 200 key with allowed_ips [127.0.0.1], called from 127.0.0.1
+  OK  deny  404 GET another user's server
+  OK  deny  404 POST power on another user's server
+  OK  deny  404 GET a server UUID that does not exist
+bridge websocket events in 2s: ['auth success', 'stats', 'status']
+deleted minted sibling key -> 204
+RESULT: CHECK (see BAD lines; key minting is a known finding)
+
+=== E07 tracking (20:23:36)
+server runtime (status running->offline): 39.6s; last stats.uptime: 41.3s; power-on to offline: 43.0s
+  session Bob: 11.8s (bot ran 13.1s incl. connect/disconnect)
+  session Alice: 25.9s (bot ran 27.4s incl. connect/disconnect)
+sum of player playtime: 37.7s; time with >=1 player online: 25.9s; empty server time: 13.7s
+logins: [{'player': 'Alice', 'source_ip': '172.18.0.1', 'spawn': [0.5, 74.0, 0.5]}, {'player': 'Bob', 'source_ip': '172.18.0.1', 'spawn': [0.5, 74.0, 0.5]}]
+position samples: 13 [{'player': 'Alice', 't': 4.0, 'pos': [0.5, 74.0, 0.5]}, {'player': 'Alice', 't': 7.0, 'pos': [0.5, 74.0, 0.5]}, {'player': 'Bob', 't': 10.0, 'pos': [0.5, 74.0, 0.5]}, {'player': 'Alice', 't': 10.0, 'pos': [0.5, 74.0, 0.5]}] ...
+event types: ['console output', 'stats', 'status']
+
+=== E08a archive safety (20:24:23)
+
+== path traversal + absolute paths
+   upload 200 (192 bytes), decompress HTTP 500 in 2.1s {
+    "errors": [
+        {
+            "code": "RequestException",
+            "status": "500",
+            "detail": "An unexpected error was encountered while processing this request, please try again."
+        }
+    ]
+}
+   landed in staging: ['f case-1791145490956.tar.gz 192']
+   escaped to host: none
+
+== symlink + hardlink escape
+   upload 200 (204 bytes), decompress HTTP 500 in 2.2s {
+    "errors": [
+        {
+            "code": "RequestException",
+            "status": "500",
+            "detail": "An unexpected error was encountered while processing this request, please try again."
+        }
+    ]
+}
+   landed in staging: ['f case-1791145493662.tar.gz 204', 'd world', 'f world/etc-link 0']
+   escaped to host: none
+
+== truncated archive (60%)
+   upload 200 (214334 bytes), decompress HTTP 500 in 2.2s {
+    "errors": [
+        {
+            "code": "RequestException",
+            "status": "500",
+            "detail": "An unexpected error was encountered while processing this request, please try again."
+        }
+    ]
+}
+   landed in staging: ['f case-1791145496424.tar.gz 214334']
+   escaped to host: none
+
+== not an archive (random bytes)
+   upload 200 (200000 bytes), decompress HTTP 500 in 2.0s {
+    "errors": [
+        {
+            "code": "RequestException",
+            "status": "500",
+            "detail": "An unexpected error was encountered while processing this request, please try again."
+        }
+    ]
+}
+   landed in staging: ['f case-1791145499204.tar.gz 200000']
+   escaped to host: none
+
+== decompression bomb (6 GiB of zeros, disk limit 4 GiB)
+   upload 200 (6261846 bytes), decompress HTTP 500 in 3.7s {
+    "errors": [
+        {
+            "code": "RequestException",
+            "status": "500",
+            "detail": "An unexpected error was encountered while processing this request, please try again."
+        }
+    ]
+}
+   landed in staging: ['f case-1791145501733.tar.gz 6261846']
+   escaped to host: none
+
+== interrupted upload: client saw ConnectionError; new entries in volume: none
+
+=== E08b runtime failures (20:25:08)
+
+== invalid client key
+   status: 401
+   body: {"errors":[{"code":"AuthenticationException","status":"401","detail":"Unauthenticated."}]}
+
+== panel unreachable
+   error: ConnectionError
+
+== save without level.dat
+   statuses: ['starting', 'running']
+   warn: ['[20:25:22] [Server thread/WARN]: No existing world data, creating new world', '[20:25:22] [Server thread/INFO]: Level "world" seed 7853411258948005392 spawn 0,74,0']
+   seed_after_start: Seed: [7853411258948005392]
+   expected_seed: [424242]
+
+== save from a newer version
+   statuses: ['starting', 'offline', 'starting', 'offline']
+   console: ['\x1b[33m\x1b[1m[pelican Daemon]:\x1b[39m checking server disk space usage, this could take a few seconds...\x1b[0m', '\x1b[33m\x1b[1m[pelican Daemon]:\x1b[39m Updating process configuration files...\x1b[0m', '\x1b[33m\x1b[1m[pelican Daemon]:\x1b[39m Ensuring file permissions are set correctly, this could take a few seconds...\x1b[0m', '\x1b[33m\x1b[1m[pelican Daemon]:\x1b[39m Finished pulling Docker container image\x1b[0m']
+
+== crash while running
+   timeline: [(0.4, 'status', 'offline')]
+
+== never becomes ready
+   startup_patch: 200
+   statuses_after_45s: ['starting']
+   rest_state: starting
+   console_tail: ['[20:27:22] [Server thread/INFO]: Level "UT Test World A" seed 424242 spawn 0,74,0', '[20:27:22] [Server thread/INFO]: Readiness suppressed by UT_STANDIN_NEVER_READY']
+
+== wings down
+   game_container_still_running: true
+   client_api: {'GET server': 200, 'GET resources': 200, 'GET websocket': 200, 'POST power stop': 500, 'GET files/list': 500}
+
+== wings back
+   seconds_to_api: 2.01
+   first_status: ['running']
+   resources: running
+
+=== E08c isolated crash (20:28:28)
+websocket status after Wings restart: ['running'] | REST: running
+  (0.0, 'console output', 'ut-crash')
+  (0.1, 'console output', '[20:29:38] [Server thread/INFO]: Simulated crash requested')
+  (0.4, 'status', 'offline')
+  (0.6, 'console output', '\x1b[33m\x1b[1m[pelican Daemon]:\x1b[39m ---------- Detected server process in a crashed state! ----------\x1b[0')
+  (0.6, 'console output', '\x1b[33m\x1b[1m[pelican Daemon]:\x1b[39m Exit code: 137\x1b[0m')
+  (0.6, 'console output', '\x1b[33m\x1b[1m[pelican Daemon]:\x1b[39m Out of memory: false\x1b[0m')
+  (1.2, 'console output', '\x1b[33m\x1b[1m[pelican Daemon]:\x1b[39m checking server disk space usage, this could take a few seconds...\x1b[')
+  (1.2, 'console output', '\x1b[33m\x1b[1m[pelican Daemon]:\x1b[39m Updating process configuration files...\x1b[0m')
+  (1.2, 'console output', '\x1b[33m\x1b[1m[pelican Daemon]:\x1b[39m Ensuring file permissions are set correctly, this could take a few s')
+  (1.2, 'status', 'starting')
+  (1.2, 'console output', '\x1b[33m\x1b[1m[pelican Daemon]:\x1b[39m Finished pulling Docker container image\x1b[0m')
+  (1.2, 'console output', '\x1b[33m\x1b[1m[pelican Daemon]:\x1b[39m Pulling Docker container image, this could take a few minutes to com')
+  (3.5, 'console output', '[20:29:42] [Server thread/INFO]: Done (1.878s)! For help, type "help"')
+  (3.5, 'status', 'running')
+
+=== E08d server deletion (20:30:19)
+{'delete_status': 204, 'client_get_after': 404, 'external_lookup_after': 404, 'backup_archive_on_node_before': ['7ff01ac5-aaee-48d5-89a9-40524d5f02cc.tar.gz'], 'backup_archive_on_node_after': [], 'volume_exists_after': False, 'container_exists_after': False}
+
+=== E09 visualise world B (20:30:35)
+{
+ "world": {
+  "level_name": "UT Test World B",
+  "seed": 1337,
+  "data_version": 4790,
+  "version_name": "26.1.2",
+  "day_time": 1187,
+  "day": 0,
+  "raining": true,
+  "spawn": [
+   0,
+   74,
+   0
+  ]
+ },
+ "players": [
+  {
+   "uuid": "cb7a3738-66fe-3787-b260-0bcade701863",
+   "pos": [
+    -6.0,
+    62.0,
+    9.0
+   ],
+   "dimension": "minecraft:overworld",
+   "rotation": [
+    0.0,
+    0.0
+   ]
+  }
+ ],
+ "explored_chunks": 564,
+ "columns_rendered": 144384,
+ "distinct_top_blocks": [
+  "diamond_block",
+  "grass_block",
+  "sand",
+  "water"
+ ],
+ "image": "/srv/pelican/evidence/e09-world-b-map.png",
+ "image_px": [
+  400,
+  400
+ ]
+}
+
+=== E09b session -> snapshot -> map (20:30:37)
+{
+ "session": {
+  "player": "UTPlayer",
+  "started_at": 1791145840,
+  "ended_at": 1791145872,
+  "seconds": 32.4,
+  "position_samples": [
+   {
+    "t": 2.1,
+    "pos": [
+     10.0,
+     71.0,
+     10.0
+    ]
+   },
+   {
+    "t": 4.1,
+    "pos": [
+     40.0,
+     62.0,
+     30.0
+    ]
+   },
+   {
+    "t": 6.1,
+    "pos": [
+     70.0,
+     72.0,
+     -20.0
+    ]
+   },
+   {
+    "t": 8.1,
+    "pos": [
+     30.0,
+     85.0,
+     -60.0
+    ]
+   },
+   {
+    "t": 10.1,
+    "pos": [
+     -40.0,
+     64.0,
+     -40.0
+    ]
+   },
+   {
+    "t": 12.1,
+    "pos": [
+     -60.0,
+     85.0,
+     30.0
+    ]
+   },
+   {
+    "t": 14.1,
+    "pos": [
+     -20.0,
+     76.0,
+     60.0
+    ]
+   }
+  ]
+ },
+ "snapshot": {
+  "pelican_backup_uuid": "7b36d180-5c33-4e3c-bb2f-b898a6767aa5",
+  "pelican_sha1": "7f03979029c64552d20eebda4d07a594b91e7eb4",
+  "bytes": 479910,
+  "sha256": "03597716ff5db4555095b6b946c179866c55cc7777a6585463f13bed68e69f47",
+  "captured_after_session": true
+ },
+ "map": {
+  "image": "map-7b36d180-5c33-4e3c-bb2f-b898a6767aa5.png",
+  "explored_chunks": 682,
+  "world": {
+   "level_name": "UT Test World A",
+   "seed": 424242,
+   "data_version": 4790,
+   "version_name": "26.1.2",
+   "day_time": 3003,
+   "day": 0,
+   "raining": false,
+   "spawn": [
+    0,
+    74,
+    0
+   ]
+  },
+  "saved_player_positions": [
+   {
+    "uuid": "cb7a3738-66fe-3787-b260-0bcade701863",
+    "pos": [
+     -20.0,
+     76.0,
+     60.0
+    ],
+    "dimension": "minecraft:overworld",
+    "rotation": [
+     0.0,
+     0.0
+   
+
+=== E10 Luanti (20:31:16)
+created Luanti world host 9d20d7a6
+world a: seed=111111 files=['env_meta.txt', 'force_loaded.txt', 'ipban.txt', 'map.sqlite', 'map_meta.txt', 'mod_storage.sqlite', 'world.mt', 'worldmods']
+world b: seed=222222 files=['env_meta.txt', 'force_loaded.txt', 'ipban.txt', 'map.sqlite', 'map_meta.txt', 'mod_storage.sqlite', 'world.mt', 'worldmods']
+  deploy A + start: {'ready_s': 1.57, 'readiness_line': '2026-10-04 20:32:30: ACTION[Main]: Server for gameid="minetest" listening on 0.0.0.0:25584.', 'seed_on_server': '111111'}
+  console /status: {'output': ['/status', '2026-10-04 20:32:32: ACTION[Emerge-0]: UT marker default:goldblock built']}
+  swap to B + start: {'ready_s': 1.53, 'seed_on_server': '222222'}
+  start with world missing: {'seed_on_server': '8508045784589934437'}
+  capture + render: {'bytes': 684958, 'sha1': '1acf657e8a61450dbee1d0a15efb981b0117585f', 'files': ['env_meta.txt', 'force_loaded.txt', 'ipban.txt', 'map.sqlite', 'map_meta.txt', 'mod_storage.sqlite', 'world.mt', 'worldmods'], 'players': 'no players.sqlite (no player has joined)', 'mapper_rc': 0, 'mapper_err': 'Heuristic parameters: preferRangeQueries()=0 y_range=4096 blocks=1638400\nLoaded 289 positions (across Z: 17) for rendering\nUnknown nodes:\n\tfireflies:hidden_firefly\n', 'image': 'luanti-capture-map.png'}
+
+=== E11 custody (20:32:49)
+custody marker write: 204 | read back equal: True
+fingerprint entries: 7
+after a played session: 7 changed entries, e.g. ['/world/dimensions/minecraft/overworld/region/r.-1.-1.mca', '/world/dimensions/minecraft/overworld/region/r.-1.0.mca', '/world/dimensions/minecraft/overworld/region/r.0.-1.mca', '/world/dimensions/minecraft/overworld/region/r.0.0.mca']
+after an idle start/stop: 6 changed entries, e.g. ['/world/dimensions/minecraft/overworld/region/r.-1.-1.mca', '/world/dimensions/minecraft/overworld/region/r.-1.0.mca', '/world/dimensions/minecraft/overworld/region/r.0.-1.mca', '/world/dimensions/minecraft/overworld/region/r.0.0.mca']
+marker survives runs: True
+
+=== E12 large world as parts (upload limit 1 MB) (20:33:25)
+single archive 4305083 bytes -> 400 {"error":"File whole.tar.gz is larger than the maximum file upload size of 1 MB."}
+part 0: 614808 bytes, 1 files -> upload 200, decompress 204
+part 1: 614811 bytes, 1 files -> upload 200, decompress 204
+part 2: 614809 bytes, 1 files -> upload 200, decompress 204
+part 3: 614814 bytes, 1 files -> upload 200, decompress 204
+part 4: 614811 bytes, 1 files -> upload 200, decompress 204
+part 5: 614808 bytes, 1 files -> upload 200, decompress 204
+part 6: 616913 bytes, 2 files -> upload 200, decompress 204
+7 parts in 15.5s; 8/8 files byte-identical in staging
+
+=== E04d world-only capture (20:33:50)
+top-level entries: ['world'] | total entries: 7
+
+=== done (20:33:58)

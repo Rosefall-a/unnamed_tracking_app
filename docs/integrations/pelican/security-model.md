@@ -24,6 +24,8 @@ Goal: Pelican support must not weaken the plugin sandbox, and every credential a
 
 **Why not each UT user's own Pelican key:** an account key carries the user's full power (no scopes ✅) and can mint more keys ✅. A dedicated subuser identity bounded per server by its owner is strictly narrower.
 
+**Logging Panel responses:** creating a key returns its secret once, in `meta.secret_token` ✅. The discovery harness first redacted only a fixed list of field names and wrote one such secret to its evidence log (see [test-environment.md](test-environment.md#reproducing)). Any bridge request logging must therefore redact by field-name pattern (`*token*`, `*secret*`, `*password*`), not by a fixed list.
+
 ## UT capabilities (least privilege)
 
 The plugin requests: `pelican.servers.read`, `pelican.servers.power`, `pelican.worlds.deploy`, `pelican.worlds.capture`, `pelican.events.subscribe`, `games.read`, `games.worlds.read`, `games.worlds.write`, `tasks.background`, `plugin.storage`, `plugin.settings`, `notifications.send`, `frontend.navigation.main`, `frontend.settings`, `frontend.routes`, `frontend.page.extend`, `frontend.context.game`.

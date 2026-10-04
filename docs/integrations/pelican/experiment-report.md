@@ -1,6 +1,6 @@
 # Experimental test report
 
-Every result below was observed against a real Pelican Panel `v1.0.0-beta38` and Wings `v1.0.0-beta29`. The environment is described in [test-environment.md](test-environment.md). Scripts are in [`experiments/`](experiments/). Every API call they made is in [`evidence/api-calls.jsonl`](evidence/api-calls.jsonl), with credentials and signed URLs redacted.
+Every result below was observed against a real Pelican Panel `v1.0.0-beta38` and Wings `v1.0.0-beta29`. The environment is described in [test-environment.md](test-environment.md). Scripts are in [`experiments/`](experiments/). Every API call they made is in [`evidence/api-calls.jsonl`](evidence/api-calls.jsonl), with credentials and signed URLs redacted. A from-scratch [reproduction run](#reproduction-run) is recorded at the end.
 
 The game server for E01–E09 and E11–E12 is a **Minecraft 26.1.2-protocol stand-in** (Minestom), because Mojang and PaperMC downloads are blocked by the environment's network policy. It follows the upstream Vanilla egg contract: `server.properties` port rewrite, the `)! For help, type ` readiness line, `stop`, and the vanilla console line formats for join, leave, `seed`, `data get entity` and `save-*`. E10 uses a **real** Luanti (Minetest) 5.6.1 server. Where a result depends on stand-in behaviour rather than Pelican behaviour, it is marked *stand-in*.
 
@@ -107,7 +107,7 @@ VERIFIED (Pelican transport). The console line formats are *stand-in* reproducti
 | symlink to `/etc` then write through it; hardlink to `/etc/passwd` | symlink written as a **0-byte regular file**; the next entry fails `not a directory` | **partial `world/`** | none |
 | truncated tar.gz (60%) | `extract: unexpected EOF` | nothing | none |
 | random bytes named `.tar.gz` | `gzip: invalid header` | nothing | none |
-| 6 GiB of zeros (6.2 MB compressed) vs a 4 GiB disk limit | refused by `SpaceAvailableForDecompression` before writing | nothing | none |
+| 6 GiB of zeros (6.2 MB compressed) vs a 4 GiB disk limit | refused before writing (by `SpaceAvailableForDecompression`, per Wings' source; Wings logs nothing) | nothing | none |
 | upload aborted at 40% | client `ConnectionError` | no new entries | none |
 
 **Every refusal reached the Client API as an opaque `500 RequestException`**, because the Panel discards Wings' error text. VERIFIED.
@@ -183,3 +183,49 @@ VERIFIED. The Wings default limit is **100 MB**; UT allows world saves up to **2
 | [`05-minecraft-subuser-bridge-identity.png`](evidence/img/05-minecraft-subuser-bridge-identity.png) | The dedicated bridge account as a subuser |
 | [`06-luanti-console-running.png`](evidence/img/06-luanti-console-running.png) | Second game running under Pelican |
 | [`07-admin-servers-external-ids.png`](evidence/img/07-admin-servers-external-ids.png) | Both world hosts, eggs and aliased allocations |
+
+## Reproduction run
+
+The environment was rebuilt from scratch with [`setup_env.sh`](experiments/setup_env.sh), and every experiment above was rerun unattended, in run 1's order, with [`run_all.sh`](experiments/run_all.sh). This happened on 2026-10-04 from 20:18 to 20:34 UTC, against the same Panel and Wings versions. The output is in [`evidence/rerun/run_all.log`](evidence/rerun/run_all.log), every API call is in [`evidence/rerun/api-calls.jsonl`](evidence/rerun/api-calls.jsonl), and the recaptured UI screenshots are in [`evidence/rerun/img/`](evidence/rerun/img/).
+
+**Every result reproduced.** Status codes, error texts, file listings, seeds, markers and verdicts are unchanged. Timings moved by less than a second, except E07's server runtime and empty-server time, which were each about 2 s shorter; its player sessions matched to 0.1 s.
+
+| Experiment | Run 1 | Reproduction |
+| --- | --- | --- |
+| E01 | 201 in 1.18 s, installed in 3.17 s, duplicate `external_id` → 422 | 201 in 1.12 s, installed in 3.12 s, 422 |
+| E02 | ready 3.86 s, stop 1.16 s, restart 4.39 s, kill 0.58 s; `/resources` stale | 3.69 s, 1.05 s, 4.18 s, 0.56 s; `/resources` reported `offline` while running |
+| E03 | running in 4.07 s (A → B) and 3.64 s (B → A); seeds, levels, markers and saved positions verified | 3.51 s and 3.44 s; the same checks pass |
+| E04 | capture in 1.68 s (434 403 bytes); restore while running races the shutdown save; truncate leaves `server.properties` and `world`, no runtime | 1.59 s (433 594 bytes); the same `NoSuchFileException: world/level.dat`; the same root; the server never reaches `running` |
+| E04b | crash loop, then `settings/reinstall` restores the runtime in 4.25 s, world intact | the same console lines; 4.09 s; `Seed: [1337]` |
+| E04c | 7/7 files byte-identical before first start; running in 3.34 s; diamond marker | 7/7; 3.33 s; diamond marker |
+| E04d | only `world/` (7 entries) | the same |
+| E05 | loopback → 500, `172.18.0.1` → 500, `192.0.2.2` → 204 in 1.73 s, intact | 500, 500, 204 in 1.67 s, intact; Wings logs `destination resolves to internal network location` |
+| E06 | 11/11 allowed, 10/10 → 403, cross-tenant 404 ×3, key minting → 200; `allowed_ips` checked by hand | identical; the `allowed_ips` probes are now scripted: 403, then 200 |
+| E07 | Alice 26.0 s, Bob 11.8 s, runtime 41.7 s, empty 15.7 s, 13 samples | 25.9 s, 11.8 s, 39.6 s, 13.7 s, 13 samples |
+| E08a | every hostile input refused with an opaque 500, nothing escaped, the symlink left as a 0-byte file | the same, with the same four Wings errors |
+| E08b | 401; connection error; new random world without `level.dat`; crash loop on a newer save; `starting` past 45 s; stale 200s while Wings is down; reattach | the same (the substituted seed was 7853411258948005392) |
+| E08c | exit 137 detected, automatic restart, running at 3.3 s | exit 137, running at 3.5 s |
+| E08d | container, volume and backup archive gone; both lookups 404 | the same |
+| E09 | world B state and map | the same map, byte for byte (same sha256) |
+| E09b | 682 explored chunks in the capture | 682 |
+| E10 | A ready in 1.56 s (seed 111111), B in 1.52 s (222222), new world when missing, 684 809-byte capture, 289 blocks rendered | 1.57 s, 1.53 s, new world, 684 958 bytes, 289 blocks |
+| E11 | marker round-trips; 7 entries changed after play, 6 after an idle start/stop | the same |
+| E12 | single archive → 400 with the size message; 7 parts, 8/8 files identical in 15.9 s | 400; 8/8 identical in 15.5 s |
+
+Rechecked by hand, because no script covers them:
+
+* UT core `generate_world_thumbnail` returns `False` on the 26.1 layout and `True` on the same region files in the legacy `region/` layout.
+* mcmap 3.0.4 reports `Canvas is empty!` on both layouts. The stand-in's chunks carry a lowercase `status: minecraft:full`, where vanilla writes `Status`.
+* BlueMap still stops at Mojang's version manifest, seen again through the UT app's World Map card.
+* E08a's decompression-bomb row: Wings logs nothing for it in either run. The `SpaceAvailableForDecompression` attribution comes from Wings' source; what was observed is a 500 with nothing extracted.
+* The screenshots were recaptured with `screenshots.mjs`. The admin server list now also shows E06's other-tenant server, and a "Health 1" badge from Pelican's used-disk-space check, which reacts to this container's disk allowance.
+
+The committed scripts did not run unattended on a fresh environment at first. The rerun needed these fixes:
+
+* `setup_env.sh` pulled base images from Docker Hub, which rate-limited it (429), and hardcoded the sandbox proxy's port for Maven. It now uses `mirror.gcr.io` and `HTTPS_PROXY`.
+* `ptlab.wait_for` crashed on connection errors while Wings restarted (E08b).
+* E04 ended in a `TimeoutError` at the very hazard it demonstrates; it now records the hazard.
+* E05 hardcoded run 1's host address.
+* E06 depended on a hand-made other-tenant server and left its minted key behind. E10 depended on a hand-made Luanti server.
+* E04d has to run after E06, because it uses the bridge subuser.
+* The harness's redaction missed the `secret_token` of keys minted through the API (see [test-environment.md](test-environment.md#reproducing)).

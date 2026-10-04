@@ -26,10 +26,10 @@
 | 7 | [data-model.md](data-model.md) | Games → worlds → snapshots → runtimes → sessions → maps |
 | 8 | [security-model.md](security-model.md) | Trust boundaries, credentials, least privilege, archive safety |
 | 9 | [roadmap.md](roadmap.md) | Milestones M0–M6, out of scope, proposed PRs |
-| 10 | [experiment-report.md](experiment-report.md) | Exactly what was tested and observed (E01–E12) |
-| 11 | [test-environment.md](test-environment.md) | How to rebuild the Pelican environment |
+| 10 | [experiment-report.md](experiment-report.md) | Exactly what was tested and observed (E01–E12), and a from-scratch reproduction run |
+| 11 | [test-environment.md](test-environment.md) | How to rebuild the Pelican environment and rerun every experiment |
 | 12 | [open-questions.md](open-questions.md) | Decisions taken, decisions open, experiments still pending |
-| — | [`experiments/`](experiments/), [`evidence/`](evidence/) | Scripts, eggs, yolks, redacted API log, screenshots, maps |
+| — | [`experiments/`](experiments/), [`evidence/`](evidence/) | Scripts, eggs, yolks, redacted API logs and screenshots from the original and reproduction runs, maps |
 
 ## Answers to the discovery questions
 
