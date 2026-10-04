@@ -421,10 +421,10 @@ function detailRoute(id: string): string {
 
 <style scoped>
 .anilist-import-btn {
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  background: rgba(255, 255, 255, 0.06);
-  color: #ddd;
-  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--ui-text) 16%, transparent);
+  background: color-mix(in srgb, var(--ui-text) 6%, transparent);
+  color: var(--ui-text);
+  border-radius: var(--ui-radius-control);
   padding: 9px 13px;
   cursor: pointer;
 }
@@ -438,9 +438,9 @@ function detailRoute(id: string): string {
 }
 .import-modal {
   width: min(520px, calc(100vw - 32px));
-  background: #191919;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 12px;
+  background: var(--ui-surface);
+  border: 1px solid color-mix(in srgb, var(--ui-text) 12%, transparent);
+  border-radius: var(--ui-radius-card);
   padding: 22px;
   display: flex;
   flex-direction: column;
@@ -450,7 +450,7 @@ function detailRoute(id: string): string {
   margin: 0;
 }
 .import-modal p {
-  color: #aaa;
+  color: var(--ui-dim);
   margin: 0;
 }
 .import-input {
@@ -458,26 +458,26 @@ function detailRoute(id: string): string {
   box-sizing: border-box;
   padding: 10px;
   border-radius: 7px;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  background: #111;
-  color: #fff;
+  border: 1px solid color-mix(in srgb, var(--ui-text) 15%, transparent);
+  background: var(--ui-surface);
+  color: var(--ui-text);
 }
 .import-check {
   display: flex;
   gap: 8px;
   align-items: center;
-  color: #ddd;
+  color: var(--ui-text);
 }
 .import-error {
-  color: #e57373 !important;
+  color: var(--ui-error) !important;
 }
 .import-result {
-  color: #8bc98f !important;
+  color: var(--ui-good) !important;
 }
 .import-errors {
   max-height: 120px;
   overflow: auto;
-  color: #e57373;
+  color: var(--ui-error);
   margin: 0;
 }
 .import-actions {

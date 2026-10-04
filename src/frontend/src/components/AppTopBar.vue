@@ -23,17 +23,22 @@ import AccountChip from "./AccountChip.vue";
 .media-topbar {
   position: sticky;
   top: 0;
-  z-index: 80;
+  z-index: var(--ui-z-topbar);
   display: flex;
   align-items: center;
   gap: 16px;
   box-sizing: border-box;
   min-height: 68px;
-  padding: 10px 244px 10px 64px;
-  background: rgba(13, 13, 13, 0.94);
+  padding: 12px var(--ui-edge-right) 12px var(--ui-edge-left);
+  background: color-mix(in srgb, var(--ui-bg) 94%, transparent);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
-  border-bottom: 1px solid #202020;
+  border-bottom: 1px solid var(--ui-border-soft);
+}
+.media-topbar :deep(.account-chip) {
+  position: static;
+  margin-left: auto;
+  flex-shrink: 0;
 }
 .topbar-left {
   display: flex;
@@ -53,12 +58,36 @@ import AccountChip from "./AccountChip.vue";
 }
 @media (max-width: 720px) {
   .media-topbar {
-    padding-left: 60px;
+    padding-left: var(--ui-edge-left);
   }
 }
 @media (max-width: 520px) {
   .media-topbar {
-    padding-right: 116px;
+    padding-right: var(--ui-edge-right);
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+  }
+  .media-topbar :deep(.account-chip) {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .topbar-left {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .topbar-left :deep(.seg-tab) {
+    padding-inline: 7px;
+    font-size: 0.75rem;
+  }
+  .media-topbar-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+    margin-left: 0;
+    gap: 6px;
+  }
+  .media-topbar-actions :deep(.seg-tab) {
+    padding-inline: 9px;
   }
 }
 </style>

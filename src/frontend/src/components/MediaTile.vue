@@ -198,8 +198,8 @@ function linkedAchievementName(): string | null {
 
 <style scoped>
 .media-tile {
-  background: #111;
-  border: 1px solid #2a2a2a;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
   border-radius: 10px;
   overflow: hidden;
   display: flex;
@@ -226,7 +226,7 @@ function linkedAchievementName(): string | null {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  color: #d68a34;
+  color: var(--ui-accent-text);
   padding: 10px;
 }
 .soundtrack-preview audio {
@@ -237,8 +237,8 @@ function linkedAchievementName(): string | null {
   position: absolute;
   top: 6px;
   right: 6px;
-  width: 22px;
-  height: 22px;
+  width: var(--ui-control-height);
+  height: var(--ui-control-height);
   border-radius: 50%;
   border: none;
   background: rgba(0, 0, 0, 0.6);
@@ -253,7 +253,7 @@ function linkedAchievementName(): string | null {
 }
 .media-game-title {
   padding: 6px 8px 0;
-  color: #999;
+  color: var(--ui-dim);
   font-size: 0.72rem;
   font-weight: 600;
 }
@@ -272,8 +272,8 @@ function linkedAchievementName(): string | null {
   min-width: 0;
 }
 .tag-chip {
-  background: rgba(255, 255, 255, 0.08);
-  color: #ccc;
+  background: var(--ui-surface-2);
+  color: var(--ui-text);
   border-radius: 999px;
   padding: 2px 8px;
   font-size: 0.68rem;
@@ -282,36 +282,36 @@ function linkedAchievementName(): string | null {
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  background: rgba(214, 138, 52, 0.16);
-  color: #d68a34;
+  background: var(--ui-accent-soft);
+  color: var(--ui-accent-text);
 }
 .achievement-chip svg {
   flex-shrink: 0;
   opacity: 0.85;
 }
 .account-tag-chip {
-  background: rgba(255, 255, 255, 0.14);
-  color: #fff;
+  background: var(--ui-surface-2);
+  color: var(--ui-text);
   font-weight: 700;
 }
 .edit-toggle {
   background: none;
   border: none;
-  color: #999;
+  color: var(--ui-dim);
   font-size: 0.72rem;
   cursor: pointer;
   flex-shrink: 0;
   padding: 0;
 }
 .edit-toggle:hover {
-  color: #fff;
+  color: var(--ui-text);
 }
 .media-edit-panel {
   display: flex;
   flex-direction: column;
   gap: 8px;
   padding: 0 8px 10px;
-  border-top: 1px solid #232323;
+  border-top: 1px solid var(--ui-border);
   margin-top: 2px;
   padding-top: 8px;
 }
@@ -320,23 +320,23 @@ function linkedAchievementName(): string | null {
   flex-direction: column;
   gap: 3px;
   font-size: 0.72rem;
-  color: #ccc;
+  color: var(--ui-text);
 }
 .field input,
 .field textarea,
 .field select {
-  background: #1a1a1a;
-  border: 1px solid #3a3a3a;
+  background: var(--ui-surface-2);
+  border: 1px solid var(--ui-border-strong);
   border-radius: 6px;
-  color: #fff;
+  color: var(--ui-text);
   padding: 6px 8px;
   font: inherit;
   font-size: 0.76rem;
   resize: vertical;
 }
 .primary-button {
-  background: #d68a34;
-  color: #111;
+  background: var(--ui-accent);
+  color: var(--ui-on-accent);
   border: none;
   border-radius: 6px;
   padding: 7px 10px;
@@ -348,5 +348,18 @@ function linkedAchievementName(): string | null {
 .primary-button:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+button,
+input,
+select {
+  min-height: var(--ui-control-height);
+}
+.media-tile:focus-within .tile-remove {
+  opacity: 1;
+}
+@media (hover: none), (max-width: 760px) {
+  .tile-remove {
+    opacity: 1;
+  }
 }
 </style>

@@ -388,12 +388,12 @@ function toggleOpen(n: MediaNotification) {
 .empty-title {
   margin: 0 0 8px;
   font-size: 1.05rem;
-  font-weight: 800;
+  font-weight: var(--ui-weight-title);
 }
 .empty-sub {
   margin: 0 auto;
   max-width: 460px;
-  color: #9c9c9c;
+  color: var(--ui-dim);
   font-size: 0.84rem;
   line-height: 1.6;
 }
@@ -403,12 +403,12 @@ function toggleOpen(n: MediaNotification) {
 .day-heading {
   margin: 0 0 10px;
   padding-bottom: 6px;
-  border-bottom: 1px solid #202020;
+  border-bottom: 1px solid var(--ui-border);
   font-size: 0.74rem;
-  font-weight: 800;
+  font-weight: var(--ui-weight-title);
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: #d68a34;
+  color: var(--ui-accent-text);
 }
 .list {
   display: flex;
@@ -416,18 +416,18 @@ function toggleOpen(n: MediaNotification) {
   gap: 8px;
 }
 .card {
-  background: #1a1a1a;
-  border: 1px solid #202020;
-  border-radius: 12px;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-card);
   overflow: hidden;
   transition: border-color 0.15s ease;
 }
 .card:hover,
 .card.open {
-  border-color: rgba(214, 138, 52, 0.4);
+  border-color: color-mix(in srgb, var(--ui-accent) 40%, transparent);
 }
 .card.unread {
-  border-left: 3px solid #d68a34;
+  border-left: 3px solid var(--ui-accent-text);
 }
 .card.plain {
   display: flex;
@@ -455,15 +455,15 @@ function toggleOpen(n: MediaNotification) {
   height: 66px;
   flex-shrink: 0;
   border-radius: 6px;
-  background: #222 center / cover;
+  background: var(--ui-surface-2) center / cover;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 .poster-initial {
   font-size: 1.2rem;
-  font-weight: 800;
-  color: #444;
+  font-weight: var(--ui-weight-title);
+  color: var(--ui-faint);
 }
 .card-main {
   flex: 1;
@@ -474,59 +474,59 @@ function toggleOpen(n: MediaNotification) {
 }
 .card-title {
   font-size: 0.92rem;
-  font-weight: 800;
+  font-weight: var(--ui-weight-title);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .card-body {
   font-size: 0.82rem;
-  color: #ccc;
+  color: var(--ui-text);
 }
 .card-time {
   font-size: 0.72rem;
-  color: #666;
+  color: var(--ui-faint);
 }
 .badge {
   flex-shrink: 0;
   font-size: 0.66rem;
-  font-weight: 800;
+  font-weight: var(--ui-weight-title);
   letter-spacing: 0.05em;
   text-transform: uppercase;
   padding: 4px 10px;
   border-radius: 999px;
 }
 .badge.amber {
-  background: rgba(214, 138, 52, 0.16);
-  color: #d68a34;
+  background: color-mix(in srgb, var(--ui-accent) 16%, transparent);
+  color: var(--ui-accent-text);
 }
 .badge.green {
-  background: rgba(111, 191, 115, 0.16);
-  color: #6fbf73;
+  background: color-mix(in srgb, var(--ui-good) 16%, transparent);
+  color: var(--ui-good);
 }
 .badge.blue {
-  background: rgba(123, 167, 217, 0.16);
-  color: #7ba7d9;
+  background: color-mix(in srgb, var(--ui-info) 16%, transparent);
+  color: var(--ui-info);
 }
 .badge.violet {
-  background: rgba(157, 140, 217, 0.16);
-  color: #9d8cd9;
+  background: color-mix(in srgb, var(--ui-purple) 16%, transparent);
+  color: var(--ui-purple);
 }
 .badge.red {
-  background: rgba(217, 111, 111, 0.16);
-  color: #d96f6f;
+  background: color-mix(in srgb, var(--ui-error) 16%, transparent);
+  color: var(--ui-error);
 }
 .unread-dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #d68a34;
+  background: var(--ui-accent);
   flex-shrink: 0;
 }
 .detail {
-  border-top: 1px solid #202020;
+  border-top: 1px solid var(--ui-border);
   padding: 14px 16px 16px 70px;
-  background: #161616;
+  background: var(--ui-surface-2);
 }
 .detail dl {
   margin: 0 0 14px;
@@ -536,15 +536,15 @@ function toggleOpen(n: MediaNotification) {
 }
 .detail dt {
   font-size: 0.66rem;
-  font-weight: 800;
+  font-weight: var(--ui-weight-title);
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: #666;
+  color: var(--ui-faint);
 }
 .detail dd {
   margin: 2px 0 0;
   font-size: 0.84rem;
-  color: #ddd;
+  color: var(--ui-text);
 }
 .detail-actions {
   display: flex;

@@ -1816,30 +1816,30 @@ defineExpose({ openQuickAdd });
 /* Ported 1:1 from the "Library Layouts" design mockup — same tokens,
    same component shapes. */
 .lib-root {
-  --bg: #0d0d0d;
-  --surface: #1a1a1a;
-  --surface-2: #222222;
-  --border: #2b2b2b;
-  --border-soft: #202020;
-  --accent: #d68a34;
-  --accent-soft: rgba(214, 138, 52, 0.16);
-  --accent-line: rgba(214, 138, 52, 0.4);
-  --good: #6fbf73;
-  --good-soft: rgba(111, 191, 115, 0.16);
-  --hold: #7ba7d9;
-  --hold-soft: rgba(123, 167, 217, 0.16);
-  --dropped: #d96f6f;
-  --dropped-soft: rgba(217, 111, 111, 0.16);
-  --plan: #9d8cd9;
-  --plan-soft: rgba(157, 140, 217, 0.16);
-  --live: #e5484d;
-  --text: #f2f2f2;
-  --text-dim: #9c9c9c;
-  --text-faint: #666;
+  --bg: var(--ui-bg);
+  --surface: var(--ui-surface);
+  --surface-2: var(--ui-surface-2);
+  --border: var(--ui-border);
+  --border-soft: var(--ui-border-soft);
+  --accent: var(--ui-accent);
+  --accent-soft: var(--ui-accent-soft);
+  --accent-line: var(--ui-accent-line);
+  --good: var(--ui-good);
+  --good-soft: var(--ui-good-soft);
+  --hold: var(--ui-info);
+  --hold-soft: var(--ui-info-soft);
+  --dropped: var(--ui-error);
+  --dropped-soft: var(--ui-danger-soft);
+  --plan: var(--ui-purple);
+  --plan-soft: var(--ui-purple-soft);
+  --live: var(--ui-error);
+  --text: var(--ui-text);
+  --text-dim: var(--ui-dim);
+  --text-faint: var(--ui-faint);
   min-height: 100vh;
   background: var(--bg);
   color: var(--text);
-  font-family: system-ui, sans-serif;
+  font-family: var(--ui-font-family);
 }
 .lib-root * {
   box-sizing: border-box;
@@ -1848,7 +1848,7 @@ defineExpose({ openQuickAdd });
   display: block;
 }
 .lib-inner {
-  padding: 24px 24px 60px 48px;
+  padding: 24px var(--ui-edge-right) 60px var(--ui-edge-left);
   box-sizing: border-box;
 }
 
@@ -1860,8 +1860,8 @@ defineExpose({ openQuickAdd });
   flex-wrap: wrap;
 }
 .page-head h1 {
-  font-weight: 800;
-  font-size: 1.7rem;
+  font-weight: var(--ui-weight-title);
+  font-size: var(--ui-font-title);
   margin: 0;
 }
 .page-head .sub {
@@ -1872,8 +1872,8 @@ defineExpose({ openQuickAdd });
 .add-btn {
   background: var(--accent);
   border: none;
-  color: #14100a;
-  border-radius: 8px;
+  color: var(--ui-on-accent);
+  border-radius: var(--ui-radius-control);
   padding: 0 18px;
   height: 38px;
   font-family: inherit;
@@ -1889,7 +1889,7 @@ defineExpose({ openQuickAdd });
   background: var(--surface);
   border: 1px solid var(--border);
   color: var(--text-dim);
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   padding: 0 16px;
   height: 38px;
   font-family: inherit;
@@ -1908,7 +1908,7 @@ defineExpose({ openQuickAdd });
   padding: 10px 16px;
   background: var(--accent-soft);
   border: 1px solid var(--accent-line);
-  border-radius: 10px;
+  border-radius: var(--ui-radius-row);
   display: flex;
   align-items: center;
   gap: 12px;
@@ -1964,7 +1964,7 @@ defineExpose({ openQuickAdd });
   background: var(--surface);
   border: 1px solid var(--border);
   color: var(--text);
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   padding: 0 12px 0 34px;
   font-family: inherit;
   font-size: 0.85rem;
@@ -1979,7 +1979,7 @@ defineExpose({ openQuickAdd });
   background: var(--surface);
   border: 1px solid var(--border);
   color: var(--text);
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   padding: 0 12px;
   font-family: inherit;
   font-size: 0.85rem;
@@ -1991,7 +1991,7 @@ defineExpose({ openQuickAdd });
   background: var(--surface);
   border: 1px solid var(--border);
   color: var(--text-dim);
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   padding: 0 14px;
   font-family: inherit;
   font-size: 0.85rem;
@@ -2007,10 +2007,10 @@ defineExpose({ openQuickAdd });
 }
 .filter-btn .count {
   background: var(--accent);
-  color: #14100a;
+  color: var(--ui-on-accent);
   border-radius: 999px;
   font-size: 0.66rem;
-  font-weight: 800;
+  font-weight: var(--ui-weight-title);
   padding: 1px 6px;
 }
 .card-size-toggle {
@@ -2018,7 +2018,7 @@ defineExpose({ openQuickAdd });
   gap: 2px;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   padding: 3px;
 }
 .card-size-button {
@@ -2034,10 +2034,10 @@ defineExpose({ openQuickAdd });
 }
 .card-size-button:hover {
   color: var(--text);
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--ui-text) 6%, transparent);
 }
 .card-size-button.active {
-  color: #14100a;
+  color: var(--ui-on-accent);
   background: var(--accent);
 }
 .filter-panel {
@@ -2048,7 +2048,7 @@ defineExpose({ openQuickAdd });
   padding: 14px 16px;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--ui-radius-row);
 }
 .filter-group {
   display: flex;
@@ -2059,7 +2059,7 @@ defineExpose({ openQuickAdd });
 .filter-label {
   min-width: 56px;
   font-size: 0.7rem;
-  font-weight: 800;
+  font-weight: var(--ui-weight-title);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-dim);
@@ -2067,10 +2067,10 @@ defineExpose({ openQuickAdd });
 .year-input {
   box-sizing: border-box;
   width: 84px;
-  height: 28px;
+  min-height: var(--ui-control-height);
   background: var(--surface-2);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   color: var(--text);
   padding: 0 10px;
   font-size: 0.78rem;
@@ -2104,7 +2104,7 @@ defineExpose({ openQuickAdd });
 }
 .genre-chip {
   box-sizing: border-box;
-  height: 28px;
+  min-height: var(--ui-control-height);
   background: var(--surface-2);
   border: 1px solid var(--border);
   color: var(--text-dim);
@@ -2164,7 +2164,7 @@ defineExpose({ openQuickAdd });
   text-align: center;
 }
 .empty-state.error {
-  color: #e57373;
+  color: var(--ui-error);
 }
 
 /* Solid-fill chips, same visual language as the app's own active-tab
@@ -2285,7 +2285,7 @@ defineExpose({ openQuickAdd });
   color: var(--accent);
   border: 1px solid var(--accent-line);
   font-size: 0.68rem;
-  font-weight: 800;
+  font-weight: var(--ui-weight-title);
   font-variant-numeric: tabular-nums;
 }
 .rank-cell {
@@ -2312,8 +2312,8 @@ defineExpose({ openQuickAdd });
   background: var(--surface-2);
   border: 1px solid var(--border);
   color: var(--text-faint);
-  width: 28px;
-  height: 28px;
+  width: var(--ui-control-height);
+  min-height: var(--ui-control-height);
   border-radius: 7px;
   display: flex;
   align-items: center;
@@ -2362,7 +2362,7 @@ defineExpose({ openQuickAdd });
 }
 .plus-btn:hover {
   background: var(--accent);
-  color: #14100a;
+  color: var(--ui-on-accent);
 }
 .plus-btn:disabled {
   opacity: 0.3;
@@ -2403,14 +2403,14 @@ defineExpose({ openQuickAdd });
   height: 26px;
   border-radius: 7px;
   background: rgba(10, 10, 10, 0.8);
-  border: 1.5px solid rgba(255, 255, 255, 0.45);
+  border: 1.5px solid color-mix(in srgb, var(--ui-text) 45%, transparent);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   color: var(--accent);
   font-size: 0.85rem;
-  font-weight: 800;
+  font-weight: var(--ui-weight-title);
   position: absolute;
   top: 6px;
   left: 6px;
@@ -2418,8 +2418,8 @@ defineExpose({ openQuickAdd });
 }
 .select-checkbox.checked {
   background: var(--accent);
-  border-color: var(--accent);
-  color: #14100a;
+  border-color: var(--ui-on-accent);
+  color: var(--ui-on-accent);
 }
 
 /* LIST */
@@ -2444,7 +2444,7 @@ defineExpose({ openQuickAdd });
   gap: 20px;
   background: var(--surface);
   border: 1px solid var(--border-soft);
-  border-radius: 10px;
+  border-radius: var(--ui-radius-row);
   padding: 10px 16px;
   cursor: pointer;
   transition: border-color 0.15s ease;
@@ -2504,7 +2504,7 @@ defineExpose({ openQuickAdd });
 }
 .list-progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, var(--accent), #e8a552);
+  background: linear-gradient(90deg, var(--accent), var(--ui-accent));
   border-radius: 999px;
 }
 .list-progress-label {
@@ -2559,7 +2559,7 @@ defineExpose({ openQuickAdd });
 }
 .shelf-art-wrap {
   position: relative;
-  border-radius: 10px;
+  border-radius: var(--ui-radius-row);
   overflow: hidden;
   border: 1px solid var(--border-soft);
 }
@@ -2627,14 +2627,14 @@ defineExpose({ openQuickAdd });
 }
 .sc-action {
   width: 28px;
-  height: 28px;
+  min-height: var(--ui-control-height);
   padding: 0;
   border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.16);
+  border: 1px solid color-mix(in srgb, var(--ui-text) 16%, transparent);
   background: rgba(20, 20, 20, 0.6);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
-  color: #fff;
+  color: var(--ui-text);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2743,8 +2743,8 @@ defineExpose({ openQuickAdd });
   gap: 6px;
 }
 .shelf-icon-cluster .icon-btn {
-  width: 24px;
-  height: 24px;
+  width: var(--ui-control-height);
+  height: var(--ui-control-height);
 }
 .shelf-icon-cluster .icon-btn svg {
   width: 11px;
@@ -2792,7 +2792,7 @@ defineExpose({ openQuickAdd });
 }
 .board-heading h2 {
   font-size: 1rem;
-  font-weight: 800;
+  font-weight: var(--ui-weight-title);
   margin: 0;
 }
 .board-heading .n {
@@ -2812,7 +2812,7 @@ defineExpose({ openQuickAdd });
   flex-direction: column;
   background: var(--surface);
   border: 1px solid var(--border-soft);
-  border-radius: 10px;
+  border-radius: var(--ui-radius-row);
   padding: 10px;
   cursor: pointer;
   transition: border-color 0.15s ease;
@@ -2913,7 +2913,7 @@ defineExpose({ openQuickAdd });
 .modal-card h3 {
   margin: 0 0 4px;
   font-size: 1.05rem;
-  font-weight: 800;
+  font-weight: var(--ui-weight-title);
 }
 .modal-card .sub {
   font-size: 0.78rem;
@@ -2927,7 +2927,7 @@ defineExpose({ openQuickAdd });
   background: var(--surface-2);
   border: 1px solid var(--border);
   color: var(--text);
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   padding: 10px;
   font-family: inherit;
   font-size: 0.88rem;
@@ -2943,9 +2943,9 @@ defineExpose({ openQuickAdd });
   background: transparent;
   border: 1px solid var(--border);
   color: var(--text-dim);
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   padding: 0 16px;
-  height: 36px;
+  min-height: var(--ui-control-height);
   font-family: inherit;
   font-size: 0.82rem;
   font-weight: 700;
@@ -2954,10 +2954,10 @@ defineExpose({ openQuickAdd });
 .btn-solid {
   background: var(--accent);
   border: none;
-  color: #14100a;
-  border-radius: 8px;
+  color: var(--ui-on-accent);
+  border-radius: var(--ui-radius-control);
   padding: 0 16px;
-  height: 36px;
+  min-height: var(--ui-control-height);
   font-family: inherit;
   font-size: 0.82rem;
   font-weight: 700;
@@ -2977,7 +2977,7 @@ defineExpose({ openQuickAdd });
 .decimal-rate button {
   width: 38px;
   height: 38px;
-  border-radius: 10px;
+  border-radius: var(--ui-radius-row);
   background: var(--surface-2);
   border: 1px solid var(--border);
   color: var(--text);
@@ -2998,11 +2998,11 @@ defineExpose({ openQuickAdd });
   background: var(--surface-2);
   border: 1px solid var(--border);
   color: var(--accent);
-  border-radius: 10px;
+  border-radius: var(--ui-radius-row);
   padding: 8px 0;
   font-family: inherit;
   font-size: 1.6rem;
-  font-weight: 800;
+  font-weight: var(--ui-weight-title);
   font-variant-numeric: tabular-nums;
 }
 .decimal-rate input:focus {
@@ -3022,7 +3022,7 @@ defineExpose({ openQuickAdd });
 .finish-poster {
   width: 88px;
   aspect-ratio: 2 / 3;
-  border-radius: 10px;
+  border-radius: var(--ui-radius-row);
   background-size: cover;
   background-position: center;
   background-color: var(--surface-2);
@@ -3037,14 +3037,14 @@ defineExpose({ openQuickAdd });
   font-size: 0.68rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  font-weight: 800;
+  font-weight: var(--ui-weight-title);
   color: var(--accent);
   margin-bottom: 4px;
 }
 .finish-card h3 {
   margin: 0 0 4px;
   font-size: 1.15rem;
-  font-weight: 800;
+  font-weight: var(--ui-weight-title);
 }
 .finish-rate {
   justify-content: flex-start;
@@ -3080,7 +3080,7 @@ defineExpose({ openQuickAdd });
 .qa-header h3 {
   margin: 0;
   font-size: 1.15rem;
-  font-weight: 800;
+  font-weight: var(--ui-weight-title);
 }
 .qa-header .sub {
   margin: 4px 0 0;
@@ -3121,7 +3121,7 @@ defineExpose({ openQuickAdd });
   align-items: center;
   background: var(--surface-2);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--ui-radius-card);
   padding: 12px;
   transition: border-color 0.15s ease;
 }
@@ -3164,8 +3164,8 @@ defineExpose({ openQuickAdd });
 .qa-add-btn {
   background: var(--accent);
   border: none;
-  color: #14100a;
-  border-radius: 8px;
+  color: var(--ui-on-accent);
+  border-radius: var(--ui-radius-control);
   padding: 0 18px;
   height: 40px;
   font-family: inherit;
@@ -3231,7 +3231,7 @@ defineExpose({ openQuickAdd });
   background: var(--surface-2);
   border: 1px solid var(--border);
   color: var(--text);
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   padding: 9px 11px;
   font-family: inherit;
   font-size: 0.86rem;

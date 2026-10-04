@@ -985,16 +985,16 @@ async function onRatingChange(value: number | null) {
 <style scoped>
 .detail {
   min-height: 100vh;
-  background: #0d0d0d;
-  color: #f2f2f2;
-  font-family: system-ui, sans-serif;
+  background: var(--ui-bg);
+  color: var(--ui-text);
+  font-family: var(--ui-font-family);
   position: relative;
 }
 .loading-state,
 .error-state {
   display: flex;
   flex-direction: column;
-  color: #9c9c9c;
+  color: var(--ui-dim);
 }
 .loading-text {
   flex: 1;
@@ -1007,14 +1007,14 @@ async function onRatingChange(value: number | null) {
   position: relative;
   background-size: cover;
   background-position: center 25%;
-  background-color: #1a1a1a;
+  background-color: var(--ui-surface);
   min-height: 440px;
   display: flex;
   align-items: flex-end;
   overflow: hidden;
 }
 .hero.no-poster {
-  background: linear-gradient(160deg, #241a10, #0d0d0d 70%);
+  background: linear-gradient(160deg, var(--ui-accent-soft), var(--ui-bg) 70%);
 }
 .hero-backdrop {
   position: absolute;
@@ -1036,14 +1036,14 @@ async function onRatingChange(value: number | null) {
   background:
     linear-gradient(
       180deg,
-      rgba(13, 13, 13, 0.25) 0%,
-      rgba(13, 13, 13, 0.55) 45%,
-      #0d0d0d 96%
+      color-mix(in srgb, var(--ui-bg) 25%, transparent) 0%,
+      color-mix(in srgb, var(--ui-bg) 55%, transparent) 45%,
+      var(--ui-bg) 96%
     ),
     linear-gradient(
       90deg,
-      rgba(13, 13, 13, 0.75) 0%,
-      rgba(13, 13, 13, 0.15) 40%
+      color-mix(in srgb, var(--ui-bg) 75%, transparent) 0%,
+      color-mix(in srgb, var(--ui-bg) 15%, transparent) 40%
     );
 }
 .hero-content {
@@ -1061,18 +1061,18 @@ async function onRatingChange(value: number | null) {
   width: 190px;
   aspect-ratio: 2 / 3;
   flex-shrink: 0;
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   background-size: cover;
   background-position: center;
-  background-color: #222222;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background-color: var(--ui-surface-2);
+  border: 1px solid color-mix(in srgb, var(--ui-text) 8%, transparent);
   box-shadow: 0 24px 48px -14px rgba(0, 0, 0, 0.8);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 0.78rem;
   font-weight: 700;
-  color: rgba(255, 255, 255, 0.3);
+  color: color-mix(in srgb, var(--ui-text) 30%, transparent);
   text-align: center;
   padding: 10px;
 }
@@ -1082,12 +1082,12 @@ async function onRatingChange(value: number | null) {
 }
 .native-title {
   font-size: 0.82rem;
-  color: #666;
+  color: var(--ui-faint);
   margin-bottom: 4px;
   font-weight: 500;
 }
 .title {
-  font-weight: 800;
+  font-weight: var(--ui-weight-title);
   font-size: 2.5rem;
   line-height: 1.05;
   margin: 0 0 14px;
@@ -1102,26 +1102,26 @@ async function onRatingChange(value: number | null) {
 }
 .badge {
   line-height: 1.25;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: color-mix(in srgb, var(--ui-text) 6%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ui-text) 10%, transparent);
   border-radius: 7px;
   padding: 4px 11px;
   font-size: 0.78rem;
   font-weight: 600;
-  color: #9c9c9c;
+  color: var(--ui-dim);
   text-transform: capitalize;
 }
 .badge.good {
-  background: rgba(111, 191, 115, 0.16);
-  border-color: rgba(111, 191, 115, 0.4);
-  color: #6fbf73;
+  background: color-mix(in srgb, var(--ui-good) 16%, transparent);
+  border-color: color-mix(in srgb, var(--ui-good) 40%, transparent);
+  color: var(--ui-good);
 }
 .status-select {
   appearance: none;
   -webkit-appearance: none;
   -moz-appearance: none;
-  border-color: rgba(214, 138, 52, 0.4);
-  color: #d68a34;
+  border-color: color-mix(in srgb, var(--ui-accent) 40%, transparent);
+  color: var(--ui-accent-text);
   font-family: inherit;
   cursor: pointer;
   padding-right: 26px;
@@ -1136,10 +1136,10 @@ async function onRatingChange(value: number | null) {
   gap: 8px;
 }
 .edit-btn {
-  background: #d68a34;
+  background: var(--ui-accent);
   border: none;
-  color: #14100a;
-  border-radius: 8px;
+  color: var(--ui-on-accent);
+  border-radius: var(--ui-radius-control);
   padding: 0 20px;
   height: 38px;
   font-family: inherit;
@@ -1154,9 +1154,9 @@ async function onRatingChange(value: number | null) {
   width: 38px;
   height: 38px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  color: #f2f2f2;
+  background: color-mix(in srgb, var(--ui-text) 6%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ui-text) 12%, transparent);
+  color: var(--ui-text);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1164,12 +1164,12 @@ async function onRatingChange(value: number | null) {
   flex-shrink: 0;
 }
 .icon-btn:hover {
-  border-color: rgba(214, 138, 52, 0.4);
+  border-color: color-mix(in srgb, var(--ui-accent) 40%, transparent);
 }
 .icon-btn.active {
-  color: #d68a34;
-  border-color: rgba(214, 138, 52, 0.4);
-  background: rgba(214, 138, 52, 0.16);
+  color: var(--ui-accent-text);
+  border-color: color-mix(in srgb, var(--ui-accent) 40%, transparent);
+  background: color-mix(in srgb, var(--ui-accent) 16%, transparent);
 }
 .tabbar-wrap {
   max-width: 1180px;
@@ -1179,8 +1179,8 @@ async function onRatingChange(value: number | null) {
 .tabbar {
   display: flex;
   gap: 4px;
-  background: #1a1a1a;
-  border-radius: 10px;
+  background: var(--ui-surface);
+  border-radius: var(--ui-radius-row);
   width: fit-content;
   max-width: 100%;
   overflow-x: auto;
@@ -1191,7 +1191,7 @@ async function onRatingChange(value: number | null) {
   white-space: nowrap;
   background: transparent;
   border: none;
-  color: #9c9c9c;
+  color: var(--ui-dim);
   font-family: inherit;
   font-size: 0.84rem;
   font-weight: 600;
@@ -1200,8 +1200,8 @@ async function onRatingChange(value: number | null) {
   cursor: pointer;
 }
 .tab-btn.active {
-  background: #d68a34;
-  color: #14100a;
+  background: var(--ui-accent);
+  color: var(--ui-on-accent);
 }
 .body {
   position: relative;
@@ -1215,7 +1215,7 @@ async function onRatingChange(value: number | null) {
   gap: 18px 24px;
   margin-bottom: 24px;
   padding-bottom: 24px;
-  border-bottom: 1px solid #202020;
+  border-bottom: 1px solid var(--ui-border);
 }
 .meta-item {
   display: flex;
@@ -1226,16 +1226,16 @@ async function onRatingChange(value: number | null) {
   font-size: 0.68rem;
   text-transform: uppercase;
   letter-spacing: 0.07em;
-  color: #666;
+  color: var(--ui-faint);
   font-weight: 700;
 }
 .meta-value {
   font-size: 0.9rem;
-  color: #f2f2f2;
+  color: var(--ui-text);
   font-variant-numeric: tabular-nums;
 }
 .meta-value.accent {
-  color: #d68a34;
+  color: var(--ui-accent-text);
   font-weight: 700;
 }
 .description-block {
@@ -1244,7 +1244,7 @@ async function onRatingChange(value: number | null) {
 .description {
   font-size: 0.96rem;
   line-height: 1.7;
-  color: #9c9c9c;
+  color: var(--ui-dim);
   margin: 0;
 }
 .description.clamped {
@@ -1256,7 +1256,7 @@ async function onRatingChange(value: number | null) {
 .read-more-btn {
   background: none;
   border: none;
-  color: #d68a34;
+  color: var(--ui-accent-text);
   font-family: inherit;
   font-size: 0.82rem;
   font-weight: 700;
@@ -1273,18 +1273,18 @@ async function onRatingChange(value: number | null) {
   margin-bottom: 8px;
 }
 .chip {
-  background: #222222;
-  color: #9c9c9c;
-  border: 1px solid #2b2b2b;
+  background: var(--ui-surface-2);
+  color: var(--ui-dim);
+  border: 1px solid var(--ui-border);
   border-radius: 999px;
   padding: 5px 13px;
   font-size: 0.78rem;
   font-weight: 600;
 }
 .chip.primary {
-  background: rgba(214, 138, 52, 0.16);
-  color: #d68a34;
-  border-color: rgba(214, 138, 52, 0.4);
+  background: color-mix(in srgb, var(--ui-accent) 16%, transparent);
+  color: var(--ui-accent-text);
+  border-color: color-mix(in srgb, var(--ui-accent) 40%, transparent);
 }
 .section-heading {
   display: flex;
@@ -1293,22 +1293,22 @@ async function onRatingChange(value: number | null) {
   margin-bottom: 14px;
 }
 .section-heading h2 {
-  font-weight: 800;
+  font-weight: var(--ui-weight-title);
   font-size: 1.05rem;
   margin: 0;
 }
 .error-text {
-  color: #e57373;
+  color: var(--ui-error);
   font-size: 0.85rem;
   margin: 0 0 12px;
 }
 .empty-state {
-  color: #666;
+  color: var(--ui-faint);
   font-size: 0.85rem;
 }
 .episodes-total {
   font-size: 0.8rem;
-  color: #d68a34;
+  color: var(--ui-accent-text);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
@@ -1320,9 +1320,9 @@ async function onRatingChange(value: number | null) {
 .airing-ctl {
   height: 30px;
   box-sizing: border-box;
-  background: #1a1a1a;
-  border: 1px solid #2b2b2b;
-  color: #ccc;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  color: var(--ui-text);
   border-radius: 7px;
   padding: 0 12px;
   font-family: inherit;
@@ -1331,17 +1331,17 @@ async function onRatingChange(value: number | null) {
   cursor: pointer;
 }
 .airing-ctl:hover:not(:disabled) {
-  border-color: rgba(214, 138, 52, 0.4);
-  color: #d68a34;
+  border-color: color-mix(in srgb, var(--ui-accent) 40%, transparent);
+  color: var(--ui-accent-text);
 }
 .airing-ctl:disabled {
   opacity: 0.6;
   cursor: default;
 }
 .next-episode-banner {
-  background: rgba(214, 138, 52, 0.12);
-  border: 1px solid rgba(214, 138, 52, 0.35);
-  color: #d68a34;
+  background: color-mix(in srgb, var(--ui-accent) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ui-accent) 35%, transparent);
+  color: var(--ui-accent-text);
   border-radius: 999px;
   padding: 4px 12px;
   font-size: 0.76rem;
@@ -1353,7 +1353,7 @@ async function onRatingChange(value: number | null) {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: #666;
+  color: var(--ui-faint);
 }
 .season-divider:first-child {
   margin-top: 0;
@@ -1372,15 +1372,15 @@ async function onRatingChange(value: number | null) {
 }
 .poster-card-sm-art {
   aspect-ratio: 2 / 3;
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   background-size: cover;
   background-position: center;
-  background-color: #222222;
-  border: 1px solid #2b2b2b;
+  background-color: var(--ui-surface-2);
+  border: 1px solid var(--ui-border);
   transition: border-color 0.15s ease;
 }
 .poster-card-sm:hover .poster-card-sm-art {
-  border-color: rgba(214, 138, 52, 0.5);
+  border-color: color-mix(in srgb, var(--ui-accent) 50%, transparent);
 }
 .poster-card-sm-title {
   margin-top: 6px;
@@ -1395,7 +1395,7 @@ async function onRatingChange(value: number | null) {
 .poster-card-sm-meta {
   margin-top: 2px;
   font-size: 0.7rem;
-  color: #666;
+  color: var(--ui-faint);
 }
 @media (max-width: 640px) {
   .hero-content {

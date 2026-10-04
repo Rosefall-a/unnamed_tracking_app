@@ -4169,10 +4169,10 @@ function formatPlaytime(minutes: number) {
 <style scoped>
 .detail {
   position: relative;
-  font-family: system-ui, sans-serif;
-  color: #fff;
+  font-family: var(--ui-font-family);
+  color: var(--ui-text);
   min-height: 100vh;
-  background: #121212;
+  background: var(--ui-bg);
   overflow: hidden;
 }
 .detail-skeleton-body {
@@ -4222,12 +4222,13 @@ function formatPlaytime(minutes: number) {
   inset: 0;
   background: linear-gradient(
     180deg,
-    rgba(18, 18, 18, 0) 40%,
-    rgba(18, 18, 18, 0.85) 85%,
-    #121212 100%
+    color-mix(in srgb, var(--ui-bg) 0%, transparent) 40%,
+    color-mix(in srgb, var(--ui-bg) 85%, transparent) 85%,
+    var(--ui-bg) 100%
   );
 }
 .hero-inner {
+  box-sizing: border-box;
   position: relative;
   z-index: 1;
   width: 100%;
@@ -4242,32 +4243,34 @@ function formatPlaytime(minutes: number) {
 }
 .hero-inner h1 {
   margin: 0;
-  font-size: 2.4rem;
+  font-size: var(--ui-font-title);
+  font-weight: var(--ui-weight-title);
+  overflow-wrap: anywhere;
   /* the inherited line height is a fixed 23px */
   line-height: 1.15;
   text-shadow: 0 2px 12px rgba(0, 0, 0, 0.6);
 }
 @media (max-width: 600px) {
   .hero-inner h1 {
-    font-size: 1.8rem;
+    font-size: var(--ui-font-title);
   }
 }
 .parent-breadcrumb {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #ccc;
+  color: var(--ui-text);
   font-size: 0.9rem;
   text-decoration: none;
   text-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
   margin-bottom: -8px;
 }
 .parent-breadcrumb:hover {
-  color: #fff;
+  color: var(--ui-text);
 }
 .relationship-tag {
-  background: rgba(214, 138, 52, 0.22);
-  color: #d68a34;
+  background: color-mix(in srgb, var(--ui-accent) 22%, transparent);
+  color: var(--ui-accent-text);
   border-radius: 999px;
   padding: 2px 10px;
   font-size: 0.72rem;
@@ -4282,7 +4285,7 @@ function formatPlaytime(minutes: number) {
 .variants-heading {
   margin: 0 0 10px;
   font-size: 0.85rem;
-  color: #999;
+  color: var(--ui-dim);
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
@@ -4301,11 +4304,11 @@ function formatPlaytime(minutes: number) {
   flex-shrink: 0;
   text-decoration: none;
   padding: 8px;
-  border-radius: 10px;
+  border-radius: var(--ui-radius-row);
   transition: background 0.15s ease;
 }
 .variant-card:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--ui-text) 6%, transparent);
 }
 .variant-cover {
   width: 90px;
@@ -4315,7 +4318,7 @@ function formatPlaytime(minutes: number) {
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
 }
 .variant-title {
-  color: #fff;
+  color: var(--ui-text);
   font-size: 0.76rem;
   font-weight: 600;
   text-align: center;
@@ -4330,19 +4333,19 @@ function formatPlaytime(minutes: number) {
   flex-wrap: wrap;
 }
 .badge {
-  background: rgba(255, 255, 255, 0.1);
+  background: color-mix(in srgb, var(--ui-text) 10%, transparent);
   border-radius: 999px;
   padding: 4px 14px;
   font-size: 13px;
   text-transform: capitalize;
-  color: #ddd;
+  color: var(--ui-text);
 }
 .rating-badge {
-  color: #d68a34;
+  color: var(--ui-accent-text);
 }
 .stale-badge {
   background: rgba(220, 38, 38, 0.18);
-  color: #fca5a5;
+  color: var(--ui-error);
   text-transform: none;
 }
 .achievement-progress-badge {
@@ -4359,8 +4362,8 @@ function formatPlaytime(minutes: number) {
   opacity: 0.85;
 }
 .achievement-progress-badge:hover {
-  background: rgba(214, 138, 52, 0.22);
-  color: #d68a34;
+  background: color-mix(in srgb, var(--ui-accent) 22%, transparent);
+  color: var(--ui-accent-text);
 }
 .hero-actions {
   position: absolute;
@@ -4373,16 +4376,17 @@ function formatPlaytime(minutes: number) {
   opacity: 0;
   transition: opacity 0.2s ease;
 }
-.hero:hover .hero-actions {
+.hero:hover .hero-actions,
+.hero:focus-within .hero-actions {
   opacity: 1;
 }
 .hero-icon-button {
-  background: rgba(0, 0, 0, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  color: #fff;
+  background: var(--ui-popover);
+  border: 1px solid color-mix(in srgb, var(--ui-text) 25%, transparent);
+  color: var(--ui-text);
   border-radius: 50%;
-  width: 34px;
-  height: 34px;
+  width: var(--ui-control-height);
+  height: var(--ui-control-height);
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -4393,16 +4397,16 @@ function formatPlaytime(minutes: number) {
     color 0.15s ease;
 }
 .hero-icon-button:hover {
-  background: rgba(0, 0, 0, 0.7);
+  background: var(--ui-surface-2);
 }
 .hero-icon-button.active {
-  color: #d68a34;
-  border-color: rgba(214, 138, 52, 0.5);
+  color: var(--ui-accent-text);
+  border-color: color-mix(in srgb, var(--ui-accent) 50%, transparent);
 }
 .edit-button {
-  background: rgba(0, 0, 0, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  color: #fff;
+  background: var(--ui-popover);
+  border: 1px solid color-mix(in srgb, var(--ui-text) 25%, transparent);
+  color: var(--ui-text);
   border-radius: 999px;
   padding: 8px 20px;
   font-size: 13px;
@@ -4411,11 +4415,11 @@ function formatPlaytime(minutes: number) {
   transition: background 0.15s ease;
 }
 .edit-button:hover {
-  background: rgba(0, 0, 0, 0.7);
+  background: var(--ui-surface-2);
 }
 .meta {
   text-transform: capitalize;
-  color: #ddd;
+  color: var(--ui-text);
 }
 .tabs {
   display: flex;
@@ -4426,8 +4430,8 @@ function formatPlaytime(minutes: number) {
   padding: 8px 16px;
   box-sizing: border-box;
   background: rgba(0, 0, 0, 0.25);
-  border: 1px solid #2a2a2a;
-  border-radius: 8px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
   /* a screen too narrow for every tab scrolls the bar instead of silently
      clipping the later ones, this was previously invisible rather than
      reachable at all below ~840px wide */
@@ -4440,9 +4444,9 @@ function formatPlaytime(minutes: number) {
   display: none;
 }
 .tab {
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--ui-text) 6%, transparent);
   border: none;
-  color: #ccc;
+  color: var(--ui-text);
   padding: 8px 18px;
   font-size: 14px;
   font-weight: 500;
@@ -4455,12 +4459,12 @@ function formatPlaytime(minutes: number) {
     color 0.15s ease;
 }
 .tab:hover {
-  background: #3a3a3a;
-  color: #fff;
+  background: var(--ui-border);
+  color: var(--ui-text);
 }
 .tab.active {
-  background: #d68a34;
-  color: #121212;
+  background: var(--ui-accent);
+  color: var(--ui-on-accent);
 }
 .overview {
   width: 100%;
@@ -4496,7 +4500,7 @@ function formatPlaytime(minutes: number) {
 .text-button {
   background: none;
   border: none;
-  color: #d68a34;
+  color: var(--ui-accent-text);
   font-size: 12.5px;
   font-weight: 600;
   cursor: pointer;
@@ -4512,7 +4516,7 @@ function formatPlaytime(minutes: number) {
   cursor: not-allowed;
 }
 .form-error-inline {
-  color: #fca5a5;
+  color: var(--ui-error);
   font-size: 12.5px;
   margin: 6px 0;
 }
@@ -4531,15 +4535,15 @@ function formatPlaytime(minutes: number) {
   display: flex;
   align-items: center;
   gap: 12px;
-  background: rgba(214, 138, 52, 0.08);
-  border: 1px solid rgba(214, 138, 52, 0.3);
-  border-radius: 10px;
+  background: color-mix(in srgb, var(--ui-accent) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ui-accent) 30%, transparent);
+  border-radius: var(--ui-radius-row);
   padding: 12px 16px;
   text-decoration: none;
   transition: background 0.15s ease;
 }
 .related-bounty-card:hover {
-  background: rgba(214, 138, 52, 0.15);
+  background: color-mix(in srgb, var(--ui-accent) 15%, transparent);
 }
 .related-bounty-icon {
   font-size: 18px;
@@ -4551,20 +4555,20 @@ function formatPlaytime(minutes: number) {
   gap: 2px;
 }
 .related-bounty-title {
-  color: #fff;
+  color: var(--ui-text);
   font-weight: 600;
   font-size: 14px;
 }
 .related-bounty-meta {
-  color: #d6a878;
+  color: var(--ui-accent-text);
   font-size: 12px;
   text-transform: capitalize;
 }
 .resume-note-card {
   max-width: 720px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid #2a2a2a;
-  border-radius: 10px;
+  background: color-mix(in srgb, var(--ui-text) 3%, transparent);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-row);
   padding: 14px 16px;
   margin-bottom: 20px;
 }
@@ -4577,27 +4581,27 @@ function formatPlaytime(minutes: number) {
 .resume-note-header h3 {
   margin: 0;
   font-size: 14px;
-  color: #fff;
+  color: var(--ui-text);
 }
 .resume-note-text {
-  color: #ddd;
+  color: var(--ui-text);
   font-size: 13.5px;
   line-height: 1.6;
   margin: 0;
   white-space: pre-wrap;
 }
 .resume-note-empty {
-  color: #777;
+  color: var(--ui-faint);
   font-size: 13px;
   margin: 0;
 }
 .resume-note-textarea {
   width: 100%;
   box-sizing: border-box;
-  background: #111;
-  border: 1px solid #3a3a3a;
-  border-radius: 8px;
-  color: #f5f5f5;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
+  color: var(--ui-text);
   padding: 10px 12px;
   font: inherit;
   font-size: 13.5px;
@@ -4615,10 +4619,10 @@ function formatPlaytime(minutes: number) {
   gap: 14px;
   max-width: 720px;
   padding-left: 16px;
-  border-left: 3px solid #d68a34;
+  border-left: 3px solid var(--ui-accent-text);
 }
 .description-html {
-  color: #ddd;
+  color: var(--ui-text);
   font-size: 16px;
   line-height: 1.7;
 }
@@ -4626,7 +4630,7 @@ function formatPlaytime(minutes: number) {
 .description-html :deep(video) {
   max-width: 100%;
   height: auto;
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   margin: 10px 0;
   display: block;
 }
@@ -4636,13 +4640,13 @@ function formatPlaytime(minutes: number) {
   margin: 18px 0 6px;
   font-size: 15px;
   font-weight: 700;
-  color: #fff;
+  color: var(--ui-text);
 }
 .description-html :deep(p) {
   margin: 0 0 12px;
 }
 .description-html :deep(a) {
-  color: #d68a34;
+  color: var(--ui-accent-text);
 }
 .description-html :deep(ul) {
   padding-left: 20px;
@@ -4658,24 +4662,24 @@ function formatPlaytime(minutes: number) {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid #232323;
-  border-radius: 10px;
+  background: color-mix(in srgb, var(--ui-text) 4%, transparent);
+  border: 1px solid var(--ui-border-soft);
+  border-radius: var(--ui-radius-row);
   padding: 12px 18px;
   min-width: 90px;
 }
 .rating-label {
-  color: #999;
+  color: var(--ui-dim);
   font-size: 13px;
 }
 .rating-score {
-  color: #d68a34;
+  color: var(--ui-accent-text);
   font-size: 18px;
   font-weight: 600;
 }
 .details-panel {
-  border: 1px solid #2a2a2a;
-  border-radius: 12px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-card);
   padding: 6px 18px 16px;
   background: rgba(0, 0, 0, 0.3);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
@@ -4686,7 +4690,7 @@ function formatPlaytime(minutes: number) {
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: #777;
+  color: var(--ui-faint);
   font-weight: 700;
 }
 .detail-row {
@@ -4695,16 +4699,16 @@ function formatPlaytime(minutes: number) {
   gap: 4px;
   padding: 8px 0;
   font-size: 14px;
-  border-bottom: 1px solid #202020;
+  border-bottom: 1px solid var(--ui-border);
 }
 .detail-row:last-child {
   border-bottom: none;
 }
 .detail-label {
-  color: #999;
+  color: var(--ui-dim);
 }
 .detail-value {
-  color: #fff;
+  color: var(--ui-text);
 }
 .feature-pills {
   display: flex;
@@ -4712,11 +4716,11 @@ function formatPlaytime(minutes: number) {
   gap: 6px;
 }
 .feature-pill {
-  background: #2a2a2a;
+  background: var(--ui-border);
   padding: 3px 8px;
   border-radius: 999px;
   font-size: 11px;
-  color: #ccc;
+  color: var(--ui-text);
 }
 .platforms {
   list-style: none;
@@ -4739,15 +4743,15 @@ function formatPlaytime(minutes: number) {
   font-size: 14px;
 }
 .platform-name {
-  color: #fff;
+  color: var(--ui-text);
   font-weight: 600;
 }
 .platform-meta {
-  color: #999;
+  color: var(--ui-dim);
   white-space: nowrap;
 }
 .platform-last-played {
-  color: #666;
+  color: var(--ui-faint);
   font-size: 12px;
 }
 .links-list {
@@ -4759,7 +4763,7 @@ function formatPlaytime(minutes: number) {
   gap: 4px;
 }
 .links-list a {
-  color: #d68a34;
+  color: var(--ui-accent-text);
   font-size: 14px;
   text-decoration: none;
 }
@@ -4770,12 +4774,12 @@ function formatPlaytime(minutes: number) {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  color: #ddd;
+  color: var(--ui-text);
   font-size: 14px;
 }
 .ownership-format {
   text-transform: capitalize;
-  color: #fff;
+  color: var(--ui-text);
   font-weight: 600;
 }
 .trophy-summary {
@@ -4787,7 +4791,7 @@ function formatPlaytime(minutes: number) {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #ccc;
+  color: var(--ui-text);
   font-size: 14px;
   font-weight: 600;
 }
@@ -4814,8 +4818,8 @@ function formatPlaytime(minutes: number) {
   border: 2px solid #6a7a8a;
 }
 .trophy-badge.dim {
-  background: #2a2a2a;
-  border-color: #3a3a3a;
+  background: var(--ui-border);
+  border-color: var(--ui-border);
 }
 .achievement-list {
   list-style: none;
@@ -4829,9 +4833,9 @@ function formatPlaytime(minutes: number) {
   display: flex;
   gap: 14px;
   padding: 12px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid #232323;
-  border-radius: 10px;
+  background: color-mix(in srgb, var(--ui-text) 3%, transparent);
+  border: 1px solid var(--ui-border-soft);
+  border-radius: var(--ui-radius-row);
   align-items: center;
   text-decoration: none;
   color: inherit;
@@ -4840,10 +4844,10 @@ function formatPlaytime(minutes: number) {
   position: relative;
   width: 56px;
   height: 56px;
-  border-radius: 10px;
+  border-radius: var(--ui-radius-row);
   background-size: cover;
   background-position: center;
-  background-color: #1a1a1a;
+  background-color: var(--ui-surface);
   flex-shrink: 0;
 }
 .achievement-row:not(.unlocked) .achievement-icon {
@@ -4861,8 +4865,8 @@ function formatPlaytime(minutes: number) {
   justify-content: center;
   font-size: 12px;
   font-weight: 700;
-  color: #1a1a1a;
-  border: 2px solid #121212;
+  color: var(--ui-surface);
+  border: 2px solid var(--ui-bg);
 }
 .badge-bronze {
   background: #b06a35;
@@ -4874,8 +4878,8 @@ function formatPlaytime(minutes: number) {
   background: #d4af37;
 }
 .badge-locked {
-  background: #3a3a3a;
-  color: #888;
+  background: var(--ui-border);
+  color: var(--ui-dim);
 }
 .achievement-info {
   display: flex;
@@ -4883,19 +4887,19 @@ function formatPlaytime(minutes: number) {
   gap: 2px;
 }
 .achievement-name {
-  color: #fff;
+  color: var(--ui-text);
   font-weight: 600;
   font-size: 15px;
 }
 .achievement-row:not(.unlocked) .achievement-name {
-  color: #999;
+  color: var(--ui-dim);
 }
 .achievement-description {
-  color: #999;
+  color: var(--ui-dim);
   font-size: 13px;
 }
 .achievement-unlocked-at {
-  color: #d68a34;
+  color: var(--ui-accent-text);
   font-size: 12px;
   margin-top: 4px;
 }
@@ -4909,16 +4913,16 @@ function formatPlaytime(minutes: number) {
   flex: 1;
   max-width: 160px;
   height: 6px;
-  background: #2a2a2a;
+  background: var(--ui-border);
   border-radius: 3px;
   overflow: hidden;
 }
 .progress-fill {
   height: 100%;
-  background: #d68a34;
+  background: var(--ui-accent);
 }
 .progress-label {
-  color: #999;
+  color: var(--ui-dim);
   font-size: 12px;
   white-space: nowrap;
 }
@@ -4928,7 +4932,7 @@ function formatPlaytime(minutes: number) {
   gap: 12px;
 }
 .percent {
-  color: #d68a34;
+  color: var(--ui-accent-text);
 }
 .notes-panel {
   width: 100%;
@@ -4965,8 +4969,8 @@ function formatPlaytime(minutes: number) {
   align-items: center;
   justify-content: space-between;
   background: rgba(0, 0, 0, 0.2);
-  border: 1px solid #2a2a2a;
-  border-radius: 8px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
   padding: 12px 16px;
   cursor: pointer;
   transition:
@@ -4974,11 +4978,11 @@ function formatPlaytime(minutes: number) {
     border-color 0.15s ease;
 }
 .notes-list-row:hover {
-  background: rgba(255, 255, 255, 0.05);
-  border-color: #3a3a3a;
+  background: color-mix(in srgb, var(--ui-text) 5%, transparent);
+  border-color: var(--ui-border);
 }
 .note-name {
-  color: #fff;
+  color: var(--ui-text);
   font-weight: 600;
 }
 .notes-list-actions {
@@ -4996,10 +5000,10 @@ function formatPlaytime(minutes: number) {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid #3a3a3a;
+  background: color-mix(in srgb, var(--ui-text) 6%, transparent);
+  border: 1px solid var(--ui-border);
   border-radius: 999px;
-  color: #ccc;
+  color: var(--ui-text);
   padding: 6px 12px;
   font-size: 0.8rem;
   font-weight: 600;
@@ -5010,30 +5014,30 @@ function formatPlaytime(minutes: number) {
     color 0.15s ease;
 }
 .account-chip:hover {
-  border-color: #d68a34;
+  border-color: var(--ui-accent-line);
 }
 .account-chip.active {
-  background: rgba(214, 138, 52, 0.18);
-  border-color: #d68a34;
-  color: #d68a34;
+  background: color-mix(in srgb, var(--ui-accent) 18%, transparent);
+  border-color: var(--ui-accent-line);
+  color: var(--ui-accent-text);
 }
 .account-add {
   display: flex;
   gap: 6px;
 }
 .account-add input {
-  background: #111;
-  border: 1px solid #3a3a3a;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
   border-radius: 999px;
-  color: #fff;
+  color: var(--ui-text);
   padding: 6px 12px;
   font-size: 0.8rem;
   min-width: 200px;
 }
 .checklist-card {
   background: rgba(0, 0, 0, 0.2);
-  border: 1px solid #2a2a2a;
-  border-radius: 8px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
   padding: 16px;
   display: flex;
   flex-direction: column;
@@ -5042,7 +5046,7 @@ function formatPlaytime(minutes: number) {
 .checklist-card h3 {
   margin: 0;
   font-size: 0.95rem;
-  color: #fff;
+  color: var(--ui-text);
 }
 .checklist-card-header {
   display: flex;
@@ -5051,18 +5055,18 @@ function formatPlaytime(minutes: number) {
 }
 .checklist-progress-label {
   font-size: 0.8rem;
-  color: #999;
+  color: var(--ui-dim);
   font-weight: 600;
 }
 .checklist-progress-bar {
   height: 5px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
+  background: color-mix(in srgb, var(--ui-text) 8%, transparent);
   overflow: hidden;
 }
 .checklist-progress-fill {
   height: 100%;
-  background: #d68a34;
+  background: var(--ui-accent);
   transition: width 0.2s ease;
 }
 .checklist-section {
@@ -5076,23 +5080,23 @@ function formatPlaytime(minutes: number) {
   gap: 8px;
   cursor: pointer;
   padding: 4px 0;
-  border-bottom: 1px solid #2a2a2a;
+  border-bottom: 1px solid var(--ui-border);
 }
 .checklist-section-caret {
-  color: #777;
+  color: var(--ui-faint);
   font-size: 0.7rem;
   width: 10px;
 }
 .checklist-section-title {
   flex: 1;
-  color: #fff;
+  color: var(--ui-text);
   font-weight: 700;
   font-size: 0.85rem;
   text-transform: uppercase;
   letter-spacing: 0.03em;
 }
 .checklist-section-count {
-  color: #777;
+  color: var(--ui-faint);
   font-size: 0.75rem;
   font-weight: 600;
 }
@@ -5118,46 +5122,46 @@ function formatPlaytime(minutes: number) {
 .checklist-move {
   background: none;
   border: none;
-  color: #555;
+  color: var(--ui-faint);
   cursor: pointer;
   font-size: 0.55rem;
   line-height: 1;
   padding: 1px 2px;
 }
 .checklist-move:hover {
-  color: #d68a34;
+  color: var(--ui-accent-text);
 }
 .checklist-label {
   display: flex;
   align-items: center;
   gap: 8px;
   flex: 1;
-  color: #ddd;
+  color: var(--ui-text);
   cursor: pointer;
 }
 .checklist-label span.done {
-  color: #777;
+  color: var(--ui-faint);
   text-decoration: line-through;
 }
 .checklist-edit-input {
   flex: 1;
-  background: #111;
-  border: 1px solid #d68a34;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-accent-text);
   border-radius: 6px;
-  color: #fff;
+  color: var(--ui-text);
   padding: 4px 8px;
   font-size: 0.9rem;
 }
 .checklist-remove {
   background: none;
   border: none;
-  color: #777;
+  color: var(--ui-faint);
   cursor: pointer;
   font-weight: 700;
   padding: 0 4px;
 }
 .checklist-remove:hover {
-  color: #fca5a5;
+  color: var(--ui-error);
 }
 .checklist-add-row {
   display: flex;
@@ -5170,10 +5174,10 @@ function formatPlaytime(minutes: number) {
 }
 .checklist-add input {
   flex: 1;
-  background: #111;
-  border: 1px solid #3a3a3a;
-  border-radius: 8px;
-  color: #fff;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
+  color: var(--ui-text);
   padding: 8px 10px;
 }
 .accounts-panel {
@@ -5193,8 +5197,8 @@ function formatPlaytime(minutes: number) {
   flex-direction: column;
   gap: 4px;
   background: rgba(0, 0, 0, 0.2);
-  border: 1px solid #2a2a2a;
-  border-radius: 8px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
   padding: 10px;
   position: sticky;
   top: 24px;
@@ -5207,22 +5211,22 @@ function formatPlaytime(minutes: number) {
   background: none;
   border: none;
   border-radius: 6px;
-  color: #ccc;
+  color: var(--ui-text);
   padding: 9px 10px;
   font-size: 0.85rem;
   text-align: left;
   cursor: pointer;
 }
 .account-list-item:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: color-mix(in srgb, var(--ui-text) 5%, transparent);
 }
 .account-list-item.active {
-  background: rgba(214, 138, 52, 0.16);
-  color: #d68a34;
+  background: color-mix(in srgb, var(--ui-accent) 16%, transparent);
+  color: var(--ui-accent-text);
   font-weight: 600;
 }
 .account-list-meta {
-  color: #888;
+  color: var(--ui-dim);
   font-size: 0.72rem;
 }
 .accounts-sidebar .account-add {
@@ -5231,7 +5235,7 @@ function formatPlaytime(minutes: number) {
   gap: 6px;
   margin-top: 6px;
   padding-top: 10px;
-  border-top: 1px solid #2a2a2a;
+  border-top: 1px solid var(--ui-border);
 }
 .accounts-sidebar .account-add input {
   flex: 1;
@@ -5239,29 +5243,29 @@ function formatPlaytime(minutes: number) {
   background: none;
   border: none;
   border-radius: 6px;
-  color: #fff;
+  color: var(--ui-text);
   padding: 7px 8px;
   font-size: 0.85rem;
 }
 .accounts-sidebar .account-add input:focus {
   outline: none;
-  background: rgba(255, 255, 255, 0.05);
+  background: color-mix(in srgb, var(--ui-text) 5%, transparent);
 }
 .accounts-sidebar .account-add button {
   flex-shrink: 0;
   width: 26px;
   height: 26px;
   border-radius: 50%;
-  border: 1px solid #3a3a3a;
+  border: 1px solid var(--ui-border);
   background: none;
-  color: #ccc;
+  color: var(--ui-text);
   font-size: 1rem;
   line-height: 1;
   cursor: pointer;
 }
 .accounts-sidebar .account-add button:hover:not(:disabled) {
-  border-color: #d68a34;
-  color: #d68a34;
+  border-color: var(--ui-accent-line);
+  color: var(--ui-accent-text);
 }
 .accounts-sidebar .account-add button:disabled {
   opacity: 0.4;
@@ -5290,8 +5294,8 @@ function formatPlaytime(minutes: number) {
 .account-stats-card,
 .account-gallery-card {
   background: rgba(0, 0, 0, 0.2);
-  border: 1px solid #2a2a2a;
-  border-radius: 8px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
   padding: 16px;
   display: flex;
   flex-direction: column;
@@ -5302,13 +5306,13 @@ function formatPlaytime(minutes: number) {
 .account-gallery-card h3 {
   margin: 0;
   font-size: 0.95rem;
-  color: #fff;
+  color: var(--ui-text);
 }
 .account-note-card textarea {
-  background: #111;
-  border: 1px solid #3a3a3a;
-  border-radius: 8px;
-  color: #fff;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
+  color: var(--ui-text);
   padding: 10px;
   font: inherit;
   resize: vertical;
@@ -5330,7 +5334,7 @@ function formatPlaytime(minutes: number) {
 }
 .stat-group-heading {
   margin: 4px 0 8px;
-  color: #999;
+  color: var(--ui-dim);
   font-size: 0.72rem;
   font-weight: 700;
   text-transform: uppercase;
@@ -5341,23 +5345,23 @@ function formatPlaytime(minutes: number) {
   flex-direction: column;
   align-items: center;
   gap: 2px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid #2a2a2a;
-  border-radius: 8px;
+  background: color-mix(in srgb, var(--ui-text) 4%, transparent);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
   padding: 8px 6px;
   text-align: center;
 }
 .account-stat-tile.headline {
   padding: 14px 6px;
-  background: rgba(214, 138, 52, 0.1);
-  border-color: rgba(214, 138, 52, 0.35);
+  background: color-mix(in srgb, var(--ui-accent) 10%, transparent);
+  border-color: color-mix(in srgb, var(--ui-accent) 35%, transparent);
 }
 .account-stat-tile.headline .stat-tile-value {
-  color: #d68a34;
+  color: var(--ui-accent-text);
   font-size: 1.3rem;
 }
 .stat-tile-label {
-  color: #999;
+  color: var(--ui-dim);
   font-size: 0.65rem;
   text-transform: uppercase;
   letter-spacing: 0.03em;
@@ -5367,7 +5371,7 @@ function formatPlaytime(minutes: number) {
   max-width: 100%;
 }
 .stat-tile-value {
-  color: #fff;
+  color: var(--ui-text);
   font-weight: 700;
   font-size: 0.95rem;
 }
@@ -5382,12 +5386,12 @@ function formatPlaytime(minutes: number) {
   height: 26px;
 }
 .stat-tile-boss-icon {
-  color: #999;
+  color: var(--ui-dim);
 }
 .account-history-card {
   background: rgba(0, 0, 0, 0.2);
-  border: 1px solid #2a2a2a;
-  border-radius: 8px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
   padding: 16px;
   display: flex;
   flex-direction: column;
@@ -5399,14 +5403,14 @@ function formatPlaytime(minutes: number) {
   justify-content: space-between;
   background: none;
   border: none;
-  color: #fff;
+  color: var(--ui-text);
   font-size: 0.95rem;
   font-weight: 700;
   cursor: pointer;
   padding: 0;
 }
 .account-history-caret {
-  color: #777;
+  color: var(--ui-faint);
   font-size: 0.75rem;
 }
 .wom-sync-row {
@@ -5415,10 +5419,10 @@ function formatPlaytime(minutes: number) {
 }
 .wom-sync-row input {
   flex: 1;
-  background: #111;
-  border: 1px solid #3a3a3a;
-  border-radius: 8px;
-  color: #fff;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
+  color: var(--ui-text);
   padding: 8px 10px;
 }
 .stat-rows {
@@ -5433,10 +5437,10 @@ function formatPlaytime(minutes: number) {
   align-items: center;
 }
 .stat-row input {
-  background: #111;
-  border: 1px solid #3a3a3a;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
   border-radius: 6px;
-  color: #fff;
+  color: var(--ui-text);
   padding: 6px 8px;
   font-size: 0.85rem;
 }
@@ -5464,7 +5468,7 @@ function formatPlaytime(minutes: number) {
   gap: 4px;
 }
 .stat-history-date {
-  color: #999;
+  color: var(--ui-dim);
   font-size: 0.75rem;
   font-weight: 600;
 }
@@ -5474,15 +5478,15 @@ function formatPlaytime(minutes: number) {
   gap: 4px;
 }
 .stat-history-chip {
-  background: rgba(255, 255, 255, 0.06);
-  color: #ccc;
+  background: color-mix(in srgb, var(--ui-text) 6%, transparent);
+  color: var(--ui-text);
   border-radius: 999px;
   padding: 2px 8px;
   font-size: 0.68rem;
 }
 .stat-history-chip.gain {
-  background: rgba(74, 222, 128, 0.14);
-  color: #86efac;
+  background: var(--ui-good-soft);
+  color: var(--ui-good);
   font-weight: 600;
 }
 .account-gallery-header {
@@ -5500,14 +5504,14 @@ function formatPlaytime(minutes: number) {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  color: #ddd;
+  color: var(--ui-text);
   font-size: 0.85rem;
 }
 .field input {
-  background: #111;
-  border: 1px solid #3a3a3a;
-  border-radius: 8px;
-  color: #fff;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
+  color: var(--ui-text);
   padding: 10px 12px;
 }
 .field input:disabled {
@@ -5518,25 +5522,25 @@ function formatPlaytime(minutes: number) {
 .small-button,
 .danger-button {
   border: none;
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   cursor: pointer;
   font-weight: 600;
   transition: opacity 0.15s ease;
 }
 .primary-button {
-  background: #d68a34;
-  color: #111;
+  background: var(--ui-accent);
+  color: var(--ui-on-accent);
   padding: 10px 12px;
 }
 .small-button {
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
+  background: color-mix(in srgb, var(--ui-text) 8%, transparent);
+  color: var(--ui-text);
   padding: 7px 10px;
   font-size: 0.8rem;
 }
 .danger-button {
   background: rgba(220, 38, 38, 0.18);
-  color: #fca5a5;
+  color: var(--ui-error);
   padding: 8px 10px;
 }
 .primary-button:disabled,
@@ -5552,8 +5556,8 @@ function formatPlaytime(minutes: number) {
 }
 .notes-editor-card {
   background: rgba(0, 0, 0, 0.2);
-  border: 1px solid #2a2a2a;
-  border-radius: 12px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-card);
   padding: 20px;
   display: flex;
   flex-direction: column;
@@ -5565,26 +5569,26 @@ function formatPlaytime(minutes: number) {
   align-items: center;
   gap: 8px;
   padding-bottom: 12px;
-  border-bottom: 1px solid #2a2a2a;
+  border-bottom: 1px solid var(--ui-border);
 }
 .selected-note {
-  color: #fff;
+  color: var(--ui-text);
   font-weight: 600;
   font-size: 1.05rem;
 }
 .field input:focus,
 .notes-editor textarea:focus {
   outline: none;
-  border-color: #d68a34;
+  border-color: var(--ui-accent-line);
 }
 .notes-editor textarea {
   width: 100%;
   min-height: 420px;
   box-sizing: border-box;
-  border: 1px solid #3a3a3a;
-  border-radius: 10px;
-  background: #111;
-  color: #f5f5f5;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-row);
+  background: var(--ui-surface);
+  color: var(--ui-text);
   resize: vertical;
   padding: 14px;
   font: inherit;
@@ -5595,14 +5599,14 @@ function formatPlaytime(minutes: number) {
   gap: 10px;
 }
 .note-error {
-  color: #fca5a5;
+  color: var(--ui-error);
 }
 .empty-state {
-  color: #777;
+  color: var(--ui-faint);
   margin: 0;
 }
 .empty-state.error {
-  color: #fca5a5;
+  color: var(--ui-error);
 }
 
 .card-tab-panel {
@@ -5622,10 +5626,10 @@ function formatPlaytime(minutes: number) {
   gap: 10px;
 }
 .card-open-btn {
-  background: #d68a34;
-  color: #121212;
+  background: var(--ui-accent);
+  color: var(--ui-on-accent);
   border: none;
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   padding: 10px 18px;
   font-weight: 700;
   font-size: 0.9rem;
@@ -5676,9 +5680,9 @@ function formatPlaytime(minutes: number) {
   gap: 10px;
 }
 .history-entry {
-  background: #1a1a1a;
-  border: 1px solid #2a2a2a;
-  border-radius: 10px;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-row);
   padding: 12px 16px;
 }
 .history-entry-head {
@@ -5689,10 +5693,10 @@ function formatPlaytime(minutes: number) {
 }
 .history-field {
   font-weight: 600;
-  color: #ccc;
+  color: var(--ui-text);
 }
 .history-date {
-  color: #777;
+  color: var(--ui-faint);
   font-size: 0.8rem;
 }
 .history-values {
@@ -5703,15 +5707,15 @@ function formatPlaytime(minutes: number) {
 }
 .history-values svg {
   flex-shrink: 0;
-  color: #666;
+  color: var(--ui-faint);
 }
 .history-old {
-  color: #999;
+  color: var(--ui-dim);
   text-decoration: line-through;
-  text-decoration-color: #444;
+  text-decoration-color: var(--ui-faint);
 }
 .history-new {
-  color: #d68a34;
+  color: var(--ui-accent-text);
 }
 .upload-label {
   display: inline-flex;
@@ -5722,20 +5726,20 @@ function formatPlaytime(minutes: number) {
   display: none;
 }
 .section-hint {
-  color: #999;
+  color: var(--ui-dim);
   font-size: 0.85rem;
   margin: 0 0 16px;
 }
 .empty-row {
-  color: #777;
+  color: var(--ui-faint);
   font-size: 14px;
 }
 .form-error {
-  color: #fca5a5;
+  color: var(--ui-error);
   font-size: 13px;
   background: rgba(220, 38, 38, 0.1);
   border: 1px solid rgba(220, 38, 38, 0.3);
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   padding: 8px 10px;
   margin-bottom: 14px;
 }
@@ -5764,7 +5768,7 @@ function formatPlaytime(minutes: number) {
 .lightbox-image {
   max-width: 100%;
   max-height: 100%;
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
 }
 .file-list {
@@ -5780,13 +5784,13 @@ function formatPlaytime(minutes: number) {
   align-items: center;
   gap: 10px;
   background: rgba(0, 0, 0, 0.2);
-  border: 1px solid #2a2a2a;
-  border-radius: 8px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
   padding: 12px 16px;
-  color: #999;
+  color: var(--ui-dim);
 }
 .file-name {
-  color: #fff;
+  color: var(--ui-text);
   font-size: 0.9rem;
   text-decoration: none;
   flex: 1;
@@ -5799,7 +5803,7 @@ function formatPlaytime(minutes: number) {
 }
 .world-map-panel h2 {
   margin: 0 0 4px;
-  color: #fff;
+  color: var(--ui-text);
 }
 .world-map-uploads {
   display: grid;
@@ -5810,7 +5814,7 @@ function formatPlaytime(minutes: number) {
 .world-map-upload-col h3 {
   margin: 0 0 8px;
   font-size: 0.85rem;
-  color: #ccc;
+  color: var(--ui-text);
 }
 /* Saves: named, versioned archives ---------------------------------------- */
 .archive-grid {
@@ -5820,8 +5824,8 @@ function formatPlaytime(minutes: number) {
 }
 .archive-card {
   background: rgba(0, 0, 0, 0.2);
-  border: 1px solid #2a2a2a;
-  border-radius: 10px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-row);
   padding: 14px;
 }
 .archive-card-header {
@@ -5831,7 +5835,7 @@ function formatPlaytime(minutes: number) {
   gap: 8px;
 }
 .archive-name {
-  color: #fff;
+  color: var(--ui-text);
   font-weight: 600;
   font-size: 0.92rem;
   overflow: hidden;
@@ -5848,8 +5852,8 @@ function formatPlaytime(minutes: number) {
   height: 24px;
   border-radius: 6px;
   border: none;
-  background: rgba(255, 255, 255, 0.06);
-  color: #999;
+  background: color-mix(in srgb, var(--ui-text) 6%, transparent);
+  color: var(--ui-dim);
   cursor: pointer;
   font-size: 12px;
   display: flex;
@@ -5857,11 +5861,11 @@ function formatPlaytime(minutes: number) {
   justify-content: center;
 }
 .icon-button:hover {
-  background: rgba(255, 255, 255, 0.14);
-  color: #fff;
+  background: color-mix(in srgb, var(--ui-text) 14%, transparent);
+  color: var(--ui-text);
 }
 .archive-meta {
-  color: #777;
+  color: var(--ui-faint);
   font-size: 0.76rem;
   margin: 4px 0 12px;
 }
@@ -5874,7 +5878,7 @@ function formatPlaytime(minutes: number) {
   list-style: none;
   margin: 12px 0 0;
   padding: 10px 0 0;
-  border-top: 1px solid #232323;
+  border-top: 1px solid var(--ui-border-soft);
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -5895,18 +5899,18 @@ function formatPlaytime(minutes: number) {
 .trash-section {
   margin-top: 20px;
   padding-top: 14px;
-  border-top: 1px solid #2a2a2a;
+  border-top: 1px solid var(--ui-border);
 }
 .trash-toggle {
   background: none;
   border: none;
-  color: #999;
+  color: var(--ui-dim);
   font-size: 0.82rem;
   cursor: pointer;
   padding: 0;
 }
 .trash-toggle:hover {
-  color: #ccc;
+  color: var(--ui-text);
 }
 .trash-list {
   list-style: none;
@@ -5922,16 +5926,16 @@ function formatPlaytime(minutes: number) {
   gap: 10px;
   padding: 8px 10px;
   background: rgba(0, 0, 0, 0.2);
-  border: 1px solid #2a2a2a;
-  border-radius: 8px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
   font-size: 0.82rem;
 }
 .trash-name {
   flex: 1;
-  color: #ccc;
+  color: var(--ui-text);
 }
 .trash-meta {
-  color: #777;
+  color: var(--ui-faint);
   font-size: 0.76rem;
 }
 
@@ -5942,9 +5946,9 @@ function formatPlaytime(minutes: number) {
   gap: 14px;
 }
 .world-map-card {
-  background: rgba(0, 0, 0, 0.2);
-  border: 1px solid #2a2a2a;
-  border-radius: 10px;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-row);
   overflow: hidden;
 }
 .world-map-thumb {
@@ -5969,7 +5973,7 @@ function formatPlaytime(minutes: number) {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #3a3a3a;
+  color: var(--ui-border);
 }
 .world-map-card-body {
   padding: 12px 14px;
@@ -5977,17 +5981,17 @@ function formatPlaytime(minutes: number) {
 .world-map-status {
   display: block;
   font-size: 0.78rem;
-  color: #999;
+  color: var(--ui-dim);
   margin: 4px 0 10px;
 }
 .world-map-status.error {
-  color: #fca5a5;
+  color: var(--ui-error);
 }
 .world-map-status.done {
-  color: #86efac;
+  color: var(--ui-good);
 }
 .world-map-status.rendering {
-  color: #d68a34;
+  color: var(--ui-accent-text);
 }
 .world-map-card-actions {
   display: flex;
@@ -6008,7 +6012,7 @@ function formatPlaytime(minutes: number) {
   width: 30%;
   height: 100%;
   border-radius: 999px;
-  background: #d68a34;
+  background: var(--ui-accent);
   animation: world-map-scan 1.2s ease-in-out infinite;
 }
 @keyframes world-map-scan {
@@ -6022,18 +6026,18 @@ function formatPlaytime(minutes: number) {
 .world-map-frame {
   width: 100%;
   height: 70vh;
-  border: 1px solid #2a2a2a;
-  border-radius: 10px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-row);
   margin-top: 16px;
   background: #000;
 }
 .file-size {
-  color: #777;
+  color: var(--ui-faint);
   font-size: 0.78rem;
   flex-shrink: 0;
 }
 .file-download {
-  color: #93c5fd;
+  color: var(--ui-info);
   font-size: 0.8rem;
   flex-shrink: 0;
   text-decoration: none;
@@ -6044,14 +6048,14 @@ function formatPlaytime(minutes: number) {
 .tile-remove-inline {
   background: none;
   border: none;
-  color: #777;
+  color: var(--ui-faint);
   cursor: pointer;
   font-size: 13px;
   padding: 2px 4px;
   flex-shrink: 0;
 }
 .tile-remove-inline:hover {
-  color: #fca5a5;
+  color: var(--ui-error);
 }
 .stats-grid {
   display: grid;
@@ -6060,56 +6064,56 @@ function formatPlaytime(minutes: number) {
 }
 .stat-tile {
   background: rgba(0, 0, 0, 0.2);
-  border: 1px solid #2a2a2a;
-  border-radius: 10px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-row);
   padding: 16px;
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
 .stat-label {
-  color: #999;
+  color: var(--ui-dim);
   font-size: 0.76rem;
   text-transform: uppercase;
   letter-spacing: 0.03em;
 }
 .stat-value {
-  color: #fff;
+  color: var(--ui-text);
   font-size: 1.3rem;
   font-weight: 700;
   text-transform: capitalize;
 }
 .not-found {
   padding: 24px;
-  color: #fff;
+  color: var(--ui-text);
 }
 .note-rendered {
-  color: #ddd;
+  color: var(--ui-text);
   line-height: 1.6;
   font-size: 14px;
 }
 .note-rendered :deep(h1),
 .note-rendered :deep(h2),
 .note-rendered :deep(h3) {
-  color: #fff;
+  color: var(--ui-text);
   margin: 16px 0 8px;
 }
 .note-rendered :deep(p) {
   margin: 0 0 10px;
 }
 .note-rendered :deep(a) {
-  color: #d68a34;
+  color: var(--ui-accent-text);
 }
 .note-rendered :deep(code) {
-  background: #111;
+  background: var(--ui-surface);
   padding: 2px 6px;
   border-radius: 4px;
   font-size: 13px;
 }
 .note-rendered :deep(pre) {
-  background: #111;
+  background: var(--ui-surface);
   padding: 12px;
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   overflow-x: auto;
 }
 .note-rendered :deep(ul),
@@ -6127,9 +6131,9 @@ function formatPlaytime(minutes: number) {
   z-index: 60;
 }
 .confirm-dialog {
-  background: #1a1a1a;
-  border: 1px solid #2a2a2a;
-  border-radius: 12px;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-card);
   padding: 22px;
   width: 100%;
   max-width: 360px;
@@ -6140,11 +6144,11 @@ function formatPlaytime(minutes: number) {
 }
 .confirm-dialog p {
   margin: 0 0 16px;
-  color: #aaa;
+  color: var(--ui-dim);
   font-size: 14px;
 }
 .confirm-error {
-  color: #fca5a5;
+  color: var(--ui-error);
   font-size: 13px;
   margin-bottom: 12px;
 }
@@ -6158,7 +6162,23 @@ function formatPlaytime(minutes: number) {
   padding: 10px 18px;
 }
 .secondary-button {
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
+  background: color-mix(in srgb, var(--ui-text) 8%, transparent);
+  color: var(--ui-text);
+}
+button,
+input:not([type="checkbox"]),
+select {
+  min-height: var(--ui-control-height);
+}
+@media (hover: none), (max-width: 760px) {
+  .hero-actions {
+    opacity: 1;
+    position: static;
+    padding: 0 24px 20px;
+    flex-wrap: wrap;
+  }
+  .hero {
+    flex-wrap: wrap;
+  }
 }
 </style>

@@ -433,14 +433,16 @@ async function deleteCollection() {
 <style scoped>
 .collection-detail {
   position: relative;
-  padding: 84px 24px 24px;
-  font-family: system-ui, sans-serif;
-  background: #0d0d0d;
+  box-sizing: border-box;
+  padding: 84px var(--ui-edge-right) 24px var(--ui-edge-left);
+  font-family: var(--ui-font-family);
+  background: var(--ui-bg);
   min-height: 100vh;
-  color: #fff;
+  color: var(--ui-text);
 }
 .header-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
   gap: 14px;
   margin-bottom: 24px;
@@ -454,28 +456,28 @@ async function deleteCollection() {
   font-weight: 700;
 }
 .parent-crumb {
-  color: #777;
+  color: var(--ui-faint);
   font-size: 1.1rem;
   font-weight: 600;
   text-decoration: none;
   margin-right: 4px;
 }
 .parent-crumb:hover {
-  color: #d68a34;
+  color: var(--ui-accent-text);
 }
 .count-badge {
-  color: #999;
+  color: var(--ui-dim);
   font-size: 13px;
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--ui-text) 6%, transparent);
   padding: 4px 12px;
   border-radius: 999px;
 }
 .smart-rule-badge {
-  color: #d68a34;
+  color: var(--ui-accent-text);
   font-size: 12px;
   font-weight: 600;
-  background: rgba(214, 138, 52, 0.12);
-  border: 1px solid rgba(214, 138, 52, 0.3);
+  background: color-mix(in srgb, var(--ui-accent) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ui-accent) 30%, transparent);
   padding: 4px 12px;
   border-radius: 999px;
   white-space: nowrap;
@@ -484,7 +486,7 @@ async function deleteCollection() {
   max-width: 260px;
 }
 .smart-hint {
-  color: #999;
+  color: var(--ui-dim);
   font-size: 12.5px;
   margin: -10px 0 16px;
 }
@@ -492,16 +494,16 @@ async function deleteCollection() {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #999;
+  color: var(--ui-dim);
   font-size: 12.5px;
 }
 .filter-select {
   height: 34px;
   box-sizing: border-box;
-  background: #111;
-  border: 1px solid #3a3a3a;
-  border-radius: 8px;
-  color: #fff;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
+  color: var(--ui-text);
   padding: 0 12px;
   font: inherit;
   font-size: 13px;
@@ -509,14 +511,12 @@ async function deleteCollection() {
 }
 .filter-select:focus {
   outline: none;
-  border-color: #d68a34;
+  border-color: var(--ui-accent-line);
 }
-/* fixed 10-per-row grid, column width only depends on the container, never
-   on how many games there are, so adding one more game just starts filling
-   the next row instead of resizing every existing card */
+/* Columns respond to the available width and retain usable card sizes. */
 .grid {
   display: grid;
-  grid-template-columns: repeat(10, 1fr);
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 150px), 1fr));
   gap: 16px;
 }
 .grid :deep(.game-card-wrap) {
@@ -524,11 +524,11 @@ async function deleteCollection() {
   min-width: 0;
 }
 .empty-row {
-  color: #777;
+  color: var(--ui-faint);
   font-size: 14px;
 }
 .error {
-  color: #f87171;
+  color: var(--ui-error);
 }
 .confirm-backdrop {
   position: fixed;
@@ -540,9 +540,9 @@ async function deleteCollection() {
   z-index: 60;
 }
 .confirm-dialog {
-  background: #1a1a1a;
-  border: 1px solid #2a2a2a;
-  border-radius: 12px;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-card);
   padding: 22px;
   width: 100%;
   max-width: 360px;
@@ -553,11 +553,11 @@ async function deleteCollection() {
 }
 .confirm-dialog p {
   margin: 0 0 16px;
-  color: #aaa;
+  color: var(--ui-dim);
   font-size: 14px;
 }
 .confirm-error {
-  color: #fca5a5;
+  color: var(--ui-error);
   font-size: 13px;
   margin-bottom: 12px;
 }
@@ -569,18 +569,18 @@ async function deleteCollection() {
 .secondary-button,
 .danger-button {
   border: none;
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   padding: 10px 18px;
   font-weight: 600;
   cursor: pointer;
 }
 .secondary-button {
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
+  background: color-mix(in srgb, var(--ui-text) 8%, transparent);
+  color: var(--ui-text);
 }
 .secondary-button.active {
-  background: #d68a34;
-  color: #111;
+  background: var(--ui-accent);
+  color: var(--ui-on-accent);
 }
 .reorder-list {
   list-style: none;
@@ -595,9 +595,9 @@ async function deleteCollection() {
   display: flex;
   align-items: center;
   gap: 12px;
-  background: #111;
-  border: 1px solid #3a3a3a;
-  border-radius: 8px;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
   padding: 8px 12px;
 }
 .reorder-thumb {
@@ -609,7 +609,7 @@ async function deleteCollection() {
 }
 .reorder-title {
   flex: 1;
-  color: #fff;
+  color: var(--ui-text);
   font-size: 13.5px;
   white-space: nowrap;
   overflow: hidden;
@@ -620,12 +620,12 @@ async function deleteCollection() {
   gap: 4px;
 }
 .reorder-arrows button {
-  background: rgba(255, 255, 255, 0.08);
+  background: color-mix(in srgb, var(--ui-text) 8%, transparent);
   border: none;
   border-radius: 6px;
-  color: #fff;
-  width: 26px;
-  height: 26px;
+  color: var(--ui-text);
+  width: var(--ui-control-height);
+  height: var(--ui-control-height);
   cursor: pointer;
 }
 .reorder-arrows button:disabled {
@@ -633,11 +633,35 @@ async function deleteCollection() {
   cursor: not-allowed;
 }
 .danger-button {
-  background: #dc2626;
+  background: var(--ui-danger);
   color: #fff;
 }
 .danger-button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+button,
+select {
+  min-height: var(--ui-control-height);
+}
+h1 {
+  font: var(--ui-weight-title) var(--ui-font-title)/1.15 var(--ui-font-family);
+  overflow-wrap: anywhere;
+}
+@media (max-width: 760px) {
+  .header-row h1 {
+    flex-basis: 100%;
+  }
+  .header-spacer {
+    display: none;
+  }
+  .cover-pick-field {
+    width: 100%;
+  }
+  .filter-select {
+    flex: 1;
+    min-width: 0;
+    max-width: none;
+  }
 }
 </style>

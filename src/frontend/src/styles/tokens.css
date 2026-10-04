@@ -20,6 +20,12 @@
   --ui-danger: #b42318;
   --ui-error: #b42318;
   --ui-danger-soft: #fff0ee;
+  --ui-warning: #855000;
+  --ui-warning-soft: #fff2d9;
+  --ui-info: #265a8b;
+  --ui-info-soft: #e9f1fa;
+  --ui-purple: #6951a2;
+  --ui-purple-soft: #f0ebfa;
   --ui-good: #216e3e;
   --ui-good-soft: #e8f4ec;
   --ui-overlay: rgb(15 19 24 / 55%);
@@ -96,6 +102,12 @@
   --ui-danger: #b42318;
   --ui-error: #ffa6a0;
   --ui-danger-soft: #3f2525;
+  --ui-warning: #f2c87a;
+  --ui-warning-soft: #3b3020;
+  --ui-info: #a2c8ef;
+  --ui-info-soft: #263445;
+  --ui-purple: #c6b5f1;
+  --ui-purple-soft: #332c45;
   --ui-good: #96d5a9;
   --ui-good-soft: #23382b;
   --ui-overlay: rgb(0 0 0 / 65%);

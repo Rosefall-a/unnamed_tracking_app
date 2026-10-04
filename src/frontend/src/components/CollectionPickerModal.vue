@@ -144,21 +144,21 @@ function createAndAdd() {
 .picker-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.65);
+  background: var(--ui-overlay);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 70;
+  z-index: var(--ui-z-modal);
 }
 .picker-modal {
-  background: #1a1a1a;
-  border: 1px solid #2a2a2a;
-  border-radius: 12px;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-card);
   padding: 22px;
   width: 100%;
   max-width: 380px;
-  color: #fff;
-  font-family: system-ui, sans-serif;
+  color: var(--ui-text);
+  font-family: var(--ui-font-family);
   box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
 }
 .picker-modal h3 {
@@ -171,10 +171,10 @@ function createAndAdd() {
 .picker-input {
   width: 100%;
   box-sizing: border-box;
-  background: #111;
-  border: 1px solid #3a3a3a;
-  border-radius: 8px;
-  color: #fff;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
+  color: var(--ui-text);
   padding: 10px 12px;
   font: inherit;
   font-size: 14px;
@@ -182,10 +182,10 @@ function createAndAdd() {
 }
 .picker-input:focus {
   outline: none;
-  border-color: #d68a34;
+  border-color: var(--ui-accent-line);
 }
 .picker-error {
-  color: #fca5a5;
+  color: var(--ui-error);
   font-size: 13px;
   margin-bottom: 10px;
 }
@@ -200,27 +200,27 @@ function createAndAdd() {
 .picker-item {
   background: none;
   border: none;
-  color: #ddd;
+  color: var(--ui-text);
   text-align: left;
   padding: 10px 12px;
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   cursor: pointer;
   font-size: 14px;
   transition: background 0.15s ease;
 }
 .picker-item:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.08);
+  background: color-mix(in srgb, var(--ui-text) 8%, transparent);
 }
 .picker-item:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
 .picker-create {
-  color: #d68a34;
+  color: var(--ui-accent-text);
   font-weight: 600;
 }
 .picker-empty {
-  color: #777;
+  color: var(--ui-faint);
   font-size: 13px;
   margin: 0;
   padding: 6px 12px;
@@ -230,10 +230,10 @@ function createAndAdd() {
   justify-content: flex-end;
 }
 .secondary-button {
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
+  background: color-mix(in srgb, var(--ui-text) 8%, transparent);
+  color: var(--ui-text);
   border: none;
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   padding: 9px 18px;
   font-weight: 600;
   cursor: pointer;

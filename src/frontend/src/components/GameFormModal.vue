@@ -1053,15 +1053,15 @@ async function submit() {
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.65);
+  background: var(--ui-overlay);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 50;
+  z-index: var(--ui-z-modal);
 }
 .modal {
-  background: #1a1a1a;
-  border: 1px solid #2a2a2a;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
   border-radius: 14px;
   width: 100%;
   max-width: 760px;
@@ -1069,8 +1069,8 @@ async function submit() {
   max-height: 88vh;
   display: flex;
   flex-direction: column;
-  color: #fff;
-  font-family: system-ui, sans-serif;
+  color: var(--ui-text);
+  font-family: var(--ui-font-family);
   box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
 }
 .modal-header {
@@ -1078,7 +1078,7 @@ async function submit() {
   justify-content: space-between;
   align-items: center;
   padding: 18px 22px;
-  border-bottom: 1px solid #2a2a2a;
+  border-bottom: 1px solid var(--ui-border);
   flex-shrink: 0;
 }
 .modal-header h2 {
@@ -1088,37 +1088,37 @@ async function submit() {
 .close-button {
   background: none;
   border: none;
-  color: #999;
+  color: var(--ui-dim);
   font-size: 15px;
   cursor: pointer;
-  width: 32px;
-  height: 32px;
+  width: var(--ui-control-height);
+  height: var(--ui-control-height);
   border-radius: 50%;
   transition:
     background 0.15s ease,
     color 0.15s ease;
 }
 .close-button:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: #fff;
+  background: color-mix(in srgb, var(--ui-text) 10%, transparent);
+  color: var(--ui-text);
 }
 .modal-tabs {
   display: flex;
   gap: 4px;
   padding: 12px 20px 0;
-  border-bottom: 1px solid #2a2a2a;
+  border-bottom: 1px solid var(--ui-border);
   flex-shrink: 0;
   overflow-x: auto;
 }
 .modal-tab {
   background: none;
   border: none;
-  color: #999;
+  color: var(--ui-dim);
   padding: 9px 16px;
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
-  border-radius: 8px 8px 0 0;
+  border-radius: var(--ui-radius-control) 8px 0 0;
   white-space: nowrap;
   border-bottom: 2px solid transparent;
   transition:
@@ -1126,13 +1126,13 @@ async function submit() {
     background 0.15s ease;
 }
 .modal-tab:hover {
-  color: #ddd;
-  background: rgba(255, 255, 255, 0.05);
+  color: var(--ui-text);
+  background: color-mix(in srgb, var(--ui-text) 5%, transparent);
 }
 .modal-tab.active {
-  color: #fff;
-  background: rgba(214, 138, 52, 0.1);
-  border-bottom-color: #d68a34;
+  color: var(--ui-text);
+  background: color-mix(in srgb, var(--ui-accent) 10%, transparent);
+  border-bottom-color: var(--ui-accent-text);
 }
 .modal-form {
   display: flex;
@@ -1156,10 +1156,10 @@ async function submit() {
   min-height: 380px;
 }
 .metadata-search {
-  border: 1px solid #3a3a3a;
-  border-radius: 8px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
   padding: 12px;
-  background: #151515;
+  background: var(--ui-surface);
 }
 .search-heading {
   display: flex;
@@ -1169,21 +1169,21 @@ async function submit() {
 }
 .search-heading span,
 .metadata-result small {
-  color: #999;
+  color: var(--ui-dim);
   font-size: 0.78rem;
 }
 .steamgriddb-hint {
   margin: 0 0 10px;
   padding: 8px 10px;
-  background: rgba(214, 138, 52, 0.1);
-  border: 1px solid rgba(214, 138, 52, 0.3);
-  border-radius: 8px;
-  color: #ddd;
+  background: color-mix(in srgb, var(--ui-accent) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ui-accent) 30%, transparent);
+  border-radius: var(--ui-radius-control);
+  color: var(--ui-text);
   font-size: 0.78rem;
   line-height: 1.5;
 }
 .steamgriddb-hint a {
-  color: #d68a34;
+  color: var(--ui-accent-text);
   font-weight: 600;
   text-decoration: none;
 }
@@ -1197,16 +1197,16 @@ async function submit() {
 .search-row input {
   flex: 1;
   min-width: 0;
-  background: #111;
-  border: 1px solid #3a3a3a;
-  border-radius: 8px;
-  color: #fff;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
+  color: var(--ui-text);
   padding: 9px 11px;
   font: inherit;
 }
 .search-row input:focus {
   outline: none;
-  border-color: #d68a34;
+  border-color: var(--ui-accent-line);
 }
 .metadata-results {
   display: grid;
@@ -1221,14 +1221,14 @@ async function submit() {
   width: 100%;
   padding: 9px 10px;
   text-align: left;
-  color: #fff;
-  background: #202020;
-  border: 1px solid #3a3a3a;
+  color: var(--ui-text);
+  background: var(--ui-border);
+  border: 1px solid var(--ui-border);
   border-radius: 6px;
   cursor: pointer;
 }
 .metadata-result:hover {
-  border-color: #d68a34;
+  border-color: var(--ui-accent-line);
   background: #282828;
 }
 .field {
@@ -1236,7 +1236,7 @@ async function submit() {
   flex-direction: column;
   gap: 6px;
   font-size: 0.85rem;
-  color: #ccc;
+  color: var(--ui-text);
   flex: 1;
   min-width: 0;
 }
@@ -1248,7 +1248,7 @@ async function submit() {
   align-items: flex-start;
   gap: 10px;
   font-size: 0.85rem;
-  color: #ccc;
+  color: var(--ui-text);
   flex: 1;
   cursor: pointer;
 }
@@ -1256,7 +1256,7 @@ async function submit() {
   margin-top: 3px;
   width: 16px;
   height: 16px;
-  accent-color: #d68a34;
+  accent-color: var(--ui-accent-text);
   flex-shrink: 0;
 }
 .checkbox-field span {
@@ -1272,10 +1272,10 @@ async function submit() {
 .field input,
 .field select,
 .field textarea {
-  background: #111;
-  border: 1px solid #3a3a3a;
-  border-radius: 8px;
-  color: #fff;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
+  color: var(--ui-text);
   padding: 9px 11px;
   font: inherit;
   transition: border-color 0.15s ease;
@@ -1284,7 +1284,7 @@ async function submit() {
 .field select:focus,
 .field textarea:focus {
   outline: none;
-  border-color: #d68a34;
+  border-color: var(--ui-accent-line);
 }
 .field-row {
   display: flex;
@@ -1306,9 +1306,9 @@ async function submit() {
 }
 .remove-button {
   background: rgba(220, 38, 38, 0.15);
-  color: #fca5a5;
+  color: var(--ui-error);
   border: none;
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   width: 38px;
   height: 38px;
   cursor: pointer;
@@ -1346,7 +1346,7 @@ async function submit() {
   margin-top: -6px;
 }
 .candidates-label {
-  color: #999;
+  color: var(--ui-dim);
   font-size: 0.78rem;
 }
 .candidates-grid {
@@ -1362,7 +1362,7 @@ async function submit() {
   border-radius: 6px;
   overflow: hidden;
   cursor: pointer;
-  background: #111;
+  background: var(--ui-surface);
   flex-shrink: 0;
 }
 .candidate-thumb img {
@@ -1372,18 +1372,18 @@ async function submit() {
   display: block;
 }
 .candidate-thumb.active {
-  border-color: #d68a34;
+  border-color: var(--ui-accent-line);
 }
 .banner-thumb {
   width: 120px;
   height: 45px;
 }
 .form-error {
-  color: #fca5a5;
+  color: var(--ui-error);
   font-size: 0.85rem;
   background: rgba(220, 38, 38, 0.1);
   border: 1px solid rgba(220, 38, 38, 0.3);
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   padding: 10px 12px;
 }
 .modal-actions {
@@ -1391,7 +1391,7 @@ async function submit() {
   align-items: center;
   gap: 10px;
   padding: 14px 22px;
-  border-top: 1px solid #2a2a2a;
+  border-top: 1px solid var(--ui-border);
   flex-shrink: 0;
 }
 .modal-actions-spacer {
@@ -1407,9 +1407,9 @@ async function submit() {
 }
 .danger-button {
   background: rgba(220, 38, 38, 0.15);
-  color: #fca5a5;
+  color: var(--ui-error);
   border: none;
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   padding: 10px 20px;
   font-weight: 600;
   font-size: 0.9rem;
@@ -1422,7 +1422,7 @@ async function submit() {
 .primary-button,
 .secondary-button {
   border: none;
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   padding: 10px 20px;
   font-weight: 600;
   font-size: 0.9rem;
@@ -1432,11 +1432,11 @@ async function submit() {
     transform 0.05s ease;
 }
 .primary-button {
-  background: #d68a34;
-  color: #111;
+  background: var(--ui-accent);
+  color: var(--ui-on-accent);
 }
 .primary-button:hover:not(:disabled) {
-  background: #ffd83d;
+  filter: brightness(1.08);
 }
 .primary-button:active:not(:disabled) {
   transform: scale(0.98);
@@ -1446,11 +1446,11 @@ async function submit() {
   cursor: not-allowed;
 }
 .secondary-button {
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
+  background: color-mix(in srgb, var(--ui-text) 8%, transparent);
+  color: var(--ui-text);
 }
 .secondary-button:hover {
-  background: rgba(255, 255, 255, 0.15);
+  background: color-mix(in srgb, var(--ui-text) 15%, transparent);
 }
 @media (max-width: 480px) {
   .modal-header,

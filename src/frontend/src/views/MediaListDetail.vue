@@ -587,33 +587,33 @@ async function addTitle(m: PickItem) {
 }
 .header-row h1 {
   margin: 0 4px 0 0;
-  font-size: 1.7rem;
-  font-weight: 800;
+  font-size: var(--ui-font-title);
+  font-weight: var(--ui-weight-title);
 }
 .count-badge {
-  color: #9c9c9c;
+  color: var(--ui-dim);
   font-size: 13px;
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--ui-text) 6%, transparent);
   padding: 4px 12px;
   border-radius: 999px;
 }
 .smart-pill {
   font-size: 11px;
-  font-weight: 800;
+  font-weight: var(--ui-weight-title);
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  color: #d68a34;
-  background: rgba(214, 138, 52, 0.14);
+  color: var(--ui-accent-text);
+  background: color-mix(in srgb, var(--ui-accent) 14%, transparent);
   padding: 4px 10px;
   border-radius: 999px;
 }
 .subtitle {
   margin: 0 0 8px;
-  color: #9c9c9c;
+  color: var(--ui-dim);
   font-size: 0.88rem;
 }
 .rule-line {
-  color: #b9a37f;
+  color: var(--ui-dim);
 }
 .type-chips {
   display: flex;
@@ -623,7 +623,7 @@ async function addTitle(m: PickItem) {
 }
 .hint {
   margin: 0 0 4px;
-  color: #d68a34;
+  color: var(--ui-accent-text);
   font-size: 0.8rem;
 }
 /* same fixed 10-per-row grid as Collections/CollectionDetail */
@@ -646,9 +646,9 @@ async function addTitle(m: PickItem) {
   position: relative;
   width: 100%;
   aspect-ratio: 2 / 3;
-  border-radius: 10px;
+  border-radius: var(--ui-radius-row);
   overflow: hidden;
-  background: #1a1a1a;
+  background: var(--ui-surface);
   transition:
     transform 0.32s cubic-bezier(0.22, 1, 0.36, 1),
     box-shadow 0.32s cubic-bezier(0.22, 1, 0.36, 1);
@@ -666,14 +666,14 @@ async function addTitle(m: PickItem) {
   height: 100%;
   background-size: cover;
   background-position: center;
-  background-color: #1c1c1c;
+  background-color: var(--ui-surface);
 }
 .cover-mark {
   position: absolute;
   left: 8px;
   top: 8px;
   z-index: 2;
-  color: #d68a34;
+  color: var(--ui-accent-text);
   font-size: 14px;
   text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
 }
@@ -698,15 +698,15 @@ async function addTitle(m: PickItem) {
   border: none;
   background: rgba(20, 20, 20, 0.75);
   backdrop-filter: blur(4px);
-  color: #ccc;
+  color: var(--ui-text);
   font-size: 11px;
   cursor: pointer;
 }
 .tile-btn:hover {
-  color: #e57373;
+  color: var(--ui-error);
 }
 .tile-btn[title^="Use"]:hover {
-  color: #d68a34;
+  color: var(--ui-accent-text);
 }
 .reorder-arrows {
   position: absolute;
@@ -725,8 +725,8 @@ async function addTitle(m: PickItem) {
   height: 26px;
   border-radius: 50%;
   border: none;
-  background: rgba(255, 255, 255, 0.14);
-  color: #fff;
+  background: color-mix(in srgb, var(--ui-text) 14%, transparent);
+  color: var(--ui-text);
   font-size: 15px;
   cursor: pointer;
 }
@@ -736,7 +736,7 @@ async function addTitle(m: PickItem) {
 }
 .reorder-pos {
   font-size: 12px;
-  font-weight: 800;
+  font-weight: var(--ui-weight-title);
   font-variant-numeric: tabular-nums;
 }
 .card-info {
@@ -746,7 +746,7 @@ async function addTitle(m: PickItem) {
   margin: 0 0 6px;
   font-size: 14px;
   font-weight: 600;
-  color: #fff;
+  color: var(--ui-text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -762,24 +762,24 @@ async function addTitle(m: PickItem) {
   border-radius: 999px;
 }
 .pill.watching {
-  background: rgba(214, 138, 52, 0.16);
-  color: #d68a34;
+  background: color-mix(in srgb, var(--ui-accent) 16%, transparent);
+  color: var(--ui-accent-text);
 }
 .pill.completed {
-  background: rgba(111, 191, 115, 0.16);
-  color: #6fbf73;
+  background: color-mix(in srgb, var(--ui-good) 16%, transparent);
+  color: var(--ui-good);
 }
 .pill.hold {
-  background: rgba(123, 167, 217, 0.16);
-  color: #7ba7d9;
+  background: color-mix(in srgb, var(--ui-info) 16%, transparent);
+  color: var(--ui-info);
 }
 .pill.dropped {
-  background: rgba(217, 111, 111, 0.16);
-  color: #d96f6f;
+  background: color-mix(in srgb, var(--ui-error) 16%, transparent);
+  color: var(--ui-error);
 }
 .pill.plan {
-  background: rgba(157, 140, 217, 0.16);
-  color: #9d8cd9;
+  background: color-mix(in srgb, var(--ui-purple) 16%, transparent);
+  color: var(--ui-purple);
 }
 
 /* add-titles modal */
@@ -796,21 +796,21 @@ async function addTitle(m: PickItem) {
   gap: 10px;
   background: none;
   border: none;
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   padding: 6px;
-  color: #ddd;
+  color: var(--ui-text);
   text-align: left;
   font-family: inherit;
   cursor: pointer;
 }
 .add-row:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--ui-text) 6%, transparent);
 }
 .add-thumb {
   width: 30px;
   height: 44px;
   border-radius: 4px;
-  background: #262626 center / cover;
+  background: var(--ui-surface-2) center / cover;
   flex-shrink: 0;
 }
 .add-title {
@@ -822,13 +822,13 @@ async function addTitle(m: PickItem) {
   white-space: nowrap;
 }
 .add-kind {
-  color: #666;
+  color: var(--ui-faint);
   font-size: 0.7rem;
   text-transform: uppercase;
 }
 .add-plus {
-  color: #d68a34;
-  font-weight: 800;
+  color: var(--ui-accent-text);
+  font-weight: var(--ui-weight-title);
   font-size: 1.1rem;
   width: 20px;
   text-align: center;

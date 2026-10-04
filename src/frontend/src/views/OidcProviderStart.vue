@@ -28,9 +28,9 @@ onMounted(() => {
   min-height: 100vh;
   display: grid;
   place-items: center;
-  background: #121212;
-  color: #999;
-  font-family: system-ui, sans-serif;
+  background: var(--ui-bg);
+  color: var(--ui-dim);
+  font-family: var(--ui-font-family);
   font-size: 13px;
 }
 </style>

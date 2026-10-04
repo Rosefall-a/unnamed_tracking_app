@@ -447,20 +447,20 @@ async function remove() {
   max-height: 86vh;
   display: flex;
   flex-direction: column;
-  background: #1a1a1a;
-  border: 1px solid #2a2a2a;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
   border-radius: 14px;
   overflow: hidden;
   box-shadow: 0 30px 70px -20px rgba(0, 0, 0, 0.8);
-  color: #fff;
-  font-family: system-ui, sans-serif;
+  color: var(--ui-text);
+  font-family: var(--ui-font-family);
 }
 .modal-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 16px 18px;
-  border-bottom: 1px solid #2a2a2a;
+  border-bottom: 1px solid var(--ui-border);
 }
 .modal-head h2 {
   margin: 0;
@@ -469,17 +469,17 @@ async function remove() {
 .close-btn {
   background: none;
   border: none;
-  color: #999;
+  color: var(--ui-dim);
   cursor: pointer;
-  width: 32px;
-  height: 32px;
+  width: var(--ui-control-height);
+  height: var(--ui-control-height);
   margin: -3px -7px -3px 0;
   border-radius: 50%;
   font-size: 1.2rem;
   line-height: 1;
 }
 .close-btn:hover {
-  color: #d68a34;
+  color: var(--ui-accent-text);
 }
 .modal-body {
   padding: 18px;
@@ -489,7 +489,7 @@ async function remove() {
   gap: 14px;
 }
 .error-text {
-  color: #fca5a5;
+  color: var(--ui-error);
   font-size: 0.85rem;
   margin: 0;
 }
@@ -514,19 +514,19 @@ async function remove() {
   width: 100%;
   padding: 9px 10px;
   text-align: left;
-  color: #fff;
-  background: #202020;
-  border: 1px solid #2a2a2a;
+  color: var(--ui-text);
+  background: var(--ui-border);
+  border: 1px solid var(--ui-border);
   border-radius: 6px;
   cursor: pointer;
   font-family: inherit;
 }
 .metadata-result:hover {
-  border-color: #d68a34;
-  background: #282828;
+  border-color: var(--ui-accent-line);
+  background: var(--ui-surface-2);
 }
 .metadata-result small {
-  color: #999;
+  color: var(--ui-dim);
   font-size: 0.78rem;
 }
 .provider-warnings {
@@ -538,15 +538,15 @@ async function remove() {
   gap: 4px;
 }
 .provider-warnings li {
-  color: #fca27a;
+  color: var(--ui-warning);
   font-size: 0.75rem;
 }
 .poster-preview {
   width: 100%;
   max-height: 220px;
   object-fit: cover;
-  border-radius: 8px;
-  border: 1px solid #2a2a2a;
+  border-radius: var(--ui-radius-control);
+  border: 1px solid var(--ui-border);
 }
 .field {
   display: flex;
@@ -557,7 +557,7 @@ async function remove() {
 }
 .field span {
   font-size: 0.78rem;
-  color: #999;
+  color: var(--ui-dim);
 }
 .field-row {
   display: flex;
@@ -574,13 +574,13 @@ async function remove() {
 }
 .checkbox-field span {
   font-size: 0.85rem;
-  color: #fff;
+  color: var(--ui-text);
 }
 .text-input {
-  background: #111;
-  border: 1px solid #2a2a2a;
-  border-radius: 8px;
-  color: #fff;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
+  color: var(--ui-text);
   padding: 8px 10px;
   font-size: 0.85rem;
   font-family: inherit;
@@ -588,7 +588,7 @@ async function remove() {
   box-sizing: border-box;
 }
 .text-input:focus {
-  outline: 2px solid #d68a34;
+  outline: 2px solid var(--ui-accent-text);
   outline-offset: 1px;
 }
 .textarea-input {
@@ -597,7 +597,7 @@ async function remove() {
 }
 .hint {
   font-size: 0.78rem;
-  color: #999;
+  color: var(--ui-dim);
   margin: 0;
 }
 .modal-foot {
@@ -605,16 +605,16 @@ async function remove() {
   align-items: center;
   gap: 8px;
   padding: 14px 18px;
-  border-top: 1px solid #2a2a2a;
+  border-top: 1px solid var(--ui-border);
 }
 .modal-foot-spacer {
   flex: 1;
 }
 .primary-btn {
-  background: #d68a34;
-  color: #121212;
+  background: var(--ui-accent);
+  color: var(--ui-on-accent);
   border: none;
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   padding: 9px 18px;
   font-weight: 700;
   font-size: 0.85rem;
@@ -625,25 +625,25 @@ async function remove() {
   cursor: default;
 }
 .secondary-button {
-  background: #111;
-  border: 1px solid #2a2a2a;
-  color: #ccc;
-  border-radius: 8px;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  color: var(--ui-text);
+  border-radius: var(--ui-radius-control);
   padding: 9px 14px;
   font-size: 0.85rem;
   cursor: pointer;
 }
 .delete-btn {
   background: none;
-  border: 1px solid #5c2a2a;
-  color: #fca5a5;
-  border-radius: 8px;
+  border: 1px solid var(--ui-error);
+  color: var(--ui-error);
+  border-radius: var(--ui-radius-control);
   padding: 9px 14px;
   font-size: 0.85rem;
   cursor: pointer;
 }
 .delete-btn:hover {
-  background: #2a1414;
+  background: var(--ui-danger-soft);
 }
 .delete-btn:disabled {
   opacity: 0.6;

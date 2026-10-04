@@ -98,11 +98,11 @@ onMounted(load);
 <style scoped>
 .plugin-page {
   min-height: 100vh;
-  padding: 40px;
+  padding: var(--ui-space-6) var(--ui-edge-right) 60px var(--ui-edge-left);
   background: var(--ui-bg);
-  color: #fff;
+  color: var(--ui-text);
 }
 .error {
-  color: #f77;
+  color: var(--ui-error);
 }
 </style>

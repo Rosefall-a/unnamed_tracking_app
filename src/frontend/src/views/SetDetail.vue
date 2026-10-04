@@ -128,29 +128,29 @@ onMounted(load);
 <style scoped>
 .set-detail-page {
   min-height: 100vh;
-  background: #121212;
-  color: #fff;
+  background: var(--ui-bg);
+  color: var(--ui-text);
   padding: 84px 24px 24px;
-  font-family: system-ui, sans-serif;
+  font-family: var(--ui-font-family);
   box-sizing: border-box;
 }
 .back-btn {
   background: none;
   border: none;
-  color: #999;
+  color: var(--ui-dim);
   cursor: pointer;
   font-size: 0.85rem;
   padding: 0;
   margin-bottom: 16px;
 }
 .back-btn:hover {
-  color: #d68a34;
+  color: var(--ui-accent-text);
 }
 .empty-state {
-  color: #777;
+  color: var(--ui-faint);
 }
 .empty-state.error {
-  color: #fca5a5;
+  color: var(--ui-error);
 }
 .header-row {
   display: flex;
@@ -163,7 +163,7 @@ h1 {
   margin: 0 0 4px;
 }
 .progress {
-  color: #999;
+  color: var(--ui-dim);
   margin: 0;
   display: flex;
   align-items: center;
@@ -172,17 +172,17 @@ h1 {
 .link-btn {
   background: none;
   border: none;
-  color: #d68a34;
+  color: var(--ui-accent-text);
   font-size: 0.75rem;
   cursor: pointer;
   padding: 0;
   text-decoration: underline;
 }
 .danger-button {
-  background: #1a1a1a;
-  border: 1px solid #5c2626;
-  color: #fca5a5;
-  border-radius: 8px;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-error);
+  color: var(--ui-error);
+  border-radius: var(--ui-radius-control);
   padding: 8px 12px;
   font-size: 0.8rem;
   cursor: pointer;
@@ -191,10 +191,10 @@ h1 {
   position: relative;
   margin: 18px 0;
   padding: 14px 18px;
-  border-radius: 10px;
-  border: 1px solid #d68a34;
-  background: rgba(214, 138, 52, 0.1);
-  color: #d68a34;
+  border-radius: var(--ui-radius-row);
+  border: 1px solid var(--ui-accent-text);
+  background: color-mix(in srgb, var(--ui-accent) 10%, transparent);
+  color: var(--ui-accent-text);
   font-weight: 700;
   letter-spacing: 0.04em;
   text-align: center;
@@ -205,7 +205,7 @@ h1 {
   inset: 0;
   background: radial-gradient(
     ellipse at center,
-    rgba(214, 138, 52, 0.25),
+    color-mix(in srgb, var(--ui-accent) 25%, transparent),
     transparent 70%
   );
   pointer-events: none;
@@ -218,20 +218,20 @@ h1 {
 }
 .card-tile {
   aspect-ratio: 5 / 7;
-  background: #1a1a1a;
-  border: 1px solid #2a2a2a;
-  border-radius: 10px;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-row);
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
   align-items: flex-start;
   padding: 12px;
   cursor: pointer;
-  color: #fff;
+  color: var(--ui-text);
   text-align: left;
 }
 .card-tile:hover {
-  border-color: #d68a34;
+  border-color: var(--ui-accent-line);
 }
 .card-tile-title {
   font-weight: 600;
@@ -239,7 +239,23 @@ h1 {
 }
 .card-tile-num {
   font-size: 0.7rem;
-  color: #999;
+  color: var(--ui-dim);
   margin-top: 4px;
+}
+button,
+select {
+  min-height: var(--ui-control-height);
+}
+h1 {
+  font: var(--ui-weight-title) var(--ui-font-title)/1.15 var(--ui-font-family);
+  overflow-wrap: anywhere;
+}
+@media (max-width: 760px) {
+  .progress {
+    flex-wrap: wrap;
+  }
+  .cards-grid {
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 130px), 1fr));
+  }
 }
 </style>

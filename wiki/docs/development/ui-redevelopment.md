@@ -184,7 +184,7 @@ The real signed PWA acceptance also passes after applying custom branding: manif
 
 The first content checkpoint applies the shared header, palette, spacing and touch controls to Games, Collections, Cards, Sets and Bounties. Games retains Cards, List, List + preview and Shelves, together with its search, filters, presets and bulk actions. Phone List presents labelled cards with every existing field and action. Collections uses a responsive cover grid, with separate native open/delete controls. Smart collection, new card and new bounty dialogs use the shared native dialog with keyboard containment and focus restoration.
 
-The [content report](../assets/ui-redevelopment/stage-content-conformance.json) records **160 real page/theme/width/role cases**, all four Games views at eight widths in two themes, keyboard filter selection, phone set/bounty/card creation, and actual smart collection creation, keyboard navigation and deletion. Detail/media views and the complete plugin transition remain pending.
+The [content report](../assets/ui-redevelopment/stage-content-conformance.json) records **160 real page/theme/width/role cases**, all four Games views at eight widths in two themes, keyboard filter selection, phone set/bounty/card creation, and actual smart collection creation, keyboard navigation and deletion. This first checkpoint precedes the detail/media review below; the complete plugin transition remains under review.
 
 Reproduce by adding `content` as the final argument to `tools/check_ui_redevelopment.mjs` and using `.validation/ui-stage-content` as the evidence directory. The same clean-plugin-inventory guard excludes embedded-media captures.
 
@@ -195,5 +195,17 @@ Reproduce by adding `content` as the final argument to `tools/check_ui_redevelop
 ![Desktop Bounties](../assets/ui-redevelopment/stage-content-bounties-1440-light.png)
 
 ![Phone smart collections](../assets/ui-redevelopment/stage-content-smart-collections-390-dark.png)
+
+The detail/media checkpoint applies semantic surfaces, text, status colors and control sizes to game details, populated collections and sets, the card designer, all three media libraries and details, media lists and statistics. The shared phone media bar keeps its account controls beside the library selector and groups layout/list controls below it. Artwork, card metals and trophy colors retain their meaning; the surrounding menus and editors follow the selected appearance. Shared editors, calendar, notifications and achievement details also use the same palette.
+
+The real review covers **416 populated page/theme/width/role cases**, including a card assigned to its set, all five statistics tabs and visible empty heatmap days. The installer, upload-limit enforcement and navigation checks are part of the ongoing combined review. Source-compatible plugin UI migration and custom palette acceptance continue independently before this draft is completed.
+
+![Phone Movies in light mode](../assets/ui-redevelopment/stage-detail-movies-390-light.png)
+
+![Desktop Movies in dark mode](../assets/ui-redevelopment/stage-detail-movies-1440-dark.png)
+
+![Desktop Statistics in dark mode](../assets/ui-redevelopment/stage-detail-statistics-1440-dark.png)
+
+![Phone populated set in light mode](../assets/ui-redevelopment/stage-detail-sets-390-light.png)
 
 The original gallery and captures remain available in this wiki and Git history as a shared reference, separate from production screenshots. The Draft PR remains a living record and targets `plugin-manager`. The production readiness race discovered in CI is fixed. At `97e8405a`, companion integration found an obsolete official Jellyfin capture selector on the old Settings landing page. Companion commit `fef5b7b` uses the preserved Settings deep link and retains the existing interaction assertions. The unchanged strict container acceptance then passed locally with the committed host checkpoint and paired companion fix: actual package installation, consent, privileged reauthentication, account/server configuration, sync, update/state retention, admin/user separation, viewing history, Watch Now and phone layout. All seven workflows passed at the pushed Home checkpoint `5896d8c9`. Each new stage must pass CI independently.

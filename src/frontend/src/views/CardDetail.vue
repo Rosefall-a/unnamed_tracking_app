@@ -1147,28 +1147,25 @@ const rarities: CardRarity[] = [
 
 <style scoped>
 .designer-page {
-  --ink: #141110;
-  --panel: #1b1713;
-  --panel-2: #231e18;
-  --line: #3c3527;
-  --parchment: #efe6d3;
-  --text: #e9dfc9;
-  --text-dim: #a99a7c;
-  --text-faint: #7d715a;
+  --ink: var(--ui-bg);
+  --panel: var(--ui-surface);
+  --panel-2: var(--ui-surface-2);
+  --line: var(--ui-border);
+  --parchment: var(--ui-text);
+  --text: var(--ui-text);
+  --text-dim: var(--ui-dim);
+  --text-faint: var(--ui-faint);
   --frame: #100d09;
   --frame-2: #171209;
-  /* the panel/tabs/buttons always use this static gold, matching the
-     prototype exactly — only the card faces themselves follow the chosen
-     metal accent (applied inline on .flip-card, overriding these) */
-  --gold: #c8a35f;
-  --gold-dim: #8f7648;
-  --gold-soft: rgba(200, 163, 95, 0.32);
+  --gold: var(--ui-accent-text);
+  --gold-dim: var(--ui-accent-line);
+  --gold-soft: var(--ui-accent-soft);
   min-height: 100vh;
   background: var(--ink);
   color: var(--text);
   padding: 24px;
   box-sizing: border-box;
-  font-family: "EB Garamond", Georgia, serif;
+  font-family: var(--ui-font-family);
 }
 .designer-header {
   display: flex;
@@ -1191,8 +1188,9 @@ const rarities: CardRarity[] = [
 }
 .designer-header h1 {
   margin: 0;
-  font-family: "Cinzel", Georgia, serif;
-  font-size: 1.3rem;
+  font-family: var(--ui-font-family);
+  font-size: var(--ui-font-title);
+  font-weight: var(--ui-weight-title);
   color: var(--parchment);
 }
 .archive-num {
@@ -1205,7 +1203,7 @@ const rarities: CardRarity[] = [
   color: var(--text-faint);
 }
 .empty-state.error {
-  color: #e08a7d;
+  color: var(--ui-error);
 }
 
 .designer-layout {
@@ -1235,6 +1233,11 @@ const rarities: CardRarity[] = [
   cursor: pointer;
 }
 .flip-card {
+  /* Card artwork keeps its selected metal; surrounding controls follow appearance. */
+  --text: #e9dfc9;
+  --text-dim: #a99a7c;
+  --text-faint: #c2b497;
+  --parchment: #efe6d3;
   position: relative;
   width: 100%;
   height: 100%;
@@ -1862,8 +1865,8 @@ const rarities: CardRarity[] = [
   padding: 3.5px 10px;
 }
 .bc-pill-prestige {
-  background: var(--gold);
-  color: #14120f;
+  background: var(--ui-accent);
+  color: var(--ui-on-accent);
   border-color: var(--gold);
 }
 .bc-section {
@@ -2147,7 +2150,7 @@ const rarities: CardRarity[] = [
   margin-top: -2px;
 }
 .field-hint.error {
-  color: #e08a7d;
+  color: var(--ui-error);
 }
 .prestige-status {
   display: flex;
@@ -2454,8 +2457,8 @@ input[type="range"]::-webkit-slider-thumb {
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 50;
-  background: rgba(8, 6, 4, 0.72);
+  z-index: var(--ui-z-modal);
+  background: var(--ui-overlay);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2513,8 +2516,8 @@ input[type="range"]::-webkit-slider-thumb {
   justify-content: flex-end;
 }
 .primary-btn {
-  background: var(--gold);
-  color: #14120f;
+  background: var(--ui-accent);
+  color: var(--ui-on-accent);
   border: none;
   border-radius: 8px;
   padding: 9px 20px;
@@ -2526,8 +2529,8 @@ input[type="range"]::-webkit-slider-thumb {
 
 .save-btn {
   width: 100%;
-  background: var(--gold, #c8a35f);
-  color: #14120f;
+  background: var(--ui-accent);
+  color: var(--ui-on-accent);
   border: none;
   border-radius: 8px;
   padding: 10px;
@@ -2539,5 +2542,13 @@ input[type="range"]::-webkit-slider-thumb {
 .save-btn:disabled {
   opacity: 0.6;
   cursor: default;
+}
+button,
+select,
+.small-upload-btn {
+  min-height: var(--ui-control-height);
+}
+.designer-header {
+  font-family: var(--ui-font-family);
 }
 </style>

@@ -57,16 +57,16 @@ const GROUPS = SHORTCUT_GROUPS;
 .shortcuts-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.65);
+  background: var(--ui-overlay);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 200;
+  z-index: var(--ui-z-modal);
 }
 .shortcuts-dialog {
-  background: #1a1a1a;
-  border: 1px solid #2a2a2a;
-  border-radius: 12px;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-card);
   padding: 22px 24px;
   width: 440px;
   max-width: calc(100vw - 40px);
@@ -84,18 +84,18 @@ const GROUPS = SHORTCUT_GROUPS;
 .shortcuts-header h2 {
   margin: 0;
   font-size: 16px;
-  color: #fff;
+  color: var(--ui-text);
 }
 .close-button {
   background: none;
   border: none;
-  color: #999;
+  color: var(--ui-dim);
   font-size: 14px;
   cursor: pointer;
   padding: 4px;
 }
 .close-button:hover {
-  color: #fff;
+  color: var(--ui-text);
 }
 .shortcuts-group {
   margin-bottom: 16px;
@@ -108,7 +108,7 @@ const GROUPS = SHORTCUT_GROUPS;
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: #777;
+  color: var(--ui-faint);
 }
 .shortcut-row {
   display: flex;
@@ -117,16 +117,16 @@ const GROUPS = SHORTCUT_GROUPS;
   gap: 14px;
   padding: 7px 0;
   font-size: 13px;
-  color: #ccc;
+  color: var(--ui-text);
 }
 .shortcut-row kbd {
-  background: #111;
-  border: 1px solid #3a3a3a;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
   border-radius: 6px;
   padding: 3px 8px;
   font-family: ui-monospace, monospace;
   font-size: 12px;
-  color: #d68a34;
+  color: var(--ui-accent-text);
   white-space: normal;
   flex-shrink: 0;
   max-width: 200px;

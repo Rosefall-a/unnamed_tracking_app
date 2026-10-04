@@ -148,16 +148,16 @@ function goBack() {
   max-width: 900px;
   margin: 0 auto;
   padding: 32px 24px;
-  color: #fff;
-  font-family: system-ui, sans-serif;
-  background: #121212;
+  color: var(--ui-text);
+  font-family: var(--ui-font-family);
+  background: var(--ui-bg);
   min-height: 100vh;
   box-sizing: border-box;
 }
 .back-button {
   background: none;
   border: none;
-  color: #d68a34;
+  color: var(--ui-accent-text);
   font-size: 14px;
   cursor: pointer;
   padding: 0;
@@ -168,7 +168,7 @@ function goBack() {
   gap: 20px;
   align-items: flex-start;
   padding-bottom: 24px;
-  border-bottom: 1px solid #2a2a2a;
+  border-bottom: 1px solid var(--ui-border);
   margin-bottom: 24px;
 }
 .achievement-icon-large {
@@ -181,19 +181,19 @@ function goBack() {
 }
 .achievement-header h1 {
   margin: 0 0 8px;
-  font-size: 1.6rem;
+  font-size: var(--ui-font-title);
 }
 .achievement-desc {
-  color: #ccc;
+  color: var(--ui-text);
   margin: 0 0 8px;
 }
 .achievement-unlocked {
-  color: #d68a34;
+  color: var(--ui-accent-text);
   font-size: 13px;
   margin: 0;
 }
 .achievement-locked {
-  color: #777;
+  color: var(--ui-faint);
   font-size: 13px;
   margin: 0;
 }
@@ -208,20 +208,20 @@ function goBack() {
   width: 100%;
   min-height: 140px;
   box-sizing: border-box;
-  border: 1px solid #3a3a3a;
-  border-radius: 10px;
-  background: #111;
-  color: #f5f5f5;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-row);
+  background: var(--ui-surface);
+  color: var(--ui-text);
   resize: vertical;
   padding: 12px;
   font: inherit;
   margin-bottom: 10px;
 }
 .primary-button {
-  background: #d68a34;
-  color: #111;
+  background: var(--ui-accent);
+  color: var(--ui-on-accent);
   border: none;
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   padding: 10px 18px;
   font-weight: 600;
   cursor: pointer;
@@ -236,9 +236,9 @@ function goBack() {
   position: relative;
   width: 140px;
   height: 140px;
-  border-radius: 10px;
+  border-radius: var(--ui-radius-row);
   overflow: hidden;
-  border: 1px solid #2a2a2a;
+  border: 1px solid var(--ui-border);
 }
 .media-item img {
   width: 100%;
@@ -253,19 +253,19 @@ function goBack() {
   color: #fff;
   border: none;
   border-radius: 50%;
-  width: 24px;
-  height: 24px;
+  width: var(--ui-control-height);
+  height: var(--ui-control-height);
   cursor: pointer;
 }
 .empty-state {
-  color: #777;
+  color: var(--ui-faint);
   margin-top: 10px;
 }
 .not-found,
 .loading-state,
 .error-state {
   padding: 40px;
-  color: #fff;
+  color: var(--ui-text);
   text-align: center;
 }
 </style>

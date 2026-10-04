@@ -79,8 +79,8 @@ const emit = defineEmits<{
   position: relative;
   width: 100%;
   max-width: 520px;
-  background: #171717;
-  border: 1px solid #2b2b2b;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
   border-radius: 14px;
   padding: 22px;
 }
@@ -97,10 +97,10 @@ const emit = defineEmits<{
   padding: 4px;
 }
 .preview-close:hover {
-  color: #fff;
+  color: var(--ui-text);
 }
 .preview-loading {
-  color: #999;
+  color: var(--ui-dim);
   font-size: 0.85rem;
   text-align: center;
   padding: 30px 0;
@@ -113,16 +113,16 @@ const emit = defineEmits<{
   width: 130px;
   aspect-ratio: 2 / 3;
   flex-shrink: 0;
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   background-size: cover;
   background-position: center;
-  background-color: #222222;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background-color: var(--ui-surface-2);
+  border: 1px solid color-mix(in srgb, var(--ui-text) 8%, transparent);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 0.72rem;
-  color: #666;
+  color: var(--ui-faint);
   text-align: center;
   padding: 8px;
 }
@@ -134,7 +134,7 @@ const emit = defineEmits<{
 .preview-title {
   margin: 0 0 6px;
   font-size: 1.15rem;
-  font-weight: 800;
+  font-weight: var(--ui-weight-title);
 }
 .preview-meta {
   display: flex;
@@ -144,15 +144,15 @@ const emit = defineEmits<{
 }
 .preview-meta span {
   font-size: 0.74rem;
-  color: #9c9c9c;
-  background: #222222;
-  border: 1px solid #2b2b2b;
+  color: var(--ui-dim);
+  background: var(--ui-surface-2);
+  border: 1px solid var(--ui-border);
   border-radius: 6px;
   padding: 3px 8px;
 }
 .preview-description {
   font-size: 0.84rem;
-  color: #999;
+  color: var(--ui-dim);
   line-height: 1.6;
   margin: 0 0 14px;
   display: -webkit-box;
@@ -161,17 +161,17 @@ const emit = defineEmits<{
   overflow: hidden;
 }
 .preview-error {
-  color: #fca5a5;
+  color: var(--ui-error);
   font-size: 0.82rem;
   margin: 0 0 10px;
 }
 .preview-add-btn {
   margin-top: auto;
   align-self: flex-start;
-  background: #d68a34;
-  color: #0d0d0d;
+  background: var(--ui-accent);
+  color: var(--ui-on-accent);
   border: none;
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   padding: 9px 18px;
   font-weight: 700;
   font-size: 0.86rem;

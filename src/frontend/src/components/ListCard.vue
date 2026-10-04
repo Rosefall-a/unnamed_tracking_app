@@ -146,7 +146,7 @@ const emptySlots = computed(() => Math.max(0, 4 - covers.value.length));
 .collection-card {
   position: relative;
   width: 100%;
-  border-radius: 10px;
+  border-radius: var(--ui-radius-row);
   transition:
     transform 0.32s cubic-bezier(0.22, 1, 0.36, 1),
     box-shadow 0.32s cubic-bezier(0.22, 1, 0.36, 1);
@@ -184,13 +184,13 @@ const emptySlots = computed(() => Math.max(0, 4 - covers.value.length));
   border: none;
   background: rgba(20, 20, 20, 0.78);
   backdrop-filter: blur(4px);
-  color: #ccc;
+  color: var(--ui-text);
   font-size: 11px;
   cursor: pointer;
 }
 .card-actions button:hover,
 .card-actions button.on {
-  color: #d68a34;
+  color: var(--ui-accent-text);
 }
 .pin-badge {
   position: absolute;
@@ -204,32 +204,32 @@ const emptySlots = computed(() => Math.max(0, 4 - covers.value.length));
   border-radius: 50%;
   background: rgba(20, 20, 20, 0.8);
   backdrop-filter: blur(4px);
-  color: #d68a34;
+  color: var(--ui-accent-text);
 }
 .collection-card-wrap[draggable="true"] {
   cursor: grab;
 }
 .collection-card-wrap.drop-target .collection-card {
-  outline: 2px dashed #d68a34;
+  outline: 2px dashed var(--ui-accent-text);
   outline-offset: 3px;
 }
 .card-actions button[title^="Delete"]:hover {
-  color: #e57373;
+  color: var(--ui-error);
 }
 .desc {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: #666;
+  color: var(--ui-faint);
 }
 .cover {
   position: relative;
   width: 100%;
   aspect-ratio: 2 / 3;
-  border-radius: 10px;
+  border-radius: var(--ui-radius-row);
   overflow: hidden;
-  background: #1a1a1a;
+  background: var(--ui-surface);
 }
 .cover-grid {
   width: 100%;
@@ -242,10 +242,10 @@ const emptySlots = computed(() => Math.max(0, 4 - covers.value.length));
 .cover-cell {
   background-size: cover;
   background-position: center;
-  background-color: #1c1c1c;
+  background-color: var(--ui-surface);
 }
 .cover-cell.empty {
-  background-color: #161616;
+  background-color: var(--ui-surface-2);
 }
 .smart-badge {
   position: absolute;
@@ -253,14 +253,14 @@ const emptySlots = computed(() => Math.max(0, 4 - covers.value.length));
   bottom: 8px;
   z-index: 2;
   font-size: 10px;
-  font-weight: 800;
+  font-weight: var(--ui-weight-title);
   letter-spacing: 0.05em;
   text-transform: uppercase;
   padding: 3px 8px;
   border-radius: 999px;
   background: rgba(20, 20, 20, 0.8);
   backdrop-filter: blur(4px);
-  color: #d68a34;
+  color: var(--ui-accent-text);
 }
 .card-info {
   padding: 10px 2px 0;
@@ -269,7 +269,7 @@ const emptySlots = computed(() => Math.max(0, 4 - covers.value.length));
   margin: 0 0 2px;
   font-size: 14px;
   font-weight: 600;
-  color: #fff;
+  color: var(--ui-text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -278,6 +278,6 @@ const emptySlots = computed(() => Math.max(0, 4 - covers.value.length));
   display: flex;
   gap: 8px;
   font-size: 12px;
-  color: #9c9c9c;
+  color: var(--ui-dim);
 }
 </style>

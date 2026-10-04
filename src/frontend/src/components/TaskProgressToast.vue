@@ -103,9 +103,9 @@ function percent(done: number, total: number): number {
   width: 280px;
 }
 .task-toast {
-  background: #1a1a1a;
-  border: 1px solid #2a2a2a;
-  border-radius: 10px;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-row);
   padding: 12px 14px;
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
 }
@@ -122,30 +122,30 @@ function percent(done: number, total: number): number {
   margin-bottom: 8px;
 }
 .task-toast-label {
-  color: #fff;
+  color: var(--ui-text);
   font-size: 0.82rem;
   font-weight: 600;
 }
 .task-toast-dismiss {
   background: none;
   border: none;
-  color: #777;
+  color: var(--ui-faint);
   cursor: pointer;
   font-size: 12px;
   padding: 0;
 }
 .task-toast-dismiss:hover {
-  color: #fff;
+  color: var(--ui-text);
 }
 .task-toast-track {
-  background: #111;
+  background: var(--ui-surface);
   border-radius: 6px;
   height: 8px;
   overflow: hidden;
   margin-bottom: 6px;
 }
 .task-toast-fill {
-  background: #d68a34;
+  background: var(--ui-accent);
   height: 100%;
   transition: width 0.2s ease;
 }
@@ -153,7 +153,7 @@ function percent(done: number, total: number): number {
   background: #4ade80;
 }
 .task-toast.error .task-toast-fill {
-  background: #f87171;
+  background: var(--ui-error);
 }
 .task-toast-fill.indeterminate {
   width: 40% !important;
@@ -169,19 +169,19 @@ function percent(done: number, total: number): number {
 }
 .task-toast-meta {
   font-size: 0.76rem;
-  color: #999;
+  color: var(--ui-dim);
 }
 .task-toast-error {
-  color: #fca5a5;
+  color: var(--ui-error);
 }
 .task-toast-speed {
-  color: #777;
+  color: var(--ui-faint);
 }
 .task-toast-retry {
   margin-top: 8px;
   background: rgba(220, 38, 38, 0.12);
   border: 1px solid rgba(220, 38, 38, 0.35);
-  color: #fca5a5;
+  color: var(--ui-error);
   border-radius: 6px;
   padding: 5px 10px;
   font-size: 0.76rem;
@@ -207,7 +207,7 @@ function percent(done: number, total: number): number {
 .feed-line {
   font-size: 0.72rem;
   line-height: 1.4;
-  color: #aaa;
+  color: var(--ui-dim);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

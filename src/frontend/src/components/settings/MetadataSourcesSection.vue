@@ -2110,7 +2110,7 @@ async function toggleHltb(enabled: boolean) {
   align-items: center;
   justify-content: center;
   font-size: 11px;
-  font-weight: 800;
+  font-weight: var(--ui-weight-title);
   letter-spacing: 0.02em;
   flex-shrink: 0;
   margin-bottom: 8px;
@@ -2242,7 +2242,7 @@ async function toggleHltb(enabled: boolean) {
   width: 13px;
   height: 13px;
   border-radius: 50%;
-  background: #fff;
+  background: var(--ui-text);
   transition: transform 0.15s ease;
 }
 .mini-switch.on .mini-switch-knob {
@@ -2365,7 +2365,7 @@ async function toggleHltb(enabled: boolean) {
 .confirm-dialog {
   background: var(--ui-surface);
   border: 1px solid var(--ui-border);
-  border-radius: 12px;
+  border-radius: var(--ui-radius-card);
   padding: 22px;
   max-width: 360px;
   box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);

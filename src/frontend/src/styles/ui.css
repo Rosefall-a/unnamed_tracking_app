@@ -10,7 +10,7 @@
   min-height: 100vh;
   background: var(--ui-bg);
   color: var(--ui-text);
-  font-family: system-ui, sans-serif;
+  font-family: var(--ui-font-family);
 }
 .ui-content {
   padding: 24px var(--ui-edge-right) 60px var(--ui-edge-left);
@@ -99,7 +99,7 @@
   background: var(--ui-border-soft);
 }
 .ui-btn-secondary.on {
-  background: rgba(214, 138, 52, 0.22);
+  background: var(--ui-accent-soft);
   color: var(--ui-accent);
 }
 .ui-btn-danger {
@@ -111,11 +111,11 @@
 }
 /* a quieter destructive action (Remove, Delete in a menu) */
 .ui-btn-danger-soft {
-  background: rgba(217, 111, 111, 0.12);
-  color: #d96f6f;
+  background: var(--ui-danger-soft);
+  color: var(--ui-error);
 }
 .ui-btn-danger-soft:hover:not(:disabled) {
-  background: rgba(217, 111, 111, 0.2);
+  background: var(--ui-danger-soft);
 }
 .ui-btn-ghost {
   background: none;
@@ -144,7 +144,7 @@
   color: var(--ui-faint);
 }
 .ui-field:hover {
-  border-color: #3a3a3a;
+  border-color: var(--ui-border-strong);
 }
 .ui-field:focus {
   outline: none;
@@ -171,7 +171,7 @@ textarea.ui-field {
   align-items: center;
   gap: 6px;
   box-sizing: border-box;
-  height: 28px;
+  min-height: var(--ui-control-height);
   padding: 0 12px;
   border: 1px solid var(--ui-border);
   border-radius: 999px;
@@ -187,7 +187,7 @@ textarea.ui-field {
     color 0.15s ease;
 }
 .ui-chip:hover {
-  color: #ccc;
+  color: var(--ui-text);
 }
 .ui-chip.on {
   background: var(--ui-accent);
@@ -243,7 +243,7 @@ textarea.ui-field {
   border-radius: var(--ui-radius-dialog);
   box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
   color: var(--ui-text);
-  font-family: system-ui, sans-serif;
+  font-family: var(--ui-font-family);
 }
 .ui-modal h3 {
   margin: 0 0 8px;
