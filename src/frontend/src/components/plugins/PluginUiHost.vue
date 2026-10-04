@@ -35,6 +35,7 @@ const activePage = ref(props.pageId ?? props.document.pages[0]?.id ?? "");
 const values = ref<UiValues>(buildInitialValues(props.document));
 const submitted = ref(false);
 const iframe = ref<HTMLIFrameElement | null>(null);
+const iframeHeight = ref(520);
 const frontend = computed(() =>
   props.embedded ? undefined : props.document.frontend,
 );
@@ -191,6 +192,14 @@ async function handleFrontendMessage(event: MessageEvent) {
         String(data.document_id ?? ""),
       );
       result = { download_started: true };
+    } else if (method === "plugin.resize") {
+      if (typeof data.height !== "number" || !Number.isFinite(data.height))
+        throw new Error("Plugin frame height must be a finite number.");
+      iframeHeight.value = Math.min(
+        2400,
+        Math.max(320, Math.ceil(data.height)),
+      );
+      result = { height: iframeHeight.value };
     } else if (method === "plugin.theme") {
       result = { ...readPluginAppearance() };
     } else if (method === "plugin.context") {
@@ -290,6 +299,7 @@ onBeforeUnmount(() => {
     <div v-if="frontend" class="frontend-shell">
       <iframe
         ref="iframe"
+        :style="{ height: `${iframeHeight}px` }"
         :src="frontendUrl"
         :title="document.title + ' frontend'"
         sandbox="allow-scripts"

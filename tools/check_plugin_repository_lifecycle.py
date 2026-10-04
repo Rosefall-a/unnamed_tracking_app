@@ -137,7 +137,13 @@ def prepare_releases(plugins_root, work):
             root / name,
             ignore=shutil.ignore_patterns("__pycache__"),
         )
-    for name in ("jellyfin-media-sync", "help-button"):
+    for name in (
+        "jellyfin-media-sync",
+        "help-button",
+        "theme-palettes",
+        "home-widgets",
+        "scoped-document-viewer",
+    ):
         shutil.copytree(
             plugins_root / "examples" / name,
             root / "examples" / name,
@@ -351,8 +357,7 @@ def acceptance(plugins_root, work, browser=False):
     def launch(mode, port):
         log = (work / f"{mode}-{len(logs)}.log").open("w")
         logs.append(log)
-        process = subprocess.Popen(
-            [
+        command = [
                 sys.executable,
                 __file__,
                 "--work-root",
@@ -361,7 +366,20 @@ def acceptance(plugins_root, work, browser=False):
                 mode,
                 "--port",
                 str(port),
-            ],
+            ]
+        if mode == "host" and os.getenv("PLUGIN_ACCEPTANCE_ISOLATE_HOST_DATA") == "true":
+            data = work / "host-data"
+            data.mkdir(exist_ok=True)
+            command = [
+                "bwrap", "--tmpfs", "/", "--ro-bind", "/usr", "/usr",
+                "--ro-bind", "/etc", "/etc", "--ro-bind", "/lib", "/lib",
+                "--ro-bind", "/lib64", "/lib64", "--ro-bind", "/bin", "/bin",
+                "--ro-bind", "/sbin", "/sbin", "--proc", "/proc", "--dev", "/dev",
+                "--bind", "/tmp", "/tmp", "--ro-bind", "/mnt", "/mnt",
+                "--bind", str(data), "/data", "--", *command,
+            ]
+        process = subprocess.Popen(
+            command,
             env=env,
             cwd=HOST / "src/backend",
             stdout=log,
@@ -396,6 +414,13 @@ def acceptance(plugins_root, work, browser=False):
         )
         assert result.returncode == 0, result.stdout + result.stderr
         print(result.stdout, flush=True)
+        if phase == "install":
+            extensions = subprocess.run(
+                ["node", str(HOST / "tools/check_plugin_appearance_ui.mjs"), str(plugins_root)],
+                env=env, capture_output=True, check=False, text=True,
+            )
+            assert extensions.returncode == 0, extensions.stdout + extensions.stderr
+            print(extensions.stdout, flush=True)
 
     runtime = launch("runtime", runtime_port)
     host = launch("host", host_port)

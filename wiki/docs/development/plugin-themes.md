@@ -40,6 +40,11 @@ SDK's `frontend_appearance.js` applies these public tokens and accepts messages
 only from its parent. Its CSS supplies semantic fallback roles and touch targets;
 the package builder includes both files for bundled frontends.
 
+The shared helper also reports its intrinsic body height through `plugin.resize`.
+The host accepts this only from that frame's window and clamps the requested
+height to 320–2400 pixels. Longer content retains its internal scrolling. This
+lets phone readers reveal their controls without a fixed desktop-sized frame.
+
 Snapshots contain `api_contract_version: "1.1.0"`, `mode`, `high_contrast`,
 `reduce_motion` and an allowlist of cosmetic `tokens`. They contain no account
 identifiers, authentication, library content, secrets or other preferences.
