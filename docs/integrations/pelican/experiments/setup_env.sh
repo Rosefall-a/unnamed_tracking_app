@@ -50,10 +50,12 @@ nohup php artisan schedule:work >/srv/pelican/logs/schedule.log 2>&1 &
 sleep 3
 
 umask 077
-for u in admin utplayer utfriend; do openssl rand -base64 18 | tr -d '/+=' > "/srv/pelican/secrets/$u.password"; done
+for u in admin utplayer utfriend utbridge; do openssl rand -base64 18 | tr -d '/+=' > "/srv/pelican/secrets/$u.password"; done
 php artisan p:user:make --email=admin@ut-pelican.test --username=utadmin --password="$(cat /srv/pelican/secrets/admin.password)" --admin=1
 php artisan p:user:make --email=player@ut-pelican.test --username=utplayer --password="$(cat /srv/pelican/secrets/utplayer.password)" --admin=0
 php artisan p:user:make --email=friend@ut-pelican.test --username=utfriend --password="$(cat /srv/pelican/secrets/utfriend.password)" --admin=0
+# Dedicated least-privilege bridge identity; server owners add it as a subuser (see e06_least_privilege.py).
+php artisan p:user:make --email=bridge@ut-pelican.test --username=utbridge --password="$(cat /srv/pelican/secrets/utbridge.password)" --admin=0
 php artisan p:node:make --name=ut-node-1 --description="UT discovery node" --fqdn=127.0.0.1 --public=1 --scheme=http \
   --proxy=0 --maintenance=0 --maxMemory=8192 --overallocateMemory=0 --maxDisk=40960 --overallocateDisk=0 --maxCpu=400 \
   --overallocateCpu=0 --uploadSize=1024 --daemonListeningPort=8080 --daemonConnectingPort=8080 --daemonSFTPPort=2022 \
@@ -68,6 +70,7 @@ mk utadmin 2 "$MIN" app_min
 mk utplayer 1 '{}' client_player
 mk utfriend 1 '{}' client_friend
 mk utadmin 1 '{}' client_admin
+mk utbridge 1 '{}' client_bridge
 umask 022
 
 # --- Wings -------------------------------------------------------------------------------------

@@ -1,0 +1,64 @@
+# Test environment
+
+A disposable Pelican Panel + Wings, rebuilt from release artifacts inside the Claude Code cloud container that ran this investigation. Rebuild it with [`experiments/setup_env.sh`](experiments/setup_env.sh) on any throwaway Linux host or VM with Docker. **Never** point the scripts at a real Panel.
+
+## Versions
+
+| Component | Version | Install method |
+| --- | --- | --- |
+| Pelican Panel | `v1.0.0-beta38` (`e84a4afd`), Laravel 13.25 | GitHub release `panel.tar.gz` + `composer install --no-dev` |
+| Pelican Wings | `v1.0.0-beta29` | GitHub release `wings_linux_amd64` |
+| PHP | 8.3.6 (+ `php8.3-bcmath`) | Ubuntu 24.04 archive |
+| Database / cache / queue | SQLite / file / database queue (`queue:work`) + `schedule:work` | — |
+| Docker | 29.6.2, cgroup v1, `overlayfs` | preinstalled; `dockerd` started manually |
+| Minecraft server | **stand-in**: Minestom `2026.07.01-26.1.2` (protocol 26.1.2, `DataVersion` 4790) on Temurin 25 | built from [`experiments/standin-server/`](experiments/standin-server/) |
+| Luanti server | `minetest-server` 5.6.1 + Minetest Game 1.9 | Ubuntu archive in a local yolk |
+| Protocol client | `mineflayer` 4.39.0 (26.1 support) | npm |
+| Renderers | BlueMap CLI 5.23 (blocked at asset download), mcmap 3.0.4 (built), `minetestmapper` 20220221 | GitHub / apt |
+
+## Topology
+
+```text
+127.0.0.1:8000  Panel (php artisan serve, PHP_CLI_SERVER_WORKERS=8)
+0.0.0.0:8080    Wings API     0.0.0.0:2022  Wings SFTP
+pelican_nw      172.18.0.0/16 (Wings-created; IPv6 disabled because the kernel has none)
+0.0.0.0:8099    artifact host for the stand-in egg's install script (reached as 172.18.0.1:8099)
+Allocations     0.0.0.0:25580-25590 with alias 127.0.0.1 (25581 = Minecraft world host, 25584 = Luanti)
+```
+
+## Pelican objects
+
+| Object | Value |
+| --- | --- |
+| Node | `ut-node-1` (FQDN 127.0.0.1, http, 8 GiB / 40 GiB / 400% CPU, upload 1024 MB) |
+| Eggs | `UT Stand-in Minecraft (26.1.2)` ([yaml](experiments/egg/egg-ut-standin-minecraft.yaml)), `UT Luanti (Minetest 5.6)` ([yaml](experiments/egg/egg-ut-luanti.yaml)) |
+| Images | `~utpelican/yolk-java25:local`, `~utpelican/yolk-luanti:local`, `utpelican/installer:local` ([`yolks/`](experiments/yolks/)). The `~` prefix tells Wings never to pull. |
+| Users | `utadmin` (admin), `utplayer` (owner of the world hosts), `utfriend` (other tenant), `utbridge` (dedicated bridge identity, subuser) |
+| Keys (identifiers only; secrets never leave `/srv/pelican/secrets`) | `app_full` (application, all resources RW), `app_min` (application, server RW + node/allocation/user/egg R), `client_player`, `client_friend`, `client_admin`, `client_bridge` |
+| Servers | `UT host for ut-world:demo-a` (`external_id ut-world:demo-a`), `UT host for ut-world:luanti-a` (`external_id ut-world:luanti-a`); disposable ones created and deleted by E06 and E08d |
+| Test worlds | Minecraft A (`UT Test World A`, seed 424242, gold markers), Minecraft B (`UT Test World B`, seed 1337, diamond markers, rain); Luanti A (seed 111111, gold pillar) and B (seed 222222, diamond pillar) |
+
+## Environment-specific adjustments (and why)
+
+| Adjustment | Reason |
+| --- | --- |
+| Local yolks instead of `ghcr.io/pelican-eggs/yolks` | ghcr.io blob downloads are denied by the egress policy |
+| Installer image on Ubuntu, not Debian | `deb.debian.org` is denied; Ubuntu's archive is allowed |
+| Minecraft stand-in instead of vanilla or Paper | Mojang and PaperMC download hosts are denied |
+| `docker.network.IPv6: false` | No IPv6 in the kernel; Wings fails to create `pelican0` otherwise |
+| 8 PHP CLI server workers | A single worker deadlocks on Panel → Wings → Panel calls during server creation |
+| Panel and allocations on loopback, aliases set | Only loopback and private ranges bypass the sandbox's HTTPS proxy |
+
+## Reproducing
+
+```bash
+sudo ./docs/integrations/pelican/experiments/setup_env.sh
+cd docs/integrations/pelican/experiments
+python3 make_test_world.py /srv/pelican/worlds/a "UT Test World A" 424242 minecraft:gold_block 4 100 4 clear
+python3 make_test_world.py /srv/pelican/worlds/b "UT Test World B" 1337 minecraft:diamond_block -6 100 9 rain
+python3 e01_create_server.py ut-world:demo-a <allocation id of 25581>
+python3 e02_lifecycle.py /srv/pelican/evidence/server-demo-a.json
+# … e03 → e12 as listed in experiments/README.md (e06 creates utbridge's subuser grant first)
+```
+
+Every script appends to `/srv/pelican/evidence/api-calls.jsonl` with `token`, `socket`, `url` and `password` fields redacted. The committed copy was also scanned for key, token and password values before each commit.
