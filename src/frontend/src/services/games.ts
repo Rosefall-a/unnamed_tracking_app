@@ -409,7 +409,7 @@ export function rankMetadataResults<T extends { title: string }>(
     .map(({ result }) => result);
 }
 
-export type RefreshMetadataResult = "updated" | "no-match" | "error";
+export type RefreshMetadataResult = "updated" | "preview" | "no-match" | "error";
 
 export interface RefreshMetadataOutcome {
   status: RefreshMetadataResult;
@@ -506,101 +506,7 @@ export async function refreshGameMetadata(
   options: RefreshMetadataOptions = DEFAULT_REFRESH_OPTIONS,
 ): Promise<RefreshMetadataOutcome> {
   try {
-    const { results } = await searchGameMetadata(game.title);
-    const match = results.find(
-      (r) =>
-        normalizeTitleForMatch(r.title) === normalizeTitleForMatch(game.title),
-    );
-    if (!match) {
-      outcome.status = "no-match";
-      return outcome;
-    }
-
-    if (options.updateText) {
-      // text is always a full refresh (see RefreshMetadataOptions.updateText)
-      //, mergeField/mergeArr still refuse to blank a field the fresh
-      // result simply didn't have, they just always prefer fresh when it's
-      // there
-      const overwrite = true;
-      const mergeArr = (
-        existing: string[] | undefined,
-        fresh: string[] | undefined,
-      ): string[] => {
-        const e = existing?.length ? existing : [];
-        const f = fresh?.length ? fresh : [];
-        return f.length ? f : e;
-      };
-      const input: NewGameInput = {
-        title: game.title,
-        folderLocation: game.folderLocation ?? "",
-        status: game.status,
-        description: mergeField(game.description, match.description, overwrite),
-        developer: mergeField(game.developer, match.developer, overwrite),
-        publisher: mergeField(game.publisher, match.publisher, overwrite),
-        series: mergeField(game.series, match.series, overwrite),
-        parentGameId: game.parentGameId,
-        relationshipType: game.relationshipType,
-        releaseDate: mergeField(
-          game.releaseDate,
-          match.release_date,
-          overwrite,
-        ),
-        dateAdded: game.dateAdded,
-        completionDate: game.completionDate,
-        // never touched by a metadata refresh, this is "how the game got
-        // into the library" (Steam sync, GOG sync, manual...), not "which
-        // provider happened to match this search," and overwriting it here
-        // used to silently break the library-sync game counts in Settings
-        source: game.source,
-        ageRating: mergeField(game.ageRating, match.age_rating, overwrite),
-        timeToBeatHours: mergeField(
-          game.timeToBeatHours,
-          toNumberOrNull(match.time_to_beat_hours),
-          overwrite,
-        ),
-        region: game.region,
-        language: game.language,
-        achievementsProvider: game.achievementsProvider,
-        ratingOverall: game.ratingOverall,
-        ratingStory: game.ratingStory,
-        ratingGameplay: game.ratingGameplay,
-        ratingSound: game.ratingSound,
-        tags: mergeArr(game.tags, match.tags),
-        features: mergeArr(game.features, match.features),
-        links: match.links?.length ? match.links : game.links,
-        ownership: game.ownership,
-        favorite: game.favorite,
-        collections: game.collections,
-        profilesEnabled: game.profilesEnabled,
-        osrsStatsEnabled: game.osrsStatsEnabled,
-      };
-      await updateGame(game.id, input);
-    }
-    outcome.status = "updated";
-
-    if (
-      import.meta.env.VITE_USE_MOCK_DATA !== "true" &&
-      (options.fillMissingArt || options.overwriteExistingArt)
-    ) {
-      if (
-        match.key_art_url &&
-        (options.overwriteExistingArt ||
-          !(await gameAssetExists(game.id, "key_art")))
-      ) {
-        await attachGameAssetFromUrl(game.id, "key_art", match.key_art_url);
-        outcome.keyArtAdded = true;
-      }
-      if (
-        match.banner_url &&
-        (options.overwriteExistingArt ||
-          !(await gameAssetExists(game.id, "banner")))
-      ) {
-        await attachGameAssetFromUrl(game.id, "banner", match.banner_url);
-        outcome.bannerAdded = true;
-      }
-    }
-
-    return outcome;
+    return await applyGameMetadataRefresh(game, options);
   } catch {
     return {
       status: "error",
