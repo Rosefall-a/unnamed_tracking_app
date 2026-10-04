@@ -18,6 +18,7 @@ import {
   listGameNotes,
   saveGameNote,
   setFavorite,
+  setStatus,
   setResumeNote,
   setPlaytimeSeconds,
 } from "../services/games";
@@ -94,11 +95,17 @@ import {
   addFeedItem,
   setTaskRetry,
 } from "../state/taskProgress";
-import type { Achievement, AchievementTier, Game } from "../types/game";
+import type {
+  Achievement,
+  AchievementTier,
+  Game,
+  GameStatus,
+} from "../types/game";
 import GameFormModal from "../components/GameFormModal.vue";
 import CollectionPickerModal from "../components/CollectionPickerModal.vue";
 import BackButton from "../components/BackButton.vue";
-import AccountChip from "../components/AccountChip.vue";
+import GameTopBar from "../components/GameTopBar.vue";
+import HeartIcon from "../components/HeartIcon.vue";
 import { computeScore } from "../utils/scoring";
 import { marked } from "marked";
 import DOMPurify from "dompurify";
@@ -1074,6 +1081,27 @@ async function toggleFavorite() {
   }
 }
 
+const STATUS_OPTIONS: GameStatus[] = [
+  "playing",
+  "beaten",
+  "mastered",
+  "played",
+  "on hold",
+  "dropped",
+  "backlog",
+  "wishlist",
+];
+async function changeStatus(next: GameStatus) {
+  if (!game.value || next === game.value.status) return;
+  const previous = game.value.status;
+  game.value.status = next;
+  try {
+    await setStatus(game.value.id, next);
+  } catch {
+    game.value.status = previous;
+  }
+}
+
 const showCollectionPicker = ref(false);
 
 async function onCollectionAdded() {
@@ -2004,6 +2032,7 @@ function formatPlaytime(minutes: number) {
 
 <template>
   <main v-if="loading" class="detail loading-state">
+    <GameTopBar active="games" />
     <div class="detail-skeleton">
       <SkeletonBlock height="320px" radius="0" />
       <div class="detail-skeleton-body">
@@ -2028,20 +2057,14 @@ function formatPlaytime(minutes: number) {
   </main>
 
   <main v-else-if="error" class="detail error-state">
+    <GameTopBar active="games" />
     <p>{{ error }}</p>
   </main>
 
   <main v-else-if="game" class="detail">
-    <!-- heavily blurred, dimmed copy of the cover image behind the whole page,
-         separate from the sharp version used in .hero itself -->
-    <div
-      class="ambient-bg"
-      :style="{ backgroundImage: `url(${game.bannerImageUrl})` }"
-    ></div>
+    <GameTopBar active="games" />
 
-    <BackButton fixed @click="goBackToLibrary" />
-
-    <AccountChip fixed />
+    <BackButton class="back-spot" @click="goBackToLibrary" />
 
     <GameFormModal
       v-if="showEditModal"
@@ -2087,129 +2110,149 @@ function formatPlaytime(minutes: number) {
       </div>
     </div>
 
-    <section
-      class="hero"
-      :style="{ backgroundImage: `url(${game.bannerImageUrl})` }"
-    >
+    <section class="hero">
+      <div
+        class="hero-backdrop"
+        :style="{ backgroundImage: `url(${game.bannerImageUrl})` }"
+      ></div>
       <div class="hero-overlay"></div>
-      <div class="hero-actions">
-        <button
-          class="hero-icon-button"
-          type="button"
-          title="Add to collection"
-          @click="showCollectionPicker = true"
+      <div class="hero-content">
+        <div
+          class="poster-card"
+          :style="
+            game.coverImageUrl
+              ? { backgroundImage: `url(${game.coverImageUrl})` }
+              : {}
+          "
         >
-          <svg
-            viewBox="0 0 24 24"
-            width="16"
-            height="16"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
+          <span v-if="!game.coverImageUrl">{{ game.title }}</span>
+        </div>
+        <div class="hero-text">
+          <router-link
+            v-if="game.parentGameId"
+            :to="`/games/${game.parentGameId}`"
+            class="parent-breadcrumb"
           >
-            <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
-          </svg>
-        </button>
-        <button
-          class="hero-icon-button"
-          :class="{ active: game.favorite }"
-          type="button"
-          :title="game.favorite ? 'Remove from favorites' : 'Add to favorites'"
-          @click="toggleFavorite"
-        >
-          <svg
-            viewBox="0 0 24 24"
-            width="16"
-            height="16"
-            :fill="game.favorite ? 'currentColor' : 'none'"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path
-              d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.8 1-1a5.5 5.5 0 0 0 0-7.6z"
-            />
-          </svg>
-        </button>
-        <button class="edit-button" type="button" @click="showEditModal = true">
-          Edit
-        </button>
-      </div>
-      <div class="hero-inner">
-        <router-link
-          v-if="game.parentGameId"
-          :to="`/games/${game.parentGameId}`"
-          class="parent-breadcrumb"
-        >
-          {{ parentGameTitle ?? "…" }}
-          <span v-if="game.relationshipType" class="relationship-tag">{{
-            RELATIONSHIP_LABELS[game.relationshipType] ?? game.relationshipType
-          }}</span>
-          →
-        </router-link>
-        <h1>{{ game.title }}</h1>
-        <div class="badges">
-          <span class="badge status-badge">{{ game.status }}</span>
-          <span v-if="tally" class="badge rating-badge">
-            ★ {{ tally.sum.toFixed(1) }}
-          </span>
-          <span v-if="game.dateAdded" class="badge">
-            {{ new Date(game.dateAdded).toLocaleDateString() }}
-          </span>
-          <span v-if="game.platforms.length" class="badge">{{
-            game.platforms[0].platform
-          }}</span>
-          <button
-            v-if="game.achievementTotal > 0"
-            type="button"
-            class="badge achievement-progress-badge"
-            title="Jump to Achievements"
-            @click="activeTab = 'Achievements'"
-          >
-            <svg
-              viewBox="0 0 24 24"
-              width="13"
-              height="13"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
+            {{ parentGameTitle ?? "…" }}
+            <span v-if="game.relationshipType" class="relationship-tag">{{
+              RELATIONSHIP_LABELS[game.relationshipType] ??
+              game.relationshipType
+            }}</span>
+            →
+          </router-link>
+          <h1 class="title">{{ game.title }}</h1>
+          <div class="badge-row">
+            <select
+              :value="game.status"
+              class="badge status status-select"
+              title="Change status"
+              @change="
+                changeStatus(
+                  ($event.target as HTMLSelectElement).value as GameStatus,
+                )
+              "
             >
-              <path d="M8 4h8v5a4 4 0 0 1-8 0z" />
-              <path d="M8 4H5a2 2 0 0 0 0 4h1.5M16 4h3a2 2 0 0 1 0 4h-1.5" />
-              <path d="M12 13v3" />
-              <path d="M9 20h6" />
-              <path d="M10 16.5h4l.8 3.5H9.2z" />
-            </svg>
-            {{ game.achievementPercent }}%
-          </button>
-          <span
-            v-if="game.staleSince"
-            class="badge stale-badge"
-            :title="`Last sync (${new Date(game.staleSince).toLocaleDateString()}) no longer saw this in your ${game.source} library.`"
-          >
-            Not currently in your {{ game.source }} library
-          </span>
+              <option v-for="s in STATUS_OPTIONS" :key="s" :value="s">
+                {{ s }}
+              </option>
+            </select>
+            <span v-if="tally" class="badge rating-badge">
+              ★ {{ tally.sum.toFixed(1) }}
+            </span>
+            <span v-if="game.dateAdded" class="badge">
+              {{ new Date(game.dateAdded).toLocaleDateString() }}
+            </span>
+            <span v-if="game.platforms.length" class="badge">{{
+              game.platforms[0].platform
+            }}</span>
+            <button
+              v-if="game.achievementTotal > 0"
+              type="button"
+              class="badge achievement-progress-badge"
+              title="Jump to Achievements"
+              @click="activeTab = 'Achievements'"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                width="13"
+                height="13"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M8 4h8v5a4 4 0 0 1-8 0z" />
+                <path d="M8 4H5a2 2 0 0 0 0 4h1.5M16 4h3a2 2 0 0 1 0 4h-1.5" />
+                <path d="M12 13v3" />
+                <path d="M9 20h6" />
+                <path d="M10 16.5h4l.8 3.5H9.2z" />
+              </svg>
+              {{ game.achievementPercent }}%
+            </button>
+            <span
+              v-if="game.staleSince"
+              class="badge stale-badge"
+              :title="`Last sync (${new Date(game.staleSince).toLocaleDateString()}) no longer saw this in your ${game.source} library.`"
+            >
+              Not currently in your {{ game.source }} library
+            </span>
+          </div>
+          <div class="action-row">
+            <button
+              class="edit-btn"
+              type="button"
+              @click="showEditModal = true"
+            >
+              ✎ Edit
+            </button>
+            <button
+              class="icon-btn"
+              :class="{ active: game.favorite }"
+              type="button"
+              :title="
+                game.favorite ? 'Remove from favorites' : 'Add to favorites'
+              "
+              @click="toggleFavorite"
+            >
+              <HeartIcon :filled="game.favorite" />
+            </button>
+            <button
+              class="icon-btn"
+              type="button"
+              title="Add to collection"
+              @click="showCollectionPicker = true"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+              </svg>
+            </button>
+          </div>
         </div>
       </div>
     </section>
 
-    <nav class="tabs">
-      <button
-        v-for="tab in visibleTabs"
-        :key="tab"
-        type="button"
-        class="tab"
-        :class="{ active: activeTab === tab }"
-        @click="activeTab = tab"
-      >
-        {{ tab }}
-      </button>
-    </nav>
+    <div class="tabbar-wrap">
+      <nav class="tabbar">
+        <button
+          v-for="tab in visibleTabs"
+          :key="tab"
+          type="button"
+          class="tab-btn"
+          :class="{ active: activeTab === tab }"
+          @click="activeTab = tab"
+        >
+          {{ tab }}
+        </button>
+      </nav>
+    </div>
 
     <section v-if="activeTab === 'Overview'" class="overview">
       <div class="overview-main">
@@ -4035,9 +4078,9 @@ function formatPlaytime(minutes: number) {
 .detail {
   position: relative;
   font-family: system-ui, sans-serif;
-  color: #fff;
+  color: #f2f2f2;
   min-height: 100vh;
-  background: #121212;
+  background: #0d0d0d;
   overflow: hidden;
 }
 .detail-skeleton-body {
@@ -4051,18 +4094,81 @@ function formatPlaytime(minutes: number) {
   display: flex;
   gap: 10px;
 }
-.ambient-bg {
-  position: fixed;
+.hero {
+  position: relative;
+  background-color: #1a1a1a;
+  min-height: 440px;
+  display: flex;
+  align-items: flex-end;
+  overflow: hidden;
+}
+.hero-backdrop {
+  position: absolute;
   inset: 0;
   background-size: cover;
-  background-position: center;
-  filter: blur(80px);
-  opacity: 0.25;
-  transform: scale(1.2);
+  background-position: center 20%;
+  filter: brightness(0.55) saturate(1.15);
   z-index: 0;
 }
-.hero,
-.tabs,
+.hero-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(13, 13, 13, 0.25) 0%,
+      rgba(13, 13, 13, 0.55) 45%,
+      #0d0d0d 96%
+    ),
+    linear-gradient(
+      90deg,
+      rgba(13, 13, 13, 0.75) 0%,
+      rgba(13, 13, 13, 0.15) 40%
+    );
+}
+.hero-content {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 0 24px 28px;
+  display: flex;
+  align-items: flex-end;
+  gap: 26px;
+}
+.poster-card {
+  width: 190px;
+  aspect-ratio: 2 / 3;
+  flex-shrink: 0;
+  border-radius: 8px;
+  background-size: cover;
+  background-position: center;
+  background-color: #222222;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 24px 48px -14px rgba(0, 0, 0, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.3);
+  text-align: center;
+  padding: 10px;
+}
+.hero-text {
+  min-width: 0;
+  padding-bottom: 4px;
+}
+.title {
+  font-weight: 800;
+  font-size: 2.5rem;
+  line-height: 1.05;
+  margin: 0 0 14px;
+  letter-spacing: -0.01em;
+  text-shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
+}
 .overview,
 .achievements,
 .notes-panel,
@@ -4074,48 +4180,22 @@ function formatPlaytime(minutes: number) {
   position: relative;
   z-index: 1;
 }
-.hero {
-  position: relative;
-  background-size: cover;
-  background-position: center;
-  min-height: 360px;
-  display: flex;
-  align-items: flex-end;
-}
-.hero-overlay {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    180deg,
-    rgba(18, 18, 18, 0) 40%,
-    rgba(18, 18, 18, 0.85) 85%,
-    #121212 100%
-  );
-}
-.hero-inner {
-  position: relative;
-  z-index: 1;
-  width: 100%;
-  max-width: 1600px;
-  margin: 0 auto;
-  /* clear of the floating menu/back buttons */
-  padding: 72px 24px 28px;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 18px;
-}
-.hero-inner h1 {
-  margin: 0;
-  font-size: 2.4rem;
-  /* the inherited line height is a fixed 23px */
-  line-height: 1.15;
-  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.6);
-}
-@media (max-width: 600px) {
-  .hero-inner h1 {
-    font-size: 1.8rem;
+@media (max-width: 640px) {
+  .hero-content {
+    flex-direction: column;
+    align-items: flex-start;
   }
+}
+/* Sits under the top bar and stays there while the page scrolls. It is sticky
+   rather than absolute so it never slides over the bar, and the negative
+   bottom margin gives back the room it takes so the hero does not move. */
+.detail > .back-spot {
+  display: flex;
+  width: 38px;
+  position: sticky;
+  top: 76px;
+  z-index: 79;
+  margin: 16px 0 -54px var(--ui-edge-left);
 }
 .parent-breadcrumb {
   display: flex;
@@ -4189,18 +4269,81 @@ function formatPlaytime(minutes: number) {
   white-space: nowrap;
   max-width: 100%;
 }
-.badges {
+.badge-row {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+  margin-bottom: 16px;
 }
 .badge {
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 999px;
-  padding: 4px 14px;
-  font-size: 13px;
+  line-height: 1.25;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 7px;
+  padding: 4px 11px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #9c9c9c;
   text-transform: capitalize;
-  color: #ddd;
+}
+.status-select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  border-color: rgba(214, 138, 52, 0.4);
+  color: #d68a34;
+  font-family: inherit;
+  cursor: pointer;
+  padding-right: 26px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23d68a34' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  background-size: 10px;
+}
+.action-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.edit-btn {
+  background: #d68a34;
+  border: none;
+  color: #14100a;
+  border-radius: 8px;
+  padding: 0 20px;
+  height: 38px;
+  font-family: inherit;
+  font-size: 0.86rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.icon-btn {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #f2f2f2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.icon-btn svg {
+  width: 16px;
+  height: 16px;
+}
+.icon-btn:hover {
+  border-color: rgba(214, 138, 52, 0.4);
+}
+.icon-btn.active {
+  color: #d68a34;
+  border-color: rgba(214, 138, 52, 0.4);
+  background: rgba(214, 138, 52, 0.16);
 }
 .rating-badge {
   color: #d68a34;
@@ -4227,105 +4370,47 @@ function formatPlaytime(minutes: number) {
   background: rgba(214, 138, 52, 0.22);
   color: #d68a34;
 }
-.hero-actions {
-  position: absolute;
-  bottom: 20px;
-  right: 24px;
-  z-index: 2;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  opacity: 0;
-  transition: opacity 0.2s ease;
-}
-.hero:hover .hero-actions {
-  opacity: 1;
-}
-.hero-icon-button {
-  background: rgba(0, 0, 0, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  color: #fff;
-  border-radius: 50%;
-  width: 34px;
-  height: 34px;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition:
-    background 0.15s ease,
-    color 0.15s ease;
-}
-.hero-icon-button:hover {
-  background: rgba(0, 0, 0, 0.7);
-}
-.hero-icon-button.active {
-  color: #d68a34;
-  border-color: rgba(214, 138, 52, 0.5);
-}
-.edit-button {
-  background: rgba(0, 0, 0, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  color: #fff;
-  border-radius: 999px;
-  padding: 8px 20px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.15s ease;
-}
-.edit-button:hover {
-  background: rgba(0, 0, 0, 0.7);
-}
 .meta {
   text-transform: capitalize;
   color: #ddd;
 }
-.tabs {
+.tabbar-wrap {
+  position: relative;
+  z-index: 1;
+  max-width: 1180px;
+  margin: 22px auto 0;
+  padding: 0 24px;
+}
+.tabbar {
   display: flex;
   gap: 4px;
-  width: 100%;
-  max-width: 1600px;
-  margin: 16px auto 0;
-  padding: 8px 16px;
-  box-sizing: border-box;
-  background: rgba(0, 0, 0, 0.25);
-  border: 1px solid #2a2a2a;
-  border-radius: 8px;
-  /* a screen too narrow for every tab scrolls the bar instead of silently
-     clipping the later ones, this was previously invisible rather than
-     reachable at all below ~840px wide */
+  background: #1a1a1a;
+  border-radius: 10px;
+  width: fit-content;
+  max-width: 100%;
   overflow-x: auto;
+  padding: 5px;
   scrollbar-width: none;
-  -ms-overflow-style: none;
-  overflow-x: auto;
 }
-.tabs::-webkit-scrollbar {
+.tabbar::-webkit-scrollbar {
   display: none;
 }
-.tab {
-  background: rgba(255, 255, 255, 0.06);
-  border: none;
-  color: #ccc;
-  padding: 8px 18px;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  border-radius: 999px;
-  white-space: nowrap;
+.tab-btn {
   flex-shrink: 0;
-  transition:
-    background 0.15s ease,
-    color 0.15s ease;
+  white-space: nowrap;
+  background: transparent;
+  border: none;
+  color: #9c9c9c;
+  font-family: inherit;
+  font-size: 0.84rem;
+  font-weight: 600;
+  padding: 8px 18px;
+  border-radius: 7px;
+  cursor: pointer;
 }
-.tab:hover {
-  background: #3a3a3a;
-  color: #fff;
-}
-.tab.active {
+.tab-btn.active {
   background: #d68a34;
-  color: #121212;
+  color: #14100a;
 }
 .overview {
   width: 100%;
