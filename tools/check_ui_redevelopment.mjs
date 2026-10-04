@@ -19,6 +19,7 @@ import { checkAppearanceSettings } from "./check_appearance_settings.mjs";
 import { checkStartupRecovery } from "./check_startup_recovery.mjs";
 import { checkAppearanceWelcome } from "./check_appearance_welcome.mjs";
 import { checkUploadUi } from "./check_upload_ui.mjs";
+import { checkPluginDiscoveryUi } from "./check_plugin_discovery_ui.mjs";
 
 const [pluginsRoot, evidenceRoot, backendUrl] = process.argv.slice(2);
 const reviewStage = process.argv[5] ?? "shell";
@@ -71,7 +72,11 @@ try {
   const installed = await admin.request.get(origin + "/api/plugins");
   assert.equal(installed.status(), 200);
   assert.equal((await installed.json()).length, 0, "Run this stage against a clean plugin inventory to exclude embedded-media evidence.");
-  if (reviewStage === "upload") {
+  if (reviewStage === "plugin-discovery") {
+    await checkPluginDiscoveryUi({ admin, origin, evidenceRoot, report, checkOverflow });
+    await writeFile(path.join(evidenceRoot, "plugin-discovery-conformance.json"), JSON.stringify(report, null, 2) + "\n");
+    console.log(JSON.stringify({ cases: report.screens.length, passed: report.passed }, null, 2));
+  } else if (reviewStage === "upload") {
     await checkUploadUi({ admin, origin, evidenceRoot, report, checkOverflow });
     await writeFile(path.join(evidenceRoot, "stage-upload-conformance.json"), JSON.stringify(report, null, 2) + "\n");
     console.log(JSON.stringify({ cases: report.screens.length, passed: report.passed }, null, 2));

@@ -94,12 +94,12 @@ export async function checkDetailUi({ admin, member, origin, evidenceRoot, repor
               const style = await page.locator(".page-header h1").evaluate(element => { const s = getComputedStyle(element); return [s.fontSize,s.fontWeight,s.lineHeight]; });
               titleStyle ??= style; assert.deepEqual(style, titleStyle); await noOverflow(page, `administration/${section}/${width}`);
             }
-            const launcher = page.getByRole("button", { name: "Install a plugin", exact: true });
+            const launcher = page.getByRole("button", { name: "Install package or URL", exact: true });
             const colors = await launcher.evaluate(element => ({ foreground: getComputedStyle(element).color, background: getComputedStyle(element).backgroundColor }));
             function luminance(color) { const rgb = color.match(/[\d.]+/g).slice(0,3).map(Number).map(v => { v/=255; return v<=0.04045 ? v/12.92 : ((v+0.055)/1.055)**2.4; }); return rgb[0]*0.2126+rgb[1]*0.7152+rgb[2]*0.0722; }
             const [low,high] = [luminance(colors.foreground),luminance(colors.background)].sort((a,b)=>a-b);
             assert((high+0.05)/(low+0.05)>=4.5, "Install button text meets 4.5:1 contrast");
-            await launcher.click(); const dialog = page.getByRole("dialog", { name: "Install a plugin", exact: true }); await focusDialog(page, dialog); await page.keyboard.press("Escape"); await dialog.waitFor({ state: "hidden" });
+            await launcher.click(); const dialog = page.getByRole("dialog", { name: "Install package or URL", exact: true }); await focusDialog(page, dialog); await page.keyboard.press("Escape"); await dialog.waitFor({ state: "hidden" });
             assert(await launcher.evaluate(element => element === document.activeElement));
           }
         }
@@ -107,9 +107,8 @@ export async function checkDetailUi({ admin, member, origin, evidenceRoot, repor
       if (role === "admin") {
         await page.setViewportSize({ width: 390, height: 880 });
         await page.goto(origin + "/settings?section=plugins");
-        await page.getByRole("button", { name: "Install a plugin", exact: true }).click();
-        const installer = page.getByRole("dialog", { name: "Install a plugin", exact: true });
-        await installer.getByText("Upload package", { exact: true }).first().click();
+        await page.getByRole("button", { name: "Install package or URL", exact: true }).click();
+        const installer = page.getByRole("dialog", { name: "Install package or URL", exact: true });
         await installer.getByLabel("Plugin package", { exact: true }).setInputFiles(path.join(pluginsRoot, ".validation/dist/example.playtime-report-1.2.0.utp"));
         const previewResponse = page.waitForResponse(response => new URL(response.url()).pathname === "/api/plugins/install/preview");
         await installer.getByRole("button", { name: "Review package", exact: true }).click();

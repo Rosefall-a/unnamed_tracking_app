@@ -2,6 +2,14 @@
 
 Plugins are independently packaged `.utp` extensions. An administrator installs and updates them from **Settings → Plugins**.
 
+## Discover and install
+
+Choose **Install a plugin** or **Discover** to browse the catalogue directly. Official plugins, examples and community/unverified plugins have separate groups and a source filter. These catalogue categories come from scoped publisher registry records; the review dialog verifies the actual package signature. A name or tag never establishes trust.
+
+Select a release on its plugin card and choose **Review**. The latest release is selected by default. **Install package or URL** opens the separate local-package/public-URL chooser; it does not send you through the catalogue again. Manage catalogue endpoints in Discover. Open **Settings & access** on an installed plugin to edit update policy, inspect permissions and diagnostics, retain/roll back versions, or open the plugin's own settings pages.
+
+Installing an older advertised release or rolling back pins that version and disables automatic updates, even when the global setting is enabled. Reinstall preserves the pin. A manual update to the latest release clears the pin while preserving a disabled-update preference. Explicitly choose **Enabled** or **Follow global setting** in that plugin's manager settings to resume tracking.
+
 ## Installation consent
 
 1. Select a package, enter a public package URL, or choose an enabled catalogue entry. A harmless filename-extension mismatch is allowed because the archive content is inspected.

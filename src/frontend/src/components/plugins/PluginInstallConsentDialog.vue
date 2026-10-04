@@ -212,6 +212,14 @@ function close() {
       <p v-if="preview.description" class="description">
         {{ preview.description }}
       </p>
+      <div v-if="preview.compatibility_reason" class="error" role="alert">
+        <strong>This release cannot be installed on this host</strong>
+        <p>{{ preview.compatibility_reason }}</p>
+        <p>
+          Choose a verified release that supports the versions above. Existing
+          plugin data is retained when a compatible update is installed.
+        </p>
+      </div>
       <dl class="metadata">
         <div>
           <dt>Publisher</dt>
@@ -230,14 +238,12 @@ function close() {
         </div>
       </dl>
       <PluginVersionInfo :versions="preview" />
-      <div v-if="preview.compatibility_reason" class="error" role="alert">
-        <strong>This release cannot be installed on this host</strong>
-        <p>{{ preview.compatibility_reason }}</p>
-        <p>
-          Choose a verified release that supports the versions above. Existing
-          plugin data is retained when a compatible update is installed.
-        </p>
-      </div>
+      <p v-if="preview.source.version_pin" class="version-pin" role="status">
+        You selected v{{ preview.source.version_pin }}; the catalogue currently
+        offers v{{ preview.source.latest_version }}. If installed, this release
+        will be pinned and automatic updates will be disabled. You can resume
+        them in the plugin’s manager settings.
+      </p>
 
       <div
         v-if="preview.trust_status !== 'trusted'"
@@ -512,7 +518,15 @@ function close() {
 }
 .consent-dialog {
   color: var(--ui-text);
+  padding-block: clamp(12px, 2vh, 28px);
   overflow-wrap: anywhere;
+}
+.version-pin {
+  padding: 16px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
+  background: var(--ui-surface-2);
+  line-height: 1.6;
 }
 header,
 .section-heading,

@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { managerEntries } from "../services/pluginManagerViews";
+import {
+  managerEntries,
+  pluginChannel,
+  catalogueVersions,
+} from "../services/pluginManagerViews";
 import type { PluginCatalogEntry, PluginSummary } from "../services/plugins";
 const installed: PluginSummary = {
   plugin_id: "media.sync",
@@ -79,5 +83,52 @@ describe("authoritative Plugin Manager views", () => {
     expect(
       managerEntries([installed], catalogue, "All", "session", "media"),
     ).toHaveLength(0);
+  });
+});
+
+describe("discovery and release selection", () => {
+  it("offers one deduplicated discovery catalogue including installed releases", () => {
+    expect(
+      managerEntries([installed], catalogue, "Discover").map(
+        (entry) => entry.plugin_id,
+      ),
+    ).toEqual(["media.sync", "sessions.self"]);
+  });
+  it("filters registry categories without treating names or tags as verified publishers", () => {
+    const entries = [
+      { ...catalogue[0]!, catalogue_channel: "official" as const },
+      { ...catalogue[2]!, catalogue_channel: "demo" as const },
+    ];
+    expect(managerEntries([], entries, "Discover", "", "", "demo")).toEqual([
+      entries[1],
+    ]);
+    expect(
+      pluginChannel({
+        ...installed,
+        name: "Official",
+        trust: { publisher_channel: "official", signature_verified: false },
+      }),
+    ).toBe("community");
+    expect(
+      pluginChannel({
+        ...installed,
+        trust: { publisher_channel: "official", signature_verified: true },
+      }),
+    ).toBe("official");
+  });
+  it("keeps the current release first and deduplicates retained releases", () => {
+    const entry = {
+      ...catalogue[0]!,
+      releases: [
+        { version: "2.0.0", url: "duplicate" },
+        { version: "1.0.0", url: "old" },
+      ],
+    };
+    expect(
+      catalogueVersions(entry).map((release) => [release.version, release.url]),
+    ).toEqual([
+      ["2.0.0", entry.url],
+      ["1.0.0", "old"],
+    ]);
   });
 });

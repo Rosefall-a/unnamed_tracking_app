@@ -247,6 +247,11 @@ watch(
 
         <section v-else-if="tab === 'settings'" class="panel">
           <h3>Plugin Manager settings</h3>
+          <p v-if="plugin.version_pin" class="version-pin" role="status">
+            Pinned to v{{ plugin.version_pin }}. Installing an older release or
+            rolling back disables automatic updates. Choose Enabled or Follow
+            global setting below to release the pin.
+          </p>
           <label
             >Automatic updates
             <select

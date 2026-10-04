@@ -56,6 +56,7 @@ export interface PluginSummary {
   available_update?: PluginUpdateCheck;
   staged_update?: PluginUpdateCheck & { status: string; version?: string };
   automatic_updates?: "follow" | "enabled" | "disabled";
+  version_pin?: string | null;
   history?: Array<{ id: string; version: string; digest: string }>;
   permission_details?: PluginInstallPermission[];
 }
@@ -92,6 +93,8 @@ export interface PluginSourceMetadata {
   catalogue_url?: string;
   release_notes?: string | null;
   changelog_url?: string | null;
+  latest_version?: string;
+  version_pin?: string | null;
 }
 export interface PluginInstallPermission {
   key: string;
@@ -175,6 +178,12 @@ export interface PluginCatalogEntry {
   release_notes?: string | null;
   changelog_url?: string | null;
   catalogue_url?: string;
+  catalogue_channel?: "official" | "demo" | "community" | "unverified";
+  releases?: Array<{
+    version: string;
+    url: string;
+    release_notes?: string | null;
+  }>;
   dependencies?: Array<{
     plugin_id: string;
     version_range: string;

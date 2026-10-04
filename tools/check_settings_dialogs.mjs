@@ -14,26 +14,25 @@ export async function checkSettingsDialogs({ admin, member, origin, evidenceRoot
       assert.equal((await admin.request.patch(origin + "/api/preferences", { data: { ui_theme: theme } })).status(), 200);
       await page.setViewportSize({ width, height: width <= 430 ? 880 : 1050 });
       await page.goto(origin + "/settings?section=plugins");
-      await page.getByRole("button", { name: "Install a plugin", exact: true }).click();
-      const installer = page.getByRole("dialog", { name: "Install a plugin", exact: true });
+      await page.getByRole("button", { name: "Install package or URL", exact: true }).click();
+      const installer = page.getByRole("dialog", { name: "Install package or URL", exact: true });
       await installer.waitFor();
       const bounds = await installer.boundingBox();
       assert(bounds.x >= 0 && bounds.x + bounds.width <= width + 1);
       assert(bounds.y >= 0 && bounds.y + bounds.height <= (width <= 430 ? 880 : 1050) + 1);
       if (width >= 900) {
         assert(bounds.width >= Math.min(1080, width - 64));
-        const methods = await installer.locator(".installer-methods").boundingBox();
-        const catalogue = await installer.locator(".installer-catalogue").boundingBox();
-        assert(Math.abs(methods.y - catalogue.y) <= 1 && catalogue.x > methods.x);
+        const upload = await installer.locator(".install-method").first().boundingBox();
+        const remote = await installer.locator(".install-method").nth(1).boundingBox();
+        assert(Math.abs(upload.y - remote.y) <= 1 && remote.x > upload.x);
       }
-      await installer.getByText("Upload package", { exact: true }).first().click();
       await installer.getByLabel("Plugin package", { exact: true }).waitFor();
       await installer.getByText("Install from URL", { exact: true }).first().click();
       await installer.getByRole("textbox", { name: "Plugin package URL", exact: true }).fill("https://example.invalid/review.utp");
       await checkOverflow(page, `plugin installer/${width}/${theme}`);
       if ([390, 1440].includes(width)) await page.screenshot({ path: path.join(evidenceRoot, `stage-plugin-installer-${width}-${theme}.png`) });
       await page.keyboard.press("Escape"); await installer.waitFor({ state: "hidden" });
-      assert(await page.getByRole("button", { name: "Install a plugin", exact: true }).evaluate(element => element === document.activeElement));
+      assert(await page.getByRole("button", { name: "Install package or URL", exact: true }).evaluate(element => element === document.activeElement));
       await page.getByText("Plugin Manager settings", { exact: true }).click();
       await page.getByRole("button", { name: "Save manager settings", exact: true }).waitFor();
       await checkOverflow(page, `plugin manager settings/${width}/${theme}`);

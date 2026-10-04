@@ -697,7 +697,7 @@ class PluginInstaller:
                     "status": "awaiting_permissions",
                     "healthy": plan.installed.get("health") == "healthy",
                 }
-        return await self._commit(plan, package, consent, admin, db, source, dangerous)
+        return await self._commit(plan, package, consent, admin, db, source, dangerous, operation)
 
     async def _commit(
         self,
@@ -708,6 +708,7 @@ class PluginInstaller:
         db: AsyncSession,
         source: dict[str, Any] | None,
         dangerous: list[str],
+        operation: str,
     ) -> dict[str, Any]:
         manifest = plan.inspected.package.manifest
         trust = plan.inspected.trust
@@ -715,6 +716,22 @@ class PluginInstaller:
         now = int(time.time())
         approved = set(consent.approved_permissions)
         replacing = plan.installed is not None
+        previous = {
+            **manager_state().read()["plugins"].get(plugin_id, {}),
+            **(plan.installed or {}),
+        }
+        selected_source = source or previous.get("source", {"type": "upload"})
+        latest = selected_source.get("latest_version")
+        older = bool(latest and parse_semver(manifest.version) < parse_semver(latest))
+        if previous.get("version"):
+            older = older or parse_semver(manifest.version) < parse_semver(previous["version"])
+        pin = manifest.version if older or operation == "rollback" else None
+        if operation == "reinstall" and previous.get("version_pin") == manifest.version:
+            pin = manifest.version
+        update_policy = {
+            "version_pin": pin,
+            "automatic_updates": "disabled" if pin else previous.get("automatic_updates", "follow"),
+        }
         operation_id = str(uuid4())
         prepared = False
         commit_attempted = False
@@ -803,6 +820,7 @@ class PluginInstaller:
                 plugin_id,
                 **{
                     **(plan.installed or {}),
+                    **update_policy,
                     "plugin_id": plugin_id,
                     "name": manifest.name,
                     "version": manifest.version,
@@ -816,7 +834,7 @@ class PluginInstaller:
                     "permission_refs": [
                         p.capability.model_dump(mode="json") for p in manifest.permissions
                     ],
-                    "source": source or (plan.installed or {}).get("source", {"type": "upload"}),
+                    "source": selected_source,
                     "trust": options["trust_metadata"],
                     "status": "stopped",
                     "enabled": False,
@@ -861,7 +879,10 @@ class PluginInstaller:
                 try:
                     await self.runtime.finish_installation(plugin_id, operation_id, commit=False)
                     if plan.installed:
-                        manager_state().patch(plugin_id, **plan.installed)
+                        manager_state().patch(
+                            plugin_id,
+                            **{"version_pin": None, "automatic_updates": "follow", **previous},
+                        )
                     else:
                         manager_state().remove(plugin_id)
                 except (PluginRuntimeRequestError, PluginRuntimeUnavailable):
@@ -920,6 +941,8 @@ class PluginInstaller:
             await self.runtime.finish_activation(plugin_id, operation_id, commit=False)
             manager_state().patch(
                 plugin_id,
+                version_pin=previous.get("version_pin"),
+                automatic_updates=previous.get("automatic_updates", "follow"),
                 last_update_error="Candidate failed startup/health; previous release restored.",
             )
             status = "rolled_back"

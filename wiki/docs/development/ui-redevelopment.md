@@ -320,3 +320,16 @@ The [Upload report](../assets/ui-redevelopment/stage-upload-conformance.json) re
 
 ![Standalone phone Upload page](../assets/ui-redevelopment/upload-page-390-dark.png)
 ![Standalone desktop Upload page](../assets/ui-redevelopment/upload-page-1440-light.png)
+
+## Direct plugin discovery and retained releases
+
+Plugin installation now has one Discover view with separate Official, Example and Community/unverified groups, tag/source filters and a release selector. Package/URL acquisition uses a spacious separate dialog with side-by-side methods on desktop. Installed plugins expose manager controls, native settings access and diagnostics. Incompatible releases explain the failing contract before the long metadata, including on phones.
+
+Older catalogue installs and rollback persist a version pin and disable automatic updates. Reinstall retains the pin; failed commit/activation restores the prior policy. A manual latest update preserves an explicit disabled-update preference, while explicit Enabled/Follow selection releases a pin. Historical archive signatures and hashes remain unchanged.
+
+The [responsive discovery report](../assets/ui-redevelopment/plugin-discovery-conformance.json) covers twelve real Light/Dark cases from 320 to 1920 px, actual catalogue history/review, grouped examples, dialogs and overflow checks. Backend catalogue/lifecycle coverage passed 312 tests before two added transaction-policy regressions, which also passed. All 172 frontend and 220 companion source/package tests passed. The prior paired commits passed all seven host and both companion CI workflows; fresh installer CI and final complete acceptance are recorded in subsequent PR updates.
+
+![Phone grouped plugin discovery](../assets/ui-redevelopment/plugin-discovery-390-dark.png)
+![Desktop grouped plugin discovery](../assets/ui-redevelopment/plugin-discovery-1440-light.png)
+![Phone package or URL installer](../assets/ui-redevelopment/plugin-package-chooser-390-dark.png)
+![Desktop package or URL installer](../assets/ui-redevelopment/plugin-package-chooser-1440-light.png)

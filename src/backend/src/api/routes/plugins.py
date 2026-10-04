@@ -180,6 +180,18 @@ class CatalogueIcon(BaseModel):
         return self
 
 
+class PluginCatalogRelease(BaseModel):
+    """One bounded advertised package version, inspected separately before installation."""
+
+    model_config = {"populate_by_name": True}
+    version: str = Field(min_length=1, max_length=64)
+    url: str = Field(min_length=1, max_length=2048)
+    digest: str | None = Field(default=None, alias="sha256", pattern=r"^[0-9a-fA-F]{64}$")
+    package_sha256: str | None = Field(default=None, pattern=r"^[0-9a-fA-F]{64}$")
+    release_notes: str | None = Field(default=None, max_length=4000)
+    automatic_update: bool = True
+
+
 class PluginCatalogEntry(BaseModel):
     """Transport metadata; packaged assets are validated during catalogue normalization."""
 
@@ -210,6 +222,10 @@ class PluginCatalogEntry(BaseModel):
     documentation: dict[str, object] = Field(default_factory=dict)
     build: dict[str, object] = Field(default_factory=dict)
     automatic_update: bool = True
+    releases: tuple[PluginCatalogRelease, ...] = Field(default=(), max_length=256)
+    catalogue_channel: str = Field(
+        default="unverified", pattern=r"^(official|demo|community|unverified)$"
+    )
 
 
 class PluginBackendRouteResponse(BaseModel):
@@ -439,6 +455,29 @@ def _catalog_entries(payload: Any, *, source_url: str | None = None) -> list[dic
                 entry.compatibility = f"SDK {raw_entry.get('sdk_version_range', '*')}; application {raw_entry.get('application_version_range', '*')}"
             parse_semver(entry.version)
             _validate_remote_url(entry.url)
+            versions: set[str] = set()
+            for release in entry.releases:
+                parse_semver(release.version)
+                _validate_remote_url(release.url)
+                if release.version in versions:
+                    raise ValueError("Catalogue release versions must be unique")
+                versions.add(release.version)
+                if parse_semver(release.version) > parse_semver(entry.version):
+                    raise ValueError("Catalogue history cannot be newer than its current entry")
+                if release.version == entry.version and (
+                    release.url != entry.url
+                    or release.digest != entry.digest
+                    or release.package_sha256 != entry.package_sha256
+                ):
+                    raise ValueError("Catalogue current release and history disagree")
+            publisher = _plugin_package_verifier().publishers.get(
+                str(entry.signing.get("key_id", ""))
+            )
+            entry.catalogue_channel = (
+                publisher.channel
+                if publisher and publisher.allows_plugin(entry.plugin_id)
+                else "unverified"
+            )
             if entry.changelog_url:
                 _validate_remote_url(entry.changelog_url)
         except (ValidationError, ValueError, HTTPException) as exc:
@@ -655,17 +694,46 @@ async def _validate_catalogue_candidate(
     entries = await plugin_catalog(source=request.catalogue_url, user=admin)
     manifest = inspected.package.manifest
     entry = next((item for item in entries if item.plugin_id == manifest.plugin_id), None)
+    release = (
+        entry
+        if entry and entry.version == manifest.version
+        else next((item for item in entry.releases if item.version == manifest.version), None)
+        if entry
+        else None
+    )
     if (
-        entry is None
-        or entry.url != request.url
-        or entry.version != manifest.version
-        or entry.digest
-        and entry.digest.lower() != manifest.integrity.sha256.lower()
-        or entry.package_sha256
-        and entry.package_sha256.lower() != hashlib.sha256(path.read_bytes()).hexdigest()
+        release is None
+        or release.url != request.url
+        or release.digest
+        and release.digest.lower() != manifest.integrity.sha256.lower()
+        or release.package_sha256
+        and release.package_sha256.lower() != hashlib.sha256(path.read_bytes()).hexdigest()
     ):
         raise HTTPException(409, "Catalogue release and package identity or hashes differ.")
     return entries
+
+
+def _acquisition_source(
+    request: PluginInstallUrl, inspected: InspectedPackage, entries: list[PluginCatalogEntry]
+) -> dict[str, Any]:
+    """Historical selection is derived from checked catalogue data, never a client flag."""
+    source: dict[str, Any] = {
+        "type": request.source_type,
+        "url": request.url,
+        "catalogue_url": request.catalogue_url,
+        "release_notes": request.release_notes,
+        "changelog_url": request.changelog_url,
+    }
+    manifest = inspected.package.manifest
+    entry = next((item for item in entries if item.plugin_id == manifest.plugin_id), None)
+    if entry is not None:
+        source["latest_version"] = entry.version
+        source["version_pin"] = (
+            manifest.version
+            if parse_semver(manifest.version) < parse_semver(entry.version)
+            else None
+        )
+    return source
 
 
 @router.post("/install/preview-url")
@@ -677,21 +745,13 @@ async def preview_plugin_install_url(
     try:
         path, filename, total = await _download_remote_file(request.url)
         inspected = _inspect_install_candidate(path)
-        available = [
-            entry.model_dump()
-            for entry in await _validate_catalogue_candidate(path, inspected, request, admin)
-        ]
+        entries = await _validate_catalogue_candidate(path, inspected, request, admin)
+        available = [entry.model_dump() for entry in entries]
         dependencies = await _plan_candidate_dependencies(
             inspected.package.manifest,
             available=available,
         )
-        source = {
-            "type": request.source_type,
-            "url": request.url,
-            "catalogue_url": request.catalogue_url,
-            "release_notes": request.release_notes,
-            "changelog_url": request.changelog_url,
-        }
+        source = _acquisition_source(request, inspected, entries)
         return {
             **_install_preview(inspected, dependencies, source=source),
             "source_url": request.url,
@@ -717,7 +777,7 @@ async def install_plugin_url(
     try:
         path, filename, _ = await _download_remote_file(request.url)
         inspected = _inspect_install_candidate(path)
-        await _validate_catalogue_candidate(path, inspected, request, admin)
+        entries = await _validate_catalogue_candidate(path, inspected, request, admin)
         upload = UploadFile(path.open("rb"), filename=filename)
         return await _install_plugin_package(
             upload,
@@ -726,13 +786,7 @@ async def install_plugin_url(
             admin_password=request.admin_password,
             confirm_dangerous=request.confirm_dangerous,
             expected_digest=request.expected_digest,
-            source_metadata={
-                "type": request.source_type,
-                "url": request.url,
-                "catalogue_url": request.catalogue_url,
-                "release_notes": request.release_notes,
-                "changelog_url": request.changelog_url,
-            },
+            source_metadata=_acquisition_source(request, inspected, entries),
             admin=admin,
             db=db,
         )
@@ -1217,7 +1271,10 @@ async def set_plugin_auto_update(
     del admin
     if plugin_id not in manager_state().read()["plugins"]:
         raise HTTPException(404, "Plugin installation not found.")
-    return manager_state().patch(plugin_id, automatic_updates=payload.mode)
+    changes: dict[str, Any] = {"automatic_updates": payload.mode}
+    if payload.mode != "disabled":
+        changes["version_pin"] = None
+    return manager_state().patch(plugin_id, **changes)
 
 
 @router.post("/{plugin_id}/update/staged/preview")
@@ -1477,6 +1534,7 @@ async def run_automatic_plugin_updates(db: AsyncSession, admin: User) -> dict[st
             )
             eligible = (
                 enabled
+                and not plugin.get("version_pin")
                 and update["automatic_update"]
                 and manifest.automatic_update
                 and inspected.package.distribution.get("automatic_update", True)
@@ -2045,20 +2103,14 @@ async def preview_plugin_update_url(
     try:
         temporary_path, filename, total = await _download_remote_file(request.url)
         inspected = _inspect_install_candidate(temporary_path)
-        await _validate_catalogue_candidate(temporary_path, inspected, request, admin)
+        entries = await _validate_catalogue_candidate(temporary_path, inspected, request, admin)
         installed, _, permission_delta, dependencies, can_retain_grants = await _update_context(
             plugin_id,
             inspected,
             db,
             operation=operation,
         )
-        source = {
-            "type": request.source_type,
-            "url": request.url,
-            "catalogue_url": request.catalogue_url,
-            "release_notes": request.release_notes,
-            "changelog_url": request.changelog_url,
-        }
+        source = _acquisition_source(request, inspected, entries)
         return {
             **_update_preview(
                 inspected,
@@ -2092,7 +2144,7 @@ async def update_plugin_url(
     try:
         temporary_path, filename, _ = await _download_remote_file(request.url)
         inspected = _inspect_install_candidate(temporary_path)
-        await _validate_catalogue_candidate(temporary_path, inspected, request, admin)
+        entries = await _validate_catalogue_candidate(temporary_path, inspected, request, admin)
         upload = UploadFile(temporary_path.open("rb"), filename=filename)
         return await _update_plugin_package(
             plugin_id,
@@ -2103,13 +2155,7 @@ async def update_plugin_url(
             admin_password=request.admin_password,
             confirm_dangerous=request.confirm_dangerous,
             expected_digest=request.expected_digest,
-            source_metadata={
-                "type": request.source_type,
-                "url": request.url,
-                "catalogue_url": request.catalogue_url,
-                "release_notes": request.release_notes,
-                "changelog_url": request.changelog_url,
-            },
+            source_metadata=_acquisition_source(request, inspected, entries),
             admin=admin,
             db=db,
         )

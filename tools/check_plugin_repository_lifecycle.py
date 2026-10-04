@@ -174,6 +174,7 @@ def prepare_releases(plugins_root, work):
         ).hexdigest(),
         "status": "active",
         "plugin_id_prefixes": ["example."],
+        "channel": "demo",
     }
     (root / "publishers/integration.public-key.b64").write_text(public)
     (root / "publishers/registry.json").write_text(
@@ -897,8 +898,13 @@ def acceptance(plugins_root, work, browser=False):
             preserved()
             request("POST", f"/{PLUGIN}/rollback", json={})
             assert current()["version"] == entry["version"]
+            assert current()["version_pin"] == entry["version"]
+            assert current()["automatic_updates"] == "disabled"
             preserved()
             request("POST", f"/{PLUGIN}/update/url", json=source(second))
+            assert current()["version_pin"] is None
+            assert current()["automatic_updates"] == "disabled"
+            request("PUT", f"/{PLUGIN}/auto-update", json={"mode": "follow"})
             request(
                 "PUT",
                 "/manager-settings",
@@ -1094,6 +1100,26 @@ def acceptance(plugins_root, work, browser=False):
             checkpoint(
                 "revocation/regrant, management-token scope confinement, purge and uninstall"
             )
+            # Published historical archives retain their package identity and
+            # signature. Selecting one must not immediately advance it again.
+            historical_preview = request("POST", "/install/preview-url", json=source(entry))
+            assert historical_preview["source"]["version_pin"] == entry["version"]
+            request("PUT", "/manager-settings", json={"automatic_updates": True, "retained_versions": 2})
+            if browser:
+                request("PATCH", "/catalogues/official", json={"enabled": False})
+                browser_check("historical", historical_preview)
+            else:
+                request("POST", "/install/url", 201, params={"approved_permissions": keys}, json=source(entry))
+            assert current()["version_pin"] == entry["version"]
+            assert current()["automatic_updates"] == "disabled"
+            assert automatic()["installed"] == 0
+            assert current()["version"] == entry["version"] and current()["status"] == "running"
+            request("POST", f"/{PLUGIN}/reinstall", json={})
+            assert current()["version_pin"] == entry["version"]
+            resumed = request("PUT", f"/{PLUGIN}/auto-update", json={"mode": "follow"})
+            assert resumed["version_pin"] is None
+            request("DELETE", f"/{PLUGIN}", 204)
+            checkpoint("historical signed release installs pinned; global updates, reinstall and explicit resume")
             report["status"] = "passed"
             (work / "conformance.json").write_text(json.dumps(report, indent=2) + "\n")
     finally:

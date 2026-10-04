@@ -9,8 +9,10 @@ import zipfile
 from types import SimpleNamespace
 
 import pytest
-from pydantic import BaseModel, Field
 from fastapi import HTTPException
+from pydantic import BaseModel, Field
+from test_plugin_install_sources import package_bytes
+
 from src.api.routes import plugins
 from src.plugin_api.installer import inspect_package
 from src.plugin_api.updates import (
@@ -18,7 +20,6 @@ from src.plugin_api.updates import (
     PluginPackageVerifier,
     canonical_payload_digest,
 )
-from test_plugin_install_sources import package_bytes
 
 
 def release_package(path, **changes):
@@ -169,7 +170,11 @@ def test_catalogue_transport_model_remains_loadable_by_public_contract_tools():
         "Field": Field,
         "PluginDependency": plugins.PluginDependency,
     }
-    source = inspect.getsource(plugins.PluginCatalogEntry)
+    source = (
+        inspect.getsource(plugins.PluginCatalogRelease)
+        + "\n"
+        + inspect.getsource(plugins.PluginCatalogEntry)
+    )
     exec(compile(ast.parse(source), "catalogue-contract", "exec"), namespace)
     model = namespace["PluginCatalogEntry"]
     validated = model.model_validate(
@@ -178,3 +183,99 @@ def test_catalogue_transport_model_remains_loadable_by_public_contract_tools():
     assert validated.icon["path"] == "icon.svg"
     assert validated.digest == "b" * 64
     assert model.model_validate(entry(digest="c" * 64)).digest == "c" * 64
+
+
+@pytest.mark.parametrize(
+    "releases",
+    [
+        [{"version": "broken", "url": "https://packages.example/old.utp"}],
+        [{"version": "3.0.0", "url": "https://packages.example/old.utp"}],
+        [{"version": "1.0.0", "url": "https://packages.example/old.utp"}] * 2,
+        [{"version": "2.0.0", "url": "https://packages.example/different.utp"}],
+        [{"version": "1.0.0", "url": "https://packages.example/old.utp", "sha256": "wrong"}],
+    ],
+)
+def test_invalid_catalogue_history_is_rejected(monkeypatch, releases):
+    monkeypatch.setattr(plugins, "_validate_remote_url", lambda url: url)
+    with pytest.raises(HTTPException):
+        plugins._catalog_entries({"version": 1, "plugins": [entry(releases=releases)]})
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("defect", [None, "url", "digest", "archive_hash"])
+async def test_retained_release_review_binds_package_and_derives_pin(tmp_path, monkeypatch, defect):
+    path = tmp_path / "retained.utp"
+    inspected = release_package(path)
+    release = {
+        "version": "2.0.0",
+        "url": "https://packages.example/plugin.utp",
+        "sha256": inspected.package.payload_digest,
+        "package_sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+    }
+    if defect:
+        release[{"digest": "sha256", "archive_hash": "package_sha256"}.get(defect, defect)] = (
+            "https://packages.example/different.utp" if defect == "url" else "0" * 64
+        )
+    advertised = plugins.PluginCatalogEntry.model_validate(
+        entry(version="3.0.0", url="https://packages.example/latest.utp", releases=[release])
+    )
+
+    async def catalogue(**kwargs):
+        return [advertised]
+
+    monkeypatch.setattr(plugins, "plugin_catalog", catalogue)
+    request = plugins.PluginInstallUrl(
+        url="https://packages.example/plugin.utp",
+        source_type="catalogue",
+        catalogue_url="https://catalogue.example/list.json",
+    )
+    if defect:
+        with pytest.raises(HTTPException) as error:
+            await plugins._validate_catalogue_candidate(path, inspected, request, SimpleNamespace())
+        assert error.value.status_code == 409
+    else:
+        entries = await plugins._validate_catalogue_candidate(
+            path, inspected, request, SimpleNamespace()
+        )
+        source = plugins._acquisition_source(request, inspected, entries)
+        assert source["version_pin"] == "2.0.0"
+        assert source["latest_version"] == "3.0.0"
+        assert (
+            plugins._install_preview(inspected, source=source)["source"]["version_pin"] == "2.0.0"
+        )
+
+
+@pytest.mark.parametrize(
+    "channel,allowed,expected",
+    [
+        ("official", True, "official"),
+        ("demo", True, "demo"),
+        ("official", False, "unverified"),
+        (None, False, "unverified"),
+    ],
+)
+def test_catalogue_category_uses_scoped_registry_not_advertised_brand(
+    monkeypatch, channel, allowed, expected
+):
+    monkeypatch.setattr(plugins, "_validate_remote_url", lambda url: url)
+    publisher = SimpleNamespace(channel=channel, allows_plugin=lambda plugin_id: allowed)
+    monkeypatch.setattr(
+        plugins,
+        "_plugin_package_verifier",
+        lambda: SimpleNamespace(publishers={"key": publisher} if channel else {}),
+    )
+    record = plugins._catalog_entries(
+        {
+            "version": 1,
+            "plugins": [
+                entry(
+                    name="Official plugin",
+                    catalogue_channel="official",
+                    publisher="Official",
+                    tags=["official"],
+                    signing={"key_id": "key"},
+                )
+            ],
+        }
+    )[0]
+    assert record["catalogue_channel"] == expected

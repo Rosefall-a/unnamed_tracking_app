@@ -2,6 +2,8 @@
 import { computed, onMounted, ref } from "vue";
 import {
   managerEntries,
+  catalogueVersions,
+  pluginChannel,
   type ManagerView,
 } from "../../services/pluginManagerViews";
 import { refreshPluginExtensions } from "../../state/pluginExtensions";
@@ -96,6 +98,8 @@ const checkingUpdates = ref(false);
 const view = ref<ManagerView>("Installed");
 const search = ref("");
 const tag = ref("");
+const channel = ref("");
+const selectedVersions = ref<Record<string, string>>({});
 const runtime = ref<RuntimeCapabilities | null>(null);
 const managerSettings = ref({ automatic_updates: false, retained_versions: 1 });
 const managerSettingsLoaded = ref(false);
@@ -118,6 +122,7 @@ const entries = computed(() =>
     view.value,
     search.value,
     tag.value,
+    channel.value,
   ),
 );
 const tags = computed(() =>
@@ -134,6 +139,20 @@ const catalogueEntries = computed(() =>
   entries.value.filter(
     (item): item is PluginCatalogEntry => !("status" in item),
   ),
+);
+const catalogueGroups = computed(() =>
+  [
+    { id: "official", label: "Official plugins" },
+    { id: "demo", label: "Example plugins" },
+    { id: "community", label: "Community and unverified plugins" },
+  ]
+    .map((group) => ({
+      ...group,
+      entries: catalogueEntries.value.filter(
+        (entry) => pluginChannel(entry) === group.id,
+      ),
+    }))
+    .filter((group) => group.entries.length),
 );
 
 async function saveGlobalSettings() {
@@ -339,10 +358,16 @@ async function loadCatalogues() {
   }
 }
 
+function discoverPlugins() {
+  view.value = "Discover";
+  search.value = "";
+  tag.value = "";
+  void loadCatalogues();
+}
+
 function openInstaller() {
   if (installing.value || previewing.value) return;
   installOpen.value = true;
-  void loadCatalogues();
 }
 
 function closeInstaller() {
@@ -453,10 +478,14 @@ async function previewRemoteUrl(
 
 async function previewCatalogEntry(entry: PluginCatalogEntry) {
   error.value = "";
-  await previewRemoteUrl(entry.url, {
+  const release =
+    catalogueVersions(entry).find(
+      (item) => item.version === selectedVersions.value[entry.plugin_id],
+    ) ?? entry;
+  await previewRemoteUrl(release.url, {
     type: "catalogue",
     catalogue_url: entry.catalogue_url,
-    release_notes: entry.release_notes,
+    release_notes: release.release_notes,
     changelog_url: entry.changelog_url,
   });
   if (installPreview.value) {
@@ -828,7 +857,7 @@ onMounted(() => {
     <details
       v-if="runtime"
       class="manager-settings"
-      :open="runtime.version_health !== 'healthy'"
+      :open="runtime.version_health === 'incompatible'"
     >
       <summary>Plugin platform versions & health</summary>
       <dl>
@@ -939,8 +968,7 @@ onMounted(() => {
         v-for="item in [
           'Installed',
           'Updates Available',
-          'Available to Install',
-          'All',
+          'Discover',
         ] as ManagerView[]"
         :key="item"
         :aria-pressed="view === item"
@@ -959,6 +987,12 @@ onMounted(() => {
         <option value="">All tags</option>
         <option v-for="item in tags" :key="item">{{ item }}</option>
       </select>
+      <select v-model="channel" aria-label="Filter by plugin source">
+        <option value="">All sources</option>
+        <option value="official">Official</option>
+        <option value="demo">Examples</option>
+        <option value="community">Community / unverified</option>
+      </select>
     </div>
     <p v-for="error in catalogueErrors" :key="error" role="alert" class="muted">
       {{ error }}
@@ -967,30 +1001,106 @@ onMounted(() => {
       <button
         type="button"
         class="primary install-launcher"
+        v-if="view !== 'Discover'"
+        :disabled="installing || previewing"
+        @click="discoverPlugins"
+      >
+        Install a plugin
+      </button>
+      <button
+        type="button"
         :disabled="installing || previewing"
         @click="openInstaller"
       >
-        Install a plugin
+        Install package or URL
       </button>
       <button type="button" :disabled="checkingUpdates" @click="refreshUpdates">
         {{ checkingUpdates ? "Checking…" : "Check for updates" }}
       </button>
       <p class="muted">
-        Add a package, install from a URL, or browse enabled plugin catalogues.
+        Discover a plugin and review its access before installing. Use Updates
+        Available to review updates; click an installed plugin for
+        configuration, permissions and retained versions.
       </p>
       <p v-if="installMessage" class="success">{{ installMessage }}</p>
     </div>
+    <details v-if="view === 'Discover'" class="catalogue discovery-sources">
+      <summary>Manage catalogues</summary>
+      <section>
+        <div class="catalogue-header">
+          <div>
+            <strong>Plugin catalogues</strong>
+            <p class="muted">
+              The official catalogue is enabled by default. Catalogue provenance
+              never replaces package signature verification.
+            </p>
+          </div>
+        </div>
+        <div
+          v-for="catalogueSource in catalogues"
+          :key="catalogueSource.id"
+          class="endpoint-row"
+        >
+          <label
+            ><input
+              type="checkbox"
+              :checked="catalogueSource.enabled"
+              @change="
+                toggleCatalogEndpoint(
+                  catalogueSource,
+                  ($event.target as HTMLInputElement).checked,
+                )
+              "
+            />
+            {{ catalogueSource.name }} · priority
+            {{ catalogueSource.priority }}</label
+          >
+          <span class="muted">{{ catalogueSource.url }}</span>
+          <span v-if="catalogueSource.last_error" class="error">{{
+            catalogueSource.last_error
+          }}</span>
+          <button
+            v-if="catalogueSource.id !== 'official'"
+            type="button"
+            class="danger"
+            @click="removeCatalogEndpoint(catalogueSource)"
+          >
+            Remove
+          </button>
+        </div>
+        <div class="endpoint-add">
+          <input
+            v-model="newCatalogEndpoint"
+            type="url"
+            placeholder="https://example.com/list.json"
+            aria-label="New catalogue URL"
+            @keyup.enter="addCatalogEndpoint"
+          /><button
+            type="button"
+            :disabled="!newCatalogEndpoint.trim()"
+            @click="addCatalogEndpoint"
+          >
+            Add catalogue
+          </button>
+        </div>
+      </section>
+    </details>
+    <p v-if="view === 'Discover'" class="muted discovery-note">
+      Official plugins and examples are listed separately. Source categories use
+      the trusted publisher registry; package signatures, compatibility and
+      permissions are checked during review.
+    </p>
     <UiModal
       v-if="installOpen"
-      title="Install a plugin"
+      title="Install package or URL"
       size="wide"
-      description="Browse the catalogue, upload a package, or install from a URL."
+      description="Review a local package or a public package URL before installing."
       :dismissible="!installing"
       @close="closeInstaller"
     >
       <section class="installer-dialog installer-browser">
         <div class="installer-methods">
-          <details class="install-method">
+          <details class="install-method" open>
             <summary>Upload package</summary>
             <div>
               <p class="muted">
@@ -1034,143 +1144,92 @@ onMounted(() => {
               </div>
             </div>
           </details>
-          <details class="catalogue">
-            <summary>Manage catalogues</summary>
-            <section>
-              <div class="catalogue-header">
-                <div>
-                  <strong>Plugin catalogues</strong>
-                  <p class="muted">
-                    The official catalogue is enabled by default. Catalogue
-                    provenance never replaces package signature verification.
-                  </p>
-                </div>
-              </div>
-              <div
-                v-for="catalogueSource in catalogues"
-                :key="catalogueSource.id"
-                class="endpoint-row"
-              >
-                <label
-                  ><input
-                    type="checkbox"
-                    :checked="catalogueSource.enabled"
-                    @change="
-                      toggleCatalogEndpoint(
-                        catalogueSource,
-                        ($event.target as HTMLInputElement).checked,
-                      )
-                    "
-                  />
-                  {{ catalogueSource.name }} · priority
-                  {{ catalogueSource.priority }}</label
-                >
-                <span class="muted">{{ catalogueSource.url }}</span>
-                <span v-if="catalogueSource.last_error" class="error">{{
-                  catalogueSource.last_error
-                }}</span>
-                <button
-                  v-if="catalogueSource.id !== 'official'"
-                  type="button"
-                  class="danger"
-                  @click="removeCatalogEndpoint(catalogueSource)"
-                >
-                  Remove
-                </button>
-              </div>
-              <div class="endpoint-add">
-                <input
-                  v-model="newCatalogEndpoint"
-                  type="url"
-                  placeholder="https://example.com/list.json"
-                  aria-label="New catalogue URL"
-                  @keyup.enter="addCatalogEndpoint"
-                /><button
-                  type="button"
-                  :disabled="!newCatalogEndpoint.trim()"
-                  @click="addCatalogEndpoint"
-                >
-                  Add catalogue
-                </button>
-              </div>
-            </section>
-          </details>
         </div>
-        <section class="catalogue installer-catalogue">
-          <div class="catalogue-header">
-            <div>
-              <strong>Available plugins</strong>
-              <p class="muted">
-                Packages from all enabled catalogues are shown together.
-              </p>
-            </div>
-            <button
-              type="button"
-              :disabled="previewing || installing"
-              @click="loadCatalogues"
-            >
-              Refresh
-            </button>
-          </div>
-          <div v-if="!catalog.length" class="muted">
-            No plugins are currently listed by the enabled catalogues.
-          </div>
-          <article
-            v-for="entry in catalog"
-            :key="entry.plugin_id"
-            class="catalogue-entry"
-          >
-            <div>
-              <strong>{{ entry.name }}</strong
-              ><span>{{ entry.plugin_id }} · v{{ entry.version }}</span>
-              <p>{{ entry.description }}</p>
-            </div>
-            <button
-              type="button"
-              :disabled="previewing"
-              @click="previewCatalogEntry(entry)"
-            >
-              Install
-            </button>
-          </article>
-        </section>
       </section>
     </UiModal>
     <p v-if="loading">Loading plugins…</p>
     <p v-if="cataloguesLoading" class="muted">Refreshing catalogues…</p>
     <p v-if="error" class="error">{{ error }}</p>
     <p v-if="!loading && !entries.length" class="muted">
-      No plugins match this view.
+      {{
+        view === "Installed" && !plugins.length
+          ? "No plugins installed yet. Choose Install a plugin to browse the catalogue, or install a package you already have."
+          : "No plugins match these filters."
+      }}
     </p>
     <div v-if="!loading && entries.length" class="list">
-      <article
-        v-for="entry in catalogueEntries"
-        :key="entry.plugin_id"
-        class="plugin"
-      >
-        <img
-          v-if="entry.icon"
-          :src="entry.icon"
-          alt=""
-          width="48"
-          height="48"
-        />
-        <h3>{{ entry.name }}</h3>
-        <p>{{ entry.description }}</p>
-        <p>
-          {{ entry.publisher ?? "Publisher information not supplied" }} · v{{
-            entry.version
-          }}
-          · {{ entry.compatibility ?? "Compatibility checked during review" }}
-        </p>
-        <p>{{ entry.tags?.join(" · ") }}</p>
-        <button
-          :disabled="previewing || installing"
-          @click="previewCatalogEntry(entry)"
+      <template v-for="group in catalogueGroups" :key="group.id">
+        <h3 class="catalogue-group-heading">{{ group.label }}</h3>
+        <article
+          v-for="entry in group.entries"
+          :key="entry.plugin_id"
+          class="plugin"
         >
-          Review plugin
-        </button>
-      </article>
+          <img
+            v-if="entry.icon"
+            :src="entry.icon"
+            alt=""
+            width="48"
+            height="48"
+          />
+          <h3>{{ entry.name }}</h3>
+          <span class="source-category">{{
+            pluginChannel(entry) === "official"
+              ? "Official"
+              : pluginChannel(entry) === "demo"
+                ? "Example"
+                : "Community / unverified"
+          }}</span>
+          <p
+            v-if="
+              plugins.some((plugin) => plugin.plugin_id === entry.plugin_id)
+            "
+            class="muted"
+          >
+            Already installed · select a release to review an update or
+            replacement
+          </p>
+          <p>{{ entry.description }}</p>
+          <p>
+            {{ entry.publisher ?? "Publisher information not supplied" }} · v{{
+              entry.version
+            }}
+            · {{ entry.compatibility ?? "Compatibility checked during review" }}
+          </p>
+          <p>{{ entry.tags?.join(" · ") }}</p>
+          <label class="release-picker"
+            >Release
+            <select
+              :value="selectedVersions[entry.plugin_id] ?? entry.version"
+              :aria-label="`Release for ${entry.name}`"
+              @change="
+                selectedVersions[entry.plugin_id] = (
+                  $event.target as HTMLSelectElement
+                ).value
+              "
+            >
+              <option
+                v-for="release in catalogueVersions(entry)"
+                :key="release.version"
+                :value="release.version"
+              >
+                v{{ release.version
+                }}{{
+                  release.version === entry.version
+                    ? " · Latest"
+                    : " · Pins automatic updates"
+                }}
+              </option>
+            </select>
+          </label>
+          <button
+            :disabled="previewing || installing"
+            @click="previewCatalogEntry(entry)"
+          >
+            Review {{ selectedVersions[entry.plugin_id] ?? entry.version }}
+          </button>
+        </article>
+      </template>
       <article
         v-for="plugin in installedEntries"
         :key="plugin.plugin_id"
@@ -1204,6 +1263,9 @@ onMounted(() => {
           }}
           · {{ plugin.staged_update.status.replaceAll("_", " ") }} · Installed
           release remains v{{ plugin.version }}
+        </p>
+        <p v-if="plugin.version_pin" class="muted">
+          Pinned to v{{ plugin.version_pin }} · automatic updates disabled
         </p>
         <dl>
           <div>
@@ -1407,6 +1469,7 @@ onMounted(() => {
 .installer-dialog {
   display: grid;
   gap: 18px;
+  padding-block: clamp(12px, 2vh, 28px);
   color: var(--ui-text);
   overflow-wrap: anywhere;
 }
@@ -1416,12 +1479,29 @@ onMounted(() => {
   gap: 18px;
   min-width: 0;
 }
-.installer-catalogue {
-  min-width: 0;
-  align-content: start;
+.release-picker {
+  display: grid;
+  gap: 8px;
+}
+.catalogue-group-heading {
+  grid-column: 1 / -1;
+  margin-block: 16px 0;
+}
+.source-category {
+  display: inline-flex;
+  align-self: start;
+  width: fit-content;
+  padding: 5px 10px;
+  border-radius: var(--ui-radius-control);
+  background: var(--ui-accent-soft);
+  color: var(--ui-accent-text);
+  font-weight: 700;
+}
+.discovery-sources {
+  margin-block: 16px;
 }
 @media (min-width: 900px) {
-  .installer-browser {
+  .installer-methods {
     grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
     align-items: start;
     gap: 28px;
