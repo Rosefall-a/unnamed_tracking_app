@@ -12,6 +12,8 @@ import {
   type UiDialog,
   type UiNavigationLocation,
   type UiPage,
+  type UiHomeWidget,
+  type UiTheme,
 } from "../services/pluginUi";
 import { reconcileNativePlugins, retainNativePlugins } from "./pluginNative";
 
@@ -48,6 +50,7 @@ export interface PluginSlotContribution {
   page: UiPage;
   order: number;
   document: PluginUiDocument;
+  widget?: UiHomeWidget;
 }
 
 export interface PluginOverlayContribution {
@@ -93,6 +96,15 @@ export interface PluginPageReplacementContribution {
   document: PluginUiDocument;
 }
 
+export interface PluginThemeContribution {
+  pluginId: string;
+  contributionId: string;
+  label: string;
+  description: string;
+  colors: UiTheme["colors"];
+  order: number;
+}
+
 export interface PluginContributions {
   navigation: PluginNavigationContribution[];
   settings: PluginSettingsContribution[];
@@ -103,6 +115,7 @@ export interface PluginContributions {
   routes: PluginRouteContribution[];
   replacements: PluginPageReplacementContribution[];
   documentReaders: PluginDocumentReaderContribution[];
+  themes: PluginThemeContribution[];
 }
 
 export interface PluginDocumentReaderContribution {
@@ -124,6 +137,7 @@ const emptyContributions = (): PluginContributions => ({
   routes: [],
   replacements: [],
   documentReaders: [],
+  themes: [],
 });
 
 function hasCapability(plugin: PluginSummary, capability: string): boolean {
@@ -205,22 +219,40 @@ export function derivePluginContributions(
         document,
       }))
     : [];
-  const slots = (document.extensions ?? []).flatMap((extension) => {
-    if (!hasCapability(plugin, extensionCapability(extension.slot))) return [];
-    const page = document.pages.find((item) => item.id === extension.page_id);
-    return page
-      ? [
-          {
-            pluginId: plugin.plugin_id,
-            extensionId: extension.id,
-            slot: extension.slot,
-            page,
-            order: extension.order,
-            document,
-          },
-        ]
-      : [];
-  });
+  const slots: PluginSlotContribution[] = (document.extensions ?? []).flatMap(
+    (extension) => {
+      if (!hasCapability(plugin, extensionCapability(extension.slot)))
+        return [];
+      const page = document.pages.find((item) => item.id === extension.page_id);
+      return page
+        ? [
+            {
+              pluginId: plugin.plugin_id,
+              extensionId: extension.id,
+              slot: extension.slot,
+              page,
+              order: extension.order,
+              document,
+            },
+          ]
+        : [];
+    },
+  );
+  if (hasCapability(plugin, "frontend.home.widgets")) {
+    for (const widget of document.home_widgets ?? []) {
+      const page = document.pages.find((item) => item.id === widget.page_id);
+      if (!page) continue;
+      slots.push({
+        pluginId: plugin.plugin_id,
+        extensionId: widget.id,
+        slot: "home.after-widgets",
+        page,
+        order: widget.order,
+        document,
+        widget,
+      });
+    }
+  }
   const overlays = hasCapability(plugin, "frontend.overlay")
     ? (document.overlays ?? []).flatMap((item) => {
         const page = document.pages.find(
@@ -319,6 +351,16 @@ export function derivePluginContributions(
       : [];
   });
   return {
+    themes: hasCapability(plugin, "frontend.themes")
+      ? (document.themes ?? []).map((theme) => ({
+          pluginId: plugin.plugin_id,
+          contributionId: theme.id,
+          label: theme.label,
+          description: theme.description,
+          colors: theme.colors,
+          order: theme.order,
+        }))
+      : [],
     navigation,
     settings,
     slots,
@@ -346,6 +388,7 @@ export function derivePluginContributions(
   };
 }
 
+const themeState = ref<PluginThemeContribution[]>([]);
 const navigationState = ref<PluginNavigationContribution[]>([]);
 const settingsState = ref<PluginSettingsContribution[]>([]);
 const slotState = ref<PluginSlotContribution[]>([]);
@@ -360,6 +403,9 @@ const documentState = ref<Record<string, PluginUiDocument>>({});
 export const activePluginDocuments = shallowReadonly(documentState);
 
 function retainContributions(pluginIds: ReadonlySet<string>): void {
+  themeState.value = themeState.value.filter((item) =>
+    pluginIds.has(item.pluginId),
+  );
   navigationState.value = navigationState.value.filter((item) =>
     pluginIds.has(item.pluginId),
   );
@@ -407,6 +453,7 @@ function compareIds(first: string, second: string): number {
   return first < second ? -1 : first > second ? 1 : 0;
 }
 
+export const pluginThemes = shallowReadonly(themeState);
 export const pluginNavigation = shallowReadonly(navigationState);
 export const pluginSettingsSections = shallowReadonly(settingsState);
 export const pluginSlots = shallowReadonly(slotState);
@@ -494,6 +541,9 @@ export async function refreshPluginExtensions(): Promise<void> {
           ]
         : [];
     });
+    themeState.value = contributions
+      .flatMap((item) => item.themes)
+      .sort(comparePluginContributions);
     navigationState.value = contributions
       .flatMap((item) => item.navigation)
       .sort(comparePluginContributions);

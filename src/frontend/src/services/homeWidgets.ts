@@ -1,8 +1,25 @@
+import { validateField, type UiField, type UiValues } from "./pluginUi";
+
 export interface HomeWidgetChoice {
   id: string;
   title: string;
   description: string;
   available?: boolean;
+}
+
+export function widgetConfiguration(
+  fields: UiField[],
+  saved: UiValues = {},
+): UiValues {
+  const values: UiValues = {};
+  for (const field of fields) {
+    if (field.secret || field.type === "password") continue;
+    const candidate = saved[field.id];
+    if (candidate !== undefined && validateField(field, candidate) === null)
+      values[field.id] = candidate;
+    else if (field.default != null) values[field.id] = field.default;
+  }
+  return values;
 }
 
 export const CORE_HOME_WIDGETS: HomeWidgetChoice[] = [

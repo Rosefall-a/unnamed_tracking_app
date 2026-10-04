@@ -1,4 +1,8 @@
 <script setup lang="ts">
+import {
+  readPluginAppearance,
+  observePluginAppearance,
+} from "../../services/pluginAppearance";
 import PluginField from "./PluginField.vue";
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import {
@@ -20,6 +24,7 @@ const props = defineProps<{
   pageId?: string;
   embedded?: boolean;
   context?: Record<string, string | number | boolean>;
+  widgetConfig?: UiValues;
 }>();
 const emit = defineEmits<{
   action: [action: UiAction, values: UiValues];
@@ -95,6 +100,9 @@ function runAction(action: UiAction) {
   if (!approvePluginAction(action, window.confirm)) return;
   emit("action", action, {
     ...values.value,
+    ...(props.widgetConfig
+      ? { _widget_configuration: JSON.stringify(props.widgetConfig) }
+      : {}),
     _plugin_context: JSON.stringify({
       page_id: page.value?.id ?? "",
       page_title: page.value?.title ?? "",
@@ -183,10 +191,13 @@ async function handleFrontendMessage(event: MessageEvent) {
         String(data.document_id ?? ""),
       );
       result = { download_started: true };
+    } else if (method === "plugin.theme") {
+      result = { ...readPluginAppearance() };
     } else if (method === "plugin.context") {
       result = {
         plugin_id: props.document.plugin_id,
         path: window.location.pathname,
+        appearance: readPluginAppearance(),
         ...props.context,
       };
     } else {
@@ -217,10 +228,24 @@ watch(
       activePage.value = pageId;
   },
 );
-onMounted(() => window.addEventListener("message", handleFrontendMessage));
-onBeforeUnmount(() =>
-  window.removeEventListener("message", handleFrontendMessage),
-);
+function sendAppearance() {
+  iframe.value?.contentWindow?.postMessage(
+    {
+      type: "plugin-appearance-changed",
+      appearance: readPluginAppearance(),
+    },
+    "*",
+  );
+}
+let stopAppearance = () => {};
+onMounted(() => {
+  window.addEventListener("message", handleFrontendMessage);
+  stopAppearance = observePluginAppearance(sendAppearance);
+});
+onBeforeUnmount(() => {
+  window.removeEventListener("message", handleFrontendMessage);
+  stopAppearance();
+});
 </script>
 
 <template>
@@ -269,6 +294,7 @@ onBeforeUnmount(() =>
         :title="document.title + ' frontend'"
         sandbox="allow-scripts"
         loading="lazy"
+        @load="sendAppearance"
       ></iframe>
     </div>
     <p v-else-if="!page" class="empty">This plugin has no native pages.</p>

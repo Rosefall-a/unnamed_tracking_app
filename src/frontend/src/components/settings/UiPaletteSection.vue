@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
+import { pluginThemes } from "../../state/pluginExtensions";
 import type { Preferences } from "../../services/preferences";
 import { resolvedUiTheme } from "../../state/uiAppearance";
 import {
@@ -24,7 +25,21 @@ const props = defineProps<{
   saving: boolean;
 }>();
 const emit = defineEmits<{ change: [value: Partial<Preferences>] }>();
-const selected = ref(props.palette);
+const selected = ref<string>(props.palette);
+const availableThemes = computed(() =>
+  pluginThemes.value.map((theme) => ({
+    ...theme,
+    key: `plugin:${theme.pluginId}:${theme.contributionId}`,
+  })),
+);
+const selectedTheme = computed(() =>
+  availableThemes.value.find((theme) => theme.key === selected.value),
+);
+const selectedPalette = computed<PaletteId>(() =>
+  selected.value === "orange" || selected.value === "green"
+    ? selected.value
+    : "custom",
+);
 const mode = ref<PaletteMode>(resolvedUiTheme.value);
 watch(resolvedUiTheme, (theme) => {
   mode.value = theme;
@@ -57,8 +72,8 @@ async function importPalette(event: Event) {
 }
 function exportPalette() {
   const colors = {
-    light: paletteColors(selected.value, "light", draft.value),
-    dark: paletteColors(selected.value, "dark", draft.value),
+    light: paletteColors(selectedPalette.value, "light", draft.value),
+    dark: paletteColors(selectedPalette.value, "dark", draft.value),
   };
   const url = URL.createObjectURL(
     new Blob([writePaletteFile(colors)], { type: "application/json" }),
@@ -80,17 +95,52 @@ const draft = ref(copy(props.custom));
 watch(
   () => [props.palette, props.custom] as const,
   () => {
-    selected.value = props.palette;
+    const match =
+      props.palette === "custom"
+        ? availableThemes.value.find((theme) =>
+            (["light", "dark"] as const).every((mode) =>
+              PALETTE_FIELDS.every(
+                ([role]) =>
+                  theme.colors[mode][role].toLowerCase() ===
+                  props.custom[mode]?.[role]?.toLowerCase(),
+              ),
+            ),
+          )
+        : undefined;
+    selected.value = match?.key ?? props.palette;
     draft.value = copy(props.custom);
   },
   { deep: true },
 );
+watch(selectedTheme, (theme) => {
+  if (theme) draft.value = copy(theme.colors);
+});
+watch(
+  availableThemes,
+  () => {
+    if (selected.value.startsWith("plugin:") && !selectedTheme.value)
+      selected.value = "custom";
+    if (selected.value === "custom") {
+      const match = availableThemes.value.find((theme) =>
+        (["light", "dark"] as const).every((mode) =>
+          PALETTE_FIELDS.every(
+            ([role]) =>
+              theme.colors[mode][role].toLowerCase() ===
+              draft.value[mode][role].toLowerCase(),
+          ),
+        ),
+      );
+      if (match) selected.value = match.key;
+    }
+  },
+  { immediate: true },
+);
 const previewStyle = computed(() => ({
-  ...paletteTokens(selected.value, mode.value, draft.value),
+  ...paletteTokens(selectedPalette.value, mode.value, draft.value),
   colorScheme: mode.value,
 }));
 const issues = computed(() =>
-  selected.value === "custom"
+  selectedPalette.value === "custom"
     ? (["light", "dark"] as const).flatMap((theme) =>
         paletteContrastIssues(draft.value[theme]).map(
           (issue) => `${theme}: ${issue}`,
@@ -100,8 +150,8 @@ const issues = computed(() =>
 );
 function apply() {
   emit("change", {
-    ui_palette: selected.value,
-    ...(selected.value === "custom"
+    ui_palette: selectedPalette.value,
+    ...(selectedPalette.value === "custom"
       ? { ui_custom_palette: copy(draft.value) }
       : {}),
   });
@@ -121,7 +171,27 @@ function apply() {
         <option value="orange">Archive orange</option>
         <option value="green">Garden green</option>
         <option value="custom">Custom colors</option>
+        <optgroup v-if="availableThemes.length" label="Plugin palettes">
+          <option
+            v-for="theme in availableThemes"
+            :key="theme.key"
+            :value="theme.key"
+          >
+            {{ theme.label }} · {{ theme.pluginId }}
+          </option>
+        </optgroup>
       </select>
+      <p v-if="selectedTheme" class="section-hint">
+        {{ selectedTheme.description }} Applying saves a personal copy, so your
+        colors remain available if this plugin is disabled or removed.
+        <button
+          type="button"
+          class="ui-btn ui-btn-ghost"
+          @click="selected = 'custom'"
+        >
+          Edit these colors
+        </button>
+      </p>
       <div class="preview-modes" role="group" aria-label="Palette preview mode">
         <button
           v-for="theme in ['light', 'dark'] as const"

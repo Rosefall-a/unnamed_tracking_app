@@ -8,6 +8,7 @@ export interface Preferences {
   ui_reduce_motion: boolean;
   ui_high_contrast: boolean;
   home_widgets: string[];
+  home_widget_config: Record<string, import("./pluginUi").UiValues>;
   calendar_game_releases: boolean;
   calendar_game_history: boolean;
   calendar_default_view: "month" | "week" | "agenda";
@@ -42,6 +43,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   ui_reduce_motion: false,
   ui_high_contrast: false,
   home_widgets: [],
+  home_widget_config: {},
   calendar_game_releases: true,
   calendar_game_history: true,
   calendar_default_view: "month",

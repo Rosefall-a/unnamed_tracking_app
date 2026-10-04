@@ -12,6 +12,11 @@ import {
   type Component,
 } from "vue";
 import type { Router } from "vue-router";
+import {
+  readPluginAppearance,
+  observePluginAppearance,
+  type PluginAppearance,
+} from "../services/pluginAppearance";
 import { checkAuth } from "./auth";
 
 export interface NativeFrontendSource {
@@ -38,6 +43,10 @@ export interface NativePluginContext {
     ref: typeof ref;
   };
   host: {
+    appearance(): PluginAppearance;
+    onAppearanceChange(
+      callback: (appearance: PluginAppearance) => void,
+    ): () => void;
     navigate(path: string): Promise<void>;
     runAction(
       actionId: string,
@@ -230,6 +239,16 @@ async function activate(
         onBeforeUnmount,
       },
       host: {
+        appearance() {
+          requireActive();
+          return readPluginAppearance();
+        },
+        onAppearanceChange(callback) {
+          requireActive();
+          const stop = observePluginAppearance(callback);
+          cleanups.push(stop);
+          return stop;
+        },
         async navigate(path) {
           requireActive();
           if (!hostRouter) throw new Error("Host router is not ready.");

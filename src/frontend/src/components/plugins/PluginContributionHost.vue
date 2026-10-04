@@ -8,7 +8,10 @@ import type {
 } from "../../services/pluginUi";
 import { dispatchPluginAction } from "../../services/pluginUi";
 import { approvePluginAction } from "../../services/pluginUi";
-import { nativePluginComponents } from "../../state/pluginNative";
+import {
+  nativePluginComponents,
+  nativePluginFailures,
+} from "../../state/pluginNative";
 import { activePluginDocuments } from "../../state/pluginExtensions";
 import PluginUiHost from "./PluginUiHost.vue";
 
@@ -19,6 +22,7 @@ const props = defineProps<{
   context?: Record<string, string | number | boolean>;
   embedded?: boolean;
   actionContext?: PluginActionContext;
+  widgetConfig?: UiValues;
 }>();
 const emit = defineEmits<{ navigate: [pageId: string]; failed: [] }>();
 
@@ -28,6 +32,9 @@ const active = computed(() =>
 );
 const component = computed(
   () => nativePluginComponents.value[`${props.pluginId}:${props.pageId}`],
+);
+const activationFailed = computed(() =>
+  Boolean(nativePluginFailures.value[props.pluginId]),
 );
 
 watch(
@@ -82,7 +89,11 @@ const nativeHost = computed(() => ({
 </script>
 
 <template>
-  <p v-if="active && failed" class="plugin-failure" role="status">
+  <p
+    v-if="active && (failed || activationFailed)"
+    class="plugin-failure"
+    role="status"
+  >
     This plugin contribution failed and was removed from the page.
   </p>
   <component
@@ -93,6 +104,7 @@ const nativeHost = computed(() => ({
     :page-id="pageId"
     :context="context ?? {}"
     :host="nativeHost"
+    :widget-config="widgetConfig ?? {}"
   />
   <PluginUiHost
     v-else-if="active"
@@ -100,6 +112,7 @@ const nativeHost = computed(() => ({
     :page-id="pageId"
     :context="context"
     :embedded="embedded"
+    :widget-config="widgetConfig"
     @save="save"
     @action="run"
     @navigate="emit('navigate', $event)"

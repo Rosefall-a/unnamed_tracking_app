@@ -18,6 +18,7 @@ import {
   pluginPageReplacements,
   pluginDocumentReaders,
   documentReaderUrl,
+  pluginThemes,
 } from "../state/pluginExtensions";
 import { nativePluginComponent } from "../state/pluginNative";
 import type { PluginUiDocument } from "../services/pluginUi";
@@ -168,6 +169,54 @@ const document: PluginUiDocument = {
 };
 
 describe("plugin extension registry", () => {
+  it("registers Home widgets only with their grant and withdraws them after revocation", async () => {
+    const widgetDocument: PluginUiDocument = {
+      ...document,
+      native_frontend: undefined,
+      home_widgets: [
+        {
+          id: "progress",
+          title: "Progress",
+          description: "Personal summary",
+          page_id: "dashboard",
+          configuration: [],
+          order: 2,
+          visibility: { admin_only: false },
+        },
+      ],
+    };
+    let current = {
+      ...plugin,
+      effective_capabilities: ["frontend.home.widgets"],
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => ({
+        ok: true,
+        json: async () => (url.endsWith("/ui") ? widgetDocument : [current]),
+      })),
+    );
+    expect(
+      derivePluginContributions(plugin, widgetDocument).slots.some(
+        (item) => item.extensionId === "progress",
+      ),
+    ).toBe(false);
+    await refreshPluginExtensions();
+    expect(pluginSlots.value.map((item) => item.extensionId)).toEqual([
+      "progress",
+    ]);
+    expect(pluginSlots.value[0]?.widget?.title).toBe("Progress");
+    current = { ...current, effective_capabilities: [] };
+    await refreshPluginExtensions();
+    expect(pluginSlots.value).toEqual([]);
+    current = {
+      ...current,
+      effective_capabilities: ["frontend.home.widgets"],
+      enabled: false,
+    };
+    await refreshPluginExtensions();
+    expect(activePluginDocuments.value).toEqual({});
+  });
   it("blocks all legacy contributions even when stale metadata says running", () => {
     for (const version of [undefined, "1.0.0", "1.0.9"]) {
       const result = derivePluginContributions(
@@ -554,4 +603,51 @@ describe("plugin extension registry", () => {
     expect(denied.slots).toEqual([]);
     expect(denied.overlays).toEqual([]);
   });
+});
+
+it("only exposes plugin palettes under their independent grant", async () => {
+  const { ORANGE_PALETTE } = await import("../services/uiPalette");
+  const themed = {
+    ...document,
+    themes: [
+      {
+        id: "blue",
+        label: "Blue",
+        description: "Demo",
+        colors: ORANGE_PALETTE,
+        order: 0,
+      },
+    ],
+  };
+  expect(derivePluginContributions(plugin, themed).themes).toEqual([]);
+  const granted = {
+    ...plugin,
+    effective_capabilities: [
+      ...plugin.effective_capabilities,
+      "frontend.themes",
+    ],
+  };
+  expect(derivePluginContributions(granted, themed).themes[0]).toMatchObject({
+    pluginId: plugin.plugin_id,
+    contributionId: "blue",
+    label: "Blue",
+  });
+  let active = granted;
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(
+      async (url: string) =>
+        new Response(JSON.stringify(url.endsWith("/ui") ? themed : [active]), {
+          status: 200,
+        }),
+    ),
+  );
+  await refreshPluginExtensions();
+  expect(pluginThemes.value).toHaveLength(1);
+  active = {
+    ...granted,
+    effective_capabilities: plugin.effective_capabilities,
+  };
+  await refreshPluginExtensions();
+  expect(pluginThemes.value).toEqual([]);
 });

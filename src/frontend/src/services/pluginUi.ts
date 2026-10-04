@@ -25,7 +25,7 @@ export interface UiField {
   description: string;
   required: boolean;
   secret: boolean;
-  default?: string | number | boolean | string[];
+  default?: string | number | boolean | string[] | null;
   options: UiOption[];
   validation?: UiValidation;
 }
@@ -158,6 +158,26 @@ export interface UiExtension {
   page_id: string;
   order: number;
 }
+export interface UiHomeWidget {
+  id: string;
+  title: string;
+  description: string;
+  page_id: string;
+  mobile_page_id?: string | null;
+  configuration: UiField[];
+  order: number;
+  visibility: UiVisibility;
+}
+export interface UiTheme {
+  id: string;
+  label: string;
+  description: string;
+  colors: Record<
+    import("./uiPalette").PaletteMode,
+    import("./uiPalette").PaletteColors
+  >;
+  order: number;
+}
 export interface PluginUiDocument {
   schema_version: "v1";
   api_contract_version?: string;
@@ -172,6 +192,8 @@ export interface PluginUiDocument {
   menus: UiMenuItem[];
   pages: UiPage[];
   extensions?: UiExtension[];
+  home_widgets?: UiHomeWidget[];
+  themes?: UiTheme[];
   navigation?: UiNavigationContribution[];
   settings_sections?: UiSettingsContribution[];
   overlays?: UiOverlayContribution[];
@@ -266,8 +288,16 @@ export function validateField(
     return "This field is required.";
   }
   if (value === undefined || value === "") return null;
-  if (field.type === "number" && typeof value !== "number")
+  if (
+    field.type === "number" &&
+    (typeof value !== "number" || !Number.isFinite(value))
+  )
     return "Enter a number.";
+  if (
+    ["text", "textarea", "password"].includes(field.type) &&
+    typeof value !== "string"
+  )
+    return "Enter text.";
   if (field.type === "boolean" && typeof value !== "boolean")
     return "Enter a boolean value.";
   if (field.type === "select") {
@@ -339,6 +369,7 @@ export function validateDocument(document: PluginUiDocument): string[] {
   const dialogs = new Set(document.dialogs.map((item) => item.id));
   const pages = new Set(document.pages.map((item) => item.id));
   const extensions = document.extensions ?? [];
+  const homeWidgets = document.home_widgets ?? [];
   const navigation = document.navigation ?? [];
   const settingsSections = document.settings_sections ?? [];
   const overlays = document.overlays ?? [];
@@ -367,6 +398,7 @@ export function validateDocument(document: PluginUiDocument): string[] {
     ["Menu", document.menus],
     ["Page", document.pages],
     ["Extension", extensions],
+    ["Home widget", homeWidgets],
     ["Navigation", navigation],
     ["Settings contribution", settingsSections],
     ["Overlay", overlays],
@@ -413,6 +445,26 @@ export function validateDocument(document: PluginUiDocument): string[] {
       errors.push(`Extension ${extension.id} references an unknown page.`);
     if (extension.order < -1000 || extension.order > 1000)
       errors.push(`Extension ${extension.id} has an invalid order.`);
+  }
+  const homeExtensionIds = new Set(
+    extensions
+      .filter((item) => item.slot === "home.after-widgets")
+      .map((item) => item.id),
+  );
+  for (const widget of homeWidgets) {
+    if (
+      !pages.has(widget.page_id) ||
+      (widget.mobile_page_id && !pages.has(widget.mobile_page_id))
+    )
+      errors.push(`Home widget ${widget.id} references an unknown page.`);
+    if (homeExtensionIds.has(widget.id))
+      errors.push(`Home widget ${widget.id} has an ambiguous identifier.`);
+    if (
+      widget.configuration.some(
+        (field) => field.secret || field.type === "password",
+      )
+    )
+      errors.push(`Home widget ${widget.id} cannot store personal secrets.`);
   }
   for (const contribution of [
     ...settingsSections,
@@ -517,7 +569,7 @@ export function buildInitialValues(document: PluginUiDocument): UiValues {
   const values: UiValues = {};
   for (const section of document.settings) {
     for (const field of section.fields) {
-      if (field.default !== undefined && !field.secret)
+      if (field.default != null && !field.secret)
         values[field.id] = field.default;
     }
   }

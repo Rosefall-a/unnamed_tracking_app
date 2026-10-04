@@ -6,7 +6,10 @@ import HomeWidgetPicker from "../components/HomeWidgetPicker.vue";
 import HomeCoreWidget from "../components/HomeCoreWidget.vue";
 import UiModal from "../components/UiModal.vue";
 import PluginExtensionSlot from "../components/plugins/PluginExtensionSlot.vue";
-import PluginContributionHost from "../components/plugins/PluginContributionHost.vue";
+import PluginHomeWidget from "../components/plugins/PluginHomeWidget.vue";
+import PluginWidgetConfiguration from "../components/plugins/PluginWidgetConfiguration.vue";
+import type { PluginSlotContribution } from "../state/pluginExtensions";
+import type { UiValues } from "../services/pluginUi";
 import GameFormModal from "../components/GameFormModal.vue";
 import CollectionPickerModal from "../components/CollectionPickerModal.vue";
 import RandomGamePicker from "../components/RandomGamePicker.vue";
@@ -39,7 +42,11 @@ watch(
   },
 );
 const pluginWidgets = computed(() =>
-  pluginSlots.value.filter((item) => item.slot === "home.after-widgets"),
+  pluginSlots.value.filter(
+    (item) =>
+      item.slot === "home.after-widgets" &&
+      (!item.widget?.visibility.admin_only || currentUser.value?.is_admin),
+  ),
 );
 const games = ref<Game[]>([]);
 const bounties = ref<Bounty[]>([]);
@@ -71,8 +78,8 @@ const choices = computed(() => [
   })),
   ...pluginWidgets.value.map((item) => ({
     id: `plugin:${item.pluginId}:${item.extensionId}`,
-    title: item.page.title,
-    description: `From ${item.pluginId}`,
+    title: item.widget?.title ?? item.page.title,
+    description: item.widget?.description || `From ${item.pluginId}`,
   })),
 ]);
 const selected = computed(() =>
@@ -82,6 +89,26 @@ const showPicker = ref(false);
 const saving = ref(false);
 const saveError = ref<string | null>(null);
 const saved = ref(false);
+const configuring = ref<PluginSlotContribution | null>(null);
+const configuringBusy = ref(false);
+const configurationError = ref<string | null>(null);
+watch(
+  () => currentUser.value?.id,
+  () => {
+    configuring.value = null;
+  },
+);
+watch(pluginWidgets, (widgets) => {
+  if (
+    configuring.value &&
+    !widgets.some(
+      (item) =>
+        item.pluginId === configuring.value?.pluginId &&
+        item.extensionId === configuring.value?.extensionId,
+    )
+  )
+    configuring.value = null;
+});
 const showTour = ref(false);
 const editingGame = ref<Game | null>(null);
 const showForm = ref(false);
@@ -238,6 +265,38 @@ function pluginWidget(id: string) {
   return pluginWidgets.value.find(
     (item) => `plugin:${item.pluginId}:${item.extensionId}` === id,
   );
+}
+async function saveWidgetConfiguration(values: UiValues) {
+  const contribution = configuring.value;
+  if (!contribution) return;
+  const accountId = currentUser.value?.id;
+  const id = `plugin:${contribution.pluginId}:${contribution.extensionId}`;
+  configuringBusy.value = true;
+  configurationError.value = null;
+  try {
+    const result = await queuePreferences({
+      home_widget_config: {
+        ...preferences.value.home_widget_config,
+        [id]: values,
+      },
+    });
+    if (currentUser.value?.id !== accountId) return;
+    preferences.value = result.latest
+      ? result.prefs
+      : {
+          ...preferences.value,
+          home_widget_config: result.prefs.home_widget_config,
+        };
+    configuring.value = null;
+  } catch (reason) {
+    if (currentUser.value?.id === accountId)
+      configurationError.value =
+        reason instanceof Error
+          ? reason.message
+          : "Could not save widget options.";
+  } finally {
+    configuringBusy.value = false;
+  }
 }
 async function saveHome(ids: string[]) {
   const accountId = currentUser.value?.id;
@@ -397,13 +456,22 @@ async function confirmDelete() {
               {{ widget.description }}
             </p>
             <template v-else-if="widget.id.startsWith('plugin:')">
-              <PluginContributionHost
+              <button
+                v-if="pluginWidget(widget.id)?.widget?.configuration.length"
+                type="button"
+                class="ui-btn ui-btn-ghost widget-configure"
+                :aria-label="`Customize ${widget.title}`"
+                @click="
+                  configuring = pluginWidget(widget.id)!;
+                  configurationError = null;
+                "
+              >
+                Options
+              </button>
+              <PluginHomeWidget
                 v-if="pluginWidget(widget.id)"
-                :plugin-id="pluginWidget(widget.id)!.pluginId"
-                :page-id="pluginWidget(widget.id)!.page.id"
-                :document="pluginWidget(widget.id)!.document"
-                :context="{ host_page: 'home', widget_id: widget.id }"
-                embedded
+                :contribution="pluginWidget(widget.id)!"
+                :saved="preferences.home_widget_config[widget.id] ?? {}"
               />
             </template>
             <div
@@ -451,6 +519,20 @@ async function confirmDelete() {
       :loading="gamesLoading"
       @close="showPicker = false"
       @save="saveHome"
+    />
+    <PluginWidgetConfiguration
+      v-if="configuring?.widget"
+      :key="`${configuring.pluginId}:${configuring.extensionId}`"
+      :widget="configuring.widget"
+      :saved="
+        preferences.home_widget_config[
+          `plugin:${configuring.pluginId}:${configuring.extensionId}`
+        ] ?? {}
+      "
+      :busy="configuringBusy"
+      :error="configurationError"
+      @close="configuring = null"
+      @save="saveWidgetConfiguration"
     />
     <UiModal
       v-if="showTour"
