@@ -1,0 +1,12 @@
+Official distribution: 12 live packages verified
+Live official Jellyfin package installation and healthy startup: passed
+Browser catalogue filtering, README, scope counts, risk bubbles, approval, installation, duplicate choices and native UI: passed
+
+Install, consent, real startup, native UI assets and reduced isolation: passed
+Browser authoritative installed inventory during runtime outage and delayed catalogues: passed
+
+Jellyfin real sync, secrets, restart, disable/enable and preserving reinstall: passed
+Browser Updates Available direct review and update: passed
+
+Update, rollback, permission staging, opt-out/opt-in, failed real startup, notification and retention: passed
+Revocation/regrant, remote token confinement, confirmed purge and uninstall: passed
