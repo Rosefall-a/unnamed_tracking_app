@@ -150,6 +150,7 @@ async function activatePluginNavigation(
   }
 }
 function close() {
+  railExpanded.value = false;
   if (pane.value instanceof HTMLDialogElement && pane.value.open)
     pane.value.close();
   open.value = false;

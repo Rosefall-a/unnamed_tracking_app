@@ -236,3 +236,10 @@ Custom contrast guidance is now advisory and expandable: every valid color can b
 ![Phone ribbon preview](../assets/ui-redevelopment/stage-ribbon-preview-390-dark.png)
 
 ![Saved completed game ribbon](../assets/ui-redevelopment/stage-ribbon-card-dark.png)
+
+
+The notification/navigation checkpoint replaces the notification popup's fixed dark colors with semantic palette roles and gives the selected bell a solid accent with contrasting icon. Scroll rows retain their height so long messages do not overlap; opening focuses a control and Escape restores the bell. Navigation selection collapses an expanded icon rail, including selecting the current page. The [topbar report](../assets/ui-redevelopment/stage-topbar-conformance.json) records 48 populated popup cases across eight widths, three palettes and light/dark modes, plus real icon-rail navigation checks.
+
+![Phone notification popup in light mode](../assets/ui-redevelopment/stage-notifications-390-light.png)
+
+![Desktop notification popup in dark mode](../assets/ui-redevelopment/stage-notifications-1440-dark.png)
