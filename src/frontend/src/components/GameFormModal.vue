@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, nextTick, onMounted, watch } from "vue";
+import UiModal from "./UiModal.vue";
 import {
   attachGameAssetFromUrl,
   createGame,
@@ -454,15 +455,12 @@ async function submit() {
 </script>
 
 <template>
-  <div class="modal-backdrop" @click.self="emit('close')">
-    <div class="modal">
-      <div class="modal-header">
-        <h2>{{ isEditing ? "Edit Game" : "Add Game" }}</h2>
-        <button type="button" class="close-button" @click="emit('close')">
-          ✕
-        </button>
-      </div>
-
+  <UiModal
+    :title="isEditing ? 'Edit Game' : 'Add Game'"
+    size="wide"
+    @close="emit('close')"
+  >
+    <div class="game-editor">
       <nav ref="tabsEl" class="modal-tabs">
         <button
           v-for="tab in tabs"
@@ -477,7 +475,7 @@ async function submit() {
       </nav>
 
       <form class="modal-form" @submit.prevent="onFormSubmit">
-        <div class="modal-body">
+        <div class="editor-body">
           <div
             v-if="activeTab === 'General' || activeTab === 'Find'"
             class="tab-panel"
@@ -1046,66 +1044,18 @@ async function submit() {
         </div>
       </form>
     </div>
-  </div>
+  </UiModal>
 </template>
 
 <style scoped>
-.modal-backdrop {
-  position: fixed;
-  inset: 0;
-  background: var(--ui-overlay);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: var(--ui-z-modal);
-}
-.modal {
-  background: var(--ui-surface);
-  border: 1px solid var(--ui-border);
-  border-radius: 14px;
+.game-editor {
   width: 100%;
-  max-width: 760px;
-  height: 640px;
-  max-height: 88vh;
-  display: flex;
-  flex-direction: column;
-  color: var(--ui-text);
-  font-family: var(--ui-font-family);
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
-}
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 18px 22px;
-  border-bottom: 1px solid var(--ui-border);
-  flex-shrink: 0;
-}
-.modal-header h2 {
-  margin: 0;
-  font-size: 1.2rem;
-}
-.close-button {
-  background: none;
-  border: none;
-  color: var(--ui-dim);
-  font-size: 15px;
-  cursor: pointer;
-  width: var(--ui-control-height);
-  height: var(--ui-control-height);
-  border-radius: 50%;
-  transition:
-    background 0.15s ease,
-    color 0.15s ease;
-}
-.close-button:hover {
-  background: color-mix(in srgb, var(--ui-text) 10%, transparent);
-  color: var(--ui-text);
+  min-width: 0;
 }
 .modal-tabs {
   display: flex;
   gap: 4px;
-  padding: 12px 20px 0;
+  padding: 0;
   border-bottom: 1px solid var(--ui-border);
   flex-shrink: 0;
   overflow-x: auto;
@@ -1115,6 +1065,7 @@ async function submit() {
   border: none;
   color: var(--ui-dim);
   padding: 9px 16px;
+  min-height: var(--ui-control-height);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
@@ -1140,8 +1091,8 @@ async function submit() {
   flex: 1;
   min-height: 0;
 }
-.modal-body {
-  padding: 20px 22px;
+.editor-body {
+  padding: 20px 0;
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -1453,10 +1404,8 @@ async function submit() {
   background: color-mix(in srgb, var(--ui-text) 15%, transparent);
 }
 @media (max-width: 480px) {
-  .modal-header,
-  .modal-body {
-    padding-left: 16px;
-    padding-right: 16px;
+  .editor-body {
+    padding-inline: 0;
   }
   .modal-tabs {
     padding-left: 12px;

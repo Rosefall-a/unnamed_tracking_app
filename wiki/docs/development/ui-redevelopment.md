@@ -243,3 +243,14 @@ The notification/navigation checkpoint replaces the notification popup's fixed d
 ![Phone notification popup in light mode](../assets/ui-redevelopment/stage-notifications-390-light.png)
 
 ![Desktop notification popup in dark mode](../assets/ui-redevelopment/stage-notifications-1440-dark.png)
+
+
+## Shared game and media editors
+
+Game create/edit, list create/edit, media quick add/edit, notes and completion rating now use the shared native dialog, theme surfaces, focus containment and Escape dismissal. Content-heavy search/edit dialogs use up to 1120 pixels on desktop. Media list action columns reserve space for all three touch targets, preventing progress cells from covering Edit.
+
+The [editor report](../assets/ui-redevelopment/stage-editors-conformance.json) records 160 real browser checks across eight widths and both themes, including note saves through the real API. The capture database has no installed plugins.
+
+![Wide desktop movie editor](../assets/ui-redevelopment/stage-media-add-1440-light.png)
+
+![Phone movie editor in dark mode](../assets/ui-redevelopment/stage-media-add-390-dark.png)

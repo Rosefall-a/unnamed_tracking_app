@@ -58,8 +58,8 @@ const fixedLeft = computed(() => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 38px;
-  height: 38px;
+  width: var(--ui-control-height);
+  height: var(--ui-control-height);
   flex-shrink: 0;
   border-radius: 50%;
   border: 1px solid color-mix(in srgb, var(--ui-text) 14%, transparent);
@@ -71,7 +71,7 @@ const fixedLeft = computed(() => {
   transition: background 0.15s ease;
 }
 .back-button:hover {
-  background: rgba(40, 40, 40, 0.85);
+  background: var(--ui-surface-2);
 }
 .back-button-fixed {
   position: fixed;

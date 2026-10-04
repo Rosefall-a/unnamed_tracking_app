@@ -6,6 +6,7 @@
 // items and a rule's live results are different things, and silently
 // dropping one for the other would lose work.
 import { ref, computed } from "vue";
+import UiModal from "./UiModal.vue";
 import { STATUS_BUCKETS } from "../utils/mediaStatus";
 import type {
   MediaListSummary,
@@ -99,15 +100,11 @@ function submit() {
 </script>
 
 <template>
-  <div class="ui-backdrop" @click.self="emit('close')">
-    <form
-      class="ui-modal"
-      role="dialog"
-      aria-modal="true"
-      @submit.prevent="submit"
-    >
-      <h3>{{ editing ? "Edit list" : "Create a list" }}</h3>
-
+  <UiModal
+    :title="editing ? 'Edit list' : 'Create a list'"
+    @close="emit('close')"
+  >
+    <form @submit.prevent="submit">
       <div v-if="!editing" class="kind-pick">
         <button
           type="button"
@@ -214,7 +211,7 @@ function submit() {
         </button>
       </div>
     </form>
-  </div>
+  </UiModal>
 </template>
 
 <style scoped>

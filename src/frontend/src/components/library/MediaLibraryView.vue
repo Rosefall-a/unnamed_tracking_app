@@ -10,6 +10,7 @@ import {
 import { useRouter } from "vue-router";
 import CheckIcon from "../CheckIcon.vue";
 import MediaTopBar from "../MediaTopBar.vue";
+import UiModal from "../UiModal.vue";
 import SegmentedTabs from "../SegmentedTabs.vue";
 import type { SegmentOption } from "../SegmentedTabs.vue";
 import { preferences } from "../../state/preferences";
@@ -785,6 +786,7 @@ defineExpose({ openQuickAdd });
             class="add-btn"
             :disabled="selectMode"
             @click="openQuickAdd"
+            data-shortcut="create"
           >
             {{ addLabel }}
           </button>
@@ -826,6 +828,7 @@ defineExpose({ openQuickAdd });
           </svg>
           <input
             v-model="searchQuery"
+            data-shortcut="search"
             placeholder="Search your library..."
             aria-label="Search your library"
           />
@@ -1512,12 +1515,16 @@ defineExpose({ openQuickAdd });
     </div>
 
     <!-- ===== Notes modal ===== -->
-    <div v-if="noteOpen" class="modal-overlay" @click.self="closeNote">
-      <div class="modal-card">
-        <h3>Notes</h3>
-        <div class="sub">Only visible to you.</div>
+    <UiModal
+      v-if="noteOpen"
+      title="Notes"
+      description="Only visible to you."
+      @close="closeNote"
+    >
+      <div class="media-modal-content">
         <textarea
           v-model="noteText"
+          aria-label="Personal media notes"
           placeholder="Nothing written yet: first impressions, things to remember, why you dropped it..."
         ></textarea>
         <div class="modal-actions">
@@ -1529,11 +1536,16 @@ defineExpose({ openQuickAdd });
           </button>
         </div>
       </div>
-    </div>
+    </UiModal>
 
     <!-- ===== "You finished it" rating prompt ===== -->
-    <div v-if="finishOpen" class="modal-overlay" @click.self="closeFinish">
-      <div class="modal-card finish-card">
+    <UiModal
+      v-if="finishOpen"
+      title="Rating"
+      description="Give it a rating, or skip for now."
+      @close="closeFinish"
+    >
+      <div class="media-modal-content finish-card">
         <div
           v-if="finishPoster"
           class="finish-poster"
@@ -1542,11 +1554,18 @@ defineExpose({ openQuickAdd });
         <div class="finish-body">
           <div class="finish-eyebrow">You finished it</div>
           <h3>{{ finishTitle }}</h3>
-          <div class="sub">Give it a rating, or skip for now.</div>
+
           <div class="decimal-rate finish-rate">
-            <button type="button" @click="stepFinishScore(-0.5)">−</button>
+            <button
+              type="button"
+              aria-label="Decrease rating"
+              @click="stepFinishScore(-0.5)"
+            >
+              −
+            </button>
             <input
               v-model.number="finishScore"
+              aria-label="Completion rating"
               type="number"
               min="0"
               max="10"
@@ -1554,7 +1573,13 @@ defineExpose({ openQuickAdd });
               placeholder="–"
             />
             <span class="of10">/ 10</span>
-            <button type="button" @click="stepFinishScore(0.5)">+</button>
+            <button
+              type="button"
+              aria-label="Increase rating"
+              @click="stepFinishScore(0.5)"
+            >
+              +
+            </button>
           </div>
           <div class="modal-actions">
             <button type="button" class="btn-outline" @click="closeFinish">
@@ -1566,13 +1591,16 @@ defineExpose({ openQuickAdd });
           </div>
         </div>
       </div>
-    </div>
+    </UiModal>
 
     <!-- ===== Small edit modal ===== -->
-    <div v-if="editOpen" class="modal-overlay" @click.self="closeEdit">
-      <div class="modal-card">
-        <h3>Edit</h3>
-        <div class="sub">Quick edit: status, rating, progress.</div>
+    <UiModal
+      v-if="editOpen"
+      title="Quick edit"
+      description="Update status, rating and progress."
+      @close="closeEdit"
+    >
+      <div class="media-modal-content">
         <div class="qa-field-grid">
           <label class="qa-field">
             <span>Status</span>
@@ -1622,32 +1650,23 @@ defineExpose({ openQuickAdd });
           </button>
         </div>
       </div>
-    </div>
+    </UiModal>
 
     <!-- ===== Quick Add ===== -->
-    <div v-if="quickAddOpen" class="modal-overlay" @click.self="closeQuickAdd">
-      <div class="modal-card qa-card">
+    <UiModal
+      v-if="quickAddOpen"
+      :title="addLabel.replace('+ ', '')"
+      description="Search, then pick the right result."
+      size="wide"
+      @close="closeQuickAdd"
+    >
+      <div class="media-modal-content qa-card">
         <div v-if="quickAddStep === 'search'">
-          <div class="qa-header">
-            <div class="qa-header-row">
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-              >
-                <circle cx="11" cy="11" r="7" />
-                <line x1="21" y1="21" x2="16.65" y2="16.65" />
-              </svg>
-              <h3>{{ addLabel.replace("+ ", "") }}</h3>
-            </div>
-            <div class="sub">Search, then pick the right result.</div>
-          </div>
           <div class="qa-body">
             <div class="qa-search-row">
               <input
                 v-model="quickAddQuery"
+                aria-label="Search media by title"
                 autofocus
                 placeholder="Search by title..."
                 @keyup.enter="runQuickAddSearch"
@@ -1808,7 +1827,7 @@ defineExpose({ openQuickAdd });
           </div>
         </div>
       </div>
-    </div>
+    </UiModal>
   </div>
 </template>
 
@@ -1816,29 +1835,9 @@ defineExpose({ openQuickAdd });
 /* Ported 1:1 from the "Library Layouts" design mockup — same tokens,
    same component shapes. */
 .lib-root {
-  --bg: var(--ui-bg);
-  --surface: var(--ui-surface);
-  --surface-2: var(--ui-surface-2);
-  --border: var(--ui-border);
-  --border-soft: var(--ui-border-soft);
-  --accent: var(--ui-accent);
-  --accent-soft: var(--ui-accent-soft);
-  --accent-line: var(--ui-accent-line);
-  --good: var(--ui-good);
-  --good-soft: var(--ui-good-soft);
-  --hold: var(--ui-info);
-  --hold-soft: var(--ui-info-soft);
-  --dropped: var(--ui-error);
-  --dropped-soft: var(--ui-danger-soft);
-  --plan: var(--ui-purple);
-  --plan-soft: var(--ui-purple-soft);
-  --live: var(--ui-error);
-  --text: var(--ui-text);
-  --text-dim: var(--ui-dim);
-  --text-faint: var(--ui-faint);
   min-height: 100vh;
-  background: var(--bg);
-  color: var(--text);
+  background: var(--ui-bg);
+  color: var(--ui-text);
   font-family: var(--ui-font-family);
 }
 .lib-root * {
@@ -1865,12 +1864,12 @@ defineExpose({ openQuickAdd });
   margin: 0;
 }
 .page-head .sub {
-  color: var(--text-faint);
+  color: var(--ui-faint);
   font-size: 0.85rem;
   margin-top: 4px;
 }
 .add-btn {
-  background: var(--accent);
+  background: var(--ui-accent);
   border: none;
   color: var(--ui-on-accent);
   border-radius: var(--ui-radius-control);
@@ -1886,9 +1885,9 @@ defineExpose({ openQuickAdd });
   cursor: not-allowed;
 }
 .select-btn {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  color: var(--text-dim);
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  color: var(--ui-dim);
   border-radius: var(--ui-radius-control);
   padding: 0 16px;
   height: 38px;
@@ -1898,16 +1897,16 @@ defineExpose({ openQuickAdd });
   cursor: pointer;
 }
 .select-btn.on {
-  background: var(--accent-soft);
-  border-color: var(--accent-line);
-  color: var(--accent);
+  background: var(--ui-accent-soft);
+  border-color: var(--ui-accent-line);
+  color: var(--ui-accent);
 }
 
 .bulk-bar {
   margin-top: 12px;
   padding: 10px 16px;
-  background: var(--accent-soft);
-  border: 1px solid var(--accent-line);
+  background: var(--ui-accent-soft);
+  border: 1px solid var(--ui-accent-line);
   border-radius: var(--ui-radius-row);
   display: flex;
   align-items: center;
@@ -1917,13 +1916,13 @@ defineExpose({ openQuickAdd });
 .bulk-bar .count {
   font-size: 0.85rem;
   font-weight: 700;
-  color: var(--accent);
+  color: var(--ui-accent);
   white-space: nowrap;
 }
 .bulk-bar select {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  color: var(--text);
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  color: var(--ui-text);
   border-radius: 7px;
   padding: 7px 10px;
   font-family: inherit;
@@ -1954,16 +1953,16 @@ defineExpose({ openQuickAdd });
   transform: translateY(-50%);
   width: 15px;
   height: 15px;
-  color: var(--text-faint);
+  color: var(--ui-faint);
   pointer-events: none;
 }
 .search-wrap input {
   box-sizing: border-box;
   height: 38px;
   width: 100%;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  color: var(--text);
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  color: var(--ui-text);
   border-radius: var(--ui-radius-control);
   padding: 0 12px 0 34px;
   font-family: inherit;
@@ -1971,14 +1970,14 @@ defineExpose({ openQuickAdd });
 }
 .search-wrap input:focus {
   outline: none;
-  border-color: var(--accent-line);
+  border-color: var(--ui-accent-line);
 }
 .sort-select {
   box-sizing: border-box;
   height: 38px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  color: var(--text);
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  color: var(--ui-text);
   border-radius: var(--ui-radius-control);
   padding: 0 12px;
   font-family: inherit;
@@ -1988,9 +1987,9 @@ defineExpose({ openQuickAdd });
 .filter-btn {
   box-sizing: border-box;
   height: 38px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  color: var(--text-dim);
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  color: var(--ui-dim);
   border-radius: var(--ui-radius-control);
   padding: 0 14px;
   font-family: inherit;
@@ -2002,11 +2001,11 @@ defineExpose({ openQuickAdd });
   gap: 6px;
 }
 .filter-btn.active-filter {
-  border-color: var(--accent-line);
-  color: var(--accent);
+  border-color: var(--ui-accent-line);
+  color: var(--ui-accent);
 }
 .filter-btn .count {
-  background: var(--accent);
+  background: var(--ui-accent);
   color: var(--ui-on-accent);
   border-radius: 999px;
   font-size: 0.66rem;
@@ -2016,15 +2015,15 @@ defineExpose({ openQuickAdd });
 .card-size-toggle {
   display: flex;
   gap: 2px;
-  background: var(--surface);
-  border: 1px solid var(--border);
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
   border-radius: var(--ui-radius-control);
   padding: 3px;
 }
 .card-size-button {
   background: none;
   border: none;
-  color: var(--text-faint);
+  color: var(--ui-faint);
   width: 26px;
   height: 26px;
   border-radius: 6px;
@@ -2033,12 +2032,12 @@ defineExpose({ openQuickAdd });
   font-weight: 700;
 }
 .card-size-button:hover {
-  color: var(--text);
+  color: var(--ui-text);
   background: color-mix(in srgb, var(--ui-text) 6%, transparent);
 }
 .card-size-button.active {
   color: var(--ui-on-accent);
-  background: var(--accent);
+  background: var(--ui-accent);
 }
 .filter-panel {
   margin-top: 10px;
@@ -2046,8 +2045,8 @@ defineExpose({ openQuickAdd });
   flex-direction: column;
   gap: 10px;
   padding: 14px 16px;
-  background: var(--surface);
-  border: 1px solid var(--border);
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
   border-radius: var(--ui-radius-row);
 }
 .filter-group {
@@ -2062,22 +2061,22 @@ defineExpose({ openQuickAdd });
   font-weight: var(--ui-weight-title);
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--text-dim);
+  color: var(--ui-dim);
 }
 .year-input {
   box-sizing: border-box;
   width: 84px;
   min-height: var(--ui-control-height);
-  background: var(--surface-2);
-  border: 1px solid var(--border);
+  background: var(--ui-surface-2);
+  border: 1px solid var(--ui-border);
   border-radius: var(--ui-radius-control);
-  color: var(--text);
+  color: var(--ui-text);
   padding: 0 10px;
   font-size: 0.78rem;
 }
 .filter-dash {
   font-size: 0.76rem;
-  color: var(--text-dim);
+  color: var(--ui-dim);
 }
 .match-mode {
   margin-left: 6px;
@@ -2088,16 +2087,16 @@ defineExpose({ openQuickAdd });
   justify-content: space-between;
   gap: 12px;
   padding-top: 8px;
-  border-top: 1px solid var(--border-soft);
+  border-top: 1px solid var(--ui-border-soft);
 }
 .filter-result {
   font-size: 0.76rem;
-  color: var(--text-dim);
+  color: var(--ui-dim);
 }
 .filter-clear {
   background: none;
   border: none;
-  color: var(--accent);
+  color: var(--ui-accent);
   font-size: 0.78rem;
   font-weight: 700;
   cursor: pointer;
@@ -2105,9 +2104,9 @@ defineExpose({ openQuickAdd });
 .genre-chip {
   box-sizing: border-box;
   min-height: var(--ui-control-height);
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  color: var(--text-dim);
+  background: var(--ui-surface-2);
+  border: 1px solid var(--ui-border);
+  color: var(--ui-dim);
   border-radius: 999px;
   padding: 0 12px;
   font-size: 0.76rem;
@@ -2115,9 +2114,9 @@ defineExpose({ openQuickAdd });
   cursor: pointer;
 }
 .genre-chip.selected {
-  background: var(--accent-soft);
-  border-color: var(--accent-line);
-  color: var(--accent);
+  background: var(--ui-accent-soft);
+  border-color: var(--ui-accent-line);
+  color: var(--ui-accent);
 }
 
 .status-tabs {
@@ -2125,12 +2124,12 @@ defineExpose({ openQuickAdd });
   display: flex;
   gap: 6px;
   flex-wrap: wrap;
-  border-bottom: 1px solid var(--border-soft);
+  border-bottom: 1px solid var(--ui-border-soft);
 }
 .status-tab {
   background: transparent;
   border: none;
-  color: var(--text-dim);
+  color: var(--ui-dim);
   font-family: inherit;
   font-size: 0.82rem;
   font-weight: 600;
@@ -2142,23 +2141,23 @@ defineExpose({ openQuickAdd });
   gap: 7px;
 }
 .status-tab.active {
-  color: var(--text);
-  border-bottom-color: var(--accent);
+  color: var(--ui-text);
+  border-bottom-color: var(--ui-accent);
 }
 .status-tab .n {
   font-variant-numeric: tabular-nums;
-  color: var(--text-faint);
+  color: var(--ui-faint);
   font-weight: 500;
 }
 .status-tab.active .n {
-  color: var(--text-dim);
+  color: var(--ui-dim);
 }
 
 .body {
   padding-top: 22px;
 }
 .empty-state {
-  color: var(--text-faint);
+  color: var(--ui-faint);
   font-size: 0.9rem;
   padding: 40px 0;
   text-align: center;
@@ -2203,40 +2202,40 @@ defineExpose({ openQuickAdd });
   mask-size: contain;
 }
 .pill.watching {
-  background: var(--accent-soft);
-  color: var(--accent);
+  background: var(--ui-accent-soft);
+  color: var(--ui-accent);
 }
 .pill.watching::before {
   -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M8 5v14l11-7z'/%3E%3C/svg%3E");
   mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M8 5v14l11-7z'/%3E%3C/svg%3E");
 }
 .pill.completed {
-  background: var(--good-soft);
-  color: var(--good);
+  background: var(--ui-good-soft);
+  color: var(--ui-good);
 }
 .pill.completed::before {
   -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='4 12 9 17 20 6'/%3E%3C/svg%3E");
   mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='4 12 9 17 20 6'/%3E%3C/svg%3E");
 }
 .pill.hold {
-  background: var(--hold-soft);
-  color: var(--hold);
+  background: var(--ui-info-soft);
+  color: var(--ui-info);
 }
 .pill.hold::before {
   -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='5' y='4' width='5' height='16'/%3E%3Crect x='14' y='4' width='5' height='16'/%3E%3C/svg%3E");
   mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='5' y='4' width='5' height='16'/%3E%3Crect x='14' y='4' width='5' height='16'/%3E%3C/svg%3E");
 }
 .pill.dropped {
-  background: var(--dropped-soft);
-  color: var(--dropped);
+  background: var(--ui-danger-soft);
+  color: var(--ui-error);
 }
 .pill.dropped::before {
   -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round'%3E%3Cline x1='5' y1='5' x2='19' y2='19'/%3E%3Cline x1='19' y1='5' x2='5' y2='19'/%3E%3C/svg%3E");
   mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round'%3E%3Cline x1='5' y1='5' x2='19' y2='19'/%3E%3Cline x1='19' y1='5' x2='5' y2='19'/%3E%3C/svg%3E");
 }
 .pill.plan {
-  background: var(--plan-soft);
-  color: var(--plan);
+  background: var(--ui-purple-soft);
+  color: var(--ui-purple);
 }
 .pill.plan::before {
   -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6 3h12v18l-6-4-6 4z'/%3E%3C/svg%3E");
@@ -2249,7 +2248,7 @@ defineExpose({ openQuickAdd });
   gap: 5px;
   font-size: 0.68rem;
   font-weight: 700;
-  color: var(--live);
+  color: var(--ui-error);
   margin-top: 3px;
   height: 14px;
 }
@@ -2260,7 +2259,7 @@ defineExpose({ openQuickAdd });
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--live);
+  background: var(--ui-error);
   animation: pulse 1.6s ease-in-out infinite;
 }
 @keyframes pulse {
@@ -2281,9 +2280,9 @@ defineExpose({ openQuickAdd });
   height: 20px;
   padding: 0 5px;
   border-radius: 5px;
-  background: var(--accent-soft);
-  color: var(--accent);
-  border: 1px solid var(--accent-line);
+  background: var(--ui-accent-soft);
+  color: var(--ui-accent);
+  border: 1px solid var(--ui-accent-line);
   font-size: 0.68rem;
   font-weight: var(--ui-weight-title);
   font-variant-numeric: tabular-nums;
@@ -2294,7 +2293,7 @@ defineExpose({ openQuickAdd });
   justify-content: center;
 }
 .rank-empty {
-  color: var(--text-faint);
+  color: var(--ui-faint);
   font-size: 0.75rem;
 }
 .status-cell {
@@ -2309,9 +2308,9 @@ defineExpose({ openQuickAdd });
   flex-shrink: 0;
 }
 .icon-btn {
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  color: var(--text-faint);
+  background: var(--ui-surface-2);
+  border: 1px solid var(--ui-border);
+  color: var(--ui-faint);
   width: var(--ui-control-height);
   min-height: var(--ui-control-height);
   border-radius: 7px;
@@ -2326,18 +2325,18 @@ defineExpose({ openQuickAdd });
   height: 12px;
 }
 .icon-btn:hover {
-  border-color: var(--accent-line);
-  color: var(--text);
+  border-color: var(--ui-accent-line);
+  color: var(--ui-text);
 }
 .icon-btn.active {
-  color: var(--accent);
-  border-color: var(--accent-line);
-  background: var(--accent-soft);
+  color: var(--ui-accent);
+  border-color: var(--ui-accent-line);
+  background: var(--ui-accent-soft);
 }
 .plus-btn {
   background: transparent;
-  border: 1.5px solid var(--accent-line);
-  color: var(--accent);
+  border: 1.5px solid var(--ui-accent-line);
+  color: var(--ui-accent);
   width: 26px;
   height: 26px;
   border-radius: 50%;
@@ -2361,20 +2360,20 @@ defineExpose({ openQuickAdd });
   display: block;
 }
 .plus-btn:hover {
-  background: var(--accent);
+  background: var(--ui-accent);
   color: var(--ui-on-accent);
 }
 .plus-btn:disabled {
   opacity: 0.3;
   cursor: default;
-  background: var(--surface-2);
-  border-color: var(--border);
-  color: var(--text-faint);
+  background: var(--ui-surface-2);
+  border-color: var(--ui-border);
+  color: var(--ui-faint);
 }
 .score-tag {
   font-size: 0.82rem;
   font-weight: 700;
-  color: var(--accent);
+  color: var(--ui-accent);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   text-align: right;
@@ -2393,9 +2392,9 @@ defineExpose({ openQuickAdd });
   height: 20px;
   padding: 0 5px;
   border-radius: 5px;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  color: var(--text-faint);
+  background: var(--ui-surface-2);
+  border: 1px solid var(--ui-border);
+  color: var(--ui-faint);
   font-weight: 600;
 }
 .select-checkbox {
@@ -2408,7 +2407,7 @@ defineExpose({ openQuickAdd });
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  color: var(--accent);
+  color: var(--ui-accent);
   font-size: 0.85rem;
   font-weight: var(--ui-weight-title);
   position: absolute;
@@ -2417,7 +2416,7 @@ defineExpose({ openQuickAdd });
   z-index: 4;
 }
 .select-checkbox.checked {
-  background: var(--accent);
+  background: var(--ui-accent);
   border-color: var(--ui-on-accent);
   color: var(--ui-on-accent);
 }
@@ -2428,7 +2427,7 @@ defineExpose({ openQuickAdd });
 }
 .list-row-header,
 .list-rows {
-  min-width: 870px;
+  min-width: calc(930px + 3 * var(--ui-control-height));
 }
 .list-rows {
   display: flex;
@@ -2439,18 +2438,18 @@ defineExpose({ openQuickAdd });
   display: grid;
   grid-template-columns:
     76px minmax(180px, 1fr)
-    90px 170px 60px 46px 128px;
+    calc(3 * var(--ui-control-height) + 16px) 170px 60px 46px 128px;
   align-items: center;
   gap: 20px;
-  background: var(--surface);
-  border: 1px solid var(--border-soft);
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border-soft);
   border-radius: var(--ui-radius-row);
   padding: 10px 16px;
   cursor: pointer;
   transition: border-color 0.15s ease;
 }
 .list-row:hover {
-  border-color: var(--accent-line);
+  border-color: var(--ui-accent-line);
 }
 .list-thumb-wrap {
   position: relative;
@@ -2460,7 +2459,7 @@ defineExpose({ openQuickAdd });
   width: 76px;
   aspect-ratio: 2 / 3;
   border-radius: 6px;
-  background-color: var(--surface-2);
+  background-color: var(--ui-surface-2);
   overflow: hidden;
 }
 .list-thumb img {
@@ -2482,7 +2481,7 @@ defineExpose({ openQuickAdd });
 }
 .list-type {
   font-size: 0.72rem;
-  color: var(--text-faint);
+  color: var(--ui-faint);
 }
 /* One line: episode count, then the advance button, centered as a unit
    under the "Progress" header — matching how Score/Rank/Status center
@@ -2498,18 +2497,18 @@ defineExpose({ openQuickAdd });
   min-width: 40px;
   height: 7px;
   border-radius: 999px;
-  background: var(--border-soft);
+  background: var(--ui-border-soft);
   overflow: hidden;
   box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.3);
 }
 .list-progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, var(--accent), var(--ui-accent));
+  background: linear-gradient(90deg, var(--ui-accent), var(--ui-accent));
   border-radius: 999px;
 }
 .list-progress-label {
   font-size: 0.7rem;
-  color: var(--text-faint);
+  color: var(--ui-faint);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -2520,7 +2519,7 @@ defineExpose({ openQuickAdd });
 .list-progress > .list-progress-label {
   font-size: 0.95rem;
   font-weight: 700;
-  color: var(--text);
+  color: var(--ui-text);
   width: 56px;
   text-align: right;
 }
@@ -2528,13 +2527,13 @@ defineExpose({ openQuickAdd });
   display: grid;
   grid-template-columns:
     76px minmax(180px, 1fr)
-    90px 170px 60px 46px 128px;
+    calc(3 * var(--ui-control-height) + 16px) 170px 60px 46px 128px;
   gap: 20px;
   padding: 0 16px 8px;
   font-size: 0.66rem;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: var(--text-faint);
+  color: var(--ui-faint);
   font-weight: 700;
 }
 .list-row-header span:nth-child(4),
@@ -2561,11 +2560,11 @@ defineExpose({ openQuickAdd });
   position: relative;
   border-radius: var(--ui-radius-row);
   overflow: hidden;
-  border: 1px solid var(--border-soft);
+  border: 1px solid var(--ui-border-soft);
 }
 .shelf-art {
   aspect-ratio: 2 / 3;
-  background-color: var(--surface-2);
+  background-color: var(--ui-surface-2);
   overflow: hidden;
   transition: transform 0.2s ease;
 }
@@ -2596,7 +2595,7 @@ defineExpose({ openQuickAdd });
     border-color 0.2s ease;
 }
 .shelf-card:hover .shelf-art-wrap {
-  border-color: var(--border);
+  border-color: var(--ui-border);
   box-shadow: 0 14px 30px rgba(0, 0, 0, 0.45);
 }
 /* Actions ride on the poster and only appear while the card is hovered
@@ -2694,12 +2693,12 @@ defineExpose({ openQuickAdd });
 .shelf-type {
   margin-top: 2px;
   font-size: 0.7rem;
-  color: var(--text-faint);
+  color: var(--ui-faint);
 }
 .shelf-year {
   margin-top: 1px;
   font-size: 0.68rem;
-  color: var(--text-faint);
+  color: var(--ui-faint);
   opacity: 0.75;
 }
 .shelf-progress-row {
@@ -2717,7 +2716,7 @@ defineExpose({ openQuickAdd });
 }
 .shelf-sub {
   font-size: 0.72rem;
-  color: var(--text-faint);
+  color: var(--ui-faint);
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
   overflow: hidden;
@@ -2764,7 +2763,7 @@ defineExpose({ openQuickAdd });
   gap: 10px;
   margin-bottom: 12px;
   padding-bottom: 8px;
-  border-bottom: 1px solid var(--border-soft);
+  border-bottom: 1px solid var(--ui-border-soft);
 }
 .board-nav {
   margin-left: auto;
@@ -2774,10 +2773,10 @@ defineExpose({ openQuickAdd });
 .board-nav button {
   width: 30px;
   height: 30px;
-  border: 1px solid var(--border-soft);
+  border: 1px solid var(--ui-border-soft);
   border-radius: 6px;
-  background: var(--surface-2);
-  color: var(--text);
+  background: var(--ui-surface-2);
+  color: var(--ui-text);
   cursor: pointer;
 }
 .board-nav button:disabled {
@@ -2787,7 +2786,7 @@ defineExpose({ openQuickAdd });
 .load-more-indicator {
   padding: 14px;
   text-align: center;
-  color: var(--text-faint);
+  color: var(--ui-faint);
   font-size: 0.8rem;
 }
 .board-heading h2 {
@@ -2797,7 +2796,7 @@ defineExpose({ openQuickAdd });
 }
 .board-heading .n {
   font-size: 0.78rem;
-  color: var(--text-faint);
+  color: var(--ui-faint);
   font-variant-numeric: tabular-nums;
 }
 .board-shelf {
@@ -2810,15 +2809,15 @@ defineExpose({ openQuickAdd });
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  background: var(--surface);
-  border: 1px solid var(--border-soft);
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border-soft);
   border-radius: var(--ui-radius-row);
   padding: 10px;
   cursor: pointer;
   transition: border-color 0.15s ease;
 }
 .board-card:hover {
-  border-color: var(--accent-line);
+  border-color: var(--ui-accent-line);
 }
 .board-art-wrap {
   position: relative;
@@ -2828,7 +2827,7 @@ defineExpose({ openQuickAdd });
 }
 .board-art {
   aspect-ratio: 2 / 3;
-  background-color: var(--surface-2);
+  background-color: var(--ui-surface-2);
   overflow: hidden;
   transition: transform 0.2s ease;
 }
@@ -2891,42 +2890,27 @@ defineExpose({ openQuickAdd });
    bars, so the page isn't wall-to-wall charts. */
 
 /* Modals */
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: var(--ui-z-modal);
-  background: rgba(0, 0, 0, 0.6);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-}
-.modal-card {
+.media-modal-content {
   width: 100%;
-  max-width: 440px;
-  background: var(--ui-popover);
-  border: 1px solid var(--border);
-  border-radius: var(--ui-radius-dialog);
-  padding: 22px;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+  box-sizing: border-box;
 }
-.modal-card h3 {
+.media-modal-content h3 {
   margin: 0 0 4px;
   font-size: 1.05rem;
   font-weight: var(--ui-weight-title);
 }
-.modal-card .sub {
+.media-modal-content .sub {
   font-size: 0.78rem;
-  color: var(--text-faint);
+  color: var(--ui-faint);
   margin-bottom: 14px;
 }
-.modal-card textarea {
+.media-modal-content textarea {
   width: 100%;
   min-height: 100px;
   resize: vertical;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  color: var(--text);
+  background: var(--ui-surface-2);
+  border: 1px solid var(--ui-border);
+  color: var(--ui-text);
   border-radius: var(--ui-radius-control);
   padding: 10px;
   font-family: inherit;
@@ -2941,8 +2925,8 @@ defineExpose({ openQuickAdd });
 }
 .btn-outline {
   background: transparent;
-  border: 1px solid var(--border);
-  color: var(--text-dim);
+  border: 1px solid var(--ui-border);
+  color: var(--ui-dim);
   border-radius: var(--ui-radius-control);
   padding: 0 16px;
   min-height: var(--ui-control-height);
@@ -2952,7 +2936,7 @@ defineExpose({ openQuickAdd });
   cursor: pointer;
 }
 .btn-solid {
-  background: var(--accent);
+  background: var(--ui-accent);
   border: none;
   color: var(--ui-on-accent);
   border-radius: var(--ui-radius-control);
@@ -2975,12 +2959,12 @@ defineExpose({ openQuickAdd });
   margin: 10px 0 4px;
 }
 .decimal-rate button {
-  width: 38px;
-  height: 38px;
+  width: 44px;
+  height: 44px;
   border-radius: var(--ui-radius-row);
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  color: var(--text);
+  background: var(--ui-surface-2);
+  border: 1px solid var(--ui-border);
+  color: var(--ui-text);
   font-size: 1.2rem;
   font-weight: 700;
   cursor: pointer;
@@ -2989,15 +2973,15 @@ defineExpose({ openQuickAdd });
   justify-content: center;
 }
 .decimal-rate button:hover {
-  border-color: var(--accent-line);
-  color: var(--accent);
+  border-color: var(--ui-accent-line);
+  color: var(--ui-accent);
 }
 .decimal-rate input {
   width: 100px;
   text-align: center;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  color: var(--accent);
+  background: var(--ui-surface-2);
+  border: 1px solid var(--ui-border);
+  color: var(--ui-accent);
   border-radius: var(--ui-radius-row);
   padding: 8px 0;
   font-family: inherit;
@@ -3007,10 +2991,10 @@ defineExpose({ openQuickAdd });
 }
 .decimal-rate input:focus {
   outline: none;
-  border-color: var(--accent-line);
+  border-color: var(--ui-accent-line);
 }
 .decimal-rate .of10 {
-  color: var(--text-faint);
+  color: var(--ui-faint);
   font-size: 0.9rem;
 }
 .finish-card {
@@ -3025,7 +3009,7 @@ defineExpose({ openQuickAdd });
   border-radius: var(--ui-radius-row);
   background-size: cover;
   background-position: center;
-  background-color: var(--surface-2);
+  background-color: var(--ui-surface-2);
   flex-shrink: 0;
   box-shadow: 0 12px 26px -10px rgba(0, 0, 0, 0.6);
 }
@@ -3038,7 +3022,7 @@ defineExpose({ openQuickAdd });
   text-transform: uppercase;
   letter-spacing: 0.08em;
   font-weight: var(--ui-weight-title);
-  color: var(--accent);
+  color: var(--ui-accent);
   margin-bottom: 4px;
 }
 .finish-card h3 {
@@ -3052,14 +3036,12 @@ defineExpose({ openQuickAdd });
 }
 
 .qa-card {
-  max-width: 540px;
-  padding: 0;
-  overflow: hidden;
+  min-width: 0;
 }
 .qa-header {
   padding: 22px 24px 18px;
-  border-bottom: 1px solid var(--border-soft);
-  background: linear-gradient(160deg, var(--accent-soft), transparent 70%);
+  border-bottom: 1px solid var(--ui-border-soft);
+  background: linear-gradient(160deg, var(--ui-accent-soft), transparent 70%);
 }
 .qa-search-foot {
   display: flex;
@@ -3074,7 +3056,7 @@ defineExpose({ openQuickAdd });
 .qa-header-row svg {
   width: 20px;
   height: 20px;
-  color: var(--accent);
+  color: var(--ui-accent);
   flex-shrink: 0;
 }
 .qa-header h3 {
@@ -3086,7 +3068,7 @@ defineExpose({ openQuickAdd });
   margin: 4px 0 0;
 }
 .qa-body {
-  padding: 20px 24px 24px;
+  padding: 0;
 }
 .qa-search-row {
   display: flex;
@@ -3095,9 +3077,9 @@ defineExpose({ openQuickAdd });
 }
 .qa-search-row input {
   flex: 1;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  color: var(--text);
+  background: var(--ui-surface-2);
+  border: 1px solid var(--ui-border);
+  color: var(--ui-text);
   border-radius: 9px;
   padding: 11px 14px;
   font-family: inherit;
@@ -3105,7 +3087,7 @@ defineExpose({ openQuickAdd });
 }
 .qa-search-row input:focus {
   outline: none;
-  border-color: var(--accent-line);
+  border-color: var(--ui-accent-line);
 }
 .qa-results {
   display: flex;
@@ -3119,14 +3101,14 @@ defineExpose({ openQuickAdd });
   grid-template-columns: 58px 1fr auto;
   gap: 14px;
   align-items: center;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
+  background: var(--ui-surface-2);
+  border: 1px solid var(--ui-border);
   border-radius: var(--ui-radius-card);
   padding: 12px;
   transition: border-color 0.15s ease;
 }
 .qa-result:hover {
-  border-color: var(--accent-line);
+  border-color: var(--ui-accent-line);
 }
 .qa-result-art {
   width: 58px;
@@ -3134,7 +3116,7 @@ defineExpose({ openQuickAdd });
   border-radius: 6px;
   background-size: cover;
   background-position: center;
-  background-color: var(--surface);
+  background-color: var(--ui-surface);
   box-shadow: 0 8px 18px -6px rgba(0, 0, 0, 0.6);
 }
 .qa-result-titles {
@@ -3149,12 +3131,12 @@ defineExpose({ openQuickAdd });
   display: flex;
   gap: 8px;
   font-size: 0.74rem;
-  color: var(--text-faint);
+  color: var(--ui-faint);
   margin: 0 0 4px;
 }
 .qa-result-desc {
   font-size: 0.78rem;
-  color: var(--text-dim);
+  color: var(--ui-dim);
   line-height: 1.45;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -3162,7 +3144,7 @@ defineExpose({ openQuickAdd });
   overflow: hidden;
 }
 .qa-add-btn {
-  background: var(--accent);
+  background: var(--ui-accent);
   border: none;
   color: var(--ui-on-accent);
   border-radius: var(--ui-radius-control);
@@ -3183,8 +3165,8 @@ defineExpose({ openQuickAdd });
   align-items: center;
   margin: -20px -24px 20px;
   padding: 20px 24px;
-  background: var(--surface);
-  border-bottom: 1px solid var(--border-soft);
+  background: var(--ui-surface);
+  border-bottom: 1px solid var(--ui-border-soft);
 }
 .qa-form-art {
   width: 64px;
@@ -3192,7 +3174,7 @@ defineExpose({ openQuickAdd });
   border-radius: 7px;
   background-size: cover;
   background-position: center;
-  background-color: var(--surface);
+  background-color: var(--ui-surface);
   flex-shrink: 0;
   box-shadow: 0 10px 22px -8px rgba(0, 0, 0, 0.6);
 }
@@ -3204,7 +3186,7 @@ defineExpose({ openQuickAdd });
   text-transform: uppercase;
   letter-spacing: 0.07em;
   font-weight: 700;
-  color: var(--text-faint);
+  color: var(--ui-faint);
   margin: 0 0 10px;
 }
 .qa-field-grid {
@@ -3223,14 +3205,14 @@ defineExpose({ openQuickAdd });
 }
 .qa-field span {
   font-size: 0.74rem;
-  color: var(--text-dim);
+  color: var(--ui-dim);
   font-weight: 600;
 }
 .qa-field select,
 .qa-field input {
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  color: var(--text);
+  background: var(--ui-surface-2);
+  border: 1px solid var(--ui-border);
+  color: var(--ui-text);
   border-radius: var(--ui-radius-control);
   padding: 9px 11px;
   font-family: inherit;
@@ -3239,12 +3221,12 @@ defineExpose({ openQuickAdd });
 .qa-field select:focus,
 .qa-field input:focus {
   outline: none;
-  border-color: var(--accent-line);
+  border-color: var(--ui-accent-line);
 }
 .qa-back-link {
   background: none;
   border: none;
-  color: var(--text-faint);
+  color: var(--ui-faint);
   font-family: inherit;
   font-size: 0.78rem;
   cursor: pointer;
@@ -3255,7 +3237,7 @@ defineExpose({ openQuickAdd });
   gap: 4px;
 }
 .qa-back-link:hover {
-  color: var(--accent);
+  color: var(--ui-accent);
 }
 
 /* phones and narrow windows: the seven-column list row can't fit, so it
