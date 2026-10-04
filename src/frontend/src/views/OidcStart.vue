@@ -13,8 +13,8 @@ onMounted(() => startOidcLogin());
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #121212;
-  color: #aaa;
+  background: var(--ui-bg);
+  color: var(--ui-dim);
   font-family: system-ui, sans-serif;
 }
 </style>

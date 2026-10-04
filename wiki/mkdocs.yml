@@ -45,6 +45,7 @@ nav:
   - Administration:
       - Overview: administration/index.md
       - Users: administration/users.md
+      - App Branding: administration/branding.md
       - Scheduled Tasks: administration/tasks.md
       - Plugins: administration/plugins.md
   - Deployment:

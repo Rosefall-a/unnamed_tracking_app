@@ -7,6 +7,7 @@ import path from "node:path";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { checkHomeWidgets } from "./check_home_widgets.mjs";
+import { checkBrandingUi } from "./check_branding_ui.mjs";
 
 const [pluginsRoot, evidenceRoot, backendUrl] = process.argv.slice(2);
 const reviewStage = process.argv[5] ?? "shell";
@@ -57,7 +58,14 @@ try {
   const installed = await admin.request.get(origin + "/api/plugins");
   assert.equal(installed.status(), 200);
   assert.equal((await installed.json()).length, 0, "Run this stage against a clean plugin inventory to exclude embedded-media evidence.");
-  if (reviewStage === "home") {
+  if (reviewStage === "branding") {
+    const member = await browser.newContext();
+    await login(member, memberName, process.env.UI_REVIEW_PASSWORD);
+    await checkBrandingUi({ admin, member, browser, origin, evidenceRoot, report, checkOverflow });
+    await member.close();
+    await writeFile(path.join(evidenceRoot, "stage-branding-conformance.json"), JSON.stringify(report, null, 2) + "\n");
+    console.log(JSON.stringify({ cases: report.screens.length, passed: report.passed }, null, 2));
+  } else if (reviewStage === "home") {
     const member = await browser.newContext();
     await login(member, memberName, process.env.UI_REVIEW_PASSWORD);
     await checkHomeWidgets({ admin, member, origin, evidenceRoot, report, checkOverflow });

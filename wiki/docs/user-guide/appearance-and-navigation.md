@@ -14,7 +14,7 @@ Disabled, incompatible or uninstalled plugins do not contribute navigation. Plug
 
 - **Preferences** contains appearance, interface defaults, notifications, calendar, shortcuts and library settings.
 - **Account** contains profile/password, connections and API keys.
-- **Administration** contains server management, plugins, background tasks and storage/usage. Only administrators see this area. Its banner explains that changes affect everyone on the server.
+- **Administration** contains server management, [app branding](../administration/branding.md), plugins, background tasks and storage/usage. Only administrators see this area. Its banner explains that changes affect everyone on the server.
 
 Settings starts with grouped links. On desktop a section keeps its area navigation beside the form; on a phone it opens as a separate screen, with a back link to its area. Existing `/settings?section=…` links continue to work, including the older aliases for library, metadata and administration tabs. The unfinished Logs entry is not offered.
 
@@ -28,6 +28,6 @@ Open **Preferences → Appearance**:
 - **Higher contrast:** strengthens text, boundaries and keyboard focus.
 - **Completed game badges:** choose the style, color, placement and optional image for your completed-game cards.
 
-These choices belong to your account. Badge choices remain personal and existing saved values are preserved. Appearance changes save as you make them; badge customization keeps its explicit Save button. A failed save displays an error and restores the previous appearance. Signing out discards queued preference writes so they cannot affect the next signed-in account.
+These choices belong to your account. Badge choices remain personal and existing saved values are preserved. Appearance changes save as you make them; badge customization keeps its explicit Save button. A failed save displays an error and restores the previous appearance. Signing out discards queued preference writes and cached badges so they cannot affect the next signed-in account. A late badge response from the previous account is ignored.
 
 Navigation, Settings and [Home](home.md) use the shared appearance system. The remaining page and plugin migration is tracked in the [development checkpoint](../development/ui-redevelopment.md). The preserved [interactive concept gallery](../assets/ui-redevelopment/concepts.html) remains available as a reference; its illustrative screens are not product features or additional selectable styles.

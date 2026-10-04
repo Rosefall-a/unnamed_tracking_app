@@ -14,6 +14,7 @@ from src.api.routes import (
     anime,
     auth,
     bounties,
+    branding,
     calendar_events,
     calendar_feed,
     cards,
@@ -103,6 +104,7 @@ app.include_router(auth.router)
 app.include_router(auth_oidc_router)
 app.include_router(setup_router)
 app.include_router(settings.router)
+app.include_router(branding.router)
 app.include_router(deployment_settings_router)
 app.include_router(plugin_permissions_router)
 app.include_router(plugins_router)

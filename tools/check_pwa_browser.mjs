@@ -131,6 +131,36 @@ try {
   });
   await checkpoint("real frontend reload → official UI badge → browser parses root PWA manifest/icons → cache contains only neutral offline HTML");
 
+  await api("PUT", "/api/branding", 200, { data: { app_name: "Weekend Archive" } });
+  const logo = Buffer.from(await page.evaluate(() => {
+    const canvas = document.createElement("canvas"); canvas.width = 64; canvas.height = 64;
+    const context = canvas.getContext("2d"); context.fillStyle = "#a4520d"; context.fillRect(0, 0, 64, 64);
+    return canvas.toDataURL("image/png").split(",")[1];
+  }), "base64");
+  await api("POST", "/api/branding/assets/logo", 200, { multipart: { file: { name: "review-logo.png", mimeType: "image/png", buffer: logo } } });
+  const brandedStatus = await api("GET", "/pwa/status");
+  assert.notEqual(brandedStatus.generation, status1.generation);
+  const brandedManifest = await api("GET", "/manifest.webmanifest");
+  assert.equal(brandedManifest.name, "Weekend Archive");
+  assert.equal(brandedManifest.short_name, "Weekend Archive");
+  for (const icon of brandedManifest.icons) {
+    const response = await context.request.get(origin + icon.src);
+    assert.equal(response.status(), 200);
+    const bytes = await response.body();
+    const size = Number(icon.sizes.split("x")[0]);
+    assert.equal(bytes.readUInt32BE(16), size);
+    assert.equal(bytes.readUInt32BE(20), size);
+  }
+  assert.equal((await context.request.get(origin + manifest.icons[0].src)).status(), 404);
+  await api("POST", pluginPath + "/permissions/revoke");
+  assert.equal((await context.request.get(origin + brandedManifest.icons[0].src)).status(), 404);
+  assert.equal((await context.request.get(origin + "/manifest.webmanifest")).status(), 404);
+  await api("POST", pluginPath + "/permissions/grant", 200, { data: { approved_permissions: [preview.permissions[0].key], expected_digest: preview.package_digest } });
+  await api("DELETE", "/api/branding/assets/logo");
+  await api("PUT", "/api/branding", 200, { data: { app_name: "Archive" } });
+  assert.equal((await api("GET", "/pwa/status")).generation, status1.generation);
+  await checkpoint("server branding changes real manifest and maskable icons; cache identity changes; revoked PWA grant still withdraws branded assets; restoring default restores package identity");
+
   await context.setOffline(true);
   await page.goto(origin + "/?pwa=1");
   await page.getByRole("heading", { name: "Waiting for internet", exact: true }).waitFor();

@@ -30,6 +30,8 @@ import {
 } from "../state/sidebarMode";
 import { isCommandPaletteOpen } from "../state/commandPalette";
 import AppIcon from "./AppIcon.vue";
+import AppBrand from "./AppBrand.vue";
+import { branding } from "../state/branding";
 import { containModalTab } from "../services/focus";
 
 const route = useRoute();
@@ -305,10 +307,11 @@ onUnmounted(() => {
         <RouterLink
           to="/"
           class="brand-link"
-          aria-label="Archive Home"
+          :aria-label="`${branding.app_name} Home`"
           @click="close"
-          ><span class="brand-symbol"><AppIcon name="collections" /></span
-          ><span class="nav-label brand-name">Archive</span></RouterLink
+          ><AppBrand compact /><span class="nav-label brand-name">{{
+            branding.app_name
+          }}</span></RouterLink
         >
         <button
           v-if="isModal"
@@ -652,6 +655,8 @@ dialog.navigation {
   font-size: 20px;
   font-weight: 650;
   letter-spacing: -0.7px;
+  overflow-wrap: anywhere;
+  min-width: 0;
 }
 .nav-icon-button {
   display: grid;

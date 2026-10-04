@@ -16,6 +16,7 @@ import SaveStatus from "../components/settings/SaveStatus.vue";
 import ProfileSection from "../components/settings/ProfileSection.vue";
 import InterfaceSection from "../components/settings/InterfaceSection.vue";
 import AppearanceSection from "../components/settings/AppearanceSection.vue";
+import BrandingSection from "../components/settings/BrandingSection.vue";
 import UploadSection from "../components/settings/UploadSection.vue";
 import LibrarySettings from "../components/settings/LibrarySettings.vue";
 import MetadataSettings from "../components/settings/MetadataSettings.vue";
@@ -56,6 +57,7 @@ const coreSectionIds = new Set([
   "profile",
   "interface",
   "appearance",
+  "branding",
   "api-keys",
   "calendar-notifications",
   "upload",
@@ -169,6 +171,7 @@ const groups = computed<SettingsGroup[]>(() => {
       area: "administration",
       sections: [
         { id: "admin", label: "Users & server configuration" },
+        { id: "branding", label: "App branding" },
         { id: "plugins", label: "Plugins" },
         { id: "tasks", label: "Background tasks" },
         { id: "stats", label: "Storage & usage" },
@@ -414,6 +417,9 @@ function backToArea() {
           <ProfileSection v-if="activeSection === 'profile'" />
           <InterfaceSection v-else-if="activeSection === 'interface'" />
           <AppearanceSection v-else-if="activeSection === 'appearance'" />
+          <BrandingSection
+            v-else-if="activeSection === 'branding' && currentUser?.is_admin"
+          />
           <CalendarNotificationsSection
             v-else-if="activeSection === 'notifications'"
             part="notifications"

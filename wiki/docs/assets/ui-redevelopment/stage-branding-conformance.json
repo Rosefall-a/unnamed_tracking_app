@@ -1,0 +1,311 @@
+{
+  "backend": "real",
+  "passed": [
+    "48 branding role/theme/width cases with no overflow or JavaScript errors",
+    "Name, normalized logo and favicon persist and update public pages",
+    "Anonymous/member branding writes denied",
+    "Malformed upload preserves current branding",
+    "Offline name save reports failure and retries without losing input",
+    "Badges remain distinct between two accounts"
+  ],
+  "screens": [
+    {
+      "role": "admin",
+      "theme": "light",
+      "width": 320,
+      "screen": "/settings?section=branding"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "width": 320,
+      "screen": "/settings?section=branding"
+    },
+    {
+      "role": "public",
+      "theme": "light",
+      "width": 320,
+      "screen": "/login"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "width": 390,
+      "screen": "/settings?section=branding"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "width": 390,
+      "screen": "/settings?section=branding"
+    },
+    {
+      "role": "public",
+      "theme": "light",
+      "width": 390,
+      "screen": "/login"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "width": 430,
+      "screen": "/settings?section=branding"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "width": 430,
+      "screen": "/settings?section=branding"
+    },
+    {
+      "role": "public",
+      "theme": "light",
+      "width": 430,
+      "screen": "/login"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "width": 768,
+      "screen": "/settings?section=branding"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "width": 768,
+      "screen": "/settings?section=branding"
+    },
+    {
+      "role": "public",
+      "theme": "light",
+      "width": 768,
+      "screen": "/login"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "width": 1024,
+      "screen": "/settings?section=branding"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "width": 1024,
+      "screen": "/settings?section=branding"
+    },
+    {
+      "role": "public",
+      "theme": "light",
+      "width": 1024,
+      "screen": "/login"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "width": 1440,
+      "screen": "/settings?section=branding"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "width": 1440,
+      "screen": "/settings?section=branding"
+    },
+    {
+      "role": "public",
+      "theme": "light",
+      "width": 1440,
+      "screen": "/login"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "width": 1920,
+      "screen": "/settings?section=branding"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "width": 1920,
+      "screen": "/settings?section=branding"
+    },
+    {
+      "role": "public",
+      "theme": "light",
+      "width": 1920,
+      "screen": "/login"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "width": 2560,
+      "screen": "/settings?section=branding"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "width": 2560,
+      "screen": "/settings?section=branding"
+    },
+    {
+      "role": "public",
+      "theme": "light",
+      "width": 2560,
+      "screen": "/login"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "width": 320,
+      "screen": "/settings?section=branding"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "width": 320,
+      "screen": "/settings?section=branding"
+    },
+    {
+      "role": "public",
+      "theme": "dark",
+      "width": 320,
+      "screen": "/login"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "width": 390,
+      "screen": "/settings?section=branding"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "width": 390,
+      "screen": "/settings?section=branding"
+    },
+    {
+      "role": "public",
+      "theme": "dark",
+      "width": 390,
+      "screen": "/login"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "width": 430,
+      "screen": "/settings?section=branding"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "width": 430,
+      "screen": "/settings?section=branding"
+    },
+    {
+      "role": "public",
+      "theme": "dark",
+      "width": 430,
+      "screen": "/login"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "width": 768,
+      "screen": "/settings?section=branding"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "width": 768,
+      "screen": "/settings?section=branding"
+    },
+    {
+      "role": "public",
+      "theme": "dark",
+      "width": 768,
+      "screen": "/login"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "width": 1024,
+      "screen": "/settings?section=branding"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "width": 1024,
+      "screen": "/settings?section=branding"
+    },
+    {
+      "role": "public",
+      "theme": "dark",
+      "width": 1024,
+      "screen": "/login"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "width": 1440,
+      "screen": "/settings?section=branding"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "width": 1440,
+      "screen": "/settings?section=branding"
+    },
+    {
+      "role": "public",
+      "theme": "dark",
+      "width": 1440,
+      "screen": "/login"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "width": 1920,
+      "screen": "/settings?section=branding"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "width": 1920,
+      "screen": "/settings?section=branding"
+    },
+    {
+      "role": "public",
+      "theme": "dark",
+      "width": 1920,
+      "screen": "/login"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "width": 2560,
+      "screen": "/settings?section=branding"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "width": 2560,
+      "screen": "/settings?section=branding"
+    },
+    {
+      "role": "public",
+      "theme": "dark",
+      "width": 2560,
+      "screen": "/login"
+    }
+  ],
+  "widths": [
+    320,
+    390,
+    430,
+    768,
+    1024,
+    1440,
+    1920,
+    2560
+  ]
+}

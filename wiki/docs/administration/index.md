@@ -11,4 +11,4 @@ Administrators manage users, deployment settings, provider credentials, schedule
 5. Install plugins only from a reviewed package, inspect every requested permission, and keep untrusted-package confirmation enabled.
 6. Monitor application logs and per-plugin structured diagnostics without copying secrets into support reports.
 
-See [Users](users.md), [Scheduled tasks](tasks.md), [Plugin administration](plugins.md), and [Startup and troubleshooting](../deployment/startup-and-troubleshooting.md).
+See [Users](users.md), [App branding](branding.md), [Scheduled tasks](tasks.md), [Plugin administration](plugins.md), and [Startup and troubleshooting](../deployment/startup-and-troubleshooting.md).
