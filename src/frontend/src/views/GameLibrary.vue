@@ -1,8 +1,10 @@
 <script setup lang="ts">
+import HeartIcon from "../components/HeartIcon.vue";
 import { ref, computed, onMounted, onUnmounted, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useWindowVirtualizer } from "@tanstack/vue-virtual";
 import GameCard from "../components/GameCard.vue";
+import CheckIcon from "../components/CheckIcon.vue";
 import SkeletonBlock from "../components/SkeletonBlock.vue";
 import GameFormModal from "../components/GameFormModal.vue";
 import BulkEditModal from "../components/BulkEditModal.vue";
@@ -1830,23 +1832,11 @@ function cardsInRow(rowIndex: number): Game[] {
               <img class="list-cover" :src="game.coverImageUrl" alt="" />
               <div
                 v-if="selectMode"
-                class="list-checkbox"
+                class="select-checkbox"
                 :class="{ checked: selectedIds.has(game.id) }"
                 @click.stop="toggleSelect(game)"
               >
-                <svg
-                  v-if="selectedIds.has(game.id)"
-                  viewBox="0 0 24 24"
-                  width="12"
-                  height="12"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="3"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                >
-                  <path d="M20 6L9 17l-5-5" />
-                </svg>
+                <CheckIcon v-if="selectedIds.has(game.id)" />
               </div>
             </div>
             <div class="list-title-col">
@@ -1868,18 +1858,7 @@ function cardsInRow(rowIndex: number): Game[] {
                 "
                 @click.stop="toggleFavorite(game)"
               >
-                <svg
-                  viewBox="0 0 24 24"
-                  :fill="game.favorite ? 'currentColor' : 'none'"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                >
-                  <path
-                    d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.8 1-1a5.5 5.5 0 0 0 0-7.6z"
-                  />
-                </svg>
+                <HeartIcon :filled="game.favorite" />
               </button>
               <button
                 type="button"
@@ -2178,20 +2157,7 @@ function cardsInRow(rowIndex: number): Game[] {
                     "
                     @click="toggleFavorite(selectedGame)"
                   >
-                    <svg
-                      viewBox="0 0 24 24"
-                      width="16"
-                      height="16"
-                      :fill="selectedGame.favorite ? 'currentColor' : 'none'"
-                      stroke="currentColor"
-                      stroke-width="2"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    >
-                      <path
-                        d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.8 1-1a5.5 5.5 0 0 0 0-7.6z"
-                      />
-                    </svg>
+                    <HeartIcon :filled="selectedGame.favorite" />
                   </button>
                 </div>
               </div>
@@ -2828,29 +2794,28 @@ function cardsInRow(rowIndex: number): Game[] {
   padding: 8px 12px;
   margin-bottom: 20px;
 }
-.list-checkbox {
+.select-checkbox {
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  background: rgba(10, 10, 10, 0.8);
+  border: 1.5px solid rgba(255, 255, 255, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--accent, #d68a34);
+  font-size: 0.85rem;
+  font-weight: 800;
   position: absolute;
   top: 6px;
   left: 6px;
   z-index: 4;
-  width: 22px;
-  height: 22px;
-  border-radius: 6px;
-  border: 2px solid rgba(255, 255, 255, 0.45);
-  background: rgba(10, 10, 10, 0.8);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #111;
-  flex-shrink: 0;
-  cursor: pointer;
-  transition:
-    background 0.15s ease,
-    border-color 0.15s ease;
 }
-.list-checkbox.checked {
-  background: #d68a34;
-  border-color: #d68a34;
+.select-checkbox.checked {
+  background: var(--accent, #d68a34);
+  border-color: var(--accent, #d68a34);
+  color: #14100a;
 }
 .advanced-panel {
   display: grid;
@@ -3229,6 +3194,10 @@ function cardsInRow(rowIndex: number): Game[] {
     background 0.15s ease,
     color 0.15s ease,
     border-color 0.15s ease;
+}
+.icon-button svg {
+  width: 16px;
+  height: 16px;
 }
 .icon-button:hover {
   border-color: var(--accent-line);

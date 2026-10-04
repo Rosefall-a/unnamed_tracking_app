@@ -1,5 +1,7 @@
 <script setup lang="ts">
+import HeartIcon from "./HeartIcon.vue";
 import { useRouter } from "vue-router";
+import CheckIcon from "./CheckIcon.vue";
 import type { Game, GameStatus } from "../types/game";
 import { setFavorite, setStatus } from "../services/games";
 import { ref, computed, nextTick, onUnmounted } from "vue";
@@ -219,19 +221,7 @@ function copyFolderPath() {
           class="select-checkbox"
           :class="{ checked: selected }"
         >
-          <svg
-            v-if="selected"
-            viewBox="0 0 24 24"
-            width="14"
-            height="14"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="3"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path d="M20 6L9 17l-5-5" />
-          </svg>
+          <CheckIcon v-if="selected" />
         </div>
 
         <span v-if="rank" class="shelf-rank rank-badge">#{{ rank }}</span>
@@ -294,17 +284,7 @@ function copyFolderPath() {
             title="Favorite"
             @click.stop="toggleFavorite"
           >
-            <svg
-              viewBox="0 0 24 24"
-              :fill="localFavorite ? 'currentColor' : 'none'"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linejoin="round"
-            >
-              <path
-                d="M12 21s-7.5-4.9-10.2-9.4C.2 8.6 1.4 5 4.9 4.1c2-.5 3.9.3 5.1 2C11.2 4.4 13.1 3.6 15.1 4.1c3.5.9 4.7 4.5 3.1 7.5C15.5 16.1 12 21 12 21z"
-              />
-            </svg>
+            <HeartIcon :filled="localFavorite" />
           </button>
 
           <button
@@ -589,28 +569,27 @@ function copyFolderPath() {
   transform: scale(1.04);
 }
 .select-checkbox {
-  position: absolute;
-  top: 8px;
-  left: 8px;
-  width: 24px;
-  height: 24px;
-  border-radius: 6px;
-  border: 2px solid rgba(255, 255, 255, 0.6);
-  background: rgba(20, 20, 20, 0.55);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  background: rgba(10, 10, 10, 0.8);
+  border: 1.5px solid rgba(255, 255, 255, 0.45);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #111;
-  z-index: 3;
-  transition:
-    background 0.15s ease,
-    border-color 0.15s ease;
+  cursor: pointer;
+  color: var(--accent, #d68a34);
+  font-size: 0.85rem;
+  font-weight: 800;
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  z-index: 4;
 }
 .select-checkbox.checked {
-  background: #d68a34;
-  border-color: #d68a34;
+  background: var(--accent, #d68a34);
+  border-color: var(--accent, #d68a34);
+  color: #14100a;
 }
 .stale-indicator {
   position: absolute;
