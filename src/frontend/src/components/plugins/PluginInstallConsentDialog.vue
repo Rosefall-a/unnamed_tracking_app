@@ -3,6 +3,7 @@ import { computed, nextTick, ref, watch } from "vue";
 import UiModal from "../UiModal.vue";
 import AppIcon from "../AppIcon.vue";
 import PermissionRiskSummary from "./PermissionRiskSummary.vue";
+import PluginVersionInfo from "./PluginVersionInfo.vue";
 import DOMPurify from "dompurify";
 import { marked } from "marked";
 import type {
@@ -224,28 +225,19 @@ function close() {
           </dd>
         </div>
         <div>
-          <dt>Host versions</dt>
-          <dd>{{ preview.application_version_range }}</dd>
-        </div>
-        <div>
-          <dt>SDK versions</dt>
-          <dd>{{ preview.sdk_version_range }}</dd>
-        </div>
-        <div>
-          <dt>UI/API contract</dt>
-          <dd>
-            {{ preview.api_contract_version }} · Host
-            {{ preview.host_api_contract_version }}
-          </dd>
-        </div>
-        <div>
           <dt>Package digest</dt>
           <dd class="digest">{{ preview.digest }}</dd>
         </div>
       </dl>
-      <p v-if="preview.compatibility_reason" class="error" role="alert">
-        {{ preview.compatibility_reason }}
-      </p>
+      <PluginVersionInfo :versions="preview" />
+      <div v-if="preview.compatibility_reason" class="error" role="alert">
+        <strong>This release cannot be installed on this host</strong>
+        <p>{{ preview.compatibility_reason }}</p>
+        <p>
+          Choose a verified release that supports the versions above. Existing
+          plugin data is retained when a compatible update is installed.
+        </p>
+      </div>
 
       <div
         v-if="preview.trust_status !== 'trusted'"

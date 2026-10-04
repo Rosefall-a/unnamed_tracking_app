@@ -825,6 +825,58 @@ onMounted(() => {
         >Runtime setup and Bubblewrap help</a
       >
     </aside>
+    <details
+      v-if="runtime"
+      class="manager-settings"
+      :open="runtime.version_health !== 'healthy'"
+    >
+      <summary>Plugin platform versions & health</summary>
+      <dl>
+        <div>
+          <dt>Version health</dt>
+          <dd>{{ runtime.version_health ?? "Not reported" }}</dd>
+        </div>
+        <div>
+          <dt>UI/API contract</dt>
+          <dd>
+            Host {{ runtime.host_api_contract_version ?? "Not reported" }} ·
+            Runtime {{ runtime.api_contract_version ?? "Not reported" }}
+          </dd>
+        </div>
+        <div>
+          <dt>Plugin SDK compatibility version</dt>
+          <dd>
+            Host {{ runtime.host_sdk_version ?? "Not reported" }} · Runtime
+            {{ runtime.sdk_version ?? "Not reported" }}
+          </dd>
+        </div>
+        <div>
+          <dt>Application compatibility version</dt>
+          <dd>
+            Host {{ runtime.host_application_version ?? "Not reported" }} ·
+            Runtime {{ runtime.application_version ?? "Not reported" }}
+          </dd>
+        </div>
+        <div>
+          <dt>Gateway protocol</dt>
+          <dd>
+            {{ runtime.api_version ?? "Not reported" }} ·
+            {{ runtime.plugin_transport ?? "Not reported" }}
+          </dd>
+        </div>
+      </dl>
+      <p class="muted">
+        Compatibility versions are the targets checked against plugin manifests.
+        Package release numbers and the gateway protocol are separate. Update
+        host and runtime together when these targets differ.
+      </p>
+      <p v-if="runtime.version_error" class="error" role="alert">
+        {{ runtime.version_error }}
+      </p>
+      <p v-if="runtime.version_health === 'unavailable'" class="error">
+        Version checks are unavailable until the plugin runtime reconnects.
+      </p>
+    </details>
     <details class="manager-settings">
       <summary>Plugin Manager settings</summary>
       <p class="muted">

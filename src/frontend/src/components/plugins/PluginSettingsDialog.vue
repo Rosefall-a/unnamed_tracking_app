@@ -2,6 +2,7 @@
 import { computed, nextTick, ref, watch } from "vue";
 import UiModal from "../UiModal.vue";
 import PermissionRiskSummary from "./PermissionRiskSummary.vue";
+import PluginVersionInfo from "./PluginVersionInfo.vue";
 import type {
   PluginPermissionGrant,
   PluginPermissionRequest,
@@ -44,6 +45,20 @@ type Tab = "overview" | "settings" | "permissions" | "diagnostics";
 const tab = ref<Tab>("overview");
 const closeButton = ref<HTMLButtonElement | null>(null);
 const permissions = computed(() => props.plugin.permission_details ?? []);
+const issues = computed(() =>
+  [
+    [
+      "Compatibility",
+      props.plugin.compatible ? null : props.plugin.compatibility_reason,
+    ],
+    ["Runtime", props.plugin.runtime_error ?? props.plugin.runtime?.last_error],
+    ["Plugin", props.plugin.last_error],
+    ["Latest update", props.plugin.last_update_error],
+  ].filter(
+    (issue): issue is [string, string] =>
+      typeof issue[1] === "string" && issue[1].length > 0,
+  ),
+);
 
 watch(
   () => props.plugin.plugin_id,
@@ -138,11 +153,22 @@ watch(
                 }}
               </dd>
             </div>
-            <div>
-              <dt>UI/API contract</dt>
-              <dd>{{ plugin.api_contract_version ?? "1.0.0" }}</dd>
-            </div>
           </dl>
+          <PluginVersionInfo :versions="plugin" />
+          <aside
+            v-if="issues.length"
+            class="attention"
+            aria-label="Plugin issues"
+          >
+            <h3>Needs attention</h3>
+            <p v-for="[source, reason] in issues" :key="source">
+              <strong>{{ source }}:</strong> {{ reason }}
+            </p>
+            <p v-if="!plugin.compatible">
+              The whole plugin stays stopped until a verified compatible update
+              is installed. Review or upload an update in Plugin Manager.
+            </p>
+          </aside>
           <div class="actions">
             <button
               v-if="
@@ -160,7 +186,9 @@ watch(
             </button>
             <button
               v-if="plugin.enabled"
-              :disabled="busy"
+              :disabled="
+                busy || (!plugin.compatible && plugin.status !== 'running')
+              "
               @click="
                 emit(
                   'operation',
@@ -355,6 +383,10 @@ watch(
         </section>
 
         <section v-else class="panel diagnostics">
+          <PluginVersionInfo :versions="plugin" />
+          <p v-for="[source, reason] in issues" :key="source" class="state">
+            <strong>{{ source }}:</strong> {{ reason }}
+          </p>
           <dl class="diagnostic-summary">
             <div>
               <dt>Runtime availability</dt>
@@ -457,6 +489,17 @@ watch(
 .plugin-dialog {
   color: var(--ui-text);
   overflow-wrap: anywhere;
+}
+.attention {
+  padding: var(--ui-space-4);
+  margin: var(--ui-space-4) 0;
+  background: var(--ui-warning-soft);
+  border: 1px solid var(--ui-border-strong);
+  border-radius: var(--ui-radius-card);
+}
+.attention p {
+  margin: 10px 0 0;
+  line-height: 1.5;
 }
 .dialog-header,
 .diagnostic-heading,

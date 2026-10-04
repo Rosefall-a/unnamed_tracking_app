@@ -28,6 +28,10 @@ export interface PluginSummary {
   version: string;
   api_contract_version?: string;
   host_api_contract_version?: string;
+  host_sdk_version?: string;
+  host_application_version?: string;
+  sdk_version_range?: string;
+  application_version_range?: string;
   status: PluginStatus;
   compatible: boolean;
   compatibility_reason: string;
@@ -58,6 +62,13 @@ export interface PluginSummary {
 export interface RuntimeCapabilities {
   api_version?: string;
   api_contract_version?: string;
+  host_api_contract_version?: string;
+  host_sdk_version?: string;
+  host_application_version?: string;
+  sdk_version?: string;
+  application_version?: string;
+  version_health?: "healthy" | "incompatible" | "unavailable";
+  version_error?: string | null;
   supported_api_versions?: string[];
   transport?: string;
   plugin_transport?: string;
@@ -98,6 +109,8 @@ export interface PluginInstallPermission {
 export interface PluginInstallPreview {
   api_contract_version: string;
   host_api_contract_version: string;
+  host_sdk_version?: string;
+  host_application_version?: string;
   compatibility_reason: string;
   plugin_id: string;
   name: string;
@@ -225,6 +238,40 @@ export interface PluginDiagnostics {
   last_exit_code: number | null;
   events: PluginDiagnosticEvent[];
 }
+async function pluginRequestError(
+  response: Response,
+  action: string,
+): Promise<Error> {
+  const body: unknown = await response
+    .clone()
+    .json()
+    .catch(() => null);
+  let message = "";
+  if (body && typeof body === "object" && "detail" in body) {
+    const detail = body.detail;
+    if (typeof detail === "string") message = detail;
+    else if (
+      detail &&
+      typeof detail === "object" &&
+      "message" in detail &&
+      typeof detail.message === "string"
+    )
+      message = detail.message;
+    else if (Array.isArray(detail))
+      message = detail
+        .flatMap((item) =>
+          item && typeof item === "object" && typeof item.msg === "string"
+            ? [item.msg]
+            : [],
+        )
+        .slice(0, 3)
+        .join("; ");
+  }
+  return new Error(
+    `${action} (${response.status})${message ? `: ${message}` : "."}`,
+  );
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
     ...init,
@@ -232,7 +279,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
   });
   if (!response.ok)
-    throw new Error(`Plugin manager request failed (${response.status}).`);
+    throw await pluginRequestError(response, "Plugin manager request failed");
   return response.json() as Promise<T>;
 }
 export const fetchRuntimeCapabilities = () =>
@@ -294,16 +341,8 @@ export const previewPluginInstall = async (
     credentials: "include",
     body: form,
   });
-  if (!response.ok) {
-    const body = await response.json().catch(() => null);
-    const detail =
-      typeof body?.detail === "object" ? body.detail.message : body?.detail;
-    throw new Error(
-      detail
-        ? `Plugin preview failed (${response.status}): ${detail}`
-        : `Plugin preview failed (${response.status}).`,
-    );
-  }
+  if (!response.ok)
+    throw await pluginRequestError(response, "Plugin preview failed");
   return response.json() as Promise<PluginInstallPreview>;
 };
 
@@ -328,20 +367,15 @@ export const installPlugin = async (
     body: form,
   });
   if (response.status === 409) {
-    const body = await response.json().catch(() => null);
+    const body = await response
+      .clone()
+      .json()
+      .catch(() => null);
     if (body?.detail?.code === "untrusted_plugin")
       throw new UntrustedPluginError(body.detail);
   }
-  if (!response.ok) {
-    const body = await response.json().catch(() => null);
-    const detail =
-      typeof body?.detail === "object" ? body.detail.message : body?.detail;
-    throw new Error(
-      detail
-        ? `Plugin installation failed (${response.status}): ${detail}`
-        : `Plugin installation failed (${response.status}).`,
-    );
-  }
+  if (!response.ok)
+    throw await pluginRequestError(response, "Plugin installation failed");
   return response.json();
 };
 
@@ -378,16 +412,8 @@ export const previewPluginInstallUrl = async (
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ url, ...remotePluginSource(source) }),
   });
-  if (!response.ok) {
-    const body = await response.json().catch(() => null);
-    const detail =
-      typeof body?.detail === "object" ? body.detail.message : body?.detail;
-    throw new Error(
-      detail
-        ? `Plugin URL preview failed (${response.status}): ${detail}`
-        : `Plugin URL preview failed (${response.status}).`,
-    );
-  }
+  if (!response.ok)
+    throw await pluginRequestError(response, "Plugin URL preview failed");
   return response.json();
 };
 
@@ -416,20 +442,15 @@ export const installPluginFromUrl = async (
     }),
   });
   if (response.status === 409) {
-    const body = await response.json().catch(() => null);
+    const body = await response
+      .clone()
+      .json()
+      .catch(() => null);
     if (body?.detail?.code === "untrusted_plugin")
       throw new UntrustedPluginError(body.detail);
   }
-  if (!response.ok) {
-    const body = await response.json().catch(() => null);
-    const detail =
-      typeof body?.detail === "object" ? body.detail.message : body?.detail;
-    throw new Error(
-      detail
-        ? `Plugin installation failed (${response.status}): ${detail}`
-        : `Plugin installation failed (${response.status}).`,
-    );
-  }
+  if (!response.ok)
+    throw await pluginRequestError(response, "Plugin installation failed");
   return response.json();
 };
 
@@ -466,7 +487,7 @@ export const previewPluginUpdate = async (
     { method: "PUT", credentials: "include", body: form },
   );
   if (!response.ok)
-    throw new Error(`Plugin update preview failed (${response.status}).`);
+    throw await pluginRequestError(response, "Plugin update preview failed");
   return response.json();
 };
 
@@ -486,7 +507,7 @@ export const previewPluginUpdateUrl = async (
     },
   );
   if (!response.ok)
-    throw new Error(`Plugin update preview failed (${response.status}).`);
+    throw await pluginRequestError(response, "Plugin update preview failed");
   return response.json();
 };
 
@@ -518,7 +539,7 @@ export const updatePlugin = async (
     { method: "PUT", credentials: "include", body: form },
   );
   if (!response.ok)
-    throw new Error(`Plugin update failed (${response.status}).`);
+    throw await pluginRequestError(response, "Plugin update failed");
   return response.json();
 };
 
@@ -557,16 +578,8 @@ export const updatePluginFromUrl = async (
       }),
     },
   );
-  if (!response.ok) {
-    const body = await response.json().catch(() => null);
-    const detail =
-      typeof body?.detail === "object" ? body.detail.message : body?.detail;
-    throw new Error(
-      detail
-        ? `Plugin update failed (${response.status}): ${detail}`
-        : `Plugin update failed (${response.status}).`,
-    );
-  }
+  if (!response.ok)
+    throw await pluginRequestError(response, "Plugin update failed");
   return response.json();
 };
 
@@ -604,7 +617,7 @@ export const deletePluginCatalogue = async (id: string): Promise<void> => {
     },
   );
   if (!response.ok && response.status !== 204)
-    throw new Error(`Catalogue removal failed (${response.status}).`);
+    throw await pluginRequestError(response, "Catalogue removal failed");
 };
 export const checkPluginUpdates = () =>
   request<{
@@ -628,5 +641,5 @@ export const deletePlugin = async (id: string): Promise<void> => {
     credentials: "include",
   });
   if (!response.ok && response.status !== 204)
-    throw new Error(`Plugin deletion failed (${response.status}).`);
+    throw await pluginRequestError(response, "Plugin deletion failed");
 };
