@@ -98,6 +98,16 @@ const search = ref("");
 const tag = ref("");
 const runtime = ref<RuntimeCapabilities | null>(null);
 const managerSettings = ref({ automatic_updates: false, retained_versions: 1 });
+const managerSettingsLoaded = ref(false);
+const managerSettingsBusy = ref(false);
+const managerSettingsMessage = ref("");
+const managerSettingsError = ref("");
+const retainedVersionsValid = computed(
+  () =>
+    Number.isInteger(managerSettings.value.retained_versions) &&
+    managerSettings.value.retained_versions >= 1 &&
+    managerSettings.value.retained_versions <= 100,
+);
 const stagedTarget = ref<string | null>(null);
 const grantTarget = ref<string | null>(null);
 const duplicate = ref<PluginSummary | null>(null);
@@ -127,11 +137,34 @@ const catalogueEntries = computed(() =>
 );
 
 async function saveGlobalSettings() {
+  if (!retainedVersionsValid.value || managerSettingsBusy.value) return;
+  managerSettingsBusy.value = true;
+  managerSettingsMessage.value = "";
+  managerSettingsError.value = "";
   try {
-    managerSettings.value = await saveManagerSettings(managerSettings.value);
+    const saved = await saveManagerSettings(managerSettings.value);
+    managerSettings.value = saved;
+    managerSettingsMessage.value = saved.history_pruning_deferred
+      ? "Plugin Manager settings saved. Existing package history could not be trimmed while the runtime is unavailable. Future package operations use the saved limit."
+      : "Plugin Manager settings saved.";
   } catch (err) {
-    error.value =
+    managerSettingsError.value =
       err instanceof Error ? err.message : "Settings could not be saved.";
+  } finally {
+    managerSettingsBusy.value = false;
+  }
+}
+
+async function loadManagerSettings() {
+  managerSettingsError.value = "";
+  try {
+    managerSettings.value = await fetchManagerSettings();
+    managerSettingsLoaded.value = true;
+  } catch (err) {
+    managerSettingsError.value =
+      err instanceof Error
+        ? err.message
+        : "Plugin Manager settings could not be loaded.";
   }
 }
 
@@ -754,9 +787,7 @@ async function removePlugin(plugin: PluginSummary) {
 
 onMounted(() => {
   void load();
-  void fetchManagerSettings()
-    .then((value) => (managerSettings.value = value))
-    .catch(() => {});
+  void loadManagerSettings();
 });
 </script>
 
@@ -794,25 +825,62 @@ onMounted(() => {
         >Runtime setup and Bubblewrap help</a
       >
     </aside>
-    <details>
+    <details class="manager-settings">
       <summary>Plugin Manager settings</summary>
-      <label
-        ><input
-          v-model="managerSettings.automatic_updates"
-          type="checkbox"
-          @change="saveGlobalSettings"
-        />
-        Automatic catalogue updates</label
+      <p class="muted">
+        Control catalogue updates and retained package history for this server.
+      </p>
+      <p v-if="managerSettingsError" role="alert" class="error">
+        {{ managerSettingsError }}
+      </p>
+      <p v-if="managerSettingsMessage" role="status" class="success">
+        {{ managerSettingsMessage }}
+      </p>
+      <fieldset :disabled="!managerSettingsLoaded || managerSettingsBusy">
+        <label class="manager-setting"
+          ><input v-model="managerSettings.automatic_updates" type="checkbox" />
+          <span
+            ><strong>Automatic catalogue updates</strong
+            ><small
+              >Allow eligible catalogue releases to update automatically. New
+              permissions still require approval.</small
+            ></span
+          ></label
+        >
+        <label class="manager-setting"
+          ><span
+            ><strong>Old package versions to retain</strong
+            ><small
+              >Keep 1–100 package versions for rollback. Plugin data is stored
+              separately.</small
+            ></span
+          >
+          <input
+            v-model.number="managerSettings.retained_versions"
+            type="number"
+            min="1"
+            max="100"
+            aria-label="Old package versions to retain"
+        /></label>
+        <p v-if="!retainedVersionsValid" role="alert" class="error">
+          Enter a whole number from 1 to 100.
+        </p>
+        <button
+          type="button"
+          class="primary"
+          :disabled="!retainedVersionsValid"
+          @click="saveGlobalSettings"
+        >
+          {{ managerSettingsBusy ? "Saving…" : "Save manager settings" }}
+        </button>
+      </fieldset>
+      <button
+        v-if="!managerSettingsLoaded"
+        type="button"
+        @click="loadManagerSettings"
       >
-      <label
-        >Old package versions to retain
-        <input
-          v-model.number="managerSettings.retained_versions"
-          type="number"
-          min="1"
-          max="100"
-          @change="saveGlobalSettings"
-      /></label>
+        Retry loading settings
+      </button>
     </details>
     <nav class="manager-tabs" aria-label="Plugin views">
       <button
@@ -863,114 +931,120 @@ onMounted(() => {
     <UiModal
       v-if="installOpen"
       title="Install a plugin"
+      size="wide"
       description="Browse the catalogue, upload a package, or install from a URL."
       :dismissible="!installing"
       @close="closeInstaller"
     >
-      <section class="installer-dialog">
-        <details class="install-method">
-          <summary>Upload package</summary>
-          <div>
-            <strong>Upload package</strong>
-            <input
-              id="plugin-package"
-              aria-label="Plugin package"
-              type="file"
-              accept="*/*"
-              @change="selectFile"
-            />
-            <button
-              type="button"
-              :disabled="!selectedFile || previewing || installing"
-              @click="previewSelected"
-            >
-              {{ previewing ? "Inspecting…" : "Review package" }}
-            </button>
-          </div>
-        </details>
-        <details class="install-method">
-          <summary>Install from URL</summary>
-          <div>
-            <strong>Install from URL</strong>
-            <div class="url-row">
+      <section class="installer-dialog installer-browser">
+        <div class="installer-methods">
+          <details class="install-method">
+            <summary>Upload package</summary>
+            <div>
+              <p class="muted">
+                Choose a plugin package to review its publisher and requested
+                access.
+              </p>
               <input
-                v-model="remoteUrl"
-                type="url"
-                placeholder="https://example.com/plugin.utp"
-                aria-label="Plugin package URL"
-                @keyup.enter="previewRemoteUrl()"
-              /><button
+                id="plugin-package"
+                aria-label="Plugin package"
+                type="file"
+                accept="*/*"
+                @change="selectFile"
+              />
+              <button
                 type="button"
-                :disabled="!remoteUrl.trim() || previewing || installing"
-                @click="previewRemoteUrl()"
+                :disabled="!selectedFile || previewing || installing"
+                @click="previewSelected"
               >
-                Review URL
+                {{ previewing ? "Inspecting…" : "Review package" }}
               </button>
             </div>
-          </div>
-        </details>
-        <details class="catalogue">
-          <summary>Manage catalogues</summary>
-          <section>
-            <div class="catalogue-header">
-              <div>
-                <strong>Plugin catalogues</strong>
-                <p class="muted">
-                  The official catalogue is enabled by default. Catalogue
-                  provenance never replaces package signature verification.
-                </p>
+          </details>
+          <details class="install-method">
+            <summary>Install from URL</summary>
+            <div>
+              <p class="muted">Enter the public URL of a plugin package.</p>
+              <div class="url-row">
+                <input
+                  v-model="remoteUrl"
+                  type="url"
+                  placeholder="https://example.com/plugin.utp"
+                  aria-label="Plugin package URL"
+                  @keyup.enter="previewRemoteUrl()"
+                /><button
+                  type="button"
+                  :disabled="!remoteUrl.trim() || previewing || installing"
+                  @click="previewRemoteUrl()"
+                >
+                  Review URL
+                </button>
               </div>
             </div>
-            <div
-              v-for="catalogueSource in catalogues"
-              :key="catalogueSource.id"
-              class="endpoint-row"
-            >
-              <label
-                ><input
-                  type="checkbox"
-                  :checked="catalogueSource.enabled"
-                  @change="
-                    toggleCatalogEndpoint(
-                      catalogueSource,
-                      ($event.target as HTMLInputElement).checked,
-                    )
-                  "
-                />
-                {{ catalogueSource.name }} · priority
-                {{ catalogueSource.priority }}</label
+          </details>
+          <details class="catalogue">
+            <summary>Manage catalogues</summary>
+            <section>
+              <div class="catalogue-header">
+                <div>
+                  <strong>Plugin catalogues</strong>
+                  <p class="muted">
+                    The official catalogue is enabled by default. Catalogue
+                    provenance never replaces package signature verification.
+                  </p>
+                </div>
+              </div>
+              <div
+                v-for="catalogueSource in catalogues"
+                :key="catalogueSource.id"
+                class="endpoint-row"
               >
-              <span class="muted">{{ catalogueSource.url }}</span>
-              <span v-if="catalogueSource.last_error" class="error">{{
-                catalogueSource.last_error
-              }}</span>
-              <button
-                v-if="catalogueSource.id !== 'official'"
-                type="button"
-                class="danger"
-                @click="removeCatalogEndpoint(catalogueSource)"
-              >
-                Remove
-              </button>
-            </div>
-            <div class="endpoint-add">
-              <input
-                v-model="newCatalogEndpoint"
-                type="url"
-                placeholder="https://example.com/list.json"
-                aria-label="New catalogue URL"
-                @keyup.enter="addCatalogEndpoint"
-              /><button
-                type="button"
-                :disabled="!newCatalogEndpoint.trim()"
-                @click="addCatalogEndpoint"
-              >
-                Add catalogue
-              </button>
-            </div>
-          </section>
-        </details>
-        <section class="catalogue">
+                <label
+                  ><input
+                    type="checkbox"
+                    :checked="catalogueSource.enabled"
+                    @change="
+                      toggleCatalogEndpoint(
+                        catalogueSource,
+                        ($event.target as HTMLInputElement).checked,
+                      )
+                    "
+                  />
+                  {{ catalogueSource.name }} · priority
+                  {{ catalogueSource.priority }}</label
+                >
+                <span class="muted">{{ catalogueSource.url }}</span>
+                <span v-if="catalogueSource.last_error" class="error">{{
+                  catalogueSource.last_error
+                }}</span>
+                <button
+                  v-if="catalogueSource.id !== 'official'"
+                  type="button"
+                  class="danger"
+                  @click="removeCatalogEndpoint(catalogueSource)"
+                >
+                  Remove
+                </button>
+              </div>
+              <div class="endpoint-add">
+                <input
+                  v-model="newCatalogEndpoint"
+                  type="url"
+                  placeholder="https://example.com/list.json"
+                  aria-label="New catalogue URL"
+                  @keyup.enter="addCatalogEndpoint"
+                /><button
+                  type="button"
+                  :disabled="!newCatalogEndpoint.trim()"
+                  @click="addCatalogEndpoint"
+                >
+                  Add catalogue
+                </button>
+              </div>
+            </section>
+          </details>
+        </div>
+        <section class="catalogue installer-catalogue">
           <div class="catalogue-header">
             <div>
               <strong>Available plugins</strong>
@@ -1207,6 +1281,38 @@ onMounted(() => {
 .plugin-manager {
   color: var(--ui-text);
 }
+.manager-settings {
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-card);
+  padding: 16px;
+}
+.manager-settings fieldset {
+  min-width: 0;
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+.manager-setting {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--ui-border-soft);
+  margin-bottom: 16px;
+}
+.manager-setting span {
+  flex: 1;
+  min-width: min(100%, 240px);
+}
+.manager-setting small {
+  display: block;
+  margin-top: 4px;
+  color: var(--ui-dim);
+}
+.manager-setting input[type="number"] {
+  width: 100px;
+}
 .runtime-notice a {
   color: var(--ui-accent-text);
 }
@@ -1251,6 +1357,23 @@ onMounted(() => {
   gap: 18px;
   color: var(--ui-text);
   overflow-wrap: anywhere;
+}
+.installer-methods {
+  display: grid;
+  align-content: start;
+  gap: 18px;
+  min-width: 0;
+}
+.installer-catalogue {
+  min-width: 0;
+  align-content: start;
+}
+@media (min-width: 900px) {
+  .installer-browser {
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+    align-items: start;
+    gap: 28px;
+  }
 }
 .dialog-header {
   display: flex;
@@ -1298,6 +1421,30 @@ onMounted(() => {
 }
 .catalogue-header {
   justify-content: space-between;
+  align-items: flex-start;
+}
+.catalogue-header > button,
+.url-row > button,
+.catalogue-entry > button {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+input[type="file"] {
+  width: 100%;
+  min-width: 0;
+  font: inherit;
+  color: var(--ui-dim);
+}
+input[type="file"]::file-selector-button {
+  min-height: var(--ui-control-height);
+  margin-right: 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
+  background: var(--ui-surface-2);
+  color: var(--ui-text);
+  font: inherit;
+  cursor: pointer;
 }
 .catalogue-header p {
   margin: 4px 0 0;
@@ -1441,6 +1588,16 @@ summary {
 .install-method > div,
 .catalogue-management {
   padding-block: 12px;
+}
+.install-method > div {
+  display: grid;
+  gap: 12px;
+}
+.install-method > div > p {
+  margin: 0;
+}
+.install-method > div > button {
+  justify-self: start;
 }
 @media (max-width: 760px) {
   .endpoint-row,

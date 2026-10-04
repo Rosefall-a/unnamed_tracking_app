@@ -31,66 +31,81 @@ function move(index: number, direction: -1 | 1) {
 <template>
   <UiModal
     title="Customize Home"
+    size="wide"
     description="Choose what appears on your Home page. Your selection and order follow your account."
     :dismissible="!busy"
     @close="emit('close')"
   >
     <p v-if="error" role="alert" class="ui-alert">{{ error }}</p>
     <fieldset :disabled="busy" class="widget-fields">
-      <h3>Choose widgets</h3>
-      <p v-if="loading" role="status" class="hint">Loading your collections…</p>
-      <label v-for="choice in choices" :key="choice.id" class="widget-choice">
-        <input
-          type="checkbox"
-          :checked="draft.includes(choice.id)"
-          :disabled="!draft.includes(choice.id) && draft.length >= 32"
-          @change="toggle(choice.id)"
-        />
-        <span
-          ><strong>{{ choice.title }}</strong
-          ><small>{{ choice.description }}</small></span
-        >
-      </label>
-      <h3>Widget order</h3>
-      <p v-if="!ordered.length" class="hint">
-        Keep Home minimal, or choose a widget above.
-      </p>
-      <ol v-else class="widget-order">
-        <li v-for="(widget, index) in ordered" :key="widget.id">
+      <section
+        class="widget-selection"
+        aria-labelledby="widget-selection-heading"
+      >
+        <h3 id="widget-selection-heading">Choose widgets</h3>
+        <p v-if="loading" role="status" class="hint">
+          Loading your collections…
+        </p>
+        <label v-for="choice in choices" :key="choice.id" class="widget-choice">
+          <input
+            type="checkbox"
+            :checked="draft.includes(choice.id)"
+            :disabled="!draft.includes(choice.id) && draft.length >= 32"
+            @change="toggle(choice.id)"
+          />
           <span
-            >{{ widget.title
-            }}<small v-if="widget.available === false">Unavailable</small></span
+            ><strong>{{ choice.title }}</strong
+            ><small>{{ choice.description }}</small></span
           >
-          <div class="order-actions">
-            <button
-              type="button"
-              class="ui-btn ui-btn-ghost"
-              :disabled="index === 0"
-              :aria-label="`Move ${widget.title} up`"
-              @click="move(index, -1)"
+        </label>
+      </section>
+      <section
+        class="widget-order-section"
+        aria-labelledby="widget-order-heading"
+      >
+        <h3 id="widget-order-heading">Widget order</h3>
+        <p v-if="!ordered.length" class="hint">
+          Keep Home minimal, or choose a widget from the list.
+        </p>
+        <ol v-else class="widget-order">
+          <li v-for="(widget, index) in ordered" :key="widget.id">
+            <span
+              >{{ widget.title
+              }}<small v-if="widget.available === false"
+                >Unavailable</small
+              ></span
             >
-              ↑
-            </button>
-            <button
-              type="button"
-              class="ui-btn ui-btn-ghost"
-              :disabled="index === ordered.length - 1"
-              :aria-label="`Move ${widget.title} down`"
-              @click="move(index, 1)"
-            >
-              ↓
-            </button>
-            <button
-              type="button"
-              class="ui-btn ui-btn-ghost"
-              :aria-label="`Remove ${widget.title}`"
-              @click="toggle(widget.id)"
-            >
-              Remove
-            </button>
-          </div>
-        </li>
-      </ol>
+            <div class="order-actions">
+              <button
+                type="button"
+                class="ui-btn ui-btn-ghost"
+                :disabled="index === 0"
+                :aria-label="`Move ${widget.title} up`"
+                @click="move(index, -1)"
+              >
+                ↑
+              </button>
+              <button
+                type="button"
+                class="ui-btn ui-btn-ghost"
+                :disabled="index === ordered.length - 1"
+                :aria-label="`Move ${widget.title} down`"
+                @click="move(index, 1)"
+              >
+                ↓
+              </button>
+              <button
+                type="button"
+                class="ui-btn ui-btn-ghost"
+                :aria-label="`Remove ${widget.title}`"
+                @click="toggle(widget.id)"
+              >
+                Remove
+              </button>
+            </div>
+          </li>
+        </ol>
+      </section>
     </fieldset>
     <template #footer>
       <button
@@ -115,6 +130,8 @@ function move(index: number, direction: -1 | 1) {
 
 <style scoped>
 .widget-fields {
+  display: grid;
+  gap: 24px;
   border: 0;
   padding: 0;
   margin: 0;
@@ -124,8 +141,9 @@ h3 {
   font: var(--ui-weight-heading) var(--ui-font-body)/1.5 var(--ui-font-family);
   margin: 0 0 12px;
 }
-h3:not(:first-child) {
-  margin-top: 24px;
+.widget-selection,
+.widget-order-section {
+  min-width: 0;
 }
 .hint,
 small {
@@ -203,5 +221,12 @@ small {
 .order-actions button {
   min-height: var(--ui-control-height);
   min-width: var(--ui-control-height);
+}
+@media (min-width: 900px) {
+  .widget-fields {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: start;
+    gap: 32px;
+  }
 }
 </style>

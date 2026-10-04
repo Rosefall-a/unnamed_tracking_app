@@ -208,4 +208,14 @@ The real review covers **416 populated page/theme/width/role cases**, including 
 
 ![Phone populated set in light mode](../assets/ui-redevelopment/stage-detail-sets-390-light.png)
 
+The dialog checkpoint uses wider desktop space for Home customization, installation permission review and plugin settings. Home selection/order and installer methods/catalogue sit side by side at wider sizes, while phones retain a single column. The [dialog report](../assets/ui-redevelopment/stage-dialogs-conformance.json) records **64 real Home and plugin-management cases** across eight widths in light/dark mode, persisted settings and account isolation, keyboard containment, focus restoration and offline-save recovery. Manager settings save even when the runtime is disconnected; existing package history remains intact and the UI explains that later package operations apply the saved retention limit. Reproduce with the `home` review stage above.
+
+![Desktop Home selection and ordering](../assets/ui-redevelopment/stage-home-chooser-1440-light.png)
+
+![Desktop Home chooser in dark mode](../assets/ui-redevelopment/stage-home-chooser-1440-dark.png)
+
+![Wide plugin installer in dark mode](../assets/ui-redevelopment/stage-plugin-installer-1440-dark.png)
+
+![Phone plugin installer](../assets/ui-redevelopment/stage-plugin-installer-390-light.png)
+
 The original gallery and captures remain available in this wiki and Git history as a shared reference, separate from production screenshots. The Draft PR remains a living record and targets `plugin-manager`. The production readiness race discovered in CI is fixed. At `97e8405a`, companion integration found an obsolete official Jellyfin capture selector on the old Settings landing page. Companion commit `fef5b7b` uses the preserved Settings deep link and retains the existing interaction assertions. The unchanged strict container acceptance then passed locally with the committed host checkpoint and paired companion fix: actual package installation, consent, privileged reauthentication, account/server configuration, sync, update/state retention, admin/user separation, viewing history, Watch Now and phone layout. All seven workflows passed at the pushed Home checkpoint `5896d8c9`. Each new stage must pass CI independently.

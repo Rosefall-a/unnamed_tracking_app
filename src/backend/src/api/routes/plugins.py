@@ -1189,9 +1189,14 @@ async def save_manager_settings(
 ) -> dict:
     del admin
     settings = manager_state().settings(payload.model_dump(exclude_none=True))
-    for plugin in await _client.plugins():
-        await _client.prune_history(plugin["plugin_id"], settings["retained_versions"])
-    return settings
+    try:
+        for plugin in await _client.plugins():
+            await _client.prune_history(plugin["plugin_id"], settings["retained_versions"])
+    except (PluginRuntimeUnavailable, PluginRuntimeRequestError):
+        # Host settings remain editable during a runtime outage. Keep package
+        # history intact; later package operations apply the saved retention.
+        return {**settings, "history_pruning_deferred": True}
+    return {**settings, "history_pruning_deferred": False}
 
 
 @router.put("/{plugin_id}/auto-update")

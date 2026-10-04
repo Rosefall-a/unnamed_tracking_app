@@ -178,6 +178,7 @@ function close() {
 
 <template>
   <UiModal
+    size="wide"
     :title="`Review ${preview.name}`"
     :dismissible="!busy"
     @close="close"

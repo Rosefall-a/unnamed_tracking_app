@@ -4,8 +4,13 @@ import AppIcon from "./AppIcon.vue";
 import { containModalTab } from "../services/focus";
 
 const props = withDefaults(
-  defineProps<{ title: string; description?: string; dismissible?: boolean }>(),
-  { dismissible: true },
+  defineProps<{
+    title: string;
+    description?: string;
+    dismissible?: boolean;
+    size?: "standard" | "wide";
+  }>(),
+  { dismissible: true, size: "standard" },
 );
 const emit = defineEmits<{ close: [] }>();
 const dialog = ref<HTMLDialogElement | null>(null);
@@ -47,6 +52,7 @@ onBeforeUnmount(() => {
     <dialog
       ref="dialog"
       class="ui-modal"
+      :class="{ 'ui-modal-wide': size === 'wide' }"
       :aria-labelledby="titleId"
       @cancel.prevent="dismiss"
       @click="backdrop"
@@ -79,6 +85,7 @@ onBeforeUnmount(() => {
 .ui-modal {
   box-sizing: border-box;
   width: min(640px, calc(100vw - 32px));
+  max-width: calc(100vw - 32px);
   max-height: calc(100dvh - 32px);
   margin: auto;
   padding: 0;
@@ -94,6 +101,9 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+}
+.ui-modal-wide {
+  width: min(1120px, calc(100vw - 64px));
 }
 .ui-modal::backdrop {
   background: var(--ui-overlay);
@@ -146,6 +156,7 @@ onBeforeUnmount(() => {
 @media (max-width: 760px) {
   .ui-modal {
     width: calc(100vw - 20px);
+    max-width: calc(100vw - 20px);
     max-height: calc(100dvh - 20px);
     border-radius: 28px;
   }

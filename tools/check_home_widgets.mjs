@@ -1,6 +1,7 @@
 // Called by check_ui_redevelopment.mjs with the same real-backend proxy and clean inventory.
 import assert from "node:assert/strict";
 import path from "node:path";
+import { checkSettingsDialogs } from "./check_settings_dialogs.mjs";
 
 export async function checkHomeWidgets({ admin, member, origin, evidenceRoot, report, checkOverflow }) {
   const page = await admin.newPage();
@@ -43,9 +44,15 @@ export async function checkHomeWidgets({ admin, member, origin, evidenceRoot, re
         }
         const bounds = await picker.boundingBox();
         assert(bounds.x >= 0 && bounds.x + bounds.width <= width + 1, "Widget chooser fits viewport.");
+        const selection = await picker.getByRole("heading", { name: "Choose widgets", exact: true }).boundingBox();
+        const order = await picker.getByRole("heading", { name: "Widget order", exact: true }).boundingBox();
+        if (width >= 900) {
+          assert(bounds.width >= Math.min(1080, width - 64) - 1, `Wide chooser uses available space: ${JSON.stringify({ width, bounds })}`);
+          assert(Math.abs(selection.y - order.y) <= 1 && order.x > selection.x, "Widget selection and ordering sit side by side.");
+        } else assert(order.y > selection.y, "Narrow chooser keeps a single column.");
         await checkOverflow(page, `Home chooser/${width}/${theme}`);
         report.screens.push({ width, theme, screen: "widget chooser" });
-        if (width === 390) await page.screenshot({ path: path.join(evidenceRoot, `stage-home-chooser-${width}-${theme}.png`) });
+        if ([390, 1440].includes(width)) await page.screenshot({ path: path.join(evidenceRoot, `stage-home-chooser-${width}-${theme}.png`) });
         await picker.getByRole("button", { name: "Save Home", exact: true }).click();
         await picker.waitFor({ state: "hidden" });
         await page.getByText("Home saved to your account.", { exact: true }).waitFor();
@@ -116,6 +123,7 @@ export async function checkHomeWidgets({ admin, member, origin, evidenceRoot, re
     assert.deepEqual((await (await member.request.get(origin + "/api/preferences")).json()).home_widgets, ["goals"]);
     assert((await (await admin.request.get(origin + "/api/preferences")).json()).home_widgets.includes("plugin:temporarily-disabled:progress"));
     await memberPage.close();
+    await checkSettingsDialogs({ admin, member, origin, evidenceRoot, report, checkOverflow });
     assert.deepEqual(errors, []);
     report.passed.push("48 real Home/theme/width cases", "Widget selection and button ordering persist after reload", "Personal Home is isolated between accounts", "Real offline save failure preserves draft and retries", "Unavailable plugin selection retained", "All original core Home features selectable", "Native chooser/tour keyboard containment and focus restoration", "Real card favorite change, contained phone action menu and Escape focus return", "No forced welcome tour, page overflow or JavaScript errors");
   } finally {

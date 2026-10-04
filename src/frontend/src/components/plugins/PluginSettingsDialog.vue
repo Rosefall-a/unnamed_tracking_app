@@ -57,7 +57,12 @@ watch(
 </script>
 
 <template>
-  <UiModal :title="plugin.name" :dismissible="!busy" @close="emit('close')">
+  <UiModal
+    size="wide"
+    :title="plugin.name"
+    :dismissible="!busy"
+    @close="emit('close')"
+  >
     <section class="plugin-dialog">
       <header class="dialog-header">
         <div>

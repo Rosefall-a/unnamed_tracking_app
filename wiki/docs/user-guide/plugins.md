@@ -21,6 +21,8 @@ Choose **Settings & access** on an installed plugin to open its Overview, Settin
 
 Browse Installed, Updates Available, Available to Install and All, with search and plugin-supplied tag filters. All includes enabled catalogues and installed plugins. Selecting an installed plugin for installation offers update/reinstall/replace/cancel explicitly.
 
+The installer, permission review and installed-plugin settings use a wider dialog on desktop and fit the phone viewport. At wider sizes, installation methods and the catalogue appear side by side. Expand **Plugin Manager settings** to change automatic updates and the number of retained package versions, then select **Save manager settings**. Loading errors have a retry control, and a successful save is confirmed in the panel.
+
 ## Revoking or removing access
 
 Stop/start, disable/enable, restart, update, rollback and normal reinstall preserve

@@ -71,6 +71,7 @@ export interface RuntimeCapabilities {
 export interface ManagerSettings {
   automatic_updates: boolean;
   retained_versions: number;
+  history_pruning_deferred?: boolean;
 }
 export type PluginTrustStatus =
   "trusted" | "unknown_publisher" | "invalid_signature" | "unsigned";
