@@ -1,9 +1,12 @@
 """Add plugin permission grants, requests and scoped client identities."""
 
 from collections.abc import Sequence
-from alembic import op
+
 import sqlalchemy as sa
+from alembic import op
 from sqlalchemy.dialects import postgresql
+
+from src.database import migration_helpers as h
 
 revision: str = "c4e8a1b92d77"
 down_revision: str | None = "7b2d4a9e8c11"
@@ -12,7 +15,7 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    op.create_table(
+    h.create_table_if_missing(
         "plugin_permission_requests",
         sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("plugin_id", sa.String(128), nullable=False),
@@ -30,11 +33,11 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
     )
     for column in ("plugin_id", "installation_id", "user_id"):
-        op.create_index(
+        h.create_index_if_missing(
             "ix_plugin_permission_requests_" + column, "plugin_permission_requests", [column]
         )
 
-    op.create_table(
+    h.create_table_if_missing(
         "plugin_permission_grants",
         sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("plugin_id", sa.String(128), nullable=False),
@@ -49,11 +52,11 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
     )
     for column in ("plugin_id", "installation_id", "user_id", "device_id"):
-        op.create_index(
+        h.create_index_if_missing(
             "ix_plugin_permission_grants_" + column, "plugin_permission_grants", [column]
         )
 
-    op.create_table(
+    h.create_table_if_missing(
         "plugin_permission_audit",
         sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("request_id", postgresql.UUID(as_uuid=True), nullable=True),
@@ -69,9 +72,11 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
     )
     for column in ("request_id", "plugin_id", "installation_id", "user_id", "device_id"):
-        op.create_index("ix_plugin_permission_audit_" + column, "plugin_permission_audit", [column])
+        h.create_index_if_missing(
+            "ix_plugin_permission_audit_" + column, "plugin_permission_audit", [column]
+        )
 
-    op.create_table(
+    h.create_table_if_missing(
         "plugin_client_identities",
         sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("plugin_id", sa.String(128), nullable=False),
@@ -88,7 +93,7 @@ def upgrade() -> None:
         sa.UniqueConstraint("token_hash"),
     )
     for column in ("plugin_id", "installation_id", "user_id", "device_id"):
-        op.create_index(
+        h.create_index_if_missing(
             "ix_plugin_client_identities_" + column, "plugin_client_identities", [column]
         )
 

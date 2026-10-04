@@ -2,6 +2,9 @@
 import PluginExtensionSlot from "../components/plugins/PluginExtensionSlot.vue";
 import PluginContextualActions from "../components/plugins/PluginContextualActions.vue";
 import { documentReaderUrl } from "../state/pluginExtensions";
+import { usePageTitle } from "../state/pageTitle";
+import { formatDisplayDate } from "../utils/dates";
+import { activePriority, priorityLabel } from "../utils/priority";
 import { computed, ref, watch, onMounted, onUnmounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import {
@@ -101,8 +104,9 @@ import {
 import type { Achievement, AchievementTier, Game } from "../types/game";
 import GameFormModal from "../components/GameFormModal.vue";
 import CollectionPickerModal from "../components/CollectionPickerModal.vue";
+import BackButton from "../components/BackButton.vue";
+import AccountChip from "../components/AccountChip.vue";
 import { computeScore } from "../utils/scoring";
-import { currentUser } from "../state/auth";
 import { marked } from "marked";
 import DOMPurify from "dompurify";
 import { useConfirm, usePrompt } from "../state/dialog";
@@ -122,6 +126,7 @@ function goBackToLibrary() {
 }
 
 const game = ref<Game | null>(null);
+usePageTitle(() => game.value?.title);
 const loading = ref(true);
 const error = ref<string | null>(null);
 const showEditModal = ref(false);
@@ -1182,7 +1187,7 @@ const lastUnlockedAt = computed(() => {
 });
 function formatStatsDate(iso: string | null): string {
   if (!iso) return "N/A";
-  return new Date(iso).toLocaleDateString(undefined, {
+  return formatDisplayDate(iso, {
     year: "numeric",
     month: "short",
     day: "numeric",
@@ -1511,9 +1516,6 @@ watch(activeTab, (tab) => {
   }
 });
 
-// --- metadata history: which fields a manual edit or a metadata
-// search/refresh actually changed, and when (see FIELD_CHANGE_TRACKED_FIELDS
-// in api/routes/games.py for exactly which fields are tracked) -----------
 const gameCards = ref<Card[]>([]);
 const gameCardsLoading = ref(false);
 const creatingCard = ref(false);
@@ -1542,6 +1544,9 @@ async function createCardForGame() {
   }
 }
 
+// --- metadata history: which fields a manual edit or a metadata
+// search/refresh actually changed, and when (see FIELD_CHANGE_TRACKED_FIELDS
+// in api/routes/games.py for exactly which fields are tracked) -----------
 const fieldChanges = ref<FieldChange[]>([]);
 const fieldChangesLoading = ref(false);
 const fieldChangesError = ref<string | null>(null);
@@ -2093,33 +2098,9 @@ function formatPlaytime(minutes: number) {
       :style="{ backgroundImage: `url(${game.bannerImageUrl})` }"
     ></div>
 
-    <button
-      type="button"
-      class="back-arrow-button"
-      title="Back"
-      @click="goBackToLibrary"
-    >
-      <svg
-        viewBox="0 0 24 24"
-        width="18"
-        height="18"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-      >
-        <path d="M19 12H5" />
-        <path d="M12 19l-7-7 7-7" />
-      </svg>
-    </button>
+    <BackButton fixed @click="goBackToLibrary" />
 
-    <div v-if="currentUser" class="profile-chip">
-      <span class="profile-name">{{ currentUser.username }}</span>
-      <div class="profile-avatar">
-        {{ currentUser.username.slice(0, 2).toUpperCase() }}
-      </div>
-    </div>
+    <AccountChip fixed />
 
     <GameFormModal
       v-if="showEditModal"
@@ -2466,7 +2447,7 @@ function formatPlaytime(minutes: number) {
         <div v-if="game.releaseDate" class="detail-row">
           <span class="detail-label">Release Date</span>
           <span class="detail-value">{{
-            new Date(game.releaseDate).toLocaleDateString()
+            formatDisplayDate(game.releaseDate)
           }}</span>
         </div>
         <div class="detail-row">
@@ -2541,6 +2522,12 @@ function formatPlaytime(minutes: number) {
           <span class="detail-label">Source</span>
           <span class="detail-value">{{ game.source }}</span>
         </div>
+        <div v-if="activePriority(game) !== null" class="detail-row">
+          <span class="detail-label">Priority</span>
+          <span class="detail-value">{{
+            priorityLabel(activePriority(game)!)
+          }}</span>
+        </div>
         <div v-if="game.ageRating" class="detail-row">
           <span class="detail-label">Age Rating</span>
           <span class="detail-value">{{ game.ageRating }}</span>
@@ -2590,7 +2577,7 @@ function formatPlaytime(minutes: number) {
             }}</span>
             <span v-if="game.ownership.purchaseDate">
               Purchased
-              {{ new Date(game.ownership.purchaseDate).toLocaleDateString() }}
+              {{ formatDisplayDate(game.ownership.purchaseDate) }}
             </span>
             <span v-if="game.ownership.price !== null">
               {{ game.ownership.priceCurrency ?? "USD" }}
@@ -4172,10 +4159,6 @@ function formatPlaytime(minutes: number) {
         </button>
       </template>
     </section>
-
-    <section v-else class="coming-soon">
-      <p>{{ activeTab }} coming soon.</p>
-    </section>
   </main>
 
   <main v-else class="not-found">
@@ -4222,8 +4205,7 @@ function formatPlaytime(minutes: number) {
 .files-panel,
 .media-panel,
 .stats-panel,
-.world-map-panel,
-.coming-soon {
+.world-map-panel {
   position: relative;
   z-index: 1;
 }
@@ -4251,7 +4233,8 @@ function formatPlaytime(minutes: number) {
   width: 100%;
   max-width: 1600px;
   margin: 0 auto;
-  padding: 0 24px 28px;
+  /* clear of the floating menu/back buttons */
+  padding: 72px 24px 28px;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -4260,7 +4243,14 @@ function formatPlaytime(minutes: number) {
 .hero-inner h1 {
   margin: 0;
   font-size: 2.4rem;
+  /* the inherited line height is a fixed 23px */
+  line-height: 1.15;
   text-shadow: 0 2px 12px rgba(0, 0, 0, 0.6);
+}
+@media (max-width: 600px) {
+  .hero-inner h1 {
+    font-size: 1.8rem;
+  }
 }
 .parent-breadcrumb {
   display: flex;
@@ -4371,60 +4361,6 @@ function formatPlaytime(minutes: number) {
 .achievement-progress-badge:hover {
   background: rgba(214, 138, 52, 0.22);
   color: #d68a34;
-}
-.back-arrow-button {
-  position: fixed;
-  top: 16px;
-  left: 62px;
-  width: 38px;
-  height: 38px;
-  border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(20, 20, 20, 0.55);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  color: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  z-index: 100;
-  transition: background 0.15s ease;
-}
-.back-arrow-button:hover {
-  background: rgba(40, 40, 40, 0.85);
-}
-.profile-chip {
-  position: fixed;
-  top: 16px;
-  right: 16px;
-  z-index: 100;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  background: rgba(20, 20, 20, 0.55);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  border-radius: 999px;
-  padding: 6px 6px 6px 16px;
-}
-.profile-avatar {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: #d68a34;
-  color: #111;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  font-weight: 700;
-}
-.profile-name {
-  color: #fff;
-  font-size: 13px;
-  font-weight: 600;
 }
 .hero-actions {
   position: absolute;
@@ -4564,7 +4500,9 @@ function formatPlaytime(minutes: number) {
   font-size: 12.5px;
   font-weight: 600;
   cursor: pointer;
-  padding: 0;
+  /* larger tap target without moving the text */
+  padding: 6px 4px;
+  margin: -6px -4px;
 }
 .text-button:hover {
   text-decoration: underline;
@@ -4580,7 +4518,7 @@ function formatPlaytime(minutes: number) {
 }
 .log-playtime-button {
   display: block;
-  margin-top: 10px;
+  margin-top: 4px;
 }
 .related-bounties {
   display: flex;
@@ -5663,13 +5601,8 @@ function formatPlaytime(minutes: number) {
   color: #777;
   margin: 0;
 }
-.coming-soon {
-  width: 100%;
-  max-width: 1600px;
-  margin: 0 auto;
-  padding: 48px 24px;
-  color: #777;
-  text-align: center;
+.empty-state.error {
+  color: #fca5a5;
 }
 
 .card-tab-panel {
@@ -5687,9 +5620,6 @@ function formatPlaytime(minutes: number) {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
-}
-.empty-state.error {
-  color: #fca5a5;
 }
 .card-open-btn {
   background: #d68a34;

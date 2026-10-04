@@ -2,7 +2,7 @@
 
 from json import JSONDecodeError
 
-from fastapi import Cookie, Depends, Header, HTTPException, Request
+from fastapi import Depends, Header, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -102,11 +102,10 @@ async def get_plugin_manager_admin(
     request: Request,
     db: AsyncSession = Depends(get_db),
     authorization: str | None = Header(default=None),
-    session_token: str | None = Cookie(default=None, alias="session"),
 ) -> User:
     if authorization and authorization.startswith(f"Bearer {MANAGEMENT_PREFIX}"):
         return await _management_user(request, db, authorization)
-    user = await get_current_user(db, authorization, session_token)
+    user = await get_current_user(request, db)
     if not user.is_admin:
         raise HTTPException(403, "Administrator access required.")
     return user
@@ -116,8 +115,7 @@ async def get_plugin_manager_reader(
     request: Request,
     db: AsyncSession = Depends(get_db),
     authorization: str | None = Header(default=None),
-    session_token: str | None = Cookie(default=None, alias="session"),
 ) -> User:
     if authorization and authorization.startswith(f"Bearer {MANAGEMENT_PREFIX}"):
         return await _management_user(request, db, authorization)
-    return await get_current_user(db, authorization, session_token)
+    return await get_current_user(request, db)

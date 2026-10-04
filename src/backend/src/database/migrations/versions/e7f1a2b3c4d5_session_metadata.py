@@ -1,8 +1,11 @@
 """Add browser session metadata used by the session-manager plugin."""
 
 from collections.abc import Sequence
-from alembic import op
+
 import sqlalchemy as sa
+from alembic import op
+
+from src.database import migration_helpers as h
 
 revision: str = "e7f1a2b3c4d5"
 down_revision: str | None = "d1a9c4e7b203"
@@ -11,7 +14,9 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    op.add_column("user_sessions", sa.Column("last_seen_at", sa.BigInteger(), nullable=True))
+    h.add_column_if_missing(
+        "user_sessions", sa.Column("last_seen_at", sa.BigInteger(), nullable=True)
+    )
     for name, typ in [
         ("ip_address", sa.String(255)),
         ("user_agent", sa.String(1024)),
@@ -28,13 +33,13 @@ def upgrade() -> None:
         ("anomaly_previous_location", sa.String(512)),
         ("revoked_at", sa.BigInteger()),
     ]:
-        op.add_column("user_sessions", sa.Column(name, typ, nullable=True))
+        h.add_column_if_missing("user_sessions", sa.Column(name, typ, nullable=True))
     op.execute(
         sa.text("UPDATE user_sessions SET last_seen_at = created_at WHERE last_seen_at IS NULL")
     )
     op.alter_column("user_sessions", "last_seen_at", nullable=False)
-    op.create_index("ix_user_sessions_last_seen_at", "user_sessions", ["last_seen_at"])
-    op.create_index("ix_user_sessions_revoked_at", "user_sessions", ["revoked_at"])
+    h.create_index_if_missing("ix_user_sessions_last_seen_at", "user_sessions", ["last_seen_at"])
+    h.create_index_if_missing("ix_user_sessions_revoked_at", "user_sessions", ["revoked_at"])
 
 
 def downgrade() -> None:

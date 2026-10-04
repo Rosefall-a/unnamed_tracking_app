@@ -42,7 +42,13 @@ from starlette.datastructures import UploadFile as StarletteUploadFile
 from starlette.responses import FileResponse, JSONResponse
 
 from src.api.routes.session_manager import upload_geoip
-from src.core.auth import get_current_admin, get_current_user, hash_token, verify_password
+from src.core.auth import (
+    get_current_admin,
+    get_current_user,
+    hash_token,
+    session_cookie_name,
+    verify_password,
+)
 from src.database.models.auth import UserApiKey, UserSession
 from src.database.models.notification import Notification
 from src.database.models.plugin_notification_provider import (
@@ -1373,8 +1379,8 @@ async def revoke_management_token(
 
 
 async def _purge_plugin_database(db: AsyncSession, plugin_id: str) -> None:
-    from src.database.models.plugin_permissions import PluginLifecycleTransaction
     from src.database.models.media_provider import MediaProviderLink
+    from src.database.models.plugin_permissions import PluginLifecycleTransaction
 
     for model in (
         MediaProviderLink,
@@ -2402,7 +2408,7 @@ async def _current_browser_session_id(
     db: AsyncSession, user_id: UUID, request: Request
 ) -> str | None:
     """Resolve a non-secret session identifier from authenticated host cookies."""
-    token = request.cookies.get("session")
+    token = request.cookies.get(session_cookie_name(request.headers.get("host", "")))
     if not token:
         return None
     session_id = await db.scalar(
@@ -2965,11 +2971,7 @@ async def _dispatch_backend_route(
         plugin_id=plugin_id,
     )
     if user is None:
-        user = await get_current_user(
-            db,
-            request.headers.get("authorization"),
-            request.cookies.get("session"),
-        )
+        user = await get_current_user(request, db)
     owner_id, installation_id = await _authorize_plugin_backend_route(
         db,
         resolved=resolved,

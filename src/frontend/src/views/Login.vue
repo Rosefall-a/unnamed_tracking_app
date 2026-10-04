@@ -8,6 +8,7 @@ import {
   type OidcLoginProvider,
 } from "../services/oidc";
 import { checkAuth } from "../state/auth";
+import { consumeReturnPath, rememberReturnPath } from "../state/startup";
 
 const route = useRoute();
 const router = useRouter();
@@ -23,6 +24,10 @@ const loginMethod = ref<"sso" | "local">("local");
 const ssoButtonText = ref("Continue with SSO");
 const oidcProviders = ref<OidcLoginProvider[]>([]);
 const passwordResetAvailable = ref(false);
+
+function destination(): string {
+  return consumeReturnPath(route.query.return_to) ?? "/";
+}
 
 const oidcMessages: Record<string, string> = {
   not_configured: "SSO is not configured yet.",
@@ -49,7 +54,7 @@ onMounted(async () => {
   passwordResetAvailable.value = resetStatus.enabled;
   if (route.query.oidc === "success") {
     await checkAuth();
-    await router.replace("/");
+    await router.replace(destination());
     return;
   }
   if (typeof route.query.oidc_error === "string")
@@ -73,7 +78,7 @@ async function submit() {
   try {
     await login(usernameOrEmail.value.trim(), password.value);
     await checkAuth();
-    await router.push("/");
+    await router.replace(destination());
   } catch (err) {
     error.value = err instanceof Error ? err.message : "Login failed";
   } finally {
@@ -81,6 +86,7 @@ async function submit() {
   }
 }
 function sso(slug?: string) {
+  rememberReturnPath(route.query.return_to);
   oidcLoading.value = true;
   error.value = null;
   try {

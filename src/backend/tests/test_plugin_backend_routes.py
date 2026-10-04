@@ -104,7 +104,7 @@ async def test_plugin_routes_authenticate_after_a_declared_route_matches(monkeyp
     )
 
     assert response.status_code == 200
-    authenticate.assert_awaited_once_with(ANY, "Bearer must-not-reach-plugin", None)
+    authenticate.assert_awaited_once_with(request, ANY)
 
 
 @pytest.mark.asyncio

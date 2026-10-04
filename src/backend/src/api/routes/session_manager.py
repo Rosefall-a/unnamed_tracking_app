@@ -5,11 +5,11 @@ from __future__ import annotations
 import time
 from uuid import UUID
 
-from fastapi import APIRouter, Cookie, Depends, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.auth import get_current_admin, get_current_user, hash_token
+from src.core.auth import get_current_admin, get_current_user, hash_token, session_cookie_name
 from src.core.geoip import GeoIpProvider, geoip
 from src.core.session_manager import session_state
 from src.database.models.auth import UserSession
@@ -71,9 +71,9 @@ async def revoke_session(db: AsyncSession, session_id: UUID, user_id: UUID | Non
 
 @router.get("/me")
 async def list_my_sessions(
+    request: Request,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
-    session_token: str | None = Cookie(default=None, alias="session"),
 ) -> list[dict]:
     """Return only the authenticated user's browser sessions."""
     rows = (
@@ -83,6 +83,7 @@ async def list_my_sessions(
             .order_by(UserSession.last_seen_at.desc())
         )
     ).all()
+    session_token = request.cookies.get(session_cookie_name(request.headers.get("host", "")))
     current_hash = hash_token(session_token) if session_token else None
     return [view(row, current_hash) for row in rows]
 

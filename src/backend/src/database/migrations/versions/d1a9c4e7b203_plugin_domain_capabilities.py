@@ -6,9 +6,11 @@ Revises: c4e8a1b92d77
 
 from collections.abc import Sequence
 
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 from sqlalchemy.dialects import postgresql
+
+from src.database import migration_helpers as h
 
 revision: str = "d1a9c4e7b203"
 down_revision: str | None = "c4e8a1b92d77"
@@ -17,7 +19,7 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    op.create_table(
+    h.create_table_if_missing(
         "notification_provider_settings",
         sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("user_id", postgresql.UUID(as_uuid=True), nullable=False),
@@ -30,12 +32,12 @@ def upgrade() -> None:
             "user_id", "provider_id", name="uq_notification_provider_user_provider"
         ),
     )
-    op.create_index(
+    h.create_index_if_missing(
         "ix_notification_provider_settings_user_id",
         "notification_provider_settings",
         ["user_id"],
     )
-    op.create_table(
+    h.create_table_if_missing(
         "plugin_notification_provider_registrations",
         sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("plugin_id", sa.String(length=128), nullable=False),
@@ -48,17 +50,17 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("provider_id", name="uq_plugin_notification_provider_id"),
     )
-    op.create_index(
+    h.create_index_if_missing(
         "ix_plugin_notification_provider_registrations_plugin_id",
         "plugin_notification_provider_registrations",
         ["plugin_id"],
     )
-    op.create_index(
+    h.create_index_if_missing(
         "ix_plugin_notification_provider_registrations_installation_id",
         "plugin_notification_provider_registrations",
         ["installation_id"],
     )
-    op.create_table(
+    h.create_table_if_missing(
         "notification_deliveries",
         sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("notification_id", postgresql.UUID(as_uuid=True), nullable=False),
@@ -76,7 +78,7 @@ def upgrade() -> None:
             name="uq_notification_delivery_notification_provider",
         ),
     )
-    op.create_index(
+    h.create_index_if_missing(
         "ix_notification_delivery_pending",
         "notification_deliveries",
         ["status", "next_attempt_at"],

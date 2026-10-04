@@ -1,6 +1,6 @@
 // Library export/import, a portable JSON snapshot of games, for backups
 // or moving to a new server. Scoped to game data only, not screenshots/
-// saves/bounties, see backend/src/api/routes/export_import.py.
+// saves, see backend/src/api/routes/export_import.py.
 
 export interface ImportResult {
   created: number;

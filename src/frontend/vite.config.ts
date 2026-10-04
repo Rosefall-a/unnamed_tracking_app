@@ -20,7 +20,6 @@ export default defineConfig({
       "/pwa/": { target: "http://backend:8000" },
       "/api": {
         target: "http://backend:8000",
-        changeOrigin: true,
       },
     },
   },

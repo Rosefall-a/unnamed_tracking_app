@@ -132,7 +132,9 @@ try {
     await page.getByRole("button", { name: "All", exact: true }).click();
     await page.getByRole("heading", { name: "Integration catalogue help", exact: true }).waitFor();
     await page.getByRole("heading", { name: "Scoped Document Viewer", exact: true }).waitFor();
-    assert.equal(await plugin.count(), 1);
+    // The official catalogue and the installed demo may share a display name.
+    // Count installations by their management action, preserving both entries.
+    assert.equal(await plugin.filter({ has: page.getByRole("button", { name: "Manage plugin", exact: true }) }).count(), 1);
     await page.getByRole("button", { name: "Updates Available", exact: true }).click();
     await plugin.getByRole("button", { name: /^Review v.* update$/ }).click();
     const consent = page.getByRole("dialog", { name: /^Review Jellyfin Media Sync(?: \(Demo\))?$/ });

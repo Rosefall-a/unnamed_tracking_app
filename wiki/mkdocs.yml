@@ -35,6 +35,7 @@ nav:
       - AniList Import: user-guide/anilist.md
       - TV Shows: user-guide/tv-shows.md
       - Movies: user-guide/movies.md
+      - Calendar & ICS: user-guide/calendar.md
   - Integrations:
       - Overview: integrations/index.md
       - Playnite: integrations/playnite.md
@@ -48,6 +49,7 @@ nav:
       - Overview: deployment/index.md
       - Production Docker Image: deployment/production-docker.md
       - Startup & Troubleshooting: deployment/startup-and-troubleshooting.md
+      - Production Runtime Smoke: deployment/production-runtime-smoke.md
   - Development:
       - Overview: development/index.md
       - Architecture: development/architecture.md
@@ -77,3 +79,5 @@ nav:
       - Post-merge Acceptance (2026-10-03): development/post-merge-acceptance-2026-10-03.md
       - Documentation Review Checklist: development/documentation-review.md
       - Contributing: development/contributing.md
+      - Calendar / ICS: development/calendar-ics.md
+      - Production Runtime Smoke Development: development/production-runtime-smoke.md

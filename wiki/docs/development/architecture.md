@@ -27,7 +27,7 @@ Deployment configuration is defined by the backend configuration registry. Envir
 
 ## Database
 
-PostgreSQL is the normal production database. Schema changes are managed with Alembic migrations and must remain on a single history line.
+PostgreSQL is the normal production database. Schema changes are managed with Alembic migrations and must extend the single current head. The reconciliation revision `b8c7d6e5f403` joins the independently published main and plugin-manager histories without changing their revision IDs or dropping schema objects.
 
 ## API
 
@@ -35,4 +35,8 @@ The backend exposes the application's REST API under /api; interactive documenta
 
 ## Authentication
 
-Normal application authentication uses server-side sessions and authentication cookies. OIDC/SSO is integrated into the same application authentication flow and provider secrets remain server-side.
+Normal application authentication uses server-side sessions and host/port-scoped authentication cookies. Plugin management and plugin backend routes use the same request-scoped authentication boundary. Revoked sessions are rejected, and session metadata remains available for the session manager.
+
+OIDC/SSO is integrated into the same application authentication flow. OIDC provider credentials are kept server-side; client secrets are not exposed to the frontend.
+
+See [OIDC / SSO](../user-guide/oidc.md) for provider configuration.

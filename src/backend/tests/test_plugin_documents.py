@@ -18,6 +18,7 @@ from test_plugin_authorization_http import grant, request
 
 from src.api.routes import games as game_routes
 from src.api.routes import plugins
+from src.core.auth import session_cookie_name
 from src.database.models.game import Game, GameLink
 from src.database.models.game_file_item import GameFileItem
 from src.plugin_api import gateway
@@ -370,7 +371,7 @@ async def test_scoped_download_checks_owner_grants_and_safe_attachment(stored):
         transport=httpx.ASGITransport(app=boundary.app), base_url="http://test"
     ) as client:
         assert (await client.get(path)).status_code == 401
-        client.cookies.set("session", boundary.tokens[boundary.users[0].id])
+        client.cookies.set(session_cookie_name("test"), boundary.tokens[boundary.users[0].id])
         assert (await client.get(path)).status_code == 403
         permission = grant(boundary, "documents.read")
         response = await client.get(path)
@@ -421,7 +422,7 @@ async def test_authenticated_frontend_inlines_verified_css_and_scripts(stored):
         transport=httpx.ASGITransport(app=boundary.app), base_url="http://test"
     ) as client:
         assert (await client.get(path)).status_code == 401
-        client.cookies.set("session", boundary.tokens[boundary.users[0].id])
+        client.cookies.set(session_cookie_name("test"), boundary.tokens[boundary.users[0].id])
         response = await client.get(path)
         assert response.status_code == 200
         assert "body {margin: 0}" in response.text and "window.started=true" in response.text
@@ -447,7 +448,7 @@ async def test_oversized_preview_still_allows_scoped_original_download(stored):
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=boundary.app),
         base_url="http://test",
-        cookies={"session": boundary.tokens[boundary.users[0].id]},
+        cookies={session_cookie_name("test"): boundary.tokens[boundary.users[0].id]},
     ) as client:
         response = await client.head(
             f"/api/plugins/audit.plugin/capabilities/documents/{item.id}/download"

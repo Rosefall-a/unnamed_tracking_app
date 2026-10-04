@@ -21,7 +21,7 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
 from src.api.routes import auth, plugin_permissions, plugins
-from src.core.auth import hash_token
+from src.core.auth import hash_token, session_cookie_name
 from src.core.geoip import GeoLocation, geoip
 from src.database.models.achievement import Achievement  # noqa: F401
 from src.database.models.auth import UserSession
@@ -415,7 +415,7 @@ async def test_geoip_upload_requires_active_plugin_admin_grant_and_confirmation(
         async with httpx.AsyncClient(
             transport=httpx.ASGITransport(app=boundary.app),
             base_url="http://test",
-            cookies={"session": boundary.tokens[boundary.users[0].id]},
+            cookies={session_cookie_name("test"): boundary.tokens[boundary.users[0].id]},
         ) as client:
             return await client.post(
                 "/api/plugins/audit.plugin/capabilities/sessions/geoip",
@@ -503,6 +503,23 @@ async def test_geoip_status_is_admin_only_and_credential_free(boundary, monkeypa
     ).status_code == 403
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize("cookie_host", ["other.test", "test:5173", None])
+async def test_plugin_actions_reject_cookies_from_other_hosts_and_legacy_cookie(
+    boundary, cookie_host
+):
+    grant(boundary, "sessions.read")
+    cookie = session_cookie_name(cookie_host) if cookie_host else "session"
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=boundary.app),
+        base_url="http://test",
+        cookies={cookie: boundary.tokens[boundary.users[0].id]},
+    ) as client:
+        response = await client.post("/api/plugins/audit.plugin/actions/read", json={"values": {}})
+    assert response.status_code == 401
+    boundary.runtime.action.assert_not_awaited()
+
+
 async def request(boundary, path="/api/plugins/runtime/gateway", **changes):
     body = {
         "plugin_id": "audit.plugin",
@@ -518,7 +535,7 @@ async def request(boundary, path="/api/plugins/runtime/gateway", **changes):
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=boundary.app),
         base_url="http://test",
-        cookies={"session": boundary.tokens[boundary.current["user"].id]},
+        cookies={session_cookie_name("test"): boundary.tokens[boundary.current["user"].id]},
     ) as client:
         return await client.post(path, json=body, headers={"X-Plugin-Runtime-Token": "x" * 32})
 
@@ -691,7 +708,7 @@ async def test_unavailable_installations_cannot_execute_any_entrypoint(boundary,
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=boundary.app),
         base_url="http://test",
-        cookies={"session": boundary.tokens[boundary.current["user"].id]},
+        cookies={session_cookie_name("test"): boundary.tokens[boundary.current["user"].id]},
     ) as client:
         assert (
             await client.get("/api/plugins/audit.plugin/native-frontend/native/index.js")
@@ -720,7 +737,7 @@ async def test_frontend_native_and_page_replacement_grants_are_specific(boundary
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=boundary.app),
         base_url="http://test",
-        cookies={"session": boundary.tokens[boundary.current["user"].id]},
+        cookies={session_cookie_name("test"): boundary.tokens[boundary.current["user"].id]},
     ) as client:
         path = "/api/plugins/audit.plugin/native-frontend/native/index.js"
         assert (await client.get(path)).status_code == 403
@@ -756,7 +773,7 @@ async def test_frontend_activation_does_not_accept_stale_or_scoped_grants(bounda
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=boundary.app),
         base_url="http://test",
-        cookies={"session": boundary.tokens[boundary.users[0].id]},
+        cookies={session_cookie_name("test"): boundary.tokens[boundary.users[0].id]},
     ) as client:
         listing = (await client.get("/api/plugins")).json()
         assert listing[0]["effective_capabilities"] == []

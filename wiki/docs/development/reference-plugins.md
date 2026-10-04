@@ -18,9 +18,17 @@ The independent [`unnamed_tracking_app_plugins`](https://github.com/Rosefall-a/u
 
 `example.jellyfin-media-sync` demonstrates plugin settings, write-only plugin secrets, Jellyfin HTTP API access, media read/import, background synchronization, and event-driven update polling.
 
-## Retired reference plugins
+## Focused references and useful demos
 
-The plugin repository has retired the former UI/API, Playtime Report, Recently Played Notifier, Metadata Curator, Discord Delivery Provider, and UI Playground examples from the current catalogue. Their published packages and release histories remain immutable for audit and historical installation, but they are not current reference implementations and should not be used as examples for new development.
+The current repository also maintains UI/API (declarative pages, settings and actions), Playtime Report (scoped library reports), Recently Played Notifier (notifications), Metadata Curator (metadata search and settings), and UI Playground (sandboxed Vue pages and the bridge). These are maintained examples, not retired sources. Historical lifecycle/events/advanced packages remain immutable release records and are separate from these current sources.
+
+### External Discord Delivery Provider
+
+`example.discord-delivery-provider` demonstrates core-coordinated external notification delivery and write-only secrets through the narrowly scoped runtime sender. It does not receive arbitrary networking authority.
+
+## Official features and previews
+
+`official.jellyfin-media-sync` is a separately identified official preview derived from the Jellyfin demonstration. `official.pwa` provides host-owned install metadata and a public-asset-only service worker. Both start at 0.0.1 and remain outside signed publication until their protected official signing identity is reviewed. Development validation includes these previews; it does not imply a production release.
 
 ## Build and install
 
@@ -31,7 +39,7 @@ Install through the normal Plugin Manager preview/consent flow. A reference page
 
 ## Current official reference plugins
 
-The official plugin repository currently maintains four feature demonstrations:
+Alongside the focused examples above, the plugin repository maintains four substantial feature demonstrations:
 
 - **Help Button (Totally Not Helpful)** — demonstrates plugin-owned routes/navigation, the `app.global` extension slot, the Home Hub `home.replace` slot, and explicitly declared external navigation.
 - **Jellyfin Media Sync** — demonstrates plugin settings, write-only plugin secrets, Jellyfin HTTP API access, media read/import, background synchronization, and cursor-based `game.updated` / `media.added` event polling.
