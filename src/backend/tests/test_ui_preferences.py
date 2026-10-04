@@ -1,4 +1,4 @@
-"""Appearance preferences use the existing per-user store and validation boundary."""
+"""Appearance and Home preferences use the existing per-user validation boundary."""
 
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
@@ -44,3 +44,27 @@ async def test_absent_account_gets_ui_defaults_not_another_accounts_overrides():
     result = await load_preferences(db, uuid4())
     assert result["ui_theme"] == "system"
     assert result["ui_style"] == "archive-pocket"
+    assert result["home_widgets"] == []
+
+
+@pytest.mark.parametrize("value", [None, "goals", [1], ["goals", "goals"], ["unknown"],
+                                       ["collection:"], ["plugin:demo:<script>"],
+                                       ["collection:" + "x" * 512], ["goals"] * 33])
+def test_invalid_home_widget_selections_are_rejected(value):
+    with pytest.raises(ValueError):
+        validate_preference("home_widgets", value)
+
+
+@pytest.mark.asyncio
+async def test_home_order_is_personal_and_keeps_unavailable_plugin_identifiers():
+    user_id = uuid4()
+    row = SimpleNamespace(data={"ui_theme": "dark", "calendar_week_start": 1})
+    db = SimpleNamespace(scalar=AsyncMock(return_value=row), commit=AsyncMock())
+    selection = ["collection:Long Weekend", "plugin:disabled-plugin:progress", "goals"]
+    result = await save_preferences(db, user_id, {"home_widgets": selection})
+    assert result["home_widgets"] == selection
+    assert result["ui_theme"] == "dark"
+    assert result["calendar_week_start"] == 1
+    assert user_id in db.scalar.call_args.args[0].compile().params.values()
+    empty = await save_preferences(db, user_id, {"home_widgets": []})
+    assert empty["home_widgets"] == []

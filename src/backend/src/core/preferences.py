@@ -2,6 +2,7 @@
 (UserPreferences.data) only stores what the user changed. Adding an
 option is a one-line change to DEFAULTS, not a migration."""
 
+import re
 from typing import Any
 from uuid import UUID
 
@@ -16,6 +17,7 @@ DEFAULTS: dict[str, Any] = {
     "ui_style": "archive-pocket",
     "ui_reduce_motion": False,
     "ui_high_contrast": False,
+    "home_widgets": [],
     "calendar_game_releases": True,
     "calendar_game_history": True,
     "calendar_default_view": "month",
@@ -60,11 +62,37 @@ _SET_CHOICES: dict[str, tuple[str, ...]] = {
     "notify_media_types": ("anime", "tv", "movie"),
 }
 
+_HOME_CORE_WIDGETS = {
+    "library-summary", "continue-playing", "recently-added", "goals",
+    "random-picker", "backlog", "on-this-day", "weekly-digest", "getting-started",
+}
+
+
+def _validate_home_widgets(value: Any) -> list[str]:
+    """Preserve order and unavailable plugin selections, bounded as plain identifiers."""
+    if not isinstance(value, list) or len(value) > 32:
+        raise ValueError("home_widgets must be a list of at most 32 widget identifiers")
+    seen: set[str] = set()
+    for identifier in value:
+        if not isinstance(identifier, str) or len(identifier) > 512 or identifier in seen:
+            raise ValueError("home_widgets must contain unique, bounded string identifiers")
+        seen.add(identifier)
+        if identifier in _HOME_CORE_WIDGETS:
+            continue
+        if identifier.startswith("collection:") and identifier[11:].strip():
+            continue
+        if re.fullmatch(r"plugin:[a-zA-Z0-9._-]{1,128}:[a-zA-Z0-9._-]{1,128}", identifier):
+            continue
+        raise ValueError(f"Unsupported Home widget identifier {identifier!r}")
+    return list(value)
+
 
 def validate_preference(key: str, value: Any) -> Any:
     if key not in DEFAULTS:
         raise ValueError(f"Unknown preference {key!r}")
     default = DEFAULTS[key]
+    if key == "home_widgets":
+        return _validate_home_widgets(value)
     if key in _SET_CHOICES:
         allowed = _SET_CHOICES[key]
         if not isinstance(value, list) or any(v not in allowed for v in value):

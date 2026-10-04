@@ -20,7 +20,7 @@ const props = defineProps<{
   embedded?: boolean;
   actionContext?: PluginActionContext;
 }>();
-const emit = defineEmits<{ navigate: [pageId: string] }>();
+const emit = defineEmits<{ navigate: [pageId: string]; failed: [] }>();
 
 const failed = ref(false);
 const active = computed(() =>
@@ -37,6 +37,7 @@ watch(
 
 onErrorCaptured(() => {
   failed.value = true;
+  emit("failed");
   return false;
 });
 
@@ -108,8 +109,8 @@ const nativeHost = computed(() => ({
 <style scoped>
 .plugin-failure {
   padding: 12px;
-  border: 1px solid rgba(255, 122, 122, 0.35);
-  border-radius: 8px;
-  color: #ffb0b0;
+  border: 1px solid var(--ui-error);
+  border-radius: var(--ui-radius-control);
+  color: var(--ui-error);
 }
 </style>

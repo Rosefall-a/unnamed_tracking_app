@@ -6,8 +6,10 @@ import { readFile, mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
+import { checkHomeWidgets } from "./check_home_widgets.mjs";
 
 const [pluginsRoot, evidenceRoot, backendUrl] = process.argv.slice(2);
+const reviewStage = process.argv[5] ?? "shell";
 assert(pluginsRoot && evidenceRoot && backendUrl && process.env.UI_REVIEW_USERNAME && process.env.UI_REVIEW_PASSWORD, "Supply a disposable backend and review credentials.");
 const require = createRequire(path.resolve(pluginsRoot, "package.json"));
 const { chromium } = require("playwright");
@@ -55,6 +57,14 @@ try {
   const installed = await admin.request.get(origin + "/api/plugins");
   assert.equal(installed.status(), 200);
   assert.equal((await installed.json()).length, 0, "Run this stage against a clean plugin inventory to exclude embedded-media evidence.");
+  if (reviewStage === "home") {
+    const member = await browser.newContext();
+    await login(member, memberName, process.env.UI_REVIEW_PASSWORD);
+    await checkHomeWidgets({ admin, member, origin, evidenceRoot, report, checkOverflow });
+    await member.close();
+    await writeFile(path.join(evidenceRoot, "stage-home-conformance.json"), JSON.stringify(report, null, 2) + "\n");
+    console.log(JSON.stringify({ cases: report.screens.length, passed: report.passed }, null, 2));
+  } else {
   for (const role of ["admin", "member"]) {
     const context = role === "admin" ? admin : await browser.newContext();
     if (role === "member") await login(context, memberName, process.env.UI_REVIEW_PASSWORD);
@@ -126,6 +136,7 @@ try {
   report.passed.push("192 real Settings screen/theme/width/role cases", "Uniform Settings titles", "Phone modal focus, Escape and focus restoration", "Zero phone sidebar offset", "Member administration UI hidden and API denied", "Persisted appearance and reduced motion", "No JavaScript errors or page overflow");
   await writeFile(path.join(evidenceRoot, "stage-shell-conformance.json"), JSON.stringify(report, null, 2) + "\n");
   console.log(JSON.stringify({ cases: report.screens.length, passed: report.passed }, null, 2));
+  }
 } finally {
   if (memberId) await admin.request.delete(origin + `/api/auth/users/${memberId}`);
   await browser.close();

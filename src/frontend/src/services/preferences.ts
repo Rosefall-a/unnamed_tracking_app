@@ -5,6 +5,7 @@ export interface Preferences {
   ui_style: "archive-pocket";
   ui_reduce_motion: boolean;
   ui_high_contrast: boolean;
+  home_widgets: string[];
   calendar_game_releases: boolean;
   calendar_game_history: boolean;
   calendar_default_view: "month" | "week" | "agenda";
@@ -36,6 +37,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   ui_style: "archive-pocket",
   ui_reduce_motion: false,
   ui_high_contrast: false,
+  home_widgets: [],
   calendar_game_releases: true,
   calendar_game_history: true,
   calendar_default_view: "month",

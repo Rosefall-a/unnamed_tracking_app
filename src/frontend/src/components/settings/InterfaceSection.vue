@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { ref, watch } from "vue";
 import SegmentedControl from "./SegmentedControl.vue";
-import ToggleButton from "./ToggleButton.vue";
 import { sidebarMode } from "../../state/sidebarMode";
 import type { SidebarMode } from "../../state/sidebarMode";
 
@@ -14,9 +13,6 @@ const defaultViewMode = ref<ViewMode>(
 );
 const defaultSort = ref<SortBy>(
   (localStorage.getItem("gameLibraryDefaultSort") as SortBy) || "name",
-);
-const weeklyDigestEnabled = ref(
-  localStorage.getItem("weeklyDigestEnabled") !== "false",
 );
 
 const viewModeOptions = [
@@ -44,9 +40,6 @@ watch(defaultViewMode, (mode) =>
 );
 watch(defaultSort, (sort) =>
   localStorage.setItem("gameLibraryDefaultSort", sort),
-);
-watch(weeklyDigestEnabled, (enabled) =>
-  localStorage.setItem("weeklyDigestEnabled", String(enabled)),
 );
 </script>
 
@@ -99,11 +92,11 @@ watch(weeklyDigestEnabled, (enabled) =>
       and follow your account between devices.
     </p>
 
-    <ToggleButton v-model="weeklyDigestEnabled" label="Weekly digest">
-      <strong>Weekly digest</strong>: a "this week" recap card on the Home Hub
-      showing games played, achievements unlocked, and metadata changes over the
-      last 7 days
-    </ToggleButton>
+    <p class="field-hint">
+      Add the <strong>This week</strong> widget from
+      <router-link to="/">Home → Customize Home</router-link>
+      to see your weekly digest. Widget selection and order follow your account.
+    </p>
   </section>
 </template>
 
