@@ -46,6 +46,7 @@ h1 {
   font-size: var(--ui-font-small);
   letter-spacing: 0.08em;
   margin-bottom: 10px;
+  overflow-wrap: anywhere;
 }
 .page-actions {
   display: flex;

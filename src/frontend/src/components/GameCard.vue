@@ -2,7 +2,7 @@
 import { useRouter } from "vue-router";
 import type { Game, GameStatus } from "../types/game";
 import { setFavorite, setStatus } from "../services/games";
-import { ref, computed, nextTick, onUnmounted } from "vue";
+import { ref, computed, nextTick, onUnmounted, watch } from "vue";
 import { computeScore } from "../utils/scoring";
 import { appearanceSettings } from "../state/appearance";
 
@@ -17,6 +17,7 @@ const emit = defineEmits<{
   edit: [game: Game];
   "add-to-collection": [game: Game];
   "toggle-select": [game: Game, shiftKey: boolean];
+  changed: [];
 }>();
 
 const router = useRouter();
@@ -56,8 +57,22 @@ const menuOpen = ref(false);
 const statusSubmenuOpen = ref(false);
 const localFavorite = ref(props.game.favorite);
 const favoriteSaving = ref(false);
+const actionError = ref<string | null>(null);
+watch(
+  () => props.game.status,
+  (status) => {
+    localStatus.value = status;
+  },
+);
+watch(
+  () => props.game.favorite,
+  (favorite) => {
+    if (!favoriteSaving.value) localFavorite.value = favorite;
+  },
+);
 
 const menuTriggerRef = ref<HTMLElement | null>(null);
+const menuRef = ref<HTMLElement | null>(null);
 const menuPosition = ref({ top: 0, left: 0 });
 
 function onWindowScroll() {
@@ -69,7 +84,17 @@ async function toggleMenu() {
   if (menuOpen.value && menuTriggerRef.value) {
     await nextTick();
     const rect = menuTriggerRef.value.getBoundingClientRect();
-    menuPosition.value = { top: rect.bottom + 6, left: rect.right - 190 };
+    const height = menuRef.value?.offsetHeight ?? 0;
+    menuPosition.value = {
+      top: Math.max(
+        8,
+        Math.min(rect.bottom + 6, window.innerHeight - height - 8),
+      ),
+      left: Math.max(8, Math.min(rect.right - 190, window.innerWidth - 198)),
+    };
+    menuRef.value
+      ?.querySelector<HTMLButtonElement>("button:not(:disabled)")
+      ?.focus();
     window.addEventListener("scroll", onWindowScroll, true);
   } else {
     window.removeEventListener("scroll", onWindowScroll, true);
@@ -77,9 +102,11 @@ async function toggleMenu() {
 }
 
 function closeMenu() {
+  const restoreFocus = Boolean(menuRef.value?.contains(document.activeElement));
   menuOpen.value = false;
   statusSubmenuOpen.value = false;
   window.removeEventListener("scroll", onWindowScroll, true);
+  if (restoreFocus) menuTriggerRef.value?.focus();
 }
 
 // the grid this card lives in is virtualized, a card can be destroyed
@@ -112,21 +139,28 @@ async function toggleFavorite() {
   const next = !localFavorite.value;
   localFavorite.value = next;
   favoriteSaving.value = true;
+  actionError.value = null;
   try {
     await setFavorite(props.game.id, next);
-  } catch {
+    emit("changed");
+  } catch (reason) {
     localFavorite.value = !next;
+    actionError.value =
+      reason instanceof Error ? reason.message : "Could not change favorite.";
   } finally {
     favoriteSaving.value = false;
   }
 }
 
 async function chooseStatus(status: GameStatus) {
+  actionError.value = null;
   try {
     await setStatus(props.game.id, status);
     localStatus.value = status;
-  } catch {
-    // silently ignore, card just keeps showing the old status
+    emit("changed");
+  } catch (reason) {
+    actionError.value =
+      reason instanceof Error ? reason.message : "Could not change status.";
   }
   closeMenu();
 }
@@ -237,6 +271,12 @@ function copyFolderPath() {
         @touchmove="onTouchMove"
         @touchend="onTouchEnd"
       >
+        <button
+          type="button"
+          class="cover-open"
+          :aria-label="`${selectMode ? 'Select' : 'Open'} ${game.title}`"
+          :aria-pressed="selectMode ? selected : undefined"
+        ></button>
         <img class="cover-image" :src="game.coverImageUrl" alt="" />
         <div
           v-if="selectMode"
@@ -329,6 +369,7 @@ function copyFolderPath() {
           <button
             type="button"
             class="collection-button"
+            :aria-label="`Add ${game.title} to a collection`"
             @click.stop="emit('add-to-collection', game)"
           >
             <svg
@@ -350,6 +391,8 @@ function copyFolderPath() {
             class="favorite-button"
             :class="{ active: localFavorite }"
             :disabled="favoriteSaving"
+            :aria-label="`${localFavorite ? 'Unfavorite' : 'Favorite'} ${game.title}`"
+            :aria-pressed="localFavorite"
             @click.stop="toggleFavorite"
           >
             <svg
@@ -372,6 +415,8 @@ function copyFolderPath() {
             type="button"
             class="menu-trigger"
             ref="menuTriggerRef"
+            :aria-label="`Actions for ${game.title}`"
+            :aria-expanded="menuOpen"
             @click.stop="toggleMenu"
           >
             <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor">
@@ -389,11 +434,15 @@ function copyFolderPath() {
           <div
             v-if="menuOpen"
             class="card-menu"
+            ref="menuRef"
+            role="group"
+            :aria-label="`Actions for ${game.title}`"
             :style="{
               top: menuPosition.top + 'px',
               left: menuPosition.left + 'px',
             }"
             @click.stop
+            @keydown.esc.prevent.stop="closeMenu"
           >
             <template v-if="!statusSubmenuOpen">
               <button type="button" class="menu-item" @click="openGame">
@@ -483,6 +532,7 @@ function copyFolderPath() {
         </span>
       </div>
     </div>
+    <p v-if="actionError" class="card-error" role="alert">{{ actionError }}</p>
   </div>
 </template>
 
@@ -597,6 +647,22 @@ function copyFolderPath() {
   height: 100%;
   object-fit: cover;
   display: block;
+}
+.cover-open {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 2;
+  padding: 0;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  cursor: pointer;
+}
+.cover-open:focus-visible {
+  outline: 3px solid var(--ui-accent);
+  outline-offset: -3px;
 }
 .select-checkbox {
   position: absolute;
@@ -747,17 +813,19 @@ function copyFolderPath() {
 .menu-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 20;
+  z-index: calc(var(--ui-z-popover) - 1);
 }
 .card-menu {
   position: fixed;
   width: 190px;
-  background: #1e1e1e;
-  border: 1px solid #333;
-  border-radius: 10px;
+  background: var(--ui-popover);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
   padding: 6px;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
-  z-index: 30;
+  box-shadow: var(--ui-elevation);
+  z-index: var(--ui-z-popover);
+  max-height: calc(100dvh - 16px);
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -778,37 +846,38 @@ function copyFolderPath() {
   text-align: left;
   background: none;
   border: none;
-  color: #ddd;
+  color: var(--ui-text);
   padding: 8px 10px;
   font-size: 13px;
   border-radius: 6px;
   cursor: pointer;
   text-transform: capitalize;
+  min-height: var(--ui-control-height);
 }
 .menu-item:hover:not(.disabled) {
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
+  background: var(--ui-surface-2);
+  color: var(--ui-text);
 }
 .menu-item.disabled {
-  color: #555;
+  color: var(--ui-faint);
   cursor: not-allowed;
 }
 .menu-item.destructive {
-  color: #f87171;
+  color: var(--ui-error);
 }
 .menu-item.destructive:hover {
   background: rgba(220, 38, 38, 0.15);
 }
 .menu-item.active {
-  color: #d68a34;
+  color: var(--ui-accent-text);
   font-weight: 600;
 }
 .menu-item.back {
-  color: #999;
+  color: var(--ui-dim);
 }
 .menu-divider {
   height: 1px;
-  background: #2a2a2a;
+  background: var(--ui-border-soft);
   margin: 4px 2px;
 }
 .card-info {
@@ -818,7 +887,7 @@ function copyFolderPath() {
   margin: 0 0 2px;
   font-size: 14px;
   font-weight: 600;
-  color: #fff;
+  color: var(--ui-text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -827,13 +896,13 @@ function copyFolderPath() {
   display: flex;
   gap: 8px;
   font-size: 12px;
-  color: #999;
+  color: var(--ui-dim);
 }
 .meta-row .status {
   text-transform: capitalize;
 }
 .meta-row .rating {
-  color: #d68a34;
+  color: var(--ui-accent-text);
 }
 .meta-row .achievements {
   display: inline-flex;
@@ -843,5 +912,36 @@ function copyFolderPath() {
 .meta-row .achievements svg {
   flex-shrink: 0;
   opacity: 0.75;
+}
+.card-error {
+  color: var(--ui-error);
+  font-size: var(--ui-font-small);
+  overflow-wrap: anywhere;
+}
+.game-card:focus-within .favorite-button,
+.game-card:focus-within .collection-button,
+.game-card:focus-within .menu-trigger {
+  opacity: 1;
+  transform: none;
+}
+@media (max-width: 760px), (hover: none) {
+  .favorite-button,
+  .collection-button,
+  .menu-trigger {
+    opacity: 1;
+    transform: none;
+    width: 44px;
+    height: 44px;
+  }
+  .cover-actions {
+    gap: 4px;
+    right: 4px;
+    bottom: 4px;
+  }
+  .game-card:hover,
+  .game-card.menu-open {
+    transform: none;
+    box-shadow: none;
+  }
 }
 </style>

@@ -123,8 +123,8 @@
   color: var(--ui-dim);
 }
 .ui-btn-ghost:hover:not(:disabled) {
-  border-color: #3a3a3a;
-  color: #ccc;
+  border-color: var(--ui-border-strong);
+  color: var(--ui-text);
 }
 
 /* ---- fields: 38px ---- */
