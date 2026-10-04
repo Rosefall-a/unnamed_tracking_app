@@ -114,8 +114,8 @@ async function save() {
         /></label>
       </div>
       <p class="hint">
-        OpenID Connect / SSO has its own tab so authentication settings can be
-        managed separately.
+        OpenID Connect / SSO has its own section so authentication settings can
+        be managed separately.
       </p>
       <p v-if="error" class="error">{{ error }}</p>
       <p v-if="saved" class="success">Saved.</p>
@@ -170,6 +170,7 @@ h2 {
 button {
   align-self: flex-start;
   background: var(--ui-accent);
+  color: var(--ui-on-accent);
   border: 0;
   border-radius: var(--ui-radius-control);
   padding: 10px 14px;

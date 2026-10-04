@@ -55,6 +55,9 @@ class AppIntegrationSettings(Base):
     # means "use the .env default", so a deployment that never touches this
     # in Settings behaves exactly as it did before this column existed.
     max_upload_size_mb: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    max_save_archive_size_mb: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    max_clip_size_mb: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    max_world_save_size_mb: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     # Public deployment identity. Inert normalized PNGs belong in the database
     # so branding follows the same backup/restore boundary as its metadata.

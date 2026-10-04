@@ -20,7 +20,11 @@ import BrandingSection from "../components/settings/BrandingSection.vue";
 import UploadSection from "../components/settings/UploadSection.vue";
 import LibrarySettings from "../components/settings/LibrarySettings.vue";
 import MetadataSettings from "../components/settings/MetadataSettings.vue";
-import AdminSettings from "../components/settings/AdminSettings.vue";
+import AdminSection from "../components/settings/AdminSection.vue";
+import OidcSettingsSection from "../components/settings/OidcSettingsSection.vue";
+import ServerIntegrationsSection from "../components/settings/ServerIntegrationsSection.vue";
+import LimitsSection from "../components/settings/LimitsSection.vue";
+import DevToolsSection from "../components/settings/DevToolsSection.vue";
 import TasksSection from "../components/settings/TasksSection.vue";
 import StatsSection from "../components/settings/StatsSection.vue";
 import ExportImportSection from "../components/settings/ExportImportSection.vue";
@@ -49,6 +53,8 @@ onMounted(() => void refreshPluginExtensions());
 
 const coreSectionIds = new Set([
   "admin",
+  "limits",
+  "dev-tools",
   "metadata",
   "connections",
   "notifications",
@@ -170,7 +176,11 @@ const groups = computed<SettingsGroup[]>(() => {
       label: "Server management",
       area: "administration",
       sections: [
-        { id: "admin", label: "Users & server configuration" },
+        { id: "users", label: "Users" },
+        { id: "oidc", label: "Single sign-on" },
+        { id: "server-integrations", label: "Server integrations" },
+        { id: "limits", label: "Limits" },
+        { id: "dev-tools", label: "Developer tools" },
         { id: "branding", label: "App branding" },
         { id: "plugins", label: "Plugins" },
         { id: "tasks", label: "Background tasks" },
@@ -221,15 +231,24 @@ const SECTION_ALIASES: Record<string, { section: string; tab?: string }> = {
   sources: { section: "metadata", tab: "sources" },
   scan: { section: "metadata", tab: "scan" },
   "media-refresh": { section: "metadata", tab: "refresh" },
-  users: { section: "admin", tab: "users" },
-  oidc: { section: "admin", tab: "sso" },
-  "server-integrations": { section: "admin", tab: "integrations" },
 };
 function resolveSection(id: string | undefined): {
   section: string;
   tab?: string;
 } {
   const raw = id || "";
+  if (raw === "admin") {
+    const legacyTab =
+      typeof route.query.tab === "string" ? route.query.tab : "users";
+    const sections: Record<string, string> = {
+      users: "users",
+      sso: "oidc",
+      integrations: "server-integrations",
+      limits: "limits",
+      "dev-tools": "dev-tools",
+    };
+    return { section: sections[legacyTab] ?? "users" };
+  }
   return SECTION_ALIASES[raw] ?? { section: raw };
 }
 const initial = resolveSection(route.query.section as string | undefined);
@@ -453,10 +472,22 @@ function backToArea() {
             :initial-tab="initialTab"
           />
           <StatsSection v-else-if="activeSection === 'stats'" />
-          <AdminSettings
-            v-else-if="activeSection === 'admin' && currentUser?.is_admin"
-            :key="'admin' + initialTab"
-            :initial-tab="initialTab"
+          <AdminSection
+            v-else-if="activeSection === 'users' && currentUser?.is_admin"
+          />
+          <OidcSettingsSection
+            v-else-if="activeSection === 'oidc' && currentUser?.is_admin"
+          />
+          <ServerIntegrationsSection
+            v-else-if="
+              activeSection === 'server-integrations' && currentUser?.is_admin
+            "
+          />
+          <LimitsSection
+            v-else-if="activeSection === 'limits' && currentUser?.is_admin"
+          />
+          <DevToolsSection
+            v-else-if="activeSection === 'dev-tools' && currentUser?.is_admin"
           />
           <TasksSection
             v-else-if="activeSection === 'tasks' && currentUser?.is_admin"
@@ -669,5 +700,17 @@ function backToArea() {
   .section-back svg {
     transform: rotate(180deg);
   }
+}
+/* Native controls must fit their settings card at phone widths. */
+.settings-card :deep(input:not([type="checkbox"]):not([type="radio"])),
+.settings-card :deep(select),
+.settings-card :deep(textarea) {
+  box-sizing: border-box;
+  min-width: 0;
+  max-width: 100%;
+  min-height: var(--ui-control-height);
+}
+.settings-card :deep(button) {
+  min-height: var(--ui-control-height);
 }
 </style>

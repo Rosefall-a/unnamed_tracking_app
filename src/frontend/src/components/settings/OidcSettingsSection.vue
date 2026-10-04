@@ -482,6 +482,7 @@ async function save() {
 .providers-header button,
 button {
   background: var(--ui-accent);
+  color: var(--ui-on-accent);
   border: 0;
   border-radius: var(--ui-radius-control);
   padding: 10px 14px;

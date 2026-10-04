@@ -16,9 +16,8 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.app_integrations import get_max_upload_size_mb
+from src.core.app_integrations import get_max_upload_size_mb, get_upload_limits_mb
 from src.core.auth import get_current_user
-from src.core.config import settings
 from src.database.models.game import Game
 from src.database.models.inbox_item import InboxItem
 from src.database.models.media_item import MediaItem
@@ -112,7 +111,7 @@ async def upload_to_inbox(
         # clip routinely exceeds a cover-art-sized limit (see games.py's
         # upload_game_screenshots, same fix)
         limit_mb = (
-            settings.MAX_CLIP_SIZE_MB
+            (await get_upload_limits_mb(db))["max_clip_size_mb"]
             if kind in ("clip", "soundtrack")
             else await get_max_upload_size_mb(db)
         )
