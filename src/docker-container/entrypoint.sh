@@ -142,6 +142,12 @@ while ! curl -fsS http://127.0.0.1:8000/health >/dev/null 2>&1; do
 done
 
 log "Backend healthy"
+
+if ! realip_env="$("/usr/local/bin/fetch-realip-config.sh")"; then
+  fail_startup "FRONTEND_FAILED" "Unable to resolve production Nginx real-IP configuration from the backend." "ready" "ready" "ready" "failed"
+fi
+eval "$realip_env"
+
 write_status "STARTING_FRONTEND" "starting" "ready" "ready" "ready" "starting" "Activating the production frontend."
 
 log "Selecting production Nginx configuration"
