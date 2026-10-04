@@ -1,6 +1,16 @@
 # UI redevelopment: audit and design checkpoint
 
-Status: **design selection pending**. The application still uses the reconciled v1.0 UI contract. The concepts below are interactive proposals with illustrative data, not implemented product workflows. No v1.1 compatibility is claimed.
+Status: **direction selected; implementation in progress**. Use Pocket's floating sidebar and touch-first mobile surfaces with Archive's desktop Home and overall structure. Keep shared title, spacing and control rules consistent across pages. Preserve the three original concepts for future style/layout alternatives.
+
+The application still uses the reconciled v1.0 UI contract. The concepts below are interactive proposals with illustrative data, not implemented product workflows. No v1.1 compatibility is claimed.
+
+## Selected direction and appearance foundation
+
+The chosen hybrid is stored as `ui_style: archive-pocket`. Palette, typography, spacing, control sizes, shape, motion and elevation use semantic tokens in `src/frontend/src/styles/tokens.css`. These layers are independent so a future style can change more than colors. Only the selected hybrid is implemented today; the original Archive, Pocket and Studio proposals remain available in the gallery below and their source is preserved.
+
+Personal Appearance settings now persist theme (`system`, `light`, `dark`), density, higher contrast and reduced motion through the existing per-user preferences API. System changes are followed only in System mode, and the device's reduced-motion preference is always respected. Compact spacing retains mobile touch targets. Queued saves and late responses are invalidated when accounts change. The navigation and page migration is in progress; appearance tokens alone do not make every existing page theme-complete.
+
+Hosted CI on `36637321753e0ad3390b3289be215a64e303978f` passes all six workflows, including real plugin integration, strict official Jellyfin acceptance and PWA acceptance. The PWA browser check now verifies the login pathname and the preserved `return_to` query instead of incorrectly requiring a query-free login URL.
 
 ## Baseline
 
@@ -107,4 +117,4 @@ The default evidence directory is `.validation/ui-concepts`. The gallery's edita
 
 ## Review checkpoint
 
-Choose a direction (or concrete combination) before applying its visual structure to the application. The Draft PR remains a living record and targets `plugin-manager`. The gallery and concept captures are proposals; actual v1.1 implementation, plugin migration, final responsive proof and final acceptance remain pending.
+The selected hybrid is authorized for implementation. The original gallery and captures remain available in this wiki and Git history as a shared reference. They must not be overwritten with production screenshots. The Draft PR remains a living record and targets `plugin-manager`; actual v1.1 implementation, plugin migration, final responsive proof and final acceptance remain pending.

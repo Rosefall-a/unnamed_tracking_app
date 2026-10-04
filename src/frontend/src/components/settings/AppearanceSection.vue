@@ -12,6 +12,7 @@ import type {
   BadgePlacement,
 } from "../../services/appearanceSettings";
 import { loadAppearanceSettings } from "../../state/appearance";
+import UiAppearanceSection from "./UiAppearanceSection.vue";
 
 const loading = ref(true);
 const saving = ref(false);
@@ -120,8 +121,9 @@ async function removeImage() {
 </script>
 
 <template>
+  <UiAppearanceSection />
   <section class="settings-section">
-    <h2>Appearance</h2>
+    <h2>Completed game badges</h2>
     <p class="section-hint">
       How a 100%-complete (Mastered) game's card is highlighted in your library.
       Changes apply everywhere that card renders once saved.

@@ -70,8 +70,10 @@
 }
 .ui-head h1 {
   margin: 0;
-  font-size: 1.7rem;
-  font-weight: 800;
+  font-size: var(--ui-font-title);
+  font-weight: var(--ui-weight-title);
+  line-height: 1.2;
+  letter-spacing: -0.035em;
 }
 .ui-head .sub {
   margin-top: 4px;
@@ -92,7 +94,7 @@
   justify-content: center;
   gap: 7px;
   box-sizing: border-box;
-  height: 38px;
+  min-height: var(--ui-control-height);
   padding: 0 18px;
   border: none;
   border-radius: var(--ui-radius-control);
@@ -125,11 +127,11 @@
   filter: brightness(1.08);
 }
 .ui-btn-secondary {
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
+  background: var(--ui-surface-2);
+  color: var(--ui-text);
 }
 .ui-btn-secondary:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.13);
+  background: var(--ui-border-soft);
 }
 .ui-btn-secondary.on {
   background: rgba(214, 138, 52, 0.22);
@@ -163,7 +165,7 @@
 /* ---- fields: 38px ---- */
 .ui-field {
   box-sizing: border-box;
-  height: 38px;
+  min-height: var(--ui-control-height);
   padding: 0 12px;
   background: var(--ui-surface);
   border: 1px solid var(--ui-border);

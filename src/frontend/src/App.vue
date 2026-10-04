@@ -8,7 +8,10 @@ import AppDialog from "./components/AppDialog.vue";
 import { authChecked, currentUser } from "./state/auth";
 import { mediaUnread } from "./state/notifications";
 import { formatDocumentTitle, pageTitleOverride } from "./state/pageTitle";
-import { loadSharedPreferences } from "./state/preferences";
+import {
+  loadSharedPreferences,
+  resetSharedPreferences,
+} from "./state/preferences";
 import {
   sidebarMode,
   sidebarWidth,
@@ -69,9 +72,10 @@ watchEffect(() => {
 watch(
   () => currentUser.value?.id,
   (id) => {
+    resetSharedPreferences();
     if (id) loadSharedPreferences();
   },
-  { immediate: true },
+  { immediate: true, flush: "sync" },
 );
 const sidebarShown = computed(
   () =>

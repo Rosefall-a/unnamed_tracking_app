@@ -1,5 +1,10 @@
 // Server-side per-user preferences. Defaults live on the server; this only carries the shape.
 export interface Preferences {
+  ui_theme: "system" | "light" | "dark";
+  ui_density: "comfortable" | "compact";
+  ui_style: "archive-pocket";
+  ui_reduce_motion: boolean;
+  ui_high_contrast: boolean;
   calendar_game_releases: boolean;
   calendar_game_history: boolean;
   calendar_default_view: "month" | "week" | "agenda";
@@ -26,6 +31,11 @@ export interface Preferences {
 }
 
 export const DEFAULT_PREFERENCES: Preferences = {
+  ui_theme: "system",
+  ui_density: "comfortable",
+  ui_style: "archive-pocket",
+  ui_reduce_motion: false,
+  ui_high_contrast: false,
   calendar_game_releases: true,
   calendar_game_history: true,
   calendar_default_view: "month",
@@ -74,19 +84,38 @@ export async function updatePreferences(
 
 let saveQueue: Promise<unknown> = Promise.resolve();
 let saving = 0;
+let sessionGeneration = 0;
+
+// Discard queued work and late responses when authentication changes. An old
+// account's queued PATCH must never start with a new account's session cookie.
+export function invalidateQueuedPreferences(): void {
+  sessionGeneration++;
+  saveQueue = Promise.resolve();
+  saving = 0;
+}
+
 export function queuePreferences(
   changes: Partial<Preferences>,
 ): Promise<{ prefs: Preferences; latest: boolean }> {
   saving += 1;
-  const run = saveQueue.then(() => updatePreferences(changes));
+  const session = sessionGeneration;
+  const assertSession = () => {
+    if (session !== sessionGeneration)
+      throw new Error("Your session changed. Please try again.");
+  };
+  const run = saveQueue.then(() => {
+    assertSession();
+    return updatePreferences(changes);
+  });
   saveQueue = run.catch(() => undefined);
   return run.then(
     (prefs) => {
+      assertSession();
       saving -= 1;
       return { prefs, latest: saving === 0 };
     },
     (err) => {
-      saving -= 1;
+      if (session === sessionGeneration) saving -= 1;
       throw err;
     },
   );

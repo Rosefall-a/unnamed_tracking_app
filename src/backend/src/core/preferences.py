@@ -11,6 +11,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.database.models.user_preferences import UserPreferences
 
 DEFAULTS: dict[str, Any] = {
+    "ui_theme": "system",
+    "ui_density": "comfortable",
+    "ui_style": "archive-pocket",
+    "ui_reduce_motion": False,
+    "ui_high_contrast": False,
     "calendar_game_releases": True,
     "calendar_game_history": True,
     "calendar_default_view": "month",
@@ -38,6 +43,9 @@ DEFAULTS: dict[str, Any] = {
 }
 
 _CHOICES: dict[str, tuple[Any, ...]] = {
+    "ui_theme": ("system", "light", "dark"),
+    "ui_density": ("comfortable", "compact"),
+    "ui_style": ("archive-pocket",),
     "calendar_default_view": ("month", "week", "agenda"),
     "calendar_week_start": (0, 1),
     "notification_retention_days": (0, 7, 14, 30, 90),

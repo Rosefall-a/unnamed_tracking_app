@@ -1,4 +1,4 @@
-/* dark only: the app has no light theme */
+/* Global reset and legacy utilities. Semantic appearance lives in tokens.css. */
 :root {
   --text: #9ca3af;
   --text-h: #f3f4f6;
@@ -18,7 +18,6 @@
 
   font: 16px/145% var(--sans);
   letter-spacing: 0.18px;
-  color-scheme: dark;
   color: var(--text);
   background: var(--bg);
   font-synthesis: none;
@@ -39,13 +38,11 @@ h2 {
 }
 
 h1 {
-  font-size: 56px;
-  letter-spacing: -1.68px;
-  margin: 32px 0;
-  @media (max-width: 1024px) {
-    font-size: 36px;
-    margin: 20px 0;
-  }
+  font-size: var(--ui-font-title);
+  font-weight: var(--ui-weight-title);
+  line-height: 1.2;
+  letter-spacing: -0.035em;
+  margin: 0 0 8px;
 }
 h2 {
   font-size: 24px;
@@ -340,24 +337,7 @@ html {
   }
 }
 
-/* Settings > User Interface > compact mode, a modest, low-risk spacing
-   reduction on the highest-traffic layout spots (card grids/rows, page
-   padding), not a full density system across every component. */
-html.compact .grid,
-html.compact .shelf {
-  gap: 10px !important;
-}
-html.compact .library,
-html.compact .home {
-  padding-top: 64px !important;
-}
-html.compact .card-info {
-  padding-top: 6px !important;
-}
-
-/* respects the OS/browser "reduce motion" preference app-wide, hover
-   lifts, background crossfades, and other transitions collapse to
-   near-instant instead of needing an opt-out in every component */
+/* Motion policy applies to every host control and mounted contribution. */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -368,43 +348,25 @@ html.compact .card-info {
     scroll-behavior: auto !important;
   }
 }
-
-/* baseline keyboard-focus visibility, most interactive elements here rely
-   on hover/background-color states with no explicit focus style, which
-   makes keyboard navigation hard to track without this */
+html.reduce-motion *,
+html.reduce-motion *::before,
+html.reduce-motion *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
+}
 :focus-visible {
-  outline: 2px solid #d68a34;
-  outline-offset: 2px;
-}
-
-/* Settings > User Interface > High contrast. This codebase has no CSS
-   custom-property theme to retarget (every component hardcodes its own
-   hex colors in scoped styles, see compact mode above for the same
-   constraint), and a filter()-based approach was tried and reverted
-   earlier: it creates a new containing block for any position:fixed
-   descendant, which breaks this app's many fixed modals/overlays the
-   moment the page has scrolled. So instead of a second full theme, this
-   brightens the specific muted-text and low-contrast-border classes that
-   are already reused by convention across the app (confirmed by grep
-   before writing this, not guessed), plus a stronger focus ring. Real,
-   scoped, and safe rather than a broken shortcut. */
-html.high-contrast .empty-state,
-html.high-contrast .section-hint,
-html.high-contrast .hint,
-html.high-contrast .subtitle,
-html.high-contrast .eyebrow,
-html.high-contrast .stat-label,
-html.high-contrast .detail-label,
-html.high-contrast .weekly-recap-label {
-  color: #ddd !important;
-}
-html.high-contrast .badge,
-html.high-contrast .chip,
-html.high-contrast .tag-chip,
-html.high-contrast .confirm-dialog {
-  border-color: #777 !important;
+  outline: 2px solid var(--ui-accent);
+  outline-offset: 3px;
 }
 html.high-contrast :focus-visible {
-  outline: 3px solid #ffb454 !important;
-  outline-offset: 2px !important;
+  outline-width: 3px;
+}
+@media (max-width: 760px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
 }
