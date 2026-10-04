@@ -10,6 +10,8 @@ from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
+from src.database import migration_helpers as h
+
 revision: str = "c4f1d2e8a9b0"
 down_revision: str | None = "a3f1c7e9d2b4"
 branch_labels: str | Sequence[str] | None = None
@@ -17,7 +19,7 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    op.add_column(
+    h.add_column_if_missing(
         "games",
         sa.Column(
             "locked_fields",
