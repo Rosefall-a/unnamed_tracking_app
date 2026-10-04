@@ -39,6 +39,18 @@ function persist() {
   }
 }
 
+// The one collection the app keeps itself, like Media's Favorites list: every
+// game you have favorited, filled by a rule nobody can edit or delete. It is
+// not stored with the user's own rules; a collection of the user's with the
+// same name takes its place.
+export const FAVORITES_NAME = "Favorites";
+export const FAVORITES_RULE: SmartCollection = {
+  id: "system-favorites",
+  name: FAVORITES_NAME,
+  field: "favorite",
+  value: "",
+};
+
 export function addSmartCollection(entry: Omit<SmartCollection, "id">): string {
   const id = crypto.randomUUID();
   smartCollections.value = [...smartCollections.value, { ...entry, id }];

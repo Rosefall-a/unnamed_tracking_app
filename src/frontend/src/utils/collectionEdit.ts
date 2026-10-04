@@ -7,8 +7,15 @@ import {
   removeGameFromCollection,
 } from "../services/games";
 import type { Game } from "../types/game";
-import { updateSmartCollection } from "../state/smartCollections";
-import { renameCollectionKeys, updateMeta } from "../state/collectionMeta";
+import {
+  removeSmartCollection,
+  updateSmartCollection,
+} from "../state/smartCollections";
+import {
+  forgetCollectionKeys,
+  renameCollectionKeys,
+  updateMeta,
+} from "../state/collectionMeta";
 import type { CollectionFormPayload } from "../components/CollectionFormModal.vue";
 
 export async function saveCollectionEdit(args: {
@@ -36,4 +43,21 @@ export async function saveCollectionEdit(args: {
   }
   renameCollectionKeys(oldName, name);
   updateMeta(name, { description: payload.description ?? undefined });
+}
+
+// Deleting a manual collection takes the tag off every game in it (no game is
+// deleted); deleting a smart one only removes its rule.
+export async function deleteCollectionFully(args: {
+  name: string;
+  members: Game[];
+  smartId?: string;
+}): Promise<void> {
+  if (args.smartId) {
+    removeSmartCollection(args.smartId);
+  } else {
+    for (const game of args.members) {
+      await removeGameFromCollection(game.id, args.name);
+    }
+  }
+  forgetCollectionKeys(args.name);
 }

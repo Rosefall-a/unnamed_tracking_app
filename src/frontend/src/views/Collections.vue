@@ -10,17 +10,25 @@ import type { Game } from "../types/game";
 import {
   smartCollections,
   addSmartCollection,
-  removeSmartCollection,
   matchesSmartCollection,
+  FAVORITES_NAME,
 } from "../state/smartCollections";
 import CollectionFormModal from "../components/CollectionFormModal.vue";
 import type { CollectionFormPayload } from "../components/CollectionFormModal.vue";
-import { updateMeta } from "../state/collectionMeta";
+import {
+  collectionMeta,
+  setCollectionOrder,
+  updateMeta,
+} from "../state/collectionMeta";
+import {
+  saveCollectionEdit,
+  deleteCollectionFully,
+} from "../utils/collectionEdit";
 import { useConfirm } from "../state/dialog";
 
 const confirm = useConfirm();
 
-type SortBy = "name" | "count";
+type SortBy = "custom" | "name" | "count";
 type KindFilter = "all" | "manual" | "smart";
 
 const router = useRouter();
@@ -29,7 +37,7 @@ const games = ref<Game[]>([]);
 const loading = ref(true);
 const error = ref<string | null>(null);
 const searchQuery = ref("");
-const sortBy = ref<SortBy>("name");
+const sortBy = ref<SortBy>("custom");
 const kindFilter = ref<KindFilter>("all");
 
 // Empty collections (no games assigned yet) have nowhere to live on the
@@ -106,6 +114,11 @@ interface CollectionSummary {
   name: string;
   games: Game[];
   isSmart?: boolean;
+  // kept by the app (Favorites): can't be edited or deleted
+  isSystem?: boolean;
+  description: string | null;
+  pinned: boolean;
+  position: number;
 }
 
 // which game's cover represents each collection, set from CollectionDetail.vue's
@@ -118,6 +131,16 @@ function loadCoverPicks(): Record<string, string> {
   } catch {
     return {};
   }
+}
+
+// description, pin and place in "My order" are kept locally per name
+function detailsOf(name: string) {
+  const meta = collectionMeta.value[name] ?? {};
+  return {
+    description: meta.description ?? null,
+    pinned: meta.pinned === true,
+    position: meta.position ?? Number.MAX_SAFE_INTEGER,
+  };
 }
 
 const collectionSummaries = computed<CollectionSummary[]>(() => {
@@ -145,14 +168,30 @@ const collectionSummaries = computed<CollectionSummary[]>(() => {
             ...list.slice(pickedIndex + 1),
           ]
         : list;
-    return { name, games: orderedGames };
+    return { name, games: orderedGames, ...detailsOf(name) };
   });
   const smart = smartCollections.value.map((rule) => ({
     name: rule.name,
     games: games.value.filter((g) => matchesSmartCollection(g, rule)),
     isSmart: true,
+    ...detailsOf(rule.name),
   }));
-  return [...manual, ...smart];
+  // Favorites is always there, unless the user has a collection by that name
+  const userHasFavorites =
+    map.has(FAVORITES_NAME) ||
+    smartCollections.value.some((c) => c.name === FAVORITES_NAME);
+  const system = userHasFavorites
+    ? []
+    : [
+        {
+          name: FAVORITES_NAME,
+          games: games.value.filter((g) => g.favorite),
+          isSmart: true,
+          isSystem: true,
+          ...detailsOf(FAVORITES_NAME),
+        },
+      ];
+  return [...manual, ...smart, ...system];
 });
 
 const filteredCollections = computed(() => {
@@ -163,11 +202,146 @@ const filteredCollections = computed(() => {
   if (q) {
     result = result.filter((c) => c.name.toLowerCase().includes(q));
   }
+  // pinned collections always come first, then the chosen sort within each
   return [...result].sort((a, b) => {
+    const pin = Number(b.pinned) - Number(a.pinned);
+    if (pin) return pin;
     if (sortBy.value === "count") return b.games.length - a.games.length;
+    if (sortBy.value === "custom") return inMyOrder(a, b);
     return a.name.localeCompare(b.name);
   });
 });
+
+function inMyOrder(a: CollectionSummary, b: CollectionSummary): number {
+  return (
+    a.position - b.position ||
+    Number(!!b.isSystem) - Number(!!a.isSystem) ||
+    a.name.localeCompare(b.name)
+  );
+}
+const myOrder = computed(() =>
+  [...collectionSummaries.value].sort(
+    (a, b) => Number(b.pinned) - Number(a.pinned) || inMyOrder(a, b),
+  ),
+);
+// moving cards only makes sense when every collection is in view, in your own order
+const reorderable = computed(
+  () => sortBy.value === "custom" && !filtering.value,
+);
+
+function togglePin(name: string) {
+  const current = collectionMeta.value[name]?.pinned === true;
+  updateMeta(name, { pinned: !current });
+}
+
+// pinned collections and the rest are ordered separately
+function groupOf(name: string): CollectionSummary[] {
+  const pinned = collectionSummaries.value.find((c) => c.name === name)?.pinned;
+  return myOrder.value.filter((c) => c.pinned === !!pinned);
+}
+function canMove(name: string, direction: -1 | 1): boolean {
+  const group = groupOf(name);
+  const at = group.findIndex((c) => c.name === name);
+  return at + direction >= 0 && at + direction < group.length;
+}
+function moveCollection(name: string, direction: -1 | 1) {
+  const group = groupOf(name);
+  const at = group.findIndex((c) => c.name === name);
+  const to = at + direction;
+  if (at < 0 || to < 0 || to >= group.length) return;
+  const swapped = [...group];
+  [swapped[at], swapped[to]] = [swapped[to], swapped[at]];
+  const pinned = group[0].pinned;
+  const pinnedGroup = pinned ? swapped : myOrder.value.filter((c) => c.pinned);
+  const rest = pinned ? myOrder.value.filter((c) => !c.pinned) : swapped;
+  setCollectionOrder([...pinnedGroup, ...rest].map((c) => c.name));
+}
+
+// ---- edit / delete ----
+const editingName = ref<string | null>(null);
+const editingInfo = computed(() => {
+  const c = collectionSummaries.value.find((x) => x.name === editingName.value);
+  if (!c) return null;
+  const rule = smartCollections.value.find((r) => r.name === c.name);
+  return {
+    name: c.name,
+    description: c.description,
+    smart: rule ? { field: rule.field, value: rule.value } : null,
+  };
+});
+function editCollection(name: string) {
+  editingName.value = name;
+}
+async function onEditSave(payload: CollectionFormPayload) {
+  const target = collectionSummaries.value.find(
+    (c) => c.name === editingName.value,
+  );
+  editingName.value = null;
+  if (!target) return;
+  try {
+    await saveCollectionEdit({
+      oldName: target.name,
+      payload,
+      smartId: smartCollections.value.find((r) => r.name === target.name)?.id,
+      members: target.games,
+    });
+    manualCollectionNames.value = loadManualCollections();
+  } catch (e) {
+    error.value =
+      e instanceof Error ? e.message : "Failed to save the collection.";
+  }
+  await loadGames();
+}
+async function deleteCollection(name: string) {
+  const target = collectionSummaries.value.find((c) => c.name === name);
+  if (!target) return;
+  const rule = smartCollections.value.find((r) => r.name === name);
+  const ok = await confirm({
+    message: rule
+      ? `Delete "${name}"? This only removes the rule, no games are affected.`
+      : `Delete "${name}"? This removes it from every game, no games are deleted.`,
+    confirmLabel: "Delete collection",
+    danger: true,
+  });
+  if (!ok) return;
+  try {
+    await deleteCollectionFully({
+      name,
+      members: target.games,
+      smartId: rule?.id,
+    });
+    manualCollectionNames.value = loadManualCollections();
+  } catch (e) {
+    error.value =
+      e instanceof Error ? e.message : "Failed to delete the collection.";
+  }
+  await loadGames();
+}
+
+// dragging a card onto another one of the same group puts it in that place;
+// pinned and other collections stay apart
+const dragName = ref<string | null>(null);
+const dropOn = ref<string | null>(null);
+function onDrop(targetName: string) {
+  const from = dragName.value;
+  dragName.value = dropOn.value = null;
+  if (!from || from === targetName) return;
+  const moving = myOrder.value.find((c) => c.name === from);
+  if (!moving) return;
+  const group = myOrder.value.filter((c) => c.pinned === moving.pinned);
+  if (!group.some((c) => c.name === targetName)) return;
+  const rest = group.filter((c) => c.name !== from);
+  rest.splice(
+    group.findIndex((c) => c.name === targetName),
+    0,
+    moving,
+  );
+  const pinnedGroup = moving.pinned
+    ? rest
+    : myOrder.value.filter((c) => c.pinned);
+  const others = moving.pinned ? myOrder.value.filter((c) => !c.pinned) : rest;
+  setCollectionOrder([...pinnedGroup, ...others].map((c) => c.name));
+}
 
 const smartCount = computed(
   () => collectionSummaries.value.filter((c) => c.isSmart).length,
@@ -200,20 +374,6 @@ const tagOptions = computed(() => {
   for (const g of games.value) for (const t of g.tags) set.add(t);
   return [...set].sort();
 });
-
-async function deleteSmartCollection(id: string) {
-  const ok = await confirm({
-    title: "Delete smart collection",
-    message:
-      "Delete this smart collection? This only removes the rule, no games are affected.",
-    confirmLabel: "Delete",
-    danger: true,
-  });
-  if (ok) removeSmartCollection(id);
-}
-function smartIdForName(name: string): string | undefined {
-  return smartCollections.value.find((c) => c.name === name)?.id;
-}
 </script>
 
 <template>
@@ -232,6 +392,7 @@ function smartIdForName(name: string): string | undefined {
             aria-label="Search collections"
           />
           <select v-model="sortBy" class="ui-field" aria-label="Sort by">
+            <option value="custom">My order</option>
             <option value="name">Name</option>
             <option value="count">Most games</option>
           </select>
@@ -267,8 +428,22 @@ function smartIdForName(name: string): string | undefined {
             :name="col.name"
             :games="col.games"
             :is-smart="col.isSmart"
+            :is-system="col.isSystem"
+            :description="col.description"
+            :pinned="col.pinned"
+            :reorderable="reorderable"
+            :can-move-earlier="canMove(col.name, -1)"
+            :can-move-later="canMove(col.name, 1)"
+            :drag-over="dropOn === col.name && dragName !== col.name"
             @open="openCollection"
-            @delete="deleteSmartCollection(smartIdForName(col.name)!)"
+            @edit="editCollection"
+            @delete="deleteCollection"
+            @pin="togglePin"
+            @move="moveCollection"
+            @dragstart="dragName = $event"
+            @dragover="dropOn = $event"
+            @drop="onDrop"
+            @dragend="dragName = dropOn = null"
           />
         </div>
         <p v-if="!filteredCollections.length && filtering" class="ui-state">
@@ -282,6 +457,15 @@ function smartIdForName(name: string): string | undefined {
       </template>
     </div>
 
+    <CollectionFormModal
+      v-if="editingInfo"
+      :collection="editingInfo"
+      :existing-names="collectionSummaries.map((c) => c.name)"
+      :tag-options="tagOptions"
+      :source-options="sourceOptions"
+      @save="onEditSave"
+      @close="editingName = null"
+    />
     <CollectionFormModal
       v-if="showCreate"
       :collection="null"

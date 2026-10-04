@@ -20,6 +20,8 @@ import {
   describeSmartCollection,
   removeSmartCollection,
   smartCollections,
+  FAVORITES_NAME,
+  FAVORITES_RULE,
 } from "../state/smartCollections";
 import CollectionFormModal from "../components/CollectionFormModal.vue";
 import type { CollectionFormPayload } from "../components/CollectionFormModal.vue";
@@ -81,8 +83,18 @@ watch(collectionName, (name) => {
   coverPickedGameId.value = loadCoverPicks()[name] ?? null;
 });
 
-const smartRule = computed(() =>
+const userRule = computed(() =>
   findSmartCollectionByName(collectionName.value),
+);
+// Favorites is kept by the app, unless the user has a collection by that name
+const isSystem = computed(
+  () =>
+    collectionName.value === FAVORITES_NAME &&
+    !userRule.value &&
+    !games.value.some((g) => g.collections.includes(collectionName.value)),
+);
+const smartRule = computed(
+  () => userRule.value ?? (isSystem.value ? FAVORITES_RULE : undefined),
 );
 const isSmart = computed(() => !!smartRule.value);
 const description = computed(
@@ -431,6 +443,7 @@ async function deleteCollection() {
           + Add Games
         </button>
         <button
+          v-if="!isSystem"
           type="button"
           class="ui-btn ui-btn-secondary"
           @click="showEdit = true"
@@ -447,7 +460,7 @@ async function deleteCollection() {
           {{ deletingCollection ? "Deleting…" : "Delete" }}
         </button>
         <button
-          v-else
+          v-else-if="!isSystem"
           type="button"
           class="ui-btn ui-btn-danger"
           @click="deleteSmartRule"
@@ -485,12 +498,6 @@ async function deleteCollection() {
                   : {}
               "
             ></div>
-            <span
-              v-if="coverGameId === game.id"
-              class="cover-mark"
-              title="Collection cover"
-              >★</span
-            >
             <div v-if="reorderMode" class="reorder-arrows">
               <button
                 type="button"
@@ -513,8 +520,13 @@ async function deleteCollection() {
             <div v-else class="tile-actions">
               <button
                 type="button"
-                class="tile-btn"
-                title="Use as the collection cover"
+                class="tile-btn star"
+                :class="{ on: coverGameId === game.id }"
+                :title="
+                  coverGameId === game.id
+                    ? 'Collection cover'
+                    : 'Use as the collection cover'
+                "
                 @click.stop="setCoverPick(game.id)"
               >
                 ★
@@ -704,15 +716,6 @@ async function deleteCollection() {
   background-position: center;
   background-color: #1c1c1c;
 }
-.cover-mark {
-  position: absolute;
-  left: 8px;
-  top: 8px;
-  z-index: 2;
-  color: #d68a34;
-  font-size: 14px;
-  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
-}
 .tile-actions {
   position: absolute;
   top: 8px;
@@ -721,10 +724,15 @@ async function deleteCollection() {
   display: flex;
   flex-direction: column;
   gap: 6px;
+}
+/* the buttons appear on hover, except the star that is currently the cover,
+   which stays lit so the cover is always visible */
+.tile-btn {
   opacity: 0;
   transition: opacity 0.15s ease;
 }
-.item-card:hover .tile-actions {
+.item-card:hover .tile-btn,
+.tile-btn.on {
   opacity: 1;
 }
 .tile-btn {
@@ -741,7 +749,8 @@ async function deleteCollection() {
 .tile-btn:hover {
   color: #e57373;
 }
-.tile-btn[title^="Use"]:hover {
+.tile-btn.star:hover,
+.tile-btn.on {
   color: #d68a34;
 }
 .reorder-arrows {

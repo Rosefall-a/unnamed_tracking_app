@@ -1,9 +1,8 @@
 <script setup lang="ts">
-// The Games counterpart of ListCard.vue: same 2x2 poster-collage tile, badge,
-// hover actions and info block, so a collection reads as the same kind of
-// thing as a Media list. Pin, move and edit exist on lists only (they need
-// stored data collections don't have), so the hover actions here are just
-// delete, and only on smart collections.
+// The Games counterpart of ListCard.vue, ported as it is: same 2x2 poster
+// collage, badges, hover actions and info block, so a collection reads as the
+// same kind of thing as a Media list. The only addition is the "Parent/Child"
+// nesting label, since collections nest by name.
 import { computed } from "vue";
 import type { Game } from "../types/game";
 import { blurOnLeave } from "../utils/blurOnLeave";
@@ -12,11 +11,27 @@ const props = defineProps<{
   name: string;
   games: Game[];
   isSmart?: boolean;
+  // kept by the app (Favorites): can't be edited or deleted
+  isSystem?: boolean;
+  description?: string | null;
+  pinned?: boolean;
+  // the page is in "My order" with nothing filtered: show the move controls
+  reorderable?: boolean;
+  canMoveEarlier?: boolean;
+  canMoveLater?: boolean;
+  dragOver?: boolean;
 }>();
 
 const emit = defineEmits<{
   open: [name: string];
-  delete: [];
+  delete: [name: string];
+  edit: [name: string];
+  pin: [name: string];
+  move: [name: string, direction: -1 | 1];
+  dragstart: [name: string];
+  dragover: [name: string];
+  drop: [name: string];
+  dragend: [];
 }>();
 
 const covers = computed(() =>
@@ -39,11 +54,13 @@ const displayName = computed(() =>
 <template>
   <div
     class="collection-card-wrap"
-    role="button"
-    tabindex="0"
+    :class="{ 'drop-target': dragOver }"
+    :draggable="reorderable"
     @click="emit('open', name)"
-    @keydown.enter.self="emit('open', name)"
-    @keydown.space.self.prevent="emit('open', name)"
+    @dragstart="emit('dragstart', name)"
+    @dragover.prevent="emit('dragover', name)"
+    @drop.prevent="emit('drop', name)"
+    @dragend="emit('dragend')"
     @mouseleave="blurOnLeave"
   >
     <div class="collection-card">
@@ -65,16 +82,64 @@ const displayName = computed(() =>
           v-if="isSmart"
           class="smart-badge"
           title="Fills itself from a filter"
-          >Smart</span
+          >{{ isSystem ? "Auto" : "Smart" }}</span
         >
-        <div v-if="isSmart" class="card-actions">
+        <span v-if="pinned" class="pin-badge" title="Pinned">
+          <svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true">
+            <path
+              d="M9 3h6l-1 6 3 3v2h-4v6l-1 1-1-1v-6H7v-2l3-3z"
+              fill="currentColor"
+            />
+          </svg>
+        </span>
+        <div class="card-actions">
           <button
             type="button"
-            title="Delete this smart collection"
-            @click.stop="emit('delete')"
+            :title="pinned ? 'Unpin this collection' : 'Pin this collection'"
+            :class="{ on: pinned }"
+            @click.stop="emit('pin', name)"
           >
-            ✕
+            <svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true">
+              <path
+                d="M9 3h6l-1 6 3 3v2h-4v6l-1 1-1-1v-6H7v-2l3-3z"
+                fill="currentColor"
+              />
+            </svg>
           </button>
+          <template v-if="reorderable">
+            <button
+              v-if="canMoveEarlier"
+              type="button"
+              title="Move earlier"
+              @click.stop="emit('move', name, -1)"
+            >
+              &#9664;
+            </button>
+            <button
+              v-if="canMoveLater"
+              type="button"
+              title="Move later"
+              @click.stop="emit('move', name, 1)"
+            >
+              &#9654;
+            </button>
+          </template>
+          <template v-if="!isSystem">
+            <button
+              type="button"
+              title="Edit this collection"
+              @click.stop="emit('edit', name)"
+            >
+              ✎
+            </button>
+            <button
+              type="button"
+              title="Delete this collection"
+              @click.stop="emit('delete', name)"
+            >
+              ✕
+            </button>
+          </template>
         </div>
       </div>
     </div>
@@ -86,6 +151,9 @@ const displayName = computed(() =>
         <span class="status"
           >{{ games.length }} game{{ games.length === 1 ? "" : "s" }}</span
         >
+        <span v-if="description" class="desc" :title="description">{{
+          description
+        }}</span>
       </div>
     </div>
   </div>
@@ -141,8 +209,40 @@ const displayName = computed(() =>
   font-size: 11px;
   cursor: pointer;
 }
-.card-actions button:hover {
+.card-actions button:hover,
+.card-actions button.on {
+  color: #d68a34;
+}
+.pin-badge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: rgba(20, 20, 20, 0.8);
+  backdrop-filter: blur(4px);
+  color: #d68a34;
+}
+.collection-card-wrap[draggable="true"] {
+  cursor: grab;
+}
+.collection-card-wrap.drop-target .collection-card {
+  outline: 2px dashed #d68a34;
+  outline-offset: 3px;
+}
+.card-actions button[title^="Delete"]:hover {
   color: #e57373;
+}
+.desc {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #666;
 }
 .cover {
   position: relative;
