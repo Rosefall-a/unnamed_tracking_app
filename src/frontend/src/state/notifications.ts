@@ -8,6 +8,7 @@
 // only returns counts, not unlock timestamps), so it's left out rather
 // than faked.
 import { ref } from "vue";
+import { notificationDestination } from "../utils/notificationPresentation";
 import { fetchBounties } from "../services/bounties";
 import type { Bounty } from "../services/bounties";
 import {
@@ -73,13 +74,7 @@ export async function readAllMediaNotifications() {
 }
 
 export function mediaNotificationRoute(n: MediaNotification): string {
-  const base =
-    n.mediaType === "movie"
-      ? "/movies"
-      : n.mediaType === "tv"
-        ? "/tv"
-        : "/anime";
-  return `${base}/${n.mediaId}`;
+  return notificationDestination(n) ?? "/notifications";
 }
 
 export async function refreshNotifications() {

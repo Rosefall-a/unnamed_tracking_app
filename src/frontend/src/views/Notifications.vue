@@ -15,25 +15,33 @@ import {
   markAllNotificationsRead,
   deleteMediaNotification,
 } from "../services/notifications";
-import type {
-  MediaNotification,
-  MediaNotificationKind,
-} from "../services/notifications";
+import type { MediaNotification } from "../services/notifications";
 import {
   notifications as bountyNotifications,
   refreshMediaNotifications,
 } from "../state/notifications";
 import { useKeptAlive } from "../utils/useKeptAlive";
 import { useConfirm } from "../state/dialog";
+import {
+  notificationPresentation,
+  notificationDestination,
+} from "../utils/notificationPresentation";
 
 type Filter =
-  "all" | "unread" | "episodes" | "seasons" | "releases" | "bounties";
+  | "all"
+  | "unread"
+  | "episodes"
+  | "seasons"
+  | "releases"
+  | "plugins"
+  | "bounties";
 const FILTERS: { key: Filter; label: string }[] = [
   { key: "all", label: "All" },
   { key: "unread", label: "Unread" },
   { key: "episodes", label: "Episodes" },
   { key: "seasons", label: "Seasons" },
   { key: "releases", label: "Releases" },
+  { key: "plugins", label: "Plugins" },
   { key: "bounties", label: "Bounties" },
 ];
 
@@ -59,24 +67,6 @@ async function load() {
 onMounted(load);
 useKeptAlive(load);
 
-const KIND_META: Record<
-  MediaNotificationKind,
-  { label: string; tone: string; group: Filter }
-> = {
-  episode_aired: { label: "Episode aired", tone: "amber", group: "episodes" },
-  season_started: { label: "Season started", tone: "green", group: "seasons" },
-  sequel_announced: {
-    label: "New season listed",
-    tone: "blue",
-    group: "seasons",
-  },
-  movie_released: {
-    label: "Movie released",
-    tone: "violet",
-    group: "releases",
-  },
-};
-
 const unreadCount = computed(() => items.value.filter((n) => !n.read).length);
 const counts = computed(() => {
   const c: Record<Filter, number> = {
@@ -85,9 +75,13 @@ const counts = computed(() => {
     episodes: 0,
     seasons: 0,
     releases: 0,
+    plugins: 0,
     bounties: bountyNotifications.value.length,
   };
-  for (const n of items.value) c[KIND_META[n.kind].group] += 1;
+  for (const n of items.value) {
+    const group = notificationPresentation(n.kind).group;
+    if (group) c[group] += 1;
+  }
   return c;
 });
 const filterOptions = computed<SegmentOption[]>(() =>
@@ -102,7 +96,7 @@ const shown = computed(() => {
   return items.value.filter((n) => {
     if (filter.value === "all") return true;
     if (filter.value === "unread") return !n.read;
-    return KIND_META[n.kind].group === filter.value;
+    return notificationPresentation(n.kind).group === filter.value;
   });
 });
 
@@ -159,19 +153,11 @@ function ago(unix: number): string {
   if (s < 86400) return unit(Math.floor(s / 3600), "hour");
   return unit(Math.floor(s / 86400), "day");
 }
-function route(n: MediaNotification): string {
-  const base =
-    n.mediaType === "movie"
-      ? "/movies"
-      : n.mediaType === "tv"
-        ? "/tv"
-        : "/anime";
-  return `${base}/${n.mediaId}`;
-}
 const TYPE_LABEL: Record<string, string> = {
   movie: "Movie",
   tv: "TV show",
   anime: "Anime",
+  plugin: "Plugin",
 };
 
 // ---- actions ----
@@ -213,8 +199,10 @@ async function dismiss(n: MediaNotification) {
   }
 }
 async function open(n: MediaNotification) {
+  const destination = notificationDestination(n);
+  if (!destination) return;
   if (!n.read) await setRead(n, true);
-  router.push(route(n));
+  router.push(destination);
 }
 function toggleOpen(n: MediaNotification) {
   openId.value = openId.value === n.id ? null : n.id;
@@ -323,9 +311,11 @@ function toggleOpen(n: MediaNotification) {
                     >{{ timeOnly(n.eventAt) }} · {{ ago(n.eventAt) }}</span
                   >
                 </span>
-                <span class="badge" :class="KIND_META[n.kind].tone">{{
-                  KIND_META[n.kind].label
-                }}</span>
+                <span
+                  class="badge"
+                  :class="notificationPresentation(n.kind).tone"
+                  >{{ notificationPresentation(n.kind).label }}</span
+                >
                 <span v-if="!n.read" class="unread-dot" title="Unread"></span>
               </button>
 
@@ -333,11 +323,17 @@ function toggleOpen(n: MediaNotification) {
                 <dl>
                   <div>
                     <dt>What happened</dt>
-                    <dd>{{ KIND_META[n.kind].label }}: {{ n.body }}</dd>
+                    <dd>
+                      {{ notificationPresentation(n.kind).label }}: {{ n.body }}
+                    </dd>
                   </div>
                   <div>
                     <dt>Title</dt>
-                    <dd>{{ n.title }} ({{ TYPE_LABEL[n.mediaType] }})</dd>
+                    <dd>
+                      {{ n.title }} ({{
+                        TYPE_LABEL[n.mediaType] ?? "Notification"
+                      }})
+                    </dd>
                   </div>
                   <div>
                     <dt>
@@ -350,6 +346,7 @@ function toggleOpen(n: MediaNotification) {
                 </dl>
                 <div class="detail-actions">
                   <button
+                    v-if="notificationDestination(n)"
                     type="button"
                     class="ui-btn ui-btn-sm ui-btn-primary"
                     @click="open(n)"
