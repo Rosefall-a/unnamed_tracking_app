@@ -27,6 +27,7 @@ production code, and none of it is part of the Unnamed Tracking integration.
 | `e10_luanti.py` | The same deploy/verify/capture/map sequence against Luanti (Minetest 5.6), the second game. |
 | `egg/egg-ut-luanti.yaml`, `yolks/luanti/` | Luanti egg (upstream contract minus `--terminal`) and local image. |
 | `e11_custody.py` | Custody marker write/read and whether the hosted world changed since deploy. |
+| `e12_large_world_parts.py` | A world larger than the node upload limit, deployed as independent part archives. |
 | `screenshots.mjs` | Playwright capture of the Pelican UI evidence in `../evidence/img/`. |
 | `setup_env.sh` | Rebuilds the whole disposable Panel + Wings environment from release artifacts. |
 | `mkkey.php` | Creates API keys through Pelican's own `KeyCreationService`. |
