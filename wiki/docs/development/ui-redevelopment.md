@@ -5,8 +5,8 @@ Status: **direction selected; implementation in progress**. Use Pocket's floatin
 The design concepts below are preserved interactive proposals with illustrative
 data. The live application checkpoints use the Archive/Pocket design and the
 explicit v1.1 contract described in the [migration guide](plugin-v1.1-migration.md).
-The contract boundary is implemented; full plugin UI migration, widget/theme APIs
-and final acceptance are still in progress. A version declaration alone does not
+The contract boundary, maintained plugin migration and widget/theme APIs are implemented;
+final integration review is in progress. A version declaration alone does not
 certify that a plugin has completed those checks.
 
 ## Selected direction and appearance foundation
@@ -55,7 +55,10 @@ Local validation:
 
 The real lifecycle run uses **reduced isolation**, explicitly configured by the existing acceptance harness. It does not prove strict production isolation or the eventual v1.1 per-plugin responsive matrix. Runtime isolation tests and a Linux Bubblewrap launch probe pass separately. Existing deprecation/cache warnings are recorded; Windows psycopg lacks libpq, so PostgreSQL/backend acceptance ran under WSL Ubuntu.
 
-## Current architecture and implications
+## Initial architecture and implications
+
+This table records the pre-redevelopment audit. Later checkpoints below describe
+the implemented replacement; it is retained to explain the original decisions.
 
 | Area | Current implementation | Redevelopment consequence |
 | --- | --- | --- |
@@ -95,11 +98,13 @@ Audit source: `unnamed_tracking_app_plugins` main at `9a88160b79c73ee918bc4b5bb2
 | Official Jellyfin preview | Separate identity and official signing boundary; media/plugin page integration |
 | Official PWA preview | Install metadata, icons, host service worker, offline reconnect and branding propagation |
 
-The two official previews remain unreleased pending their protected signing identity. Ten example sources remain maintained; stale host documentation incorrectly describing six as retired was corrected during reconciliation. No maintained standalone theme plugin currently exists, and the new Home widget demonstration does not exist yet. Both are explicit future coverage rather than fabricated compatibility evidence.
+At the initial audit, the two official previews remained unreleased pending their protected signing identity and ten examples remained maintained. The completed source migration now includes twelve examples and two official previews, including `example.theme-palettes` and `example.home-widgets`. Published archives and protected official signing boundaries remain intact. Actual signed theme, widget, native settings and iframe acceptance is recorded below.
 
 ## Concepts
 
 Use the [interactive concept gallery](../assets/ui-redevelopment/concepts.html). These share feature scope but differ in layout and interaction.
+
+For reference before this Draft PR is merged, [download the portable gallery ZIP](https://raw.githubusercontent.com/Rosefall-a/unnamed_tracking_app/feat/ui-ux-redevelopment/wiki/docs/assets/ui-redevelopment/concept-reference.zip). Extract it and open `concepts.html`; no server or account is needed. The [local archive](../assets/ui-redevelopment/concept-reference.zip) and [instructions](../assets/ui-redevelopment/concept-reference.md) remain versioned with both original sources. The gallery can also be served by the wiki after merge.
 
 | Direction | Desktop | Mobile | Tradeoff |
 | --- | --- | --- | --- |
