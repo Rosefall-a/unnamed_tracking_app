@@ -1,0 +1,54 @@
+_comment: 'Discovery-only egg. Mirrors the upstream pelican-eggs games-standalone Minetest egg contract.'
+meta:
+  version: PLCN_v3
+  update_url: null
+exported_at: '2026-10-04T00:00:00+00:00'
+name: 'UT Luanti (Minetest 5.6)'
+author: discovery@ut-pelican.test
+uuid: 0d3f1f8e-6f1b-4f7d-9d53-1f2b8c6a4e21
+description: |-
+  Disposable Luanti/Minetest 5.6.1 server (Ubuntu archive build, Minetest Game 1.9) used as the
+  second game in the Unnamed Tracking Pelican adapter comparison. Differs from the upstream egg in
+  one way: no --terminal. With --terminal Luanti switches stdout to an ncurses UI, the readiness line
+  never reaches Pelican's console and the server stays "starting" (observed in E10). Without it,
+  stdin commands are not read, so stop is SIGINT (^C). The image is a local yolk (ghcr.io is blocked).
+tags:
+  - minetest
+  - luanti
+features: {  }
+docker_images:
+  'Luanti 5.6 (local)': '~utpelican/yolk-luanti:local'
+file_denylist: {  }
+startup_commands:
+  Default: '/usr/games/minetestserver --port {{SERVER_PORT}} --gameid minetest --world /home/container/worlds/{{WORLD_NAME}} --config /home/container/minetest.conf --logfile /home/container/server.log'
+config:
+  files: {  }
+  startup:
+    done: ' Server for gameid'
+  logs: {  }
+  stop: '^C'
+scripts:
+  installation:
+    script: |-
+      #!/bin/bash
+      mkdir -p /mnt/server/worlds
+      touch /mnt/server/server.log
+      # Same minetest.conf essentials as the upstream egg (admin name, no server-list announce).
+      if [ ! -f /mnt/server/minetest.conf ]; then
+        printf 'name = utadmin\nserver_announce = false\nbind_address = 0.0.0.0\nserver_name = UT Luanti test\n' > /mnt/server/minetest.conf
+      fi
+      echo "Install Complete"
+    container: 'utpelican/installer:local'
+    entrypoint: bash
+variables:
+  -
+    name: 'World Name'
+    description: 'Folder under worlds/ that holds the world.'
+    env_variable: WORLD_NAME
+    default_value: world
+    user_viewable: true
+    user_editable: true
+    rules:
+      - required
+      - 'regex:/^[\w.-]+$/'
+    sort: 1

@@ -1,0 +1,106 @@
+{
+ "session": {
+  "player": "UTPlayer",
+  "started_at": 1791137348,
+  "ended_at": 1791137380,
+  "seconds": 32.5,
+  "position_samples": [
+   {
+    "t": 1.9,
+    "pos": [
+     10.0,
+     71.0,
+     10.0
+    ]
+   },
+   {
+    "t": 3.9,
+    "pos": [
+     40.0,
+     62.157366454805974,
+     30.0
+    ]
+   },
+   {
+    "t": 5.9,
+    "pos": [
+     70.0,
+     72.0,
+     -20.0
+    ]
+   },
+   {
+    "t": 7.9,
+    "pos": [
+     30.0,
+     85.0,
+     -60.0
+    ]
+   },
+   {
+    "t": 9.9,
+    "pos": [
+     -40.0,
+     64.0,
+     -40.0
+    ]
+   },
+   {
+    "t": 11.9,
+    "pos": [
+     -60.0,
+     85.0,
+     30.0
+    ]
+   },
+   {
+    "t": 13.9,
+    "pos": [
+     -20.0,
+     76.0,
+     60.0
+    ]
+   }
+  ]
+ },
+ "snapshot": {
+  "pelican_backup_uuid": "be5b030a-cb33-4b00-a3bb-5287d01702b3",
+  "pelican_sha1": "d3bb01dcb09130cbfd45d7f0ea65ac3ef39f28aa",
+  "bytes": 837670,
+  "sha256": "cf4d50a726d59fefd95acb7d163443a306bd1531ae148682e3be93fafc13f19e",
+  "captured_after_session": true
+ },
+ "map": {
+  "image": "map-be5b030a-cb33-4b00-a3bb-5287d01702b3.png",
+  "explored_chunks": 682,
+  "world": {
+   "level_name": "UT Test World A",
+   "seed": 424242,
+   "data_version": 4790,
+   "version_name": "26.1.2",
+   "day_time": 9897,
+   "day": 0,
+   "raining": false,
+   "spawn": [
+    0,
+    74,
+    0
+   ]
+  },
+  "saved_player_positions": [
+   {
+    "uuid": "cb7a3738-66fe-3787-b260-0bcade701863",
+    "pos": [
+     -20.0,
+     76.0,
+     60.0
+    ],
+    "dimension": "minecraft:overworld",
+    "rotation": [
+     0.0,
+     0.0
+    ]
+   }
+  ]
+ }
+}

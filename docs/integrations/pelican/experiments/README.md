@@ -22,6 +22,10 @@ production code, and none of it is part of the Unnamed Tracking integration.
 | `e08a_archive_safety.py` | Traversal, symlink, truncated, non-archive and decompression-bomb archives; interrupted upload. |
 | `e08b_runtime_failures.py` | Bad credentials, Panel/Wings down, save without `level.dat`, newer-version save, never-ready, crash. |
 | `e08d_server_deletion.py` | What survives when the server hosting a world is deleted. |
+| `e09_visualise.py` | World state, saved players, explored chunks and an asset-free top-down map from a Minecraft save. |
+| `e09b_session_snapshot_map.py` | A play session, its captured snapshot, and a map of that snapshot with the session trail. |
+| `e10_luanti.py` | The same deploy/verify/capture/map sequence against Luanti (Minetest 5.6), the second game. |
+| `egg/egg-ut-luanti.yaml`, `yolks/luanti/` | Luanti egg (upstream contract minus `--terminal`) and local image. |
 | `setup_env.sh` | Rebuilds the whole disposable Panel + Wings environment from release artifacts. |
 | `mkkey.php` | Creates API keys through Pelican's own `KeyCreationService`. |
 | `yolks/` | Local rebuilds of the Pelican Java 25 yolk and installer images. |
