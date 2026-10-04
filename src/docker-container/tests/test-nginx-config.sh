@@ -15,11 +15,10 @@ rendered="$work/http-defaults.conf"
 "$render" /etc/nginx/ready.conf "$rendered"
 grep -q 'real_ip_header X-Forwarded-For;' "$rendered"
 grep -q 'real_ip_recursive on;' "$rendered"
-grep -q 'set_real_ip_from 10.0.0.0/8;' "$rendered"
-grep -q 'set_real_ip_from 100.64.0.0/10;' "$rendered"
-grep -q 'set_real_ip_from fc00::/7;' "$rendered"
-grep -q 'set_real_ip_from 173.245.48.0/20;' "$rendered"
-grep -q 'set_real_ip_from 2606:4700::/32;' "$rendered"
+grep -q 'set_real_ip_from 127.0.0.1/32;' "$rendered"
+grep -q 'set_real_ip_from ::1/128;' "$rendered"
+if grep -q 'set_real_ip_from 10.0.0.0/8;' "$rendered"; then echo "private ranges must not be trusted by default" >&2; exit 1; fi
+if grep -q 'set_real_ip_from 173.245.48.0/20;' "$rendered"; then echo "Cloudflare ranges must not be trusted by default" >&2; exit 1; fi
 nginx -t -c "$rendered"
 
 rendered="$work/http.conf"
