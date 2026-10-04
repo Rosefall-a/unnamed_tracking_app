@@ -1,6 +1,8 @@
 # UI redevelopment: audit and design checkpoint
 
-Status: **direction selected; implementation in progress**. Use Pocket's floating sidebar and touch-first mobile surfaces with Archive's desktop Home and overall structure. Keep shared title, spacing and control rules consistent across pages. Preserve the three original concepts for future style/layout alternatives.
+Status: **implemented; final CI verification in progress**. The interface uses Pocket's floating sidebar and touch-first mobile surfaces with Archive's desktop Home and overall structure. Page titles, spacing and controls use shared rules. The three original concepts remain available for future style/layout alternatives.
+
+This page retains chronological checkpoints. Counts and work-in-progress notes in earlier sections describe those stages; use the latest integration summary below and the paired Draft PR updates for current validation.
 
 The design concepts below are preserved interactive proposals with illustrative
 data. The live application checkpoints use the Archive/Pocket design and the
@@ -362,3 +364,13 @@ Global Alt navigation includes Upload (Alt+U) and Notifications (Alt+O), with hi
 The [updated search/navigation report](../assets/ui-redevelopment/stage-search-conformance.json) passes 60 real core route/theme/width cases plus search, offline retry, editable-field guards, create dialogs and account separation. The [signed plugin report](../assets/ui-redevelopment/plugin-appearance-final.json) also passes six actual navigation cases and four native search/help dialog cases from inside the Document reader frame, a rejected arbitrary path and an open host-dialog guard. All 41 public SDK/document-browser tests and 220 companion tests pass.
 
 This sweep exposed plugin notifications crashing the old media-only list. The list now displays plugin and unfamiliar kinds safely, includes a Plugins filter, and retains read/unread/remove actions. Notifications without a media target do not fabricate an Anime link; the bell opens the notification list. All 180 frontend tests and quality checks pass after the fix.
+
+## Current integration summary
+
+The final native review passes 160 real content/theme/width/role cases, 416 populated detail/media/settings cases, and another 832 cases using Green and a custom palette. The [palette report](../assets/ui-redevelopment/stage-palette-conformance.json) includes arbitrary valid colors with advisory contrast guidance, current-mode preview, portable download/import, account separation and System switching. The installer and calendar dialogs use the corrected shared focus handler, including collapsed sections.
+
+The complete local backend suite passes 955 tests with two existing opt-in skips; signed repository acceptance exercises the cross-repository paths separately. Mypy passes 204 files and Pylint scores 9.27/10 against the current 9.0 threshold. All 180 frontend tests and frontend quality/build checks pass. Maintained companion validation passes 220 tests, fourteen source contracts and 41 public SDK/document-browser checks. The PWA assets pass twelve Node tests.
+
+Actual signed package acceptance passes native Jellyfin/Document Browser settings, iframe reader, themes/widgets, account separation, permissions, acquisition, historical version pins, updates, rollback, runtime outages and failure recovery. Strict production Docker/Bubblewrap acceptance passes the official Jellyfin preview using an isolated Jellyfin protocol fixture; it is not a claim of testing a deployed Jellyfin server. PWA browser acceptance passes Settings-based installation, early prompt timing, branding, online/offline custom palettes, updates, rollback, permission withdrawal, uninstall/reinstall and session expiry. Headless install coverage verifies the prompt event boundary rather than a physical operating-system prompt.
+
+The [open-PR integration review](ui-pr-integration-review.md) records exact overlapping heads and preservation plans. The `plugin-manager` target is an ancestor and has a clean merge tree; its full suites were checked independently. Cards, Sets and Bounties remain in this redesign. Final CI results and exact matching host/companion heads are recorded on the Draft PRs before completion.

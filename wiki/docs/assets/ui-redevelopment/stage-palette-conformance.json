@@ -24,7 +24,8 @@
     "Real preset/custom editor save, reload and account isolation",
     "Preview menus and light/dark color sets without changing unsaved app appearance",
     "System changes retain the chosen palette",
-    "Unreadable text blocked in the editor and arbitrary CSS rejected by the API"
+    "Low contrast colors save with advisory guidance; arbitrary CSS still rejected",
+    "Portable palette download/import round trip; malformed imports preserve saved colors"
   ],
   "screens": [
     {
