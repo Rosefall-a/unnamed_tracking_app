@@ -2,15 +2,9 @@
 // "Can't decide what to play?" (#33): narrow the library by status,
 // platform, genre, length and priority, then pick one. Filters are
 // remembered between visits.
-import {
-  computed,
-  nextTick,
-  onBeforeUnmount,
-  onMounted,
-  ref,
-  watch,
-} from "vue";
+import { computed, nextTick, ref, watch } from "vue";
 import { useRouter } from "vue-router";
+import UiModal from "./UiModal.vue";
 
 import type { Game, GameStatus } from "../types/game";
 import { GENRE_OPTIONS } from "../utils/genres";
@@ -139,24 +133,11 @@ function openPicked() {
 const pickedPriority = computed(() =>
   picked.value ? activePriority(picked.value) : null,
 );
-
-function onKeydown(event: KeyboardEvent) {
-  if (event.key === "Escape") emit("close");
-}
-onMounted(() => window.addEventListener("keydown", onKeydown));
-onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown));
 </script>
 
 <template>
-  <div class="ui-backdrop" @click.self="emit('close')">
-    <div
-      ref="dialogEl"
-      class="ui-modal picker"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="random-picker-title"
-    >
-      <h3 id="random-picker-title">Pick something to play</h3>
+  <UiModal title="Pick something to play" size="wide" @close="emit('close')">
+    <section ref="dialogEl" class="picker">
       <p class="picker-sub">
         Narrow it down, then let the dice decide.
         <span class="match-count"
@@ -291,13 +272,13 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown));
           {{ picked ? "Pick again" : "Pick a game" }}
         </button>
       </div>
-    </div>
-  </div>
+    </section>
+  </UiModal>
 </template>
 
 <style scoped>
 .picker {
-  max-width: 520px;
+  min-width: 0;
 }
 .picker-sub {
   margin: 0 0 14px;

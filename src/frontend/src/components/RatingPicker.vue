@@ -4,6 +4,7 @@
 // box: type a score from 0 to 10 (a decimal like 8.5 is fine) and press
 // Enter or Save. Clear removes it. Escape or a click outside closes.
 import { ref, computed, nextTick, onMounted, onBeforeUnmount } from "vue";
+import AppIcon from "./AppIcon.vue";
 
 const props = defineProps<{ modelValue: number | null }>();
 const emit = defineEmits<{ change: [value: number | null] }>();
@@ -94,6 +95,7 @@ onBeforeUnmount(() => {
     @click="toggle"
   >
     {{ label }}
+    <AppIcon name="chevron" :size="12" class="rating-chevron" />
   </button>
 
   <Teleport to="body">
@@ -141,20 +143,23 @@ onBeforeUnmount(() => {
 .rating-pill {
   min-height: var(--ui-control-height);
   background-color: color-mix(in srgb, var(--ui-text) 6%, transparent);
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23d68a34' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 8px center;
-  background-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   border: 1px solid color-mix(in srgb, var(--ui-accent) 40%, transparent);
   border-radius: 7px;
   line-height: 1.25;
-  padding: 4px 26px 4px 11px;
+  padding: 4px 11px;
   font-family: inherit;
   font-size: 0.78rem;
   font-weight: 600;
   color: var(--ui-accent-text);
   cursor: pointer;
   transition: background-color 0.15s ease;
+}
+.rating-chevron {
+  transform: rotate(90deg);
+  color: currentColor;
 }
 .rating-pill:hover,
 .rating-pill.open {
@@ -255,7 +260,7 @@ onBeforeUnmount(() => {
 }
 .clear-btn:hover {
   color: var(--ui-error);
-  background: rgba(229, 115, 115, 0.08);
+  background: var(--ui-danger-soft);
 }
 .pop-enter-active,
 .pop-leave-active {

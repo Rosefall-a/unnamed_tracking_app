@@ -333,3 +333,18 @@ The [responsive discovery report](../assets/ui-redevelopment/plugin-discovery-co
 ![Desktop grouped plugin discovery](../assets/ui-redevelopment/plugin-discovery-1440-light.png)
 ![Phone package or URL installer](../assets/ui-redevelopment/plugin-package-chooser-390-dark.png)
 ![Desktop package or URL installer](../assets/ui-redevelopment/plugin-package-chooser-1440-light.png)
+
+
+## Native library and calendar workflow review
+
+Calendar event, manual history and subscription dialogs now use the shared native modal with focus containment, Escape and focus restoration. Event and history editors use available desktop space and retain phone touch controls. The random game picker uses the same spacious modal. The media rating arrow and destructive hover state follow semantic palette colors.
+
+The [workflow report](../assets/ui-redevelopment/library-workflow-conformance.json) covers four real phone/desktop light/dark cases: game creation, saved ratings and completion dates, random selection, movie rating bounds/save/clear, saved calendar events and manual history, and calendar subscription focus/dismissal. Subscription credentials are excluded from screenshots. All 175 frontend tests, formatting, lint, type checking and production build pass at this checkpoint.
+
+![Saved game ratings on a phone](../assets/ui-redevelopment/game-workflow-390-dark.png)
+
+![Spacious desktop random picker](../assets/ui-redevelopment/random-picker-1440-light.png)
+
+![Phone history editor](../assets/ui-redevelopment/calendar-history-390-dark.png)
+
+![Desktop history editor](../assets/ui-redevelopment/calendar-history-1440-light.png)
