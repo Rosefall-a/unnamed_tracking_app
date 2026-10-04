@@ -274,6 +274,7 @@ async function deleteList(id: string) {
             class="ui-field search-input"
             placeholder="Search lists…"
             aria-label="Search lists"
+            data-shortcut="search"
           />
           <select v-model="sortBy" class="ui-field" aria-label="Sort by">
             <option value="custom">My order</option>
@@ -285,6 +286,7 @@ async function deleteList(id: string) {
             type="button"
             class="ui-btn ui-btn-primary"
             @click="showCreate = true"
+            data-shortcut="create"
           >
             + Create List
           </button>

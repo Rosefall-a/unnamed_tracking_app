@@ -1064,6 +1064,14 @@ function isTypingTarget(target: EventTarget | null): boolean {
   );
 }
 function onDetailKeydown(e: KeyboardEvent) {
+  if (
+    e.defaultPrevented ||
+    e.ctrlKey ||
+    e.metaKey ||
+    e.altKey ||
+    document.querySelector("dialog[open]")
+  )
+    return;
   if (isTypingTarget(e.target)) return;
   if (
     showEditModal.value ||

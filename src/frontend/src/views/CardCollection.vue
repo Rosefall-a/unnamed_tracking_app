@@ -96,6 +96,7 @@ onMounted(load);
           type="button"
           class="ui-btn ui-btn-primary"
           @click="showPicker = true"
+          data-shortcut="create"
         >
           New card
         </button>

@@ -14,7 +14,6 @@ import SettingsNav from "../components/settings/SettingsNav.vue";
 import type { SettingsGroup } from "../components/settings/SettingsNav.vue";
 import SaveStatus from "../components/settings/SaveStatus.vue";
 import ProfileSection from "../components/settings/ProfileSection.vue";
-import InterfaceSection from "../components/settings/InterfaceSection.vue";
 import AppearanceSection from "../components/settings/AppearanceSection.vue";
 import BrandingSection from "../components/settings/BrandingSection.vue";
 import UploadSection from "../components/settings/UploadSection.vue";
@@ -153,8 +152,7 @@ const groups = computed<SettingsGroup[]>(() => {
       label: "Preferences",
       area: "preferences",
       sections: [
-        { id: "interface", label: "User Interface" },
-        { id: "appearance", label: "Appearance" },
+        { id: "appearance", label: "Appearance & interface" },
         { id: "notifications", label: "Notifications" },
         { id: "calendar", label: "Calendar" },
         { id: "shortcuts", label: "Keyboard Shortcuts" },
@@ -225,6 +223,7 @@ const groups = computed<SettingsGroup[]>(() => {
 // merged page as a tab, so old links (command palette, bookmarks) still
 // land in the right place.
 const SECTION_ALIASES: Record<string, { section: string; tab?: string }> = {
+  interface: { section: "appearance" },
   "calendar-notifications": { section: "notifications" },
   "media-prefs": { section: "library", tab: "preferences" },
   "media-trash": { section: "library", tab: "trash" },
@@ -434,7 +433,6 @@ function backToArea() {
           :aria-label="sectionTitle"
         >
           <ProfileSection v-if="activeSection === 'profile'" />
-          <InterfaceSection v-else-if="activeSection === 'interface'" />
           <AppearanceSection v-else-if="activeSection === 'appearance'" />
           <BrandingSection
             v-else-if="activeSection === 'branding' && currentUser?.is_admin"

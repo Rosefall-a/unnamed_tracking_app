@@ -65,6 +65,7 @@ onMounted(load);
         class="text-input"
         placeholder="New set name"
         aria-label="New set name"
+        data-shortcut="create"
       />
       <input
         v-model.number="newTarget"

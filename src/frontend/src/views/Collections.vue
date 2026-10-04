@@ -272,6 +272,7 @@ function smartIdForName(name: string): string | undefined {
             type="button"
             class="ui-btn ui-btn-primary"
             @click="createCollection"
+            data-shortcut="create"
           >
             Create collection
           </button>
@@ -285,6 +286,7 @@ function smartIdForName(name: string): string | undefined {
             class="search-input"
             placeholder="Search collections…"
             aria-label="Search collections"
+            data-shortcut="search"
           />
           <select v-model="sortBy" class="filter-select" aria-label="Sort by">
             <option value="name">Name</option>

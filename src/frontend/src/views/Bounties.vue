@@ -742,7 +742,12 @@ async function togglePoints() {
         >
           🏅 {{ showPoints ? "Hide" : "Points" }}
         </button>
-        <button type="button" class="add-button" @click="openAddForm">
+        <button
+          type="button"
+          class="add-button"
+          data-shortcut="create"
+          @click="openAddForm"
+        >
           + New Bounty
         </button>
       </template>
@@ -819,6 +824,7 @@ async function togglePoints() {
         class="field-input search-input"
         placeholder="Search bounties…"
         aria-label="Search bounties"
+        data-shortcut="search"
       />
       <select
         v-model="typeFilter"

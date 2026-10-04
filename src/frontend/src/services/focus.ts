@@ -8,7 +8,7 @@ export function containModalTab(
   if (event.key !== "Tab" || !root) return;
   const controls = Array.from(
     root.querySelectorAll<HTMLElement>(
-      'a[href], button, input, select, textarea, [tabindex]:not([tabindex="-1"])',
+      'a[href], button, input, select, textarea, summary, [tabindex]:not([tabindex="-1"])',
     ),
   ).filter(
     (element) =>

@@ -13,6 +13,7 @@ import type {
 } from "../../services/appearanceSettings";
 import { loadAppearanceSettings } from "../../state/appearance";
 import UiAppearanceSection from "./UiAppearanceSection.vue";
+import InterfaceSection from "./InterfaceSection.vue";
 import CompletionBadge from "../CompletionBadge.vue";
 
 const previewTitles = [
@@ -137,6 +138,7 @@ async function removeImage() {
 
 <template>
   <UiAppearanceSection />
+  <InterfaceSection />
   <section class="settings-section">
     <h2>Completed game badges</h2>
     <p class="section-hint">

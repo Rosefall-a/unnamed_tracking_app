@@ -44,11 +44,11 @@ watch(defaultSort, (sort) =>
 </script>
 
 <template>
-  <section class="settings-section">
-    <h2>User Interface</h2>
+  <section class="settings-section" aria-labelledby="interface-heading">
+    <h2 id="interface-heading">Navigation & library defaults</h2>
     <p class="section-hint">
-      These are the defaults used the next time you open the Games page: they
-      don't change anything on a page you already have open.
+      Navigation and library defaults are saved on this device. Library choices
+      take effect the next time you open Games; the sidebar changes immediately.
     </p>
 
     <div class="field">
@@ -87,12 +87,6 @@ watch(defaultSort, (sort) =>
     </div>
 
     <p class="field-hint">
-      Theme, density, contrast and motion are now under
-      <router-link to="/settings?section=appearance">Appearance</router-link>
-      and follow your account between devices.
-    </p>
-
-    <p class="field-hint">
       Add the <strong>This week</strong> widget from
       <router-link to="/">Home → Customize Home</router-link>
       to see your weekly digest. Widget selection and order follow your account.
@@ -101,6 +95,9 @@ watch(defaultSort, (sort) =>
 </template>
 
 <style scoped>
+.settings-section {
+  margin-bottom: var(--ui-space-8);
+}
 .settings-section h2 {
   margin: 0 0 12px;
   font: var(--ui-weight-heading) var(--ui-font-heading)/1.4

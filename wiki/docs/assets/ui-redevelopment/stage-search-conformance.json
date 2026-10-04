@@ -1,0 +1,437 @@
+{
+  "backend": "real",
+  "passed": [
+    "Sidebar first-open search with delayed real loading, games/collections/goals/all media, keyboard Enter navigation, new-game refresh and offline retry",
+    "52 route/theme/width combinations with global navigation, Search library and current-page-first expandable keyboard help",
+    "Local slash/new controls, typing guards and native dialog containment",
+    "Member search excludes another account and administrator-only settings"
+  ],
+  "screens": [
+    {
+      "theme": "light",
+      "width": 390,
+      "route": "/",
+      "search": true,
+      "help": true,
+      "navigation": true
+    },
+    {
+      "theme": "light",
+      "width": 390,
+      "route": "/games",
+      "search": true,
+      "help": true,
+      "navigation": true
+    },
+    {
+      "theme": "light",
+      "width": 390,
+      "route": "/collections",
+      "search": true,
+      "help": true,
+      "navigation": true
+    },
+    {
+      "theme": "light",
+      "width": 390,
+      "route": "/movies",
+      "search": true,
+      "help": true,
+      "navigation": true
+    },
+    {
+      "theme": "light",
+      "width": 390,
+      "route": "/tv",
+      "search": true,
+      "help": true,
+      "navigation": true
+    },
+    {
+      "theme": "light",
+      "width": 390,
+      "route": "/anime",
+      "search": true,
+      "help": true,
+      "navigation": true
+    },
+    {
+      "theme": "light",
+      "width": 390,
+      "route": "/lists",
+      "search": true,
+      "help": true,
+      "navigation": true
+    },
+    {
+      "theme": "light",
+      "width": 390,
+      "route": "/cards",
+      "search": true,
+      "help": true,
+      "navigation": true
+    },
+    {
+      "theme": "light",
+      "width": 390,
+      "route": "/sets",
+      "search": true,
+      "help": true,
+      "navigation": true
+    },
+    {
+      "theme": "light",
+      "width": 390,
+      "route": "/bounties",
+      "search": true,
+      "help": true,
+      "navigation": true
+    },
+    {
+      "theme": "light",
+      "width": 390,
+      "route": "/calendar",
+      "search": true,
+      "help": true,
+      "navigation": true
+    },
+    {
+      "theme": "light",
+      "width": 390,
+      "route": "/statistics",
+      "search": true,
+      "help": true,
+      "navigation": true
+    },
+    {
+      "theme": "light",
+      "width": 390,
+      "route": "/settings",
+      "search": true,
+      "help": true,
+      "navigation": true
+    },
+    {
+      "theme": "light",
+      "width": 1440,
+      "route": "/",
+      "search": true,
+      "help": true,
+      "navigation": true
+    },
+    {
+      "theme": "light",
+      "width": 1440,
+      "route": "/games",
+      "search": true,
+      "help": true,
+      "navigation": true
+    },
+    {
+      "theme": "light",
+      "width": 1440,
+      "route": "/collections",
+      "search": true,
+      "help": true,
+      "navigation": true
+    },
+    {
+      "theme": "light",
+      "width": 1440,
+      "route": "/movies",
+      "search": true,
+      "help": true,
+      "navigation": true
+    },
+    {
+      "theme": "light",
+      "width": 1440,
+      "route": "/tv",
+      "search": true,
+      "help": true,
+      "navigation": true
+    },
+    {
+      "theme": "light",
+      "width": 1440,
+      "route": "/anime",
+      "search": true,
+      "help": true,
+      "navigation": true
+    },
+    {
+      "theme": "light",
+      "width": 1440,
+      "route": "/lists",
+      "search": true,
+      "help": true,
+      "navigation": true
+    },
+    {
+      "theme": "light",
+      "width": 1440,
+      "route": "/cards",
+      "search": true,
+      "help": true,
+      "navigation": true
+    },
+    {
+      "theme": "light",
+      "width": 1440,
+      "route": "/sets",
+      "search": true,
+      "help": true,
+      "navigation": true
+    },
+    {
+      "theme": "light",
+      "width": 1440,
+      "route": "/bounties",
+      "search": true,
+      "help": true,
+      "navigation": true
+    },
+    {
+      "theme": "light",
+      "width": 1440,
+      "route": "/calendar",
+      "search": true,
+      "help": true,
+      "navigation": true
+    },
+    {
+      "theme": "light",
+      "width": 1440,
+      "route": "/statistics",
+      "search": true,
+      "help": true,
+      "navigation": true
+    },
+    {
+      "theme": "light",
+      "width": 1440,
+      "route": "/settings",
+      "search": true,
+      "help": true,
+      "navigation": true
+    },
+    {
+      "theme": "dark",
+      "width": 390,
+      "route": "/",
+      "search": true,
+      "help": true,
+      "navigation": true
+    },
+    {
+      "theme": "dark",
+      "width": 390,
+      "route": "/games",
+      "search": true,
+      "help": true,
+      "navigation": true
+    },
+    {
+      "theme": "dark",
+      "width": 390,
+      "route": "/collections",
+      "search": true,
+      "help": true,
+      "navigation": true
+    },
+    {
+      "theme": "dark",
+      "width": 390,
+      "route": "/movies",
+      "search": true,
+      "help": true,
+      "navigation": true
+    },
+    {
+      "theme": "dark",
+      "width": 390,
+      "route": "/tv",
+      "search": true,
+      "help": true,
+      "navigation": true
+    },
+    {
+      "theme": "dark",
+      "width": 390,
+      "route": "/anime",
+      "search": true,
+      "help": true,
+      "navigation": true
+    },
+    {
+      "theme": "dark",
+      "width": 390,
+      "route": "/lists",
+      "search": true,
+      "help": true,
+      "navigation": true
+    },
+    {
+      "theme": "dark",
+      "width": 390,
+      "route": "/cards",
+      "search": true,
+      "help": true,
+      "navigation": true
+    },
+    {
+      "theme": "dark",
+      "width": 390,
+      "route": "/sets",
+      "search": true,
+      "help": true,
+      "navigation": true
+    },
+    {
+      "theme": "dark",
+      "width": 390,
+      "route": "/bounties",
+      "search": true,
+      "help": true,
+      "navigation": true
+    },
+    {
+      "theme": "dark",
+      "width": 390,
+      "route": "/calendar",
+      "search": true,
+      "help": true,
+      "navigation": true
+    },
+    {
+      "theme": "dark",
+      "width": 390,
+      "route": "/statistics",
+      "search": true,
+      "help": true,
+      "navigation": true
+    },
+    {
+      "theme": "dark",
+      "width": 390,
+      "route": "/settings",
+      "search": true,
+      "help": true,
+      "navigation": true
+    },
+    {
+      "theme": "dark",
+      "width": 1440,
+      "route": "/",
+      "search": true,
+      "help": true,
+      "navigation": true
+    },
+    {
+      "theme": "dark",
+      "width": 1440,
+      "route": "/games",
+      "search": true,
+      "help": true,
+      "navigation": true
+    },
+    {
+      "theme": "dark",
+      "width": 1440,
+      "route": "/collections",
+      "search": true,
+      "help": true,
+      "navigation": true
+    },
+    {
+      "theme": "dark",
+      "width": 1440,
+      "route": "/movies",
+      "search": true,
+      "help": true,
+      "navigation": true
+    },
+    {
+      "theme": "dark",
+      "width": 1440,
+      "route": "/tv",
+      "search": true,
+      "help": true,
+      "navigation": true
+    },
+    {
+      "theme": "dark",
+      "width": 1440,
+      "route": "/anime",
+      "search": true,
+      "help": true,
+      "navigation": true
+    },
+    {
+      "theme": "dark",
+      "width": 1440,
+      "route": "/lists",
+      "search": true,
+      "help": true,
+      "navigation": true
+    },
+    {
+      "theme": "dark",
+      "width": 1440,
+      "route": "/cards",
+      "search": true,
+      "help": true,
+      "navigation": true
+    },
+    {
+      "theme": "dark",
+      "width": 1440,
+      "route": "/sets",
+      "search": true,
+      "help": true,
+      "navigation": true
+    },
+    {
+      "theme": "dark",
+      "width": 1440,
+      "route": "/bounties",
+      "search": true,
+      "help": true,
+      "navigation": true
+    },
+    {
+      "theme": "dark",
+      "width": 1440,
+      "route": "/calendar",
+      "search": true,
+      "help": true,
+      "navigation": true
+    },
+    {
+      "theme": "dark",
+      "width": 1440,
+      "route": "/statistics",
+      "search": true,
+      "help": true,
+      "navigation": true
+    },
+    {
+      "theme": "dark",
+      "width": 1440,
+      "route": "/settings",
+      "search": true,
+      "help": true,
+      "navigation": true
+    }
+  ],
+  "widths": [
+    320,
+    390,
+    430,
+    768,
+    1024,
+    1440,
+    1920,
+    2560
+  ]
+}

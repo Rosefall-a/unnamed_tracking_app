@@ -12,7 +12,7 @@ Disabled, incompatible or uninstalled plugins do not contribute navigation. Plug
 
 ## Settings areas
 
-- **Preferences** contains appearance, interface defaults, notifications, calendar, shortcuts and library settings.
+- **Preferences** contains a combined Appearance & interface page, notifications, calendar, shortcuts and library settings.
 - **Account** contains profile/password, connections and API keys.
 - **Administration** contains server management, [app branding](../administration/branding.md), plugins, background tasks and storage/usage. Only administrators see this area. Its banner explains that changes affect everyone on the server.
 
@@ -20,17 +20,25 @@ Settings starts with grouped links. On desktop a section keeps its area navigati
 
 ## Personal appearance
 
-Open **Preferences → Appearance**:
+Open **Preferences → Appearance & interface**. Theme and layout, navigation and library defaults, and completed-game badges share this page. Existing `section=interface` and `section=appearance` links both open it.
 
 - **Theme:** System, Light or Dark. System follows changes to the device appearance.
 - **Palette:** Orange, Green or Custom. Each palette has separate light and dark colors. The custom editor controls eleven semantic color roles and previews menus, cards, dialogs and controls before you select **Apply palette**. Both color sets are saved together. Low-contrast pairs show an optional advisory; you can apply any valid six-digit colors. The preview starts in the currently displayed theme and follows later app or System theme changes; you can switch it manually. **Download palette** shares both color sets as a JSON file. **Import palette** loads a shared file into the preview; choose **Apply palette** to save it. Invalid or oversized files leave your saved colors intact.
 - **Density:** Comfortable or Compact. Compact reduces spacing while retaining phone touch targets.
 - **Reduce motion:** disables decorative transitions. The device's reduced-motion setting is always respected.
 - **Higher contrast:** strengthens text, boundaries and keyboard focus.
+- **Navigation & library defaults:** choose the sidebar, default Games view and sorting on this device.
 - **Completed game badges:** choose the style, color, placement and optional image for your completed-game cards.
 
-These choices belong to your account. Badge choices remain personal and existing saved values are preserved. Appearance changes save as you make them; badge customization keeps its explicit Save button. A failed save displays an error and restores the previous appearance. Signing out discards queued preference writes and cached badges so they cannot affect the next signed-in account. A late badge response from the previous account is ignored.
+Theme, palette, density, contrast, motion and badges belong to your account. Badge choices remain personal and existing saved values are preserved. Appearance changes save as you make them; badge customization keeps its explicit Save button. A failed save displays an error and restores the previous appearance. Signing out discards queued preference writes and cached badges so they cannot affect the next signed-in account. A late badge response from the previous account is ignored.
 
 This device keeps only a cosmetic copy of theme, palette and contrast settings so public sign-in, local sign-in fallback and SSO redirects use the same colors after sign-out or reload. It contains no account identity, credentials or library records. Signing into another account applies that account's saved appearance. Browser bars follow the active page background.
 
 Navigation, Settings, [Home](home.md), games, collections, cards, sets, media and statistics use the shared appearance system. The remaining plugin migration is tracked in the [development checkpoint](../development/ui-redevelopment.md). The preserved [interactive concept gallery](../assets/ui-redevelopment/concepts.html) remains available as a reference; its illustrative screens are not product features or additional selectable styles.
+
+
+## Search and keyboard help
+
+Open **Search library** from the menu, or press **Ctrl/Cmd + K**, to find games, movies, TV shows, anime, collections, goals, settings and active plugin pages. A failed provider leaves available results visible and offers Retry. Search and settings results respect your account's permissions.
+
+Press **?** to show keyboard help. The current page's section comes first and opens automatically; expand or collapse other sections as needed. The same help appears under Settings → Keyboard Shortcuts. **/** focuses the current page's search, or opens Search library when there is no local search. **n** opens the current page's create control when available. **g**, then a page key, navigates globally; the full mappings are in help. Shortcuts pause while you type or use a dialog.

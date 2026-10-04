@@ -663,6 +663,10 @@ function anyModalOpen(): boolean {
 }
 function onGlobalKeydown(e: KeyboardEvent) {
   if (
+    route.path !== "/games" ||
+    e.ctrlKey ||
+    e.metaKey ||
+    e.altKey ||
     e.defaultPrevented ||
     anyModalOpen() ||
     document.querySelector("dialog[open]")
@@ -1300,6 +1304,7 @@ watch(viewMode, (mode) => {
           <div class="search-wrap">
             <input
               ref="searchInputRef"
+              data-shortcut="search"
               v-model="searchQuery"
               type="text"
               class="search-input"

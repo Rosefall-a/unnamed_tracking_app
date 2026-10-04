@@ -15,7 +15,7 @@ import {
   onDeactivated,
   watch,
 } from "vue";
-import { useRouter } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import { blurOnLeave } from "../utils/blurOnLeave";
 import {
   fetchCalendar,
@@ -55,6 +55,7 @@ import { fetchAnime } from "../services/anime";
 import { displayTitle } from "../utils/displayTitle";
 
 const router = useRouter();
+const route = useRoute();
 const tab = ref<"calendar" | "history">("calendar");
 const calView = ref<"month" | "week" | "agenda">("month");
 const TAB_OPTIONS: SegmentOption[] = [
@@ -812,6 +813,12 @@ function openLinkedTitle() {
 
 // ---- keyboard: left and right change month or week, T goes to today ----
 function onKey(e: KeyboardEvent) {
+  if (
+    route.path !== "/calendar" ||
+    e.defaultPrevented ||
+    document.querySelector("dialog[open]")
+  )
+    return;
   if (tab.value !== "calendar" || calView.value === "agenda") return;
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   const target = e.target as HTMLElement | null;

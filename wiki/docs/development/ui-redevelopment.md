@@ -254,3 +254,18 @@ The [editor report](../assets/ui-redevelopment/stage-editors-conformance.json) r
 ![Wide desktop movie editor](../assets/ui-redevelopment/stage-media-add-1440-light.png)
 
 ![Phone movie editor in dark mode](../assets/ui-redevelopment/stage-media-add-390-dark.png)
+
+
+## Search, shortcuts and combined personal settings
+
+Search library now loads on the sidebar's first open, survives a failed source with cached results and Retry, and searches real movie/TV/anime endpoints. Account changes invalidate pending queries and private results. Administrator and plugin links retain their visibility checks. Keyboard help prioritizes the current route and uses expandable sections shared with Settings. Navigation and search keys work across core pages, while cached inactive libraries, typing and open dialogs do not receive page shortcuts.
+
+Appearance and Interface now share one page with theme/layout, navigation/library defaults and completed-game badges. Both previous deep links remain supported; device-specific defaults retain their original storage and account appearance retains its existing per-user API.
+
+The [search report](../assets/ui-redevelopment/stage-search-conformance.json) records 52 browser cases plus real matching, navigation, delayed loading, retry and role checks. The [combined-settings report](../assets/ui-redevelopment/stage-settings-combined-conformance.json) records 32 cases across eight widths and both themes, including persisted device defaults. Frontend formatting, lint and type checks passed; all 152 current unit tests passed.
+
+![Search across games and media](../assets/ui-redevelopment/stage-search-library-desktop.png)
+
+![Expandable help with the current page first](../assets/ui-redevelopment/stage-shortcuts-current-page.png)
+
+![Combined appearance and interface controls](../assets/ui-redevelopment/stage-settings-combined-1440-light.png)

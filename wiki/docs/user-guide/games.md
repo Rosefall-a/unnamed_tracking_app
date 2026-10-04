@@ -63,8 +63,7 @@ title.
 The sort menu offers Name (A–Z and Z–A), Recently added, Rating, Most
 played, Recently played, Neglected (least recently played), Priority,
 Release date (newest) and Time to beat (shortest). Games missing the value
-being sorted on go last. The default sort is set under Settings › User
-Interface.
+being sorted on go last. The default sort is set under Settings › Appearance & interface.
 
 ## Picking something to play
 

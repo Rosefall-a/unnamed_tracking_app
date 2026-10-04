@@ -13,7 +13,9 @@ import { checkPaletteUi } from "./check_palette_ui.mjs";
 import { checkContentUi } from "./check_content_ui.mjs";
 import { checkCompletionBadges } from "./check_completion_badges.mjs";
 import { checkTopbarNavigation } from "./check_topbar_navigation.mjs";
+import { checkSearchShortcuts } from "./check_search_shortcuts.mjs";
 import { checkLibraryEditors } from "./check_library_editors.mjs";
+import { checkAppearanceSettings } from "./check_appearance_settings.mjs";
 
 const [pluginsRoot, evidenceRoot, backendUrl] = process.argv.slice(2);
 const reviewStage = process.argv[5] ?? "shell";
@@ -51,7 +53,7 @@ async function login(context, username, password) {
   assert.equal(response.status(), 200, "Review login must succeed against the real server.");
 }
 async function checkOverflow(page, label) {
-  const boundary = await page.evaluate(() => ({ width: window.innerWidth, document: document.documentElement.scrollWidth, main: document.querySelector("main")?.scrollWidth, mainWidth: document.querySelector("main")?.clientWidth }));
+  const boundary = await page.evaluate(() => { const main = document.querySelector("#main-content") ?? document.querySelector("main"); return { width: window.innerWidth, document: document.documentElement.scrollWidth, main: main?.scrollWidth ?? 0, mainWidth: main?.clientWidth ?? 0 }; });
   assert(boundary.document <= boundary.width + 1, `${label}: document overflow ${JSON.stringify(boundary)}`);
   assert(boundary.main <= boundary.mainWidth + 1, `${label}: page overflow ${JSON.stringify(boundary)}`);
 }
@@ -69,9 +71,18 @@ try {
     await checkPaletteUi({ admin, member, origin, evidenceRoot, report, pluginsRoot, editorOnly: reviewStage === "palette-editor" }); await member.close();
     await writeFile(path.join(evidenceRoot, "stage-palette-conformance.json"), JSON.stringify(report, null, 2) + "\n");
     console.log(JSON.stringify({ cases: report.screens.length, passed: report.passed }, null, 2));
+  } else if (reviewStage === "appearance-settings") {
+    await checkAppearanceSettings({ admin, origin, evidenceRoot, report, checkOverflow });
+    await writeFile(path.join(evidenceRoot, "stage-settings-combined-conformance.json"), JSON.stringify(report, null, 2) + "\n");
+    console.log(JSON.stringify({ cases: report.screens.length, passed: report.passed }, null, 2));
   } else if (reviewStage === "editors") {
     await checkLibraryEditors({ admin, origin, evidenceRoot, report, checkOverflow });
     await writeFile(path.join(evidenceRoot, "stage-editors-conformance.json"), JSON.stringify(report, null, 2) + "\n");
+    console.log(JSON.stringify({ cases: report.screens.length, passed: report.passed }, null, 2));
+  } else if (reviewStage === "search") {
+    const member = await browser.newContext(); await login(member, memberName, process.env.UI_REVIEW_PASSWORD);
+    await checkSearchShortcuts({ admin, member, origin, evidenceRoot, report, checkOverflow }); await member.close();
+    await writeFile(path.join(evidenceRoot, "stage-search-conformance.json"), JSON.stringify(report, null, 2) + "\n");
     console.log(JSON.stringify({ cases: report.screens.length, passed: report.passed }, null, 2));
   } else if (reviewStage === "topbar") {
     await checkTopbarNavigation({ admin, origin, evidenceRoot, report, checkOverflow });
