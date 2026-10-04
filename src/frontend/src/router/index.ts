@@ -3,7 +3,7 @@ import {
   currentUser,
   authChecked,
   authCheckFailed,
-  checkAuth,
+  ensureAuthChecked,
 } from "../state/auth";
 import {
   captureLibraryNavigation,
@@ -237,6 +237,21 @@ const router = createRouter({
 let setupState: "unknown" | "required" | "complete" = "unknown";
 let startupUiShown = false;
 
+export async function retryStartup() {
+  setupState = "unknown";
+  authChecked.value = false;
+  setStartupState("checking");
+  const target = router.resolve(
+    window.location.pathname + window.location.search + window.location.hash,
+  );
+  return router.replace({
+    path: target.path,
+    query: target.query,
+    hash: target.hash,
+    force: true,
+  });
+}
+
 function loginRedirect(toPath: string) {
   const returnPath = rememberReturnPath(toPath);
   return returnPath
@@ -311,7 +326,7 @@ router.beforeEach(async (to, from) => {
       }
       setupState = "complete";
       const returnPath = safeReturnPath(to.query.return_to);
-      if (!authChecked.value) await checkAuth();
+      await ensureAuthChecked();
       if (currentUser.value) {
         setStartupState("ready");
         return returnPath ?? "/";
@@ -336,7 +351,7 @@ router.beforeEach(async (to, from) => {
     return;
   }
 
-  if (!authChecked.value) await checkAuth();
+  await ensureAuthChecked();
   if (authCheckFailed.value) {
     setStartupState(
       "unavailable",

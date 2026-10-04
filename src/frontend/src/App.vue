@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useRoute, useRouter } from "vue-router";
+import { retryStartup } from "./router";
 import SidebarNav from "./components/SidebarNav.vue";
 import TaskProgressToast from "./components/TaskProgressToast.vue";
 import ShortcutsHelp from "./components/ShortcutsHelp.vue";
@@ -34,6 +35,24 @@ import PwaStatus from "./components/PwaStatus.vue";
 
 const route = useRoute();
 const router = useRouter();
+let startupRetryTimer: ReturnType<typeof setTimeout> | undefined;
+watch(
+  startupState,
+  (state) => {
+    clearTimeout(startupRetryTimer);
+    if (state === "unavailable")
+      startupRetryTimer = setTimeout(() => void retryStartup(), 5000);
+  },
+  { immediate: true },
+);
+const retryWhenOnline = () => {
+  if (startupState.value === "unavailable") void retryStartup();
+};
+window.addEventListener("online", retryWhenOnline);
+onUnmounted(() => {
+  clearTimeout(startupRetryTimer);
+  window.removeEventListener("online", retryWhenOnline);
+});
 const disposeNavigationViewport = initializeNavigationViewport();
 onUnmounted(disposeNavigationViewport);
 let pluginRefreshTimer: ReturnType<typeof setInterval> | undefined;
@@ -47,6 +66,7 @@ watch(
       pluginRefreshTimer = setInterval(async () => {
         try {
           const user = await fetchCurrentUser();
+          if (currentUser.value?.id !== id) return;
           if (!user) {
             currentUser.value = null;
             await router.replace("/login");
@@ -112,7 +132,7 @@ const KEPT_ALIVE = [
        normal authentication, so both must render while authChecked is false. -->
   <template
     v-if="
-      authChecked ||
+      (authChecked && startupState !== 'unavailable') ||
       route.path === '/setup' ||
       route.name === 'oidc-start' ||
       route.name === 'oidc-provider-start'
@@ -157,7 +177,8 @@ const KEPT_ALIVE = [
         may be temporarily unavailable.
       </p>
       <p v-if="startupError" class="startup-detail">{{ startupError }}</p>
-      <button type="button" @click="router.go(0)">Retry</button>
+      <p>Checking again automatically. You can retry now.</p>
+      <button type="button" @click="retryStartup">Retry connection</button>
     </section>
   </main>
   <main v-else class="app-loading">

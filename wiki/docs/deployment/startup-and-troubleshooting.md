@@ -64,5 +64,17 @@ If Uvicorn cannot start, never becomes healthy, or crashes after startup, inspec
 
 ## Frontend failures
 
+If the application frontend loads while setup or authentication requests are
+temporarily unavailable, it shows a themed **Backend unavailable** screen. It
+rechecks startup after five seconds, retries when connectivity returns, and
+offers **Retry connection**. Recovery preserves the requested path and query
+without reloading the document. A failed authentication check is retried rather
+than treated as a confirmed signed-out response; older responses cannot replace
+a newer successful login. A confirmed 401 still leads to ordinary sign-in.
+
+[Startup recovery validation](../assets/ui-redevelopment/stage-startup-conformance.json)
+covers 16 real-backend connection-failure cases across phone/desktop and both
+themes, plus automatic recovery.
+
 The production image checks that the built frontend can be served before switching to the normal Nginx configuration. A frontend failure is reported as \`FRONTEND_FAILED\`.
 

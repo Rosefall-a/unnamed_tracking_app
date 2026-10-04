@@ -16,6 +16,7 @@ import { checkTopbarNavigation } from "./check_topbar_navigation.mjs";
 import { checkSearchShortcuts } from "./check_search_shortcuts.mjs";
 import { checkLibraryEditors } from "./check_library_editors.mjs";
 import { checkAppearanceSettings } from "./check_appearance_settings.mjs";
+import { checkStartupRecovery } from "./check_startup_recovery.mjs";
 
 const [pluginsRoot, evidenceRoot, backendUrl] = process.argv.slice(2);
 const reviewStage = process.argv[5] ?? "shell";
@@ -70,6 +71,10 @@ try {
     const member = await browser.newContext(); await login(member, memberName, process.env.UI_REVIEW_PASSWORD);
     await checkPaletteUi({ admin, member, origin, evidenceRoot, report, pluginsRoot, editorOnly: reviewStage === "palette-editor" }); await member.close();
     await writeFile(path.join(evidenceRoot, "stage-palette-conformance.json"), JSON.stringify(report, null, 2) + "\n");
+    console.log(JSON.stringify({ cases: report.screens.length, passed: report.passed }, null, 2));
+  } else if (reviewStage === "startup") {
+    await checkStartupRecovery({ browser, admin, origin, evidenceRoot, report, checkOverflow });
+    await writeFile(path.join(evidenceRoot, "stage-startup-conformance.json"), JSON.stringify(report, null, 2) + "\n");
     console.log(JSON.stringify({ cases: report.screens.length, passed: report.passed }, null, 2));
   } else if (reviewStage === "appearance-settings") {
     await checkAppearanceSettings({ admin, origin, evidenceRoot, report, checkOverflow });
