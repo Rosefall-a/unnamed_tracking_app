@@ -6,6 +6,7 @@
   "opaque_frame_navigation_cases": 6,
   "arbitrary_path_denied": true,
   "host_dialog_guard": true,
+  "opaque_frame_global_dialog_cases": 4,
   "independent_low_risk_theme_permission": true,
   "personal_palette_copy_retained_on_revocation": true,
   "personal_widget_options_two_accounts": true,

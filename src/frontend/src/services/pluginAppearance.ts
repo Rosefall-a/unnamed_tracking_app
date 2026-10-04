@@ -19,6 +19,7 @@ export interface PluginAppearance {
   high_contrast: boolean;
   reduce_motion: boolean;
   navigation_shortcuts: string[];
+  global_shortcuts: string[];
   tokens: Record<string, string>;
 }
 export function readPluginAppearance(): PluginAppearance {
@@ -31,6 +32,7 @@ export function readPluginAppearance(): PluginAppearance {
     high_contrast: root?.classList.contains("high-contrast") ?? false,
     reduce_motion: root?.classList.contains("reduce-motion") ?? false,
     navigation_shortcuts: NAVIGATION_SHORTCUTS.map((item) => item.key),
+    global_shortcuts: ["help", "search"],
     tokens: Object.fromEntries(
       PLUGIN_APPEARANCE_TOKENS.map((token) => [
         token,

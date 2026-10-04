@@ -203,14 +203,21 @@ async function handleFrontendMessage(event: MessageEvent) {
       result = { height: iframeHeight.value };
     } else if (method === "plugin.shortcut") {
       const navigation = navigationShortcutForKey(data.key);
-      if (!navigation) throw new Error("Unknown host navigation shortcut.");
+      const global = data.key === "help" || data.key === "search";
+      if (!navigation && !global)
+        throw new Error("Unknown host navigation shortcut.");
       // The shared keyboard handler retains its modal and palette guards.
       // The frame cannot request arbitrary paths or privileged operations.
       window.dispatchEvent(
         new KeyboardEvent("keydown", {
-          key: navigation.key,
-          code: `Key${navigation.key.toUpperCase()}`,
-          altKey: true,
+          key: navigation?.key ?? (data.key === "help" ? "?" : "k"),
+          code: navigation
+            ? `Key${navigation.key.toUpperCase()}`
+            : data.key === "help"
+              ? "Slash"
+              : "KeyK",
+          altKey: Boolean(navigation),
+          ctrlKey: data.key === "search",
           bubbles: true,
         }),
       );

@@ -241,6 +241,17 @@ try {
       await page.keyboard.press("Alt+" + key); await page.waitForURL(origin + destination);
       await page.locator("h1").first().waitFor();
     }
+    for (const [keys, name] of [["Control+k", "Search library"], ["?", "Keyboard shortcuts"]]) {
+      await page.goto(origin + "/plugins/example.scoped-document-viewer/documents");
+      const iframe = page.locator(".frontend-shell iframe"); await iframe.waitFor();
+      const inner = await (await iframe.elementHandle()).contentFrame();
+      await inner.getByRole("heading", { name: "Document reader", exact: true }).waitFor();
+      await inner.locator("body").evaluate(body => { body.tabIndex = -1; body.focus(); });
+      await page.keyboard.press(keys);
+      const globalDialog = page.getByRole("dialog", { name, exact: true }); await globalDialog.waitFor();
+      await page.keyboard.press("Escape"); await globalDialog.waitFor({ state: "hidden" });
+      assert.equal(new URL(page.url()).pathname, "/plugins/example.scoped-document-viewer/documents");
+    }
   }
   await page.goto(origin + "/plugins/example.scoped-document-viewer/documents");
   const guardIframe = page.locator(".frontend-shell iframe"); await guardIframe.waitFor();
@@ -262,6 +273,7 @@ try {
   await writeFile(path.join(process.env.INTEGRATION_WORK_ROOT, "plugin-appearance-conformance.json"), JSON.stringify({
     status: "passed", native_document_settings: true, opaque_document_reader: true, width_mode_cases: 12,
     opaque_frame_navigation_cases: 6, arbitrary_path_denied: true, host_dialog_guard: true,
+    opaque_frame_global_dialog_cases: 4,
     independent_low_risk_theme_permission: true, personal_palette_copy_retained_on_revocation: true,
     personal_widget_options_two_accounts: true, widget_disable_restore: true, snapshots,
   }, null, 2) + "\n");
