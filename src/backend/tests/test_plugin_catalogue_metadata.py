@@ -1,5 +1,7 @@
 """Rich release metadata must remain compatible with existing v1 catalogues."""
 
+import __future__
+
 import ast
 import hashlib
 import inspect
@@ -162,7 +164,8 @@ def test_old_catalogue_without_release_metadata_remains_supported(monkeypatch):
     assert record["icon"] is None
 
 
-def test_catalogue_transport_model_remains_loadable_by_public_contract_tools():
+@pytest.mark.parametrize("flags", [0, __future__.annotations.compiler_flag])
+def test_catalogue_transport_model_remains_loadable_by_public_contract_tools(flags):
     # The independent plugin repository validates transport metadata without
     # importing the host API server or requiring its database configuration.
     namespace = {
@@ -175,7 +178,9 @@ def test_catalogue_transport_model_remains_loadable_by_public_contract_tools():
         + "\n"
         + inspect.getsource(plugins.PluginCatalogEntry)
     )
-    exec(compile(ast.parse(source), "catalogue-contract", "exec"), namespace)
+    exec(compile(ast.parse(source), "catalogue-contract", "exec", flags=flags), namespace)
+    namespace["PluginCatalogRelease"].model_rebuild(_types_namespace=namespace)
+    namespace["PluginCatalogEntry"].model_rebuild(_types_namespace=namespace)
     model = namespace["PluginCatalogEntry"]
     validated = model.model_validate(
         entry(icon={"path": "icon.svg", "sha256": "a" * 64}, sha256="b" * 64)
