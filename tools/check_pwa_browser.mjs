@@ -173,6 +173,11 @@ try {
   await checkpoint("server branding changes real manifest and maskable icons; cache identity changes; revoked PWA grant still withdraws branded assets; restoring default restores package identity");
   await reloadControlled();
 
+  // Hold the real status response to reproduce a browser prompt arriving
+  // before asynchronous provider validation finishes.
+  let releaseInstallStatus;
+  const installStatusGate = new Promise(resolve => { releaseInstallStatus = resolve; });
+  await page.route("**/pwa/status", async route => { await installStatusGate; await route.continue(); });
   await page.goto(origin + "/settings?section=app-installation");
   await page.getByRole("heading", { name: "Install on this device", exact: true }).waitFor();
   assert.equal(await page.locator('.pwa-status button').filter({ hasText: "Install" }).count(), 0, "No persistent install button covers the top bar");
@@ -185,6 +190,9 @@ try {
     window.dispatchEvent(event);
   });
   const installButton = page.getByRole("button", { name: "Install Archive", exact: true });
+  assert.equal(await installButton.count(), 0, "Installation stays hidden before provider validation");
+  releaseInstallStatus();
+  await page.unrouteAll({ behavior: "wait" });
   for (const width of [390, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     await page.waitForFunction(width => {

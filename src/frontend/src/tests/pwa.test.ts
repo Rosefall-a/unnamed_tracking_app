@@ -57,3 +57,61 @@ it.each([false, true])(
     expect(pwaState.online).toBe(online);
   },
 );
+
+it.each([true, false])(
+  "queues an early install prompt only for a verified enabled provider (%s)",
+  async (enabled) => {
+    await import("vue");
+    const window = Object.assign(new EventTarget(), {
+      setInterval: vi.fn(),
+      isSecureContext: true,
+      location: { reload: vi.fn() },
+    });
+    const workers = Object.assign(new EventTarget(), {
+      controller: null,
+      getRegistrations: async () => [],
+      getRegistration: async () => undefined,
+      register: async () => ({}),
+    });
+    vi.stubGlobal("window", window);
+    vi.stubGlobal("navigator", { onLine: true, serviceWorker: workers });
+    vi.stubGlobal(
+      "document",
+      Object.assign(new EventTarget(), {
+        readyState: "complete",
+        querySelector: () => null,
+        createElement: () => ({ dataset: {} }),
+        head: { append: vi.fn() },
+      }),
+    );
+    let finish!: (response: Response) => void;
+    vi.stubGlobal(
+      "fetch",
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const { startPwa, pwaState, installPwa } = await import("../services/pwa");
+    startPwa();
+    const prompt = vi.fn(async () => {});
+    const event = Object.assign(
+      new Event("beforeinstallprompt", { cancelable: true }),
+      {
+        prompt,
+        userChoice: Promise.resolve({ outcome: "accepted" }),
+      },
+    );
+    window.dispatchEvent(event);
+    expect(event.defaultPrevented).toBe(true);
+    expect(pwaState.installable).toBe(false);
+    await installPwa();
+    expect(prompt).not.toHaveBeenCalled();
+    finish(new Response(JSON.stringify({ enabled, generation: "provider" })));
+    await vi.waitFor(() => expect(pwaState.available).toBe(true));
+    await vi.waitFor(() => expect(pwaState.installable).toBe(enabled));
+    await installPwa();
+    expect(prompt).toHaveBeenCalledTimes(enabled ? 1 : 0);
+    expect(pwaState.installable).toBe(false);
+  },
+);
