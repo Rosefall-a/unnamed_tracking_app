@@ -117,6 +117,7 @@ try {
     await page.getByRole("button", { name: "Discover", exact: true }).click();
     await page.getByRole("combobox", { name: "Filter by plugin source" }).selectOption("demo");
     await page.getByRole("searchbox", { name: "Filter plugins" }).fill("Jellyfin");
+    await plugin.waitFor();
     assert.equal(await plugin.count(), 1);
     await plugin.getByRole("combobox", { name: /^Release for/ }).selectOption(review.version);
     await plugin.getByRole("button", { name: `Review ${review.version}`, exact: true }).click();
