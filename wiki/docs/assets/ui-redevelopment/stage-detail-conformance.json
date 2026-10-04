@@ -1,0 +1,2939 @@
+{
+  "backend": "real",
+  "passed": [
+    "Real package preview renders only requested risk categories and usable disclosure arrows",
+    "All four upload caps persist through real settings UI and enforce oversized file, clip, modpack, save and world-save rejection",
+    "Reset clears all overrides to the configured environment defaults",
+    "416 populated detail/media/theme/width/role cases",
+    "All five statistics tabs at 8 widths in both themes",
+    "Separate administration sections retain consistent title styles",
+    "Install button text contrast at least 4.5:1 in both themes",
+    "Native installer keyboard focus, Escape and restored focus",
+    "Media top bars follow theme and avoid overlapping account controls",
+    "Fresh in-app Games navigation starts at the top"
+  ],
+  "screens": [
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 320,
+      "screen": "/games"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 320,
+      "screen": "/games/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 320,
+      "screen": "/collections/Theme%20review%2FAdventures"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 320,
+      "screen": "/sets/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 320,
+      "screen": "/cards/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 320,
+      "screen": "/movies"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 320,
+      "screen": "/tv"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 320,
+      "screen": "/anime"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 320,
+      "screen": "/movies/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 320,
+      "screen": "/tv/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 320,
+      "screen": "/anime/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 320,
+      "screen": "/lists/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 320,
+      "screen": "/statistics"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 390,
+      "screen": "/games"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 390,
+      "screen": "/games/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 390,
+      "screen": "/collections/Theme%20review%2FAdventures"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 390,
+      "screen": "/sets/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 390,
+      "screen": "/cards/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 390,
+      "screen": "/movies"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 390,
+      "screen": "/tv"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 390,
+      "screen": "/anime"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 390,
+      "screen": "/movies/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 390,
+      "screen": "/tv/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 390,
+      "screen": "/anime/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 390,
+      "screen": "/lists/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 390,
+      "screen": "/statistics"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 430,
+      "screen": "/games"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 430,
+      "screen": "/games/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 430,
+      "screen": "/collections/Theme%20review%2FAdventures"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 430,
+      "screen": "/sets/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 430,
+      "screen": "/cards/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 430,
+      "screen": "/movies"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 430,
+      "screen": "/tv"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 430,
+      "screen": "/anime"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 430,
+      "screen": "/movies/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 430,
+      "screen": "/tv/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 430,
+      "screen": "/anime/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 430,
+      "screen": "/lists/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 430,
+      "screen": "/statistics"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 768,
+      "screen": "/games"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 768,
+      "screen": "/games/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 768,
+      "screen": "/collections/Theme%20review%2FAdventures"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 768,
+      "screen": "/sets/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 768,
+      "screen": "/cards/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 768,
+      "screen": "/movies"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 768,
+      "screen": "/tv"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 768,
+      "screen": "/anime"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 768,
+      "screen": "/movies/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 768,
+      "screen": "/tv/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 768,
+      "screen": "/anime/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 768,
+      "screen": "/lists/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 768,
+      "screen": "/statistics"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 1024,
+      "screen": "/games"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 1024,
+      "screen": "/games/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 1024,
+      "screen": "/collections/Theme%20review%2FAdventures"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 1024,
+      "screen": "/sets/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 1024,
+      "screen": "/cards/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 1024,
+      "screen": "/movies"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 1024,
+      "screen": "/tv"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 1024,
+      "screen": "/anime"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 1024,
+      "screen": "/movies/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 1024,
+      "screen": "/tv/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 1024,
+      "screen": "/anime/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 1024,
+      "screen": "/lists/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 1024,
+      "screen": "/statistics"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 1440,
+      "screen": "/games"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 1440,
+      "screen": "/games/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 1440,
+      "screen": "/collections/Theme%20review%2FAdventures"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 1440,
+      "screen": "/sets/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 1440,
+      "screen": "/cards/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 1440,
+      "screen": "/movies"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 1440,
+      "screen": "/tv"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 1440,
+      "screen": "/anime"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 1440,
+      "screen": "/movies/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 1440,
+      "screen": "/tv/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 1440,
+      "screen": "/anime/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 1440,
+      "screen": "/lists/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 1440,
+      "screen": "/statistics"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 1920,
+      "screen": "/games"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 1920,
+      "screen": "/games/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 1920,
+      "screen": "/collections/Theme%20review%2FAdventures"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 1920,
+      "screen": "/sets/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 1920,
+      "screen": "/cards/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 1920,
+      "screen": "/movies"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 1920,
+      "screen": "/tv"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 1920,
+      "screen": "/anime"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 1920,
+      "screen": "/movies/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 1920,
+      "screen": "/tv/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 1920,
+      "screen": "/anime/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 1920,
+      "screen": "/lists/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 1920,
+      "screen": "/statistics"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 2560,
+      "screen": "/games"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 2560,
+      "screen": "/games/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 2560,
+      "screen": "/collections/Theme%20review%2FAdventures"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 2560,
+      "screen": "/sets/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 2560,
+      "screen": "/cards/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 2560,
+      "screen": "/movies"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 2560,
+      "screen": "/tv"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 2560,
+      "screen": "/anime"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 2560,
+      "screen": "/movies/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 2560,
+      "screen": "/tv/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 2560,
+      "screen": "/anime/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 2560,
+      "screen": "/lists/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "palette": "orange",
+      "width": 2560,
+      "screen": "/statistics"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 320,
+      "screen": "/games"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 320,
+      "screen": "/games/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 320,
+      "screen": "/collections/Theme%20review%2FAdventures"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 320,
+      "screen": "/sets/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 320,
+      "screen": "/cards/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 320,
+      "screen": "/movies"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 320,
+      "screen": "/tv"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 320,
+      "screen": "/anime"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 320,
+      "screen": "/movies/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 320,
+      "screen": "/tv/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 320,
+      "screen": "/anime/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 320,
+      "screen": "/lists/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 320,
+      "screen": "/statistics"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 390,
+      "screen": "/games"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 390,
+      "screen": "/games/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 390,
+      "screen": "/collections/Theme%20review%2FAdventures"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 390,
+      "screen": "/sets/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 390,
+      "screen": "/cards/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 390,
+      "screen": "/movies"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 390,
+      "screen": "/tv"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 390,
+      "screen": "/anime"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 390,
+      "screen": "/movies/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 390,
+      "screen": "/tv/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 390,
+      "screen": "/anime/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 390,
+      "screen": "/lists/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 390,
+      "screen": "/statistics"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 430,
+      "screen": "/games"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 430,
+      "screen": "/games/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 430,
+      "screen": "/collections/Theme%20review%2FAdventures"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 430,
+      "screen": "/sets/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 430,
+      "screen": "/cards/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 430,
+      "screen": "/movies"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 430,
+      "screen": "/tv"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 430,
+      "screen": "/anime"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 430,
+      "screen": "/movies/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 430,
+      "screen": "/tv/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 430,
+      "screen": "/anime/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 430,
+      "screen": "/lists/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 430,
+      "screen": "/statistics"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 768,
+      "screen": "/games"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 768,
+      "screen": "/games/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 768,
+      "screen": "/collections/Theme%20review%2FAdventures"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 768,
+      "screen": "/sets/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 768,
+      "screen": "/cards/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 768,
+      "screen": "/movies"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 768,
+      "screen": "/tv"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 768,
+      "screen": "/anime"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 768,
+      "screen": "/movies/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 768,
+      "screen": "/tv/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 768,
+      "screen": "/anime/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 768,
+      "screen": "/lists/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 768,
+      "screen": "/statistics"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 1024,
+      "screen": "/games"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 1024,
+      "screen": "/games/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 1024,
+      "screen": "/collections/Theme%20review%2FAdventures"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 1024,
+      "screen": "/sets/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 1024,
+      "screen": "/cards/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 1024,
+      "screen": "/movies"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 1024,
+      "screen": "/tv"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 1024,
+      "screen": "/anime"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 1024,
+      "screen": "/movies/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 1024,
+      "screen": "/tv/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 1024,
+      "screen": "/anime/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 1024,
+      "screen": "/lists/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 1024,
+      "screen": "/statistics"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 1440,
+      "screen": "/games"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 1440,
+      "screen": "/games/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 1440,
+      "screen": "/collections/Theme%20review%2FAdventures"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 1440,
+      "screen": "/sets/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 1440,
+      "screen": "/cards/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 1440,
+      "screen": "/movies"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 1440,
+      "screen": "/tv"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 1440,
+      "screen": "/anime"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 1440,
+      "screen": "/movies/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 1440,
+      "screen": "/tv/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 1440,
+      "screen": "/anime/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 1440,
+      "screen": "/lists/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 1440,
+      "screen": "/statistics"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 1920,
+      "screen": "/games"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 1920,
+      "screen": "/games/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 1920,
+      "screen": "/collections/Theme%20review%2FAdventures"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 1920,
+      "screen": "/sets/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 1920,
+      "screen": "/cards/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 1920,
+      "screen": "/movies"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 1920,
+      "screen": "/tv"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 1920,
+      "screen": "/anime"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 1920,
+      "screen": "/movies/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 1920,
+      "screen": "/tv/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 1920,
+      "screen": "/anime/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 1920,
+      "screen": "/lists/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 1920,
+      "screen": "/statistics"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 2560,
+      "screen": "/games"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 2560,
+      "screen": "/games/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 2560,
+      "screen": "/collections/Theme%20review%2FAdventures"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 2560,
+      "screen": "/sets/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 2560,
+      "screen": "/cards/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 2560,
+      "screen": "/movies"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 2560,
+      "screen": "/tv"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 2560,
+      "screen": "/anime"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 2560,
+      "screen": "/movies/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 2560,
+      "screen": "/tv/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 2560,
+      "screen": "/anime/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 2560,
+      "screen": "/lists/:id"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 2560,
+      "screen": "/statistics"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 320,
+      "screen": "/games"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 320,
+      "screen": "/games/:id"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 320,
+      "screen": "/collections/Theme%20review%2FAdventures"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 320,
+      "screen": "/sets/:id"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 320,
+      "screen": "/cards/:id"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 320,
+      "screen": "/movies"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 320,
+      "screen": "/tv"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 320,
+      "screen": "/anime"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 320,
+      "screen": "/movies/:id"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 320,
+      "screen": "/tv/:id"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 320,
+      "screen": "/anime/:id"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 320,
+      "screen": "/lists/:id"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 320,
+      "screen": "/statistics"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 390,
+      "screen": "/games"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 390,
+      "screen": "/games/:id"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 390,
+      "screen": "/collections/Theme%20review%2FAdventures"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 390,
+      "screen": "/sets/:id"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 390,
+      "screen": "/cards/:id"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 390,
+      "screen": "/movies"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 390,
+      "screen": "/tv"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 390,
+      "screen": "/anime"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 390,
+      "screen": "/movies/:id"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 390,
+      "screen": "/tv/:id"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 390,
+      "screen": "/anime/:id"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 390,
+      "screen": "/lists/:id"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 390,
+      "screen": "/statistics"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 430,
+      "screen": "/games"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 430,
+      "screen": "/games/:id"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 430,
+      "screen": "/collections/Theme%20review%2FAdventures"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 430,
+      "screen": "/sets/:id"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 430,
+      "screen": "/cards/:id"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 430,
+      "screen": "/movies"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 430,
+      "screen": "/tv"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 430,
+      "screen": "/anime"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 430,
+      "screen": "/movies/:id"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 430,
+      "screen": "/tv/:id"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 430,
+      "screen": "/anime/:id"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 430,
+      "screen": "/lists/:id"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 430,
+      "screen": "/statistics"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 768,
+      "screen": "/games"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 768,
+      "screen": "/games/:id"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 768,
+      "screen": "/collections/Theme%20review%2FAdventures"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 768,
+      "screen": "/sets/:id"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 768,
+      "screen": "/cards/:id"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 768,
+      "screen": "/movies"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 768,
+      "screen": "/tv"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 768,
+      "screen": "/anime"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 768,
+      "screen": "/movies/:id"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 768,
+      "screen": "/tv/:id"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 768,
+      "screen": "/anime/:id"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 768,
+      "screen": "/lists/:id"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 768,
+      "screen": "/statistics"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 1024,
+      "screen": "/games"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 1024,
+      "screen": "/games/:id"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 1024,
+      "screen": "/collections/Theme%20review%2FAdventures"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 1024,
+      "screen": "/sets/:id"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 1024,
+      "screen": "/cards/:id"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 1024,
+      "screen": "/movies"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 1024,
+      "screen": "/tv"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 1024,
+      "screen": "/anime"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 1024,
+      "screen": "/movies/:id"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 1024,
+      "screen": "/tv/:id"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 1024,
+      "screen": "/anime/:id"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 1024,
+      "screen": "/lists/:id"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 1024,
+      "screen": "/statistics"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 1440,
+      "screen": "/games"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 1440,
+      "screen": "/games/:id"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 1440,
+      "screen": "/collections/Theme%20review%2FAdventures"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 1440,
+      "screen": "/sets/:id"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 1440,
+      "screen": "/cards/:id"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 1440,
+      "screen": "/movies"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 1440,
+      "screen": "/tv"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 1440,
+      "screen": "/anime"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 1440,
+      "screen": "/movies/:id"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 1440,
+      "screen": "/tv/:id"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 1440,
+      "screen": "/anime/:id"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 1440,
+      "screen": "/lists/:id"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 1440,
+      "screen": "/statistics"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 1920,
+      "screen": "/games"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 1920,
+      "screen": "/games/:id"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 1920,
+      "screen": "/collections/Theme%20review%2FAdventures"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 1920,
+      "screen": "/sets/:id"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 1920,
+      "screen": "/cards/:id"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 1920,
+      "screen": "/movies"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 1920,
+      "screen": "/tv"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 1920,
+      "screen": "/anime"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 1920,
+      "screen": "/movies/:id"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 1920,
+      "screen": "/tv/:id"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 1920,
+      "screen": "/anime/:id"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 1920,
+      "screen": "/lists/:id"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 1920,
+      "screen": "/statistics"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 2560,
+      "screen": "/games"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 2560,
+      "screen": "/games/:id"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 2560,
+      "screen": "/collections/Theme%20review%2FAdventures"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 2560,
+      "screen": "/sets/:id"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 2560,
+      "screen": "/cards/:id"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 2560,
+      "screen": "/movies"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 2560,
+      "screen": "/tv"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 2560,
+      "screen": "/anime"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 2560,
+      "screen": "/movies/:id"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 2560,
+      "screen": "/tv/:id"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 2560,
+      "screen": "/anime/:id"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 2560,
+      "screen": "/lists/:id"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "palette": "orange",
+      "width": 2560,
+      "screen": "/statistics"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 320,
+      "screen": "/games"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 320,
+      "screen": "/games/:id"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 320,
+      "screen": "/collections/Theme%20review%2FAdventures"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 320,
+      "screen": "/sets/:id"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 320,
+      "screen": "/cards/:id"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 320,
+      "screen": "/movies"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 320,
+      "screen": "/tv"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 320,
+      "screen": "/anime"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 320,
+      "screen": "/movies/:id"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 320,
+      "screen": "/tv/:id"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 320,
+      "screen": "/anime/:id"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 320,
+      "screen": "/lists/:id"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 320,
+      "screen": "/statistics"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 390,
+      "screen": "/games"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 390,
+      "screen": "/games/:id"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 390,
+      "screen": "/collections/Theme%20review%2FAdventures"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 390,
+      "screen": "/sets/:id"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 390,
+      "screen": "/cards/:id"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 390,
+      "screen": "/movies"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 390,
+      "screen": "/tv"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 390,
+      "screen": "/anime"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 390,
+      "screen": "/movies/:id"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 390,
+      "screen": "/tv/:id"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 390,
+      "screen": "/anime/:id"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 390,
+      "screen": "/lists/:id"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 390,
+      "screen": "/statistics"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 430,
+      "screen": "/games"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 430,
+      "screen": "/games/:id"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 430,
+      "screen": "/collections/Theme%20review%2FAdventures"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 430,
+      "screen": "/sets/:id"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 430,
+      "screen": "/cards/:id"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 430,
+      "screen": "/movies"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 430,
+      "screen": "/tv"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 430,
+      "screen": "/anime"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 430,
+      "screen": "/movies/:id"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 430,
+      "screen": "/tv/:id"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 430,
+      "screen": "/anime/:id"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 430,
+      "screen": "/lists/:id"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 430,
+      "screen": "/statistics"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 768,
+      "screen": "/games"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 768,
+      "screen": "/games/:id"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 768,
+      "screen": "/collections/Theme%20review%2FAdventures"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 768,
+      "screen": "/sets/:id"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 768,
+      "screen": "/cards/:id"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 768,
+      "screen": "/movies"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 768,
+      "screen": "/tv"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 768,
+      "screen": "/anime"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 768,
+      "screen": "/movies/:id"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 768,
+      "screen": "/tv/:id"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 768,
+      "screen": "/anime/:id"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 768,
+      "screen": "/lists/:id"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 768,
+      "screen": "/statistics"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 1024,
+      "screen": "/games"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 1024,
+      "screen": "/games/:id"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 1024,
+      "screen": "/collections/Theme%20review%2FAdventures"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 1024,
+      "screen": "/sets/:id"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 1024,
+      "screen": "/cards/:id"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 1024,
+      "screen": "/movies"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 1024,
+      "screen": "/tv"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 1024,
+      "screen": "/anime"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 1024,
+      "screen": "/movies/:id"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 1024,
+      "screen": "/tv/:id"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 1024,
+      "screen": "/anime/:id"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 1024,
+      "screen": "/lists/:id"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 1024,
+      "screen": "/statistics"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 1440,
+      "screen": "/games"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 1440,
+      "screen": "/games/:id"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 1440,
+      "screen": "/collections/Theme%20review%2FAdventures"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 1440,
+      "screen": "/sets/:id"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 1440,
+      "screen": "/cards/:id"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 1440,
+      "screen": "/movies"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 1440,
+      "screen": "/tv"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 1440,
+      "screen": "/anime"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 1440,
+      "screen": "/movies/:id"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 1440,
+      "screen": "/tv/:id"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 1440,
+      "screen": "/anime/:id"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 1440,
+      "screen": "/lists/:id"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 1440,
+      "screen": "/statistics"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 1920,
+      "screen": "/games"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 1920,
+      "screen": "/games/:id"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 1920,
+      "screen": "/collections/Theme%20review%2FAdventures"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 1920,
+      "screen": "/sets/:id"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 1920,
+      "screen": "/cards/:id"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 1920,
+      "screen": "/movies"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 1920,
+      "screen": "/tv"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 1920,
+      "screen": "/anime"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 1920,
+      "screen": "/movies/:id"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 1920,
+      "screen": "/tv/:id"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 1920,
+      "screen": "/anime/:id"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 1920,
+      "screen": "/lists/:id"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 1920,
+      "screen": "/statistics"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 2560,
+      "screen": "/games"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 2560,
+      "screen": "/games/:id"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 2560,
+      "screen": "/collections/Theme%20review%2FAdventures"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 2560,
+      "screen": "/sets/:id"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 2560,
+      "screen": "/cards/:id"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 2560,
+      "screen": "/movies"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 2560,
+      "screen": "/tv"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 2560,
+      "screen": "/anime"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 2560,
+      "screen": "/movies/:id"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 2560,
+      "screen": "/tv/:id"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 2560,
+      "screen": "/anime/:id"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 2560,
+      "screen": "/lists/:id"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "palette": "orange",
+      "width": 2560,
+      "screen": "/statistics"
+    }
+  ],
+  "widths": [
+    320,
+    390,
+    430,
+    768,
+    1024,
+    1440,
+    1920,
+    2560
+  ]
+}
