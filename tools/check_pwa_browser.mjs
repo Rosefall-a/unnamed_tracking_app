@@ -204,7 +204,8 @@ try {
 
   execFileSync(process.env.PWA_ACCEPTANCE_PYTHON, [path.join(path.dirname(fileURLToPath(import.meta.url)), "check_pwa_lifecycle.py"), "--expire-session"], { env: process.env });
   await page.goto(origin + "/");
-  await page.waitForURL("**/login");
+  await page.waitForURL(url => url.pathname === "/login");
+  assert.equal(new URL(page.url()).searchParams.get("return_to"), "/");
   const cacheEntries = await page.evaluate(async () => {
     const keys = await caches.keys();
     return (await Promise.all(keys.filter(key => key.startsWith("unnamed-tracking:pwa:")).map(async key => (await (await caches.open(key)).keys()).map(r => r.url)))).flat();
