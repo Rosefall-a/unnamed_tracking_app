@@ -2,7 +2,9 @@
 import { ref, computed, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import CollectionCard from "../components/CollectionCard.vue";
-import AccountChip from "../components/AccountChip.vue";
+import GameTopBar from "../components/GameTopBar.vue";
+import SegmentedTabs from "../components/SegmentedTabs.vue";
+import type { SegmentOption } from "../components/SegmentedTabs.vue";
 import { fetchGames } from "../services/games";
 import type { Game } from "../types/game";
 import {
@@ -20,6 +22,7 @@ const confirm = useConfirm();
 const prompt = usePrompt();
 
 type SortBy = "name" | "count";
+type KindFilter = "all" | "manual" | "smart";
 
 const router = useRouter();
 
@@ -28,6 +31,7 @@ const loading = ref(true);
 const error = ref<string | null>(null);
 const searchQuery = ref("");
 const sortBy = ref<SortBy>("name");
+const kindFilter = ref<KindFilter>("all");
 
 // Empty collections (no games assigned yet) have nowhere to live on the
 // backend, so they're tracked locally until a game is actually added to them.
@@ -159,6 +163,8 @@ const collectionSummaries = computed<CollectionSummary[]>(() => {
 const filteredCollections = computed(() => {
   const q = searchQuery.value.trim().toLowerCase();
   let result = collectionSummaries.value;
+  if (kindFilter.value === "smart") result = result.filter((c) => c.isSmart);
+  if (kindFilter.value === "manual") result = result.filter((c) => !c.isSmart);
   if (q) {
     result = result.filter((c) => c.name.toLowerCase().includes(q));
   }
@@ -167,6 +173,22 @@ const filteredCollections = computed(() => {
     return a.name.localeCompare(b.name);
   });
 });
+
+const smartCount = computed(
+  () => collectionSummaries.value.filter((c) => c.isSmart).length,
+);
+const kindOptions = computed<SegmentOption[]>(() => [
+  { value: "all", label: "All", count: collectionSummaries.value.length },
+  {
+    value: "manual",
+    label: "Manual",
+    count: collectionSummaries.value.length - smartCount.value,
+  },
+  { value: "smart", label: "Smart", count: smartCount.value },
+]);
+const filtering = computed(
+  () => searchQuery.value.trim() !== "" || kindFilter.value !== "all",
+);
 
 function openCollection(name: string) {
   router.push(`/collections/${encodeURIComponent(name)}`);
@@ -250,36 +272,28 @@ function smartIdForName(name: string): string | undefined {
 </script>
 
 <template>
-  <main class="collections-page">
-    <AccountChip fixed />
+  <main class="ui-page">
+    <GameTopBar active="collections" />
 
-    <div class="content">
-      <div class="header-row">
-        <div>
-          <h1>Collections</h1>
-          <div class="sub">
-            {{ collectionSummaries.length }}
-            {{
-              collectionSummaries.length === 1 ? "collection" : "collections"
-            }}
-          </div>
-        </div>
+    <div class="ui-content">
+      <div class="ui-head">
+        <h1>Collections</h1>
         <div class="header-actions">
           <input
             v-model="searchQuery"
             type="text"
-            class="search-input"
+            class="ui-field search-input"
             placeholder="Search collections…"
             aria-label="Search collections"
           />
-          <select v-model="sortBy" class="filter-select" aria-label="Sort by">
+          <select v-model="sortBy" class="ui-field" aria-label="Sort by">
             <option value="name">Name</option>
-            <option value="count">Most Games</option>
+            <option value="count">Most games</option>
           </select>
           <div class="templates-wrap">
             <button
               type="button"
-              class="secondary-button"
+              class="ui-btn ui-btn-secondary"
               @click="showTemplates = !showTemplates"
             >
               Starter templates
@@ -301,19 +315,36 @@ function smartIdForName(name: string): string | undefined {
               </button>
             </div>
           </div>
-          <button type="button" class="secondary-button" @click="openSmartForm">
+          <button
+            type="button"
+            class="ui-btn ui-btn-secondary"
+            @click="openSmartForm"
+          >
             + Smart Collection
           </button>
-          <button type="button" class="add-button" @click="createCollection">
+          <button
+            type="button"
+            class="ui-btn ui-btn-primary"
+            @click="createCollection"
+          >
             + Create Collection
           </button>
         </div>
       </div>
 
-      <p v-if="createError" class="error create-error">{{ createError }}</p>
+      <div class="filter-row">
+        <SegmentedTabs
+          :options="kindOptions"
+          :model-value="kindFilter"
+          aria-label="Filter by kind of collection"
+          @update:model-value="kindFilter = $event as KindFilter"
+        />
+      </div>
 
-      <p v-if="loading">Loading…</p>
-      <p v-else-if="error" class="error">{{ error }}</p>
+      <p v-if="createError" class="ui-error-box">{{ createError }}</p>
+
+      <p v-if="loading" class="ui-state">Loading…</p>
+      <p v-else-if="error" class="ui-state error">{{ error }}</p>
 
       <template v-else>
         <div v-if="filteredCollections.length" class="grid">
@@ -327,19 +358,23 @@ function smartIdForName(name: string): string | undefined {
             @delete="deleteSmartCollection(smartIdForName(col.name)!)"
           />
         </div>
-        <p v-else class="empty-row">
+        <p v-if="!filteredCollections.length && filtering" class="ui-state">
+          No collections match the search and filters.
+        </p>
+        <p v-else-if="!filteredCollections.length" class="ui-state">
           No collections yet: create one above, or use a game's collection
-          button to start one.
+          button to start one. A smart collection fills itself from a rule, like
+          every game you've mastered.
         </p>
       </template>
     </div>
 
     <div
       v-if="showSmartForm"
-      class="confirm-backdrop"
+      class="ui-backdrop"
       @click.self="showSmartForm = false"
     >
-      <div class="confirm-dialog">
+      <div class="ui-modal">
         <h3>New smart collection</h3>
         <p class="dialog-hint">
           Membership updates automatically as your library changes.
@@ -349,13 +384,13 @@ function smartIdForName(name: string): string | undefined {
           <input
             v-model="smartName"
             type="text"
-            class="dialog-input"
+            class="ui-field"
             placeholder="e.g. Mastered Games"
           />
         </label>
         <label class="field-label">
           Rule
-          <select v-model="smartField" class="dialog-input">
+          <select v-model="smartField" class="ui-field">
             <option
               v-for="(label, key) in SMART_FIELD_LABELS"
               :key="key"
@@ -367,7 +402,7 @@ function smartIdForName(name: string): string | undefined {
         </label>
         <label v-if="smartField === 'status'" class="field-label">
           Value
-          <select v-model="smartValue" class="dialog-input">
+          <select v-model="smartValue" class="ui-field">
             <option value="">Select…</option>
             <option v-for="s in STATUS_OPTIONS" :key="s" :value="s">
               {{ s }}
@@ -380,7 +415,7 @@ function smartIdForName(name: string): string | undefined {
             v-model="smartValue"
             type="number"
             min="0"
-            class="dialog-input"
+            class="ui-field"
             placeholder="e.g. 20"
           />
         </label>
@@ -390,7 +425,7 @@ function smartIdForName(name: string): string | undefined {
             v-model="smartValue"
             type="text"
             list="smart-tag-options"
-            class="dialog-input"
+            class="ui-field"
             placeholder="e.g. RPG"
           />
           <datalist id="smart-tag-options">
@@ -403,25 +438,25 @@ function smartIdForName(name: string): string | undefined {
             v-model="smartValue"
             type="text"
             list="smart-source-options"
-            class="dialog-input"
+            class="ui-field"
             placeholder="e.g. Steam"
           />
           <datalist id="smart-source-options">
             <option v-for="s in sourceOptions" :key="s" :value="s" />
           </datalist>
         </label>
-        <div v-if="smartError" class="error create-error">{{ smartError }}</div>
-        <div class="confirm-actions">
+        <p v-if="smartError" class="ui-error-box">{{ smartError }}</p>
+        <div class="ui-modal-actions">
           <button
             type="button"
-            class="secondary-button"
+            class="ui-btn ui-btn-secondary"
             @click="showSmartForm = false"
           >
             Cancel
           </button>
           <button
             type="button"
-            class="add-button"
+            class="ui-btn ui-btn-primary"
             @click="createSmartCollection"
           >
             Create
@@ -433,108 +468,32 @@ function smartIdForName(name: string): string | undefined {
 </template>
 
 <style scoped>
-.collections-page {
-  position: relative;
-  padding: 84px 24px 24px;
-  font-family: system-ui, sans-serif;
-  background: #0d0d0d;
-  min-height: 100vh;
-  color: #fff;
-}
-.header-row {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  align-items: center;
-  gap: 16px;
-  margin-bottom: 24px;
-}
-.header-row h1 {
-  margin: 0;
-  font-size: 1.7rem;
-  font-weight: 800;
-}
-.header-row .sub {
-  margin-top: 2px;
-  color: #888;
-  font-size: 0.85rem;
-}
 .header-actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 10px;
 }
-.search-input,
-.filter-select {
-  height: 38px;
-  box-sizing: border-box;
-  background: #111;
-  border: 1px solid #3a3a3a;
-  border-radius: 8px;
-  color: #fff;
-  padding: 0 14px;
-  font: inherit;
-  font-size: 13px;
-  transition: border-color 0.15s ease;
-}
 .search-input {
   width: 220px;
 }
-.search-input:focus,
-.filter-select:focus {
-  outline: none;
-  border-color: #d68a34;
-}
-.filter-select:hover {
-  border-color: #4a4a4a;
-}
-.filter-select {
-  appearance: none;
-  -webkit-appearance: none;
-  padding-right: 34px;
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' stroke='%23999' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>");
-  background-repeat: no-repeat;
-  background-position: right 16px center;
-}
-.add-button {
-  height: 38px;
-  box-sizing: border-box;
-  background: #d68a34;
-  color: #111;
-  border: none;
-  border-radius: 8px;
-  padding: 0 18px;
-  font-weight: 600;
-  cursor: pointer;
+.filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  margin-bottom: 20px;
 }
 .templates-wrap {
   position: relative;
-}
-.secondary-button {
-  height: 38px;
-  box-sizing: border-box;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid #3a3a3a;
-  border-radius: 8px;
-  color: #ccc;
-  padding: 0 16px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.secondary-button:hover {
-  border-color: #4a4a4a;
-  color: #fff;
 }
 .templates-dropdown {
   position: absolute;
   top: calc(100% + 6px);
   right: 0;
   width: 200px;
-  background: #1a1a1a;
-  border: 1px solid #2a2a2a;
-  border-radius: 8px;
+  background: var(--ui-popover);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
   padding: 6px;
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
   z-index: 20;
@@ -544,8 +503,9 @@ function smartIdForName(name: string): string | undefined {
   width: 100%;
   background: none;
   border: none;
-  color: #eee;
-  font-size: 13px;
+  color: var(--ui-text);
+  font-family: inherit;
+  font-size: 0.85rem;
   text-align: left;
   padding: 8px;
   border-radius: 6px;
@@ -555,64 +515,22 @@ function smartIdForName(name: string): string | undefined {
   background: rgba(255, 255, 255, 0.06);
 }
 .template-item:disabled {
-  color: #555;
+  color: var(--ui-faint);
   cursor: not-allowed;
 }
-/* fixed 10-per-row grid, column width only depends on the container, never
-   on how many collections there are, so adding one more just starts filling
-   the next row instead of resizing every existing card */
+/* as many 150px+ columns as fit, so cards stay one size at any window width */
 .grid {
   display: grid;
-  grid-template-columns: repeat(10, 1fr);
-  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 20px 16px;
 }
 .grid :deep(.collection-card-wrap) {
   width: auto;
   min-width: 0;
 }
-.empty-row {
-  color: #777;
-  font-size: 14px;
-}
-.error {
-  color: #f87171;
-}
-.create-error {
-  font-size: 13px;
-  background: rgba(220, 38, 38, 0.1);
-  border: 1px solid rgba(220, 38, 38, 0.3);
-  border-radius: 8px;
-  padding: 8px 12px;
-  margin-bottom: 16px;
-}
-.confirm-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.65);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 200;
-}
-.confirm-dialog {
-  background: #1a1a1a;
-  border: 1px solid #2a2a2a;
-  border-radius: 12px;
-  padding: 22px;
-  width: 100%;
-  max-width: 360px;
-  max-height: 85vh;
-  overflow-y: auto;
-  box-sizing: border-box;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
-}
-.confirm-dialog h3 {
-  margin: 0 0 6px;
-  color: #fff;
-}
 .dialog-hint {
-  color: #999;
-  font-size: 12.5px;
+  color: var(--ui-dim);
+  font-size: 0.78rem;
   margin: 0 0 16px;
 }
 .field-label {
@@ -622,24 +540,5 @@ function smartIdForName(name: string): string | undefined {
   font-size: 0.82rem;
   color: #ccc;
   margin-bottom: 14px;
-}
-.dialog-input {
-  background: #111;
-  border: 1px solid #3a3a3a;
-  border-radius: 8px;
-  color: #fff;
-  padding: 9px 12px;
-  font: inherit;
-  font-size: 13px;
-}
-.dialog-input:focus {
-  outline: none;
-  border-color: #d68a34;
-}
-.confirm-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  margin-top: 6px;
 }
 </style>

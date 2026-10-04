@@ -1,6 +1,12 @@
 <script setup lang="ts">
+// The Games counterpart of ListCard.vue: same 2x2 poster-collage tile, badge,
+// hover actions and info block, so a collection reads as the same kind of
+// thing as a Media list. Pin, move and edit exist on lists only (they need
+// stored data collections don't have), so the hover actions here are just
+// delete, and only on smart collections.
 import { computed } from "vue";
 import type { Game } from "../types/game";
+import { blurOnLeave } from "../utils/blurOnLeave";
 
 const props = defineProps<{
   name: string;
@@ -38,6 +44,7 @@ const displayName = computed(() =>
     @click="emit('open', name)"
     @keydown.enter.self="emit('open', name)"
     @keydown.space.self.prevent="emit('open', name)"
+    @mouseleave="blurOnLeave"
   >
     <div class="collection-card">
       <div class="cover">
@@ -46,7 +53,7 @@ const displayName = computed(() =>
             v-for="(cover, i) in covers"
             :key="i"
             class="cover-cell"
-            :style="{ backgroundImage: `url(${cover})` }"
+            :style="cover ? { backgroundImage: `url(${cover})` } : {}"
           ></div>
           <div
             v-for="i in emptySlots"
@@ -57,18 +64,18 @@ const displayName = computed(() =>
         <span
           v-if="isSmart"
           class="smart-badge"
-          title="Auto-updates based on a rule"
-          >⚡ Auto</span
+          title="Fills itself from a filter"
+          >Smart</span
         >
-        <button
-          v-if="isSmart"
-          type="button"
-          class="smart-delete"
-          title="Delete this smart collection"
-          @click.stop="emit('delete')"
-        >
-          ✕
-        </button>
+        <div v-if="isSmart" class="card-actions">
+          <button
+            type="button"
+            title="Delete this smart collection"
+            @click.stop="emit('delete')"
+          >
+            ✕
+          </button>
+        </div>
       </div>
     </div>
 
@@ -102,48 +109,44 @@ const displayName = computed(() =>
   transform: scale(1.07) translateY(-4px);
   box-shadow: 0 24px 56px rgba(0, 0, 0, 0.5);
 }
-.smart-badge {
-  position: absolute;
-  top: 8px;
-  left: 8px;
-  z-index: 2;
-  background: rgba(20, 20, 20, 0.75);
-  backdrop-filter: blur(4px);
-  border: 1px solid rgba(214, 138, 52, 0.5);
-  color: #d68a34;
-  font-size: 10px;
-  font-weight: 700;
-  padding: 3px 8px;
-  border-radius: 999px;
-}
-.smart-delete {
+.card-actions {
   position: absolute;
   top: 8px;
   right: 8px;
   z-index: 2;
-  width: 24px;
-  height: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.collection-card-wrap:hover .card-actions,
+.collection-card-wrap:focus-within .card-actions {
+  opacity: 1;
+}
+/* no hover on touch screens: keep the actions reachable */
+@media (hover: none) {
+  .card-actions {
+    opacity: 1;
+  }
+}
+.card-actions button {
+  width: 26px;
+  height: 26px;
   border-radius: 50%;
   border: none;
-  background: rgba(20, 20, 20, 0.75);
+  background: rgba(20, 20, 20, 0.78);
   backdrop-filter: blur(4px);
   color: #ccc;
   font-size: 11px;
   cursor: pointer;
-  opacity: 0;
-  transition: opacity 0.15s ease;
 }
-.collection-card-wrap:hover .smart-delete {
-  opacity: 1;
-}
-.smart-delete:hover {
-  color: #fca5a5;
+.card-actions button:hover {
+  color: #e57373;
 }
 .cover {
   position: relative;
   width: 100%;
-  /* matches GameCard's 2:3 (Steam-vertical) ratio so collection cards stay
-     uniform with regular game cards */
   aspect-ratio: 2 / 3;
   border-radius: 10px;
   overflow: hidden;
@@ -165,12 +168,27 @@ const displayName = computed(() =>
 .cover-cell.empty {
   background-color: #161616;
 }
+.smart-badge {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  z-index: 2;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(20, 20, 20, 0.8);
+  backdrop-filter: blur(4px);
+  color: #d68a34;
+}
 .card-info {
   padding: 10px 2px 0;
 }
 .parent-eyebrow {
   display: block;
-  color: #777;
+  color: #666;
   font-size: 10.5px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -189,6 +207,6 @@ const displayName = computed(() =>
   display: flex;
   gap: 8px;
   font-size: 12px;
-  color: #999;
+  color: #9c9c9c;
 }
 </style>
