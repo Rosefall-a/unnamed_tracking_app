@@ -25,4 +25,4 @@ See [Production Docker Image](production-docker.md) for certificate mounts, perm
 
 ## Reverse-proxy client IPs
 
-The production container supports trusted reverse-proxy client-IP headers. `X-Forwarded-For` is used by default, with local/private, CGNAT, IPv6 local, and Cloudflare proxy ranges trusted by default. Set `NGINX_REALIP_HEADER` and `NGINX_REALIP_TRUSTED_PROXIES` to completely customize the header and trust boundary; an explicitly empty trusted-proxy value disables this feature. See [Production Docker Image](production-docker.md) for the full configuration.
+The production container supports trusted reverse-proxy client-IP headers. `X-Forwarded-For` is used by default, but only loopback is trusted initially. Settings/setup can explicitly enable Cloudflare, local/private, CGNAT/VPS, and custom trusted ranges. See [Production Docker Image](production-docker.md) for the full configuration.
