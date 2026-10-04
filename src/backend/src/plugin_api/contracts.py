@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from datetime import datetime, timezone
 from enum import StrEnum
-from typing import Any, Generic, TypeVar, cast
+from typing import Annotated, Any, Generic, TypeVar, cast
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -70,6 +70,8 @@ class Capability(StrEnum):
     FRONTEND_OVERLAY = "frontend.overlay"
     FRONTEND_DIALOG = "frontend.dialog"
     FRONTEND_PAGE_EXTEND = "frontend.page.extend"
+    FRONTEND_HOME_WIDGETS = "frontend.home.widgets"
+    FRONTEND_THEMES = "frontend.themes"
     FRONTEND_PAGE_REPLACE_HOME = "frontend.page.replace.home"
     FRONTEND_PAGE_REPLACE_SETTINGS = "frontend.page.replace.settings"
     FRONTEND_ROUTES = "frontend.routes"
@@ -1005,6 +1007,30 @@ class UiExtension(ContractModel):
     order: int = Field(default=0, ge=-1_000, le=1_000)
 
 
+class UiHomeWidget(ContractModel):
+    """Account-selected Home content with optional phone layout and personal options."""
+
+    id: str = Field(min_length=1, max_length=128, pattern=r"^[a-z0-9][a-z0-9._-]*$")
+    title: str = Field(min_length=1, max_length=128)
+    description: str = Field(default="", max_length=512)
+    page_id: str = Field(min_length=1, max_length=128, pattern=r"^[a-z0-9][a-z0-9._-]*$")
+    mobile_page_id: str | None = Field(
+        default=None, min_length=1, max_length=128, pattern=r"^[a-z0-9][a-z0-9._-]*$"
+    )
+    order: int = Field(default=0, ge=-1_000, le=1_000)
+    configuration: tuple[UiField, ...] = Field(default=(), max_length=16)
+    visibility: UiVisibility = UiVisibility()
+
+    @model_validator(mode="after")
+    def validate_personal_options(self) -> "UiHomeWidget":
+        identifiers = [field.id for field in self.configuration]
+        if len(identifiers) != len(set(identifiers)):
+            raise ValueError("widget configuration fields must have unique identifiers")
+        if any(field.secret or field.type == UiFieldType.PASSWORD for field in self.configuration):
+            raise ValueError("personal widget configuration cannot contain secrets")
+        return self
+
+
 class UiNavigationContribution(ContractModel):
     """A first-class host navigation entry with one host-validated target."""
 
@@ -1106,6 +1132,42 @@ class UiPageReplacement(ContractModel):
     order: int = Field(default=0, ge=-1_000, le=1_000)
 
 
+ThemeColor = Annotated[str, Field(pattern=r"^#[0-9a-fA-F]{6}$")]
+
+
+class UiThemeColors(ContractModel):
+    """Semantic color roles, never arbitrary stylesheets or executable assets."""
+
+    background: ThemeColor
+    surface: ThemeColor
+    surface_alt: ThemeColor
+    text: ThemeColor
+    muted: ThemeColor
+    accent: ThemeColor
+    success: ThemeColor
+    warning: ThemeColor
+    error: ThemeColor
+    info: ThemeColor
+    purple: ThemeColor
+
+
+class UiThemePalette(ContractModel):
+    """A theme supplies both modes so System can follow the device."""
+
+    light: UiThemeColors
+    dark: UiThemeColors
+
+
+class UiTheme(ContractModel):
+    """A named optional palette offered to each account in Appearance."""
+
+    id: str = Field(min_length=1, max_length=128, pattern=r"^[a-z0-9][a-z0-9._-]*$")
+    label: str = Field(min_length=1, max_length=128)
+    description: str = Field(default="", max_length=512)
+    colors: UiThemePalette
+    order: int = 0
+
+
 class PluginUiDocument(ContractModel):
     """Complete versioned UI document consumed by the native frontend host."""
 
@@ -1122,6 +1184,8 @@ class PluginUiDocument(ContractModel):
     menus: tuple[UiMenuItem, ...] = ()
     pages: tuple[UiPage, ...] = ()
     extensions: tuple[UiExtension, ...] = ()
+    home_widgets: tuple[UiHomeWidget, ...] = Field(default=(), max_length=32)
+    themes: tuple[UiTheme, ...] = Field(default=(), max_length=32)
     navigation: tuple[UiNavigationContribution, ...] = ()
     settings_sections: tuple[UiSettingsContribution, ...] = ()
     overlays: tuple[UiOverlayContribution, ...] = ()
@@ -1156,6 +1220,13 @@ class PluginUiDocument(ContractModel):
         unique(dialog_ids, "dialog")
         unique(page_ids, "page")
         unique(extension_ids, "extension")
+        unique([item.id for item in self.home_widgets], "Home widget")
+        unique([item.id for item in self.themes], "theme")
+        home_extension_ids = {
+            item.id for item in self.extensions if item.slot == HostExtensionSlot.HOME_AFTER_WIDGETS
+        }
+        if any(item.id in home_extension_ids for item in self.home_widgets):
+            raise ValueError("Home widget identifiers cannot collide with Home extensions")
         unique([item.id for item in self.navigation], "navigation contribution")
         unique([item.id for item in self.settings_sections], "settings contribution")
         unique([item.id for item in self.overlays], "overlay contribution")
@@ -1197,6 +1268,11 @@ class PluginUiDocument(ContractModel):
         def require_page(contribution_id: str, page_id: str) -> None:
             if page_id not in page_set:
                 raise ValueError(f"contribution {contribution_id} references an unknown page")
+
+        for widget in self.home_widgets:
+            require_page(widget.id, widget.page_id)
+            if widget.mobile_page_id is not None:
+                require_page(widget.id, widget.mobile_page_id)
 
         route_set = {item.id for item in self.routes}
         settings_contribution_set = {item.id for item in self.settings_sections}
@@ -1297,13 +1373,21 @@ def evaluate_manifest_compatibility(
     if not sdk_ok:
         return CompatibilityDecision(
             status=CompatibilityStatus.INCOMPATIBLE,
-            reason="plugin SDK version is outside the declared compatibility range",
+            reason=(
+                f"Host plugin SDK {sdk_version} is outside this plugin's required range "
+                f"({manifest.sdk_version_range}). Choose a verified compatible plugin release "
+                "or update the host and plugin runtime together."
+            ),
             action="quarantine",
         )
     if not app_ok:
         return CompatibilityDecision(
             status=CompatibilityStatus.INCOMPATIBLE,
-            reason="application version is outside the declared compatibility range",
+            reason=(
+                f"Host application compatibility version {application_version} is outside this "
+                f"plugin's required range ({manifest.application_version_range}). "
+                "Update the application or choose a verified release supporting this host."
+            ),
             action="quarantine",
         )
     return CompatibilityDecision(
@@ -1477,6 +1561,10 @@ __all__ = [
     "UiContextualAction",
     "UiDialogContribution",
     "UiExtension",
+    "UiHomeWidget",
+    "UiTheme",
+    "UiThemeColors",
+    "UiThemePalette",
     "UiNavigationContribution",
     "UiNavigationLocation",
     "UiOverlayContribution",

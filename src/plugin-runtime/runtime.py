@@ -1484,6 +1484,8 @@ class PluginRegistry:
             "version": data.get("version", "0.0.0"),
             "api_contract_version": data.get("api_contract_version", "1.0.0"),
             "host_api_contract_version": PLUGIN_API_CONTRACT_VERSION,
+            "sdk_version_range": data.get("sdk_version_range"),
+            "application_version_range": data.get("application_version_range"),
             "publisher": (
                 data.get("integrity", {}).get("key_id")
                 if data.get("integrity", {}).get("signature")
@@ -2676,6 +2678,8 @@ class RuntimeHandler(BaseHTTPRequestHandler):
                         "available": True,
                         "api_version": "v1",
                         "api_contract_version": PLUGIN_API_CONTRACT_VERSION,
+                        "sdk_version": os.getenv("PLUGIN_SDK_VERSION", PLUGIN_API_CONTRACT_VERSION),
+                        "application_version": os.getenv("PLUGIN_APPLICATION_VERSION", "1.0.0"),
                         "supported_api_versions": ["v1"],
                         "transport": "http",
                         "plugin_transport": "json-lines",

@@ -92,8 +92,10 @@ clean up page-local resources. Context updates within the same page retain the
 instance, and page navigation does not reactivate the bundle.
 
 Native CSS is loaded only from the separately permissioned native asset endpoint.
-This supports a future trusted theme plugin without changing the meaning or CSP of
-the sandboxed `frontend` bundle.
+Named palettes use the independent low-risk `frontend.themes` contract. Native
+and opaque iframe components follow the public cosmetic appearance snapshot;
+see [Plugin palettes and appearance](plugin-themes.md). Their execution and CSP
+boundaries remain separate.
 
 
 ## Action context

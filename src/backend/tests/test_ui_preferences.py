@@ -7,6 +7,7 @@ from uuid import uuid4
 import pytest
 
 from src.core.preferences import load_preferences, save_preferences, validate_preference
+from src.main import app  # noqa: F401 - register every model before compiling ORM queries
 
 
 @pytest.mark.parametrize(
@@ -47,9 +48,20 @@ async def test_absent_account_gets_ui_defaults_not_another_accounts_overrides():
     assert result["home_widgets"] == []
 
 
-@pytest.mark.parametrize("value", [None, "goals", [1], ["goals", "goals"], ["unknown"],
-                                       ["collection:"], ["plugin:demo:<script>"],
-                                       ["collection:" + "x" * 512], ["goals"] * 33])
+@pytest.mark.parametrize(
+    "value",
+    [
+        None,
+        "goals",
+        [1],
+        ["goals", "goals"],
+        ["unknown"],
+        ["collection:"],
+        ["plugin:demo:<script>"],
+        ["collection:" + "x" * 512],
+        ["goals"] * 33,
+    ],
+)
 def test_invalid_home_widget_selections_are_rejected(value):
     with pytest.raises(ValueError):
         validate_preference("home_widgets", value)
@@ -68,3 +80,35 @@ async def test_home_order_is_personal_and_keeps_unavailable_plugin_identifiers()
     assert user_id in db.scalar.call_args.args[0].compile().params.values()
     empty = await save_preferences(db, user_id, {"home_widgets": []})
     assert empty["home_widgets"] == []
+
+
+@pytest.mark.asyncio
+async def test_widget_configuration_follows_only_its_account_and_retains_unavailable_ids():
+    user_id = uuid4()
+    row = SimpleNamespace(data={"ui_theme": "dark"})
+    db = SimpleNamespace(scalar=AsyncMock(return_value=row), commit=AsyncMock())
+    configuration = {"plugin:disabled-plugin:progress": {"limit": 4, "compact": True}}
+    result = await save_preferences(db, user_id, {"home_widget_config": configuration})
+    assert result["home_widget_config"] == configuration
+    assert result["ui_theme"] == "dark"
+    assert user_id in db.scalar.call_args.args[0].compile().params.values()
+    other = SimpleNamespace(scalar=AsyncMock(return_value=None))
+    assert (await load_preferences(other, uuid4()))["home_widget_config"] == {}
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        None,
+        [],
+        {"unknown": {}},
+        {"plugin:demo:progress": {"object": {"nested": True}}},
+        {"plugin:demo:progress": {"value": float("inf")}},
+        {"plugin:demo:progress": {"value": 10**2000}},
+        {"plugin:demo:progress": {"value": "x" * 2049}},
+        {"plugin:demo:progress": {str(i): True for i in range(17)}},
+    ],
+)
+def test_invalid_widget_configuration_is_rejected(value):
+    with pytest.raises(ValueError):
+        validate_preference("home_widget_config", value)

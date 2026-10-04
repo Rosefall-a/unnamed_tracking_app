@@ -79,21 +79,20 @@ from src.plugin_api.contracts import (
     BackendRouteScope,
     Capability,
     CapabilityRef,
+    CompatibilityStatus,
     ErrorCode,
     ErrorEnvelope,
     PermissionDeclaration,
     PluginDependency,
     PluginUiDocument,
-    CompatibilityStatus,
     evaluate_manifest_compatibility,
-    plugin_contract_compatibility_reason,
     parse_semver,
+    plugin_contract_compatibility_reason,
 )
 from src.plugin_api.documents import DocumentAccessError, document_path, owned_document
 from src.plugin_api.frontend_assets import inline_frontend_assets
 from src.plugin_api.gateway import dispatch_gateway_request, runtime_token_is_valid
 from src.plugin_api.grants import has_capability_grant, installation_is_executable
-from src.plugin_api.lifecycle import plugin_contract_active
 from src.plugin_api.installer import (
     DependencyPlan,
     InspectedPackage,
@@ -103,6 +102,7 @@ from src.plugin_api.installer import (
     inspect_package,
     plan_dependencies,
 )
+from src.plugin_api.lifecycle import plugin_contract_active
 from src.plugin_api.management_auth import (
     MANAGEMENT_PREFIX,
     MANAGEMENT_SCOPES,
@@ -578,6 +578,8 @@ def _install_preview(
         and compatibility.status == CompatibilityStatus.COMPATIBLE,
         "api_contract_version": manifest.api_contract_version,
         "host_api_contract_version": PLUGIN_API_CONTRACT_VERSION,
+        "host_sdk_version": os.getenv("PLUGIN_SDK_VERSION", PLUGIN_API_CONTRACT_VERSION),
+        "host_application_version": os.getenv("PLUGIN_APPLICATION_VERSION", "1.0.0"),
         "compatibility_reason": contract_error
         or (compatibility.reason if compatibility.status != CompatibilityStatus.COMPATIBLE else ""),
         "sdk_version_range": manifest.sdk_version_range,
@@ -1134,9 +1136,9 @@ async def check_plugin_updates(
 async def _installed_plugins() -> list[dict[str, Any]]:
     store = manager_state()
     try:
-        return store.reconcile(await _client.plugins())
+        inventory = store.reconcile(await _client.plugins())
     except (PluginRuntimeRequestError, PluginRuntimeUnavailable) as exc:
-        return [
+        inventory = [
             {
                 **item,
                 "runtime_available": False,
@@ -1154,6 +1156,15 @@ async def _installed_plugins() -> list[dict[str, Any]]:
             }
             for item in store.read()["plugins"].values()
         ]
+    return [
+        {
+            **item,
+            "host_api_contract_version": PLUGIN_API_CONTRACT_VERSION,
+            "host_sdk_version": os.getenv("PLUGIN_SDK_VERSION", PLUGIN_API_CONTRACT_VERSION),
+            "host_application_version": os.getenv("PLUGIN_APPLICATION_VERSION", "1.0.0"),
+        }
+        for item in inventory
+    ]
 
 
 class ManagerSettingsIn(BaseModel):
@@ -1765,6 +1776,10 @@ def _filter_ui_document(
                     extension_capabilities.get(item.slot.value, Capability.FRONTEND_PAGE_EXTEND)
                 )
             ),
+            "home_widgets": (
+                document.home_widgets if permitted(Capability.FRONTEND_HOME_WIDGETS) else ()
+            ),
+            "themes": document.themes if permitted(Capability.FRONTEND_THEMES) else (),
             "overlays": (document.overlays if permitted(Capability.FRONTEND_OVERLAY) else ()),
             "dialog_contributions": (
                 document.dialog_contributions if permitted(Capability.FRONTEND_DIALOG) else ()
@@ -1877,7 +1892,10 @@ async def enable_plugin(
     if plugin is None or not plugin.get("installation_id"):
         raise HTTPException(status_code=404, detail="Plugin installation not found.")
     if not plugin_contract_active(plugin):
-        raise HTTPException(status_code=409, detail="This plugin requires a verified v1.1.0 update before it can run.")
+        raise HTTPException(
+            status_code=409,
+            detail="This plugin requires a verified v1.1.0 update before it can run.",
+        )
     installation_id = UUID(str(plugin["installation_id"]))
     pending = await db.scalar(
         select(PluginPermissionRequest.id).where(
@@ -2702,18 +2720,47 @@ async def plugin_gateway(
 
 
 @router.get("/runtime/health")
-async def runtime_health(admin: User = Depends(get_plugin_manager_admin)) -> dict:
+async def runtime_health(admin: User = _PLUGIN_ADMIN) -> dict:
     del admin
     try:
-        return await _client.health()
-    except PluginRuntimeUnavailable as exc:
-        return {
+        health = await _client.health()
+    except (PluginRuntimeUnavailable, PluginRuntimeRequestError) as exc:
+        health = {
             "available": False,
             "bubblewrap_available": None,
             "sandbox_available": False,
             "mechanism": "unavailable",
             "last_error": str(exc),
         }
+    versions = {
+        "host_api_contract_version": PLUGIN_API_CONTRACT_VERSION,
+        "host_sdk_version": os.getenv("PLUGIN_SDK_VERSION", PLUGIN_API_CONTRACT_VERSION),
+        "host_application_version": os.getenv("PLUGIN_APPLICATION_VERSION", "1.0.0"),
+    }
+    failures = []
+    if health.get("available", True):
+        for label, runtime_key, host_key in (
+            ("Plugin API", "api_contract_version", "host_api_contract_version"),
+            ("SDK", "sdk_version", "host_sdk_version"),
+            ("Application compatibility", "application_version", "host_application_version"),
+        ):
+            reported = health.get(runtime_key)
+            if reported is None:
+                failures.append(f"Runtime does not report its {label} version.")
+            elif reported != versions[host_key]:
+                failures.append(
+                    f"{label} version mismatch: host {versions[host_key]}, runtime {reported}."
+                )
+    return {
+        **health,
+        **versions,
+        "version_health": "unavailable"
+        if not health.get("available", True)
+        else "incompatible"
+        if failures
+        else "healthy",
+        "version_error": " ".join(failures) or None,
+    }
 
 
 def _backend_route_error(

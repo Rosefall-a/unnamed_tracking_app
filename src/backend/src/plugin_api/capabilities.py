@@ -149,6 +149,8 @@ _LOW = frozenset(
         Capability.FRONTEND_CONTEXT_DOCUMENTS,
         Capability.FRONTEND_SETTINGS,
         Capability.FRONTEND_PAGE_EXTEND,
+        Capability.FRONTEND_HOME_WIDGETS,
+        Capability.FRONTEND_THEMES,
         Capability.FRONTEND_ROUTES,
     }
 )
@@ -186,7 +188,11 @@ def capability_definition(capability: Capability | str) -> CapabilityDefinition:
     return CapabilityDefinition(
         capability=resolved,
         category=_category(resolved),
-        title=("Installable web application (site-wide)" if resolved is Capability.FRONTEND_PWA else _title(resolved)),
+        title=(
+            "Installable web application (site-wide)"
+            if resolved is Capability.FRONTEND_PWA
+            else _title(resolved)
+        ),
         parent=_PARENTS.get(resolved),
         risk=risk,
         highly_privileged=resolved in _CRITICAL,

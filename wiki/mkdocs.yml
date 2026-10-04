@@ -75,6 +75,8 @@ nav:
       - Plugin Runtime Isolation: development/plugin-runtime.md
       - Plugin Storage: development/plugin-storage.md
       - Plugin UI Protocol: development/plugin-ui.md
+      - Plugin Palettes & Appearance: development/plugin-themes.md
+      - Plugin Home Widgets: development/plugin-home-widgets.md
       - Custom Plugin Frontend Sandbox: development/plugin-ui-sandbox.md
       - Plugin Notification Providers: development/notification-providers.md
       - Reference Plugins: development/reference-plugins.md

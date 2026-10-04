@@ -1,5 +1,17 @@
 # Plugin UI/API v1.1 migration
 
+## Version diagnostics
+
+Plugin Manager's platform information reports the host API contract, SDK and
+application compatibility version alongside the runtime's reported versions and
+gateway protocol. Missing, mismatched or unavailable runtime information has a
+specific health message. Plugin details and install consent show the release's
+API contract and required SDK/application ranges with the actual host values.
+An incompatible package remains inspectable but installation stays disabled;
+the reason identifies the failing version boundary and the required update.
+The application compatibility version is a range target, separate from package
+release versions. A broad SDK range does not establish v1.1 UI migration.
+
 The redesigned host requires an explicit **1.1.0** plugin contract. The HTTP and
 line-protocol wire major remains `v1`, and the archive remains `.utp`. A plugin's
 release `version` is independent of its UI/API contract version.

@@ -2,6 +2,7 @@
 (UserPreferences.data) only stores what the user changed. Adding an
 option is a one-line change to DEFAULTS, not a migration."""
 
+import math
 import re
 from typing import Any
 from uuid import UUID
@@ -20,6 +21,7 @@ DEFAULTS: dict[str, Any] = {
     "ui_reduce_motion": False,
     "ui_high_contrast": False,
     "home_widgets": [],
+    "home_widget_config": {},
     "calendar_game_releases": True,
     "calendar_game_history": True,
     "calendar_default_view": "month",
@@ -103,6 +105,8 @@ def validate_preference(key: str, value: Any) -> Any:
     default = DEFAULTS[key]
     if key == "home_widgets":
         return _validate_home_widgets(value)
+    if key == "home_widget_config":
+        return _validate_widget_config(value)
     if key == "ui_custom_palette":
         return _validate_custom_palette(value)
     if key in _SET_CHOICES:
@@ -168,6 +172,38 @@ def _validate_custom_palette(value: Any) -> dict[str, dict[str, str]]:
         mode: {role: color.lower() for role, color in colors.items()}
         for mode, colors in value.items()
     }
+
+
+def _validate_widget_config(value: Any) -> dict[str, dict[str, Any]]:
+    """Bound non-secret personal options without requiring an installed plugin."""
+    if not isinstance(value, dict) or len(value) > 32:
+        raise ValueError("home_widget_config must contain at most 32 widget configurations")
+    for identifier, options in value.items():
+        if not isinstance(identifier, str) or not re.fullmatch(
+            r"plugin:[a-zA-Z0-9._-]{1,128}:[a-zA-Z0-9._-]{1,128}", identifier
+        ):
+            raise ValueError("widget configuration requires a valid plugin widget identifier")
+        if not isinstance(options, dict) or len(options) > 16:
+            raise ValueError("each widget configuration must contain at most 16 fields")
+        for field, option in options.items():
+            if not isinstance(field, str) or not re.fullmatch(r"[a-z0-9][a-z0-9._-]{0,127}", field):
+                raise ValueError("widget configuration contains an invalid field identifier")
+            if isinstance(option, str) and len(option) <= 2048:
+                continue
+            if isinstance(option, int) and abs(option) <= 9_007_199_254_740_991:
+                continue
+            if isinstance(option, float) and math.isfinite(option):
+                continue
+            if (
+                isinstance(option, list)
+                and len(option) <= 32
+                and all(isinstance(item, str) and len(item) <= 256 for item in option)
+            ):
+                continue
+            raise ValueError(
+                "widget options must be bounded strings, finite numbers or string lists"
+            )
+    return {identifier: dict(options) for identifier, options in value.items()}
 
 
 async def load_preferences(db: AsyncSession, user_id: UUID) -> dict[str, Any]:

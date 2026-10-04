@@ -300,6 +300,23 @@ def test_v11_host_never_infers_migration_from_a_broad_sdk_range(sdk_range: str) 
     assert decision.action == "quarantine"
 
 
+@pytest.mark.parametrize(
+    ("sdk_range", "app_range", "expected"),
+    [("^2.0.0", "*", "Host plugin SDK 1.1.0"), ("*", "^2.0.0", "version 1.0.0")],
+)
+def test_incompatible_ranges_identify_required_and_actual_versions(
+    sdk_range: str, app_range: str, expected: str
+) -> None:
+    manifest = PluginManifest.model_validate(
+        {**manifest_data(sdk_range=sdk_range, app_range=app_range), "api_contract_version": "1.1.0"}
+    )
+    decision = evaluate_manifest_compatibility(manifest, "1.1.0", "1.0.0")
+    assert decision.status == CompatibilityStatus.INCOMPATIBLE
+    assert expected in decision.reason
+    assert "^2.0.0" in decision.reason
+    assert "verified" in decision.reason
+
+
 def test_v11_contract_declaration_is_independent_of_plugin_release_version() -> None:
     manifest = PluginManifest.model_validate(
         {**manifest_data(version="9.4.7", sdk_range="^1.1.0"), "api_contract_version": "1.1.0"}

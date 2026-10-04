@@ -61,6 +61,8 @@ def package_bytes(
     key=None,
     broken=None,
     api_contract_version="1.1.0",
+    sdk_range="*",
+    application_range="*",
 ):
     files = [("plugin.py", b"protocol fixture bytes\n")]
     digest = canonical_payload_digest(files)
@@ -82,8 +84,8 @@ def package_bytes(
         "name": "Lifecycle gate candidate",
         "version": version,
         "entrypoint": "plugin:main",
-        "sdk_version_range": "*",
-        "application_version_range": "*",
+        "sdk_version_range": sdk_range,
+        "application_version_range": application_range,
         "capabilities": [{"name": name, "version": 1} for name in permissions],
         "permissions": [
             {"capability": {"name": name, "version": 1}, "rationale": "Gate consent coverage."}

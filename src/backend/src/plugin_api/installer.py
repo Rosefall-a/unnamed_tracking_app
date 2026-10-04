@@ -30,9 +30,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database.models.plugin_permission_audit import PluginPermissionAudit
 from src.database.models.plugin_permissions import (
+    PluginLifecycleTransaction,
     PluginPermissionGrant,
     PluginPermissionRequest,
-    PluginLifecycleTransaction,
 )
 
 from .backend_routes import BackendRouteConflictError, validate_host_route_ownership
@@ -46,17 +46,17 @@ from .contracts import (
     PLUGIN_API_CONTRACT_VERSION,
     BackendRouteScope,
     CapabilityRef,
+    CompatibilityStatus,
     PluginManifest,
     PluginPackageIdentity,
+    evaluate_manifest_compatibility,
     parse_semver,
     plugin_contract_compatibility_reason,
     version_satisfies,
-    evaluate_manifest_compatibility,
-    CompatibilityStatus,
 )
-from .runtime_client import PluginRuntimeClient, PluginRuntimeRequestError, PluginRuntimeUnavailable
-from .manager_state import manager_state
 from .lifecycle_lock import serialized_lifecycle
+from .manager_state import manager_state
+from .runtime_client import PluginRuntimeClient, PluginRuntimeRequestError, PluginRuntimeUnavailable
 from .updates import (
     PackageVerificationError,
     PluginPackageVerifier,
@@ -807,6 +807,8 @@ class PluginInstaller:
                     "name": manifest.name,
                     "version": manifest.version,
                     "api_contract_version": manifest.api_contract_version,
+                    "sdk_version_range": manifest.sdk_version_range,
+                    "application_version_range": manifest.application_version_range,
                     "description": manifest.description,
                     "installation_id": str(plan.installation_id),
                     "digest": manifest.integrity.sha256,
