@@ -5,7 +5,6 @@ import { useRoute, useRouter } from "vue-router";
 import { useWindowVirtualizer } from "@tanstack/vue-virtual";
 import GameCard from "../components/GameCard.vue";
 import CheckIcon from "../components/CheckIcon.vue";
-import SkeletonBlock from "../components/SkeletonBlock.vue";
 import GameFormModal from "../components/GameFormModal.vue";
 import BulkEditModal from "../components/BulkEditModal.vue";
 import RandomGamePicker from "../components/RandomGamePicker.vue";
@@ -1062,15 +1061,10 @@ const searchSuggestions = computed(() => {
 
 // active-filter pills shown above the grid, each entry's clear() resets
 // just that one filter, so the whole set doesn't have to be visible only
-// inside the dropdowns to know (or undo) what's currently applied
+// inside the dropdowns to know (or undo) what's currently applied. Status
+// isn't one: the status tabs already show it, as in Media
 const activeFilterPills = computed(() => {
   const pills: { key: string; label: string; clear: () => void }[] = [];
-  if (statusFilter.value !== "all")
-    pills.push({
-      key: "status",
-      label: statusFilter.value,
-      clear: () => (statusFilter.value = "all"),
-    });
   if (platformFilter.value !== "all")
     pills.push({
       key: "platform",
@@ -1289,7 +1283,7 @@ function cardsInRow(rowIndex: number): Game[] {
                 dismissBulkEditHint();
               "
             >
-              {{ selectMode ? "Cancel Select" : "Select" }}
+              {{ selectMode ? "Done" : "Select" }}
             </button>
             <div v-if="showBulkEditHint" class="first-use-hint">
               <span
@@ -1321,10 +1315,10 @@ function cardsInRow(rowIndex: number): Game[] {
       </div>
 
       <div v-if="selectMode" class="bulk-toolbar">
-        <span>{{ selectedIds.size }} selected</span>
+        <span class="count">{{ selectedIds.size }} selected</span>
         <button
           type="button"
-          class="small-button"
+          class="btn-outline"
           :disabled="filteredGames.length === 0"
           @click="selectedIds = new Set(filteredGames.map((g) => g.id))"
         >
@@ -1332,7 +1326,7 @@ function cardsInRow(rowIndex: number): Game[] {
         </button>
         <button
           type="button"
-          class="small-button"
+          class="btn-outline"
           :disabled="!selectedIds.size"
           @click="clearSelection"
         >
@@ -1340,7 +1334,7 @@ function cardsInRow(rowIndex: number): Game[] {
         </button>
         <button
           type="button"
-          class="small-button"
+          class="btn-outline"
           :disabled="!selectedIds.size || bulkAddingToCollection"
           @click="bulkAddToCollection"
         >
@@ -1348,7 +1342,7 @@ function cardsInRow(rowIndex: number): Game[] {
         </button>
         <button
           type="button"
-          class="primary-button"
+          class="btn-solid"
           :disabled="!selectedIds.size"
           @click="showBulkEditModal = true"
         >
@@ -1669,21 +1663,12 @@ function cardsInRow(rowIndex: number): Game[] {
         </button>
       </div>
 
-      <div
-        v-if="loading"
-        class="skeleton-grid"
-        :style="{ gridTemplateColumns: `repeat(${CARD_COLUMNS}, 1fr)` }"
-      >
-        <div v-for="i in 20" :key="i" class="skeleton-card">
-          <SkeletonBlock height="150px" radius="8px" />
-          <SkeletonBlock height="14px" width="80%" />
-          <SkeletonBlock height="11px" width="50%" />
-        </div>
-      </div>
-      <p v-else-if="error" class="error">{{ error }}</p>
+      <p v-if="loading" class="empty-state">Loading…</p>
+      <p v-else-if="error" class="empty-state error">{{ error }}</p>
 
-      <div v-else-if="isEmpty" class="empty-state">
+      <div v-else-if="isEmpty" class="empty-state rich">
         <svg
+          v-if="!hasAnyGames"
           viewBox="0 0 24 24"
           width="48"
           height="48"
@@ -1697,17 +1682,11 @@ function cardsInRow(rowIndex: number): Game[] {
           <path d="M3 9h18" />
           <path d="M8 13h.01M12 13h.01M16 13h.01" />
         </svg>
-        <h3>
-          {{
-            hasAnyGames
-              ? "No games match your filters"
-              : "Your library is empty"
-          }}
-        </h3>
+        <h3 v-if="!hasAnyGames">Your library is empty</h3>
         <p>
           {{
             hasAnyGames
-              ? "Try clearing or adjusting your filters."
+              ? "Nothing matches. Try a different filter or search."
               : "Add your first game to get started."
           }}
         </p>
@@ -1726,13 +1705,13 @@ function cardsInRow(rowIndex: number): Game[] {
         <button
           v-if="hasAnyGames"
           type="button"
-          class="secondary-button"
+          class="btn-outline"
           @click="clearAllFilters"
         >
           Clear filters
         </button>
         <template v-else>
-          <button type="button" class="primary-button" @click="openAddModal">
+          <button type="button" class="btn-solid" @click="openAddModal">
             + Add Game
           </button>
           <ul class="empty-hint-list">
@@ -1896,7 +1875,9 @@ function cardsInRow(rowIndex: number): Game[] {
                 </svg>
               </button>
             </div>
-            <div class="stat-cell strong">{{ totalPlaytime(game) }}</div>
+            <div class="stat-cell strong">
+              {{ totalPlaytime(game) === "N/A" ? "–" : totalPlaytime(game) }}
+            </div>
             <div class="score-cell" :class="{ empty: !computeScore(game) }">
               {{
                 computeScore(game)
@@ -2588,9 +2569,9 @@ function cardsInRow(rowIndex: number): Game[] {
   top: calc(100% + 8px);
   left: 0;
   width: 240px;
-  background: #1a1a1a;
-  border: 1px solid #d68a34;
-  border-radius: 8px;
+  background: var(--surface);
+  border: 1px solid var(--accent-line);
+  border-radius: 10px;
   padding: 12px 14px;
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
   z-index: 20;
@@ -2599,23 +2580,21 @@ function cardsInRow(rowIndex: number): Game[] {
   gap: 10px;
 }
 .first-use-hint span {
-  color: #eee;
-  font-size: 12.5px;
+  color: var(--text);
+  font-size: 0.82rem;
   line-height: 1.5;
 }
 .first-use-hint-dismiss {
   align-self: flex-end;
-  background: rgba(214, 138, 52, 0.14);
-  border: none;
-  color: #d68a34;
-  border-radius: 6px;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-line);
+  color: var(--accent);
+  border-radius: 7px;
   padding: 5px 10px;
-  font-size: 12px;
-  font-weight: 600;
+  font-family: inherit;
+  font-size: 0.75rem;
+  font-weight: 700;
   cursor: pointer;
-}
-.first-use-hint-dismiss:hover {
-  background: rgba(214, 138, 52, 0.24);
 }
 /* anchored to Select, the tip ran off a phone screen */
 @media (max-width: 600px) {
@@ -2642,14 +2621,14 @@ function cardsInRow(rowIndex: number): Game[] {
   border: none;
   color: var(--text-faint);
   width: 26px;
-  height: 30px;
+  height: 26px;
   border-radius: 6px;
   cursor: pointer;
   font-size: 0.7rem;
   font-weight: 700;
 }
 .density-button:hover {
-  color: #fff;
+  color: var(--text);
   background: rgba(255, 255, 255, 0.06);
 }
 .density-button.active {
@@ -2699,22 +2678,23 @@ function cardsInRow(rowIndex: number): Game[] {
   align-items: center;
   flex-wrap: wrap;
   gap: 8px;
-  color: #999;
-  font-size: 13px;
+  color: var(--text-dim);
+  font-size: 0.82rem;
   margin-top: -8px;
 }
 .search-suggestion-item {
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid #3a3a3a;
-  color: #fff;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text);
   border-radius: 999px;
   padding: 5px 12px;
-  font-size: 12.5px;
+  font-family: inherit;
+  font-size: 0.78rem;
   cursor: pointer;
 }
 .search-suggestion-item:hover {
-  border-color: #d68a34;
-  color: #d68a34;
+  border-color: var(--accent-line);
+  color: var(--accent);
 }
 .empty-hint-list {
   list-style: none;
@@ -2727,11 +2707,12 @@ function cardsInRow(rowIndex: number): Game[] {
   max-width: 420px;
 }
 .empty-hint-list li {
-  color: #999;
-  font-size: 12.5px;
+  color: var(--text-dim);
+  font-size: 0.78rem;
   line-height: 1.5;
-  background: rgba(255, 255, 255, 0.04);
-  border-radius: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
   padding: 8px 12px;
 }
 .filter-select:hover {
@@ -2778,12 +2759,44 @@ function cardsInRow(rowIndex: number): Game[] {
   background: var(--accent-soft);
   border: 1px solid var(--accent-line);
   border-radius: 10px;
-  color: var(--accent);
+}
+.bulk-toolbar .count {
   font-size: 0.85rem;
   font-weight: 700;
+  color: var(--accent);
+  white-space: nowrap;
 }
-.bulk-toolbar .primary-button {
+.bulk-toolbar .btn-solid {
   margin-left: auto;
+}
+.btn-outline {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  border-radius: 8px;
+  padding: 0 16px;
+  height: 36px;
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.btn-solid {
+  background: var(--accent);
+  border: none;
+  color: #14100a;
+  border-radius: 8px;
+  padding: 0 16px;
+  height: 36px;
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.btn-outline:disabled,
+.btn-solid:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 .form-success.bulk-success {
   color: #86efac;
@@ -2920,42 +2933,34 @@ function cardsInRow(rowIndex: number): Game[] {
   text-decoration: none;
 }
 
-.error {
-  color: #f87171;
-}
-
-.skeleton-grid {
-  display: grid;
-  grid-template-columns: repeat(10, 1fr);
-  gap: 16px;
-}
-.skeleton-card {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
 .empty-state {
+  color: var(--text-faint);
+  font-size: 0.9rem;
+  padding: 40px 0;
+  text-align: center;
+}
+.empty-state.error {
+  color: #e57373;
+}
+/* the first-run "library is empty" guide, which Media has no equivalent of */
+.empty-state.rich {
   display: flex;
   flex-direction: column;
   align-items: center;
-  text-align: center;
   gap: 8px;
   padding: 80px 20px;
-  color: #777;
 }
-.empty-state svg {
-  color: #444;
+.empty-state.rich svg {
+  color: var(--border);
   margin-bottom: 10px;
 }
-.empty-state h3 {
+.empty-state.rich h3 {
   margin: 0;
-  color: #ccc;
+  color: var(--text);
   font-size: 1.05rem;
 }
-.empty-state p {
+.empty-state.rich p {
   margin: 0 0 10px;
-  font-size: 13.5px;
 }
 
 /* List view */
@@ -3232,64 +3237,60 @@ function cardsInRow(rowIndex: number): Game[] {
   display: flex;
   align-items: center;
   gap: 12px;
-  background: none;
-  border: 1px solid transparent;
+  background: var(--surface);
+  border: 1px solid var(--border-soft);
   border-radius: 10px;
-  padding: 8px;
+  padding: 8px 12px 8px 8px;
   cursor: pointer;
-  color: #ccc;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
   text-align: left;
-  transition:
-    background 0.15s ease,
-    border-color 0.15s ease,
-    transform 0.15s ease;
+  transition: border-color 0.15s ease;
 }
 .detail-list-item:hover {
-  background: rgba(255, 255, 255, 0.05);
-  transform: translateX(2px);
+  border-color: var(--accent-line);
 }
 .detail-list-item.active {
-  background: rgba(214, 138, 52, 0.16);
-  border-color: rgba(214, 138, 52, 0.5);
-  color: #fff;
-  box-shadow: 0 4px 16px rgba(214, 138, 52, 0.15);
+  background: var(--accent-soft);
+  border-color: var(--accent-line);
 }
 .detail-list-thumb {
   width: 40px;
-  height: 54px;
+  aspect-ratio: 2 / 3;
   object-fit: cover;
   border-radius: 6px;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
+  background: var(--surface-2);
   flex-shrink: 0;
 }
 .detail-preview {
-  border: 1px solid #2a2a2a;
-  border-radius: 16px;
-  background: rgba(0, 0, 0, 0.3);
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  background: var(--surface);
   height: 100%;
   overflow-y: auto;
 }
 .preview-banner {
   position: relative;
   height: 260px;
+  background-color: var(--surface-2);
   background-size: cover;
   background-position: center;
 }
 .preview-banner-overlay {
   position: absolute;
   inset: 0;
-  background: linear-gradient(
-    180deg,
-    rgba(18, 18, 18, 0) 40%,
-    rgba(18, 18, 18, 0.95) 100%
-  );
+  background: linear-gradient(180deg, transparent 40%, var(--surface) 100%);
 }
 .preview-info {
   padding: 20px;
 }
 .preview-info h2 {
   margin: 0 0 10px;
+  font-size: 1.7rem;
+  font-weight: 800;
+  color: var(--text);
 }
 .preview-meta {
   display: flex;
@@ -3297,13 +3298,16 @@ function cardsInRow(rowIndex: number): Game[] {
   margin-bottom: 14px;
 }
 .preview-badge {
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  padding: 5px 14px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  padding: 5px 12px;
   border-radius: 999px;
-  font-size: 12px;
-  text-transform: capitalize;
-  color: #ccc;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.01em;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
 }
 .preview-details {
   display: flex;
@@ -3311,14 +3315,14 @@ function cardsInRow(rowIndex: number): Game[] {
   gap: 10px;
   margin-bottom: 18px;
   padding-top: 14px;
-  border-top: 1px solid #2a2a2a;
+  border-top: 1px solid var(--border-soft);
 }
 .preview-platforms {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  color: #ddd;
-  font-size: 13px;
+  color: var(--text);
+  font-size: 0.82rem;
 }
 .preview-links {
   display: flex;
@@ -3326,8 +3330,8 @@ function cardsInRow(rowIndex: number): Game[] {
   gap: 2px;
 }
 .preview-links a {
-  color: #d68a34;
-  font-size: 13px;
+  color: var(--accent);
+  font-size: 0.82rem;
   text-decoration: none;
 }
 .preview-links a:hover {
@@ -3336,12 +3340,16 @@ function cardsInRow(rowIndex: number): Game[] {
 .preview-detail-row {
   display: flex;
   gap: 10px;
-  font-size: 13px;
-  color: #ddd;
+  font-size: 0.82rem;
+  color: var(--text);
   align-items: baseline;
 }
 .preview-detail-label {
-  color: #888;
+  color: var(--text-faint);
+  font-size: 0.66rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
   min-width: 80px;
   flex-shrink: 0;
 }
@@ -3351,11 +3359,12 @@ function cardsInRow(rowIndex: number): Game[] {
   gap: 6px;
 }
 .preview-pill {
-  background: #2a2a2a;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
   padding: 3px 10px;
   border-radius: 999px;
-  font-size: 11px;
-  color: #ccc;
+  font-size: 0.7rem;
+  color: var(--text-dim);
 }
 .preview-fade-enter-active,
 .preview-fade-leave-active {
@@ -3366,10 +3375,10 @@ function cardsInRow(rowIndex: number): Game[] {
   opacity: 0;
 }
 .preview-badge.score {
-  color: #d68a34;
+  color: var(--accent);
 }
 .preview-description-html {
-  color: #ccc;
+  color: var(--text-dim);
   line-height: 1.6;
   margin: 0 0 18px;
   max-width: 100%;
@@ -3389,13 +3398,13 @@ function cardsInRow(rowIndex: number): Game[] {
   margin: 18px 0 6px;
   font-size: 15px;
   font-weight: 700;
-  color: #fff;
+  color: var(--text);
 }
 .preview-description-html :deep(p) {
   margin: 0 0 12px;
 }
 .preview-description-html :deep(a) {
-  color: #d68a34;
+  color: var(--accent);
 }
 .preview-description-html :deep(ul) {
   padding-left: 20px;
@@ -3403,7 +3412,27 @@ function cardsInRow(rowIndex: number): Game[] {
 }
 .preview-actions {
   display: flex;
+  align-items: center;
   gap: 10px;
+}
+/* same buttons as the page header's Add game / Select */
+.preview-actions .primary-button,
+.preview-actions .secondary-button {
+  height: 38px;
+  padding: 0 18px;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+.preview-actions .primary-button {
+  background: var(--accent);
+  color: #14100a;
+}
+.preview-actions .secondary-button {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
 }
 .empty-row {
   color: #777;
@@ -3486,12 +3515,36 @@ function cardsInRow(rowIndex: number): Game[] {
    horizontally instead of losing the title; detail stacks into one column
    with a shorter, horizontally-scrolling game strip above the preview. */
 @media (max-width: 760px) {
+  /* Media's phone list: no header, cover and title side by side, every
+     other cell stacked under the title. The two dates are dropped here
+     since, stacked without their column headers, they'd be unlabeled. */
   .list-view {
-    overflow-x: auto;
+    overflow-x: visible;
+  }
+  .list-header {
+    display: none;
   }
   .list-header,
   .list-row {
-    min-width: 900px;
+    min-width: 0;
+  }
+  .list-row {
+    grid-template-columns: 56px minmax(0, 1fr);
+    gap: 6px 12px;
+  }
+  .list-row > *:nth-child(n + 3) {
+    grid-column: 2;
+    justify-self: start;
+  }
+  .list-row > *:nth-child(7),
+  .list-row > *:nth-child(8) {
+    display: none;
+  }
+  .list-thumb-wrap {
+    width: 56px;
+  }
+  .list-cover {
+    width: 100%;
   }
   .detail-view {
     grid-template-columns: 1fr;
