@@ -24,6 +24,9 @@ jobs:
           - name: frontend
             context: ./src/frontend
             dockerfile: ./src/frontend/Dockerfile
+          - name: plugin-runtime
+            context: .
+            dockerfile: src/plugin-runtime/Dockerfile
 
     steps:
       - name: Checkout
