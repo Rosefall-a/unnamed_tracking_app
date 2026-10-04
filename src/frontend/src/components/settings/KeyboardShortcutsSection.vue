@@ -24,14 +24,13 @@ import { SHORTCUT_GROUPS } from "../../utils/shortcuts";
   max-width: 560px;
 }
 .settings-section h2 {
-  margin: 0 0 8px;
-  padding-left: 12px;
-  border-left: 3px solid #d68a34;
-  font-size: 1rem;
-  color: #fff;
+  margin: 0 0 12px;
+  font: var(--ui-weight-heading) var(--ui-font-heading)/1.4
+    var(--ui-font-family);
+  color: var(--ui-text);
 }
 .hint {
-  color: #888;
+  color: var(--ui-faint);
   font-size: 0.85rem;
   line-height: 1.5;
   margin: 0 0 12px;
@@ -46,7 +45,7 @@ h3 {
   margin: 0 0 4px;
   font-size: 0.8rem;
   font-weight: 700;
-  color: #999;
+  color: var(--ui-dim);
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
@@ -59,7 +58,7 @@ h3 {
   border-bottom: 1px solid #212121;
 }
 .label {
-  color: #ddd;
+  color: var(--ui-text);
   font-size: 0.88rem;
   line-height: 1.4;
 }
@@ -73,10 +72,10 @@ kbd {
   display: inline-block;
   padding: 3px 8px;
   border-radius: 6px;
-  border: 1px solid #3a3a3a;
+  border: 1px solid var(--ui-border-strong);
   border-bottom-width: 2px;
-  background: #111;
-  color: #eee;
+  background: var(--ui-bg);
+  color: var(--ui-text);
   font: inherit;
   font-family: ui-monospace, "SF Mono", monospace;
   font-size: 0.76rem;

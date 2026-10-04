@@ -31,9 +31,9 @@ const label = computed(() => {
   border-radius: 999px;
   font-size: 12.5px;
   font-weight: 600;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid #2a2a2a;
-  color: #aaa;
+  background: color-mix(in srgb, var(--ui-text) 5%, transparent);
+  border: 1px solid var(--ui-border);
+  color: var(--ui-dim);
 }
 .dot {
   width: 7px;
@@ -42,17 +42,17 @@ const label = computed(() => {
   background: #888;
 }
 .save-status.saving .dot {
-  background: #d68a34;
+  background: var(--ui-accent);
   animation: pulse 1s ease-in-out infinite;
 }
 .save-status.saved {
-  color: #86efac;
+  color: var(--ui-good);
 }
 .save-status.saved .dot {
   background: #4ade80;
 }
 .save-status.error {
-  color: #fca5a5;
+  color: var(--ui-error);
   border-color: rgba(220, 38, 38, 0.35);
 }
 .save-status.error .dot {

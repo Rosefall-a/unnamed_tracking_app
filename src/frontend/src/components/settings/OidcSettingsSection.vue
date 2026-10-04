@@ -428,11 +428,11 @@ async function save() {
 
 .section h2 {
   margin: 0;
-  color: #fff;
+  color: var(--ui-text);
 }
 
 .hint {
-  color: #999;
+  color: var(--ui-dim);
   font-size: 13px;
   line-height: 1.5;
 }
@@ -440,9 +440,9 @@ async function save() {
 .login-panel,
 .provider-card {
   border: 1px solid #2f2f2f;
-  border-radius: 10px;
+  border-radius: var(--ui-radius-control);
   padding: 16px;
-  background: #151515;
+  background: var(--ui-surface);
 }
 
 .login-panel {
@@ -455,10 +455,10 @@ async function save() {
 .login-panel select,
 .grid input,
 .grid select {
-  background: #111;
-  border: 1px solid #3a3a3a;
-  border-radius: 8px;
-  color: #fff;
+  background: var(--ui-bg);
+  border: 1px solid var(--ui-border-strong);
+  border-radius: var(--ui-radius-control);
+  color: var(--ui-text);
   padding: 10px;
   font: inherit;
 }
@@ -472,7 +472,7 @@ async function save() {
 
 .providers-header h3 {
   margin: 0;
-  color: #fff;
+  color: var(--ui-text);
 }
 
 .providers-header .hint {
@@ -481,9 +481,9 @@ async function save() {
 
 .providers-header button,
 button {
-  background: #d68a34;
+  background: var(--ui-accent);
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   padding: 10px 14px;
   font-weight: 600;
   cursor: pointer;
@@ -515,12 +515,12 @@ button {
 
 .provider-card-head small {
   display: block;
-  color: #777;
+  color: var(--ui-faint);
   margin-top: 3px;
 }
 
 .drag-handle {
-  color: #777;
+  color: var(--ui-faint);
   font-size: 20px;
   cursor: grab;
 }
@@ -536,9 +536,9 @@ button {
 }
 
 .move {
-  background: #252525;
-  border: 1px solid #3a3a3a;
-  color: #ddd;
+  background: var(--ui-surface-2);
+  border: 1px solid var(--ui-border-strong);
+  color: var(--ui-text);
   padding: 7px 10px;
 }
 
@@ -550,7 +550,7 @@ button {
 .remove {
   background: transparent !important;
   border: 1px solid #633 !important;
-  color: #fca5a5 !important;
+  color: var(--ui-error) !important;
 }
 
 .grid {
@@ -563,7 +563,7 @@ button {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  color: #ccc;
+  color: var(--ui-text);
   font-size: 13px;
 }
 
@@ -581,9 +581,9 @@ button {
   width: 48px;
   height: 40px;
   padding: 3px;
-  background: #111;
-  border: 1px solid #3a3a3a;
-  border-radius: 8px;
+  background: var(--ui-bg);
+  border: 1px solid var(--ui-border-strong);
+  border-radius: var(--ui-radius-control);
   cursor: pointer;
 }
 
@@ -592,20 +592,20 @@ button {
 }
 
 .generated-input {
-  background: #202020 !important;
-  color: #777 !important;
-  border-color: #333 !important;
+  background: var(--ui-surface-2) !important;
+  color: var(--ui-faint) !important;
+  border-color: var(--ui-border) !important;
   cursor: not-allowed;
 }
 
 .generated-label {
-  color: #777;
+  color: var(--ui-faint);
   font-weight: 400;
   margin-left: 6px;
 }
 
 .field-hint {
-  color: #666;
+  color: var(--ui-faint);
   font-size: 11px;
   line-height: 1.4;
 }
@@ -615,7 +615,7 @@ button {
   gap: 18px;
   flex-wrap: wrap;
   margin-top: 14px;
-  color: #bbb;
+  color: var(--ui-dim);
   font-size: 13px;
 }
 
@@ -626,49 +626,49 @@ button {
 }
 
 .provider-options input {
-  accent-color: #d68a34;
+  accent-color: var(--ui-accent-text);
 }
 
 .autostart {
   margin-top: 14px;
   padding: 12px;
-  border: 1px solid #333;
-  border-radius: 8px;
-  background: #111;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
+  background: var(--ui-bg);
   display: flex;
   flex-direction: column;
   gap: 5px;
-  color: #ccc;
+  color: var(--ui-text);
   font-size: 12px;
 }
 
 .autostart strong {
-  color: #fff;
+  color: var(--ui-text);
 }
 
 .autostart code {
-  color: #d68a34;
+  color: var(--ui-accent-text);
   overflow-wrap: anywhere;
 }
 
 .autostart small {
-  color: #777;
+  color: var(--ui-faint);
 }
 
 .empty {
-  border: 1px dashed #3a3a3a;
-  border-radius: 10px;
+  border: 1px dashed var(--ui-border-strong);
+  border-radius: var(--ui-radius-control);
   padding: 24px;
-  color: #888;
+  color: var(--ui-faint);
   text-align: center;
 }
 
 .error {
-  color: #fca5a5;
+  color: var(--ui-error);
 }
 
 .success {
-  color: #86efac;
+  color: var(--ui-good);
 }
 
 button:disabled {

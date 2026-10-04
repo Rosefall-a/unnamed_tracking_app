@@ -33,6 +33,7 @@ const sortOptions = [
   { value: "priority", label: "Priority" },
 ];
 const sidebarModeOptions = [
+  { value: "auto", label: "Auto" },
   { value: "overlay", label: "Overlay" },
   { value: "pinned", label: "Pinned open" },
   { value: "rail", label: "Icon rail" },
@@ -83,10 +84,12 @@ watch(weeklyDigestEnabled, (enabled) =>
         @update:model-value="sidebarMode = $event as SidebarMode"
       />
       <span class="field-hint">
+        <strong>Auto</strong>: full pane on desktop, icon rail on tablet.
         <strong>Overlay</strong>: hidden until you open it, floats over the
         page. <strong>Pinned open</strong>: always visible at full width.
-        <strong>Icon rail</strong>: a thin strip of icons, expands on hover.
-        Takes effect immediately.
+        <strong>Icon rail</strong>: a thin strip of icons with an expand button.
+        Phones always use bottom navigation and a menu. Takes effect immediately
+        on this device.
       </span>
     </div>
 
@@ -106,14 +109,13 @@ watch(weeklyDigestEnabled, (enabled) =>
 
 <style scoped>
 .settings-section h2 {
-  margin: 0 0 8px;
-  padding-left: 12px;
-  border-left: 3px solid #d68a34;
-  font-size: 1rem;
-  color: #fff;
+  margin: 0 0 12px;
+  font: var(--ui-weight-heading) var(--ui-font-heading)/1.4
+    var(--ui-font-family);
+  color: var(--ui-text);
 }
 .section-hint {
-  color: #999;
+  color: var(--ui-dim);
   font-size: 0.82rem;
   line-height: 1.6;
   margin: 0 0 16px;
@@ -123,11 +125,11 @@ watch(weeklyDigestEnabled, (enabled) =>
   flex-direction: column;
   gap: 8px;
   font-size: 0.85rem;
-  color: #ccc;
+  color: var(--ui-text);
   margin-bottom: 18px;
 }
 .field-hint {
-  color: #888;
+  color: var(--ui-faint);
   font-size: 0.78rem;
   line-height: 1.5;
 }

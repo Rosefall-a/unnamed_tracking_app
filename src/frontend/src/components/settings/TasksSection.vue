@@ -167,22 +167,21 @@ function formatTime(epochSeconds: number | null): string {
 
 <style scoped>
 .settings-section h2 {
-  margin: 0 0 8px;
-  padding-left: 12px;
-  border-left: 3px solid #d68a34;
-  font-size: 1rem;
-  color: #fff;
+  margin: 0 0 12px;
+  font: var(--ui-weight-heading) var(--ui-font-heading)/1.4
+    var(--ui-font-family);
+  color: var(--ui-text);
 }
 .section-hint {
-  color: #999;
+  color: var(--ui-dim);
   font-size: 0.82rem;
   line-height: 1.6;
   margin: 0 0 20px;
 }
 .tile {
-  background: #111;
-  border: 1px solid #2a2a2a;
-  border-radius: 10px;
+  background: var(--ui-bg);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
   padding: 18px 20px;
   margin-bottom: 16px;
 }
@@ -196,31 +195,31 @@ function formatTime(epochSeconds: number | null): string {
 .tile-head h3 {
   margin: 0;
   font-size: 0.9rem;
-  color: #fff;
+  color: var(--ui-text);
 }
 .status-badge {
   font-size: 0.7rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: #999;
-  background: rgba(255, 255, 255, 0.06);
+  color: var(--ui-dim);
+  background: color-mix(in srgb, var(--ui-text) 6%, transparent);
   padding: 3px 10px;
   border-radius: 999px;
   white-space: nowrap;
 }
 .status-badge.on {
-  color: #6fbf73;
+  color: var(--ui-good);
   background: rgba(111, 191, 115, 0.14);
 }
 .tile-desc {
-  color: #999;
+  color: var(--ui-dim);
   font-size: 0.8rem;
   line-height: 1.5;
   margin: 0 0 12px;
 }
 .last-run {
-  color: #777;
+  color: var(--ui-faint);
   font-size: 0.76rem;
   margin: 0 0 14px;
 }
@@ -230,10 +229,10 @@ function formatTime(epochSeconds: number | null): string {
   margin: 0 0 12px;
 }
 .secondary-button {
-  background: #1a1a1a;
-  border: 1px solid #2b2b2b;
-  color: #ccc;
-  border-radius: 8px;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  color: var(--ui-text);
+  border-radius: var(--ui-radius-control);
   padding: 9px 16px;
   font-weight: 600;
   font-size: 0.82rem;
@@ -266,10 +265,10 @@ function formatTime(epochSeconds: number | null): string {
 }
 .job-amount {
   width: 72px;
-  background: #1a1a1a;
+  background: var(--ui-surface);
   color: #e5e5e5;
-  border: 1px solid #2a2a2a;
-  border-radius: 8px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
   padding: 7px 10px;
   font-size: 0.82rem;
 }
@@ -277,10 +276,10 @@ function formatTime(epochSeconds: number | null): string {
   opacity: 0.5;
 }
 .job-interval {
-  background: #1a1a1a;
+  background: var(--ui-surface);
   color: #e5e5e5;
-  border: 1px solid #2a2a2a;
-  border-radius: 8px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
   padding: 7px 10px;
   font-size: 0.82rem;
 }

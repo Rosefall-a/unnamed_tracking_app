@@ -26,6 +26,7 @@ nav:
   - User Guide:
       - Overview: user-guide/index.md
       - Authentication: user-guide/authentication.md
+      - Appearance & Navigation: user-guide/appearance-and-navigation.md
       - OpenID Connect / SSO: user-guide/oidc.md
       - Data, Exports & Backups: user-guide/data-and-backups.md
       - Plugins: user-guide/plugins.md

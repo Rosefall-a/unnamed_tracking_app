@@ -1237,13 +1237,13 @@ onMounted(() => {
   margin: 16px 0;
 }
 .manager-tabs [aria-pressed="true"] {
-  border-color: #d68a34;
+  border-color: var(--ui-accent);
   color: #ffb765;
 }
 .runtime-notice {
   border: 1px solid #625135;
   padding: 16px;
-  border-radius: 10px;
+  border-radius: var(--ui-radius-control);
   margin: 16px 0;
 }
 .readme {
@@ -1256,8 +1256,8 @@ onMounted(() => {
   gap: 16px;
   margin: 16px 0 24px;
   padding: 16px;
-  border: 1px solid #2a2a2a;
-  border-radius: 10px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
 }
 .success {
   color: #8f8;
@@ -1280,7 +1280,7 @@ onMounted(() => {
   overflow: auto;
   box-sizing: border-box;
   padding: 24px;
-  background: #151515;
+  background: var(--ui-surface);
   color: #f4f4f4;
   border: 1px solid #3b3b3b;
   border-radius: 14px;
@@ -1296,7 +1296,7 @@ onMounted(() => {
 }
 .eyebrow {
   margin: 0 0 4px;
-  color: #d68a34;
+  color: var(--ui-accent-text);
   font-size: 0.75rem;
   font-weight: 700;
   text-transform: uppercase;
@@ -1341,28 +1341,31 @@ onMounted(() => {
 .catalogue-entry {
   justify-content: space-between;
   padding: 10px 0;
-  border-top: 1px solid #2a2a2a;
+  border-top: 1px solid var(--ui-border);
 }
 .catalogue-entry div {
   min-width: 0;
 }
 .catalogue-entry span {
   display: block;
-  color: #aaa;
+  color: var(--ui-dim);
   font-size: 12px;
 }
 .catalogue-entry p {
   margin: 4px 0 0;
-  color: #aaa;
+  color: var(--ui-dim);
 }
 code {
   font-family: monospace;
 }
 h2 {
-  margin-top: 0;
+  margin: 0 0 12px;
+  font: var(--ui-weight-heading) var(--ui-font-heading)/1.4
+    var(--ui-font-family);
+  color: var(--ui-text);
 }
 .muted {
-  color: #aaa;
+  color: var(--ui-dim);
 }
 .error {
   color: #f77;
@@ -1372,8 +1375,8 @@ h2 {
   gap: 14px;
 }
 .plugin {
-  border: 1px solid #2a2a2a;
-  border-radius: 10px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
   padding: 16px;
 }
 .plugin header {
@@ -1386,7 +1389,7 @@ h2 {
 }
 .plugin header span,
 .plugin dd {
-  color: #aaa;
+  color: var(--ui-dim);
 }
 .plugin dl {
   display: flex;
@@ -1395,7 +1398,7 @@ h2 {
 }
 .plugin dt {
   font-size: 12px;
-  color: #777;
+  color: var(--ui-faint);
 }
 .plugin dd {
   margin: 2px 0 0;
@@ -1412,9 +1415,9 @@ button,
   font-size: 0.875rem;
   padding: 8px 12px;
   color: var(--ui-text);
-  background: #242424;
+  background: var(--ui-surface-2);
   border: 1px solid var(--ui-border);
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
 }
 button:hover,
 .file-button:hover {
@@ -1429,9 +1432,9 @@ select {
   font: inherit;
   padding: 8px 10px;
   color: var(--ui-text);
-  background: #171717;
+  background: var(--ui-surface);
   border: 1px solid var(--ui-border);
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   min-width: 0;
 }
 .manager-filters input {
@@ -1442,7 +1445,7 @@ select {
   border-color: var(--ui-accent-line);
 }
 .plugin img {
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   margin-bottom: 8px;
 }
 .file-button {

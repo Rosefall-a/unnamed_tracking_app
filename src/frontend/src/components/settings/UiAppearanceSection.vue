@@ -138,10 +138,10 @@ async function change(changes: Partial<Preferences>) {
   margin-bottom: var(--ui-space-8);
 }
 h2 {
+  margin: 0 0 12px;
+  font: var(--ui-weight-heading) var(--ui-font-heading)/1.4
+    var(--ui-font-family);
   color: var(--ui-text);
-  font-size: var(--ui-font-heading);
-  font-weight: var(--ui-weight-heading);
-  margin: 0 0 8px;
 }
 .section-hint {
   color: var(--ui-dim);

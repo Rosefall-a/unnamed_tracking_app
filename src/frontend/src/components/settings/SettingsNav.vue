@@ -7,6 +7,7 @@ export interface SettingsSection {
 
 export interface SettingsGroup {
   label: string;
+  area: "preferences" | "account" | "administration";
   sections: SettingsSection[];
 }
 
@@ -58,7 +59,7 @@ function iconPath(id: string): string {
 </script>
 
 <template>
-  <nav class="settings-nav">
+  <nav class="settings-nav" aria-label="Settings sections">
     <div v-for="group in groups" :key="group.label" class="settings-nav-group">
       <span class="settings-nav-group-label">{{ group.label }}</span>
       <button
@@ -67,6 +68,7 @@ function iconPath(id: string): string {
         type="button"
         class="settings-nav-item"
         :class="{ active: activeSection === section.id }"
+        :aria-current="activeSection === section.id ? 'page' : undefined"
         @click="emit('update:activeSection', section.id)"
       >
         <span class="settings-nav-item-main">
@@ -96,7 +98,7 @@ function iconPath(id: string): string {
   display: flex;
   flex-direction: column;
   gap: 18px;
-  width: 220px;
+  width: 200px;
   flex-shrink: 0;
 }
 @media (max-width: 760px) {
@@ -110,9 +112,9 @@ function iconPath(id: string): string {
   gap: 2px;
 }
 .settings-nav-group-label {
-  color: #777;
+  color: var(--ui-faint);
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   padding: 0 12px 6px;
@@ -123,10 +125,11 @@ function iconPath(id: string): string {
   justify-content: space-between;
   gap: 8px;
   padding: 10px 12px;
-  border-radius: 8px;
+  border-radius: var(--ui-radius-row);
+  min-height: var(--ui-control-height);
   border: none;
   background: none;
-  color: #ccc;
+  color: var(--ui-dim);
   text-align: left;
   font-size: 14px;
   cursor: pointer;
@@ -144,17 +147,17 @@ function iconPath(id: string): string {
   opacity: 0.8;
 }
 .settings-nav-item:hover {
-  background: rgba(255, 255, 255, 0.06);
-  color: #fff;
+  background: var(--ui-surface-2);
+  color: var(--ui-text);
 }
 .settings-nav-item.active {
-  background: rgba(214, 138, 52, 0.14);
-  color: #d68a34;
+  background: var(--ui-accent-soft);
+  color: var(--ui-accent-text);
 }
 .soon-badge {
   font-size: 10px;
-  color: #777;
-  background: rgba(255, 255, 255, 0.06);
+  color: var(--ui-faint);
+  background: color-mix(in srgb, var(--ui-text) 6%, transparent);
   padding: 2px 6px;
   border-radius: 999px;
   flex-shrink: 0;

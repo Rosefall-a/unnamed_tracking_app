@@ -259,14 +259,13 @@ async function removeImage() {
 
 <style scoped>
 .settings-section h2 {
-  margin: 0 0 8px;
-  padding-left: 12px;
-  border-left: 3px solid #d68a34;
-  font-size: 1rem;
-  color: #fff;
+  margin: 0 0 12px;
+  font: var(--ui-weight-heading) var(--ui-font-heading)/1.4
+    var(--ui-font-family);
+  color: var(--ui-text);
 }
 .section-hint {
-  color: #999;
+  color: var(--ui-dim);
   font-size: 0.82rem;
   line-height: 1.6;
   margin: 0 0 16px;
@@ -277,11 +276,11 @@ async function removeImage() {
 .field > span {
   display: block;
   font-size: 0.85rem;
-  color: #ccc;
+  color: var(--ui-text);
   margin-bottom: 8px;
 }
 .field-sublabel {
-  color: #777;
+  color: var(--ui-faint);
   font-size: 0.76rem;
   line-height: 1.5;
   margin: 0 0 10px;
@@ -294,18 +293,18 @@ async function removeImage() {
 .color-input {
   width: 40px;
   height: 36px;
-  border: 1px solid #3a3a3a;
-  border-radius: 8px;
-  background: #111;
+  border: 1px solid var(--ui-border-strong);
+  border-radius: var(--ui-radius-control);
+  background: var(--ui-bg);
   padding: 2px;
   cursor: pointer;
 }
 .color-text {
   width: 100px;
-  background: #111;
-  border: 1px solid #3a3a3a;
-  border-radius: 8px;
-  color: #fff;
+  background: var(--ui-bg);
+  border: 1px solid var(--ui-border-strong);
+  border-radius: var(--ui-radius-control);
+  color: var(--ui-text);
   padding: 8px 10px;
   font: inherit;
   font-size: 0.85rem;
@@ -318,15 +317,15 @@ async function removeImage() {
 .image-preview {
   width: 44px;
   height: 44px;
-  border-radius: 8px;
-  background: #111;
-  border: 1px solid #3a3a3a;
+  border-radius: var(--ui-radius-control);
+  background: var(--ui-bg);
+  border: 1px solid var(--ui-border-strong);
   background-size: cover;
   background-position: center;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #666;
+  color: var(--ui-faint);
   flex-shrink: 0;
 }
 .upload-label {
@@ -340,19 +339,19 @@ async function removeImage() {
 }
 .preview-card {
   width: 140px;
-  border-radius: 10px;
+  border-radius: var(--ui-radius-control);
   padding: 6px;
-  background: #111;
+  background: var(--ui-bg);
 }
 .preview-cover {
   position: relative;
   aspect-ratio: 2 / 3;
   border-radius: 6px;
-  background: linear-gradient(135deg, #2a2a2a, #1a1a1a);
+  background: linear-gradient(135deg, var(--ui-border), var(--ui-surface));
   margin-bottom: 6px;
 }
 .preview-title {
-  color: #ccc;
+  color: var(--ui-text);
   font-size: 0.72rem;
   text-align: center;
 }
@@ -390,7 +389,7 @@ async function removeImage() {
   right: 6px;
 }
 .preview-badge.corner_badge {
-  background: rgba(20, 20, 20, 0.55);
+  background: var(--ui-surface);
   border-radius: 50%;
   border: 1px solid color-mix(in srgb, var(--badge-color) 60%, transparent);
 }
@@ -400,28 +399,28 @@ async function removeImage() {
   object-fit: contain;
 }
 .form-error {
-  color: #fca5a5;
+  color: var(--ui-error);
   font-size: 13px;
   background: rgba(220, 38, 38, 0.1);
   border: 1px solid rgba(220, 38, 38, 0.3);
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   padding: 8px 10px;
   margin-bottom: 14px;
 }
 .form-success {
-  color: #86efac;
+  color: var(--ui-good);
   font-size: 13px;
   background: rgba(34, 197, 94, 0.1);
   border: 1px solid rgba(34, 197, 94, 0.3);
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   padding: 8px 10px;
   margin-bottom: 14px;
 }
 .primary-button {
-  background: #d68a34;
-  color: #111;
+  background: var(--ui-accent);
+  color: var(--ui-on-accent);
   border: none;
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   padding: 11px 20px;
   font-weight: 600;
   cursor: pointer;
@@ -431,16 +430,16 @@ async function removeImage() {
   cursor: not-allowed;
 }
 .secondary-button {
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
+  background: color-mix(in srgb, var(--ui-text) 8%, transparent);
+  color: var(--ui-text);
   border: none;
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   padding: 9px 14px;
   font-size: 0.82rem;
   font-weight: 600;
   cursor: pointer;
 }
 .secondary-button:hover {
-  background: rgba(255, 255, 255, 0.14);
+  background: color-mix(in srgb, var(--ui-text) 14%, transparent);
 }
 </style>

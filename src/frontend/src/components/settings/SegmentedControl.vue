@@ -31,9 +31,9 @@ const emit = defineEmits<{
   flex-wrap: wrap;
   max-width: 100%;
   box-sizing: border-box;
-  background: #111;
-  border: 1px solid #3a3a3a;
-  border-radius: 8px;
+  background: var(--ui-bg);
+  border: 1px solid var(--ui-border-strong);
+  border-radius: var(--ui-radius-control);
   padding: 3px;
   gap: 2px;
 }
@@ -41,7 +41,7 @@ const emit = defineEmits<{
   background: none;
   border: none;
   border-radius: 6px;
-  color: #999;
+  color: var(--ui-dim);
   font-size: 0.82rem;
   font-weight: 600;
   padding: 8px 14px;
@@ -51,10 +51,10 @@ const emit = defineEmits<{
     color 0.15s ease;
 }
 .segment:hover {
-  color: #fff;
+  color: var(--ui-text);
 }
 .segment.active {
-  background: #d68a34;
-  color: #111;
+  background: var(--ui-accent);
+  color: var(--ui-on-accent);
 }
 </style>

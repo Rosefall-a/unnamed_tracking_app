@@ -182,11 +182,10 @@ async function onAvatarFileChange(e: Event) {
 
 <style scoped>
 .settings-section h2 {
-  margin: 0 0 16px;
-  padding-left: 12px;
-  border-left: 3px solid #d68a34;
-  font-size: 1rem;
-  color: #fff;
+  margin: 0 0 12px;
+  font: var(--ui-weight-heading) var(--ui-font-heading)/1.4
+    var(--ui-font-family);
+  color: var(--ui-text);
 }
 .avatar-row {
   display: flex;
@@ -203,8 +202,8 @@ async function onAvatarFileChange(e: Event) {
   flex-shrink: 0;
 }
 .avatar-fallback {
-  background: #d68a34;
-  color: #111;
+  background: var(--ui-accent);
+  color: var(--ui-on-accent);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -216,19 +215,20 @@ async function onAvatarFileChange(e: Event) {
   flex-direction: column;
   gap: 2px;
   min-width: 0;
+  overflow-wrap: anywhere;
 }
 .avatar-name {
-  color: #fff;
+  color: var(--ui-text);
   font-size: 1.05rem;
   font-weight: 700;
 }
 .avatar-email {
-  color: #888;
+  color: var(--ui-faint);
   font-size: 0.82rem;
   margin-bottom: 4px;
 }
 .upload-label {
-  color: #d68a34;
+  color: var(--ui-accent-text);
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
@@ -237,7 +237,7 @@ async function onAvatarFileChange(e: Event) {
   text-decoration: underline;
 }
 .mock-note {
-  color: #777;
+  color: var(--ui-faint);
   font-size: 13px;
   margin: 0;
 }
@@ -251,41 +251,41 @@ form {
   flex-direction: column;
   gap: 6px;
   font-size: 0.85rem;
-  color: #ccc;
+  color: var(--ui-text);
 }
 .field input {
-  background: #111;
-  border: 1px solid #3a3a3a;
-  border-radius: 8px;
-  color: #fff;
+  background: var(--ui-bg);
+  border: 1px solid var(--ui-border-strong);
+  border-radius: var(--ui-radius-control);
+  color: var(--ui-text);
   padding: 10px 12px;
   font: inherit;
 }
 .field input:focus {
   outline: none;
-  border-color: #d68a34;
+  border-color: var(--ui-accent);
 }
 .form-error {
-  color: #fca5a5;
+  color: var(--ui-error);
   font-size: 13px;
   background: rgba(220, 38, 38, 0.1);
   border: 1px solid rgba(220, 38, 38, 0.3);
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   padding: 8px 10px;
 }
 .form-success {
-  color: #86efac;
+  color: var(--ui-good);
   font-size: 13px;
   background: rgba(34, 197, 94, 0.1);
   border: 1px solid rgba(34, 197, 94, 0.3);
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   padding: 8px 10px;
 }
 .primary-button {
-  background: #d68a34;
-  color: #111;
+  background: var(--ui-accent);
+  color: var(--ui-on-accent);
   border: none;
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   padding: 11px;
   font-weight: 600;
   cursor: pointer;

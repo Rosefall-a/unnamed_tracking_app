@@ -133,7 +133,7 @@ async function save() {
   gap: 16px;
 }
 .hint {
-  color: #999;
+  color: var(--ui-dim);
   font-size: 13px;
   line-height: 1.5;
 }
@@ -146,30 +146,32 @@ async function save() {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  color: #ccc;
+  color: var(--ui-text);
   font-size: 13px;
 }
 .grid input {
-  background: #111;
-  border: 1px solid #3a3a3a;
-  border-radius: 8px;
-  color: #fff;
+  background: var(--ui-bg);
+  border: 1px solid var(--ui-border-strong);
+  border-radius: var(--ui-radius-control);
+  color: var(--ui-text);
   padding: 10px;
   font: inherit;
 }
 .grid input:focus {
   outline: none;
-  border-color: #d68a34;
+  border-color: var(--ui-accent);
 }
 h2 {
-  margin: 0;
-  color: #fff;
+  margin: 0 0 12px;
+  font: var(--ui-weight-heading) var(--ui-font-heading)/1.4
+    var(--ui-font-family);
+  color: var(--ui-text);
 }
 button {
   align-self: flex-start;
-  background: #d68a34;
+  background: var(--ui-accent);
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   padding: 10px 14px;
   font-weight: 600;
   cursor: pointer;
@@ -178,10 +180,10 @@ button:disabled {
   opacity: 0.6;
 }
 .error {
-  color: #fca5a5;
+  color: var(--ui-error);
 }
 .success {
-  color: #86efac;
+  color: var(--ui-good);
 }
 @media (max-width: 760px) {
   .grid {

@@ -12,6 +12,22 @@ Personal Appearance settings now persist theme (`system`, `light`, `dark`), dens
 
 Hosted CI on `36637321753e0ad3390b3289be215a64e303978f` passes all six workflows, including real plugin integration, strict official Jellyfin acceptance and PWA acceptance. The PWA browser check now verifies the login pathname and the preserved `return_to` query instead of incorrectly requiring a query-free login URL.
 
+## Navigation and Settings stage
+
+The shared shell now uses a floating desktop pane, an explicit tablet rail and phone bottom navigation with a native modal menu. Auto is the default on unconfigured devices, and existing explicit modes and stored widths are preserved. Resizing supports pointer and keyboard controls. Native modal inertness, Tab cycling, Escape and focus restoration replace the old hover/focus-blurring rail behavior. Core navigation, notification polling, upload counts and plugin capability filtering remain available.
+
+Settings now has Preferences, Account and administrator-only Administration areas with landing groups and preserved section/tab aliases. Every area and section uses `PageHeader` and the same heading tokens. Section headings, forms, controls and surfaces use semantic theme tokens. Phones drill into a section; desktop keeps its area navigation visible. Administrator user tables become cards at narrower widths and long account values wrap. Server-wide scope is explicit. The unfinished Logs entry is removed from navigation. Completed-game badges continue to use their existing per-user storage.
+
+The stage's browser verifier uses the compiled frontend against a real disposable backend and creates a member through the real administrator API. It checks 192 Settings screen/theme/width/role cases, matching title styles, menu focus and dismissal, no phone sidebar offset, hidden member administration UI plus a 403 from the administrator API, persisted appearance, reduced motion and page overflow. Representative actual captures and the conformance report are in the evidence directory below. No plugins are installed in the capture database, enforced by the verifier before any screenshot.
+
+`tools/check_ui_redevelopment.mjs` requires a companion repository with Playwright installed, a disposable backend and `UI_REVIEW_USERNAME` / `UI_REVIEW_PASSWORD`. Run:
+
+```sh
+node tools/check_ui_redevelopment.mjs /path/to/plugins /path/to/evidence http://127.0.0.1:8000
+```
+
+During hosted validation, production runtime smoke exposed an asynchronous Nginx reload race: the startup document could still return HTTP 200 after status became READY. Commit `e7a028e8` waits for the compiled document before publishing readiness. The unchanged full production smoke suite passes locally and in hosted CI, including controlled configuration/database/migration/backend failures. The UI stage passes 21 frontend files / 109 tests, type check, ESLint, Prettier and production build. Remaining page/theme/plugin/widget work is still in progress.
+
 ## Baseline
 
 `plugin-manager` was reconciled with `main` at `54056e01` on 2026-10-04. The reconciliation preserves both branches' authentication, startup, library, settings and plugin features. Host/port-scoped browser cookies now work through plugin actions, document routes, management authentication and the session gateway. Negative HTTP tests reject legacy and wrong-host cookies.
@@ -117,4 +133,26 @@ The default evidence directory is `.validation/ui-concepts`. The gallery's edita
 
 ## Review checkpoint
 
-The selected hybrid is authorized for implementation. The original gallery and captures remain available in this wiki and Git history as a shared reference. They must not be overwritten with production screenshots. The Draft PR remains a living record and targets `plugin-manager`; actual v1.1 implementation, plugin migration, final responsive proof and final acceptance remain pending.
+The selected hybrid combines Pocket's floating sidebar and rounded mobile controls with Archive's desktop structure. Semantic tokens and account appearance preferences are implemented. The responsive shell and Settings now use consistent page headers, separate Account/Preferences/Administration areas, and a phone menu with focus containment and restoration. Completion badges remain personal to each account.
+
+The shell checkpoint passed **192 real application combinations**: eight widths × two themes × two roles × six Settings screens. Checks include overflow, identical title typography, account preference persistence, phone menu keyboard behavior, and administrator access denial for members. The [checkpoint report](../assets/ui-redevelopment/stage-shell-conformance.json) records the results. This validates the implemented shell; Home, branding, other content pages and the explicit v1.1 plugin boundary still require implementation and final acceptance.
+
+![Desktop appearance preferences](../assets/ui-redevelopment/stage-shell-appearance-1440-light.png)
+
+![Tablet appearance preferences in dark mode](../assets/ui-redevelopment/stage-shell-appearance-1024-dark.png)
+
+![Phone appearance preferences](../assets/ui-redevelopment/stage-shell-appearance-390-light.png)
+
+![Phone navigation in dark mode](../assets/ui-redevelopment/stage-shell-mobile-navigation-dark.png)
+
+Reproduce against a disposable, running backend with no installed plugins:
+
+```sh
+UI_REVIEW_USERNAME=review-user UI_REVIEW_PASSWORD=review-password \
+  node tools/check_ui_redevelopment.mjs /path/to/unnamed_tracking_app_plugins \
+  .validation/ui-stage-shell http://127.0.0.1:55793
+```
+
+Build the frontend first. The verifier serves that compiled build, creates and removes a temporary member account, and exercises real APIs. It refuses to capture a server with installed plugins so embedded media cannot enter this evidence.
+
+The original gallery and captures remain available in this wiki and Git history as a shared reference, separate from production screenshots. The Draft PR remains a living record and targets `plugin-manager`. The production readiness race discovered in CI is fixed and all seven workflows passed at `e7a028e8`; subsequent stages must pass CI independently.

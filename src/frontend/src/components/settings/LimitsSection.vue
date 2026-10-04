@@ -127,14 +127,13 @@ async function resetToDefault() {
   max-width: 480px;
 }
 .settings-section h2 {
-  margin: 0 0 8px;
-  padding-left: 12px;
-  border-left: 3px solid #d68a34;
-  font-size: 1rem;
-  color: #fff;
+  margin: 0 0 12px;
+  font: var(--ui-weight-heading) var(--ui-font-heading)/1.4
+    var(--ui-font-family);
+  color: var(--ui-text);
 }
 .hint {
-  color: #888;
+  color: var(--ui-faint);
   font-size: 0.85rem;
   line-height: 1.5;
   margin: 0 0 18px;
@@ -144,7 +143,7 @@ async function resetToDefault() {
   flex-direction: column;
   gap: 6px;
   font-size: 0.85rem;
-  color: #ccc;
+  color: var(--ui-text);
   margin-bottom: 12px;
 }
 .row {
@@ -154,26 +153,26 @@ async function resetToDefault() {
 .field input {
   flex: 1;
   min-width: 0;
-  background: #111;
-  border: 1px solid #3a3a3a;
-  border-radius: 8px;
-  color: #fff;
+  background: var(--ui-bg);
+  border: 1px solid var(--ui-border-strong);
+  border-radius: var(--ui-radius-control);
+  color: var(--ui-text);
   padding: 10px 12px;
   font: inherit;
 }
 .field input:focus {
   outline: none;
-  border-color: #d68a34;
+  border-color: var(--ui-accent);
 }
 .field-hint {
-  color: #777;
+  color: var(--ui-faint);
   font-size: 0.78rem;
 }
 .primary-button {
-  background: #d68a34;
-  color: #111;
+  background: var(--ui-accent);
+  color: var(--ui-on-accent);
   border: none;
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   padding: 0 18px;
   font-weight: 600;
   cursor: pointer;
@@ -186,7 +185,7 @@ async function resetToDefault() {
   background: none;
   border: none;
   padding: 0;
-  color: #d68a34;
+  color: var(--ui-accent-text);
   font-size: 0.82rem;
   cursor: pointer;
 }
@@ -200,20 +199,20 @@ async function resetToDefault() {
 }
 .form-error {
   margin-top: 12px;
-  color: #fca5a5;
+  color: var(--ui-error);
   font-size: 13px;
   background: rgba(220, 38, 38, 0.1);
   border: 1px solid rgba(220, 38, 38, 0.3);
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   padding: 8px 10px;
 }
 .form-success {
   margin-top: 12px;
-  color: #86efac;
+  color: var(--ui-good);
   font-size: 13px;
   background: rgba(34, 197, 94, 0.1);
   border: 1px solid rgba(34, 197, 94, 0.3);
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   padding: 8px 10px;
 }
 </style>
