@@ -1,4 +1,4 @@
-import { watch } from "vue";
+import { ref, watch } from "vue";
 import {
   preferences,
   preferencesLoaded,
@@ -14,6 +14,7 @@ import {
 } from "../services/deviceAppearance";
 
 export type UiTheme = Preferences["ui_theme"];
+export const resolvedUiTheme = ref<"light" | "dark">("light");
 export type UiAppearance = Pick<
   Preferences,
   | "ui_theme"
@@ -66,6 +67,7 @@ export function initializeUiAppearance(): void {
       }
     }
     root.dataset.theme = resolveUiTheme(device.theme, system.matches);
+    resolvedUiTheme.value = resolveUiTheme(device.theme, system.matches);
     applyPalette(
       root,
       device.palette,

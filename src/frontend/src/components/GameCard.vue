@@ -5,6 +5,7 @@ import { setFavorite, setStatus } from "../services/games";
 import { ref, computed, nextTick, onUnmounted, watch } from "vue";
 import { computeScore } from "../utils/scoring";
 import { appearanceSettings } from "../state/appearance";
+import CompletionBadge from "./CompletionBadge.vue";
 
 const props = defineProps<{
   game: Game;
@@ -319,33 +320,16 @@ function copyFolderPath() {
           </svg>
         </div>
 
-        <div
+        <CompletionBadge
           v-if="
             showBadge &&
             (badgeStyle === 'ribbon' || badgeStyle === 'corner_badge')
           "
-          class="completion-badge"
-          :class="[badgeStyle, badgePlacement]"
-          :style="{ '--badge-color': badgeColor }"
-        >
-          <img
-            v-if="badgeImageUrl"
-            :src="badgeImageUrl"
-            alt=""
-            class="completion-badge-image"
-          />
-          <svg
-            v-else
-            viewBox="0 0 24 24"
-            width="16"
-            height="16"
-            fill="currentColor"
-          >
-            <path
-              d="M12 2l2.4 6.6L21 9l-5 4.6L17.4 21 12 17.3 6.6 21 8 13.6 3 9l6.6-.4z"
-            />
-          </svg>
-        </div>
+          :badge-style="badgeStyle"
+          :placement="badgePlacement"
+          :color="badgeColor"
+          :image-url="badgeImageUrl"
+        />
 
         <div
           v-if="activityDot && !selectMode"
@@ -586,50 +570,6 @@ function copyFolderPath() {
   box-shadow:
     0 0 0 2px var(--badge-color),
     0 24px 56px rgba(0, 0, 0, 0.5);
-}
-.completion-badge {
-  position: absolute;
-  z-index: 3;
-  width: 30px;
-  height: 30px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--badge-color);
-  pointer-events: none;
-}
-.completion-badge.top-left {
-  top: 8px;
-  left: 8px;
-}
-.completion-badge.top-right {
-  top: 8px;
-  right: 8px;
-}
-.completion-badge.bottom-left {
-  bottom: 8px;
-  left: 8px;
-}
-.completion-badge.bottom-right {
-  bottom: 8px;
-  right: 8px;
-}
-.completion-badge.corner_badge {
-  background: rgba(20, 20, 20, 0.55);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  border-radius: 50%;
-  border: 1px solid color-mix(in srgb, var(--badge-color) 60%, transparent);
-}
-.completion-badge.ribbon {
-  width: 46px;
-  height: 46px;
-  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.5));
-}
-.completion-badge-image {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
 }
 .cover {
   position: relative;

@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import type { Preferences } from "../../services/preferences";
+import { resolvedUiTheme } from "../../state/uiAppearance";
 import {
   ORANGE_PALETTE,
+  paletteColors,
   PALETTE_FIELDS,
   paletteTokens,
   paletteContrastIssues,
@@ -11,6 +13,11 @@ import {
   type PaletteColors,
   type CustomPalette,
 } from "../../services/uiPalette";
+import {
+  PALETTE_FILE_LIMIT,
+  readPaletteFile,
+  writePaletteFile,
+} from "../../services/paletteFiles";
 const props = defineProps<{
   palette: PaletteId;
   custom: CustomPalette;
@@ -18,7 +25,51 @@ const props = defineProps<{
 }>();
 const emit = defineEmits<{ change: [value: Partial<Preferences>] }>();
 const selected = ref(props.palette);
-const mode = ref<PaletteMode>("light");
+const mode = ref<PaletteMode>(resolvedUiTheme.value);
+watch(resolvedUiTheme, (theme) => {
+  mode.value = theme;
+});
+const fileInput = ref<HTMLInputElement | null>(null);
+const fileError = ref<string | null>(null);
+const fileStatus = ref("");
+async function importPalette(event: Event) {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  if (!file) return;
+  fileError.value = null;
+  fileStatus.value = "";
+  try {
+    if (file.size > PALETTE_FILE_LIMIT)
+      throw new Error("Palette files must be smaller than 8 KB.");
+    const colors = readPaletteFile(await file.text());
+    draft.value = colors;
+    selected.value = "custom";
+    fileStatus.value =
+      "Palette imported into the preview. Choose Apply palette to save it.";
+  } catch (reason) {
+    fileError.value =
+      reason instanceof Error
+        ? reason.message
+        : "Could not import this palette.";
+  } finally {
+    input.value = "";
+  }
+}
+function exportPalette() {
+  const colors = {
+    light: paletteColors(selected.value, "light", draft.value),
+    dark: paletteColors(selected.value, "dark", draft.value),
+  };
+  const url = URL.createObjectURL(
+    new Blob([writePaletteFile(colors)], { type: "application/json" }),
+  );
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `uta-${selected.value}-palette.json`;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  fileStatus.value = "Palette downloaded with both light and dark colors.";
+}
 function copy(colors: CustomPalette): Record<PaletteMode, PaletteColors> {
   return {
     light: { ...ORANGE_PALETTE.light, ...colors.light },
@@ -151,23 +202,51 @@ function apply() {
           </div>
         </div>
       </div>
-      <p v-if="issues.length" class="ui-error" role="status">
-        Adjust {{ issues.length }} color pairs to reach readable text contrast
-        (4.5:1): {{ issues.slice(0, 4).join("; ")
-        }}{{ issues.length > 4 ? "; …" : "" }}.
-      </p>
+      <details v-if="issues.length" class="contrast-hint">
+        <summary>
+          Some colors may be hard to read. You can still apply this palette.
+        </summary>
+        <p class="section-hint">
+          {{ issues.length }} color pairs have contrast below 4.5:1:
+          {{ issues.slice(0, 4).join("; ")
+          }}{{ issues.length > 4 ? "; …" : "" }}.
+        </p>
+      </details>
       <p v-else class="section-hint">
         The preview shows both normal menus and a dialog. Custom text and status
         colors are checked against each background.
       </p>
-      <button
-        type="button"
-        class="ui-btn ui-btn-primary"
-        :disabled="issues.length > 0"
-        @click="apply"
-      >
+      <button type="button" class="ui-btn ui-btn-primary" @click="apply">
         Apply palette
       </button>
+      <div class="palette-sharing">
+        <button
+          type="button"
+          class="ui-btn ui-btn-ghost"
+          @click="fileInput?.click()"
+        >
+          Import palette
+        </button>
+        <button
+          type="button"
+          class="ui-btn ui-btn-ghost"
+          @click="exportPalette"
+        >
+          Download palette
+        </button>
+        <input
+          ref="fileInput"
+          type="file"
+          accept=".json,application/json"
+          aria-label="Palette JSON file"
+          hidden
+          @change="importPalette"
+        />
+      </div>
+      <p v-if="fileError" class="ui-error" role="alert">{{ fileError }}</p>
+      <p v-if="fileStatus" class="section-hint" role="status">
+        {{ fileStatus }}
+      </p>
     </fieldset>
   </section>
 </template>
@@ -200,6 +279,22 @@ h2 {
   flex-wrap: wrap;
   gap: 8px;
   margin-block: 16px;
+}
+.palette-sharing {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+.contrast-hint {
+  margin-block: 16px;
+  color: var(--ui-dim);
+  font-size: var(--ui-font-small);
+}
+.contrast-hint summary {
+  min-height: var(--ui-control-height);
+  cursor: pointer;
+  align-content: center;
 }
 .preview-modes [aria-pressed="true"] {
   border-color: var(--ui-accent);

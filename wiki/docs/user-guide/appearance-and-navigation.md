@@ -23,7 +23,7 @@ Settings starts with grouped links. On desktop a section keeps its area navigati
 Open **Preferences → Appearance**:
 
 - **Theme:** System, Light or Dark. System follows changes to the device appearance.
-- **Palette:** Orange, Green or Custom. Each palette has separate light and dark colors. The custom editor controls eleven semantic color roles and previews menus, cards, dialogs and controls before you select **Apply palette**. Both color sets are saved together. The editor blocks unreadable text/background combinations; only plain six-digit colors are accepted.
+- **Palette:** Orange, Green or Custom. Each palette has separate light and dark colors. The custom editor controls eleven semantic color roles and previews menus, cards, dialogs and controls before you select **Apply palette**. Both color sets are saved together. Low-contrast pairs show an optional advisory; you can apply any valid six-digit colors. The preview starts in the currently displayed theme and follows later app or System theme changes; you can switch it manually. **Download palette** shares both color sets as a JSON file. **Import palette** loads a shared file into the preview; choose **Apply palette** to save it. Invalid or oversized files leave your saved colors intact.
 - **Density:** Comfortable or Compact. Compact reduces spacing while retaining phone touch targets.
 - **Reduce motion:** disables decorative transitions. The device's reduced-motion setting is always respected.
 - **Higher contrast:** strengthens text, boundaries and keyboard focus.

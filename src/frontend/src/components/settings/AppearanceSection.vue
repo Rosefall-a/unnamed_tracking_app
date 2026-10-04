@@ -13,6 +13,21 @@ import type {
 } from "../../services/appearanceSettings";
 import { loadAppearanceSettings } from "../../state/appearance";
 import UiAppearanceSection from "./UiAppearanceSection.vue";
+import CompletionBadge from "../CompletionBadge.vue";
+
+const previewTitles = [
+  "Inventory Full Again",
+  "Side Quest: Laundry",
+  "Oops, All Side Quests",
+  "The Final Final Boss",
+  "Save Point Simulator",
+  "One More Turn, Honest",
+  "Loot Goblin Academy",
+  "Achievement: Went Outside",
+];
+const previewTitle =
+  previewTitles[Math.floor(Math.random() * previewTitles.length)]!;
+const previewCoverUrl = `/api/game/preview-cover?title=${encodeURIComponent(previewTitle)}`;
 
 const loading = ref(true);
 const saving = ref(false);
@@ -144,8 +159,19 @@ async function removeImage() {
       <div v-if="style !== 'none'" class="field">
         <span>Color</span>
         <div class="color-row">
-          <input v-model="color" type="color" class="color-input" />
-          <input v-model="color" type="text" class="color-text" maxlength="7" />
+          <input
+            v-model="color"
+            type="color"
+            class="color-input"
+            aria-label="Badge color"
+          />
+          <input
+            v-model="color"
+            type="text"
+            class="color-text"
+            aria-label="Badge hex color"
+            maxlength="7"
+          />
         </div>
       </div>
 
@@ -212,31 +238,20 @@ async function removeImage() {
             :style="{ '--badge-color': color }"
           >
             <div class="preview-cover">
-              <div
+              <img
+                class="preview-art"
+                :src="previewCoverUrl"
+                :alt="`${previewTitle} default game cover`"
+              />
+              <CompletionBadge
                 v-if="usesPlacement"
-                class="preview-badge"
-                :class="[style, placement]"
-              >
-                <img
-                  v-if="imageUrl"
-                  :src="imageUrl"
-                  alt=""
-                  class="preview-badge-image"
-                />
-                <svg
-                  v-else
-                  viewBox="0 0 24 24"
-                  width="14"
-                  height="14"
-                  fill="currentColor"
-                >
-                  <path
-                    d="M12 2l2.4 6.6L21 9l-5 4.6L17.4 21 12 17.3 6.6 21 8 13.6 3 9l6.6-.4z"
-                  />
-                </svg>
-              </div>
+                :badge-style="style"
+                :placement="placement"
+                :color="color"
+                :image-url="imageUrl"
+              />
             </div>
-            <div class="preview-title">Mastered Game</div>
+            <div class="preview-title">{{ previewTitle }}</div>
           </div>
         </div>
       </div>
@@ -292,8 +307,8 @@ async function removeImage() {
   gap: 10px;
 }
 .color-input {
-  width: 40px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
   border: 1px solid var(--ui-border-strong);
   border-radius: var(--ui-radius-control);
   background: var(--ui-bg);
@@ -339,7 +354,8 @@ async function removeImage() {
   display: flex;
 }
 .preview-card {
-  width: 140px;
+  width: 180px;
+  max-width: 100%;
   border-radius: var(--ui-radius-control);
   padding: 6px;
   background: var(--ui-bg);
@@ -348,7 +364,8 @@ async function removeImage() {
   position: relative;
   aspect-ratio: 2 / 3;
   border-radius: 6px;
-  background: linear-gradient(135deg, var(--ui-border), var(--ui-surface));
+  overflow: hidden;
+  background: var(--ui-surface);
   margin-bottom: 6px;
 }
 .preview-title {
@@ -364,46 +381,17 @@ async function removeImage() {
 .preview-card.badge-border {
   box-shadow: 0 0 0 2px var(--badge-color);
 }
-.preview-badge {
-  position: absolute;
-  width: 22px;
-  height: 22px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--badge-color);
-}
-.preview-badge.top-left {
-  top: 6px;
-  left: 6px;
-}
-.preview-badge.top-right {
-  top: 6px;
-  right: 6px;
-}
-.preview-badge.bottom-left {
-  bottom: 6px;
-  left: 6px;
-}
-.preview-badge.bottom-right {
-  bottom: 6px;
-  right: 6px;
-}
-.preview-badge.corner_badge {
-  background: var(--ui-surface);
-  border-radius: 50%;
-  border: 1px solid color-mix(in srgb, var(--badge-color) 60%, transparent);
-}
-.preview-badge-image {
+.preview-art {
+  display: block;
   width: 100%;
   height: 100%;
-  object-fit: contain;
+  object-fit: cover;
 }
 .form-error {
   color: var(--ui-error);
   font-size: 13px;
-  background: rgba(220, 38, 38, 0.1);
-  border: 1px solid rgba(220, 38, 38, 0.3);
+  background: var(--ui-danger-soft);
+  border: 1px solid color-mix(in srgb, var(--ui-error) 30%, transparent);
   border-radius: var(--ui-radius-control);
   padding: 8px 10px;
   margin-bottom: 14px;
@@ -411,8 +399,8 @@ async function removeImage() {
 .form-success {
   color: var(--ui-good);
   font-size: 13px;
-  background: rgba(34, 197, 94, 0.1);
-  border: 1px solid rgba(34, 197, 94, 0.3);
+  background: var(--ui-good-soft);
+  border: 1px solid color-mix(in srgb, var(--ui-good) 30%, transparent);
   border-radius: var(--ui-radius-control);
   padding: 8px 10px;
   margin-bottom: 14px;

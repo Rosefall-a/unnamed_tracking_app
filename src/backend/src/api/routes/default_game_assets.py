@@ -2,14 +2,14 @@
 
 import hashlib
 from html import escape
-from pathlib import Path
+from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import FileResponse, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.routes.games import ALLOWED_ASSET_KINDS, _DATA_ROOT, _get_game_or_404
+from src.api.routes.games import _DATA_ROOT, ALLOWED_ASSET_KINDS, _get_game_or_404
 from src.core.auth import get_current_user
 from src.database.models.user import User
 from src.database.session import get_db
@@ -75,12 +75,24 @@ def _default_cover_svg(game_id: UUID, title: str) -> str:
 </svg>"""
 
 
+@router.get("/preview-cover")
+async def preview_default_cover(
+    title: Annotated[str, Query(max_length=80)] = "Preview Game",
+) -> Response:
+    """Preview the existing fallback artwork without creating a library entry."""
+    return Response(
+        content=_default_cover_svg(UUID("00000000-0000-0000-0000-000000000001"), title),
+        media_type="image/svg+xml",
+        headers={"Cache-Control": "private, max-age=3600, must-revalidate"},
+    )
+
+
 @router.get("/{game_id}/assets/{asset_kind}")
 async def get_game_asset_with_fallback(
     game_id: UUID,
     asset_kind: AssetKind,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(get_current_user)],
 ) -> Response:
     """Serve stored artwork, falling back to generated cover art when needed."""
     if asset_kind not in ALLOWED_ASSET_KINDS:

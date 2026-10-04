@@ -1,0 +1,188 @@
+{
+  "backend": "real",
+  "passed": [
+    "24 real ribbon preview/card cases across all corners, 320/390/1440 widths and both themes",
+    "Existing fallback cover icon and eight refresh titles; no preview games created",
+    "Personal badge changes leave the other account unchanged"
+  ],
+  "screens": [
+    {
+      "theme": "light",
+      "width": 320,
+      "placement": "top-left",
+      "preview": true,
+      "savedCard": true
+    },
+    {
+      "theme": "light",
+      "width": 320,
+      "placement": "top-right",
+      "preview": true,
+      "savedCard": true
+    },
+    {
+      "theme": "light",
+      "width": 320,
+      "placement": "bottom-left",
+      "preview": true,
+      "savedCard": true
+    },
+    {
+      "theme": "light",
+      "width": 320,
+      "placement": "bottom-right",
+      "preview": true,
+      "savedCard": true
+    },
+    {
+      "theme": "light",
+      "width": 390,
+      "placement": "top-left",
+      "preview": true,
+      "savedCard": true
+    },
+    {
+      "theme": "light",
+      "width": 390,
+      "placement": "top-right",
+      "preview": true,
+      "savedCard": true
+    },
+    {
+      "theme": "light",
+      "width": 390,
+      "placement": "bottom-left",
+      "preview": true,
+      "savedCard": true
+    },
+    {
+      "theme": "light",
+      "width": 390,
+      "placement": "bottom-right",
+      "preview": true,
+      "savedCard": true
+    },
+    {
+      "theme": "light",
+      "width": 1440,
+      "placement": "top-left",
+      "preview": true,
+      "savedCard": true
+    },
+    {
+      "theme": "light",
+      "width": 1440,
+      "placement": "top-right",
+      "preview": true,
+      "savedCard": true
+    },
+    {
+      "theme": "light",
+      "width": 1440,
+      "placement": "bottom-left",
+      "preview": true,
+      "savedCard": true
+    },
+    {
+      "theme": "light",
+      "width": 1440,
+      "placement": "bottom-right",
+      "preview": true,
+      "savedCard": true
+    },
+    {
+      "theme": "dark",
+      "width": 320,
+      "placement": "top-left",
+      "preview": true,
+      "savedCard": true
+    },
+    {
+      "theme": "dark",
+      "width": 320,
+      "placement": "top-right",
+      "preview": true,
+      "savedCard": true
+    },
+    {
+      "theme": "dark",
+      "width": 320,
+      "placement": "bottom-left",
+      "preview": true,
+      "savedCard": true
+    },
+    {
+      "theme": "dark",
+      "width": 320,
+      "placement": "bottom-right",
+      "preview": true,
+      "savedCard": true
+    },
+    {
+      "theme": "dark",
+      "width": 390,
+      "placement": "top-left",
+      "preview": true,
+      "savedCard": true
+    },
+    {
+      "theme": "dark",
+      "width": 390,
+      "placement": "top-right",
+      "preview": true,
+      "savedCard": true
+    },
+    {
+      "theme": "dark",
+      "width": 390,
+      "placement": "bottom-left",
+      "preview": true,
+      "savedCard": true
+    },
+    {
+      "theme": "dark",
+      "width": 390,
+      "placement": "bottom-right",
+      "preview": true,
+      "savedCard": true
+    },
+    {
+      "theme": "dark",
+      "width": 1440,
+      "placement": "top-left",
+      "preview": true,
+      "savedCard": true
+    },
+    {
+      "theme": "dark",
+      "width": 1440,
+      "placement": "top-right",
+      "preview": true,
+      "savedCard": true
+    },
+    {
+      "theme": "dark",
+      "width": 1440,
+      "placement": "bottom-left",
+      "preview": true,
+      "savedCard": true
+    },
+    {
+      "theme": "dark",
+      "width": 1440,
+      "placement": "bottom-right",
+      "preview": true,
+      "savedCard": true
+    }
+  ],
+  "widths": [
+    320,
+    390,
+    430,
+    768,
+    1024,
+    1440,
+    1920,
+    2560
+  ]
+}

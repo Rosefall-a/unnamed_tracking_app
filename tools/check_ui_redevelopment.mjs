@@ -11,6 +11,7 @@ import { checkBrandingUi } from "./check_branding_ui.mjs";
 import { checkDetailUi } from "./check_detail_ui.mjs";
 import { checkPaletteUi } from "./check_palette_ui.mjs";
 import { checkContentUi } from "./check_content_ui.mjs";
+import { checkCompletionBadges } from "./check_completion_badges.mjs";
 
 const [pluginsRoot, evidenceRoot, backendUrl] = process.argv.slice(2);
 const reviewStage = process.argv[5] ?? "shell";
@@ -61,10 +62,15 @@ try {
   const installed = await admin.request.get(origin + "/api/plugins");
   assert.equal(installed.status(), 200);
   assert.equal((await installed.json()).length, 0, "Run this stage against a clean plugin inventory to exclude embedded-media evidence.");
-  if (reviewStage === "palette") {
+  if (reviewStage === "palette" || reviewStage === "palette-editor") {
     const member = await browser.newContext(); await login(member, memberName, process.env.UI_REVIEW_PASSWORD);
-    await checkPaletteUi({ admin, member, origin, evidenceRoot, report, pluginsRoot }); await member.close();
+    await checkPaletteUi({ admin, member, origin, evidenceRoot, report, pluginsRoot, editorOnly: reviewStage === "palette-editor" }); await member.close();
     await writeFile(path.join(evidenceRoot, "stage-palette-conformance.json"), JSON.stringify(report, null, 2) + "\n");
+    console.log(JSON.stringify({ cases: report.screens.length, passed: report.passed }, null, 2));
+  } else if (reviewStage === "ribbon") {
+    const member = await browser.newContext(); await login(member, memberName, process.env.UI_REVIEW_PASSWORD);
+    await checkCompletionBadges({ admin, member, origin, evidenceRoot, report, checkOverflow }); await member.close();
+    await writeFile(path.join(evidenceRoot, "stage-ribbon-conformance.json"), JSON.stringify(report, null, 2) + "\n");
     console.log(JSON.stringify({ cases: report.screens.length, passed: report.passed }, null, 2));
   } else if (reviewStage === "details") {
     const member = await browser.newContext(); await login(member, memberName, process.env.UI_REVIEW_PASSWORD);

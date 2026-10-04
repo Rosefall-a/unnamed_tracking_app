@@ -1,6 +1,7 @@
 // Real account palette saves, menu previews, system changes and populated-page propagation.
 import assert from "node:assert/strict";
 import path from "node:path";
+import { readFile } from "node:fs/promises";
 import { checkDetailUi } from "./check_detail_ui.mjs";
 
 export async function checkPaletteUi(options) {
@@ -30,6 +31,7 @@ export async function checkPaletteUi(options) {
     await page.emulateMedia({ colorScheme: "light" });
     await page.goto(origin + "/settings?section=appearance");
     await page.getByLabel("Palette", { exact: true }).selectOption("green");
+    assert.equal(await page.getByRole("button", { name: "Light preview", exact: true }).getAttribute("aria-pressed"), "true", "Preview starts in the displayed theme");
     assert.equal(await page.locator("html").getAttribute("data-palette"), "orange", "Preview does not apply unsaved colors");
     await page.getByRole("button", { name: "Dark preview", exact: true }).click();
     const preview = page.getByLabel("Palette preview", { exact: true });
@@ -41,12 +43,16 @@ export async function checkPaletteUi(options) {
     assert.equal((await json(await member.request.get(origin + "/api/preferences"))).ui_palette, originals[1].ui_palette, "Administrator palette never changes the member palette");
     const light = await page.locator("html").evaluate(element => getComputedStyle(element).getPropertyValue("--ui-bg").trim());
     await page.emulateMedia({ colorScheme: "dark" }); await page.waitForFunction(() => document.documentElement.dataset.theme === "dark");
+    assert.equal(await page.getByRole("button", { name: "Dark preview", exact: true }).getAttribute("aria-pressed"), "true", "Preview follows System theme changes");
     const dark = await page.locator("html").evaluate(element => getComputedStyle(element).getPropertyValue("--ui-bg").trim());
     assert.notEqual(light, dark, "System mode changes the chosen palette's color set");
     await page.getByLabel("Palette", { exact: true }).selectOption("custom");
     await page.getByRole("button", { name: "Light preview", exact: true }).click();
     await color("Main text (light)", "#ffffff");
-    assert(await page.getByRole("button", { name: "Apply palette", exact: true }).isDisabled(), "Unreadable custom text cannot be applied through the editor");
+    assert.equal(await page.getByRole("button", { name: "Apply palette", exact: true }).isDisabled(), false, "Contrast is advisory and never blocks valid colors");
+    await page.getByText("Some colors may be hard to read. You can still apply this palette.", { exact: true }).waitFor();
+    await apply(); await page.reload(); await page.getByLabel("Palette", { exact: true }).waitFor();
+    assert.equal((await json(await admin.request.get(origin + "/api/preferences"))).ui_custom_palette.light.text, "#ffffff", "Low contrast colors save and survive reload");
     for (const theme of ["light", "dark"]) {
       await page.getByRole("button", { name: theme === "light" ? "Light preview" : "Dark preview", exact: true }).click();
       for (const [role, value] of Object.entries(custom[theme])) await color(`${labels[role]} (${theme})`, value);
@@ -56,6 +62,23 @@ export async function checkPaletteUi(options) {
     const saved = await json(await admin.request.get(origin + "/api/preferences"));
     assert.equal(saved.ui_palette, "custom"); assert.deepEqual(saved.ui_custom_palette, custom);
     assert.equal(saved.ui_theme, "system");
+    const downloaded = page.waitForEvent("download");
+    await page.getByRole("button", { name: "Download palette", exact: true }).click();
+    const download = await downloaded;
+    const file = JSON.parse(await readFile(await download.path(), "utf8"));
+    assert.deepEqual(file, { format: "uta-color-palette", version: 1, colors: custom }, "Downloads contain only portable palette data");
+    const fileInput = page.getByLabel("Palette JSON file", { exact: true });
+    await fileInput.setInputFiles({ name: "broken.json", mimeType: "application/json", buffer: Buffer.from("broken") });
+    await page.getByRole("alert").filter({ hasText: "valid palette JSON" }).waitFor();
+    assert.deepEqual((await json(await admin.request.get(origin + "/api/preferences"))).ui_custom_palette, custom);
+    await page.getByLabel("Palette", { exact: true }).selectOption("green");
+    const chooseFile = page.waitForEvent("filechooser");
+    await page.getByRole("button", { name: "Import palette", exact: true }).click();
+    await (await chooseFile).setFiles({ name: "shared.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(file)) });
+    await page.getByText("Palette imported into the preview. Choose Apply palette to save it.", { exact: true }).waitFor();
+    assert.equal(await page.getByLabel("Palette", { exact: true }).inputValue(), "custom");
+    await apply(); await page.reload(); await page.getByLabel("Palette", { exact: true }).waitFor();
+    assert.deepEqual((await json(await admin.request.get(origin + "/api/preferences"))).ui_custom_palette, custom);
     const invalid = await admin.request.patch(origin + "/api/preferences", { data: { ui_custom_palette: { ...custom, light: { ...custom.light, accent: "url(https://example.invalid)" } } } });
     assert.equal(invalid.status(), 422); assert.deepEqual((await json(await admin.request.get(origin + "/api/preferences"))).ui_custom_palette, custom);
     for (const width of [390, 1440]) {
@@ -69,7 +92,7 @@ export async function checkPaletteUi(options) {
       }
     }
     await page.close();
-    for (const palette of ["green", "custom"]) {
+    for (const palette of (options.editorOnly ? [] : ["green", "custom"])) {
       for (const context of [admin, member]) await json(await context.request.patch(origin + "/api/preferences", { data: { ui_palette: palette, ui_custom_palette: custom } }));
       report.palette = palette;
       const before = report.screens.length;
@@ -77,7 +100,7 @@ export async function checkPaletteUi(options) {
       console.log(`${palette}: ${report.screens.length - before} populated page checks passed`);
     }
     assert.deepEqual(errors, []);
-    report.passed.push("Real preset/custom editor save, reload and account isolation", "Preview menus and light/dark color sets without changing unsaved app appearance", "System changes retain the chosen palette", "Unreadable text blocked in the editor and arbitrary CSS rejected by the API");
+    report.passed.push("Real preset/custom editor save, reload and account isolation", "Preview menus and light/dark color sets without changing unsaved app appearance", "System changes retain the chosen palette", "Low contrast colors save with advisory guidance; arbitrary CSS still rejected", "Portable palette download/import round trip; malformed imports preserve saved colors");
   } finally {
     if (!page.isClosed()) await page.close();
     for (const [index, context] of [admin, member].entries()) {
