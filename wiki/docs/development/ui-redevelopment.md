@@ -218,4 +218,12 @@ The dialog checkpoint uses wider desktop space for Home customization, installat
 
 ![Phone plugin installer](../assets/ui-redevelopment/stage-plugin-installer-390-light.png)
 
+The palette and sign-in checkpoint adds Orange, Green and a custom editor with separate light/dark colors, semantic menu/control previews and contrast validation. The [palette report](../assets/ui-redevelopment/stage-palette-conformance.json) records **832 populated cases** using Green and Custom across eight widths, both themes and two roles, in addition to the earlier Orange review. The browser bars and public sign-in use a bounded cosmetic device cache; authenticated account preferences replace it after login. The [OIDC report](../assets/ui-redevelopment/oidc-theme-conformance.json) records **12 real RS256 authorization-code flows** across phone/desktop, three palettes and both modes, including hidden entrypoints, manual provider buttons, invalid-state errors, local fallback, return paths and member authorization. Changed provider configuration replaces Authlib's cached client without requiring a restart. Frontend regression coverage passed 133 tests; mypy passed all 204 backend files, and the backend retains a 9.27/10 Pylint score against the existing 9.0 CI requirement.
+
+![Custom desktop palette preview](../assets/ui-redevelopment/stage-palette-preview-1440-dark.png)
+
+![Phone SSO buttons in a custom light palette](../assets/ui-redevelopment/oidc-login-390-light.png)
+
+![Desktop SSO buttons in a custom dark palette](../assets/ui-redevelopment/oidc-login-1440-dark.png)
+
 The original gallery and captures remain available in this wiki and Git history as a shared reference, separate from production screenshots. The Draft PR remains a living record and targets `plugin-manager`. The production readiness race discovered in CI is fixed. At `97e8405a`, companion integration found an obsolete official Jellyfin capture selector on the old Settings landing page. Companion commit `fef5b7b` uses the preserved Settings deep link and retains the existing interaction assertions. The unchanged strict container acceptance then passed locally with the committed host checkpoint and paired companion fix: actual package installation, consent, privileged reauthentication, account/server configuration, sync, update/state retention, admin/user separation, viewing history, Watch Now and phone layout. All seven workflows passed at the pushed Home checkpoint `5896d8c9`. Each new stage must pass CI independently.

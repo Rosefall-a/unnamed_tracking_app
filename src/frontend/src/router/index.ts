@@ -13,6 +13,7 @@ import { appearanceLoaded, loadAppearanceSettings } from "../state/appearance";
 import { fetchSetupStatus } from "../services/setup";
 import {
   classifySetupStatus,
+  consumeReturnPath,
   rememberReturnPath,
   safeReturnPath,
   setStartupState,
@@ -183,6 +184,18 @@ const router = createRouter({
       component: () => import("../views/OidcStart.vue"),
     },
     {
+      path: "/login/local",
+      name: "local-login",
+      meta: { title: "Sign in" },
+      component: () => import("../views/Login.vue"),
+    },
+    {
+      path: "/login/:provider",
+      name: "oidc-provider-start",
+      meta: { title: "Sign in" },
+      component: () => import("../views/OidcProviderStart.vue"),
+    },
+    {
       path: "/setup",
       name: "setup",
       meta: { title: "Setup" },
@@ -318,7 +331,10 @@ router.beforeEach(async (to, from) => {
 
   // This public route deliberately bypasses the normal auth redirect so a
   // bookmark or reverse-proxy login entrypoint can start OIDC immediately.
-  if (to.path === "/login/oidcstart") return;
+  if (to.name === "oidc-start" || to.name === "oidc-provider-start") {
+    setStartupState("auth-required");
+    return;
+  }
 
   if (!authChecked.value) await checkAuth();
   if (authCheckFailed.value) {
@@ -329,14 +345,15 @@ router.beforeEach(async (to, from) => {
     return false;
   }
 
-  if (to.path !== "/login" && !currentUser.value) {
+  const loginPage = to.name === "login" || to.name === "local-login";
+  if (!loginPage && !currentUser.value) {
     setStartupState("auth-required");
     return loginRedirect(to.fullPath);
   }
 
-  if (to.path === "/login" && currentUser.value) {
+  if (loginPage && currentUser.value) {
     setStartupState("ready");
-    return safeReturnPath(to.query.return_to) ?? "/";
+    return consumeReturnPath(to.query.return_to) ?? "/";
   }
 
   if (currentUser.value) {

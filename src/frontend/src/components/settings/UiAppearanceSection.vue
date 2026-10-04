@@ -8,6 +8,7 @@ import {
 } from "../../state/preferences";
 import { queuePreferences, type Preferences } from "../../services/preferences";
 import { currentUser } from "../../state/auth";
+import UiPaletteSection from "./UiPaletteSection.vue";
 
 const saving = ref(false);
 const error = ref<string | null>(null);
@@ -126,6 +127,13 @@ async function change(changes: Partial<Preferences>) {
         />
       </div>
     </fieldset>
+    <UiPaletteSection
+      v-if="preferencesLoaded && !preferencesError"
+      :palette="preferences.ui_palette"
+      :custom="preferences.ui_custom_palette"
+      :saving="saving"
+      @change="change"
+    />
     <p v-if="error" class="ui-error" role="alert">{{ error }}</p>
     <p class="appearance-status" role="status" aria-live="polite">
       {{ saving ? "Saving…" : saved ? "Appearance saved" : "" }}

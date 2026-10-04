@@ -2,6 +2,7 @@
 import { onMounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { startOidcLogin } from "../services/oidc";
+import { rememberReturnPath } from "../state/startup";
 
 const route = useRoute();
 const router = useRouter();
@@ -15,7 +16,8 @@ onMounted(() => {
     router.replace("/login");
     return;
   }
-  startOidcLogin(provider);
+  rememberReturnPath(route.query.return_to);
+  startOidcLogin(provider, true);
 });
 </script>
 <template>

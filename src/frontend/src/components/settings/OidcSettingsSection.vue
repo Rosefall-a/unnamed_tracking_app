@@ -34,7 +34,7 @@ function newProvider(): OidcProviderSetting {
     allow_new_users: true,
     button_text: "Continue with SSO",
     button_image_url: null,
-    button_colour: "#d68a34",
+    button_colour: "",
     enabled: true,
     show_on_login: true,
     autostart_enabled: true,
@@ -106,6 +106,11 @@ function endDrag() {
   dragIndex.value = null;
 }
 
+function setProviderColour(provider: OidcProviderSetting, event: Event) {
+  if (event.target instanceof HTMLInputElement)
+    provider.button_colour = event.target.value;
+}
+
 onMounted(async () => {
   try {
     const response = await fetchDeploymentSettings();
@@ -116,7 +121,7 @@ onMounted(async () => {
     providers.value = (response.oidc.named_providers ?? []).map((provider) => ({
       ...provider,
       client_secret: "",
-      button_colour: provider.button_colour || "#d68a34",
+      button_colour: provider.button_colour || "",
       autostart_enabled: provider.autostart_enabled !== false,
     }));
   } catch (err) {
@@ -147,7 +152,7 @@ async function save() {
     providers.value = (response.oidc.named_providers ?? []).map((provider) => ({
       ...provider,
       client_secret: "",
-      button_colour: provider.button_colour || "#d68a34",
+      button_colour: provider.button_colour || "",
       autostart_enabled: provider.autostart_enabled !== false,
     }));
     saved.value = true;
@@ -331,18 +336,38 @@ async function save() {
               v-model="provider.button_text"
               placeholder="Continue with Authentik"
           /></label>
-          <label>
-            <span>Button color</span>
-            <div class="color-control">
-              <input v-model="provider.button_colour" type="color" />
-              <input
-                v-model="provider.button_colour"
-                class="color-text"
-                placeholder="#d68a34"
-                pattern="^#[0-9a-fA-F]{6}$"
+          <div>
+            <label
+              ><input
+                type="checkbox"
+                :checked="!provider.button_colour"
+                @change="
+                  provider.button_colour = provider.button_colour
+                    ? ''
+                    : '#d68a34'
+                "
               />
-            </div>
-          </label>
+              Use app palette for this sign-in button</label
+            >
+            <label
+              ><span>Provider button color</span>
+              <div class="color-control">
+                <input
+                  :value="provider.button_colour || '#d68a34'"
+                  type="color"
+                  :disabled="!provider.button_colour"
+                  @input="setProviderColour(provider, $event)"
+                />
+                <input
+                  v-model="provider.button_colour"
+                  :disabled="!provider.button_colour"
+                  class="color-text"
+                  placeholder="#d68a34"
+                  pattern="^#[0-9a-fA-F]{6}$"
+                />
+              </div>
+            </label>
+          </div>
           <label
             ><span>Button image URL</span
             ><input v-model="provider.button_image_url" placeholder="Optional"

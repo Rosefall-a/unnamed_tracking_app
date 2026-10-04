@@ -13,6 +13,8 @@ from src.database.models.user_preferences import UserPreferences
 
 DEFAULTS: dict[str, Any] = {
     "ui_theme": "system",
+    "ui_palette": "orange",
+    "ui_custom_palette": {},
     "ui_density": "comfortable",
     "ui_style": "archive-pocket",
     "ui_reduce_motion": False,
@@ -46,6 +48,7 @@ DEFAULTS: dict[str, Any] = {
 
 _CHOICES: dict[str, tuple[Any, ...]] = {
     "ui_theme": ("system", "light", "dark"),
+    "ui_palette": ("orange", "green", "custom"),
     "ui_density": ("comfortable", "compact"),
     "ui_style": ("archive-pocket",),
     "calendar_default_view": ("month", "week", "agenda"),
@@ -63,8 +66,15 @@ _SET_CHOICES: dict[str, tuple[str, ...]] = {
 }
 
 _HOME_CORE_WIDGETS = {
-    "library-summary", "continue-playing", "recently-added", "goals",
-    "random-picker", "backlog", "on-this-day", "weekly-digest", "getting-started",
+    "library-summary",
+    "continue-playing",
+    "recently-added",
+    "goals",
+    "random-picker",
+    "backlog",
+    "on-this-day",
+    "weekly-digest",
+    "getting-started",
 }
 
 
@@ -93,6 +103,8 @@ def validate_preference(key: str, value: Any) -> Any:
     default = DEFAULTS[key]
     if key == "home_widgets":
         return _validate_home_widgets(value)
+    if key == "ui_custom_palette":
+        return _validate_custom_palette(value)
     if key in _SET_CHOICES:
         allowed = _SET_CHOICES[key]
         if not isinstance(value, list) or any(v not in allowed for v in value):
@@ -121,6 +133,41 @@ def validate_preference(key: str, value: Any) -> Any:
             raise ValueError(f"{key} must be true or false")
         return value
     return value
+
+
+def _validate_custom_palette(value: Any) -> dict[str, dict[str, str]]:
+    """Allow bounded plain colors for personal palettes, never arbitrary CSS."""
+    roles = {
+        "background",
+        "surface",
+        "surface_alt",
+        "text",
+        "muted",
+        "accent",
+        "success",
+        "warning",
+        "error",
+        "info",
+        "purple",
+    }
+    if value == {}:
+        return {}
+    if not isinstance(value, dict) or set(value) != {"light", "dark"}:
+        raise ValueError("custom palettes require light and dark color sets")
+    for colors in value.values():
+        if (
+            not isinstance(colors, dict)
+            or set(colors) != roles
+            or any(
+                not isinstance(color, str) or not re.fullmatch(r"#[0-9a-fA-F]{6}", color)
+                for color in colors.values()
+            )
+        ):
+            raise ValueError("custom palettes require all eleven roles as six-digit hex colors")
+    return {
+        mode: {role: color.lower() for role, color in colors.items()}
+        for mode, colors in value.items()
+    }
 
 
 async def load_preferences(db: AsyncSession, user_id: UUID) -> dict[str, Any]:

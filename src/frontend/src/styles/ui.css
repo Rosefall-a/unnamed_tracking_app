@@ -5,6 +5,10 @@
    weight and color everywhere instead of being redefined page by page. */
 
 /* ---- page shell ---- */
+body {
+  background: var(--ui-bg);
+  color: var(--ui-text);
+}
 .ui-page {
   position: relative;
   min-height: 100vh;
@@ -213,8 +217,8 @@ textarea.ui-field {
 .ui-error-box {
   color: var(--ui-error);
   font-size: 0.82rem;
-  background: rgba(220, 38, 38, 0.1);
-  border: 1px solid rgba(220, 38, 38, 0.3);
+  background: var(--ui-danger-soft);
+  border: 1px solid var(--ui-error);
   border-radius: var(--ui-radius-control);
   padding: 8px 12px;
   margin: 0 0 12px;

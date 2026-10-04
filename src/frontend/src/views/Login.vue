@@ -4,6 +4,7 @@ import { useRoute, useRouter } from "vue-router";
 import { login } from "../services/auth";
 import {
   oidcLoginStatus,
+  oidcButtonStyle,
   startOidcLogin,
   type OidcLoginProvider,
 } from "../services/oidc";
@@ -99,15 +100,7 @@ function sso(slug?: string) {
   }
 }
 function buttonStyle(provider: OidcLoginProvider) {
-  const hex = (provider.button_color || "#d68a34").slice(1);
-  const r = parseInt(hex.slice(0, 2), 16);
-  const g = parseInt(hex.slice(2, 4), 16);
-  const b = parseInt(hex.slice(4, 6), 16);
-  return {
-    backgroundColor: provider.button_color || "#d68a34",
-    borderColor: provider.button_color || "#d68a34",
-    color: 0.299 * r + 0.587 * g + 0.114 * b > 150 ? "#111" : "#fff",
-  };
+  return oidcButtonStyle(provider.button_color);
 }
 </script>
 <template>
@@ -285,7 +278,7 @@ function buttonStyle(provider: OidcLoginProvider) {
   align-items: center;
   justify-content: center;
   background: var(--ui-bg);
-  font-family: system-ui, sans-serif;
+  font-family: var(--ui-font-family);
   position: relative;
   overflow: hidden;
 }
@@ -296,7 +289,7 @@ function buttonStyle(provider: OidcLoginProvider) {
   aspect-ratio: 1;
   background: radial-gradient(
     circle,
-    rgba(214, 138, 52, 0.18) 0%,
+    var(--ui-accent-soft) 0%,
     transparent 70%
   );
   top: 50%;
@@ -407,8 +400,8 @@ function buttonStyle(provider: OidcLoginProvider) {
   color: var(--ui-accent);
 }
 .oidc-button {
-  background: var(--ui-border);
-  color: var(--ui-text);
+  background: var(--ui-accent);
+  color: var(--ui-on-accent);
   border: 1px solid var(--ui-border-strong);
   display: flex;
   align-items: center;

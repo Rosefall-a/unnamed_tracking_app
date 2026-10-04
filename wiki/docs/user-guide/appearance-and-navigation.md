@@ -23,6 +23,7 @@ Settings starts with grouped links. On desktop a section keeps its area navigati
 Open **Preferences → Appearance**:
 
 - **Theme:** System, Light or Dark. System follows changes to the device appearance.
+- **Palette:** Orange, Green or Custom. Each palette has separate light and dark colors. The custom editor controls eleven semantic color roles and previews menus, cards, dialogs and controls before you select **Apply palette**. Both color sets are saved together. The editor blocks unreadable text/background combinations; only plain six-digit colors are accepted.
 - **Density:** Comfortable or Compact. Compact reduces spacing while retaining phone touch targets.
 - **Reduce motion:** disables decorative transitions. The device's reduced-motion setting is always respected.
 - **Higher contrast:** strengthens text, boundaries and keyboard focus.
@@ -30,4 +31,6 @@ Open **Preferences → Appearance**:
 
 These choices belong to your account. Badge choices remain personal and existing saved values are preserved. Appearance changes save as you make them; badge customization keeps its explicit Save button. A failed save displays an error and restores the previous appearance. Signing out discards queued preference writes and cached badges so they cannot affect the next signed-in account. A late badge response from the previous account is ignored.
 
-Navigation, Settings and [Home](home.md) use the shared appearance system. The remaining page and plugin migration is tracked in the [development checkpoint](../development/ui-redevelopment.md). The preserved [interactive concept gallery](../assets/ui-redevelopment/concepts.html) remains available as a reference; its illustrative screens are not product features or additional selectable styles.
+This device keeps only a cosmetic copy of theme, palette and contrast settings so public sign-in, local sign-in fallback and SSO redirects use the same colors after sign-out or reload. It contains no account identity, credentials or library records. Signing into another account applies that account's saved appearance. Browser bars follow the active page background.
+
+Navigation, Settings, [Home](home.md), games, collections, cards, sets, media and statistics use the shared appearance system. The remaining plugin migration is tracked in the [development checkpoint](../development/ui-redevelopment.md). The preserved [interactive concept gallery](../assets/ui-redevelopment/concepts.html) remains available as a reference; its illustrative screens are not product features or additional selectable styles.

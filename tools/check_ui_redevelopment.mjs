@@ -8,6 +8,8 @@ import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { checkHomeWidgets } from "./check_home_widgets.mjs";
 import { checkBrandingUi } from "./check_branding_ui.mjs";
+import { checkDetailUi } from "./check_detail_ui.mjs";
+import { checkPaletteUi } from "./check_palette_ui.mjs";
 import { checkContentUi } from "./check_content_ui.mjs";
 
 const [pluginsRoot, evidenceRoot, backendUrl] = process.argv.slice(2);
@@ -59,7 +61,17 @@ try {
   const installed = await admin.request.get(origin + "/api/plugins");
   assert.equal(installed.status(), 200);
   assert.equal((await installed.json()).length, 0, "Run this stage against a clean plugin inventory to exclude embedded-media evidence.");
-  if (reviewStage === "content") {
+  if (reviewStage === "palette") {
+    const member = await browser.newContext(); await login(member, memberName, process.env.UI_REVIEW_PASSWORD);
+    await checkPaletteUi({ admin, member, origin, evidenceRoot, report, pluginsRoot }); await member.close();
+    await writeFile(path.join(evidenceRoot, "stage-palette-conformance.json"), JSON.stringify(report, null, 2) + "\n");
+    console.log(JSON.stringify({ cases: report.screens.length, passed: report.passed }, null, 2));
+  } else if (reviewStage === "details") {
+    const member = await browser.newContext(); await login(member, memberName, process.env.UI_REVIEW_PASSWORD);
+    await checkDetailUi({ admin, member, origin, evidenceRoot, report, pluginsRoot }); await member.close();
+    await writeFile(path.join(evidenceRoot, "stage-detail-conformance.json"), JSON.stringify(report, null, 2) + "\n");
+    console.log(JSON.stringify({ cases: report.screens.length, passed: report.passed }, null, 2));
+  } else if (reviewStage === "content") {
     const member = await browser.newContext();
     await login(member, memberName, process.env.UI_REVIEW_PASSWORD);
     await checkContentUi({ admin, member, origin, evidenceRoot, report, checkOverflow });

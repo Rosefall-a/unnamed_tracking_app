@@ -82,10 +82,7 @@ watch(
   { immediate: true, flush: "sync" },
 );
 const sidebarShown = computed(
-  () =>
-    route.path !== "/login" &&
-    route.path !== "/setup" &&
-    route.path !== "/login/oidcstart",
+  () => !route.path.startsWith("/login") && route.path !== "/setup",
 );
 // Pinned and rail modes sit in the page's own layout, so content needs to
 // make room for them. Overlay floats above everything and reserves nothing.
@@ -117,7 +114,8 @@ const KEPT_ALIVE = [
     v-if="
       authChecked ||
       route.path === '/setup' ||
-      route.path === '/login/oidcstart'
+      route.name === 'oidc-start' ||
+      route.name === 'oidc-provider-start'
     "
   >
     <SidebarNav v-if="sidebarShown" />
@@ -146,24 +144,10 @@ const KEPT_ALIVE = [
       :context="{ host_page: route.path }"
     />
     <PluginOverlayHost v-if="currentUser" />
-    <TaskProgressToast
-      v-if="route.path !== '/setup' && route.path !== '/login/oidcstart'"
-    />
+    <TaskProgressToast v-if="sidebarShown" />
     <AppDialog />
-    <ShortcutsHelp
-      v-if="
-        route.path !== '/login' &&
-        route.path !== '/setup' &&
-        route.path !== '/login/oidcstart'
-      "
-    />
-    <CommandPalette
-      v-if="
-        route.path !== '/login' &&
-        route.path !== '/setup' &&
-        route.path !== '/login/oidcstart'
-      "
-    />
+    <ShortcutsHelp v-if="sidebarShown" />
+    <CommandPalette v-if="sidebarShown" />
   </template>
   <main v-else-if="startupState === 'unavailable'" class="app-loading">
     <section class="startup-error">
@@ -186,13 +170,13 @@ const KEPT_ALIVE = [
   max-width: 520px;
   padding: 32px;
   text-align: center;
-  border: 1px solid #2a2a2a;
+  border: 1px solid var(--ui-border);
   border-radius: 14px;
-  background: #1a1a1a;
+  background: var(--ui-surface);
 }
 
 .startup-error h1 {
-  color: #fff;
+  color: var(--ui-text);
   margin: 0 0 12px;
 }
 
@@ -201,7 +185,7 @@ const KEPT_ALIVE = [
 }
 
 .startup-detail {
-  color: #fca5a5;
+  color: var(--ui-error);
   font-size: 12px;
   word-break: break-word;
 }
@@ -211,8 +195,8 @@ const KEPT_ALIVE = [
   border: 0;
   border-radius: 8px;
   padding: 10px 16px;
-  background: #d68a34;
-  color: #111;
+  background: var(--ui-accent);
+  color: var(--ui-on-accent);
   font-weight: 700;
   cursor: pointer;
 }
@@ -222,9 +206,9 @@ const KEPT_ALIVE = [
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #0d0d0d;
-  color: #999;
-  font-family: system-ui, sans-serif;
+  background: var(--ui-bg);
+  color: var(--ui-dim);
+  font-family: var(--ui-font-family);
 }
 
 .app-content {
