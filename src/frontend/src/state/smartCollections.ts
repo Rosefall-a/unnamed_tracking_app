@@ -46,6 +46,16 @@ export function addSmartCollection(entry: Omit<SmartCollection, "id">): string {
   return id;
 }
 
+export function updateSmartCollection(
+  id: string,
+  patch: Partial<Omit<SmartCollection, "id">>,
+) {
+  smartCollections.value = smartCollections.value.map((c) =>
+    c.id === id ? { ...c, ...patch } : c,
+  );
+  persist();
+}
+
 export function removeSmartCollection(id: string) {
   smartCollections.value = smartCollections.value.filter((c) => c.id !== id);
   persist();

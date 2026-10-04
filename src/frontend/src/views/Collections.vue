@@ -12,14 +12,13 @@ import {
   addSmartCollection,
   removeSmartCollection,
   matchesSmartCollection,
-  SMART_FIELD_LABELS,
 } from "../state/smartCollections";
-import type { SmartField } from "../state/smartCollections";
-import type { GameStatus } from "../types/game";
-import { useConfirm, usePrompt } from "../state/dialog";
+import CollectionFormModal from "../components/CollectionFormModal.vue";
+import type { CollectionFormPayload } from "../components/CollectionFormModal.vue";
+import { updateMeta } from "../state/collectionMeta";
+import { useConfirm } from "../state/dialog";
 
 const confirm = useConfirm();
-const prompt = usePrompt();
 
 type SortBy = "name" | "count";
 type KindFilter = "all" | "manual" | "smart";
@@ -70,28 +69,24 @@ function addCollectionName(trimmed: string): boolean {
   return true;
 }
 
-async function createCollection() {
+const showCreate = ref(false);
+function onCreate(payload: CollectionFormPayload) {
   createError.value = null;
-  const name = await prompt({
-    title: "New collection",
-    message:
-      'Name your new collection (use "Parent/Child" to nest it under another).',
-    confirmLabel: "Create",
+  if (payload.smart) {
+    addSmartCollection({
+      name: payload.name,
+      field: payload.smart.field,
+      value: payload.smart.value,
+    });
+  } else if (!addCollectionName(payload.name)) {
+    showCreate.value = false;
+    return;
+  }
+  updateMeta(payload.name, {
+    description: payload.description ?? undefined,
   });
-  if (!name || !name.trim()) return;
-  addCollectionName(name.trim());
-}
-
-// one-click starter suggestions, a blank "Create Collection" prompt gives
-// no sense of what a collection is even for, until you've made a few
-const STARTER_TEMPLATES = [
-  "Currently Playing",
-  "Backlog Priority",
-  "Co-op Games",
-];
-const showTemplates = ref(false);
-function useTemplate(name: string) {
-  if (addCollectionName(name)) showTemplates.value = false;
+  showCreate.value = false;
+  router.push(`/collections/${encodeURIComponent(payload.name)}`);
 }
 
 async function loadGames() {
@@ -194,23 +189,7 @@ function openCollection(name: string) {
   router.push(`/collections/${encodeURIComponent(name)}`);
 }
 
-// --- smart collections -----------------------------------------------
-const STATUS_OPTIONS: GameStatus[] = [
-  "playing",
-  "beaten",
-  "mastered",
-  "played",
-  "on hold",
-  "dropped",
-  "backlog",
-  "wishlist",
-];
-const showSmartForm = ref(false);
-const smartName = ref("");
-const smartField = ref<SmartField>("status");
-const smartValue = ref("");
-const smartError = ref<string | null>(null);
-
+// options offered by the create dialog's rule builder
 const sourceOptions = computed(() => {
   const set = new Set<string>();
   for (const g of games.value) if (g.source) set.add(g.source);
@@ -221,40 +200,6 @@ const tagOptions = computed(() => {
   for (const g of games.value) for (const t of g.tags) set.add(t);
   return [...set].sort();
 });
-
-function openSmartForm() {
-  smartName.value = "";
-  smartField.value = "status";
-  smartValue.value = "";
-  smartError.value = null;
-  showSmartForm.value = true;
-}
-
-function createSmartCollection() {
-  const name = smartName.value.trim();
-  if (!name) {
-    smartError.value = "Give it a name.";
-    return;
-  }
-  if (
-    collectionSummaries.value.some(
-      (c) => c.name.toLowerCase() === name.toLowerCase(),
-    )
-  ) {
-    smartError.value = `"${name}" already exists.`;
-    return;
-  }
-  if (smartField.value !== "favorite" && !smartValue.value.trim()) {
-    smartError.value = "Pick a value for the rule.";
-    return;
-  }
-  addSmartCollection({
-    name,
-    field: smartField.value,
-    value: smartValue.value.trim(),
-  });
-  showSmartForm.value = false;
-}
 
 async function deleteSmartCollection(id: string) {
   const ok = await confirm({
@@ -290,42 +235,10 @@ function smartIdForName(name: string): string | undefined {
             <option value="name">Name</option>
             <option value="count">Most games</option>
           </select>
-          <div class="templates-wrap">
-            <button
-              type="button"
-              class="ui-btn ui-btn-secondary"
-              @click="showTemplates = !showTemplates"
-            >
-              Starter templates
-            </button>
-            <div v-if="showTemplates" class="templates-dropdown">
-              <button
-                v-for="t in STARTER_TEMPLATES"
-                :key="t"
-                type="button"
-                class="template-item"
-                :disabled="
-                  collectionSummaries.some(
-                    (c) => c.name.toLowerCase() === t.toLowerCase(),
-                  )
-                "
-                @click="useTemplate(t)"
-              >
-                {{ t }}
-              </button>
-            </div>
-          </div>
-          <button
-            type="button"
-            class="ui-btn ui-btn-secondary"
-            @click="openSmartForm"
-          >
-            + Smart Collection
-          </button>
           <button
             type="button"
             class="ui-btn ui-btn-primary"
-            @click="createCollection"
+            @click="showCreate = true"
           >
             + Create Collection
           </button>
@@ -369,101 +282,15 @@ function smartIdForName(name: string): string | undefined {
       </template>
     </div>
 
-    <div
-      v-if="showSmartForm"
-      class="ui-backdrop"
-      @click.self="showSmartForm = false"
-    >
-      <div class="ui-modal">
-        <h3>New smart collection</h3>
-        <p class="dialog-hint">
-          Membership updates automatically as your library changes.
-        </p>
-        <label class="field-label">
-          Name
-          <input
-            v-model="smartName"
-            type="text"
-            class="ui-field"
-            placeholder="e.g. Mastered Games"
-          />
-        </label>
-        <label class="field-label">
-          Rule
-          <select v-model="smartField" class="ui-field">
-            <option
-              v-for="(label, key) in SMART_FIELD_LABELS"
-              :key="key"
-              :value="key"
-            >
-              {{ label }}
-            </option>
-          </select>
-        </label>
-        <label v-if="smartField === 'status'" class="field-label">
-          Value
-          <select v-model="smartValue" class="ui-field">
-            <option value="">Select…</option>
-            <option v-for="s in STATUS_OPTIONS" :key="s" :value="s">
-              {{ s }}
-            </option>
-          </select>
-        </label>
-        <label v-else-if="smartField === 'playtime_hours'" class="field-label">
-          Hours
-          <input
-            v-model="smartValue"
-            type="number"
-            min="0"
-            class="ui-field"
-            placeholder="e.g. 20"
-          />
-        </label>
-        <label v-else-if="smartField === 'tag'" class="field-label">
-          Tag
-          <input
-            v-model="smartValue"
-            type="text"
-            list="smart-tag-options"
-            class="ui-field"
-            placeholder="e.g. RPG"
-          />
-          <datalist id="smart-tag-options">
-            <option v-for="t in tagOptions" :key="t" :value="t" />
-          </datalist>
-        </label>
-        <label v-else-if="smartField === 'source'" class="field-label">
-          Source
-          <input
-            v-model="smartValue"
-            type="text"
-            list="smart-source-options"
-            class="ui-field"
-            placeholder="e.g. Steam"
-          />
-          <datalist id="smart-source-options">
-            <option v-for="s in sourceOptions" :key="s" :value="s" />
-          </datalist>
-        </label>
-        <p v-if="smartError" class="ui-error-box">{{ smartError }}</p>
-        <div class="ui-modal-actions">
-          <button
-            type="button"
-            class="ui-btn ui-btn-secondary"
-            @click="showSmartForm = false"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            class="ui-btn ui-btn-primary"
-            @click="createSmartCollection"
-          >
-            Create
-          </button>
-        </div>
-      </div>
-    </div>
+    <CollectionFormModal
+      v-if="showCreate"
+      :collection="null"
+      :existing-names="collectionSummaries.map((c) => c.name)"
+      :tag-options="tagOptions"
+      :source-options="sourceOptions"
+      @save="onCreate"
+      @close="showCreate = false"
+    />
   </main>
 </template>
 
@@ -483,41 +310,6 @@ function smartIdForName(name: string): string | undefined {
   gap: 10px 14px;
   margin-bottom: 20px;
 }
-.templates-wrap {
-  position: relative;
-}
-.templates-dropdown {
-  position: absolute;
-  top: calc(100% + 6px);
-  right: 0;
-  width: 200px;
-  background: var(--ui-popover);
-  border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius-control);
-  padding: 6px;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
-  z-index: 20;
-}
-.template-item {
-  display: block;
-  width: 100%;
-  background: none;
-  border: none;
-  color: var(--ui-text);
-  font-family: inherit;
-  font-size: 0.85rem;
-  text-align: left;
-  padding: 8px;
-  border-radius: 6px;
-  cursor: pointer;
-}
-.template-item:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.06);
-}
-.template-item:disabled {
-  color: var(--ui-faint);
-  cursor: not-allowed;
-}
 /* as many 150px+ columns as fit, so cards stay one size at any window width */
 .grid {
   display: grid;
@@ -527,18 +319,5 @@ function smartIdForName(name: string): string | undefined {
 .grid :deep(.collection-card-wrap) {
   width: auto;
   min-width: 0;
-}
-.dialog-hint {
-  color: var(--ui-dim);
-  font-size: 0.78rem;
-  margin: 0 0 16px;
-}
-.field-label {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  font-size: 0.82rem;
-  color: #ccc;
-  margin-bottom: 14px;
 }
 </style>
