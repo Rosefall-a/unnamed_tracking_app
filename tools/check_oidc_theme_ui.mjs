@@ -113,7 +113,7 @@ try {
     const page = await context.newPage(); page.on("pageerror", error => errors.push(String(error)));
     try {
       await json(await context.request.post(origin + "/api/auth/login", { data: { username_or_email: member.username, password: process.env.UI_REVIEW_PASSWORD } }));
-      await json(await context.request.patch(origin + "/api/preferences", { data: { ui_theme: mode, ui_palette: palette, ui_custom_palette: custom } }));
+      await json(await context.request.patch(origin + "/api/preferences", { data: { ui_theme: mode, ui_palette: palette, ui_custom_palette: custom, ui_welcome_completed: true } }));
       await page.goto(origin + "/settings?section=appearance");
       await page.getByLabel("Palette", { exact: true }).waitFor(); await appearance(page, palette, mode);
       await json(await context.request.post(origin + "/api/auth/logout"));

@@ -19,6 +19,7 @@ from src.main import app  # noqa: F401 - register every model before compiling O
         ("ui_style", "pocket"),  # Preserved concept is not yet an implemented style.
         ("ui_reduce_motion", "false"),
         ("ui_high_contrast", 1),
+        ("ui_welcome_completed", "true"),
     ],
 )
 def test_unsupported_ui_preferences_are_rejected(key, value):
@@ -46,6 +47,21 @@ async def test_absent_account_gets_ui_defaults_not_another_accounts_overrides():
     assert result["ui_theme"] == "system"
     assert result["ui_style"] == "archive-pocket"
     assert result["home_widgets"] == []
+    assert result["ui_welcome_completed"] is False
+
+
+@pytest.mark.asyncio
+async def test_welcome_completion_is_personal_and_preserves_other_preferences():
+    user_id = uuid4()
+    row = SimpleNamespace(data={"ui_palette": "green", "calendar_week_start": 1})
+    db = SimpleNamespace(scalar=AsyncMock(return_value=row), commit=AsyncMock())
+    result = await save_preferences(db, user_id, {"ui_welcome_completed": True})
+    assert result["ui_welcome_completed"] is True
+    assert result["ui_palette"] == "green"
+    assert result["calendar_week_start"] == 1
+    assert user_id in db.scalar.call_args.args[0].compile().params.values()
+    other = SimpleNamespace(scalar=AsyncMock(return_value=None))
+    assert (await load_preferences(other, uuid4()))["ui_welcome_completed"] is False
 
 
 @pytest.mark.parametrize(

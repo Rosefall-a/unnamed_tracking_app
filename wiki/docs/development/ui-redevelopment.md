@@ -298,3 +298,14 @@ Responsive captures wait for the navigation transition and assert no overflow.
 ![Desktop installation settings](../assets/ui-redevelopment/pwa-settings-install-1440.png)
 ![Custom light offline palette](../assets/ui-redevelopment/pwa-custom-offline-light.png)
 ![Custom dark offline palette](../assets/ui-redevelopment/pwa-custom-offline-dark.png)
+
+## First-login appearance and cosmetic cookies
+
+Each account receives a welcome dialog once, with Light/Dark/System, Orange/Green, spacing and accessibility choices. Menu/card previews follow the chosen mode without changing the account until Save & continue succeeds. Completion uses the existing per-user JSON preference store and requires no schema migration. Failed saves retain the choices and leave completion false.
+
+The allowlisted, versioned `uta-ui-preferences` cookie stores cosmetic values only, with Path=/, SameSite=Lax, a one-year lifetime and Secure on HTTPS. Account preferences remain authoritative after sign-in. The existing cosmetic local-storage cache remains available for the PWA offline shell. Neither cache stores identity, credentials or onboarding state.
+
+The [welcome report](../assets/ui-redevelopment/stage-welcome-conformance.json) covers eight real new-account phone/desktop Light/Dark flows, account persistence, one-time completion, a failed save followed by retry, and cookie-only sign-in restoration after clearing local storage. Three cookie regression tests cover flags, malformed/oversized input, discarded extra fields and blocked storage; backend tests check strict boolean validation and account isolation.
+
+![Phone first-login appearance choices](../assets/ui-redevelopment/appearance-welcome-390-dark.png)
+![Desktop first-login appearance choices](../assets/ui-redevelopment/appearance-welcome-1440-light.png)

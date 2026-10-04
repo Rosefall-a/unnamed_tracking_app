@@ -7,6 +7,10 @@ import {
 import type { Preferences } from "../services/preferences";
 import { applyPalette } from "../services/uiPalette";
 import {
+  readUiPreferencesCookie,
+  saveUiPreferencesCookie,
+} from "../services/uiPreferencesCookie";
+import {
   createDeviceAppearance,
   DEVICE_APPEARANCE_KEY,
   parseDeviceAppearance,
@@ -40,15 +44,21 @@ export function initializeUiAppearance(): void {
   const root = document.documentElement;
   let initial: UiTheme = "system";
   let device = createDeviceAppearance(initial, "orange", {}, false);
+  const cookie = readUiPreferencesCookie();
+  let density: UiAppearance["ui_density"] = cookie?.density ?? "comfortable";
+  let style: UiAppearance["ui_style"] = cookie?.style ?? "archive-pocket";
+  let reduceMotion = cookie?.reduceMotion ?? false;
   try {
     const cached = localStorage.getItem("ui-theme");
     if (cached === "light" || cached === "dark") initial = cached;
     device =
+      cookie ??
       parseDeviceAppearance(localStorage.getItem(DEVICE_APPEARANCE_KEY)) ??
       createDeviceAppearance(initial, "orange", {}, false);
   } catch {
     // Privacy modes can deny storage; appearance remains usable.
   }
+  if (cookie) device = cookie;
   root.dataset.uiStyle = "archive-pocket";
   const apply = () => {
     const value = preferences.value;
@@ -59,6 +69,10 @@ export function initializeUiAppearance(): void {
         value.ui_custom_palette,
         value.ui_high_contrast,
       );
+      density = value.ui_density;
+      style = value.ui_style;
+      reduceMotion = value.ui_reduce_motion;
+      saveUiPreferencesCookie(device, value);
       try {
         localStorage.setItem("ui-theme", value.ui_theme);
         localStorage.setItem(DEVICE_APPEARANCE_KEY, JSON.stringify(device));
@@ -75,11 +89,11 @@ export function initializeUiAppearance(): void {
       device.colors,
       device.highContrast,
     );
-    root.dataset.uiStyle = value.ui_style;
-    root.dataset.density = value.ui_density;
-    root.classList.toggle("reduce-motion", value.ui_reduce_motion);
+    root.dataset.uiStyle = style;
+    root.dataset.density = density;
+    root.classList.toggle("reduce-motion", reduceMotion);
     root.classList.toggle("high-contrast", device.highContrast);
-    root.classList.toggle("compact", value.ui_density === "compact");
+    root.classList.toggle("compact", density === "compact");
     updateBrowserThemeColor(root);
   };
   apply();

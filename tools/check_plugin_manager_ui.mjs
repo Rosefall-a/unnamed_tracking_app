@@ -46,6 +46,7 @@ try {
     data: { username_or_email: process.env.PRIMARY_USER_USERNAME, password: process.env.PRIMARY_USER_PASSWORD },
   });
   assert.equal(login.status(), 200);
+  assert.equal((await context.request.patch(origin + "/api/preferences", { data: { ui_welcome_completed: true } })).status(), 200);
   let releaseCatalogue;
   if (phase === "offline") {
     const catalogueGate = new Promise((resolve) => { releaseCatalogue = resolve; });

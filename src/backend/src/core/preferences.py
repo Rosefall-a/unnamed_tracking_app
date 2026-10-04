@@ -20,6 +20,7 @@ DEFAULTS: dict[str, Any] = {
     "ui_style": "archive-pocket",
     "ui_reduce_motion": False,
     "ui_high_contrast": False,
+    "ui_welcome_completed": False,
     "home_widgets": [],
     "home_widget_config": {},
     "calendar_game_releases": True,

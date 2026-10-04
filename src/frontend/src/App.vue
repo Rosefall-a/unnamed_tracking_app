@@ -6,10 +6,14 @@ import TaskProgressToast from "./components/TaskProgressToast.vue";
 import ShortcutsHelp from "./components/ShortcutsHelp.vue";
 import CommandPalette from "./components/CommandPalette.vue";
 import AppDialog from "./components/AppDialog.vue";
+import AppearanceWelcome from "./components/AppearanceWelcome.vue";
 import { authChecked, currentUser } from "./state/auth";
 import { mediaUnread } from "./state/notifications";
 import { formatDocumentTitle, pageTitleOverride } from "./state/pageTitle";
 import {
+  preferences,
+  preferencesLoaded,
+  preferencesError,
   loadSharedPreferences,
   resetSharedPreferences,
 } from "./state/preferences";
@@ -168,6 +172,16 @@ const KEPT_ALIVE = [
     <AppDialog />
     <ShortcutsHelp v-if="sidebarShown" />
     <CommandPalette v-if="sidebarShown" />
+    <AppearanceWelcome
+      v-if="
+        sidebarShown &&
+        currentUser &&
+        preferencesLoaded &&
+        !preferencesError &&
+        !preferences.ui_welcome_completed
+      "
+      :key="currentUser.id"
+    />
   </template>
   <main v-else-if="startupState === 'unavailable'" class="app-loading">
     <section class="startup-error">

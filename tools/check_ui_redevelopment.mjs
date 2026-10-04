@@ -17,6 +17,7 @@ import { checkSearchShortcuts } from "./check_search_shortcuts.mjs";
 import { checkLibraryEditors } from "./check_library_editors.mjs";
 import { checkAppearanceSettings } from "./check_appearance_settings.mjs";
 import { checkStartupRecovery } from "./check_startup_recovery.mjs";
+import { checkAppearanceWelcome } from "./check_appearance_welcome.mjs";
 
 const [pluginsRoot, evidenceRoot, backendUrl] = process.argv.slice(2);
 const reviewStage = process.argv[5] ?? "shell";
@@ -52,6 +53,8 @@ let memberId;
 async function login(context, username, password) {
   const response = await context.request.post(origin + "/api/auth/login", { data: { username_or_email: username, password } });
   assert.equal(response.status(), 200, "Review login must succeed against the real server.");
+  // General stages exercise a returning account. The welcome stage creates its own new accounts.
+  assert.equal((await context.request.patch(origin + "/api/preferences", { data: { ui_welcome_completed: true } })).status(), 200);
 }
 async function checkOverflow(page, label) {
   const boundary = await page.evaluate(() => { const main = document.querySelector("#main-content") ?? document.querySelector("main"); return { width: window.innerWidth, document: document.documentElement.scrollWidth, main: main?.scrollWidth ?? 0, mainWidth: main?.clientWidth ?? 0 }; });
@@ -67,7 +70,11 @@ try {
   const installed = await admin.request.get(origin + "/api/plugins");
   assert.equal(installed.status(), 200);
   assert.equal((await installed.json()).length, 0, "Run this stage against a clean plugin inventory to exclude embedded-media evidence.");
-  if (reviewStage === "palette" || reviewStage === "palette-editor") {
+  if (reviewStage === "welcome") {
+    await checkAppearanceWelcome({ browser, admin, origin, evidenceRoot, report, checkOverflow });
+    await writeFile(path.join(evidenceRoot, "stage-welcome-conformance.json"), JSON.stringify(report, null, 2) + "\n");
+    console.log(JSON.stringify({ cases: report.screens.length, passed: report.passed }, null, 2));
+  } else if (reviewStage === "palette" || reviewStage === "palette-editor") {
     const member = await browser.newContext(); await login(member, memberName, process.env.UI_REVIEW_PASSWORD);
     await checkPaletteUi({ admin, member, origin, evidenceRoot, report, pluginsRoot, editorOnly: reviewStage === "palette-editor" }); await member.close();
     await writeFile(path.join(evidenceRoot, "stage-palette-conformance.json"), JSON.stringify(report, null, 2) + "\n");

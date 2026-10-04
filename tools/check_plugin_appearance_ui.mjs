@@ -71,6 +71,7 @@ const widget = "plugin:example.home-widgets:library-glance";
 try {
   await api("POST", "/api/auth/login", { username_or_email: process.env.PRIMARY_USER_USERNAME, password: process.env.PRIMARY_USER_PASSWORD });
   const before = await api("GET", "/api/preferences");
+  await api("PATCH", "/api/preferences", { ui_welcome_completed: true });
   const catalogues = await api("GET", "/api/plugins/catalogues");
   const catalogue = catalogues.find(item => item.name === "Acceptance");
   assert(catalogue);

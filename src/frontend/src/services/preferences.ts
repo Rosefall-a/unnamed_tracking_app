@@ -7,6 +7,7 @@ export interface Preferences {
   ui_style: "archive-pocket";
   ui_reduce_motion: boolean;
   ui_high_contrast: boolean;
+  ui_welcome_completed: boolean;
   home_widgets: string[];
   home_widget_config: Record<string, import("./pluginUi").UiValues>;
   calendar_game_releases: boolean;
@@ -42,6 +43,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   ui_style: "archive-pocket",
   ui_reduce_motion: false,
   ui_high_contrast: false,
+  ui_welcome_completed: false,
   home_widgets: [],
   home_widget_config: {},
   calendar_game_releases: true,

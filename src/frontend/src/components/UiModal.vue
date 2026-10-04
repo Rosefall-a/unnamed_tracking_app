@@ -64,9 +64,9 @@ onBeforeUnmount(() => {
           <p v-if="description">{{ description }}</p>
         </div>
         <button
+          v-if="dismissible"
           type="button"
           class="modal-close"
-          :disabled="!dismissible"
           aria-label="Close dialog"
           @click="dismiss"
         >

@@ -76,6 +76,7 @@ async function reloadControlled() {
 }
 try {
   await api("POST", "/api/auth/login", 200, { data: { username_or_email: process.env.PRIMARY_USER_USERNAME, password: process.env.PRIMARY_USER_PASSWORD } });
+  await api("PATCH", "/api/preferences", 200, { data: { ui_welcome_completed: true } });
   const unsigned = await api("POST", "/api/plugins/install/preview", 200, { multipart: await upload("unsigned") });
   assert.equal(unsigned.publisher_channel, "unverified");
   assert.equal(unsigned.trust_status, "unsigned");
