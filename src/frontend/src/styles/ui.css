@@ -4,41 +4,6 @@
    fields, chips, page titles, dialogs and messages are the same size,
    weight and color everywhere instead of being redefined page by page. */
 
-:root {
-  /* surfaces */
-  --ui-bg: #0d0d0d;
-  --ui-surface: #1a1a1a;
-  --ui-surface-2: #222222;
-  --ui-popover: #171717;
-  --ui-border-soft: #202020;
-  --ui-border: #2b2b2b;
-  /* color */
-  --ui-accent: #d68a34;
-  --ui-accent-soft: rgba(214, 138, 52, 0.16);
-  --ui-accent-line: rgba(214, 138, 52, 0.4);
-  --ui-on-accent: #14100a;
-  --ui-danger: #dc2626;
-  --ui-error: #e57373;
-  --ui-good: #6fbf73;
-  /* text: two tiers of muted */
-  --ui-text: #f2f2f2;
-  --ui-dim: #9c9c9c;
-  --ui-faint: #666666;
-  /* shape */
-  --ui-radius-control: 8px;
-  --ui-radius-row: 10px;
-  --ui-radius-card: 12px;
-  --ui-radius-dialog: 14px;
-  /* page gutters */
-  --ui-edge-left: 24px;
-  --ui-edge-right: 24px;
-  /* stacking */
-  --ui-z-drawer: 150;
-  --ui-z-modal: 300;
-  --ui-z-popover: 350;
-  --ui-z-dialog: 400;
-}
-
 /* ---- page shell ---- */
 .ui-page {
   position: relative;

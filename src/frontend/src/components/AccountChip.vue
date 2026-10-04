@@ -31,12 +31,12 @@ defineProps<{ fixed?: boolean }>();
   box-sizing: border-box;
   height: 46px;
   padding: 6px;
-  background: rgba(20, 20, 20, 0.55);
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: var(--ui-surface);
+  border: 1px solid color-mix(in srgb, var(--ui-text) 14%, transparent);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
   border-radius: 999px;
-  color: #fff;
+  color: var(--ui-text);
 }
 .account-chip.fixed {
   position: fixed;
@@ -52,7 +52,7 @@ defineProps<{ fixed?: boolean }>();
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: #fff;
+  color: var(--ui-text);
   font-size: 13px;
   font-weight: 600;
 }

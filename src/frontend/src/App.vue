@@ -13,9 +13,11 @@ import {
   resetSharedPreferences,
 } from "./state/preferences";
 import {
-  sidebarMode,
+  effectiveSidebarMode,
   sidebarWidth,
   sidebarResizing,
+  navigationViewport,
+  initializeNavigationViewport,
 } from "./state/sidebarMode";
 import { computed, watchEffect } from "vue";
 import { startupError, startupState } from "./state/startup";
@@ -32,6 +34,8 @@ import PwaStatus from "./components/PwaStatus.vue";
 
 const route = useRoute();
 const router = useRouter();
+const disposeNavigationViewport = initializeNavigationViewport();
+onUnmounted(disposeNavigationViewport);
 let pluginRefreshTimer: ReturnType<typeof setInterval> | undefined;
 watch(
   () => currentUser.value?.id,
@@ -89,9 +93,9 @@ const sidebarShown = computed(
 // rail's collapsed width is fixed, since that's the "just icons" point.
 const contentStyle = computed(() => {
   if (!sidebarShown.value) return {};
-  if (sidebarMode.value === "pinned")
-    return { marginLeft: `${sidebarWidth.value}px` };
-  if (sidebarMode.value === "rail") return { marginLeft: "56px" };
+  if (effectiveSidebarMode.value === "pinned")
+    return { marginLeft: `${sidebarWidth.value + 24}px` };
+  if (effectiveSidebarMode.value === "rail") return { marginLeft: "88px" };
   return {};
 });
 const KEPT_ALIVE = [
@@ -122,7 +126,12 @@ const KEPT_ALIVE = [
          pages are deliberately not kept: they must reload per title. -->
     <div
       class="app-content"
-      :class="{ resizing: sidebarResizing }"
+      id="main-content"
+      tabindex="-1"
+      :class="{
+        resizing: sidebarResizing,
+        'phone-content': sidebarShown && navigationViewport === 'phone',
+      }"
       :style="contentStyle"
     >
       <router-view v-slot="{ Component }">
@@ -224,5 +233,8 @@ const KEPT_ALIVE = [
 
 .app-content.resizing {
   transition: none;
+}
+.phone-content {
+  padding-bottom: calc(92px + env(safe-area-inset-bottom));
 }
 </style>
