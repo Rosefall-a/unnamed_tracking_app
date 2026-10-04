@@ -160,6 +160,7 @@ export interface UiExtension {
 }
 export interface PluginUiDocument {
   schema_version: "v1";
+  api_contract_version?: string;
   frontend?: { entry: string; inline_assets?: boolean };
   native_frontend?: { entry: string; styles: string[] };
   plugin_id: string;

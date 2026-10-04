@@ -152,6 +152,7 @@ export function derivePluginContributions(
 ): PluginContributions {
   if (
     !pluginContributionsActive(plugin) ||
+    document.api_contract_version !== plugin.api_contract_version ||
     document.plugin_id !== plugin.plugin_id
   )
     return emptyContributions();
@@ -456,6 +457,11 @@ export async function refreshPluginExtensions(): Promise<void> {
       enabled.map(async (plugin) => {
         try {
           const document = await fetchPluginUi(plugin.plugin_id);
+          if (document.api_contract_version !== plugin.api_contract_version) {
+            throw new Error(
+              "Plugin UI and manifest API contracts do not match.",
+            );
+          }
           return {
             document,
             contributions: derivePluginContributions(plugin, document),

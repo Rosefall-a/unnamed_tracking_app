@@ -43,11 +43,13 @@ from .capabilities import (
     package_identity_can_retain_grants,
 )
 from .contracts import (
+    PLUGIN_API_CONTRACT_VERSION,
     BackendRouteScope,
     CapabilityRef,
     PluginManifest,
     PluginPackageIdentity,
     parse_semver,
+    plugin_contract_compatibility_reason,
     version_satisfies,
     evaluate_manifest_compatibility,
     CompatibilityStatus,
@@ -181,7 +183,10 @@ def inspect_package(
         publisher: TrustedPublisher | None = verifier.publishers.get(key_id)
         if publisher is not None:
             publisher.verifier().verify(
-                signature_bytes, f"plugin-package-v{candidate.signing_version}:{candidate.payload_digest}".encode("ascii")
+                signature_bytes,
+                f"plugin-package-v{candidate.signing_version}:{candidate.payload_digest}".encode(
+                    "ascii"
+                ),
             )
     except (ValueError, binascii.Error, InvalidSignature, PackageVerificationError):
         return InspectedPackage(
@@ -220,7 +225,9 @@ def inspect_package(
             publisher_key_id=key_id,
             publisher_identity=publisher.publisher or None,
             warning=None,
-            publisher_channel=publisher.channel if candidate.signing_version == 2 or publisher.channel != "official" else "community",
+            publisher_channel=publisher.channel
+            if candidate.signing_version == 2 or publisher.channel != "official"
+            else "community",
         ),
     )
 
@@ -431,9 +438,12 @@ class PluginInstaller:
     ) -> InstallationPlan:
         """Compare only this installation's identity, declarations and grants."""
         manifest = inspected.package.manifest
+        contract_error = plugin_contract_compatibility_reason(manifest.api_contract_version)
+        if contract_error:
+            raise InstallationError(409, contract_error)
         compatibility = evaluate_manifest_compatibility(
             manifest,
-            os.getenv("PLUGIN_SDK_VERSION", "1.0.0"),
+            os.getenv("PLUGIN_SDK_VERSION", PLUGIN_API_CONTRACT_VERSION),
             os.getenv("PLUGIN_APPLICATION_VERSION", "1.0.0"),
         )
         if compatibility.status != CompatibilityStatus.COMPATIBLE:
@@ -612,12 +622,15 @@ class PluginInstaller:
             raise InstallationError(
                 409, "The remote plugin changed after preview; review it again before installing."
             )
+        contract_error = plugin_contract_compatibility_reason(manifest.api_contract_version)
+        if contract_error:
+            raise InstallationError(409, contract_error)
         if update_plugin_id is not None:
             plan = await self.plan_update(update_plugin_id, inspected, db, operation=operation)
         else:
             compatibility = evaluate_manifest_compatibility(
                 manifest,
-                os.getenv("PLUGIN_SDK_VERSION", "1.0.0"),
+                os.getenv("PLUGIN_SDK_VERSION", PLUGIN_API_CONTRACT_VERSION),
                 os.getenv("PLUGIN_APPLICATION_VERSION", "1.0.0"),
             )
             if compatibility.status != CompatibilityStatus.COMPATIBLE:
@@ -793,6 +806,7 @@ class PluginInstaller:
                     "plugin_id": plugin_id,
                     "name": manifest.name,
                     "version": manifest.version,
+                    "api_contract_version": manifest.api_contract_version,
                     "description": manifest.description,
                     "installation_id": str(plan.installation_id),
                     "digest": manifest.integrity.sha256,
@@ -861,7 +875,9 @@ class PluginInstaller:
 
         status = result.get("status", "updated" if replacing else "installed")
         healthy = False
-        if plan.installed is None or plan.installed.get("enabled"):
+        if plan.installed is None or plan.installed.get(
+            "activation_requested", plan.installed.get("enabled")
+        ):
             try:
                 encoded = quote(plugin_id, safe="")
                 if manifest.dependencies:

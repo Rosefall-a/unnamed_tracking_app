@@ -2,7 +2,12 @@
 
 Status: **direction selected; implementation in progress**. Use Pocket's floating sidebar and touch-first mobile surfaces with Archive's desktop Home and overall structure. Keep shared title, spacing and control rules consistent across pages. Preserve the three original concepts for future style/layout alternatives.
 
-The application still uses the reconciled v1.0 UI contract. The concepts below are interactive proposals with illustrative data, not implemented product workflows. No v1.1 compatibility is claimed.
+The design concepts below are preserved interactive proposals with illustrative
+data. The live application checkpoints use the Archive/Pocket design and the
+explicit v1.1 contract described in the [migration guide](plugin-v1.1-migration.md).
+The contract boundary is implemented; full plugin UI migration, widget/theme APIs
+and final acceptance are still in progress. A version declaration alone does not
+certify that a plugin has completed those checks.
 
 ## Selected direction and appearance foundation
 

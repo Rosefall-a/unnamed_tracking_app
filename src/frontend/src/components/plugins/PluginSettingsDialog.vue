@@ -143,6 +143,10 @@ watch(
                   }}
                 </dd>
               </div>
+              <div>
+                <dt>UI/API contract</dt>
+                <dd>{{ plugin.api_contract_version ?? "1.0.0" }}</dd>
+              </div>
             </dl>
             <div class="actions">
               <button

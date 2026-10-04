@@ -11,6 +11,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 API_VERSION = "v1"
+PLUGIN_API_CONTRACT_VERSION = "1.1.0"
 Timestamp = datetime
 
 
@@ -639,7 +640,9 @@ class PluginPwaDeclaration(ContractModel):
     short_name: str = Field(min_length=1, max_length=32)
     theme_color: str = Field(default="#0f1117", pattern=r"^#[0-9a-fA-F]{6}$")
     background_color: str = Field(default="#0f1117", pattern=r"^#[0-9a-fA-F]{6}$")
-    manifest: str = Field(default="pwa/manifest.webmanifest", pattern=r"^pwa/manifest\.webmanifest$")
+    manifest: str = Field(
+        default="pwa/manifest.webmanifest", pattern=r"^pwa/manifest\.webmanifest$"
+    )
     icons: tuple[str, str] = ("pwa/icon-192.png", "pwa/icon-512.png")
 
     @field_validator("icons")
@@ -657,6 +660,8 @@ class PluginManifest(ContractModel):
     plugin_id: str = Field(min_length=1, max_length=128, pattern=r"^[a-z0-9][a-z0-9._-]*$")
     name: str = Field(min_length=1, max_length=128)
     version: str
+    # Missing declarations remain legacy; ranges must never imply UI/API migration.
+    api_contract_version: str = "1.0.0"
     description: str = Field(default="", max_length=2_000)
     icon: str | None = Field(default=None, max_length=2048)
     tags: tuple[str, ...] = ()
@@ -679,7 +684,7 @@ class PluginManifest(ContractModel):
     backend_routes: tuple[PluginBackendRoute, ...] = ()
     pwa: PluginPwaDeclaration | None = None
 
-    @field_validator("version")
+    @field_validator("version", "api_contract_version")
     @classmethod
     def validate_plugin_version(cls, value: str) -> str:
         parse_semver(value)
@@ -1105,6 +1110,7 @@ class PluginUiDocument(ContractModel):
     """Complete versioned UI document consumed by the native frontend host."""
 
     schema_version: UiSchemaVersion = UiSchemaVersion.V1
+    api_contract_version: str = "1.0.0"
     plugin_id: str = Field(min_length=1, max_length=128, pattern=r"^[a-z0-9][a-z0-9._-]*$")
     title: str = Field(min_length=1, max_length=256)
     frontend: PluginFrontendDeclaration | None = None
@@ -1124,6 +1130,13 @@ class PluginUiDocument(ContractModel):
     routes: tuple[UiPluginRoute, ...] = ()
     page_replacements: tuple[UiPageReplacement, ...] = ()
     document_readers: tuple[UiDocumentReader, ...] = ()
+
+    @field_validator("api_contract_version")
+    @classmethod
+    def validate_contract_version(cls, value: str) -> str:
+        """Keep the minor UI/API boundary independent of the schema's wire major."""
+        parse_semver(value)
+        return value
 
     @model_validator(mode="after")
     def validate_references(self) -> "PluginUiDocument":
@@ -1240,6 +1253,23 @@ class CompatibilityDecision(ContractModel):
     action: str
 
 
+def plugin_contract_compatibility_reason(
+    declared_version: str, host_version: str = PLUGIN_API_CONTRACT_VERSION
+) -> str | None:
+    """Require an explicit migration across the v1.0 to v1.1 platform boundary."""
+    declared = parse_semver(declared_version)
+    host = parse_semver(host_version)
+    if host >= (1, 1, 0) and declared < (1, 1, 0):
+        return (
+            f"Plugin API contract {declared_version} is v1.0-only. "
+            f"This host requires v1.1.0 or a later compatible contract ({host_version}); "
+            "the whole plugin is stopped until a verified migrated update is installed."
+        )
+    if declared[0] != host[0] or declared > host:
+        return f"Plugin API contract {declared_version} is not supported by this host ({host_version})."
+    return None
+
+
 def evaluate_manifest_compatibility(
     manifest: PluginManifest,
     sdk_version: str,
@@ -1247,6 +1277,9 @@ def evaluate_manifest_compatibility(
 ) -> CompatibilityDecision:
     """Classify a manifest without executing plugin code."""
     try:
+        contract_error = plugin_contract_compatibility_reason(
+            manifest.api_contract_version, sdk_version
+        )
         sdk_ok = version_satisfies(sdk_version, manifest.sdk_version_range)
         app_ok = version_satisfies(application_version, manifest.application_version_range)
     except ValueError as exc:
@@ -1254,6 +1287,12 @@ def evaluate_manifest_compatibility(
             status=CompatibilityStatus.INVALID,
             reason=str(exc),
             action="reject",
+        )
+    if contract_error:
+        return CompatibilityDecision(
+            status=CompatibilityStatus.INCOMPATIBLE,
+            reason=contract_error,
+            action="quarantine",
         )
     if not sdk_ok:
         return CompatibilityDecision(
@@ -1377,6 +1416,7 @@ def resolve_plugin_dependencies(
 
 __all__ = [
     "API_VERSION",
+    "PLUGIN_API_CONTRACT_VERSION",
     "ApiVersion",
     "Capability",
     "CapabilityRef",
@@ -1448,6 +1488,7 @@ __all__ = [
     "CompatibilityStatus",
     "CompatibilityDecision",
     "evaluate_manifest_compatibility",
+    "plugin_contract_compatibility_reason",
     "migrate_manifest_data",
     "DependencyResolutionError",
     "resolve_plugin_dependencies",

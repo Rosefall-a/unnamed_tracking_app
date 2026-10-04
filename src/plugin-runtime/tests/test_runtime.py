@@ -135,11 +135,18 @@ def _package_bytes(
     version: str = "1.0.0",
     inline_assets: object = False,
     distribution: dict | None = None,
+    api_contract_version: str | None = "1.1.0",
+    ui_contract_version: str | None = None,
 ) -> bytes:
     files = {
         "plugin.py": b"def main():\n    return None\n",
         "sdk/plugin_protocol.py": b"API_VERSION = 1\n",
     }
+    if ui_contract_version is not None:
+        files["ui.json"] = json.dumps({
+            "api_contract_version": ui_contract_version, "schema_version": "v1",
+            "plugin_id": plugin_id, "title": "Contract regression",
+        }).encode("utf-8")
     if distribution is not None:
         files["distribution.json"] = json.dumps(distribution).encode()
     if frontend:
@@ -154,6 +161,7 @@ def _package_bytes(
         digest.update(data)
         digest.update(b"\0")
     manifest = {
+        "api_contract_version": "1.1.0",
         "manifest_version": 1,
         "plugin_id": plugin_id,
         "name": "Upload Example",
@@ -166,6 +174,10 @@ def _package_bytes(
         "dependencies": [],
         "integrity": {"sha256": digest.hexdigest()},
     }
+    if api_contract_version is None:
+        manifest.pop("api_contract_version")
+    else:
+        manifest["api_contract_version"] = api_contract_version
     if frontend:
         manifest["frontend"] = {
             "entry": "frontend/index.html",
@@ -183,6 +195,68 @@ def _package_bytes(
         for name, data in files.items():
             archive.writestr("payload/" + name, data)
     return output.getvalue()
+
+
+@pytest.mark.parametrize("contract", [None, "1.0.0", "1.0.9", "1.2.0", "1.01.0", "invalid"])
+def test_v11_runtime_rejects_unmigrated_packages_before_publication(tmp_path, contract):
+    from runtime import PluginRegistry, PluginSupervisor
+
+    registry = PluginRegistry(tmp_path / "plugins", PluginSupervisor(tmp_path / "workers", tmp_path / "storage"))
+    with pytest.raises(RuntimePolicyError, match="contract"):
+        registry.install_package(
+            _package_bytes(api_contract_version=contract), "legacy.utp", installation_id=str(uuid.uuid4())
+        )
+    assert registry.list() == []
+
+
+def test_v11_runtime_rejects_legacy_ui_in_new_manifest(tmp_path):
+    from runtime import PluginRegistry, PluginSupervisor
+
+    registry = PluginRegistry(tmp_path / "plugins", PluginSupervisor(tmp_path / "workers", tmp_path / "storage"))
+    with pytest.raises(RuntimePolicyError, match="UI and manifest API contracts must match"):
+        registry.install_package(
+            _package_bytes(ui_contract_version="1.0.0"), "mixed.utp", installation_id=str(uuid.uuid4())
+        )
+    assert registry.list() == []
+
+
+@pytest.mark.parametrize("contract", [None, "1.0.0", "1.0.9"])
+def test_v11_restart_stops_whole_legacy_plugin_and_preserves_data(tmp_path, monkeypatch, contract):
+    from runtime import PluginRegistry, PluginSupervisor
+
+    supervisor = PluginSupervisor(tmp_path / "workers", tmp_path / "storage")
+    registry = PluginRegistry(tmp_path / "plugins", supervisor)
+    plugin_id = "example.upload"
+    installation_id = str(uuid.uuid4())
+    registry.install_package(_package_bytes(), "current.utp", installation_id=installation_id)
+    package, manifest = registry.package(plugin_id)
+    if contract is None:
+        manifest.pop("api_contract_version")
+    else:
+        manifest["api_contract_version"] = contract
+    (package / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    registry._transition(plugin_id, enabled=True, status="running", installation_id=installation_id)
+    storage = supervisor._storage(plugin_id)
+    storage.put("saved/example", b"kept")
+    (package / ".settings.json").write_text('{"option":"kept"}', encoding="utf-8")
+    started, stopped = [], []
+    monkeypatch.setattr(supervisor, "running", lambda _: True)
+    monkeypatch.setattr(supervisor, "start", lambda *args: started.append(args))
+    monkeypatch.setattr(supervisor, "stop", lambda value: stopped.append(value))
+    restored = PluginRegistry(registry.root, supervisor)
+    restored.restore_enabled()
+    item = restored.list()[0]
+    assert item["status"] == "incompatible"
+    assert item["compatible"] is False and item["enabled"] is False
+    assert "v1.0-only" in item["compatibility_reason"]
+    assert item["installation_id"] == installation_id
+    assert not started and plugin_id in stopped
+    assert storage.get("saved/example") == b"kept"
+    assert json.loads((package / ".settings.json").read_text()) == {"option": "kept"}
+    for method in ("action", "lifecycle.ready", "settings.get", "storage.get", "capabilities.check"):
+        assert restored._execution_allowed(plugin_id, method) is False
+    with pytest.raises(RuntimePolicyError, match="v1.0-only"):
+        restored.start(plugin_id)
 
 
 def test_installed_release_metadata_survives_registry_restart(tmp_path):
@@ -622,6 +696,7 @@ def test_frontend_asset_is_namespaced(tmp_path, activate_registry) -> None:
     (package / "manifest.json").write_text(
         json.dumps(
             {
+                "api_contract_version": "1.1.0",
                 "plugin_id": "example.frontend",
                 "entrypoint": "plugin:main",
                 "frontend": {"entry": "frontend/index.html"},
@@ -652,6 +727,7 @@ def test_runtime_discord_action_reads_secret_from_private_storage(
     (package / "manifest.json").write_text(
         json.dumps(
             {
+                "api_contract_version": "1.1.0",
                 "plugin_id": "example.discord",
                 "entrypoint": "plugin:main",
                 "capabilities": [{"name": "notifications.send", "version": 1}],
@@ -669,6 +745,7 @@ def test_runtime_discord_action_reads_secret_from_private_storage(
     (package / "ui.json").write_text(
         json.dumps(
             {
+                "api_contract_version": "1.1.0",
                 "plugin_id": "example.discord",
                 "actions": [
                     {
@@ -732,12 +809,13 @@ def test_runtime_action_returns_structured_provider_result(
     package = tmp_path / "plugins" / "example.provider"
     package.mkdir(parents=True)
     (package / "manifest.json").write_text(
-        json.dumps({"plugin_id": "example.provider", "entrypoint": "plugin:main"}),
+        json.dumps({"api_contract_version": "1.1.0", "plugin_id": "example.provider", "entrypoint": "plugin:main"}),
         encoding="utf-8",
     )
     (package / "ui.json").write_text(
         json.dumps(
             {
+                "api_contract_version": "1.1.0",
                 "plugin_id": "example.provider",
                 "actions": [{"id": "deliver", "handler": "plugin:deliver"}],
             }
@@ -774,6 +852,7 @@ def test_runtime_discord_provider_returns_core_delivery_result(
     (package / "manifest.json").write_text(
         json.dumps(
             {
+                "api_contract_version": "1.1.0",
                 "plugin_id": "example.provider",
                 "entrypoint": "plugin:main",
                 "capabilities": [
@@ -786,6 +865,7 @@ def test_runtime_discord_provider_returns_core_delivery_result(
     (package / "ui.json").write_text(
         json.dumps(
             {
+                "api_contract_version": "1.1.0",
                 "plugin_id": "example.provider",
                 "actions": [{"id": "deliver", "handler": "plugin:deliver"}],
             }
@@ -833,6 +913,7 @@ def test_action_handler_can_use_the_mediated_plugin_gateway(
     (package / "manifest.json").write_text(
         json.dumps(
             {
+                "api_contract_version": "1.1.0",
                 "plugin_id": "example.documents",
                 "entrypoint": "plugin:main",
                 "capabilities": [{"name": "documents.read", "version": 1}],
@@ -843,6 +924,7 @@ def test_action_handler_can_use_the_mediated_plugin_gateway(
     (package / "ui.json").write_text(
         json.dumps(
             {
+                "api_contract_version": "1.1.0",
                 "plugin_id": "example.documents",
                 "actions": [
                     {
@@ -911,12 +993,13 @@ def test_runtime_rejects_actions_for_disabled_installed_plugin(tmp_path) -> None
     package = tmp_path / "plugins" / "example.provider"
     package.mkdir(parents=True)
     (package / "manifest.json").write_text(
-        json.dumps({"plugin_id": "example.provider", "entrypoint": "plugin:main"}),
+        json.dumps({"api_contract_version": "1.1.0", "plugin_id": "example.provider", "entrypoint": "plugin:main"}),
         encoding="utf-8",
     )
     (package / "ui.json").write_text(
         json.dumps(
             {
+                "api_contract_version": "1.1.0",
                 "plugin_id": "example.provider",
                 "actions": [{"id": "deliver", "handler": "plugin:deliver"}],
             }

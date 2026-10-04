@@ -39,6 +39,7 @@ def route_declaration(
 
 def installed_plugin(**changes) -> dict:
     plugin = {
+        "api_contract_version": "1.1.0",
         "plugin_id": "example.routes",
         "installation_id": str(uuid4()),
         "enabled": True,

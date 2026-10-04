@@ -106,6 +106,7 @@ def boundary(monkeypatch):
         session.commit()
         installation_id = uuid4()
         plugin = {
+            "api_contract_version": "1.1.0",
             "plugin_id": "audit.plugin",
             "installation_id": str(installation_id),
             "enabled": True,
@@ -132,6 +133,7 @@ def boundary(monkeypatch):
             ],
         }
         document = {
+            "api_contract_version": "1.1.0",
             "plugin_id": "audit.plugin",
             "title": "Audit",
             "pages": [{"id": "page", "title": "Audit"}],
@@ -693,6 +695,9 @@ async def test_http_revocation_immediately_stops_next_request(boundary):
         {"status": "failed"},
         {"health": "unhealthy"},
         {"status": "unknown"},
+        {"api_contract_version": "1.0.0"},
+        {"api_contract_version": "1.0.9"},
+        {"api_contract_version": None},
     ],
 )
 async def test_unavailable_installations_cannot_execute_any_entrypoint(boundary, state):
@@ -1007,7 +1012,12 @@ async def test_runtime_egress_requires_persisted_operation_grant(
         registry, "ui", lambda _id: {"actions": [{"id": "deliver", "handler": "entry:deliver"}]}
     )
     monkeypatch.setattr(
-        registry, "package", lambda _id: (tmp_path, {"capabilities": [{"name": capability}]})
+        registry,
+        "package",
+        lambda _id: (
+            tmp_path,
+            {"api_contract_version": "1.1.0", "capabilities": [{"name": capability}]},
+        ),
     )
     execute = SimpleNamespace(calls=0)
 

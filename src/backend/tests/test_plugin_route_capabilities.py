@@ -35,6 +35,7 @@ class FakeRuntimeClient:
     async def plugins(self) -> list[dict]:
         return [
             {
+                "api_contract_version": "1.1.0",
                 "plugin_id": "example.plugin",
                 "installation_id": str(self.installation_id),
                 "enabled": True,

@@ -232,10 +232,20 @@ function close() {
             <dd>{{ preview.sdk_version_range }}</dd>
           </div>
           <div>
+            <dt>UI/API contract</dt>
+            <dd>
+              {{ preview.api_contract_version }} · Host
+              {{ preview.host_api_contract_version }}
+            </dd>
+          </div>
+          <div>
             <dt>Package digest</dt>
             <dd class="digest">{{ preview.digest }}</dd>
           </div>
         </dl>
+        <p v-if="preview.compatibility_reason" class="error" role="alert">
+          {{ preview.compatibility_reason }}
+        </p>
 
         <div
           v-if="preview.trust_status !== 'trusted'"

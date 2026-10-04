@@ -60,6 +60,7 @@ def package_bytes(
     trust="unsigned",
     key=None,
     broken=None,
+    api_contract_version="1.1.0",
 ):
     files = [("plugin.py", b"protocol fixture bytes\n")]
     digest = canonical_payload_digest(files)
@@ -75,6 +76,7 @@ def package_bytes(
     if broken == "malformed_signature":
         integrity.update(signature="not-base64!", key_id="unknown")
     manifest = {
+        "api_contract_version": api_contract_version,
         "manifest_version": 1,
         "plugin_id": plugin_id,
         "name": "Lifecycle gate candidate",
@@ -117,6 +119,54 @@ def package_bytes(
         malformed[30] = malformed[central + 46] = 0xFF
         return bytes(malformed)
     return b"not an archive" if broken == "archive" else output.getvalue()
+
+
+@pytest.mark.parametrize("source", SOURCES)
+async def test_v11_legacy_packages_cannot_execute_from_any_source(gate, source):
+    await seed_update(gate, source, trust="trusted", permissions=("games.read",))
+    before = gate.registry.list()
+    permissions_before = [row.id for row in await grants(gate)]
+    payload = package_bytes(
+        gate.plugin_id, trust="trusted", key=gate.key, permissions=("games.read",),
+        api_contract_version="1.0.0",
+    )
+    response = await acquire(gate, source, payload, approved_permissions=["games.read:v1"])
+    assert response.status_code == 409, response.text
+    assert "v1.0-only" in response.json()["detail"]
+    assert gate.registry.list() == before
+    assert [row.id for row in await grants(gate)] == permissions_before
+    assert "install" not in gate.events and "start" not in gate.events
+
+
+async def test_v11_verified_update_unblocks_legacy_installation_and_preserves_identity(gate):
+    await seed_update(gate, "update", trust="trusted", permissions=("games.read",))
+    package, manifest = gate.registry.package(gate.plugin_id)
+    installation_id = gate.registry.list()[0]["installation_id"]
+    grants_before = [row.id for row in await grants(gate)]
+    manifest["api_contract_version"] = "1.0.0"
+    (package / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    gate.registry.supervisor._storage(gate.plugin_id).put("retained/example", b"data")
+    gate.registry.restore_enabled()
+    blocked = gate.registry.list()[0]
+    assert blocked["status"] == "incompatible" and not blocked["enabled"]
+    assert blocked["activation_requested"] is True
+    response = await gate.client.post(f"/api/plugins/{gate.plugin_id}/enable")
+    assert response.status_code == 409, response.text
+    assert "start" not in gate.events
+    migrated = package_bytes(gate.plugin_id, trust="trusted", key=gate.key, permissions=("games.read",))
+    response = await acquire(gate, "update", migrated, approved_permissions=[])
+    assert response.status_code == 200, response.text
+    assert response.json()["status"] == "running"
+    active = gate.registry.list()[0]
+    assert active["api_contract_version"] == "1.1.0"
+    assert active["installation_id"] == installation_id
+    assert [row.id for row in await grants(gate)] == grants_before
+    assert gate.registry.supervisor._storage(gate.plugin_id).get("retained/example") == b"data"
+    response = await gate.client.post(f"/api/plugins/{gate.plugin_id}/rollback", json={})
+    assert response.status_code == 409, response.text
+    assert "v1.0-only" in response.json()["detail"]
+    assert gate.registry.list()[0]["api_contract_version"] == "1.1.0"
+    assert [row.id for row in await grants(gate)] == grants_before
 
 
 @pytest.fixture

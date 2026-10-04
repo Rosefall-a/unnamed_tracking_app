@@ -60,6 +60,7 @@ nav:
       - API: development/api.md
       - API Examples: development/api-examples.md
       - Plugin API v1: development/plugin-api-v1.md
+      - Plugin v1.1 Migration: development/plugin-v1.1-migration.md
       - Plugin Platform Architecture: development/plugin-platform.md
       - Third-party Plugin Development: development/plugin-development.md
       - Plugin Capability APIs: development/plugin-capabilities.md

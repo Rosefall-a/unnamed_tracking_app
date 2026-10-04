@@ -24,6 +24,7 @@ from .contracts import (
     PluginManifest,
     PluginUiDeclaration,
     StorageRequirements,
+    plugin_contract_compatibility_reason,
     resolve_plugin_dependencies,
 )
 from .updates import (
@@ -58,12 +59,25 @@ class RuntimeUnavailable(RuntimeError):
 
 def plugin_contributions_active(plugin: Mapping[str, object]) -> bool:
     """Enablement is a preference; contributions require a live, healthy runtime."""
+    if not plugin_contract_active(plugin):
+        return False
     return bool(
         plugin.get("enabled") is True
         and plugin.get("compatible") is True
         and plugin.get("status") == LifecycleState.RUNNING
         and plugin.get("health") in {"healthy", "unknown"}
     )
+
+
+def plugin_contract_active(plugin: Mapping[str, object]) -> bool:
+    """Missing metadata remains legacy, including cached runtime responses."""
+    try:
+        return (
+            plugin_contract_compatibility_reason(str(plugin.get("api_contract_version", "1.0.0")))
+            is None
+        )
+    except ValueError:
+        return False
 
 
 class RuntimeController(Protocol):
@@ -282,7 +296,12 @@ class PluginLifecycleManager:
             if decision.status == CompatibilityStatus.INCOMPATIBLE
             else LifecycleState.DISCOVERED
         )
-        record = PluginRecord(manifest=verified.manifest, package_path=package_path, state=state)
+        record = PluginRecord(
+            manifest=verified.manifest,
+            package_path=package_path,
+            state=state,
+            last_error=decision.reason if state == LifecycleState.INCOMPATIBLE else None,
+        )
         self._records[record.manifest.plugin_id] = record
         self._log(
             "info", "package_discovered", record.manifest.plugin_id, "verified package discovered"
@@ -303,7 +322,12 @@ class PluginLifecycleManager:
             if decision.status == CompatibilityStatus.INCOMPATIBLE
             else LifecycleState.DISCOVERED
         )
-        return PluginRecord(manifest=manifest, package_path=package_path, state=state)
+        return PluginRecord(
+            manifest=manifest,
+            package_path=package_path,
+            state=state,
+            last_error=decision.reason if state == LifecycleState.INCOMPATIBLE else None,
+        )
 
     @staticmethod
     def _invalid_record(plugin_id: str | None, manifest_path: Path, error: str) -> PluginRecord:
@@ -679,6 +703,7 @@ __all__ = [
     "PluginLifecycleManager",
     "PluginRecord",
     "plugin_contributions_active",
+    "plugin_contract_active",
     "RuntimeController",
     "RuntimeUnavailable",
     "Sha256PackageVerifier",

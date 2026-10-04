@@ -74,6 +74,7 @@ from src.plugin_api.capabilities import (
 )
 from src.plugin_api.catalogues import CatalogueStore, CatalogueStoreError
 from src.plugin_api.contracts import (
+    PLUGIN_API_CONTRACT_VERSION,
     BackendRouteAuthorization,
     BackendRouteScope,
     Capability,
@@ -83,12 +84,16 @@ from src.plugin_api.contracts import (
     PermissionDeclaration,
     PluginDependency,
     PluginUiDocument,
+    CompatibilityStatus,
+    evaluate_manifest_compatibility,
+    plugin_contract_compatibility_reason,
     parse_semver,
 )
 from src.plugin_api.documents import DocumentAccessError, document_path, owned_document
 from src.plugin_api.frontend_assets import inline_frontend_assets
 from src.plugin_api.gateway import dispatch_gateway_request, runtime_token_is_valid
 from src.plugin_api.grants import has_capability_grant, installation_is_executable
+from src.plugin_api.lifecycle import plugin_contract_active
 from src.plugin_api.installer import (
     DependencyPlan,
     InspectedPackage,
@@ -490,6 +495,12 @@ def _install_preview(
 ) -> dict[str, Any]:
     manifest = inspected.package.manifest
     trust = inspected.trust
+    compatibility = evaluate_manifest_compatibility(
+        manifest,
+        os.getenv("PLUGIN_SDK_VERSION", PLUGIN_API_CONTRACT_VERSION),
+        os.getenv("PLUGIN_APPLICATION_VERSION", "1.0.0"),
+    )
+    contract_error = plugin_contract_compatibility_reason(manifest.api_contract_version)
     readme = None
     icon = manifest.icon
     if inspected.package.package_path.exists():
@@ -562,7 +573,13 @@ def _install_preview(
         "trust_warning": trust.warning,
         "signature_present": trust.signature_present,
         "signature_verified": trust.signature_verified,
-        "installable": trust.installable,
+        "installable": trust.installable
+        and contract_error is None
+        and compatibility.status == CompatibilityStatus.COMPATIBLE,
+        "api_contract_version": manifest.api_contract_version,
+        "host_api_contract_version": PLUGIN_API_CONTRACT_VERSION,
+        "compatibility_reason": contract_error
+        or (compatibility.reason if compatibility.status != CompatibilityStatus.COMPATIBLE else ""),
         "sdk_version_range": manifest.sdk_version_range,
         "application_version_range": manifest.application_version_range,
         "dependencies": dependency_items,
@@ -1330,6 +1347,8 @@ async def start_plugin(plugin_id: str, admin: User = Depends(get_plugin_manager_
     )
     if not plugin or not plugin.get("enabled"):
         raise HTTPException(409, "Enable this plugin before starting it.")
+    if not plugin_contract_active(plugin):
+        raise HTTPException(409, "This plugin requires a verified v1.1.0 update before it can run.")
     await _client.start(quote(plugin_id, safe=""), user_id=str(admin.id))
     manager_state().reconcile(await _client.plugins())
     return {"plugin_id": plugin_id, "status": "running"}
@@ -1852,6 +1871,8 @@ async def enable_plugin(
     )
     if plugin is None or not plugin.get("installation_id"):
         raise HTTPException(status_code=404, detail="Plugin installation not found.")
+    if not plugin_contract_active(plugin):
+        raise HTTPException(status_code=409, detail="This plugin requires a verified v1.1.0 update before it can run.")
     installation_id = UUID(str(plugin["installation_id"]))
     pending = await db.scalar(
         select(PluginPermissionRequest.id).where(
@@ -2138,6 +2159,9 @@ async def _update_plugin_package(
 @router.post("/{plugin_id}/retry")
 async def retry_plugin(plugin_id: str, admin: User = Depends(get_plugin_manager_admin)) -> dict:
     del admin
+    plugin = await _live_plugin(plugin_id, require_enabled=False)
+    if not plugin_contract_active(plugin):
+        raise HTTPException(409, "This plugin requires a verified v1.1.0 update before it can run.")
     encoded = quote(plugin_id, safe="")
     try:
         await _client.stop(encoded)
@@ -2324,7 +2348,7 @@ async def plugin_ui(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> dict:
-    _, capabilities = await _plugin_and_capabilities(plugin_id, db, user)
+    plugin, capabilities = await _plugin_and_capabilities(plugin_id, db, user)
     try:
         payload = await _client.plugin_ui(quote(plugin_id, safe=""))
     except PluginRuntimeRequestError as exc:
@@ -2338,6 +2362,12 @@ async def plugin_ui(
         raise HTTPException(status_code=422, detail="Plugin UI document is invalid.") from exc
     if document.plugin_id != plugin_id:
         raise HTTPException(status_code=422, detail="Plugin UI document identity is invalid.")
+    if plugin_contract_compatibility_reason(
+        document.api_contract_version
+    ) or document.api_contract_version != plugin.get("api_contract_version", "1.0.0"):
+        raise HTTPException(
+            status_code=409, detail="Plugin UI and manifest API contracts must match v1.1.0."
+        )
     return _filter_ui_document(document, capabilities).model_dump(mode="json")
 
 
@@ -2619,6 +2649,7 @@ async def plugin_gateway(
         return failure(exc.status_code, code, str(exc.detail))
     starting_authorization = (
         payload.method == "capabilities.check"
+        and plugin_contract_active(plugin)
         and plugin.get("enabled") is True
         and plugin.get("compatible") is True
         and plugin.get("status") == "starting"

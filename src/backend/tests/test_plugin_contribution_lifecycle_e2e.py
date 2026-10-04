@@ -32,6 +32,7 @@ async def test_lifecycle_revokes_all_host_execution_boundaries(tmp_path, monkeyp
     (package / "native").mkdir(parents=True)
     (package / "native" / "index.js").write_text("// contract asset", encoding="utf-8")
     document = {
+        "api_contract_version": "1.1.0",
         "plugin_id": plugin_id,
         "title": "Lifecycle contract",
         "pages": [{"id": "dashboard", "title": "Dashboard"}],
@@ -49,6 +50,7 @@ async def test_lifecycle_revokes_all_host_execution_boundaries(tmp_path, monkeyp
     }
     (package / "ui.json").write_text(json.dumps(document), encoding="utf-8")
     manifest = {
+        "api_contract_version": "1.1.0",
         "plugin_id": plugin_id,
         "entrypoint": "contract:main",
         "version": "1.0.0",

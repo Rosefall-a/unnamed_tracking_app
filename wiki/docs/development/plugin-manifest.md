@@ -24,6 +24,11 @@ The manifest is validated as data before plugin code is loaded. Unknown fields a
 
 ## Compatibility
 
+The redesigned host requires `api_contract_version: "1.1.0"` in the manifest
+and UI document. Missing declarations remain v1.0.0, and the whole legacy plugin
+is stopped until a verified migrated update is installed. Plugin release versions
+remain separate. See [the migration guide](plugin-v1.1-migration.md).
+
 SDK and application compatibility are independent. A plugin must satisfy both ranges before activation.
 
 Supported range forms are exact versions, comparisons, caret/tilde ranges, and bounded x/* minor/major wildcards. Invalid ranges are rejected.

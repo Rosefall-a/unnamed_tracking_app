@@ -49,6 +49,7 @@ afterEach(() => {
 });
 
 const plugin: PluginSummary = {
+  api_contract_version: "1.1.0",
   plugin_id: "example.plugin",
   name: "Example",
   version: "1.0.0",
@@ -86,6 +87,7 @@ const plugin: PluginSummary = {
 };
 
 const document: PluginUiDocument = {
+  api_contract_version: "1.1.0",
   schema_version: "v1",
   plugin_id: plugin.plugin_id,
   title: "Example",
@@ -166,6 +168,23 @@ const document: PluginUiDocument = {
 };
 
 describe("plugin extension registry", () => {
+  it("blocks all legacy contributions even when stale metadata says running", () => {
+    for (const version of [undefined, "1.0.0", "1.0.9"]) {
+      const result = derivePluginContributions(
+        { ...plugin, api_contract_version: version },
+        document,
+      );
+      expect(Object.values(result).every((items) => items.length === 0)).toBe(
+        true,
+      );
+    }
+    const oldDocument = { ...document, api_contract_version: undefined };
+    expect(
+      Object.values(derivePluginContributions(plugin, oldDocument)).every(
+        (items) => items.length === 0,
+      ),
+    ).toBe(true);
+  });
   it("registers game document readers only with both grants and removes stale defaults", async () => {
     const readerDocument: PluginUiDocument = {
       ...document,
@@ -301,6 +320,26 @@ describe("plugin extension registry", () => {
     await refreshPluginExtensions();
     finish(new Response(JSON.stringify(document)));
     await first;
+    expect(pluginNavigation.value).toEqual([]);
+    expect(activePluginDocuments.value).toEqual({});
+    expect(native.activate).not.toHaveBeenCalled();
+  });
+
+  it("refuses to load native code from a legacy UI document", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async (url: string) =>
+          new Response(
+            JSON.stringify(
+              url === "/api/plugins"
+                ? [plugin]
+                : { ...document, api_contract_version: undefined },
+            ),
+          ),
+      ),
+    );
+    await refreshPluginExtensions();
     expect(pluginNavigation.value).toEqual([]);
     expect(activePluginDocuments.value).toEqual({});
     expect(native.activate).not.toHaveBeenCalled();

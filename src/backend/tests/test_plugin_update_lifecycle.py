@@ -25,6 +25,7 @@ def _unsigned_update(path: Path) -> None:
     digest.update(payload)
     digest.update(b"\0")
     manifest = {
+        "api_contract_version": "1.1.0",
         "manifest_version": 1,
         "plugin_id": "example.update",
         "name": "Update Example",

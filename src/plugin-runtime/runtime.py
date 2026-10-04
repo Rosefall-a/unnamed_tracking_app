@@ -43,6 +43,7 @@ except ImportError:  # pragma: no cover - Windows development/test fallback
     resource = None  # type: ignore[assignment]
 
 _PLUGIN_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
+PLUGIN_API_CONTRACT_VERSION = "1.1.0"
 _ENTRYPOINT = re.compile(r"^[A-Za-z_][A-Za-z0-9_.-]*(?::[A-Za-z_][A-Za-z0-9_]*)?$")
 # Linux parent-death signals follow the spawning thread. HTTP request threads
 # end after their response, while supervised workers must live until shutdown.
@@ -96,6 +97,22 @@ _RESERVED_PLUGIN_ROUTE_ROOTS = {
 
 class RuntimePolicyError(ValueError):
     """Raised when a plugin request violates the runtime contract."""
+
+
+def plugin_contract_compatibility_reason(manifest: Mapping[str, Any]) -> str | None:
+    """Independent runtime enforcement of the public host contract boundary."""
+    declared = manifest.get("api_contract_version", "1.0.0")
+    if not isinstance(declared, str) or not re.fullmatch(r"(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)", declared):
+        return "Plugin API contract version is invalid."
+    version = tuple(int(part) for part in declared.split("."))
+    if version < (1, 1, 0):
+        return (
+            f"Plugin API contract {declared} is v1.0-only. This host requires v1.1.0; "
+            "the whole plugin is stopped until a verified migrated update is installed."
+        )
+    if version != (1, 1, 0):
+        return f"Plugin API contract {declared} is not supported by this host (1.1.0)."
+    return None
 
 
 class RuntimeGatewayError(RuntimePolicyError):
@@ -1170,6 +1187,11 @@ class PluginRegistry:
             return record
 
     def _execution_allowed(self, plugin_id: str, method: str = "action") -> bool:
+        try:
+            if plugin_contract_compatibility_reason(self.package(plugin_id)[1]):
+                return False
+        except (OSError, ValueError, KeyError):
+            return False
         state = self._state().get(plugin_id)
         if (
             isinstance(state, dict)
@@ -1407,9 +1429,11 @@ class PluginRegistry:
                 pass
         plugin_id = data["plugin_id"]
         expected = data.get("integrity", {}).get("sha256")
-        compatible = (
+        integrity_valid = (
             bool(expected) and self.digest(package).lower() == str(expected).lower()
         )
+        contract_error = plugin_contract_compatibility_reason(data)
+        compatible = integrity_valid and contract_error is None
         state = self._state()
         raw_state = state.get(plugin_id, False)
         enabled = (
@@ -1438,6 +1462,16 @@ class PluginRegistry:
         ):
             self._transition(plugin_id, status="failed")
             self.supervisor.stop(plugin_id)
+        if contract_error:
+            # Preserve the enablement preference, installation identity and storage
+            # for a verified update, but never restore an old worker or contribution.
+            if running:
+                self.supervisor.stop(plugin_id)
+                running = False
+            enabled = False
+            status = "incompatible"
+            if not isinstance(raw_state, dict) or raw_state.get("status") != status:
+                self._transition(plugin_id, status=status, last_error=contract_error)
         return {
             "plugin_id": plugin_id,
             "name": data.get("name", plugin_id),
@@ -1448,6 +1482,8 @@ class PluginRegistry:
             and distribution.get("automatic_update", True),
             "release_notes": distribution.get("release_notes"),
             "version": data.get("version", "0.0.0"),
+            "api_contract_version": data.get("api_contract_version", "1.0.0"),
+            "host_api_contract_version": PLUGIN_API_CONTRACT_VERSION,
             "publisher": (
                 data.get("integrity", {}).get("key_id")
                 if data.get("integrity", {}).get("signature")
@@ -1460,7 +1496,7 @@ class PluginRegistry:
             "compatible": compatible,
             "compatibility_reason": ""
             if compatible
-            else "package integrity verification failed",
+            else contract_error or "package integrity verification failed",
             "permissions": [
                 p.get("capability", {}).get("name") for p in data.get("permissions", [])
             ],
@@ -1482,6 +1518,9 @@ class PluginRegistry:
             else {"type": "unknown"},
             "trust": raw_state.get("trust", {}) if isinstance(raw_state, dict) else {},
             "enabled": enabled,
+            "activation_requested": (
+                bool(raw_state.get("enabled", False)) if isinstance(raw_state, dict) else bool(raw_state)
+            ),
             "installation_pending": bool(raw_state.get("pending_installation"))
             if isinstance(raw_state, dict)
             else False,
@@ -1495,9 +1534,9 @@ class PluginRegistry:
             "logs_available": bool(self.supervisor.logs(plugin_id)),
             "last_exit_code": self.supervisor.exit_code(plugin_id),
             "status": status,
-            "last_error": raw_state.get("last_error")
-            if isinstance(raw_state, dict)
-            else None,
+            "last_error": contract_error or (
+                raw_state.get("last_error") if isinstance(raw_state, dict) else None
+            ),
             "runtime": dict(self.supervisor.isolation),
             "pending_transaction": (
                 {"phase": "prepared", **raw_state["pending_installation"]}
@@ -1665,6 +1704,17 @@ class PluginRegistry:
             raise RuntimePolicyError("plugin manifest has an invalid plugin id")
         if not _ENTRYPOINT.fullmatch(str(manifest.get("entrypoint", ""))):
             raise RuntimePolicyError("plugin manifest has an invalid entrypoint")
+        contract_error = plugin_contract_compatibility_reason(manifest)
+        if contract_error:
+            raise RuntimePolicyError(contract_error)
+        for name, content in payload:
+            if name == "ui.json":
+                try:
+                    document = json.loads(content)
+                except (ValueError, UnicodeError) as exc:
+                    raise RuntimePolicyError("plugin UI document is invalid JSON") from exc
+                if not isinstance(document, dict) or document.get("api_contract_version", "1.0.0") != manifest["api_contract_version"]:
+                    raise RuntimePolicyError("plugin UI and manifest API contracts must match")
         backend_routes = self._backend_routes(manifest)
         capabilities = {
             item.get("name")
@@ -2146,6 +2196,7 @@ class PluginRegistry:
         if not ui_path.is_file():
             document = {
                 "schema_version": "v1",
+                "api_contract_version": manifest.get("api_contract_version", "1.0.0"),
                 "plugin_id": plugin_id,
                 "title": manifest.get("name", plugin_id),
                 "settings": [],
@@ -2162,6 +2213,8 @@ class PluginRegistry:
                 raise RuntimePolicyError("plugin UI document is invalid JSON") from exc
         if document.get("plugin_id") != plugin_id:
             raise RuntimePolicyError("plugin UI document has the wrong plugin_id")
+        if document.get("api_contract_version", "1.0.0") != manifest.get("api_contract_version", "1.0.0"):
+            raise RuntimePolicyError("plugin UI and manifest API contracts must match")
         frontend = manifest.get("frontend")
         if isinstance(frontend, dict) and frontend.get("entry"):
             document["frontend"] = {"entry": str(frontend["entry"])}
@@ -2558,7 +2611,11 @@ class PluginRegistry:
         state = self._state()
         for package in self.packages():
             try:
-                plugin_id = self.package(package.name)[1]["plugin_id"]
+                manifest = self.package(package.name)[1]
+                plugin_id = manifest["plugin_id"]
+                if plugin_contract_compatibility_reason(manifest):
+                    self._item(package)
+                    continue
                 raw_state = state.get(plugin_id, True)
                 enabled = (
                     raw_state.get("enabled", True)
@@ -2586,7 +2643,7 @@ class PluginRegistry:
 
 
 class RuntimeHandler(BaseHTTPRequestHandler):
-    server_version = "UnnamedTrackingPluginRuntime/1.0"
+    server_version = "UnnamedTrackingPluginRuntime/1.1"
 
     def _authorized(self) -> bool:
         if self.path.split("?", 1)[0] == "/health":
@@ -2618,6 +2675,7 @@ class RuntimeHandler(BaseHTTPRequestHandler):
                         "status": "ok",
                         "available": True,
                         "api_version": "v1",
+                        "api_contract_version": PLUGIN_API_CONTRACT_VERSION,
                         "supported_api_versions": ["v1"],
                         "transport": "http",
                         "plugin_transport": "json-lines",

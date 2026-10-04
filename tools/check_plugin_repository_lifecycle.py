@@ -495,28 +495,36 @@ def acceptance(plugins_root, work, browser=False):
                 "catalogue_url": "https://raw.githubusercontent.com/Rosefall-a/unnamed_tracking_app_plugins/main/list.json",
             }
             live_preview = request("POST", "/install/preview-url", json=live_source)
-            request(
-                "POST",
-                "/install/url",
-                201,
-                params={
-                    "approved_permissions": [
-                        p["key"] for p in live_preview["permissions"]
-                    ]
-                },
-                json=live_source,
-            )
-            assert current()["status"] == "running" and current()["health"] == "healthy"
-            conformance.assert_ready()
-            assert current()["version"] == live_release["version"]
-            assert current()["source"]["type"] == "catalogue"
-            assert request("GET", f"/{PLUGIN}/ui")["native_frontend"]
-            request("DELETE", f"/{PLUGIN}", 204)
-            print(
-                "Live official Jellyfin package installation and healthy startup: passed",
-                flush=True,
-            )
-            checkpoint("live official package install, gateway readiness and native UI")
+            if live_preview["api_contract_version"] == "1.0.0":
+                assert live_preview["installable"] is False
+                assert "v1.0-only" in live_preview["compatibility_reason"]
+                rejected = request("POST", "/install/url", 409, json=live_source)
+                assert "v1.0-only" in rejected["detail"]
+                assert not request("GET", "")
+                checkpoint("verified live legacy release rejected before worker execution")
+            else:
+                request(
+                    "POST",
+                    "/install/url",
+                    201,
+                    params={
+                        "approved_permissions": [
+                            p["key"] for p in live_preview["permissions"]
+                        ]
+                    },
+                    json=live_source,
+                )
+                assert current()["status"] == "running" and current()["health"] == "healthy"
+                conformance.assert_ready()
+                assert current()["version"] == live_release["version"]
+                assert current()["source"]["type"] == "catalogue"
+                assert request("GET", f"/{PLUGIN}/ui")["native_frontend"]
+                request("DELETE", f"/{PLUGIN}", 204)
+                print(
+                    "Live official Jellyfin package installation and healthy startup: passed",
+                    flush=True,
+                )
+                checkpoint("live official package install, gateway readiness and native UI")
             request(
                 "POST",
                 "/catalogues",

@@ -10,9 +10,12 @@ export type PluginStatus =
   | "failed_start"
   | "failed_stop"
   | "disabled"
+  | "incompatible"
   | "unknown";
+export const PLUGIN_API_CONTRACT_VERSION = "1.1.0";
 export function pluginContributionsActive(plugin: PluginSummary): boolean {
   return (
+    plugin.api_contract_version === PLUGIN_API_CONTRACT_VERSION &&
     plugin.enabled &&
     plugin.compatible &&
     plugin.status === "running" &&
@@ -23,6 +26,8 @@ export interface PluginSummary {
   plugin_id: string;
   name: string;
   version: string;
+  api_contract_version?: string;
+  host_api_contract_version?: string;
   status: PluginStatus;
   compatible: boolean;
   compatibility_reason: string;
@@ -52,6 +57,7 @@ export interface PluginSummary {
 }
 export interface RuntimeCapabilities {
   api_version?: string;
+  api_contract_version?: string;
   supported_api_versions?: string[];
   transport?: string;
   plugin_transport?: string;
@@ -89,6 +95,9 @@ export interface PluginInstallPermission {
   new?: boolean;
 }
 export interface PluginInstallPreview {
+  api_contract_version: string;
+  host_api_contract_version: string;
+  compatibility_reason: string;
   plugin_id: string;
   name: string;
   description: string;

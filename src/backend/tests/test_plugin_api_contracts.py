@@ -281,7 +281,7 @@ def test_manifest_is_static_and_rejects_unsafe_or_ambiguous_fields() -> None:
 
 
 def test_manifest_compatibility_is_evaluated_without_execution() -> None:
-    manifest = PluginManifest.model_validate(manifest_data())
+    manifest = PluginManifest.model_validate({**manifest_data(), "api_contract_version": "1.1.0"})
     compatible = evaluate_manifest_compatibility(manifest, "1.5.0", "2.1.0")
     incompatible = evaluate_manifest_compatibility(manifest, "2.0.0", "2.1.0")
 
@@ -289,6 +289,39 @@ def test_manifest_compatibility_is_evaluated_without_execution() -> None:
     assert compatible.action == "allow"
     assert incompatible.status == CompatibilityStatus.INCOMPATIBLE
     assert incompatible.action == "quarantine"
+
+
+@pytest.mark.parametrize("sdk_range", ["*", "^1.0.0", ">=1.0.0,<2.0.0", "^1.1.0"])
+def test_v11_host_never_infers_migration_from_a_broad_sdk_range(sdk_range: str) -> None:
+    manifest = PluginManifest.model_validate(manifest_data(sdk_range=sdk_range))
+    decision = evaluate_manifest_compatibility(manifest, "1.1.0", "2.1.0")
+    assert decision.status == CompatibilityStatus.INCOMPATIBLE
+    assert "1.0" in decision.reason and "1.1" in decision.reason
+    assert decision.action == "quarantine"
+
+
+def test_v11_contract_declaration_is_independent_of_plugin_release_version() -> None:
+    manifest = PluginManifest.model_validate(
+        {**manifest_data(version="9.4.7", sdk_range="^1.1.0"), "api_contract_version": "1.1.0"}
+    )
+    decision = evaluate_manifest_compatibility(manifest, "1.1.0", "2.1.0")
+    assert decision.status == CompatibilityStatus.COMPATIBLE
+    assert manifest.version == "9.4.7"
+    assert manifest.api_contract_version == "1.1.0"
+
+
+def test_v11_plugin_cannot_execute_against_an_old_host_contract() -> None:
+    manifest = PluginManifest.model_validate(
+        {**manifest_data(sdk_range="*"), "api_contract_version": "1.1.0"}
+    )
+    decision = evaluate_manifest_compatibility(manifest, "1.0.0", "2.1.0")
+    assert decision.status == CompatibilityStatus.INCOMPATIBLE
+
+
+def test_legacy_manifest_migration_does_not_promote_the_plugin_contract() -> None:
+    migrated = migrate_manifest_data({**manifest_data(), "manifest_version": 0})
+    manifest = PluginManifest.model_validate(migrated)
+    assert manifest.api_contract_version == "1.0.0"
 
 
 def test_semver_ranges_are_deterministic() -> None:
