@@ -62,8 +62,10 @@ async function save() {
     const payload: Record<string, string> = {};
     for (const [key] of fields)
       if (providers[key]) payload[key] = providers[key];
-    payload.nginx_realip_header = realIpHeader.value;
-    payload.nginx_realip_trusted_proxies = realIpTrustedProxies.value;
+    if (!(deploymentSettings.value?.real_ip.locked.header ?? false))
+      payload.nginx_realip_header = realIpHeader.value;
+    if (!(deploymentSettings.value?.real_ip.locked.trusted_proxies ?? false))
+      payload.nginx_realip_trusted_proxies = realIpTrustedProxies.value;
     const result = await updateDeploymentSettings(payload);
     for (const [key, value] of Object.entries(result.providers))
       if (typeof value === "string") providers[key] = value;
