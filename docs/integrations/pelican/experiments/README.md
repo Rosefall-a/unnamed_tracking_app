@@ -7,7 +7,7 @@ production code, and none of it is part of the Unnamed Tracking integration.
 | --- | --- |
 | `standin-server/` | Minecraft Java 26.1.2-protocol stand-in on Minestom. It mimics the vanilla console/log contract, `server.properties`, and an Anvil world with `level.dat` and player data. It is used while Mojang/PaperMC downloads are blocked in the test environment. |
 | `egg/egg-ut-standin-minecraft.yaml` | Pelican egg for the stand-in. Same config contract as the upstream Vanilla egg. |
-| `ptlab.py` | Pelican Application/Client API and websocket harness. Logs every call (redacted) to an evidence JSONL. |
+| `ptlab.py` | Pelican Application/Client API and websocket harness. Logs every call to an evidence JSONL, redacting token, secret and password fields, sockets and URLs, plus full API keys, JWTs and signed-URL parameters inside strings. |
 | `bot.js` | mineflayer headless client. Reports position, markers and online players. |
 | `make_test_world.py` | Builds identifiable test worlds (seed, level name, marker blocks, saved player position). |
 | `e01_create_server.py` | Server creation via the Application API with `external_id`. |

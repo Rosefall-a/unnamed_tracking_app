@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import ssl
 import time
 from pathlib import Path
@@ -25,18 +26,34 @@ import websocket
 PANEL = os.environ.get("PELICAN_URL", "http://127.0.0.1:8000")
 SECRETS = Path(os.environ.get("PELICAN_SECRETS_DIR", "/srv/pelican/secrets"))
 EVIDENCE = Path(os.environ.get("PELICAN_EVIDENCE", "/srv/pelican/evidence/api-calls.jsonl"))
-REDACT_KEYS = {"token", "socket", "url", "password", "daemon_token", "token_id"}
+REDACT_KEYS = {"socket", "url"}
+# Any field whose name contains one of these is redacted, e.g. token, token_id, daemon_token and
+# the secret_token Pelican returns once when an API key is created.
+REDACT_KEY_PARTS = ("token", "secret", "password")
+# Secrets that can also appear inside other strings: full API keys (16-character identifier + 32-
+# character token), websocket JWTs and signed-URL query parameters.
+SECRET_PATTERN = re.compile(
+    r"p(?:app|acc)_[A-Za-z0-9]{43,}|eyJ[\w-]+\.[\w-]+\.[\w-]+|(?<=[?&])(?:signature|token)=[^&\s\"']+"
+)
 
 
 def _key(name: str) -> str:
     return (SECRETS / f"{name}.key").read_text().strip()
 
 
+def _is_secret_field(name: str) -> bool:
+    name = name.lower()
+    return name in REDACT_KEYS or any(part in name for part in REDACT_KEY_PARTS)
+
+
 def _redact(value: Any) -> Any:
     if isinstance(value, dict):
-        return {k: ("<redacted>" if k in REDACT_KEYS and isinstance(v, str) else _redact(v)) for k, v in value.items()}
+        return {k: ("<redacted>" if _is_secret_field(k) and isinstance(v, str) else _redact(v))
+                for k, v in value.items()}
     if isinstance(value, list):
         return [_redact(v) for v in value]
+    if isinstance(value, str):
+        return SECRET_PATTERN.sub("<redacted>", value)
     return value
 
 

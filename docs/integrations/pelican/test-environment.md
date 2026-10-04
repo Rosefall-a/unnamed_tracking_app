@@ -61,4 +61,6 @@ python3 e02_lifecycle.py /srv/pelican/evidence/server-demo-a.json
 # … e03 → e12 as listed in experiments/README.md (e06 creates utbridge's subuser grant first)
 ```
 
-Every script appends to `/srv/pelican/evidence/api-calls.jsonl` with `token`, `socket`, `url` and `password` fields redacted. The committed copy was also scanned for key, token and password values before each commit.
+Every script appends to `/srv/pelican/evidence/api-calls.jsonl`. Any field whose name contains `token`, `secret` or `password` is redacted, as are `socket` and `url`. Full API keys, JWTs and signed-URL parameters are also masked inside other strings.
+
+The first version of the harness redacted only a fixed list of field names (`token`, `token_id`, `daemon_token`, `password`, `socket`, `url`). That let one secret into the committed log: the `secret_token` Pelican returned for the key E06's minting probe created. Run 1 had already deleted that key within 33 seconds of minting it (the run's own cleanup; the test Panel's database holds no such key), and it was only ever valid against the loopback test Panel. The reproduction run found the leak, and the committed log has been re-redacted with the current rules. A value-based scan against every credential the test Panel issued, rather than a pattern-based one, has not been run.
