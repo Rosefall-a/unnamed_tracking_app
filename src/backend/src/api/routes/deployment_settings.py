@@ -10,7 +10,11 @@ from src.core.auth import get_current_admin
 from src.core.crypto import decrypt_secret, encrypt_secret
 from src.core.env_handler import EnvConfigHandler
 from src.core.provider_credentials import apply_deployment_provider_credentials
-from src.core.real_ip import get_effective_real_ip_config, validate_real_ip_header, validate_trusted_proxies
+from src.core.real_ip import (
+    get_effective_real_ip_config,
+    validate_real_ip_header,
+    validate_trusted_proxies,
+)
 from src.database.models.oidc_settings import OidcSettings
 from src.database.models.user import User
 from src.database.session import get_db
@@ -238,7 +242,10 @@ async def update_deployment_settings(
     for field, value in payload.model_dump(exclude_unset=True).items():
         if field == "nginx_realip_header":
             if handler.has("NGINX_REALIP_HEADER"):
-                raise HTTPException(409, "nginx_realip_header is managed by the deployment environment and cannot be changed here.")
+                raise HTTPException(
+                    409,
+                    "nginx_realip_header is managed by the deployment environment and cannot be changed here.",
+                )
             if value is not None:
                 try:
                     app.nginx_realip_header = validate_real_ip_header(value)
@@ -247,7 +254,10 @@ async def update_deployment_settings(
             continue
         if field == "nginx_realip_trusted_proxies":
             if handler.has("NGINX_REALIP_TRUSTED_PROXIES"):
-                raise HTTPException(409, "nginx_realip_trusted_proxies is managed by the deployment environment and cannot be changed here.")
+                raise HTTPException(
+                    409,
+                    "nginx_realip_trusted_proxies is managed by the deployment environment and cannot be changed here.",
+                )
             if value is not None:
                 try:
                     app.nginx_realip_trusted_proxies = validate_trusted_proxies(value)
