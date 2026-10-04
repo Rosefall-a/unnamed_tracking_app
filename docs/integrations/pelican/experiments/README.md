@@ -26,6 +26,8 @@ production code, and none of it is part of the Unnamed Tracking integration.
 | `e09b_session_snapshot_map.py` | A play session, its captured snapshot, and a map of that snapshot with the session trail. |
 | `e10_luanti.py` | The same deploy/verify/capture/map sequence against Luanti (Minetest 5.6), the second game. |
 | `egg/egg-ut-luanti.yaml`, `yolks/luanti/` | Luanti egg (upstream contract minus `--terminal`) and local image. |
+| `e11_custody.py` | Custody marker write/read and whether the hosted world changed since deploy. |
+| `screenshots.mjs` | Playwright capture of the Pelican UI evidence in `../evidence/img/`. |
 | `setup_env.sh` | Rebuilds the whole disposable Panel + Wings environment from release artifacts. |
 | `mkkey.php` | Creates API keys through Pelican's own `KeyCreationService`. |
 | `yolks/` | Local rebuilds of the Pelican Java 25 yolk and installer images. |

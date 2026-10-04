@@ -89,6 +89,7 @@ sleep 8
 # --- Yolks, stand-in server, artifact host -------------------------------------------------------
 docker build -q --network host -t utpelican/yolk-java25:local "$HERE/yolks/java25"
 docker build -q --network host -t utpelican/installer:local "$HERE/yolks/installer"
+docker build -q --network host -t utpelican/yolk-luanti:local "$HERE/yolks/luanti"   # second game (E10)
 docker pull -q maven:3-eclipse-temurin-25
 docker pull -q eclipse-temurin:25-jdk-noble
 docker tag eclipse-temurin:25-jdk-noble mirror.gcr.io/library/eclipse-temurin:25-jdk-noble
@@ -107,6 +108,8 @@ APP=$(cat /srv/pelican/secrets/app_full.key)
 H=(-H "Authorization: Bearer $APP" -H "Accept: application/json")
 curl -fsS "${H[@]}" -H 'Content-Type: application/yaml' --data-binary @"$HERE/egg/egg-ut-standin-minecraft.yaml" \
   http://127.0.0.1:8000/api/application/eggs/import >/dev/null
+curl -fsS "${H[@]}" -H 'Content-Type: application/yaml' --data-binary @"$HERE/egg/egg-ut-luanti.yaml" \
+  http://127.0.0.1:8000/api/application/eggs/import >/dev/null
 # Bind 0.0.0.0 and publish an alias. A 127.0.0.1 allocation is silently re-bound by Wings to the
 # pelican0 gateway (172.18.0.1), so the address the Panel reports would not be joinable.
 # Note: the Application API field is "alias"; "ip_alias" is silently ignored.
@@ -115,7 +118,10 @@ curl -fsS "${H[@]}" -H 'Content-Type: application/json' \
   http://127.0.0.1:8000/api/application/nodes/1/allocations
 
 # --- Python + Node test clients ------------------------------------------------------------------
-pip install -q requests websocket-client nbtlib
+pip install -q requests websocket-client nbtlib pillow
+apt-get install -y -q minetestmapper >/dev/null   # asset-free Luanti renderer (E10)
 cp "$HERE/bot.js" /srv/pelican/standin/bot/
 (cd /srv/pelican/standin/bot && npm init -y >/dev/null && npm install --silent mineflayer)
+# Screenshots: node screenshots.mjs <out> <mc_server> <luanti_server> from a dir whose node_modules
+# links to a Playwright install (Chromium is preinstalled under /opt/pw-browsers here).
 echo "Pelican test environment ready: Panel http://127.0.0.1:8000, Wings :8080"
