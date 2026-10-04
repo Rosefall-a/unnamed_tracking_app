@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiModal from "../components/UiModal.vue";
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useWindowVirtualizer } from "@tanstack/vue-virtual";
@@ -21,7 +22,8 @@ import { takeLibraryScroll } from "../state/libraryScroll";
 import { setLibraryNavOrder } from "../state/libraryNav";
 import { isCommandPaletteOpen } from "../state/commandPalette";
 import CollectionPickerModal from "../components/CollectionPickerModal.vue";
-import AppTopBar from "../components/AppTopBar.vue";
+import AccountChip from "../components/AccountChip.vue";
+import PageHeader from "../components/PageHeader.vue";
 import { computeScore } from "../utils/scoring";
 import DOMPurify from "dompurify";
 import {
@@ -659,7 +661,18 @@ function anyModalOpen(): boolean {
   );
 }
 function onGlobalKeydown(e: KeyboardEvent) {
-  if (anyModalOpen()) return;
+  if (
+    e.defaultPrevented ||
+    anyModalOpen() ||
+    document.querySelector("dialog[open]")
+  )
+    return;
+  if (
+    e.key === "Enter" &&
+    e.target instanceof HTMLElement &&
+    e.target.closest("button, a, [role='combobox']")
+  )
+    return;
   if (e.key === "Escape") {
     if (
       isTypingTarget(e.target) &&
@@ -1255,16 +1268,33 @@ watch(viewMode, (mode) => {
 
 <template>
   <main class="library" :class="{ locked: viewMode === 'detail' }">
-    <AppTopBar />
+    <AccountChip fixed />
 
     <div ref="contentEl" class="content">
+      <PageHeader
+        title="Games"
+        :description="`${games.length} ${games.length === 1 ? 'game' : 'games'}`"
+      >
+        <template #actions>
+          <button
+            type="button"
+            class="ui-btn ui-btn-ghost"
+            :disabled="!games.length"
+            title="Pick a game to play, filtered by status, platform, genre, length and priority"
+            @click="showRandomPicker = true"
+          >
+            Random
+          </button>
+          <button
+            type="button"
+            class="ui-btn ui-btn-primary"
+            @click="openAddModal"
+          >
+            Add game
+          </button>
+        </template>
+      </PageHeader>
       <div class="header-row">
-        <div>
-          <h1>Games</h1>
-          <div class="sub">
-            {{ games.length }} {{ games.length === 1 ? "game" : "games" }}
-          </div>
-        </div>
         <div class="header-actions">
           <div class="search-wrap">
             <input
@@ -1354,6 +1384,8 @@ watch(viewMode, (mode) => {
               class="density-button"
               :class="{ active: cardDensity === d }"
               :title="d"
+              :aria-label="`${d} game cards`"
+              :aria-pressed="cardDensity === d"
               @click="cardDensity = d"
             >
               {{ d === "compact" ? "S" : d === "cozy" ? "M" : "L" }}
@@ -1366,6 +1398,8 @@ watch(viewMode, (mode) => {
               class="view-toggle-button"
               :class="{ active: viewMode === 'cards' }"
               title="Cards"
+              aria-label="Cards view"
+              :aria-pressed="viewMode === 'cards'"
               @click="setView('cards')"
             >
               <svg
@@ -1389,6 +1423,8 @@ watch(viewMode, (mode) => {
               class="view-toggle-button"
               :class="{ active: viewMode === 'list' }"
               title="List"
+              aria-label="List view"
+              :aria-pressed="viewMode === 'list'"
               @click="setView('list')"
             >
               <svg
@@ -1411,6 +1447,8 @@ watch(viewMode, (mode) => {
               class="view-toggle-button"
               :class="{ active: viewMode === 'detail' }"
               title="List + preview"
+              aria-label="List and preview view"
+              :aria-pressed="viewMode === 'detail'"
               @click="setView('detail')"
             >
               <svg
@@ -1432,6 +1470,8 @@ watch(viewMode, (mode) => {
               class="view-toggle-button"
               :class="{ active: viewMode === 'shelves' }"
               title="Shelves (by source)"
+              aria-label="Shelves view"
+              :aria-pressed="viewMode === 'shelves'"
               @click="setView('shelves')"
             >
               <svg
@@ -1456,6 +1496,7 @@ watch(viewMode, (mode) => {
             type="button"
             class="advanced-toggle"
             :class="{ active: showAdvancedFilters }"
+            :aria-expanded="showAdvancedFilters"
             @click="showAdvancedFilters = !showAdvancedFilters"
           >
             Advanced Filters
@@ -1524,20 +1565,6 @@ watch(viewMode, (mode) => {
               </button>
             </div>
           </div>
-
-          <button
-            type="button"
-            class="advanced-toggle"
-            :disabled="!games.length"
-            title="Pick a game to play, filtered by status, platform, genre, length and priority"
-            @click="showRandomPicker = true"
-          >
-            Random
-          </button>
-
-          <button type="button" class="add-button" @click="openAddModal">
-            + Add Game
-          </button>
         </div>
       </div>
 
@@ -1901,10 +1928,13 @@ watch(viewMode, (mode) => {
             class="list-row"
             @click="selectMode ? toggleSelect(game) : openGame(game)"
           >
-            <div
+            <button
               v-if="selectMode"
+              type="button"
               class="list-checkbox"
               :class="{ checked: selectedIds.has(game.id) }"
+              :aria-label="`Select ${game.title}`"
+              :aria-pressed="selectedIds.has(game.id)"
               @click.stop="toggleSelect(game)"
             >
               <svg
@@ -1920,31 +1950,41 @@ watch(viewMode, (mode) => {
               >
                 <path d="M20 6L9 17l-5-5" />
               </svg>
-            </div>
+            </button>
             <img class="list-cover" :src="game.coverImageUrl" alt="" />
-            <span class="list-title">{{ game.title }}</span>
+            <button
+              type="button"
+              class="list-title list-open"
+              @click.stop="selectMode ? toggleSelect(game) : openGame(game)"
+            >
+              {{ game.title }}
+            </button>
             <span class="list-status"
               ><span class="status-pill">{{ game.status }}</span></span
             >
-            <span class="list-genre">{{ game.tags[0] ?? "N/A" }}</span>
-            <span class="list-platform">{{
+            <span class="list-genre" data-label="Genre">{{
+              game.tags[0] ?? "N/A"
+            }}</span>
+            <span class="list-platform" data-label="Platform">{{
               game.platforms[0]?.platform ?? "N/A"
             }}</span>
-            <span class="list-score">
+            <span class="list-score" data-label="Rating">
               <template v-if="computeScore(game)"
                 >★ {{ computeScore(game)!.sum.toFixed(1) }}</template
               >
               <template v-else>N/A</template>
             </span>
-            <span class="list-playtime">{{ totalPlaytime(game) }}</span>
-            <span class="list-last-played">
+            <span class="list-playtime" data-label="Playtime">{{
+              totalPlaytime(game)
+            }}</span>
+            <span class="list-last-played" data-label="Last played">
               {{
                 gameLastPlayed(game)
                   ? new Date(gameLastPlayed(game)!).toLocaleDateString()
                   : "N/A"
               }}
             </span>
-            <span class="list-release">
+            <span class="list-release" data-label="Released">
               {{
                 game.releaseDate ? formatDisplayDate(game.releaseDate) : "N/A"
               }}
@@ -1961,6 +2001,7 @@ watch(viewMode, (mode) => {
                 type="button"
                 class="icon-button"
                 title="Add to collection"
+                :aria-label="`Add ${game.title} to collection`"
                 @click.stop="handleAddToCollection(game)"
               >
                 <svg
@@ -1980,6 +2021,8 @@ watch(viewMode, (mode) => {
                 type="button"
                 class="icon-button"
                 :class="{ active: game.favorite }"
+                :aria-label="`${game.favorite ? 'Remove' : 'Add'} ${game.title} ${game.favorite ? 'from' : 'to'} favorites`"
+                :aria-pressed="game.favorite"
                 :title="
                   game.favorite ? 'Remove from favorites' : 'Add to favorites'
                 "
@@ -2327,37 +2370,33 @@ watch(viewMode, (mode) => {
         @close="showRandomPicker = false"
       />
 
-      <div
+      <UiModal
         v-if="deletingGame"
-        class="confirm-backdrop"
-        @click.self="deletingGame = null"
+        title="Delete game"
+        description="Moved to trash, recoverable for 7 days from Settings, then purged for good."
+        :dismissible="!deleting"
+        @close="deletingGame = null"
       >
-        <div class="confirm-dialog">
-          <h3>Delete {{ deletingGame.title }}?</h3>
-          <p>
-            Moved to trash, recoverable for 7 days from Settings, then purged
-            for good.
-          </p>
-          <div v-if="deleteError" class="confirm-error">{{ deleteError }}</div>
-          <div class="confirm-actions">
-            <button
-              type="button"
-              class="secondary-button"
-              @click="deletingGame = null"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              class="danger-button"
-              :disabled="deleting"
-              @click="confirmDelete"
-            >
-              {{ deleting ? "Deleting…" : "Delete" }}
-            </button>
-          </div>
+        <p>Delete {{ deletingGame.title }}?</p>
+        <div v-if="deleteError" class="confirm-error">{{ deleteError }}</div>
+        <div class="confirm-actions">
+          <button
+            type="button"
+            class="secondary-button"
+            @click="deletingGame = null"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            class="danger-button"
+            :disabled="deleting"
+            @click="confirmDelete"
+          >
+            {{ deleting ? "Deleting…" : "Delete" }}
+          </button>
         </div>
-      </div>
+      </UiModal>
     </div>
   </main>
 </template>
@@ -2365,16 +2404,16 @@ watch(viewMode, (mode) => {
 <style scoped>
 .library {
   position: relative;
-  font-family: system-ui, sans-serif;
-  background: #0d0d0d;
-  min-height: 100vh;
-  color: #fff;
+  font-family: var(--ui-font-family);
+  background: var(--ui-bg);
+  min-height: 100dvh;
+  color: var(--ui-text);
   overflow-x: hidden;
 }
 /* List + preview mode: the page itself doesn't scroll, only the list and
    preview panes do, via their own overflow-y (see .detail-list/.detail-preview) */
 .library.locked {
-  height: 100vh;
+  height: 100dvh;
   overflow-y: hidden;
   box-sizing: border-box;
 }
@@ -2393,14 +2432,10 @@ watch(viewMode, (mode) => {
 .content {
   position: relative;
   z-index: 1;
-  padding: 24px 24px 24px 48px;
+  padding: 84px var(--ui-edge-right) 48px var(--ui-edge-left);
   box-sizing: border-box;
 }
-@media (max-width: 720px) {
-  .content {
-    padding: 16px 14px 24px;
-  }
-}
+
 .header-row {
   display: flex;
   flex-wrap: wrap;
@@ -2412,21 +2447,11 @@ watch(viewMode, (mode) => {
      grid, only kicks in outside "List + preview" mode, which scrolls its
      own panes instead of the page */
   position: sticky;
-  top: 0;
+  top: 64px;
   z-index: 5;
-  background: #0d0d0d;
+  background: var(--ui-bg);
   padding: 20px 0 16px;
   margin-top: -20px;
-}
-.header-row h1 {
-  margin: 0;
-  font-size: 1.7rem;
-  font-weight: 800;
-}
-.header-row .sub {
-  margin-top: 2px;
-  color: #888;
-  font-size: 0.85rem;
 }
 .header-actions {
   display: flex;
@@ -2436,12 +2461,12 @@ watch(viewMode, (mode) => {
 }
 .search-input,
 .filter-select {
-  height: 38px;
+  min-height: var(--ui-control-height);
   box-sizing: border-box;
-  background: #111;
-  border: 1px solid #3a3a3a;
-  border-radius: 8px;
-  color: #fff;
+  background: var(--ui-bg);
+  border: 1px solid var(--ui-border-strong);
+  border-radius: var(--ui-radius-control);
+  color: var(--ui-text);
   padding: 0 14px;
   font: inherit;
   font-size: 13px;
@@ -2456,22 +2481,22 @@ watch(viewMode, (mode) => {
 .search-input:focus,
 .filter-select:focus {
   outline: none;
-  border-color: #d68a34;
+  border-color: var(--ui-accent);
 }
 .recent-searches-dropdown {
   position: absolute;
   top: calc(100% + 6px);
   left: 0;
   width: 220px;
-  background: #1a1a1a;
-  border: 1px solid #2a2a2a;
-  border-radius: 8px;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
   padding: 6px;
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
   z-index: 20;
 }
 .recent-searches-label {
-  color: #777;
+  color: var(--ui-faint);
   font-size: 10.5px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -2484,7 +2509,7 @@ watch(viewMode, (mode) => {
   width: 100%;
   background: none;
   border: none;
-  color: #eee;
+  color: var(--ui-text);
   font-size: 13px;
   text-align: left;
   padding: 7px 8px;
@@ -2492,16 +2517,16 @@ watch(viewMode, (mode) => {
   cursor: pointer;
 }
 .recent-search-item:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--ui-text) 6%, transparent);
 }
 .recent-search-remove {
-  color: #666;
+  color: var(--ui-faint);
   font-size: 11px;
   padding: 2px 4px;
   border-radius: 4px;
 }
 .recent-search-remove:hover {
-  color: #fca5a5;
+  color: var(--ui-error);
 }
 .select-button-wrap,
 .presets-wrap {
@@ -2517,17 +2542,17 @@ watch(viewMode, (mode) => {
   align-items: center;
   gap: 10px;
   padding-left: 12px;
-  border-left: 3px solid #d68a34;
+  border-left: 3px solid var(--ui-accent);
   margin-bottom: 4px;
 }
 .shelf-row-header h2 {
   margin: 0;
   font-size: 1.05rem;
-  color: #fff;
+  color: var(--ui-text);
 }
 .shelf-row-count {
-  background: rgba(255, 255, 255, 0.06);
-  color: #999;
+  background: color-mix(in srgb, var(--ui-text) 6%, transparent);
+  color: var(--ui-dim);
   font-size: 12px;
   font-weight: 600;
   padding: 3px 10px;
@@ -2555,7 +2580,7 @@ watch(viewMode, (mode) => {
   width: 40px;
   border: none;
   background: linear-gradient(to right, rgba(10, 10, 10, 0.85), transparent);
-  color: #fff;
+  color: var(--ui-text);
   font-size: 26px;
   line-height: 1;
   cursor: pointer;
@@ -2580,16 +2605,16 @@ watch(viewMode, (mode) => {
   pointer-events: auto;
 }
 .shelf-arrow:hover {
-  color: #d68a34;
+  color: var(--ui-accent-text);
 }
 .presets-dropdown {
   position: absolute;
   top: calc(100% + 6px);
   left: 0;
   width: 220px;
-  background: #1a1a1a;
-  border: 1px solid #2a2a2a;
-  border-radius: 8px;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
   padding: 6px;
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
   z-index: 20;
@@ -2601,7 +2626,7 @@ watch(viewMode, (mode) => {
   width: 100%;
   background: none;
   border: none;
-  color: #eee;
+  color: var(--ui-text);
   font-size: 13px;
   text-align: left;
   padding: 8px;
@@ -2609,19 +2634,19 @@ watch(viewMode, (mode) => {
   cursor: pointer;
 }
 .preset-item:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--ui-text) 6%, transparent);
 }
 .preset-remove {
-  color: #666;
+  color: var(--ui-faint);
   font-size: 11px;
   padding: 2px 4px;
   border-radius: 4px;
 }
 .preset-remove:hover {
-  color: #fca5a5;
+  color: var(--ui-error);
 }
 .preset-empty {
-  color: #666;
+  color: var(--ui-faint);
   font-size: 12px;
   padding: 8px;
   margin: 0;
@@ -2629,9 +2654,9 @@ watch(viewMode, (mode) => {
 .preset-save {
   display: block;
   width: 100%;
-  background: rgba(214, 138, 52, 0.12);
+  background: color-mix(in srgb, var(--ui-accent) 12%, transparent);
   border: none;
-  color: #d68a34;
+  color: var(--ui-accent-text);
   font-size: 12.5px;
   font-weight: 600;
   text-align: left;
@@ -2641,16 +2666,16 @@ watch(viewMode, (mode) => {
   margin-top: 4px;
 }
 .preset-save:hover {
-  background: rgba(214, 138, 52, 0.2);
+  background: color-mix(in srgb, var(--ui-accent) 20%, transparent);
 }
 .first-use-hint {
   position: absolute;
   top: calc(100% + 8px);
-  left: 0;
+  right: 0;
   width: 240px;
-  background: #1a1a1a;
-  border: 1px solid #d68a34;
-  border-radius: 8px;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-accent);
+  border-radius: var(--ui-radius-control);
   padding: 12px 14px;
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
   z-index: 20;
@@ -2659,15 +2684,16 @@ watch(viewMode, (mode) => {
   gap: 10px;
 }
 .first-use-hint span {
-  color: #eee;
+  color: var(--ui-text);
   font-size: 12.5px;
   line-height: 1.5;
 }
 .first-use-hint-dismiss {
+  min-height: var(--ui-control-height);
   align-self: flex-end;
-  background: rgba(214, 138, 52, 0.14);
+  background: color-mix(in srgb, var(--ui-accent) 14%, transparent);
   border: none;
-  color: #d68a34;
+  color: var(--ui-accent-text);
   border-radius: 6px;
   padding: 5px 10px;
   font-size: 12px;
@@ -2675,47 +2701,49 @@ watch(viewMode, (mode) => {
   cursor: pointer;
 }
 .first-use-hint-dismiss:hover {
-  background: rgba(214, 138, 52, 0.24);
+  background: color-mix(in srgb, var(--ui-accent) 24%, transparent);
 }
-/* anchored to Select, the tip ran off a phone screen */
-@media (max-width: 600px) {
+/* Keep the first-use tip clear of the phone navigation and tablet rail. */
+@media (max-width: 1100px) {
   .first-use-hint {
     position: fixed;
     top: auto;
     left: 16px;
     right: 16px;
-    bottom: 16px;
+    bottom: calc(104px + env(safe-area-inset-bottom));
     width: auto;
+    max-width: 400px;
+    margin-left: auto;
   }
 }
 .density-toggle {
   display: flex;
   gap: 2px;
-  background: rgba(0, 0, 0, 0.3);
-  border: 1px solid #2a2a2a;
-  border-radius: 8px;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
   padding: 3px;
-  height: 38px;
+  min-height: var(--ui-control-height);
   box-sizing: border-box;
 }
 .density-button {
   background: none;
   border: none;
-  color: #999;
-  width: 28px;
-  height: 32px;
+  color: var(--ui-dim);
+  width: var(--ui-control-height);
+  height: var(--ui-control-height);
   border-radius: 6px;
   cursor: pointer;
   font-size: 11px;
   font-weight: 700;
 }
 .density-button:hover {
-  color: #fff;
-  background: rgba(255, 255, 255, 0.06);
+  color: var(--ui-text);
+  background: color-mix(in srgb, var(--ui-text) 6%, transparent);
 }
 .density-button.active {
-  color: #111;
-  background: #d68a34;
+  color: var(--ui-on-accent);
+  background: var(--ui-accent);
 }
 .active-filter-pills {
   display: flex;
@@ -2728,54 +2756,54 @@ watch(viewMode, (mode) => {
   display: flex;
   align-items: center;
   gap: 6px;
-  background: rgba(214, 138, 52, 0.12);
-  border: 1px solid rgba(214, 138, 52, 0.35);
-  color: #f0c896;
+  background: color-mix(in srgb, var(--ui-accent) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ui-accent) 35%, transparent);
+  color: var(--ui-accent-text);
   border-radius: 999px;
   padding: 5px 10px 5px 12px;
   font-size: 12px;
   cursor: pointer;
 }
 .filter-pill:hover {
-  background: rgba(214, 138, 52, 0.2);
+  background: color-mix(in srgb, var(--ui-accent) 20%, transparent);
 }
 .filter-pill-x {
-  color: #d68a34;
+  color: var(--ui-accent-text);
   font-size: 10px;
 }
 .filter-pill-clear-all {
   background: none;
   border: none;
-  color: #777;
+  color: var(--ui-faint);
   font-size: 12px;
   text-decoration: underline;
   cursor: pointer;
   padding: 5px 4px;
 }
 .filter-pill-clear-all:hover {
-  color: #ccc;
+  color: var(--ui-text);
 }
 .search-suggestions {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 8px;
-  color: #999;
+  color: var(--ui-dim);
   font-size: 13px;
   margin-top: -8px;
 }
 .search-suggestion-item {
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid #3a3a3a;
-  color: #fff;
+  background: color-mix(in srgb, var(--ui-text) 6%, transparent);
+  border: 1px solid var(--ui-border-strong);
+  color: var(--ui-text);
   border-radius: 999px;
   padding: 5px 12px;
   font-size: 12.5px;
   cursor: pointer;
 }
 .search-suggestion-item:hover {
-  border-color: #d68a34;
-  color: #d68a34;
+  border-color: var(--ui-accent);
+  color: var(--ui-accent-text);
 }
 .empty-hint-list {
   list-style: none;
@@ -2788,15 +2816,15 @@ watch(viewMode, (mode) => {
   max-width: 420px;
 }
 .empty-hint-list li {
-  color: #999;
+  color: var(--ui-dim);
   font-size: 12.5px;
   line-height: 1.5;
-  background: rgba(255, 255, 255, 0.04);
+  background: color-mix(in srgb, var(--ui-text) 4%, transparent);
   border-radius: 6px;
   padding: 8px 12px;
 }
 .filter-select:hover {
-  border-color: #4a4a4a;
+  border-color: var(--ui-border-strong);
 }
 .filter-select {
   appearance: none;
@@ -2809,19 +2837,19 @@ watch(viewMode, (mode) => {
 .view-toggle {
   display: flex;
   gap: 2px;
-  background: rgba(0, 0, 0, 0.3);
-  border: 1px solid #2a2a2a;
-  border-radius: 8px;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
   padding: 3px;
-  height: 38px;
+  min-height: var(--ui-control-height);
   box-sizing: border-box;
 }
 .view-toggle-button {
   background: none;
   border: none;
-  color: #999;
-  width: 32px;
-  height: 32px;
+  color: var(--ui-dim);
+  width: var(--ui-control-height);
+  height: var(--ui-control-height);
   border-radius: 6px;
   cursor: pointer;
   display: flex;
@@ -2832,21 +2860,21 @@ watch(viewMode, (mode) => {
     color 0.15s ease;
 }
 .view-toggle-button:hover {
-  color: #fff;
-  background: rgba(255, 255, 255, 0.06);
+  color: var(--ui-text);
+  background: color-mix(in srgb, var(--ui-text) 6%, transparent);
 }
 .view-toggle-button.active {
-  color: #111;
-  background: #d68a34;
+  color: var(--ui-on-accent);
+  background: var(--ui-accent);
   box-shadow: 0 2px 8px rgba(214, 138, 52, 0.4);
 }
 .add-button {
-  height: 38px;
+  min-height: var(--ui-control-height);
   box-sizing: border-box;
-  background: #d68a34;
-  color: #111;
+  background: var(--ui-accent);
+  color: var(--ui-on-accent);
   border: none;
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   padding: 0 18px;
   font-weight: 600;
   cursor: pointer;
@@ -2875,12 +2903,12 @@ watch(viewMode, (mode) => {
 
 /* Advanced filters */
 .advanced-toggle {
-  height: 38px;
+  min-height: var(--ui-control-height);
   box-sizing: border-box;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid #3a3a3a;
-  border-radius: 8px;
-  color: #ccc;
+  background: color-mix(in srgb, var(--ui-text) 6%, transparent);
+  border: 1px solid var(--ui-border-strong);
+  border-radius: var(--ui-radius-control);
+  color: var(--ui-text);
   padding: 0 16px;
   font-size: 13px;
   font-weight: 600;
@@ -2894,24 +2922,24 @@ watch(viewMode, (mode) => {
     color 0.15s ease;
 }
 .advanced-toggle:hover {
-  color: #fff;
-  border-color: #4a4a4a;
+  color: var(--ui-text);
+  border-color: var(--ui-border-strong);
 }
 .advanced-toggle.active {
-  color: #d68a34;
-  border-color: rgba(214, 138, 52, 0.5);
-  background: rgba(214, 138, 52, 0.1);
+  color: var(--ui-accent-text);
+  border-color: color-mix(in srgb, var(--ui-accent) 50%, transparent);
+  background: color-mix(in srgb, var(--ui-accent) 10%, transparent);
 }
 .bulk-toolbar {
   display: flex;
   align-items: center;
   gap: 12px;
-  background: rgba(214, 138, 52, 0.08);
-  border: 1px solid rgba(214, 138, 52, 0.3);
-  border-radius: 10px;
+  background: color-mix(in srgb, var(--ui-accent) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ui-accent) 30%, transparent);
+  border-radius: var(--ui-radius-control);
   padding: 12px 16px;
   margin-bottom: 20px;
-  color: #d68a34;
+  color: var(--ui-accent-text);
   font-size: 13px;
   font-weight: 600;
 }
@@ -2919,11 +2947,11 @@ watch(viewMode, (mode) => {
   margin-left: auto;
 }
 .form-success.bulk-success {
-  color: #86efac;
+  color: var(--ui-good);
   font-size: 13px;
   background: rgba(34, 197, 94, 0.1);
   border: 1px solid rgba(34, 197, 94, 0.3);
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   padding: 8px 12px;
   margin-bottom: 20px;
 }
@@ -2931,12 +2959,12 @@ watch(viewMode, (mode) => {
   width: 22px;
   height: 22px;
   border-radius: 6px;
-  border: 2px solid #4a4a4a;
-  background: rgba(0, 0, 0, 0.3);
+  border: 2px solid var(--ui-border-strong);
+  background: var(--ui-surface);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #111;
+  color: var(--ui-text);
   flex-shrink: 0;
   cursor: pointer;
   transition:
@@ -2944,12 +2972,12 @@ watch(viewMode, (mode) => {
     border-color 0.15s ease;
 }
 .list-checkbox.checked {
-  background: #d68a34;
-  border-color: #d68a34;
+  background: var(--ui-accent);
+  border-color: var(--ui-accent);
 }
 .advanced-count {
-  background: #d68a34;
-  color: #111;
+  background: var(--ui-accent);
+  color: var(--ui-on-accent);
   font-size: 11px;
   font-weight: 700;
   border-radius: 999px;
@@ -2964,9 +2992,9 @@ watch(viewMode, (mode) => {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   gap: 14px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid #232323;
-  border-radius: 10px;
+  background: color-mix(in srgb, var(--ui-text) 3%, transparent);
+  border: 1px solid var(--ui-border-soft);
+  border-radius: var(--ui-radius-control);
   padding: 18px 20px;
   margin-bottom: 24px;
 }
@@ -2984,25 +3012,25 @@ watch(viewMode, (mode) => {
   gap: 6px;
 }
 .tag-chip {
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid #3a3a3a;
-  color: #ccc;
+  background: color-mix(in srgb, var(--ui-text) 6%, transparent);
+  border: 1px solid var(--ui-border-strong);
+  color: var(--ui-text);
   border-radius: 999px;
   padding: 5px 12px;
   font-size: 12px;
   cursor: pointer;
 }
 .tag-chip:hover {
-  border-color: #4a4a4a;
+  border-color: var(--ui-border-strong);
 }
 .tag-chip.active {
-  background: #d68a34;
-  border-color: #d68a34;
-  color: #111;
+  background: var(--ui-accent);
+  border-color: var(--ui-accent);
+  color: var(--ui-on-accent);
   font-weight: 600;
 }
 .advanced-field label {
-  color: #888;
+  color: var(--ui-faint);
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -3019,13 +3047,13 @@ watch(viewMode, (mode) => {
   align-items: center;
   gap: 10px;
   padding-top: 6px;
-  border-top: 1px solid #232323;
+  border-top: 1px solid var(--ui-border-soft);
   margin-top: 4px;
 }
 .toggle-chip {
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid #3a3a3a;
-  color: #ccc;
+  background: color-mix(in srgb, var(--ui-text) 6%, transparent);
+  border: 1px solid var(--ui-border-strong);
+  color: var(--ui-text);
   border-radius: 999px;
   padding: 7px 14px;
   font-size: 12.5px;
@@ -3037,34 +3065,34 @@ watch(viewMode, (mode) => {
     color 0.15s ease;
 }
 .toggle-chip:hover {
-  border-color: #4a4a4a;
+  border-color: var(--ui-border-strong);
 }
 .toggle-chip.active {
-  color: #d68a34;
-  border-color: rgba(214, 138, 52, 0.5);
-  background: rgba(214, 138, 52, 0.14);
+  color: var(--ui-accent-text);
+  border-color: color-mix(in srgb, var(--ui-accent) 50%, transparent);
+  background: color-mix(in srgb, var(--ui-accent) 14%, transparent);
 }
 .clear-advanced {
   margin-left: auto;
   background: none;
   border: none;
-  color: #999;
+  color: var(--ui-dim);
   font-size: 12.5px;
   font-weight: 600;
   cursor: pointer;
   text-decoration: underline;
 }
 .clear-advanced:hover:not(:disabled) {
-  color: #fff;
+  color: var(--ui-text);
 }
 .clear-advanced:disabled {
-  color: #555;
+  color: var(--ui-faint);
   cursor: not-allowed;
   text-decoration: none;
 }
 
 .error {
-  color: #f87171;
+  color: var(--ui-error);
 }
 
 .skeleton-grid {
@@ -3085,7 +3113,7 @@ watch(viewMode, (mode) => {
   text-align: center;
   gap: 8px;
   padding: 80px 20px;
-  color: #777;
+  color: var(--ui-faint);
 }
 .empty-state svg {
   color: #444;
@@ -3093,7 +3121,7 @@ watch(viewMode, (mode) => {
 }
 .empty-state h3 {
   margin: 0;
-  color: #ccc;
+  color: var(--ui-text);
   font-size: 1.05rem;
 }
 .empty-state p {
@@ -3106,16 +3134,19 @@ watch(viewMode, (mode) => {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  overflow-x: auto;
 }
 .list-header {
   display: flex;
   align-items: center;
   gap: 24px;
   padding: 0 28px 8px;
+  min-width: 1100px;
+  box-sizing: border-box;
 }
 .list-header span,
 .list-header .sortable {
-  color: #666;
+  color: var(--ui-faint);
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -3131,7 +3162,7 @@ watch(viewMode, (mode) => {
 }
 .list-header .sortable:hover,
 .list-header .sortable.active {
-  color: #d68a34;
+  color: var(--ui-accent-text);
 }
 .list-header-spacer {
   width: 44px;
@@ -3145,10 +3176,12 @@ watch(viewMode, (mode) => {
   display: flex;
   align-items: center;
   gap: 24px;
+  min-width: 1100px;
+  box-sizing: border-box;
   padding: 12px 28px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid #232323;
-  border-radius: 10px;
+  background: color-mix(in srgb, var(--ui-text) 3%, transparent);
+  border: 1px solid var(--ui-border-soft);
+  border-radius: var(--ui-radius-control);
   cursor: pointer;
   transition:
     background 0.15s ease,
@@ -3157,8 +3190,8 @@ watch(viewMode, (mode) => {
     border-color 0.15s ease;
 }
 .list-row:hover {
-  background: rgba(255, 255, 255, 0.06);
-  border-color: #333;
+  background: color-mix(in srgb, var(--ui-text) 6%, transparent);
+  border-color: var(--ui-border);
   transform: translateX(2px);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
 }
@@ -3174,10 +3207,19 @@ watch(viewMode, (mode) => {
   flex: 1;
   font-weight: 600;
   font-size: 14.5px;
-  color: #fff;
+  color: var(--ui-text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.list-open {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  text-align: left;
+  font-family: inherit;
+  cursor: pointer;
+  min-height: var(--ui-control-height);
 }
 .list-status {
   width: 100px;
@@ -3185,13 +3227,13 @@ watch(viewMode, (mode) => {
   display: flex;
   justify-content: center;
   text-transform: capitalize;
-  color: #ccc;
+  color: var(--ui-text);
   font-size: 12px;
 }
 .status-pill {
   width: 82px;
   text-align: center;
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--ui-text) 6%, transparent);
   padding: 4px 0;
   border-radius: 999px;
 }
@@ -3202,23 +3244,23 @@ watch(viewMode, (mode) => {
 .list-platform,
 .list-last-played,
 .list-release {
-  color: #999;
+  color: var(--ui-dim);
   font-size: 12px;
   min-width: 100px;
 }
 .list-score {
   min-width: 60px;
-  color: #d68a34;
+  color: var(--ui-accent-text);
   font-size: 12px;
   font-weight: 700;
 }
 .list-header .list-score {
-  color: #666;
+  color: var(--ui-faint);
   font-weight: 600;
 }
 .list-playtime {
   width: 60px;
-  color: #999;
+  color: var(--ui-dim);
   font-size: 12px;
 }
 .list-actions {
@@ -3229,12 +3271,12 @@ watch(viewMode, (mode) => {
   flex-shrink: 0;
 }
 .icon-button {
-  background: rgba(255, 255, 255, 0.08);
-  color: #999;
+  background: color-mix(in srgb, var(--ui-text) 8%, transparent);
+  color: var(--ui-dim);
   border: none;
-  border-radius: 8px;
-  width: 34px;
-  height: 34px;
+  border-radius: var(--ui-radius-control);
+  width: var(--ui-control-height);
+  height: var(--ui-control-height);
   flex-shrink: 0;
   cursor: pointer;
   display: flex;
@@ -3245,12 +3287,12 @@ watch(viewMode, (mode) => {
     color 0.15s ease;
 }
 .icon-button:hover {
-  background: rgba(255, 255, 255, 0.14);
-  color: #ccc;
+  background: color-mix(in srgb, var(--ui-text) 14%, transparent);
+  color: var(--ui-text);
 }
 .icon-button.active {
-  color: #d68a34;
-  background: rgba(214, 138, 52, 0.16);
+  color: var(--ui-accent-text);
+  background: color-mix(in srgb, var(--ui-accent) 16%, transparent);
 }
 
 /* Detail (list + preview) view, a bounded-height split panel so the list
@@ -3262,7 +3304,7 @@ watch(viewMode, (mode) => {
   gap: 20px;
   align-items: start;
   height: calc(100vh - 262px);
-  min-height: 420px;
+  min-height: 280px;
 }
 .detail-list {
   display: flex;
@@ -3278,10 +3320,10 @@ watch(viewMode, (mode) => {
   gap: 12px;
   background: none;
   border: 1px solid transparent;
-  border-radius: 10px;
+  border-radius: var(--ui-radius-control);
   padding: 8px;
   cursor: pointer;
-  color: #ccc;
+  color: var(--ui-text);
   text-align: left;
   transition:
     background 0.15s ease,
@@ -3289,13 +3331,13 @@ watch(viewMode, (mode) => {
     transform 0.15s ease;
 }
 .detail-list-item:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: color-mix(in srgb, var(--ui-text) 5%, transparent);
   transform: translateX(2px);
 }
 .detail-list-item.active {
-  background: rgba(214, 138, 52, 0.16);
-  border-color: rgba(214, 138, 52, 0.5);
-  color: #fff;
+  background: color-mix(in srgb, var(--ui-accent) 16%, transparent);
+  border-color: color-mix(in srgb, var(--ui-accent) 50%, transparent);
+  color: var(--ui-text);
   box-shadow: 0 4px 16px rgba(214, 138, 52, 0.15);
 }
 .detail-list-thumb {
@@ -3307,9 +3349,9 @@ watch(viewMode, (mode) => {
   flex-shrink: 0;
 }
 .detail-preview {
-  border: 1px solid #2a2a2a;
+  border: 1px solid var(--ui-border);
   border-radius: 16px;
-  background: rgba(0, 0, 0, 0.3);
+  background: var(--ui-surface);
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
   height: 100%;
   overflow-y: auto;
@@ -3323,11 +3365,7 @@ watch(viewMode, (mode) => {
 .preview-banner-overlay {
   position: absolute;
   inset: 0;
-  background: linear-gradient(
-    180deg,
-    rgba(18, 18, 18, 0) 40%,
-    rgba(18, 18, 18, 0.95) 100%
-  );
+  background: linear-gradient(180deg, transparent 40%, var(--ui-surface) 100%);
 }
 .preview-info {
   padding: 20px;
@@ -3341,13 +3379,13 @@ watch(viewMode, (mode) => {
   margin-bottom: 14px;
 }
 .preview-badge {
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: color-mix(in srgb, var(--ui-text) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ui-text) 10%, transparent);
   padding: 5px 14px;
   border-radius: 999px;
   font-size: 12px;
   text-transform: capitalize;
-  color: #ccc;
+  color: var(--ui-text);
 }
 .preview-details {
   display: flex;
@@ -3355,13 +3393,13 @@ watch(viewMode, (mode) => {
   gap: 10px;
   margin-bottom: 18px;
   padding-top: 14px;
-  border-top: 1px solid #2a2a2a;
+  border-top: 1px solid var(--ui-border);
 }
 .preview-platforms {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  color: #ddd;
+  color: var(--ui-text);
   font-size: 13px;
 }
 .preview-links {
@@ -3370,7 +3408,7 @@ watch(viewMode, (mode) => {
   gap: 2px;
 }
 .preview-links a {
-  color: #d68a34;
+  color: var(--ui-accent-text);
   font-size: 13px;
   text-decoration: none;
 }
@@ -3381,11 +3419,11 @@ watch(viewMode, (mode) => {
   display: flex;
   gap: 10px;
   font-size: 13px;
-  color: #ddd;
+  color: var(--ui-text);
   align-items: baseline;
 }
 .preview-detail-label {
-  color: #888;
+  color: var(--ui-faint);
   min-width: 80px;
   flex-shrink: 0;
 }
@@ -3395,11 +3433,11 @@ watch(viewMode, (mode) => {
   gap: 6px;
 }
 .preview-pill {
-  background: #2a2a2a;
+  background: var(--ui-border);
   padding: 3px 10px;
   border-radius: 999px;
   font-size: 11px;
-  color: #ccc;
+  color: var(--ui-text);
 }
 .preview-fade-enter-active,
 .preview-fade-leave-active {
@@ -3410,10 +3448,10 @@ watch(viewMode, (mode) => {
   opacity: 0;
 }
 .preview-badge.score {
-  color: #d68a34;
+  color: var(--ui-accent-text);
 }
 .preview-description-html {
-  color: #ccc;
+  color: var(--ui-text);
   line-height: 1.6;
   margin: 0 0 18px;
   max-width: 100%;
@@ -3423,7 +3461,7 @@ watch(viewMode, (mode) => {
 .preview-description-html :deep(video) {
   max-width: 100%;
   height: auto;
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   margin: 10px 0;
   display: block;
 }
@@ -3433,13 +3471,13 @@ watch(viewMode, (mode) => {
   margin: 18px 0 6px;
   font-size: 15px;
   font-weight: 700;
-  color: #fff;
+  color: var(--ui-text);
 }
 .preview-description-html :deep(p) {
   margin: 0 0 12px;
 }
 .preview-description-html :deep(a) {
-  color: #d68a34;
+  color: var(--ui-accent-text);
 }
 .preview-description-html :deep(ul) {
   padding-left: 20px;
@@ -3450,7 +3488,7 @@ watch(viewMode, (mode) => {
   gap: 10px;
 }
 .empty-row {
-  color: #777;
+  color: var(--ui-faint);
   font-size: 14px;
 }
 
@@ -3460,24 +3498,24 @@ watch(viewMode, (mode) => {
 .small-button,
 .danger-button {
   border: none;
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   padding: 9px 16px;
   font-weight: 600;
   cursor: pointer;
   font-size: 13px;
 }
 .primary-button {
-  background: #d68a34;
-  color: #111;
+  background: var(--ui-accent);
+  color: var(--ui-on-accent);
 }
 .secondary-button,
 .small-button {
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
+  background: color-mix(in srgb, var(--ui-text) 8%, transparent);
+  color: var(--ui-text);
 }
 .danger-button {
   background: rgba(220, 38, 38, 0.18);
-  color: #fca5a5;
+  color: var(--ui-error);
 }
 .danger-button:disabled {
   opacity: 0.5;
@@ -3485,34 +3523,13 @@ watch(viewMode, (mode) => {
 }
 
 /* Confirm dialog */
-.confirm-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.65);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 60;
-}
-.confirm-dialog {
-  background: #1a1a1a;
-  border: 1px solid #2a2a2a;
-  border-radius: 12px;
-  padding: 22px;
-  width: 100%;
-  max-width: 360px;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
-}
-.confirm-dialog h3 {
-  margin: 0 0 8px;
-}
 .confirm-dialog p {
   margin: 0 0 16px;
-  color: #aaa;
+  color: var(--ui-dim);
   font-size: 14px;
 }
 .confirm-error {
-  color: #fca5a5;
+  color: var(--ui-error);
   font-size: 13px;
   margin-bottom: 12px;
 }
@@ -3522,60 +3539,207 @@ watch(viewMode, (mode) => {
   gap: 10px;
 }
 
-/* Mobile, the list view's per-column widths and the detail view's fixed
-   260px/1fr split were both designed against a desktop-width container and
-   had never been checked below it: list rows squeezed the title (the one
-   thing you actually need to read) to zero width, and the detail split
-   crushed the preview pane to an unreadable sliver. List scrolls
-   horizontally instead of losing the title; detail stacks into one column
-   with a shorter, horizontally-scrolling game strip above the preview. */
-@media (max-width: 760px) {
-  .list-view {
-    overflow-x: auto;
-  }
-  .list-header,
-  .list-row {
-    min-width: 640px;
-  }
-  .list-title {
-    /* flex:1's default flex-basis:0% let this shrink all the way to 0,
-       invisible: once the row's other fixed-width columns took priority.
-       A real floor forces the row to actually grow past the viewport
-       (triggering the horizontal scroll above) instead of hiding the one
-       thing worth reading. */
-    min-width: 140px;
-  }
-  .detail-view {
-    grid-template-columns: 1fr;
-    grid-template-rows: auto 1fr;
-    height: auto;
-  }
-  .detail-list {
-    flex-direction: row;
-    overflow-x: auto;
-    overflow-y: hidden;
-    height: auto;
-    padding-bottom: 6px;
-  }
-  .detail-list-item {
-    flex-direction: column;
-    text-align: center;
-    width: 84px;
-    flex-shrink: 0;
-  }
-  .detail-list-item span {
-    font-size: 11px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    width: 100%;
-  }
+/* Phone lists retain all fields and actions as labelled cards. The preview
+   switches to a horizontal picker above its content. */
+@media (max-width: 1100px) {
   .library.locked {
     height: auto;
     overflow-y: visible;
   }
   .library.locked .content {
     height: auto;
+    display: block;
+  }
+  .library.locked .detail-view {
+    min-height: 420px;
+  }
+}
+@media (max-width: 760px) {
+  .header-row {
+    position: static;
+    margin-top: 0;
+    padding: 0;
+  }
+  .header-actions {
+    width: 100%;
+    gap: 8px;
+  }
+  .search-wrap,
+  .search-input {
+    width: 100%;
+  }
+  .header-actions > .combobox,
+  .header-actions > .filter-select {
+    flex: 1 1 130px;
+    min-width: 0;
+    max-width: 100%;
+  }
+  .header-actions > .combobox :deep(input) {
+    width: 100%;
+  }
+  .advanced-panel {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .bulk-toolbar,
+  .preview-actions,
+  .preview-meta {
+    flex-wrap: wrap;
+  }
+  .list-view {
+    overflow-x: visible;
+  }
+  .list-header {
+    display: none;
+  }
+  .list-row {
+    position: relative;
+    min-width: 0;
+    display: grid;
+    grid-template-columns: 44px minmax(0, 1fr) minmax(0, 1fr);
+    gap: 8px 12px;
+    padding: 16px;
+    border-radius: var(--ui-radius-row);
+  }
+  .list-open {
+    grid-column: 2 / -1;
+    min-width: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  .list-cover {
+    grid-column: 1;
+    grid-row: 1 / 4;
+    align-self: start;
+  }
+  .list-status {
+    grid-column: 2 / -1;
+    width: auto;
+    justify-content: flex-start;
+  }
+  .status-pill {
+    width: auto;
+    padding: 4px 10px;
+  }
+  .list-row > [data-label] {
+    min-width: 0;
+    width: auto;
+    overflow-wrap: anywhere;
+  }
+  .list-row > [data-label]::before {
+    content: attr(data-label);
+    display: block;
+    font-size: 10px;
+    color: var(--ui-dim);
+    font-weight: 400;
+  }
+  .list-genre,
+  .list-score,
+  .list-last-played {
+    grid-column: 2;
+  }
+  .list-platform,
+  .list-playtime,
+  .list-release {
+    grid-column: 3;
+  }
+  .list-actions {
+    grid-column: 1 / -1;
+    width: auto;
+    justify-content: flex-end;
+    border-top: 1px solid var(--ui-border-soft);
+    padding-top: 8px;
+  }
+  .list-actions .small-button {
+    margin-right: auto;
+  }
+  .list-checkbox {
+    position: absolute;
+    right: 12px;
+    top: 12px;
+    width: 44px;
+    height: 44px;
+  }
+  .list-row:has(.list-checkbox) .list-open {
+    padding-right: 48px;
+  }
+  .list-row:hover {
+    transform: none;
+  }
+  .library.locked .detail-view {
+    grid-template-columns: minmax(0, 1fr);
+    height: auto;
+    min-height: 0;
+  }
+  .detail-list {
+    flex-direction: row;
+    overflow-x: auto;
+    overflow-y: hidden;
+    height: auto;
+    min-height: 0;
+    padding-bottom: 8px;
+  }
+  .detail-list-item {
+    flex-direction: column;
+    text-align: center;
+    width: 100px;
+    flex-shrink: 0;
+  }
+  .detail-list-item span {
+    font-size: 12px;
+    overflow-wrap: anywhere;
+    width: 100%;
+  }
+  .detail-preview {
+    height: auto;
+    min-width: 0;
+    overflow: visible;
+  }
+  .preview-detail-row {
+    flex-wrap: wrap;
+  }
+  .preview-detail-label {
+    min-width: 0;
+  }
+  .preview-banner {
+    height: 180px;
+  }
+  .preview-info {
+    padding: 16px;
+  }
+  .preview-actions > button {
+    flex: 1 1 auto;
+  }
+  .preview-info h2,
+  .preview-links a {
+    overflow-wrap: anywhere;
+  }
+  .skeleton-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .density-toggle,
+  .view-toggle {
+    height: auto;
+  }
+}
+
+.primary-button,
+.secondary-button,
+.small-button,
+.danger-button,
+.tag-chip,
+.toggle-chip,
+.filter-pill,
+.clear-advanced,
+.preset-item,
+.preset-save,
+.recent-search-item {
+  min-height: var(--ui-control-height);
+  box-sizing: border-box;
+}
+
+@media (max-width: 760px) {
+  .library .content {
+    padding-top: 84px;
   }
 }
 </style>

@@ -1,8 +1,10 @@
 <script setup lang="ts">
+import UiModal from "../components/UiModal.vue";
 import { ref, computed, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import CollectionCard from "../components/CollectionCard.vue";
 import AccountChip from "../components/AccountChip.vue";
+import PageHeader from "../components/PageHeader.vue";
 import { fetchGames } from "../services/games";
 import type { Game } from "../types/game";
 import {
@@ -254,16 +256,28 @@ function smartIdForName(name: string): string | undefined {
     <AccountChip fixed />
 
     <div class="content">
+      <PageHeader
+        title="Collections"
+        :description="`${collectionSummaries.length} ${collectionSummaries.length === 1 ? 'collection' : 'collections'}`"
+      >
+        <template #actions>
+          <button
+            type="button"
+            class="ui-btn ui-btn-ghost"
+            @click="openSmartForm"
+          >
+            Smart collection
+          </button>
+          <button
+            type="button"
+            class="ui-btn ui-btn-primary"
+            @click="createCollection"
+          >
+            Create collection
+          </button>
+        </template>
+      </PageHeader>
       <div class="header-row">
-        <div>
-          <h1>Collections</h1>
-          <div class="sub">
-            {{ collectionSummaries.length }}
-            {{
-              collectionSummaries.length === 1 ? "collection" : "collections"
-            }}
-          </div>
-        </div>
         <div class="header-actions">
           <input
             v-model="searchQuery"
@@ -301,12 +315,6 @@ function smartIdForName(name: string): string | undefined {
               </button>
             </div>
           </div>
-          <button type="button" class="secondary-button" @click="openSmartForm">
-            + Smart Collection
-          </button>
-          <button type="button" class="add-button" @click="createCollection">
-            + Create Collection
-          </button>
         </div>
       </div>
 
@@ -334,112 +342,108 @@ function smartIdForName(name: string): string | undefined {
       </template>
     </div>
 
-    <div
+    <UiModal
       v-if="showSmartForm"
-      class="confirm-backdrop"
-      @click.self="showSmartForm = false"
+      title="New smart collection"
+      description="Membership updates automatically as your library changes."
+      @close="showSmartForm = false"
     >
-      <div class="confirm-dialog">
-        <h3>New smart collection</h3>
-        <p class="dialog-hint">
-          Membership updates automatically as your library changes.
-        </p>
-        <label class="field-label">
-          Name
-          <input
-            v-model="smartName"
-            type="text"
-            class="dialog-input"
-            placeholder="e.g. Mastered Games"
-          />
-        </label>
-        <label class="field-label">
-          Rule
-          <select v-model="smartField" class="dialog-input">
-            <option
-              v-for="(label, key) in SMART_FIELD_LABELS"
-              :key="key"
-              :value="key"
-            >
-              {{ label }}
-            </option>
-          </select>
-        </label>
-        <label v-if="smartField === 'status'" class="field-label">
-          Value
-          <select v-model="smartValue" class="dialog-input">
-            <option value="">Select…</option>
-            <option v-for="s in STATUS_OPTIONS" :key="s" :value="s">
-              {{ s }}
-            </option>
-          </select>
-        </label>
-        <label v-else-if="smartField === 'playtime_hours'" class="field-label">
-          Hours
-          <input
-            v-model="smartValue"
-            type="number"
-            min="0"
-            class="dialog-input"
-            placeholder="e.g. 20"
-          />
-        </label>
-        <label v-else-if="smartField === 'tag'" class="field-label">
-          Tag
-          <input
-            v-model="smartValue"
-            type="text"
-            list="smart-tag-options"
-            class="dialog-input"
-            placeholder="e.g. RPG"
-          />
-          <datalist id="smart-tag-options">
-            <option v-for="t in tagOptions" :key="t" :value="t" />
-          </datalist>
-        </label>
-        <label v-else-if="smartField === 'source'" class="field-label">
-          Source
-          <input
-            v-model="smartValue"
-            type="text"
-            list="smart-source-options"
-            class="dialog-input"
-            placeholder="e.g. Steam"
-          />
-          <datalist id="smart-source-options">
-            <option v-for="s in sourceOptions" :key="s" :value="s" />
-          </datalist>
-        </label>
-        <div v-if="smartError" class="error create-error">{{ smartError }}</div>
-        <div class="confirm-actions">
-          <button
-            type="button"
-            class="secondary-button"
-            @click="showSmartForm = false"
+      <label class="field-label">
+        Name
+        <input
+          v-model="smartName"
+          type="text"
+          class="dialog-input"
+          placeholder="e.g. Mastered Games"
+        />
+      </label>
+      <label class="field-label">
+        Rule
+        <select
+          v-model="smartField"
+          class="dialog-input"
+          aria-label="Smart collection rule"
+        >
+          <option
+            v-for="(label, key) in SMART_FIELD_LABELS"
+            :key="key"
+            :value="key"
           >
-            Cancel
-          </button>
-          <button
-            type="button"
-            class="add-button"
-            @click="createSmartCollection"
-          >
-            Create
-          </button>
-        </div>
+            {{ label }}
+          </option>
+        </select>
+      </label>
+      <label v-if="smartField === 'status'" class="field-label">
+        Value
+        <select v-model="smartValue" class="dialog-input">
+          <option value="">Select…</option>
+          <option v-for="s in STATUS_OPTIONS" :key="s" :value="s">
+            {{ s }}
+          </option>
+        </select>
+      </label>
+      <label v-else-if="smartField === 'playtime_hours'" class="field-label">
+        Hours
+        <input
+          v-model="smartValue"
+          type="number"
+          min="0"
+          class="dialog-input"
+          placeholder="e.g. 20"
+        />
+      </label>
+      <label v-else-if="smartField === 'tag'" class="field-label">
+        Tag
+        <input
+          v-model="smartValue"
+          type="text"
+          list="smart-tag-options"
+          class="dialog-input"
+          placeholder="e.g. RPG"
+        />
+        <datalist id="smart-tag-options">
+          <option v-for="t in tagOptions" :key="t" :value="t" />
+        </datalist>
+      </label>
+      <label v-else-if="smartField === 'source'" class="field-label">
+        Source
+        <input
+          v-model="smartValue"
+          type="text"
+          list="smart-source-options"
+          class="dialog-input"
+          placeholder="e.g. Steam"
+        />
+        <datalist id="smart-source-options">
+          <option v-for="s in sourceOptions" :key="s" :value="s" />
+        </datalist>
+      </label>
+      <div v-if="smartError" class="error create-error">{{ smartError }}</div>
+      <div class="confirm-actions">
+        <button
+          type="button"
+          class="secondary-button"
+          @click="showSmartForm = false"
+        >
+          Cancel
+        </button>
+        <button type="button" class="add-button" @click="createSmartCollection">
+          Create
+        </button>
       </div>
-    </div>
+    </UiModal>
   </main>
 </template>
 
 <style scoped>
 .collections-page {
   position: relative;
-  padding: 84px 24px 24px;
-  font-family: system-ui, sans-serif;
-  background: #0d0d0d;
+  padding: 84px var(--ui-edge-right) 48px var(--ui-edge-left);
+  box-sizing: border-box;
+  font-family: var(--ui-font-family);
+  background: var(--ui-bg);
   min-height: 100vh;
-  color: #fff;
+  color: var(--ui-text);
 }
 .header-row {
   display: flex;
@@ -449,16 +453,6 @@ function smartIdForName(name: string): string | undefined {
   gap: 16px;
   margin-bottom: 24px;
 }
-.header-row h1 {
-  margin: 0;
-  font-size: 1.7rem;
-  font-weight: 800;
-}
-.header-row .sub {
-  margin-top: 2px;
-  color: #888;
-  font-size: 0.85rem;
-}
 .header-actions {
   display: flex;
   flex-wrap: wrap;
@@ -467,12 +461,12 @@ function smartIdForName(name: string): string | undefined {
 }
 .search-input,
 .filter-select {
-  height: 38px;
+  min-height: var(--ui-control-height);
   box-sizing: border-box;
-  background: #111;
-  border: 1px solid #3a3a3a;
-  border-radius: 8px;
-  color: #fff;
+  background: var(--ui-bg);
+  border: 1px solid var(--ui-border-strong);
+  border-radius: var(--ui-radius-control);
+  color: var(--ui-text);
   padding: 0 14px;
   font: inherit;
   font-size: 13px;
@@ -484,10 +478,10 @@ function smartIdForName(name: string): string | undefined {
 .search-input:focus,
 .filter-select:focus {
   outline: none;
-  border-color: #d68a34;
+  border-color: var(--ui-accent);
 }
 .filter-select:hover {
-  border-color: #4a4a4a;
+  border-color: var(--ui-border-strong);
 }
 .filter-select {
   appearance: none;
@@ -498,12 +492,12 @@ function smartIdForName(name: string): string | undefined {
   background-position: right 16px center;
 }
 .add-button {
-  height: 38px;
+  min-height: var(--ui-control-height);
   box-sizing: border-box;
-  background: #d68a34;
-  color: #111;
+  background: var(--ui-accent);
+  color: var(--ui-on-accent);
   border: none;
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   padding: 0 18px;
   font-weight: 600;
   cursor: pointer;
@@ -512,29 +506,29 @@ function smartIdForName(name: string): string | undefined {
   position: relative;
 }
 .secondary-button {
-  height: 38px;
+  min-height: var(--ui-control-height);
   box-sizing: border-box;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid #3a3a3a;
-  border-radius: 8px;
-  color: #ccc;
+  background: color-mix(in srgb, var(--ui-text) 6%, transparent);
+  border: 1px solid var(--ui-border-strong);
+  border-radius: var(--ui-radius-control);
+  color: var(--ui-text);
   padding: 0 16px;
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
 }
 .secondary-button:hover {
-  border-color: #4a4a4a;
-  color: #fff;
+  border-color: var(--ui-border-strong);
+  color: var(--ui-text);
 }
 .templates-dropdown {
   position: absolute;
   top: calc(100% + 6px);
   right: 0;
   width: 200px;
-  background: #1a1a1a;
-  border: 1px solid #2a2a2a;
-  border-radius: 8px;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
   padding: 6px;
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
   z-index: 20;
@@ -544,7 +538,7 @@ function smartIdForName(name: string): string | undefined {
   width: 100%;
   background: none;
   border: none;
-  color: #eee;
+  color: var(--ui-text);
   font-size: 13px;
   text-align: left;
   padding: 8px;
@@ -552,10 +546,10 @@ function smartIdForName(name: string): string | undefined {
   cursor: pointer;
 }
 .template-item:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--ui-text) 6%, transparent);
 }
 .template-item:disabled {
-  color: #555;
+  color: var(--ui-faint);
   cursor: not-allowed;
 }
 /* fixed 10-per-row grid, column width only depends on the container, never
@@ -563,7 +557,7 @@ function smartIdForName(name: string): string | undefined {
    the next row instead of resizing every existing card */
 .grid {
   display: grid;
-  grid-template-columns: repeat(10, 1fr);
+  grid-template-columns: repeat(auto-fill, minmax(min(140px, 100%), 1fr));
   gap: 16px;
 }
 .grid :deep(.collection-card-wrap) {
@@ -571,75 +565,65 @@ function smartIdForName(name: string): string | undefined {
   min-width: 0;
 }
 .empty-row {
-  color: #777;
+  color: var(--ui-faint);
   font-size: 14px;
 }
 .error {
-  color: #f87171;
+  color: var(--ui-error);
 }
 .create-error {
   font-size: 13px;
   background: rgba(220, 38, 38, 0.1);
   border: 1px solid rgba(220, 38, 38, 0.3);
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   padding: 8px 12px;
   margin-bottom: 16px;
-}
-.confirm-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.65);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 200;
-}
-.confirm-dialog {
-  background: #1a1a1a;
-  border: 1px solid #2a2a2a;
-  border-radius: 12px;
-  padding: 22px;
-  width: 100%;
-  max-width: 360px;
-  max-height: 85vh;
-  overflow-y: auto;
-  box-sizing: border-box;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
-}
-.confirm-dialog h3 {
-  margin: 0 0 6px;
-  color: #fff;
-}
-.dialog-hint {
-  color: #999;
-  font-size: 12.5px;
-  margin: 0 0 16px;
 }
 .field-label {
   display: flex;
   flex-direction: column;
   gap: 6px;
   font-size: 0.82rem;
-  color: #ccc;
+  color: var(--ui-text);
   margin-bottom: 14px;
 }
 .dialog-input {
-  background: #111;
-  border: 1px solid #3a3a3a;
-  border-radius: 8px;
-  color: #fff;
+  background: var(--ui-bg);
+  border: 1px solid var(--ui-border-strong);
+  border-radius: var(--ui-radius-control);
+  color: var(--ui-text);
   padding: 9px 12px;
   font: inherit;
   font-size: 13px;
 }
 .dialog-input:focus {
   outline: none;
-  border-color: #d68a34;
+  border-color: var(--ui-accent);
 }
 .confirm-actions {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
   margin-top: 6px;
+}
+
+.template-item,
+.dialog-input,
+.add-button {
+  min-height: var(--ui-control-height);
+  box-sizing: border-box;
+}
+
+@media (max-width: 760px) {
+  .collections-page {
+    padding-top: 84px;
+  }
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .header-actions,
+  .search-input {
+    width: 100%;
+  }
 }
 </style>

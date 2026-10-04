@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import PageHeader from "../components/PageHeader.vue";
+import AccountChip from "../components/AccountChip.vue";
 import { ref, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import { fetchSets, createSet } from "../services/set";
@@ -27,6 +29,7 @@ async function load() {
 }
 
 async function handleCreate() {
+  if (creating.value) return;
   const name = newName.value.trim();
   if (!name) return;
   creating.value = true;
@@ -49,20 +52,19 @@ onMounted(load);
 
 <template>
   <main class="sets-page">
-    <h1>Sets</h1>
-    <p class="section-hint">
-      Group cards with a position and total. Assign a card to a set from the
-      card's own detail page. When every card you expect is in, the set shows as
-      complete.
-    </p>
+    <AccountChip fixed />
+    <PageHeader
+      title="Sets"
+      description="Group cards with a position and total. Assign a card to a set from the card's detail page. When every expected card is in, the set shows as complete."
+    />
 
-    <div class="create-row">
+    <form class="create-row" @submit.prevent="handleCreate">
       <input
         v-model="newName"
         type="text"
         class="text-input"
         placeholder="New set name"
-        @keyup.enter="handleCreate"
+        aria-label="New set name"
       />
       <input
         v-model.number="newTarget"
@@ -70,16 +72,16 @@ onMounted(load);
         min="1"
         class="text-input target-input"
         placeholder="Total (optional)"
+        aria-label="Expected card total (optional)"
       />
       <button
-        type="button"
+        type="submit"
         class="add-button"
         :disabled="creating || !newName.trim()"
-        @click="handleCreate"
       >
         + Create Set
       </button>
-    </div>
+    </form>
     <p v-if="createError" class="error">{{ createError }}</p>
 
     <p v-if="loading" class="empty-state">Loading…</p>
@@ -112,34 +114,26 @@ onMounted(load);
 <style scoped>
 .sets-page {
   min-height: 100vh;
-  background: #121212;
-  color: #fff;
-  padding: 84px 24px 24px;
-  font-family: system-ui, sans-serif;
+  background: var(--ui-bg);
+  color: var(--ui-text);
+  padding: 84px var(--ui-edge-right) 48px var(--ui-edge-left);
   box-sizing: border-box;
-}
-h1 {
-  margin: 0;
-}
-.section-hint {
-  color: #999;
-  font-size: 0.85rem;
-  max-width: 60ch;
+  font-family: var(--ui-font-family);
 }
 .empty-state {
-  color: #777;
+  color: var(--ui-faint);
 }
 .empty-state.error,
 .error {
-  color: #fca5a5;
+  color: var(--ui-error);
 }
 .add-button {
-  background: #d68a34;
+  background: var(--ui-accent);
   border: none;
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   padding: 9px 14px;
   font-size: 0.85rem;
-  color: #121212;
+  color: var(--ui-on-accent);
   font-weight: 700;
   cursor: pointer;
 }
@@ -154,37 +148,41 @@ h1 {
   flex-wrap: wrap;
 }
 .text-input {
-  background: #1a1a1a;
-  border: 1px solid #2a2a2a;
-  border-radius: 8px;
-  color: #fff;
+  min-width: 0;
+  max-width: 100%;
+  flex: 1 1 220px;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
+  color: var(--ui-text);
   padding: 9px 12px;
   font-size: 0.85rem;
 }
 .target-input {
   width: 160px;
+  flex: 0 1 160px;
 }
 .sets-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(220px, 100%), 1fr));
   gap: 16px;
   margin-top: 20px;
 }
 .set-card {
   position: relative;
-  background: #1a1a1a;
-  border: 1px solid #2a2a2a;
-  border-radius: 12px;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-card);
   padding: 18px;
   text-align: left;
   cursor: pointer;
-  color: #fff;
+  color: var(--ui-text);
 }
 .set-card:hover {
-  border-color: #d68a34;
+  border-color: var(--ui-accent);
 }
 .set-card.complete {
-  border-color: #d68a34;
+  border-color: var(--ui-accent);
 }
 .complete-badge {
   position: absolute;
@@ -192,8 +190,8 @@ h1 {
   right: 12px;
   font-size: 0.6rem;
   font-weight: 700;
-  background: #d68a34;
-  color: #121212;
+  background: var(--ui-accent);
+  color: var(--ui-on-accent);
   border-radius: 999px;
   padding: 2px 8px;
 }
@@ -202,8 +200,20 @@ h1 {
   font-size: 1rem;
 }
 .progress {
-  color: #999;
+  color: var(--ui-dim);
   font-size: 0.85rem;
   margin: 0;
+}
+
+.add-button,
+.text-input {
+  min-height: var(--ui-control-height);
+  box-sizing: border-box;
+}
+
+@media (max-width: 760px) {
+  .sets-page {
+    padding-top: 84px;
+  }
 }
 </style>

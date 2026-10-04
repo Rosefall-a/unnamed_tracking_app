@@ -135,7 +135,7 @@ The default evidence directory is `.validation/ui-concepts`. The gallery's edita
 
 The selected hybrid combines Pocket's floating sidebar and rounded mobile controls with Archive's desktop structure. Semantic tokens and account appearance preferences are implemented. The responsive shell and Settings now use consistent page headers, separate Account/Preferences/Administration areas, and a phone menu with focus containment and restoration. Completion badges remain personal to each account. Home now starts minimal, with the original core shelves, goals, picker and activity available as optional account-persisted widgets.
 
-The shell checkpoint passed **192 real application combinations**: eight widths × two themes × two roles × six Settings screens. Checks include overflow, identical title typography, account preference persistence, phone menu keyboard behavior, and administrator access denial for members. The [checkpoint report](../assets/ui-redevelopment/stage-shell-conformance.json) records the results. Other content pages and the explicit v1.1 plugin boundary still require implementation and final acceptance.
+The shell checkpoint passed **192 real application combinations**: eight widths × two themes × two roles × six Settings screens. Checks include overflow, identical title typography, account preference persistence, phone menu keyboard behavior, and administrator access denial for members. The [checkpoint report](../assets/ui-redevelopment/stage-shell-conformance.json) records the results. Remaining detail/media views and the explicit v1.1 plugin boundary still require implementation and final acceptance.
 
 ![Desktop appearance preferences](../assets/ui-redevelopment/stage-shell-appearance-1440-light.png)
 
@@ -176,5 +176,19 @@ The real signed PWA acceptance also passes after applying custom branding: manif
 ![Public desktop sign-in with custom branding](../assets/ui-redevelopment/stage-branding-public-1440-light.png)
 
 ![Public phone sign-in](../assets/ui-redevelopment/stage-branding-public-390-light.png)
+
+The first content checkpoint applies the shared header, palette, spacing and touch controls to Games, Collections, Cards, Sets and Bounties. Games retains Cards, List, List + preview and Shelves, together with its search, filters, presets and bulk actions. Phone List presents labelled cards with every existing field and action. Collections uses a responsive cover grid, with separate native open/delete controls. Smart collection, new card and new bounty dialogs use the shared native dialog with keyboard containment and focus restoration.
+
+The [content report](../assets/ui-redevelopment/stage-content-conformance.json) records **160 real page/theme/width/role cases**, all four Games views at eight widths in two themes, keyboard filter selection, phone set/bounty/card creation, and actual smart collection creation, keyboard navigation and deletion. Detail/media views and the complete plugin transition remain pending.
+
+Reproduce by adding `content` as the final argument to `tools/check_ui_redevelopment.mjs` and using `.validation/ui-stage-content` as the evidence directory. The same clean-plugin-inventory guard excludes embedded-media captures.
+
+![Desktop Games in dark mode](../assets/ui-redevelopment/stage-content-games-1440-dark.png)
+
+![Phone Games list with the first-use bulk-edit hint](../assets/ui-redevelopment/stage-content-game-list-390-light.png)
+
+![Desktop Bounties](../assets/ui-redevelopment/stage-content-bounties-1440-light.png)
+
+![Phone smart collections](../assets/ui-redevelopment/stage-content-smart-collections-390-dark.png)
 
 The original gallery and captures remain available in this wiki and Git history as a shared reference, separate from production screenshots. The Draft PR remains a living record and targets `plugin-manager`. The production readiness race discovered in CI is fixed. At `97e8405a`, companion integration found an obsolete official Jellyfin capture selector on the old Settings landing page. Companion commit `fef5b7b` uses the preserved Settings deep link and retains the existing interaction assertions. The unchanged strict container acceptance then passed locally with the committed host checkpoint and paired companion fix: actual package installation, consent, privileged reauthentication, account/server configuration, sync, update/state retention, admin/user separation, viewing history, Watch Now and phone layout. All seven workflows passed at the pushed Home checkpoint `5896d8c9`. Each new stage must pass CI independently.

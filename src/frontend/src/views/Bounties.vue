@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import UiModal from "../components/UiModal.vue";
+import PageHeader from "../components/PageHeader.vue";
+import AccountChip from "../components/AccountChip.vue";
 import { ref, computed, onMounted, watch } from "vue";
 import { fetchGames, fetchGameAchievements } from "../services/games";
 import { listGameScreenshots } from "../services/media";
@@ -715,16 +718,13 @@ async function togglePoints() {
 </script>
 
 <template>
-  <div class="bounties-page">
-    <div class="page-header">
-      <div>
-        <h1>Bounties</h1>
-        <p class="subtitle">
-          Personal goals and challenges, no points required, but they're there
-          if you want them.
-        </p>
-      </div>
-      <div class="header-actions">
+  <main class="bounties-page">
+    <AccountChip fixed />
+    <PageHeader
+      title="Bounties"
+      description="Personal goals and challenges. Points are there if you want them."
+    >
+      <template #actions>
         <span
           v-if="bountyStreakWeeks > 0"
           class="streak-pill"
@@ -734,14 +734,19 @@ async function togglePoints() {
             bountyStreakWeeks === 1 ? "" : "s"
           }}
         </span>
-        <button type="button" class="points-toggle" @click="togglePoints">
+        <button
+          type="button"
+          class="points-toggle"
+          :aria-pressed="showPoints"
+          @click="togglePoints"
+        >
           🏅 {{ showPoints ? "Hide" : "Points" }}
         </button>
         <button type="button" class="add-button" @click="openAddForm">
           + New Bounty
         </button>
-      </div>
-    </div>
+      </template>
+    </PageHeader>
 
     <div v-if="showPoints" class="points-panel">
       <div class="points-total">
@@ -858,6 +863,7 @@ async function togglePoints() {
         type="button"
         class="status-tab"
         :class="{ active: statusFilter === s }"
+        :aria-pressed="statusFilter === s"
         @click="statusFilter = s"
       >
         {{
@@ -1009,6 +1015,7 @@ async function togglePoints() {
                 class="action-btn complete"
                 :disabled="actionPending === b.id"
                 title="Mark complete"
+                aria-label="Mark bounty complete"
                 @click="doAction(b, 'complete')"
               >
                 ✓
@@ -1018,6 +1025,7 @@ async function togglePoints() {
                 class="action-btn pause"
                 :disabled="actionPending === b.id"
                 title="Pause"
+                aria-label="Pause bounty"
                 @click="doAction(b, 'pause')"
               >
                 ⏸
@@ -1027,6 +1035,7 @@ async function togglePoints() {
                 class="action-btn abandon"
                 :disabled="actionPending === b.id"
                 title="Abandon"
+                aria-label="Abandon bounty"
                 @click="doAction(b, 'abandon')"
               >
                 ✕
@@ -1038,6 +1047,7 @@ async function togglePoints() {
                 class="action-btn resume"
                 :disabled="actionPending === b.id"
                 title="Resume"
+                aria-label="Resume bounty"
                 @click="doAction(b, 'resume')"
               >
                 ▶
@@ -1047,6 +1057,7 @@ async function togglePoints() {
                 class="action-btn abandon"
                 :disabled="actionPending === b.id"
                 title="Abandon"
+                aria-label="Abandon bounty"
                 @click="doAction(b, 'abandon')"
               >
                 ✕
@@ -1057,6 +1068,7 @@ async function togglePoints() {
               type="button"
               class="action-btn share"
               title="Save a shareable image"
+              aria-label="Save a shareable bounty image"
               @click="shareBountyCard(b)"
             >
               ⇩
@@ -1067,6 +1079,7 @@ async function togglePoints() {
               class="action-btn delete"
               :disabled="actionPending === b.id"
               title="Delete"
+              aria-label="Delete bounty"
               @click="doAction(b, 'delete')"
             >
               🗑
@@ -1345,14 +1358,13 @@ async function togglePoints() {
       </div>
     </div>
 
-    <div
+    <UiModal
       v-if="showAddForm"
-      class="confirm-backdrop"
-      @click.self="showAddForm = false"
+      title="New bounty"
+      :dismissible="!saving"
+      @close="showAddForm = false"
     >
-      <div class="confirm-dialog add-form">
-        <h3>New Bounty</h3>
-
+      <div class="add-form">
         <label class="field-label"
           >Title
           <input
@@ -1366,7 +1378,11 @@ async function togglePoints() {
 
         <label class="field-label"
           >Type
-          <select v-model="newType" class="field-input">
+          <select
+            v-model="newType"
+            class="field-input"
+            aria-label="Bounty type"
+          >
             <option v-for="(label, key) in TYPE_LABELS" :key="key" :value="key">
               {{ label }}
             </option>
@@ -1493,39 +1509,19 @@ async function togglePoints() {
           </button>
         </div>
       </div>
-    </div>
-  </div>
+    </UiModal>
+  </main>
 </template>
 
 <style scoped>
 .bounties-page {
-  max-width: 860px;
+  max-width: calc(1100px + var(--ui-edge-left) + var(--ui-edge-right));
   margin: 0 auto;
-  padding: 32px 20px 60px;
-  color: #ccc;
-  font-family: system-ui, sans-serif;
-}
-.page-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 20px;
-}
-h1 {
-  color: #fff;
-  font-size: 24px;
-  margin: 0 0 4px;
-}
-.subtitle {
-  color: #999;
-  font-size: 13px;
-  margin: 0;
-}
-.header-actions {
-  display: flex;
-  gap: 8px;
-  flex-shrink: 0;
+  padding: 84px var(--ui-edge-right) 60px var(--ui-edge-left);
+  box-sizing: border-box;
+  min-height: 100vh;
+  color: var(--ui-text);
+  font-family: var(--ui-font-family);
 }
 .add-button,
 .points-toggle {
@@ -1533,40 +1529,40 @@ h1 {
   font-weight: 700;
   font-size: 13px;
   padding: 10px 16px;
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   cursor: pointer;
   white-space: nowrap;
 }
 .add-button {
-  background: #d68a34;
-  color: #111;
+  background: var(--ui-accent);
+  color: var(--ui-on-accent);
 }
 .add-button:hover {
-  background: #e6994a;
+  background: var(--ui-accent);
 }
 .points-toggle {
-  background: #1a1a1a;
-  border: 1px solid #2a2a2a;
-  color: #ccc;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  color: var(--ui-text);
 }
 .points-toggle:hover {
-  border-color: #3a3a3a;
-  color: #fff;
+  border-color: var(--ui-border-strong);
+  color: var(--ui-text);
 }
 .points-panel {
-  background: #161616;
-  border: 1px solid #2a2a2a;
-  border-radius: 10px;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
   padding: 14px 16px;
   margin-bottom: 18px;
 }
 .points-total {
-  color: #999;
+  color: var(--ui-dim);
   font-size: 13px;
   margin-bottom: 10px;
 }
 .points-total strong {
-  color: #d68a34;
+  color: var(--ui-accent-text);
   font-size: 18px;
 }
 .points-list {
@@ -1581,25 +1577,29 @@ h1 {
   font-size: 13px;
 }
 .points-amount {
-  color: #4caf50;
+  color: var(--ui-good);
   font-weight: 700;
   width: 50px;
 }
 .points-reason {
   flex: 1;
-  color: #ccc;
+  color: var(--ui-text);
 }
 .points-date {
-  color: #666;
+  color: var(--ui-faint);
   font-size: 11px;
 }
 .random-bounty-card {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  background: linear-gradient(135deg, rgba(214, 138, 52, 0.14), #161616);
-  border: 1px solid #d68a34;
-  border-radius: 10px;
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--ui-accent) 14%, transparent),
+    var(--ui-surface)
+  );
+  border: 1px solid var(--ui-accent);
+  border-radius: var(--ui-radius-control);
   padding: 14px 16px;
   margin-bottom: 18px;
 }
@@ -1614,42 +1614,42 @@ h1 {
   align-items: center;
   gap: 8px;
   padding-top: 10px;
-  border-top: 1px solid rgba(214, 138, 52, 0.25);
+  border-top: 1px solid color-mix(in srgb, var(--ui-accent) 25%, transparent);
 }
 .random-bounty-alts-label {
-  color: #999;
+  color: var(--ui-dim);
   font-size: 12px;
 }
 .random-bounty-alt {
   display: flex;
   align-items: center;
   gap: 6px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid #2a2a2a;
-  color: #eee;
+  background: color-mix(in srgb, var(--ui-text) 6%, transparent);
+  border: 1px solid var(--ui-border);
+  color: var(--ui-text);
   border-radius: 999px;
   padding: 5px 12px;
   font-size: 12px;
   cursor: pointer;
 }
 .random-bounty-alt:hover:not(:disabled) {
-  border-color: #d68a34;
-  color: #d68a34;
+  border-color: var(--ui-accent);
+  color: var(--ui-accent-text);
 }
 .random-bounty-alt:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
 .random-bounty-alt-pts {
-  color: #d68a34;
+  color: var(--ui-accent-text);
   font-weight: 700;
 }
 .streak-pill {
   display: flex;
   align-items: center;
-  background: rgba(214, 138, 52, 0.14);
-  border: 1px solid rgba(214, 138, 52, 0.35);
-  color: #d68a34;
+  background: color-mix(in srgb, var(--ui-accent) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ui-accent) 35%, transparent);
+  color: var(--ui-accent-text);
   border-radius: 999px;
   padding: 9px 14px;
   font-size: 12.5px;
@@ -1657,7 +1657,7 @@ h1 {
   white-space: nowrap;
 }
 .random-bounty-label {
-  color: #d68a34;
+  color: var(--ui-accent-text);
   font-weight: 700;
   font-size: 11px;
   letter-spacing: 0.04em;
@@ -1671,12 +1671,12 @@ h1 {
   min-width: 0;
 }
 .random-bounty-title {
-  color: #fff;
+  color: var(--ui-text);
   font-weight: 600;
   font-size: 14px;
 }
 .random-bounty-sub {
-  color: #999;
+  color: var(--ui-dim);
   font-size: 12px;
 }
 .random-bounty-actions {
@@ -1700,8 +1700,8 @@ h1 {
 }
 .bounty-auto-pill {
   font-size: 10px;
-  color: #d68a34;
-  background: rgba(214, 138, 52, 0.14);
+  color: var(--ui-accent-text);
+  background: color-mix(in srgb, var(--ui-accent) 14%, transparent);
   padding: 2px 7px;
   border-radius: 999px;
   white-space: nowrap;
@@ -1719,43 +1719,43 @@ h1 {
   font-size: 13px;
 }
 .journal-date {
-  color: #666;
+  color: var(--ui-faint);
   font-size: 11px;
   white-space: nowrap;
 }
 .journal-text {
   flex: 1;
-  color: #ccc;
+  color: var(--ui-text);
 }
 .status-tabs {
   display: flex;
   gap: 6px;
   margin-bottom: 18px;
-  border-bottom: 1px solid #2a2a2a;
+  border-bottom: 1px solid var(--ui-border);
 }
 .status-tab {
   background: none;
   border: none;
-  color: #999;
+  color: var(--ui-dim);
   font-size: 13px;
   padding: 8px 12px;
   cursor: pointer;
   border-bottom: 2px solid transparent;
 }
 .status-tab:hover {
-  color: #ccc;
+  color: var(--ui-text);
 }
 .status-tab.active {
-  color: #d68a34;
-  border-bottom-color: #d68a34;
+  color: var(--ui-accent-text);
+  border-bottom-color: var(--ui-accent);
 }
 .empty-state {
-  color: #777;
+  color: var(--ui-faint);
   font-size: 13px;
   padding: 16px;
-  background: #161616;
-  border: 1px solid #2a2a2a;
-  border-radius: 10px;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
 }
 .bounty-list {
   display: flex;
@@ -1767,9 +1767,9 @@ h1 {
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
-  background: #1a1a1a;
-  border: 1px solid #2a2a2a;
-  border-radius: 10px;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
   padding: 14px 16px;
 }
 .bounty-card.muted {
@@ -1783,8 +1783,8 @@ h1 {
   display: flex;
   flex-direction: column;
   gap: 14px;
-  background: #161616;
-  border: 1px solid #2a2a2a;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
   border-top: none;
   border-radius: 0 0 10px 10px;
   padding: 14px 16px;
@@ -1797,7 +1797,7 @@ h1 {
   margin-bottom: 8px;
 }
 .details-header h4 {
-  color: #ccc;
+  color: var(--ui-text);
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.03em;
@@ -1819,34 +1819,34 @@ h1 {
   align-items: center;
   gap: 8px;
   font-size: 13px;
-  color: #ccc;
+  color: var(--ui-text);
 }
 .objective-status {
   width: 16px;
   text-align: center;
-  color: #999;
+  color: var(--ui-dim);
 }
 .objective-status.done {
-  color: #4caf50;
+  color: var(--ui-good);
 }
 .objective-title {
   flex: 1;
 }
 .objective-title.done {
-  color: #777;
+  color: var(--ui-faint);
   text-decoration: line-through;
 }
 .objective-progress {
-  color: #999;
+  color: var(--ui-dim);
   font-size: 11px;
 }
 .evidence-kind {
-  color: #999;
+  color: var(--ui-dim);
   font-size: 11px;
   white-space: nowrap;
 }
 .evidence-link {
-  color: #d68a34;
+  color: var(--ui-accent-text);
   text-decoration: none;
   flex: 1;
   overflow: hidden;
@@ -1858,7 +1858,7 @@ h1 {
 }
 .evidence-text {
   flex: 1;
-  color: #ccc;
+  color: var(--ui-text);
 }
 .inline-form {
   display: flex;
@@ -1866,9 +1866,9 @@ h1 {
   gap: 6px;
   margin-top: 8px;
   padding: 10px;
-  background: #111;
-  border: 1px solid #2a2a2a;
-  border-radius: 8px;
+  background: var(--ui-bg);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
 }
 .inline-form-actions {
   display: flex;
@@ -1876,17 +1876,17 @@ h1 {
   gap: 6px;
 }
 .mini-btn.primary {
-  background: #d68a34;
-  border-color: #d68a34;
-  color: #111;
+  background: var(--ui-accent);
+  border-color: var(--ui-accent);
+  color: var(--ui-on-accent);
   font-weight: 700;
 }
 .mini-btn.primary:disabled {
   opacity: 0.6;
 }
 .mini-btn.danger:hover {
-  border-color: #e05252;
-  color: #e05252;
+  border-color: var(--ui-error);
+  color: var(--ui-error);
 }
 .form-error.small {
   font-size: 11px;
@@ -1906,7 +1906,7 @@ h1 {
   flex-wrap: wrap;
 }
 .bounty-game-link {
-  color: #d68a34;
+  color: var(--ui-accent-text);
   font-size: 12px;
   font-weight: 700;
   text-decoration: none;
@@ -1918,8 +1918,8 @@ h1 {
 }
 .bounty-type-pill {
   font-size: 10px;
-  color: #999;
-  background: rgba(255, 255, 255, 0.06);
+  color: var(--ui-dim);
+  background: color-mix(in srgb, var(--ui-text) 6%, transparent);
   padding: 2px 7px;
   border-radius: 999px;
   text-transform: uppercase;
@@ -1931,26 +1931,26 @@ h1 {
   border-radius: 999px;
   text-transform: uppercase;
   letter-spacing: 0.03em;
-  color: #999;
-  background: rgba(255, 255, 255, 0.06);
+  color: var(--ui-dim);
+  background: color-mix(in srgb, var(--ui-text) 6%, transparent);
 }
 .bounty-difficulty-pill.hard,
 .bounty-difficulty-pill.extreme {
-  color: #e05252;
+  color: var(--ui-error);
   background: rgba(224, 82, 82, 0.12);
 }
 .bounty-title {
-  color: #fff;
+  color: var(--ui-text);
   font-size: 15px;
   font-weight: 600;
 }
 .bounty-description {
-  color: #999;
+  color: var(--ui-dim);
   font-size: 13px;
   margin: 2px 0 0;
 }
 .bounty-target-note {
-  color: #777;
+  color: var(--ui-faint);
   font-size: 12px;
   margin: 0;
 }
@@ -1963,19 +1963,19 @@ h1 {
 .progress-track {
   flex: 1;
   height: 6px;
-  background: #111;
+  background: var(--ui-bg);
   border-radius: 999px;
   overflow: hidden;
   max-width: 220px;
 }
 .progress-fill {
   height: 100%;
-  background: #d68a34;
+  background: var(--ui-accent);
   border-radius: 999px;
   transition: width 0.2s ease;
 }
 .progress-label {
-  color: #999;
+  color: var(--ui-dim);
   font-size: 12px;
   white-space: nowrap;
 }
@@ -1987,25 +1987,25 @@ h1 {
 }
 .progress-input {
   width: 70px;
-  background: #111;
-  border: 1px solid #2a2a2a;
+  background: var(--ui-bg);
+  border: 1px solid var(--ui-border);
   border-radius: 6px;
-  color: #fff;
+  color: var(--ui-text);
   padding: 4px 6px;
   font-size: 12px;
 }
 .mini-btn {
-  background: #111;
-  border: 1px solid #2a2a2a;
-  color: #ccc;
+  background: var(--ui-bg);
+  border: 1px solid var(--ui-border);
+  color: var(--ui-text);
   font-size: 11px;
   padding: 4px 8px;
   border-radius: 6px;
   cursor: pointer;
 }
 .mini-btn:hover {
-  border-color: #d68a34;
-  color: #d68a34;
+  border-color: var(--ui-accent);
+  color: var(--ui-accent-text);
 }
 .bounty-footer-row {
   display: flex;
@@ -2013,16 +2013,16 @@ h1 {
   margin-top: 4px;
 }
 .bounty-points {
-  color: #d68a34;
+  color: var(--ui-accent-text);
   font-size: 11px;
   font-weight: 700;
 }
 .bounty-deadline {
-  color: #999;
+  color: var(--ui-dim);
   font-size: 11px;
 }
 .bounty-date {
-  color: #666;
+  color: var(--ui-faint);
   font-size: 11px;
 }
 .bounty-actions {
@@ -2031,12 +2031,12 @@ h1 {
   flex-shrink: 0;
 }
 .action-btn {
-  width: 30px;
-  height: 30px;
+  width: var(--ui-control-height);
+  height: var(--ui-control-height);
   border-radius: 50%;
-  border: 1px solid #2a2a2a;
-  background: #111;
-  color: #ccc;
+  border: 1px solid var(--ui-border);
+  background: var(--ui-bg);
+  color: var(--ui-text);
   cursor: pointer;
   font-size: 13px;
   display: flex;
@@ -2049,58 +2049,32 @@ h1 {
 }
 .action-btn.complete:hover:not(:disabled),
 .action-btn.resume:hover:not(:disabled) {
-  border-color: #4caf50;
-  color: #4caf50;
+  border-color: var(--ui-good);
+  color: var(--ui-good);
 }
 .action-btn.pause:hover:not(:disabled),
 .action-btn.abandon:hover:not(:disabled),
 .action-btn.delete:hover:not(:disabled) {
-  border-color: #d68a34;
-  color: #d68a34;
+  border-color: var(--ui-accent);
+  color: var(--ui-accent-text);
 }
 .action-btn.share:hover:not(:disabled) {
-  border-color: #d68a34;
-  color: #d68a34;
-}
-.confirm-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.65);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 200;
-  padding: 20px;
-  overflow-y: auto;
-}
-.confirm-dialog {
-  background: #1a1a1a;
-  border: 1px solid #2a2a2a;
-  border-radius: 12px;
-  padding: 20px;
-  width: 100%;
-  max-width: 420px;
-  max-height: 90vh;
-  overflow-y: auto;
-}
-.confirm-dialog h3 {
-  color: #fff;
-  margin: 0 0 14px;
-  font-size: 16px;
+  border-color: var(--ui-accent);
+  color: var(--ui-accent-text);
 }
 .field-label {
   display: flex;
   flex-direction: column;
   gap: 5px;
-  color: #999;
+  color: var(--ui-dim);
   font-size: 12px;
   margin-bottom: 12px;
 }
 .field-input {
-  background: #111;
-  border: 1px solid #2a2a2a;
+  background: var(--ui-bg);
+  border: 1px solid var(--ui-border);
   border-radius: 6px;
-  color: #fff;
+  color: var(--ui-text);
   padding: 8px 10px;
   font-size: 13px;
   font-family: inherit;
@@ -2110,25 +2084,25 @@ h1 {
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
-  color: #777;
+  color: var(--ui-faint);
   font-size: 11px;
   margin-top: 2px;
 }
 .points-suggestion {
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid #2a2a2a;
-  color: #ccc;
+  background: color-mix(in srgb, var(--ui-text) 6%, transparent);
+  border: 1px solid var(--ui-border);
+  color: var(--ui-text);
   border-radius: 999px;
   padding: 3px 9px;
   font-size: 10.5px;
   cursor: pointer;
 }
 .points-suggestion:hover {
-  border-color: #d68a34;
-  color: #d68a34;
+  border-color: var(--ui-accent);
+  color: var(--ui-accent-text);
 }
 .form-error {
-  color: #e05252;
+  color: var(--ui-error);
   font-size: 12px;
   margin: 0 0 10px;
 }
@@ -2139,17 +2113,17 @@ h1 {
 }
 .cancel-btn {
   background: none;
-  border: 1px solid #2a2a2a;
-  color: #ccc;
+  border: 1px solid var(--ui-border);
+  color: var(--ui-text);
   padding: 8px 14px;
   border-radius: 6px;
   cursor: pointer;
   font-size: 13px;
 }
 .save-btn {
-  background: #d68a34;
+  background: var(--ui-accent);
   border: none;
-  color: #111;
+  color: var(--ui-on-accent);
   font-weight: 700;
   padding: 8px 14px;
   border-radius: 6px;
@@ -2159,5 +2133,67 @@ h1 {
 .save-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+.add-button,
+.points-toggle,
+.mini-btn,
+.cancel-btn,
+.save-btn,
+.field-input,
+.points-suggestion,
+.filter-tab,
+.bounty-action {
+  min-height: var(--ui-control-height);
+  box-sizing: border-box;
+}
+
+@media (max-width: 760px) {
+  .bounties-page {
+    padding-top: 84px;
+  }
+  .status-tabs {
+    flex-wrap: wrap;
+  }
+  .status-tab {
+    min-height: 44px;
+  }
+  .filter-row .field-input {
+    flex: 1 1 130px;
+    min-width: 0;
+    max-width: 100%;
+  }
+  .filter-row .search-input {
+    flex-basis: 100%;
+  }
+  .bounty-card,
+  .random-bounty-main {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .bounty-actions,
+  .random-bounty-actions {
+    flex-wrap: wrap;
+  }
+  .bounty-main,
+  .bounty-title,
+  .journal-text {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .bounty-meta-row {
+    flex-wrap: wrap;
+  }
+  .journal-entry {
+    flex-wrap: wrap;
+  }
+  .bounty-actions > button,
+  .random-bounty-actions > button {
+    min-height: 44px;
+  }
+  .random-bounty-alt {
+    min-height: 44px;
+    white-space: normal;
+  }
 }
 </style>

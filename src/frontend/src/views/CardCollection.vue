@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import PageHeader from "../components/PageHeader.vue";
+import UiModal from "../components/UiModal.vue";
+import AccountChip from "../components/AccountChip.vue";
 import { ref, computed, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import { listCards, createCard } from "../services/cards";
@@ -83,28 +86,35 @@ onMounted(load);
 
 <template>
   <main class="cards-page">
-    <div class="header-row">
-      <h1>Cards</h1>
-      <button type="button" class="add-button" @click="showPicker = true">
-        + New Card
-      </button>
-    </div>
-    <p class="section-hint">
-      Every Collector Card you've generated, front-face up.
-    </p>
-
-    <div v-if="showPicker" class="picker-panel">
-      <div class="picker-head">
-        <h2>New card for which game?</h2>
-        <button type="button" class="close-btn" @click="showPicker = false">
-          &times;
+    <AccountChip fixed />
+    <PageHeader
+      title="Cards"
+      description="Every Collector Card you've generated, front-face up."
+    >
+      <template #actions>
+        <button
+          type="button"
+          class="ui-btn ui-btn-primary"
+          @click="showPicker = true"
+        >
+          New card
         </button>
-      </div>
+      </template>
+    </PageHeader>
+
+    <UiModal
+      v-if="showPicker"
+      title="New card"
+      description="Choose a Beaten or Mastered game that doesn't already have a card."
+      :dismissible="!creating"
+      @close="showPicker = false"
+    >
       <input
         v-model="pickerQuery"
         type="text"
         class="text-input"
         placeholder="Search Beaten/Mastered games…"
+        aria-label="Search eligible games"
       />
       <p v-if="!eligibleGames.length" class="empty-state">
         No eligible games. A card can only be made for a game marked Beaten or
@@ -123,7 +133,7 @@ onMounted(load);
           </button>
         </li>
       </ul>
-    </div>
+    </UiModal>
 
     <p v-if="loading" class="empty-state">Loading…</p>
     <p v-else-if="error" class="empty-state error">{{ error }}</p>
@@ -155,46 +165,23 @@ onMounted(load);
 <style scoped>
 .cards-page {
   min-height: 100vh;
-  background: #121212;
-  color: #fff;
-  padding: 84px 24px 24px;
-  font-family: system-ui, sans-serif;
+  background: var(--ui-bg);
+  color: var(--ui-text);
+  padding: 84px var(--ui-edge-right) 48px var(--ui-edge-left);
   box-sizing: border-box;
-}
-.header-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-h1 {
-  margin: 0;
-}
-.section-hint {
-  color: #999;
-  font-size: 0.85rem;
+  font-family: var(--ui-font-family);
 }
 .empty-state {
-  color: #777;
+  color: var(--ui-faint);
 }
 .empty-state.error {
-  color: #fca5a5;
-}
-.add-button {
-  background: #d68a34;
-  border: none;
-  color: #121212;
-  font-weight: 700;
-  border-radius: 8px;
-  padding: 9px 14px;
-  font-size: 0.85rem;
-  cursor: pointer;
+  color: var(--ui-error);
 }
 .secondary-button {
-  background: #111;
-  border: 1px solid #2a2a2a;
-  color: #ccc;
-  border-radius: 8px;
+  background: var(--ui-bg);
+  border: 1px solid var(--ui-border);
+  color: var(--ui-text);
+  border-radius: var(--ui-radius-control);
   padding: 7px 12px;
   font-size: 0.8rem;
   cursor: pointer;
@@ -203,36 +190,13 @@ h1 {
   opacity: 0.5;
   cursor: default;
 }
-.picker-panel {
-  background: #1a1a1a;
-  border: 1px solid #2a2a2a;
-  border-radius: 12px;
-  padding: 16px;
-  margin: 16px 0;
-}
-.picker-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-.picker-head h2 {
-  margin: 0;
-  font-size: 1rem;
-}
-.close-btn {
-  background: none;
-  border: none;
-  color: #999;
-  font-size: 1.2rem;
-  cursor: pointer;
-}
 .text-input {
   width: 100%;
   box-sizing: border-box;
-  background: #111;
-  border: 1px solid #2a2a2a;
-  border-radius: 8px;
-  color: #fff;
+  background: var(--ui-bg);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
+  color: var(--ui-text);
   padding: 9px 12px;
   font-size: 0.85rem;
   margin: 10px 0;
@@ -252,30 +216,35 @@ h1 {
   justify-content: space-between;
   align-items: center;
   font-size: 0.85rem;
+  gap: 12px;
+}
+.picker-item > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .cards-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(140px, 100%), 1fr));
   gap: 16px;
   margin-top: 20px;
 }
 .card-tile {
   position: relative;
   aspect-ratio: 5 / 7;
-  background: #1a1a1a;
-  border: 1px solid #2a2a2a;
-  border-radius: 10px;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
   align-items: flex-start;
   padding: 12px;
   cursor: pointer;
-  color: #fff;
+  color: var(--ui-text);
   text-align: left;
 }
 .card-tile:hover {
-  border-color: #d68a34;
+  border-color: var(--ui-accent);
 }
 .rarity-chip {
   position: absolute;
@@ -284,8 +253,8 @@ h1 {
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  background: #d68a34;
-  color: #121212;
+  background: var(--ui-accent);
+  color: var(--ui-on-accent);
   font-weight: 700;
   font-size: 0.75rem;
   display: flex;
@@ -299,8 +268,8 @@ h1 {
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  border: 1px solid #d68a34;
-  color: #d68a34;
+  border: 1px solid var(--ui-accent);
+  color: var(--ui-accent-text);
   font-weight: 700;
   font-size: 0.7rem;
   display: flex;
@@ -313,7 +282,25 @@ h1 {
 }
 .card-tile-num {
   font-size: 0.7rem;
-  color: #999;
+  color: var(--ui-dim);
   margin-top: 4px;
+}
+
+.secondary-button,
+.text-input {
+  min-height: var(--ui-control-height);
+  box-sizing: border-box;
+}
+
+@media (max-width: 760px) {
+  .cards-page {
+    padding-top: 84px;
+  }
+  .cards-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .card-tile-title {
+    overflow-wrap: anywhere;
+  }
 }
 </style>
