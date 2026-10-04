@@ -106,7 +106,7 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
       { keys: "/", label: "Focus this page's search, or open Search library" },
       { keys: "?", label: "Show shortcuts for the current page first" },
       ...NAVIGATION_SHORTCUTS.map((item) => ({
-        keys: "g then " + item.key,
+        keys: "Alt + " + item.key.toUpperCase(),
         label: "Go to " + item.label,
       })),
       { keys: "Tab / Shift + Tab", label: "Move between controls" },
@@ -128,4 +128,15 @@ export function shortcutGroupsForPath(path: string): ShortcutGroup[] {
       (group) => group !== anywhere && !current.includes(group),
     ),
   ];
+}
+
+export function navigationShortcutForPath(path: string): string | undefined {
+  const item = NAVIGATION_SHORTCUTS.find(
+    (item) => item.path === path.split("?")[0],
+  );
+  return item ? "Alt+" + item.key.toUpperCase() : undefined;
+}
+export function navigationTooltip(label: string, path: string): string {
+  const shortcut = navigationShortcutForPath(path);
+  return shortcut ? `${label} · ${shortcut.replace("+", " + ")}` : label;
 }

@@ -1,11 +1,23 @@
 import { describe, expect, it } from "vitest";
 import {
   NAVIGATION_SHORTCUTS,
+  navigationShortcutForPath,
+  navigationTooltip,
   SHORTCUT_GROUPS,
   shortcutGroupsForPath,
 } from "../utils/shortcuts";
 
 describe("shared shortcut help", () => {
+  it("shares Alt navigation hints with route controls", () => {
+    expect(navigationShortcutForPath("/movies")).toBe("Alt+M");
+    expect(navigationShortcutForPath("/settings?section=appearance")).toBe(
+      "Alt+P",
+    );
+    expect(navigationTooltip("Movies", "/movies")).toBe("Movies · Alt + M");
+    expect(navigationTooltip("Notifications", "/notifications")).toBe(
+      "Notifications",
+    );
+  });
   it.each([
     ["/games", "Games library"],
     ["/games/example", "Game page"],
@@ -40,7 +52,7 @@ describe("shared shortcut help", () => {
     for (const item of NAVIGATION_SHORTCUTS) {
       expect(
         globalHelp.shortcuts.some(
-          (shortcut) => shortcut.keys === "g then " + item.key,
+          (shortcut) => shortcut.keys === "Alt + " + item.key.toUpperCase(),
         ),
       ).toBe(true);
     }

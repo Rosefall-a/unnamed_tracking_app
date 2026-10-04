@@ -9,11 +9,9 @@ import ShortcutGroups from "./ShortcutGroups.vue";
 const open = ref(false);
 const route = useRoute();
 const router = useRouter();
-let navigationPrefixUntil = 0;
 watch(
   () => route.fullPath,
   () => {
-    navigationPrefixUntil = 0;
     open.value = false;
   },
 );
@@ -40,13 +38,7 @@ function visibleControl(name: string): HTMLElement | undefined {
 
 function onKeydown(event: KeyboardEvent) {
   if (event.defaultPrevented || event.isComposing || event.repeat) return;
-  if (
-    isTypingTarget(event.target) ||
-    event.ctrlKey ||
-    event.metaKey ||
-    event.altKey
-  ) {
-    navigationPrefixUntil = 0;
+  if (isTypingTarget(event.target) || event.ctrlKey || event.metaKey) {
     return;
   }
   if (open.value) {
@@ -62,7 +54,6 @@ function onKeydown(event: KeyboardEvent) {
       'dialog[open], [role="dialog"], [role="alertdialog"]',
     )
   ) {
-    navigationPrefixUntil = 0;
     return;
   }
   if (event.key === "?") {
@@ -71,17 +62,19 @@ function onKeydown(event: KeyboardEvent) {
     return;
   }
   const key = event.key.toLowerCase();
-  if (navigationPrefixUntil > Date.now()) {
-    navigationPrefixUntil = 0;
-    const navigation = NAVIGATION_SHORTCUTS.find((item) => item.key === key);
+  if (event.altKey) {
+    if (event.shiftKey || event.getModifierState("AltGraph")) return;
+    // Option on macOS can produce a symbol rather than the underlying letter.
+    const letter = /^[a-z]$/.test(key)
+      ? key
+      : /^Key[A-Z]$/.test(event.code)
+        ? event.code.slice(3).toLowerCase()
+        : "";
+    const navigation = NAVIGATION_SHORTCUTS.find((item) => item.key === letter);
     if (navigation) {
       event.preventDefault();
       void router.push(navigation.path);
-      return;
     }
-  }
-  if (key === "g") {
-    navigationPrefixUntil = Date.now() + 1200;
     return;
   }
   if (event.key === "/") {

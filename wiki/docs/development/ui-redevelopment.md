@@ -269,3 +269,12 @@ The [search report](../assets/ui-redevelopment/stage-search-conformance.json) re
 ![Expandable help with the current page first](../assets/ui-redevelopment/stage-shortcuts-current-page.png)
 
 ![Combined appearance and interface controls](../assets/ui-redevelopment/stage-settings-combined-1440-light.png)
+
+
+## Alt navigation and hover hints
+
+Page navigation now uses Alt plus the displayed letter instead of a two-key sequence. Sidebar links expose matching hover titles and `aria-keyshortcuts`, including the collapsed rail; expandable groups explain which page their key opens. Search retains Ctrl/Cmd + K. Help and Settings share the new mappings. Option-produced symbols on macOS are resolved from the underlying key, while AltGr, other modifier chords, typing, IME, repeated keys and open dialogs retain their existing behavior.
+
+The [updated navigation report](../assets/ui-redevelopment/stage-alt-navigation-conformance.json) repeats 52 route/theme/width checks using actual Alt navigation and verifies title hints, typing and editor guards. It supersedes the earlier sequence mappings without changing the earlier evidence.
+
+![Help with Alt page navigation](../assets/ui-redevelopment/stage-shortcuts-alt-navigation.png)

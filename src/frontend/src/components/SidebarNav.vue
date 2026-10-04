@@ -33,6 +33,10 @@ import AppIcon from "./AppIcon.vue";
 import AppBrand from "./AppBrand.vue";
 import { branding } from "../state/branding";
 import { containModalTab } from "../services/focus";
+import {
+  navigationShortcutForPath,
+  navigationTooltip,
+} from "../utils/shortcuts";
 
 const route = useRoute();
 const router = useRouter();
@@ -342,7 +346,8 @@ onUnmounted(() => {
         type="button"
         class="nav-item nav-search"
         aria-label="Search library"
-        title="Search library"
+        title="Search library · Ctrl/Cmd + K"
+        aria-keyshortcuts="Control+K Meta+K"
         @click="search"
       >
         <AppIcon name="search" /><span class="nav-label">Search library</span
@@ -354,7 +359,8 @@ onUnmounted(() => {
           class="nav-item"
           :class="{ active: isActive('/') }"
           :aria-current="isActive('/') ? 'page' : undefined"
-          title="Home"
+          :title="navigationTooltip('Home', '/')"
+          :aria-keyshortcuts="navigationShortcutForPath('/')"
           @click="close"
           ><AppIcon name="home" /><span class="nav-label"
             >Home</span
@@ -367,7 +373,7 @@ onUnmounted(() => {
             class="nav-item"
             :class="{ 'group-active': group.paths.some(isActive) }"
             :aria-label="group.label"
-            :title="group.label"
+            :title="`${group.label} · ${navigationTooltip(`Open ${group.entries[0]!.label}`, group.entries[0]!.path)}`"
             :aria-expanded="!collapsed && expandedGroups.has(group.id)"
             :aria-controls="`nav-${group.id}`"
             @click="toggleGroup(group.id)"
@@ -394,6 +400,8 @@ onUnmounted(() => {
               class="nav-item"
               :class="{ active: isActive(entry.path) }"
               :aria-current="isActive(entry.path) ? 'page' : undefined"
+              :title="navigationTooltip(entry.label, entry.path)"
+              :aria-keyshortcuts="navigationShortcutForPath(entry.path)"
               @click="close"
               ><AppIcon :name="entry.icon" :size="17" /><span>{{
                 entry.label
@@ -409,7 +417,8 @@ onUnmounted(() => {
           class="nav-item"
           :class="{ active: isActive(tool.path) }"
           :aria-current="isActive(tool.path) ? 'page' : undefined"
-          :title="tool.label"
+          :title="navigationTooltip(tool.label, tool.path)"
+          :aria-keyshortcuts="navigationShortcutForPath(tool.path)"
           :aria-label="tool.label"
           @click="close"
           ><AppIcon :name="tool.icon" /><span class="nav-label">{{
@@ -466,7 +475,8 @@ onUnmounted(() => {
               route.query.section !== 'profile' &&
               route.query.section !== 'admin',
           }"
-          title="Preferences"
+          title="Preferences · Alt + P opens Settings"
+          aria-keyshortcuts="Alt+P"
           aria-label="Preferences"
           @click="close"
           ><AppIcon name="settings" /><span class="nav-label"
@@ -537,6 +547,8 @@ onUnmounted(() => {
         to="/"
         :class="{ active: isActive('/') }"
         :aria-current="isActive('/') ? 'page' : undefined"
+        :title="navigationTooltip('Home', '/')"
+        :aria-keyshortcuts="navigationShortcutForPath('/')"
         ><AppIcon name="home" /><span>Home</span></RouterLink
       >
       <button
