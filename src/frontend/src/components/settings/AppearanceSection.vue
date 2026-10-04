@@ -126,7 +126,8 @@ async function removeImage() {
     <h2>Completed game badges</h2>
     <p class="section-hint">
       How a 100%-complete (Mastered) game's card is highlighted in your library.
-      Changes apply everywhere that card renders once saved.
+      Your saved badges follow your account. Other people's badges are
+      unaffected.
     </p>
 
     <p v-if="loading">Loading…</p>
