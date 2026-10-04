@@ -980,7 +980,7 @@ async function submit() {
                 {{ refreshingMetadata ? "Checking provider…" : "Repull Metadata" }}
               </button>
               <p v-if="refreshMetadataError" class="form-error">{{ refreshMetadataError }}</p>
-              <p v-if="metadataRefreshPreview && metadataRefreshPreview.status === 'updated'" class="hint">
+              <p v-if="metadataRefreshPreview && metadataRefreshPreview.status === 'preview'" class="hint">
                 Preview: {{ metadataRefreshPreview.changedFields.length ? metadataRefreshPreview.changedFields.join(", ") : "no text changes" }}<span v-if="metadataRefreshPreview.skippedLockedFields.length"> · preserved {{ metadataRefreshPreview.skippedLockedFields.length }} locked field(s)</span>.
               </p>
             </div>
