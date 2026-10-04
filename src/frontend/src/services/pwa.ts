@@ -172,7 +172,8 @@ export function startPwa() {
           .then(async (response) => {
             if (!response.ok || !(await response.json()).enabled || reloading)
               return;
-            if (!owned(navigator.serviceWorker.controller)) return;
+            if (!owned(navigator.serviceWorker.controller) || !navigator.onLine)
+              return;
             if (dirty) pwaState.updatePending = true;
             else if (document.readyState === "complete") reloadPwa();
           })
