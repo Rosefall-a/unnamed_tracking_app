@@ -5,7 +5,10 @@ import {
   authCheckFailed,
   checkAuth,
 } from "../state/auth";
-import { saveLibraryScroll } from "../state/libraryScroll";
+import {
+  captureLibraryNavigation,
+  hasLibraryScroll,
+} from "../state/libraryScroll";
 import { appearanceLoaded, loadAppearanceSettings } from "../state/appearance";
 import { fetchSetupStatus } from "../services/setup";
 import {
@@ -25,8 +28,14 @@ declare module "vue-router" {
 
 const router = createRouter({
   history: createWebHistory(),
-  scrollBehavior(to, _from, savedPosition) {
-    if (to.path === "/games") return false;
+  scrollBehavior(to, from, savedPosition) {
+    // A game-detail return restores after the asynchronous library has painted.
+    if (
+      to.path === "/games" &&
+      from.name === "game-detail" &&
+      hasLibraryScroll()
+    )
+      return false;
     if (savedPosition) return savedPosition;
     return { top: 0 };
   },
@@ -230,7 +239,7 @@ function setupRedirect(toPath: string) {
 }
 
 router.beforeEach(async (to, from) => {
-  if (from.path === "/games") saveLibraryScroll(window.scrollY);
+  captureLibraryNavigation(to.path, from.path, window.scrollY);
 
   if (setupState === "unknown") {
     setStartupState("checking");

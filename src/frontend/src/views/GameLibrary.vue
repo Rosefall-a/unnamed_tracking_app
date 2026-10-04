@@ -625,6 +625,7 @@ onMounted(async () => {
   // that runs before any DOM change from the navigation, so it's reliably
   // the position the user was actually looking at when they left.
   await nextTick();
+  if (route.path !== "/games") return;
   const y = takeLibraryScroll();
   if (y > 0) window.scrollTo(0, y);
 });
