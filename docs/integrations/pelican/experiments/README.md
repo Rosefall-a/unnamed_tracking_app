@@ -14,6 +14,12 @@ production code, and none of it is part of the Unnamed Tracking integration.
 | `e02_lifecycle.py` | Power lifecycle and readiness via the Client API and websocket. |
 | `e03_deploy_world.py` | World deployment through the Client API: stop, upload, rename aside, decompress, start, verify. |
 | `e04_backups.py` | Backups as capture/restore, including restore-while-running behaviour. |
+| `e04b_restore_recovery.py` | What a truncate-restore of a capture that ignored `server.jar` leaves, and recovery by reinstall. |
+| `e04c_safe_restore.py` | The recommended restore sequence, verified byte-for-byte before first start. |
+| `setup_env.sh` | Rebuilds the whole disposable Panel + Wings environment from release artifacts. |
+| `mkkey.php` | Creates API keys through Pelican's own `KeyCreationService`. |
+| `yolks/` | Local rebuilds of the Pelican Java 25 yolk and installer images. |
+| `../evidence/api-calls.jsonl` | Every API call the experiments made, with credentials and signed URLs redacted. |
 
 Building the stand-in needs JDK 25, because Minestom 26.x targets class version 69:
 
