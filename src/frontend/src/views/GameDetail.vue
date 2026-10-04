@@ -261,6 +261,11 @@ const descriptionHtml = computed(() => {
   return DOMPurify.sanitize(game.value.description);
 });
 
+const descriptionExpanded = ref(false);
+const descriptionOverflows = computed(
+  () => descriptionHtml.value.replace(/<[^>]*>/g, "").length > 320,
+);
+
 // resolved separately from game.value.parentGameId (which is only an id),
 // see loadGame()
 const parentGameTitle = ref<string | null>(null);
@@ -1161,6 +1166,112 @@ watch(
 const recentActivity = computed(() => game.value?.lastPlayedAt ?? null);
 
 const tally = computed(() => (game.value ? computeScore(game.value) : null));
+
+// the developer and publisher sit by the title, the way Media shows an
+// alternate name, instead of in the details
+const heroCredits = computed(() =>
+  [
+    ...new Set(
+      [game.value?.developer, game.value?.publisher].filter(
+        (x): x is string => !!x,
+      ),
+    ),
+  ].join(" · "),
+);
+
+// The parts of the score you have rated, named, in the order they're listed
+// elsewhere. Whole numbers show without a ".0".
+const ratingParts = computed(() => {
+  const g = game.value;
+  if (!g) return [];
+  const shown = (n: number) => String(Number(n.toFixed(1)));
+  return [
+    { name: "Atmosphere", value: g.ratingOverall },
+    { name: "Story", value: g.ratingStory },
+    { name: "Gameplay", value: g.ratingGameplay },
+    { name: "Sound", value: g.ratingSound },
+  ]
+    .filter((r): r is { name: string; value: number } => r.value !== null)
+    .map((r) => ({ name: r.name, value: shown(r.value) }));
+});
+
+// Where this game sits among everything you have rated, highest score first,
+// the same ranking the library shows. Only for a game that has a score.
+const libraryRank = computed(() => {
+  const g = game.value;
+  if (!g || !tally.value || !libraryGames.value.length) return null;
+  const others = libraryGames.value
+    .filter((x) => x.id !== g.id)
+    .map((x) => computeScore(x)?.sum)
+    .filter((sum): sum is number => typeof sum === "number");
+  return 1 + others.filter((sum) => sum > tally.value!.sum).length;
+});
+
+// The few figures worth seeing first, like the row at the top of a Media
+// title: the first five of these that apply, in this order. Score, rank and
+// playtime always show, with a dash when empty. Everything else is under "More details".
+type TabName = (typeof tabs)[number];
+const overviewFacts = computed(() => {
+  const g = game.value;
+  if (!g) return [];
+  const facts: {
+    label: string;
+    value: string;
+    accent?: boolean;
+    muted?: boolean;
+    tab?: TabName;
+  }[] = [];
+  // your verdict first (score and where it ranks), then how you played it;
+  // the individual ratings get their own row under these
+  facts.push(
+    tally.value
+      ? {
+          label: "Your score",
+          value: tally.value.sum.toFixed(1),
+          accent: true,
+        }
+      : { label: "Your score", value: "–", muted: true },
+  );
+  facts.push(
+    libraryRank.value !== null
+      ? { label: "Rank", value: `#${libraryRank.value}` }
+      : { label: "Rank", value: "–", muted: true },
+  );
+  const minutes = g.platforms.reduce((sum, p) => sum + p.playtimeMinutes, 0);
+  facts.push(
+    minutes > 0
+      ? { label: "Playtime", value: formatPlaytime(minutes) }
+      : { label: "Playtime", value: "–", muted: true },
+  );
+  if (g.achievementTotal > 0)
+    facts.push({
+      label: "Achievements",
+      value: `${g.achievementPercent}%`,
+      tab: "Achievements",
+    });
+  // the furthest you are through it on any platform
+  const completions = g.platforms
+    .map((p) => p.completionPercent)
+    .filter((c): c is number => c !== null);
+  if (completions.length)
+    facts.push({
+      label: "Completion",
+      value: `${Math.max(...completions)}%`,
+    });
+  if (g.platforms.length)
+    facts.push({
+      label: g.platforms.length === 1 ? "Platform" : "Platforms",
+      value: g.platforms.map((p) => p.platform).join(", "),
+    });
+  return facts.slice(0, 5);
+});
+
+// only the main genres up top; the rest of the tags are under "More details"
+const MAIN_TAG_COUNT = 6;
+const mainTags = computed(
+  () => game.value?.tags.slice(0, MAIN_TAG_COUNT) ?? [],
+);
+const moreTags = computed(() => game.value?.tags.slice(MAIN_TAG_COUNT) ?? []);
 
 const statsPlaytimeMinutes = computed(() =>
   game.value
@@ -2140,6 +2251,7 @@ function formatPlaytime(minutes: number) {
             }}</span>
             →
           </router-link>
+          <div v-if="heroCredits" class="native-title">{{ heroCredits }}</div>
           <h1 class="title">{{ game.title }}</h1>
           <div class="badge-row">
             <select
@@ -2255,200 +2367,198 @@ function formatPlaytime(minutes: number) {
     </div>
 
     <section v-if="activeTab === 'Overview'" class="overview">
-      <div class="overview-main">
-        <div class="resume-note-card">
-          <div class="resume-note-header">
-            <h3>Where I left off</h3>
+      <div v-if="overviewFacts.length" class="meta-block">
+        <div v-if="overviewFacts.length" class="meta-grid">
+          <div
+            v-for="fact in overviewFacts"
+            :key="fact.label"
+            class="meta-item"
+          >
+            <span class="meta-label">{{ fact.label }}</span>
             <button
-              v-if="!resumeNoteEditing"
+              v-if="fact.tab"
               type="button"
-              class="text-button"
-              @click="startEditResumeNote"
+              class="meta-value meta-link"
+              :class="{ accent: fact.accent, muted: fact.muted }"
+              :title="`Open ${fact.tab}`"
+              @click="activeTab = fact.tab"
             >
-              {{ game.resumeNote ? "Edit" : "+ Add note" }}
+              {{ fact.value }}
             </button>
-          </div>
-          <template v-if="resumeNoteEditing">
-            <textarea
-              v-model="resumeNoteDraft"
-              class="resume-note-textarea"
-              rows="3"
-              placeholder="e.g. Just beat the third boss, about to start the desert region…"
-            ></textarea>
-            <div v-if="resumeNoteError" class="form-error-inline">
-              {{ resumeNoteError }}
-            </div>
-            <div class="resume-note-actions">
-              <button
-                type="button"
-                class="secondary-button"
-                @click="resumeNoteEditing = false"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                class="primary-button"
-                :disabled="resumeNoteSaving"
-                @click="saveResumeNote"
-              >
-                {{ resumeNoteSaving ? "Saving…" : "Save" }}
-              </button>
-            </div>
-          </template>
-          <p v-else-if="game.resumeNote" class="resume-note-text">
-            {{ game.resumeNote }}
-          </p>
-          <p v-else class="resume-note-empty">
-            Nothing noted yet. Jot down what to do next time you pick this up.
-          </p>
-        </div>
-
-        <div v-if="descriptionHtml" class="description-wrap">
-          <div class="description-html" v-html="descriptionHtml"></div>
-        </div>
-
-        <div v-if="variants.length" class="variants-section">
-          <h3 class="variants-heading">Variants</h3>
-          <div class="variants-row">
-            <router-link
-              v-for="variant in variants"
-              :key="variant.id"
-              :to="`/games/${variant.id}`"
-              class="variant-card"
+            <span
+              v-else
+              class="meta-value"
+              :class="{ accent: fact.accent, muted: fact.muted }"
+              >{{ fact.value }}</span
             >
-              <img :src="variant.coverImageUrl" alt="" class="variant-cover" />
-              <span class="variant-title">{{ variant.title }}</span>
-              <span v-if="variant.relationshipType" class="relationship-tag">
-                {{
-                  RELATIONSHIP_LABELS[variant.relationshipType] ??
-                  variant.relationshipType
-                }}
-              </span>
-            </router-link>
-          </div>
-        </div>
-
-        <div v-if="similarGames.length" class="similar-games-section">
-          <h3 class="variants-heading">Similar games in your library</h3>
-          <div class="variants-row">
-            <router-link
-              v-for="g in similarGames"
-              :key="g.id"
-              :to="`/games/${g.id}`"
-              class="variant-card"
-            >
-              <img :src="g.coverImageUrl" alt="" class="variant-cover" />
-              <span class="variant-title">{{ g.title }}</span>
-            </router-link>
-          </div>
-        </div>
-
-        <div
-          class="rating-breakdown"
-          v-if="
-            game.ratingOverall !== null ||
-            game.ratingStory !== null ||
-            game.ratingGameplay !== null ||
-            game.ratingSound !== null
-          "
-        >
-          <div v-if="game.ratingOverall !== null" class="rating-item">
-            <span class="rating-label">Atmosphere</span>
-            <span class="rating-score"
-              >★ {{ game.ratingOverall.toFixed(1) }}</span
-            >
-          </div>
-          <div v-if="game.ratingStory !== null" class="rating-item">
-            <span class="rating-label">Story</span>
-            <span class="rating-score"
-              >★ {{ game.ratingStory.toFixed(1) }}</span
-            >
-          </div>
-          <div v-if="game.ratingGameplay !== null" class="rating-item">
-            <span class="rating-label">Gameplay</span>
-            <span class="rating-score"
-              >★ {{ game.ratingGameplay.toFixed(1) }}</span
-            >
-          </div>
-          <div v-if="game.ratingSound !== null" class="rating-item">
-            <span class="rating-label">Sound</span>
-            <span class="rating-score"
-              >★ {{ game.ratingSound.toFixed(1) }}</span
-            >
-          </div>
-          <div v-if="tally" class="rating-item">
-            <span class="rating-label">Score</span>
-            <span class="rating-score">{{ tally.sum.toFixed(1) }}</span>
           </div>
         </div>
       </div>
 
-      <aside class="details-panel">
-        <h3 class="panel-title">Details</h3>
-        <div class="detail-row">
-          <span class="detail-label">Developer</span>
-          <span class="detail-value">{{ game.developer ?? "N/A" }}</span>
+      <div v-if="mainTags.length" class="chip-row">
+        <span v-for="tag in mainTags" :key="tag" class="chip primary">{{
+          tag
+        }}</span>
+      </div>
+
+      <div v-if="descriptionHtml" class="description-block">
+        <div
+          class="description description-html"
+          :class="{ clamped: descriptionOverflows && !descriptionExpanded }"
+          v-html="descriptionHtml"
+        ></div>
+        <button
+          v-if="descriptionOverflows"
+          type="button"
+          class="read-more-btn"
+          @click="descriptionExpanded = !descriptionExpanded"
+        >
+          {{ descriptionExpanded ? "Show less" : "Read more" }}
+        </button>
+      </div>
+
+      <section
+        class="my-note"
+        :class="{ empty: !game.resumeNote && !resumeNoteEditing }"
+      >
+        <template v-if="resumeNoteEditing">
+          <header class="note-head">
+            <h3>Where I left off</h3>
+          </header>
+          <textarea
+            v-model="resumeNoteDraft"
+            class="note-input"
+            rows="3"
+            placeholder="e.g. Just beat the third boss, about to start the desert region…"
+            aria-label="Where I left off"
+          ></textarea>
+          <p v-if="resumeNoteError" class="note-error">
+            {{ resumeNoteError }}
+          </p>
+          <div class="note-actions">
+            <button
+              type="button"
+              class="btn-solid"
+              :disabled="resumeNoteSaving"
+              @click="saveResumeNote"
+            >
+              {{ resumeNoteSaving ? "Saving…" : "Save" }}
+            </button>
+            <button
+              type="button"
+              class="btn-text muted"
+              @click="resumeNoteEditing = false"
+            >
+              Cancel
+            </button>
+          </div>
+        </template>
+        <template v-else-if="game.resumeNote">
+          <header class="note-head">
+            <h3>Where I left off</h3>
+            <span class="note-private">Only you can see this</span>
+            <button type="button" class="btn-text" @click="startEditResumeNote">
+              Edit
+            </button>
+          </header>
+          <p class="note-text">{{ game.resumeNote }}</p>
+        </template>
+        <template v-else>
+          <button type="button" class="btn-text" @click="startEditResumeNote">
+            + Add a note on where you left off
+          </button>
+          <span class="note-private">Only you can see this</span>
+        </template>
+      </section>
+
+      <div v-if="variants.length" class="related-section">
+        <div class="section-heading">
+          <h2>Variants</h2>
         </div>
-        <div class="detail-row">
-          <span class="detail-label">Publisher</span>
-          <span class="detail-value">{{ game.publisher ?? "N/A" }}</span>
+        <div class="poster-grid">
+          <router-link
+            v-for="variant in variants"
+            :key="variant.id"
+            :to="`/games/${variant.id}`"
+            class="poster-card-sm"
+          >
+            <div
+              class="poster-card-sm-art"
+              :style="
+                variant.coverImageUrl
+                  ? { backgroundImage: `url(${variant.coverImageUrl})` }
+                  : {}
+              "
+            ></div>
+            <div class="poster-card-sm-title">{{ variant.title }}</div>
+            <div v-if="variant.relationshipType" class="poster-card-sm-meta">
+              {{
+                RELATIONSHIP_LABELS[variant.relationshipType] ??
+                variant.relationshipType
+              }}
+            </div>
+          </router-link>
         </div>
-        <div class="detail-row">
-          <span class="detail-label">Series</span>
-          <span class="detail-value">{{ game.series ?? "N/A" }}</span>
+      </div>
+
+      <div v-if="similarGames.length" class="related-section">
+        <div class="section-heading">
+          <h2>Similar games in your library</h2>
         </div>
-        <div v-if="game.releaseDate" class="detail-row">
-          <span class="detail-label">Release Date</span>
-          <span class="detail-value">{{
-            formatDisplayDate(game.releaseDate)
-          }}</span>
+        <div class="poster-grid">
+          <router-link
+            v-for="g in similarGames"
+            :key="g.id"
+            :to="`/games/${g.id}`"
+            class="poster-card-sm"
+          >
+            <div
+              class="poster-card-sm-art"
+              :style="
+                g.coverImageUrl
+                  ? { backgroundImage: `url(${g.coverImageUrl})` }
+                  : {}
+              "
+            ></div>
+            <div class="poster-card-sm-title">{{ g.title }}</div>
+          </router-link>
         </div>
-        <div class="detail-row">
-          <span class="detail-label">Date Added</span>
-          <span class="detail-value">
-            {{
-              game.dateAdded
-                ? new Date(game.dateAdded).toLocaleDateString()
-                : "N/A"
-            }}
-          </span>
-        </div>
-        <div class="detail-row">
-          <span class="detail-label">Recent Activity</span>
-          <span class="detail-value">
-            {{
-              recentActivity
-                ? new Date(recentActivity).toLocaleDateString()
-                : "N/A"
-            }}
-          </span>
-        </div>
-        <div class="detail-row">
-          <span class="detail-label">Platforms</span>
-          <ul class="platforms">
+      </div>
+
+      <details class="more-details">
+        <summary>More details</summary>
+
+        <div v-if="game.platforms.length" class="more-block">
+          <h3 class="more-title">Platforms</h3>
+          <ul class="platform-list">
             <li
               v-for="p in game.platforms"
               :key="p.platform"
-              class="platform-row"
+              class="platform-item"
             >
-              <div class="platform-line">
+              <div class="platform-top">
                 <span class="platform-name">{{ p.platform }}</span>
-                <span class="platform-meta">
-                  {{ formatPlaytime(p.playtimeMinutes)
-                  }}<span v-if="p.completionPercent !== null">
-                    · {{ p.completionPercent }}%</span
-                  >
-                </span>
+                <span class="platform-hours">{{
+                  formatPlaytime(p.playtimeMinutes)
+                }}</span>
               </div>
-              <div v-if="p.lastPlayedAt" class="platform-last-played">
-                last played {{ new Date(p.lastPlayedAt).toLocaleDateString() }}
+              <div
+                v-if="p.completionPercent !== null || p.lastPlayedAt"
+                class="platform-sub"
+              >
+                <span v-if="p.completionPercent !== null"
+                  >{{ p.completionPercent }}% complete</span
+                >
+                <span v-if="p.lastPlayedAt"
+                  >last played
+                  {{ new Date(p.lastPlayedAt).toLocaleDateString() }}</span
+                >
               </div>
             </li>
           </ul>
           <button
             type="button"
-            class="text-button log-playtime-button"
+            class="read-more-btn"
             :disabled="loggingPlaytime"
             title="Log a session just played, without editing the total by hand"
             @click="logPlaytime(30)"
@@ -2456,97 +2566,126 @@ function formatPlaytime(minutes: number) {
             + Log 30 min just played
           </button>
         </div>
-        <div v-if="game.tags.length" class="detail-row">
-          <span class="detail-label">Tags</span>
-          <span class="feature-pills">
-            <span v-for="tag in game.tags" :key="tag" class="feature-pill">{{
+
+        <div v-if="ratingParts.length" class="more-block">
+          <h3 class="more-title">Your ratings</h3>
+          <div class="kv-grid">
+            <div v-for="part in ratingParts" :key="part.name" class="kv-row">
+              <span class="kv-label">{{ part.name }}</span>
+              <span class="kv-value accent">{{ part.value }}</span>
+            </div>
+          </div>
+        </div>
+
+        <div v-if="moreTags.length || game.features.length" class="more-block">
+          <h3 class="more-title">Tags and features</h3>
+          <div class="chip-row">
+            <span v-for="tag in moreTags" :key="tag" class="chip">{{
               tag
             }}</span>
-          </span>
-        </div>
-        <div v-if="game.features.length" class="detail-row">
-          <span class="detail-label">Features</span>
-          <span class="feature-pills">
-            <span v-for="f in game.features" :key="f" class="feature-pill">{{
+            <span v-for="f in game.features" :key="f" class="chip">{{
               f
-            }}</span>
-          </span>
-        </div>
-        <div v-if="game.source" class="detail-row">
-          <span class="detail-label">Source</span>
-          <span class="detail-value">{{ game.source }}</span>
-        </div>
-        <div v-if="activePriority(game) !== null" class="detail-row">
-          <span class="detail-label">Priority</span>
-          <span class="detail-value">{{
-            priorityLabel(activePriority(game)!)
-          }}</span>
-        </div>
-        <div v-if="game.ageRating" class="detail-row">
-          <span class="detail-label">Age Rating</span>
-          <span class="detail-value">{{ game.ageRating }}</span>
-        </div>
-        <div v-if="game.timeToBeatHours" class="detail-row">
-          <span class="detail-label">Time to Beat</span>
-          <span class="detail-value">{{ game.timeToBeatHours }}h</span>
-        </div>
-        <div v-if="game.region" class="detail-row">
-          <span class="detail-label">Region</span>
-          <span class="detail-value">{{ game.region }}</span>
-        </div>
-        <div v-if="game.language" class="detail-row">
-          <span class="detail-label">Language</span>
-          <span class="detail-value">{{ game.language }}</span>
-        </div>
-        <div v-if="game.achievementsProvider" class="detail-row">
-          <span class="detail-label">Achievement Tracking</span>
-          <span class="detail-value">{{
-            game.achievementsProvider === "retroachievements"
-              ? "RetroAchievements"
-              : "Native"
-          }}</span>
-        </div>
-        <div v-if="game.links.length" class="detail-row">
-          <span class="detail-label">Links</span>
-          <ul class="links-list">
-            <li v-for="link in game.links" :key="link.url">
-              <a :href="link.url" target="_blank" rel="noopener noreferrer">{{
-                link.label
-              }}</a>
-            </li>
-          </ul>
-        </div>
-        <div
-          v-if="
-            game.ownership.format ||
-            game.ownership.purchaseDate ||
-            game.ownership.price !== null
-          "
-          class="detail-row"
-        >
-          <span class="detail-label">Ownership</span>
-          <div class="ownership-info">
-            <span v-if="game.ownership.format" class="ownership-format">{{
-              game.ownership.format
-            }}</span>
-            <span v-if="game.ownership.purchaseDate">
-              Purchased
-              {{ formatDisplayDate(game.ownership.purchaseDate) }}
-            </span>
-            <span v-if="game.ownership.price !== null">
-              {{ game.ownership.priceCurrency ?? "USD" }}
-              {{ game.ownership.price.toFixed(2) }}
-            </span>
-            <span v-if="game.ownership.condition">{{
-              game.ownership.condition
             }}</span>
           </div>
         </div>
-        <div v-if="game.folderLocation" class="detail-row">
-          <span class="detail-label">Folder</span>
-          <span class="detail-value">{{ game.folderLocation }}</span>
+
+        <div class="more-block">
+          <h3 class="more-title">Library</h3>
+          <div class="kv-grid">
+            <div v-if="game.series" class="kv-row">
+              <span class="kv-label">Series</span>
+              <span class="kv-value">{{ game.series }}</span>
+            </div>
+            <div v-if="game.dateAdded" class="kv-row">
+              <span class="kv-label">Added</span>
+              <span class="kv-value">{{
+                new Date(game.dateAdded).toLocaleDateString()
+              }}</span>
+            </div>
+            <div v-if="recentActivity" class="kv-row">
+              <span class="kv-label">Last played</span>
+              <span class="kv-value">{{
+                new Date(recentActivity).toLocaleDateString()
+              }}</span>
+            </div>
+            <div v-if="game.source" class="kv-row">
+              <span class="kv-label">Source</span>
+              <span class="kv-value">{{ game.source }}</span>
+            </div>
+            <div v-if="activePriority(game) !== null" class="kv-row">
+              <span class="kv-label">Priority</span>
+              <span class="kv-value">{{
+                priorityLabel(activePriority(game)!)
+              }}</span>
+            </div>
+            <div v-if="game.ageRating" class="kv-row">
+              <span class="kv-label">Age rating</span>
+              <span class="kv-value">{{ game.ageRating }}</span>
+            </div>
+            <div v-if="game.region" class="kv-row">
+              <span class="kv-label">Region</span>
+              <span class="kv-value">{{ game.region }}</span>
+            </div>
+            <div v-if="game.language" class="kv-row">
+              <span class="kv-label">Language</span>
+              <span class="kv-value">{{ game.language }}</span>
+            </div>
+            <div v-if="game.achievementsProvider" class="kv-row">
+              <span class="kv-label">Achievements via</span>
+              <span class="kv-value">{{
+                game.achievementsProvider === "retroachievements"
+                  ? "RetroAchievements"
+                  : "Native"
+              }}</span>
+            </div>
+            <div
+              v-if="
+                game.ownership.format ||
+                game.ownership.purchaseDate ||
+                game.ownership.price !== null
+              "
+              class="kv-row stack"
+            >
+              <span class="kv-label">Ownership</span>
+              <span class="kv-value ownership-info">
+                <span v-if="game.ownership.format" class="ownership-format">{{
+                  game.ownership.format
+                }}</span>
+                <span v-if="game.ownership.purchaseDate">
+                  Purchased
+                  {{ formatDisplayDate(game.ownership.purchaseDate) }}
+                </span>
+                <span v-if="game.ownership.price !== null">
+                  {{ game.ownership.priceCurrency ?? "USD" }}
+                  {{ game.ownership.price.toFixed(2) }}
+                </span>
+                <span v-if="game.ownership.condition">{{
+                  game.ownership.condition
+                }}</span>
+              </span>
+            </div>
+            <div v-if="game.links.length" class="kv-row stack">
+              <span class="kv-label">Links</span>
+              <ul class="links-list">
+                <li v-for="link in game.links" :key="link.url">
+                  <a
+                    :href="link.url"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    >{{ link.label }}</a
+                  >
+                </li>
+              </ul>
+            </div>
+            <div v-if="game.folderLocation" class="kv-row stack">
+              <span class="kv-label">Folder</span>
+              <span class="kv-value folder-value">{{
+                game.folderLocation
+              }}</span>
+            </div>
+          </div>
         </div>
-      </aside>
+      </details>
     </section>
 
     <section v-else-if="activeTab === 'Achievements'" class="achievements">
@@ -4134,6 +4273,7 @@ function formatPlaytime(minutes: number) {
   max-width: 1180px;
   margin: 0 auto;
   padding: 0 24px 28px;
+  box-sizing: border-box;
   display: flex;
   align-items: flex-end;
   gap: 26px;
@@ -4160,6 +4300,12 @@ function formatPlaytime(minutes: number) {
 .hero-text {
   min-width: 0;
   padding-bottom: 4px;
+}
+.native-title {
+  font-size: 0.82rem;
+  color: #666;
+  margin-bottom: 4px;
+  font-weight: 500;
 }
 .title {
   font-weight: 800;
@@ -4219,55 +4365,6 @@ function formatPlaytime(minutes: number) {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.03em;
-}
-.variants-section,
-.similar-games-section {
-  margin-bottom: 24px;
-}
-.variants-heading {
-  margin: 0 0 10px;
-  font-size: 0.85rem;
-  color: #999;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-.variants-row {
-  display: flex;
-  gap: 12px;
-  overflow-x: auto;
-  padding-bottom: 4px;
-}
-.variant-card {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  width: 110px;
-  flex-shrink: 0;
-  text-decoration: none;
-  padding: 8px;
-  border-radius: 10px;
-  transition: background 0.15s ease;
-}
-.variant-card:hover {
-  background: rgba(255, 255, 255, 0.06);
-}
-.variant-cover {
-  width: 90px;
-  height: 135px;
-  object-fit: cover;
-  border-radius: 6px;
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
-}
-.variant-title {
-  color: #fff;
-  font-size: 0.76rem;
-  font-weight: 600;
-  text-align: center;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 100%;
 }
 .badge-row {
   display: flex;
@@ -4380,6 +4477,7 @@ function formatPlaytime(minutes: number) {
   max-width: 1180px;
   margin: 22px auto 0;
   padding: 0 24px;
+  box-sizing: border-box;
 }
 .tabbar {
   display: flex;
@@ -4414,34 +4512,10 @@ function formatPlaytime(minutes: number) {
 }
 .overview {
   width: 100%;
-  max-width: 1600px;
+  max-width: 1180px;
   margin: 0 auto;
-  padding: 24px;
+  padding: 22px 24px 60px;
   box-sizing: border-box;
-  display: grid;
-  grid-template-columns: 1fr 340px;
-  gap: 24px;
-  align-items: start;
-}
-@media (max-width: 860px) {
-  /* the details sidebar has real, sometimes long content (platforms,
-     ownership, links), stacking it below the description keeps it
-     reachable instead of squeezed into a column with no room */
-  .overview {
-    grid-template-columns: 1fr;
-    padding: 16px;
-  }
-  .details-panel {
-    margin-right: 0;
-  }
-  /* grid items default to min-width:auto (their content's natural size),
-     without overriding it, a single wide descendant anywhere inside these
-     two (a media row, a long link, a table) forces the "1fr" track back
-     out to that descendant's width instead of actually shrinking to fit */
-  .overview-main,
-  .details-panel {
-    min-width: 0;
-  }
 }
 .text-button {
   background: none;
@@ -4470,67 +4544,144 @@ function formatPlaytime(minutes: number) {
   display: block;
   margin-top: 4px;
 }
-.resume-note-card {
-  max-width: 720px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid #2a2a2a;
-  border-radius: 10px;
-  padding: 14px 16px;
-  margin-bottom: 20px;
+.my-note {
+  margin-top: 26px;
+  padding-top: 22px;
+  border-top: 1px solid #1f1f1f;
 }
-.resume-note-header {
+.my-note.empty {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 8px;
+  align-items: baseline;
+  gap: 12px;
 }
-.resume-note-header h3 {
-  margin: 0;
-  font-size: 14px;
-  color: #fff;
+.note-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 0 0 10px;
 }
-.resume-note-text {
-  color: #ddd;
-  font-size: 13.5px;
-  line-height: 1.6;
+.note-head h3 {
   margin: 0;
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: #f2f2f2;
+}
+.note-private {
+  flex: 1;
+  font-size: 0.72rem;
+  color: #666;
+}
+.note-text {
+  margin: 0;
+  font-size: 0.96rem;
+  line-height: 1.7;
+  color: #d0d0d0;
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
-.resume-note-empty {
-  color: #777;
-  font-size: 13px;
-  margin: 0;
-}
-.resume-note-textarea {
+.note-input {
+  display: block;
   width: 100%;
   box-sizing: border-box;
-  background: #111;
-  border: 1px solid #3a3a3a;
-  border-radius: 8px;
-  color: #f5f5f5;
-  padding: 10px 12px;
-  font: inherit;
-  font-size: 13.5px;
+  min-height: 84px;
   resize: vertical;
-}
-.resume-note-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  margin-top: 10px;
-}
-.description-wrap {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  max-width: 720px;
-  padding-left: 16px;
-  border-left: 3px solid #d68a34;
-}
-.description-html {
-  color: #ddd;
-  font-size: 16px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid #2a2a2a;
+  background: #1a1a1a;
+  color: #f2f2f2;
+  font: inherit;
+  font-size: 0.96rem;
   line-height: 1.7;
+}
+.note-input::placeholder {
+  color: #666;
+}
+.note-input:focus {
+  outline: none;
+  border-color: rgba(214, 138, 52, 0.7);
+}
+.note-error {
+  color: #e57373;
+  font-size: 0.8rem;
+  margin: 8px 0 0;
+}
+.note-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 12px;
+}
+.btn-text {
+  background: none;
+  border: none;
+  /* larger tap target without moving the text */
+  padding: 6px 4px;
+  margin: -6px -4px;
+  color: #d68a34;
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.btn-text:hover {
+  color: #e8a552;
+}
+.btn-text.muted {
+  color: #9c9c9c;
+}
+.btn-text.muted:hover {
+  color: #f2f2f2;
+}
+.btn-solid {
+  background: #d68a34;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 18px;
+  color: #14100a;
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+.btn-solid:hover {
+  background: #e29a48;
+}
+.btn-solid:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.description-block {
+  margin-top: 22px;
+}
+.description {
+  font-size: 0.96rem;
+  line-height: 1.7;
+  color: #9c9c9c;
+  margin: 0;
+}
+.description.clamped {
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.read-more-btn {
+  background: none;
+  border: none;
+  color: #d68a34;
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 6px 0 0;
+}
+.read-more-btn:hover {
+  text-decoration: underline;
+}
+.read-more-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 .description-html :deep(img),
 .description-html :deep(video) {
@@ -4546,7 +4697,7 @@ function formatPlaytime(minutes: number) {
   margin: 18px 0 6px;
   font-size: 15px;
   font-weight: 700;
-  color: #fff;
+  color: #f2f2f2;
 }
 .description-html :deep(p) {
   margin: 0 0 12px;
@@ -4558,107 +4709,145 @@ function formatPlaytime(minutes: number) {
   padding-left: 20px;
   margin: 0 0 12px;
 }
-.rating-breakdown {
-  display: flex;
-  gap: 12px;
-  margin-top: 24px;
-  flex-wrap: wrap;
-}
-.rating-item {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid #232323;
-  border-radius: 10px;
-  padding: 12px 18px;
-  min-width: 90px;
-}
-.rating-label {
-  color: #999;
-  font-size: 13px;
-}
-.rating-score {
-  color: #d68a34;
-  font-size: 18px;
-  font-weight: 600;
-}
-.details-panel {
-  border: 1px solid #2a2a2a;
-  border-radius: 12px;
-  padding: 6px 18px 16px;
-  background: rgba(0, 0, 0, 0.3);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
-  margin-right: -24px;
-}
-.panel-title {
-  margin: 14px 0 6px;
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: #777;
-  font-weight: 700;
-}
-.detail-row {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 8px 0;
-  font-size: 14px;
+/* Media's row of small label/value pairs: fixed-width columns that start at
+   the left, so a long value never stretches a cell and leaves a gap. */
+.meta-block {
+  margin-bottom: 24px;
+  padding-bottom: 24px;
   border-bottom: 1px solid #202020;
 }
-.detail-row:last-child {
-  border-bottom: none;
+.meta-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, 132px);
+  gap: 18px 40px;
 }
-.detail-label {
-  color: #999;
+@media (max-width: 640px) {
+  .meta-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px 20px;
+  }
 }
-.detail-value {
-  color: #fff;
-}
-.feature-pills {
+.meta-item {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
 }
-.feature-pill {
-  background: #2a2a2a;
-  padding: 3px 8px;
-  border-radius: 999px;
-  font-size: 11px;
-  color: #ccc;
+.meta-label {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: #666;
+  font-weight: 700;
 }
-.platforms {
-  list-style: none;
+.meta-value {
+  font-size: 0.9rem;
+  color: #f2f2f2;
+  font-variant-numeric: tabular-nums;
+}
+.meta-value.accent {
+  color: #d68a34;
+  font-weight: 700;
+}
+.meta-value.muted {
+  color: #666;
+}
+.meta-link {
+  background: none;
+  border: none;
   padding: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
 }
-.platform-row {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
+.meta-link:hover {
+  text-decoration: underline;
 }
-.platform-line {
+.more-details {
+  margin-top: 28px;
+  padding-top: 16px;
+  border-top: 1px solid #202020;
+}
+.more-details > summary {
+  cursor: pointer;
+  list-style: none;
+  color: #d68a34;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+.more-details > summary::-webkit-details-marker {
+  display: none;
+}
+.more-details > summary::before {
+  content: "▸ ";
+}
+.more-details[open] > summary::before {
+  content: "▾ ";
+}
+.more-block {
+  margin-top: 20px;
+}
+.more-title {
+  margin: 0 0 8px;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: #666;
+  font-weight: 700;
+}
+.more-details .read-more-btn {
+  display: block;
+  padding-top: 10px;
+}
+.kv-row {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  gap: 8px;
-  font-size: 14px;
+  gap: 16px;
+  padding: 9px 0;
+  border-bottom: 1px solid #202020;
+  font-size: 0.88rem;
 }
-.platform-name {
-  color: #fff;
-  font-weight: 600;
+.kv-row:last-child {
+  border-bottom: none;
 }
-.platform-meta {
-  color: #999;
-  white-space: nowrap;
+.kv-row.stack {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
 }
-.platform-last-played {
-  color: #666;
-  font-size: 12px;
+.kv-label {
+  color: #9c9c9c;
+  flex-shrink: 0;
+}
+.kv-value {
+  color: #f2f2f2;
+  text-align: right;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+.kv-row.stack .kv-value {
+  text-align: left;
+}
+.kv-value.accent {
+  color: #d68a34;
+  font-weight: 700;
+}
+.kv-row.total {
+  font-weight: 700;
+}
+.folder-value {
+  font-size: 0.8rem;
+}
+.ownership-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ownership-format {
+  text-transform: capitalize;
+  font-weight: 700;
 }
 .links-list {
   list-style: none;
@@ -4670,23 +4859,121 @@ function formatPlaytime(minutes: number) {
 }
 .links-list a {
   color: #d68a34;
-  font-size: 14px;
+  font-size: 0.88rem;
   text-decoration: none;
 }
 .links-list a:hover {
   text-decoration: underline;
 }
-.ownership-info {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  color: #ddd;
-  font-size: 14px;
+.platform-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
 }
-.ownership-format {
-  text-transform: capitalize;
-  color: #fff;
+.platform-item {
+  padding: 9px 0;
+  border-bottom: 1px solid #202020;
+}
+.platform-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+}
+.platform-name {
+  color: #f2f2f2;
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+.platform-hours {
+  color: #f2f2f2;
+  font-size: 0.88rem;
+  font-variant-numeric: tabular-nums;
+}
+.platform-sub {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+  margin-top: 2px;
+  font-size: 0.74rem;
+  color: #666;
+}
+.kv-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  column-gap: 32px;
+}
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.chip {
+  background: #222222;
+  color: #9c9c9c;
+  border: 1px solid #2b2b2b;
+  border-radius: 999px;
+  padding: 5px 13px;
+  font-size: 0.78rem;
   font-weight: 600;
+}
+.chip.primary {
+  background: rgba(214, 138, 52, 0.16);
+  color: #d68a34;
+  border-color: rgba(214, 138, 52, 0.4);
+}
+.related-section {
+  margin-top: 28px;
+}
+.section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+.section-heading h2 {
+  font-weight: 800;
+  font-size: 1.05rem;
+  margin: 0;
+}
+.poster-grid {
+  margin-top: 20px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 16px;
+}
+.poster-card-sm {
+  cursor: pointer;
+  text-decoration: none;
+  color: inherit;
+}
+.poster-card-sm-art {
+  aspect-ratio: 2 / 3;
+  border-radius: 8px;
+  background-size: cover;
+  background-position: center;
+  background-color: #222222;
+  border: 1px solid #2b2b2b;
+  transition: border-color 0.15s ease;
+}
+.poster-card-sm:hover .poster-card-sm-art {
+  border-color: rgba(214, 138, 52, 0.5);
+}
+.poster-card-sm-title {
+  margin-top: 6px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.poster-card-sm-meta {
+  margin-top: 2px;
+  font-size: 0.7rem;
+  color: #666;
 }
 .trophy-summary {
   display: flex;
@@ -4832,6 +5119,12 @@ function formatPlaytime(minutes: number) {
   font-size: 12px;
   white-space: nowrap;
 }
+.achievements {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 22px 24px 60px;
+  box-sizing: border-box;
+}
 .achievements-header {
   display: flex;
   align-items: center;
@@ -4842,9 +5135,9 @@ function formatPlaytime(minutes: number) {
 }
 .notes-panel {
   width: 100%;
-  max-width: 1600px;
+  max-width: 1180px;
   margin: 0 auto;
-  padding: 24px;
+  padding: 22px 24px 60px;
   box-sizing: border-box;
 }
 .notes-list-view {
@@ -5087,9 +5380,9 @@ function formatPlaytime(minutes: number) {
   padding: 8px 10px;
 }
 .accounts-panel {
-  max-width: 1100px;
+  max-width: 1180px;
   margin: 0 auto;
-  padding: 24px;
+  padding: 22px 24px 60px;
   box-sizing: border-box;
 }
 .accounts-layout {
@@ -5522,9 +5815,9 @@ function formatPlaytime(minutes: number) {
 .stats-panel,
 .history-panel {
   width: 100%;
-  max-width: 1600px;
+  max-width: 1180px;
   margin: 0 auto;
-  padding: 24px;
+  padding: 22px 24px 60px;
   box-sizing: border-box;
   position: relative;
   z-index: 1;
