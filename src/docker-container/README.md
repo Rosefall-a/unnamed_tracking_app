@@ -15,7 +15,7 @@ Image name: ghcr.io/rosefall-a/unnamed_tracking_app:<tag>
 
 The existing frontend and backend images remain available for development. The production package is an additional deployment target.
 
-The startup page is served directly by Nginx before the backend is available. Its small static assets provide the UI; the entrypoint updates a small status JSON file and detail logs. Once FastAPI is healthy, Nginx reloads into the production configuration.
+The startup page is served directly by Nginx before the backend is available. Its small static assets provide the UI; the entrypoint updates a small status JSON file and detail logs. Once FastAPI is healthy, Nginx reloads into the production configuration. Since that reload is asynchronous, readiness waits until a loopback request returns the compiled application document. A successful response from an old startup worker is insufficient to publish `READY`.
 
 The startup UI polls asynchronously and uses no frontend framework. It is intended to remain lightweight and independent from the main Vue application.
 
