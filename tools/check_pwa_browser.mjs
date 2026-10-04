@@ -61,8 +61,18 @@ const upload = async name => ({ file: { name: name + ".utp", mimeType: "applicat
   buffer: await readFile(path.join(process.env.PWA_ACCEPTANCE_WORK, name + ".utp")) } });
 const cacheKeys = () => page.evaluate(() => caches.keys());
 async function reloadControlled() {
+  const expected = await api("GET", "/pwa/status");
+  assert.equal(expected.enabled, true);
   await page.goto(origin + "/");
-  await page.waitForFunction(() => !!navigator.serviceWorker.controller, { timeout: 30000 });
+  // A retired controller can remain attached while a replacement installs.
+  // Require the live registration and its current neutral cache before offline launch.
+  await page.waitForFunction(async generation => {
+    const registration = await navigator.serviceWorker.getRegistration("/");
+    if (!registration?.active || registration.installing || registration.waiting ||
+        navigator.serviceWorker.controller !== registration.active) return false;
+    const cached = await caches.match("/pwa/offline.html", { cacheName: "unnamed-tracking:pwa:" + generation });
+    return !!cached?.ok;
+  }, expected.generation, { timeout: 30000 });
 }
 try {
   await api("POST", "/api/auth/login", 200, { data: { username_or_email: process.env.PRIMARY_USER_USERNAME, password: process.env.PRIMARY_USER_PASSWORD } });
@@ -160,6 +170,96 @@ try {
   await api("PUT", "/api/branding", 200, { data: { app_name: "Archive" } });
   assert.equal((await api("GET", "/pwa/status")).generation, status1.generation);
   await checkpoint("server branding changes real manifest and maskable icons; cache identity changes; revoked PWA grant still withdraws branded assets; restoring default restores package identity");
+  await reloadControlled();
+
+  await page.goto(origin + "/settings?section=app-installation");
+  await page.getByRole("heading", { name: "Install on this device", exact: true }).waitFor();
+  assert.equal(await page.locator('.pwa-status button').filter({ hasText: "Install" }).count(), 0, "No persistent install button covers the top bar");
+  // Headless Chromium has no OS install surface. Exercise only the browser-prompt
+  // event boundary; manifest, worker, permissions and installation state are real.
+  await page.evaluate(() => {
+    window.__pwaPromptCalled = false;
+    const event = new Event("beforeinstallprompt", { cancelable: true });
+    Object.assign(event, { prompt: async () => { window.__pwaPromptCalled = true; }, userChoice: Promise.resolve({ outcome: "accepted" }) });
+    window.dispatchEvent(event);
+  });
+  const installButton = page.getByRole("button", { name: "Install Archive", exact: true });
+  for (const width of [390, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.waitForFunction(width => {
+      const main = document.querySelector("#main-content");
+      if (!main) return false;
+      const margin = parseFloat(getComputedStyle(main).marginLeft);
+      return width <= 760 ? main.classList.contains("phone-content") && margin < 1 : margin >= 256;
+    }, width);
+    const bounds = await page.locator(".installation-section").boundingBox();
+    assert(bounds && bounds.x >= 0 && bounds.x + bounds.width <= width + 1, "Installation settings fit after responsive navigation settles");
+    assert(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), "Installation settings have no horizontal overflow");
+    await page.screenshot({ path: path.join(process.env.PWA_ACCEPTANCE_WORK, `pwa-settings-install-${width}.png`), fullPage: true });
+  }
+  await installButton.click();
+  assert(await page.evaluate(() => window.__pwaPromptCalled));
+  assert(await installButton.isDisabled(), "Consumed prompt is not offered again");
+  await checkpoint("Settings-based installation invokes the available browser prompt; no persistent top-bar install control");
+
+  const appearanceBefore = await api("GET", "/api/preferences");
+  try {
+    const custom = {
+      light: { background: "#f4f1f8", surface: "#ffffff", surface_alt: "#ece6f1", text: "#302437", muted: "#66576e", accent: "#70468a", success: "#216e3e", warning: "#855000", error: "#b42318", info: "#265a8b", purple: "#6951a2" },
+      dark: { background: "#201827", surface: "#2a2132", surface_alt: "#35283e", text: "#f3edf8", muted: "#c0afcc", accent: "#ddb0fa", success: "#96d5a9", warning: "#f2c87a", error: "#ffa6a0", info: "#a2c8ef", purple: "#c6b5f1" },
+    };
+    for (const width of [320, 390, 1440]) {
+      await page.setViewportSize({ width, height: 900 });
+      for (const palette of ["orange", "green", "custom"]) {
+        for (const mode of ["light", "dark"]) {
+          await context.setOffline(false);
+          await api("PATCH", "/api/preferences", 200, { data: { ui_theme: mode, ui_palette: palette, ui_custom_palette: custom } });
+          await reloadControlled();
+          await page.waitForFunction(({ mode, palette }) => {
+            const value = JSON.parse(localStorage.getItem("ui-appearance") || "null");
+            return value?.theme === mode && value?.palette === palette;
+          }, { mode, palette });
+          const online = await page.evaluate(() => ({ background: getComputedStyle(document.body).backgroundColor,
+            color: getComputedStyle(document.documentElement).getPropertyValue("--ui-bg").trim() }));
+          assert.equal(await page.locator('meta[name="theme-color"]').getAttribute("content"), online.color);
+          await context.setOffline(true);
+          await page.goto(origin + "/?pwa=palette");
+          await page.getByRole("heading", { name: "Waiting for internet", exact: true }).waitFor();
+          const offline = await page.evaluate(() => ({ background: getComputedStyle(document.body).backgroundColor,
+            width: window.innerWidth, content: document.documentElement.scrollWidth,
+            button: document.querySelector("#retry").getBoundingClientRect().height }));
+          assert.equal(offline.background, online.background);
+          assert(offline.content <= offline.width + 1);
+          assert(offline.button >= 44);
+          assert.equal(await page.locator('meta[name="theme-color"]').getAttribute("content"), online.color);
+          if (width === 390 && palette === "custom") await page.screenshot({ path: path.join(process.env.PWA_ACCEPTANCE_WORK, `pwa-custom-offline-${mode}.png`) });
+        }
+      }
+    }
+    await context.setOffline(false);
+    await api("PATCH", "/api/preferences", 200, { data: { ui_theme: "system", ui_palette: "green" } });
+    await reloadControlled();
+    await page.waitForFunction(() => JSON.parse(localStorage.getItem("ui-appearance") || "null")?.theme === "system");
+    await context.setOffline(true);
+    await page.goto(origin + "/?pwa=system");
+    await page.getByRole("heading", { name: "Waiting for internet", exact: true }).waitFor();
+    for (const colorScheme of ["light", "dark"]) {
+      await page.emulateMedia({ colorScheme });
+      await page.waitForFunction(mode => document.documentElement.dataset.theme === mode, colorScheme);
+      assert.equal(await page.locator('meta[name="theme-color"]').getAttribute("content"), colorScheme === "light" ? "#f1f5f1" : "#141c18");
+    }
+    await page.evaluate(() => localStorage.setItem("ui-appearance", '{"version":1,"colors":{"dark":{"background":"url(https://invalid.test)"}}}'));
+    await page.reload();
+    await page.getByRole("heading", { name: "Waiting for internet", exact: true }).waitFor();
+    assert.equal(await page.locator('meta[name="theme-color"]').getAttribute("content"), "#17191c");
+  } finally {
+    await context.setOffline(false);
+    await page.emulateMedia({ colorScheme: "light" });
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await api("PATCH", "/api/preferences", 200, { data: { ui_theme: appearanceBefore.ui_theme, ui_palette: appearanceBefore.ui_palette, ui_custom_palette: appearanceBefore.ui_custom_palette } });
+    await reloadControlled();
+  }
+  await checkpoint("18 real online/offline width-palette-mode cases, custom browser bars, live System switching and invalid-cache fallback preserve the neutral PWA page");
 
   await context.setOffline(true);
   await page.goto(origin + "/?pwa=1");

@@ -278,3 +278,23 @@ Page navigation now uses Alt plus the displayed letter instead of a two-key sequ
 The [updated navigation report](../assets/ui-redevelopment/stage-alt-navigation-conformance.json) repeats 52 route/theme/width checks using actual Alt navigation and verifies title hints, typing and editor guards. It supersedes the earlier sequence mappings without changing the earlier evidence.
 
 ![Help with Alt page navigation](../assets/ui-redevelopment/stage-shortcuts-alt-navigation.png)
+
+### Settings installation and offline appearance
+
+App installation now lives in **Settings → App installation**, with browser
+prompt, installed status, recovery, and iOS guidance. Persistent installation
+controls no longer cover the top bar. The neutral offline page follows the
+current Light, Dark or System mode and personal palette without caching account
+data. See [PWA integration](https://github.com/Rosefall-a/unnamed_tracking_app/blob/feat/ui-ux-redevelopment/docs/official-pwa.md).
+
+The [signed PWA report](../assets/ui-redevelopment/pwa-conformance.json) covers
+installation, consent, invalid signatures, branding changes, permission
+withdrawal, worker/cache migration, rollback, expiry and offline recovery,
+including 18 width/palette/mode cases. OS installation remains a physical-browser
+check; automation exercises the browser prompt event boundary in Settings.
+Responsive captures wait for the navigation transition and assert no overflow.
+
+![Phone installation settings](../assets/ui-redevelopment/pwa-settings-install-390.png)
+![Desktop installation settings](../assets/ui-redevelopment/pwa-settings-install-1440.png)
+![Custom light offline palette](../assets/ui-redevelopment/pwa-custom-offline-light.png)
+![Custom dark offline palette](../assets/ui-redevelopment/pwa-custom-offline-dark.png)

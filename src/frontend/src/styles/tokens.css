@@ -61,6 +61,7 @@
   --ui-motion-easing: cubic-bezier(0.2, 0.8, 0.2, 1);
   --ui-z-topbar: 80;
   --ui-z-drawer: 150;
+  --ui-z-notice: 200;
   --ui-z-modal: 300;
   --ui-z-popover: 350;
   --ui-z-dialog: 400;

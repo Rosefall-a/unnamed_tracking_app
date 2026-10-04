@@ -1,7 +1,8 @@
 # Official PWA integration
 
 `official.pwa` is maintained user-facing functionality based on
-`Rosefall-a/unnamed-tracking-mobile-app/pwa`. Its integration version is **0.0.1**;
+`Rosefall-a/unnamed-tracking-mobile-app/pwa`. Its initial integration version is **0.0.1**. The v1.1 contract and appearance
+migration uses separate plugin and canonical asset versions of **0.0.2**;
 stable 1.0.0 requires a future explicit human decision. It opens the complete web
 application and inherits future responsive improvements. Native Android, Android
 WebView and Windows/WinUI client implementations are independent and unchanged.
@@ -36,6 +37,18 @@ non-navigation, non-GET and cross-origin traffic bypass the worker handler.
 Passwords are never persisted by the PWA; normal host session expiry returns to
 login/SSO. Chrome/Edge use the browser install prompt; iOS Safari offers Share →
 Add to Home Screen guidance. Installation requires HTTPS or localhost support.
+
+Open **Settings → App installation** to install on the current device. The page
+uses the available browser prompt, shows installed or unavailable status, and
+provides iOS and browser-menu guidance. An installation action is no longer
+permanently displayed over the application header. Update and withdrawal notices
+still appear when they require attention.
+
+Online pages and the neutral offline page follow Light, Dark or System appearance
+and the current personal palette. Only validated cosmetic colors are stored on
+the device; no account data or API responses enter the offline cache. Browser
+bars follow the active background color. Invalid stored colors fall back safely.
+
 
 The cache generation binds plugin ID, installation UUID, version and payload
 digest. Updates use `skipWaiting`/`clients.claim`, migrate only owned caches and

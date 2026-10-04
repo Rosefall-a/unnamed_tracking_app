@@ -33,6 +33,7 @@ import ConnectionsSection from "../components/settings/ConnectionsSection.vue";
 import AniListImportSection from "../components/settings/AniListImportSection.vue";
 import ApiKeysSection from "../components/settings/ApiKeysSection.vue";
 import PluginManagerSection from "../components/settings/PluginManagerSection.vue";
+import PwaSettingsSection from "../components/settings/PwaSettingsSection.vue";
 import PluginContributionHost from "../components/plugins/PluginContributionHost.vue";
 import {
   pluginSettingsSections,
@@ -62,6 +63,7 @@ const coreSectionIds = new Set([
   "profile",
   "interface",
   "appearance",
+  "app-installation",
   "branding",
   "api-keys",
   "calendar-notifications",
@@ -153,6 +155,7 @@ const groups = computed<SettingsGroup[]>(() => {
       area: "preferences",
       sections: [
         { id: "appearance", label: "Appearance & interface" },
+        { id: "app-installation", label: "App installation" },
         { id: "notifications", label: "Notifications" },
         { id: "calendar", label: "Calendar" },
         { id: "shortcuts", label: "Keyboard Shortcuts" },
@@ -434,6 +437,9 @@ function backToArea() {
         >
           <ProfileSection v-if="activeSection === 'profile'" />
           <AppearanceSection v-else-if="activeSection === 'appearance'" />
+          <PwaSettingsSection
+            v-else-if="activeSection === 'app-installation'"
+          />
           <BrandingSection
             v-else-if="activeSection === 'branding' && currentUser?.is_admin"
           />

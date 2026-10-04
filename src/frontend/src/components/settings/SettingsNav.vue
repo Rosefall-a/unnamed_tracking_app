@@ -23,6 +23,7 @@ const emit = defineEmits<{
 const ICON_PATHS: Record<string, string> = {
   profile: "M20 21a8 8 0 0 0-16 0 M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z",
   interface: "M3 4h18v12H3z M8 20h8 M12 16v4",
+  "app-installation": "M12 3v12 M7 10l5 5 5-5 M4 17v4h16v-4",
   upload: "M12 16V4 M6 10l6-6 6 6 M4 20h16",
   library:
     "M4 19V5a2 2 0 0 1 2-2h9l5 5v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z M9 3v6h6",

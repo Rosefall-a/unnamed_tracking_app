@@ -64,6 +64,7 @@ const SETTINGS_SHORTCUTS: {
 }[] = [
   { label: "Profile", section: "profile" },
   { label: "Appearance & interface", section: "appearance" },
+  { label: "App installation", section: "app-installation" },
   { label: "Upload", section: "upload" },
   { label: "Notifications", section: "notifications" },
   { label: "Calendar", section: "calendar" },
