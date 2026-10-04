@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import PluginField from "./PluginField.vue";
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import {
   approvePluginAction,
@@ -278,54 +279,13 @@ onBeforeUnmount(() =>
           <p v-if="section.description" class="muted">
             {{ section.description }}
           </p>
-          <label v-for="field in section.fields" :key="field.id">
-            <span>{{ field.label }}<b v-if="field.required"> *</b></span
-            ><small v-if="field.description">{{ field.description }}</small>
-            <select v-if="field.type === 'select'" v-model="values[field.id]">
-              <option
-                v-for="option in field.options"
-                :key="option.value"
-                :value="option.value"
-              >
-                {{ option.label }}
-              </option>
-            </select>
-            <select
-              v-else-if="field.type === 'multiselect'"
-              v-model="values[field.id]"
-              multiple
-            >
-              <option
-                v-for="option in field.options"
-                :key="option.value"
-                :value="option.value"
-              >
-                {{ option.label }}
-              </option>
-            </select>
-            <textarea
-              v-else-if="field.type === 'textarea'"
-              v-model="values[field.id] as string"
-            />
-            <input
-              v-else-if="field.type === 'boolean'"
-              v-model="values[field.id]"
-              type="checkbox"
-            />
-            <input
-              v-else-if="field.type === 'number'"
-              v-model.number="values[field.id]"
-              type="number"
-              :autocomplete="field.secret ? 'new-password' : 'off'"
-            />
-            <input
-              v-else
-              v-model="values[field.id]"
-              :type="field.type === 'password' ? 'password' : field.type"
-              :autocomplete="field.secret ? 'new-password' : 'off'"
-            />
-            <em v-if="errorFor(field)" class="error">{{ errorFor(field) }}</em>
-          </label>
+          <PluginField
+            v-for="field in section.fields"
+            :key="field.id"
+            v-model="values[field.id]"
+            :field="field"
+            :error="errorFor(field)"
+          />
         </fieldset>
         <div v-for="table in tables" :key="table.id" class="table-block">
           <h3>{{ table.title }}</h3>
@@ -398,18 +358,30 @@ nav,
   gap: 8px;
 }
 button {
+  min-height: var(--ui-control-height);
+  padding: 10px 14px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
+  background: var(--ui-surface-2);
+  color: var(--ui-text);
+  font: inherit;
   cursor: pointer;
 }
 nav button.active {
+  color: var(--ui-accent-text);
+  background: var(--ui-accent-soft);
+  border-color: var(--ui-accent-line);
   font-weight: 700;
 }
 fieldset,
 .dialog,
 .table-block {
   display: grid;
+  min-width: 0;
+  overflow-x: auto;
   gap: 12px;
-  border: 1px solid #2a2a2a;
-  border-radius: 10px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-row);
   padding: 16px;
 }
 legend {
@@ -425,10 +397,10 @@ label > span {
 }
 small,
 .muted {
-  color: #999;
+  color: var(--ui-dim);
 }
 .error {
-  color: #e66;
+  color: var(--ui-error);
   font-style: normal;
 }
 table {
@@ -439,10 +411,10 @@ th,
 td {
   text-align: left;
   padding: 8px;
-  border-bottom: 1px solid #2a2a2a;
+  border-bottom: 1px solid var(--ui-border);
 }
 .empty {
-  color: #999;
+  color: var(--ui-dim);
 }
 .frontend-shell {
   min-height: 520px;
@@ -451,8 +423,8 @@ td {
   display: block;
   width: 100%;
   min-height: 520px;
-  border: 1px solid #2a2a2a;
-  border-radius: 10px;
-  background: #111;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-row);
+  background: var(--ui-surface-2);
 }
 </style>

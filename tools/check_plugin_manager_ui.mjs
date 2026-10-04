@@ -72,10 +72,11 @@ try {
     await consent.locator(".readme article").waitFor();
     const summary = consent.getByLabel("Requested permission risks").first();
     assert.match(await summary.innerText(), new RegExp(`${review.permissions.length} scopes`));
-    assert.equal(await summary.locator(".risk-bubble").count(), 4);
+    assert.equal(await summary.locator(".risk-bubble").count(), new Set(review.permissions.map(item => item.risk)).size);
     for (const risk of ["critical", "high", "medium", "low"]) {
       const count = review.permissions.filter((item) => item.risk === risk).length;
-      assert.match(await summary.locator(`.risk-bubble.${risk}`).innerText(), new RegExp(`^${count}\\s`));
+      if (count) assert.match(await summary.locator(`.risk-bubble.${risk}`).innerText(), new RegExp(`^${count}\\s`));
+      else assert.equal(await summary.locator(`.risk-bubble.${risk}`).count(), 0, "Unrequested risks stay hidden");
     }
     for (const category of await consent.locator(".category-header input[type=checkbox]").all()) await category.check();
     assert.match(await consent.innerText(), new RegExp(`${review.permissions.length} of ${review.permissions.length} newly granted`));
@@ -101,14 +102,14 @@ try {
     // Same installation selected from the catalogue produces explicit choices.
     await page.getByRole("button", { name: "Install a plugin", exact: true }).click();
     await page.locator(".catalogue-entry").filter({ hasText: "Jellyfin Media Sync" }).getByRole("button", { name: "Install", exact: true }).click();
-    const duplicate = page.getByRole("dialog", { name: "Plugin already installed" });
+    const duplicate = page.getByRole("dialog", { name: /^Jellyfin Media Sync(?: \(Demo\))? is already installed$/ });
     await duplicate.waitFor();
     for (const name of ["Review update", "Reinstall installed release, retaining data", "Replace package", "Cancel"]) {
       assert.equal(await duplicate.getByRole("button", { name, exact: true }).count(), 1);
     }
     await duplicate.getByRole("button", { name: "Cancel", exact: true }).click();
     await duplicate.waitFor({ state: "hidden" });
-    await page.getByRole("dialog", { name: "Install a plugin", exact: true }).getByRole("button", { name: "Close", exact: true }).click();
+    await page.getByRole("dialog", { name: "Install a plugin", exact: true }).getByRole("button", { name: "Close dialog", exact: true }).click();
     await page.goto(origin + "/plugins/example.jellyfin-media-sync");
     await page.getByText("Jellyfin server URL", { exact: true }).waitFor();
     await page.screenshot({ path: path.join(process.env.INTEGRATION_WORK_ROOT, "jellyfin-native-ui.png"), fullPage: true });
@@ -120,7 +121,7 @@ try {
     await page.getByText("Refreshing catalogues…", { exact: true }).waitFor();
     await page.screenshot({ path: path.join(process.env.INTEGRATION_WORK_ROOT, "offline-inventory.png"), fullPage: true });
     releaseCatalogue();
-    await plugin.getByRole("button", { name: "Manage plugin", exact: true }).click();
+    await plugin.getByRole("button", { name: "Settings & access", exact: true }).click();
     const settings = page.getByRole("dialog", { name: /^Jellyfin Media Sync(?: \(Demo\))?$/ });
     await settings.getByRole("button", { name: "Diagnostics", exact: true }).click();
     await settings.getByText("Runtime availability", { exact: true }).waitFor();
@@ -134,7 +135,7 @@ try {
     await page.getByRole("heading", { name: "Scoped Document Viewer", exact: true }).waitFor();
     // The official catalogue and the installed demo may share a display name.
     // Count installations by their management action, preserving both entries.
-    assert.equal(await plugin.filter({ has: page.getByRole("button", { name: "Manage plugin", exact: true }) }).count(), 1);
+    assert.equal(await plugin.filter({ has: page.getByRole("button", { name: "Settings & access", exact: true }) }).count(), 1);
     await page.getByRole("button", { name: "Updates Available", exact: true }).click();
     await plugin.getByRole("button", { name: /^Review v.* update$/ }).click();
     const consent = page.getByRole("dialog", { name: /^Review Jellyfin Media Sync(?: \(Demo\))?$/ });

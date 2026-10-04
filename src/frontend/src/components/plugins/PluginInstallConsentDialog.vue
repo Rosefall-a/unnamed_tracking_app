@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from "vue";
+import UiModal from "../UiModal.vue";
+import AppIcon from "../AppIcon.vue";
 import PermissionRiskSummary from "./PermissionRiskSummary.vue";
 import DOMPurify from "dompurify";
 import { marked } from "marked";
@@ -175,315 +177,307 @@ function close() {
 </script>
 
 <template>
-  <Teleport to="body">
-    <div class="modal-backdrop" @click.self="close" @keydown.esc="close">
-      <section
-        class="consent-dialog"
-        ref="content"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="plugin-consent-title"
+  <UiModal
+    :title="`Review ${preview.name}`"
+    :dismissible="!busy"
+    @close="close"
+  >
+    <section class="consent-dialog" ref="content">
+      <header>
+        <div>
+          <p class="eyebrow">Plugin installation</p>
+          <img
+            v-if="preview.icon"
+            :src="preview.icon"
+            alt=""
+            width="48"
+            height="48"
+          />
+
+          <p class="identity">
+            {{ preview.plugin_id }} · v{{ preview.version }}
+          </p>
+        </div>
+        <span class="trust" :class="preview.trust_status">{{
+          trustLabel
+        }}</span>
+      </header>
+      <details v-if="readme" class="readme">
+        <summary>Plugin documentation</summary>
+        <article v-html="readme" />
+      </details>
+
+      <p v-if="preview.description" class="description">
+        {{ preview.description }}
+      </p>
+      <dl class="metadata">
+        <div>
+          <dt>Publisher</dt>
+          <dd>
+            {{
+              preview.publisher || preview.publisher_key_id || "Not supplied"
+            }}
+            <small v-if="preview.publisher_key_id"
+              >Key {{ preview.publisher_key_id }}</small
+            >
+          </dd>
+        </div>
+        <div>
+          <dt>Host versions</dt>
+          <dd>{{ preview.application_version_range }}</dd>
+        </div>
+        <div>
+          <dt>SDK versions</dt>
+          <dd>{{ preview.sdk_version_range }}</dd>
+        </div>
+        <div>
+          <dt>UI/API contract</dt>
+          <dd>
+            {{ preview.api_contract_version }} · Host
+            {{ preview.host_api_contract_version }}
+          </dd>
+        </div>
+        <div>
+          <dt>Package digest</dt>
+          <dd class="digest">{{ preview.digest }}</dd>
+        </div>
+      </dl>
+      <p v-if="preview.compatibility_reason" class="error" role="alert">
+        {{ preview.compatibility_reason }}
+      </p>
+
+      <div
+        v-if="preview.trust_status !== 'trusted'"
+        class="warning"
+        role="alert"
       >
-        <header>
+        <strong>{{ trustLabel }}</strong>
+        <p>
+          {{
+            preview.trust_warning ||
+            "Install only if you trust the package source."
+          }}
+        </p>
+        <label>
+          <input v-model="trustAccepted" type="checkbox" />
+          I understand this package is not cryptographically trusted and want to
+          continue.
+        </label>
+      </div>
+
+      <div v-if="preview.identity_warning" class="warning" role="alert">
+        <strong>Permission grants cannot be inherited</strong>
+        <p>{{ preview.identity_warning }}</p>
+      </div>
+
+      <div
+        v-if="
+          preview.permissions.some((permission) => permission.highly_privileged)
+        "
+        class="warning full-api-warning"
+        role="alert"
+      >
+        <strong>This package requests highly privileged access.</strong>
+        <p>
+          Critical capabilities can alter host behavior or sensitive data. They
+          remain disabled unless selected below.
+        </p>
+      </div>
+
+      <section
+        class="permissions"
+        aria-labelledby="requested-permissions-title"
+      >
+        <div class="section-heading">
           <div>
-            <p class="eyebrow">Plugin installation</p>
-            <img
-              v-if="preview.icon"
-              :src="preview.icon"
-              alt=""
-              width="48"
-              height="48"
-            />
-            <h2 id="plugin-consent-title">Review {{ preview.name }}</h2>
-            <p class="identity">
-              {{ preview.plugin_id }} · v{{ preview.version }}
+            <h3 id="requested-permissions-title">
+              {{
+                preview.operation === "update"
+                  ? "Permission changes"
+                  : "Requested permissions"
+              }}
+            </h3>
+            <p>
+              Grant only the access this plugin needs. Unchecked permissions are
+              denied.
             </p>
           </div>
-          <span class="trust" :class="preview.trust_status">{{
-            trustLabel
-          }}</span>
-        </header>
-        <details v-if="readme" class="readme">
-          <summary>Plugin documentation</summary>
-          <article v-html="readme" />
-        </details>
-
-        <p v-if="preview.description" class="description">
-          {{ preview.description }}
-        </p>
-        <dl class="metadata">
-          <div>
-            <dt>Publisher</dt>
-            <dd>
-              {{
-                preview.publisher || preview.publisher_key_id || "Not supplied"
-              }}
-              <small v-if="preview.publisher_key_id"
-                >Key {{ preview.publisher_key_id }}</small
-              >
-            </dd>
-          </div>
-          <div>
-            <dt>Host versions</dt>
-            <dd>{{ preview.application_version_range }}</dd>
-          </div>
-          <div>
-            <dt>SDK versions</dt>
-            <dd>{{ preview.sdk_version_range }}</dd>
-          </div>
-          <div>
-            <dt>UI/API contract</dt>
-            <dd>
-              {{ preview.api_contract_version }} · Host
-              {{ preview.host_api_contract_version }}
-            </dd>
-          </div>
-          <div>
-            <dt>Package digest</dt>
-            <dd class="digest">{{ preview.digest }}</dd>
-          </div>
-        </dl>
-        <p v-if="preview.compatibility_reason" class="error" role="alert">
-          {{ preview.compatibility_reason }}
-        </p>
-
-        <div
-          v-if="preview.trust_status !== 'trusted'"
-          class="warning"
-          role="alert"
-        >
-          <strong>{{ trustLabel }}</strong>
-          <p>
-            {{
-              preview.trust_warning ||
-              "Install only if you trust the package source."
-            }}
-          </p>
-          <label>
-            <input v-model="trustAccepted" type="checkbox" />
-            I understand this package is not cryptographically trusted and want
-            to continue.
-          </label>
-        </div>
-
-        <div v-if="preview.identity_warning" class="warning" role="alert">
-          <strong>Permission grants cannot be inherited</strong>
-          <p>{{ preview.identity_warning }}</p>
-        </div>
-
-        <div
-          v-if="
-            preview.permissions.some(
-              (permission) => permission.highly_privileged,
-            )
-          "
-          class="warning full-api-warning"
-          role="alert"
-        >
-          <strong>This package requests highly privileged access.</strong>
-          <p>
-            Critical capabilities can alter host behavior or sensitive data.
-            They remain disabled unless selected below.
-          </p>
-        </div>
-
-        <section
-          class="permissions"
-          aria-labelledby="requested-permissions-title"
-        >
-          <div class="section-heading">
-            <div>
-              <h3 id="requested-permissions-title">
-                {{
-                  preview.operation === "update"
-                    ? "Permission changes"
-                    : "Requested permissions"
-                }}
-              </h3>
-              <p>
-                Grant only the access this plugin needs. Unchecked permissions
-                are denied.
-              </p>
-            </div>
-            <span
-              >{{ approved.size }} of {{ selectablePermissions.length }} newly
-              granted</span
-            >
-          </div>
-          <p v-if="!preview.permissions.length" class="empty">
-            This plugin requests no host permissions.
-          </p>
-          <PermissionRiskSummary :permissions="preview.permissions" />
-          <article
-            v-for="category in permissionCategories"
-            :key="category.name"
-            class="permission-category"
+          <span
+            >{{ approved.size }} of {{ selectablePermissions.length }} newly
+            granted</span
           >
-            <header class="category-header">
-              <button
-                type="button"
-                class="disclosure"
-                @click="toggleExpanded(category.name)"
-              >
-                {{ expandedCategories.has(category.name) ? "▾" : "▸" }}
-                {{ category.name }}
-                — {{ category.permissions.length }}
-                {{ category.permissions.length === 1 ? "scope" : "scopes" }}
-              </button>
-              <label>
-                <input
-                  type="checkbox"
-                  :disabled="selectableInCategory(category.name).length === 0"
-                  :checked="
-                    selectableInCategory(category.name).length > 0 &&
-                    selectableInCategory(category.name).every((item) =>
-                      approved.has(item.key),
-                    )
-                  "
-                  @change="
-                    toggleCategory(
-                      category.name,
-                      ($event.target as HTMLInputElement).checked,
-                    )
-                  "
-                />
-                Approve subtree
-              </label>
-            </header>
-            <PermissionRiskSummary :permissions="category.permissions" />
-            <div v-if="expandedCategories.has(category.name)">
-              <label
-                v-for="permission in category.permissions"
-                :key="permission.key"
-                class="permission"
-                :class="{
-                  privileged: permission.highly_privileged,
-                  retained: preview.operation && !permission.new,
-                }"
-              >
-                <input
-                  type="checkbox"
-                  :disabled="preview.operation === 'update' && !permission.new"
-                  :checked="
-                    preview.operation === 'update' && !permission.new
-                      ? true
-                      : approved.has(permission.key)
-                  "
-                  @change="
-                    toggle(
-                      permission.key,
-                      ($event.target as HTMLInputElement).checked,
-                    )
-                  "
-                />
-                <span class="permission-copy">
-                  <span class="permission-title">
-                    <strong>{{ permission.title }}</strong>
-                    <span class="risk" :class="permission.risk"
-                      >{{ permission.risk }} risk</span
-                    >
-                  </span>
-                  <small
-                    >{{ permission.capability }} v{{
-                      permission.capability_version
-                    }}
-                    · {{ permission.rationale }}</small
-                  >
-                  <small v-if="preview.operation && !permission.new"
-                    >Existing reviewed permission retained</small
-                  >
-                  <small v-else-if="permission.children.length"
-                    >Approving this parent includes its requested
-                    subtree.</small
+        </div>
+        <p v-if="!preview.permissions.length" class="empty">
+          This plugin requests no host permissions.
+        </p>
+        <PermissionRiskSummary :permissions="preview.permissions" />
+        <article
+          v-for="category in permissionCategories"
+          :key="category.name"
+          class="permission-category"
+        >
+          <header class="category-header">
+            <button
+              type="button"
+              class="disclosure"
+              :aria-expanded="expandedCategories.has(category.name)"
+              @click="toggleExpanded(category.name)"
+            >
+              <AppIcon
+                name="chevron"
+                :size="20"
+                :class="{ expanded: expandedCategories.has(category.name) }"
+              />
+              {{ category.name }}
+              — {{ category.permissions.length }}
+              {{ category.permissions.length === 1 ? "scope" : "scopes" }}
+            </button>
+            <label>
+              <input
+                type="checkbox"
+                :disabled="selectableInCategory(category.name).length === 0"
+                :checked="
+                  selectableInCategory(category.name).length > 0 &&
+                  selectableInCategory(category.name).every((item) =>
+                    approved.has(item.key),
+                  )
+                "
+                @change="
+                  toggleCategory(
+                    category.name,
+                    ($event.target as HTMLInputElement).checked,
+                  )
+                "
+              />
+              Approve subtree
+            </label>
+          </header>
+          <PermissionRiskSummary :permissions="category.permissions" />
+          <div v-if="expandedCategories.has(category.name)">
+            <label
+              v-for="permission in category.permissions"
+              :key="permission.key"
+              class="permission"
+              :class="{
+                privileged: permission.highly_privileged,
+                retained: preview.operation && !permission.new,
+              }"
+            >
+              <input
+                type="checkbox"
+                :disabled="preview.operation === 'update' && !permission.new"
+                :checked="
+                  preview.operation === 'update' && !permission.new
+                    ? true
+                    : approved.has(permission.key)
+                "
+                @change="
+                  toggle(
+                    permission.key,
+                    ($event.target as HTMLInputElement).checked,
+                  )
+                "
+              />
+              <span class="permission-copy">
+                <span class="permission-title">
+                  <strong>{{ permission.title }}</strong>
+                  <span class="risk" :class="permission.risk"
+                    >{{ permission.risk }} risk</span
                   >
                 </span>
-              </label>
-            </div>
-          </article>
-        </section>
-
-        <section v-if="preview.dependencies.length" class="dependencies">
-          <h3>Dependencies</h3>
-          <ul>
-            <li
-              v-for="dependency in preview.dependencies"
-              :key="dependency.plugin_id"
-              :class="dependency.state"
-            >
-              <strong>{{ dependency.plugin_id }}</strong>
-              {{ dependency.version_range }} ·
-              {{ dependency.state.replaceAll("_", " ") }}
-              <span v-if="dependency.installed_version">
-                (installed {{ dependency.installed_version }})</span
-              >
-              <span v-if="dependency.available_version">
-                (available {{ dependency.available_version }})</span
-              >
-              <span v-if="dependency.optional"> · optional</span>
-            </li>
-          </ul>
-          <p v-if="preview.dependency_conflicts.length" class="warning">
-            {{ preview.dependency_conflicts.join("; ") }}
-          </p>
-        </section>
-
-        <section v-if="preview.release_notes" class="release-notes">
-          <h3>Release notes</h3>
-          <pre>{{ preview.release_notes }}</pre>
-        </section>
-
-        <div
-          v-if="reauthenticationRequired"
-          class="warning reauthentication"
-          role="alert"
-        >
-          <strong>Administrator reauthentication required</strong>
-          <p>
-            This unverified package will receive:
-            {{ dangerousApproved.map((item) => item.title).join(", ") }}.
-          </p>
-          <label>
-            Administrator password
-            <input
-              v-model="adminPassword"
-              type="password"
-              autocomplete="current-password"
-            />
-          </label>
-          <label>
-            <input v-model="dangerousConfirmed" type="checkbox" />
-            I explicitly confirm granting these dangerous capabilities to an
-            unverified package.
-          </label>
-        </div>
-
-        <footer>
-          <button
-            ref="cancelButton"
-            type="button"
-            :disabled="busy"
-            @click="close"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            class="primary"
-            :disabled="busy || !canInstall"
-            @click="confirm"
-          >
-            {{
-              busy
-                ? "Applying…"
-                : preview.operation === "update"
-                  ? "Update with selected access"
-                  : "Install with selected access"
-            }}
-          </button>
-        </footer>
+                <small
+                  >{{ permission.capability }} v{{
+                    permission.capability_version
+                  }}
+                  · {{ permission.rationale }}</small
+                >
+                <small v-if="preview.operation && !permission.new"
+                  >Existing reviewed permission retained</small
+                >
+                <small v-else-if="permission.children.length"
+                  >Approving this parent includes its requested subtree.</small
+                >
+              </span>
+            </label>
+          </div>
+        </article>
       </section>
-    </div>
-  </Teleport>
+
+      <section v-if="preview.dependencies.length" class="dependencies">
+        <h3>Dependencies</h3>
+        <ul>
+          <li
+            v-for="dependency in preview.dependencies"
+            :key="dependency.plugin_id"
+            :class="dependency.state"
+          >
+            <strong>{{ dependency.plugin_id }}</strong>
+            {{ dependency.version_range }} ·
+            {{ dependency.state.replaceAll("_", " ") }}
+            <span v-if="dependency.installed_version">
+              (installed {{ dependency.installed_version }})</span
+            >
+            <span v-if="dependency.available_version">
+              (available {{ dependency.available_version }})</span
+            >
+            <span v-if="dependency.optional"> · optional</span>
+          </li>
+        </ul>
+        <p v-if="preview.dependency_conflicts.length" class="warning">
+          {{ preview.dependency_conflicts.join("; ") }}
+        </p>
+      </section>
+
+      <section v-if="preview.release_notes" class="release-notes">
+        <h3>Release notes</h3>
+        <pre>{{ preview.release_notes }}</pre>
+      </section>
+
+      <div
+        v-if="reauthenticationRequired"
+        class="warning reauthentication"
+        role="alert"
+      >
+        <strong>Administrator reauthentication required</strong>
+        <p>
+          This unverified package will receive:
+          {{ dangerousApproved.map((item) => item.title).join(", ") }}.
+        </p>
+        <label>
+          Administrator password
+          <input
+            v-model="adminPassword"
+            type="password"
+            autocomplete="current-password"
+          />
+        </label>
+        <label>
+          <input v-model="dangerousConfirmed" type="checkbox" />
+          I explicitly confirm granting these dangerous capabilities to an
+          unverified package.
+        </label>
+      </div>
+    </section>
+    <template #footer>
+      <button ref="cancelButton" type="button" :disabled="busy" @click="close">
+        Cancel
+      </button>
+      <button
+        type="button"
+        class="primary"
+        :disabled="busy || !canInstall"
+        @click="confirm"
+      >
+        {{
+          busy
+            ? "Applying…"
+            : preview.operation === "update"
+              ? "Update with selected access"
+              : "Install with selected access"
+        }}
+      </button>
+    </template>
+  </UiModal>
 </template>
 
 <style scoped>
@@ -510,8 +504,8 @@ function close() {
 .readme :deep(pre) {
   overflow: auto;
   padding: 12px;
-  background: #0d0d0d;
-  border-radius: 8px;
+  background: var(--ui-surface-2);
+  border-radius: var(--ui-radius-control);
 }
 .readme :deep(table) {
   width: 100%;
@@ -523,26 +517,9 @@ function close() {
   border: 1px solid var(--ui-border);
   text-align: left;
 }
-.modal-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: var(--ui-z-dialog);
-  display: grid;
-  place-items: center;
-  padding: 24px;
-  background: rgba(0, 0, 0, 0.72);
-}
 .consent-dialog {
-  width: min(760px, 100%);
-  max-height: 90vh;
-  overflow: auto;
-  box-sizing: border-box;
-  padding: 24px;
-  background: #151515;
-  color: #f4f4f4;
-  border: 1px solid #3b3b3b;
-  border-radius: 14px;
-  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.65);
+  color: var(--ui-text);
+  overflow-wrap: anywhere;
 }
 header,
 .section-heading,
@@ -564,7 +541,7 @@ h3 {
 }
 .eyebrow {
   margin-bottom: 4px;
-  color: #d68a34;
+  color: var(--ui-accent-text);
   font-size: 0.75rem;
   font-weight: 700;
   text-transform: uppercase;
@@ -576,7 +553,7 @@ h3 {
 .empty,
 .dependencies,
 small {
-  color: #aaa;
+  color: var(--ui-dim);
 }
 .trust,
 .risk {
@@ -588,20 +565,20 @@ small {
 }
 .trust.trusted,
 .risk.low {
-  background: #173f2a;
-  color: #9ae6b4;
+  background: var(--ui-good-soft);
+  color: var(--ui-good);
 }
 .trust.unknown_publisher,
 .trust.invalid_signature,
 .trust.unsigned,
 .risk.high,
 .risk.critical {
-  background: #571d1d;
-  color: #fecaca;
+  background: var(--ui-danger-soft);
+  color: var(--ui-error);
 }
 .risk.medium {
-  background: #503a13;
-  color: #fde68a;
+  background: var(--ui-warning-soft);
+  color: var(--ui-warning);
 }
 .metadata {
   display: grid;
@@ -612,12 +589,12 @@ small {
 .metadata div {
   min-width: 0;
   padding: 10px;
-  background: #0d0d0d;
-  border-radius: 8px;
+  background: var(--ui-surface-2);
+  border-radius: var(--ui-radius-control);
 }
 .metadata dt {
   font-size: 0.72rem;
-  color: #777;
+  color: var(--ui-faint);
 }
 .metadata dd {
   margin: 4px 0 0;
@@ -631,17 +608,17 @@ small {
 .warning {
   margin: 16px 0;
   padding: 14px;
-  border: 1px solid #8b3434;
-  border-radius: 10px;
-  background: #2d1515;
+  border: 1px solid var(--ui-error);
+  border-radius: var(--ui-radius-row);
+  background: var(--ui-danger-soft);
 }
 .warning.full-api-warning {
-  border-color: #9b5b1b;
-  background: #321f0e;
+  border-color: var(--ui-warning);
+  background: var(--ui-warning-soft);
 }
 .warning p {
   margin: 6px 0 10px;
-  color: #f0b6b6;
+  color: var(--ui-error);
 }
 .permissions {
   margin-top: 22px;
@@ -650,7 +627,7 @@ small {
   margin-bottom: 0;
 }
 .section-heading > span {
-  color: #aaa;
+  color: var(--ui-dim);
   font-size: 0.8rem;
 }
 .permission {
@@ -658,28 +635,28 @@ small {
   gap: 12px;
   margin-top: 10px;
   padding: 13px;
-  border: 1px solid #303030;
-  border-radius: 10px;
-  background: #111;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-row);
+  background: var(--ui-surface);
   cursor: pointer;
 }
 .permission.privileged {
-  border-color: #9b5b1b;
-  background: #25170c;
+  border-color: var(--ui-warning);
+  background: var(--ui-warning-soft);
 }
 .permission.retained {
   opacity: 0.72;
 }
 .permission-category {
   margin-top: 12px;
-  border: 1px solid #303030;
-  border-radius: 10px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-row);
   overflow: hidden;
 }
 .category-header {
   align-items: center;
   padding: 10px 12px;
-  background: #0d0d0d;
+  background: var(--ui-surface-2);
 }
 .category-header label {
   display: flex;
@@ -691,24 +668,44 @@ small {
   border: 0;
   background: transparent;
   font-weight: 700;
+  flex: 1;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.disclosure .expanded {
+  transform: rotate(90deg);
+}
+.category-header label {
+  min-height: var(--ui-control-height);
+}
+.permission-category > .risk-summary {
+  margin-inline: 12px;
+}
+.permissions input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  accent-color: var(--ui-accent);
 }
 .dependencies ul {
   padding-left: 20px;
 }
 .dependencies .missing,
 .dependencies .incompatible {
-  color: #fecaca;
+  color: var(--ui-error);
 }
 .dependencies .available {
-  color: #fde68a;
+  color: var(--ui-warning);
 }
 .release-notes pre {
   max-height: 220px;
   overflow: auto;
   padding: 12px;
   white-space: pre-wrap;
-  background: #0d0d0d;
-  border-radius: 8px;
+  background: var(--ui-surface-2);
+  border-radius: var(--ui-radius-control);
 }
 .reauthentication > label {
   display: flex;
@@ -740,20 +737,21 @@ footer {
   justify-content: flex-end;
   margin-top: 24px;
   padding-top: 18px;
-  border-top: 1px solid #2b2b2b;
+  border-top: 1px solid var(--ui-border);
 }
 button {
+  min-height: var(--ui-control-height);
   padding: 9px 14px;
-  border: 1px solid #444;
-  border-radius: 8px;
-  background: #242424;
-  color: #eee;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
+  background: var(--ui-surface-2);
+  color: var(--ui-text);
   cursor: pointer;
 }
 button.primary {
-  background: #d68a34;
-  color: #111;
-  border-color: #d68a34;
+  background: var(--ui-accent);
+  color: var(--ui-on-accent);
+  border-color: var(--ui-accent);
   font-weight: 700;
 }
 button:disabled {
@@ -768,6 +766,10 @@ button:disabled {
     height: 100%;
     max-height: none;
     border-radius: 0;
+  }
+  .permission-title,
+  .reauthentication > label {
+    flex-wrap: wrap;
   }
   .metadata {
     grid-template-columns: 1fr;

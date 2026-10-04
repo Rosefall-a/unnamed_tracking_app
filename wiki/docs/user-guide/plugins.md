@@ -17,7 +17,7 @@ Preview and package validation never execute plugin code. Activation happens onl
 
 Enabled plugins may add host-owned sidebar routes under `/plugins/{plugin_id}/{page_id}`. Native extensions can appear only in allowlisted host slots. A custom frontend runs in a sandboxed iframe and cannot access host cookies, local storage, Vue state, or the host DOM.
 
-Plugin Manager settings control lifecycle, permissions, update policy, versions and diagnostics. Plugin-provided application pages contain their functionality and server/profile configuration. Permissions show total scopes and coloured host-classified risk counts; selecting a parent selects its requested descendants. Secrets are write-only: saving replaces the value, but neither the browser nor later API responses can read it back.
+Choose **Settings & access** on an installed plugin to open its Overview, Settings, Permissions and Diagnostics tabs. Plugin-provided application pages contain their functionality and server/profile configuration. Installation and management dialogs follow the selected light/dark palette, support keyboard focus and Escape, and use larger phone controls. Permissions show total scopes and host-classified risk bubbles only for categories actually requested; selecting a parent selects its requested descendants. Secrets are write-only: saving replaces the value, but neither the browser nor later API responses can read it back.
 
 Browse Installed, Updates Available, Available to Install and All, with search and plugin-supplied tag filters. All includes enabled catalogues and installed plugins. Selecting an installed plugin for installation offers update/reinstall/replace/cancel explicitly.
 
