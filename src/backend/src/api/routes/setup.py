@@ -94,6 +94,8 @@ def _persisted_values(app: AppIntegrationSettings, oidc: OidcSettings) -> dict[s
         "SCREENSCRAPER_SSPASSWORD": "screenscraper_sspassword",
         "XBOX_CLIENT_ID": "xbox_client_id",
         "XBOX_CLIENT_SECRET": "xbox_client_secret",
+        "NGINX_REALIP_HEADER": "nginx_realip_header",
+        "NGINX_REALIP_TRUSTED_PROXIES": "nginx_realip_trusted_proxies",
     }.items():
         value = getattr(app, attribute)
         if value:
@@ -173,6 +175,8 @@ async def _save_configuration(
         "SCREENSCRAPER_SSPASSWORD": "screenscraper_sspassword",
         "XBOX_CLIENT_ID": "xbox_client_id",
         "XBOX_CLIENT_SECRET": "xbox_client_secret",
+        "NGINX_REALIP_HEADER": "nginx_realip_header",
+        "NGINX_REALIP_TRUSTED_PROXIES": "nginx_realip_trusted_proxies",
     }
     for name, attribute in app_fields.items():
         if name not in values or handler.has(name):
