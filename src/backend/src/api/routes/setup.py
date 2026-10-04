@@ -100,7 +100,14 @@ def _persisted_values(app: AppIntegrationSettings, oidc: OidcSettings) -> dict[s
         value = getattr(app, attribute)
         if value:
             values[f"{spec_name}__configured"] = True
-            if spec_name in {"IGDB_CLIENT_ID", "SCREENSCRAPER_DEVID", "SCREENSCRAPER_SSID", "XBOX_CLIENT_ID"}:
+            if spec_name in {
+                "IGDB_CLIENT_ID",
+                "SCREENSCRAPER_DEVID",
+                "SCREENSCRAPER_SSID",
+                "XBOX_CLIENT_ID",
+                "NGINX_REALIP_HEADER",
+                "NGINX_REALIP_TRUSTED_PROXIES",
+            }:
                 values[spec_name] = value
 
     provider_name = "Provider 1"
