@@ -1,0 +1,74 @@
+_comment: 'Discovery-only egg. Mirrors the upstream pelican-eggs Vanilla Minecraft egg contract.'
+meta:
+  version: PLCN_v3
+  update_url: null
+exported_at: '2026-10-04T00:00:00+00:00'
+name: 'UT Stand-in Minecraft (26.1.2)'
+author: discovery@ut-pelican.test
+uuid: 6b0f6a52-2f0e-4a4b-9a33-5b0c4f3d2a10
+description: |-
+  Disposable Minecraft Java 26.1.2 protocol stand-in used by the Unnamed Tracking Pelican
+  discovery experiments while Mojang/PaperMC downloads are blocked. Same config contract as the
+  upstream Vanilla egg: server.properties port rewrite, ")! For help, type " readiness, "stop".
+tags:
+  - minecraft
+features:
+  - eula
+  - java_version
+docker_images:
+  'Java 25 (local)': '~utpelican/yolk-java25:local'
+file_denylist: {  }
+startup_commands:
+  Default: 'java -Xms128M -XX:MaxRAMPercentage=95.0 -jar {{SERVER_JARFILE}}'
+config:
+  files:
+    server.properties:
+      parser: properties
+      find:
+        server-ip: ''
+        server-port: '{{server.allocations.default.port}}'
+        query.port: '{{server.allocations.default.port}}'
+  startup:
+    done: ')! For help, type '
+  logs: {  }
+  stop: stop
+scripts:
+  installation:
+    script: |-
+      #!/bin/bash
+      # Stand-in install script. Same shape as the Vanilla egg, but downloads from the
+      # disposable local artifact host instead of launchermeta.mojang.com.
+      mkdir -p /mnt/server
+      cd /mnt/server
+      echo "Downloading ${SERVER_JARFILE} from ${ARTIFACT_URL}"
+      curl -fsS -o "${SERVER_JARFILE}" "${ARTIFACT_URL}"
+      sha256sum "${SERVER_JARFILE}"
+      if [ ! -f server.properties ]; then
+        printf 'server-port=25565\nserver-ip=\nlevel-name=world\nmax-players=20\nmotd=Unnamed Tracking stand-in\n' > server.properties
+      fi
+      echo "Install Complete"
+    container: 'utpelican/installer:local'
+    entrypoint: bash
+variables:
+  -
+    name: 'Server Jar File'
+    description: 'The name of the server jarfile to run the server with.'
+    env_variable: SERVER_JARFILE
+    default_value: server.jar
+    user_viewable: true
+    user_editable: true
+    rules:
+      - required
+      - 'regex:/^([\w\d._-]+)(\.jar)$/'
+    sort: 1
+  -
+    name: 'Artifact URL'
+    description: 'Where the install script downloads the stand-in server jar from.'
+    env_variable: ARTIFACT_URL
+    default_value: 'http://172.18.0.1:8099/server.jar'
+    user_viewable: true
+    user_editable: false
+    rules:
+      - required
+      - string
+    sort: 2
