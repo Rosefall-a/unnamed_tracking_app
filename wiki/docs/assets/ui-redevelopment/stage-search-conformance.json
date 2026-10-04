@@ -2,7 +2,7 @@
   "backend": "real",
   "passed": [
     "Sidebar first-open search with delayed real loading, games/collections/goals/all media, keyboard Enter navigation, new-game refresh and offline retry",
-    "52 route/theme/width combinations with global navigation, Search library and current-page-first expandable keyboard help",
+    "60 route/theme/width combinations with Alt navigation, Search library and current-page-first expandable keyboard help",
     "Local slash/new controls, typing guards and native dialog containment",
     "Member search excludes another account and administrator-only settings"
   ],
@@ -113,6 +113,22 @@
     },
     {
       "theme": "light",
+      "width": 390,
+      "route": "/upload",
+      "search": true,
+      "help": true,
+      "navigation": true
+    },
+    {
+      "theme": "light",
+      "width": 390,
+      "route": "/notifications",
+      "search": true,
+      "help": true,
+      "navigation": true
+    },
+    {
+      "theme": "light",
       "width": 1440,
       "route": "/",
       "search": true,
@@ -216,6 +232,22 @@
       "navigation": true
     },
     {
+      "theme": "light",
+      "width": 1440,
+      "route": "/upload",
+      "search": true,
+      "help": true,
+      "navigation": true
+    },
+    {
+      "theme": "light",
+      "width": 1440,
+      "route": "/notifications",
+      "search": true,
+      "help": true,
+      "navigation": true
+    },
+    {
       "theme": "dark",
       "width": 390,
       "route": "/",
@@ -321,6 +353,22 @@
     },
     {
       "theme": "dark",
+      "width": 390,
+      "route": "/upload",
+      "search": true,
+      "help": true,
+      "navigation": true
+    },
+    {
+      "theme": "dark",
+      "width": 390,
+      "route": "/notifications",
+      "search": true,
+      "help": true,
+      "navigation": true
+    },
+    {
+      "theme": "dark",
       "width": 1440,
       "route": "/",
       "search": true,
@@ -419,6 +467,22 @@
       "theme": "dark",
       "width": 1440,
       "route": "/settings",
+      "search": true,
+      "help": true,
+      "navigation": true
+    },
+    {
+      "theme": "dark",
+      "width": 1440,
+      "route": "/upload",
+      "search": true,
+      "help": true,
+      "navigation": true
+    },
+    {
+      "theme": "dark",
+      "width": 1440,
+      "route": "/notifications",
       "search": true,
       "help": true,
       "navigation": true

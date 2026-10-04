@@ -38,6 +38,7 @@ it("exposes only public cosmetic tokens and releases its observer", () => {
     "mode",
     "high_contrast",
     "reduce_motion",
+    "navigation_shortcuts",
     "tokens",
   ]);
   expect(

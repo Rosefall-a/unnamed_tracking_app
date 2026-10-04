@@ -18,7 +18,14 @@ export const NAVIGATION_SHORTCUTS = [
   { key: "v", label: "Calendar", path: "/calendar" },
   { key: "r", label: "Statistics", path: "/statistics" },
   { key: "p", label: "Settings", path: "/settings" },
+  { key: "u", label: "Upload", path: "/upload" },
+  { key: "o", label: "Notifications", path: "/notifications" },
 ] as const;
+
+export function navigationShortcutForKey(key: unknown) {
+  if (typeof key !== "string" || key.length !== 1) return undefined;
+  return NAVIGATION_SHORTCUTS.find((item) => item.key === key.toLowerCase());
+}
 
 // One list for both the `?` overlay and Settings → Keyboard Shortcuts, so
 // the two can never disagree about what a key does. Page-specific groups

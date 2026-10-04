@@ -7,10 +7,27 @@ export async function checkSearchShortcuts({ admin, member, origin, evidenceRoot
   const original = await json(await admin.request.get(origin + "/api/preferences"));
   const created = [];
   const page = await admin.newPage(); const errors = []; page.on("pageerror", error => errors.push(String(error)));
+  page.on('console', message => { if (message.type() === 'error' && /TypeError|ReferenceError|RangeError/.test(message.text())) errors.push(message.text()); });
   const memberPage = await member.newPage(); memberPage.on("pageerror", error => errors.push(String(error)));
   const dialog = page.getByRole("dialog", { name: "Search library", exact: true });
   async function openSearch() { await page.keyboard.press("Control+k"); await dialog.waitFor(); }
-  async function bodyFocus() { await page.locator('h1').first().click(); }
+  async function bodyFocus() {
+    try { await page.locator('#main-content').waitFor(); await page.locator('#main-content').focus(); }
+    catch (error) {
+      const layout = await page.evaluate(() => ({
+        route: location.pathname,
+        dialogs: [...document.querySelectorAll('dialog')].map(d => ({ open: d.open, title: d.querySelector('h2')?.textContent })),
+        main: [...document.querySelectorAll('#main-content, #app, body')].map(e => ({
+          tag: e.tagName, classes: e.className, display: getComputedStyle(e).display,
+          visibility: getComputedStyle(e).visibility, bounds: e.getBoundingClientRect().toJSON(),
+          children: [...e.children].slice(0, 4).map(c => ({ tag: c.tagName, class: c.className, style: c.getAttribute('style') })),
+        })),
+      }));
+      console.error('Shortcut focus diagnostics', JSON.stringify(layout, null, 2));
+      console.error('Shortcut browser errors', errors);
+      throw error;
+    }
+  }
   async function contain(target) { for (let index = 0; index < 12; index++) { await page.keyboard.press('Tab'); assert(await target.evaluate(element => element.contains(document.activeElement))); } }
   try {
     const game = await json(await admin.request.post(origin + '/api/game/create', { data: { title: 'Nebula inventory adventure', folder_location: `ui-search-${Date.now()}`, collections: ['Nebula favorites'] } }), 201); created.push(['game/delete', game.id]);
@@ -37,7 +54,7 @@ export async function checkSearchShortcuts({ admin, member, origin, evidenceRoot
     await dialog.locator('.palette-item').filter({ hasText: 'Nebula film' }).waitFor(); await page.keyboard.press('Escape');
     const fresh = await json(await admin.request.post(origin + '/api/game/create', { data: { title: 'A freshly added searchable game', folder_location: `ui-search-fresh-${Date.now()}` } }), 201); created.push(['game/delete', fresh.id]);
     await openSearch(); await dialog.getByRole('textbox', { name: 'Search library', exact: true }).fill(fresh.title); await dialog.locator('.palette-item').filter({ hasText: fresh.title }).waitFor(); await page.keyboard.press('Escape');
-    const routes = [['h','/','Anywhere'], ['g','/games','Games library'], ['c','/collections','Collections & lists'], ['m','/movies','Media libraries'], ['t','/tv','Media libraries'], ['a','/anime','Media libraries'], ['l','/lists','Collections & lists'], ['e','/cards','Cards'], ['s','/sets','Sets'], ['b','/bounties','Bounties'], ['v','/calendar','Calendar'], ['r','/statistics','Anywhere'], ['p','/settings','Anywhere']];
+    const routes = [['h','/','Anywhere'], ['g','/games','Games library'], ['c','/collections','Collections & lists'], ['m','/movies','Media libraries'], ['t','/tv','Media libraries'], ['a','/anime','Media libraries'], ['l','/lists','Collections & lists'], ['e','/cards','Cards'], ['s','/sets','Sets'], ['b','/bounties','Bounties'], ['v','/calendar','Calendar'], ['r','/statistics','Anywhere'], ['p','/settings','Anywhere'], ['u','/upload','Anywhere'], ['o','/notifications','Anywhere']];
     for (const theme of ['light','dark']) {
       await json(await admin.request.patch(origin + '/api/preferences', { data: { ui_theme: theme } }));
       for (const width of [390,1440]) {
@@ -70,7 +87,7 @@ export async function checkSearchShortcuts({ admin, member, origin, evidenceRoot
     await memberPage.waitForResponse(response => response.url().includes('/api/anime/list?')); assert.equal(await memberDialog.locator('.palette-item').count(), 0, 'Private search results belong to their account');
     await memberDialog.getByRole('textbox', { name: 'Search library', exact: true }).fill('Single sign-on'); await memberPage.waitForResponse(response => response.url().includes('/api/anime/list?')); assert.equal(await memberDialog.locator('.palette-item').count(), 0, 'Members do not see administrator settings results');
     assert.deepEqual(errors, []);
-    report.passed.push('Sidebar first-open search with delayed real loading, games/collections/goals/all media, keyboard Enter navigation, new-game refresh and offline retry', '52 route/theme/width combinations with Alt navigation, Search library and current-page-first expandable keyboard help', 'Local slash/new controls, typing guards and native dialog containment', 'Member search excludes another account and administrator-only settings');
+    report.passed.push('Sidebar first-open search with delayed real loading, games/collections/goals/all media, keyboard Enter navigation, new-game refresh and offline retry', '60 route/theme/width combinations with Alt navigation, Search library and current-page-first expandable keyboard help', 'Local slash/new controls, typing guards and native dialog containment', 'Member search excludes another account and administrator-only settings');
   } finally {
     await admin.setOffline(false); await admin.unroute('**/api/game/list?*');
     for (const [endpoint,id] of created.reverse()) await admin.request.delete(`${origin}/api/${endpoint}/${id}`);

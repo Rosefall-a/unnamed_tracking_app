@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { NAVIGATION_SHORTCUTS } from "../utils/shortcuts";
+import { navigationShortcutForKey } from "../utils/shortcuts";
 import { isCommandPaletteOpen } from "../state/commandPalette";
 import UiModal from "./UiModal.vue";
 import ShortcutGroups from "./ShortcutGroups.vue";
@@ -70,7 +70,7 @@ function onKeydown(event: KeyboardEvent) {
       : /^Key[A-Z]$/.test(event.code)
         ? event.code.slice(3).toLowerCase()
         : "";
-    const navigation = NAVIGATION_SHORTCUTS.find((item) => item.key === letter);
+    const navigation = navigationShortcutForKey(letter);
     if (navigation) {
       event.preventDefault();
       void router.push(navigation.path);

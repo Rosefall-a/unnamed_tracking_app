@@ -15,7 +15,7 @@ describe("shared shortcut help", () => {
     );
     expect(navigationTooltip("Movies", "/movies")).toBe("Movies · Alt + M");
     expect(navigationTooltip("Notifications", "/notifications")).toBe(
-      "Notifications",
+      "Notifications · Alt + O",
     );
   });
   it.each([
@@ -57,4 +57,12 @@ describe("shared shortcut help", () => {
       ).toBe(true);
     }
   });
+});
+
+it("resolves only mapped single-letter navigation, including Upload and Notifications", async () => {
+  const { navigationShortcutForKey } = await import("../utils/shortcuts");
+  expect(navigationShortcutForKey("U")?.path).toBe("/upload");
+  expect(navigationShortcutForKey("o")?.path).toBe("/notifications");
+  for (const key of [null, undefined, 12, "", "../../admin", "x"])
+    expect(navigationShortcutForKey(key)).toBeUndefined();
 });

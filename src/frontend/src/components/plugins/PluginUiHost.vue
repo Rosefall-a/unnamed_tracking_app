@@ -4,6 +4,7 @@ import {
   observePluginAppearance,
 } from "../../services/pluginAppearance";
 import PluginField from "./PluginField.vue";
+import { navigationShortcutForKey } from "../../utils/shortcuts";
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import {
   approvePluginAction,
@@ -200,6 +201,20 @@ async function handleFrontendMessage(event: MessageEvent) {
         Math.max(320, Math.ceil(data.height)),
       );
       result = { height: iframeHeight.value };
+    } else if (method === "plugin.shortcut") {
+      const navigation = navigationShortcutForKey(data.key);
+      if (!navigation) throw new Error("Unknown host navigation shortcut.");
+      // The shared keyboard handler retains its modal and palette guards.
+      // The frame cannot request arbitrary paths or privileged operations.
+      window.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: navigation.key,
+          code: `Key${navigation.key.toUpperCase()}`,
+          altKey: true,
+          bubbles: true,
+        }),
+      );
+      result = { supported: true };
     } else if (method === "plugin.theme") {
       result = { ...readPluginAppearance() };
     } else if (method === "plugin.context") {

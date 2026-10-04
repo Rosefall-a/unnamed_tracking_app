@@ -228,9 +228,40 @@ try {
   await page.locator(`[data-widget-id="${widget}"] .home-demo`).waitFor();
   await api("PATCH", "/api/preferences", { ui_theme: before.ui_theme, ui_palette: before.ui_palette,
     ui_custom_palette: before.ui_custom_palette, home_widgets: before.home_widgets, home_widget_config: before.home_widget_config });
+  // Actual keyboard focus is inside an installed opaque frontend, not the host.
+  for (const [width, mode] of [[390, "dark"], [1440, "light"]]) {
+    await page.setViewportSize({ width, height: 1050 });
+    await api("PATCH", "/api/preferences", { ui_theme: mode });
+    for (const [key, destination] of [["g", "/games"], ["u", "/upload"], ["o", "/notifications"]]) {
+      await page.goto(origin + "/plugins/example.scoped-document-viewer/documents");
+      const iframe = page.locator(".frontend-shell iframe"); await iframe.waitFor();
+      const inner = await (await iframe.elementHandle()).contentFrame();
+      await inner.getByRole("heading", { name: "Document reader", exact: true }).waitFor();
+      await inner.locator("body").evaluate(body => { body.tabIndex = -1; body.focus(); });
+      await page.keyboard.press("Alt+" + key); await page.waitForURL(origin + destination);
+      await page.locator("h1").first().waitFor();
+    }
+  }
+  await page.goto(origin + "/plugins/example.scoped-document-viewer/documents");
+  const guardIframe = page.locator(".frontend-shell iframe"); await guardIframe.waitFor();
+  const shortcutFrame = await (await guardIframe.elementHandle()).contentFrame();
+  await shortcutFrame.getByRole("heading", { name: "Document reader", exact: true }).waitFor();
+  const postShortcut = key => shortcutFrame.evaluate(key => new Promise(resolve => {
+    const requestId = "shortcut-guard-" + Math.random();
+    const listener = event => { if (event.source === window.parent && event.data?.requestId === requestId) {
+      window.removeEventListener("message", listener); resolve(event.data); } };
+    window.addEventListener("message", listener);
+    window.parent.postMessage({ type: "plugin-api-request", method: "plugin.shortcut", requestId, payload: { key } }, "*");
+  }), key);
+  assert.match((await postShortcut("../../settings?section=admin")).error, /Unknown host navigation shortcut/);
+  await page.locator("#main-content").focus(); await page.keyboard.press("?");
+  const shortcutHelp = page.getByRole("dialog", { name: "Keyboard shortcuts", exact: true }); await shortcutHelp.waitFor();
+  await postShortcut("g"); assert.equal(new URL(page.url()).pathname, "/plugins/example.scoped-document-viewer/documents");
+  assert.equal(await shortcutHelp.count(), 1); await page.keyboard.press("Escape");
   assert.deepEqual(errors, [], "Installed native and iframe UI have no runtime errors");
   await writeFile(path.join(process.env.INTEGRATION_WORK_ROOT, "plugin-appearance-conformance.json"), JSON.stringify({
     status: "passed", native_document_settings: true, opaque_document_reader: true, width_mode_cases: 12,
+    opaque_frame_navigation_cases: 6, arbitrary_path_denied: true, host_dialog_guard: true,
     independent_low_risk_theme_permission: true, personal_palette_copy_retained_on_revocation: true,
     personal_widget_options_two_accounts: true, widget_disable_restore: true, snapshots,
   }, null, 2) + "\n");

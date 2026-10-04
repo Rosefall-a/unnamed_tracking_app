@@ -20,3 +20,9 @@ bundle can fill those slots only after the backend confirms `frontend.native`;
 native activation does not change the iframe sandbox or bridge.
 
 See [Plugin UI Protocol](plugin-ui.md) for the native renderer and [Plugin API v1](plugin-api-v1.md) for the gateway contract.
+
+## Navigation while a plugin frame has focus
+
+The public appearance snapshot includes `navigation_shortcuts`, the single-letter keys currently supported by the host's Alt navigation. The shared frontend SDK forwards these keys through `plugin.shortcut` with `{ "key": "g" }`, for example. It ignores editing controls, composition, repeats, AltGraph, conflicting modifiers and already-handled events. Bindings come from the same host table used by tooltips and keyboard help; plugins do not maintain a separate route list.
+
+The host accepts requests only from that contribution's own opaque frame and only for mapped navigation keys. It does not accept arbitrary paths, URLs or privileged operations. The shared host keyboard handler retains its open-dialog and command-palette guards. Existing frontend action/capability checks and the iframe sandbox are unchanged.

@@ -1,6 +1,7 @@
 import { ORANGE_PALETTE, paletteTokens, type PaletteMode } from "./uiPalette";
+import { NAVIGATION_SHORTCUTS } from "../utils/shortcuts";
 
-// Only cosmetic public tokens cross the opaque iframe boundary.
+// Only public appearance tokens and navigation keys cross the opaque boundary.
 export const PLUGIN_APPEARANCE_TOKENS = [
   ...Object.keys(paletteTokens("orange", "light")),
   "--ui-font-family",
@@ -17,6 +18,7 @@ export interface PluginAppearance {
   mode: PaletteMode;
   high_contrast: boolean;
   reduce_motion: boolean;
+  navigation_shortcuts: string[];
   tokens: Record<string, string>;
 }
 export function readPluginAppearance(): PluginAppearance {
@@ -28,6 +30,7 @@ export function readPluginAppearance(): PluginAppearance {
     mode: root?.dataset.theme === "dark" ? "dark" : "light",
     high_contrast: root?.classList.contains("high-contrast") ?? false,
     reduce_motion: root?.classList.contains("reduce-motion") ?? false,
+    navigation_shortcuts: NAVIGATION_SHORTCUTS.map((item) => item.key),
     tokens: Object.fromEntries(
       PLUGIN_APPEARANCE_TOKENS.map((token) => [
         token,

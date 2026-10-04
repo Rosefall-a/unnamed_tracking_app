@@ -348,3 +348,12 @@ The [workflow report](../assets/ui-redevelopment/library-workflow-conformance.js
 ![Phone history editor](../assets/ui-redevelopment/calendar-history-390-dark.png)
 
 ![Desktop history editor](../assets/ui-redevelopment/calendar-history-1440-light.png)
+
+
+## Keyboard navigation inside maintained plugins
+
+Global Alt navigation includes Upload (Alt+U) and Notifications (Alt+O), with hints derived from the same binding table as keyboard help. Installed opaque plugin frontends receive advertised navigation keys through the public SDK and forward only supported keys. Host dialog and command-palette guards remain authoritative. Arbitrary paths are rejected.
+
+The [updated search/navigation report](../assets/ui-redevelopment/stage-search-conformance.json) passes 60 real core route/theme/width cases plus search, offline retry, editable-field guards, create dialogs and account separation. The [signed plugin report](../assets/ui-redevelopment/plugin-appearance-final.json) also passes six actual keyboard cases from inside the Document reader frame, a rejected arbitrary path and an open host-dialog guard. All 41 public SDK/document-browser tests and 220 companion tests pass.
+
+This sweep exposed plugin notifications crashing the old media-only list. The list now displays plugin and unfamiliar kinds safely, includes a Plugins filter, and retains read/unread/remove actions. Notifications without a media target do not fabricate an Anime link; the bell opens the notification list. All 180 frontend tests and quality checks pass after the fix.

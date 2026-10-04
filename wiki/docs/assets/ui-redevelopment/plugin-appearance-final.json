@@ -1,0 +1,21 @@
+{
+  "status": "passed",
+  "native_document_settings": true,
+  "opaque_document_reader": true,
+  "width_mode_cases": 12,
+  "opaque_frame_navigation_cases": 6,
+  "arbitrary_path_denied": true,
+  "host_dialog_guard": true,
+  "independent_low_risk_theme_permission": true,
+  "personal_palette_copy_retained_on_revocation": true,
+  "personal_widget_options_two_accounts": true,
+  "widget_disable_restore": true,
+  "snapshots": [
+    "jellyfin-native-settings-390-dark.png",
+    "document-native-settings-390-dark.png",
+    "document-browser-390-dark.png",
+    "jellyfin-native-settings-1440-light.png",
+    "document-native-settings-1440-light.png",
+    "document-browser-1440-light.png"
+  ]
+}
