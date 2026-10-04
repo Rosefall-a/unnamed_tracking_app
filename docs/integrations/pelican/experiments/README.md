@@ -16,6 +16,12 @@ production code, and none of it is part of the Unnamed Tracking integration.
 | `e04_backups.py` | Backups as capture/restore, including restore-while-running behaviour. |
 | `e04b_restore_recovery.py` | What a truncate-restore of a capture that ignored `server.jar` leaves, and recovery by reinstall. |
 | `e04c_safe_restore.py` | The recommended restore sequence, verified byte-for-byte before first start. |
+| `e05_files_pull.py` | Whether Wings can fetch a world itself (`files/pull`) from loopback, RFC1918 and public addresses. |
+| `e06_least_privilege.py` | A dedicated subuser identity with only the Run/Capture/Restore permissions; allowed and denied probes. |
+| `e07_tracking.py` | Player sessions, positions and server uptime derived from the websocket alone. |
+| `e08a_archive_safety.py` | Traversal, symlink, truncated, non-archive and decompression-bomb archives; interrupted upload. |
+| `e08b_runtime_failures.py` | Bad credentials, Panel/Wings down, save without `level.dat`, newer-version save, never-ready, crash. |
+| `e08d_server_deletion.py` | What survives when the server hosting a world is deleted. |
 | `setup_env.sh` | Rebuilds the whole disposable Panel + Wings environment from release artifacts. |
 | `mkkey.php` | Creates API keys through Pelican's own `KeyCreationService`. |
 | `yolks/` | Local rebuilds of the Pelican Java 25 yolk and installer images. |
