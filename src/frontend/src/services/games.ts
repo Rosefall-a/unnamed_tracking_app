@@ -390,6 +390,10 @@ export async function searchGameMetadata(
 // so an exact title match could sit below a dozen loose ones. Exact matches
 // first, then titles starting with the query, then containing it, keeping
 // the providers' own order within each group.
+function normalizeTitleForMatch(title: string): string {
+  return title.replace(/[™®©]/g, "").trim().toLowerCase();
+}
+
 export function rankMetadataResults<T extends { title: string }>(
   results: T[],
   query: string,

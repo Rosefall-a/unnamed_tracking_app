@@ -11,7 +11,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 revision: str = "c4f1d2e8a9b0"
-down_revision: str | None = "a1c2e4f7b920"
+down_revision: str | None = "a3f1c7e9d2b4"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
