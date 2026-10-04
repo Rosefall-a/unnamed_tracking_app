@@ -230,7 +230,7 @@ async function finish() {
   line-height: 1.6;
 }
 .preview-status {
-  color: var(--ui-success);
+  color: var(--ui-good);
 }
 .welcome-preview .ui-btn:disabled {
   opacity: 1;
