@@ -1,6 +1,8 @@
 """E10: the same Run/Capture/Visualise sequence against a second game (Luanti / Minetest 5.6).
 
 usage: e10_luanti.py <server.json> <work_dir>
+0. If <server.json> does not exist yet, create the Luanti world host (external_id ut-world:luanti-a,
+   owned by utplayer, egg "UT Luanti (Minetest 5.6)") through the Application API and write it.
 1. Generate two identifiable worlds offline (fixed seeds, a world mod that emerges terrain and builds a marker).
 2. Deploy A then B with the Minecraft sequence (upload -> staging decompress -> swap -> start),
    verifying identity from map_meta.txt / players.sqlite read back through the Client API.
@@ -21,7 +23,24 @@ import requests
 
 from ptlab import Api, Console, record
 
-server = json.load(open(sys.argv[1]))["identifier"]
+server_file = Path(sys.argv[1])
+if not server_file.exists():
+    app = Api("application", "app_full", "E10-luanti")
+    owner = app.get("users", params={"filter[username]": "utplayer"}).json()["data"][0]["attributes"]["id"]
+    egg = [e["attributes"] for e in app.get("eggs").json()["data"] if e["attributes"]["name"].startswith("UT Luanti")][0]
+    # A free aliased allocation, preferring 25584 (the Luanti port test-environment.md documents).
+    free = sorted((a["attributes"] for a in app.get("nodes/1/allocations", params={"per_page": 100}).json()["data"]
+                   if not a["attributes"]["assigned"] and a["attributes"]["alias"]), key=lambda a: a["port"] != 25584)[0]["id"]
+    created = app.post("servers", {
+        "name": "UT host for ut-world:luanti-a", "external_id": "ut-world:luanti-a", "user": owner, "egg": egg["id"],
+        "docker_image": "~utpelican/yolk-luanti:local", "startup": egg["startup"],
+        "environment": {"WORLD_NAME": "world"}, "limits": {"memory": 1024, "swap": 0, "disk": 2048, "io": 500, "cpu": 100},
+        "feature_limits": {"databases": 0, "allocations": 0, "backups": 3}, "allocation": {"default": free},
+    }).json()["attributes"]
+    server_file.write_text(json.dumps({k: created[k] for k in ("id", "uuid", "identifier", "external_id")}))
+    time.sleep(8)  # egg install script
+    print("created Luanti world host", created["identifier"])
+server = json.load(open(server_file))["identifier"]
 work = Path(sys.argv[2])
 shutil.rmtree(work, ignore_errors=True)
 work.mkdir(parents=True)

@@ -90,15 +90,28 @@ EOF
 sleep 8
 
 # --- Yolks, stand-in server, artifact host -------------------------------------------------------
+# Base images are the official Docker Hub ones, fetched through Google's Hub mirror and tagged with
+# the Hub names the Dockerfiles use: Docker Hub's anonymous limit (100 requests/hour per egress IP)
+# is easily exhausted from shared egress and broke a from-scratch rebuild.
+for img in ubuntu:24.04 eclipse-temurin:25-jdk-noble maven:3-eclipse-temurin-25; do
+  docker image inspect "$img" >/dev/null 2>&1 \
+    || { docker pull -q "mirror.gcr.io/library/$img" && docker tag "mirror.gcr.io/library/$img" "$img"; }
+done
+docker image inspect mirror.gcr.io/library/eclipse-temurin:25-jdk-noble >/dev/null 2>&1 \
+  || docker tag eclipse-temurin:25-jdk-noble mirror.gcr.io/library/eclipse-temurin:25-jdk-noble   # make_test_world.py
 docker build -q --network host -t utpelican/yolk-java25:local "$HERE/yolks/java25"
 docker build -q --network host -t utpelican/installer:local "$HERE/yolks/installer"
 docker build -q --network host -t utpelican/yolk-luanti:local "$HERE/yolks/luanti"   # second game (E10)
-docker pull -q maven:3-eclipse-temurin-25
-docker pull -q eclipse-temurin:25-jdk-noble
-docker tag eclipse-temurin:25-jdk-noble mirror.gcr.io/library/eclipse-temurin:25-jdk-noble
 cp -r "$HERE/standin-server" /srv/pelican/standin/src
-# Maven inside Docker needs the egress proxy + its CA in this sandbox; drop these two lines elsewhere.
-printf '<settings><proxies><proxy><id>p</id><active>true</active><protocol>https</protocol><host>127.0.0.1</host><port>38809</port></proxy></proxies></settings>' > /srv/pelican/m2/settings.xml
+# Maven inside Docker needs this sandbox's egress proxy (taken from HTTPS_PROXY, whose port changes
+# between sessions) and its CA; without HTTPS_PROXY Maven connects directly.
+proxy=${HTTPS_PROXY:-}; proxy=${proxy#*://}; proxy=${proxy##*@}; proxy=${proxy%%/*}
+if [ -n "$proxy" ]; then
+  printf '<settings><proxies><proxy><id>p</id><active>true</active><protocol>https</protocol><host>%s</host><port>%s</port></proxy></proxies></settings>' \
+    "${proxy%:*}" "${proxy##*:}" > /srv/pelican/m2/settings.xml
+else
+  printf '<settings/>' > /srv/pelican/m2/settings.xml
+fi
 docker run --rm --network host -v /srv/pelican/standin/src:/src -v /srv/pelican/m2:/root/.m2 \
   -v /root/.ccr/ca-bundle.crt:/ca.crt:ro -w /src maven:3-eclipse-temurin-25 bash -c \
   'keytool -importcert -noprompt -alias ccr -file /ca.crt -cacerts -storepass changeit >/dev/null 2>&1; mvn -q -B package -s /root/.m2/settings.xml'

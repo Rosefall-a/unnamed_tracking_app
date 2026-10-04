@@ -18,7 +18,7 @@ production code, and none of it is part of the Unnamed Tracking integration.
 | `e04c_safe_restore.py` | The recommended restore sequence, verified byte-for-byte before first start. |
 | `e04d_world_only_capture.py` | World-only capture via a negated backup `ignored` list. |
 | `e05_files_pull.py` | Whether Wings can fetch a world itself (`files/pull`) from loopback, RFC1918 and public addresses. |
-| `e06_least_privilege.py` | A dedicated subuser identity with only the Run/Capture/Restore permissions; allowed and denied probes. |
+| `e06_least_privilege.py` | A dedicated subuser identity with only the Run/Capture/Restore permissions; allowed and denied probes, and per-key `allowed_ips` enforcement. |
 | `e07_tracking.py` | Player sessions, positions and server uptime derived from the websocket alone. |
 | `e08a_archive_safety.py` | Traversal, symlink, truncated, non-archive and decompression-bomb archives; interrupted upload. |
 | `e08b_runtime_failures.py` | Bad credentials, Panel/Wings down, save without `level.dat`, newer-version save, never-ready, crash. |
@@ -32,6 +32,7 @@ production code, and none of it is part of the Unnamed Tracking integration.
 | `e12_large_world_parts.py` | A world larger than the node upload limit, deployed as independent part archives. |
 | `screenshots.mjs` | Playwright capture of the Pelican UI evidence in `../evidence/img/`. |
 | `setup_env.sh` | Rebuilds the whole disposable Panel + Wings environment from release artifacts. |
+| `run_all.sh` | Reruns every experiment in order on a fresh `setup_env.sh` environment, with each script's preconditions. |
 | `mkkey.php` | Creates API keys through Pelican's own `KeyCreationService`. |
 | `yolks/` | Local rebuilds of the Pelican Java 25 yolk and installer images. |
 | `../evidence/api-calls.jsonl` | Every API call the experiments made, with credentials and signed URLs redacted. |

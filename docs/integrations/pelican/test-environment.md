@@ -48,18 +48,17 @@ Allocations     0.0.0.0:25580-25590 with alias 127.0.0.1 (25581 = Minecraft worl
 | `docker.network.IPv6: false` | No IPv6 in the kernel; Wings fails to create `pelican0` otherwise |
 | 8 PHP CLI server workers | A single worker deadlocks on Panel → Wings → Panel calls during server creation |
 | Panel and allocations on loopback, aliases set | Only loopback and private ranges bypass the sandbox's HTTPS proxy |
+| Base images pulled from `mirror.gcr.io` and tagged with their Docker Hub names | Docker Hub's anonymous pull limit (HTTP 429) broke a from-scratch rebuild |
+| Maven (in Docker) gets the sandbox proxy from `HTTPS_PROXY` | Maven ignores proxy environment variables, and the proxy's port changes between sessions, so a hardcoded port broke a rebuild |
 
 ## Reproducing
 
 ```bash
-sudo ./docs/integrations/pelican/experiments/setup_env.sh
-cd docs/integrations/pelican/experiments
-python3 make_test_world.py /srv/pelican/worlds/a "UT Test World A" 424242 minecraft:gold_block 4 100 4 clear
-python3 make_test_world.py /srv/pelican/worlds/b "UT Test World B" 1337 minecraft:diamond_block -6 100 9 rain
-python3 e01_create_server.py ut-world:demo-a <allocation id of 25581>
-python3 e02_lifecycle.py /srv/pelican/evidence/server-demo-a.json
-# … e03 → e12 as listed in experiments/README.md (e06 creates utbridge's subuser grant first)
+sudo ./docs/integrations/pelican/experiments/setup_env.sh   # fresh Panel + Wings + images
+sudo ./docs/integrations/pelican/experiments/run_all.sh     # test worlds, then every experiment in run 1's order
 ```
+
+`run_all.sh` passes every script its arguments, sets up the preconditions each one expects (the world to start from, the E04 backup for E04c, the 1 MB upload limit around E12), and stops at the first failure. E04d runs last, as in run 1, because it captures as the bridge identity that E06 makes a subuser. `/srv/pelican/evidence/run_all.log` holds the combined output. Behind an egress proxy, use `sudo -E` (or run as root) so `setup_env.sh` still sees `HTTPS_PROXY`. E06 prints `CHECK` because of a known finding: a client key can mint sibling keys. That isn't a failure of the run.
 
 Every script appends to `/srv/pelican/evidence/api-calls.jsonl`. Any field whose name contains `token`, `secret` or `password` is redacted, as are `socket` and `url`. Full API keys, JWTs and signed-URL parameters are also masked inside other strings.
 

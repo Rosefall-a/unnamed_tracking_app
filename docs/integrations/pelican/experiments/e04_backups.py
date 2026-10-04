@@ -73,6 +73,11 @@ print(f"restore finished after {time.monotonic() - t0:.2f}s; power state:",
 listing = sorted(f["attributes"]["name"] for f in c.get(f"servers/{server}/files/list", params={"directory": "/"}).json()["data"])
 print("root after truncate restore:", listing)
 c.post(f"servers/{server}/power", {"signal": "start"})
-con.until(lambda m: m["event"] == "status" and m["args"] == ["running"], 120)
-print("after restore:", console("seed", "Seed: ["))
+try:
+    con.until(lambda m: m["event"] == "status" and m["args"] == ["running"], 60)
+    print("after restore:", console("seed", "Seed: ["))
+except TimeoutError:
+    # Expected when the backup ignored server.jar: truncate removed the runtime (E04b recovers it).
+    print("server did not reach running after the truncate restore (runtime removed): hazard reproduced")
+    record(exp, {"step": "start after truncate restore", "running": False, "root": listing})
 con.close()

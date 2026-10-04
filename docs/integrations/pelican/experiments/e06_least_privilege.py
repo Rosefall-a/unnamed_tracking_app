@@ -3,8 +3,8 @@
 usage: e06_least_privilege.py <server.json>
 The server owner (client_player) adds a dedicated non-admin account (utbridge, key client_bridge)
 as a subuser with only the permissions the Run/Capture/Restore sequences need. Every allowed
-operation is exercised, every excluded permission is probed, and a server the bridge was never
-added to is probed for existence leaks.
+operation is exercised, every excluded permission is probed, a server the bridge was never
+added to is probed for existence leaks, and per-key allowed_ips enforcement is checked.
 """
 import json
 import sys
@@ -18,6 +18,22 @@ exp = "E06-least-privilege"
 owner = Api("client", "client_player", exp)
 bridge = Api("client", "client_bridge", exp)
 friend = Api("client", "client_friend", exp)
+app = Api("application", "app_full", exp)
+
+# The cross-tenant probes need a server the bridge was never added to: one owned by utfriend.
+if not friend.get("").json()["data"]:
+    friend_id = app.get("users", params={"filter[username]": "utfriend"}).json()["data"][0]["attributes"]["id"]
+    egg = [e["attributes"]["id"] for e in app.get("eggs").json()["data"] if e["attributes"]["name"].startswith("UT Stand-in Minecraft")][0]
+    free = [a["attributes"]["id"] for a in app.get("nodes/1/allocations", params={"per_page": 100}).json()["data"]
+            if not a["attributes"]["assigned"] and a["attributes"]["alias"]][0]
+    created = app.post("servers", {
+        "name": "Friend world", "external_id": "ut-world:friend", "user": friend_id, "egg": egg,
+        "docker_image": "~utpelican/yolk-java25:local", "startup": "java -Xms128M -XX:MaxRAMPercentage=95.0 -jar {{SERVER_JARFILE}}",
+        "environment": {"SERVER_JARFILE": "server.jar", "ARTIFACT_URL": "http://172.18.0.1:8099/server.jar"},
+        "limits": {"memory": 1024, "swap": 0, "disk": 2048, "io": 500, "cpu": 100},
+        "feature_limits": {"databases": 0, "allocations": 0, "backups": 2}, "allocation": {"default": free},
+    })
+    print("created a utfriend-owned server for the cross-tenant probes ->", created.status_code)
 
 BRIDGE_PERMISSIONS = [
     "websocket.connect", "control.console", "control.start", "control.stop", "control.restart",
@@ -74,6 +90,24 @@ probe("POST account/api-keys (mint new key)", "deny", lambda: bridge.post("accou
 probe("GET application/servers", "deny", lambda: requests.get("http://127.0.0.1:8000/api/application/servers",
       headers={"Authorization": bridge.session.headers["Authorization"], "Accept": "application/json"}))
 
+
+def call_with_ip_restricted_key(allowed_ips):
+    """Mints an owner key limited to allowed_ips, calls the Client API from 127.0.0.1, deletes the key.
+
+    The key's secret is only held in memory; the logged creation response has it redacted.
+    """
+    minted = owner.post("account/api-keys", {"description": "ut-e06-allowed-ips", "allowed_ips": allowed_ips}).json()
+    identifier = minted["attributes"]["identifier"]
+    try:
+        return requests.get("http://127.0.0.1:8000/api/client", timeout=30, headers={
+            "Authorization": f"Bearer {identifier}{minted['meta']['secret_token']}", "Accept": "application/json"})
+    finally:
+        owner.call("DELETE", f"account/api-keys/{identifier}")
+
+
+probe("key with allowed_ips [203.0.113.7], called from 127.0.0.1", "deny", lambda: call_with_ip_restricted_key(["203.0.113.7"]))
+probe("key with allowed_ips [127.0.0.1], called from 127.0.0.1", "allow", lambda: call_with_ip_restricted_key(["127.0.0.1"]))
+
 # A server the bridge was never added to (owned by utfriend).
 other = [s["attributes"]["identifier"] for s in friend.get("").json()["data"]]
 if other:
@@ -86,4 +120,9 @@ events = {e["event"] for e in con.pump(2)}
 print("bridge websocket events in 2s:", sorted(events))
 con.close()
 record(exp, {"permissions": BRIDGE_PERMISSIONS, "results": results})
-print("RESULT:", "PASS" if all(r["as_expected"] for r in results) else "CHECK")
+
+# The key-minting probe succeeds (a known finding), so remove the sibling key it created.
+for key in bridge.get("account/api-keys").json()["data"]:
+    if key["attributes"]["description"] == "escalate":
+        print("deleted minted sibling key ->", bridge.call("DELETE", f"account/api-keys/{key['attributes']['identifier']}").status_code)
+print("RESULT:", "PASS" if all(r["as_expected"] for r in results) else "CHECK (see BAD lines; key minting is a known finding)")

@@ -102,11 +102,17 @@ class Api:
 
 
 def wait_for(predicate, timeout: float, interval: float = 1.0, what: str = "condition") -> float:
-    """Polls predicate() until truthy; returns seconds waited or raises TimeoutError."""
+    """Polls predicate() until truthy; returns seconds waited or raises TimeoutError.
+
+    A predicate that raises a connection error (e.g. Wings restarting) counts as "not yet".
+    """
     started = time.monotonic()
     while time.monotonic() - started < timeout:
-        if predicate():
-            return round(time.monotonic() - started, 2)
+        try:
+            if predicate():
+                return round(time.monotonic() - started, 2)
+        except (requests.RequestException, OSError):
+            pass
         time.sleep(interval)
     raise TimeoutError(f"timed out after {timeout}s waiting for {what}")
 
