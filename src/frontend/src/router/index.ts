@@ -65,8 +65,13 @@ const router = createRouter({
       meta: { title: "Collection" },
       component: () => import("../views/CollectionDetail.vue"),
     },
-    { path: "/upload", redirect: "/settings?section=upload" },
-    { path: "/inbox", redirect: "/settings?section=upload" },
+    {
+      path: "/upload",
+      name: "upload",
+      meta: { title: "Upload" },
+      component: () => import("../views/Upload.vue"),
+    },
+    { path: "/inbox", redirect: "/upload" },
     {
       path: "/bounties",
       name: "bounties",

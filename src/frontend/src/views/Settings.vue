@@ -9,6 +9,7 @@ import {
 } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { currentUser } from "../state/auth";
+import { activeSettingsArea } from "../state/settingsArea";
 import { startTrackingSaves, stopTrackingSaves } from "../state/saveStatus";
 import SettingsNav from "../components/settings/SettingsNav.vue";
 import type { SettingsGroup } from "../components/settings/SettingsNav.vue";
@@ -16,7 +17,6 @@ import SaveStatus from "../components/settings/SaveStatus.vue";
 import ProfileSection from "../components/settings/ProfileSection.vue";
 import AppearanceSection from "../components/settings/AppearanceSection.vue";
 import BrandingSection from "../components/settings/BrandingSection.vue";
-import UploadSection from "../components/settings/UploadSection.vue";
 import LibrarySettings from "../components/settings/LibrarySettings.vue";
 import MetadataSettings from "../components/settings/MetadataSettings.vue";
 import AdminSection from "../components/settings/AdminSection.vue";
@@ -49,6 +49,13 @@ import { usePageTitle } from "../state/pageTitle";
 
 const router = useRouter();
 const route = useRoute();
+watch(
+  () => route.query.section,
+  (section) => {
+    if (section === "upload") void router.replace("/upload");
+  },
+  { immediate: true },
+);
 onMounted(() => void refreshPluginExtensions());
 
 const coreSectionIds = new Set([
@@ -165,7 +172,6 @@ const groups = computed<SettingsGroup[]>(() => {
       label: "Library",
       area: "preferences",
       sections: [
-        { id: "upload", label: "Upload" },
         { id: "library", label: "Library" },
         { id: "metadata", label: "Metadata" },
         { id: "export", label: "Export / Import" },
@@ -198,13 +204,22 @@ const groups = computed<SettingsGroup[]>(() => {
     visiblePluginSettings.value.length ||
     visiblePluginSettingsNavigation.value.length
   ) {
+    for (const item of visiblePluginSettings.value) {
+      let group = result.find(
+        (candidate) =>
+          candidate.area === item.area && candidate.label === item.group,
+      );
+      if (!group) {
+        group = { label: item.group, area: item.area, sections: [] };
+        result.push(group);
+      }
+      group.sections.push({
+        id: pluginSettingsId(item.contributionId),
+        label: item.label,
+      });
+    }
     for (const adminOnly of [false, true]) {
       const sections = [
-        ...visiblePluginSettings.value.map((item) => ({
-          id: pluginSettingsId(item.contributionId),
-          label: item.label,
-          adminOnly: Boolean(item.adminOnly),
-        })),
         ...visiblePluginSettingsNavigation.value.map((item) => ({
           id: item.contributionId,
           label: item.label,
@@ -307,6 +322,16 @@ const area = computed(() => {
   if (route.query.area === "administration" && currentUser.value?.is_admin)
     return "administration";
   return "preferences";
+});
+watch(
+  area,
+  (value) => {
+    activeSettingsArea.value = value;
+  },
+  { immediate: true, flush: "sync" },
+);
+onBeforeUnmount(() => {
+  activeSettingsArea.value = "preferences";
 });
 const areaNames = {
   preferences: "Preferences",
@@ -457,7 +482,6 @@ function backToArea() {
             @navigate="openSection"
           />
           <ApiKeysSection v-else-if="activeSection === 'api-keys'" />
-          <UploadSection v-else-if="activeSection === 'upload'" />
           <LibrarySettings
             v-else-if="activeSection === 'library'"
             :key="'library' + initialTab"

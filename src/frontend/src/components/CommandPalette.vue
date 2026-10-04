@@ -65,7 +65,6 @@ const SETTINGS_SHORTCUTS: {
   { label: "Profile", section: "profile" },
   { label: "Appearance & interface", section: "appearance" },
   { label: "App installation", section: "app-installation" },
-  { label: "Upload", section: "upload" },
   { label: "Notifications", section: "notifications" },
   { label: "Calendar", section: "calendar" },
   { label: "Keyboard Shortcuts", section: "shortcuts" },
@@ -105,6 +104,7 @@ const PAGE_SHORTCUTS: { label: string; to: string }[] = [
   { label: "Statistics", to: "/statistics" },
   { label: "Notifications", to: "/notifications" },
   { label: "Settings", to: "/settings" },
+  { label: "Upload", to: "/upload" },
 ];
 
 const collectionNames = computed(() => {

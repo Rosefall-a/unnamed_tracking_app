@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, nextTick } from "vue";
+defineProps<{ standalone?: boolean }>();
 import { fetchUploadLimits } from "../../services/settings";
 import { fetchGames } from "../../services/games";
 import type { Game } from "../../types/game";
 import UploadDropzone from "../UploadDropzone.vue";
+import UiModal from "../UiModal.vue";
 import {
   uploadToInbox,
   listInbox,
@@ -311,7 +313,7 @@ async function restoreItem(item: TrashedInboxItem) {
 
 <template>
   <section class="settings-section">
-    <h2>Upload</h2>
+    <h2 v-if="!standalone">Upload</h2>
     <p class="section-hint">
       Bulk-upload screenshots and clips without picking a game first: drop in
       everything at once, then group and assign them below. Images become
@@ -465,6 +467,7 @@ async function restoreItem(item: TrashedInboxItem) {
         type="button"
         class="danger-icon-button"
         title="Delete selected"
+        aria-label="Delete selected"
         :disabled="deleting"
         @click="confirmingBulkDelete = true"
       >
@@ -507,27 +510,34 @@ async function restoreItem(item: TrashedInboxItem) {
             <div
               class="media-thumb"
               :class="{ selected: selected.has(itemKey(item)) }"
-              @click="toggleSelected(item)"
             >
-              <div
-                class="select-check"
-                :class="{ checked: selected.has(itemKey(item)) }"
+              <button
+                type="button"
+                class="media-select"
+                :aria-label="`Select screenshot: ${item.filename}`"
+                :aria-pressed="selected.has(itemKey(item))"
+                @click="toggleSelected(item)"
               >
-                <svg
-                  v-if="selected.has(itemKey(item))"
-                  viewBox="0 0 24 24"
-                  width="14"
-                  height="14"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="3"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
+                <div
+                  class="select-check"
+                  :class="{ checked: selected.has(itemKey(item)) }"
                 >
-                  <path d="M20 6L9 17l-5-5" />
-                </svg>
-              </div>
-              <img :src="item.url" alt="" />
+                  <svg
+                    v-if="selected.has(itemKey(item))"
+                    viewBox="0 0 24 24"
+                    width="14"
+                    height="14"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="3"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <path d="M20 6L9 17l-5-5" />
+                  </svg>
+                </div>
+                <img :src="item.url" alt="" />
+              </button>
               <button
                 type="button"
                 class="remove-button"
@@ -561,37 +571,44 @@ async function restoreItem(item: TrashedInboxItem) {
             <div
               class="media-thumb clip"
               :class="{ selected: selected.has(itemKey(item)) }"
-              @click="toggleSelected(item)"
             >
-              <div
-                class="select-check"
-                :class="{ checked: selected.has(itemKey(item)) }"
+              <button
+                type="button"
+                class="media-select"
+                :aria-label="`Select clip: ${item.filename}`"
+                :aria-pressed="selected.has(itemKey(item))"
+                @click="toggleSelected(item)"
               >
-                <svg
-                  v-if="selected.has(itemKey(item))"
-                  viewBox="0 0 24 24"
-                  width="14"
-                  height="14"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="3"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
+                <div
+                  class="select-check"
+                  :class="{ checked: selected.has(itemKey(item)) }"
                 >
-                  <path d="M20 6L9 17l-5-5" />
-                </svg>
-              </div>
-              <video :src="item.url" muted></video>
-              <span class="clip-badge">
-                <svg
-                  viewBox="0 0 24 24"
-                  width="13"
-                  height="13"
-                  fill="currentColor"
-                >
-                  <path d="M8 5v14l11-7z" />
-                </svg>
-              </span>
+                  <svg
+                    v-if="selected.has(itemKey(item))"
+                    viewBox="0 0 24 24"
+                    width="14"
+                    height="14"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="3"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <path d="M20 6L9 17l-5-5" />
+                  </svg>
+                </div>
+                <video :src="item.url" muted></video>
+                <span class="clip-badge">
+                  <svg
+                    viewBox="0 0 24 24"
+                    width="13"
+                    height="13"
+                    fill="currentColor"
+                  >
+                    <path d="M8 5v14l11-7z" />
+                  </svg>
+                </span>
+              </button>
               <button
                 type="button"
                 class="remove-button"
@@ -673,30 +690,25 @@ async function restoreItem(item: TrashedInboxItem) {
       </div>
     </template>
 
-    <div
+    <UiModal
       v-if="confirmingBulkDelete"
-      class="confirm-backdrop"
-      @click.self="confirmingBulkDelete = false"
+      :title="`Delete ${selectedCount} item${selectedCount === 1 ? '' : 's'}?`"
+      description="Moved to trash: recoverable for 7 days, then purged for good."
+      @close="confirmingBulkDelete = false"
     >
-      <div class="confirm-dialog">
-        <h3>
-          Delete {{ selectedCount }} item{{ selectedCount === 1 ? "" : "s" }}?
-        </h3>
-        <p>Moved to trash: recoverable for 7 days, then purged for good.</p>
-        <div class="confirm-actions">
-          <button
-            type="button"
-            class="secondary-button"
-            @click="confirmingBulkDelete = false"
-          >
-            Cancel
-          </button>
-          <button type="button" class="danger-button" @click="deleteSelected">
-            Delete
-          </button>
-        </div>
-      </div>
-    </div>
+      <template #footer>
+        <button
+          type="button"
+          class="secondary-button"
+          @click="confirmingBulkDelete = false"
+        >
+          Cancel
+        </button>
+        <button type="button" class="danger-button" @click="deleteSelected">
+          Delete
+        </button>
+      </template>
+    </UiModal>
   </section>
 </template>
 
@@ -737,8 +749,8 @@ async function restoreItem(item: TrashedInboxItem) {
 .form-error {
   color: var(--ui-error);
   font-size: 13px;
-  background: rgba(220, 38, 38, 0.1);
-  border: 1px solid rgba(220, 38, 38, 0.3);
+  background: var(--ui-danger-soft);
+  border: 1px solid color-mix(in srgb, var(--ui-error) 40%, var(--ui-border));
   border-radius: var(--ui-radius-control);
   padding: 8px 10px;
   margin-top: 10px;
@@ -746,8 +758,8 @@ async function restoreItem(item: TrashedInboxItem) {
 .form-success {
   color: var(--ui-good);
   font-size: 13px;
-  background: rgba(34, 197, 94, 0.1);
-  border: 1px solid rgba(34, 197, 94, 0.3);
+  background: color-mix(in srgb, var(--ui-good) 10%, var(--ui-surface));
+  border: 1px solid color-mix(in srgb, var(--ui-good) 40%, var(--ui-border));
   border-radius: var(--ui-radius-control);
   padding: 8px 10px;
   margin-top: 10px;
@@ -801,7 +813,7 @@ async function restoreItem(item: TrashedInboxItem) {
   text-align: left;
 }
 .game-picker-trigger:hover {
-  border-color: #555;
+  border-color: var(--ui-border-strong);
 }
 .game-picker-cover {
   width: 26px;
@@ -835,7 +847,7 @@ async function restoreItem(item: TrashedInboxItem) {
   background: var(--ui-surface);
   border: 1px solid var(--ui-border);
   border-radius: var(--ui-radius-control);
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--ui-elevation);
   z-index: 30;
   padding: 8px;
 }
@@ -888,7 +900,7 @@ async function restoreItem(item: TrashedInboxItem) {
   flex-shrink: 0;
 }
 .game-picker-option-cover.placeholder {
-  background: #262626;
+  background: var(--ui-surface-2);
 }
 .game-picker-option-text {
   display: flex;
@@ -915,6 +927,7 @@ async function restoreItem(item: TrashedInboxItem) {
 }
 
 .primary-button {
+  min-height: 44px;
   background: var(--ui-accent);
   color: var(--ui-on-accent);
   border: none;
@@ -931,6 +944,7 @@ async function restoreItem(item: TrashedInboxItem) {
 }
 .secondary-button,
 .danger-button {
+  min-height: 44px;
   border: none;
   border-radius: var(--ui-radius-control);
   padding: 8px 16px;
@@ -946,18 +960,19 @@ async function restoreItem(item: TrashedInboxItem) {
   background: color-mix(in srgb, var(--ui-text) 14%, transparent);
 }
 .danger-button {
-  background: rgba(220, 38, 38, 0.18);
+  background: var(--ui-danger-soft);
   color: var(--ui-error);
 }
 .danger-button:hover {
-  background: rgba(220, 38, 38, 0.28);
+  background: var(--ui-danger-soft);
 }
 .danger-icon-button {
+  min-height: 44px;
   display: flex;
   align-items: center;
   gap: 6px;
-  background: rgba(220, 38, 38, 0.12);
-  border: 1px solid rgba(220, 38, 38, 0.3);
+  background: var(--ui-danger-soft);
+  border: 1px solid color-mix(in srgb, var(--ui-error) 40%, var(--ui-border));
   color: var(--ui-error);
   border-radius: var(--ui-radius-control);
   padding: 8px 14px;
@@ -967,7 +982,7 @@ async function restoreItem(item: TrashedInboxItem) {
   white-space: nowrap;
 }
 .danger-icon-button:hover:not(:disabled) {
-  background: rgba(220, 38, 38, 0.2);
+  background: var(--ui-danger-soft);
 }
 .danger-icon-button:disabled {
   opacity: 0.5;
@@ -996,6 +1011,7 @@ async function restoreItem(item: TrashedInboxItem) {
   cursor: not-allowed;
 }
 .icon-text-button.small {
+  min-height: 44px;
   padding: 5px 10px;
   font-size: 0.76rem;
 }
@@ -1044,6 +1060,19 @@ async function restoreItem(item: TrashedInboxItem) {
 .media-thumb:hover {
   transform: translateY(-2px);
 }
+.media-select {
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: var(--ui-surface-2);
+  cursor: pointer;
+}
+.media-select:focus-visible {
+  outline: 3px solid var(--ui-accent);
+  outline-offset: -4px;
+}
 .media-thumb img,
 .media-thumb video {
   width: 100%;
@@ -1062,7 +1091,7 @@ async function restoreItem(item: TrashedInboxItem) {
   height: 24px;
   border-radius: 7px;
   border: 2px solid color-mix(in srgb, var(--ui-text) 55%, transparent);
-  background: rgba(0, 0, 0, 0.4);
+  background: var(--ui-surface);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1072,6 +1101,7 @@ async function restoreItem(item: TrashedInboxItem) {
 .select-check.checked {
   background: var(--ui-accent);
   border-color: var(--ui-accent);
+  color: var(--ui-on-accent);
 }
 .clip-badge {
   position: absolute;
@@ -1080,7 +1110,7 @@ async function restoreItem(item: TrashedInboxItem) {
   width: 26px;
   height: 26px;
   border-radius: 50%;
-  background: rgba(0, 0, 0, 0.6);
+  background: var(--ui-surface);
   color: var(--ui-text);
   display: flex;
   align-items: center;
@@ -1090,11 +1120,11 @@ async function restoreItem(item: TrashedInboxItem) {
   position: absolute;
   top: 6px;
   right: 6px;
-  width: 26px;
-  height: 26px;
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
   border: none;
-  background: rgba(0, 0, 0, 0.6);
+  background: var(--ui-surface);
   color: var(--ui-text);
   cursor: pointer;
   display: flex;
@@ -1102,7 +1132,8 @@ async function restoreItem(item: TrashedInboxItem) {
   justify-content: center;
 }
 .remove-button:hover {
-  background: rgba(220, 38, 38, 0.75);
+  background: var(--ui-danger-soft);
+  color: var(--ui-error);
 }
 .trash-section {
   margin-top: 20px;
@@ -1110,6 +1141,7 @@ async function restoreItem(item: TrashedInboxItem) {
   border-top: 1px solid var(--ui-border);
 }
 .trash-toggle {
+  min-height: 44px;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -1157,36 +1189,5 @@ async function restoreItem(item: TrashedInboxItem) {
 .trash-meta {
   color: var(--ui-faint);
   font-size: 0.76rem;
-}
-.confirm-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.65);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 60;
-}
-.confirm-dialog {
-  background: var(--ui-surface);
-  border: 1px solid var(--ui-border);
-  border-radius: 12px;
-  padding: 22px;
-  width: 100%;
-  max-width: 360px;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
-}
-.confirm-dialog h3 {
-  margin: 0 0 8px;
-}
-.confirm-dialog p {
-  margin: 0 0 16px;
-  color: var(--ui-dim);
-  font-size: 14px;
-}
-.confirm-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
 }
 </style>

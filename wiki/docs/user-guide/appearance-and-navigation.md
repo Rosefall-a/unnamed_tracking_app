@@ -18,6 +18,10 @@ Disabled, incompatible or uninstalled plugins do not contribute navigation. Plug
 
 Settings starts with grouped links. On desktop a section keeps its area navigation beside the form; on a phone it opens as a separate screen, with a back link to its area. Existing `/settings?section=…` links continue to work, including the older aliases for library, metadata and administration tabs. The unfinished Logs entry is not offered.
 
+Active plugins may place their settings pages in Account, Preferences or Administration and name a useful group there. Administration pages remain administrator-only. The primary sidebar highlights the active area for core and plugin pages.
+
+**Upload** is a separate sidebar destination at `/upload`, with the existing unassigned screenshots/clips, game assignment and recently deleted recovery tools. The older `/inbox` and `section=upload` links open this page. Thumbnail selection works with keyboard Enter/Space, and bulk deletion uses the shared focus-contained dialog.
+
 ## Personal appearance
 
 Open **Preferences → Appearance & interface**. Theme and layout, navigation and library defaults, and completed-game badges share this page. Existing `section=interface` and `section=appearance` links both open it.

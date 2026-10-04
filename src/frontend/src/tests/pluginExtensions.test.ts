@@ -169,6 +169,27 @@ const document: PluginUiDocument = {
 };
 
 describe("plugin extension registry", () => {
+  it("retains declared settings placement and conservatively restricts Administration", () => {
+    for (const area of ["account", "preferences", "administration"] as const) {
+      const placed: PluginUiDocument = {
+        ...document,
+        settings_sections: [
+          {
+            ...document.settings_sections![0]!,
+            area,
+            group: "Documents",
+          },
+        ],
+      };
+      expect(
+        derivePluginContributions(plugin, placed).settings[0],
+      ).toMatchObject({
+        area,
+        group: "Documents",
+        adminOnly: area === "administration",
+      });
+    }
+  });
   it("registers Home widgets only with their grant and withdraws them after revocation", async () => {
     const widgetDocument: PluginUiDocument = {
       ...document,
@@ -466,6 +487,8 @@ describe("plugin extension registry", () => {
     expect(contributions.settings[0]).toMatchObject({
       pluginId: plugin.plugin_id,
       label: "Example settings",
+      area: "preferences",
+      group: "Extensions",
       pageId: "dashboard",
     });
     expect(contributions.replacements[0]).toMatchObject({

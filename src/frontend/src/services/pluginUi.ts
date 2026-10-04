@@ -106,6 +106,8 @@ export interface UiSettingsContribution {
   page_id: string;
   icon?: string;
   order: number;
+  area?: "account" | "preferences" | "administration" | null;
+  group?: string;
   visibility: UiVisibility;
 }
 export interface UiOverlayContribution {

@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from datetime import datetime, timezone
 from enum import StrEnum
-from typing import Annotated, Any, Generic, TypeVar, cast
+from typing import Annotated, Any, Generic, Literal, TypeVar, cast
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -1069,7 +1069,17 @@ class UiSettingsContribution(ContractModel):
     page_id: str = Field(min_length=1, max_length=128, pattern=r"^[a-z0-9][a-z0-9._-]*$")
     icon: str | None = Field(default=None, min_length=1, max_length=64)
     order: int = Field(default=0, ge=-1_000, le=1_000)
+    area: Literal["account", "preferences", "administration"] | None = None
+    group: str = Field(default="Extensions", min_length=1, max_length=64)
     visibility: UiVisibility = UiVisibility()
+
+    @model_validator(mode="after")
+    def require_administrator_visibility(self) -> "UiSettingsContribution":
+        if self.area == "administration" and not self.visibility.admin_only:
+            raise ValueError("Administration settings require administrator-only visibility")
+        if not self.group.strip():
+            raise ValueError("Settings group must contain a visible label")
+        return self
 
 
 class UiOverlayContribution(ContractModel):

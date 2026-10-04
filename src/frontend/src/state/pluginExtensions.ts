@@ -39,6 +39,8 @@ export interface PluginSettingsContribution {
   label: string;
   icon?: string;
   order: number;
+  area: "account" | "preferences" | "administration";
+  group: string;
   adminOnly: boolean;
   document: PluginUiDocument;
 }
@@ -215,7 +217,11 @@ export function derivePluginContributions(
         label: item.label,
         icon: item.icon,
         order: item.order,
-        adminOnly: item.visibility.admin_only,
+        area:
+          item.area ??
+          (item.visibility.admin_only ? "administration" : "preferences"),
+        group: item.group?.trim() || "Extensions",
+        adminOnly: item.visibility.admin_only || item.area === "administration",
         document,
       }))
     : [];

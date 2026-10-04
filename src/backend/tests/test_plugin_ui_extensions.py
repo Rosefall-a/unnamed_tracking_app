@@ -4,7 +4,7 @@ import pytest
 from pydantic import ValidationError
 
 from src.api.routes.plugins import _filter_ui_document
-from src.plugin_api.contracts import Capability, PluginUiDocument
+from src.plugin_api.contracts import Capability, PluginUiDocument, UiSettingsContribution
 
 
 def document_data() -> dict:
@@ -32,6 +32,44 @@ def document_data() -> dict:
             }
         ],
     }
+
+
+@pytest.mark.parametrize("area", ["account", "preferences", "administration"])
+def test_settings_placement_retains_area_group_and_visibility(area):
+    item = UiSettingsContribution.model_validate(
+        {
+            "id": "reader-settings",
+            "label": "Reader settings",
+            "page_id": "dashboard",
+            "area": area,
+            "group": "Documents",
+            "visibility": {"admin_only": area == "administration"},
+        }
+    )
+    assert item.area == area
+    assert item.group == "Documents"
+    assert item.visibility.admin_only is (area == "administration")
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"area": "administration"},
+        {"area": "unknown"},
+        {"group": " "},
+        {"group": "x" * 65},
+    ],
+)
+def test_settings_placement_rejects_invalid_or_public_administration(changes):
+    with pytest.raises(ValidationError):
+        UiSettingsContribution.model_validate(
+            {
+                "id": "settings",
+                "label": "Settings",
+                "page_id": "dashboard",
+                **changes,
+            }
+        )
 
 
 def test_home_widgets_require_their_own_grant_and_retain_mobile_configuration():

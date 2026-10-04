@@ -12,6 +12,7 @@ import {
   refreshPluginExtensions,
 } from "../state/pluginExtensions";
 import { currentUser } from "../state/auth";
+import { activeSettingsArea } from "../state/settingsArea";
 import {
   approvePluginAction,
   dispatchPluginAction,
@@ -454,10 +455,11 @@ onUnmounted(() => {
           >
         </template>
         <RouterLink
-          to="/settings?section=upload"
+          to="/upload"
           class="nav-item"
           title="Upload"
           aria-label="Upload"
+          :class="{ active: isActive('/upload') }"
           @click="close"
           ><AppIcon name="upload" /><span class="nav-label">Upload</span
           ><span v-if="inboxCount" class="nav-badge">{{
@@ -471,9 +473,7 @@ onUnmounted(() => {
           class="nav-item"
           :class="{
             active:
-              isActive('/settings') &&
-              route.query.section !== 'profile' &&
-              route.query.section !== 'admin',
+              isActive('/settings') && activeSettingsArea === 'preferences',
           }"
           title="Preferences · Alt + P opens Settings"
           aria-keyshortcuts="Alt+P"
@@ -488,7 +488,8 @@ onUnmounted(() => {
           to="/settings?section=admin"
           class="nav-item"
           :class="{
-            active: isActive('/settings') && route.query.section === 'admin',
+            active:
+              isActive('/settings') && activeSettingsArea === 'administration',
           }"
           title="Administration"
           aria-label="Administration"

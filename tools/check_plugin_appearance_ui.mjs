@@ -68,6 +68,19 @@ async function install(id, catalogue, entries) {
 }
 const palette = "plugin:example.theme-palettes:blue-hour";
 const widget = "plugin:example.home-widgets:library-glance";
+async function checkSidebarArea(area) {
+  const more = page.getByRole("button", { name: "More", exact: true });
+  const openMenu = page.getByRole("button", { name: "Open menu", exact: true });
+  const opened = await more.count() > 0 || await openMenu.count() > 0;
+  if (await more.count()) await more.click();
+  else if (await openMenu.count()) await openMenu.click();
+  try {
+    for (const [label, expected] of [["Administration", area === "administration"], ["Preferences", area === "preferences"]])
+      assert.equal((await page.locator(`[aria-label="${label}"]`).getAttribute("class")).split(/\s+/).includes("active"), expected);
+  } finally {
+    if (opened) await page.getByRole("button", { name: "Close menu", exact: true }).click();
+  }
+}
 try {
   await api("POST", "/api/auth/login", { username_or_email: process.env.PRIMARY_USER_USERNAME, password: process.env.PRIMARY_USER_PASSWORD });
   const before = await api("GET", "/api/preferences");
@@ -113,6 +126,8 @@ try {
       await page.goto(origin + "/settings?section=jellyfin-sync");
       await page.getByText("Jellyfin server URL", { exact: true }).waitFor();
       await page.locator("#jf-server_url").waitFor();
+      await page.getByRole("navigation", { name: "Settings areas" }).getByRole("button", { name: "Account", exact: true }).getAttribute("class").then(value => assert(value.includes("active")));
+      await checkSidebarArea("account");
       assert.equal(await page.locator("#jf-token").inputValue(), "", "Credential fields are empty in evidence");
       assert(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
       if ((width === 390 && mode === "dark") || (width === 1440 && mode === "light")) {
@@ -123,6 +138,7 @@ try {
       await page.goto(origin + "/settings?section=reader-settings");
       const native = page.locator("[data-native-document-settings]");
       await native.waitFor();
+      await checkSidebarArea("administration");
       const save = native.getByRole("button", { name: "Save viewer settings", exact: true });
       await save.waitFor();
       await page.waitForFunction(() => !document.querySelector("[data-native-document-settings] input").disabled);

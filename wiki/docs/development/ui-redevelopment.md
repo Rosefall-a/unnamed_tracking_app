@@ -309,3 +309,14 @@ The [welcome report](../assets/ui-redevelopment/stage-welcome-conformance.json) 
 
 ![Phone first-login appearance choices](../assets/ui-redevelopment/appearance-welcome-390-dark.png)
 ![Desktop first-login appearance choices](../assets/ui-redevelopment/appearance-welcome-1440-light.png)
+
+## Settings placement and a separate Upload destination
+
+Plugins can place settings pages in Account, Preferences or Administration and choose a plain-text group label through the public contribution contract. Administration requires administrator-only visibility; capability grants and action authorization remain independent. Jellyfin personal sync and personal sessions use Account, server controls and document limits use Administration, and Help uses Preferences. The primary sidebar highlights the resolved area instead of guessing from section IDs.
+
+Upload now opens its own sidebar page. The same upload/assignment/trash services are retained, with keyboard-accessible thumbnail selection and the shared deletion dialog. Legacy inbox/settings links redirect to the new destination. Visual review also corrected the shared dropzone's light-mode text and semantic palette colors, and moved task progress above phone navigation with accessible dismissal.
+
+The [Upload report](../assets/ui-redevelopment/stage-upload-conformance.json) records twelve real Light/Dark cases from 320 to 1920 px, actual PNG uploads, keyboard selection, dialog cancellation, deletion/restoration, phone toast placement, legacy redirects and Administration highlighting for five sections. Placement validation and administrator-boundary tests passed; all 169 frontend tests and 220 companion source/package tests passed.
+
+![Standalone phone Upload page](../assets/ui-redevelopment/upload-page-390-dark.png)
+![Standalone desktop Upload page](../assets/ui-redevelopment/upload-page-1440-light.png)
