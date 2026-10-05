@@ -229,7 +229,7 @@ class Jellyfin(BaseHTTPRequestHandler):
         elif path.path == "/Library/VirtualFolders":
             data = [
                 {"ItemId": c * 32, "Name": n}
-                for c, n in zip("123", ("Movies", "TV Shows", "Anime"))
+                for c, n in zip("123", ("Movies", "TV Shows", "Anime"), strict=True)
             ]
         else:
             query = parse_qs(path.query)
@@ -522,12 +522,36 @@ def acceptance(plugins_root, work, browser=False):
             }
             live_preview = request("POST", "/install/preview-url", json=live_source)
             if live_preview["api_contract_version"] == "1.0.0":
-                assert live_preview["installable"] is False
-                assert "v1.0-only" in live_preview["compatibility_reason"]
-                rejected = request("POST", "/install/url", 409, json=live_source)
-                assert "v1.0-only" in rejected["detail"]
+                assert live_preview["installable"] is True
+                assert live_preview["legacy_compatibility"] is True
+                assert "old v1.0 UI" in live_preview["compatibility_warning"]
+                assert (
+                    next(
+                        check
+                        for check in live_preview["compatibility_checks"]
+                        if check["key"] == "api_contract"
+                    )["status"]
+                    == "limited"
+                )
+                request(
+                    "POST",
+                    "/install/url",
+                    201,
+                    params={
+                        "approved_permissions": [p["key"] for p in live_preview["permissions"]]
+                    },
+                    json={**live_source, "admin_password": PASSWORD, "confirm_dangerous": True},
+                )
+                conformance.assert_ready()
+                assert current()["legacy_compatibility"] is True
+                legacy_ui = request("GET", f"/{PLUGIN}/ui")
+                assert not legacy_ui["native_frontend"]
+                assert not legacy_ui["themes"] and not legacy_ui["shortcuts"]
+                request("DELETE", f"/{PLUGIN}", 204)
                 assert not request("GET", "")
-                checkpoint("verified live legacy release rejected before worker execution")
+                checkpoint(
+                    "verified shipped legacy release warns, runs its backend and retains no v1.1 native UI features"
+                )
             else:
                 request(
                     "POST",
