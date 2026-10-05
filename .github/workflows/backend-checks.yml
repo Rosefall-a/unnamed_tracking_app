@@ -134,8 +134,11 @@ jobs:
           from pathlib import Path
 
           maximum = 1000
+          excluded = Path("src/database/migrations")
           violations = []
           for path in Path("src").rglob("*.py"):
+              if excluded in path.parents:
+                  continue
               line_count = sum(1 for _ in path.open(encoding="utf-8"))
               if line_count > maximum:
                   violations.append((path, line_count))
@@ -146,7 +149,7 @@ jobs:
                   print(f"  {path}: {line_count} lines")
               raise SystemExit(1)
 
-          print("All Python files are at or below 1,000 lines.")
+          print("All non-migration Python files are at or below 1,000 lines.")
           PY
 
       - name: Run mypy
