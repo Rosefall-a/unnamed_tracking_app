@@ -231,6 +231,11 @@ operation can finish or report its own timeout. Lightweight health and inventory
 requests retain their shorter deadline. A slow configuration refresh therefore
 does not incorrectly report an offline runtime after ten seconds.
 
+Gateway transport diagnostics distinguish a timeout, a refused connection and an
+invalid JSON response. They retain the request correlation and suggest checking
+host readiness, server load or proxy routing without exposing exception payloads,
+credentials or private URLs.
+
 ## Plugin secrets and persistent data
 
 Frontend secrets must not be placed in ordinary settings or browser storage. The host exposes a plugin-scoped secret write operation that requires the plugin.storage permission. The value is written through the runtime's namespaced PluginStorage implementation under secrets/<key>.

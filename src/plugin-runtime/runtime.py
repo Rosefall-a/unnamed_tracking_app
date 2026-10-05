@@ -30,7 +30,7 @@ from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path, PurePosixPath
 from typing import Any, Callable
-from urllib.error import HTTPError
+from urllib.error import HTTPError, URLError
 from urllib.parse import unquote, urlsplit
 from urllib.request import Request, urlopen
 from uuid import UUID, uuid4
@@ -117,6 +117,20 @@ class RuntimeGatewayError(RuntimePolicyError):
             "not_found": 404,
             "conflict": 409,
         }.get(code, 422)
+
+
+def gateway_transport_message(exc: Exception) -> str:
+    """Classify transport failures without exposing URLs, credentials or payloads."""
+    reason = exc.reason if isinstance(exc, URLError) else exc
+    if isinstance(reason, TimeoutError):
+        return (
+            "Plugin gateway timed out. Check host/runtime connectivity and server load."
+        )
+    if isinstance(reason, ConnectionRefusedError):
+        return "Plugin gateway connection was refused. Check the gateway URL and host readiness."
+    if isinstance(reason, (json.JSONDecodeError, UnicodeError)):
+        return "Plugin gateway returned invalid JSON. Check the gateway URL and proxy routing."
+    return "Plugin gateway is unavailable. Check the gateway URL and host/runtime connectivity."
 
 
 def gateway_error_response(exc: Exception, request: Any) -> dict[str, Any]:
@@ -598,7 +612,7 @@ class PluginSupervisor:
                     "api_version": "v1",
                     "request_id": request["request_id"],
                     "code": "unavailable",
-                    "message": "Plugin gateway is unavailable.",
+                    "message": gateway_transport_message(exc),
                 }
             ) from exc
         if not isinstance(data, dict):
@@ -939,7 +953,9 @@ class PluginSupervisor:
                     )
                     gateway_failure = None
                 except Exception as exc:
-                    gateway_failure = exc if isinstance(exc, RuntimeGatewayError) else None
+                    gateway_failure = (
+                        exc if isinstance(exc, RuntimeGatewayError) else None
+                    )
                     self._log(
                         spec.plugin_id,
                         f"Gateway request failed: {exc}",

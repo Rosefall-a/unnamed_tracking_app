@@ -3,7 +3,7 @@
 import io
 import json
 import sys
-from urllib.error import HTTPError
+from urllib.error import HTTPError, URLError
 from uuid import uuid4
 
 import pytest
@@ -30,7 +30,9 @@ def supervisor(tmp_path):
 
 
 @pytest.mark.parametrize("mode", ("abort", "handled", "retry_then_abort"))
-def test_action_retains_only_an_unhandled_gateway_failure(supervisor, tmp_path, monkeypatch, mode):
+def test_action_retains_only_an_unhandled_gateway_failure(
+    supervisor, tmp_path, monkeypatch, mode
+):
     """Exercise real JSON-line child exit behavior, including handled/retried errors."""
     monkeypatch.setenv("NONBUBBLE_ENV", "true")
     package = tmp_path / "protocol-action"
@@ -73,7 +75,9 @@ sys.exit(1)
         assert failure.value.envelope == envelope
         assert failure.value.status_code == 403
     else:
-        with pytest.raises(RuntimePolicyError, match="did not return a result") as failure:
+        with pytest.raises(
+            RuntimePolicyError, match="did not return a result"
+        ) as failure:
             supervisor.execute(spec, package, b"{}")
         assert not isinstance(failure.value, RuntimeGatewayError)
 
@@ -89,7 +93,9 @@ sys.exit(1)
     ),
 )
 def test_gateway_failure_status_is_bounded_to_public_codes(code, status):
-    assert RuntimeGatewayError({"code": code, "message": "Rejected"}).status_code == status
+    assert (
+        RuntimeGatewayError({"code": code, "message": "Rejected"}).status_code == status
+    )
 
 
 def test_gateway_preserves_supplied_correlation_and_accepts_legacy_response(
@@ -214,3 +220,37 @@ def test_gateway_network_failure_has_correlated_unavailable_error(
     assert response["error_detail"]["code"] == "unavailable"
     assert response["request_id"] == request["request_id"]
     assert "private transport" not in response["error"]
+
+
+@pytest.mark.parametrize(
+    "exception, expected",
+    (
+        (TimeoutError("private transport details"), "timed out"),
+        (URLError(TimeoutError("private transport details")), "timed out"),
+        (
+            URLError(ConnectionRefusedError("private transport details")),
+            "connection was refused",
+        ),
+        (
+            json.JSONDecodeError("private transport details", "secret", 0),
+            "invalid JSON",
+        ),
+        (URLError("private transport details"), "is unavailable"),
+    ),
+)
+def test_gateway_transport_diagnostics_are_actionable_and_redacted(
+    supervisor, monkeypatch, exception, expected
+):
+    def unavailable(*args, **kwargs):
+        raise exception
+
+    monkeypatch.setattr("runtime.urlopen", unavailable)
+    request = {"method": "games.list", "capability": "games.read"}
+    with pytest.raises(RuntimeGatewayError) as failure:
+        supervisor._handle_gateway_request("contract", request)
+    response = gateway_error_response(failure.value, request)
+    assert expected in response["error"]
+    assert "Check " in response["error"]
+    assert "private transport" not in response["error"]
+    assert "secret" not in response["error"]
+    assert response["error_detail"]["request_id"] == request["request_id"]
