@@ -59,3 +59,49 @@ a newly downloaded distribution artifact.
 
 These checks cover the recorded milestones. Final production and remaining
 plugin integration checks are tracked separately.
+
+## Authenticated Session Manager and native replacement
+
+The maintained Session Manager now contributes direct **Sessions** and **Session
+Manager** entries to Account and Server management. Its controls follow host
+theme radii and the administrator user selector has an explicit accessible name.
+Phone Settings use the space below the existing header, keep the three areas on
+one row, and omit repeated area descriptions inside a selected section. A
+shortcut-conflict notice stays below the phone header so navigation remains
+available.
+
+The [Session Manager report](../assets/ui-redevelopment/session-native-conformance.json)
+records real authenticated owner/admin interactions at 320, 390, 1440 and 1920
+pixels. Owner-only reads, clear administrator denial, foreign-session rejection,
+filtering, compact tables, cancellation, targeted administrator revocation and
+owner single/all revocation pass. Revoked browsers return to login without a
+manual refresh; unrelated accounts remain signed in. The captures use a locally
+built unsigned working-tree preview, identified by its archive SHA-256, rather
+than a newly downloaded CI artifact.
+
+![Loaded owner sessions on a phone](../assets/ui-redevelopment/session-owner-loaded-390-dark.png)
+
+![Loaded administrator sessions on desktop](../assets/ui-redevelopment/session-admin-loaded-1440-light.png)
+
+![Administrator sessions at 320 pixels](../assets/ui-redevelopment/session-admin-loaded-320-light.png)
+
+Runtime gateway failures retain bounded, redacted status/detail through the host
+action endpoint instead of becoming an unexplained 500. Background extension
+refreshes share an in-flight load, preventing repeated polling from discarding
+slow but successful contribution discovery. Account changes still invalidate
+the previous account's request; explicit lifecycle mutations start a fresh load.
+
+The [same-version native replacement report](../assets/ui-redevelopment/native-same-version-conformance.json)
+starts with the downloaded Session Manager CI package, then applies the reviewed
+local preview at the same version. An already-open browser reloads its native
+realm automatically and requests the replacement JavaScript and CSS using the
+installed payload digest. The new accessible selector and host theme radius are
+active, and installation identity is retained. This checks the update behavior;
+the replacement package is a local preview.
+
+The refreshed core Settings matrix passes all 192 width/theme/role cases,
+uniform titles, member administration denial, phone modal focus and overflow
+checks. Frontend validation passes all 235 tests, forced type checking, lint,
+formatting and the production build. The independently run backend and runtime
+suites pass 1,084 tests with two existing skips, and 125 tests respectively;
+configured backend Pylint remains 9.11/10.

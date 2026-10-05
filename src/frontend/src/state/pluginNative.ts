@@ -30,6 +30,7 @@ import { registerPluginShortcut, type NativeShortcut } from "./shortcuts";
 export interface NativeFrontendSource {
   pluginId: string;
   version: string;
+  digest?: string;
   entry: string;
   styles: string[];
   pageIds: string[];
@@ -170,6 +171,7 @@ async function activate(
 ): Promise<void> {
   const signature = JSON.stringify([
     source.version,
+    source.digest ?? "",
     source.entry,
     source.styles,
     [...source.pageIds].sort(),
@@ -215,13 +217,13 @@ async function activate(
         const link = document.createElement("link");
         link.rel = "stylesheet";
         link.dataset.pluginId = source.pluginId;
-        link.href = assetUrl(source.pluginId, style);
+        link.href = `${assetUrl(source.pluginId, style)}?v=${encodeURIComponent(source.digest || source.version)}`;
         document.head.appendChild(link);
         cleanups.push(() => link.remove());
       }
     }
     const module = await importer(
-      `${assetUrl(source.pluginId, source.entry)}?v=${encodeURIComponent(source.version)}`,
+      `${assetUrl(source.pluginId, source.entry)}?v=${encodeURIComponent(source.digest || source.version)}`,
     );
     if (disposed) return;
     const entry = module.activate ?? module.default;

@@ -230,8 +230,8 @@ try {
           report.screens.push({ role, theme, width, screen });
         }
         if (width <= 430) {
-          const more = page.getByRole("button", { name: "More", exact: true });
-          await more.click();
+          const menuButton = page.getByRole("button", { name: "Open menu", exact: true });
+          await menuButton.click();
           const menu = page.getByRole("dialog", { name: "Main navigation" });
           await menu.waitFor();
           assert.equal(await menu.getByRole("link", { name: "Administration", exact: true }).count(), role === "admin" ? 1 : 0);
@@ -243,7 +243,7 @@ try {
           if (role === "admin" && width === 390) await page.screenshot({ path: path.join(evidenceRoot, `stage-shell-mobile-navigation-${theme}.png`) });
           await page.keyboard.press("Escape");
           await menu.waitFor({ state: "hidden" });
-          assert(await more.evaluate(element => element === document.activeElement), "Escape restores focus to More.");
+          assert(await menuButton.evaluate(element => element === document.activeElement), "Escape restores focus to the phone menu button.");
           assert.equal(await page.locator(".app-content").evaluate(element => getComputedStyle(element).marginLeft), "0px");
         }
         if (role === "admin" && [390, 1024, 1440].includes(width)) {

@@ -170,6 +170,42 @@ describe("native plugin lifecycle", () => {
     await reconcileNativePlugins([]);
     expect(reload).toHaveBeenCalledOnce();
   });
+  it("loads changed native assets when a package is reapplied at the same version", async () => {
+    const cleanup = vi.fn();
+    const importer = vi.fn(async (url: string) => {
+      expect(url).toContain("/api/plugins/");
+      return {
+        activate(context: NativePluginContext) {
+          expect(context.version).toBe(source.version);
+          context.registerComponent("dashboard", { render: () => null });
+          context.onCleanup(cleanup);
+        },
+      };
+    });
+    const first = { ...source, digest: "a".repeat(64) };
+    const replacement = { ...source, digest: "b".repeat(64) };
+    await reconcileNativePlugins([first], importer);
+    const component = nativePluginComponent(source.pluginId, "dashboard");
+    await reconcileNativePlugins([first], importer);
+    expect(importer).toHaveBeenCalledTimes(1);
+    await reconcileNativePlugins([replacement], importer);
+    expect(importer).toHaveBeenCalledTimes(2);
+    expect(importer.mock.calls[0][0]).toContain(`?v=${first.digest}`);
+    expect(importer.mock.calls[1][0]).toContain(`?v=${replacement.digest}`);
+    expect(cleanup).toHaveBeenCalledOnce();
+    expect(nativePluginComponent(source.pluginId, "dashboard")).not.toBe(
+      component,
+    );
+  });
+  it("restarts the production realm after a same-version package replacement", async () => {
+    const reload = vi.fn();
+    vi.stubGlobal("window", { location: { reload } });
+    await reconcileNativePlugins([{ ...source, digest: "a".repeat(64) }]);
+    await reconcileNativePlugins([{ ...source, digest: "a".repeat(64) }]);
+    expect(reload).not.toHaveBeenCalled();
+    await reconcileNativePlugins([{ ...source, digest: "b".repeat(64) }]);
+    expect(reload).toHaveBeenCalledOnce();
+  });
   it("cancels an import when the plugin is removed before activation", async () => {
     resetNativePluginsForTests();
     const activate = vi.fn();

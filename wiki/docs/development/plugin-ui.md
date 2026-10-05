@@ -141,6 +141,13 @@ instance, even if both pages share a component. Use Vue's unmount lifecycle to
 clean up page-local resources. Context updates within the same page retain the
 instance, and page navigation does not reactivate the bundle.
 
+Background mounts and polling share an in-progress contribution refresh, so a
+slow initial load can finish instead of being invalidated by every poll. Manager
+mutations request fresh data; account changes invalidate pending responses.
+Native JavaScript and stylesheet revisions include the verified package digest.
+Replacing a package at the same version therefore refreshes its assets and
+browser realm, while an unchanged package keeps its mounted components.
+
 Native CSS is loaded only from the separately permissioned native asset endpoint.
 Named palettes use the independent low-risk `frontend.themes` contract. Native
 and opaque iframe components follow the public cosmetic appearance snapshot;

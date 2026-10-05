@@ -95,4 +95,14 @@ p {
 small {
   color: var(--ui-dim);
 }
+@media (max-width: 760px) {
+  .shortcut-notice {
+    top: calc(env(safe-area-inset-top, 0px) + 64px);
+    max-height: calc(
+      100dvh - env(safe-area-inset-top, 0px) -
+        env(safe-area-inset-bottom, 0px) - 156px
+    );
+    overflow-y: auto;
+  }
+}
 </style>

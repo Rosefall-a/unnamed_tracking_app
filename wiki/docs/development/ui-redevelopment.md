@@ -564,9 +564,10 @@ production build and the 2,000-line source guard.
 This is a progress checkpoint. The coordinated PRs remain in progress until the
 following work is verified and their current heads pass CI:
 
-- Exercise the maintained Session Manager with real owner/admin sessions and
-  revocation, and recheck all maintained plugins using the latest downloaded CI
-  packages. Preserve limited legacy compatibility and the v1.1 boundary.
+- Recheck all maintained plugins using the latest downloaded CI packages.
+  Authenticated Session Manager owner/admin revocation and native replacement
+  now pass; see the [native review](native-plugin-review.md). Preserve limited
+  legacy compatibility and the v1.1 boundary.
 - Finish Collector's Archive checks using actual Cards, Sets and Bounties data,
   including creation, updates, search, home contributions and permissions.
 - Check contribution cleanup after permission withdrawal, plugin disable and

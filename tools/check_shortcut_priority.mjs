@@ -86,6 +86,14 @@ export async function checkShortcutPriority({
           /Intentional Search conflict was disabled/,
         );
         await capture("new-conflict");
+        if (width <= 760) {
+          await page.getByRole("button", { name: "Open menu", exact: true }).click();
+          const menu = page.getByRole("dialog", { name: "Main navigation" });
+          await menu.waitFor();
+          await page.keyboard.press("Escape");
+          await menu.waitFor({ state: "hidden" });
+          await notice.waitFor();
+        }
         await notice
           .getByRole("link", { name: "Change keys", exact: true })
           .click();

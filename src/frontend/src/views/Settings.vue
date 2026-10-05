@@ -420,7 +420,7 @@ function backToArea() {
       <PageHeader
         :title="sectionTitle"
         :eyebrow="selectedSection ? areaNames[area] : undefined"
-        :description="areaDescriptions[area]"
+        :description="selectedSection ? undefined : areaDescriptions[area]"
       >
         <template #actions><SaveStatus /></template>
       </PageHeader>
@@ -693,15 +693,31 @@ function backToArea() {
 }
 @media (max-width: 760px) {
   .settings-page {
-    padding-top: 80px;
+    padding-top: 24px;
   }
   .settings-areas {
-    margin-bottom: 24px;
+    flex-wrap: nowrap;
+    margin-bottom: 16px;
     gap: 4px;
-    padding-bottom: 16px;
+    padding-bottom: 12px;
   }
   .settings-areas button {
-    padding: 10px 13px;
+    flex: 1;
+    min-width: 0;
+    padding: 8px 6px;
+    font-size: 12px;
+  }
+  .settings-page :deep(.page-header) {
+    margin-bottom: 16px;
+  }
+  .server-scope {
+    padding: 10px 12px;
+    margin-bottom: 16px;
+    font-size: 12px;
+    line-height: 1.5;
+  }
+  .server-scope svg {
+    flex-shrink: 0;
   }
   .settings-landing {
     grid-template-columns: minmax(0, 1fr);
