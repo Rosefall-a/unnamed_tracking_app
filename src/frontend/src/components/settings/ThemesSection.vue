@@ -167,9 +167,10 @@ onMounted(load);
     </div>
     <p v-if="loading" role="status">Loading installed themes…</p>
     <template v-else>
-      <label class="default-theme"
-        >Server default
+      <div class="default-theme">
+        <label for="server-default-theme">Server default</label>
         <select
+          id="server-default-theme"
           class="ui-field"
           :disabled="busy"
           :value="catalogue.default_theme"
@@ -188,7 +189,7 @@ onMounted(load);
             {{ theme.name }}
           </option>
         </select>
-      </label>
+      </div>
       <p class="section-hint">
         Used on sign-in pages and by people who select “Server default”.
       </p>
