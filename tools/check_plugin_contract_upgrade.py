@@ -32,7 +32,9 @@ def check(plugins_root: Path, work: Path) -> None:
     work.mkdir(parents=True, exist_ok=False)
     plugin_id = "example.playtime-report"
     catalogue = json.loads((plugins_root / "list.json").read_text(encoding="utf-8"))
-    entry = next(item for item in catalogue["plugins"] if item["plugin_id"] == plugin_id)
+    entry = next(
+        item for item in catalogue["plugins"] if item["plugin_id"] == plugin_id
+    )
     legacy = plugins_root / "dist" / entry["package"]["filename"]
     original_hash = hashlib.sha256(legacy.read_bytes()).hexdigest()
     verified = PluginPackageVerifier(
@@ -51,14 +53,19 @@ def check(plugins_root: Path, work: Path) -> None:
     installation_id = str(uuid4())
     supervisor = PluginSupervisor(work / "workers", work / "storage")
     supervisor._installation_ids[plugin_id] = installation_id
-    supervisor._storage_quotas[plugin_id] = verified.manifest.storage.quota_mb * 1024 * 1024
+    supervisor._storage_quotas[plugin_id] = (
+        verified.manifest.storage.quota_mb * 1024 * 1024
+    )
     supervisor._storage(plugin_id).put("retained/report", b"historical report")
     (package / ".settings.json").write_text('{"review":"kept"}', encoding="utf-8")
     try:
         # The predecessor predates the new registry gate. Start its real signed
         # main entrypoint before assigning the current registry callback.
         supervisor.start(
-            PluginSpec(plugin_id, (sys.executable, "-c", "import plugin; plugin.main()")), package
+            PluginSpec(
+                plugin_id, (sys.executable, "-c", "import plugin; plugin.main()")
+            ),
+            package,
         )
         assert supervisor.running(plugin_id)
         registry = PluginRegistry(package.parent, supervisor)
@@ -66,29 +73,34 @@ def check(plugins_root: Path, work: Path) -> None:
             plugin_id, enabled=True, status="running", installation_id=installation_id
         )
         registry.restore_enabled()
-        blocked = registry.list()[0]
-        assert blocked["status"] == "incompatible" and not blocked["enabled"]
-        assert not supervisor.running(plugin_id)
-        assert blocked["activation_requested"] is True
-        assert blocked["installation_id"] == installation_id
-        assert supervisor._storage(plugin_id).get("retained/report") == b"historical report"
+        limited = registry.list()[0]
+        assert limited["status"] == "running" and limited["enabled"]
+        assert limited["compatible"] and limited["legacy_compatibility"]
+        assert "old v1.0 UI" in limited["compatibility_warning"]
+        assert supervisor.running(plugin_id)
+        assert limited["installation_id"] == installation_id
+        assert (
+            supervisor._storage(plugin_id).get("retained/report")
+            == b"historical report"
+        )
         assert json.loads((package / ".settings.json").read_text(encoding="utf-8")) == {
             "review": "kept"
         }
-        try:
-            registry.start(plugin_id)
-        except RuntimePolicyError as exc:
-            assert "v1.0-only" in str(exc)
-        else:
-            raise AssertionError("Legacy worker restarted on the v1.1 host")
+        assert registry.ui(plugin_id).get("native_frontend") is None
+        registry.stop(plugin_id)
+        registry.start(plugin_id)
+        assert registry.health(plugin_id)
 
         source = work / "source"
         for name in ("tools", "sdk", "publishers"):
             shutil.copytree(
-                plugins_root / name, source / name, ignore=shutil.ignore_patterns("__pycache__")
+                plugins_root / name,
+                source / name,
+                ignore=shutil.ignore_patterns("__pycache__"),
             )
         shutil.copytree(
-            plugins_root / "examples/playtime-report", source / "examples/playtime-report"
+            plugins_root / "examples/playtime-report",
+            source / "examples/playtime-report",
         )
         manifest_path = source / "examples/playtime-report/manifest.json"
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -111,7 +123,9 @@ def check(plugins_root: Path, work: Path) -> None:
             "public_key_b64": encoded,
             "public_key_sha256": hashlib.sha256(public).hexdigest(),
         }
-        (source / "publishers" / record["public_key_file"]).write_text(encoded, encoding="utf-8")
+        (source / "publishers" / record["public_key_file"]).write_text(
+            encoded, encoding="utf-8"
+        )
         registry_path = source / "publishers/registry.json"
         publishers = json.loads(registry_path.read_text(encoding="utf-8"))
         publishers["publishers"].append(record)
@@ -120,10 +134,14 @@ def check(plugins_root: Path, work: Path) -> None:
         release = json.loads(release_path.read_text(encoding="utf-8"))
         release["publisher"] = publisher
         release_path.write_text(json.dumps(release), encoding="utf-8")
-        signing_env = {k: v for k, v in os.environ.items() if not k.startswith("PLUGIN_")}
+        signing_env = {
+            k: v for k, v in os.environ.items() if not k.startswith("PLUGIN_")
+        }
         signing_env.update(
             PLUGIN_EXAMPLES_SIGNING_KEY_ID=key_id,
-            PLUGIN_EXAMPLES_SIGNING_KEY_B64=base64.b64encode(key.private_bytes_raw()).decode(),
+            PLUGIN_EXAMPLES_SIGNING_KEY_B64=base64.b64encode(
+                key.private_bytes_raw()
+            ).decode(),
         )
         subprocess.run(
             [sys.executable, str(source / "tools/build_packages.py")],
@@ -131,7 +149,9 @@ def check(plugins_root: Path, work: Path) -> None:
             check=True,
             capture_output=True,
         )
-        migrated = source / ".validation/dist" / f"{plugin_id}-{manifest['version']}.utp"
+        migrated = (
+            source / ".validation/dist" / f"{plugin_id}-{manifest['version']}.utp"
+        )
         current = PluginPackageVerifier(
             {
                 key_id: TrustedPublisher(
@@ -156,7 +176,10 @@ def check(plugins_root: Path, work: Path) -> None:
         assert active["status"] == "running" and registry.health(plugin_id)
         assert active["api_contract_version"] == "1.1.0"
         assert active["installation_id"] == installation_id
-        assert supervisor._storage(plugin_id).get("retained/report") == b"historical report"
+        assert (
+            supervisor._storage(plugin_id).get("retained/report")
+            == b"historical report"
+        )
         assert supervisor._settings(plugin_id) == {"review": "kept"}
         assert hashlib.sha256(legacy.read_bytes()).hexdigest() == original_hash
         (work / "conformance.json").write_text(
@@ -164,9 +187,11 @@ def check(plugins_root: Path, work: Path) -> None:
                 {
                     "plugin_id": plugin_id,
                     "legacy_archive_sha256": original_hash,
-                    "migrated_archive_sha256": hashlib.sha256(migrated.read_bytes()).hexdigest(),
-                    "real_legacy_worker_stopped": True,
-                    "legacy_restart_blocked": True,
+                    "migrated_archive_sha256": hashlib.sha256(
+                        migrated.read_bytes()
+                    ).hexdigest(),
+                    "real_signed_legacy_worker_running_with_warning": True,
+                    "legacy_stop_restart_supported": True,
                     "real_verified_v11_worker_running": True,
                     "identity_settings_storage_retained": True,
                 },
@@ -176,7 +201,7 @@ def check(plugins_root: Path, work: Path) -> None:
             encoding="utf-8",
         )
         print(
-            "Actual signed legacy worker stopped; verified v1.1 update runs with retained identity/settings/storage"
+            "Actual signed legacy worker runs with limited support; verified v1.1 update retains identity/settings/storage"
         )
     finally:
         supervisor.stop_all()

@@ -22,12 +22,17 @@ from src.core.auth import verify_password
 from src.database.models.user import User
 from src.database.session import get_db
 from src.plugin_api.capabilities import capability_children, capability_definition
+from src.plugin_api.compatibility import (
+    LEGACY_WARNING,
+    is_legacy_contract,
+    legacy_plugin_allowed,
+    manifest_compatibility_checks,
+)
 from src.plugin_api.contracts import (
     PLUGIN_API_CONTRACT_VERSION,
     CompatibilityStatus,
     evaluate_manifest_compatibility,
     parse_semver,
-    plugin_contract_compatibility_reason,
 )
 from src.plugin_api.installer import (
     DependencyPlan,
@@ -39,6 +44,8 @@ from src.plugin_api.installer import (
     plan_dependencies,
 )
 from src.plugin_api.management_auth import get_plugin_manager_admin
+from src.plugin_api.manager_state import manager_state
+from src.plugin_api.package_metadata import package_readme
 from src.plugin_api.publisher_trust import PublisherTrustError, load_trusted_publishers
 from src.plugin_api.runtime_client import PluginRuntimeRequestError, PluginRuntimeUnavailable
 from src.plugin_api.updates import (
@@ -242,12 +249,22 @@ def _install_preview(
 ) -> dict[str, Any]:
     manifest = inspected.package.manifest
     trust = inspected.trust
+    allow_legacy = legacy_plugin_allowed(
+        manifest.plugin_id, manager_state().read()["plugins"].get(manifest.plugin_id)
+    )
     compatibility = evaluate_manifest_compatibility(
         manifest,
         os.getenv("PLUGIN_SDK_VERSION", PLUGIN_API_CONTRACT_VERSION),
         os.getenv("PLUGIN_APPLICATION_VERSION", "1.0.0"),
+        allow_legacy=allow_legacy,
     )
-    contract_error = plugin_contract_compatibility_reason(manifest.api_contract_version)
+    checks = manifest_compatibility_checks(
+        manifest,
+        os.getenv("PLUGIN_SDK_VERSION", PLUGIN_API_CONTRACT_VERSION),
+        os.getenv("PLUGIN_APPLICATION_VERSION", "1.0.0"),
+        allow_legacy=allow_legacy,
+    )
+    legacy = allow_legacy and is_legacy_contract(manifest.api_contract_version)
     readme = None
     icon = manifest.icon
     if inspected.package.package_path.exists():
@@ -263,16 +280,7 @@ def _install_preview(
                         archive.read(name)
                     ).decode("ascii")
                     break
-            readme_name = next(
-                (
-                    name
-                    for name in archive.namelist()
-                    if name.lower() in {"payload/readme.md", "payload/readme.txt"}
-                ),
-                None,
-            )
-            if readme_name:
-                readme = archive.read(readme_name)[: 128 * 1024].decode("utf-8", errors="replace")
+            readme = package_readme(archive)
     dependency_items = (
         [
             {
@@ -320,15 +328,17 @@ def _install_preview(
         "trust_warning": trust.warning,
         "signature_present": trust.signature_present,
         "signature_verified": trust.signature_verified,
-        "installable": trust.installable
-        and contract_error is None
-        and compatibility.status == CompatibilityStatus.COMPATIBLE,
+        "installable": trust.installable and compatibility.status == CompatibilityStatus.COMPATIBLE,
         "api_contract_version": manifest.api_contract_version,
         "host_api_contract_version": PLUGIN_API_CONTRACT_VERSION,
         "host_sdk_version": os.getenv("PLUGIN_SDK_VERSION", PLUGIN_API_CONTRACT_VERSION),
         "host_application_version": os.getenv("PLUGIN_APPLICATION_VERSION", "1.0.0"),
-        "compatibility_reason": contract_error
-        or (compatibility.reason if compatibility.status != CompatibilityStatus.COMPATIBLE else ""),
+        "compatibility_reason": compatibility.reason
+        if compatibility.status != CompatibilityStatus.COMPATIBLE
+        else "",
+        "compatibility_checks": checks,
+        "legacy_compatibility": legacy,
+        "compatibility_warning": LEGACY_WARNING if legacy else None,
         "sdk_version_range": manifest.sdk_version_range,
         "application_version_range": manifest.application_version_range,
         "dependencies": dependency_items,

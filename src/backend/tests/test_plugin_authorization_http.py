@@ -8,6 +8,7 @@ No permission decision or grant lookup is mocked.
 import asyncio
 import io
 import json
+import zipfile
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
@@ -187,6 +188,54 @@ def boundary(monkeypatch):
             tokens=tokens,
         )
     engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_installed_documentation_is_readable_when_disabled_but_requires_authenticated_reader(
+    boundary,
+):
+    package = io.BytesIO()
+    with zipfile.ZipFile(package, "w") as archive:
+        archive.writestr("payload/README.md", "# Installed release\n\nPublic documentation.")
+    boundary.runtime.package_archive = AsyncMock(return_value=package.getvalue())
+    boundary.plugin.update(enabled=False, status="disabled")
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=boundary.app),
+        base_url="http://test",
+        cookies={session_cookie_name("test"): boundary.tokens[boundary.users[0].id]},
+    ) as client:
+        response = await client.get("/api/plugins/audit.plugin/details")
+        assert response.status_code == 200, response.text
+        assert response.json()["readme"].startswith("# Installed release")
+        assert response.headers["cache-control"] == "private, no-store"
+        boundary.users[0].is_admin = False
+        boundary.session.commit()
+        assert (await client.get("/api/plugins/audit.plugin/details")).status_code == 200
+        client.cookies.clear()
+        assert (await client.get("/api/plugins/audit.plugin/details")).status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_limited_legacy_ui_preserves_pages_and_gateway_but_denies_native_ui(boundary):
+    boundary.plugin.update(api_contract_version="1.0.0", legacy_compatibility=True)
+    boundary.runtime.plugin_ui.return_value["api_contract_version"] = "1.0.0"
+    grant(boundary, "frontend.native")
+    grant(boundary, "sessions.read")
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=boundary.app),
+        base_url="http://test",
+        cookies={session_cookie_name("test"): boundary.tokens[boundary.users[0].id]},
+    ) as client:
+        response = await client.get("/api/plugins/audit.plugin/ui")
+        assert response.status_code == 200, response.text
+        assert response.json()["pages"][0]["id"] == "page"
+        assert response.json()["native_frontend"] is None
+        assert (
+            await client.get("/api/plugins/audit.plugin/native-frontend/native/index.js")
+        ).status_code == 403
+    assert (await request(boundary)).status_code == 200
+    boundary.plugin["enabled"] = False
+    assert (await request(boundary)).status_code == 409
 
 
 def grant(boundary, capability="sessions.read", **changes):

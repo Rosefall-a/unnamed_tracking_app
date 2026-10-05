@@ -36,6 +36,7 @@ from urllib.request import Request, urlopen
 from uuid import UUID, uuid4
 
 from storage import PluginStorage
+from legacy_compatibility import LEGACY_WARNING, legacy_plugin_allowed
 
 try:
     import resource
@@ -47,7 +48,9 @@ PLUGIN_API_CONTRACT_VERSION = "1.1.0"
 _ENTRYPOINT = re.compile(r"^[A-Za-z_][A-Za-z0-9_.-]*(?::[A-Za-z_][A-Za-z0-9_]*)?$")
 # Linux parent-death signals follow the spawning thread. HTTP request threads
 # end after their response, while supervised workers must live until shutdown.
-_WORKER_LAUNCHER = ThreadPoolExecutor(max_workers=1, thread_name_prefix="plugin-launcher")
+_WORKER_LAUNCHER = ThreadPoolExecutor(
+    max_workers=1, thread_name_prefix="plugin-launcher"
+)
 _RESERVED_ENV = {
     "DATABASE_URL",
     "SECRET_KEY",
@@ -99,16 +102,22 @@ class RuntimePolicyError(ValueError):
     """Raised when a plugin request violates the runtime contract."""
 
 
-def plugin_contract_compatibility_reason(manifest: Mapping[str, Any]) -> str | None:
+def plugin_contract_compatibility_reason(
+    manifest: Mapping[str, Any], *, allow_legacy: bool = False
+) -> str | None:
     """Independent runtime enforcement of the public host contract boundary."""
     declared = manifest.get("api_contract_version", "1.0.0")
-    if not isinstance(declared, str) or not re.fullmatch(r"(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)", declared):
+    if not isinstance(declared, str) or not re.fullmatch(
+        r"(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)", declared
+    ):
         return "Plugin API contract version is invalid."
     version = tuple(int(part) for part in declared.split("."))
-    if version < (1, 1, 0):
+    if version[:2] == (1, 0):
+        if allow_legacy:
+            return None
         return (
-            f"Plugin API contract {declared} is v1.0-only. This host requires v1.1.0; "
-            "the whole plugin is stopped until a verified migrated update is installed."
+            f"Plugin API contract {declared} is v1.0-only. Limited compatibility is available "
+            "for shipped examples and already-installed plugins; new plugins must target v1.1."
         )
     if version != (1, 1, 0):
         return f"Plugin API contract {declared} is not supported by this host (1.1.0)."
@@ -431,17 +440,32 @@ class PluginSupervisor:
         if not isinstance(payload, dict):
             raise RuntimePolicyError("gateway payload must be an object")
         # Host-owned opt-in records cannot be forged through plugin storage.
-        if method.startswith("storage.") and str(payload.get("key", "")).startswith("host/"):
+        if method.startswith("storage.") and str(payload.get("key", "")).startswith(
+            "host/"
+        ):
             raise RuntimePolicyError("host storage namespace is reserved")
-        if method == "storage.keys" and str(payload.get("prefix", "")).startswith("host/"):
+        if method == "storage.keys" and str(payload.get("prefix", "")).startswith(
+            "host/"
+        ):
             raise RuntimePolicyError("host storage namespace is reserved")
-        if method in {"tasks.subscribe", "tasks.unsubscribe", "tasks.subscribers", "tasks.request"}:
-            self._authorize_capability(plugin_id, "tasks.background", user_id=user_id,
-                                       request_id=request["request_id"])
+        if method in {
+            "tasks.subscribe",
+            "tasks.unsubscribe",
+            "tasks.subscribers",
+            "tasks.request",
+        }:
+            self._authorize_capability(
+                plugin_id,
+                "tasks.background",
+                user_id=user_id,
+                request_id=request["request_id"],
+            )
             storage = self._storage(plugin_id)
             if method in {"tasks.subscribe", "tasks.unsubscribe"}:
                 if user_id is None:
-                    raise RuntimePolicyError("background subscriptions require an authenticated action")
+                    raise RuntimePolicyError(
+                        "background subscriptions require an authenticated action"
+                    )
                 key = "host/tasks/" + str(UUID(user_id))
                 if method == "tasks.subscribe":
                     storage.put(key, json.dumps({"user_id": user_id}).encode())
@@ -452,23 +476,45 @@ class PluginSupervisor:
                 keys = list(storage.keys("host/tasks/"))
                 limit = max(1, min(int(payload.get("limit", 100)), 100))
                 offset = max(0, int(payload.get("offset", 0)))
-                return {"payload": {"users": [key.removeprefix("host/tasks/")
-                                               for key in sorted(keys)[offset:offset + limit]],
-                                    "total": len(keys)}}
+                return {
+                    "payload": {
+                        "users": [
+                            key.removeprefix("host/tasks/")
+                            for key in sorted(keys)[offset : offset + limit]
+                        ],
+                        "total": len(keys),
+                    }
+                }
             target = str(UUID(str(payload.get("user_id", ""))))
             if storage.get("host/tasks/" + target) is None:
-                raise RuntimePolicyError("user has not subscribed to this plugin's background tasks")
+                raise RuntimePolicyError(
+                    "user has not subscribed to this plugin's background tasks"
+                )
             # A reviewed, bounded operation with its own live target-user grant.
-            operations = {"media.sync": "media.write", "notifications.send": "notifications.send"}
-            if (payload.get("method") not in operations
-                    or operations[payload["method"]] != payload.get("capability")):
+            operations = {
+                "media.sync": "media.write",
+                "notifications.send": "notifications.send",
+            }
+            if payload.get("method") not in operations or operations[
+                payload["method"]
+            ] != payload.get("capability"):
                 raise RuntimePolicyError("unsupported background operation")
-            self._authorize_capability(plugin_id, "tasks.background", user_id=target,
-                                       request_id=request["request_id"])
-            return self._dispatch_gateway_request(plugin_id, {
-                **request, "method": payload["method"], "capability": payload["capability"],
-                "payload": payload.get("payload", {}),
-            }, user_id=target)
+            self._authorize_capability(
+                plugin_id,
+                "tasks.background",
+                user_id=target,
+                request_id=request["request_id"],
+            )
+            return self._dispatch_gateway_request(
+                plugin_id,
+                {
+                    **request,
+                    "method": payload["method"],
+                    "capability": payload["capability"],
+                    "payload": payload.get("payload", {}),
+                },
+                user_id=target,
+            )
         local_capability = {
             "storage.put": "plugin.storage",
             "storage.compare_and_swap": "plugin.storage",
@@ -510,12 +556,18 @@ class PluginSupervisor:
             if (expected is not None and not isinstance(expected, str)) or (
                 value is not None and not isinstance(value, str)
             ):
-                raise RuntimePolicyError("storage compare-and-swap values must be strings or null")
-            return {"payload": {"swapped": self._storage(plugin_id).compare_and_swap(
-                str(payload.get("key", "")),
-                None if expected is None else expected.encode(),
-                None if value is None else value.encode(),
-            )}}
+                raise RuntimePolicyError(
+                    "storage compare-and-swap values must be strings or null"
+                )
+            return {
+                "payload": {
+                    "swapped": self._storage(plugin_id).compare_and_swap(
+                        str(payload.get("key", "")),
+                        None if expected is None else expected.encode(),
+                        None if value is None else value.encode(),
+                    )
+                }
+            }
         if method == "storage.delete":
             return {
                 "payload": {
@@ -527,9 +579,13 @@ class PluginSupervisor:
         if method == "storage.keys":
             return {
                 "payload": {
-                    "keys": [key for key in
-                             self._storage(plugin_id).keys(str(payload.get("prefix", "")))
-                             if not key.startswith("host/")]
+                    "keys": [
+                        key
+                        for key in self._storage(plugin_id).keys(
+                            str(payload.get("prefix", ""))
+                        )
+                        if not key.startswith("host/")
+                    ]
                 }
             }
         if not self.gateway_url or len(self.gateway_token) < 32:
@@ -1198,9 +1254,17 @@ class PluginRegistry:
             self._save_state(state)
             return record
 
+    def _contract_error(self, manifest: Mapping[str, Any]) -> str | None:
+        return plugin_contract_compatibility_reason(
+            manifest,
+            allow_legacy=legacy_plugin_allowed(
+                str(manifest.get("plugin_id", "")), self._state()
+            ),
+        )
+
     def _execution_allowed(self, plugin_id: str, method: str = "action") -> bool:
         try:
-            if plugin_contract_compatibility_reason(self.package(plugin_id)[1]):
+            if self._contract_error(self.package(plugin_id)[1]):
                 return False
         except (OSError, ValueError, KeyError):
             return False
@@ -1444,8 +1508,11 @@ class PluginRegistry:
         integrity_valid = (
             bool(expected) and self.digest(package).lower() == str(expected).lower()
         )
-        contract_error = plugin_contract_compatibility_reason(data)
+        contract_error = self._contract_error(data)
         compatible = integrity_valid and contract_error is None
+        legacy = compatible and str(
+            data.get("api_contract_version", "1.0.0")
+        ).startswith("1.0.")
         state = self._state()
         raw_state = state.get(plugin_id, False)
         enabled = (
@@ -1508,6 +1575,8 @@ class PluginRegistry:
             if isinstance(raw_state, dict)
             else None,
             "compatible": compatible,
+            "legacy_compatibility": legacy,
+            "compatibility_warning": LEGACY_WARNING if legacy else None,
             "compatibility_reason": ""
             if compatible
             else contract_error or "package integrity verification failed",
@@ -1533,7 +1602,9 @@ class PluginRegistry:
             "trust": raw_state.get("trust", {}) if isinstance(raw_state, dict) else {},
             "enabled": enabled,
             "activation_requested": (
-                bool(raw_state.get("enabled", False)) if isinstance(raw_state, dict) else bool(raw_state)
+                bool(raw_state.get("enabled", False))
+                if isinstance(raw_state, dict)
+                else bool(raw_state)
             ),
             "installation_pending": bool(raw_state.get("pending_installation"))
             if isinstance(raw_state, dict)
@@ -1548,9 +1619,8 @@ class PluginRegistry:
             "logs_available": bool(self.supervisor.logs(plugin_id)),
             "last_exit_code": self.supervisor.exit_code(plugin_id),
             "status": status,
-            "last_error": contract_error or (
-                raw_state.get("last_error") if isinstance(raw_state, dict) else None
-            ),
+            "last_error": contract_error
+            or (raw_state.get("last_error") if isinstance(raw_state, dict) else None),
             "runtime": dict(self.supervisor.isolation),
             "pending_transaction": (
                 {"phase": "prepared", **raw_state["pending_installation"]}
@@ -1718,7 +1788,7 @@ class PluginRegistry:
             raise RuntimePolicyError("plugin manifest has an invalid plugin id")
         if not _ENTRYPOINT.fullmatch(str(manifest.get("entrypoint", ""))):
             raise RuntimePolicyError("plugin manifest has an invalid entrypoint")
-        contract_error = plugin_contract_compatibility_reason(manifest)
+        contract_error = self._contract_error(manifest)
         if contract_error:
             raise RuntimePolicyError(contract_error)
         for name, content in payload:
@@ -1726,9 +1796,15 @@ class PluginRegistry:
                 try:
                     document = json.loads(content)
                 except (ValueError, UnicodeError) as exc:
-                    raise RuntimePolicyError("plugin UI document is invalid JSON") from exc
-                if not isinstance(document, dict) or document.get("api_contract_version", "1.0.0") != manifest["api_contract_version"]:
-                    raise RuntimePolicyError("plugin UI and manifest API contracts must match")
+                    raise RuntimePolicyError(
+                        "plugin UI document is invalid JSON"
+                    ) from exc
+                if not isinstance(document, dict) or document.get(
+                    "api_contract_version", "1.0.0"
+                ) != manifest.get("api_contract_version", "1.0.0"):
+                    raise RuntimePolicyError(
+                        "plugin UI and manifest API contracts must match"
+                    )
         backend_routes = self._backend_routes(manifest)
         capabilities = {
             item.get("name")
@@ -2189,10 +2265,14 @@ class PluginRegistry:
         declaration = manifest.get("pwa")
         if not isinstance(declaration, dict):
             raise KeyError(relative)
-        allowed = {declaration.get("manifest", "pwa/manifest.webmanifest"),
-                   *declaration.get("icons", ["pwa/icon-192.png", "pwa/icon-512.png"])}
+        allowed = {
+            declaration.get("manifest", "pwa/manifest.webmanifest"),
+            *declaration.get("icons", ["pwa/icon-192.png", "pwa/icon-512.png"]),
+        }
         if relative not in allowed or relative not in {
-            "pwa/manifest.webmanifest", "pwa/icon-192.png", "pwa/icon-512.png"
+            "pwa/manifest.webmanifest",
+            "pwa/icon-192.png",
+            "pwa/icon-512.png",
         }:
             raise RuntimePolicyError("PWA asset is not declared")
         path = package / relative
@@ -2202,7 +2282,10 @@ class PluginRegistry:
             raise RuntimePolicyError("PWA asset escapes the package") from exc
         if not path.is_file() or path.is_symlink() or path.stat().st_size > 256 * 1024:
             raise RuntimePolicyError("PWA asset is missing or exceeds 256 KiB")
-        return {"path": relative, "content": base64.b64encode(path.read_bytes()).decode("ascii")}
+        return {
+            "path": relative,
+            "content": base64.b64encode(path.read_bytes()).decode("ascii"),
+        }
 
     def ui(self, plugin_id: str) -> dict[str, Any]:
         package, manifest = self.package(plugin_id)
@@ -2227,7 +2310,9 @@ class PluginRegistry:
                 raise RuntimePolicyError("plugin UI document is invalid JSON") from exc
         if document.get("plugin_id") != plugin_id:
             raise RuntimePolicyError("plugin UI document has the wrong plugin_id")
-        if document.get("api_contract_version", "1.0.0") != manifest.get("api_contract_version", "1.0.0"):
+        if document.get("api_contract_version", "1.0.0") != manifest.get(
+            "api_contract_version", "1.0.0"
+        ):
             raise RuntimePolicyError("plugin UI and manifest API contracts must match")
         frontend = manifest.get("frontend")
         if isinstance(frontend, dict) and frontend.get("entry"):
@@ -2235,7 +2320,11 @@ class PluginRegistry:
             if frontend.get("inline_assets") is True:
                 document["frontend"]["inline_assets"] = True
         native_frontend = manifest.get("native_frontend")
-        if isinstance(native_frontend, dict) and native_frontend.get("entry"):
+        if (
+            not str(manifest.get("api_contract_version", "1.0.0")).startswith("1.0.")
+            and isinstance(native_frontend, dict)
+            and native_frontend.get("entry")
+        ):
             document["native_frontend"] = {
                 "entry": str(native_frontend["entry"]),
                 "styles": [str(value) for value in native_frontend.get("styles", [])],
@@ -2390,8 +2479,11 @@ class PluginRegistry:
 
     def storage_keys(self, plugin_id: str, prefix: str = "") -> list[str]:
         self.package(plugin_id)
-        return [key for key in self.supervisor._storage(plugin_id).keys(prefix)
-                if not key.startswith("host/")]
+        return [
+            key
+            for key in self.supervisor._storage(plugin_id).keys(prefix)
+            if not key.startswith("host/")
+        ]
 
     def health(self, plugin_id: str) -> bool:
         self.package(plugin_id)
@@ -2627,7 +2719,7 @@ class PluginRegistry:
             try:
                 manifest = self.package(package.name)[1]
                 plugin_id = manifest["plugin_id"]
-                if plugin_contract_compatibility_reason(manifest):
+                if self._contract_error(manifest):
                     self._item(package)
                     continue
                 raw_state = state.get(plugin_id, True)
@@ -2647,6 +2739,8 @@ class PluginRegistry:
                         or raw_state.get("pending_installation")
                     )
                 ):
+                    if self.supervisor.running(plugin_id):
+                        continue
                     self._transition(plugin_id, status="stopped")
                     try:
                         self.start(plugin_id, user_id=user_id)
@@ -2690,8 +2784,12 @@ class RuntimeHandler(BaseHTTPRequestHandler):
                         "available": True,
                         "api_version": "v1",
                         "api_contract_version": PLUGIN_API_CONTRACT_VERSION,
-                        "sdk_version": os.getenv("PLUGIN_SDK_VERSION", PLUGIN_API_CONTRACT_VERSION),
-                        "application_version": os.getenv("PLUGIN_APPLICATION_VERSION", "1.0.0"),
+                        "sdk_version": os.getenv(
+                            "PLUGIN_SDK_VERSION", PLUGIN_API_CONTRACT_VERSION
+                        ),
+                        "application_version": os.getenv(
+                            "PLUGIN_APPLICATION_VERSION", "1.0.0"
+                        ),
                         "supported_api_versions": ["v1"],
                         "transport": "http",
                         "plugin_transport": "json-lines",
@@ -2713,7 +2811,9 @@ class RuntimeHandler(BaseHTTPRequestHandler):
             elif len(parts) == 3 and parts[0] == "plugins" and parts[2] == "logs":
                 self._json(200, self.server.registry.diagnostics(parts[1]))  # type: ignore[attr-defined]
             elif len(parts) >= 4 and parts[0] == "plugins" and parts[2] == "pwa":
-                self._json(200, self.server.registry.pwa_asset(parts[1], "/".join(parts[3:])))
+                self._json(
+                    200, self.server.registry.pwa_asset(parts[1], "/".join(parts[3:]))
+                )
             elif len(parts) >= 3 and parts[0] == "plugins" and parts[2] == "frontend":
                 relative = "/".join(parts[3:])
                 self._json(200, self.server.registry.frontend(parts[1], relative))  # type: ignore[attr-defined]

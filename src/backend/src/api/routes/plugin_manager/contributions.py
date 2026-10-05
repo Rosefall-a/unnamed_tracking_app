@@ -35,6 +35,7 @@ from src.core.auth import get_current_user, hash_token, session_cookie_name
 from src.database.models.auth import UserSession
 from src.database.models.user import User
 from src.database.session import get_db
+from src.plugin_api.compatibility import is_legacy_contract
 from src.plugin_api.contracts import (
     PLUGIN_API_CONTRACT_VERSION,
     Capability,
@@ -210,10 +211,26 @@ async def plugin_ui(
     if document.plugin_id != plugin_id:
         raise HTTPException(status_code=422, detail="Plugin UI document identity is invalid.")
     if plugin_contract_compatibility_reason(
-        document.api_contract_version
+        document.api_contract_version, allow_legacy=plugin.get("legacy_compatibility") is True
     ) or document.api_contract_version != plugin.get("api_contract_version", "1.0.0"):
         raise HTTPException(
-            status_code=409, detail="Plugin UI and manifest API contracts must match v1.1.0."
+            status_code=409, detail="Plugin UI and manifest API contracts must match."
+        )
+    if is_legacy_contract(document.api_contract_version):
+        document = document.model_copy(
+            update={
+                "native_frontend": None,
+                "themes": (),
+                "home_widgets": (),
+                "navigation": tuple(
+                    item.model_copy(update={"group": "Extensions", "folders": ()})
+                    for item in document.navigation
+                ),
+                "settings_sections": tuple(
+                    item.model_copy(update={"group": "Extensions", "folders": ()})
+                    for item in document.settings_sections
+                ),
+            }
         )
     return _filter_ui_document(document, capabilities).model_dump(mode="json")
 

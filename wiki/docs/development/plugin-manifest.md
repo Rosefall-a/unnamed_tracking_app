@@ -24,10 +24,12 @@ The manifest is validated as data before plugin code is loaded. Unknown fields a
 
 ## Compatibility
 
-The redesigned host requires `api_contract_version: "1.1.0"` in the manifest
-and UI document. Missing declarations remain v1.0.0, and the whole legacy plugin
-is stopped until a verified migrated update is installed. Plugin release versions
-remain separate. See [the migration guide](plugin-v1.1-migration.md).
+New plugins require `api_contract_version: "1.1.0"` in both the manifest and UI
+document. Missing declarations remain v1.0.0. Shipped historical examples and
+already-installed plugins have limited legacy support, with an install warning;
+native UI, themes, shortcuts and built-in placement need a v1.1 update. Other new
+v1.0 packages remain incompatible. Plugin release versions remain separate.
+See [the migration guide](plugin-v1.1-migration.md).
 
 SDK and application compatibility are independent. A plugin must satisfy both ranges before activation.
 

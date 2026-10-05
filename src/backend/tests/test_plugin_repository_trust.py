@@ -134,16 +134,9 @@ def test_signed_plugin_repo_artifact_is_forwarded_only_after_verification(
 
     source = package.read_bytes()
     upload = UploadFile(file=io.BytesIO(source), filename=package.name)
-    if verifier.inspect(package).manifest.api_contract_version == "1.0.0":
-        with pytest.raises(Exception) as error:
-            asyncio.run(plugins.install_plugin(upload, admin=object(), db=FakeDb()))
-        assert getattr(error.value, "status_code", None) == 409
-        assert "v1.0-only" in str(error.value)
-        assert runtime_client.package_bytes is None
-    else:
-        result = asyncio.run(plugins.install_plugin(upload, admin=object(), db=FakeDb()))
-        assert result["status"] == "running"
-        assert runtime_client.package_bytes == source
+    result = asyncio.run(plugins.install_plugin(upload, admin=object(), db=FakeDb()))
+    assert result["status"] == "running"
+    assert runtime_client.package_bytes == source
     forwarded = runtime_client.package_bytes
 
     tampered = tmp_path / "tampered.utp"

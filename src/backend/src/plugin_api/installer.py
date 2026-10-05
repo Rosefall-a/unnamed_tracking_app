@@ -42,6 +42,7 @@ from .capabilities import (
     capability_definition,
     package_identity_can_retain_grants,
 )
+from .compatibility import legacy_plugin_allowed
 from .contracts import (
     PLUGIN_API_CONTRACT_VERSION,
     BackendRouteScope,
@@ -50,7 +51,6 @@ from .contracts import (
     PluginPackageIdentity,
     evaluate_manifest_compatibility,
     parse_semver,
-    plugin_contract_compatibility_reason,
 )
 from .dependency_plan import (
     DependencyPlan as DependencyPlan,
@@ -276,13 +276,17 @@ class PluginInstaller:
     ) -> InstallationPlan:
         """Compare only this installation's identity, declarations and grants."""
         manifest = inspected.package.manifest
-        contract_error = plugin_contract_compatibility_reason(manifest.api_contract_version)
-        if contract_error:
-            raise InstallationError(409, contract_error)
+        installed_plugins = await self.runtime.plugins()
+        installed = next(
+            (item for item in installed_plugins if item.get("plugin_id") == plugin_id), None
+        )
+        if installed is None or not installed.get("installation_id"):
+            raise InstallationError(409, "Plugin installation identity is missing.")
         compatibility = evaluate_manifest_compatibility(
             manifest,
             os.getenv("PLUGIN_SDK_VERSION", PLUGIN_API_CONTRACT_VERSION),
             os.getenv("PLUGIN_APPLICATION_VERSION", "1.0.0"),
+            allow_legacy=legacy_plugin_allowed(manifest.plugin_id, installed),
         )
         if compatibility.status != CompatibilityStatus.COMPATIBLE:
             raise InstallationError(409, f"Package is not installable: {compatibility.reason}")
@@ -290,12 +294,6 @@ class PluginInstaller:
             raise InstallationError(
                 400, "Updated package plugin ID does not match the installed plugin."
             )
-        installed_plugins = await self.runtime.plugins()
-        installed = next(
-            (item for item in installed_plugins if item.get("plugin_id") == plugin_id), None
-        )
-        if installed is None or not installed.get("installation_id"):
-            raise InstallationError(409, "Plugin installation identity is missing.")
         if operation == "update" and parse_semver(manifest.version) <= parse_semver(
             str(installed.get("version", "0.0.0"))
         ):
@@ -460,9 +458,6 @@ class PluginInstaller:
             raise InstallationError(
                 409, "The remote plugin changed after preview; review it again before installing."
             )
-        contract_error = plugin_contract_compatibility_reason(manifest.api_contract_version)
-        if contract_error:
-            raise InstallationError(409, contract_error)
         if update_plugin_id is not None:
             plan = await self.plan_update(update_plugin_id, inspected, db, operation=operation)
         else:

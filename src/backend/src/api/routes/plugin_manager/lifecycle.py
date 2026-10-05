@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import io
 import logging
 import secrets
 import time
+import zipfile
 from typing import Any
 from urllib.parse import quote
 from uuid import UUID
@@ -38,12 +40,31 @@ from src.plugin_api.management_auth import (
     get_plugin_manager_reader,
 )
 from src.plugin_api.manager_state import manager_state
+from src.plugin_api.package_metadata import package_readme
 from src.plugin_api.runtime_client import PluginRuntimeRequestError, PluginRuntimeUnavailable
 
 from . import acquisition, catalogues, models, runtime, updates
 
 router = APIRouter(prefix="/api/plugins", tags=["plugins"])
 logger = logging.getLogger(__name__)
+
+
+@router.get("/{plugin_id}/details")
+async def plugin_details(
+    plugin_id: str, response: Response, admin: User = Depends(get_plugin_manager_reader)
+) -> dict[str, Any]:
+    """Display the installed release's documentation, including disabled packages."""
+    del admin
+    runtime._private_plugin_response(response)
+    await runtime._live_plugin(plugin_id, require_enabled=False)
+    try:
+        package = await runtime._client.package_archive(plugin_id)
+        with zipfile.ZipFile(io.BytesIO(package)) as archive:
+            return {"readme": package_readme(archive)}
+    except PluginRuntimeUnavailable as exc:
+        raise runtime._runtime_error(exc) from exc
+    except (PluginRuntimeRequestError, ValueError, zipfile.BadZipFile) as exc:
+        raise HTTPException(422, "Installed plugin documentation is unavailable.") from exc
 
 
 @router.get("/manager-settings")

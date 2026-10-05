@@ -7,12 +7,13 @@ application compatibility version alongside the runtime's reported versions and
 gateway protocol. Missing, mismatched or unavailable runtime information has a
 specific health message. Plugin details and install consent show the release's
 API contract and required SDK/application ranges with the actual host values.
-An incompatible package remains inspectable but installation stays disabled;
-the reason identifies the failing version boundary and the required update.
+An incompatible package remains inspectable. A prominent “Unable to install”
+notice and disabled button identify the blocker; each failed API, SDK and
+application requirement is highlighted with its required and actual values.
 The application compatibility version is a range target, separate from package
 release versions. A broad SDK range does not establish v1.1 UI migration.
 
-The redesigned host requires an explicit **1.1.0** plugin contract. The HTTP and
+New plugins require an explicit **1.1.0** plugin contract. The HTTP and
 line-protocol wire major remains `v1`, and the archive remains `.utp`. A plugin's
 release `version` is independent of its UI/API contract version.
 
@@ -41,10 +42,19 @@ the new design system.
 
 ## Installed legacy plugins
 
-An already-installed v1.0 plugin becomes **incompatible**. The runtime stops its
-workers and refuses startup, bootstrap, actions, routes and gateway requests.
-The host also refuses contributions, assets and PWA publication even if a stale
-runtime response claims the installation is running. Core pages remain usable.
+Shipped historical examples and plugins already installed on a server may use
+**limited v1.0 compatibility**. Plugin Manager warns during installation and in
+the installed release's details that the package targets the old UI and some
+features or page styling may be limited. Eligibility uses a reviewed list of
+shipped IDs or an existing installation identity, never an `example.*` prefix.
+Other newly installed v1.0 plugins must migrate before installation.
+
+The adapter supports existing backend features, declarative settings and
+sandboxed embedded pages. New native UI, theme/shortcut contributions, home
+widget registrations and built-in section placement require a v1.1 update.
+Legacy SDK ranges that explicitly support 1.0.0 can use the limited SDK adapter;
+application ranges and future SDK requirements are still enforced. A v1.1
+plugin never becomes compatible with an old v1.0 host through this adapter.
 
 Installation identity, stored data, settings and recorded permission grants are
 retained. The original enablement preference is recorded separately from
@@ -53,11 +63,12 @@ whose enablement was requested, using the normal consent and transaction flow.
 Disabled installations remain disabled. Unchanged grants do not require new
 consent; additional permissions still require approval.
 
-Legacy packages remain inspectable and signature-verified for diagnosis and
-history. The install preview reports their contract and an actionable reason,
-but they cannot be installed, enabled or selected as executable rollback targets
-on this host. An administrator cannot override the contract boundary by accepting
-an untrusted-package warning or changing the SDK environment setting.
+Package verification, publisher trust, explicit permission consent and elevated
+reauthentication remain unchanged. Disabled plugins remain disabled, and
+uninstall removes the previous installation identity. Eligible historical
+releases can be selected for rollback with the same verification and consent
+flow. Installing an older catalogue release pins it and disables automatic
+updates until the administrator resumes them.
 
 ## Verify an update
 

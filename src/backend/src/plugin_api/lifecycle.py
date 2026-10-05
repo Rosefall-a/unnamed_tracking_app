@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Awaitable, Mapping, Protocol
 from uuid import UUID, uuid4
 
+from .compatibility import is_legacy_contract, legacy_plugin_allowed
 from .contracts import (
     CompatibilityStatus,
     IntegrityMetadata,
@@ -72,9 +73,12 @@ def plugin_contributions_active(plugin: Mapping[str, object]) -> bool:
 def plugin_contract_active(plugin: Mapping[str, object]) -> bool:
     """Missing metadata remains legacy, including cached runtime responses."""
     try:
-        return (
-            plugin_contract_compatibility_reason(str(plugin.get("api_contract_version", "1.0.0")))
-            is None
+        return plugin_contract_compatibility_reason(
+            str(plugin.get("api_contract_version", "1.0.0"))
+        ) is None or (
+            plugin.get("legacy_compatibility") is True
+            and is_legacy_contract(str(plugin.get("api_contract_version", "1.0.0")))
+            and legacy_plugin_allowed(str(plugin.get("plugin_id", "")), plugin)
         )
     except ValueError:
         return False
@@ -152,8 +156,6 @@ class Sha256PackageVerifier:
 
         if not package_path.is_dir():
             return False
-
-        from .updates import canonical_payload_digest
 
         entries: list[tuple[str, bytes]] = []
         try:
