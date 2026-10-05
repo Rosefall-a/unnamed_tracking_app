@@ -60,6 +60,7 @@ async function change(changes: Partial<Preferences>) {
         </div>
         <select
           id="ui-theme"
+          data-tour="ui-appearance"
           class="ui-field"
           :value="preferences.ui_theme"
           @change="

@@ -97,6 +97,7 @@ function submit() {
 <template>
   <UiModal
     :title="editing ? 'Edit collection' : 'Create a collection'"
+    data-tour="collection-editor"
     @close="emit('close')"
   >
     <form @submit.prevent="submit">

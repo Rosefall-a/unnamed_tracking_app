@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useRoute } from "vue-router";
 import ShortcutGroups from "../ShortcutGroups.vue";
+import { startQuickTour } from "../../state/quickTour";
 const route = useRoute();
 </script>
 
@@ -14,6 +15,9 @@ const route = useRoute();
       a dialog.
     </p>
     <ShortcutGroups :path="route.path" />
+    <button type="button" class="ui-btn ui-btn-ghost" @click="startQuickTour">
+      Replay guided tour
+    </button>
   </section>
 </template>
 

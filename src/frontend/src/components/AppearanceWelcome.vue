@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, ref, watchEffect } from "vue";
 import UiModal from "./UiModal.vue";
 import { preferences } from "../state/preferences";
 import { currentUser } from "../state/auth";
+import { startQuickTour } from "../state/quickTour";
 import { queuePreferences } from "../services/preferences";
 import { applyPalette } from "../services/uiPalette";
 import { resolveUiTheme, type UiAppearance } from "../state/uiAppearance";
@@ -40,7 +41,7 @@ watchEffect(() => {
 });
 const saving = ref(false);
 const error = ref("");
-async function finish() {
+async function finish(withTour = false) {
   if (saving.value || currentUser.value?.id !== accountId) return;
   saving.value = true;
   error.value = "";
@@ -49,8 +50,10 @@ async function finish() {
       ...choices.value,
       ui_welcome_completed: true,
     });
-    if (currentUser.value?.id === accountId && result.latest)
+    if (currentUser.value?.id === accountId && result.latest) {
       preferences.value = result.prefs;
+      if (withTour) startQuickTour();
+    }
   } catch (reason) {
     if (currentUser.value?.id === accountId)
       error.value =
@@ -144,9 +147,17 @@ async function finish() {
         type="button"
         class="ui-btn ui-btn-primary"
         :disabled="saving"
-        @click="finish"
+        @click="finish(false)"
       >
         {{ saving ? "Saving…" : "Save & continue" }}
+      </button>
+      <button
+        type="button"
+        class="ui-btn ui-btn-ghost"
+        :disabled="saving"
+        @click="finish(true)"
+      >
+        Save & take a tour
       </button></template
     >
   </UiModal>

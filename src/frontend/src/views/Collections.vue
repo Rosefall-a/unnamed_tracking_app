@@ -400,6 +400,10 @@ const tagOptions = computed(() => {
             type="button"
             class="ui-btn ui-btn-primary"
             @click="showCreate = true"
+            data-tour="collection-create"
+            data-shortcut="create"
+            title="Create Collection · N"
+            aria-keyshortcuts="N"
           >
             + Create Collection
           </button>

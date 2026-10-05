@@ -33,6 +33,7 @@ function move(index: number, direction: -1 | 1) {
 <template>
   <UiModal
     title="Customize Home"
+    data-tour="home-widget-editor"
     size="wide"
     description="Choose what appears on your Home page. Your selection and order follow your account."
     :dismissible="!busy"

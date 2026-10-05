@@ -299,6 +299,7 @@ onUnmounted(() => {
       v-if="isModal && !isPhone"
       type="button"
       class="menu-toggle"
+      data-tour="open-menu"
       aria-label="Open menu"
       aria-controls="app-navigation"
       :aria-expanded="open"
@@ -362,6 +363,7 @@ onUnmounted(() => {
         type="button"
         class="nav-item nav-search"
         aria-label="Search library"
+        data-tour="open-search"
         title="Search library · Ctrl/Cmd + K"
         aria-keyshortcuts="Control+K Meta+K"
         @click="search"
@@ -390,6 +392,7 @@ onUnmounted(() => {
               class="nav-item"
               :class="{ 'group-active': groupActive(group) }"
               :aria-label="group.label"
+              :data-tour="`nav-${group.id}`"
               :title="`${group.label} · ${navigationTooltip(`Open ${group.entries[0]!.label}`, group.entries[0]!.path)}`"
               :aria-expanded="!collapsed && expandedGroups.has(group.id)"
               :aria-controls="`nav-${group.id}`"
@@ -498,6 +501,7 @@ onUnmounted(() => {
             title="Preferences · Alt + P opens Settings"
             aria-keyshortcuts="Alt+P"
             aria-label="Preferences"
+            data-tour="nav-settings"
             @click="close"
             ><AppIcon name="settings" /><span class="nav-label"
               >Preferences</span
@@ -585,6 +589,7 @@ onUnmounted(() => {
         >
         <RouterLink
           to="/games"
+          data-tour="nav-games"
           :class="{
             active:
               isActive('/games') ||
@@ -600,6 +605,7 @@ onUnmounted(() => {
         </RouterLink>
         <RouterLink
           to="/movies"
+          data-tour="nav-media"
           :class="{
             active: ['/movies', '/tv', '/anime', '/lists'].some(isActive),
           }"
@@ -611,6 +617,7 @@ onUnmounted(() => {
         </RouterLink>
         <RouterLink
           to="/settings"
+          data-tour="nav-settings"
           :class="{ active: isActive('/settings') }"
           :aria-current="isActive('/settings') ? 'page' : undefined"
           :title="navigationTooltip('Settings', '/settings')"

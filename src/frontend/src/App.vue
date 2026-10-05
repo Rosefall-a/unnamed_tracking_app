@@ -8,6 +8,7 @@ import ShortcutsHelp from "./components/ShortcutsHelp.vue";
 import CommandPalette from "./components/CommandPalette.vue";
 import AppDialog from "./components/AppDialog.vue";
 import AppearanceWelcome from "./components/AppearanceWelcome.vue";
+import QuickTour from "./components/QuickTour.vue";
 import { authChecked, currentUser } from "./state/auth";
 import { mediaUnread } from "./state/notifications";
 import { formatDocumentTitle, pageTitleOverride } from "./state/pageTitle";
@@ -165,6 +166,7 @@ const KEPT_ALIVE = [
         type="button"
         aria-label="Open menu"
         aria-controls="app-navigation"
+        data-tour="open-menu"
         :aria-expanded="navigationMenuOpen"
         @click="navigationMenuOpen = true"
       >
@@ -201,6 +203,7 @@ const KEPT_ALIVE = [
     <AppDialog />
     <ShortcutsHelp v-if="sidebarShown" />
     <CommandPalette v-if="sidebarShown" />
+    <QuickTour v-if="sidebarShown" />
     <AppearanceWelcome
       v-if="
         sidebarShown &&

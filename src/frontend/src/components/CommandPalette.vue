@@ -408,10 +408,16 @@ const KIND_ICON: Record<Result["kind"], string> = {
 </script>
 
 <template>
-  <UiModal v-if="open" title="Search library" @close="close">
+  <UiModal
+    v-if="open"
+    title="Search library"
+    data-tour="library-search"
+    @close="close"
+  >
     <div class="palette">
       <input
         ref="inputRef"
+        data-tour="palette-search"
         v-model="query"
         type="text"
         aria-label="Search library"

@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch } from "vue";
+import { onMounted, onUnmounted, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { navigationShortcutForKey } from "../utils/shortcuts";
 import { isCommandPaletteOpen } from "../state/commandPalette";
 import UiModal from "./UiModal.vue";
 import ShortcutGroups from "./ShortcutGroups.vue";
+import { shortcutsHelpOpen as open } from "../state/quickTour";
 
-const open = ref(false);
 const route = useRoute();
 const router = useRouter();
 watch(
@@ -92,13 +92,17 @@ function onKeydown(event: KeyboardEvent) {
 }
 
 onMounted(() => window.addEventListener("keydown", onKeydown, true));
-onUnmounted(() => window.removeEventListener("keydown", onKeydown, true));
+onUnmounted(() => {
+  open.value = false;
+  window.removeEventListener("keydown", onKeydown, true);
+});
 </script>
 
 <template>
   <UiModal
     v-if="open"
     title="Keyboard shortcuts"
+    data-tour="shortcut-help"
     size="wide"
     description="This page comes first. Expand another section to see its shortcuts. Keys pause while you type or use a dialog."
     @close="open = false"

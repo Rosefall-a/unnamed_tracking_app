@@ -5,6 +5,7 @@ import AccountChip from "../components/AccountChip.vue";
 import HomeWidgetPicker from "../components/HomeWidgetPicker.vue";
 import HomeCoreWidget from "../components/HomeCoreWidget.vue";
 import UiModal from "../components/UiModal.vue";
+import { startQuickTour } from "../state/quickTour";
 import PluginExtensionSlot from "../components/plugins/PluginExtensionSlot.vue";
 import PluginHomeWidget from "../components/plugins/PluginHomeWidget.vue";
 import PluginWidgetConfiguration from "../components/plugins/PluginWidgetConfiguration.vue";
@@ -103,7 +104,6 @@ watch(pluginWidgets, (widgets) => {
   )
     configuring.value = null;
 });
-const showTour = ref(false);
 const editingGame = ref<Game | null>(null);
 const showForm = ref(false);
 const collectionGame = ref<Game | null>(null);
@@ -187,11 +187,7 @@ watch(
     gamesLoaded = digestLoaded = false;
     gamesLoading.value = digestLoading.value = false;
     gamesError.value = digestError.value = null;
-    showPicker.value =
-      showTour.value =
-      showForm.value =
-      showRandom.value =
-        false;
+    showPicker.value = showForm.value = showRandom.value = false;
     editingGame.value = collectionGame.value = deletingGame.value = null;
   },
 );
@@ -335,6 +331,7 @@ async function confirmDelete() {
             type="button"
             class="ui-btn ui-btn-ghost"
             :disabled="!preferencesLoaded || Boolean(preferencesError)"
+            data-tour="customize-home"
             @click="
               saveError = null;
               showPicker = true;
@@ -345,7 +342,7 @@ async function confirmDelete() {
           <button
             type="button"
             class="ui-btn ui-btn-ghost"
-            @click="showTour = true"
+            @click="startQuickTour"
           >
             Quick tour
           </button>
@@ -494,57 +491,6 @@ async function confirmDelete() {
       @close="configuring = null"
       @save="saveWidgetConfiguration"
     />
-    <UiModal
-      v-if="showTour"
-      title="A quick tour of your library"
-      @close="showTour = false"
-    >
-      <ul class="tour-list">
-        <li>
-          <strong>Find anything fast</strong>
-          <p>
-            Press Ctrl/Cmd+K, or use Search in the menu, to find games,
-            collections, goals and Settings.
-          </p>
-        </li>
-        <li>
-          <strong>Filter and save combinations</strong>
-          <p>
-            Use game filters and save a preset to return to the same view later.
-          </p>
-        </li>
-        <li>
-          <strong>Collections and goals</strong>
-          <p>
-            Group your games into collections and create personal bounties for
-            what you want to finish.
-          </p>
-        </li>
-        <li>
-          <strong>Make Home yours</strong>
-          <p>
-            Add widgets and change their order with the up and down buttons.
-            Your choices follow your account.
-          </p>
-        </li>
-        <li>
-          <strong>Keyboard shortcuts</strong>
-          <p>
-            Press ? or open Preferences → Keyboard shortcuts for the complete
-            list.
-          </p>
-        </li>
-      </ul>
-      <template #footer
-        ><button
-          type="button"
-          class="ui-btn ui-btn-primary"
-          @click="showTour = false"
-        >
-          Got it
-        </button></template
-      >
-    </UiModal>
     <GameFormModal
       v-if="showForm"
       :game="editingGame"
@@ -685,21 +631,6 @@ async function confirmDelete() {
   margin-bottom: 18px;
   color: var(--ui-good);
   font-size: var(--ui-font-small);
-}
-.tour-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-.tour-list li + li {
-  margin-top: 20px;
-}
-.tour-list strong {
-  font-weight: var(--ui-weight-heading);
-}
-.tour-list p {
-  color: var(--ui-dim);
-  margin: 6px 0 0;
 }
 @media (max-width: 760px) {
   .home-widgets {

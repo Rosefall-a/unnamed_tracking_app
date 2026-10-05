@@ -2,6 +2,7 @@
 import { ref, onMounted, onBeforeUnmount, useId } from "vue";
 import AppIcon from "./AppIcon.vue";
 import { containModalTab } from "../services/focus";
+defineOptions({ inheritAttrs: false });
 
 const props = withDefaults(
   defineProps<{
@@ -50,6 +51,7 @@ onBeforeUnmount(() => {
 <template>
   <Teleport to="body">
     <dialog
+      v-bind="$attrs"
       ref="dialog"
       class="ui-modal"
       :class="{ 'ui-modal-wide': size === 'wide' }"

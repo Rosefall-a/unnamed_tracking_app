@@ -284,6 +284,7 @@ const {
         <button
           type="button"
           class="filter-btn"
+          data-tour="games-filters"
           :class="{ 'active-filter': filterCount }"
           @click="showAdvancedFilters = !showAdvancedFilters"
         >
@@ -342,7 +343,11 @@ const {
         </div>
       </div>
 
-      <div v-if="showAdvancedFilters" class="advanced-panel">
+      <div
+        v-if="showAdvancedFilters"
+        class="advanced-panel"
+        data-tour="games-filter-panel"
+      >
         <div class="filter-group platform-genre-group">
           <FilterCombobox
             v-model="platformFilter"

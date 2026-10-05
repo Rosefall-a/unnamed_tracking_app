@@ -49,8 +49,17 @@ export async function checkAppearanceWelcome({ browser, admin, origin, evidenceR
           assert.equal((await (await context.request.get(origin + "/api/preferences")).json()).ui_welcome_completed, false);
           await page.unroute("**/api/preferences");
         }
-        await dialog.getByRole("button", { name: "Save & continue", exact: true }).click();
+        const takeTour = width === 390 && mode === "dark" || width === 1440 && mode === "light";
+        await dialog.getByRole("button", { name: takeTour ? "Save & take a tour" : "Save & continue", exact: true }).click();
         await dialog.waitFor({ state: "detached" });
+        if (takeTour) {
+          const guide = page.locator("[data-tour-guide]");
+          await guide.getByText("Step 1 of 10", { exact: true }).waitFor();
+          await page.waitForURL(origin + "/");
+          await guide.getByRole("button", { name: "End tour", exact: true }).click();
+          await guide.waitFor({ state: "detached" });
+          await page.goto(origin + "/settings?section=appearance");
+        }
         const saved = await (await context.request.get(origin + "/api/preferences")).json();
         assert.equal(saved.ui_welcome_completed, true);
         assert.equal(saved.ui_theme, mode);
