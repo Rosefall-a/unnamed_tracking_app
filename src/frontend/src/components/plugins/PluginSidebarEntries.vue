@@ -126,6 +126,8 @@ async function activate(item: PluginNavigationContribution) {
   gap: 10px;
   min-height: 44px;
   width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   padding: 10px 12px;
   border: 0;
   border-radius: var(--ui-radius-row);
@@ -147,7 +149,11 @@ async function activate(item: PluginNavigationContribution) {
   color: var(--ui-accent-text);
 }
 .plugin-sidebar-item > span {
+  min-width: 0;
   overflow-wrap: anywhere;
+}
+.plugin-sidebar-item > svg {
+  flex-shrink: 0;
 }
 .plugin-sidebar-icon {
   width: 20px;

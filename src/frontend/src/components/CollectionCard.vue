@@ -300,7 +300,7 @@ const displayName = computed(() =>
   background-color: var(--ui-surface);
 }
 .cover-cell.empty {
-  background-color: #161616;
+  background-color: var(--ui-surface-2);
 }
 .smart-badge {
   position: absolute;
@@ -343,12 +343,18 @@ const displayName = computed(() =>
   font-size: 12px;
   color: var(--ui-dim);
 }
+.status {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
 @media (pointer: coarse) {
   .card-actions button {
     width: 44px;
     height: 44px;
   }
   .card-actions {
+    display: grid;
+    grid-template-columns: repeat(2, 44px);
     gap: 4px;
   }
 }

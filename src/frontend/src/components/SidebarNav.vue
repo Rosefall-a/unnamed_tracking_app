@@ -752,8 +752,10 @@ dialog.navigation {
 .nav-scroll {
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
   overscroll-behavior: contain;
   min-height: 0;
+  min-width: 0;
   scrollbar-width: thin;
   scrollbar-color: var(--ui-border) transparent;
   padding: 0 2px;
@@ -763,6 +765,7 @@ dialog.navigation {
   flex-direction: column;
   flex: 1;
   min-height: 0;
+  min-width: 0;
 }
 .nav-item {
   display: flex;
@@ -978,6 +981,7 @@ dialog.navigation {
   }
   .nav-body {
     overflow-y: auto;
+    overflow-x: hidden;
     overscroll-behavior: contain;
   }
   .nav-scroll {

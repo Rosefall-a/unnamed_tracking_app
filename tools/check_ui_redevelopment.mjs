@@ -24,6 +24,7 @@ import { checkUploadUi } from "./check_upload_ui.mjs";
 import { checkPluginDiscoveryUi } from "./check_plugin_discovery_ui.mjs";
 import { checkPluginReviewUi } from "./check_plugin_review_ui.mjs";
 import { checkLibraryWorkflows } from "./check_library_workflows.mjs";
+import { checkCollectionMigration } from "./check_collection_migration.mjs";
 import { checkMobileNavigation } from "./check_mobile_navigation.mjs";
 import { checkQuickTour } from "./check_quick_tour.mjs";
 import { checkShortcutSettings } from "./check_shortcut_settings.mjs";
@@ -100,6 +101,10 @@ try {
     await checkMobileNavigation({ admin, browser, origin, evidenceRoot, report, checkOverflow });
     await writeFile(path.join(evidenceRoot, "mobile-navigation-conformance.json"), JSON.stringify(report, null, 2) + "\n");
     console.log(JSON.stringify({ cases: report.screens.length, passed: report.passed }, null, 2));
+  } else if (reviewStage === "collections") {
+    await checkCollectionMigration({ admin, origin, evidenceRoot, report, checkOverflow });
+    report.status = "passed";
+    await writeFile(path.join(evidenceRoot, "collection-migration-conformance.json"), JSON.stringify(report, null, 2) + "\n");
   } else if (reviewStage === "library-workflows") {
     await checkLibraryWorkflows({ admin, origin, evidenceRoot, report, checkOverflow });
     await writeFile(path.join(evidenceRoot, "library-workflow-conformance.json"), JSON.stringify(report, null, 2) + "\n");

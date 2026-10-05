@@ -7,6 +7,7 @@
 import { computed, ref, onMounted, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import BackButton from "../components/BackButton.vue";
+import UiModal from "../components/UiModal.vue";
 import GameTopBar from "../components/GameTopBar.vue";
 import {
   fetchGames,
@@ -570,9 +571,8 @@ async function deleteCollection() {
       @close="showEdit = false"
     />
 
-    <div v-if="showAdd" class="ui-backdrop" @click.self="showAdd = false">
-      <div class="ui-modal add-modal">
-        <h3>Add games</h3>
+    <UiModal v-if="showAdd" title="Add games" @close="showAdd = false">
+      <div class="add-picker">
         <input
           v-model="addSearch"
           type="text"
@@ -615,7 +615,7 @@ async function deleteCollection() {
           </button>
         </div>
       </div>
-    </div>
+    </UiModal>
   </main>
 </template>
 
@@ -881,13 +881,10 @@ async function deleteCollection() {
 .back-spot {
   margin-bottom: 14px;
 }
-.add-modal {
+.add-picker {
   display: flex;
   flex-direction: column;
   gap: 12px;
-}
-.add-modal h3 {
-  margin: 0;
 }
 button,
 select {

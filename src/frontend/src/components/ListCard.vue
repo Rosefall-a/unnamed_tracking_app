@@ -32,11 +32,10 @@ const emptySlots = computed(() => Math.max(0, 4 - covers.value.length));
 </script>
 
 <template>
-  <div
+  <article
     class="collection-card-wrap"
     :class="{ 'drop-target': dragOver }"
     :draggable="reorderable"
-    @click="emit('open', list.id)"
     @dragstart="emit('dragstart', list.id)"
     @dragover.prevent="emit('dragover', list.id)"
     @drop.prevent="emit('drop', list.id)"
@@ -45,6 +44,12 @@ const emptySlots = computed(() => Math.max(0, 4 - covers.value.length));
   >
     <div class="collection-card">
       <div class="cover">
+        <button
+          type="button"
+          class="open-collection"
+          :aria-label="`Open ${list.name}`"
+          @click="emit('open', list.id)"
+        />
         <div class="cover-grid">
           <div
             v-for="(cover, i) in covers"
@@ -125,7 +130,11 @@ const emptySlots = computed(() => Math.max(0, 4 - covers.value.length));
     </div>
 
     <div class="card-info">
-      <h3 class="title">{{ list.name }}</h3>
+      <h3 class="title">
+        <button type="button" class="open-title" @click="emit('open', list.id)">
+          {{ list.name }}
+        </button>
+      </h3>
       <div class="meta-row">
         <span class="status"
           >{{ list.itemCount }} title{{ list.itemCount === 1 ? "" : "s" }}</span
@@ -135,13 +144,38 @@ const emptySlots = computed(() => Math.max(0, 4 - covers.value.length));
         }}</span>
       </div>
     </div>
-  </div>
+  </article>
 </template>
 
 <style scoped>
 .collection-card-wrap {
   width: 200px;
   cursor: pointer;
+}
+.open-collection {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  z-index: 1;
+}
+.open-collection:focus-visible {
+  outline: 3px solid var(--ui-accent);
+  outline-offset: -3px;
+}
+.open-title {
+  border: 0;
+  padding: 0;
+  max-width: 100%;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .collection-card {
   position: relative;
@@ -154,7 +188,7 @@ const emptySlots = computed(() => Math.max(0, 4 - covers.value.length));
 }
 .collection-card-wrap:hover .collection-card {
   transform: scale(1.07) translateY(-4px);
-  box-shadow: 0 24px 56px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--ui-elevation);
 }
 .card-actions {
   position: absolute;
@@ -178,11 +212,11 @@ const emptySlots = computed(() => Math.max(0, 4 - covers.value.length));
   }
 }
 .card-actions button {
-  width: 26px;
-  height: 26px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
   border: none;
-  background: rgba(20, 20, 20, 0.78);
+  background: color-mix(in srgb, var(--ui-popover) 96%, transparent);
   backdrop-filter: blur(4px);
   color: var(--ui-text);
   font-size: 11px;
@@ -202,7 +236,7 @@ const emptySlots = computed(() => Math.max(0, 4 - covers.value.length));
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  background: rgba(20, 20, 20, 0.8);
+  background: color-mix(in srgb, var(--ui-popover) 96%, transparent);
   backdrop-filter: blur(4px);
   color: var(--ui-accent-text);
 }
@@ -258,7 +292,7 @@ const emptySlots = computed(() => Math.max(0, 4 - covers.value.length));
   text-transform: uppercase;
   padding: 3px 8px;
   border-radius: 999px;
-  background: rgba(20, 20, 20, 0.8);
+  background: color-mix(in srgb, var(--ui-popover) 96%, transparent);
   backdrop-filter: blur(4px);
   color: var(--ui-accent-text);
 }
@@ -279,5 +313,20 @@ const emptySlots = computed(() => Math.max(0, 4 - covers.value.length));
   gap: 8px;
   font-size: 12px;
   color: var(--ui-dim);
+}
+.status {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+@media (pointer: coarse) {
+  .card-actions button {
+    width: 44px;
+    height: 44px;
+  }
+  .card-actions {
+    display: grid;
+    grid-template-columns: repeat(2, 44px);
+    gap: 4px;
+  }
 }
 </style>

@@ -22,6 +22,7 @@ import type {
 } from "../services/mediaExtras";
 import ListFormModal from "../components/ListFormModal.vue";
 import BackButton from "../components/BackButton.vue";
+import UiModal from "../components/UiModal.vue";
 import MediaTopBar from "../components/MediaTopBar.vue";
 import {
   STATUS_BUCKETS,
@@ -527,9 +528,8 @@ async function addTitle(m: PickItem) {
       @close="showEdit = false"
     />
 
-    <div v-if="showAdd" class="ui-backdrop" @click.self="showAdd = false">
-      <div class="ui-modal add-modal">
-        <h3>Add titles</h3>
+    <UiModal v-if="showAdd" title="Add titles" @close="showAdd = false">
+      <div class="add-picker">
         <input
           v-model="addSearch"
           type="text"
@@ -570,7 +570,7 @@ async function addTitle(m: PickItem) {
           </button>
         </div>
       </div>
-    </div>
+    </UiModal>
   </main>
 </template>
 
@@ -836,12 +836,9 @@ async function addTitle(m: PickItem) {
 .back-spot {
   margin-bottom: 14px;
 }
-.add-modal {
+.add-picker {
   display: flex;
   flex-direction: column;
   gap: 12px;
-}
-.add-modal h3 {
-  margin: 0;
 }
 </style>

@@ -56,7 +56,7 @@ const name = ref(props.collection?.name ?? "");
 const description = ref(props.collection?.description ?? "");
 const smart = ref(props.collection?.smart != null);
 const field = ref<SmartField>(props.collection?.smart?.field ?? "status");
-const value = ref(props.collection?.smart?.value ?? "");
+const value = ref<string | number>(props.collection?.smart?.value ?? "");
 const error = ref<string | null>(null);
 
 function taken(candidate: string): boolean {
@@ -69,6 +69,7 @@ function taken(candidate: string): boolean {
 
 function submit() {
   const trimmed = name.value.trim();
+  const ruleValue = String(value.value).trim();
   if (!trimmed) {
     error.value = "Give the collection a name.";
     return;
@@ -77,7 +78,7 @@ function submit() {
     error.value = `"${trimmed}" already exists.`;
     return;
   }
-  if (smart.value && field.value !== "favorite" && !value.value.trim()) {
+  if (smart.value && field.value !== "favorite" && !ruleValue) {
     error.value = "Pick a value for the rule.";
     return;
   }
@@ -87,7 +88,7 @@ function submit() {
     smart: smart.value
       ? {
           field: field.value,
-          value: field.value === "favorite" ? "" : value.value.trim(),
+          value: field.value === "favorite" ? "" : ruleValue,
         }
       : null,
   });
