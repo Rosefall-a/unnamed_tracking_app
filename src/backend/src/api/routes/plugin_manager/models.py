@@ -6,7 +6,6 @@ from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
-
 from src.plugin_api.contracts import PluginDependency
 
 
@@ -127,9 +126,12 @@ class PluginCatalogueUpdate(BaseModel):
 
 
 class ManagerSettingsIn(BaseModel):
+    """Editable manager policy; the host records the approving administrator."""
+
     model_config = ConfigDict(extra="forbid")
     automatic_updates: bool | None = None
     retained_versions: int | None = Field(default=None, ge=1, le=100)
+    reduced_isolation_acknowledged: bool | None = Field(default=None, strict=True)
 
 
 class AutoUpdateIn(BaseModel):

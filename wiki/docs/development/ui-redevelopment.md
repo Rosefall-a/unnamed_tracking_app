@@ -470,3 +470,31 @@ all 302 files pass, with the largest at 1,973 lines.
 ![Phone movie shelf in WebKit](../assets/ui-redevelopment/webkit-library-movie-shelf-390-dark.png)
 
 ![Desktop movie board in light mode](../assets/ui-redevelopment/webkit-library-movie-board-1440-light.png)
+
+## Package drops and server isolation approval
+
+Drop one `.utp`, `.upt` or `.zip` package onto the install controls to open its
+verified upload review directly. Invalid archives, multiple files and oversized
+packages are rejected. The file picker and existing publisher, compatibility,
+permission and administrator-password reviews remain available.
+
+When Bubblewrap is unavailable, an administrator can acknowledge reduced
+isolation for the whole server in Plugin Manager. No environment override is
+required. Approval survives restarts, retains a persistent warning and can be
+withdrawn in manager settings. Withdrawal stops affected workers while retaining
+their packages and data. An optional `NONBUBBLE_ENV=true` deployment override
+suppresses the prominent warning; diagnostics still report the actual mode.
+
+The real CI archives from companion run `37295244287` supplied sixteen packages
+each. All thirty-two verified installs started healthy without the environment
+override. Withdrawal, actionable startup rejection, approval and runtime restart
+also passed. Browser acceptance exercised both file extensions, invalid uploads,
+the required acknowledgement, resumed installation and withdrawal in settings.
+See the [CI-package report](../assets/ui-redevelopment/ci-isolation-conformance.json)
+and [browser report](../assets/ui-redevelopment/isolation-and-drop-conformance.json).
+
+![Dropped package review on desktop](../assets/ui-redevelopment/package-drop-review-1440-light.png)
+
+![Phone isolation acknowledgement](../assets/ui-redevelopment/isolation-acknowledgement-390-dark.png)
+
+![Persistent phone isolation warning](../assets/ui-redevelopment/isolation-approved-390-dark.png)

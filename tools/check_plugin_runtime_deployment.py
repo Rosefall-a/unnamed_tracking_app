@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import tempfile
 from pathlib import Path
@@ -29,24 +30,38 @@ def main() -> None:
                 ("example-docker-compose.yaml", "http://app"),
                 ("src/docker-container/compose.yaml", "http://app"),
             ):
+                source = ROOT / filename
+                # Resolve service env_files from the same synthetic fixture. A
+                # clean CI checkout has no .env, and an operator's file must
+                # never be read by this configuration-only check.
+                document = re.sub(
+                    r"(?m)^(\s+- )\.env\s*$",
+                    lambda match: match[1] + json.dumps(str(env_file)),
+                    source.read_text(encoding="utf-8"),
+                )
                 result = subprocess.run(
                     [
                         "docker",
                         "compose",
                         "--env-file",
                         str(env_file),
+                        "--project-directory",
+                        str(source.parent),
                         "-f",
-                        str(ROOT / filename),
+                        "-",
                         "config",
                         "--no-env-resolution",
                         "--format",
                         "json",
                     ],
-                    check=True,
+                    check=False,
                     capture_output=True,
                     text=True,
+                    input=document,
                     env=environment,
                 )
+                if result.returncode:
+                    raise RuntimeError(f"Compose check failed for {filename}: {result.stderr.strip()}")
                 service = json.loads(result.stdout)["services"]["plugin-runtime"]
                 resolved = service["environment"]
                 assert resolved.get("NONBUBBLE_ENV", "") == fallback, filename

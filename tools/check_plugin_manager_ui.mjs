@@ -58,7 +58,7 @@ try {
   await page.goto(origin + "/settings?section=plugins");
   await page.getByRole("button", { name: "Installed", exact: true }).waitFor();
   await page.getByText(
-    phase === "offline" ? "Plugin runtime unavailable" : "Per-plugin sandbox isolation is unavailable.",
+    phase === "offline" ? "Plugin runtime unavailable" : "Plugin platform versions & health",
     { exact: false },
   ).waitFor();
   if (phase === "install") {

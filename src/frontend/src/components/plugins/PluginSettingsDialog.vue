@@ -23,6 +23,7 @@ const props = defineProps<{
   diagnostics: PluginDiagnostics | null;
   loading: boolean;
   busy: boolean;
+  error?: string;
 }>();
 const emit = defineEmits<{
   close: [];
@@ -106,11 +107,83 @@ watch(
           ref="closeButton"
           type="button"
           aria-label="Close plugin settings"
+          :disabled="busy"
           @click="emit('close')"
         >
           Close
         </button>
       </header>
+
+      <div v-if="!loading" class="actions" aria-label="Plugin controls">
+        <button
+          v-if="
+            plugin.available_update?.update_available || plugin.staged_update
+          "
+          :disabled="busy"
+          @click="emit('update')"
+        >
+          Review update
+          {{
+            plugin.available_update?.available_version ??
+            plugin.staged_update?.available_version
+          }}
+        </button>
+        <button
+          v-if="plugin.enabled"
+          :disabled="
+            busy || (!plugin.compatible && plugin.status !== 'running')
+          "
+          @click="
+            emit('operation', plugin.status === 'running' ? 'stop' : 'start')
+          "
+        >
+          {{ plugin.status === "running" ? "Stop" : "Start" }}
+        </button>
+        <button :disabled="busy" @click="emit('operation', 'reinstall')">
+          Reinstall this release
+        </button>
+        <button
+          class="danger"
+          :disabled="busy"
+          @click="emit('operation', 'reinstall', true)"
+        >
+          Reinstall and purge data
+        </button>
+        <button
+          class="danger"
+          :disabled="busy"
+          @click="emit('operation', 'uninstall')"
+        >
+          Uninstall and purge data
+        </button>
+        <button
+          v-if="plugin.enabled"
+          type="button"
+          :disabled="busy"
+          @click="emit('disable')"
+        >
+          Disable
+        </button>
+        <button
+          v-else
+          type="button"
+          :disabled="busy || !plugin.compatible"
+          class="primary"
+          @click="emit('enable')"
+        >
+          Enable
+        </button>
+        <button
+          v-if="plugin.status === 'failed' || plugin.status === 'quarantined'"
+          type="button"
+          :disabled="busy"
+          @click="emit('retry')"
+        >
+          Retry
+        </button>
+      </div>
+
+      <p v-if="error" class="operation-error" role="alert">{{ error }}</p>
 
       <nav aria-label="Plugin settings sections">
         <button
@@ -185,80 +258,6 @@ watch(
               is installed. Review or upload an update in Plugin Manager.
             </p>
           </aside>
-          <div class="actions">
-            <button
-              v-if="
-                plugin.available_update?.update_available ||
-                plugin.staged_update
-              "
-              :disabled="busy"
-              @click="emit('update')"
-            >
-              Review update
-              {{
-                plugin.available_update?.available_version ??
-                plugin.staged_update?.available_version
-              }}
-            </button>
-            <button
-              v-if="plugin.enabled"
-              :disabled="
-                busy || (!plugin.compatible && plugin.status !== 'running')
-              "
-              @click="
-                emit(
-                  'operation',
-                  plugin.status === 'running' ? 'stop' : 'start',
-                )
-              "
-            >
-              {{ plugin.status === "running" ? "Stop" : "Start" }}
-            </button>
-            <button :disabled="busy" @click="emit('operation', 'reinstall')">
-              Reinstall this release
-            </button>
-            <button
-              class="danger"
-              :disabled="busy"
-              @click="emit('operation', 'reinstall', true)"
-            >
-              Reinstall and purge data
-            </button>
-            <button
-              class="danger"
-              :disabled="busy"
-              @click="emit('operation', 'uninstall')"
-            >
-              Uninstall and purge data
-            </button>
-            <button
-              v-if="plugin.enabled"
-              type="button"
-              :disabled="busy"
-              @click="emit('disable')"
-            >
-              Disable
-            </button>
-            <button
-              v-else
-              type="button"
-              :disabled="busy || !plugin.compatible"
-              class="primary"
-              @click="emit('enable')"
-            >
-              Enable
-            </button>
-            <button
-              v-if="
-                plugin.status === 'failed' || plugin.status === 'quarantined'
-              "
-              type="button"
-              :disabled="busy"
-              @click="emit('retry')"
-            >
-              Retry
-            </button>
-          </div>
         </section>
 
         <section v-else-if="tab === 'settings'" class="panel">
@@ -452,6 +451,20 @@ watch(
               </dd>
             </div>
             <div>
+              <dt>Reduced isolation allowed</dt>
+              <dd>
+                {{
+                  plugin.runtime?.reduced_isolation_allowed == null
+                    ? "Unknown"
+                    : plugin.runtime.reduced_isolation_allowed
+                      ? plugin.runtime.reduced_isolation_env_override
+                        ? "Yes · NONBUBBLE_ENV enabled"
+                        : "Yes · administrator acknowledged"
+                      : "Awaiting administrator acknowledgement"
+                }}
+              </dd>
+            </div>
+            <div class="last-error">
               <dt>Last error</dt>
               <dd>
                 {{
@@ -520,6 +533,22 @@ watch(
 .plugin-dialog {
   color: var(--ui-text);
   overflow-wrap: anywhere;
+}
+.dialog-header > div {
+  min-width: 0;
+}
+.dialog-header > button {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  overflow-wrap: normal;
+}
+.operation-error {
+  padding: var(--ui-space-4);
+  border: 1px solid var(--ui-error);
+  border-radius: var(--ui-radius-card);
+  background: var(--ui-danger-soft);
+  color: var(--ui-error);
+  line-height: 1.5;
 }
 .attention {
   padding: var(--ui-space-4);
@@ -618,7 +647,17 @@ nav button.active {
 .actions {
   flex-wrap: wrap;
   justify-content: flex-start;
-  margin-top: 18px;
+  margin-block: var(--ui-space-4);
+  padding-block: var(--ui-space-3);
+  border-block: 1px solid var(--ui-border);
+}
+.actions button {
+  white-space: nowrap;
+  max-width: 100%;
+}
+.actions .danger {
+  border-color: var(--ui-error);
+  color: var(--ui-error);
 }
 .actions .primary {
   background: var(--ui-accent);
@@ -639,11 +678,24 @@ nav button.active {
   color: var(--ui-error);
 }
 .diagnostic-summary {
-  display: flex;
-  gap: 24px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: var(--ui-space-4);
+}
+.diagnostic-summary > div {
+  min-width: 0;
+}
+.diagnostic-summary .last-error {
+  grid-column: 1 / -1;
+}
+.diagnostic-summary .last-error dd {
+  max-height: 12rem;
+  overflow: auto;
+  overflow-wrap: anywhere;
 }
 .diagnostic-summary dd {
   margin: 2px 0 0;
+  line-height: 1.5;
 }
 .event-list {
   display: grid;
@@ -686,14 +738,11 @@ button:disabled {
   cursor: not-allowed;
 }
 @media (max-width: 620px) {
-  .modal-backdrop {
-    padding: 0;
-  }
-  .plugin-dialog {
-  }
-  .grant,
-  .diagnostic-summary {
+  .grant {
     flex-wrap: wrap;
+  }
+  .diagnostic-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .overview-grid {
     grid-template-columns: 1fr;

@@ -10,6 +10,8 @@ import { refreshPluginExtensions } from "../../state/pluginExtensions";
 import UiModal from "../UiModal.vue";
 import PluginInstallConsentDialog from "../plugins/PluginInstallConsentDialog.vue";
 import PluginSettingsDialog from "../plugins/PluginSettingsDialog.vue";
+import PluginIsolationWarning from "../plugins/PluginIsolationWarning.vue";
+import PluginPackageDropZone from "../plugins/PluginPackageDropZone.vue";
 import {
   deletePlugin,
   deletePluginCatalogue,
@@ -47,6 +49,7 @@ import {
   packageOperation,
   previewStagedUpdate,
   type RuntimeCapabilities,
+  type ManagerSettings,
 } from "../../services/plugins";
 import {
   approvePluginPermission,
@@ -104,7 +107,61 @@ const tag = ref("");
 const channel = ref("");
 const selectedVersions = ref<Record<string, string>>({});
 const runtime = ref<RuntimeCapabilities | null>(null);
-const managerSettings = ref({ automatic_updates: false, retained_versions: 1 });
+const managerSettings = ref<ManagerSettings>({
+  automatic_updates: false,
+  retained_versions: 1,
+});
+const isolationWarning = ref<InstanceType<
+  typeof PluginIsolationWarning
+> | null>(null);
+let pendingIsolationInstall: PluginInstallConfirmation | null = null;
+const needsIsolationApproval = computed(
+  () =>
+    runtime.value?.available !== false &&
+    runtime.value?.bubblewrap_available === false &&
+    !runtime.value?.reduced_isolation_allowed,
+);
+
+async function approveReducedIsolation() {
+  managerSettingsBusy.value = true;
+  managerSettingsError.value = "";
+  try {
+    managerSettings.value = await saveManagerSettings({
+      reduced_isolation_acknowledged: true,
+    });
+    await load();
+    isolationWarning.value?.close();
+    const confirmation = pendingIsolationInstall;
+    pendingIsolationInstall = null;
+    if (confirmation) await confirmInstall(confirmation);
+  } catch (err) {
+    managerSettingsError.value =
+      err instanceof Error
+        ? err.message
+        : "Reduced isolation approval could not be saved.";
+  } finally {
+    managerSettingsBusy.value = false;
+  }
+}
+
+async function withdrawReducedIsolation() {
+  managerSettingsBusy.value = true;
+  managerSettingsError.value = "";
+  try {
+    managerSettings.value = await saveManagerSettings({
+      reduced_isolation_acknowledged: false,
+    });
+    await load();
+    await refreshPluginExtensions();
+  } catch (err) {
+    managerSettingsError.value =
+      err instanceof Error
+        ? err.message
+        : "Reduced isolation approval could not be withdrawn.";
+  } finally {
+    managerSettingsBusy.value = false;
+  }
+}
 const managerSettingsLoaded = ref(false);
 const managerSettingsBusy = ref(false);
 const managerSettingsMessage = ref("");
@@ -415,8 +472,14 @@ async function run(id: string, operation: (id: string) => Promise<void>) {
     await operation(id);
     await load();
     await refreshPluginExtensions();
+    if (selected.value?.plugin_id === id) await refreshPlugin();
   } catch (err) {
-    error.value = err instanceof Error ? err.message : "Plugin action failed.";
+    const failure =
+      err instanceof Error ? err.message : "Plugin action failed.";
+    // Refresh failed status and logs without clearing the operation's explanation.
+    await load();
+    if (selected.value?.plugin_id === id) await refreshPlugin();
+    error.value = failure;
   } finally {
     action.value = "";
   }
@@ -425,6 +488,12 @@ async function run(id: string, operation: (id: string) => Promise<void>) {
 function selectFile(event: Event) {
   selectedFile.value = (event.target as HTMLInputElement).files?.[0] ?? null;
   installMessage.value = "";
+}
+
+async function reviewDroppedPackage(file: File) {
+  if (installing.value || previewing.value) return;
+  selectedFile.value = file;
+  await previewSelected();
 }
 
 async function previewSelected() {
@@ -526,6 +595,11 @@ function cancelInstall() {
 
 async function confirmInstall(confirmation: PluginInstallConfirmation) {
   if (!installPreview.value) return;
+  if (needsIsolationApproval.value) {
+    pendingIsolationInstall = confirmation;
+    isolationWarning.value?.review();
+    return;
+  }
   installing.value = true;
   error.value = "";
   try {
@@ -680,7 +754,6 @@ async function refreshPlugin() {
 async function runSelected(operation: (id: string) => Promise<void>) {
   if (!selected.value) return;
   await run(selected.value.plugin_id, operation);
-  await refreshPlugin();
 }
 
 async function revokeGrant(grantId: string) {
@@ -858,33 +931,15 @@ onMounted(() => {
       Browse plugins, review access, and manage installed releases and
       persistent data.
     </p>
-    <aside v-if="runtime" class="runtime-notice">
-      <strong>{{
-        runtime.available === false
-          ? "Plugin runtime unavailable"
-          : runtime.bubblewrap_available
-            ? "Bubblewrap is usable"
-            : runtime.bubblewrap_available === null
-              ? "Runtime capability is unknown"
-              : "Bubblewrap is unavailable"
-      }}</strong>
-      <p>
-        {{
-          runtime.available === false
-            ? "Installed plugins remain listed. Runtime status and isolation cannot be checked until the runtime reconnects."
-            : runtime.sandbox_available
-              ? "Per-plugin namespace and filesystem isolation is available."
-              : "Per-plugin sandbox isolation is unavailable. Reduced isolation uses separate processes and available resource limits. Continue only where runtime policy permits."
-        }}
-      </p>
-      <p v-if="runtime.last_error">{{ runtime.last_error }}</p>
-      <a
-        href="https://github.com/Rosefall-a/unnamed_tracking_app/blob/plugin-manager/wiki/docs/development/plugin-runtime.md"
-        target="_blank"
-        rel="noopener noreferrer"
-        >Runtime setup and Bubblewrap help</a
-      >
-    </aside>
+    <PluginIsolationWarning
+      v-if="runtime"
+      ref="isolationWarning"
+      :runtime="runtime"
+      :busy="managerSettingsBusy"
+      :error="managerSettingsError"
+      @approve="approveReducedIsolation"
+      @cancel="pendingIsolationInstall = null"
+    />
     <details
       v-if="runtime"
       class="manager-settings"
@@ -949,6 +1004,22 @@ onMounted(() => {
         {{ managerSettingsMessage }}
       </p>
       <fieldset :disabled="!managerSettingsLoaded || managerSettingsBusy">
+        <div
+          v-if="managerSettings.reduced_isolation_acknowledged"
+          class="manager-setting"
+        >
+          <span
+            ><strong>Reduced isolation acknowledged</strong
+            ><small
+              >Approval applies to this server. Withdrawing it stops plugins
+              when Bubblewrap is unavailable, unless the deployment override is
+              enabled.</small
+            ></span
+          >
+          <button type="button" @click="withdrawReducedIsolation">
+            Withdraw approval
+          </button>
+        </div>
         <label class="manager-setting"
           ><input v-model="managerSettings.automatic_updates" type="checkbox" />
           <span
@@ -1028,7 +1099,11 @@ onMounted(() => {
     <p v-for="error in catalogueErrors" :key="error" role="alert" class="muted">
       {{ error }}
     </p>
-    <div class="installer-launcher">
+    <PluginPackageDropZone
+      class="installer-launcher"
+      :busy="installing || previewing"
+      @package="reviewDroppedPackage"
+    >
       <button
         type="button"
         class="primary install-launcher"
@@ -1054,7 +1129,7 @@ onMounted(() => {
         configuration, permissions and retained versions.
       </p>
       <p v-if="installMessage" class="success">{{ installMessage }}</p>
-    </div>
+    </PluginPackageDropZone>
     <details v-if="view === 'Discover'" class="catalogue discovery-sources">
       <summary>Manage catalogues</summary>
       <section>
@@ -1416,6 +1491,7 @@ onMounted(() => {
       :diagnostics="pluginDiagnostics"
       :loading="popupLoading"
       :busy="action === selected.plugin_id"
+      :error="error"
       @close="closePlugin"
       @save="savePlugin"
       @action="runPluginAction"
@@ -1437,6 +1513,8 @@ onMounted(() => {
 
 <style scoped>
 .plugin-manager {
+  min-width: 0;
+  overflow-wrap: anywhere;
   color: var(--ui-text);
 }
 .manager-settings {
@@ -1667,6 +1745,8 @@ h2 {
   gap: var(--ui-space-5);
 }
 .plugin {
+  min-width: 0;
+  overflow-wrap: anywhere;
   border: 1px solid var(--ui-border);
   border-radius: var(--ui-radius-control);
   padding: var(--ui-space-5);
@@ -1676,6 +1756,13 @@ h2 {
   display: flex;
   justify-content: space-between;
   gap: 16px;
+}
+.plugin header > div {
+  min-width: 0;
+  flex: 1;
+}
+.plugin header > strong {
+  flex-shrink: 0;
 }
 .plugin h3 {
   margin: 0 0 var(--ui-space-3);

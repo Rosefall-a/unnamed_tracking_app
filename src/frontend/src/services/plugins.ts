@@ -84,12 +84,15 @@ export interface RuntimeCapabilities {
   sandbox_available: boolean;
   mechanism: string;
   reduced_isolation_allowed: boolean;
+  reduced_isolation_acknowledged?: boolean;
+  reduced_isolation_env_override?: boolean;
   last_error?: string | null;
   available?: boolean;
 }
 export interface ManagerSettings {
   automatic_updates: boolean;
   retained_versions: number;
+  reduced_isolation_acknowledged?: boolean;
   history_pruning_deferred?: boolean;
 }
 export type PluginTrustStatus =
@@ -313,10 +316,14 @@ export const fetchRuntimeCapabilities = () =>
   request<RuntimeCapabilities>("/api/plugins/runtime/health");
 export const fetchManagerSettings = () =>
   request<ManagerSettings>("/api/plugins/manager-settings");
-export const saveManagerSettings = (values: ManagerSettings) =>
+export const saveManagerSettings = (values: Partial<ManagerSettings>) =>
   request<ManagerSettings>("/api/plugins/manager-settings", {
     method: "PUT",
-    body: JSON.stringify(values),
+    body: JSON.stringify({
+      automatic_updates: values.automatic_updates,
+      retained_versions: values.retained_versions,
+      reduced_isolation_acknowledged: values.reduced_isolation_acknowledged,
+    }),
   });
 export const setPluginAutomaticUpdates = (id: string, mode: string) =>
   request<PluginSummary>(`/api/plugins/${encodeURIComponent(id)}/auto-update`, {

@@ -73,6 +73,7 @@ async def plugin_details(
 
 @router.get("/manager-settings")
 async def get_manager_settings(admin: User = _PLUGIN_ADMIN) -> dict:
+    """Return host-owned settings even when the isolated runtime is offline."""
     del admin
     return manager_state().settings()
 
@@ -81,8 +82,11 @@ async def get_manager_settings(admin: User = _PLUGIN_ADMIN) -> dict:
 async def save_manager_settings(
     payload: models.ManagerSettingsIn, admin: User = _PLUGIN_ADMIN
 ) -> dict:
-    del admin
-    settings = manager_state().settings(payload.model_dump(exclude_none=True))
+    """Persist administrator policy and synchronize runtime history and isolation."""
+    changes = payload.model_dump(exclude_none=True)
+    if payload.reduced_isolation_acknowledged is not None:
+        changes["reduced_isolation_acknowledged_by"] = str(admin.id)
+    settings = manager_state().settings(changes)
     try:
         for plugin in await runtime._client.plugins():
             await runtime._client.prune_history(plugin["plugin_id"], settings["retained_versions"])
