@@ -31,7 +31,7 @@ import {
   PLATFORM_OPTIONS,
   RETRO_PLATFORM_OPTIONS,
 } from "../utils/platforms";
-import { GENRE_OPTIONS } from "../utils/genres";
+import { genreOptionsFor, hasGenre } from "../utils/genres";
 import type { Game, GameStatus } from "../types/game";
 import { usePrompt } from "../state/dialog";
 
@@ -568,11 +568,9 @@ const platformExtraOptions = computed(() => {
   return Array.from(set).sort();
 });
 
-const genreOptions = computed(() => {
-  const set = new Set<string>(GENRE_OPTIONS);
-  games.value.forEach((g) => g.tags.forEach((t) => set.add(t)));
-  return Array.from(set).sort();
-});
+const genreOptions = computed(() =>
+  genreOptionsFor(games.value.map((g) => g.tags)),
+);
 
 function uniqueValues(pick: (g: Game) => string | null): string[] {
   const set = new Set<string>();
@@ -880,7 +878,7 @@ const filteredGames = computed(() => {
     );
   }
   if (genreFilter.value !== "all") {
-    result = result.filter((g) => g.tags.includes(genreFilter.value));
+    result = result.filter((g) => hasGenre(g.tags, genreFilter.value));
   }
   if (franchiseFilter.value !== "all") {
     result = result.filter((g) => g.series === franchiseFilter.value);
@@ -933,7 +931,7 @@ const filteredGames = computed(() => {
   }
   if (tagsFilter.value.length) {
     result = result.filter((g) =>
-      g.tags.some((t) => tagsFilter.value.includes(t)),
+      tagsFilter.value.some((tag) => hasGenre(g.tags, tag)),
     );
   }
 
