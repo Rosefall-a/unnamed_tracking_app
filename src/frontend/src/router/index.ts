@@ -1,6 +1,5 @@
 import { createRouter, createWebHistory } from "vue-router";
 import { currentUser, authChecked, authCheckFailed, checkAuth } from "../state/auth";
-import { saveLibraryScroll } from "../state/libraryScroll";
 import { appearanceLoaded, loadAppearanceSettings } from "../state/appearance";
 import { fetchSetupStatus } from "../services/setup";
 import {
@@ -21,7 +20,7 @@ declare module "vue-router" {
 const router = createRouter({
   history: createWebHistory(),
   scrollBehavior(to, _from, savedPosition) {
-    if (to.path === "/games") return false;
+    if (to.path === "/games") return { top: 0 };
     if (savedPosition) return savedPosition;
     return { top: 0 };
   },
@@ -184,9 +183,7 @@ function setupRedirect(toPath: string) {
     : { path: "/setup" };
 }
 
-router.beforeEach(async (to, from) => {
-  if (from.path === "/games") saveLibraryScroll(window.scrollY);
-
+router.beforeEach(async (to) => {
   if (setupState === "unknown") {
     setStartupState("checking");
     try {
