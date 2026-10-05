@@ -877,21 +877,14 @@ class AniListClient:
     ) -> list[dict[str, Any]]:
         """A top-level branch can have its own prequel/sequel that's
         invisible from the anchor's own relations — e.g. Bleach's "BURN
-        THE WITCH" ONA has its own prequel special ("BURN THE WITCH
-        #0.8") that's only a relation of the ONA itself, one hop past
-        what `_collect_branches` ever looks at (the anchor's direct
-        relations only). One extra fetch per still-top-level branch,
-        pulling in any PREQUEL/SEQUEL neighbor not already known and
-        nesting it under that branch (`anchor_kind: "branch"`) — the
-        same nested-branch shape `_order_related_branches` already
-        produces for a duology it detects. Single hop only (not a full
-        walk), restricted to short-form formats that actually tend to
-        have their own mini-chain (OVA/ONA/Special/One Shot — a movie or
-        source manga essentially never does), and capped to a handful of
-        extra fetches total — this is a real AniList request per branch
-        checked, and a franchise with a dozen+ branches would otherwise
-        turn one relations fetch into a dozen+ more, which is a bad
-        trade for a detail few branches actually have."""
+        THE WITCH" ONA has its own prequel special ("BURN THE WITCH #0.8") that's only a relation of the ONA itself, 
+        one hop past what `_collect_branches` ever looks at (the anchor's direct
+        relations only). One extra fetch per still-top-level branch, pulling in any PREQUEL/SEQUEL neighbor not already known and
+        nesting it under that branch (`anchor_kind: "branch"`) — the same nested-branch shape `_order_related_branches` already
+        produces for a duology it detects. Single hop only (not a full walk), restricted to short-form formats that actually tend to
+        have their own mini-chain (OVA/ONA/Special/One Shot — a movie or source manga essentially never does), and capped to a handful of
+        extra fetches total — this is a real AniList request per branch checked, and a franchise with a dozen+ branches would otherwise
+        turn one relations fetch into a dozen+ more, which is a bad trade for a detail few branches actually have."""
         candidates = [
             b
             for b in branches
