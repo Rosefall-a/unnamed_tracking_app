@@ -1,19 +1,20 @@
 # app/main.py
 import asyncio
 
-from fastapi import FastAPI
-from starlette.middleware.sessions import SessionMiddleware
+from fastapi import FastAPI, Request
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.responses import JSONResponse
+from starlette.middleware.sessions import SessionMiddleware
 
 from src.api.routes import (
     app_integrations,
     api_keys,
     anime,
     auth,
-    bounties,
     calendar_events,
     calendar_feed,
-    cards,
     default_game_assets,
     export_import,
     game_archives,
@@ -33,14 +34,13 @@ from src.api.routes import (
     tv_shows,
     users,
 )
-from src.api.routes import set as set_routes
 from src.api.routes.auth_oidc import router as auth_oidc_router
 from src.api.routes.deployment_settings import router as deployment_settings_router
 from src.api.routes.real_ip import router as real_ip_router
 from src.api.routes.setup import router as setup_router
 from src.api.routes.settings import get_or_create_app_integration_settings
 from src.api.routes.utils.misc import router as misc_router
-from src.core.auth import ensure_primary_user
+from src.core.auth import ensure_primary_user, set_password_policy_override
 from src.core.config import settings as app_settings
 from src.core.provider_credentials import apply_deployment_provider_credentials
 from src.database.session import SessionLocal
@@ -62,6 +62,24 @@ app.add_middleware(
 # The anime list alone is several MB of JSON; it compresses roughly tenfold.
 app.add_middleware(GZipMiddleware, minimum_size=1024)
 
+# Pydantic's default 422 body echoes what was submitted (`input`, plus the
+# raw values in `ctx`), which puts plaintext passwords, tokens and API keys
+# into the browser, error UI and any proxy log. Keep only where the problem
+# is and what it is.
+_VALIDATION_ERROR_KEYS = ("type", "loc", "msg")
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_error_without_submitted_values(
+    _request: Request, exc: RequestValidationError
+) -> JSONResponse:
+    errors = [
+        {key: error[key] for key in _VALIDATION_ERROR_KEYS if key in error}
+        for error in exc.errors()
+    ]
+    return JSONResponse(status_code=422, content={"detail": jsonable_encoder(errors)})
+
+
 app.include_router(default_game_assets.router)
 app.include_router(games.router)
 app.include_router(movies.router)
@@ -80,7 +98,6 @@ app.include_router(app_integrations.router)
 app.include_router(media.router)
 app.include_router(stats.router)
 app.include_router(library_sync.router)
-app.include_router(bounties.router)
 app.include_router(export_import.router)
 app.include_router(jobs.router)
 app.include_router(media_io.router)
@@ -92,8 +109,6 @@ app.include_router(preferences.router)
 app.include_router(calendar_events.router)
 app.include_router(calendar_feed.authed_router)
 app.include_router(calendar_feed.public_router)
-app.include_router(set_routes.router)
-app.include_router(cards.router)
 app.include_router(misc_router)
 
 
@@ -107,6 +122,14 @@ async def bootstrap_primary_user() -> None:
         ):
             await ensure_primary_user(db)
         app_integrations_row = await get_or_create_app_integration_settings(db)
+        if app_integrations_row.password_min_length is not None:
+            set_password_policy_override({
+                "min_length": app_integrations_row.password_min_length,
+                "require_uppercase": bool(app_integrations_row.password_require_uppercase),
+                "require_lowercase": bool(app_integrations_row.password_require_lowercase),
+                "require_digit": bool(app_integrations_row.password_require_digit),
+                "require_symbol": bool(app_integrations_row.password_require_symbol),
+            })
         apply_deployment_provider_credentials(app_integrations_row)
 
 
