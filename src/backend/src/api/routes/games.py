@@ -1,6 +1,8 @@
 """API routes for managing games, notes, and game artwork."""
+# pylint: disable=too-many-lines
 
 import asyncio
+import os
 import re
 import time
 from pathlib import Path
@@ -38,6 +40,7 @@ from src.api.schemas.game import (
     GameRead,
     GameUpdate,
 )
+from src.core.app_integrations import get_max_upload_size_mb
 from src.core.auth import get_current_user
 from src.core.config import settings
 from src.core.integrations import resolve_integrations
@@ -72,7 +75,7 @@ router = APIRouter(
 )
 
 _DATA_ROOT = Path("/data/users")
-_NOTE_NAME_PATTERN = re.compile(r"^[A-Za-z0-9_-]+$")
+_NOTE_NAME_PATTERN = re.compile(r"^[^\x00-\x1f\x7f/\\]+$")
 _LEADING_ARTICLE = re.compile(r"^(a|an|the)\s+", flags=re.IGNORECASE)
 
 _DB_DEPENDENCY = Depends(get_db)
@@ -84,9 +87,15 @@ _NONE_QUERY_STATUS = Query(default=None, alias="status")
 
 
 class NoteWrite(BaseModel):
-    """Request body used to create or replace a game note."""
+    """Request body used to create or update a game note."""
 
     content: str
+
+
+class NoteRename(BaseModel):
+    """Request body used to rename a game note."""
+
+    new_name: str
 
 
 class MetadataSearchResponse(BaseModel):
@@ -133,9 +142,9 @@ async def search_metadata(
 ) -> dict:
     """Search external providers for data that can prefill a new game.
 
-    SteamGridDB art is only included if the requesting user has their own
-    key saved (Settings) — there's no app-wide fallback key. Provider order
-    and which fields get saved come from the user's scan settings.
+    Keys come from the user's own settings first, then the server-wide ones
+    (Server Integrations or the environment). Provider order and which
+    fields get saved come from the user's scan settings.
     """
     scan_settings = await get_or_create_scan_settings(current_user.id, db)
     preferences = _scan_settings_to_preferences(scan_settings)
@@ -258,6 +267,39 @@ def _record_field_changes(game: Game, updates: dict, db: AsyncSession) -> None:
         )
 
 
+# columns a PATCH can't blank: an explicit null for one of these means "no
+# change", not "clear it" (the database would reject the NULL anyway, which
+# used to surface as a misleading duplicate-folder error)
+_NON_NULLABLE_UPDATE_FIELDS = frozenset(
+    {
+        "title",
+        "sort_title",
+        "created_at",
+        "folder_location",
+        "status",
+        "favorite",
+        "profiles_enabled",
+        "osrs_stats_enabled",
+        "playtime_seconds",
+        "tags",
+        "features",
+        "collections",
+    }
+)
+
+
+def _drop_nulls_for_required_fields(updates: dict) -> dict:
+    cleaned = {
+        field: value
+        for field, value in updates.items()
+        if value is not None or field not in _NON_NULLABLE_UPDATE_FIELDS
+    }
+    # a cleared sorting name is still a request: re-derive it from the title
+    if "sort_title" in updates and updates["sort_title"] is None:
+        cleaned["sort_title"] = ""
+    return cleaned
+
+
 def _duplicate_folder_error(folder_name: str) -> HTTPException:
     return HTTPException(
         status_code=status.HTTP_409_CONFLICT,
@@ -294,12 +336,27 @@ def _normalize_note_name(note_name: str) -> str:
     if normalized.lower().endswith(".md"):
         normalized = normalized[:-3]
 
-    if not normalized or not _NOTE_NAME_PATTERN.fullmatch(normalized):
+    if (
+        not normalized
+        or normalized in {".", ".."}
+        or normalized.startswith(".")
+        or normalized.endswith(".")
+        or normalized.endswith(" ")
+        or ":" in normalized
+        or not _NOTE_NAME_PATTERN.fullmatch(normalized)
+        or re.fullmatch(r"(?i)(con|prn|aux|nul|com[1-9]|lpt[1-9])", normalized)
+    ):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Note name must contain only letters, numbers, underscores, or hyphens and no file extension.",
+            detail={
+                "error": "invalid_note_name",
+                "message": (
+                    "Note title must be a normal file name: spaces and common punctuation are allowed, "
+                    "but path separators, control characters, absolute paths, drive-style names, "
+                    "and path-like titles are not allowed."
+                ),
+            },
         )
-
     return normalized
 
 
@@ -420,11 +477,12 @@ async def upload_game_asset(
     # save_game_asset decodes the actual image bytes with Pillow, which gives
     # us the real validation without rejecting otherwise valid manual uploads.
     image_bytes = await file.read()
-    max_bytes = settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024
+    max_upload_mb = await get_max_upload_size_mb(db)
+    max_bytes = max_upload_mb * 1024 * 1024
     if len(image_bytes) > max_bytes:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Image is larger than the {settings.MAX_UPLOAD_SIZE_MB} MB limit.",
+            detail=f"Image is larger than the {max_upload_mb} MB limit.",
         )
 
     try:
@@ -486,11 +544,12 @@ async def download_game_asset(
             status_code=status.HTTP_400_BAD_REQUEST, detail="URL did not return an image."
         )
     image_bytes = response.content
-    max_bytes = settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024
+    max_upload_mb = await get_max_upload_size_mb(db)
+    max_bytes = max_upload_mb * 1024 * 1024
     if len(image_bytes) > max_bytes:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Image is larger than the {settings.MAX_UPLOAD_SIZE_MB} MB limit.",
+            detail=f"Image is larger than the {max_upload_mb} MB limit.",
         )
 
     try:
@@ -565,7 +624,7 @@ async def upload_game_screenshots(
         limit_mb = (
             settings.MAX_CLIP_SIZE_MB
             if kind in ("clip", "soundtrack")
-            else settings.MAX_UPLOAD_SIZE_MB
+            else await get_max_upload_size_mb(db)
         )
         max_bytes = limit_mb * 1024 * 1024
 
@@ -806,7 +865,9 @@ async def upload_game_files(
 
     # a modpack zip is routinely hundreds of MB to a few GB — far past a
     # doc-sized limit
-    limit_mb = settings.MAX_WORLD_SAVE_SIZE_MB if kind == "modpack" else settings.MAX_UPLOAD_SIZE_MB
+    limit_mb = (
+        settings.MAX_WORLD_SAVE_SIZE_MB if kind == "modpack" else await get_max_upload_size_mb(db)
+    )
     max_bytes = limit_mb * 1024 * 1024
     results: list[dict] = []
     for file in files:
@@ -987,32 +1048,90 @@ async def restore_game_file(
     return {"status": "restored", "filename": name}
 
 
-@router.put(
+@router.post(
     "/{game_id}/notes/{note_name}",
-    responses={
-        status.HTTP_201_CREATED: {"description": "Note created or updated"},
-        status.HTTP_404_NOT_FOUND: {"description": "Game not found"},
-        status.HTTP_400_BAD_REQUEST: {"description": "Invalid note name"},
-    },
+    status_code=status.HTTP_201_CREATED,
 )
-async def set_game_note(
+async def create_game_note(
     game_id: UUID,
     note_name: str,
     payload: NoteWrite = _BODY_DOTDOTDOT,
     db: AsyncSession = _DB_DEPENDENCY,
     current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> dict[str, str | None]:
-    """Create or replace a markdown note for a game."""
+    """Create a markdown note without replacing an existing note."""
     game = await _get_game_or_404(game_id, db, current_user.id)
-    note_path = _game_note_path(game, note_name)
-    note_path.write_text(payload.content, encoding="utf-8")
+    normalized_name = _normalize_note_name(note_name)
+    note_path = _game_note_path(game, normalized_name)
+    try:
+        with note_path.open("x", encoding="utf-8") as note_file:
+            note_file.write(payload.content)
+    except FileExistsError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"error": "note_already_exists", "message": f'A note titled "{normalized_name}" already exists.'},
+        ) from exc
+    return {"game_id": str(game_id), "note_name": normalized_name, "path": str(note_path), "status": "saved"}
 
-    return {
-        "game_id": str(game_id),
-        "note_name": _normalize_note_name(note_name),
-        "path": str(note_path),
-        "status": "saved",
-    }
+
+@router.put(
+    "/{game_id}/notes/{note_name}",
+)
+async def update_game_note(
+    game_id: UUID,
+    note_name: str,
+    payload: NoteWrite = _BODY_DOTDOTDOT,
+    db: AsyncSession = _DB_DEPENDENCY,
+    current_user: User = _CURRENT_USER_DEPENDENCY,
+) -> dict[str, str | None]:
+    """Update an existing markdown note."""
+    game = await _get_game_or_404(game_id, db, current_user.id)
+    normalized_name = _normalize_note_name(note_name)
+    note_path = _game_note_path(game, normalized_name)
+    if not note_path.is_file():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f'Note "{normalized_name}" was not found.')
+    note_path.write_text(payload.content, encoding="utf-8")
+    return {"game_id": str(game_id), "note_name": normalized_name, "path": str(note_path), "status": "saved"}
+
+
+@router.patch(
+    "/{game_id}/notes/{note_name}/rename",
+)
+async def rename_game_note(
+    game_id: UUID,
+    note_name: str,
+    payload: NoteRename = _BODY_DOTDOTDOT,
+    db: AsyncSession = _DB_DEPENDENCY,
+    current_user: User = _CURRENT_USER_DEPENDENCY,
+) -> dict[str, str | None]:
+    """Rename a note without replacing the destination or losing its contents."""
+    game = await _get_game_or_404(game_id, db, current_user.id)
+    source_name = _normalize_note_name(note_name)
+    destination_name = _normalize_note_name(payload.new_name)
+    source_path = _game_note_path(game, source_name)
+    destination_path = _game_note_path(game, destination_name)
+    if not source_path.is_file():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f'Note "{source_name}" was not found.')
+    if source_name == destination_name:
+        return {"game_id": str(game_id), "note_name": source_name, "path": str(source_path), "status": "saved"}
+    try:
+        os.link(source_path, destination_path)
+    except FileExistsError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"error": "note_already_exists", "message": f'A note titled "{destination_name}" already exists.'},
+        ) from exc
+    except OSError as exc:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="The note could not be renamed.") from exc
+    try:
+        source_path.unlink()
+    except OSError as exc:
+        try:
+            destination_path.unlink()
+        except OSError:
+            pass
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="The note could not be renamed.") from exc
+    return {"game_id": str(game_id), "note_name": destination_name, "path": str(destination_path), "status": "saved"}
 
 
 @router.get(
@@ -1549,6 +1668,30 @@ async def delete_checklist_item(
     return {"status": "trashed", "id": str(item_id)}
 
 
+async def _find_playnite_game(payload: GameCreate, user_id: UUID, db: AsyncSession) -> Game | None:
+    """The active game a Playnite create should reconcile onto, if any: the
+    one already carrying this GUID, else the one in the requested folder when
+    it isn't claimed by a different Playnite entry (then it's a genuine
+    folder conflict and the caller reports it). A folder match without a
+    GUID is adopted by recording the GUID on it."""
+    active = (Game.user_id == user_id, Game.deleted_at.is_(None))
+    by_guid = await db.scalar(
+        select(Game).where(*active, Game.playnite_guid == payload.playnite_guid).limit(1)
+    )
+    if by_guid is not None:
+        return by_guid
+    by_folder = await db.scalar(
+        select(Game).where(*active, Game.folder_location == payload.folder_location)
+    )
+    if by_folder is None or by_folder.playnite_guid not in (None, payload.playnite_guid):
+        return None
+    if by_folder.playnite_guid is None:
+        by_folder.playnite_guid = payload.playnite_guid
+        await db.commit()
+        await db.refresh(by_folder)
+    return by_folder
+
+
 async def _validate_game_relationship(
     parent_game_id: UUID | None,
     relationship_type: str | None,
@@ -1607,10 +1750,24 @@ async def _validate_game_relationship(
 )
 async def create_game(
     payload: GameCreate,
+    response: Response,
     db: AsyncSession = _DB_DEPENDENCY,
     current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> Game:
-    """Create a game after validating its folder location."""
+    """Create a game after validating its folder location.
+
+    A create that carries a `playnite_guid` is idempotent: if this user
+    already has that Playnite game (by GUID, or by folder name with no other
+    GUID claiming it) the existing game is returned with 200 instead of a
+    duplicate-folder failure, so a repeated or concurrent Playnite sync
+    reconciles rather than erroring (#184). A manual create (no GUID) still
+    gets 409 for a folder name that's taken."""
+    if payload.playnite_guid is not None:
+        existing = await _find_playnite_game(payload, current_user.id, db)
+        if existing is not None:
+            response.status_code = status.HTTP_200_OK
+            return existing
+
     await _ensure_folder_location_available(payload.folder_location, current_user.id, db)
     await _validate_game_relationship(
         payload.parent_game_id, payload.relationship_type, db, current_user.id
@@ -1620,6 +1777,9 @@ async def create_game(
     data["user_id"] = current_user.id
     if not data.get("sort_title"):
         data["sort_title"] = _derive_sort_title(data["title"])
+    # an explicit None would bypass the column default and violate NOT NULL
+    if data.get("created_at") is None:
+        data.pop("created_at", None)
 
     # `links` is a relationship, not a plain column — the constructor needs
     # actual GameLink instances, not the raw {label, url} dicts model_dump
@@ -1634,6 +1794,13 @@ async def create_game(
         await db.commit()
     except IntegrityError as exc:
         await db.rollback()
+        # another sync created the same Playnite game between the check
+        # above and this insert: hand back the row that won the race
+        if payload.playnite_guid is not None:
+            existing = await _find_playnite_game(payload, current_user.id, db)
+            if existing is not None:
+                response.status_code = status.HTTP_200_OK
+                return existing
         raise _duplicate_folder_error(payload.folder_location) from exc
 
     create_game_folder(game.user_id, game.folder_location)
@@ -1730,7 +1897,7 @@ async def update_game(
     """Update a game and keep its derived sort title synchronized."""
     game = await _get_game_or_404(game_id, db, current_user.id)
 
-    updates = payload.model_dump(exclude_unset=True)
+    updates = _drop_nulls_for_required_fields(payload.model_dump(exclude_unset=True))
 
     if "folder_location" in updates and updates["folder_location"] is not None:
         await _ensure_folder_location_available(
@@ -1757,8 +1924,11 @@ async def update_game(
     for field, value in updates.items():
         setattr(game, field, value)
 
-    # Keep sort_title in sync if title changed but sort_title wasn't explicitly set
-    if "title" in updates and "sort_title" not in updates:
+    # Keep sort_title in sync if title changed but sort_title wasn't explicitly
+    # set, or was cleared (a blank sorting name means "sort by the title")
+    if ("title" in updates and "sort_title" not in updates) or (
+        "sort_title" in updates and not updates["sort_title"]
+    ):
         game.sort_title = _derive_sort_title(game.title)
 
     # first time this game reaches Mastered, record when — a later status
@@ -1803,7 +1973,9 @@ async def bulk_update_games(
     """Apply the same field values to many of the caller's games at once —
     e.g. fixing status across a batch, or filling in developer/publisher
     for titles a metadata search couldn't confidently match on its own."""
-    updates = payload.model_dump(exclude_unset=True, exclude={"game_ids"})
+    updates = _drop_nulls_for_required_fields(
+        payload.model_dump(exclude_unset=True, exclude={"game_ids"})
+    )
     if not updates:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No fields to update.")
 

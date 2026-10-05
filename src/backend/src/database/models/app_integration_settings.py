@@ -58,6 +58,17 @@ class AppIntegrationSettings(Base):
     smtp_password: Mapped[str | None] = mapped_column(Text, nullable=True)
     smtp_from_email: Mapped[str | None] = mapped_column(String(320), nullable=True)
     smtp_security: Mapped[str] = mapped_column(String(16), nullable=False, default="starttls")
+      
+      
+    password_min_length: Mapped[int | None] = mapped_column(nullable=True)
+    password_require_uppercase: Mapped[bool | None] = mapped_column(nullable=True)
+    password_require_lowercase: Mapped[bool | None] = mapped_column(nullable=True)
+    password_require_digit: Mapped[bool | None] = mapped_column(nullable=True)
+    password_require_symbol: Mapped[bool | None] = mapped_column(nullable=True)
+    # Admin-editable override for MAX_UPLOAD_SIZE_MB (core/config.py) — null
+    # means "use the .env default", so a deployment that never touches this
+    # in Settings behaves exactly as it did before this column existed.
+    max_upload_size_mb: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     updated_at: Mapped[int] = mapped_column(
         BigInteger, nullable=False, default=time.time, onupdate=time.time

@@ -38,6 +38,12 @@ class Settings(BaseSettings):
     MAX_CLIP_SIZE_MB: int = 500
     MAX_WORLD_SAVE_SIZE_MB: int = 2000
 
+    PASSWORD_MIN_LENGTH: int = 9
+    PASSWORD_REQUIRE_UPPERCASE: bool = True
+    PASSWORD_REQUIRE_LOWERCASE: bool = True
+    PASSWORD_REQUIRE_DIGIT: bool = False
+    PASSWORD_REQUIRE_SYMBOL: bool = True
+
     SMTP_ENABLED: bool = False
     SMTP_HOST: str | None = None
     SMTP_PORT: int = 587
