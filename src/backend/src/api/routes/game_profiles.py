@@ -4,18 +4,30 @@ import asyncio
 import time
 from uuid import UUID
 
-from fastapi import APIRouter, Body, Depends, HTTPException, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, Response, status
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.api.schemas.game import GameBulkUpdate, GameCreate, GameFieldChangeRead, GameRead, GameUpdate
 from src.core.auth import get_current_user
+from src.core.config import settings
+from src.database.models.game import Game, GameLink, GameStatus
+from src.database.models.game_checklist_item import GameChecklistItem
+from src.database.models.game_field_change import GameFieldChange
 from src.database.models.game_profile import GameProfile
 from src.database.models.game_profile_stat_snapshot import GameProfileStatSnapshot
-from src.database.session import get_db
 from src.database.models.user import User
+from src.database.session import get_db
 from src.features.metadata.games import wiseoldman
-from src.api.routes.game_helpers import _get_game_or_404
+from src.features.trash.game_trash import move_game_to_trash, restore_game_from_trash
+from src.features.trash.media_trash import move_media_file_to_trash, restore_media_file_from_trash
+from src.features.trash.sweep import RETENTION_SECONDS
+from src.helpers.media import media_subdir, save_media_bytes
+from src.helpers.save_game_asset import create_game_folder
+from src.api.routes.game_helpers import _DATA_ROOT, _get_game_or_404
+
 
 router = APIRouter()
 _DB_DEPENDENCY = Depends(get_db)
