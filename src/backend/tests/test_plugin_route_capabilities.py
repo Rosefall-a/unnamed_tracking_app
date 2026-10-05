@@ -6,8 +6,9 @@ from uuid import UUID, uuid4
 
 import pytest
 from fastapi import HTTPException, Request
-
 from src.api.routes import plugins
+from src.api.routes.plugin_manager import contributions as plugin_contributions
+from src.api.routes.plugin_manager import runtime as plugin_runtime
 
 
 class FakeRuntimeClient:
@@ -51,8 +52,8 @@ async def test_action_dispatch_requires_exact_installation_grant(monkeypatch) ->
     user = SimpleNamespace(id=uuid4())
     runtime = FakeRuntimeClient(installation_id)
     grant = AsyncMock(return_value=False)
-    monkeypatch.setattr(plugins, "_client", runtime)
-    monkeypatch.setattr(plugins, "has_capability_grant", grant)
+    monkeypatch.setattr(plugin_runtime, "_client", runtime)
+    monkeypatch.setattr(plugin_contributions, "has_capability_grant", grant)
 
     with pytest.raises(HTTPException) as denied:
         await plugins.plugin_action(
@@ -81,9 +82,9 @@ async def test_action_result_cannot_spoof_host_identity(monkeypatch) -> None:
     installation_id = uuid4()
     user = SimpleNamespace(id=uuid4())
     runtime = FakeRuntimeClient(installation_id)
-    monkeypatch.setattr(plugins, "_client", runtime)
+    monkeypatch.setattr(plugin_runtime, "_client", runtime)
     monkeypatch.setattr(
-        plugins,
+        plugin_contributions,
         "has_capability_grant",
         AsyncMock(return_value=True),
     )
@@ -111,8 +112,8 @@ async def test_secret_write_requires_storage_grant_and_stays_runtime_private(
     user = SimpleNamespace(id=uuid4())
     runtime = FakeRuntimeClient(installation_id)
     grant = AsyncMock(side_effect=[False, True])
-    monkeypatch.setattr(plugins, "_client", runtime)
-    monkeypatch.setattr(plugins, "has_capability_grant", grant)
+    monkeypatch.setattr(plugin_runtime, "_client", runtime)
+    monkeypatch.setattr(plugin_contributions, "has_capability_grant", grant)
 
     with pytest.raises(HTTPException) as denied:
         await plugins.save_plugin_secret(
@@ -152,9 +153,9 @@ async def test_native_frontend_asset_requires_native_grant(monkeypatch) -> None:
     runtime = SimpleNamespace(
         native_frontend_asset=AsyncMock(return_value=b"export default () => {}")
     )
-    monkeypatch.setattr(plugins, "_client", runtime)
+    monkeypatch.setattr(plugin_runtime, "_client", runtime)
     monkeypatch.setattr(
-        plugins,
+        plugin_runtime,
         "_plugin_and_capabilities",
         AsyncMock(return_value=({}, frozenset())),
     )
@@ -194,8 +195,8 @@ async def test_context_payload_requires_declared_scoped_capability(monkeypatch) 
         }
     )
     grant = AsyncMock(side_effect=[True, False])
-    monkeypatch.setattr(plugins, "_client", runtime)
-    monkeypatch.setattr(plugins, "has_capability_grant", grant)
+    monkeypatch.setattr(plugin_runtime, "_client", runtime)
+    monkeypatch.setattr(plugin_contributions, "has_capability_grant", grant)
 
     with pytest.raises(HTTPException) as denied:
         await plugins.plugin_action(

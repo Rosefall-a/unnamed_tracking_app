@@ -26,8 +26,9 @@ from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.pool import NullPool
-
 from src.api.routes import plugins
+from src.api.routes.plugin_manager import acquisition as plugin_acquisition
+from src.api.routes.plugin_manager import runtime as plugin_runtime
 from src.core.auth import hash_password
 from src.core.config import settings
 from src.database.models import achievement as _achievement  # noqa: F401
@@ -249,7 +250,7 @@ async def gate(monkeypatch, tmp_path):
 
     original_async_client = httpx.AsyncClient
     monkeypatch.setattr(
-        plugins.httpx,
+        plugin_acquisition.httpx,
         "AsyncClient",
         lambda **kwargs: original_async_client(
             transport=httpx.MockTransport(http_transport), **kwargs
@@ -257,7 +258,7 @@ async def gate(monkeypatch, tmp_path):
     )
     original_getaddrinfo = socket.getaddrinfo
     monkeypatch.setattr(
-        plugins.socket,
+        plugin_acquisition.socket,
         "getaddrinfo",
         lambda host, *args, **kwargs: (
             [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("8.8.8.8", 443))]
@@ -266,12 +267,12 @@ async def gate(monkeypatch, tmp_path):
         ),
     )
     runtime = Runtime()
-    monkeypatch.setattr(plugins, "_client", runtime)
+    monkeypatch.setattr(plugin_runtime, "_client", runtime)
     verifier = PluginPackageVerifier(
         {"known": TrustedPublisher("known", key.public_key().public_bytes_raw(), "Gate publisher")},
         require_signature=False,
     )
-    monkeypatch.setattr(plugins, "_plugin_package_verifier", lambda: verifier)
+    monkeypatch.setattr(plugin_acquisition, "_plugin_package_verifier", lambda: verifier)
     app = FastAPI()
     app.include_router(plugins.router)
     async with Session(engine, expire_on_commit=False) as db:
@@ -367,8 +368,10 @@ async def acquire(gate, source, payload, **consent):
     method = gate.client.put if update else gate.client.post
     password = params.pop("admin_password", None)
     return await method(
-        path, params=params, data={"admin_password": password} if password else {},
-        files={"file": (filename, payload, "application/octet-stream")}
+        path,
+        params=params,
+        data={"admin_password": password} if password else {},
+        files={"file": (filename, payload, "application/octet-stream")},
     )
 
 
@@ -450,16 +453,24 @@ async def test_upload_password_requires_body_and_never_enters_client_url(gate, s
     path = f"/api/plugins/{gate.plugin_id}/update" if update else "/api/plugins/install"
     response = await method(
         path,
-        params={"allow_untrusted": True, "approved_permissions": ["api.full:v1"],
-                "confirm_dangerous": True, "admin_password": PASSWORD},
+        params={
+            "allow_untrusted": True,
+            "approved_permissions": ["api.full:v1"],
+            "confirm_dangerous": True,
+            "admin_password": PASSWORD,
+        },
         files={"file": ("candidate.utp", payload)},
     )
     assert response.status_code == 401
     assert response.json()["detail"]["code"] == "administrator_reauthentication_failed"
     assert await grants(gate) == []
     response = await acquire(
-        gate, source, payload, approved_permissions=["api.full:v1"],
-        confirm_dangerous=True, admin_password=PASSWORD,
+        gate,
+        source,
+        payload,
+        approved_permissions=["api.full:v1"],
+        confirm_dangerous=True,
+        admin_password=PASSWORD,
     )
     assert response.status_code == (200 if update else 201), response.text
     assert "admin_password" not in str(response.request.url)
@@ -545,7 +556,7 @@ async def test_unverified_consent_and_bounded_acquisition_cannot_be_bypassed(
     assert response.status_code == 409
     assert response.json()["detail"]["trust_status"] == "unsigned"
     assert "install" not in gate.events
-    monkeypatch.setattr(plugins, "_MAX_PLUGIN_PACKAGE_BYTES", len(payload) - 1)
+    monkeypatch.setattr(plugin_acquisition, "_MAX_PLUGIN_PACKAGE_BYTES", len(payload) - 1)
     response = await acquire(gate, source, payload)
     assert response.status_code == 413
     assert "install" not in gate.events

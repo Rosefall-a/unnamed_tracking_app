@@ -11,8 +11,10 @@ from uuid import uuid4
 
 import pytest
 from fastapi import HTTPException
-
 from src.api.routes import plugins
+from src.api.routes.plugin_manager import acquisition as plugin_acquisition
+from src.api.routes.plugin_manager import catalogues as plugin_catalogues
+from src.api.routes.plugin_manager import runtime as plugin_runtime
 from src.database.models import achievement as _achievement  # noqa: F401
 from src.plugin_api.installer import inspect_package
 from src.plugin_api.updates import PluginPackageVerifier
@@ -62,7 +64,7 @@ async def test_catalogue_update_detection_includes_release_notes(monkeypatch) ->
             )
         ]
 
-    monkeypatch.setattr(plugins, "plugin_catalog", fake_catalog)
+    monkeypatch.setattr(plugin_catalogues, "plugin_catalog", fake_catalog)
     result = await plugins._check_plugin_update(
         {
             "plugin_id": "example.update",
@@ -108,7 +110,7 @@ async def test_unverified_update_re_reviews_every_permission(monkeypatch, tmp_pa
             del statement
             return Result()
 
-    monkeypatch.setattr(plugins, "_client", Runtime())
+    monkeypatch.setattr(plugin_runtime, "_client", Runtime())
     _, _, delta, _, can_retain = await plugins._update_context(
         "example.update",
         inspected,
@@ -164,8 +166,8 @@ async def test_inline_changelog_is_returned_before_update(monkeypatch) -> None:
             "release_notes": "Security fixes",
         }
 
-    monkeypatch.setattr(plugins, "_client", Runtime())
-    monkeypatch.setattr(plugins, "_check_plugin_update", fake_check)
+    monkeypatch.setattr(plugin_runtime, "_client", Runtime())
+    monkeypatch.setattr(plugin_catalogues, "_check_plugin_update", fake_check)
     changelog = await plugins.plugin_changelog("example.update", SimpleNamespace())
     assert changelog == {
         "plugin_id": "example.update",
@@ -193,7 +195,7 @@ async def test_catalogue_failure_updates_persistent_status(monkeypatch, tmp_path
         del url, json_document
         raise HTTPException(status_code=502, detail="network failure")
 
-    monkeypatch.setattr(plugins, "_download_remote_file", fail_download)
+    monkeypatch.setattr(plugin_acquisition, "_download_remote_file", fail_download)
     with pytest.raises(HTTPException):
         await plugins.plugin_catalog(
             source="https://catalogue.example/list.json",

@@ -6,21 +6,32 @@ from types import SimpleNamespace
 from uuid import UUID
 
 import pytest
-from sqlalchemy import select
 from fastapi import Depends, FastAPI
 from httpx import ASGITransport, AsyncClient
-
-from test_plugin_install_sources import gate, package_bytes, acquire, grants, seed_update  # noqa: F401
+from sqlalchemy import select
 from src.api.routes import plugins
+from src.api.routes.plugin_manager import acquisition as plugin_acquisition
+from src.api.routes.plugin_manager import catalogues as plugin_catalogues
 from src.core.auth import get_current_user
 from src.database.models.auth import UserApiKey
 from src.database.models.plugin_permissions import PluginPermissionGrant
-from src.plugin_api.grants import has_capability_grant
+from src.plugin_api.grants import effective_capabilities, has_capability_grant
+from src.plugin_api.management_auth import MANAGEMENT_SCOPES, get_plugin_manager_admin
 from src.plugin_api.manager_state import ManagerState, manager_state
-from src.plugin_api.runtime_client import PluginRuntimeUnavailable
 from src.plugin_api.recovery import recover_transactions
-from src.plugin_api.grants import effective_capabilities
-from src.plugin_api.management_auth import get_plugin_manager_admin, MANAGEMENT_SCOPES
+from src.plugin_api.runtime_client import PluginRuntimeUnavailable
+from test_plugin_install_sources import (  # noqa: F401
+    acquire,
+    grants,
+    package_bytes,
+    seed_update,
+)
+from test_plugin_install_sources import (
+    gate as gate,
+)
+
+_MANAGER_ADMIN_DEPENDENCY = Depends(get_plugin_manager_admin)
+_CURRENT_USER_DEPENDENCY = Depends(get_current_user)
 
 
 async def install(gate, permissions=()):
@@ -220,10 +231,10 @@ async def test_denied_staged_release_remains_denied_during_scheduled_checks(gate
             "source": source,
         }
 
-    monkeypatch.setattr(plugins, "_check_plugin_update", check)
-    monkeypatch.setattr(plugins, "_download_remote_file", download)
+    monkeypatch.setattr(plugin_catalogues, "_check_plugin_update", check)
+    monkeypatch.setattr(plugin_acquisition, "_download_remote_file", download)
     monkeypatch.setattr(
-        plugins,
+        plugin_catalogues,
         "_catalogue_store",
         lambda: SimpleNamespace(list=lambda: [{"url": source["catalogue_url"], "enabled": True}]),
     )
@@ -279,7 +290,8 @@ async def test_automatic_update_policy_downloads_without_unauthorized_activation
     store.patch(gate.plugin_id, automatic_updates=override)
     payload = package_bytes(gate.plugin_id, trust="trusted", key=gate.key)
     if not package_auto:
-        import io, zipfile
+        import io
+        import zipfile
 
         output = io.BytesIO()
         with (
@@ -311,10 +323,10 @@ async def test_automatic_update_policy_downloads_without_unauthorized_activation
             "source": source,
         }
 
-    monkeypatch.setattr(plugins, "_check_plugin_update", check)
-    monkeypatch.setattr(plugins, "_download_remote_file", download)
+    monkeypatch.setattr(plugin_catalogues, "_check_plugin_update", check)
+    monkeypatch.setattr(plugin_acquisition, "_download_remote_file", download)
     monkeypatch.setattr(
-        plugins,
+        plugin_catalogues,
         "_catalogue_store",
         lambda: SimpleNamespace(list=lambda: [{"url": source["catalogue_url"], "enabled": True}]),
     )
@@ -467,7 +479,7 @@ async def test_management_tokens_are_granular_and_cannot_access_application_data
     app.dependency_overrides[plugins.get_db] = lambda: gate.db
 
     @app.get("/api/private")
-    async def private(user=Depends(get_current_user)):
+    async def private(user=_CURRENT_USER_DEPENDENCY):
         return {"username": user.username}
 
     async with AsyncClient(
@@ -508,7 +520,7 @@ async def test_each_management_scope_authorizes_only_its_operation_family(
     app = FastAPI()
     app.dependency_overrides[plugins.get_db] = lambda: gate.db
 
-    async def operation(admin=Depends(get_plugin_manager_admin)):
+    async def operation(admin=_MANAGER_ADMIN_DEPENDENCY):
         return {"authorized": True}
 
     app.add_api_route(path, operation, methods=[method])
@@ -549,7 +561,7 @@ async def test_operation_tokens_need_permission_scope_to_approve_grants(
     app = FastAPI()
     app.dependency_overrides[plugins.get_db] = lambda: gate.db
 
-    async def operation(admin=Depends(get_plugin_manager_admin)):
+    async def operation(admin=_MANAGER_ADMIN_DEPENDENCY):
         return {"authorized": True}
 
     app.add_api_route(path.split("?", 1)[0], operation, methods=["POST"])
