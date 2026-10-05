@@ -53,3 +53,6 @@ dist
 .pytest_cache
 .mypy_cache
 .ruff_cache
+
+# Local verification data, fixture credentials and companion checkouts.
+.validation
