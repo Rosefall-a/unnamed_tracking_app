@@ -10,7 +10,7 @@ main{width:100%;max-width:36rem;padding:clamp(20px,5vw,32px);background:var(--ui
 (() => {
   const root = document.documentElement;
   const system = matchMedia('(prefers-color-scheme: dark)');
-  let theme = 'system', appearance = null;
+  let theme = 'system', appearance = null, stylesheet = null, packageId = null;
   const roles = ['background','surface','surface_alt','text','muted','accent','success','warning','error','info','purple'];
   try {
     const legacy = localStorage.getItem('ui-theme');
@@ -23,6 +23,13 @@ main{width:100%;max-width:36rem;padding:clamp(20px,5vw,32px);background:var(--ui
         appearance = saved;
         theme = saved.theme;
       }
+    }
+    const css = localStorage.getItem('ui-theme-stylesheet');
+    const id = localStorage.getItem('ui-theme-package');
+    if (typeof css === 'string' && css.length <= 800 && typeof id === 'string' && /^[a-z0-9][a-z0-9._-]{0,127}$/.test(id) &&
+        css.startsWith('/api/themes/assets/'+id+'/') && /^\/api\/themes\/assets\/[a-z0-9][a-z0-9._-]{0,127}\/[a-f0-9]{64}\/(?:[a-z0-9_./% -])+\.css$/i.test(css) && !css.includes('..')) {
+      stylesheet = css;
+      packageId = id;
     }
   } catch { /* Storage denial or invalid data uses the accessible defaults. */ }
   const luminance = hex => {
@@ -42,6 +49,14 @@ main{width:100%;max-width:36rem;padding:clamp(20px,5vw,32px);background:var(--ui
     document.querySelector('meta[name="theme-color"]').content = getComputedStyle(root).getPropertyValue('--ui-bg').trim();
   };
   apply();
+  if (stylesheet) {
+    root.dataset.themePackage = packageId;
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = stylesheet;
+    link.addEventListener('load', apply);
+    document.head.append(link);
+  }
   system.addEventListener('change',apply);
 })();
 </script></head>
