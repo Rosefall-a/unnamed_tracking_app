@@ -31,6 +31,21 @@ client = PluginRuntimeClient()
 _DB = Depends(get_db)
 _ASSETS = Path(__file__).with_name("pwa_assets")
 _HEADERS = {"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"}
+_OFFLINE_CSP = (
+    "default-src 'none'; style-src 'self' 'unsafe-inline'; "
+    "script-src 'unsafe-inline'; img-src 'self'; font-src 'self'"
+)
+
+
+def host_asset_revision() -> str:
+    """Retire cached reconnect pages when reviewed host assets or policy change."""
+    digest = hashlib.sha256(_OFFLINE_CSP.encode())
+    for name in ("service-worker.js", "offline.html"):
+        digest.update((_ASSETS / name).read_bytes())
+    return digest.hexdigest()
+
+
+_HOST_ASSET_REVISION = host_asset_revision()
 
 
 async def provider(db: AsyncSession) -> dict[str, Any] | None:
@@ -71,8 +86,14 @@ async def provider(db: AsyncSession) -> dict[str, Any] | None:
 
 
 def generation(plugin: dict[str, Any]) -> str:
-    """Bind browser assets/cache identity to installation, version and payload."""
-    identity = [plugin["plugin_id"], plugin["installation_id"], plugin["version"], plugin["digest"]]
+    """Bind cache identity to the installation, branding and reviewed host assets."""
+    identity = [
+        plugin["plugin_id"],
+        plugin["installation_id"],
+        plugin["version"],
+        plugin["digest"],
+        _HOST_ASSET_REVISION,
+    ]
     branding = plugin.get("branding")
     if branding and (
         branding.branding_name or branding.branding_logo_png or branding.branding_favicon_png
@@ -182,9 +203,7 @@ async def offline() -> Response:
         media_type="text/html",
         headers={
             **_HEADERS,
-            "Content-Security-Policy": (
-                "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'"
-            ),
+            "Content-Security-Policy": _OFFLINE_CSP,
         },
     )
 
