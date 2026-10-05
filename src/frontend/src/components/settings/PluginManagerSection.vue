@@ -43,6 +43,7 @@ import {
   packageOperation,
   previewStagedUpdate,
   type RuntimeCapabilities,
+  type ManagerSettings,
 } from "../../services/plugins";
 import {
   approvePluginPermission,
@@ -96,7 +97,48 @@ const view = ref<ManagerView>("Installed");
 const search = ref("");
 const tag = ref("");
 const runtime = ref<RuntimeCapabilities | null>(null);
-const managerSettings = ref({ automatic_updates: false, retained_versions: 1 });
+const managerSettings = ref<ManagerSettings>({
+  automatic_updates: false,
+  retained_versions: 1,
+});
+const isolationOpen = ref(false);
+const isolationAcknowledged = ref(false);
+const isolationBusy = ref(false);
+let pendingIsolationInstall: PluginInstallConfirmation | null = null;
+const needsIsolationApproval = computed(
+  () =>
+    runtime.value?.available !== false &&
+    runtime.value?.bubblewrap_available === false &&
+    !runtime.value?.reduced_isolation_allowed,
+);
+
+function closeIsolation() {
+  isolationOpen.value = false;
+  isolationAcknowledged.value = false;
+  pendingIsolationInstall = null;
+}
+
+async function setIsolationApproval(approved: boolean) {
+  isolationBusy.value = true;
+  error.value = "";
+  try {
+    managerSettings.value = await saveManagerSettings({
+      reduced_isolation_acknowledged: approved,
+    });
+    await load();
+    await refreshPluginExtensions();
+    const confirmation = pendingIsolationInstall;
+    closeIsolation();
+    if (approved && confirmation) await confirmInstall(confirmation);
+  } catch (err) {
+    error.value =
+      err instanceof Error
+        ? err.message
+        : "Reduced isolation approval could not be saved.";
+  } finally {
+    isolationBusy.value = false;
+  }
+}
 const stagedTarget = ref<string | null>(null);
 const grantTarget = ref<string | null>(null);
 const duplicate = ref<PluginSummary | null>(null);
@@ -353,8 +395,13 @@ async function run(id: string, operation: (id: string) => Promise<void>) {
     await operation(id);
     await load();
     await refreshPluginExtensions();
+    if (selected.value?.plugin_id === id) await refreshPlugin();
   } catch (err) {
-    error.value = err instanceof Error ? err.message : "Plugin action failed.";
+    const failure =
+      err instanceof Error ? err.message : "Plugin action failed.";
+    await load();
+    if (selected.value?.plugin_id === id) await refreshPlugin();
+    error.value = failure;
   } finally {
     action.value = "";
   }
@@ -447,6 +494,12 @@ function cancelInstall() {
 
 async function confirmInstall(confirmation: PluginInstallConfirmation) {
   if (!installPreview.value) return;
+  if (needsIsolationApproval.value) {
+    pendingIsolationInstall = confirmation;
+    isolationAcknowledged.value = false;
+    isolationOpen.value = true;
+    return;
+  }
   installing.value = true;
   error.value = "";
   try {
@@ -586,7 +639,6 @@ async function refreshPlugin() {
 async function runSelected(operation: (id: string) => Promise<void>) {
   if (!selected.value) return;
   await run(selected.value.plugin_id, operation);
-  await refreshPlugin();
 }
 
 async function revokeGrant(grantId: string) {
@@ -766,7 +818,15 @@ onMounted(() => {
       Browse plugins, review access, and manage installed releases and
       persistent data.
     </p>
-    <aside v-if="runtime" class="runtime-notice">
+    <aside
+      v-if="
+        runtime &&
+        (runtime.available === false ||
+          (!runtime.sandbox_available &&
+            !runtime.reduced_isolation_env_override))
+      "
+      class="runtime-notice"
+    >
       <strong>{{
         runtime.available === false
           ? "Plugin runtime unavailable"
@@ -785,6 +845,20 @@ onMounted(() => {
               : "Per-plugin sandbox isolation is unavailable. Reduced isolation uses separate processes and available resource limits. Continue only where runtime policy permits."
         }}
       </p>
+      <p v-if="runtime.reduced_isolation_acknowledged">
+        An administrator acknowledged reduced isolation for this server. This
+        warning remains visible while Bubblewrap is unavailable.
+      </p>
+      <button
+        v-if="needsIsolationApproval"
+        :disabled="isolationBusy"
+        @click="
+          isolationOpen = true;
+          isolationAcknowledged = false;
+        "
+      >
+        Review reduced isolation
+      </button>
       <p v-if="runtime.last_error">{{ runtime.last_error }}</p>
       <a
         href="https://github.com/Rosefall-a/unnamed_tracking_app/blob/plugin-manager/wiki/docs/development/plugin-runtime.md"
@@ -793,6 +867,50 @@ onMounted(() => {
         >Runtime setup and Bubblewrap help</a
       >
     </aside>
+    <div
+      v-if="isolationOpen"
+      class="modal-backdrop"
+      @click.self="!isolationBusy && closeIsolation()"
+    >
+      <section
+        class="installer-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="isolation-title"
+      >
+        <h2 id="isolation-title">Allow reduced plugin isolation</h2>
+        <p>
+          Bubblewrap is unavailable. Plugins will have fewer filesystem and
+          namespace restrictions. Package verification, permission checks and
+          available resource limits still apply.
+        </p>
+        <p>
+          This acknowledgement covers all plugins on this server and survives
+          restarts. NONBUBBLE_ENV is optional. Withdraw approval in Plugin
+          Manager settings to stop affected workers.
+        </p>
+        <label
+          ><input
+            v-model="isolationAcknowledged"
+            type="checkbox"
+            :disabled="isolationBusy"
+          />
+          I understand that reduced isolation is less secure.</label
+        >
+        <p v-if="error" role="alert" class="error">{{ error }}</p>
+        <div class="actions">
+          <button :disabled="isolationBusy" @click="closeIsolation">
+            Cancel
+          </button>
+          <button
+            :disabled="isolationBusy || !isolationAcknowledged"
+            @click="setIsolationApproval(true)"
+          >
+            Acknowledge and allow plugins
+          </button>
+        </div>
+      </section>
+    </div>
     <details>
       <summary>Plugin Manager settings</summary>
       <label
@@ -812,6 +930,13 @@ onMounted(() => {
           max="100"
           @change="saveGlobalSettings"
       /></label>
+      <button
+        v-if="managerSettings.reduced_isolation_acknowledged"
+        :disabled="isolationBusy"
+        @click="setIsolationApproval(false)"
+      >
+        Withdraw approval
+      </button>
     </details>
     <nav class="manager-tabs" aria-label="Plugin views">
       <button
@@ -1203,6 +1328,7 @@ onMounted(() => {
       :diagnostics="pluginDiagnostics"
       :loading="popupLoading"
       :busy="action === selected.plugin_id"
+      :error="error"
       @close="closePlugin"
       @save="savePlugin"
       @action="runPluginAction"

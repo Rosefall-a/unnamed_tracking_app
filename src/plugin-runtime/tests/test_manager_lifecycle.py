@@ -2,8 +2,8 @@
 
 import json
 import sys
-from pathlib import Path
 import uuid
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -50,6 +50,64 @@ def test_missing_bubblewrap_binary_is_reported(tmp_path, monkeypatch):
 
     monkeypatch.setattr(runtime.subprocess, "run", missing)
     assert supervisor.probe_isolation()["bubblewrap_available"] is False
+
+
+@pytest.mark.parametrize("fallback", ["true", " TRUE ", "1", "yes", "on"])
+def test_explicit_fallback_starts_a_real_worker_after_failed_probe(tmp_path, monkeypatch, fallback):
+    monkeypatch.setenv("NONBUBBLE_ENV", fallback)
+    monkeypatch.setattr(
+        runtime.subprocess,
+        "run",
+        lambda *args, **kwargs: SimpleNamespace(returncode=1, stderr=b"user namespaces disabled"),
+    )
+    supervisor = PluginSupervisor(tmp_path / "work", tmp_path / "storage")
+    report = supervisor.probe_isolation()
+    assert report["bubblewrap_available"] is False
+    assert report["reduced_isolation_allowed"] is True
+    assert report["mechanism"] == "process"
+    assert report["sandbox_available"] is False
+    package = tmp_path / "package"
+    package.mkdir()
+    worker = supervisor.start(
+        runtime.PluginSpec(
+            "example.fallback", (sys.executable, "-c", "import time; time.sleep(60)")
+        ),
+        package,
+    )
+    try:
+        assert worker.poll() is None
+        assert supervisor.running("example.fallback")
+    finally:
+        supervisor.stop_all()
+
+
+@pytest.mark.parametrize("fallback", ["", "false", "0", "no", "off"])
+def test_failed_probe_without_explicit_fallback_blocks_start(tmp_path, monkeypatch, fallback):
+    monkeypatch.setenv("NONBUBBLE_ENV", fallback)
+    supervisor = PluginSupervisor(tmp_path / "work", tmp_path / "storage")
+    supervisor.isolation["bubblewrap_available"] = False
+    with pytest.raises(RuntimePolicyError, match="NONBUBBLE_ENV=true"):
+        supervisor._sandbox_command(
+            runtime.PluginSpec("example.blocked", ("python", "plugin.py")), tmp_path, tmp_path
+        )
+
+
+def test_startup_policy_failure_retains_actionable_diagnostics(tmp_path, monkeypatch):
+    monkeypatch.setenv("NONBUBBLE_ENV", "false")
+    supervisor = PluginSupervisor(tmp_path / "work", tmp_path / "storage")
+    supervisor.isolation["bubblewrap_available"] = False
+    registry = PluginRegistry(tmp_path / "plugins", supervisor)
+    registry.install_package(_package_bytes(), "worker.utp", installation_id=str(uuid.uuid4()))
+    with pytest.raises(RuntimePolicyError, match="NONBUBBLE_ENV=true"):
+        registry.start("example.upload")
+    installed = registry.list()[0]
+    assert installed["status"] == "failed"
+    assert "NONBUBBLE_ENV=true" in installed["last_error"]
+    event = registry.diagnostics("example.upload")["events"][-1]
+    assert event["event"] == "runtime.start_failed"
+    assert event["level"] == "error"
+    assert "NONBUBBLE_ENV=true" in event["message"]
+    assert event["metadata"]["reduced_isolation_allowed"] is False
 
 
 def test_legacy_settings_are_migrated_before_package_replacement(tmp_path):

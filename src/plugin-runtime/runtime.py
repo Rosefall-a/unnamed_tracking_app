@@ -209,6 +209,7 @@ class PluginSupervisor:
         self._package_paths: dict[str, Path] = {}
         self._package_manifests: dict[str, dict[str, Any]] = {}
         self._lock = threading.RLock()
+        self.reduced_isolation_acknowledged = False
         self.isolation: dict[str, Any] = {
             "bubblewrap_available": None,
             "sandbox_available": False,
@@ -232,12 +233,15 @@ class PluginSupervisor:
         except (OSError, subprocess.TimeoutExpired) as exc:
             available = False
             error = self._redact(str(exc))
-        reduced = self._nonbubble_enabled()
+        forced = self._nonbubble_enabled()
+        reduced = forced or (not available and self.reduced_isolation_acknowledged)
         self.isolation = {
             "bubblewrap_available": available,
-            "sandbox_available": available and not reduced,
-            "mechanism": "bubblewrap" if available and not reduced else "process",
+            "sandbox_available": available and not forced,
+            "mechanism": "bubblewrap" if available and not forced else "process",
             "reduced_isolation_allowed": reduced,
+            "reduced_isolation_acknowledged": self.reduced_isolation_acknowledged,
+            "reduced_isolation_env_override": forced,
             "last_error": error,
         }
         return dict(self.isolation)
@@ -646,11 +650,18 @@ class PluginSupervisor:
             "on",
         }
 
+    def _reduced_isolation_allowed(self) -> bool:
+        return self._nonbubble_enabled() or (
+            self.isolation.get("bubblewrap_available") is False
+            and self.reduced_isolation_acknowledged
+        )
+
+
     def _sandbox_command(
         self, spec: PluginSpec, workdir: Path, package_dir: Path
     ) -> list[str]:
-        if self._nonbubble_enabled():
-            # Development escape hatch for hosts where bubblewrap is unavailable.
+        if self._reduced_isolation_allowed():
+            # Explicit fallback for hosts where bubblewrap is unavailable.
             # The Docker/container boundary and resource limits still apply, but
             # the per-plugin bwrap namespace/filesystem boundary is intentionally
             # disabled.
@@ -658,7 +669,8 @@ class PluginSupervisor:
         if self.isolation.get("bubblewrap_available") is False:
             raise RuntimePolicyError(
                 "Bubblewrap is unavailable. Repair namespace support or explicitly "
-                "allow reduced isolation with NONBUBBLE_ENV=true."
+                "acknowledge reduced isolation in Plugin Manager. NONBUBBLE_ENV=true "
+                "is an optional deployment override."
             )
         # Create the mask target even before settings have ever been saved.
         # Otherwise a later host write would become visible through /plugin.
@@ -756,11 +768,11 @@ class PluginSupervisor:
                 process = _WORKER_LAUNCHER.submit(
                     subprocess.Popen,
                     self._sandbox_command(spec, workdir, package_dir),
-                    cwd=package_dir if self._nonbubble_enabled() else workdir,
+                    cwd=package_dir if self._reduced_isolation_allowed() else workdir,
                     env=environment
                     | {
                         "HOME": str(package_dir)
-                        if self._nonbubble_enabled()
+                        if self._reduced_isolation_allowed()
                         else "/plugin"
                     },
                     start_new_session=True,
@@ -821,11 +833,11 @@ class PluginSupervisor:
                     raise RuntimePolicyError("plugin contributions are not active")
                 process = subprocess.Popen(
                     self._sandbox_command(spec, workdir, package_dir),
-                    cwd=package_dir if self._nonbubble_enabled() else workdir,
+                    cwd=package_dir if self._reduced_isolation_allowed() else workdir,
                     env={
                         "PATH": "/usr/local/bin:/usr/bin:/bin",
                         "HOME": str(package_dir)
-                        if self._nonbubble_enabled()
+                        if self._reduced_isolation_allowed()
                         else "/plugin",
                         "PLUGIN_DATA_DIR": "/plugin-data",
                         "TMPDIR": "/tmp",
@@ -1087,7 +1099,45 @@ class PluginRegistry:
         self.supervisor.execution_allowed = self._execution_allowed
         self._installation_lock = self._operation_lock
         self.root.mkdir(mode=0o750, parents=True, exist_ok=True)
+        self.policy_path = root / ".runtime-isolation.json"
+        if self.policy_path.is_symlink():
+            raise RuntimePolicyError("runtime isolation policy must not be a symlink")
+        if self.policy_path.exists():
+            policy = json.loads(self.policy_path.read_text(encoding="utf-8"))
+            if not isinstance(policy, dict) or type(policy.get("acknowledged")) is not bool:
+                raise RuntimePolicyError("runtime isolation acknowledgement is invalid")
+            self.supervisor.reduced_isolation_acknowledged = policy["acknowledged"]
         self._recover_publication()
+
+    def acknowledge_reduced_isolation(self, acknowledged: bool) -> None:
+        """Mirror an authenticated host administrator decision for runtime restart."""
+        with self._operation_lock:
+            if self.supervisor.reduced_isolation_acknowledged is acknowledged:
+                return
+            temporary = self.policy_path.with_suffix(".tmp")
+            with temporary.open("w", encoding="utf-8") as handle:
+                json.dump({"acknowledged": acknowledged}, handle)
+                handle.flush()
+                os.fsync(handle.fileno())
+            temporary.chmod(0o600)
+            temporary.replace(self.policy_path)
+            self.supervisor.reduced_isolation_acknowledged = acknowledged
+            unavailable = self.supervisor.isolation.get("bubblewrap_available") is False
+            forced = self.supervisor._nonbubble_enabled()
+            self.supervisor.isolation.update(
+                reduced_isolation_allowed=forced or (unavailable and acknowledged),
+                reduced_isolation_acknowledged=acknowledged,
+                reduced_isolation_env_override=forced,
+            )
+            if unavailable and not acknowledged and not forced:
+                for plugin_id, item in self._state().items():
+                    if isinstance(item, dict) and item.get("enabled") and item.get("status") == "running":
+                        self._transition(
+                            plugin_id, status="failed",
+                            last_error="Reduced isolation approval was withdrawn. Review Plugin Manager.",
+                        )
+                self.supervisor.stop_all()
+
 
     def _transaction_backup(
         self, plugin_id: str, pending: dict[str, Any]
@@ -2272,6 +2322,16 @@ class PluginRegistry:
                     status="failed",
                     last_error=self.supervisor._redact(str(exc)),
                 )
+                self.supervisor._log(
+                    plugin_id,
+                    f"Plugin startup failed: {exc}",
+                    level="error",
+                    event="runtime.start_failed",
+                    metadata={
+                        "isolation": self.supervisor.isolation.get("mechanism"),
+                        "reduced_isolation_allowed": self.supervisor._reduced_isolation_allowed(),
+                    },
+                )
                 self.supervisor.stop(plugin_id)
                 raise
             self._transition(plugin_id, status="running", last_error=None)
@@ -2600,11 +2660,24 @@ class PluginRegistry:
 class RuntimeHandler(BaseHTTPRequestHandler):
     server_version = "UnnamedTrackingPluginRuntime/1.0"
 
-    def _authorized(self) -> bool:
-        if self.path.split("?", 1)[0] == "/health":
-            return True
+    def _authorize(self) -> bool:
         token = os.environ.get("PLUGIN_RUNTIME_TOKEN", "")
-        return len(token) >= 32 and self.headers.get("X-Plugin-Runtime-Token") == token
+        authenticated = len(token) >= 32 and self.headers.get("X-Plugin-Runtime-Token") == token
+        if authenticated:
+            acknowledgement = self.headers.get("X-Plugin-Reduced-Isolation-Acknowledged")
+            if acknowledgement is not None:
+                if acknowledgement not in {"true", "false"}:
+                    self._json(422, {"detail": "invalid reduced isolation acknowledgement"})
+                    return False
+                try:
+                    self.server.registry.acknowledge_reduced_isolation(acknowledgement == "true")
+                except (OSError, RuntimePolicyError) as exc:
+                    self._json(503, {"detail": f"runtime isolation approval could not be applied: {exc}"})
+                    return False
+        if authenticated or self.path.split("?", 1)[0] == "/health":
+            return True
+        self._json(401, {"detail": "runtime authentication required"})
+        return False
 
     def _json(self, status: int, payload: Any) -> None:
         body = json.dumps(payload, default=str).encode()
@@ -2618,8 +2691,7 @@ class RuntimeHandler(BaseHTTPRequestHandler):
         return [unquote(x) for x in self.path.split("?", 1)[0].split("/") if x]
 
     def do_GET(self) -> None:
-        if not self._authorized():
-            self._json(401, {"detail": "runtime authentication required"})
+        if not self._authorize():
             return
         parts = self._parts()
         try:
@@ -2673,8 +2745,7 @@ class RuntimeHandler(BaseHTTPRequestHandler):
             self._json(422, {"detail": str(exc)})
 
     def do_POST(self) -> None:
-        if not self._authorized():
-            self._json(401, {"detail": "runtime authentication required"})
+        if not self._authorize():
             return
         parts = self._parts()
         try:
@@ -2744,8 +2815,7 @@ class RuntimeHandler(BaseHTTPRequestHandler):
             self._json(422, {"detail": str(exc)})
 
     def do_PUT(self) -> None:
-        if not self._authorized():
-            self._json(401, {"detail": "runtime authentication required"})
+        if not self._authorize():
             return
         parts = self._parts()
         if parts in (["plugins", "install"], ["plugins", "install", "prepare"]):
@@ -2828,8 +2898,7 @@ class RuntimeHandler(BaseHTTPRequestHandler):
             except (RuntimePolicyError, ValueError, OSError) as exc:
                 self._json(422, {"detail": str(exc)})
             return
-        if not self._authorized():
-            self._json(401, {"detail": "runtime authentication required"})
+        if not self._authorize():
             return
         parts = self._parts()
         if len(parts) != 3 or parts[0] != "plugins" or parts[2] != "settings":
@@ -2846,8 +2915,7 @@ class RuntimeHandler(BaseHTTPRequestHandler):
             self._json(422, {"detail": str(exc)})
 
     def do_DELETE(self) -> None:
-        if not self._authorized():
-            self._json(401, {"detail": "runtime authentication required"})
+        if not self._authorize():
             return
         parts = self._parts()
         if len(parts) == 2 and parts[0] == "plugins":

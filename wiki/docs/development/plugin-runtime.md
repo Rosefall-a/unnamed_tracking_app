@@ -29,7 +29,7 @@ fallback runtime token. Set `PLUGIN_RUNTIME_DEV_TOKEN` to test a specific
 local token. Deployments must always set a unique `PLUGIN_RUNTIME_TOKEN`;
 `src/docker-container/compose.yaml` rejects a missing value before startup.
 
-## Development fallback: `NONBUBBLE_ENV`
+## Reduced isolation and administrator acknowledgement
 
 At startup the runtime executes a real Bubblewrap namespace probe. Its health
 response reports probe status, Bubblewrap usability, active isolation mechanism,
@@ -37,10 +37,19 @@ sandbox availability, reduced-isolation policy and probe error. Plugin Settings
 displays this report when first opened; details and diagnostics show process
 status and errors. An unavailable runtime is never reported as fully isolated.
 
-A failed probe blocks plugin start unless the existing explicit fallback is
-enabled. Administrators can continue inspecting Plugin Manager and using the
-core application and follow its help link here. Fallback reports reduced
-process isolation even if the Bubblewrap binary itself is usable.
+A failed probe does not require an environment-variable change. An administrator
+can select **Review reduced isolation** in Plugin Manager, read the explanation,
+and acknowledge that plugins will run with weaker isolation. The decision applies
+to this server, persists across host/runtime restarts, and leaves a warning visible
+while Bubblewrap is unavailable. Installing a reviewed package can open this
+acknowledgement before activation; unsigned-package consent remains separate.
+
+The host owns the decision and sends it through authenticated runtime requests.
+The runtime retains an internal mirror for restart recovery. Unauthenticated
+health requests cannot approve isolation. Working Bubblewrap remains in use even
+after approval. **Withdraw approval** in Plugin Manager settings stops workers
+when Bubblewrap is unavailable and no deployment override is enabled; packages,
+data, permissions and enablement are preserved for later recovery.
 
 Inspect probe stderr and runtime container logs, ensure Bubblewrap is installed
 in the image, and check host user-namespace and container security policies.
@@ -54,7 +63,23 @@ If bubblewrap cannot run in a development/test environment, set `NONBUBBLE_ENV=t
 
 This is a **development troubleshooting escape hatch, not a production security mode**. Do not enable it when running untrusted plugins. Remove the variable or set it to a false value to restore normal bubblewrap isolation. Accepted true values are `1`, `true`, `yes`, and `on`, case-insensitive.
 
-For repository-root Docker Compose development, add `NONBUBBLE_ENV: "true"` under `plugin-runtime.environment`, then recreate the runtime container.
+All supplied Compose configurations pass `NONBUBBLE_ENV` from the Compose `.env`
+to the **plugin-runtime** service. Set `NONBUBBLE_ENV=true` there and recreate
+that service with `docker compose up -d --force-recreate plugin-runtime` (include
+your usual `-f`/`--env-file` arguments). Setting the variable only on the app
+container, or restarting an existing runtime without recreating it, does not
+change the runtime's environment. The default remains disabled.
+
+Plugin Settings → Diagnostics displays the runtime's effective fallback state
+alongside Bubblewrap usability and active isolation. A failed probe remains
+visible as a diagnostic when fallback is explicitly enabled, but does not block
+worker startup. Start, Enable and Retry failures return the runtime's explanation
+inside the dialog; they do not become an unexplained HTTP 500.
+
+The runtime also needs its private `PLUGIN_GATEWAY_URL`. The supplied production
+configurations use `http://app` through Nginx; development uses
+`http://backend:8000`. This broker address and its transport token are never
+passed to plugin workers.
 
 ## Per-plugin process isolation
 
@@ -207,4 +232,8 @@ them through the authorized broker; credentials must not be ordinary action
 arguments or browser-local storage. Runtime-mediated Discord delivery performs
 its own grant, URL and message checks.
 
-NONBUBBLE_ENV=true intentionally weakens this filesystem boundary for development troubleshooting, so it must not be used as a production security mode.
+`NONBUBBLE_ENV=true` remains an optional deployment override. It permits process
+isolation and suppresses the prominent warning; diagnostics still report the
+actual mode. It is not required when an administrator has acknowledged reduced
+isolation through Plugin Manager, and it does not provide Bubblewrap's namespace
+or filesystem guarantees.

@@ -59,12 +59,16 @@ export interface RuntimeCapabilities {
   sandbox_available: boolean;
   mechanism: string;
   reduced_isolation_allowed: boolean;
+  reduced_isolation_acknowledged?: boolean;
+  reduced_isolation_env_override?: boolean;
   last_error?: string | null;
   available?: boolean;
 }
 export interface ManagerSettings {
   automatic_updates: boolean;
   retained_versions: number;
+  reduced_isolation_acknowledged?: boolean;
+  history_pruning_deferred?: boolean;
 }
 export type PluginTrustStatus =
   "trusted" | "unknown_publisher" | "invalid_signature" | "unsigned";
@@ -215,6 +219,40 @@ export interface PluginDiagnostics {
   last_exit_code: number | null;
   events: PluginDiagnosticEvent[];
 }
+async function pluginRequestError(
+  response: Response,
+  action: string,
+): Promise<Error> {
+  const body: unknown = await response
+    .clone()
+    .json()
+    .catch(() => null);
+  let message = "";
+  if (body && typeof body === "object" && "detail" in body) {
+    const detail = body.detail;
+    if (typeof detail === "string") message = detail;
+    else if (
+      detail &&
+      typeof detail === "object" &&
+      "message" in detail &&
+      typeof detail.message === "string"
+    )
+      message = detail.message;
+    else if (Array.isArray(detail))
+      message = detail
+        .flatMap((item) =>
+          item && typeof item === "object" && typeof item.msg === "string"
+            ? [item.msg]
+            : [],
+        )
+        .slice(0, 3)
+        .join("; ");
+  }
+  return new Error(
+    `${action} (${response.status})${message ? `: ${message}` : "."}`,
+  );
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
     ...init,
@@ -222,17 +260,21 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
   });
   if (!response.ok)
-    throw new Error(`Plugin manager request failed (${response.status}).`);
+    throw await pluginRequestError(response, "Plugin manager request failed");
   return response.json() as Promise<T>;
 }
 export const fetchRuntimeCapabilities = () =>
   request<RuntimeCapabilities>("/api/plugins/runtime/health");
 export const fetchManagerSettings = () =>
   request<ManagerSettings>("/api/plugins/manager-settings");
-export const saveManagerSettings = (values: ManagerSettings) =>
+export const saveManagerSettings = (values: Partial<ManagerSettings>) =>
   request<ManagerSettings>("/api/plugins/manager-settings", {
     method: "PUT",
-    body: JSON.stringify(values),
+    body: JSON.stringify({
+      automatic_updates: values.automatic_updates,
+      retained_versions: values.retained_versions,
+      reduced_isolation_acknowledged: values.reduced_isolation_acknowledged,
+    }),
   });
 export const setPluginAutomaticUpdates = (id: string, mode: string) =>
   request<PluginSummary>(`/api/plugins/${encodeURIComponent(id)}/auto-update`, {

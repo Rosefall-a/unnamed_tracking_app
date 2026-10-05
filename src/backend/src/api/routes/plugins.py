@@ -14,9 +14,10 @@ import socket
 import tempfile
 import time
 import zipfile
+from contextlib import contextmanager
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Iterator, Literal
 from urllib.parse import quote, urljoin, urlparse
 from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 
@@ -276,6 +277,17 @@ def _runtime_error(exc: PluginRuntimeUnavailable) -> HTTPException:
 
 def _runtime_request_error(exc: PluginRuntimeRequestError) -> HTTPException:
     return HTTPException(status_code=422, detail=str(exc))
+
+
+@contextmanager
+def _runtime_errors() -> Iterator[None]:
+    """Preserve policy and connection failures as actionable JSON responses."""
+    try:
+        yield
+    except PluginRuntimeRequestError as exc:
+        raise _runtime_request_error(exc) from exc
+    except PluginRuntimeUnavailable as exc:
+        raise _runtime_error(exc) from exc
 
 
 async def _store_plugin_upload(file: StarletteUploadFile, prefix: str) -> tuple[Path, str, int]:
@@ -1140,9 +1152,11 @@ async def _installed_plugins() -> list[dict[str, Any]]:
 
 
 class ManagerSettingsIn(BaseModel):
+    """Host-owned manager policy; approval identity is recorded by the server."""
     model_config = ConfigDict(extra="forbid")
     automatic_updates: bool | None = None
     retained_versions: int | None = Field(default=None, ge=1, le=100)
+    reduced_isolation_acknowledged: bool | None = Field(default=None, strict=True)
 
 
 class AutoUpdateIn(BaseModel):
@@ -1170,11 +1184,17 @@ async def get_manager_settings(admin: User = Depends(get_plugin_manager_admin)) 
 async def save_manager_settings(
     payload: ManagerSettingsIn, admin: User = Depends(get_plugin_manager_admin)
 ) -> dict:
-    del admin
-    settings = manager_state().settings(payload.model_dump(exclude_none=True))
-    for plugin in await _client.plugins():
-        await _client.prune_history(plugin["plugin_id"], settings["retained_versions"])
-    return settings
+    """Save host policy and synchronize available runtime controls."""
+    changes = payload.model_dump(exclude_none=True)
+    if payload.reduced_isolation_acknowledged is not None:
+        changes["reduced_isolation_acknowledged_by"] = str(admin.id)
+    settings = manager_state().settings(changes)
+    try:
+        for plugin in await _client.plugins():
+            await _client.prune_history(plugin["plugin_id"], settings["retained_versions"])
+    except PluginRuntimeUnavailable:
+        return {**settings, "history_pruning_deferred": True}
+    return {**settings, "history_pruning_deferred": False}
 
 
 @router.put("/{plugin_id}/auto-update")
@@ -1307,32 +1327,35 @@ async def rollback_plugin(
 async def delete_package_history(
     plugin_id: str, history_id: UUID, admin: User = Depends(get_plugin_manager_admin)
 ) -> dict:
-    del admin
-    await _client.prune_history(
-        plugin_id, manager_state().settings()["retained_versions"], str(history_id)
-    )
-    manager_state().reconcile(await _client.plugins())
-    return {"deleted": True}
+    with _runtime_errors():
+        del admin
+        await _client.prune_history(
+            plugin_id, manager_state().settings()["retained_versions"], str(history_id)
+        )
+        manager_state().reconcile(await _client.plugins())
+        return {"deleted": True}
 
 
 @router.post("/{plugin_id}/stop")
 async def stop_plugin(plugin_id: str, admin: User = Depends(get_plugin_manager_admin)) -> dict:
-    del admin
-    await _client.stop_runtime(quote(plugin_id, safe=""))
-    manager_state().reconcile(await _client.plugins())
-    return {"plugin_id": plugin_id, "status": "stopped"}
+    with _runtime_errors():
+        del admin
+        await _client.stop_runtime(quote(plugin_id, safe=""))
+        manager_state().reconcile(await _client.plugins())
+        return {"plugin_id": plugin_id, "status": "stopped"}
 
 
 @router.post("/{plugin_id}/start")
 async def start_plugin(plugin_id: str, admin: User = Depends(get_plugin_manager_admin)) -> dict:
-    plugin = next(
-        (item for item in await _client.plugins() if item["plugin_id"] == plugin_id), None
-    )
-    if not plugin or not plugin.get("enabled"):
-        raise HTTPException(409, "Enable this plugin before starting it.")
-    await _client.start(quote(plugin_id, safe=""), user_id=str(admin.id))
-    manager_state().reconcile(await _client.plugins())
-    return {"plugin_id": plugin_id, "status": "running"}
+    with _runtime_errors():
+        plugin = next(
+            (item for item in await _client.plugins() if item["plugin_id"] == plugin_id), None
+        )
+        if not plugin or not plugin.get("enabled"):
+            raise HTTPException(409, "Enable this plugin before starting it.")
+        await _client.start(quote(plugin_id, safe=""), user_id=str(admin.id))
+        manager_state().reconcile(await _client.plugins())
+        return {"plugin_id": plugin_id, "status": "running"}
 
 
 class ManagementTokenIn(BaseModel):
@@ -1635,23 +1658,24 @@ async def plugin_changelog(
 
 async def _live_plugin(plugin_id: str, *, require_enabled: bool = True) -> dict[str, Any]:
     """Resolve a live installation before any capability can execute."""
-    try:
-        installed = await _client.plugins()
-    except PluginRuntimeUnavailable as exc:
-        raise _runtime_error(exc) from exc
-    matches = [item for item in installed if item.get("plugin_id") == plugin_id]
-    if len(matches) != 1 or not matches[0].get("installation_id"):
-        raise HTTPException(status_code=404, detail="Plugin installation not found.")
-    plugin = matches[0]
-    try:
-        UUID(str(plugin["installation_id"]))
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=409, detail="Plugin installation identity is invalid."
-        ) from exc
-    if require_enabled and not installation_is_executable(plugin):
-        raise HTTPException(status_code=409, detail="Plugin installation is not executable.")
-    return plugin
+    with _runtime_errors():
+        try:
+            installed = await _client.plugins()
+        except PluginRuntimeUnavailable as exc:
+            raise _runtime_error(exc) from exc
+        matches = [item for item in installed if item.get("plugin_id") == plugin_id]
+        if len(matches) != 1 or not matches[0].get("installation_id"):
+            raise HTTPException(status_code=404, detail="Plugin installation not found.")
+        plugin = matches[0]
+        try:
+            UUID(str(plugin["installation_id"]))
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=409, detail="Plugin installation identity is invalid."
+            ) from exc
+        if require_enabled and not installation_is_executable(plugin):
+            raise HTTPException(status_code=409, detail="Plugin installation is not executable.")
+        return plugin
 
 
 async def _plugin_and_capabilities(
@@ -1846,40 +1870,42 @@ async def enable_plugin(
     db: AsyncSession = Depends(get_db),
     admin: User = Depends(get_plugin_manager_admin),
 ) -> dict:
-    plugin = next(
-        (item for item in await _client.plugins() if item.get("plugin_id") == plugin_id),
-        None,
-    )
-    if plugin is None or not plugin.get("installation_id"):
-        raise HTTPException(status_code=404, detail="Plugin installation not found.")
-    installation_id = UUID(str(plugin["installation_id"]))
-    pending = await db.scalar(
-        select(PluginPermissionRequest.id).where(
-            PluginPermissionRequest.plugin_id == plugin_id,
-            PluginPermissionRequest.installation_id == installation_id,
-            PluginPermissionRequest.status == "pending",
+    with _runtime_errors():
+        plugin = next(
+            (item for item in await _client.plugins() if item.get("plugin_id") == plugin_id),
+            None,
         )
-    )
-    if pending is not None:
-        raise HTTPException(
-            status_code=403,
-            detail="Approve all pending plugin permissions before enabling this plugin.",
+        if plugin is None or not plugin.get("installation_id"):
+            raise HTTPException(status_code=404, detail="Plugin installation not found.")
+        installation_id = UUID(str(plugin["installation_id"]))
+        pending = await db.scalar(
+            select(PluginPermissionRequest.id).where(
+                PluginPermissionRequest.plugin_id == plugin_id,
+                PluginPermissionRequest.installation_id == installation_id,
+                PluginPermissionRequest.status == "pending",
+            )
         )
-    try:
-        await _client.start(quote(plugin_id, safe=""), user_id=str(admin.id))
-    except PluginRuntimeUnavailable as exc:
-        raise _runtime_error(exc) from exc
-    return {"plugin_id": plugin_id, "enabled": True}
+        if pending is not None:
+            raise HTTPException(
+                status_code=403,
+                detail="Approve all pending plugin permissions before enabling this plugin.",
+            )
+        try:
+            await _client.start(quote(plugin_id, safe=""), user_id=str(admin.id))
+        except PluginRuntimeUnavailable as exc:
+            raise _runtime_error(exc) from exc
+        return {"plugin_id": plugin_id, "enabled": True}
 
 
 @router.post("/{plugin_id}/disable")
 async def disable_plugin(plugin_id: str, admin: User = Depends(get_plugin_manager_admin)) -> dict:
-    del admin
-    try:
-        await _client.stop(quote(plugin_id, safe=""))
-    except PluginRuntimeUnavailable as exc:
-        raise _runtime_error(exc) from exc
-    return {"plugin_id": plugin_id, "enabled": False}
+    with _runtime_errors():
+        del admin
+        try:
+            await _client.stop(quote(plugin_id, safe=""))
+        except PluginRuntimeUnavailable as exc:
+            raise _runtime_error(exc) from exc
+        return {"plugin_id": plugin_id, "enabled": False}
 
 
 async def _update_context(
@@ -2137,17 +2163,18 @@ async def _update_plugin_package(
 
 @router.post("/{plugin_id}/retry")
 async def retry_plugin(plugin_id: str, admin: User = Depends(get_plugin_manager_admin)) -> dict:
-    del admin
-    encoded = quote(plugin_id, safe="")
-    try:
-        await _client.stop(encoded)
-    except PluginRuntimeUnavailable:
-        pass
-    try:
-        await _client.start(encoded)
-    except PluginRuntimeUnavailable as exc:
-        raise _runtime_error(exc) from exc
-    return {"plugin_id": plugin_id, "status": "running"}
+    with _runtime_errors():
+        await _live_plugin(plugin_id, require_enabled=False)
+        encoded = quote(plugin_id, safe="")
+        try:
+            await _client.stop(encoded)
+        except PluginRuntimeUnavailable:
+            pass
+        try:
+            await _client.start(encoded, user_id=str(admin.id))
+        except PluginRuntimeUnavailable as exc:
+            raise _runtime_error(exc) from exc
+        return {"plugin_id": plugin_id, "status": "running"}
 
 
 @router.post("/{plugin_id}/permissions/revoke")
@@ -2186,21 +2213,22 @@ async def plugin_logs(
     limit: int = Query(default=100, ge=1, le=200),
     admin: User = Depends(get_plugin_manager_admin),
 ) -> dict[str, Any]:
-    del admin
-    if level is not None and level not in {"debug", "info", "warning", "error"}:
-        raise HTTPException(status_code=400, detail="Unknown diagnostic level.")
-    try:
-        diagnostics = await _client.logs(quote(plugin_id, safe=""))
-    except PluginRuntimeUnavailable as exc:
-        raise _runtime_error(exc) from exc
-    events = diagnostics.get("events", [])
-    if not isinstance(events, list):
-        events = []
-    events = [event for event in events if isinstance(event, dict)]
-    if level is not None:
-        events = [event for event in events if event.get("level") == level]
-    diagnostics["events"] = events[-limit:]
-    return diagnostics
+    with _runtime_errors():
+        del admin
+        if level is not None and level not in {"debug", "info", "warning", "error"}:
+            raise HTTPException(status_code=400, detail="Unknown diagnostic level.")
+        try:
+            diagnostics = await _client.logs(quote(plugin_id, safe=""))
+        except PluginRuntimeUnavailable as exc:
+            raise _runtime_error(exc) from exc
+        events = diagnostics.get("events", [])
+        if not isinstance(events, list):
+            events = []
+        events = [event for event in events if isinstance(event, dict)]
+        if level is not None:
+            events = [event for event in events if event.get("level") == level]
+        diagnostics["events"] = events[-limit:]
+        return diagnostics
 
 
 @router.get("/{plugin_id}/frontend/{asset_path:path}")

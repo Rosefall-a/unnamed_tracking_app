@@ -9,6 +9,7 @@ from typing import Any
 from urllib.parse import quote
 
 import httpx
+from src.plugin_api.manager_state import manager_state
 
 
 class PluginRuntimeUnavailable(RuntimeError):
@@ -27,9 +28,14 @@ class PluginRuntimeClient:
         self.token = resolved_token
 
     def _headers(self) -> dict[str, str]:
+        """Authenticate transport and mirror the host administrator's isolation decision."""
         if len(self.token) < 32:
             raise PluginRuntimeUnavailable("plugin runtime credentials are not configured")
-        return {"X-Plugin-Runtime-Token": self.token}
+        approved = manager_state().settings().get("reduced_isolation_acknowledged") is True
+        return {
+            "X-Plugin-Runtime-Token": self.token,
+            "X-Plugin-Reduced-Isolation-Acknowledged": str(approved).lower(),
+        }
 
     async def _request(self, method: str, path: str, **kwargs: Any) -> Any:
         try:
