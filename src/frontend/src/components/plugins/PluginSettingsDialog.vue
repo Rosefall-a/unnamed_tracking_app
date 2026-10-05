@@ -2,6 +2,7 @@
 import { computed, nextTick, ref, watch } from "vue";
 import UiModal from "../UiModal.vue";
 import PermissionRiskSummary from "./PermissionRiskSummary.vue";
+import PluginPermissionAccess from "./PluginPermissionAccess.vue";
 import PluginVersionInfo from "./PluginVersionInfo.vue";
 import PluginReadme from "./PluginReadme.vue";
 import type {
@@ -9,6 +10,10 @@ import type {
   PluginPermissionRequest,
 } from "../../services/pluginPermissions";
 import type { PluginDiagnostics, PluginSummary } from "../../services/plugins";
+import {
+  pluginIssues,
+  recentPluginEvents,
+} from "../../services/pluginDiagnostics";
 import type {
   PluginUiDocument,
   UiAction,
@@ -47,19 +52,10 @@ type Tab = "overview" | "settings" | "permissions" | "diagnostics";
 const tab = ref<Tab>("overview");
 const closeButton = ref<HTMLButtonElement | null>(null);
 const permissions = computed(() => props.plugin.permission_details ?? []);
-const issues = computed(() =>
-  [
-    [
-      "Compatibility",
-      props.plugin.compatible ? null : props.plugin.compatibility_reason,
-    ],
-    ["Runtime", props.plugin.runtime_error ?? props.plugin.runtime?.last_error],
-    ["Plugin", props.plugin.last_error],
-    ["Latest update", props.plugin.last_update_error],
-  ].filter(
-    (issue): issue is [string, string] =>
-      typeof issue[1] === "string" && issue[1].length > 0,
-  ),
+const issues = computed(() => pluginIssues(props.plugin));
+
+const diagnosticEvents = computed(() =>
+  recentPluginEvents(props.diagnostics?.events ?? []),
 );
 
 watch(
@@ -316,90 +312,16 @@ watch(
 
         <section v-else-if="tab === 'permissions'" class="panel">
           <PermissionRiskSummary :permissions="permissions" />
-          <article
-            v-for="permission in permissions"
-            :key="permission.key"
-            class="grant"
-          >
-            <div>
-              <strong>{{ permission.title }}</strong
-              ><small
-                >{{ permission.capability }} · {{ permission.risk }} risk</small
-              >
-            </div>
-            <button
-              v-if="
-                !grants.some(
-                  (grant) =>
-                    grant.active &&
-                    `${grant.capability}:v${grant.capability_version}` ===
-                      permission.key,
-                )
-              "
-              :disabled="busy"
-              @click="emit('grant', permission.key)"
-            >
-              Review and grant
-            </button>
-          </article>
-          <p class="state">
-            Permissions are enforced by the gateway and can be revoked
-            immediately.
-          </p>
-          <article
-            v-for="request in requests"
-            :key="request.id"
-            class="grant pending"
-          >
-            <div>
-              <strong>{{ request.capability }}</strong>
-              <small>v{{ request.capability_version }} · Pending request</small>
-              <p>{{ request.rationale }}</p>
-            </div>
-            <div class="request-actions">
-              <button
-                type="button"
-                :disabled="busy"
-                @click="emit('deny', request.id)"
-              >
-                Deny
-              </button>
-              <button
-                type="button"
-                :disabled="busy"
-                class="primary"
-                @click="emit('approve', request.id)"
-              >
-                Allow
-              </button>
-            </div>
-          </article>
-          <p v-if="!grants.length" class="state">
-            No permission grants are recorded for this plugin.
-          </p>
-          <article v-for="grant in grants" :key="grant.id" class="grant">
-            <div>
-              <strong>{{ grant.capability }}</strong>
-              <small
-                >v{{ grant.capability_version }} ·
-                {{
-                  grant.user_id
-                    ? `User ${grant.user_id}`
-                    : "All authenticated users"
-                }}</small
-              >
-            </div>
-            <button
-              v-if="grant.active"
-              type="button"
-              :disabled="busy"
-              class="danger"
-              @click="emit('revoke', grant.id)"
-            >
-              Revoke
-            </button>
-            <span v-else>Revoked</span>
-          </article>
+          <PluginPermissionAccess
+            :permissions="permissions"
+            :grants="grants"
+            :requests="requests"
+            :busy="busy"
+            @revoke="emit('revoke', $event)"
+            @approve="emit('approve', $event)"
+            @deny="emit('deny', $event)"
+            @grant="emit('grant', $event)"
+          />
         </section>
 
         <section v-else class="panel diagnostics">
@@ -468,10 +390,7 @@ watch(
               <dt>Last error</dt>
               <dd>
                 {{
-                  plugin.runtime_error ??
-                  plugin.last_error ??
-                  plugin.last_update_error ??
-                  plugin.runtime?.last_error ??
+                  issues.find(([source]) => source !== "Compatibility")?.[1] ??
                   "None"
                 }}
               </dd>
@@ -493,10 +412,15 @@ watch(
               <dd>{{ diagnostics.last_exit_code ?? "—" }}</dd>
             </div>
           </dl>
-          <ol v-if="diagnostics?.events.length" class="event-list">
+          <ol
+            v-if="diagnosticEvents.length"
+            class="event-list"
+            aria-label="Plugin diagnostic events, newest first"
+          >
             <li
-              v-for="event in diagnostics.events"
+              v-for="event in diagnosticEvents"
               :key="event.sequence"
+              :data-sequence="event.sequence"
               :class="`level-${event.level}`"
             >
               <div class="event-heading">

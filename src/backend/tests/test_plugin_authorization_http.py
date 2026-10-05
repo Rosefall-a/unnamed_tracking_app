@@ -58,6 +58,9 @@ class PersistedDb:
     def add(self, row):
         self.session.add(row)
 
+    def get_bind(self):
+        return self.session.get_bind()
+
     async def commit(self):
         self.session.commit()
 
@@ -661,6 +664,74 @@ async def test_declarations_and_pending_request_never_grant_access(boundary):
     assert (await request(boundary, "/api/plugins/audit.plugin/probe")).status_code == 403
     boundary.runtime.action.assert_not_awaited()
     boundary.runtime.route.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_reject_and_reapprove_reuses_grant_without_duplicate_permissions(boundary):
+    boundary.plugin["permission_refs"] = [{"name": "sessions.read", "version": 1}]
+    original = grant(boundary)
+    for _ in range(3):
+        revoked = await request(boundary, f"/api/plugin-permissions/grants/{original.id}/revoke")
+        assert revoked.status_code == 200
+        assert (await request(boundary)).status_code == 403
+        values = {
+            "plugin_id": "audit.plugin",
+            "installation_id": str(boundary.installation_id),
+            "capability": "sessions.read",
+            "capability_version": 1,
+            "rationale": "Restore reviewed access",
+        }
+        proposal = await request(boundary, "/api/plugin-permissions/requests", **values)
+        repeated = await request(boundary, "/api/plugin-permissions/requests", **values)
+        assert proposal.status_code == repeated.status_code == 201
+        assert proposal.json()["id"] == repeated.json()["id"]
+        proposal_id = proposal.json()["id"]
+        allowed = await request(boundary, f"/api/plugin-permissions/requests/{proposal_id}/approve")
+        assert allowed.status_code == 201, allowed.text
+        assert allowed.json()["id"] == str(original.id)
+        assert (await request(boundary)).status_code == 200
+    assert len(boundary.session.scalars(select(PluginPermissionGrant)).all()) == 1
+
+
+@pytest.mark.asyncio
+async def test_revoke_covers_old_duplicates_without_revoking_another_users_scope(boundary):
+    original = grant(boundary)
+    duplicate = grant(boundary)
+    scoped = grant(boundary, user_id=boundary.users[1].id)
+    revoked = await request(boundary, f"/api/plugin-permissions/grants/{original.id}/revoke")
+    assert revoked.status_code == 200
+    boundary.session.scalars(
+        select(PluginPermissionGrant).execution_options(populate_existing=True)
+    ).all()
+    assert original.revoked_at is not None and duplicate.revoked_at is not None
+    assert scoped.revoked_at is None
+    assert (await request(boundary)).status_code == 403
+    boundary.current["user"] = boundary.users[1]
+    assert (await request(boundary)).status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_reinstating_user_access_does_not_create_a_server_wide_grant(boundary):
+    boundary.plugin["permission_refs"] = [{"name": "sessions.read", "version": 1}]
+    original = grant(boundary, user_id=boundary.users[1].id, revoked_at=1)
+    proposal = PluginPermissionRequest(
+        plugin_id="audit.plugin",
+        installation_id=boundary.installation_id,
+        capability="sessions.read",
+        capability_version=1,
+        user_id=boundary.users[1].id,
+        rationale="Restore this user's scope",
+    )
+    boundary.session.add(proposal)
+    boundary.session.commit()
+    allowed = await request(boundary, f"/api/plugin-permissions/requests/{proposal.id}/approve")
+    assert allowed.status_code == 201, allowed.text
+    assert allowed.json()["id"] == str(original.id)
+    assert (await request(boundary)).status_code == 403
+    boundary.current["user"] = boundary.users[1]
+    assert (await request(boundary)).status_code == 200
+    rows = boundary.session.scalars(select(PluginPermissionGrant)).all()
+    assert len(rows) == 1 and rows[0].user_id == boundary.users[1].id
 
 
 @pytest.mark.asyncio

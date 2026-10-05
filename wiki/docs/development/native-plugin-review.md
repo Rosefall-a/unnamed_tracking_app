@@ -32,5 +32,30 @@ media-write permission was denied, and the processed-media count stayed zero.
 Test credentials were removed from plugin storage. The public screenshots use
 an empty disposable configuration and contain no live server information.
 
-These checks cover this milestone. Final production, permission lifecycle and
-remaining plugin integration checks are tracked separately.
+## Permission lifecycle and diagnostics
+
+The installed native test fixture also exercises permission presentation at 390
+and 1440 pixels. Active and denied access fold independently, one logical scope
+appears once, and icons use the host risk colours. Exact user/device scopes remain
+separate. The backend tests cover repeated rejection/reinstatement, historical
+duplicate revocation, and concurrent approvals against PostgreSQL.
+
+![Folded access groups and denied permissions](../assets/ui-redevelopment/plugin-permission-groups-1440-light.png)
+
+![Denied permissions on a phone](../assets/ui-redevelopment/plugin-permission-groups-390-dark.png)
+
+Diagnostic events show the newest runtime sequence first, including a successful
+native configuration load after the owned backend restart. Historical action
+errors remain in the buffer. The server's Bubblewrap probe warning appears in
+Plugin Manager rather than as a plugin error.
+
+![Recent plugin diagnostics](../assets/ui-redevelopment/plugin-diagnostics-newest-1440-light.png)
+
+![Recent diagnostics on a phone](../assets/ui-redevelopment/plugin-diagnostics-newest-390-dark.png)
+
+The [permission UI check report](../assets/ui-redevelopment/permission-ui-conformance.json)
+identifies the locally built native fixture; it does not claim these captures use
+a newly downloaded distribution artifact.
+
+These checks cover the recorded milestones. Final production and remaining
+plugin integration checks are tracked separately.

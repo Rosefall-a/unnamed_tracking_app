@@ -17,6 +17,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy import delete, or_, select
 from sqlalchemy import update as sql_update
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from src.core.auth import get_current_admin, hash_token
 from src.database.models.auth import UserApiKey
 from src.database.models.plugin_notification_provider import PluginNotificationProviderRegistration
@@ -443,6 +444,7 @@ async def grant_plugin_permissions(
 ) -> dict:
     """Explicitly re-grant declared permissions without replacing package or data."""
     from src.plugin_api.capabilities import calculate_permission_delta
+    from src.plugin_api.grants import ensure_capability_grant
     from src.plugin_api.installer import InstallationPlan
 
     inspected = await asyncio.to_thread(
@@ -484,13 +486,14 @@ async def grant_plugin_permissions(
     except InstallationError as exc:
         raise HTTPException(exc.status_code, exc.detail) from exc
     for ref in refs:
-        db.add(
+        await ensure_capability_grant(
+            db,
             PluginPermissionGrant(
                 plugin_id=plugin_id,
                 installation_id=installation_id,
                 capability=ref.name.value,
                 capability_version=ref.version,
-            )
+            ),
         )
         db.add(
             PluginPermissionAudit(

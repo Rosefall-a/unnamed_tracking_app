@@ -34,8 +34,15 @@ local token. Deployments must always set a unique `PLUGIN_RUNTIME_TOKEN`;
 At startup the runtime executes a real Bubblewrap namespace probe. Its health
 response reports probe status, Bubblewrap usability, active isolation mechanism,
 sandbox availability, reduced-isolation policy and probe error. Plugin Settings
-displays this report when first opened; details and diagnostics show process
-status and errors. An unavailable runtime is never reported as fully isolated.
+displays runtime availability and isolation when first opened; its diagnostics
+show plugin process status and errors. An unavailable runtime is never reported
+as fully isolated.
+
+The failed Bubblewrap probe and acknowledgement warning belong to the server-wide
+Plugin Manager warning. They are not duplicated as a plugin's last error or failed
+startup event. Actual worker, action, compatibility, and update errors remain
+visible. Diagnostic events are shown newest first by their runtime sequence, while
+the underlying buffer retains the original history.
 
 A failed probe does not require an environment-variable change. An administrator
 can select **Review reduced isolation** in Plugin Manager, read the explanation,
