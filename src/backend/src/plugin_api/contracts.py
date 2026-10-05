@@ -252,6 +252,7 @@ from .ui_contracts import (
 from .ui_contracts import (
     UiSettingsSection as UiSettingsSection,
 )
+from .ui_contracts import UiShortcut as UiShortcut
 from .ui_contracts import (
     UiTable as UiTable,
 )
@@ -518,6 +519,7 @@ __all__ = [
     "UiDialogContribution",
     "UiExtension",
     "UiHomeWidget",
+    "UiShortcut",
     "UiTheme",
     "UiThemeColors",
     "UiThemePalette",

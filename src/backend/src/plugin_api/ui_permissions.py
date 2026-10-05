@@ -32,7 +32,8 @@ def filter_ui_document(
     authorized_routes = document.routes if permitted(Capability.FRONTEND_ROUTES) else ()
     authorized_settings = (
         tuple(place_settings(item, effective_capabilities) for item in document.settings_sections)
-        if permitted(Capability.FRONTEND_SETTINGS) else ()
+        if permitted(Capability.FRONTEND_SETTINGS)
+        else ()
     )
     authorized_route_ids = {item.id for item in authorized_routes}
     authorized_settings_ids = {item.id for item in authorized_settings}
@@ -63,6 +64,22 @@ def filter_ui_document(
                 document.home_widgets if permitted(Capability.FRONTEND_HOME_WIDGETS) else ()
             ),
             "themes": document.themes if permitted(Capability.FRONTEND_THEMES) else (),
+            "shortcuts": tuple(
+                item
+                for item in document.shortcuts
+                if permitted(Capability.FRONTEND_SHORTCUTS)
+                and (item.route_id is None or item.route_id in authorized_route_ids)
+                and (item.when_route_id is None or item.when_route_id in authorized_route_ids)
+                and (
+                    item.action_id is None
+                    or all(
+                        action.capability is None
+                        or action.capability.name.value in effective_capabilities
+                        for action in document.actions
+                        if action.id == item.action_id
+                    )
+                )
+            ),
             "overlays": (document.overlays if permitted(Capability.FRONTEND_OVERLAY) else ()),
             "dialog_contributions": (
                 document.dialog_contributions if permitted(Capability.FRONTEND_DIALOG) else ()

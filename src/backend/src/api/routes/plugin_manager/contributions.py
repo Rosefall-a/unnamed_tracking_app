@@ -63,6 +63,9 @@ _GATEWAY_DISPATCH_TIMEOUT = 8.0
 
 
 _GEOIP_UPLOAD_FILE = File(...)
+_PLUGIN_DB = Depends(get_db)
+_PLUGIN_USER = Depends(get_current_user)
+_PLUGIN_SETTINGS_BODY = Body(default_factory=dict)
 
 
 _DOCUMENT_DATA_ROOT = Path("/data/users")
@@ -79,8 +82,8 @@ _PLUGIN_FRONTEND_CSP = (
 async def plugin_frontend(
     plugin_id: str,
     asset_path: str,
-    db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
+    db: AsyncSession = _PLUGIN_DB,
+    user: User = _PLUGIN_USER,
 ) -> Response:
     if not asset_path or ".." in Path(asset_path).parts:
         raise HTTPException(status_code=404, detail="Plugin frontend asset not found.")
@@ -134,8 +137,8 @@ async def plugin_frontend(
 async def plugin_document_download(
     plugin_id: str,
     document_id: UUID,
-    db: AsyncSession = runtime._PLUGIN_DB,
-    user: User = Depends(get_current_user),
+    db: AsyncSession = _PLUGIN_DB,
+    user: User = _PLUGIN_USER,
 ) -> FileResponse:
     """Stream an owned original as an attachment, including unsupported preview types."""
     _, capabilities = await runtime._plugin_and_capabilities(plugin_id, db, user)
@@ -161,8 +164,8 @@ async def plugin_document_download(
 async def plugin_native_frontend(
     plugin_id: str,
     asset_path: str,
-    db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
+    db: AsyncSession = _PLUGIN_DB,
+    user: User = _PLUGIN_USER,
 ) -> Response:
     if not asset_path or ".." in Path(asset_path).parts:
         raise HTTPException(status_code=404, detail="Plugin native frontend asset not found.")
@@ -193,8 +196,8 @@ async def plugin_native_frontend(
 @router.get("/{plugin_id}/ui")
 async def plugin_ui(
     plugin_id: str,
-    db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
+    db: AsyncSession = _PLUGIN_DB,
+    user: User = _PLUGIN_USER,
 ) -> dict:
     plugin, capabilities = await runtime._plugin_and_capabilities(plugin_id, db, user)
     try:
@@ -222,6 +225,7 @@ async def plugin_ui(
                 "native_frontend": None,
                 "themes": (),
                 "home_widgets": (),
+                "shortcuts": (),
                 "navigation": tuple(
                     item.model_copy(update={"group": "Extensions", "folders": ()})
                     for item in document.navigation
@@ -239,9 +243,9 @@ async def plugin_ui(
 async def save_plugin_secret(
     plugin_id: str,
     key: str,
-    payload: dict[str, str] = Body(default_factory=dict),
-    db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
+    payload: dict[str, str] = _PLUGIN_SETTINGS_BODY,
+    db: AsyncSession = _PLUGIN_DB,
+    user: User = _PLUGIN_USER,
 ) -> dict[str, Any]:
     if not key or len(key) > 128 or "/" in key or ".." in key:
         raise HTTPException(status_code=400, detail="Invalid plugin secret key.")
@@ -276,9 +280,9 @@ async def save_plugin_secret(
 @router.put("/{plugin_id}/settings")
 async def save_plugin_settings(
     plugin_id: str,
-    payload: dict[str, Any] = Body(default_factory=dict),
-    db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
+    payload: dict[str, Any] = _PLUGIN_SETTINGS_BODY,
+    db: AsyncSession = _PLUGIN_DB,
+    user: User = _PLUGIN_USER,
 ) -> dict:
     plugin = await runtime._live_plugin(plugin_id)
     if not await has_capability_grant(
@@ -349,8 +353,8 @@ async def plugin_action(
     plugin_id: str,
     action_id: str,
     payload: models.PluginActionIn,
-    db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
+    db: AsyncSession = _PLUGIN_DB,
+    user: User = _PLUGIN_USER,
     *,
     request: Request,
 ) -> dict:
@@ -479,7 +483,7 @@ async def plugin_action(
 )
 async def plugin_gateway(
     payload: models.PluginGatewayIn,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = _PLUGIN_DB,
     runtime_token: str | None = Header(default=None, alias="X-Plugin-Runtime-Token"),
 ) -> dict[str, Any] | JSONResponse:
     def failure(status: int, code: ErrorCode, message: str) -> JSONResponse:

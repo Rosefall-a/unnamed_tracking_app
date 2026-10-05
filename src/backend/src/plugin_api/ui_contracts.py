@@ -8,6 +8,8 @@ from typing import Annotated, Literal, cast
 
 from pydantic import Field, field_validator, model_validator
 
+from src.helpers.shortcut_keys import normalize_shortcut_key
+
 from .base_contracts import (
     CapabilityRef,
     ContractModel,
@@ -313,7 +315,10 @@ class UiPlacement(ContractModel):
     def visible_folders(cls, values: tuple[str, ...]) -> tuple[str, ...]:
         result = tuple(value.strip() for value in values)
         if any(
-            not value or value in {".", ".."} or "/" in value or "\\" in value
+            not value
+            or value in {".", ".."}
+            or "/" in value
+            or "\\" in value
             or any(ord(character) < 32 for character in value)
             for value in result
         ):
@@ -470,6 +475,42 @@ class UiTheme(ContractModel):
     order: int = 0
 
 
+class UiShortcut(ContractModel):
+    """A permission-gated binding to a declared plugin target or visible page control."""
+
+    id: str = Field(min_length=1, max_length=128, pattern=r"^[a-z0-9][a-z0-9._-]*$")
+    label: str = Field(min_length=1, max_length=256)
+    group: str = Field(default="Extensions", min_length=1, max_length=128)
+    keys: tuple[str, ...] = Field(min_length=1, max_length=4)
+    page_id: str | None = Field(default=None, min_length=1, max_length=128)
+    route_id: str | None = Field(default=None, min_length=1, max_length=128)
+    action_id: str | None = Field(default=None, min_length=1, max_length=128)
+    control: Literal["search", "create"] | None = None
+    when_route_id: str | None = Field(default=None, min_length=1, max_length=128)
+    visibility: UiVisibility = Field(default_factory=UiVisibility)
+
+    @field_validator("keys")
+    @classmethod
+    def validate_keys(cls, value: tuple[str, ...]) -> tuple[str, ...]:
+        """Normalize combinations once before they reach the frontend dispatcher."""
+        return tuple(dict.fromkeys(normalize_shortcut_key(key) for key in value))
+
+    @model_validator(mode="after")
+    def require_target(self) -> "UiShortcut":
+        """Allow one executable target and keep page-control shortcuts local."""
+        if (
+            sum(
+                target is not None
+                for target in (self.page_id, self.route_id, self.action_id, self.control)
+            )
+            != 1
+        ):
+            raise ValueError("shortcut must target exactly one page, route, action or control")
+        if self.control is not None and self.when_route_id is None:
+            raise ValueError("control shortcuts must be scoped to a declared plugin route")
+        return self
+
+
 class PluginUiDocument(ContractModel):
     """Complete versioned UI document consumed by the native frontend host."""
 
@@ -496,6 +537,7 @@ class PluginUiDocument(ContractModel):
     routes: tuple[UiPluginRoute, ...] = ()
     page_replacements: tuple[UiPageReplacement, ...] = ()
     document_readers: tuple[UiDocumentReader, ...] = ()
+    shortcuts: tuple[UiShortcut, ...] = Field(default=(), max_length=64)
 
     @field_validator("api_contract_version")
     @classmethod
@@ -612,4 +654,26 @@ class PluginUiDocument(ContractModel):
                 raise ValueError(
                     f"contextual action {contextual_action.id} references an unknown action"
                 )
+        return self
+
+    @model_validator(mode="after")
+    def validate_shortcut_references(self) -> "PluginUiDocument":
+        """Keep bindings within the v1.1 document's declared pages, routes and actions."""
+        if self.shortcuts and parse_semver(self.api_contract_version) < (1, 1, 0):
+            raise ValueError("shortcut contributions require Plugin API v1.1")
+        if len({item.id for item in self.shortcuts}) != len(self.shortcuts):
+            raise ValueError("duplicate shortcut identifiers")
+        pages = {item.id for item in self.pages}
+        actions = {item.id for item in self.actions}
+        routes = {item.id for item in self.routes}
+        for shortcut in self.shortcuts:
+            if shortcut.page_id is not None and shortcut.page_id not in pages:
+                raise ValueError(f"shortcut {shortcut.id} references an unknown page")
+            if shortcut.action_id is not None and shortcut.action_id not in actions:
+                raise ValueError(f"shortcut {shortcut.id} references an unknown action")
+            if any(
+                identifier is not None and identifier not in routes
+                for identifier in (shortcut.route_id, shortcut.when_route_id)
+            ):
+                raise ValueError(f"shortcut {shortcut.id} references an unknown route")
         return self

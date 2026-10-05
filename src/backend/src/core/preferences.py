@@ -11,6 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database.models.user_preferences import UserPreferences
+from src.helpers.shortcut_keys import validate_shortcut_overrides
 
 DEFAULTS: dict[str, Any] = {
     "ui_theme": "system",
@@ -21,6 +22,8 @@ DEFAULTS: dict[str, Any] = {
     "ui_reduce_motion": False,
     "ui_high_contrast": False,
     "ui_welcome_completed": False,
+    "keyboard_shortcuts_enabled": True,
+    "keyboard_shortcut_overrides": {},
     "home_widgets": [],
     "home_widget_config": {},
     "calendar_game_releases": True,
@@ -110,6 +113,8 @@ def validate_preference(key: str, value: Any) -> Any:
         return _validate_widget_config(value)
     if key == "ui_custom_palette":
         return _validate_custom_palette(value)
+    if key == "keyboard_shortcut_overrides":
+        return validate_shortcut_overrides(value)
     if key in _SET_CHOICES:
         allowed = _SET_CHOICES[key]
         if not isinstance(value, list) or any(v not in allowed for v in value):

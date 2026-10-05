@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from datetime import datetime, timezone
 from enum import StrEnum
-from typing import Annotated, Any, Generic, Literal, TypeVar, cast
+from typing import Any, Generic, TypeVar, cast
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -77,6 +77,7 @@ class Capability(StrEnum):
     FRONTEND_PAGE_EXTEND = "frontend.page.extend"
     FRONTEND_HOME_WIDGETS = "frontend.home.widgets"
     FRONTEND_THEMES = "frontend.themes"
+    FRONTEND_SHORTCUTS = "frontend.shortcuts"
     FRONTEND_PAGE_REPLACE_HOME = "frontend.page.replace.home"
     FRONTEND_PAGE_REPLACE_SETTINGS = "frontend.page.replace.settings"
     FRONTEND_ROUTES = "frontend.routes"

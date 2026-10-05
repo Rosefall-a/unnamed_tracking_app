@@ -152,6 +152,7 @@ _LOW = frozenset(
         Capability.FRONTEND_PAGE_EXTEND,
         Capability.FRONTEND_HOME_WIDGETS,
         Capability.FRONTEND_THEMES,
+        Capability.FRONTEND_SHORTCUTS,
         Capability.FRONTEND_ROUTES,
     }
 )
