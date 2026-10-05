@@ -1,11 +1,15 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, nextTick, watch } from "vue";
+import HeartIcon from "../components/HeartIcon.vue";
+import { ref, computed, onMounted, onUnmounted, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useWindowVirtualizer } from "@tanstack/vue-virtual";
 import GameCard from "../components/GameCard.vue";
-import SkeletonBlock from "../components/SkeletonBlock.vue";
+import CheckIcon from "../components/CheckIcon.vue";
 import GameFormModal from "../components/GameFormModal.vue";
 import BulkEditModal from "../components/BulkEditModal.vue";
+import RandomGamePicker from "../components/RandomGamePicker.vue";
+import { activePriority, priorityLabel } from "../utils/priority";
+import { formatDisplayDate } from "../utils/dates";
 import FilterCombobox from "../components/FilterCombobox.vue";
 import {
   fetchGames,
@@ -14,10 +18,12 @@ import {
   fetchAchievementsSummary,
   addGameToCollection,
 } from "../services/games";
-import { takeLibraryScroll } from "../state/libraryScroll";
 import { setLibraryNavOrder } from "../state/libraryNav";
 import { isCommandPaletteOpen } from "../state/commandPalette";
 import CollectionPickerModal from "../components/CollectionPickerModal.vue";
+import GameTopBar from "../components/GameTopBar.vue";
+import SegmentedTabs from "../components/SegmentedTabs.vue";
+import type { SegmentOption } from "../components/SegmentedTabs.vue";
 import { computeScore } from "../utils/scoring";
 import DOMPurify from "dompurify";
 import {
@@ -27,13 +33,24 @@ import {
 } from "../utils/platforms";
 import { GENRE_OPTIONS } from "../utils/genres";
 import type { Game, GameStatus } from "../types/game";
-import { currentUser } from "../state/auth";
 import { usePrompt } from "../state/dialog";
 
 const prompt = usePrompt();
 
-type ViewMode = "cards" | "list" | "detail" | "shelves";
-type SortBy = "name" | "recent" | "rating" | "playtime" | "neglected";
+type ViewMode = "cards" | "list" | "detail";
+const SORT_KEYS = [
+  "name",
+  "name_desc",
+  "recent",
+  "rating",
+  "playtime",
+  "last_played",
+  "neglected",
+  "priority",
+  "release",
+  "length",
+] as const;
+type SortBy = (typeof SORT_KEYS)[number];
 type AchievementsFilter = "all" | "has" | "none";
 type MissingFilter = "none" | "playtime" | "rating" | "tags" | "description";
 type CardDensity = "compact" | "cozy" | "large";
@@ -52,8 +69,11 @@ const deletingGame = ref<Game | null>(null);
 const deleting = ref(false);
 const deleteError = ref<string | null>(null);
 
+const storedView = localStorage.getItem("gameLibraryViewMode");
+// "shelves" used to be the by-source layout, since removed; "cards" is the
+// grid, which is now what's labelled Shelves
 const viewMode = ref<ViewMode>(
-  (localStorage.getItem("gameLibraryViewMode") as ViewMode) || "cards",
+  storedView === "list" || storedView === "detail" ? storedView : "cards",
 );
 const selectedGame = ref<Game | null>(null);
 // keyboard focus within the Cards grid (arrow keys + Enter), separate from
@@ -66,6 +86,7 @@ const gridFocusIndex = ref<number | null>(null);
 const selectMode = ref(false);
 const selectedIds = ref<Set<string>>(new Set());
 const showBulkEditModal = ref(false);
+const showRandomPicker = ref(false);
 
 // one-time nudge toward bulk edit, gone for good the first time it's
 // dismissed or the feature is actually used, not re-shown once discovered
@@ -338,6 +359,15 @@ const advancedFilterCount = computed(() => {
   return count;
 });
 
+// every filter that narrows the list except the status tabs, which have
+// their own row; platform and genre live in the Filters panel too
+const filterCount = computed(
+  () =>
+    advancedFilterCount.value +
+    (platformFilter.value !== "all" ? 1 : 0) +
+    (genreFilter.value !== "all" ? 1 : 0),
+);
+
 function clearAdvancedFilters() {
   franchiseFilter.value = "all";
   collectionFilter.value = "all";
@@ -470,6 +500,31 @@ const statusOptions: (GameStatus | "all")[] = [
   "wishlist",
 ];
 
+const VIEW_OPTIONS: SegmentOption[] = [
+  {
+    value: "list",
+    label: "List",
+    icon: '<line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" /><line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" />',
+  },
+  {
+    value: "cards",
+    label: "Shelves",
+    icon: '<rect x="3" y="3" width="7" height="18" rx="1" /><rect x="14" y="3" width="7" height="10" rx="1" />',
+  },
+  {
+    value: "detail",
+    label: "Preview",
+    title: "List + preview",
+    icon: '<rect x="3" y="3" width="7" height="18" rx="1" /><rect x="13" y="3" width="8" height="18" rx="1" />',
+  },
+];
+
+const statusCounts = computed(() => {
+  const counts: Record<string, number> = { all: games.value.length };
+  for (const g of games.value) counts[g.status] = (counts[g.status] ?? 0) + 1;
+  return counts;
+});
+
 // arriving from a Home Hub row link (?status=playing, ?sort=recent)
 const queryStatus = route.query.status;
 if (
@@ -481,7 +536,7 @@ if (
 const querySort = route.query.sort;
 if (
   typeof querySort === "string" &&
-  ["name", "recent", "rating", "playtime", "neglected"].includes(querySort)
+  (SORT_KEYS as readonly string[]).includes(querySort)
 ) {
   sortBy.value = querySort as SortBy;
 }
@@ -555,30 +610,6 @@ function setView(mode: ViewMode) {
   }
 }
 
-const bgLayers = ref<{ url: string | null; visible: boolean }[]>([
-  { url: null, visible: false },
-  { url: null, visible: false },
-]);
-const activeLayer = ref(0);
-
-// only crossfade once the cursor has settled on a card briefly, gliding
-// across many cards shouldn't flicker the ambient background
-let hoverDebounceTimer: ReturnType<typeof setTimeout> | null = null;
-
-function setHoverImage(url: string | null) {
-  if (hoverDebounceTimer) clearTimeout(hoverDebounceTimer);
-  hoverDebounceTimer = setTimeout(() => {
-    if (url === null) {
-      bgLayers.value[activeLayer.value].visible = false;
-      return;
-    }
-    const nextLayer = activeLayer.value === 0 ? 1 : 0;
-    bgLayers.value[nextLayer] = { url, visible: true };
-    bgLayers.value[activeLayer.value].visible = false;
-    activeLayer.value = nextLayer;
-  }, 400);
-}
-
 // guards against a slower, earlier loadGames() call overwriting a newer
 // one's result, loadGames is re-triggered from many places (save, delete,
 // collection changes) that can overlap
@@ -622,18 +653,7 @@ async function loadGames() {
   }
 }
 
-onMounted(async () => {
-  await loadGames();
-  // the page has no real height until games render, so restoring scroll
-  // before that just gets clamped back to ~0, wait for the grid/list to
-  // actually paint, then scroll for real. The position itself was captured
-  // by a router guard (state/libraryScroll.ts), not onUnmounted here,
-  // that runs before any DOM change from the navigation, so it's reliably
-  // the position the user was actually looking at when they left.
-  await nextTick();
-  const y = takeLibraryScroll();
-  if (y > 0) window.scrollTo(0, y);
-});
+onMounted(loadGames);
 
 // filters are only remembered while you stay on this page, leaving it
 // (any other route) wipes them so the next visit starts from a clean slate
@@ -922,8 +942,20 @@ const filteredGames = computed(() => {
     result = result.filter((g) => fuzzyTitleMatch(g.title, q));
   }
 
+  // missing values always sort last, whichever way the sort runs
+  const lastIfNull = <T,>(
+    x: T | null,
+    y: T | null,
+    compare: (x: T, y: T) => number,
+  ): number => {
+    if (x === null && y === null) return 0;
+    if (x === null) return 1;
+    if (y === null) return -1;
+    return compare(x, y);
+  };
   result = [...result].sort((a, b) => {
     if (sortBy.value === "name") return a.title.localeCompare(b.title);
+    if (sortBy.value === "name_desc") return b.title.localeCompare(a.title);
     if (sortBy.value === "recent")
       return (b.dateAdded ?? "").localeCompare(a.dateAdded ?? "");
     if (sortBy.value === "rating") {
@@ -933,9 +965,26 @@ const filteredGames = computed(() => {
     }
     if (sortBy.value === "playtime")
       return gameTotalMinutes(b) - gameTotalMinutes(a);
+    if (sortBy.value === "last_played")
+      return lastIfNull(gameLastPlayed(a), gameLastPlayed(b), (x, y) =>
+        y.localeCompare(x),
+      );
     // never-played games sort first (most neglected), then oldest-last-played first
     if (sortBy.value === "neglected")
       return (gameLastPlayed(a) ?? "").localeCompare(gameLastPlayed(b) ?? "");
+    // 1 (highest) first; finished games have no priority, so they go last
+    if (sortBy.value === "priority")
+      return (
+        lastIfNull(activePriority(a), activePriority(b), (x, y) => x - y) ||
+        a.title.localeCompare(b.title)
+      );
+    if (sortBy.value === "release")
+      return lastIfNull(a.releaseDate, b.releaseDate, (x, y) =>
+        y.localeCompare(x),
+      );
+    // shortest first, for "something I can finish this weekend"
+    if (sortBy.value === "length")
+      return lastIfNull(a.timeToBeatHours, b.timeToBeatHours, (x, y) => x - y);
     return 0;
   });
 
@@ -1012,15 +1061,10 @@ const searchSuggestions = computed(() => {
 
 // active-filter pills shown above the grid, each entry's clear() resets
 // just that one filter, so the whole set doesn't have to be visible only
-// inside the dropdowns to know (or undo) what's currently applied
+// inside the dropdowns to know (or undo) what's currently applied. Status
+// isn't one: the status tabs already show it, as in Media
 const activeFilterPills = computed(() => {
   const pills: { key: string; label: string; clear: () => void }[] = [];
-  if (statusFilter.value !== "all")
-    pills.push({
-      key: "status",
-      label: statusFilter.value,
-      clear: () => (statusFilter.value = "all"),
-    });
   if (platformFilter.value !== "all")
     pills.push({
       key: "platform",
@@ -1143,27 +1187,51 @@ watch(cardDensity, (d) => localStorage.setItem("gameLibraryDensity", d));
 const viewportWidth = ref(window.innerWidth);
 function onResize() {
   viewportWidth.value = window.innerWidth;
-  if (viewMode.value === "shelves") updateAllShelfArrows();
 }
 onMounted(() => window.addEventListener("resize", onResize));
 onUnmounted(() => window.removeEventListener("resize", onResize));
 
+// Same card widths as the Media shelf (150 / 200 / 260px, 14px gap): the
+// column count is what an auto-fill grid of that minimum width would give
+// for the width the page actually has, so a "small" card is the same size
+// on both pages.
+const MIN_CARD_WIDTH: Record<CardDensity, number> = {
+  compact: 150,
+  cozy: 200,
+  large: 260,
+};
+const GRID_GAP = 14;
+const contentEl = ref<HTMLElement | null>(null);
+const gridWidth = ref(document.documentElement.clientWidth - 72);
+let contentObserver: ResizeObserver | null = null;
+onMounted(() => {
+  if (!contentEl.value) return;
+  contentObserver = new ResizeObserver((entries) => {
+    gridWidth.value = entries[0].contentRect.width;
+  });
+  contentObserver.observe(contentEl.value);
+});
+onUnmounted(() => contentObserver?.disconnect());
+
 const CARD_COLUMNS = computed(() => {
-  const w = viewportWidth.value;
-  let base: number;
-  if (w < 480) base = 2;
-  else if (w < 700) base = 3;
-  else if (w < 900) base = 4;
-  else if (w < 1150) base = 6;
-  else if (w < 1400) base = 8;
-  else base = 10;
-  if (cardDensity.value === "compact") return Math.round(base * 1.35);
-  if (cardDensity.value === "large") return Math.max(1, Math.round(base * 0.6));
-  return base;
+  const min = MIN_CARD_WIDTH[cardDensity.value];
+  return Math.max(
+    1,
+    Math.floor((gridWidth.value + GRID_GAP) / (min + GRID_GAP)),
+  );
 });
 const cardRowCount = computed(() =>
   Math.ceil(filteredGames.value.length / CARD_COLUMNS.value),
 );
+// Same as Media: a leaderboard position among everything that has a rating,
+// highest first, generated rather than assigned
+const rankByGameId = computed(() => {
+  const rated = games.value
+    .map((g) => ({ id: g.id, sum: computeScore(g)?.sum ?? null }))
+    .filter((g): g is { id: string; sum: number } => g.sum !== null)
+    .sort((a, b) => b.sum - a.sum);
+  return new Map(rated.map((g, i) => [g.id, i + 1]));
+});
 const rowVirtualizer = useWindowVirtualizer(
   computed(() => ({
     count: cardRowCount.value,
@@ -1171,305 +1239,51 @@ const rowVirtualizer = useWindowVirtualizer(
     overscan: 3,
   })),
 );
+// The list sits below the header, toolbar and tabs, which the window
+// virtualizer doesn't know about. As each row is measured and replaces its
+// 330px estimate it "corrects" the page scroll to compensate, which pushed
+// the page a third of the way down the moment it loaded. (An instance
+// property in this version, not a constructor option.)
+rowVirtualizer.value.shouldAdjustScrollPositionOnItemSizeChange = () => false;
 function cardsInRow(rowIndex: number): Game[] {
   const start = rowIndex * CARD_COLUMNS.value;
   return filteredGames.value.slice(start, start + CARD_COLUMNS.value);
 }
-
-// "Shelves" view, Home Hub's grouped-row layout, applied to the whole
-// (filtered) library instead of just Continue Playing/Recently Added
-const sourceShelves = computed(() => {
-  const map = new Map<string, Game[]>();
-  for (const g of filteredGames.value) {
-    const key = g.source || "Other";
-    if (!map.has(key)) map.set(key, []);
-    map.get(key)!.push(g);
-  }
-  return [...map.entries()]
-    .sort((a, b) => b[1].length - a[1].length)
-    .map(([name, list]) => ({ name, games: list }));
-});
-function scrollShelf(e: MouseEvent, dir: 1 | -1) {
-  const wrap = (e.currentTarget as HTMLElement).closest(".shelf-wrap");
-  const shelf = wrap?.querySelector(".shelf") as HTMLElement | null;
-  if (!shelf) return;
-  shelf.scrollBy({ left: dir * shelf.clientWidth * 0.9, behavior: "smooth" });
-}
-// same arrow-visibility pattern as Home Hub's shelves, only shown once
-// there's actually somewhere left to scroll
-function updateShelfArrows(shelf: HTMLElement) {
-  const wrap = shelf.closest(".shelf-wrap");
-  if (!wrap) return;
-  const left = wrap.querySelector(".shelf-arrow.left");
-  const right = wrap.querySelector(".shelf-arrow.right");
-  const maxScroll = shelf.scrollWidth - shelf.clientWidth;
-  left?.classList.toggle("can-scroll", shelf.scrollLeft > 4);
-  right?.classList.toggle("can-scroll", shelf.scrollLeft < maxScroll - 4);
-}
-function updateAllShelfArrows() {
-  document
-    .querySelectorAll<HTMLElement>(".shelves-view .shelf")
-    .forEach(updateShelfArrows);
-}
-watch(viewMode, (mode) => {
-  if (mode === "shelves") nextTick(updateAllShelfArrows);
-});
 </script>
 
 <template>
   <main class="library" :class="{ locked: viewMode === 'detail' }">
-    <div
-      v-for="(layer, i) in bgLayers"
-      :key="i"
-      class="ambient-bg"
-      :class="{ visible: layer.visible }"
-      :style="layer.url ? { backgroundImage: `url(${layer.url})` } : {}"
-    ></div>
+    <GameTopBar active="games">
+      <template #actions>
+        <SegmentedTabs
+          :options="VIEW_OPTIONS"
+          :model-value="viewMode"
+          aria-label="View"
+          @update:model-value="setView($event as ViewMode)"
+        />
+      </template>
+    </GameTopBar>
 
-    <div v-if="currentUser" class="profile-chip">
-      <span class="profile-name">{{ currentUser.username }}</span>
-      <div class="profile-avatar">
-        {{ currentUser.username.slice(0, 2).toUpperCase() }}
-      </div>
-    </div>
-
-    <div class="content">
-      <div class="header-row">
-        <h1>Games</h1>
-        <div class="header-actions">
-          <div class="search-wrap">
-            <input
-              ref="searchInputRef"
-              v-model="searchQuery"
-              type="text"
-              class="search-input"
-              placeholder="Search games… (/)"
-              @focus="showRecentSearches = true"
-              @blur="
-                showRecentSearches = false;
-                commitSearchToRecent();
-              "
-              @keydown.enter="commitSearchToRecent"
-            />
-            <div
-              v-if="
-                showRecentSearches &&
-                !searchQuery.trim() &&
-                recentSearches.length
-              "
-              class="recent-searches-dropdown"
-            >
-              <div class="recent-searches-label">Recent searches</div>
-              <button
-                v-for="q in recentSearches"
-                :key="q"
-                type="button"
-                class="recent-search-item"
-                @mousedown.prevent="pickRecentSearch(q)"
-              >
-                <span>{{ q }}</span>
-                <span
-                  class="recent-search-remove"
-                  @mousedown.prevent.stop="removeRecentSearch(q)"
-                  >✕</span
-                >
-              </button>
-            </div>
+    <div ref="contentEl" class="content">
+      <div class="page-head">
+        <div>
+          <h1>Games</h1>
+          <div class="sub">
+            {{ games.length }} {{ games.length === 1 ? "game" : "games" }}
           </div>
-          <select v-model="statusFilter" class="filter-select">
-            <option v-for="s in statusOptions" :key="s" :value="s">
-              {{ s === "all" ? "All statuses" : s }}
-            </option>
-          </select>
-          <FilterCombobox
-            v-model="platformFilter"
-            :options="platformOptions"
-            :extra-options="platformExtraOptions"
-            extra-label="Retro"
-            placeholder="Platform"
-            all-label="All platforms"
-          />
-          <FilterCombobox
-            v-model="genreFilter"
-            :options="genreOptions"
-            placeholder="Genre"
-            all-label="All genres"
-          />
-          <select v-model="sortBy" class="filter-select">
-            <option value="name">Name</option>
-            <option value="recent">Recently added</option>
-            <option value="rating">Rating</option>
-            <option value="playtime">Most Played</option>
-            <option value="neglected">Neglected (least recently played)</option>
-          </select>
-
-          <div
-            v-if="viewMode === 'cards'"
-            class="density-toggle"
-            title="Card size"
-          >
-            <button
-              v-for="d in ['compact', 'cozy', 'large'] as CardDensity[]"
-              :key="d"
-              type="button"
-              class="density-button"
-              :class="{ active: cardDensity === d }"
-              :title="d"
-              @click="cardDensity = d"
-            >
-              {{ d === "compact" ? "S" : d === "cozy" ? "M" : "L" }}
-            </button>
-          </div>
-
-          <div class="view-toggle">
-            <button
-              type="button"
-              class="view-toggle-button"
-              :class="{ active: viewMode === 'cards' }"
-              title="Cards"
-              @click="setView('cards')"
-            >
-              <svg
-                viewBox="0 0 24 24"
-                width="16"
-                height="16"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <rect x="3" y="3" width="8" height="8" rx="1" />
-                <rect x="13" y="3" width="8" height="8" rx="1" />
-                <rect x="3" y="13" width="8" height="8" rx="1" />
-                <rect x="13" y="13" width="8" height="8" rx="1" />
-              </svg>
-            </button>
-            <button
-              type="button"
-              class="view-toggle-button"
-              :class="{ active: viewMode === 'list' }"
-              title="List"
-              @click="setView('list')"
-            >
-              <svg
-                viewBox="0 0 24 24"
-                width="16"
-                height="16"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <line x1="4" y1="6" x2="20" y2="6" />
-                <line x1="4" y1="12" x2="20" y2="12" />
-                <line x1="4" y1="18" x2="20" y2="18" />
-              </svg>
-            </button>
-            <button
-              type="button"
-              class="view-toggle-button"
-              :class="{ active: viewMode === 'detail' }"
-              title="List + preview"
-              @click="setView('detail')"
-            >
-              <svg
-                viewBox="0 0 24 24"
-                width="16"
-                height="16"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <rect x="3" y="3" width="7" height="18" rx="1" />
-                <rect x="13" y="3" width="8" height="18" rx="1" />
-              </svg>
-            </button>
-            <button
-              type="button"
-              class="view-toggle-button"
-              :class="{ active: viewMode === 'shelves' }"
-              title="Shelves (by source)"
-              @click="setView('shelves')"
-            >
-              <svg
-                viewBox="0 0 24 24"
-                width="16"
-                height="16"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <line x1="4" y1="6" x2="20" y2="6" />
-                <line x1="4" y1="12" x2="20" y2="12" />
-                <line x1="4" y1="18" x2="20" y2="18" />
-                <rect x="4" y="3.5" width="5" height="5" rx="1" />
-              </svg>
-            </button>
-          </div>
-
-          <button
-            type="button"
-            class="advanced-toggle"
-            :class="{ active: showAdvancedFilters }"
-            @click="showAdvancedFilters = !showAdvancedFilters"
-          >
-            Advanced Filters
-            <span v-if="advancedFilterCount" class="advanced-count">{{
-              advancedFilterCount
-            }}</span>
-          </button>
-
-          <div class="presets-wrap">
-            <button
-              type="button"
-              class="advanced-toggle"
-              @click="showPresetsMenu = !showPresetsMenu"
-            >
-              Presets
-            </button>
-            <div v-if="showPresetsMenu" class="presets-dropdown">
-              <button
-                v-for="p in filterPresets"
-                :key="p.name"
-                type="button"
-                class="preset-item"
-                @click="applyPreset(p)"
-              >
-                <span>{{ p.name }}</span>
-                <span class="preset-remove" @click.stop="deletePreset(p.name)"
-                  >✕</span
-                >
-              </button>
-              <p v-if="!filterPresets.length" class="preset-empty">
-                No saved presets yet.
-              </p>
-              <button
-                type="button"
-                class="preset-save"
-                @click="saveCurrentAsPreset"
-              >
-                + Save current filters
-              </button>
-            </div>
-          </div>
-
+        </div>
+        <div class="head-actions">
           <div class="select-button-wrap">
             <button
               type="button"
-              class="advanced-toggle"
-              :class="{ active: selectMode }"
+              class="select-btn"
+              :class="{ on: selectMode }"
               @click="
                 toggleSelectMode();
                 dismissBulkEditHint();
               "
             >
-              {{ selectMode ? "Cancel Select" : "Select" }}
+              {{ selectMode ? "Done" : "Select" }}
             </button>
             <div v-if="showBulkEditHint" class="first-use-hint">
               <span
@@ -1485,18 +1299,26 @@ watch(viewMode, (mode) => {
               </button>
             </div>
           </div>
-
-          <button type="button" class="add-button" @click="openAddModal">
+          <button
+            type="button"
+            class="select-btn"
+            :disabled="!games.length"
+            title="Pick a game to play, filtered by status, platform, genre, length and priority"
+            @click="showRandomPicker = true"
+          >
+            Random
+          </button>
+          <button type="button" class="add-btn" @click="openAddModal">
             + Add Game
           </button>
         </div>
       </div>
 
       <div v-if="selectMode" class="bulk-toolbar">
-        <span>{{ selectedIds.size }} selected</span>
+        <span class="count">{{ selectedIds.size }} selected</span>
         <button
           type="button"
-          class="small-button"
+          class="btn-outline"
           :disabled="filteredGames.length === 0"
           @click="selectedIds = new Set(filteredGames.map((g) => g.id))"
         >
@@ -1504,7 +1326,7 @@ watch(viewMode, (mode) => {
         </button>
         <button
           type="button"
-          class="small-button"
+          class="btn-outline"
           :disabled="!selectedIds.size"
           @click="clearSelection"
         >
@@ -1512,7 +1334,7 @@ watch(viewMode, (mode) => {
         </button>
         <button
           type="button"
-          class="small-button"
+          class="btn-outline"
           :disabled="!selectedIds.size || bulkAddingToCollection"
           @click="bulkAddToCollection"
         >
@@ -1520,7 +1342,7 @@ watch(viewMode, (mode) => {
         </button>
         <button
           type="button"
-          class="primary-button"
+          class="btn-solid"
           :disabled="!selectedIds.size"
           @click="showBulkEditModal = true"
         >
@@ -1536,7 +1358,145 @@ watch(viewMode, (mode) => {
         }}.
       </div>
 
+      <div class="toolbar">
+        <div class="search-wrap">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+          >
+            <circle cx="11" cy="11" r="7" />
+            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+          </svg>
+          <input
+            ref="searchInputRef"
+            v-model="searchQuery"
+            type="text"
+            class="search-input"
+            placeholder="Search your library… (/)"
+            aria-label="Search games"
+            @focus="showRecentSearches = true"
+            @blur="
+              showRecentSearches = false;
+              commitSearchToRecent();
+            "
+            @keydown.enter="commitSearchToRecent"
+          />
+          <div
+            v-if="
+              showRecentSearches && !searchQuery.trim() && recentSearches.length
+            "
+            class="recent-searches-dropdown"
+          >
+            <div class="recent-searches-label">Recent searches</div>
+            <button
+              v-for="q in recentSearches"
+              :key="q"
+              type="button"
+              class="recent-search-item"
+              @mousedown.prevent="pickRecentSearch(q)"
+            >
+              <span>{{ q }}</span>
+              <span
+                class="recent-search-remove"
+                @mousedown.prevent.stop="removeRecentSearch(q)"
+                >✕</span
+              >
+            </button>
+          </div>
+        </div>
+        <select v-model="sortBy" class="sort-select" aria-label="Sort by">
+          <option value="name">Name (A–Z)</option>
+          <option value="name_desc">Name (Z–A)</option>
+          <option value="recent">Recently added</option>
+          <option value="rating">Rating</option>
+          <option value="playtime">Most Played</option>
+          <option value="last_played">Recently played</option>
+          <option value="neglected">Neglected (least recently played)</option>
+          <option value="priority">Priority</option>
+          <option value="release">Release date (newest)</option>
+          <option value="length">Time to beat (shortest)</option>
+        </select>
+        <button
+          type="button"
+          class="filter-btn"
+          :class="{ 'active-filter': filterCount }"
+          @click="showAdvancedFilters = !showAdvancedFilters"
+        >
+          Filters
+          <span v-if="filterCount" class="count">{{ filterCount }}</span>
+        </button>
+        <div class="presets-wrap">
+          <button
+            type="button"
+            class="filter-btn"
+            @click="showPresetsMenu = !showPresetsMenu"
+          >
+            Presets
+          </button>
+          <div v-if="showPresetsMenu" class="presets-dropdown">
+            <button
+              v-for="p in filterPresets"
+              :key="p.name"
+              type="button"
+              class="preset-item"
+              @click="applyPreset(p)"
+            >
+              <span>{{ p.name }}</span>
+              <span class="preset-remove" @click.stop="deletePreset(p.name)"
+                >✕</span
+              >
+            </button>
+            <p v-if="!filterPresets.length" class="preset-empty">
+              No saved presets yet.
+            </p>
+            <button
+              type="button"
+              class="preset-save"
+              @click="saveCurrentAsPreset"
+            >
+              + Save current filters
+            </button>
+          </div>
+        </div>
+        <div
+          v-if="viewMode === 'cards'"
+          class="density-toggle"
+          title="Card size"
+        >
+          <button
+            v-for="d in ['compact', 'cozy', 'large'] as CardDensity[]"
+            :key="d"
+            type="button"
+            class="density-button"
+            :class="{ active: cardDensity === d }"
+            :title="d"
+            @click="cardDensity = d"
+          >
+            {{ d === "compact" ? "S" : d === "cozy" ? "M" : "L" }}
+          </button>
+        </div>
+      </div>
+
       <div v-if="showAdvancedFilters" class="advanced-panel">
+        <div class="filter-group platform-genre-group">
+          <FilterCombobox
+            v-model="platformFilter"
+            :options="platformOptions"
+            :extra-options="platformExtraOptions"
+            extra-label="Retro"
+            placeholder="Platform"
+            all-label="All platforms"
+          />
+          <FilterCombobox
+            v-model="genreFilter"
+            :options="genreOptions"
+            placeholder="Genre"
+            all-label="All genres"
+          />
+        </div>
         <div class="advanced-field">
           <label>Franchise</label>
           <FilterCombobox
@@ -1602,7 +1562,11 @@ watch(viewMode, (mode) => {
         </div>
         <div class="advanced-field">
           <label>Achievements</label>
-          <select v-model="achievementsFilter" class="filter-select">
+          <select
+            v-model="achievementsFilter"
+            class="filter-select"
+            aria-label="Achievements"
+          >
             <option value="all">All games</option>
             <option value="has">Has achievements</option>
             <option value="none">No achievements</option>
@@ -1610,7 +1574,11 @@ watch(viewMode, (mode) => {
         </div>
         <div class="advanced-field">
           <label>What's missing</label>
-          <select v-model="missingFilter" class="filter-select">
+          <select
+            v-model="missingFilter"
+            class="filter-select"
+            aria-label="What's missing"
+          >
             <option value="none">Nothing, show everything</option>
             <option value="playtime">No playtime logged</option>
             <option value="rating">No rating</option>
@@ -1661,6 +1629,20 @@ watch(viewMode, (mode) => {
         </div>
       </div>
 
+      <div class="status-tabs">
+        <button
+          v-for="s in statusOptions"
+          :key="s"
+          type="button"
+          class="status-tab"
+          :class="{ active: statusFilter === s }"
+          @click="statusFilter = s"
+        >
+          {{ s === "all" ? "All" : s }}
+          <span class="n">{{ statusCounts[s] }}</span>
+        </button>
+      </div>
+
       <div v-if="activeFilterPills.length" class="active-filter-pills">
         <button
           v-for="pill in activeFilterPills"
@@ -1681,21 +1663,12 @@ watch(viewMode, (mode) => {
         </button>
       </div>
 
-      <div
-        v-if="loading"
-        class="skeleton-grid"
-        :style="{ gridTemplateColumns: `repeat(${CARD_COLUMNS}, 1fr)` }"
-      >
-        <div v-for="i in 20" :key="i" class="skeleton-card">
-          <SkeletonBlock height="150px" radius="8px" />
-          <SkeletonBlock height="14px" width="80%" />
-          <SkeletonBlock height="11px" width="50%" />
-        </div>
-      </div>
-      <p v-else-if="error" class="error">{{ error }}</p>
+      <p v-if="loading" class="empty-state">Loading…</p>
+      <p v-else-if="error" class="empty-state error">{{ error }}</p>
 
-      <div v-else-if="isEmpty" class="empty-state">
+      <div v-else-if="isEmpty" class="empty-state rich">
         <svg
+          v-if="!hasAnyGames"
           viewBox="0 0 24 24"
           width="48"
           height="48"
@@ -1709,17 +1682,11 @@ watch(viewMode, (mode) => {
           <path d="M3 9h18" />
           <path d="M8 13h.01M12 13h.01M16 13h.01" />
         </svg>
-        <h3>
-          {{
-            hasAnyGames
-              ? "No games match your filters"
-              : "Your library is empty"
-          }}
-        </h3>
+        <h3 v-if="!hasAnyGames">Your library is empty</h3>
         <p>
           {{
             hasAnyGames
-              ? "Try clearing or adjusting your filters."
+              ? "Nothing matches. Try a different filter or search."
               : "Add your first game to get started."
           }}
         </p>
@@ -1738,13 +1705,13 @@ watch(viewMode, (mode) => {
         <button
           v-if="hasAnyGames"
           type="button"
-          class="secondary-button"
+          class="btn-outline"
           @click="clearAllFilters"
         >
           Clear filters
         </button>
         <template v-else>
-          <button type="button" class="primary-button" @click="openAddModal">
+          <button type="button" class="btn-solid" @click="openAddModal">
             + Add Game
           </button>
           <ul class="empty-hint-list">
@@ -1753,12 +1720,8 @@ watch(viewMode, (mode) => {
               to sync a library
             </li>
             <li>
-              Drop screenshots or files into the Inbox and assign them to a game
+              Drop screenshots or files into Upload and assign them to a game
               later
-            </li>
-            <li>
-              Set up a Bounty once you've added a few games, for a lightweight
-              goal to work toward
             </li>
           </ul>
         </template>
@@ -1785,12 +1748,12 @@ watch(viewMode, (mode) => {
               v-for="(game, colIndex) in cardsInRow(virtualRow.index)"
               :key="game.id"
               :game="game"
+              :rank="rankByGameId.get(game.id) ?? null"
               :select-mode="selectMode"
               :selected="selectedIds.has(game.id)"
               :keyboard-focused="
                 gridFocusIndex === virtualRow.index * CARD_COLUMNS + colIndex
               "
-              @hover="setHoverImage"
               @edit="openEditModal"
               @add-to-collection="handleAddToCollection"
               @toggle-select="toggleSelect"
@@ -1800,29 +1763,19 @@ watch(viewMode, (mode) => {
 
         <div v-else-if="viewMode === 'list'" class="list-view">
           <div v-if="filteredGames.length" class="list-header">
-            <span class="list-header-spacer"></span>
+            <span></span>
             <button
               type="button"
-              class="list-title sortable"
+              class="sortable left"
               :class="{ active: sortBy === 'name' }"
               @click="sortBy = 'name'"
             >
               Name
             </button>
-            <span class="list-status">Status</span>
-            <span class="list-genre">Genre</span>
-            <span class="list-platform">Platform</span>
+            <span></span>
             <button
               type="button"
-              class="list-score sortable"
-              :class="{ active: sortBy === 'rating' }"
-              @click="sortBy = 'rating'"
-            >
-              Rating
-            </button>
-            <button
-              type="button"
-              class="list-playtime sortable"
+              class="sortable"
               :class="{ active: sortBy === 'playtime' }"
               @click="sortBy = 'playtime'"
             >
@@ -1830,14 +1783,23 @@ watch(viewMode, (mode) => {
             </button>
             <button
               type="button"
-              class="list-last-played sortable"
+              class="sortable"
+              :class="{ active: sortBy === 'rating' }"
+              @click="sortBy = 'rating'"
+            >
+              Rating
+            </button>
+            <span>Rank</span>
+            <button
+              type="button"
+              class="sortable"
               :class="{ active: sortBy === 'neglected' }"
               @click="sortBy = 'neglected'"
             >
               Last played
             </button>
-            <span class="list-release">Released</span>
-            <span class="list-actions-spacer"></span>
+            <span>Released</span>
+            <span>Status</span>
           </div>
           <div
             v-for="game in filteredGames"
@@ -1845,74 +1807,46 @@ watch(viewMode, (mode) => {
             class="list-row"
             @click="selectMode ? toggleSelect(game) : openGame(game)"
           >
-            <div
-              v-if="selectMode"
-              class="list-checkbox"
-              :class="{ checked: selectedIds.has(game.id) }"
-              @click.stop="toggleSelect(game)"
-            >
-              <svg
-                v-if="selectedIds.has(game.id)"
-                viewBox="0 0 24 24"
-                width="12"
-                height="12"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="3"
-                stroke-linecap="round"
-                stroke-linejoin="round"
+            <div class="list-thumb-wrap">
+              <img class="list-cover" :src="game.coverImageUrl" alt="" />
+              <div
+                v-if="selectMode"
+                class="select-checkbox"
+                :class="{ checked: selectedIds.has(game.id) }"
+                @click.stop="toggleSelect(game)"
               >
-                <path d="M20 6L9 17l-5-5" />
-              </svg>
+                <CheckIcon v-if="selectedIds.has(game.id)" />
+              </div>
             </div>
-            <img class="list-cover" :src="game.coverImageUrl" alt="" />
-            <span class="list-title">{{ game.title }}</span>
-            <span class="list-status"
-              ><span class="status-pill">{{ game.status }}</span></span
-            >
-            <span class="list-genre">{{ game.tags[0] ?? "N/A" }}</span>
-            <span class="list-platform">{{
-              game.platforms[0]?.platform ?? "N/A"
-            }}</span>
-            <span class="list-score">
-              <template v-if="computeScore(game)"
-                >★ {{ computeScore(game)!.sum.toFixed(1) }}</template
-              >
-              <template v-else>N/A</template>
-            </span>
-            <span class="list-playtime">{{ totalPlaytime(game) }}</span>
-            <span class="list-last-played">
-              {{
-                gameLastPlayed(game)
-                  ? new Date(gameLastPlayed(game)!).toLocaleDateString()
-                  : "N/A"
-              }}
-            </span>
-            <span class="list-release">
-              {{
-                game.releaseDate
-                  ? new Date(game.releaseDate).toLocaleDateString()
-                  : "N/A"
-              }}
-            </span>
-            <div class="list-actions">
+            <div class="list-title-col">
+              <div class="list-title">{{ game.title }}</div>
+              <div class="list-sub">
+                {{ game.tags[0] ?? "No genre"
+                }}<template v-if="game.platforms[0]">
+                  · {{ game.platforms[0].platform }}</template
+                >
+              </div>
+            </div>
+            <div class="icon-cluster">
               <button
                 type="button"
-                class="small-button"
-                @click.stop="openEditModal(game)"
+                class="icon-btn"
+                :class="{ active: game.favorite }"
+                :title="
+                  game.favorite ? 'Remove from favorites' : 'Add to favorites'
+                "
+                @click.stop="toggleFavorite(game)"
               >
-                Edit
+                <HeartIcon :filled="game.favorite" />
               </button>
               <button
                 type="button"
-                class="icon-button"
+                class="icon-btn"
                 title="Add to collection"
                 @click.stop="handleAddToCollection(game)"
               >
                 <svg
                   viewBox="0 0 24 24"
-                  width="16"
-                  height="16"
                   fill="none"
                   stroke="currentColor"
                   stroke-width="2"
@@ -1924,73 +1858,57 @@ watch(viewMode, (mode) => {
               </button>
               <button
                 type="button"
-                class="icon-button"
-                :class="{ active: game.favorite }"
-                :title="
-                  game.favorite ? 'Remove from favorites' : 'Add to favorites'
-                "
-                @click.stop="toggleFavorite(game)"
+                class="icon-btn"
+                title="Edit"
+                @click.stop="openEditModal(game)"
               >
                 <svg
                   viewBox="0 0 24 24"
-                  width="16"
-                  height="16"
-                  :fill="game.favorite ? 'currentColor' : 'none'"
+                  fill="none"
                   stroke="currentColor"
                   stroke-width="2"
                   stroke-linecap="round"
                   stroke-linejoin="round"
                 >
-                  <path
-                    d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.8 1-1a5.5 5.5 0 0 0 0-7.6z"
-                  />
+                  <path d="M12 20h9" />
+                  <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
                 </svg>
               </button>
             </div>
+            <div class="stat-cell strong">
+              {{ totalPlaytime(game) === "N/A" ? "–" : totalPlaytime(game) }}
+            </div>
+            <div class="score-cell" :class="{ empty: !computeScore(game) }">
+              {{
+                computeScore(game)
+                  ? `★ ${computeScore(game)!.sum.toFixed(1)}`
+                  : "–"
+              }}
+            </div>
+            <div class="rank-cell">
+              <span v-if="rankByGameId.get(game.id)" class="rank-badge"
+                >#{{ rankByGameId.get(game.id) }}</span
+              >
+              <span v-else class="rank-empty">–</span>
+            </div>
+            <div class="stat-cell">
+              {{
+                gameLastPlayed(game)
+                  ? new Date(gameLastPlayed(game)!).toLocaleDateString()
+                  : "–"
+              }}
+            </div>
+            <div class="stat-cell">
+              {{ game.releaseDate ? formatDisplayDate(game.releaseDate) : "–" }}
+            </div>
+            <div class="status-cell">
+              <span
+                class="status-pill"
+                :class="`st-${game.status.replace(' ', '-')}`"
+                >{{ game.status }}</span
+              >
+            </div>
           </div>
-        </div>
-
-        <div v-else-if="viewMode === 'shelves'" class="shelves-view">
-          <section
-            v-for="shelf in sourceShelves"
-            :key="shelf.name"
-            class="shelf-row"
-          >
-            <div class="shelf-row-header">
-              <h2>{{ shelf.name }}</h2>
-              <span class="shelf-row-count">{{ shelf.games.length }}</span>
-            </div>
-            <div class="shelf-wrap">
-              <button
-                type="button"
-                class="shelf-arrow left"
-                @click="scrollShelf($event, -1)"
-                aria-label="Scroll left"
-              >
-                ‹
-              </button>
-              <div
-                class="shelf"
-                @scroll="updateShelfArrows($event.target as HTMLElement)"
-              >
-                <GameCard
-                  v-for="game in shelf.games"
-                  :key="game.id"
-                  :game="game"
-                  @edit="openEditModal"
-                  @add-to-collection="handleAddToCollection"
-                />
-              </div>
-              <button
-                type="button"
-                class="shelf-arrow right"
-                @click="scrollShelf($event, 1)"
-                aria-label="Scroll right"
-              >
-                ›
-              </button>
-            </div>
-          </section>
         </div>
 
         <div v-else class="detail-view">
@@ -2063,7 +1981,16 @@ watch(viewMode, (mode) => {
                   >
                     <span class="preview-detail-label">Released</span>
                     <span>{{
-                      new Date(selectedGame.releaseDate).toLocaleDateString()
+                      formatDisplayDate(selectedGame.releaseDate)
+                    }}</span>
+                  </div>
+                  <div
+                    v-if="activePriority(selectedGame) !== null"
+                    class="preview-detail-row"
+                  >
+                    <span class="preview-detail-label">Priority</span>
+                    <span>{{
+                      priorityLabel(activePriority(selectedGame)!)
                     }}</span>
                   </div>
                   <div v-if="selectedGame.dateAdded" class="preview-detail-row">
@@ -2211,20 +2138,7 @@ watch(viewMode, (mode) => {
                     "
                     @click="toggleFavorite(selectedGame)"
                   >
-                    <svg
-                      viewBox="0 0 24 24"
-                      width="16"
-                      height="16"
-                      :fill="selectedGame.favorite ? 'currentColor' : 'none'"
-                      stroke="currentColor"
-                      stroke-width="2"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    >
-                      <path
-                        d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.8 1-1a5.5 5.5 0 0 0 0-7.6z"
-                      />
-                    </svg>
+                    <HeartIcon :filled="selectedGame.favorite" />
                   </button>
                 </div>
               </div>
@@ -2256,6 +2170,12 @@ watch(viewMode, (mode) => {
         :game-ids="Array.from(selectedIds)"
         @close="showBulkEditModal = false"
         @saved="onBulkEditSaved"
+      />
+
+      <RandomGamePicker
+        v-if="showRandomPicker"
+        :games="games"
+        @close="showRandomPicker = false"
       />
 
       <div
@@ -2296,9 +2216,8 @@ watch(viewMode, (mode) => {
 <style scoped>
 .library {
   position: relative;
-  padding: 84px 24px 24px;
   font-family: system-ui, sans-serif;
-  background: #121212;
+  background: #0d0d0d;
   min-height: 100vh;
   color: #fff;
   overflow-x: hidden;
@@ -2322,107 +2241,218 @@ watch(viewMode, (mode) => {
   height: auto;
   min-height: 0;
 }
-.ambient-bg {
-  position: fixed;
-  inset: 0;
-  background-size: cover;
-  background-position: center;
-  filter: blur(90px);
-  opacity: 0;
-  transform: scale(1.2);
-  transition: opacity 1.4s cubic-bezier(0.22, 1, 0.36, 1);
-  z-index: 0;
-}
-.ambient-bg.visible {
-  opacity: 0.35;
-}
 .content {
   position: relative;
   z-index: 1;
-}
-.profile-chip {
-  position: fixed;
-  top: 16px;
-  right: 16px;
-  z-index: 100;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  background: rgba(20, 20, 20, 0.55);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  border-radius: 999px;
-  padding: 6px 6px 6px 16px;
-}
-.profile-avatar {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: #d68a34;
-  color: #111;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  font-weight: 700;
-}
-.profile-name {
-  color: #fff;
-  font-size: 13px;
-  font-weight: 600;
-}
-.header-row {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  align-items: center;
-  gap: 16px;
-  margin-bottom: 24px;
-  /* keeps search/filters reachable without scrolling back up through a long
-     grid, only kicks in outside "List + preview" mode, which scrolls its
-     own panes instead of the page */
-  position: sticky;
-  top: 0;
-  z-index: 5;
-  background: #121212;
-  padding: 20px 0 16px;
-  margin-top: -20px;
-}
-.header-row h1 {
-  margin: 0;
-  font-size: 1.6rem;
-  font-weight: 700;
-}
-.header-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
-}
-.search-input,
-.filter-select {
-  height: 40px;
+  padding: 24px 24px 24px 48px;
   box-sizing: border-box;
-  background: #111;
-  border: 1px solid #3a3a3a;
+}
+@media (max-width: 720px) {
+  .content {
+    padding: 16px 14px 24px;
+  }
+}
+.library {
+  --bg: #0d0d0d;
+  --surface: #1a1a1a;
+  --surface-2: #222222;
+  --border: #2b2b2b;
+  --border-soft: #202020;
+  --accent: #d68a34;
+  --accent-soft: rgba(214, 138, 52, 0.16);
+  --accent-line: rgba(214, 138, 52, 0.4);
+  --text: #f2f2f2;
+  --text-dim: #9c9c9c;
+  --text-faint: #666;
+  --good: #6fbf73;
+  --good-soft: rgba(111, 191, 115, 0.16);
+  --hold: #7ba7d9;
+  --hold-soft: rgba(123, 167, 217, 0.16);
+  --dropped: #d96f6f;
+  --dropped-soft: rgba(217, 111, 111, 0.16);
+  --plan: #9d8cd9;
+  --plan-soft: rgba(157, 140, 217, 0.16);
+}
+.page-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.page-head h1 {
+  font-weight: 800;
+  font-size: 1.7rem;
+  margin: 0;
+}
+.page-head .sub {
+  color: var(--text-faint);
+  font-size: 0.85rem;
+  margin-top: 4px;
+}
+.head-actions {
+  display: flex;
+  gap: 8px;
+}
+.add-btn {
+  background: var(--accent);
+  border: none;
+  color: #14100a;
   border-radius: 8px;
-  color: #fff;
-  padding: 0 14px;
-  font: inherit;
-  font-size: 13px;
-  transition: border-color 0.15s ease;
+  padding: 0 18px;
+  height: 38px;
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.select-btn {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  border-radius: 8px;
+  padding: 0 16px;
+  height: 38px;
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.select-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.select-btn.on {
+  background: var(--accent-soft);
+  border-color: var(--accent-line);
+  color: var(--accent);
+}
+.toolbar {
+  margin-top: 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 .search-wrap {
   position: relative;
+  flex: 1;
+  min-width: 140px;
+  max-width: 340px;
+}
+.search-wrap > svg {
+  position: absolute;
+  left: 11px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 15px;
+  height: 15px;
+  color: var(--text-faint);
+  pointer-events: none;
 }
 .search-input {
-  width: 200px;
+  box-sizing: border-box;
+  height: 38px;
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 0 12px 0 34px;
+  font-family: inherit;
+  font-size: 0.85rem;
 }
-.search-input:focus,
+.search-input:focus {
+  outline: none;
+  border-color: var(--accent-line);
+}
+.sort-select,
+.filter-select {
+  box-sizing: border-box;
+  height: 38px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 0 12px;
+  font-family: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.sort-select:focus,
 .filter-select:focus {
   outline: none;
-  border-color: #d68a34;
+  border-color: var(--accent-line);
+}
+.filter-btn {
+  box-sizing: border-box;
+  height: 38px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  border-radius: 8px;
+  padding: 0 14px;
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.filter-btn.active-filter {
+  border-color: var(--accent-line);
+  color: var(--accent);
+}
+.filter-btn .count {
+  background: var(--accent);
+  color: #14100a;
+  border-radius: 999px;
+  font-size: 0.66rem;
+  font-weight: 800;
+  padding: 1px 6px;
+}
+.status-tabs {
+  margin-top: 14px;
+  margin-bottom: 20px;
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--border-soft);
+}
+.status-tab {
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 10px 14px;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  text-transform: capitalize;
+}
+.status-tab.active {
+  color: var(--text);
+  border-bottom-color: var(--accent);
+}
+.status-tab .n {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-faint);
+  font-weight: 500;
+}
+.status-tab.active .n {
+  color: var(--text-dim);
+}
+.platform-genre-group {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 .recent-searches-dropdown {
   position: absolute;
@@ -2472,81 +2502,6 @@ watch(viewMode, (mode) => {
 .select-button-wrap,
 .presets-wrap {
   position: relative;
-}
-.shelves-view {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.shelf-row-header {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding-left: 12px;
-  border-left: 3px solid #d68a34;
-  margin-bottom: 4px;
-}
-.shelf-row-header h2 {
-  margin: 0;
-  font-size: 1.05rem;
-  color: #fff;
-}
-.shelf-row-count {
-  background: rgba(255, 255, 255, 0.06);
-  color: #999;
-  font-size: 12px;
-  font-weight: 600;
-  padding: 3px 10px;
-  border-radius: 999px;
-}
-.shelf-wrap {
-  position: relative;
-}
-.shelf {
-  display: flex;
-  gap: 16px;
-  overflow-x: auto;
-  scroll-behavior: smooth;
-  padding: 16px 4px 24px;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
-.shelf::-webkit-scrollbar {
-  display: none;
-}
-.shelf-arrow {
-  position: absolute;
-  top: 0;
-  bottom: 24px;
-  width: 40px;
-  border: none;
-  background: linear-gradient(to right, rgba(10, 10, 10, 0.85), transparent);
-  color: #fff;
-  font-size: 26px;
-  line-height: 1;
-  cursor: pointer;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.15s ease;
-  z-index: 20;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.shelf-arrow.right {
-  left: auto;
-  right: 0;
-  background: linear-gradient(to left, rgba(10, 10, 10, 0.85), transparent);
-}
-.shelf-arrow.left {
-  left: 0;
-}
-.shelf-wrap:hover .shelf-arrow.can-scroll {
-  opacity: 1;
-  pointer-events: auto;
-}
-.shelf-arrow:hover {
-  color: #d68a34;
 }
 .presets-dropdown {
   position: absolute;
@@ -2614,9 +2569,9 @@ watch(viewMode, (mode) => {
   top: calc(100% + 8px);
   left: 0;
   width: 240px;
-  background: #1a1a1a;
-  border: 1px solid #d68a34;
-  border-radius: 8px;
+  background: var(--surface);
+  border: 1px solid var(--accent-line);
+  border-radius: 10px;
   padding: 12px 14px;
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
   z-index: 20;
@@ -2625,52 +2580,60 @@ watch(viewMode, (mode) => {
   gap: 10px;
 }
 .first-use-hint span {
-  color: #eee;
-  font-size: 12.5px;
+  color: var(--text);
+  font-size: 0.82rem;
   line-height: 1.5;
 }
 .first-use-hint-dismiss {
   align-self: flex-end;
-  background: rgba(214, 138, 52, 0.14);
-  border: none;
-  color: #d68a34;
-  border-radius: 6px;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-line);
+  color: var(--accent);
+  border-radius: 7px;
   padding: 5px 10px;
-  font-size: 12px;
-  font-weight: 600;
+  font-family: inherit;
+  font-size: 0.75rem;
+  font-weight: 700;
   cursor: pointer;
 }
-.first-use-hint-dismiss:hover {
-  background: rgba(214, 138, 52, 0.24);
+/* anchored to Select, the tip ran off a phone screen */
+@media (max-width: 600px) {
+  .first-use-hint {
+    position: fixed;
+    top: auto;
+    left: 16px;
+    right: 16px;
+    bottom: 16px;
+    width: auto;
+  }
 }
 .density-toggle {
   display: flex;
   gap: 2px;
-  background: rgba(0, 0, 0, 0.3);
-  border: 1px solid #2a2a2a;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 8px;
   padding: 3px;
-  height: 40px;
   box-sizing: border-box;
 }
 .density-button {
   background: none;
   border: none;
-  color: #999;
-  width: 28px;
-  height: 32px;
+  color: var(--text-faint);
+  width: 26px;
+  height: 26px;
   border-radius: 6px;
   cursor: pointer;
-  font-size: 11px;
+  font-size: 0.7rem;
   font-weight: 700;
 }
 .density-button:hover {
-  color: #fff;
+  color: var(--text);
   background: rgba(255, 255, 255, 0.06);
 }
 .density-button.active {
-  color: #111;
-  background: #d68a34;
+  color: #14100a;
+  background: var(--accent);
 }
 .active-filter-pills {
   display: flex;
@@ -2715,22 +2678,23 @@ watch(viewMode, (mode) => {
   align-items: center;
   flex-wrap: wrap;
   gap: 8px;
-  color: #999;
-  font-size: 13px;
+  color: var(--text-dim);
+  font-size: 0.82rem;
   margin-top: -8px;
 }
 .search-suggestion-item {
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid #3a3a3a;
-  color: #fff;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text);
   border-radius: 999px;
   padding: 5px 12px;
-  font-size: 12.5px;
+  font-family: inherit;
+  font-size: 0.78rem;
   cursor: pointer;
 }
 .search-suggestion-item:hover {
-  border-color: #d68a34;
-  color: #d68a34;
+  border-color: var(--accent-line);
+  color: var(--accent);
 }
 .empty-hint-list {
   list-style: none;
@@ -2743,11 +2707,12 @@ watch(viewMode, (mode) => {
   max-width: 420px;
 }
 .empty-hint-list li {
-  color: #999;
-  font-size: 12.5px;
+  color: var(--text-dim);
+  font-size: 0.78rem;
   line-height: 1.5;
-  background: rgba(255, 255, 255, 0.04);
-  border-radius: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
   padding: 8px 12px;
 }
 .filter-select:hover {
@@ -2760,51 +2725,6 @@ watch(viewMode, (mode) => {
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' stroke='%23999' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>");
   background-repeat: no-repeat;
   background-position: right 16px center;
-}
-.view-toggle {
-  display: flex;
-  gap: 2px;
-  background: rgba(0, 0, 0, 0.3);
-  border: 1px solid #2a2a2a;
-  border-radius: 8px;
-  padding: 3px;
-  height: 40px;
-  box-sizing: border-box;
-}
-.view-toggle-button {
-  background: none;
-  border: none;
-  color: #999;
-  width: 32px;
-  height: 32px;
-  border-radius: 6px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition:
-    background 0.15s ease,
-    color 0.15s ease;
-}
-.view-toggle-button:hover {
-  color: #fff;
-  background: rgba(255, 255, 255, 0.06);
-}
-.view-toggle-button.active {
-  color: #111;
-  background: #d68a34;
-  box-shadow: 0 2px 8px rgba(214, 138, 52, 0.4);
-}
-.add-button {
-  height: 40px;
-  box-sizing: border-box;
-  background: #d68a34;
-  color: #111;
-  border: none;
-  border-radius: 8px;
-  padding: 0 18px;
-  font-weight: 600;
-  cursor: pointer;
 }
 /* fixed 10-per-row grid, column width only depends on the container, never
    on how many games there are, so adding one more game just starts filling
@@ -2820,8 +2740,8 @@ watch(viewMode, (mode) => {
   width: 100%;
   display: grid;
   grid-template-columns: repeat(10, 1fr);
-  gap: 16px;
-  padding-bottom: 16px;
+  gap: 14px;
+  padding-bottom: 14px;
 }
 .grid-row :deep(.game-card-wrap) {
   width: auto;
@@ -2829,49 +2749,54 @@ watch(viewMode, (mode) => {
 }
 
 /* Advanced filters */
-.advanced-toggle {
-  height: 40px;
-  box-sizing: border-box;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid #3a3a3a;
-  border-radius: 8px;
-  color: #ccc;
-  padding: 0 16px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  transition:
-    background 0.15s ease,
-    border-color 0.15s ease,
-    color 0.15s ease;
-}
-.advanced-toggle:hover {
-  color: #fff;
-  border-color: #4a4a4a;
-}
-.advanced-toggle.active {
-  color: #d68a34;
-  border-color: rgba(214, 138, 52, 0.5);
-  background: rgba(214, 138, 52, 0.1);
-}
 .bulk-toolbar {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 12px;
-  background: rgba(214, 138, 52, 0.08);
-  border: 1px solid rgba(214, 138, 52, 0.3);
+  margin-top: 12px;
+  padding: 10px 16px;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-line);
   border-radius: 10px;
-  padding: 12px 16px;
-  margin-bottom: 20px;
-  color: #d68a34;
-  font-size: 13px;
-  font-weight: 600;
 }
-.bulk-toolbar .primary-button {
+.bulk-toolbar .count {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--accent);
+  white-space: nowrap;
+}
+.bulk-toolbar .btn-solid {
   margin-left: auto;
+}
+.btn-outline {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  border-radius: 8px;
+  padding: 0 16px;
+  height: 36px;
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.btn-solid {
+  background: var(--accent);
+  border: none;
+  color: #14100a;
+  border-radius: 8px;
+  padding: 0 16px;
+  height: 36px;
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.btn-outline:disabled,
+.btn-solid:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 .form-success.bulk-success {
   color: #86efac;
@@ -2882,48 +2807,38 @@ watch(viewMode, (mode) => {
   padding: 8px 12px;
   margin-bottom: 20px;
 }
-.list-checkbox {
-  width: 22px;
-  height: 22px;
-  border-radius: 6px;
-  border: 2px solid #4a4a4a;
-  background: rgba(0, 0, 0, 0.3);
+.select-checkbox {
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  background: rgba(10, 10, 10, 0.8);
+  border: 1.5px solid rgba(255, 255, 255, 0.45);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #111;
-  flex-shrink: 0;
   cursor: pointer;
-  transition:
-    background 0.15s ease,
-    border-color 0.15s ease;
+  color: var(--accent, #d68a34);
+  font-size: 0.85rem;
+  font-weight: 800;
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  z-index: 4;
 }
-.list-checkbox.checked {
-  background: #d68a34;
-  border-color: #d68a34;
-}
-.advanced-count {
-  background: #d68a34;
-  color: #111;
-  font-size: 11px;
-  font-weight: 700;
-  border-radius: 999px;
-  min-width: 18px;
-  height: 18px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0 5px;
+.select-checkbox.checked {
+  background: var(--accent, #d68a34);
+  border-color: var(--accent, #d68a34);
+  color: #14100a;
 }
 .advanced-panel {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   gap: 14px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid #232323;
+  margin-top: 10px;
+  padding: 14px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 10px;
-  padding: 18px 20px;
-  margin-bottom: 24px;
 }
 .advanced-field {
   display: flex;
@@ -2939,29 +2854,31 @@ watch(viewMode, (mode) => {
   gap: 6px;
 }
 .tag-chip {
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid #3a3a3a;
-  color: #ccc;
+  box-sizing: border-box;
+  height: 28px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
   border-radius: 999px;
-  padding: 5px 12px;
-  font-size: 12px;
+  padding: 0 12px;
+  font-size: 0.76rem;
+  font-weight: 700;
   cursor: pointer;
 }
 .tag-chip:hover {
   border-color: #4a4a4a;
 }
 .tag-chip.active {
-  background: #d68a34;
-  border-color: #d68a34;
-  color: #111;
-  font-weight: 600;
+  background: var(--accent-soft);
+  border-color: var(--accent-line);
+  color: var(--accent);
 }
 .advanced-field label {
-  color: #888;
-  font-size: 11px;
+  color: var(--text-dim);
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  font-weight: 600;
 }
 .advanced-field .combobox,
 .advanced-field .filter-select {
@@ -2978,26 +2895,24 @@ watch(viewMode, (mode) => {
   margin-top: 4px;
 }
 .toggle-chip {
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid #3a3a3a;
-  color: #ccc;
+  box-sizing: border-box;
+  height: 28px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
   border-radius: 999px;
-  padding: 7px 14px;
-  font-size: 12.5px;
-  font-weight: 600;
+  padding: 0 12px;
+  font-size: 0.76rem;
+  font-weight: 700;
   cursor: pointer;
-  transition:
-    background 0.15s ease,
-    border-color 0.15s ease,
-    color 0.15s ease;
 }
 .toggle-chip:hover {
   border-color: #4a4a4a;
 }
 .toggle-chip.active {
-  color: #d68a34;
-  border-color: rgba(214, 138, 52, 0.5);
-  background: rgba(214, 138, 52, 0.14);
+  color: var(--accent);
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
 }
 .clear-advanced {
   margin-left: auto;
@@ -3018,163 +2933,248 @@ watch(viewMode, (mode) => {
   text-decoration: none;
 }
 
-.error {
-  color: #f87171;
-}
-
-.skeleton-grid {
-  display: grid;
-  grid-template-columns: repeat(10, 1fr);
-  gap: 16px;
-}
-.skeleton-card {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
 .empty-state {
+  color: var(--text-faint);
+  font-size: 0.9rem;
+  padding: 40px 0;
+  text-align: center;
+}
+.empty-state.error {
+  color: #e57373;
+}
+/* the first-run "library is empty" guide, which Media has no equivalent of */
+.empty-state.rich {
   display: flex;
   flex-direction: column;
   align-items: center;
-  text-align: center;
   gap: 8px;
   padding: 80px 20px;
-  color: #777;
 }
-.empty-state svg {
-  color: #444;
+.empty-state.rich svg {
+  color: var(--border);
   margin-bottom: 10px;
 }
-.empty-state h3 {
+.empty-state.rich h3 {
   margin: 0;
-  color: #ccc;
+  color: var(--text);
   font-size: 1.05rem;
 }
-.empty-state p {
+.empty-state.rich p {
   margin: 0 0 10px;
-  font-size: 13.5px;
 }
 
 /* List view */
 .list-view {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
+  overflow-x: auto;
+}
+.list-header,
+.list-row {
+  display: grid;
+  grid-template-columns:
+    76px minmax(200px, 1fr)
+    100px 84px 64px 46px 104px 104px 128px;
+  align-items: center;
+  gap: 20px;
+  min-width: 1066px;
 }
 .list-header {
-  display: flex;
-  align-items: center;
-  gap: 24px;
-  padding: 0 28px 8px;
+  padding: 0 16px 8px;
 }
 .list-header span,
 .list-header .sortable {
-  color: #666;
-  font-size: 11px;
+  color: var(--text-faint);
+  font-size: 0.66rem;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  font-weight: 600;
+  letter-spacing: 0.06em;
+  font-weight: 700;
+  text-align: center;
 }
 .list-header .sortable {
   background: none;
   border: none;
   padding: 0;
   font-family: inherit;
-  text-align: left;
   cursor: pointer;
+}
+.list-header .sortable.left {
+  text-align: left;
 }
 .list-header .sortable:hover,
 .list-header .sortable.active {
-  color: #d68a34;
-}
-.list-header-spacer {
-  width: 44px;
-  flex-shrink: 0;
-}
-.list-actions-spacer {
-  width: 130px;
-  flex-shrink: 0;
+  color: var(--accent);
 }
 .list-row {
-  display: flex;
-  align-items: center;
-  gap: 24px;
-  padding: 12px 28px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid #232323;
+  padding: 10px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border-soft);
   border-radius: 10px;
   cursor: pointer;
-  transition:
-    background 0.15s ease,
-    transform 0.15s ease,
-    box-shadow 0.15s ease,
-    border-color 0.15s ease;
+  transition: border-color 0.15s ease;
 }
 .list-row:hover {
-  background: rgba(255, 255, 255, 0.06);
-  border-color: #333;
-  transform: translateX(2px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  border-color: var(--accent-line);
+}
+.list-thumb-wrap {
+  position: relative;
+  width: 76px;
 }
 .list-cover {
-  width: 44px;
-  height: 58px;
+  display: block;
+  width: 76px;
+  aspect-ratio: 2 / 3;
   object-fit: cover;
   border-radius: 6px;
-  flex-shrink: 0;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  background: var(--surface-2);
+}
+.list-title-col {
+  min-width: 0;
 }
 .list-title {
-  flex: 1;
-  font-weight: 600;
-  font-size: 14.5px;
-  color: #fff;
+  font-weight: 700;
+  font-size: 1.02rem;
+  line-height: 1.3;
+  color: var(--text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.list-status {
-  width: 100px;
-  flex-shrink: 0;
+.list-sub {
+  font-size: 0.72rem;
+  color: var(--text-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.icon-cluster {
   display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.icon-btn {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-faint);
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  display: flex;
+  align-items: center;
   justify-content: center;
-  text-transform: capitalize;
-  color: #ccc;
-  font-size: 12px;
+  cursor: pointer;
+  flex-shrink: 0;
 }
-.status-pill {
-  width: 82px;
+.icon-btn svg {
+  width: 12px;
+  height: 12px;
+}
+.icon-btn:hover {
+  border-color: var(--accent-line);
+  color: var(--text);
+}
+.icon-btn.active {
+  color: var(--accent);
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
+}
+.rank-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 5px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  border: 1px solid var(--accent-line);
+  font-size: 0.68rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.rank-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.rank-empty {
+  color: var(--text-faint);
+  font-size: 0.75rem;
+}
+.status-cell,
+.stat-cell,
+.score-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   text-align: center;
-  background: rgba(255, 255, 255, 0.06);
-  padding: 4px 0;
-  border-radius: 999px;
+  font-variant-numeric: tabular-nums;
 }
-.list-header .list-status {
-  text-align: center;
+.stat-cell {
+  font-size: 0.8rem;
+  color: var(--text-dim);
 }
-.list-genre,
-.list-platform,
-.list-last-played,
-.list-release {
-  color: #999;
-  font-size: 12px;
-  min-width: 100px;
-}
-.list-score {
-  min-width: 60px;
-  color: #d68a34;
-  font-size: 12px;
+.stat-cell.strong {
+  font-size: 0.95rem;
   font-weight: 700;
+  color: var(--text);
 }
-.list-header .list-score {
-  color: #666;
+.score-cell {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--accent);
+  white-space: nowrap;
+}
+.score-cell.empty {
+  justify-self: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 5px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-faint);
   font-weight: 600;
 }
-.list-playtime {
-  width: 60px;
-  color: #999;
-  font-size: 12px;
+.status-pill {
+  display: inline-block;
+  width: 128px;
+  text-align: center;
+  background: var(--surface-2);
+  color: var(--text-dim);
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+.status-pill.st-playing {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.status-pill.st-beaten,
+.status-pill.st-mastered,
+.status-pill.st-played {
+  background: var(--good-soft);
+  color: var(--good);
+}
+.status-pill.st-on-hold {
+  background: var(--hold-soft);
+  color: var(--hold);
+}
+.status-pill.st-dropped {
+  background: var(--dropped-soft);
+  color: var(--dropped);
+}
+.status-pill.st-backlog,
+.status-pill.st-wishlist {
+  background: var(--plan-soft);
+  color: var(--plan);
 }
 .list-actions {
   display: flex;
@@ -3184,12 +3184,12 @@ watch(viewMode, (mode) => {
   flex-shrink: 0;
 }
 .icon-button {
-  background: rgba(255, 255, 255, 0.08);
-  color: #999;
-  border: none;
-  border-radius: 8px;
-  width: 34px;
-  height: 34px;
+  background: var(--surface-2);
+  color: var(--text-faint);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  width: 30px;
+  height: 30px;
   flex-shrink: 0;
   cursor: pointer;
   display: flex;
@@ -3197,15 +3197,21 @@ watch(viewMode, (mode) => {
   justify-content: center;
   transition:
     background 0.15s ease,
-    color 0.15s ease;
+    color 0.15s ease,
+    border-color 0.15s ease;
+}
+.icon-button svg {
+  width: 16px;
+  height: 16px;
 }
 .icon-button:hover {
-  background: rgba(255, 255, 255, 0.14);
-  color: #ccc;
+  border-color: var(--accent-line);
+  color: var(--text);
 }
 .icon-button.active {
-  color: #d68a34;
-  background: rgba(214, 138, 52, 0.16);
+  color: var(--accent);
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
 }
 
 /* Detail (list + preview) view, a bounded-height split panel so the list
@@ -3231,64 +3237,60 @@ watch(viewMode, (mode) => {
   display: flex;
   align-items: center;
   gap: 12px;
-  background: none;
-  border: 1px solid transparent;
+  background: var(--surface);
+  border: 1px solid var(--border-soft);
   border-radius: 10px;
-  padding: 8px;
+  padding: 8px 12px 8px 8px;
   cursor: pointer;
-  color: #ccc;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
   text-align: left;
-  transition:
-    background 0.15s ease,
-    border-color 0.15s ease,
-    transform 0.15s ease;
+  transition: border-color 0.15s ease;
 }
 .detail-list-item:hover {
-  background: rgba(255, 255, 255, 0.05);
-  transform: translateX(2px);
+  border-color: var(--accent-line);
 }
 .detail-list-item.active {
-  background: rgba(214, 138, 52, 0.16);
-  border-color: rgba(214, 138, 52, 0.5);
-  color: #fff;
-  box-shadow: 0 4px 16px rgba(214, 138, 52, 0.15);
+  background: var(--accent-soft);
+  border-color: var(--accent-line);
 }
 .detail-list-thumb {
   width: 40px;
-  height: 54px;
+  aspect-ratio: 2 / 3;
   object-fit: cover;
   border-radius: 6px;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
+  background: var(--surface-2);
   flex-shrink: 0;
 }
 .detail-preview {
-  border: 1px solid #2a2a2a;
-  border-radius: 16px;
-  background: rgba(0, 0, 0, 0.3);
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  background: var(--surface);
   height: 100%;
   overflow-y: auto;
 }
 .preview-banner {
   position: relative;
   height: 260px;
+  background-color: var(--surface-2);
   background-size: cover;
   background-position: center;
 }
 .preview-banner-overlay {
   position: absolute;
   inset: 0;
-  background: linear-gradient(
-    180deg,
-    rgba(18, 18, 18, 0) 40%,
-    rgba(18, 18, 18, 0.95) 100%
-  );
+  background: linear-gradient(180deg, transparent 40%, var(--surface) 100%);
 }
 .preview-info {
   padding: 20px;
 }
 .preview-info h2 {
   margin: 0 0 10px;
+  font-size: 1.7rem;
+  font-weight: 800;
+  color: var(--text);
 }
 .preview-meta {
   display: flex;
@@ -3296,13 +3298,16 @@ watch(viewMode, (mode) => {
   margin-bottom: 14px;
 }
 .preview-badge {
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  padding: 5px 14px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  padding: 5px 12px;
   border-radius: 999px;
-  font-size: 12px;
-  text-transform: capitalize;
-  color: #ccc;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.01em;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
 }
 .preview-details {
   display: flex;
@@ -3310,14 +3315,14 @@ watch(viewMode, (mode) => {
   gap: 10px;
   margin-bottom: 18px;
   padding-top: 14px;
-  border-top: 1px solid #2a2a2a;
+  border-top: 1px solid var(--border-soft);
 }
 .preview-platforms {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  color: #ddd;
-  font-size: 13px;
+  color: var(--text);
+  font-size: 0.82rem;
 }
 .preview-links {
   display: flex;
@@ -3325,8 +3330,8 @@ watch(viewMode, (mode) => {
   gap: 2px;
 }
 .preview-links a {
-  color: #d68a34;
-  font-size: 13px;
+  color: var(--accent);
+  font-size: 0.82rem;
   text-decoration: none;
 }
 .preview-links a:hover {
@@ -3335,12 +3340,16 @@ watch(viewMode, (mode) => {
 .preview-detail-row {
   display: flex;
   gap: 10px;
-  font-size: 13px;
-  color: #ddd;
+  font-size: 0.82rem;
+  color: var(--text);
   align-items: baseline;
 }
 .preview-detail-label {
-  color: #888;
+  color: var(--text-faint);
+  font-size: 0.66rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
   min-width: 80px;
   flex-shrink: 0;
 }
@@ -3350,11 +3359,12 @@ watch(viewMode, (mode) => {
   gap: 6px;
 }
 .preview-pill {
-  background: #2a2a2a;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
   padding: 3px 10px;
   border-radius: 999px;
-  font-size: 11px;
-  color: #ccc;
+  font-size: 0.7rem;
+  color: var(--text-dim);
 }
 .preview-fade-enter-active,
 .preview-fade-leave-active {
@@ -3365,10 +3375,10 @@ watch(viewMode, (mode) => {
   opacity: 0;
 }
 .preview-badge.score {
-  color: #d68a34;
+  color: var(--accent);
 }
 .preview-description-html {
-  color: #ccc;
+  color: var(--text-dim);
   line-height: 1.6;
   margin: 0 0 18px;
   max-width: 100%;
@@ -3388,13 +3398,13 @@ watch(viewMode, (mode) => {
   margin: 18px 0 6px;
   font-size: 15px;
   font-weight: 700;
-  color: #fff;
+  color: var(--text);
 }
 .preview-description-html :deep(p) {
   margin: 0 0 12px;
 }
 .preview-description-html :deep(a) {
-  color: #d68a34;
+  color: var(--accent);
 }
 .preview-description-html :deep(ul) {
   padding-left: 20px;
@@ -3402,7 +3412,27 @@ watch(viewMode, (mode) => {
 }
 .preview-actions {
   display: flex;
+  align-items: center;
   gap: 10px;
+}
+/* same buttons as the page header's Add game / Select */
+.preview-actions .primary-button,
+.preview-actions .secondary-button {
+  height: 38px;
+  padding: 0 18px;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+.preview-actions .primary-button {
+  background: var(--accent);
+  color: #14100a;
+}
+.preview-actions .secondary-button {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
 }
 .empty-row {
   color: #777;
@@ -3485,20 +3515,36 @@ watch(viewMode, (mode) => {
    horizontally instead of losing the title; detail stacks into one column
    with a shorter, horizontally-scrolling game strip above the preview. */
 @media (max-width: 760px) {
+  /* Media's phone list: no header, cover and title side by side, every
+     other cell stacked under the title. The two dates are dropped here
+     since, stacked without their column headers, they'd be unlabeled. */
   .list-view {
-    overflow-x: auto;
+    overflow-x: visible;
+  }
+  .list-header {
+    display: none;
   }
   .list-header,
   .list-row {
-    min-width: 640px;
+    min-width: 0;
   }
-  .list-title {
-    /* flex:1's default flex-basis:0% let this shrink all the way to 0,
-       invisible: once the row's other fixed-width columns took priority.
-       A real floor forces the row to actually grow past the viewport
-       (triggering the horizontal scroll above) instead of hiding the one
-       thing worth reading. */
-    min-width: 140px;
+  .list-row {
+    grid-template-columns: 56px minmax(0, 1fr);
+    gap: 6px 12px;
+  }
+  .list-row > *:nth-child(n + 3) {
+    grid-column: 2;
+    justify-self: start;
+  }
+  .list-row > *:nth-child(7),
+  .list-row > *:nth-child(8) {
+    display: none;
+  }
+  .list-thumb-wrap {
+    width: 56px;
+  }
+  .list-cover {
+    width: 100%;
   }
   .detail-view {
     grid-template-columns: 1fr;

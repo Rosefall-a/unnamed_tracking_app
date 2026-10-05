@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import { usePageTitle } from "../state/pageTitle";
+import { formatDisplayDate } from "../utils/dates";
+import { activePriority, priorityLabel } from "../utils/priority";
 import { computed, ref, watch, onMounted, onUnmounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import {
@@ -19,10 +22,6 @@ import {
   setPlaytimeSeconds,
 } from "../services/games";
 import type { FieldChange } from "../services/games";
-import { listCardsForGame, createCard } from "../services/cards";
-import type { Card } from "../types/card";
-import { fetchBounties } from "../services/bounties";
-import type { Bounty } from "../services/bounties";
 import { peekAdjacentGameId } from "../state/libraryNav";
 import {
   uploadGameScreenshots,
@@ -98,8 +97,9 @@ import {
 import type { Achievement, AchievementTier, Game } from "../types/game";
 import GameFormModal from "../components/GameFormModal.vue";
 import CollectionPickerModal from "../components/CollectionPickerModal.vue";
+import BackButton from "../components/BackButton.vue";
+import AccountChip from "../components/AccountChip.vue";
 import { computeScore } from "../utils/scoring";
-import { currentUser } from "../state/auth";
 import { marked } from "marked";
 import DOMPurify from "dompurify";
 import { useConfirm, usePrompt } from "../state/dialog";
@@ -119,6 +119,7 @@ function goBackToLibrary() {
 }
 
 const game = ref<Game | null>(null);
+usePageTitle(() => game.value?.title);
 const loading = ref(true);
 const error = ref<string | null>(null);
 const showEditModal = ref(false);
@@ -932,8 +933,6 @@ async function loadGame(id: string) {
       } catch {
         // variants section just doesn't show, not worth failing the page
       }
-
-      void loadRelatedBounties(id);
     }
   } catch (err) {
     error.value = err instanceof Error ? err.message : "Failed to load game";
@@ -1032,17 +1031,6 @@ const similarGames = computed(() => {
     .slice(0, 8)
     .map((e) => e.game);
 });
-
-// --- related bounty(ies) targeting this game ----------------------------
-const relatedBounties = ref<Bounty[]>([]);
-async function loadRelatedBounties(gameId: string) {
-  try {
-    const active = await fetchBounties({ status: "active" });
-    relatedBounties.value = active.filter((b) => b.game_id === gameId);
-  } catch {
-    relatedBounties.value = [];
-  }
-}
 
 // --- J/K next/prev game, mirroring the library grid's own shortcut -------
 function isTypingTarget(target: EventTarget | null): boolean {
@@ -1179,7 +1167,7 @@ const lastUnlockedAt = computed(() => {
 });
 function formatStatsDate(iso: string | null): string {
   if (!iso) return "N/A";
-  return new Date(iso).toLocaleDateString(undefined, {
+  return formatDisplayDate(iso, {
     year: "numeric",
     month: "short",
     day: "numeric",
@@ -1199,7 +1187,6 @@ const tabs = [
   "Accounts",
   "Stats",
   "History",
-  "Collector Card",
 ] as const;
 const activeTab = ref<(typeof tabs)[number]>("Overview");
 
@@ -1212,15 +1199,11 @@ const isMinecraftGame = computed(() => {
   const parentTitle = parentGameTitle.value ?? "";
   return /minecraft/i.test(title) || /minecraft/i.test(parentTitle);
 });
-const isCompletedGame = computed(
-  () => game.value?.status === "beaten" || game.value?.status === "mastered",
-);
 const visibleTabs = computed(() =>
   tabs.filter(
     (tab) =>
       (tab !== "World Map" || isMinecraftGame.value) &&
-      (tab !== "Accounts" || game.value?.profilesEnabled) &&
-      (tab !== "Collector Card" || isCompletedGame.value),
+      (tab !== "Accounts" || game.value?.profilesEnabled),
   ),
 );
 
@@ -1503,41 +1486,7 @@ watch(activeTab, (tab) => {
   if (tab === "History") {
     void loadFieldChanges();
   }
-  if (tab === "Collector Card") {
-    void loadGameCards();
-  }
 });
-
-// --- metadata history: which fields a manual edit or a metadata
-// search/refresh actually changed, and when (see FIELD_CHANGE_TRACKED_FIELDS
-// in api/routes/games.py for exactly which fields are tracked) -----------
-const gameCards = ref<Card[]>([]);
-const gameCardsLoading = ref(false);
-const creatingCard = ref(false);
-const cardTabError = ref<string | null>(null);
-async function loadGameCards() {
-  if (!game.value) return;
-  gameCardsLoading.value = true;
-  try {
-    gameCards.value = await listCardsForGame(game.value.id);
-  } finally {
-    gameCardsLoading.value = false;
-  }
-}
-async function createCardForGame() {
-  if (!game.value) return;
-  creatingCard.value = true;
-  cardTabError.value = null;
-  try {
-    const card = await createCard({ gameId: game.value.id });
-    router.push(`/cards/${card.id}`);
-  } catch (err) {
-    cardTabError.value =
-      err instanceof Error ? err.message : "Failed to create card";
-  } finally {
-    creatingCard.value = false;
-  }
-}
 
 const fieldChanges = ref<FieldChange[]>([]);
 const fieldChangesLoading = ref(false);
@@ -2090,33 +2039,9 @@ function formatPlaytime(minutes: number) {
       :style="{ backgroundImage: `url(${game.bannerImageUrl})` }"
     ></div>
 
-    <button
-      type="button"
-      class="back-arrow-button"
-      title="Back"
-      @click="goBackToLibrary"
-    >
-      <svg
-        viewBox="0 0 24 24"
-        width="18"
-        height="18"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-      >
-        <path d="M19 12H5" />
-        <path d="M12 19l-7-7 7-7" />
-      </svg>
-    </button>
+    <BackButton fixed @click="goBackToLibrary" />
 
-    <div v-if="currentUser" class="profile-chip">
-      <span class="profile-name">{{ currentUser.username }}</span>
-      <div class="profile-avatar">
-        {{ currentUser.username.slice(0, 2).toUpperCase() }}
-      </div>
-    </div>
+    <AccountChip fixed />
 
     <GameFormModal
       v-if="showEditModal"
@@ -2288,27 +2213,6 @@ function formatPlaytime(minutes: number) {
 
     <section v-if="activeTab === 'Overview'" class="overview">
       <div class="overview-main">
-        <div v-if="relatedBounties.length" class="related-bounties">
-          <router-link
-            v-for="b in relatedBounties"
-            :key="b.id"
-            to="/bounties"
-            class="related-bounty-card"
-          >
-            <span class="related-bounty-icon">🎯</span>
-            <span class="related-bounty-body">
-              <span class="related-bounty-title">{{ b.title }}</span>
-              <span class="related-bounty-meta">
-                Active bounty on this game<span v-if="b.difficulty">
-                  · {{ b.difficulty }}</span
-                ><span v-if="b.points_reward">
-                  · {{ b.points_reward }} pts</span
-                >
-              </span>
-            </span>
-          </router-link>
-        </div>
-
         <div class="resume-note-card">
           <div class="resume-note-header">
             <h3>Where I left off</h3>
@@ -2454,7 +2358,7 @@ function formatPlaytime(minutes: number) {
         <div v-if="game.releaseDate" class="detail-row">
           <span class="detail-label">Release Date</span>
           <span class="detail-value">{{
-            new Date(game.releaseDate).toLocaleDateString()
+            formatDisplayDate(game.releaseDate)
           }}</span>
         </div>
         <div class="detail-row">
@@ -2529,6 +2433,12 @@ function formatPlaytime(minutes: number) {
           <span class="detail-label">Source</span>
           <span class="detail-value">{{ game.source }}</span>
         </div>
+        <div v-if="activePriority(game) !== null" class="detail-row">
+          <span class="detail-label">Priority</span>
+          <span class="detail-value">{{
+            priorityLabel(activePriority(game)!)
+          }}</span>
+        </div>
         <div v-if="game.ageRating" class="detail-row">
           <span class="detail-label">Age Rating</span>
           <span class="detail-value">{{ game.ageRating }}</span>
@@ -2578,7 +2488,7 @@ function formatPlaytime(minutes: number) {
             }}</span>
             <span v-if="game.ownership.purchaseDate">
               Purchased
-              {{ new Date(game.ownership.purchaseDate).toLocaleDateString() }}
+              {{ formatDisplayDate(game.ownership.purchaseDate) }}
             </span>
             <span v-if="game.ownership.price !== null">
               {{ game.ownership.priceCurrency ?? "USD" }}
@@ -2800,7 +2710,13 @@ function formatPlaytime(minutes: number) {
               :disabled="noteSaving || !draftName.trim()"
               @click="void saveDraft()"
             >
-              {{ noteSaving ? "Saving…" : editingNoteName ? "Save changes" : "Create note" }}
+              {{
+                noteSaving
+                  ? "Saving…"
+                  : editingNoteName
+                    ? "Save changes"
+                    : "Create note"
+              }}
             </button>
           </div>
         </div>
@@ -4108,44 +4024,6 @@ function formatPlaytime(minutes: number) {
         </li>
       </ul>
     </section>
-
-    <section v-else-if="activeTab === 'Collector Card'" class="card-tab-panel">
-      <h2>Collector Card</h2>
-      <p v-if="gameCardsLoading" class="empty-state">Loading…</p>
-      <template v-else-if="gameCards.length">
-        <p class="empty-state">
-          {{ gameCards.length === 1 ? "1 card" : `${gameCards.length} cards` }}
-          for {{ game.title }}.
-        </p>
-        <div class="card-links">
-          <button
-            v-for="c in gameCards"
-            :key="c.id"
-            type="button"
-            class="card-open-btn"
-            @click="router.push(`/cards/${c.id}`)"
-          >
-            View card #{{ String(c.archiveNumber ?? 0).padStart(3, "0") }}
-          </button>
-        </div>
-      </template>
-      <template v-else>
-        <p class="empty-state">No card generated yet for {{ game.title }}.</p>
-        <p v-if="cardTabError" class="empty-state error">{{ cardTabError }}</p>
-        <button
-          type="button"
-          class="card-open-btn"
-          :disabled="creatingCard"
-          @click="createCardForGame"
-        >
-          {{ creatingCard ? "Creating…" : "Create card" }}
-        </button>
-      </template>
-    </section>
-
-    <section v-else class="coming-soon">
-      <p>{{ activeTab }} coming soon.</p>
-    </section>
   </main>
 
   <main v-else class="not-found">
@@ -4192,8 +4070,7 @@ function formatPlaytime(minutes: number) {
 .files-panel,
 .media-panel,
 .stats-panel,
-.world-map-panel,
-.coming-soon {
+.world-map-panel {
   position: relative;
   z-index: 1;
 }
@@ -4221,7 +4098,8 @@ function formatPlaytime(minutes: number) {
   width: 100%;
   max-width: 1600px;
   margin: 0 auto;
-  padding: 0 24px 28px;
+  /* clear of the floating menu/back buttons */
+  padding: 72px 24px 28px;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -4230,7 +4108,14 @@ function formatPlaytime(minutes: number) {
 .hero-inner h1 {
   margin: 0;
   font-size: 2.4rem;
+  /* the inherited line height is a fixed 23px */
+  line-height: 1.15;
   text-shadow: 0 2px 12px rgba(0, 0, 0, 0.6);
+}
+@media (max-width: 600px) {
+  .hero-inner h1 {
+    font-size: 1.8rem;
+  }
 }
 .parent-breadcrumb {
   display: flex;
@@ -4341,60 +4226,6 @@ function formatPlaytime(minutes: number) {
 .achievement-progress-badge:hover {
   background: rgba(214, 138, 52, 0.22);
   color: #d68a34;
-}
-.back-arrow-button {
-  position: fixed;
-  top: 16px;
-  left: 62px;
-  width: 38px;
-  height: 38px;
-  border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(20, 20, 20, 0.55);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  color: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  z-index: 100;
-  transition: background 0.15s ease;
-}
-.back-arrow-button:hover {
-  background: rgba(40, 40, 40, 0.85);
-}
-.profile-chip {
-  position: fixed;
-  top: 16px;
-  right: 16px;
-  z-index: 100;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  background: rgba(20, 20, 20, 0.55);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  border-radius: 999px;
-  padding: 6px 6px 6px 16px;
-}
-.profile-avatar {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: #d68a34;
-  color: #111;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  font-weight: 700;
-}
-.profile-name {
-  color: #fff;
-  font-size: 13px;
-  font-weight: 600;
 }
 .hero-actions {
   position: absolute;
@@ -4534,7 +4365,9 @@ function formatPlaytime(minutes: number) {
   font-size: 12.5px;
   font-weight: 600;
   cursor: pointer;
-  padding: 0;
+  /* larger tap target without moving the text */
+  padding: 6px 4px;
+  margin: -6px -4px;
 }
 .text-button:hover {
   text-decoration: underline;
@@ -4550,47 +4383,7 @@ function formatPlaytime(minutes: number) {
 }
 .log-playtime-button {
   display: block;
-  margin-top: 10px;
-}
-.related-bounties {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  max-width: 720px;
-  margin-bottom: 18px;
-}
-.related-bounty-card {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  background: rgba(214, 138, 52, 0.08);
-  border: 1px solid rgba(214, 138, 52, 0.3);
-  border-radius: 10px;
-  padding: 12px 16px;
-  text-decoration: none;
-  transition: background 0.15s ease;
-}
-.related-bounty-card:hover {
-  background: rgba(214, 138, 52, 0.15);
-}
-.related-bounty-icon {
-  font-size: 18px;
-  flex-shrink: 0;
-}
-.related-bounty-body {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.related-bounty-title {
-  color: #fff;
-  font-weight: 600;
-  font-size: 14px;
-}
-.related-bounty-meta {
-  color: #d6a878;
-  font-size: 12px;
-  text-transform: capitalize;
+  margin-top: 4px;
 }
 .resume-note-card {
   max-width: 720px;
@@ -5633,46 +5426,8 @@ function formatPlaytime(minutes: number) {
   color: #777;
   margin: 0;
 }
-.coming-soon {
-  width: 100%;
-  max-width: 1600px;
-  margin: 0 auto;
-  padding: 48px 24px;
-  color: #777;
-  text-align: center;
-}
-
-.card-tab-panel {
-  width: 100%;
-  max-width: 1600px;
-  margin: 0 auto;
-  padding: 24px;
-  box-sizing: border-box;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 14px;
-}
-.card-links {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
 .empty-state.error {
   color: #fca5a5;
-}
-.card-open-btn {
-  background: #d68a34;
-  color: #121212;
-  border: none;
-  border-radius: 8px;
-  padding: 10px 18px;
-  font-weight: 700;
-  font-size: 0.9rem;
-  cursor: pointer;
-}
-.card-open-btn:hover {
-  opacity: 0.9;
 }
 
 /* Screenshots / Clips / Saves / Docs / Stats / History */
