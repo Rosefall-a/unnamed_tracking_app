@@ -10,6 +10,21 @@ This document defines the contract foundation for Plugin Hub (#262), implemented
 
 ## Scope
 
+The owned library gateway also provides `games.details.list`, `games.get` and
+`games.media.list`, with bounded `offset`/`limit`, `next_offset` and `complete`.
+Game reads require `games.read`; evidence metadata requires `media.read`.
+`library.legacy.export` requires the separate `library.legacy.read` permission
+and reads only the current user's retained Cards/Sets/Bounties migration tables,
+including child records scoped through owned bounties. It never mutates originals.
+`storage.compare_and_swap` atomically compares and replaces a string/null storage
+value under the normal `plugin.storage` grant and quota. Oversized legacy records
+are exported as 32,000-byte base64 chunks with a
+SHA-256 snapshot digest; send `chunk_offset` and `sha256` while retaining the row
+`offset`. Only advance the row offset after the final chunk. This preserves
+embedded artwork without changing or deleting the database originals.
+See the maintained
+[gateway contract](../wiki/docs/development/plugin-api-v1.md) for details.
+
 Plugin API v1 defines transport-neutral contracts. Gateway and runtime implementations are downstream work.
 
 The public boundary defines stable application/plugin/installation identity, authenticated user context, capability families and semantic versions, stable user/game/media representations, error envelopes, cursor pagination, timestamps, API-version negotiation, versioned events, and notification/metadata coordinator interfaces.

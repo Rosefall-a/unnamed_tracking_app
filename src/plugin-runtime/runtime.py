@@ -454,6 +454,7 @@ class PluginSupervisor:
             }, user_id=target)
         local_capability = {
             "storage.put": "plugin.storage",
+            "storage.compare_and_swap": "plugin.storage",
             "storage.get": "plugin.storage",
             "storage.delete": "plugin.storage",
             "storage.keys": "plugin.storage",
@@ -487,6 +488,17 @@ class PluginSupervisor:
         if method == "storage.get":
             value = self._storage(plugin_id).get(str(payload.get("key", "")))
             return {"payload": {"value": None if value is None else value.decode()}}
+        if method == "storage.compare_and_swap":
+            expected, value = payload.get("expected"), payload.get("value")
+            if (expected is not None and not isinstance(expected, str)) or (
+                value is not None and not isinstance(value, str)
+            ):
+                raise RuntimePolicyError("storage compare-and-swap values must be strings or null")
+            return {"payload": {"swapped": self._storage(plugin_id).compare_and_swap(
+                str(payload.get("key", "")),
+                None if expected is None else expected.encode(),
+                None if value is None else value.encode(),
+            )}}
         if method == "storage.delete":
             return {
                 "payload": {

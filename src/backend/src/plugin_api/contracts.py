@@ -35,6 +35,7 @@ class Capability(StrEnum):
     GAMES = "games"
     GAMES_READ = "games.read"
     GAMES_WRITE = "games.write"
+    LIBRARY_LEGACY_READ = "library.legacy.read"
     MEDIA = "media"
     MEDIA_READ = "media.read"
     MEDIA_WRITE = "media.write"

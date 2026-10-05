@@ -4,8 +4,39 @@ import tarfile
 from io import BytesIO
 
 import pytest
+from concurrent.futures import ThreadPoolExecutor
 
 from storage import PluginStorage, StorageQuotaExceeded, StorageSecurityError
+
+
+def test_compare_and_swap_is_atomic_across_namespace_handles(tmp_path):
+    one = PluginStorage(tmp_path, "official.collectors")
+    two = PluginStorage(tmp_path, "official.collectors")
+    assert one.compare_and_swap("counter", None, b"0")
+    def increment(index):
+        storage = one if index % 2 else two
+        for _ in range(1000):
+            before = storage.get("counter")
+            after = str(int(before) + 1).encode()
+            if storage.compare_and_swap("counter", before, after):
+                return int(after)
+        raise AssertionError("compare-and-swap did not converge")
+    with ThreadPoolExecutor(max_workers=8) as workers:
+        results = list(workers.map(increment, range(100)))
+    assert sorted(results) == list(range(1, 101))
+    assert one.get("counter") == b"100"
+    assert not two.compare_and_swap("counter", b"0", b"lost")
+    assert two.compare_and_swap("counter", b"100", None)
+    assert one.get("counter") is None
+
+
+def test_compare_and_swap_preserves_quota_and_namespace_rules(tmp_path):
+    storage = PluginStorage(tmp_path, "official.collectors", quota_bytes=4)
+    with pytest.raises(StorageQuotaExceeded):
+        storage.compare_and_swap("counter", None, b"12345")
+    assert storage.get("counter") is None
+    with pytest.raises(StorageSecurityError):
+        storage.compare_and_swap("../escape", None, b"x")
 
 
 def test_storage_is_namespaced_and_persistent(tmp_path) -> None:
