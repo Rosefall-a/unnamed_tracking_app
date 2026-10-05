@@ -215,6 +215,14 @@ Frontend code communicates with the host through a small validated postMessage b
 
 The existing ui.json declarative UI remains supported for lightweight plugins. A plugin with a frontend declaration uses its own frontend instead of the declarative renderer.
 
+## Action and backend transport deadlines
+
+Native actions and declared backend routes share the isolated runner's bounded
+30-second execution limit. Their host HTTP deadline is 35 seconds so a valid
+operation can finish or report its own timeout. Lightweight health and inventory
+requests retain their shorter deadline. A slow configuration refresh therefore
+does not incorrectly report an offline runtime after ten seconds.
+
 ## Plugin secrets and persistent data
 
 Frontend secrets must not be placed in ordinary settings or browser storage. The host exposes a plugin-scoped secret write operation that requires the plugin.storage permission. The value is written through the runtime's namespaced PluginStorage implementation under secrets/<key>.

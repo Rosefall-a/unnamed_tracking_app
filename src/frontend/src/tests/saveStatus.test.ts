@@ -20,6 +20,19 @@ function track(fetch = vi.fn().mockResolvedValue(new Response())) {
 }
 
 describe("settings save feedback", () => {
+  it("leaves plugin configuration loads and command failures to their active UI", async () => {
+    const browser = track(
+      vi.fn().mockResolvedValue(new Response("unavailable", { status: 503 })),
+    );
+    await browser.fetch("/api/plugins/example/actions/get-config", {
+      method: "POST",
+    });
+    expect(saveState.value).toBe("idle");
+    expect(savedAt.value).toBeNull();
+    await browser.fetch("/api/plugins/example/settings", { method: "PUT" });
+    expect(saveState.value).toBe("error");
+  });
+
   it("confirms for twelve seconds, then becomes quiet Saved feedback", async () => {
     vi.useFakeTimers();
     const browser = track();

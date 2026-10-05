@@ -35,7 +35,14 @@ function isWrite(method: string | undefined): boolean {
   return m === "POST" || m === "PUT" || m === "PATCH" || m === "DELETE";
 }
 
-// While the Settings page is open, every write to /api shows up in one
+function isPluginAction(url: string): boolean {
+  // Actions are an RPC transport: POST can load configuration,
+  // poll status or execute a command. Their UI owns operation feedback; ordinary
+  // plugin settings writes still participate in the shared save indicator.
+  return /^\/api\/plugins\/[^/]+\/actions(?:\/|$)/.test(url);
+}
+
+// While the Settings page is open, settings writes to /api show up in one
 // "Saving… / Saved / Couldn't save" indicator. Watching fetch here means
 // all of Settings' sections report their saves without each one having to
 // be wired up individually, and it's removed again when the page closes.
@@ -54,7 +61,8 @@ export function startTrackingSaves() {
           : input.url;
     const method =
       init?.method ?? (input instanceof Request ? input.method : "GET");
-    const tracked = url.startsWith("/api/") && isWrite(method);
+    const tracked =
+      url.startsWith("/api/") && isWrite(method) && !isPluginAction(url);
     if (!tracked) return real(input, init);
     clearConfirmation();
     if (pending === 0) batchFailed = false;

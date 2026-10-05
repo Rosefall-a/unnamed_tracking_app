@@ -16,6 +16,17 @@ different host boundary.
 
 ## Native primitives
 
+Failed native actions retain the host's HTTP status and reviewed permission,
+compatibility or runtime explanation. Validation inputs and raw response bodies
+are excluded. Native plugins should distinguish initial loading, configuration
+failure with a retry control, and an actual access denial after a successful role
+check; an unfinished administrator check is not evidence of insufficient access.
+
+Native action calls can load configuration or poll progress through POST. They
+report their loading, success and errors inside the active plugin UI rather than
+the host's Settings save indicator. Ordinary plugin settings writes still use
+the shared saving feedback.
+
 The v1 contract covers settings fields, validation, secrets, select options, actions, tables, dialogs, menus, and pages. Secret values are write-only and never included in schema defaults.
 
 Installed plugins are managed through a per-plugin dialog with Overview, Settings, Permissions, and Diagnostics tabs. Its Settings tab controls Plugin Manager update policy and package history. Plugin-provided application pages contain the plugin's functionality and endpoint/profile configuration; the manager links to these pages when available. A plugin may contribute a Settings application section using `settings_sections`; this remains separate from manager permissions, lifecycle and runtime administration.
