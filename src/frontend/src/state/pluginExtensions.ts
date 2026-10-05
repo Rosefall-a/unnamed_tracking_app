@@ -16,6 +16,13 @@ import {
   type UiTheme,
 } from "../services/pluginUi";
 import { reconcileNativePlugins, retainNativePlugins } from "./pluginNative";
+import {
+  pluginPlacementGroup,
+  SIDEBAR_BUILT_IN_GROUPS,
+  SETTINGS_BUILT_IN_GROUPS,
+  SETTINGS_PLACEMENT_CAPABILITIES,
+  type SettingsArea,
+} from "../utils/pluginPlacement";
 
 export interface PluginNavigationContribution {
   pluginId: string;
@@ -29,6 +36,9 @@ export interface PluginNavigationContribution {
   icon?: string;
   order: number;
   adminOnly: boolean;
+  area: SettingsArea;
+  group: string;
+  folders: string[];
   document: PluginUiDocument;
 }
 
@@ -41,6 +51,7 @@ export interface PluginSettingsContribution {
   order: number;
   area: "account" | "preferences" | "administration";
   group: string;
+  folders: string[];
   adminOnly: boolean;
   document: PluginUiDocument;
 }
@@ -184,6 +195,9 @@ export function derivePluginContributions(
           label: page.navigation?.label ?? page.title,
           order: page.navigation?.order ?? 0,
           adminOnly: false,
+          area: "preferences" as const,
+          group: "Extensions",
+          folders: [],
           document,
         }))
     : [];
@@ -206,6 +220,32 @@ export function derivePluginContributions(
         icon: item.icon,
         order: item.order,
         adminOnly: item.visibility.admin_only,
+        area:
+          item.area ??
+          (item.visibility.admin_only ? "administration" : "preferences"),
+        group: pluginPlacementGroup(
+          item.group,
+          item.location === "settings.sidebar"
+            ? SETTINGS_BUILT_IN_GROUPS[
+                item.area ??
+                  (item.visibility.admin_only
+                    ? "administration"
+                    : "preferences")
+              ]
+            : SIDEBAR_BUILT_IN_GROUPS,
+          hasCapability(
+            plugin,
+            item.location === "settings.sidebar"
+              ? SETTINGS_PLACEMENT_CAPABILITIES[
+                  item.area ??
+                    (item.visibility.admin_only
+                      ? "administration"
+                      : "preferences")
+                ]
+              : "frontend.placement.sidebar",
+          ),
+        ),
+        folders: item.folders ?? [],
         document,
       })),
   ];
@@ -220,7 +260,21 @@ export function derivePluginContributions(
         area:
           item.area ??
           (item.visibility.admin_only ? "administration" : "preferences"),
-        group: item.group?.trim() || "Extensions",
+        group: pluginPlacementGroup(
+          item.group,
+          SETTINGS_BUILT_IN_GROUPS[
+            item.area ??
+              (item.visibility.admin_only ? "administration" : "preferences")
+          ],
+          hasCapability(
+            plugin,
+            SETTINGS_PLACEMENT_CAPABILITIES[
+              item.area ??
+                (item.visibility.admin_only ? "administration" : "preferences")
+            ],
+          ),
+        ),
+        folders: item.folders ?? [],
         adminOnly: item.visibility.admin_only || item.area === "administration",
         document,
       }))

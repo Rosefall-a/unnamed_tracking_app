@@ -1,8 +1,10 @@
 <script setup lang="ts">
+import NavFolderList from "../NavFolderList.vue";
 export interface SettingsSection {
   id: string;
   label: string;
   comingSoon?: boolean;
+  folders?: string[];
 }
 
 export interface SettingsGroup {
@@ -62,35 +64,41 @@ function iconPath(id: string): string {
 
 <template>
   <nav class="settings-nav" aria-label="Settings sections">
-    <div v-for="group in groups" :key="group.label" class="settings-nav-group">
+    <div
+      v-for="group in groups"
+      :key="`${group.area}:${group.label}`"
+      class="settings-nav-group"
+    >
       <span class="settings-nav-group-label">{{ group.label }}</span>
-      <button
-        v-for="section in group.sections"
-        :key="section.id"
-        type="button"
-        class="settings-nav-item"
-        :class="{ active: activeSection === section.id }"
-        :aria-current="activeSection === section.id ? 'page' : undefined"
-        @click="emit('update:activeSection', section.id)"
-      >
-        <span class="settings-nav-item-main">
-          <svg
-            class="nav-icon"
-            viewBox="0 0 24 24"
-            width="16"
-            height="16"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
+      <NavFolderList :entries="group.sections" :active-ids="[activeSection]">
+        <template #default="{ entry: section }">
+          <button
+            type="button"
+            class="settings-nav-item"
+            :class="{ active: activeSection === section.id }"
+            :aria-current="activeSection === section.id ? 'page' : undefined"
+            @click="emit('update:activeSection', section.id)"
           >
-            <path :d="iconPath(section.id)" />
-          </svg>
-          <span>{{ section.label }}</span>
-        </span>
-        <span v-if="section.comingSoon" class="soon-badge">soon</span>
-      </button>
+            <span class="settings-nav-item-main">
+              <svg
+                class="nav-icon"
+                viewBox="0 0 24 24"
+                width="16"
+                height="16"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path :d="iconPath(section.id)" />
+              </svg>
+              <span>{{ section.label }}</span>
+            </span>
+            <span v-if="section.comingSoon" class="soon-badge">soon</span>
+          </button>
+        </template>
+      </NavFolderList>
     </div>
   </nav>
 </template>

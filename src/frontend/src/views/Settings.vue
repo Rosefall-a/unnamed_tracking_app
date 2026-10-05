@@ -219,22 +219,23 @@ const groups = computed<SettingsGroup[]>(() => {
       group.sections.push({
         id: pluginSettingsId(item.contributionId),
         label: item.label,
+        folders: item.folders,
       });
     }
-    for (const adminOnly of [false, true]) {
-      const sections = [
-        ...visiblePluginSettingsNavigation.value.map((item) => ({
-          id: item.contributionId,
-          label: item.label,
-          adminOnly: Boolean(item.adminOnly),
-        })),
-      ].filter((item) => item.adminOnly === adminOnly);
-      if (sections.length)
-        result.push({
-          label: "Extensions",
-          area: adminOnly ? "administration" : "preferences",
-          sections,
-        });
+    for (const item of visiblePluginSettingsNavigation.value) {
+      let group = result.find(
+        (candidate) =>
+          candidate.area === item.area && candidate.label === item.group,
+      );
+      if (!group) {
+        group = { label: item.group, area: item.area, sections: [] };
+        result.push(group);
+      }
+      group.sections.push({
+        id: item.contributionId,
+        label: item.label,
+        folders: item.folders,
+      });
     }
   }
   return result;

@@ -1,11 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch, nextTick, onMounted, onUnmounted } from "vue";
-import {
-  RouterLink,
-  useRoute,
-  useRouter,
-  type RouteLocationRaw,
-} from "vue-router";
+import { RouterLink, useRoute, useRouter } from "vue-router";
 import { logout } from "../services/auth";
 import {
   pluginNavigation,
@@ -13,10 +8,7 @@ import {
 } from "../state/pluginExtensions";
 import { currentUser } from "../state/auth";
 import { activeSettingsArea } from "../state/settingsArea";
-import {
-  approvePluginAction,
-  dispatchPluginAction,
-} from "../services/pluginUi";
+import PluginSidebarEntries from "./plugins/PluginSidebarEntries.vue";
 import { inboxCount, refreshInboxCount } from "../state/inbox";
 import { mediaUnread, refreshMediaNotifications } from "../state/notifications";
 import {
@@ -31,6 +23,7 @@ import {
   SIDEBAR_MAX_WIDTH,
 } from "../state/sidebarMode";
 import { isCommandPaletteOpen } from "../state/commandPalette";
+import { pluginNavigationTarget } from "../utils/pluginNavigation";
 import AppIcon from "./AppIcon.vue";
 import AppBrand from "./AppBrand.vue";
 import { branding } from "../state/branding";
@@ -113,40 +106,48 @@ const mainPluginNavigation = computed(() =>
       (!item.adminOnly || currentUser.value?.is_admin),
   ),
 );
-function pluginNavigationTarget(
-  item: (typeof mainPluginNavigation.value)[number],
-): RouteLocationRaw {
-  if (item.settingsSectionId)
-    return { path: "/settings", query: { section: item.settingsSectionId } };
-  return {
-    name: "plugin-route",
-    params: {
-      pluginId: item.pluginId,
-      pluginPath: item.routePath || item.pageId,
-    },
-  };
-}
-async function activatePluginNavigation(
-  item: (typeof mainPluginNavigation.value)[number],
-) {
-  if (!item.action || !approvePluginAction(item.action, window.confirm)) return;
-  actionError.value = null;
-  try {
-    await dispatchPluginAction(
-      item.pluginId,
-      item.action.id,
-      {},
-      undefined,
-      Boolean(item.action.confirmation),
+function libraryPluginNavigation(folder?: string) {
+  return mainPluginNavigation.value
+    .filter(
+      (item) =>
+        item.group === "Your library" &&
+        (folder
+          ? item.folders[0]?.toLowerCase() === folder.toLowerCase()
+          : !["games", "media"].includes(item.folders[0]?.toLowerCase() || "")),
+    )
+    .map((item) =>
+      folder ? { ...item, folders: item.folders.slice(1) } : item,
     );
-    close();
-  } catch (error) {
-    actionError.value =
-      error instanceof Error
-        ? error.message
-        : "Could not run the plugin action.";
-  }
 }
+const trackingPluginNavigation = computed(() =>
+  mainPluginNavigation.value.filter((item) => item.group === "Keep track"),
+);
+const extraPluginGroups = computed(() => {
+  const result = new Map<string, typeof mainPluginNavigation.value>();
+  for (const item of mainPluginNavigation.value) {
+    if (["Your library", "Keep track"].includes(item.group)) continue;
+    const group = result.get(item.group) || [];
+    group.push(item);
+    result.set(item.group, group);
+  }
+  return [...result].map(([label, items]) => ({ label, items }));
+});
+function groupActive(group: (typeof groups)[number]) {
+  return (
+    group.paths.some(isActive) ||
+    libraryPluginNavigation(group.label).some(
+      (item) =>
+        !item.action &&
+        isActive(router.resolve(pluginNavigationTarget(item)).path),
+    )
+  );
+}
+function expandActiveGroups() {
+  const next = new Set(expandedGroups.value);
+  groups.filter(groupActive).forEach((group) => next.add(group.id));
+  expandedGroups.value = next;
+}
+watch(mainPluginNavigation, expandActiveGroups);
 function close() {
   railExpanded.value = false;
   if (pane.value instanceof HTMLDialogElement && pane.value.open)
@@ -171,11 +172,7 @@ watch(
   () => route.fullPath,
   () => {
     close();
-    const next = new Set(expandedGroups.value);
-    groups
-      .filter((group) => group.paths.some(isActive))
-      .forEach((group) => next.add(group.id));
-    expandedGroups.value = next;
+    expandActiveGroups();
   },
 );
 watch(effectiveSidebarMode, () => {
@@ -391,7 +388,7 @@ onUnmounted(() => {
             <button
               type="button"
               class="nav-item"
-              :class="{ 'group-active': group.paths.some(isActive) }"
+              :class="{ 'group-active': groupActive(group) }"
               :aria-label="group.label"
               :title="`${group.label} · ${navigationTooltip(`Open ${group.entries[0]!.label}`, group.entries[0]!.path)}`"
               :aria-expanded="!collapsed && expandedGroups.has(group.id)"
@@ -427,8 +424,20 @@ onUnmounted(() => {
                   entry.label
                 }}</span></RouterLink
               >
+              <PluginSidebarEntries
+                :items="libraryPluginNavigation(group.label)"
+                :collapsed="false"
+                @navigate="close"
+                @error="actionError = $event"
+              />
             </div>
           </div>
+          <PluginSidebarEntries
+            :items="libraryPluginNavigation()"
+            :collapsed="collapsed"
+            @navigate="close"
+            @error="actionError = $event"
+          />
           <p class="nav-group-label nav-label">Keep track</p>
           <RouterLink
             v-for="tool in tools"
@@ -450,37 +459,20 @@ onUnmounted(() => {
               >{{ mediaUnread > 99 ? "99+" : mediaUnread }}</span
             ></RouterLink
           >
-          <template v-if="mainPluginNavigation.length">
-            <p class="nav-group-label nav-label">Extensions</p>
-            <component
-              :is="item.action ? 'button' : RouterLink"
-              v-for="item in mainPluginNavigation"
-              :key="`${item.pluginId}:${item.contributionId}`"
-              :to="item.action ? undefined : pluginNavigationTarget(item)"
-              :type="item.action ? 'button' : undefined"
-              class="nav-item plugin-sidebar-item"
-              :class="{
-                active: isActive(
-                  router.resolve(pluginNavigationTarget(item)).path,
-                ),
-              }"
-              :title="
-                navigationTooltip(
-                  item.label,
-                  router.resolve(pluginNavigationTarget(item)).path,
-                )
-              "
-              :aria-label="item.label"
-              @click="item.action ? activatePluginNavigation(item) : close()"
-              ><span
-                v-if="item.icon"
-                class="plugin-navigation-icon"
-                aria-hidden="true"
-                >{{ item.icon }}</span
-              ><AppIcon v-else name="plugin" /><span class="nav-label">{{
-                item.label
-              }}</span></component
-            >
+          <PluginSidebarEntries
+            :items="trackingPluginNavigation"
+            :collapsed="collapsed"
+            @navigate="close"
+            @error="actionError = $event"
+          />
+          <template v-for="group in extraPluginGroups" :key="group.label">
+            <p class="nav-group-label nav-label">{{ group.label }}</p>
+            <PluginSidebarEntries
+              :items="group.items"
+              :collapsed="collapsed"
+              @navigate="close"
+              @error="actionError = $event"
+            />
           </template>
           <RouterLink
             to="/upload"

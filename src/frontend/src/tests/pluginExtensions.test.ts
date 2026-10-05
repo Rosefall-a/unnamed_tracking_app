@@ -169,6 +169,84 @@ const document: PluginUiDocument = {
 };
 
 describe("plugin extension registry", () => {
+  it("requires the specific placement scope to join each built-in settings area", () => {
+    for (const [area, group, scope] of [
+      ["account", "Account", "frontend.placement.settings.account"],
+      ["preferences", "Library", "frontend.placement.settings.preferences"],
+      [
+        "administration",
+        "Server management",
+        "frontend.placement.settings.admin",
+      ],
+    ] as const) {
+      const placed: PluginUiDocument = {
+        ...document,
+        settings_sections: [
+          {
+            ...document.settings_sections![0]!,
+            area,
+            group,
+            folders: ["Services", "Advanced"],
+            visibility: { admin_only: area === "administration" },
+          },
+        ],
+      };
+      expect(derivePluginContributions(plugin, placed).settings[0]?.group).toBe(
+        "Extensions",
+      );
+      expect(
+        derivePluginContributions(
+          {
+            ...plugin,
+            effective_capabilities: [
+              ...plugin.effective_capabilities,
+              "frontend.placement.sidebar",
+            ],
+          },
+          placed,
+        ).settings[0]?.group,
+      ).toBe("Extensions");
+      expect(
+        derivePluginContributions(
+          {
+            ...plugin,
+            effective_capabilities: [...plugin.effective_capabilities, scope],
+          },
+          placed,
+        ).settings[0],
+      ).toMatchObject({ area, group, folders: ["Services", "Advanced"] });
+    }
+  });
+  it("requires sidebar placement approval separately from navigation registration", () => {
+    const placed: PluginUiDocument = {
+      ...document,
+      navigation: [
+        {
+          ...document.navigation![0]!,
+          group: "Your library",
+          folders: ["Games", "Challenges"],
+        },
+      ],
+    };
+    expect(
+      derivePluginContributions(plugin, placed).navigation.at(-1)?.group,
+    ).toBe("Extensions");
+    expect(
+      derivePluginContributions(
+        {
+          ...plugin,
+          effective_capabilities: [
+            ...plugin.effective_capabilities,
+            "frontend.placement.sidebar",
+          ],
+        },
+        placed,
+      ).navigation.at(-1),
+    ).toMatchObject({
+      group: "Your library",
+      folders: ["Games", "Challenges"],
+    });
+  });
   it("retains declared settings placement and conservatively restricts Administration", () => {
     for (const area of ["account", "preferences", "administration"] as const) {
       const placed: PluginUiDocument = {

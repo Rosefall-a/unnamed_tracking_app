@@ -173,6 +173,14 @@ def _category(capability: Capability) -> str:
 
 
 def _title(capability: Capability) -> str:
+    placement_titles = {
+        Capability.FRONTEND_PLACEMENT_SIDEBAR: "Join built-in sidebar sections",
+        Capability.FRONTEND_PLACEMENT_ADMIN: "Join built-in administration settings",
+        Capability.FRONTEND_PLACEMENT_ACCOUNT: "Join built-in account settings",
+        Capability.FRONTEND_PLACEMENT_PREFERENCES: "Join built-in preferences",
+    }
+    if capability in placement_titles:
+        return placement_titles[capability]
     return capability.value.replace("_", " ").replace(".", " / ").title()
 
 

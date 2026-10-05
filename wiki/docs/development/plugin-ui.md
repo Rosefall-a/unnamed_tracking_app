@@ -20,7 +20,20 @@ The v1 contract covers settings fields, validation, secrets, select options, act
 
 Installed plugins are managed through a per-plugin dialog with Overview, Settings, Permissions, and Diagnostics tabs. Its Settings tab controls Plugin Manager update policy and package history. Plugin-provided application pages contain the plugin's functionality and endpoint/profile configuration; the manager links to these pages when available. A plugin may contribute a Settings application section using `settings_sections`; this remains separate from manager permissions, lifecycle and runtime administration.
 
-Settings contributions may declare `area` (`account`, `preferences` or `administration`) and a bounded plain-text `group` label. Omitted placement preserves the previous behavior: administrator-only sections appear in Administration, other sections in Preferences, under Extensions. Administration placement requires `visibility.admin_only: true`; it does not grant action permissions or expose administrator sections to members. Sections may join a matching group in that area or introduce their own group. Reserved core section IDs remain protected. The primary sidebar highlights the resolved settings area, including plugin destinations and legacy aliases.
+Settings contributions may declare `area` (`account`, `preferences` or `administration`), a plain-text `group` label and up to three nested `folders`. Omitted placement preserves the previous behavior: administrator-only sections appear in Administration, other sections in Preferences, under Extensions. Administration placement requires `visibility.admin_only: true`; it does not grant action permissions or expose administrator sections to members. Reserved core section IDs remain protected. The primary sidebar highlights the resolved settings area, including plugin destinations and legacy aliases.
+
+Joining built-in headers requires an additional, independently reviewed permission. Each permission covers its whole area, including every existing header and subtree. Folder names do not create narrower grants:
+
+| Placement | Additional permission | Built-in headers |
+| --- | --- | --- |
+| Main sidebar | `frontend.placement.sidebar` | Your library, Keep track |
+| Administration settings | `frontend.placement.settings.admin` | Server management |
+| Account settings | `frontend.placement.settings.account` | Account |
+| Preferences | `frontend.placement.settings.preferences` | Preferences, Library, Information |
+
+Ordinary navigation/settings registration and `full_api` do not imply these permissions. Both the API document filter and frontend registry enforce them. Without the required grant, the same owned page remains available beneath Extensions. Custom extension headers and folders remain available without core placement approval. Revocation moves a contribution back to Extensions immediately.
+
+Navigation contributions accept `group` and `folders` too. Settings navigation additionally accepts `area`. `group: "Your library", folders: ["Games", "Challenges"]` joins the existing Games subtree with the sidebar grant; there is no separate Games-subtree permission. Folder controls support keyboard expansion and 44px touch targets in both navigation surfaces.
 
 ```json
 {"id":"reader-settings","label":"Document reader","page_id":"reader-settings","area":"administration","group":"Documents","visibility":{"admin_only":true}}

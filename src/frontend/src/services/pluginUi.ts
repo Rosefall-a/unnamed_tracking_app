@@ -98,6 +98,9 @@ export interface UiNavigationContribution {
   action_id?: string;
   icon?: string;
   order: number;
+  area?: "account" | "preferences" | "administration" | null;
+  group?: string;
+  folders?: string[];
   visibility: UiVisibility;
 }
 export interface UiSettingsContribution {
@@ -108,6 +111,7 @@ export interface UiSettingsContribution {
   order: number;
   area?: "account" | "preferences" | "administration" | null;
   group?: string;
+  folders?: string[];
   visibility: UiVisibility;
 }
 export interface UiOverlayContribution {

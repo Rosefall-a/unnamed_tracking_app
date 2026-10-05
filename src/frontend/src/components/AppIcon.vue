@@ -5,6 +5,7 @@ const paths: Record<string, string> = {
   games:
     "M6 7h12l3 11c.5 2-2 3-3 1l-2-3H8l-2 3c-1 2-3.5 1-3-1L6 7Z M7 10v4 M5 12h4 M16 11h.01 M18 13h.01",
   collections: "M3 7l9-4 9 4-9 4-9-4Z M3 12l9 4 9-4 M3 17l9 4 9-4",
+  folder: "M3 7V5h6l3 3h9v12H3V7Z",
   cards: "M3 5h18v15H3z M3 10h18 M7 15h4",
   sets: "M6 3h15v14 M3 7h14v14H3z",
   media: "M3 5h18v15H3z M3 9h18 M7 5v4 M12 5v4 M17 5v4 M10 12l5 3-5 3z",
