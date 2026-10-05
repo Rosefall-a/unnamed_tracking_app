@@ -17,7 +17,7 @@ const error = ref("");
 const activePageId = ref<string | undefined>();
 const viewerContext = computed(() => {
   const context: Record<string, string | number | boolean> = {};
-  for (const key of ["document_id", "game_id"] as const) {
+  for (const key of ["document_id", "game_id", "record_id"] as const) {
     const value = route.query[key];
     if (typeof value === "string") context[key] = value;
   }

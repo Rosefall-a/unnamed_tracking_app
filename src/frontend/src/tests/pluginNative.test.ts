@@ -21,6 +21,29 @@ afterEach(() => {
 });
 
 describe("native plugin lifecycle", () => {
+  it("supports independently compiled Vue components through the public runtime", async () => {
+    let context!: NativePluginContext;
+    await reconcileNativePlugins([source], async () => ({
+      activate(value) {
+        context = value;
+        value.registerComponent(
+          "dashboard",
+          value.vue.defineComponent({
+            setup: () => () =>
+              value.vue.h(value.ui.PageHeader, { title: "Personal archive" }),
+          }),
+        );
+      },
+    }));
+    expect(Object.isFrozen(context.vue)).toBe(true);
+    expect(typeof context.vue.createElementVNode).toBe("function");
+    expect(typeof context.vue.onMounted).toBe("function");
+    expect(context.ui.UiModal).toBeDefined();
+    expect(nativePluginComponent("example.native", "dashboard")).toBeDefined();
+    await reconcileNativePlugins([]);
+    expect(() => context.host.confirm({ message: "Still active?" })).toThrow();
+    expect(() => context.host.prompt({ message: "Still active?" })).toThrow();
+  });
   it("requires host confirmation before sending a destructive action", async () => {
     const confirm = vi
       .fn()

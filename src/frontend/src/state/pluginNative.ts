@@ -1,17 +1,16 @@
-import {
-  computed,
-  defineComponent,
-  onBeforeUnmount,
-  h,
-  markRaw,
-  reactive,
-  readonly,
-  ref,
-  shallowReadonly,
-  shallowRef,
-  type Component,
-} from "vue";
+import { markRaw, shallowReadonly, shallowRef, type Component } from "vue";
 import type { Router } from "vue-router";
+import * as Vue from "vue";
+import PageHeader from "../components/PageHeader.vue";
+import UiModal from "../components/UiModal.vue";
+import AppIcon from "../components/AppIcon.vue";
+import AccountChip from "../components/AccountChip.vue";
+import {
+  useConfirm,
+  usePrompt,
+  type ConfirmOptions,
+  type PromptOptions,
+} from "./dialog";
 import {
   readPluginAppearance,
   observePluginAppearance,
@@ -33,14 +32,13 @@ export interface NativePluginContext {
   version: string;
   registerComponent(pageId: string, component: Component): void;
   onCleanup(callback: () => void): void;
-  vue: {
-    computed: typeof computed;
-    defineComponent: typeof defineComponent;
-    onBeforeUnmount: typeof onBeforeUnmount;
-    h: typeof h;
-    reactive: typeof reactive;
-    readonly: typeof readonly;
-    ref: typeof ref;
+  /** The shared Vue 3 runtime supports independently compiled plugin SFCs. */
+  vue: Readonly<typeof Vue>;
+  ui: {
+    PageHeader: typeof PageHeader;
+    UiModal: typeof UiModal;
+    AppIcon: typeof AppIcon;
+    AccountChip: typeof AccountChip;
   };
   host: {
     appearance(): PluginAppearance;
@@ -54,6 +52,8 @@ export interface NativePluginContext {
     ): Promise<Record<string, unknown>>;
     saveSettings(values: Record<string, unknown>): Promise<void>;
     openDialog(contributionId: string): void;
+    confirm(options: ConfirmOptions): Promise<boolean>;
+    prompt(options: PromptOptions): Promise<string | null>;
   };
 }
 
@@ -229,15 +229,8 @@ async function activate(
         if (disposed) callback();
         else cleanups.push(callback);
       },
-      vue: {
-        computed,
-        defineComponent,
-        h,
-        reactive,
-        readonly,
-        ref,
-        onBeforeUnmount,
-      },
+      vue: Object.freeze({ ...Vue }),
+      ui: { PageHeader, UiModal, AppIcon, AccountChip },
       host: {
         appearance() {
           requireActive();
@@ -293,6 +286,14 @@ async function activate(
         openDialog(contributionId) {
           requireActive();
           dialogOpener(source.pluginId, contributionId);
+        },
+        confirm(options) {
+          requireActive();
+          return useConfirm()(options);
+        },
+        prompt(options) {
+          requireActive();
+          return usePrompt()(options);
         },
       },
     });

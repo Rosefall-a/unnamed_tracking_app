@@ -1,5 +1,15 @@
 # Plugin UI protocol
 
+Native v1.1 plugins can compile their own Vue single-file components against the
+shared `context.vue` Vue 3 runtime. `context.ui` exposes `PageHeader`, `UiModal`,
+`AppIcon` and `AccountChip` as public components. Bundle the plugin's compiled
+components and styles rather than a second framework runtime or host source.
+`context.host.confirm(options)` and `prompt(options)` use the native themed
+dialogs and reject calls after the contribution is withdrawn. Plugin route
+components receive a `context.record_id` query value for owned detail records;
+the plugin must validate record ownership in its backend. This is additive to
+the existing native activation, action, navigation and cleanup contract.
+
 The frontend host consumes the versioned `PluginUiDocument` contract. Sandboxed,
 declarative, and privileged native UI may coexist in one plugin, but each uses a
 different host boundary.
