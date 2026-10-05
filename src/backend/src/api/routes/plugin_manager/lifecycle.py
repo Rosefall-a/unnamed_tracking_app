@@ -17,7 +17,6 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy import delete, or_, select
 from sqlalchemy import update as sql_update
 from sqlalchemy.ext.asyncio import AsyncSession
-
 from src.core.auth import get_current_admin, hash_token
 from src.database.models.auth import UserApiKey
 from src.database.models.plugin_notification_provider import PluginNotificationProviderRegistration
@@ -48,10 +47,15 @@ from . import acquisition, catalogues, models, runtime, updates
 router = APIRouter(prefix="/api/plugins", tags=["plugins"])
 logger = logging.getLogger(__name__)
 
+_PLUGIN_DB = Depends(get_db)
+_PLUGIN_ADMIN = Depends(get_plugin_manager_admin)
+_PLUGIN_READER = Depends(get_plugin_manager_reader)
+_CURRENT_ADMIN = Depends(get_current_admin)
+
 
 @router.get("/{plugin_id}/details")
 async def plugin_details(
-    plugin_id: str, response: Response, admin: User = Depends(get_plugin_manager_reader)
+    plugin_id: str, response: Response, admin: User = _PLUGIN_READER
 ) -> dict[str, Any]:
     """Display the installed release's documentation, including disabled packages."""
     del admin
@@ -68,14 +72,14 @@ async def plugin_details(
 
 
 @router.get("/manager-settings")
-async def get_manager_settings(admin: User = Depends(get_plugin_manager_admin)) -> dict:
+async def get_manager_settings(admin: User = _PLUGIN_ADMIN) -> dict:
     del admin
     return manager_state().settings()
 
 
 @router.put("/manager-settings")
 async def save_manager_settings(
-    payload: models.ManagerSettingsIn, admin: User = Depends(get_plugin_manager_admin)
+    payload: models.ManagerSettingsIn, admin: User = _PLUGIN_ADMIN
 ) -> dict:
     del admin
     settings = manager_state().settings(payload.model_dump(exclude_none=True))
@@ -91,7 +95,7 @@ async def save_manager_settings(
 
 @router.put("/{plugin_id}/auto-update")
 async def set_plugin_auto_update(
-    plugin_id: str, payload: models.AutoUpdateIn, admin: User = Depends(get_plugin_manager_admin)
+    plugin_id: str, payload: models.AutoUpdateIn, admin: User = _PLUGIN_ADMIN
 ) -> dict:
     del admin
     if plugin_id not in manager_state().read()["plugins"]:
@@ -105,8 +109,8 @@ async def set_plugin_auto_update(
 @router.post("/{plugin_id}/update/staged/preview")
 async def preview_staged_update(
     plugin_id: str,
-    db: AsyncSession = Depends(get_db),
-    admin: User = Depends(get_plugin_manager_admin),
+    db: AsyncSession = _PLUGIN_DB,
+    admin: User = _PLUGIN_ADMIN,
 ) -> dict:
     del admin
     path = manager_state().stage_path(plugin_id)
@@ -125,8 +129,8 @@ async def preview_staged_update(
 async def activate_staged_update(
     plugin_id: str,
     payload: models.PackageOperationIn,
-    db: AsyncSession = Depends(get_db),
-    admin: User = Depends(get_plugin_manager_admin),
+    db: AsyncSession = _PLUGIN_DB,
+    admin: User = _PLUGIN_ADMIN,
 ) -> dict:
     path = manager_state().stage_path(plugin_id)
     if not path.is_file():
@@ -185,8 +189,8 @@ async def _perform_package_operation(
 async def reinstall_plugin(
     plugin_id: str,
     payload: models.PackageOperationIn,
-    db: AsyncSession = Depends(get_db),
-    admin: User = Depends(get_plugin_manager_admin),
+    db: AsyncSession = _PLUGIN_DB,
+    admin: User = _PLUGIN_ADMIN,
 ) -> dict:
     if payload.purge and not payload.confirmed:
         raise HTTPException(409, "Reinstall with purge requires explicit destructive confirmation.")
@@ -204,8 +208,8 @@ async def reinstall_plugin(
 async def rollback_plugin(
     plugin_id: str,
     payload: models.PackageOperationIn,
-    db: AsyncSession = Depends(get_db),
-    admin: User = Depends(get_plugin_manager_admin),
+    db: AsyncSession = _PLUGIN_DB,
+    admin: User = _PLUGIN_ADMIN,
 ) -> dict:
     plugin = next(
         (item for item in await runtime._client.plugins() if item["plugin_id"] == plugin_id), None
@@ -224,43 +228,49 @@ async def rollback_plugin(
 
 @router.delete("/{plugin_id}/history/{history_id}")
 async def delete_package_history(
-    plugin_id: str, history_id: UUID, admin: User = Depends(get_plugin_manager_admin)
+    plugin_id: str, history_id: UUID, admin: User = _PLUGIN_ADMIN
 ) -> dict:
     del admin
-    await runtime._client.prune_history(
-        plugin_id, manager_state().settings()["retained_versions"], str(history_id)
-    )
-    manager_state().reconcile(await runtime._client.plugins())
+    with runtime._runtime_errors():
+        await runtime._client.prune_history(
+            plugin_id, manager_state().settings()["retained_versions"], str(history_id)
+        )
+        manager_state().reconcile(await runtime._client.plugins())
     return {"deleted": True}
 
 
 @router.post("/{plugin_id}/stop")
-async def stop_plugin(plugin_id: str, admin: User = Depends(get_plugin_manager_admin)) -> dict:
+async def stop_plugin(plugin_id: str, admin: User = _PLUGIN_ADMIN) -> dict:
     del admin
-    await runtime._client.stop_runtime(quote(plugin_id, safe=""))
-    manager_state().reconcile(await runtime._client.plugins())
+    with runtime._runtime_errors():
+        await runtime._client.stop_runtime(quote(plugin_id, safe=""))
+        manager_state().reconcile(await runtime._client.plugins())
     return {"plugin_id": plugin_id, "status": "stopped"}
 
 
 @router.post("/{plugin_id}/start")
-async def start_plugin(plugin_id: str, admin: User = Depends(get_plugin_manager_admin)) -> dict:
-    plugin = next(
-        (item for item in await runtime._client.plugins() if item["plugin_id"] == plugin_id), None
-    )
-    if not plugin or not plugin.get("enabled"):
-        raise HTTPException(409, "Enable this plugin before starting it.")
-    if not plugin_contract_active(plugin):
-        raise HTTPException(409, "This plugin requires a verified v1.1.0 update before it can run.")
-    await runtime._client.start(quote(plugin_id, safe=""), user_id=str(admin.id))
-    manager_state().reconcile(await runtime._client.plugins())
+async def start_plugin(plugin_id: str, admin: User = _PLUGIN_ADMIN) -> dict:
+    with runtime._runtime_errors():
+        plugin = next(
+            (item for item in await runtime._client.plugins() if item["plugin_id"] == plugin_id),
+            None,
+        )
+        if not plugin or not plugin.get("enabled"):
+            raise HTTPException(409, "Enable this plugin before starting it.")
+        if not plugin_contract_active(plugin):
+            raise HTTPException(
+                409, "This plugin requires a verified v1.1.0 update before it can run."
+            )
+        await runtime._client.start(quote(plugin_id, safe=""), user_id=str(admin.id))
+        manager_state().reconcile(await runtime._client.plugins())
     return {"plugin_id": plugin_id, "status": "running"}
 
 
 @router.post("/management/tokens", status_code=201)
 async def create_management_token(
     payload: models.ManagementTokenIn,
-    db: AsyncSession = Depends(get_db),
-    admin: User = Depends(get_current_admin),
+    db: AsyncSession = _PLUGIN_DB,
+    admin: User = _CURRENT_ADMIN,
 ) -> dict:
     if not payload.scopes or not set(payload.scopes).issubset(MANAGEMENT_SCOPES):
         raise HTTPException(422, "Choose only plugin management scopes.")
@@ -279,7 +289,7 @@ async def create_management_token(
 
 @router.delete("/management/tokens/{token_id}")
 async def revoke_management_token(
-    token_id: UUID, db: AsyncSession = Depends(get_db), admin: User = Depends(get_current_admin)
+    token_id: UUID, db: AsyncSession = _PLUGIN_DB, admin: User = _CURRENT_ADMIN
 ) -> dict:
     del admin
     row = await db.scalar(
@@ -424,8 +434,8 @@ async def run_automatic_plugin_updates(db: AsyncSession, admin: User) -> dict[st
 async def grant_plugin_permissions(
     plugin_id: str,
     payload: models.PackageOperationIn,
-    db: AsyncSession = Depends(get_db),
-    admin: User = Depends(get_plugin_manager_admin),
+    db: AsyncSession = _PLUGIN_DB,
+    admin: User = _PLUGIN_ADMIN,
 ) -> dict:
     """Explicitly re-grant declared permissions without replacing package or data."""
     from src.plugin_api.capabilities import calculate_permission_delta
@@ -494,9 +504,7 @@ async def grant_plugin_permissions(
 
 
 @router.post("/{plugin_id}/permissions/preview")
-async def preview_plugin_permissions(
-    plugin_id: str, admin: User = Depends(get_plugin_manager_admin)
-) -> dict:
+async def preview_plugin_permissions(plugin_id: str, admin: User = _PLUGIN_ADMIN) -> dict:
     del admin
     inspected = await asyncio.to_thread(
         acquisition._plugin_installer()._inspect_snapshot,
@@ -507,8 +515,8 @@ async def preview_plugin_permissions(
 
 @router.get("", response_model=list[dict])
 async def list_plugins(
-    db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_plugin_manager_reader),
+    db: AsyncSession = _PLUGIN_DB,
+    user: User = _PLUGIN_READER,
 ) -> list[dict]:
     from src.plugin_api.grants import effective_capabilities
 
@@ -563,8 +571,8 @@ async def list_plugins(
 @router.delete("/{plugin_id}", status_code=204)
 async def delete_plugin(
     plugin_id: str,
-    db: AsyncSession = Depends(get_db),
-    admin: User = Depends(get_plugin_manager_admin),
+    db: AsyncSession = _PLUGIN_DB,
+    admin: User = _PLUGIN_ADMIN,
 ) -> Response:
     del admin
     try:
@@ -582,13 +590,18 @@ async def delete_plugin(
 @router.post("/{plugin_id}/enable")
 async def enable_plugin(
     plugin_id: str,
-    db: AsyncSession = Depends(get_db),
-    admin: User = Depends(get_plugin_manager_admin),
+    db: AsyncSession = _PLUGIN_DB,
+    admin: User = _PLUGIN_ADMIN,
 ) -> dict:
-    plugin = next(
-        (item for item in await runtime._client.plugins() if item.get("plugin_id") == plugin_id),
-        None,
-    )
+    with runtime._runtime_errors():
+        plugin = next(
+            (
+                item
+                for item in await runtime._client.plugins()
+                if item.get("plugin_id") == plugin_id
+            ),
+            None,
+        )
     if plugin is None or not plugin.get("installation_id"):
         raise HTTPException(status_code=404, detail="Plugin installation not found.")
     if not plugin_contract_active(plugin):
@@ -609,46 +622,39 @@ async def enable_plugin(
             status_code=403,
             detail="Approve all pending plugin permissions before enabling this plugin.",
         )
-    try:
+    with runtime._runtime_errors():
         await runtime._client.start(quote(plugin_id, safe=""), user_id=str(admin.id))
-    except PluginRuntimeUnavailable as exc:
-        raise runtime._runtime_error(exc) from exc
     return {"plugin_id": plugin_id, "enabled": True}
 
 
 @router.post("/{plugin_id}/disable")
-async def disable_plugin(plugin_id: str, admin: User = Depends(get_plugin_manager_admin)) -> dict:
+async def disable_plugin(plugin_id: str, admin: User = _PLUGIN_ADMIN) -> dict:
     del admin
-    try:
+    with runtime._runtime_errors():
         await runtime._client.stop(quote(plugin_id, safe=""))
-    except PluginRuntimeUnavailable as exc:
-        raise runtime._runtime_error(exc) from exc
     return {"plugin_id": plugin_id, "enabled": False}
 
 
 @router.post("/{plugin_id}/retry")
-async def retry_plugin(plugin_id: str, admin: User = Depends(get_plugin_manager_admin)) -> dict:
-    del admin
+async def retry_plugin(plugin_id: str, admin: User = _PLUGIN_ADMIN) -> dict:
     plugin = await runtime._live_plugin(plugin_id, require_enabled=False)
     if not plugin_contract_active(plugin):
         raise HTTPException(409, "This plugin requires a verified v1.1.0 update before it can run.")
     encoded = quote(plugin_id, safe="")
-    try:
-        await runtime._client.stop(encoded)
-    except PluginRuntimeUnavailable:
-        pass
-    try:
-        await runtime._client.start(encoded)
-    except PluginRuntimeUnavailable as exc:
-        raise runtime._runtime_error(exc) from exc
+    with runtime._runtime_errors():
+        try:
+            await runtime._client.stop(encoded)
+        except PluginRuntimeUnavailable:
+            pass
+        await runtime._client.start(encoded, user_id=str(admin.id))
     return {"plugin_id": plugin_id, "status": "running"}
 
 
 @router.post("/{plugin_id}/permissions/revoke")
 async def revoke_plugin_permissions(
     plugin_id: str,
-    db: AsyncSession = Depends(get_db),
-    admin: User = Depends(get_plugin_manager_admin),
+    db: AsyncSession = _PLUGIN_DB,
+    admin: User = _PLUGIN_ADMIN,
 ) -> dict:
     del admin
     rows = await db.scalars(
@@ -678,15 +684,13 @@ async def plugin_logs(
     plugin_id: str,
     level: str | None = Query(default=None),
     limit: int = Query(default=100, ge=1, le=200),
-    admin: User = Depends(get_plugin_manager_admin),
+    admin: User = _PLUGIN_ADMIN,
 ) -> dict[str, Any]:
     del admin
     if level is not None and level not in {"debug", "info", "warning", "error"}:
         raise HTTPException(status_code=400, detail="Unknown diagnostic level.")
-    try:
+    with runtime._runtime_errors():
         diagnostics = await runtime._client.logs(quote(plugin_id, safe=""))
-    except PluginRuntimeUnavailable as exc:
-        raise runtime._runtime_error(exc) from exc
     events = diagnostics.get("events", [])
     if not isinstance(events, list):
         events = []

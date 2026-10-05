@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import os
-from typing import Any
+from contextlib import contextmanager
+from typing import Any, Iterator
 from uuid import UUID
 
 from fastapi import Depends, HTTPException, Response
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
-
 from src.database.models.plugin_permissions import PluginPermissionGrant
 from src.database.models.user import User
 from src.database.session import get_db
@@ -49,6 +49,17 @@ def _runtime_error(exc: PluginRuntimeUnavailable) -> HTTPException:
 
 def _runtime_request_error(exc: PluginRuntimeRequestError) -> HTTPException:
     return HTTPException(status_code=422, detail=str(exc))
+
+
+@contextmanager
+def _runtime_errors() -> Iterator[None]:
+    """Preserve runtime policy and connection errors as actionable JSON responses."""
+    try:
+        yield
+    except PluginRuntimeRequestError as exc:
+        raise _runtime_request_error(exc) from exc
+    except PluginRuntimeUnavailable as exc:
+        raise _runtime_error(exc) from exc
 
 
 async def _installed_plugins() -> list[dict[str, Any]]:
@@ -110,10 +121,8 @@ async def _installed_plugins() -> list[dict[str, Any]]:
 
 async def _live_plugin(plugin_id: str, *, require_enabled: bool = True) -> dict[str, Any]:
     """Resolve a live installation before any capability can execute."""
-    try:
+    with _runtime_errors():
         installed = await _client.plugins()
-    except PluginRuntimeUnavailable as exc:
-        raise _runtime_error(exc) from exc
     matches = [item for item in installed if item.get("plugin_id") == plugin_id]
     if len(matches) != 1 or not matches[0].get("installation_id"):
         raise HTTPException(status_code=404, detail="Plugin installation not found.")

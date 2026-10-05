@@ -2418,6 +2418,16 @@ class PluginRegistry:
                     status="failed",
                     last_error=self.supervisor._redact(str(exc)),
                 )
+                self.supervisor._log(
+                    plugin_id,
+                    f"Plugin startup failed: {exc}",
+                    level="error",
+                    event="runtime.start_failed",
+                    metadata={
+                        "isolation": self.supervisor.isolation.get("mechanism"),
+                        "reduced_isolation_allowed": self.supervisor._nonbubble_enabled(),
+                    },
+                )
                 self.supervisor.stop(plugin_id)
                 raise
             self._transition(plugin_id, status="running", last_error=None)

@@ -54,7 +54,23 @@ If bubblewrap cannot run in a development/test environment, set `NONBUBBLE_ENV=t
 
 This is a **development troubleshooting escape hatch, not a production security mode**. Do not enable it when running untrusted plugins. Remove the variable or set it to a false value to restore normal bubblewrap isolation. Accepted true values are `1`, `true`, `yes`, and `on`, case-insensitive.
 
-For repository-root Docker Compose development, add `NONBUBBLE_ENV: "true"` under `plugin-runtime.environment`, then recreate the runtime container.
+All supplied Compose configurations pass `NONBUBBLE_ENV` from the Compose `.env`
+to the **plugin-runtime** service. Set `NONBUBBLE_ENV=true` there and recreate
+that service with `docker compose up -d --force-recreate plugin-runtime` (include
+your usual `-f`/`--env-file` arguments). Setting the variable only on the app
+container, or restarting an existing runtime without recreating it, does not
+change the runtime's environment. The default remains disabled.
+
+Plugin Settings → Diagnostics displays the runtime's effective fallback state
+alongside Bubblewrap usability and active isolation. A failed probe remains
+visible as a diagnostic when fallback is explicitly enabled, but does not block
+worker startup. Start, Enable and Retry failures return the runtime's explanation
+inside the dialog; they do not become an unexplained HTTP 500.
+
+The runtime also needs its private `PLUGIN_GATEWAY_URL`. The supplied production
+configurations use `http://app` through Nginx; development uses
+`http://backend:8000`. This broker address and its transport token are never
+passed to plugin workers.
 
 ## Per-plugin process isolation
 
