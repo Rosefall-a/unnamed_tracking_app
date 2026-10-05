@@ -64,6 +64,7 @@ from src.helpers.save_game_asset import (
 )
 from src.api.routes.game_notes import router as game_notes_router
 from src.api.routes.game_profiles import router as game_profiles_router
+from src.api.routes.game_helpers import _validate_asset_kind
 
 router = APIRouter(
     prefix="/api/game",
@@ -183,11 +184,7 @@ async def get_game_asset(
     current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> FileResponse:
     """Return a stored PNG asset for a game."""
-    if asset_kind not in ALLOWED_ASSET_KINDS:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Unsupported asset kind '{asset_kind}'. Supported values: {sorted(ALLOWED_ASSET_KINDS)}",
-        )
+    _validate_asset_kind(asset_kind)
 
     game = await _get_game_or_404(game_id, db, current_user.id)
     asset_path = (
@@ -476,11 +473,7 @@ async def download_game_asset(
     current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> dict[str, str]:
     """Download an image URL and persist it as a normalized game asset."""
-    if asset_kind not in ALLOWED_ASSET_KINDS:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Unsupported asset kind '{asset_kind}'.",
-        )
+    _validate_asset_kind(asset_kind)
 
     await _get_game_or_404(game_id, db, current_user.id)
     parsed_url = urlparse(payload.url)
