@@ -1,6 +1,16 @@
 <script setup lang="ts">
 import UiModal from "../components/UiModal.vue";
-import { ref, computed, onMounted, onUnmounted, nextTick, watch } from "vue";
+import {
+  ref,
+  computed,
+  onMounted,
+  onUnmounted,
+  onActivated,
+  onDeactivated,
+  nextTick,
+  watch,
+} from "vue";
+import { useKeptAlive } from "../utils/useKeptAlive";
 import { useRoute, useRouter } from "vue-router";
 import { useWindowVirtualizer } from "@tanstack/vue-virtual";
 import GameCard from "../components/GameCard.vue";
@@ -60,6 +70,7 @@ const route = useRoute();
 
 const games = ref<Game[]>([]);
 const loading = ref(true);
+const isLibraryActive = ref(true);
 const error = ref<string | null>(null);
 
 const showFormModal = ref(false);
@@ -580,11 +591,15 @@ let loadGamesToken = 0;
 
 async function loadGames() {
   const token = ++loadGamesToken;
-  loading.value = true;
+  if (!games.value.length) loading.value = true;
   try {
     const fetched = await fetchGames();
     if (token !== loadGamesToken) return;
     games.value = fetched;
+    error.value = null;
+    if (selectedGame.value)
+      selectedGame.value =
+        fetched.find((game) => game.id === selectedGame.value?.id) ?? null;
     // best-effort, a failed summary fetch just means no completion badges,
     // not a broken library page
     try {
@@ -616,6 +631,12 @@ async function loadGames() {
   }
 }
 
+async function restoreLibraryScroll() {
+  await nextTick();
+  if (route.path !== "/games") return;
+  const y = takeLibraryScroll();
+  if (y > 0) window.scrollTo(0, y);
+}
 onMounted(async () => {
   await loadGames();
   // the page has no real height until games render, so restoring scroll
@@ -624,15 +645,20 @@ onMounted(async () => {
   // by a router guard (state/libraryScroll.ts), not onUnmounted here,
   // that runs before any DOM change from the navigation, so it's reliably
   // the position the user was actually looking at when they left.
-  await nextTick();
-  if (route.path !== "/games") return;
-  const y = takeLibraryScroll();
-  if (y > 0) window.scrollTo(0, y);
+  await restoreLibraryScroll();
+});
+useKeptAlive(() => {
+  void loadGames();
+  void restoreLibraryScroll();
 });
 
 // filters are only remembered while you stay on this page, leaving it
 // (any other route) wipes them so the next visit starts from a clean slate
-onUnmounted(() => {
+onDeactivated(() => {
+  clearAllFilters();
+  showAdvancedFilters.value = false;
+  selectMode.value = false;
+  selectedIds.value.clear();
   localStorage.removeItem(FILTERS_KEY);
 });
 
@@ -763,7 +789,8 @@ function onGlobalKeydown(e: KeyboardEvent) {
     }
   }
 }
-onMounted(() => window.addEventListener("keydown", onGlobalKeydown));
+onActivated(() => window.addEventListener("keydown", onGlobalKeydown));
+onDeactivated(() => window.removeEventListener("keydown", onGlobalKeydown));
 onUnmounted(() => window.removeEventListener("keydown", onGlobalKeydown));
 
 function openAddModal() {
@@ -1184,7 +1211,17 @@ function onResize() {
   viewportWidth.value = window.innerWidth;
   if (viewMode.value === "shelves") updateAllShelfArrows();
 }
-onMounted(() => window.addEventListener("resize", onResize));
+onActivated(() => {
+  isLibraryActive.value = true;
+  onResize();
+  window.addEventListener("resize", onResize);
+  if (contentEl.value) contentObserver?.observe(contentEl.value);
+});
+onDeactivated(() => {
+  isLibraryActive.value = false;
+  window.removeEventListener("resize", onResize);
+  contentObserver?.disconnect();
+});
 onUnmounted(() => window.removeEventListener("resize", onResize));
 
 // Same card widths as the Media shelf (150 / 200 / 260px, 14px gap): the
@@ -1222,6 +1259,7 @@ const cardRowCount = computed(() =>
 const rowVirtualizer = useWindowVirtualizer(
   computed(() => ({
     count: cardRowCount.value,
+    enabled: isLibraryActive.value,
     estimateSize: () => 330,
     overscan: 3,
   })),

@@ -11,6 +11,7 @@ import { useRouter } from "vue-router";
 import { openTopbarPopover } from "../state/topbarPopover";
 import { currentUser } from "../state/auth";
 import { logout } from "../services/auth";
+import { useConfirm } from "../state/dialog";
 
 defineProps<{ initials: string }>();
 
@@ -18,6 +19,9 @@ const router = useRouter();
 const root = ref<HTMLElement | null>(null);
 const triggerBtn = ref<HTMLElement | null>(null);
 const open = ref(false);
+const confirm = useConfirm();
+const signingOut = ref(false);
+const logoutError = ref("");
 
 const PANEL_WIDTH = 172;
 const panelStyle = ref<{ top: string; left: string }>({
@@ -69,10 +73,30 @@ function goSettings() {
 }
 
 async function handleLogout() {
+  if (signingOut.value) return;
+  signingOut.value = true;
   open.value = false;
-  await logout();
-  currentUser.value = null;
-  router.push("/login");
+  logoutError.value = "";
+  try {
+    if (
+      !(await confirm({
+        title: "Sign out?",
+        message: "You'll need to sign in again to access your library.",
+        confirmLabel: "Sign out",
+      }))
+    )
+      return;
+    await logout();
+    currentUser.value = null;
+    await router.push("/login");
+  } catch {
+    logoutError.value = "Could not sign out. Please try again.";
+    positionPanel();
+    open.value = true;
+    openTopbarPopover.value = "profile";
+  } finally {
+    signingOut.value = false;
+  }
 }
 
 function onDocumentClick(e: MouseEvent) {
@@ -179,9 +203,13 @@ onBeforeUnmount(() => {
           Settings
         </button>
         <div class="profile-menu-divider"></div>
+        <p v-if="logoutError" role="alert" class="profile-menu-item danger">
+          {{ logoutError }}
+        </p>
         <button
           type="button"
           class="profile-menu-item danger"
+          :disabled="signingOut"
           @click="handleLogout"
         >
           <svg

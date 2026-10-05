@@ -22,6 +22,7 @@ import { mediaUnread, refreshMediaNotifications } from "../state/notifications";
 import {
   effectiveSidebarMode,
   navigationViewport,
+  navigationMenuOpen,
   sidebarWidth,
   setSidebarWidth,
   resetSidebarWidth,
@@ -34,6 +35,7 @@ import AppIcon from "./AppIcon.vue";
 import AppBrand from "./AppBrand.vue";
 import { branding } from "../state/branding";
 import { containModalTab } from "../services/focus";
+import { useConfirm } from "../state/dialog";
 import {
   navigationShortcutForPath,
   navigationTooltip,
@@ -41,7 +43,9 @@ import {
 
 const route = useRoute();
 const router = useRouter();
-const open = ref(false);
+const open = navigationMenuOpen;
+const confirm = useConfirm();
+const signingOut = ref(false);
 const railExpanded = ref(false);
 const pane = ref<HTMLElement | null>(null);
 const isPhone = computed(() => navigationViewport.value === "phone");
@@ -261,13 +265,27 @@ function resizeWithKeyboard(event: KeyboardEvent) {
   }
 }
 async function handleLogout() {
+  if (signingOut.value) return;
+  signingOut.value = true;
+  close();
   try {
+    if (
+      !(await confirm({
+        title: "Sign out?",
+        message: "You'll need to sign in again to access your library.",
+        confirmLabel: "Sign out",
+      }))
+    )
+      return;
     await logout();
     currentUser.value = null;
     close();
     await router.push("/login");
   } catch {
     actionError.value = "Could not sign out. Please try again.";
+    open.value = true;
+  } finally {
+    signingOut.value = false;
   }
 }
 let notificationTimer: number | undefined;
@@ -281,6 +299,7 @@ onMounted(() => {
   );
 });
 onUnmounted(() => {
+  open.value = false;
   window.clearInterval(notificationTimer);
   stopResize();
   if (scrollLocked) document.body.style.overflow = previousOverflow;
@@ -364,179 +383,183 @@ onUnmounted(() => {
         <AppIcon name="search" /><span class="nav-label">Search library</span
         ><kbd class="nav-label">Ctrl K</kbd>
       </button>
-      <nav class="nav-scroll" aria-label="Library and tools">
-        <RouterLink
-          to="/"
-          class="nav-item"
-          :class="{ active: isActive('/') }"
-          :aria-current="isActive('/') ? 'page' : undefined"
-          :title="navigationTooltip('Home', '/')"
-          :aria-keyshortcuts="navigationShortcutForPath('/')"
-          @click="close"
-          ><AppIcon name="home" /><span class="nav-label"
-            >Home</span
-          ></RouterLink
-        >
-        <p class="nav-group-label nav-label">Your library</p>
-        <div v-for="group in groups" :key="group.id" class="nav-group">
-          <button
-            type="button"
-            class="nav-item"
-            :class="{ 'group-active': group.paths.some(isActive) }"
-            :aria-label="group.label"
-            :title="`${group.label} · ${navigationTooltip(`Open ${group.entries[0]!.label}`, group.entries[0]!.path)}`"
-            :aria-expanded="!collapsed && expandedGroups.has(group.id)"
-            :aria-controls="`nav-${group.id}`"
-            @click="toggleGroup(group.id)"
-          >
-            <AppIcon :name="group.icon" /><span class="nav-label">{{
-              group.label
-            }}</span
-            ><AppIcon
-              class="nav-chevron nav-label"
-              :class="{ expanded: expandedGroups.has(group.id) }"
-              name="chevron"
-              :size="14"
-            />
-          </button>
-          <div
-            v-if="!collapsed && expandedGroups.has(group.id)"
-            :id="`nav-${group.id}`"
-            class="nav-children"
-          >
-            <RouterLink
-              v-for="entry in group.entries"
-              :key="entry.path"
-              :to="entry.path"
-              class="nav-item"
-              :class="{ active: isActive(entry.path) }"
-              :aria-current="isActive(entry.path) ? 'page' : undefined"
-              :title="navigationTooltip(entry.label, entry.path)"
-              :aria-keyshortcuts="navigationShortcutForPath(entry.path)"
-              @click="close"
-              ><AppIcon :name="entry.icon" :size="17" /><span>{{
-                entry.label
-              }}</span></RouterLink
-            >
-          </div>
-        </div>
-        <p class="nav-group-label nav-label">Keep track</p>
-        <RouterLink
-          v-for="tool in tools"
-          :key="tool.path"
-          :to="tool.path"
-          class="nav-item"
-          :class="{ active: isActive(tool.path) }"
-          :aria-current="isActive(tool.path) ? 'page' : undefined"
-          :title="navigationTooltip(tool.label, tool.path)"
-          :aria-keyshortcuts="navigationShortcutForPath(tool.path)"
-          :aria-label="tool.label"
-          @click="close"
-          ><AppIcon :name="tool.icon" /><span class="nav-label">{{
-            tool.label
-          }}</span
-          ><span
-            v-if="tool.path === '/notifications' && mediaUnread"
-            class="nav-badge"
-            >{{ mediaUnread > 99 ? "99+" : mediaUnread }}</span
-          ></RouterLink
-        >
-        <template v-if="mainPluginNavigation.length">
-          <p class="nav-group-label nav-label">Extensions</p>
-          <component
-            :is="item.action ? 'button' : RouterLink"
-            v-for="item in mainPluginNavigation"
-            :key="`${item.pluginId}:${item.contributionId}`"
-            :to="item.action ? undefined : pluginNavigationTarget(item)"
-            :type="item.action ? 'button' : undefined"
-            class="nav-item plugin-sidebar-item"
-            :class="{ active: isActive(`/plugins/${item.pluginId}`) }"
-            :title="item.label"
-            :aria-label="item.label"
-            @click="item.action ? activatePluginNavigation(item) : close()"
-            ><span
-              v-if="item.icon"
-              class="plugin-navigation-icon"
-              aria-hidden="true"
-              >{{ item.icon }}</span
-            ><AppIcon v-else name="plugin" /><span class="nav-label">{{
-              item.label
-            }}</span></component
-          >
-        </template>
-        <RouterLink
-          to="/upload"
-          class="nav-item"
-          title="Upload"
-          aria-label="Upload"
-          :class="{ active: isActive('/upload') }"
-          @click="close"
-          ><AppIcon name="upload" /><span class="nav-label">Upload</span
-          ><span v-if="inboxCount" class="nav-badge">{{
-            inboxCount
-          }}</span></RouterLink
-        >
-      </nav>
-      <footer class="nav-footer">
-        <RouterLink
-          to="/settings?section=appearance"
-          class="nav-item"
-          :class="{
-            active:
-              isActive('/settings') && activeSettingsArea === 'preferences',
-          }"
-          title="Preferences · Alt + P opens Settings"
-          aria-keyshortcuts="Alt+P"
-          aria-label="Preferences"
-          @click="close"
-          ><AppIcon name="settings" /><span class="nav-label"
-            >Preferences</span
-          ></RouterLink
-        >
-        <RouterLink
-          v-if="currentUser?.is_admin"
-          to="/settings?section=admin"
-          class="nav-item"
-          :class="{
-            active:
-              isActive('/settings') && activeSettingsArea === 'administration',
-          }"
-          title="Administration"
-          aria-label="Administration"
-          @click="close"
-          ><AppIcon name="admin" /><span class="nav-label"
-            >Administration</span
-          ></RouterLink
-        >
-        <div v-if="actionError" class="nav-error" role="alert">
-          {{ actionError }}
-        </div>
-        <div class="nav-account">
+      <div class="nav-body">
+        <nav class="nav-scroll" aria-label="Library and tools">
           <RouterLink
-            to="/settings?section=profile"
-            class="nav-account-link"
-            :title="currentUser?.username"
-            aria-label="Your account"
+            to="/"
+            class="nav-item"
+            :class="{ active: isActive('/') }"
+            :aria-current="isActive('/') ? 'page' : undefined"
+            :title="navigationTooltip('Home', '/')"
+            :aria-keyshortcuts="navigationShortcutForPath('/')"
             @click="close"
-            ><span class="nav-avatar">{{
-              currentUser?.username.slice(0, 2).toUpperCase()
-            }}</span
-            ><span class="nav-label account-label"
-              ><strong>{{ currentUser?.username }}</strong
-              ><small>Your account</small></span
+            ><AppIcon name="home" /><span class="nav-label"
+              >Home</span
             ></RouterLink
           >
-          <button
-            type="button"
-            class="nav-icon-button nav-label"
-            title="Sign out"
-            aria-label="Sign out"
-            @click="handleLogout"
+          <p class="nav-group-label nav-label">Your library</p>
+          <div v-for="group in groups" :key="group.id" class="nav-group">
+            <button
+              type="button"
+              class="nav-item"
+              :class="{ 'group-active': group.paths.some(isActive) }"
+              :aria-label="group.label"
+              :title="`${group.label} · ${navigationTooltip(`Open ${group.entries[0]!.label}`, group.entries[0]!.path)}`"
+              :aria-expanded="!collapsed && expandedGroups.has(group.id)"
+              :aria-controls="`nav-${group.id}`"
+              @click="toggleGroup(group.id)"
+            >
+              <AppIcon :name="group.icon" /><span class="nav-label">{{
+                group.label
+              }}</span
+              ><AppIcon
+                class="nav-chevron nav-label"
+                :class="{ expanded: expandedGroups.has(group.id) }"
+                name="chevron"
+                :size="14"
+              />
+            </button>
+            <div
+              v-if="!collapsed && expandedGroups.has(group.id)"
+              :id="`nav-${group.id}`"
+              class="nav-children"
+            >
+              <RouterLink
+                v-for="entry in group.entries"
+                :key="entry.path"
+                :to="entry.path"
+                class="nav-item"
+                :class="{ active: isActive(entry.path) }"
+                :aria-current="isActive(entry.path) ? 'page' : undefined"
+                :title="navigationTooltip(entry.label, entry.path)"
+                :aria-keyshortcuts="navigationShortcutForPath(entry.path)"
+                @click="close"
+                ><AppIcon :name="entry.icon" :size="17" /><span>{{
+                  entry.label
+                }}</span></RouterLink
+              >
+            </div>
+          </div>
+          <p class="nav-group-label nav-label">Keep track</p>
+          <RouterLink
+            v-for="tool in tools"
+            :key="tool.path"
+            :to="tool.path"
+            class="nav-item"
+            :class="{ active: isActive(tool.path) }"
+            :aria-current="isActive(tool.path) ? 'page' : undefined"
+            :title="navigationTooltip(tool.label, tool.path)"
+            :aria-keyshortcuts="navigationShortcutForPath(tool.path)"
+            :aria-label="tool.label"
+            @click="close"
+            ><AppIcon :name="tool.icon" /><span class="nav-label">{{
+              tool.label
+            }}</span
+            ><span
+              v-if="tool.path === '/notifications' && mediaUnread"
+              class="nav-badge"
+              >{{ mediaUnread > 99 ? "99+" : mediaUnread }}</span
+            ></RouterLink
           >
-            <AppIcon name="logout" :size="18" />
-          </button>
-        </div>
-      </footer>
+          <template v-if="mainPluginNavigation.length">
+            <p class="nav-group-label nav-label">Extensions</p>
+            <component
+              :is="item.action ? 'button' : RouterLink"
+              v-for="item in mainPluginNavigation"
+              :key="`${item.pluginId}:${item.contributionId}`"
+              :to="item.action ? undefined : pluginNavigationTarget(item)"
+              :type="item.action ? 'button' : undefined"
+              class="nav-item plugin-sidebar-item"
+              :class="{ active: isActive(`/plugins/${item.pluginId}`) }"
+              :title="item.label"
+              :aria-label="item.label"
+              @click="item.action ? activatePluginNavigation(item) : close()"
+              ><span
+                v-if="item.icon"
+                class="plugin-navigation-icon"
+                aria-hidden="true"
+                >{{ item.icon }}</span
+              ><AppIcon v-else name="plugin" /><span class="nav-label">{{
+                item.label
+              }}</span></component
+            >
+          </template>
+          <RouterLink
+            to="/upload"
+            class="nav-item"
+            title="Upload"
+            aria-label="Upload"
+            :class="{ active: isActive('/upload') }"
+            @click="close"
+            ><AppIcon name="upload" /><span class="nav-label">Upload</span
+            ><span v-if="inboxCount" class="nav-badge">{{
+              inboxCount
+            }}</span></RouterLink
+          >
+        </nav>
+        <footer class="nav-footer">
+          <RouterLink
+            to="/settings?section=appearance"
+            class="nav-item"
+            :class="{
+              active:
+                isActive('/settings') && activeSettingsArea === 'preferences',
+            }"
+            title="Preferences · Alt + P opens Settings"
+            aria-keyshortcuts="Alt+P"
+            aria-label="Preferences"
+            @click="close"
+            ><AppIcon name="settings" /><span class="nav-label"
+              >Preferences</span
+            ></RouterLink
+          >
+          <RouterLink
+            v-if="currentUser?.is_admin"
+            to="/settings?section=admin"
+            class="nav-item"
+            :class="{
+              active:
+                isActive('/settings') &&
+                activeSettingsArea === 'administration',
+            }"
+            title="Administration"
+            aria-label="Administration"
+            @click="close"
+            ><AppIcon name="admin" /><span class="nav-label"
+              >Administration</span
+            ></RouterLink
+          >
+          <div v-if="actionError" class="nav-error" role="alert">
+            {{ actionError }}
+          </div>
+          <div class="nav-account">
+            <RouterLink
+              to="/settings?section=profile"
+              class="nav-account-link"
+              :title="currentUser?.username"
+              aria-label="Your account"
+              @click="close"
+              ><span class="nav-avatar">{{
+                currentUser?.username.slice(0, 2).toUpperCase()
+              }}</span
+              ><span class="nav-label account-label"
+                ><strong>{{ currentUser?.username }}</strong
+                ><small>Your account</small></span
+              ></RouterLink
+            >
+            <button
+              type="button"
+              class="nav-icon-button nav-label"
+              title="Sign out"
+              aria-label="Sign out"
+              :disabled="signingOut"
+              @click="handleLogout"
+            >
+              <AppIcon name="logout" :size="18" />
+            </button>
+          </div>
+        </footer>
+      </div>
       <div
         v-if="!isPhone && effectiveSidebarMode !== 'rail'"
         class="nav-resize"
@@ -570,8 +593,8 @@ onUnmounted(() => {
           @click="close"
           ><AppIcon name="home" /><span>Home</span></RouterLink
         >
-        <button
-          type="button"
+        <RouterLink
+          to="/games"
           :class="{
             active:
               isActive('/games') ||
@@ -579,31 +602,32 @@ onUnmounted(() => {
               isActive('/cards') ||
               isActive('/sets'),
           }"
-          aria-controls="app-navigation"
-          :aria-expanded="open"
-          @click="openMenu('games')"
+          :aria-current="isActive('/games') ? 'page' : undefined"
+          :title="navigationTooltip('All games', '/games')"
+          @click="close"
         >
-          <AppIcon name="collections" /><span>Library</span>
-        </button>
-        <button
-          type="button"
+          <AppIcon name="games" /><span>Games</span>
+        </RouterLink>
+        <RouterLink
+          to="/movies"
           :class="{
             active: ['/movies', '/tv', '/anime', '/lists'].some(isActive),
           }"
-          aria-controls="app-navigation"
-          :aria-expanded="open"
-          @click="openMenu('media')"
+          :aria-current="isActive('/movies') ? 'page' : undefined"
+          :title="navigationTooltip('Movies', '/movies')"
+          @click="close"
         >
           <AppIcon name="media" /><span>Media</span>
-        </button>
-        <button
-          type="button"
-          aria-controls="app-navigation"
-          :aria-expanded="open"
-          @click="openMenu()"
+        </RouterLink>
+        <RouterLink
+          to="/settings"
+          :class="{ active: isActive('/settings') }"
+          :aria-current="isActive('/settings') ? 'page' : undefined"
+          :title="navigationTooltip('Settings', '/settings')"
+          @click="close"
         >
-          <AppIcon name="more" /><span>More</span>
-        </button>
+          <AppIcon name="settings" /><span>Settings</span>
+        </RouterLink>
       </nav>
     </Teleport>
   </div>
@@ -727,6 +751,12 @@ dialog.navigation {
   scrollbar-width: thin;
   scrollbar-color: var(--ui-border) transparent;
   padding: 0 2px;
+}
+.nav-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
 }
 .nav-item {
   display: flex;
@@ -938,7 +968,33 @@ dialog.navigation {
     border-radius: 28px;
   }
   .nav-brand {
-    margin-bottom: 20px;
+    margin-bottom: 10px;
+  }
+  .nav-body {
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  .nav-scroll {
+    flex: none;
+    overflow: visible;
+  }
+  .nav-footer {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 4px;
+    flex-shrink: 0;
+  }
+  .nav-footer > .nav-item {
+    padding: 10px 8px;
+    font-size: 12px;
+    gap: 6px;
+  }
+  .nav-account,
+  .nav-error {
+    grid-column: 1 / -1;
+  }
+  .nav-search {
+    margin-bottom: 8px;
   }
   .brand-name {
     font-size: 23px;

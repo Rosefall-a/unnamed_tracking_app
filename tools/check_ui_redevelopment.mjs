@@ -27,7 +27,7 @@ const [pluginsRoot, evidenceRoot, backendUrl] = process.argv.slice(2);
 const reviewStage = process.argv[5] ?? "shell";
 assert(pluginsRoot && evidenceRoot && backendUrl && process.env.UI_REVIEW_USERNAME && process.env.UI_REVIEW_PASSWORD, "Supply a disposable backend and review credentials.");
 const require = createRequire(path.resolve(pluginsRoot, "package.json"));
-const { chromium } = require("playwright");
+const { chromium, webkit } = require("playwright");
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../src/frontend/dist");
 const mime = { ".js": "text/javascript", ".css": "text/css", ".svg": "image/svg+xml", ".html": "text/html" };
 const server = createServer(async (incoming, outgoing) => {
@@ -48,7 +48,8 @@ const server = createServer(async (incoming, outgoing) => {
 await mkdir(evidenceRoot, { recursive: true });
 await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
 const origin = `http://127.0.0.1:${server.address().port}`;
-const browser = await chromium.launch({ headless: true, args: ["--no-sandbox"] });
+const browserType = process.env.UI_REVIEW_BROWSER === "webkit" ? webkit : chromium;
+const browser = await browserType.launch({ headless: true, ...(browserType === chromium ? { args: ["--no-sandbox"] } : {}) });
 const errors = [];
 const report = { backend: "real", passed: [], screens: [], widths: [320, 390, 430, 768, 1024, 1440, 1920, 2560] };
 const admin = await browser.newContext();

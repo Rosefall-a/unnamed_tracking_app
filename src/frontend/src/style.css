@@ -30,6 +30,16 @@ body {
   margin: 0;
 }
 
+/* Tap controls immediately while preserving pinch zoom and scrolling. */
+button,
+a,
+[role="button"],
+input,
+select,
+summary {
+  touch-action: manipulation;
+}
+
 h1,
 h2 {
   font-family: var(--heading);

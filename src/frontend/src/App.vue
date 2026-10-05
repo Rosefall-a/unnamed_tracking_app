@@ -2,6 +2,7 @@
 import { useRoute, useRouter } from "vue-router";
 import { retryStartup } from "./router";
 import SidebarNav from "./components/SidebarNav.vue";
+import AppIcon from "./components/AppIcon.vue";
 import TaskProgressToast from "./components/TaskProgressToast.vue";
 import ShortcutsHelp from "./components/ShortcutsHelp.vue";
 import CommandPalette from "./components/CommandPalette.vue";
@@ -22,6 +23,7 @@ import {
   sidebarWidth,
   sidebarResizing,
   navigationViewport,
+  navigationMenuOpen,
   initializeNavigationViewport,
 } from "./state/sidebarMode";
 import { computed, watchEffect } from "vue";
@@ -120,6 +122,7 @@ const contentStyle = computed(() => {
   return {};
 });
 const KEPT_ALIVE = [
+  "GameLibrary",
   "MovieLibrary",
   "TVShowLibrary",
   "AnimeLibrary",
@@ -143,6 +146,22 @@ const KEPT_ALIVE = [
     "
   >
     <SidebarNav v-if="sidebarShown" />
+    <header
+      v-if="sidebarShown && navigationViewport === 'phone'"
+      class="phone-topbar"
+      aria-label="Page navigation"
+    >
+      <button
+        type="button"
+        aria-label="Open menu"
+        aria-controls="app-navigation"
+        :aria-expanded="navigationMenuOpen"
+        @click="navigationMenuOpen = true"
+      >
+        <AppIcon name="menu" />
+      </button>
+      <span>{{ route.meta.title || "Library" }}</span>
+    </header>
     <!-- Library, calendar and list pages stay mounted when you leave them, so
          switching tabs is instant instead of reloading from empty. Detail
          pages are deliberately not kept: they must reload per title. -->
@@ -157,7 +176,7 @@ const KEPT_ALIVE = [
       :style="contentStyle"
     >
       <router-view v-slot="{ Component }">
-        <KeepAlive :include="KEPT_ALIVE" :max="8">
+        <KeepAlive :include="KEPT_ALIVE" :max="8" :key="currentUser?.id">
           <component :is="Component" />
         </KeepAlive>
       </router-view>
@@ -255,5 +274,25 @@ const KEPT_ALIVE = [
 }
 .phone-content {
   padding-bottom: calc(92px + env(safe-area-inset-bottom));
+}
+.phone-topbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 52px;
+  padding: env(safe-area-inset-top) 16px 0;
+  color: var(--ui-dim);
+  background: var(--ui-bg);
+  font-size: var(--ui-font-small);
+}
+.phone-topbar button {
+  display: grid;
+  place-items: center;
+  min-width: 44px;
+  min-height: 44px;
+  border: 1px solid var(--ui-border-soft);
+  border-radius: var(--ui-radius-control);
+  color: var(--ui-text);
+  background: var(--ui-surface);
 }
 </style>

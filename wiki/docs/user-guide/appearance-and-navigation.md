@@ -4,7 +4,9 @@ The application uses Archive's desktop structure with Pocket's floating navigati
 
 ## Navigation
 
-On a desktop, the navigation pane stays visible. On a tablet, **Auto** uses an icon rail; its menu button expands the labels. On a phone, the rounded bottom bar offers Home, Library, Media and More. Library and Media open their groups in the full menu. More provides the rest of the library, tools, settings and active plugin links.
+On a desktop, the navigation pane stays visible. On a tablet, **Auto** uses an icon rail; its menu button expands the labels. On a phone, the rounded bottom bar opens Home, All Games, Movies and Settings directly. The hamburger at the top left opens the full library, tools and active plugin links. Preferences, administration and your account share a compact footer that scrolls with the menu, leaving more room for library entries on short phone screens.
+
+Switching between Games and Media keeps the loaded library visible while refreshing it in the background. Fresh page visits start at the top; returning from a game detail preserves the library position. Sign out asks for confirmation in both the navigation menu and account menu.
 
 The phone menu contains keyboard focus, closes with Escape or its close button, and returns focus to the opening control. Desktop navigation can be resized by dragging its right edge, or focusing that edge and using Left/Right; Home/End choose its minimum/maximum width. Double-click resets the width. Navigation remembers the width and the Auto, Overlay, Pinned or Icon rail choice on this device. Phones always use the bottom bar regardless of that desktop choice.
 

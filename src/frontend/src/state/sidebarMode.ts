@@ -18,6 +18,7 @@ function readStored(): SidebarMode {
 }
 
 export const sidebarMode = ref<SidebarMode>(readStored());
+export const navigationMenuOpen = ref(false);
 
 watch(sidebarMode, (mode) => {
   try {
