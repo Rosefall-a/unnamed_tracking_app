@@ -50,6 +50,13 @@ class MediaItem(Base):
         PG_UUID(as_uuid=True), ForeignKey("achievements.id", ondelete="SET NULL"), nullable=True
     )
     created_at: Mapped[int] = mapped_column(BigInteger, nullable=False, default=time.time)
+    # a name for the file inside the app; the file on disk keeps its own name
+    title: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    # when it was really taken, and where that came from ("photo", "filename",
+    # "file", "uploaded" or "manual", see helpers/media_dates.py). NULL on rows
+    # from before this existed, which fall back to created_at.
+    taken_at: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    taken_source: Mapped[str | None] = mapped_column(String(20), nullable=True)
     # set instead of deleting the row — the file moves to a trash folder
     # alongside it (see features/trash/media_trash.py) and
     # features/trash/sweep.py purges both after 7 days. NULL means active.

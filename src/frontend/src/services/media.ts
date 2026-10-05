@@ -1,18 +1,34 @@
 import { createSpeedTracker } from "../utils/uploadSpeed";
+import type { DateSource } from "../utils/mediaDate";
 
 export type MediaKind = "screenshot" | "clip" | "soundtrack";
 
-export interface MediaItem {
+// What every uploaded file (media or doc) has in common: the file itself plus
+// the in-app details the gallery lets you edit.
+export interface FileDetails {
   id: string;
   filename: string;
-  kind: MediaKind;
+  kind: string;
   url: string;
   tags: string[];
   note: string | null;
-  linked_achievement_id: string | null;
-  // which GameProfile (e.g. an OSRS account) this belongs to, if any
-  profile_id: string | null;
   created_at: number;
+  size?: number;
+  // an in-app name; the file keeps its own name
+  title?: string | null;
+  // when it was really taken and where that came from, see utils/mediaDate.ts
+  taken_at?: number | null;
+  taken_source?: DateSource | null;
+  // media only
+  linked_achievement_id?: string | null;
+  // which GameProfile (e.g. an OSRS account) this belongs to, if any
+  profile_id?: string | null;
+}
+
+export interface MediaItem extends FileDetails {
+  kind: MediaKind;
+  linked_achievement_id: string | null;
+  profile_id: string | null;
   // present only from the library-wide gallery endpoint (fetchAllMedia),
   // not from a single game's own screenshots list
   game_id?: string;
@@ -24,7 +40,15 @@ export interface MediaItemUpdate {
   note?: string | null;
   linked_achievement_id?: string | null;
   profile_id?: string | null;
+  title?: string | null;
+  taken_at?: number | null;
+  // "achievement" when the date was copied from an achievement's unlock time
+  taken_source?: "manual" | "achievement";
 }
+
+// Mock mode keeps uploads in memory for the session so the gallery can be
+// tried without a backend. Nothing here runs against a real server.
+const mockMedia: MediaItem[] = [];
 
 export interface UploadResult {
   filename: string;
@@ -46,6 +70,10 @@ function uploadFiles(
 ): Promise<UploadResult[]> {
   const form = new FormData();
   for (const file of files) form.append("files", file);
+  // the file's own modified date, one per file in the same order: the server
+  // uses it only when the photo data and file name have no date
+  for (const file of files)
+    form.append("last_modified", String(file.lastModified));
   for (const [key, value] of Object.entries(extraFields ?? {}))
     form.append(key, value);
   const trackSpeed = createSpeedTracker();
@@ -87,11 +115,27 @@ export async function uploadGameScreenshots(
   profileId?: string | null,
 ): Promise<UploadResult[]> {
   if (import.meta.env.VITE_USE_MOCK_DATA === "true") {
-    return files.map((f) => ({
-      filename: f.name,
-      status: "saved",
-      kind: f.type.startsWith("video/") ? "clip" : "screenshot",
-    }));
+    return files.map((f) => {
+      const kind: MediaKind = f.type.startsWith("video/")
+        ? "clip"
+        : f.type.startsWith("audio/")
+          ? "soundtrack"
+          : "screenshot";
+      mockMedia.push({
+        id: crypto.randomUUID(),
+        filename: `${mockMedia.length}_${f.name}`,
+        kind,
+        url: URL.createObjectURL(f),
+        tags: [],
+        note: null,
+        linked_achievement_id: null,
+        profile_id: profileId ?? null,
+        created_at: Math.floor(Date.now() / 1000),
+        taken_at: Math.floor((f.lastModified || Date.now()) / 1000),
+        taken_source: "file",
+      });
+      return { filename: f.name, status: "saved" as const, kind };
+    });
   }
   return uploadFiles(
     `/api/game/${gameId}/screenshots`,
@@ -110,7 +154,7 @@ export async function listGameScreenshots(
   profileId?: string | null,
   unscopedOnly = false,
 ): Promise<MediaItem[]> {
-  if (import.meta.env.VITE_USE_MOCK_DATA === "true") return [];
+  if (import.meta.env.VITE_USE_MOCK_DATA === "true") return [...mockMedia];
   const params = new URLSearchParams();
   if (profileId) params.set("profile_id", profileId);
   else if (unscopedOnly) params.set("unscoped_only", "true");
@@ -133,7 +177,11 @@ export async function deleteGameScreenshot(
   kind: MediaKind,
   filename: string,
 ): Promise<void> {
-  if (import.meta.env.VITE_USE_MOCK_DATA === "true") return;
+  if (import.meta.env.VITE_USE_MOCK_DATA === "true") {
+    const i = mockMedia.findIndex((m) => m.filename === filename);
+    if (i !== -1) mockMedia.splice(i, 1);
+    return;
+  }
   const response = await fetch(
     `/api/game/${gameId}/screenshots/${kind}/${encodeURIComponent(filename)}`,
     {
@@ -191,17 +239,13 @@ export async function updateMediaItem(
   payload: MediaItemUpdate,
 ): Promise<MediaItem> {
   if (import.meta.env.VITE_USE_MOCK_DATA === "true") {
-    return {
-      id: mediaId,
-      filename: "",
-      kind: "screenshot",
-      url: "",
-      tags: payload.tags ?? [],
-      note: payload.note ?? null,
-      linked_achievement_id: payload.linked_achievement_id ?? null,
-      profile_id: payload.profile_id ?? null,
-      created_at: 0,
-    };
+    const item = mockMedia.find((m) => m.id === mediaId);
+    if (!item) throw new Error("Media item not found");
+    Object.assign(item, payload);
+    if ("taken_at" in payload)
+      item.taken_source =
+        payload.taken_at == null ? null : (payload.taken_source ?? "manual");
+    return { ...item };
   }
   const response = await fetch(`/api/game/${gameId}/screenshots/${mediaId}`, {
     method: "PATCH",
@@ -216,6 +260,26 @@ export async function updateMediaItem(
     );
   }
   return await response.json();
+}
+
+// Re-read the dates from the files themselves (photo data, then the file
+// name). Returns only the items where something was found.
+export async function detectMediaDates(
+  gameId: string,
+  ids: string[],
+): Promise<MediaItem[]> {
+  if (import.meta.env.VITE_USE_MOCK_DATA === "true" || !ids.length) return [];
+  const response = await fetch(`/api/game/${gameId}/screenshots/detect-dates`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ids }),
+  });
+  if (!response.ok)
+    throw new Error(
+      `Failed to detect dates: ${response.status} ${response.statusText}`,
+    );
+  return (await response.json()).media;
 }
 
 // library-wide gallery, every already-assigned media item across every
@@ -245,6 +309,8 @@ export interface InboxMediaItem {
   kind: MediaKind;
   url: string;
   created_at: number;
+  taken_at?: number | null;
+  taken_source?: DateSource | null;
 }
 
 export interface TrashedInboxItem {
@@ -356,11 +422,13 @@ export async function assignInboxMedia(
 // any file type -------------------------------------------------------------
 export type GameFileKind = "save" | "doc" | "world_save" | "modpack";
 
-export interface GameFile {
-  filename: string;
+export interface GameFile extends FileDetails {
+  kind: GameFileKind;
   size: number;
-  url: string;
 }
+
+// Mock mode keeps files in memory for the session, like the media above.
+const mockFiles: GameFile[] = [];
 
 export async function uploadGameFiles(
   gameId: string,
@@ -369,7 +437,21 @@ export async function uploadGameFiles(
   onProgress?: (fraction: number, speedLabel?: string) => void,
 ): Promise<UploadResult[]> {
   if (import.meta.env.VITE_USE_MOCK_DATA === "true") {
-    return files.map((f) => ({ filename: f.name, status: "saved" }));
+    return files.map((f) => {
+      mockFiles.push({
+        id: crypto.randomUUID(),
+        filename: `${mockFiles.length}_${f.name}`,
+        kind,
+        size: f.size,
+        url: URL.createObjectURL(f),
+        tags: [],
+        note: null,
+        created_at: Math.floor(Date.now() / 1000),
+        taken_at: Math.floor((f.lastModified || Date.now()) / 1000),
+        taken_source: "file",
+      });
+      return { filename: f.name, status: "saved" as const };
+    });
   }
   return uploadFiles(`/api/game/${gameId}/files/${kind}`, files, onProgress);
 }
@@ -378,7 +460,8 @@ export async function listGameFiles(
   gameId: string,
   kind: GameFileKind,
 ): Promise<GameFile[]> {
-  if (import.meta.env.VITE_USE_MOCK_DATA === "true") return [];
+  if (import.meta.env.VITE_USE_MOCK_DATA === "true")
+    return mockFiles.filter((f) => f.kind === kind);
   const response = await fetch(`/api/game/${gameId}/files/${kind}`, {
     credentials: "include",
   });
@@ -396,7 +479,11 @@ export async function deleteGameFile(
   kind: GameFileKind,
   filename: string,
 ): Promise<void> {
-  if (import.meta.env.VITE_USE_MOCK_DATA === "true") return;
+  if (import.meta.env.VITE_USE_MOCK_DATA === "true") {
+    const i = mockFiles.findIndex((f) => f.filename === filename);
+    if (i !== -1) mockFiles.splice(i, 1);
+    return;
+  }
   const response = await fetch(
     `/api/game/${gameId}/files/${kind}/${encodeURIComponent(filename)}`,
     {
@@ -410,7 +497,47 @@ export async function deleteGameFile(
     );
 }
 
+export interface GameFileUpdate {
+  title?: string | null;
+  note?: string | null;
+  tags?: string[];
+  taken_at?: number | null;
+  taken_source?: "manual" | "achievement";
+}
+
+export async function updateGameFile(
+  gameId: string,
+  kind: GameFileKind,
+  id: string,
+  patch: GameFileUpdate,
+): Promise<GameFile> {
+  if (import.meta.env.VITE_USE_MOCK_DATA === "true") {
+    const item = mockFiles.find((f) => f.id === id);
+    if (!item) throw new Error("File not found");
+    Object.assign(item, patch);
+    if ("taken_at" in patch)
+      item.taken_source =
+        patch.taken_at == null ? null : (patch.taken_source ?? "manual");
+    return { ...item };
+  }
+  const response = await fetch(
+    `/api/game/${gameId}/files/${kind}/by-id/${id}`,
+    {
+      method: "PATCH",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    },
+  );
+  if (!response.ok)
+    throw new Error(
+      `Failed to update file: ${response.status} ${response.statusText}`,
+    );
+  return await response.json();
+}
+
 export interface TrashedGameFile {
+  id: string;
   filename: string;
   deleted_at: number;
   purge_at: number;

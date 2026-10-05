@@ -4,6 +4,12 @@ import { useRoute, useRouter } from "vue-router";
 import { fetchGame, fetchGameAchievements } from "../services/games";
 import { isUnlocked } from "../utils/achievements";
 import {
+  listGameScreenshots,
+  uploadGameScreenshots,
+  updateMediaItem,
+} from "../services/media";
+import type { MediaItem } from "../services/media";
+import {
   loadAchievementLocal,
   saveAchievementLocal,
 } from "../state/achievementLocal";
@@ -72,18 +78,69 @@ function saveNote() {
   }, 1500);
 }
 
-function onMediaFileChange(e: Event) {
-  const file = (e.target as HTMLInputElement).files?.[0];
-  if (!file || !achievement.value) return;
-  if (!achievement.value.media) achievement.value.media = [];
-  achievement.value.media.push(URL.createObjectURL(file));
-  (e.target as HTMLInputElement).value = "";
+// Media here is the game's own uploads (the Screenshots, Clips and
+// Soundtrack tabs) that are tied to this achievement. Adding one uploads it
+// to the game and ties it to this achievement in one step.
+const linkedMedia = ref<MediaItem[]>([]);
+const mediaError = ref<string | null>(null);
+const mediaBusy = ref(false);
+const lightbox = ref<string | null>(null);
+
+async function loadLinkedMedia() {
+  const gameId = route.params.gameId as string;
+  const achievementId = route.params.achievementId as string;
+  try {
+    const all = await listGameScreenshots(gameId);
+    linkedMedia.value = all.filter(
+      (m) => m.linked_achievement_id === achievementId,
+    );
+  } catch (err) {
+    mediaError.value =
+      err instanceof Error ? err.message : "Failed to load media";
+  }
+}
+watch(() => route.params.achievementId, loadLinkedMedia, { immediate: true });
+
+async function onMediaFileChange(e: Event) {
+  const input = e.target as HTMLInputElement;
+  const files = Array.from(input.files ?? []);
+  input.value = "";
+  if (!files.length || !achievement.value) return;
+  const gameId = route.params.gameId as string;
+  mediaBusy.value = true;
+  mediaError.value = null;
+  try {
+    const results = await uploadGameScreenshots(gameId, files);
+    const saved = new Set(
+      results.filter((r) => r.status === "saved").map((r) => r.filename),
+    );
+    const rejected = results.filter((r) => r.status !== "saved");
+    if (rejected.length) {
+      mediaError.value = `${rejected[0].filename}: ${rejected[0].reason ?? "rejected"}`;
+    }
+    const all = await listGameScreenshots(gameId);
+    for (const m of all.filter((m) => saved.has(m.filename))) {
+      await updateMediaItem(gameId, m.id, {
+        linked_achievement_id: achievement.value.id,
+      });
+    }
+    await loadLinkedMedia();
+  } catch (err) {
+    mediaError.value = err instanceof Error ? err.message : "Upload failed";
+  } finally {
+    mediaBusy.value = false;
+  }
 }
 
-function removeMedia(index: number) {
-  const url = achievement.value?.media?.[index];
-  if (url) URL.revokeObjectURL(url);
-  achievement.value?.media?.splice(index, 1);
+async function unlinkMedia(item: MediaItem) {
+  try {
+    await updateMediaItem(route.params.gameId as string, item.id, {
+      linked_achievement_id: null,
+    });
+    linkedMedia.value = linkedMedia.value.filter((m) => m.id !== item.id);
+  } catch (err) {
+    mediaError.value = err instanceof Error ? err.message : "Failed to remove";
+  }
 }
 
 function formatUnlockedAt(dateStr: string) {
@@ -147,21 +204,45 @@ function goBack() {
 
     <section class="detail-section">
       <h2>Media</h2>
-      <input type="file" accept="image/*" @change="onMediaFileChange" />
-      <div v-if="achievement.media?.length" class="media-grid">
-        <div
-          v-for="(url, i) in achievement.media"
-          :key="url"
-          class="media-item"
-        >
-          <img :src="url" alt="" />
-          <button type="button" class="remove-button" @click="removeMedia(i)">
+      <label class="add-media">
+        <input
+          type="file"
+          accept="image/*,video/*,audio/*"
+          multiple
+          :disabled="mediaBusy"
+          @change="onMediaFileChange"
+        />
+        <span>{{ mediaBusy ? "Uploading…" : "+ Add media" }}</span>
+      </label>
+      <p v-if="mediaError" class="media-error">{{ mediaError }}</p>
+      <div v-if="linkedMedia.length" class="media-grid">
+        <div v-for="m in linkedMedia" :key="m.id" class="media-item">
+          <img
+            v-if="m.kind === 'screenshot'"
+            :src="m.url"
+            alt=""
+            @click="lightbox = m.url"
+          />
+          <video v-else-if="m.kind === 'clip'" :src="m.url" controls></video>
+          <audio v-else :src="m.url" controls></audio>
+          <button
+            type="button"
+            class="remove-button"
+            title="Untie from this achievement"
+            @click="unlinkMedia(m)"
+          >
             ✕
           </button>
         </div>
       </div>
-      <p v-else class="empty-state">No media added yet.</p>
+      <p v-else class="empty-state">
+        Nothing tied to this achievement yet. Add media here, or tie an existing
+        screenshot or clip from its tab.
+      </p>
     </section>
+    <div v-if="lightbox" class="lightbox" @click="lightbox = null">
+      <img :src="lightbox" alt="" />
+    </div>
   </main>
 
   <main v-else class="not-found">
@@ -293,5 +374,50 @@ function goBack() {
   padding: 40px;
   color: #fff;
   text-align: center;
+}
+.add-media {
+  display: inline-flex;
+  align-items: center;
+  height: 34px;
+  padding: 0 16px;
+  border-radius: 8px;
+  background: #d68a34;
+  color: #14100a;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  align-self: flex-start;
+}
+.add-media input {
+  display: none;
+}
+.media-error {
+  color: #fca5a5;
+  font-size: 0.82rem;
+  margin: 8px 0 0;
+}
+.media-item img {
+  cursor: zoom-in;
+}
+.media-item video,
+.media-item audio {
+  width: 100%;
+  display: block;
+}
+.lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  background: rgba(0, 0, 0, 0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  cursor: zoom-out;
+}
+.lightbox img {
+  max-width: 100%;
+  max-height: 100%;
+  border-radius: 8px;
 }
 </style>

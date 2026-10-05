@@ -30,6 +30,8 @@ import {
   listGameScreenshots,
   deleteGameScreenshot,
   updateMediaItem,
+  updateGameFile,
+  detectMediaDates,
   uploadGameFiles,
   listGameFiles,
   deleteGameFile,
@@ -40,6 +42,8 @@ import {
 } from "../services/media";
 import type {
   MediaItem,
+  FileDetails,
+  MediaItemUpdate,
   GameFile,
   GameFileKind,
   TrashedMediaItem,
@@ -85,9 +89,11 @@ import type {
   TrashedArchive,
 } from "../services/gameArchives";
 import UploadDropzone from "../components/UploadDropzone.vue";
-import ViewUploadSidebar from "../components/ViewUploadSidebar.vue";
 import SkeletonBlock from "../components/SkeletonBlock.vue";
 import MediaTile from "../components/MediaTile.vue";
+import GameMediaPanel from "../components/GameMediaPanel.vue";
+import { isGuess, unlockSeconds } from "../utils/mediaDate";
+import GameArchivesPanel from "../components/GameArchivesPanel.vue";
 import {
   startTask,
   updateTask,
@@ -1437,7 +1443,31 @@ async function loadMedia(profileId?: string | null, unscopedOnly = false) {
   }
 }
 
+// media tied to an achievement shows on that achievement's row, so the
+// Achievements tab needs the media list too
+const mediaByAchievement = computed(() => {
+  const map = new Map<string, MediaItem[]>();
+  for (const m of mediaItems.value) {
+    if (!m.linked_achievement_id) continue;
+    const list = map.get(m.linked_achievement_id) ?? [];
+    list.push(m);
+    map.set(m.linked_achievement_id, list);
+  }
+  return map;
+});
+const achMediaOpen = ref<string | null>(null);
+function toggleAchMedia(a: Achievement) {
+  achMediaOpen.value = achMediaOpen.value === a.id ? null : a.id;
+}
+
 watch(activeTab, (tab) => {
+  if (
+    tab === "Achievements" &&
+    game.value &&
+    mediaLoadedFor.value !== game.value.id
+  ) {
+    void loadMedia();
+  }
   if (tab === "Screenshots" || tab === "Clips" || tab === "Soundtrack") {
     void loadProfiles();
     void loadMedia();
@@ -1465,6 +1495,7 @@ const uploadingMedia = ref(false);
 async function onMediaFilesSelected(files: File[]) {
   if (!files.length || !game.value) return;
   const gameId = game.value.id;
+  mediaError.value = null;
   uploadingMedia.value = true;
   const taskId = startTask(
     `Uploading ${files.length} file${files.length === 1 ? "" : "s"}`,
@@ -1507,6 +1538,11 @@ async function onMediaFilesSelected(files: File[]) {
     }
   };
   await attempt();
+}
+
+function openAchievement(achievementId: string) {
+  if (game.value)
+    router.push(`/games/${game.value.id}/achievements/${achievementId}`);
 }
 
 async function removeMedia(item: MediaItem) {
@@ -1561,34 +1597,98 @@ async function restoreMediaItem(item: TrashedMediaItem) {
   }
 }
 
-async function saveMediaItem(
-  item: MediaItem,
-  tags: string[],
-  note: string | null,
-  linkedAchievementId: string | null,
-  profileId: string | null,
-) {
+async function saveMediaItem(item: MediaItem, patch: MediaItemUpdate) {
   if (!game.value) return;
   try {
-    const updated = await updateMediaItem(game.value.id, item.id, {
-      tags,
-      note,
-      linked_achievement_id: linkedAchievementId,
-      profile_id: profileId,
-    });
+    const updated = await updateMediaItem(game.value.id, item.id, patch);
     const index = mediaItems.value.findIndex((m) => m.id === item.id);
     if (index !== -1) mediaItems.value[index] = updated;
     // the item may have just moved out of the Accounts tab's currently
     // selected scope (or into it), refetch so the gallery reflects that
     if (
       activeTab.value === "Accounts" &&
-      (activeProfileId.value !== null || profileId !== null)
+      "profile_id" in patch &&
+      (activeProfileId.value !== null || patch.profile_id !== null)
     ) {
       await reloadMediaForCurrentTab();
     }
   } catch (err) {
     mediaError.value = err instanceof Error ? err.message : "Failed to save";
   }
+}
+
+async function bulkSaveMedia(
+  updates: { id: string; patch: MediaItemUpdate }[],
+) {
+  if (!game.value) return;
+  const gameId = game.value.id;
+  try {
+    const updated = await Promise.all(
+      updates.map((u) => updateMediaItem(gameId, u.id, u.patch)),
+    );
+    for (const u of updated) {
+      const index = mediaItems.value.findIndex((m) => m.id === u.id);
+      if (index !== -1) mediaItems.value[index] = u;
+    }
+  } catch (err) {
+    mediaError.value = err instanceof Error ? err.message : "Failed to save";
+  }
+}
+
+async function bulkDeleteMedia(items: MediaItem[]) {
+  for (const item of items) await removeMedia(item);
+}
+
+// Finds the real date for the given files. The file's own data and name come
+// first; a file that has neither takes the unlock time of the achievement it is
+// tied to, as long as its current date is only a guess. Resolves with where
+// the date came from, per file.
+async function detectDates(
+  ids: string[],
+): Promise<Map<string, "file" | "achievement" | "none">> {
+  const outcome = new Map<string, "file" | "achievement" | "none">();
+  for (const id of ids) outcome.set(id, "none");
+  if (!game.value) return outcome;
+  try {
+    const found = await detectMediaDates(game.value.id, ids);
+    for (const u of found) {
+      const index = mediaItems.value.findIndex((m) => m.id === u.id);
+      if (index !== -1) mediaItems.value[index] = u;
+      outcome.set(u.id, "file");
+    }
+    for (const id of ids) {
+      if (outcome.get(id) === "file") continue;
+      const item = mediaItems.value.find((m) => m.id === id);
+      if (!item?.linked_achievement_id || !isGuess(item)) continue;
+      const when = unlockSeconds(
+        game.value.achievements.find(
+          (a) => a.id === item.linked_achievement_id,
+        ),
+      );
+      if (when === null) continue;
+      await saveMediaItem(item, {
+        taken_at: when,
+        taken_source: "achievement",
+      });
+      outcome.set(id, "achievement");
+    }
+  } catch (err) {
+    mediaError.value =
+      err instanceof Error ? err.message : "Failed to detect dates";
+  }
+  return outcome;
+}
+async function detectOne(item: FileDetails) {
+  return (await detectDates([item.id])).get(item.id) ?? "none";
+}
+async function detectMany(ids: string[]) {
+  const outcome = await detectDates(ids);
+  const values = [...outcome.values()];
+  const file = values.filter((v) => v === "file").length;
+  const achievement = values.filter((v) => v === "achievement").length;
+  const none = values.length - file - achievement;
+  if (!none) return;
+  mediaError.value = `${none} file${none === 1 ? " has" : "s have"} no date in ${none === 1 ? "it" : "them"} and no unlocked achievement to take one from. Set those by hand.`;
 }
 
 // --- Docs / Modpack ---------------------------------------------------------
@@ -1727,11 +1827,45 @@ async function onGameFilesSelected(files: File[], kind: FlatFileKind) {
   await attempt();
 }
 
-async function removeGameFile(kind: FlatFileKind, file: GameFile) {
+async function saveGameFile(
+  kind: FlatFileKind,
+  file: FileDetails,
+  patch: MediaItemUpdate,
+) {
+  if (!game.value) return;
+  try {
+    const updated = await updateGameFile(game.value.id, kind, file.id, {
+      title: patch.title,
+      note: patch.note,
+      tags: patch.tags,
+      taken_at: patch.taken_at,
+      taken_source: patch.taken_source,
+    });
+    const list = filesRefFor(kind);
+    const index = list.value.findIndex((f) => f.id === updated.id);
+    if (index !== -1) list.value[index] = updated;
+  } catch (err) {
+    filesError.value = err instanceof Error ? err.message : "Failed to save";
+  }
+}
+
+async function bulkSaveFiles(
+  kind: FlatFileKind,
+  updates: { id: string; patch: MediaItemUpdate }[],
+) {
+  for (const u of updates) {
+    const file = filesRefFor(kind).value.find((f) => f.id === u.id);
+    if (file) await saveGameFile(kind, file, u.patch);
+  }
+}
+
+async function removeGameFile(kind: FlatFileKind, file: FileDetails) {
   if (!game.value) return;
   try {
     await deleteGameFile(game.value.id, kind, file.filename);
-    filesRefFor(kind).value = filesRefFor(kind).value.filter((f) => f !== file);
+    filesRefFor(kind).value = filesRefFor(kind).value.filter(
+      (f) => f.filename !== file.filename,
+    );
     await refreshFileTrash(kind);
   } catch (err) {
     filesError.value = err instanceof Error ? err.message : "Failed to delete";
@@ -1935,10 +2069,6 @@ async function refreshWorldTrash() {
   }
 }
 
-function daysUntil(unixSeconds: number): number {
-  return Math.max(0, Math.ceil((unixSeconds - Date.now() / 1000) / 86400));
-}
-
 async function onRestoreArchive(archive: TrashedArchive, isWorld: boolean) {
   if (!game.value) return;
   try {
@@ -2105,12 +2235,6 @@ function viewWorldMap(archiveId: string) {
 }
 
 onUnmounted(stopWorldMapPolling);
-
-function displayFileName(filename: string): string {
-  // strip the random 8-char dedupe prefix save_media_bytes adds
-  const parts = filename.split("_");
-  return parts.length > 1 ? parts.slice(1).join("_") : filename;
-}
 
 // ---- achievements tab ----
 // A hidden achievement's description isn't something the services publish
@@ -3153,7 +3277,59 @@ function formatPlaytime(minutes: number) {
               >
                 {{ achLocal.notes[a.id] ? "Note · 1" : "Note" }}
               </button>
+              <button
+                v-if="mediaByAchievement.get(a.id)?.length"
+                type="button"
+                class="ach-btn ach-btn-media"
+                :class="{ on: achMediaOpen === a.id }"
+                :title="`${mediaByAchievement.get(a.id)!.length} tied to this achievement`"
+                @click="toggleAchMedia(a)"
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  width="14"
+                  height="14"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <rect x="3" y="4" width="18" height="16" rx="2" />
+                  <circle cx="9" cy="10" r="1.6" />
+                  <path d="M21 16l-5-5-8 9" />
+                </svg>
+                {{ mediaByAchievement.get(a.id)!.length }}
+              </button>
             </div>
+          </div>
+
+          <div v-if="achMediaOpen === a.id" class="ach-media-strip">
+            <template v-for="m in mediaByAchievement.get(a.id)" :key="m.id">
+              <button
+                v-if="m.kind === 'screenshot'"
+                type="button"
+                class="ach-media-thumb"
+                :title="m.note ?? 'View screenshot'"
+                @click="lightboxUrl = m.url"
+              >
+                <img :src="m.url" alt="" loading="lazy" />
+              </button>
+              <video
+                v-else-if="m.kind === 'clip'"
+                class="ach-media-thumb"
+                :src="m.url"
+                controls
+                preload="metadata"
+              ></video>
+              <audio
+                v-else
+                class="ach-media-audio"
+                :src="m.url"
+                controls
+                preload="metadata"
+              ></audio>
+            </template>
           </div>
 
           <div v-if="noteOpen === a.id" class="ach-note-box">
@@ -3191,6 +3367,13 @@ function formatPlaytime(minutes: number) {
           </div>
         </li>
       </ul>
+      <div
+        v-if="lightboxUrl"
+        class="lightbox-backdrop"
+        @click="lightboxUrl = null"
+      >
+        <img :src="lightboxUrl" alt="" class="lightbox-image" />
+      </div>
     </section>
 
     <section v-else-if="activeTab === 'Notes'" class="notes-panel">
@@ -3866,620 +4049,330 @@ function formatPlaytime(minutes: number) {
       "
       class="media-panel"
     >
-      <h2>{{ activeTab }}</h2>
-      <div class="panel-body">
-        <ViewUploadSidebar v-model="panelMode" />
-        <div class="panel-content">
-          <template v-if="panelMode === 'upload'">
-            <UploadDropzone
-              :accept="
-                activeTab === 'Screenshots'
-                  ? 'image/*'
-                  : activeTab === 'Clips'
-                    ? 'video/*'
-                    : 'audio/*'
-              "
-              :uploading="uploadingMedia"
-              :title="`Drop ${activeTab.toLowerCase()} here`"
-              :hint="`Drag and drop ${activeTab === 'Soundtrack' ? 'audio' : activeTab.toLowerCase()}, or click to browse`"
-              @files-selected="onMediaFilesSelected"
-              @drop-error="onDropError"
-            />
-            <div v-if="mediaError" class="form-error">{{ mediaError }}</div>
-          </template>
-
-          <template v-else>
-            <p v-if="mediaLoading">Loading…</p>
-            <p
-              v-else-if="
-                (activeTab === 'Screenshots' && !screenshots.length) ||
-                (activeTab === 'Clips' && !clips.length) ||
-                (activeTab === 'Soundtrack' && !soundtrackItems.length)
-              "
-              class="empty-row"
-            >
-              No {{ activeTab.toLowerCase() }} yet: switch to Upload to add
-              some.
-            </p>
-            <div v-else class="media-grid">
-              <MediaTile
-                v-for="item in activeTab === 'Screenshots'
-                  ? screenshots
-                  : activeTab === 'Clips'
-                    ? clips
-                    : soundtrackItems"
-                :key="item.id"
-                :item="item"
-                :achievements="game.achievements"
-                :profiles="game.profilesEnabled ? profiles : undefined"
-                @preview="onPreviewMedia($event.url)"
-                @delete="removeMedia"
-                @save="saveMediaItem"
-              />
-            </div>
-
-            <div v-if="activeTabTrash.length" class="trash-section">
-              <button
-                type="button"
-                class="trash-toggle"
-                @click="showMediaTrash = !showMediaTrash"
-              >
-                {{ showMediaTrash ? "▾" : "▸" }} Recently deleted ({{
-                  activeTabTrash.length
-                }})
-              </button>
-              <ul v-if="showMediaTrash" class="trash-list">
-                <li
-                  v-for="item in activeTabTrash"
-                  :key="item.id"
-                  class="trash-row"
-                >
-                  <span class="trash-name">{{
-                    item.filename.split("_").slice(1).join("_")
-                  }}</span>
-                  <span class="trash-meta"
-                    >purges in {{ daysUntil(item.purge_at) }}d</span
-                  >
-                  <button
-                    type="button"
-                    class="secondary-button small"
-                    @click="restoreMediaItem(item)"
-                  >
-                    Restore
-                  </button>
-                </li>
-              </ul>
-            </div>
-          </template>
-        </div>
-      </div>
-      <div
-        v-if="lightboxUrl"
-        class="lightbox-backdrop"
-        @click="lightboxUrl = null"
-      >
-        <img :src="lightboxUrl" alt="" class="lightbox-image" />
-      </div>
+      <GameMediaPanel
+        :kind="
+          activeTab === 'Screenshots'
+            ? 'screenshot'
+            : activeTab === 'Clips'
+              ? 'clip'
+              : 'soundtrack'
+        "
+        :items="
+          activeTab === 'Screenshots'
+            ? screenshots
+            : activeTab === 'Clips'
+              ? clips
+              : soundtrackItems
+        "
+        :trash="activeTabTrash"
+        :achievements="game.achievements"
+        :profiles="game.profilesEnabled ? profiles : undefined"
+        :loading="mediaLoading"
+        :uploading="uploadingMedia"
+        :error="mediaError"
+        @files="onMediaFilesSelected"
+        @delete="removeMedia"
+        :detect="detectOne"
+        @save="saveMediaItem"
+        @bulk-save="bulkSaveMedia"
+        @bulk-delete="bulkDeleteMedia"
+        @bulk-detect="detectMany"
+        @restore="restoreMediaItem"
+        @open-achievement="openAchievement"
+        @problem="mediaError = $event"
+      />
     </section>
 
     <section v-else-if="activeTab === 'Saves'" class="files-panel">
-      <h2>Saves</h2>
-      <div class="panel-body">
-        <ViewUploadSidebar v-model="panelMode" />
-        <div class="panel-content">
-          <template v-if="panelMode === 'upload'">
-            <UploadDropzone
-              accept="*/*"
-              :uploading="saveUploading.has('')"
-              title="Drop a new save here"
-              hint="You'll be asked to name it: one game can hold as many named saves as you want"
-              @files-selected="onNewSaveSelected"
-              @drop-error="onDropError"
-            />
-            <div v-if="filesError" class="form-error">{{ filesError }}</div>
-          </template>
-
-          <template v-else>
-            <p
-              v-if="!saveArchives.length && saveArchivesLoaded"
-              class="empty-row"
-            >
-              No saves yet: switch to Upload to add one.
-            </p>
-            <div v-else class="archive-grid">
-              <div
-                v-for="archive in saveArchives"
-                :key="archive.id"
-                class="archive-card"
-              >
-                <div class="archive-card-header">
-                  <span class="archive-name">{{ archive.name }}</span>
-                  <div class="archive-card-actions">
-                    <button
-                      type="button"
-                      class="icon-button"
-                      title="Rename"
-                      @click="onRenameArchive(archive, false)"
-                    >
-                      ✎
-                    </button>
-                    <button
-                      type="button"
-                      class="icon-button"
-                      title="Delete"
-                      @click="onDeleteArchive(archive, false)"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                </div>
-                <p class="archive-meta">
-                  {{ archive.versions.length }} version{{
-                    archive.versions.length === 1 ? "" : "s"
-                  }}
-                  · latest
-                  {{
-                    archive.versions[0]
-                      ? formatArchiveDate(archive.versions[0].uploaded_at)
-                      : "N/A"
-                  }}
-                </p>
-                <div class="archive-actions-row">
-                  <a
-                    v-if="archive.versions[0]"
-                    :href="archive.versions[0].url"
-                    class="secondary-button small"
-                    >Download latest</a
-                  >
-                  <label class="secondary-button small upload-label">
-                    {{
-                      saveUploading.has(archive.id)
-                        ? "Uploading…"
-                        : "Add new version"
-                    }}
-                    <input
-                      type="file"
-                      class="hidden-input"
-                      :disabled="saveUploading.has(archive.id)"
-                      @change="
-                        onAddSaveVersion(
-                          archive,
-                          Array.from(
-                            ($event.target as HTMLInputElement).files ?? [],
-                          ),
-                        )
-                      "
-                    />
-                  </label>
-                  <button
-                    v-if="archive.versions.length > 1"
-                    type="button"
-                    class="secondary-button small"
-                    @click="
-                      expandedSaveId =
-                        expandedSaveId === archive.id ? null : archive.id
-                    "
-                  >
-                    {{
-                      expandedSaveId === archive.id ? "Hide history" : "History"
-                    }}
-                  </button>
-                </div>
-                <ul
-                  v-if="expandedSaveId === archive.id"
-                  class="archive-history"
-                >
-                  <li
-                    v-for="version in archive.versions.slice(1)"
-                    :key="version.id"
-                    class="archive-history-row"
-                  >
-                    <a :href="version.url" class="file-name">{{
-                      formatArchiveDate(version.uploaded_at)
-                    }}</a>
-                    <span class="file-size">{{
-                      formatFileSize(version.size)
-                    }}</span>
-                    <button
-                      type="button"
-                      class="tile-remove-inline"
-                      title="Delete this version"
-                      @click="onDeleteVersion(archive, version, false)"
-                    >
-                      ✕
-                    </button>
-                  </li>
-                </ul>
-              </div>
-            </div>
-          </template>
-
-          <div v-if="saveTrash.length" class="trash-section">
-            <button
-              type="button"
-              class="trash-toggle"
-              @click="showSaveTrash = !showSaveTrash"
-            >
-              {{ showSaveTrash ? "▾" : "▸" }} Recently deleted ({{
-                saveTrash.length
-              }})
-            </button>
-            <ul v-if="showSaveTrash" class="trash-list">
-              <li
-                v-for="archive in saveTrash"
-                :key="archive.id"
-                class="trash-row"
-              >
-                <span class="trash-name">{{ archive.name }}</span>
-                <span class="trash-meta"
-                  >purges in {{ daysUntil(archive.purge_at) }}d</span
-                >
+      <GameArchivesPanel
+        title="Saves"
+        plural="saves"
+        singular="save"
+        hint="Drop a save here or click to browse. You'll be asked to name it: one game can hold as many named saves as you want."
+        :archives="saveArchives"
+        :trash="saveTrash"
+        :loaded="saveArchivesLoaded"
+        :uploading="saveUploading.has('')"
+        :error="filesError"
+        @files="onNewSaveSelected"
+        @restore="onRestoreArchive($event, false)"
+        @problem="filesError = $event"
+      >
+        <template #card="{ archive }">
+          <div class="archive-card">
+            <div class="archive-card-header">
+              <span class="archive-name">{{ archive.name }}</span>
+              <div class="archive-card-actions">
                 <button
                   type="button"
-                  class="secondary-button small"
-                  @click="onRestoreArchive(archive, false)"
+                  class="icon-button"
+                  title="Rename"
+                  @click="onRenameArchive(archive, false)"
                 >
-                  Restore
+                  ✎
                 </button>
-              </li>
-            </ul>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section v-else-if="activeTab === 'Docs'" class="files-panel">
-      <h2>Docs</h2>
-      <div class="panel-body">
-        <ViewUploadSidebar v-model="panelMode" />
-        <div class="panel-content">
-          <template v-if="panelMode === 'upload'">
-            <UploadDropzone
-              accept="*/*"
-              :uploading="uploadingFiles"
-              title="Drop documents here"
-              hint="Any file format: drag and drop, or click to browse"
-              @files-selected="onGameFilesSelected($event, 'doc')"
-              @drop-error="onDropError"
-            />
-            <p class="section-hint">
-              Manuals, walkthroughs, strategy guides: any file format.
+                <button
+                  type="button"
+                  class="icon-button"
+                  title="Delete"
+                  @click="onDeleteArchive(archive, false)"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+            <p class="archive-meta">
+              {{ archive.versions.length }} version{{
+                archive.versions.length === 1 ? "" : "s"
+              }}
+              · latest
+              {{
+                archive.versions[0]
+                  ? formatArchiveDate(archive.versions[0].uploaded_at)
+                  : "N/A"
+              }}
+              <template v-if="archive.versions[0]">
+                · {{ formatFileSize(archive.versions[0].size) }}
+              </template>
             </p>
-            <div v-if="filesError" class="form-error">{{ filesError }}</div>
-          </template>
-
-          <template v-else>
-            <p v-if="!docsFiles.length" class="empty-row">
-              No docs yet: switch to Upload to add one.
-            </p>
-            <ul v-else class="file-list">
-              <li
-                v-for="file in docsFiles"
-                :key="file.filename"
-                class="file-row"
+            <div class="archive-actions-row">
+              <a
+                v-if="archive.versions[0]"
+                :href="archive.versions[0].url"
+                class="secondary-button small"
+                >Download latest</a
               >
-                <svg
-                  viewBox="0 0 24 24"
-                  width="16"
-                  height="16"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                >
-                  <path
-                    d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"
-                  />
-                  <path d="M14 2v6h6" />
-                </svg>
-                <a
-                  :href="file.url"
-                  class="file-name"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  >{{ displayFileName(file.filename) }}</a
-                >
-                <span class="file-size">{{ formatFileSize(file.size) }}</span>
+              <label class="secondary-button small upload-label">
+                {{
+                  saveUploading.has(archive.id)
+                    ? "Uploading…"
+                    : "Add new version"
+                }}
+                <input
+                  type="file"
+                  class="hidden-input"
+                  :disabled="saveUploading.has(archive.id)"
+                  @change="
+                    onAddSaveVersion(
+                      archive,
+                      Array.from(
+                        ($event.target as HTMLInputElement).files ?? [],
+                      ),
+                    )
+                  "
+                />
+              </label>
+              <button
+                v-if="archive.versions.length > 1"
+                type="button"
+                class="secondary-button small"
+                @click="
+                  expandedSaveId =
+                    expandedSaveId === archive.id ? null : archive.id
+                "
+              >
+                {{ expandedSaveId === archive.id ? "Hide history" : "History" }}
+              </button>
+            </div>
+            <ul v-if="expandedSaveId === archive.id" class="archive-history">
+              <li
+                v-for="version in archive.versions.slice(1)"
+                :key="version.id"
+                class="archive-history-row"
+              >
+                <a :href="version.url" class="file-name">{{
+                  formatArchiveDate(version.uploaded_at)
+                }}</a>
+                <span class="file-size">{{
+                  formatFileSize(version.size)
+                }}</span>
                 <button
                   type="button"
                   class="tile-remove-inline"
-                  title="Delete"
-                  @click="removeGameFile('doc', file)"
+                  title="Delete this version"
+                  @click="onDeleteVersion(archive, version, false)"
                 >
                   ✕
                 </button>
               </li>
             </ul>
-          </template>
-
-          <div v-if="docsTrash.length" class="trash-section">
-            <button
-              type="button"
-              class="trash-toggle"
-              @click="showDocsTrash = !showDocsTrash"
-            >
-              {{ showDocsTrash ? "▾" : "▸" }} Recently deleted ({{
-                docsTrash.length
-              }})
-            </button>
-            <ul v-if="showDocsTrash" class="trash-list">
-              <li
-                v-for="file in docsTrash"
-                :key="file.filename"
-                class="trash-row"
-              >
-                <span class="trash-name">{{
-                  displayFileName(file.filename)
-                }}</span>
-                <span class="trash-meta"
-                  >purges in {{ daysUntil(file.purge_at) }}d</span
-                >
-                <button
-                  type="button"
-                  class="secondary-button small"
-                  @click="restoreFileItem('doc', file)"
-                >
-                  Restore
-                </button>
-              </li>
-            </ul>
           </div>
-        </div>
-      </div>
+        </template>
+      </GameArchivesPanel>
+    </section>
+
+    <section v-else-if="activeTab === 'Docs'" class="files-panel">
+      <GameMediaPanel
+        kind="doc"
+        :items="docsFiles"
+        :trash="docsTrash"
+        :loading="filesLoaded.doc === null"
+        :uploading="uploadingFiles"
+        :error="filesError"
+        @files="onGameFilesSelected($event, 'doc')"
+        @delete="removeGameFile('doc', $event)"
+        @save="(item, patch) => saveGameFile('doc', item, patch)"
+        @bulk-save="bulkSaveFiles('doc', $event)"
+        @bulk-delete="(items) => items.forEach((f) => removeGameFile('doc', f))"
+        @restore="restoreFileItem('doc', $event as TrashedGameFile)"
+        @problem="filesError = $event"
+      />
     </section>
 
     <section v-else-if="activeTab === 'World Map'" class="world-map-panel">
-      <h2>World Map</h2>
-      <div class="panel-body">
-        <ViewUploadSidebar v-model="panelMode" />
-        <div class="panel-content">
-          <template v-if="panelMode === 'upload'">
-            <div class="world-map-uploads">
-              <div class="world-map-upload-col">
-                <h3>New World</h3>
-                <UploadDropzone
-                  accept="*/*"
-                  :uploading="saveUploading.has('')"
-                  title="Drop a world save .zip here"
-                  hint="Zip the world folder (the one containing level.dat): you'll be asked to name it"
-                  @files-selected="onNewWorldSelected"
-                  @drop-error="onDropError"
-                />
+      <GameArchivesPanel
+        scoped
+        title="Worlds"
+        plural="worlds"
+        singular="world"
+        hint="Zip the world folder (the one containing level.dat), then drop it here. You'll be asked to name it."
+        :archives="worldMaps"
+        :trash="worldTrash"
+        :loaded="worldMapsLoaded"
+        :uploading="saveUploading.has('')"
+        :error="filesError"
+        @files="onNewWorldSelected"
+        @restore="onRestoreArchive($event, true)"
+        @problem="filesError = $event"
+      >
+        <template #card="{ archive: world }">
+          <div
+            class="world-map-card"
+            :class="{ rendering: world.status === 'rendering' }"
+          >
+            <div
+              class="world-map-thumb"
+              @click="world.has_thumbnail ? viewWorldMap(world.id) : undefined"
+            >
+              <img
+                v-if="world.has_thumbnail"
+                :src="worldMapThumbnailUrl(game.id, world.id)"
+                alt=""
+              />
+              <div v-else class="world-map-thumb-placeholder">
+                <svg
+                  viewBox="0 0 24 24"
+                  width="28"
+                  height="28"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.5"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3z" />
+                  <path d="M9 3v15M15 6v15" />
+                </svg>
               </div>
-
-              <div class="world-map-upload-col">
-                <h3>Modpack</h3>
-                <UploadDropzone
-                  accept="*/*"
-                  :uploading="uploadingFiles"
-                  title="Drop your modpack .zip here"
-                  hint="Optional: kept alongside for reference, not tied to a specific world"
-                  @files-selected="onGameFilesSelected($event, 'modpack')"
-                  @drop-error="onDropError"
-                />
-                <ul v-if="modpackFiles.length" class="file-list">
-                  <li
-                    v-for="file in modpackFiles"
-                    :key="file.filename"
-                    class="file-row"
-                  >
-                    <a
-                      :href="file.url"
-                      class="file-name"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      >{{ displayFileName(file.filename) }}</a
-                    >
-                    <span class="file-size">{{
-                      formatFileSize(file.size)
-                    }}</span>
-                    <button
-                      type="button"
-                      class="tile-remove-inline"
-                      title="Delete"
-                      @click="removeGameFile('modpack', file)"
-                    >
-                      ✕
-                    </button>
-                  </li>
-                </ul>
-                <div v-if="modpackTrash.length" class="trash-section">
-                  <button
-                    type="button"
-                    class="trash-toggle"
-                    @click="showModpackTrash = !showModpackTrash"
-                  >
-                    {{ showModpackTrash ? "▾" : "▸" }} Recently deleted ({{
-                      modpackTrash.length
-                    }})
-                  </button>
-                  <ul v-if="showModpackTrash" class="trash-list">
-                    <li
-                      v-for="file in modpackTrash"
-                      :key="file.filename"
-                      class="trash-row"
-                    >
-                      <span class="trash-name">{{
-                        displayFileName(file.filename)
-                      }}</span>
-                      <span class="trash-meta"
-                        >purges in {{ daysUntil(file.purge_at) }}d</span
-                      >
-                      <button
-                        type="button"
-                        class="secondary-button small"
-                        @click="restoreFileItem('modpack', file)"
-                      >
-                        Restore
-                      </button>
-                    </li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-            <div v-if="filesError" class="form-error">{{ filesError }}</div>
-          </template>
-
-          <template v-else>
-            <div v-if="worldMaps.length" class="world-map-grid">
               <div
-                v-for="world in worldMaps"
-                :key="world.id"
-                class="world-map-card"
-                :class="{ rendering: world.status === 'rendering' }"
+                v-if="world.status === 'rendering'"
+                class="world-map-progress"
               >
-                <div
-                  class="world-map-thumb"
-                  @click="
-                    world.has_thumbnail ? viewWorldMap(world.id) : undefined
-                  "
-                >
-                  <img
-                    v-if="world.has_thumbnail"
-                    :src="worldMapThumbnailUrl(game.id, world.id)"
-                    alt=""
-                  />
-                  <div v-else class="world-map-thumb-placeholder">
-                    <svg
-                      viewBox="0 0 24 24"
-                      width="28"
-                      height="28"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="1.5"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    >
-                      <path d="M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3z" />
-                      <path d="M9 3v15M15 6v15" />
-                    </svg>
-                  </div>
-                  <div
-                    v-if="world.status === 'rendering'"
-                    class="world-map-progress"
-                  >
-                    <div class="world-map-progress-fill"></div>
-                  </div>
-                </div>
-                <div class="world-map-card-body">
-                  <div class="archive-card-header">
-                    <span class="archive-name">{{ world.name }}</span>
-                    <div class="archive-card-actions">
-                      <button
-                        type="button"
-                        class="icon-button"
-                        title="Rename"
-                        @click="onRenameArchive(world, true)"
-                      >
-                        ✎
-                      </button>
-                      <button
-                        type="button"
-                        class="icon-button"
-                        title="Delete"
-                        @click="onDeleteArchive(world, true)"
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  </div>
-                  <span class="world-map-status" :class="world.status">{{
-                    world.detail || world.status
-                  }}</span>
-                  <div class="world-map-card-actions">
-                    <button
-                      type="button"
-                      class="secondary-button small"
-                      :disabled="
-                        worldMapStarting.has(world.id) ||
-                        world.status === 'rendering'
-                      "
-                      @click="startWorldMapRender(world.id)"
-                    >
-                      {{
-                        world.status === "rendering"
-                          ? "Rendering…"
-                          : world.has_thumbnail
-                            ? "Re-render"
-                            : "Render Map"
-                      }}
-                    </button>
-                    <button
-                      v-if="world.has_thumbnail"
-                      type="button"
-                      class="primary-button small"
-                      @click="viewWorldMap(world.id)"
-                    >
-                      View Map
-                    </button>
-                    <label class="secondary-button small upload-label">
-                      {{
-                        saveUploading.has(world.id)
-                          ? "Uploading…"
-                          : "New version"
-                      }}
-                      <input
-                        type="file"
-                        class="hidden-input"
-                        :disabled="saveUploading.has(world.id)"
-                        @change="
-                          onAddWorldVersion(
-                            world,
-                            Array.from(
-                              ($event.target as HTMLInputElement).files ?? [],
-                            ),
-                          )
-                        "
-                      />
-                    </label>
-                  </div>
-                </div>
+                <div class="world-map-progress-fill"></div>
               </div>
             </div>
-            <p v-else-if="worldMapsLoaded" class="empty-row">
-              No worlds yet: switch to Upload to add a world save.
-            </p>
-
-            <div v-if="worldTrash.length" class="trash-section">
-              <button
-                type="button"
-                class="trash-toggle"
-                @click="showWorldTrash = !showWorldTrash"
-              >
-                {{ showWorldTrash ? "▾" : "▸" }} Recently deleted ({{
-                  worldTrash.length
-                }})
-              </button>
-              <ul v-if="showWorldTrash" class="trash-list">
-                <li
-                  v-for="world in worldTrash"
-                  :key="world.id"
-                  class="trash-row"
-                >
-                  <span class="trash-name">{{ world.name }}</span>
-                  <span class="trash-meta"
-                    >purges in {{ daysUntil(world.purge_at) }}d</span
-                  >
+            <div class="world-map-card-body">
+              <div class="archive-card-header">
+                <span class="archive-name">{{ world.name }}</span>
+                <div class="archive-card-actions">
                   <button
                     type="button"
-                    class="secondary-button small"
-                    @click="onRestoreArchive(world, true)"
+                    class="icon-button"
+                    title="Rename"
+                    @click="onRenameArchive(world, true)"
                   >
-                    Restore
+                    ✎
                   </button>
-                </li>
-              </ul>
+                  <button
+                    type="button"
+                    class="icon-button"
+                    title="Delete"
+                    @click="onDeleteArchive(world, true)"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+              <span class="world-map-status" :class="world.status">{{
+                world.detail || world.status
+              }}</span>
+              <div class="world-map-card-actions">
+                <button
+                  type="button"
+                  class="secondary-button small"
+                  :disabled="
+                    worldMapStarting.has(world.id) ||
+                    world.status === 'rendering'
+                  "
+                  @click="startWorldMapRender(world.id)"
+                >
+                  {{
+                    world.status === "rendering"
+                      ? "Rendering…"
+                      : world.has_thumbnail
+                        ? "Re-render"
+                        : "Render Map"
+                  }}
+                </button>
+                <button
+                  v-if="world.has_thumbnail"
+                  type="button"
+                  class="primary-button small"
+                  @click="viewWorldMap(world.id)"
+                >
+                  View Map
+                </button>
+                <label class="secondary-button small upload-label">
+                  {{
+                    saveUploading.has(world.id) ? "Uploading…" : "New version"
+                  }}
+                  <input
+                    type="file"
+                    class="hidden-input"
+                    :disabled="saveUploading.has(world.id)"
+                    @change="
+                      onAddWorldVersion(
+                        world,
+                        Array.from(
+                          ($event.target as HTMLInputElement).files ?? [],
+                        ),
+                      )
+                    "
+                  />
+                </label>
+              </div>
             </div>
+          </div>
+        </template>
+        <template #after>
+          <iframe
+            v-if="activeMapArchiveId"
+            :src="worldMapViewUrl(game.id, activeMapArchiveId)"
+            class="world-map-frame"
+            title="World map"
+          ></iframe>
+        </template>
+      </GameArchivesPanel>
 
-            <iframe
-              v-if="activeMapArchiveId"
-              :src="worldMapViewUrl(game.id, activeMapArchiveId)"
-              class="world-map-frame"
-              title="World map"
-            ></iframe>
-          </template>
-        </div>
+      <div class="modpack-block">
+        <GameMediaPanel
+          scoped
+          kind="modpack"
+          :items="modpackFiles"
+          :trash="modpackTrash"
+          :loading="filesLoaded.modpack === null"
+          :uploading="uploadingFiles"
+          :error="null"
+          @files="onGameFilesSelected($event, 'modpack')"
+          @delete="removeGameFile('modpack', $event)"
+          @save="(item, patch) => saveGameFile('modpack', item, patch)"
+          @bulk-save="bulkSaveFiles('modpack', $event)"
+          @bulk-delete="
+            (items) => items.forEach((f) => removeGameFile('modpack', f))
+          "
+          @restore="restoreFileItem('modpack', $event as TrashedGameFile)"
+          @problem="filesError = $event"
+        />
       </div>
     </section>
 
@@ -5460,7 +5353,7 @@ function formatPlaytime(minutes: number) {
 }
 .ach-cols {
   display: grid;
-  grid-template-columns: 64px minmax(0, 1fr) 96px 120px 156px;
+  grid-template-columns: 64px minmax(0, 1fr) 96px 120px 200px;
   column-gap: 20px;
   align-items: center;
   margin: 14px 0 0;
@@ -5515,7 +5408,7 @@ function formatPlaytime(minutes: number) {
 }
 .ach-row {
   display: grid;
-  grid-template-columns: 64px minmax(0, 1fr) 96px 120px 156px;
+  grid-template-columns: 64px minmax(0, 1fr) 96px 120px 200px;
   column-gap: 20px;
   align-items: center;
   min-height: 88px;
@@ -5654,9 +5547,44 @@ function formatPlaytime(minutes: number) {
 .ach-btn:hover {
   color: #f2f2f2;
 }
+.ach-btn-media {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 10px;
+  font-variant-numeric: tabular-nums;
+}
 .ach-btn.on {
   color: #d68a34;
   border-color: rgba(214, 138, 52, 0.5);
+}
+.ach-media-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 14px 12px;
+  border-top: 1px solid #232323;
+}
+.ach-media-thumb {
+  width: 160px;
+  aspect-ratio: 16 / 9;
+  padding: 0;
+  border: 1px solid #2b2b2b;
+  border-radius: 8px;
+  background: #000;
+  overflow: hidden;
+  cursor: pointer;
+  object-fit: cover;
+}
+.ach-media-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.ach-media-audio {
+  height: 36px;
+  max-width: 100%;
 }
 @media (max-width: 720px) {
   .ach-cols {
@@ -6665,6 +6593,11 @@ function formatPlaytime(minutes: number) {
 }
 
 /* World Map: card grid with thumbnails ------------------------------------- */
+.modpack-block {
+  margin-top: 36px;
+  padding-top: 28px;
+  border-top: 1px solid #262626;
+}
 .world-map-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));

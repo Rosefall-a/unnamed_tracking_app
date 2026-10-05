@@ -5,7 +5,7 @@ import os
 import re
 import time
 from pathlib import Path
-from typing import Literal
+from typing import Literal, cast
 from urllib.parse import urlparse
 from uuid import UUID
 
@@ -18,12 +18,13 @@ from fastapi import (
     Form,
     HTTPException,
     Query,
+    Request,
     Response,
     UploadFile,
     status,
 )
 from fastapi.responses import FileResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import Integer, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -60,6 +61,8 @@ from src.features.trash.game_trash import move_game_to_trash, restore_game_from_
 from src.features.trash.media_trash import move_media_file_to_trash, restore_media_file_from_trash
 from src.features.trash.sweep import RETENTION_SECONDS
 from src.helpers.media import MediaKind, classify_media, list_media, media_subdir, save_media_bytes
+from src.helpers.media_dates import detect_date, detect_from_stored
+from src.helpers.range_response import ranged_file_response
 from src.helpers.save_game_asset import (
     ASSET_FILENAMES,
     AssetKind,
@@ -79,9 +82,14 @@ _LEADING_ARTICLE = re.compile(r"^(a|an|the)\s+", flags=re.IGNORECASE)
 
 _DB_DEPENDENCY = Depends(get_db)
 _CURRENT_USER_DEPENDENCY = Depends(get_current_user)
+# one instance per field name: FastAPI names a File() after the first
+# parameter it is used on, so sharing one made `files` demand a field "file"
 _FILE_UPLOAD = File(...)
+_FILES_UPLOAD = File(...)
 _BODY_DOTDOTDOT = Body(...)
 _NONE_FORM = Form(None)
+_MODIFIED_FORM = Form(None)
+_FILE_MODIFIED_FORM = Form(None)
 _NONE_QUERY_STATUS = Query(default=None, alias="status")
 
 
@@ -584,14 +592,18 @@ def _media_item_to_dict(item: MediaItem, game_id: UUID) -> dict:
         else None,
         "profile_id": str(item.profile_id) if item.profile_id else None,
         "created_at": item.created_at,
+        "title": item.title,
+        "taken_at": item.taken_at,
+        "taken_source": item.taken_source,
     }
 
 
 @router.post("/{game_id}/screenshots")
 async def upload_game_screenshots(
     game_id: UUID,
-    files: list[UploadFile] = _FILE_UPLOAD,
+    files: list[UploadFile] = _FILES_UPLOAD,
     profile_id: UUID | None = _NONE_FORM,
+    last_modified: list[int] | None = _MODIFIED_FORM,
     db: AsyncSession = _DB_DEPENDENCY,
     current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> dict[str, list[dict]]:
@@ -611,7 +623,7 @@ async def upload_game_screenshots(
         await _get_profile_or_404(profile_id, game_id, db)
 
     results: list[dict] = []
-    for file in files:
+    for index, file in enumerate(files):
         kind = classify_media(file.content_type, file.filename or "")
         if kind is None:
             results.append(
@@ -647,8 +659,21 @@ async def upload_game_screenshots(
             _DATA_ROOT / str(game.user_id) / "games" / game.folder_location / media_subdir(kind)
         )
         saved_path = save_media_bytes(data, dest_dir, file.filename or "file")
+        taken_at, taken_source = detect_date(
+            data,
+            file.filename or "",
+            kind,
+            last_modified[index] if last_modified and index < len(last_modified) else None,
+        )
         db.add(
-            MediaItem(game_id=game_id, kind=kind, filename=saved_path.name, profile_id=profile_id)
+            MediaItem(
+                game_id=game_id,
+                kind=kind,
+                filename=saved_path.name,
+                profile_id=profile_id,
+                taken_at=taken_at,
+                taken_source=taken_source,
+            )
         )
         results.append({"filename": saved_path.name, "status": "saved", "kind": kind})
 
@@ -676,12 +701,13 @@ async def list_game_screenshots(
 
 @router.get("/{game_id}/screenshots/{kind}/{filename}", response_class=FileResponse)
 async def get_game_screenshot(
+    request: Request,
     game_id: UUID,
     kind: MediaKind,
     filename: str,
     db: AsyncSession = _DB_DEPENDENCY,
     current_user: User = _CURRENT_USER_DEPENDENCY,
-) -> FileResponse:
+) -> Response:
     game = await _get_game_or_404(game_id, db, current_user.id)
     path = (
         _DATA_ROOT
@@ -693,7 +719,11 @@ async def get_game_screenshot(
     )
     if not path.is_file():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Media file not found.")
-    return FileResponse(path)
+    return ranged_file_response(request, path)
+
+
+class DetectDatesRequest(BaseModel):
+    ids: list[UUID]
 
 
 class MediaItemUpdate(BaseModel):
@@ -701,6 +731,44 @@ class MediaItemUpdate(BaseModel):
     note: str | None = None
     linked_achievement_id: UUID | None = None
     profile_id: UUID | None = None
+    title: str | None = Field(default=None, max_length=200)
+    taken_at: int | None = None
+    # "achievement" when the date was copied from an achievement's unlock time
+    taken_source: Literal["manual", "achievement"] | None = None
+
+
+@router.post("/{game_id}/screenshots/detect-dates")
+async def detect_media_dates(
+    game_id: UUID,
+    payload: DetectDatesRequest,
+    db: AsyncSession = _DB_DEPENDENCY,
+    current_user: User = _CURRENT_USER_DEPENDENCY,
+) -> dict[str, list[dict]]:
+    """Re-read the date from the files themselves (photo data, then the file
+    name) for the chosen items. Files with nothing to read keep their date, so
+    a date you set by hand is only replaced when the file really has one."""
+    game = await _get_game_or_404(game_id, db, current_user.id)
+    items = (
+        await db.scalars(
+            select(MediaItem).where(
+                MediaItem.game_id == game_id,
+                MediaItem.id.in_(payload.ids),
+                MediaItem.deleted_at.is_(None),
+            )
+        )
+    ).all()
+    game_dir = _DATA_ROOT / str(game.user_id) / "games" / (game.folder_location or "")
+    changed: list[dict] = []
+    for item in items:
+        found = detect_from_stored(
+            game_dir / media_subdir(cast(MediaKind, item.kind)) / item.filename, item.kind
+        )
+        if found is None:
+            continue
+        item.taken_at, item.taken_source = found
+        changed.append(_media_item_to_dict(item, game_id))
+    await db.commit()
+    return {"media": changed}
 
 
 @router.patch("/{game_id}/screenshots/{media_id}")
@@ -717,8 +785,15 @@ async def update_media_item(
     )
     if item is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Media item not found.")
-    for field, value in payload.model_dump(exclude_unset=True).items():
+    changes = payload.model_dump(exclude_unset=True)
+    if "title" in changes and changes["title"] is not None:
+        changes["title"] = changes["title"].strip() or None
+    source = changes.pop("taken_source", None)
+    for field, value in changes.items():
         setattr(item, field, value)
+    if "taken_at" in changes:
+        # a date typed in by hand, or cleared back to the upload date
+        item.taken_source = (source or "manual") if changes["taken_at"] is not None else None
     await db.commit()
     await db.refresh(item)
     return _media_item_to_dict(item, game_id)
@@ -850,11 +925,29 @@ async def _sync_game_file_items(game_id: UUID, game_dir: Path, db: AsyncSession)
         await db.commit()
 
 
+def _game_file_to_dict(item: GameFileItem, game_id: UUID, game_dir: Path) -> dict:
+    path = game_dir / _game_file_subdir(cast(GameFileKind, item.kind)) / item.filename
+    return {
+        "id": str(item.id),
+        "filename": item.filename,
+        "kind": item.kind,
+        "size": path.stat().st_size if path.is_file() else 0,
+        "url": f"/api/game/{game_id}/files/{item.kind}/{item.filename}",
+        "created_at": item.created_at,
+        "title": item.title,
+        "note": item.note,
+        "tags": item.tags,
+        "taken_at": item.taken_at,
+        "taken_source": item.taken_source,
+    }
+
+
 @router.post("/{game_id}/files/{kind}")
 async def upload_game_files(
     game_id: UUID,
     kind: GameFileKind,
-    files: list[UploadFile] = _FILE_UPLOAD,
+    files: list[UploadFile] = _FILES_UPLOAD,
+    last_modified: list[int] | None = _FILE_MODIFIED_FORM,
     db: AsyncSession = _DB_DEPENDENCY,
     current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> dict[str, list[dict]]:
@@ -874,7 +967,7 @@ async def upload_game_files(
     )
     max_bytes = limit_mb * 1024 * 1024
     results: list[dict] = []
-    for file in files:
+    for index, file in enumerate(files):
         data = await file.read()
         if len(data) > max_bytes:
             results.append(
@@ -893,7 +986,21 @@ async def upload_game_files(
             / _game_file_subdir(kind)
         )
         saved_path = save_media_bytes(data, dest_dir, file.filename or "file")
-        db.add(GameFileItem(game_id=game_id, kind=kind, filename=saved_path.name))
+        taken_at, taken_source = detect_date(
+            data,
+            file.filename or "",
+            "doc",
+            last_modified[index] if last_modified and index < len(last_modified) else None,
+        )
+        db.add(
+            GameFileItem(
+                game_id=game_id,
+                kind=kind,
+                filename=saved_path.name,
+                taken_at=taken_at,
+                taken_source=taken_source,
+            )
+        )
         results.append({"filename": saved_path.name, "status": "saved", "size": len(data)})
 
     await db.commit()
@@ -923,16 +1030,51 @@ async def list_game_files(
     )
     return {
         "files": [
-            {
-                "filename": item.filename,
-                "size": (game_dir / _game_file_subdir(kind) / item.filename).stat().st_size
-                if (game_dir / _game_file_subdir(kind) / item.filename).is_file()
-                else 0,
-                "url": f"/api/game/{game_id}/files/{kind}/{item.filename}",
-            }
-            for item in result.scalars().all()
+            _game_file_to_dict(item, game_id, game_dir) for item in result.scalars().all()
         ]
     }
+
+
+class GameFileUpdate(BaseModel):
+    title: str | None = Field(default=None, max_length=200)
+    note: str | None = None
+    tags: list[str] | None = None
+    taken_at: int | None = None
+    taken_source: Literal["manual", "achievement"] | None = None
+
+
+@router.patch("/{game_id}/files/{kind}/by-id/{item_id}")
+async def update_game_file(
+    game_id: UUID,
+    kind: GameFileKind,
+    item_id: UUID,
+    payload: GameFileUpdate,
+    db: AsyncSession = _DB_DEPENDENCY,
+    current_user: User = _CURRENT_USER_DEPENDENCY,
+) -> dict:
+    game = await _get_game_or_404(game_id, db, current_user.id)
+    item = await db.scalar(
+        select(GameFileItem).where(
+            GameFileItem.id == item_id,
+            GameFileItem.game_id == game_id,
+            GameFileItem.kind == kind,
+            GameFileItem.deleted_at.is_(None),
+        )
+    )
+    if item is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found.")
+    changes = payload.model_dump(exclude_unset=True)
+    if "title" in changes and changes["title"] is not None:
+        changes["title"] = changes["title"].strip() or None
+    source = changes.pop("taken_source", None)
+    for field, value in changes.items():
+        setattr(item, field, value)
+    if "taken_at" in changes:
+        item.taken_source = (source or "manual") if changes["taken_at"] is not None else None
+    await db.commit()
+    await db.refresh(item)
+    game_dir = _DATA_ROOT / str(game.user_id) / "games" / (game.folder_location or "")
+    return _game_file_to_dict(item, game_id, game_dir)
 
 
 @router.get("/{game_id}/files/{kind}/trash")
@@ -957,6 +1099,7 @@ async def list_game_file_trash(
         assert item.deleted_at is not None  # guaranteed by the deleted_at.is_not(None) filter above
         files.append(
             {
+                "id": str(item.id),
                 "filename": item.filename,
                 "deleted_at": item.deleted_at,
                 "purge_at": item.deleted_at + RETENTION_SECONDS,

@@ -22,6 +22,7 @@ import {
   setTaskRetry,
 } from "../../state/taskProgress";
 import { refreshInboxCount } from "../../state/inbox";
+import { formatMediaDate } from "../../utils/mediaDate";
 
 const maxUploadSizeMb = ref<number | null>(null);
 
@@ -272,11 +273,8 @@ async function deleteSelected() {
   }
 }
 
-function formatItemDate(unixSeconds: number): string {
-  return new Date(unixSeconds * 1000).toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-  });
+function formatItemDate(item: InboxMediaItem): string {
+  return formatMediaDate(item);
 }
 
 // --- Trash: soft-deleted uploads stay recoverable for 7 days before
@@ -547,9 +545,7 @@ async function restoreItem(item: TrashedInboxItem) {
                 </svg>
               </button>
             </div>
-            <span class="media-date">{{
-              formatItemDate(item.created_at)
-            }}</span>
+            <span class="media-date">{{ formatItemDate(item) }}</span>
           </div>
         </div>
       </div>
@@ -611,9 +607,7 @@ async function restoreItem(item: TrashedInboxItem) {
                 </svg>
               </button>
             </div>
-            <span class="media-date">{{
-              formatItemDate(item.created_at)
-            }}</span>
+            <span class="media-date">{{ formatItemDate(item) }}</span>
           </div>
         </div>
       </div>
