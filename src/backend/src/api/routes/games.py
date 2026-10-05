@@ -85,7 +85,6 @@ _BODY_DOTDOTDOT = Body(...)
 _NONE_FORM = Form(None)
 _NONE_QUERY_STATUS = Query(default=None, alias="status")
 
-
 class NoteWrite(BaseModel):
     """Request body used to create or update a game note."""
 
