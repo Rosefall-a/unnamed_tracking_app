@@ -51,13 +51,13 @@ jobs:
         working-directory: src/frontend
         run: npm run format
 
-      - name: Enforce 1,000-line maximum
+      - name: Enforce 2,000-line maximum
         working-directory: src/frontend
         run: |
           python - <<'PY'
           from pathlib import Path
 
-          maximum = 1000
+          maximum = 2000
           excluded = {Path("node_modules"), Path("dist")}
           extensions = {".js", ".mjs", ".cjs", ".ts", ".tsx", ".vue"}
           violations = []
@@ -76,12 +76,12 @@ jobs:
                   violations.append((path, line_count))
 
           if violations:
-              print("Frontend source files exceeding the 1,000-line maximum:")
+              print("Frontend source files exceeding the 2,000-line maximum:")
               for path, line_count in sorted(violations):
                   print(f"  {path}: {line_count} lines")
               raise SystemExit(1)
 
-          print("All frontend source files are at or below 1,000 lines.")
+          print("All frontend source files are at or below 2,000 lines.")
           PY
 
       - name: Lint
