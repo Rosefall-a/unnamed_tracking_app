@@ -5,6 +5,7 @@ import { saveState } from "../../state/saveStatus";
 const label = computed(() => {
   if (saveState.value === "saving") return "Saving…";
   if (saveState.value === "saved") return "All changes saved";
+  if (saveState.value === "settled") return "Saved";
   if (saveState.value === "error") return "Couldn't save. Try again";
   return "";
 });
@@ -39,24 +40,21 @@ const label = computed(() => {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: #888;
+  background: var(--ui-dim);
 }
 .save-status.saving .dot {
   background: var(--ui-accent);
   animation: pulse 1s ease-in-out infinite;
 }
-.save-status.saved {
-  color: var(--ui-good);
-}
 .save-status.saved .dot {
-  background: #4ade80;
+  background: var(--ui-good);
 }
 .save-status.error {
   color: var(--ui-error);
-  border-color: rgba(220, 38, 38, 0.35);
+  border-color: color-mix(in srgb, var(--ui-error) 35%, var(--ui-border));
 }
 .save-status.error .dot {
-  background: #f87171;
+  background: var(--ui-error);
 }
 @keyframes pulse {
   50% {

@@ -408,3 +408,30 @@ passes 1,020 tests with two existing opt-in skips, mypy and Pylint at 9.08/10.
 ![Desktop shortcut conflict guidance](../assets/ui-redevelopment/shortcut-conflict-1440-light.png)
 
 ![Phone shortcut conflict guidance](../assets/ui-redevelopment/shortcut-conflict-390-dark.png)
+
+## Background task controls and save feedback
+
+The Tasks page now uses theme surfaces and stronger field borders, shows interval
+validation beside the edited field and preserves unsaved drafts when another task
+is saved. The "All changes saved" confirmation lasts twelve seconds, followed by
+a quiet "Saved" state. Scrollbars follow the active theme in native pages and
+plugin frames.
+
+Plugins can declare bounded v1.1 schedules using the existing scheduler, with
+interval, on/off and Run now controls. They start off and run under the approved
+background administrator identity. Live grants, lifecycle, no-overlap and action
+limits apply; only a bounded public result summary is retained. The UI/API
+companion example demonstrates this public contract.
+
+The [task controls report](../assets/ui-redevelopment/tasks-ui-conformance.json)
+passes four real light/dark layouts from 320 to 1920 pixels, field errors, draft
+preservation and timed save feedback. Backend checks pass 1,037 tests with two
+existing opt-in skips, mypy over 212 files and Pylint at least 9.09/10; all 101
+runtime tests and 207 frontend tests pass. Companion validation passes 241 tests
+and all sixteen generated packages pass actual host verification, installation
+and disabled lifecycle checks. Enabled plugin schedule checks remain part of the final
+cross-repository acceptance.
+
+![Light-mode task controls and inline validation](../assets/ui-redevelopment/tasks-validation-1440-light.png)
+
+![Phone task controls in dark mode](../assets/ui-redevelopment/tasks-validation-390-dark.png)

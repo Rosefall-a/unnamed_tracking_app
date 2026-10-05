@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
+import { ref, onMounted, onBeforeUnmount } from "vue";
 import { fetchJobs, updateJob, runJobNow } from "../../services/settings";
 import type { CleanupJob } from "../../services/settings";
 
@@ -12,6 +12,12 @@ const UNIT_MINUTES: Record<Unit, number> = {
 
 const jobs = ref<CleanupJob[]>([]);
 const jobError = ref<string | null>(null);
+const intervalErrors = ref<Record<string, string>>({});
+const actionErrors = ref<Record<string, string>>({});
+const saving = ref<Record<string, boolean>>({});
+const starting = ref<Record<string, boolean>>({});
+let refreshTimer: ReturnType<typeof setInterval> | null = null;
+let loading = false;
 // what is typed in each job's "every" fields, kept apart from what is saved
 const drafts = ref<Record<string, { amount: number; unit: Unit }>>({});
 
@@ -28,26 +34,42 @@ function resetDrafts() {
     jobs.value.map((j) => [j.id, split(j.intervalMinutes)]),
   );
 }
-async function loadJobs() {
+async function loadJobs(retainDrafts = false) {
+  if (loading) return;
+  loading = true;
   try {
+    jobError.value = null;
     jobs.value = await fetchJobs();
-    resetDrafts();
+    if (!retainDrafts) resetDrafts();
+    else
+      jobs.value.forEach((job) => {
+        drafts.value[job.id] ??= split(job.intervalMinutes);
+      });
   } catch (err) {
     jobError.value = err instanceof Error ? err.message : "Failed to load jobs";
+  } finally {
+    loading = false;
   }
 }
 async function changeJob(
   job: CleanupJob,
   changes: { enabled?: boolean; intervalMinutes?: number },
 ) {
-  jobError.value = null;
+  if (saving.value[job.id]) return;
+  const isInterval = changes.intervalMinutes !== undefined;
+  const errors = isInterval ? intervalErrors : actionErrors;
+  delete errors.value[job.id];
+  saving.value[job.id] = true;
   try {
     const saved = await updateJob(job.id, changes);
     jobs.value = jobs.value.map((j) => (j.id === saved.id ? saved : j));
+    if (isInterval) drafts.value[job.id] = split(saved.intervalMinutes);
   } catch (err) {
-    jobError.value = err instanceof Error ? err.message : "Failed to save";
+    errors.value[job.id] =
+      err instanceof Error ? err.message : "Failed to save";
+  } finally {
+    saving.value[job.id] = false;
   }
-  resetDrafts();
 }
 function saveInterval(job: CleanupJob) {
   const draft = drafts.value[job.id];
@@ -57,10 +79,11 @@ function saveInterval(job: CleanupJob) {
     minutes < job.minIntervalMinutes ||
     minutes > job.maxIntervalMinutes
   ) {
-    jobError.value = `Choose between ${describe(job.minIntervalMinutes)} and ${describe(job.maxIntervalMinutes)}.`;
-    resetDrafts();
+    intervalErrors.value[job.id] =
+      `Choose between ${describe(job.minIntervalMinutes)} and ${describe(job.maxIntervalMinutes)}.`;
     return;
   }
+  delete intervalErrors.value[job.id];
   if (minutes !== job.intervalMinutes)
     void changeJob(job, { intervalMinutes: minutes });
 }
@@ -69,15 +92,25 @@ function describe(minutes: number): string {
   return `${amount} ${amount === 1 ? unit.slice(0, -1) : unit}`;
 }
 async function runNow(job: CleanupJob) {
-  jobError.value = null;
+  delete actionErrors.value[job.id];
+  starting.value[job.id] = true;
   try {
     await runJobNow(job.id);
-    await loadJobs();
+    await loadJobs(true);
   } catch (err) {
-    jobError.value = err instanceof Error ? err.message : "Failed to start";
+    actionErrors.value[job.id] =
+      err instanceof Error ? err.message : "Failed to start";
+  } finally {
+    starting.value[job.id] = false;
   }
 }
-onMounted(loadJobs);
+onMounted(() => {
+  void loadJobs();
+  refreshTimer = setInterval(() => void loadJobs(true), 5000);
+});
+onBeforeUnmount(() => {
+  if (refreshTimer !== null) clearInterval(refreshTimer);
+});
 
 function formatTime(epochSeconds: number | null): string {
   if (!epochSeconds) return "Never run yet";
@@ -94,8 +127,9 @@ function formatTime(epochSeconds: number | null): string {
   <section class="settings-section">
     <h2>Tasks</h2>
     <p class="section-hint">
-      Recurring jobs run by the app's own scheduler, with no separate worker or
-      server needed. Each one can be switched off and given its own schedule.
+      Built-in jobs and approved plugin tasks use the app's scheduler. Each one
+      can be switched off and given its own schedule. Plugin schedules start
+      off.
     </p>
 
     <div v-if="jobError" class="form-error">{{ jobError }}</div>
@@ -107,11 +141,19 @@ function formatTime(epochSeconds: number | null): string {
         </span>
       </div>
       <p class="tile-desc">{{ job.description }}</p>
+      <p v-if="job.pluginId" class="plugin-source">
+        From {{ job.pluginName }} · Runs with this plugin's approved background
+        access.
+      </p>
+      <p v-if="!job.available" class="unavailable-note" role="status">
+        {{ job.unavailableReason }}
+      </p>
       <div class="job-controls">
         <label class="job-toggle">
           <input
             type="checkbox"
             :checked="job.enabled"
+            :disabled="saving[job.id] || !job.available"
             @change="
               changeJob(job, {
                 enabled: ($event.target as HTMLInputElement).checked,
@@ -120,46 +162,64 @@ function formatTime(epochSeconds: number | null): string {
           />
           Run by itself
         </label>
-        <label v-if="drafts[job.id]" class="job-every">
-          Every
-          <input
-            v-model.number="drafts[job.id].amount"
-            type="number"
-            min="1"
-            class="job-amount"
-            :disabled="!job.enabled"
-            :aria-label="`How often ${job.name} runs`"
-            @change="saveInterval(job)"
-          />
-          <select
-            v-model="drafts[job.id].unit"
-            class="job-interval"
-            :disabled="!job.enabled"
-            aria-label="Unit of time"
-            @change="saveInterval(job)"
+        <div v-if="drafts[job.id]" class="interval-field">
+          <label class="job-every">
+            Every
+            <input
+              v-model.number="drafts[job.id].amount"
+              type="number"
+              min="1"
+              class="job-amount"
+              :disabled="saving[job.id] || !job.available"
+              :aria-invalid="Boolean(intervalErrors[job.id])"
+              :aria-describedby="`interval-help-${job.id}`"
+              :aria-label="`How often ${job.name} runs`"
+              @change="saveInterval(job)"
+            />
+            <select
+              v-model="drafts[job.id].unit"
+              class="job-interval"
+              :disabled="saving[job.id] || !job.available"
+              :aria-invalid="Boolean(intervalErrors[job.id])"
+              :aria-describedby="`interval-help-${job.id}`"
+              aria-label="Unit of time"
+              @change="saveInterval(job)"
+            >
+              <option value="minutes">minutes</option>
+              <option value="hours">hours</option>
+              <option value="days">days</option>
+            </select>
+          </label>
+          <p
+            :id="`interval-help-${job.id}`"
+            class="interval-help"
+            :class="{ invalid: intervalErrors[job.id] }"
+            :role="intervalErrors[job.id] ? 'alert' : undefined"
           >
-            <option value="minutes">minutes</option>
-            <option value="hours">hours</option>
-            <option value="days">days</option>
-          </select>
-        </label>
+            {{
+              intervalErrors[job.id] ||
+              `Allowed: ${describe(job.minIntervalMinutes)} to ${describe(job.maxIntervalMinutes)}.`
+            }}
+          </p>
+        </div>
         <button
           type="button"
           class="secondary-button"
-          :disabled="job.running"
+          :disabled="job.running || starting[job.id] || !job.available"
           @click="runNow(job)"
         >
-          {{ job.running ? "Running…" : "Run now" }}
+          {{ job.running || starting[job.id] ? "Running…" : "Run now" }}
         </button>
       </div>
+      <p v-if="actionErrors[job.id]" class="form-error" role="alert">
+        {{ actionErrors[job.id] }}
+      </p>
       <p class="last-run">
         Last run: {{ formatTime(job.lastRunAt) }}
         <template v-if="job.lastSummary"> · {{ job.lastSummary }}</template>
       </p>
       <p class="tile-desc job-note">
-        Allowed: every {{ describe(job.minIntervalMinutes) }} to
-        {{ describe(job.maxIntervalMinutes) }}. "Run now" works whether or not
-        it runs by itself.
+        "Run now" works whether or not it runs by itself.
       </p>
     </div>
   </section>
@@ -179,8 +239,8 @@ function formatTime(epochSeconds: number | null): string {
   margin: 0 0 20px;
 }
 .tile {
-  background: var(--ui-bg);
-  border: 1px solid var(--ui-border);
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border-strong);
   border-radius: var(--ui-radius-control);
   padding: 18px 20px;
   margin-bottom: 16px;
@@ -210,7 +270,7 @@ function formatTime(epochSeconds: number | null): string {
 }
 .status-badge.on {
   color: var(--ui-good);
-  background: rgba(111, 191, 115, 0.14);
+  background: var(--ui-good-soft);
 }
 .tile-desc {
   color: var(--ui-dim);
@@ -219,12 +279,12 @@ function formatTime(epochSeconds: number | null): string {
   margin: 0 0 12px;
 }
 .last-run {
-  color: var(--ui-faint);
+  color: var(--ui-dim);
   font-size: 0.76rem;
   margin: 0 0 14px;
 }
 .form-error {
-  color: #f87171;
+  color: var(--ui-error);
   font-size: 0.8rem;
   margin: 0 0 12px;
 }
@@ -254,19 +314,23 @@ function formatTime(epochSeconds: number | null): string {
   align-items: center;
   gap: 8px;
   font-size: 0.85rem;
-  color: #e5e5e5;
+  color: var(--ui-text);
+}
+.job-toggle input {
+  accent-color: var(--ui-accent);
 }
 .job-every {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
   font-size: 0.85rem;
-  color: #e5e5e5;
+  color: var(--ui-text);
 }
 .job-amount {
   width: 72px;
   background: var(--ui-surface);
-  color: #e5e5e5;
+  color: var(--ui-text);
   border: 1px solid var(--ui-border);
   border-radius: var(--ui-radius-control);
   padding: 7px 10px;
@@ -277,7 +341,7 @@ function formatTime(epochSeconds: number | null): string {
 }
 .job-interval {
   background: var(--ui-surface);
-  color: #e5e5e5;
+  color: var(--ui-text);
   border: 1px solid var(--ui-border);
   border-radius: var(--ui-radius-control);
   padding: 7px 10px;
@@ -288,5 +352,41 @@ function formatTime(epochSeconds: number | null): string {
 }
 .job-note {
   margin: 8px 0 0;
+}
+.interval-field {
+  max-width: 100%;
+}
+.interval-help {
+  color: var(--ui-dim);
+  font-size: 0.76rem;
+  margin: 8px 0 0;
+}
+.interval-help.invalid {
+  color: var(--ui-error);
+}
+.job-amount[aria-invalid="true"] {
+  border-color: var(--ui-error);
+}
+.plugin-source {
+  color: var(--ui-dim);
+  font-size: 0.78rem;
+  margin: 0 0 12px;
+}
+.unavailable-note {
+  color: var(--ui-warning);
+  background: var(--ui-warning-soft);
+  padding: 12px;
+  border-radius: var(--ui-radius-control);
+}
+@media (max-width: 760px) {
+  .job-amount,
+  .job-interval {
+    box-sizing: border-box;
+    min-height: 44px;
+    font-size: 1rem;
+  }
+  .job-amount {
+    width: 64px;
+  }
 }
 </style>

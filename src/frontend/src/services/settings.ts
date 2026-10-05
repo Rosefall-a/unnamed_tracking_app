@@ -467,6 +467,10 @@ export interface CleanupJob {
   lastSummary: string;
   lastResult: Record<string, number | string | boolean | null>;
   running: boolean;
+  pluginId: string | null;
+  pluginName: string | null;
+  available: boolean;
+  unavailableReason: string;
 }
 interface BackendJob {
   id: string;
@@ -480,6 +484,10 @@ interface BackendJob {
   last_summary: string;
   last_result: Record<string, number | string | boolean | null>;
   running: boolean;
+  plugin_id?: string | null;
+  plugin_name?: string | null;
+  available?: boolean;
+  unavailable_reason?: string;
 }
 function mapJob(j: BackendJob): CleanupJob {
   return {
@@ -494,6 +502,10 @@ function mapJob(j: BackendJob): CleanupJob {
     lastSummary: j.last_summary,
     lastResult: j.last_result,
     running: j.running,
+    pluginId: j.plugin_id ?? null,
+    pluginName: j.plugin_name ?? null,
+    available: j.available !== false,
+    unavailableReason: j.unavailable_reason ?? "",
   };
 }
 export async function fetchJobs(): Promise<CleanupJob[]> {
@@ -518,7 +530,7 @@ export async function updateJob(
     }),
   });
   if (!response.ok)
-    throw new Error(`Failed to save the job: ${response.status}`);
+    throw new Error(await jobErrorDetail(response, "Failed to save the job"));
   return mapJob(await response.json());
 }
 export async function runJobNow(id: string): Promise<void> {
@@ -527,5 +539,15 @@ export async function runJobNow(id: string): Promise<void> {
     credentials: "include",
   });
   if (!response.ok)
-    throw new Error(`Failed to start the job: ${response.status}`);
+    throw new Error(await jobErrorDetail(response, "Failed to start the job"));
+}
+
+async function jobErrorDetail(
+  response: Response,
+  fallback: string,
+): Promise<string> {
+  const body = await response.json().catch(() => null);
+  return typeof body?.detail === "string"
+    ? body.detail
+    : `${fallback}: ${response.status}`;
 }

@@ -9,6 +9,29 @@ body {
   background: var(--ui-bg);
   color: var(--ui-text);
 }
+/* Scroll containers inherit the active palette, including native plugin pages. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--ui-border-strong) var(--ui-surface-2);
+}
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: var(--ui-surface-2);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--ui-border-strong);
+  border: 2px solid var(--ui-surface-2);
+  border-radius: var(--ui-radius-control);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--ui-dim);
+}
+::-webkit-scrollbar-corner {
+  background: var(--ui-surface-2);
+}
 .ui-page {
   position: relative;
   min-height: 100vh;

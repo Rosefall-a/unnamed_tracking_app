@@ -1,0 +1,25 @@
+{
+  "backend": "real",
+  "passed": [
+    "Task period errors stay beside their field; drafts survive another save, themed controls and save confirmation: light/1440",
+    "Task period errors stay beside their field; drafts survive another save, themed controls and save confirmation: light/320",
+    "Task period errors stay beside their field; drafts survive another save, themed controls and save confirmation: dark/390",
+    "Task period errors stay beside their field; drafts survive another save, themed controls and save confirmation: dark/1920"
+  ],
+  "screens": [
+    "tasks-validation-1440-light.png",
+    "tasks-validation-320-light.png",
+    "tasks-validation-390-dark.png",
+    "tasks-validation-1920-dark.png"
+  ],
+  "widths": [
+    320,
+    390,
+    430,
+    768,
+    1024,
+    1440,
+    1920,
+    2560
+  ]
+}
