@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import HeartIcon from "../HeartIcon.vue";
 import {
   ref,
   computed,
@@ -1063,27 +1064,7 @@ defineExpose({ openQuickAdd });
                     title="Favorite"
                     @click.stop="emit('toggle-favorite', it.id)"
                   >
-                    <svg
-                      v-if="it.favorite"
-                      viewBox="0 0 24 24"
-                      fill="currentColor"
-                      stroke="none"
-                    >
-                      <path
-                        d="M12 21s-7.5-4.9-10.2-9.4C.2 8.6 1.4 5 4.9 4.1c2-.5 3.9.3 5.1 2C11.2 4.4 13.1 3.6 15.1 4.1c3.5.9 4.7 4.5 3.1 7.5C15.5 16.1 12 21 12 21z"
-                      />
-                    </svg>
-                    <svg
-                      v-else
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2"
-                    >
-                      <path
-                        d="M12 21s-7.5-4.9-10.2-9.4C.2 8.6 1.4 5 4.9 4.1c2-.5 3.9.3 5.1 2C11.2 4.4 13.1 3.6 15.1 4.1c3.5.9 4.7 4.5 3.1 7.5C15.5 16.1 12 21 12 21z"
-                      />
-                    </svg>
+                    <HeartIcon :filled="it.favorite" />
                   </button>
                   <button
                     type="button"
@@ -1238,17 +1219,7 @@ defineExpose({ openQuickAdd });
                     title="Favorite"
                     @click.stop="emit('toggle-favorite', it.id)"
                   >
-                    <svg
-                      viewBox="0 0 24 24"
-                      :fill="it.favorite ? 'currentColor' : 'none'"
-                      stroke="currentColor"
-                      stroke-width="2"
-                      stroke-linejoin="round"
-                    >
-                      <path
-                        d="M12 21s-7.5-4.9-10.2-9.4C.2 8.6 1.4 5 4.9 4.1c2-.5 3.9.3 5.1 2C11.2 4.4 13.1 3.6 15.1 4.1c3.5.9 4.7 4.5 3.1 7.5C15.5 16.1 12 21 12 21z"
-                      />
-                    </svg>
+                    <HeartIcon :filled="it.favorite" />
                   </button>
                   <button
                     type="button"
@@ -1437,27 +1408,7 @@ defineExpose({ openQuickAdd });
                       title="Favorite"
                       @click.stop="emit('toggle-favorite', it.id)"
                     >
-                      <svg
-                        v-if="it.favorite"
-                        viewBox="0 0 24 24"
-                        fill="currentColor"
-                        stroke="none"
-                      >
-                        <path
-                          d="M12 21s-7.5-4.9-10.2-9.4C.2 8.6 1.4 5 4.9 4.1c2-.5 3.9.3 5.1 2C11.2 4.4 13.1 3.6 15.1 4.1c3.5.9 4.7 4.5 3.1 7.5C15.5 16.1 12 21 12 21z"
-                        />
-                      </svg>
-                      <svg
-                        v-else
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2"
-                      >
-                        <path
-                          d="M12 21s-7.5-4.9-10.2-9.4C.2 8.6 1.4 5 4.9 4.1c2-.5 3.9.3 5.1 2C11.2 4.4 13.1 3.6 15.1 4.1c3.5.9 4.7 4.5 3.1 7.5C15.5 16.1 12 21 12 21z"
-                        />
-                      </svg>
+                      <HeartIcon :filled="it.favorite" />
                     </button>
                     <button
                       type="button"

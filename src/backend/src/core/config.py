@@ -41,6 +41,12 @@ class Settings(BaseSettings):
     GEOIP_COUNTRY_DATABASE_PATH: str = "/data/GeoIP-Country.mmdb"
     GEOIP_ASN_DATABASE_PATH: str = "/data/GeoIP-ASN.mmdb"
 
+    PASSWORD_MIN_LENGTH: int = 9
+    PASSWORD_REQUIRE_UPPERCASE: bool = True
+    PASSWORD_REQUIRE_LOWERCASE: bool = True
+    PASSWORD_REQUIRE_DIGIT: bool = False
+    PASSWORD_REQUIRE_SYMBOL: bool = True
+
     IGDB_CLIENT_ID: str | None = None
     IGDB_CLIENT_SECRET: str | None = None
     TMDB_API_KEY: str | None = None

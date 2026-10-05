@@ -1,5 +1,7 @@
 <script setup lang="ts">
+import HeartIcon from "./HeartIcon.vue";
 import { useRouter } from "vue-router";
+import CheckIcon from "./CheckIcon.vue";
 import type { Game, GameStatus } from "../types/game";
 import { setFavorite, setStatus } from "../services/games";
 import { ref, computed, nextTick, onUnmounted } from "vue";
@@ -11,6 +13,7 @@ const props = defineProps<{
   selectMode?: boolean;
   selected?: boolean;
   keyboardFocused?: boolean;
+  rank?: number | null;
 }>();
 
 const emit = defineEmits<{
@@ -57,23 +60,25 @@ const statusSubmenuOpen = ref(false);
 const localFavorite = ref(props.game.favorite);
 const favoriteSaving = ref(false);
 
-const menuTriggerRef = ref<HTMLElement | null>(null);
+const coverRef = ref<HTMLElement | null>(null);
 const menuPosition = ref({ top: 0, left: 0 });
 
 function onWindowScroll() {
   closeMenu();
 }
 
-async function toggleMenu() {
-  menuOpen.value = !menuOpen.value;
-  if (menuOpen.value && menuTriggerRef.value) {
-    await nextTick();
-    const rect = menuTriggerRef.value.getBoundingClientRect();
-    menuPosition.value = { top: rect.bottom + 6, left: rect.right - 190 };
-    window.addEventListener("scroll", onWindowScroll, true);
-  } else {
-    window.removeEventListener("scroll", onWindowScroll, true);
-  }
+// the menu has no button on the cover anymore (the hover buttons match the
+// Media shelf), so it opens from a right-click, or a left swipe on touch
+async function openMenuAt(x: number, y: number) {
+  menuPosition.value = { top: y + 6, left: Math.max(8, x - 190) };
+  menuOpen.value = true;
+  await nextTick();
+  window.addEventListener("scroll", onWindowScroll, true);
+}
+function onContextMenu(e: MouseEvent) {
+  if (props.selectMode) return;
+  e.preventDefault();
+  void openMenuAt(e.clientX, e.clientY);
 }
 
 function closeMenu() {
@@ -131,46 +136,16 @@ async function chooseStatus(status: GameStatus) {
   closeMenu();
 }
 
-// a quick at-a-glance read on a card without opening it: never launched at
-// all, vs. picked up again recently, anything in between just stays quiet
 const totalPlaytimeMinutes = computed(() =>
   props.game.platforms.reduce((sum, p) => sum + p.playtimeMinutes, 0),
 );
-const activityDot = computed<"never" | "recent" | null>(() => {
-  if (totalPlaytimeMinutes.value === 0) return "never";
-  if (props.game.lastPlayedAt) {
-    const daysSince =
-      (Date.now() - new Date(props.game.lastPlayedAt).getTime()) / 86_400_000;
-    if (daysSince <= 14) return "recent";
-  }
-  return null;
+const playtimeLabel = computed(() => {
+  const m = totalPlaytimeMinutes.value;
+  if (m === 0) return "Not played";
+  const h = Math.floor(m / 60);
+  const rest = m % 60;
+  return h > 0 ? `${h}h${rest > 0 ? ` ${rest}m` : ""}` : `${rest}m`;
 });
-
-// short plain-text synopsis for the hover preview, game.description can be
-// rich HTML (Steam's "About This Game"), so strip tags rather than render
-// markup inside a small overlay
-const previewSynopsis = computed(() => {
-  const raw =
-    props.game.description
-      ?.replace(/<[^>]*>/g, " ")
-      .replace(/\s+/g, " ")
-      .trim() ?? "";
-  if (!raw) return "";
-  return raw.length > 140 ? raw.slice(0, 140).trimEnd() + "…" : raw;
-});
-const lastPlayedLabel = computed(() => {
-  if (!props.game.lastPlayedAt) return "Not played yet";
-  return `Last played ${new Date(props.game.lastPlayedAt).toLocaleDateString()}`;
-});
-function formatPlaytime(minutes: number): string {
-  if (minutes === 0) return "No playtime logged";
-  const hours = Math.floor(minutes / 60);
-  const mins = minutes % 60;
-  return hours > 0
-    ? `${hours}h${mins > 0 ? ` ${mins}m` : ""} played`
-    : `${mins}m played`;
-}
-
 // swipe gestures, a touch-only mirror of the desktop hover actions, which
 // obviously never appear on a device with no cursor to hover with
 const touchStartX = ref(0);
@@ -205,8 +180,9 @@ function onTouchEnd(e: TouchEvent) {
   if (Math.abs(dx) < SWIPE_THRESHOLD) return;
   if (dx > 0) {
     void toggleFavorite();
-  } else if (menuTriggerRef.value) {
-    toggleMenu();
+  } else if (coverRef.value) {
+    const rect = coverRef.value.getBoundingClientRect();
+    void openMenuAt(rect.right, rect.bottom);
   }
 }
 
@@ -231,8 +207,10 @@ function copyFolderPath() {
       :style="badgeCardStyle"
     >
       <div
+        ref="coverRef"
         class="cover"
         @click="openGame($event)"
+        @contextmenu="onContextMenu"
         @touchstart="onTouchStart"
         @touchmove="onTouchMove"
         @touchend="onTouchEnd"
@@ -243,20 +221,10 @@ function copyFolderPath() {
           class="select-checkbox"
           :class="{ checked: selected }"
         >
-          <svg
-            v-if="selected"
-            viewBox="0 0 24 24"
-            width="14"
-            height="14"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="3"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path d="M20 6L9 17l-5-5" />
-          </svg>
+          <CheckIcon v-if="selected" />
         </div>
+
+        <span v-if="rank" class="shelf-rank rank-badge">#{{ rank }}</span>
 
         <div
           v-if="game.staleSince && !selectMode"
@@ -307,34 +275,26 @@ function copyFolderPath() {
           </svg>
         </div>
 
-        <div
-          v-if="activityDot && !selectMode"
-          class="activity-dot"
-          :class="activityDot"
-          :title="
-            activityDot === 'never'
-              ? 'Never launched'
-              : 'Played in the last 2 weeks'
-          "
-        ></div>
-
-        <div v-if="!selectMode && previewSynopsis" class="hover-preview">
-          <p class="hover-preview-synopsis">{{ previewSynopsis }}</p>
-          <p class="hover-preview-meta">
-            {{ formatPlaytime(totalPlaytimeMinutes) }} · {{ lastPlayedLabel }}
-          </p>
-        </div>
-
         <div v-if="!selectMode" class="cover-actions">
           <button
             type="button"
+            class="favorite-button"
+            :class="{ active: localFavorite }"
+            :disabled="favoriteSaving"
+            title="Favorite"
+            @click.stop="toggleFavorite"
+          >
+            <HeartIcon :filled="localFavorite" />
+          </button>
+
+          <button
+            type="button"
             class="collection-button"
+            title="Add to collection"
             @click.stop="emit('add-to-collection', game)"
           >
             <svg
               viewBox="0 0 24 24"
-              width="15"
-              height="15"
               fill="none"
               stroke="currentColor"
               stroke-width="2"
@@ -347,37 +307,20 @@ function copyFolderPath() {
 
           <button
             type="button"
-            class="favorite-button"
-            :class="{ active: localFavorite }"
-            :disabled="favoriteSaving"
-            @click.stop="toggleFavorite"
+            class="edit-button"
+            title="Edit"
+            @click.stop="emit('edit', game)"
           >
             <svg
               viewBox="0 0 24 24"
-              width="15"
-              height="15"
-              :fill="localFavorite ? 'currentColor' : 'none'"
+              fill="none"
               stroke="currentColor"
               stroke-width="2"
               stroke-linecap="round"
               stroke-linejoin="round"
             >
-              <path
-                d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.8 1-1a5.5 5.5 0 0 0 0-7.6z"
-              />
-            </svg>
-          </button>
-
-          <button
-            type="button"
-            class="menu-trigger"
-            ref="menuTriggerRef"
-            @click.stop="toggleMenu"
-          >
-            <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor">
-              <circle cx="5" cy="12" r="2" />
-              <circle cx="12" cy="12" r="2" />
-              <circle cx="19" cy="12" r="2" />
+              <path d="M12 20h9" />
+              <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
             </svg>
           </button>
         </div>
@@ -458,35 +401,30 @@ function copyFolderPath() {
     </div>
 
     <div class="card-info">
-      <h3 class="title">{{ game.title }}</h3>
+      <div class="title-row">
+        <h3 class="title">{{ game.title }}</h3>
+        <span class="score-tag" :class="{ empty: !score }">{{
+          score ? `★ ${score.sum.toFixed(1)}` : "–"
+        }}</span>
+      </div>
       <div class="meta-row">
         <span class="status">{{ localStatus }}</span>
-        <span v-if="score" class="rating">★ {{ score.sum.toFixed(1) }}</span>
-        <span v-if="game.achievementPercent > 0" class="achievements">
-          <svg
-            viewBox="0 0 24 24"
-            width="11"
-            height="11"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path d="M8 4h8v5a4 4 0 0 1-8 0z" />
-            <path d="M8 4H5a2 2 0 0 0 0 4h1.5M16 4h3a2 2 0 0 1 0 4h-1.5" />
-            <path d="M12 13v3" />
-            <path d="M9 20h6" />
-            <path d="M10 16.5h4l.8 3.5H9.2z" />
-          </svg>
-          {{ game.achievementPercent }}%
-        </span>
+        <span class="playtime">{{ playtimeLabel }}</span>
       </div>
     </div>
   </div>
 </template>
 
 <style scoped>
+/* Media's page sets border-box on everything inside it; without the same
+   here the rating box and the rest of the card come out a few px off */
+.game-card-wrap,
+.game-card-wrap * {
+  box-sizing: border-box;
+}
+.game-card-wrap svg {
+  display: block;
+}
 .game-card-wrap {
   width: 200px;
   flex-shrink: 0;
@@ -496,16 +434,13 @@ function copyFolderPath() {
   position: relative;
   width: 100%;
   border-radius: 10px;
-  transition:
-    transform 0.32s cubic-bezier(0.22, 1, 0.36, 1),
-    box-shadow 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
   will-change: transform;
   z-index: 1;
 }
 .game-card:hover,
 .game-card.menu-open {
-  transform: scale(1.07) translateY(-4px);
-  box-shadow: 0 24px 56px rgba(0, 0, 0, 0.5);
+  transform: translateY(-3px);
   z-index: 10;
 }
 .game-card.keyboard-focused .cover {
@@ -590,88 +525,71 @@ function copyFolderPath() {
   border-radius: 10px;
   overflow: hidden;
   cursor: pointer;
-  background: #1a1a1a;
+  background: var(--surface-2, #222222);
+  border: 1px solid var(--border-soft, #202020);
+  box-sizing: border-box;
+  transition:
+    box-shadow 0.28s ease,
+    border-color 0.2s ease;
+}
+.shelf-rank {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+}
+.rank-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 5px;
+  background: var(--accent-soft, rgba(214, 138, 52, 0.16));
+  color: var(--accent, #d68a34);
+  border: 1px solid var(--accent-line, rgba(214, 138, 52, 0.4));
+  font-size: 0.68rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
 }
 .cover-image {
   width: 100%;
   height: 100%;
   object-fit: cover;
   display: block;
+  transition: transform 0.2s ease;
+}
+.game-card:hover .cover,
+.game-card.menu-open .cover {
+  border-color: var(--border, #2b2b2b);
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.45);
+}
+.game-card:hover .cover-image {
+  transform: scale(1.04);
 }
 .select-checkbox {
-  position: absolute;
-  top: 8px;
-  left: 8px;
-  width: 24px;
-  height: 24px;
-  border-radius: 6px;
-  border: 2px solid rgba(255, 255, 255, 0.6);
-  background: rgba(20, 20, 20, 0.55);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  background: rgba(10, 10, 10, 0.8);
+  border: 1.5px solid rgba(255, 255, 255, 0.45);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #111;
-  z-index: 3;
-  transition:
-    background 0.15s ease,
-    border-color 0.15s ease;
+  cursor: pointer;
+  color: var(--accent, #d68a34);
+  font-size: 0.85rem;
+  font-weight: 800;
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  z-index: 4;
 }
 .select-checkbox.checked {
-  background: #d68a34;
-  border-color: #d68a34;
-}
-.hover-preview {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  padding: 26px 10px 10px;
-  background: linear-gradient(
-    to top,
-    rgba(0, 0, 0, 0.92) 40%,
-    rgba(0, 0, 0, 0.5) 75%,
-    transparent
-  );
-  opacity: 0;
-  transform: translateY(6px);
-  transition:
-    opacity 0.18s ease,
-    transform 0.18s ease;
-  transition-delay: 0.15s;
-  pointer-events: none;
-}
-.game-card:hover .hover-preview {
-  opacity: 1;
-  transform: translateY(0);
-}
-.hover-preview-synopsis {
-  margin: 0 0 6px;
-  color: #eee;
-  font-size: 11px;
-  line-height: 1.45;
-}
-.hover-preview-meta {
-  margin: 0;
-  color: #d68a34;
-  font-size: 10.5px;
-  font-weight: 600;
-}
-.activity-dot {
-  position: absolute;
-  bottom: 8px;
-  left: 8px;
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.55);
-}
-.activity-dot.never {
-  background: #6a6a6a;
-}
-.activity-dot.recent {
-  background: #4ade80;
+  background: var(--accent, #d68a34);
+  border-color: var(--accent, #d68a34);
+  color: #14100a;
 }
 .stale-indicator {
   position: absolute;
@@ -691,58 +609,63 @@ function copyFolderPath() {
 }
 .cover-actions {
   position: absolute;
-  bottom: 8px;
-  right: 8px;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 3;
   display: flex;
+  justify-content: flex-end;
   align-items: center;
   gap: 6px;
-  z-index: 3;
+  padding: 26px 8px 8px;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.65), transparent);
+  opacity: 0;
+  transform: translateY(6px);
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
+  pointer-events: none;
+}
+.game-card:hover .cover-actions,
+.game-card:focus-within .cover-actions,
+.game-card.menu-open .cover-actions {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
 }
 .favorite-button,
 .collection-button,
-.menu-trigger {
+.edit-button {
   width: 28px;
   height: 28px;
+  padding: 0;
   border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(20, 20, 20, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(20, 20, 20, 0.6);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
   color: #fff;
-  font-size: 13px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  opacity: 0;
-  transform: translateY(4px);
-  transition:
-    opacity 0.2s ease,
-    transform 0.2s ease,
-    background 0.15s ease,
-    color 0.15s ease,
-    border-color 0.15s ease;
+  transition: background 0.15s ease;
 }
-.game-card:hover .favorite-button,
-.game-card:hover .collection-button,
-.game-card:hover .menu-trigger,
-.game-card.menu-open .favorite-button,
-.game-card.menu-open .collection-button,
-.game-card.menu-open .menu-trigger {
-  opacity: 1;
-  transform: translateY(0);
+.favorite-button svg,
+.collection-button svg,
+.edit-button svg {
+  width: 13px;
+  height: 13px;
 }
 .favorite-button.active {
   color: #ff6f91;
   border-color: rgba(255, 111, 145, 0.4);
-  background: rgba(224, 86, 122, 0.18);
+  background: rgba(224, 86, 122, 0.2);
 }
-.menu-trigger:hover,
+.edit-button:hover,
 .favorite-button:hover,
 .collection-button:hover {
-  background: rgba(40, 40, 40, 0.85);
-  border-color: rgba(255, 255, 255, 0.3);
-  transform: translateY(0) scale(1.1);
+  background: rgba(60, 60, 60, 0.9);
 }
 .menu-backdrop {
   position: fixed;
@@ -812,36 +735,71 @@ function copyFolderPath() {
   margin: 4px 2px;
 }
 .card-info {
-  padding: 10px 2px 0;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  margin-top: 8px;
+}
+.title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 6px;
 }
 .title {
-  margin: 0 0 2px;
-  font-size: 14px;
-  font-weight: 600;
-  color: #fff;
-  white-space: nowrap;
+  margin: 0;
+  min-width: 0;
+  font-size: 0.85rem;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--text, #f2f2f2);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
-  text-overflow: ellipsis;
+  /* two lines are always reserved so a one-line title doesn't pull the
+     rows below it up and leave cards in the same row misaligned */
+  min-height: calc(1.3em * 2);
+}
+.score-tag {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--accent, #d68a34);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  text-align: right;
+}
+.score-tag.empty {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 5px;
+  background: var(--surface-2, #222222);
+  border: 1px solid var(--border, #2b2b2b);
+  color: var(--text-faint, #666);
+  font-weight: 600;
 }
 .meta-row {
   display: flex;
+  align-items: baseline;
+  justify-content: space-between;
   gap: 8px;
-  font-size: 12px;
-  color: #999;
+  margin-top: 2px;
+  min-width: 0;
+  font-size: 0.7rem;
+  color: var(--text-faint, #666);
 }
 .meta-row .status {
   text-transform: capitalize;
 }
-.meta-row .rating {
-  color: #d68a34;
-}
-.meta-row .achievements {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-}
-.meta-row .achievements svg {
-  flex-shrink: 0;
-  opacity: 0.75;
+.meta-row .playtime {
+  font-size: 0.72rem;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 </style>

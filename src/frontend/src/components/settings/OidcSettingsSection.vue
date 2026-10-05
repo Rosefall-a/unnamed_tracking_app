@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from "vue";
+import PasswordInput from "../PasswordInput.vue";
 import {
   fetchDeploymentSettings,
   updateDeploymentSettings,
@@ -298,17 +299,20 @@ async function save() {
           <label
             ><span>Client ID</span><input v-model="provider.client_id"
           /></label>
-          <label
-            ><span>Client secret</span
-            ><input
+          <label>
+            <span>Client secret</span>
+            <PasswordInput
               v-model="provider.client_secret"
-              type="password"
+              :mode="provider.client_secret_configured ? 'replace' : 'new'"
               :placeholder="
                 provider.client_secret_configured
                   ? 'Leave blank to keep saved secret'
                   : 'Required'
               "
-          /></label>
+              autocomplete="new-password"
+              :required="provider.enabled && !provider.client_secret_configured"
+            />
+          </label>
           <label><span>Scopes</span><input v-model="provider.scopes" /></label>
           <label
             ><span>Groups claim</span

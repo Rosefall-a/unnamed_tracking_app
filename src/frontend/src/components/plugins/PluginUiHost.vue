@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import PasswordInput from "../PasswordInput.vue";
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import {
   approvePluginAction,
@@ -318,10 +319,16 @@ onBeforeUnmount(() =>
               type="number"
               :autocomplete="field.secret ? 'new-password' : 'off'"
             />
+            <PasswordInput
+              v-else-if="field.type === 'password' || field.secret"
+              :model-value="String(values[field.id] ?? '')"
+              autocomplete="new-password"
+              @update:model-value="values[field.id] = $event"
+            />
             <input
               v-else
               v-model="values[field.id]"
-              :type="field.type === 'password' ? 'password' : field.type"
+              :type="field.type"
               :autocomplete="field.secret ? 'new-password' : 'off'"
             />
             <em v-if="errorFor(field)" class="error">{{ errorFor(field) }}</em>

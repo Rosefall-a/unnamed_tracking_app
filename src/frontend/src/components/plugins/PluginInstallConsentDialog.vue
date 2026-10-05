@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import PasswordInput from "../PasswordInput.vue";
 import { computed, nextTick, ref, watch } from "vue";
 import PermissionRiskSummary from "./PermissionRiskSummary.vue";
 import DOMPurify from "dompurify";
@@ -434,9 +435,8 @@ function close() {
           </p>
           <label>
             Administrator password
-            <input
+            <PasswordInput
               v-model="adminPassword"
-              type="password"
               autocomplete="current-password"
             />
           </label>

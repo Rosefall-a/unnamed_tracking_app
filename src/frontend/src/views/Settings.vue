@@ -38,6 +38,7 @@ import {
   pageReplacementConflicts,
   refreshPluginExtensions,
 } from "../state/pluginExtensions";
+import PasswordPolicySection from "../components/settings/PasswordPolicySection.vue";
 import AccountChip from "../components/AccountChip.vue";
 import BackButton from "../components/BackButton.vue";
 
@@ -69,6 +70,7 @@ const coreSectionIds = new Set([
   "server-integrations",
   "users",
   "plugins",
+  "password-policy",
   "stats",
   "tasks",
   "logs",
@@ -172,6 +174,7 @@ const groups = computed<SettingsGroup[]>(() => {
         ? [
             { id: "admin", label: "Administration" },
             { id: "plugins", label: "Plugins" },
+            { id: "password-policy", label: "Password policy" },
             { id: "tasks", label: "Tasks" },
             { id: "logs", label: "Logs", comingSoon: true },
           ]
@@ -324,6 +327,12 @@ watch(activeSection, async () => {
           <PluginManagerSection
             v-else-if="activeSection === 'plugins' && currentUser?.is_admin"
           />
+          <PasswordPolicySection
+            v-else-if="
+              activeSection === 'password-policy' && currentUser?.is_admin
+            "
+          />
+          <StatsSection v-else-if="activeSection === 'stats'" />
           <template v-else-if="activeSection === 'export'">
             <ExportImportSection />
             <AniListImportSection />
@@ -333,7 +342,6 @@ watch(activeSection, async () => {
             :key="'metadata' + initialTab"
             :initial-tab="initialTab"
           />
-          <StatsSection v-else-if="activeSection === 'stats'" />
           <AdminSettings
             v-else-if="activeSection === 'admin' && currentUser?.is_admin"
             :key="'admin' + initialTab"
