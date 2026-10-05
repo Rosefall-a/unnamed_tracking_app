@@ -661,6 +661,29 @@ class PluginPwaDeclaration(ContractModel):
         return values
 
 
+class PluginScheduledTask(ContractModel):
+    """One explicitly declared action that the host may schedule after consent."""
+
+    id: str = Field(min_length=1, max_length=128, pattern=r"^[a-z0-9][a-z0-9._-]*$")
+    name: str = Field(min_length=1, max_length=128)
+    description: str = Field(default="", max_length=2_000)
+    action_id: str = Field(min_length=1, max_length=128)
+    min_interval_minutes: int = Field(default=5, ge=1, le=43_200, strict=True)
+    max_interval_minutes: int = Field(default=43_200, ge=1, le=43_200, strict=True)
+    default_interval_minutes: int = Field(default=60, ge=1, le=43_200, strict=True)
+
+    @model_validator(mode="after")
+    def validate_interval_bounds(self) -> "PluginScheduledTask":
+        """Keep the default inside the author's declared scheduling limits."""
+        if (
+            not self.min_interval_minutes
+            <= self.default_interval_minutes
+            <= self.max_interval_minutes
+        ):
+            raise ValueError("scheduled task default interval is outside its bounds")
+        return self
+
+
 class PluginManifest(ContractModel):
     """Static plugin manifest validated without importing or executing the plugin."""
 
@@ -691,6 +714,7 @@ class PluginManifest(ContractModel):
     native_frontend: PluginNativeFrontendDeclaration | None = None
     backend_routes: tuple[PluginBackendRoute, ...] = ()
     pwa: PluginPwaDeclaration | None = None
+    scheduled_tasks: tuple[PluginScheduledTask, ...] = Field(default=(), max_length=32)
 
     @field_validator("version", "api_contract_version")
     @classmethod
@@ -702,6 +726,23 @@ class PluginManifest(ContractModel):
     @classmethod
     def validate_compatibility_range(cls, value: str) -> str:
         return validate_version_range(value)
+
+    @model_validator(mode="after")
+    def validate_scheduled_tasks(self) -> "PluginManifest":
+        """Scheduled actions are a bounded, explicitly permissioned v1.1 feature."""
+        if not self.scheduled_tasks:
+            return self
+        if parse_semver(self.api_contract_version) < (1, 1, 0):
+            raise ValueError("scheduled tasks require Plugin API v1.1")
+        if not any(
+            permission.capability == CapabilityRef(name=Capability.TASKS_BACKGROUND)
+            for permission in self.permissions
+        ):
+            raise ValueError("scheduled tasks require explicit tasks.background permission")
+        task_ids = [task.id for task in self.scheduled_tasks]
+        if len(task_ids) != len(set(task_ids)):
+            raise ValueError("manifest contains duplicate scheduled tasks")
+        return self
 
     @model_validator(mode="after")
     def validate_unique_declarations(self) -> "PluginManifest":

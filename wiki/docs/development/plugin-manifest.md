@@ -69,3 +69,21 @@ host only exposes that endpoint and activates the bundle while the exact grant i
 effective for an enabled compatible installation.
 
 These fields and capability names are additive Plugin API v1 contracts. Existing v1 manifests remain valid. Any future incompatible contract must use an explicit manifest/API migration rather than changing v1 interpretation in place.
+
+## Host-managed schedules
+
+A v1.1 plugin can declare up to 32 `scheduled_tasks`, with a stable task `id`,
+`name`, `description`, `action_id` and integer minimum, maximum and default
+intervals in minutes. Bounds must be within one minute and thirty days, and the
+default must fit the declared range. The manifest must explicitly request
+`tasks.background`. Each action must exist in `ui.json`, have a handler and
+require no interactive confirmation. Package validation rejects invalid targets
+before execution.
+
+Schedules appear in Administration → Tasks and start off. They use the existing
+background administrator identity and live action grants, never the identity of
+who presses Run now. Disabled plugins, revoked access and runtime outages pause
+the controls. Existing scheduling persistence survives updates within the same
+installation identity. See [Tasks](../administration/tasks.md) for host controls
+and the [companion recipe](https://rosefall-a.github.io/unnamed_tracking_app_plugins/development/background-tasks/)
+for a bounded action example.

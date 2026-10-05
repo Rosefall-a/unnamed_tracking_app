@@ -55,6 +55,20 @@ class PluginRuntimeClient:
     async def health(self) -> dict[str, Any]:
         return await self._request("GET", "/health")
 
+    async def run_scheduled_task(
+        self, plugin_id: str, installation_id: str, task_id: str, trigger: str
+    ) -> dict[str, Any]:
+        """Dispatch an installation-bound task without accepting arbitrary actions or users."""
+        result = await self._request(
+            "POST",
+            f"/plugins/{quote(plugin_id, safe='')}/tasks/{quote(task_id, safe='')}",
+            json={"installation_id": installation_id, "trigger": trigger},
+            timeout=35.0,  # The isolated action runner has a 30-second wall limit.
+        )
+        if not isinstance(result, dict):
+            raise PluginRuntimeRequestError("plugin task returned an invalid response")
+        return result
+
     async def plugins(self) -> list[dict[str, Any]]:
         return await self._request("GET", "/plugins")
 

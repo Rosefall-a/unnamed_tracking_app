@@ -35,8 +35,8 @@ from urllib.parse import unquote, urlsplit
 from urllib.request import Request, urlopen
 from uuid import UUID, uuid4
 
-from storage import PluginStorage
 from legacy_compatibility import LEGACY_WARNING, legacy_plugin_allowed
+from storage import PluginStorage
 
 try:
     import resource
@@ -1590,6 +1590,8 @@ class PluginRegistry:
                 if isinstance(p.get("capability"), dict)
             ],
             "backend_routes": self._backend_routes(data),
+            "scheduled_tasks": [] if legacy else data.get("scheduled_tasks", []),
+            "background_user_id": raw_state.get("user_id") if isinstance(raw_state, dict) else None,
             "pwa": data.get("pwa"),
             "dependencies": [
                 dependency
@@ -2550,6 +2552,48 @@ class PluginRegistry:
         except OSError as exc:
             raise RuntimePolicyError("Discord webhook delivery failed") from exc
 
+    def scheduled_task(
+        self, plugin_id: str, task_id: str, *, installation_id: str, trigger: str
+    ) -> dict[str, Any]:
+        """Run only a signed declaration using its existing background identity."""
+        self._require_active(plugin_id)
+        package, manifest = self.package(plugin_id)
+        installed = self._item(package)
+        if (
+            installed.get("legacy_compatibility")
+            or not isinstance(trigger, str)
+            or trigger not in {"scheduled", "manual"}
+        ):
+            raise RuntimePolicyError("scheduled tasks require Plugin API v1.1 and a valid trigger")
+        if installed.get("installation_id") != str(UUID(installation_id)):
+            raise RuntimePolicyError("scheduled task installation identity changed")
+        declaration = next(
+            (task for task in manifest.get("scheduled_tasks", []) if task.get("id") == task_id),
+            None,
+        )
+        if declaration is None:
+            raise KeyError(task_id)
+        user_id = installed.get("background_user_id")
+        if not user_id:
+            raise RuntimePolicyError(
+                "plugin background identity is unavailable; enable the plugin again"
+            )
+        user_id = str(UUID(str(user_id)))
+        self.supervisor._authorize_capability(plugin_id, "tasks.background", user_id=user_id)
+        document = self.ui(plugin_id)
+        action_id = declaration.get("action_id")
+        action = next(
+            (item for item in document.get("actions", []) if item.get("id") == action_id), None
+        )
+        if action is None or action.get("confirmation") is not None:
+            raise RuntimePolicyError("scheduled task must reference an action without confirmation")
+        return self.action(
+            plugin_id,
+            action_id,
+            {"_scheduled_task": {"id": task_id, "trigger": trigger}},
+            user_id=user_id,
+        )
+
     def action(
         self,
         plugin_id: str,
@@ -2874,6 +2918,19 @@ class RuntimeHandler(BaseHTTPRequestHandler):
                     payload.get("values", {}),
                     user_id=payload.get("user_id"),
                 )  # type: ignore[attr-defined]
+                self._json(200, result)
+                return
+            if len(parts) == 4 and parts[0] == "plugins" and parts[2] == "tasks":
+                length = int(self.headers.get("Content-Length", "0"))
+                if not 1 <= length <= 1024:
+                    raise RuntimePolicyError("plugin task request must be between 1 byte and 1 KiB")
+                payload = json.loads(self.rfile.read(length))
+                if not isinstance(payload, dict) or set(payload) != {"installation_id", "trigger"}:
+                    raise RuntimePolicyError("plugin task request is invalid")
+                result = self.server.registry.scheduled_task(
+                    parts[1], parts[3], installation_id=str(payload["installation_id"]),
+                    trigger=payload["trigger"],
+                )
                 self._json(200, result)
                 return
             if len(parts) == 4 and parts[0] == "plugins" and parts[2] == "routes":

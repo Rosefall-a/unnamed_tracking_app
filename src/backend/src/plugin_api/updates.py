@@ -29,6 +29,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 from .contracts import (
     CompatibilityStatus,
     PluginManifest,
+    PluginUiDocument,
     parse_semver,
     resolve_plugin_dependencies,
 )
@@ -279,6 +280,16 @@ class PluginPackageVerifier:
             raise PackageVerificationError("plugin package integrity verification failed")
 
         ui_content = dict(payload).get("ui.json")
+        if manifest.scheduled_tasks:
+            try:
+                document = PluginUiDocument.model_validate_json(ui_content or b"{}")
+                actions = {action.id: action for action in document.actions}
+                for task in manifest.scheduled_tasks:
+                    action = actions.get(task.action_id)
+                    if action is None or action.confirmation is not None or action.handler is None:
+                        raise ValueError("scheduled action must have a handler and no confirmation")
+            except ValueError as exc:
+                raise PackageFormatError("plugin scheduled task targets are invalid") from exc
         if ui_content is not None and parse_semver(manifest.api_contract_version) >= (1, 1, 0):
             try:
                 ui_document = json.loads(ui_content)

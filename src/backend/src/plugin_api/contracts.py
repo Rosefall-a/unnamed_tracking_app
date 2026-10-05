@@ -124,6 +124,9 @@ from .base_contracts import (
     PluginPwaDeclaration as PluginPwaDeclaration,
 )
 from .base_contracts import (
+    PluginScheduledTask as PluginScheduledTask,
+)
+from .base_contracts import (
     PluginUiDeclaration as PluginUiDeclaration,
 )
 from .base_contracts import (
@@ -491,6 +494,7 @@ __all__ = [
     "StorageRequirements",
     "IntegrityMetadata",
     "PluginManifest",
+    "PluginScheduledTask",
     "UiSchemaVersion",
     "UiFieldType",
     "UiValidation",
