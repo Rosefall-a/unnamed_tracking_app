@@ -16,6 +16,7 @@ const props = defineProps<{
   preview: PluginInstallPreview;
   busy: boolean;
   initialView?: "overview" | "access";
+  error?: string;
 }>();
 const view = ref<"overview" | "access">(props.initialView ?? "access");
 const blockingIssue = computed(
@@ -45,6 +46,15 @@ const adminPassword = ref("");
 const expandedCategories = ref(new Set<string>());
 const cancelButton = ref<HTMLButtonElement | null>(null);
 const content = ref<HTMLElement | null>(null);
+const failure = ref<HTMLElement | null>(null);
+watch(
+  () => props.error,
+  async (error) => {
+    if (!error) return;
+    await nextTick();
+    failure.value?.focus();
+  },
+);
 
 watch(
   () => [props.preview.plugin_id, props.preview.version, props.preview.digest],
@@ -202,6 +212,15 @@ function close() {
     @close="close"
   >
     <section class="consent-dialog" ref="content">
+      <p
+        v-if="error"
+        ref="failure"
+        class="install-error"
+        role="alert"
+        tabindex="-1"
+      >
+        {{ error }}
+      </p>
       <header>
         <div>
           <p class="eyebrow">Plugin installation</p>
@@ -541,6 +560,13 @@ function close() {
 </template>
 
 <style scoped>
+.install-error {
+  padding: var(--ui-space-4);
+  border: 2px solid var(--ui-error);
+  border-radius: var(--ui-radius-control);
+  color: var(--ui-error);
+  background: var(--ui-danger-soft);
+}
 .install-blocker {
   display: flex;
   gap: var(--ui-space-4);

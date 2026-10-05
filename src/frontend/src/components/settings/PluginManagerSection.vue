@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import {
   managerEntries,
   catalogueVersions,
@@ -12,6 +12,7 @@ import PluginInstallConsentDialog from "../plugins/PluginInstallConsentDialog.vu
 import PluginSettingsDialog from "../plugins/PluginSettingsDialog.vue";
 import PluginIsolationWarning from "../plugins/PluginIsolationWarning.vue";
 import PluginPackageDropZone from "../plugins/PluginPackageDropZone.vue";
+import PluginVersionConfirmationDialog from "../plugins/PluginVersionConfirmationDialog.vue";
 import {
   deletePlugin,
   deletePluginCatalogue,
@@ -72,6 +73,8 @@ const catalog = ref<PluginCatalogEntry[]>([]);
 const loading = ref(true);
 const cataloguesLoading = ref(false);
 const error = ref("");
+const operationError = ref("");
+const pendingVersionInstall = ref<PluginInstallConfirmation | null>(null);
 const action = ref("");
 const selectedFile = ref<File | null>(null);
 const installFile = ref<File | null>(null);
@@ -99,6 +102,16 @@ const updateFile = ref<File | null>(null);
 const updateUrl = ref<string | null>(null);
 const replacement = ref(false);
 const updateSource = ref<Partial<PluginSourceMetadata>>({});
+watch(error, (value) => {
+  if (
+    value &&
+    !selected.value &&
+    !installOpen.value &&
+    !installPreview.value &&
+    !duplicate.value
+  )
+    operationError.value = value;
+});
 const availableUpdates = ref<Record<string, PluginUpdateCheck>>({});
 const checkingUpdates = ref(false);
 const view = ref<ManagerView>("Installed");
@@ -314,6 +327,7 @@ async function reviewGrant(key: string) {
   installPreview.value = {
     ...preview,
     operation: "update",
+    requires_version_confirmation: false,
     permissions: preview.permissions
       .filter((item) => item.key === key)
       .map((item) => ({ ...item, new: true })),
@@ -322,31 +336,44 @@ async function reviewGrant(key: string) {
 
 async function chooseDuplicate(choice: "update" | "reinstall" | "replace") {
   const plugin = duplicate.value;
-  duplicate.value = null;
   if (!plugin) return;
   if (choice === "reinstall") {
+    duplicate.value = null;
     cancelInstall();
     selected.value = plugin;
     await lifecycleOperation("reinstall");
     return;
   }
-  replacement.value = choice === "replace";
-  updateTarget.value = plugin;
-  updateFile.value = installFile.value;
-  updateUrl.value = installUrl.value;
-  updateSource.value = installSource.value;
-  installPreview.value = updateFile.value
-    ? await previewPluginUpdate(
-        plugin.plugin_id,
-        updateFile.value,
-        replacement.value ? "replace" : "update",
-      )
-    : await previewPluginUpdateUrl(
-        plugin.plugin_id,
-        updateUrl.value!,
-        installSource.value,
-        replacement.value ? "replace" : "update",
-      );
+  previewing.value = true;
+  error.value = "";
+  try {
+    replacement.value = choice === "replace";
+    updateTarget.value = plugin;
+    updateFile.value = installFile.value;
+    updateUrl.value = installUrl.value;
+    updateSource.value = installSource.value;
+    installPreview.value = updateFile.value
+      ? await previewPluginUpdate(
+          plugin.plugin_id,
+          updateFile.value,
+          replacement.value ? "replace" : "update",
+        )
+      : await previewPluginUpdateUrl(
+          plugin.plugin_id,
+          updateUrl.value!,
+          installSource.value,
+          replacement.value ? "replace" : "update",
+        );
+    duplicate.value = null;
+  } catch (failure) {
+    updateTarget.value = null;
+    error.value =
+      failure instanceof Error
+        ? failure.message
+        : "Plugin update preview failed.";
+  } finally {
+    previewing.value = false;
+  }
 }
 
 async function addCatalogEndpoint() {
@@ -494,6 +521,7 @@ async function reviewDroppedPackage(file: File) {
   if (installing.value || previewing.value) return;
   selectedFile.value = file;
   await previewSelected();
+  if (duplicate.value) await chooseDuplicate("update");
 }
 
 async function previewSelected() {
@@ -590,11 +618,31 @@ function cancelInstall() {
   stagedTarget.value = null;
   grantTarget.value = null;
   duplicate.value = null;
+  pendingVersionInstall.value = null;
+  replacement.value = false;
   reviewView.value = "access";
 }
 
 async function confirmInstall(confirmation: PluginInstallConfirmation) {
   if (!installPreview.value) return;
+  const denyingStage =
+    stagedTarget.value &&
+    installPreview.value.new_permission_keys?.length &&
+    !confirmation.approvedPermissions.length;
+  if (
+    !grantTarget.value &&
+    !denyingStage &&
+    installPreview.value.requires_version_confirmation &&
+    !confirmation.versionChangeConfirmed
+  ) {
+    pendingVersionInstall.value = confirmation;
+    return;
+  }
+  confirmation = {
+    ...confirmation,
+    expectedDigest: installPreview.value.digest,
+    expectedInstalledVersion: installPreview.value.installed_version,
+  };
   if (needsIsolationApproval.value) {
     pendingIsolationInstall = confirmation;
     isolationWarning.value?.review();
@@ -611,6 +659,9 @@ async function confirmInstall(confirmation: PluginInstallConfirmation) {
         {
           approved_permissions: confirmation.approvedPermissions,
           expected_digest: installPreview.value.digest,
+          version_change_confirmed:
+            confirmation.versionChangeConfirmed ?? false,
+          expected_installed_version: confirmation.expectedInstalledVersion,
           confirmed: Boolean(
             stagedTarget.value &&
             installPreview.value.new_permission_keys?.length &&
@@ -820,9 +871,16 @@ async function updateSelected(plugin: PluginSummary, event: Event) {
   const input = event.target as HTMLInputElement;
   const file = input.files?.[0];
   if (!file) return;
+  await reviewUpdatePackage(plugin, file);
+  input.value = "";
+}
+
+async function reviewUpdatePackage(plugin: PluginSummary, file: File) {
+  if (installing.value || previewing.value) return;
   previewing.value = true;
   error.value = "";
   try {
+    replacement.value = false;
     updateTarget.value = plugin;
     updateFile.value = file;
     updateUrl.value = null;
@@ -830,11 +888,11 @@ async function updateSelected(plugin: PluginSummary, event: Event) {
     installFile.value = file;
     installUrl.value = null;
     installPreview.value = await previewPluginUpdate(plugin.plugin_id, file);
+    selected.value = null;
   } catch (err) {
     error.value = err instanceof Error ? err.message : "Plugin update failed.";
   } finally {
     previewing.value = false;
-    input.value = "";
   }
 }
 
@@ -1205,6 +1263,7 @@ onMounted(() => {
       @close="closeInstaller"
     >
       <section class="installer-dialog installer-browser">
+        <p v-if="error" class="error" role="alert">{{ error }}</p>
         <div class="installer-methods">
           <details class="install-method" open>
             <summary>Upload package</summary>
@@ -1255,7 +1314,6 @@ onMounted(() => {
     </UiModal>
     <p v-if="loading">Loading plugins…</p>
     <p v-if="cataloguesLoading" class="muted">Refreshing catalogues…</p>
-    <p v-if="error" class="error">{{ error }}</p>
     <p v-if="!loading && !entries.length" class="muted">
       {{
         view === "Installed" && !plugins.length
@@ -1344,10 +1402,15 @@ onMounted(() => {
           </button>
         </article>
       </template>
-      <article
+      <PluginPackageDropZone
         v-for="plugin in installedEntries"
         :key="plugin.plugin_id"
         class="plugin"
+        tag="article"
+        :busy="previewing || installing || action === plugin.plugin_id"
+        :label="`Update package for ${plugin.name}`"
+        :show-hint="false"
+        @package="reviewUpdatePackage(plugin, $event)"
       >
         <header>
           <div>
@@ -1453,7 +1516,7 @@ onMounted(() => {
             Uninstall
           </button>
         </div>
-      </article>
+      </PluginPackageDropZone>
     </div>
 
     <PluginInstallConsentDialog
@@ -1461,25 +1524,30 @@ onMounted(() => {
       :preview="installPreview"
       :busy="installing"
       :initial-view="reviewView"
+      :error="error"
       @cancel="cancelInstall"
       @confirm="confirmInstall"
     />
     <UiModal
       v-if="duplicate"
       :title="`${duplicate.name} is already installed`"
+      :dismissible="!previewing"
       @close="cancelInstall"
     >
       <section class="installer-dialog">
+        <p v-if="error" class="error" role="alert">{{ error }}</p>
         <p>
           Installed v{{ duplicate.version }}; selected v{{
             installPreview?.version
           }}. Choose the operation explicitly.
         </p>
-        <button @click="chooseDuplicate('update')">Review update</button
-        ><button @click="chooseDuplicate('reinstall')">
+        <button :disabled="previewing" @click="chooseDuplicate('update')">
+          Review update</button
+        ><button :disabled="previewing" @click="chooseDuplicate('reinstall')">
           Reinstall installed release, retaining data</button
-        ><button @click="chooseDuplicate('replace')">Replace package</button
-        ><button @click="cancelInstall">Cancel</button>
+        ><button :disabled="previewing" @click="chooseDuplicate('replace')">
+          Replace package</button
+        ><button :disabled="previewing" @click="cancelInstall">Cancel</button>
       </section>
     </UiModal>
     <PluginSettingsDialog
@@ -1490,7 +1558,7 @@ onMounted(() => {
       :requests="pluginRequests"
       :diagnostics="pluginDiagnostics"
       :loading="popupLoading"
-      :busy="action === selected.plugin_id"
+      :busy="action === selected.plugin_id || previewing || installing"
       :error="error"
       @close="closePlugin"
       @save="savePlugin"
@@ -1503,398 +1571,50 @@ onMounted(() => {
       @deny="resolveRequest($event, false)"
       @refresh="refreshPlugin"
       @update="reviewAvailableUpdate(selected)"
+      @update-package="reviewUpdatePackage(selected, $event)"
       @operation="lifecycleOperation"
       @auto-update="autoUpdateSelected"
       @grant="reviewGrant"
       @delete-history="deleteHistory"
     />
+    <PluginVersionConfirmationDialog
+      v-if="pendingVersionInstall && installPreview"
+      :installed="installPreview.installed_version ?? ''"
+      :candidate="installPreview.version"
+      :downgrade="installPreview.version_change === 'downgrade'"
+      @cancel="pendingVersionInstall = null"
+      @confirm="
+        () => {
+          const confirmation = pendingVersionInstall;
+          pendingVersionInstall = null;
+          if (confirmation)
+            confirmInstall({ ...confirmation, versionChangeConfirmed: true });
+        }
+      "
+    />
+    <UiModal
+      v-if="operationError"
+      title="Plugin operation failed"
+      @close="
+        operationError = '';
+        error = '';
+      "
+    >
+      <p class="error" role="alert">{{ operationError }}</p>
+      <template #footer
+        ><button
+          type="button"
+          class="ui-btn ui-btn-primary"
+          @click="
+            operationError = '';
+            error = '';
+          "
+        >
+          Close
+        </button></template
+      >
+    </UiModal>
   </section>
 </template>
 
-<style scoped>
-.plugin-manager {
-  min-width: 0;
-  overflow-wrap: anywhere;
-  color: var(--ui-text);
-}
-.manager-settings {
-  border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius-card);
-  padding: 16px;
-}
-.manager-settings fieldset {
-  min-width: 0;
-  border: 0;
-  padding: 0;
-  margin: 0;
-}
-.manager-setting {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 16px;
-  padding: 16px 0;
-  border-bottom: 1px solid var(--ui-border-soft);
-  margin-bottom: 16px;
-}
-.manager-setting span {
-  flex: 1;
-  min-width: min(100%, 240px);
-}
-.manager-setting small {
-  display: block;
-  margin-top: 4px;
-  color: var(--ui-dim);
-}
-.manager-setting input[type="number"] {
-  width: 100px;
-}
-.runtime-notice a {
-  color: var(--ui-accent-text);
-}
-.manager-tabs,
-.manager-filters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin: 16px 0;
-}
-.manager-tabs [aria-pressed="true"] {
-  border-color: var(--ui-accent);
-  color: var(--ui-accent-text);
-}
-.runtime-notice {
-  border: 1px solid var(--ui-warning);
-  padding: 16px;
-  border-radius: var(--ui-radius-control);
-  margin: 16px 0;
-}
-.readme {
-  max-width: 75ch;
-  line-height: 1.65;
-  overflow-wrap: anywhere;
-}
-.installer-launcher {
-  display: grid;
-  gap: 16px;
-  margin: 16px 0 24px;
-  padding: 16px;
-  border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius-control);
-}
-.success {
-  color: var(--ui-good);
-}
-.install-launcher {
-  font-size: 1rem;
-}
-.installer-dialog {
-  display: grid;
-  gap: 18px;
-  padding-block: clamp(12px, 2vh, 28px);
-  color: var(--ui-text);
-  overflow-wrap: anywhere;
-}
-.installer-methods {
-  display: grid;
-  align-content: start;
-  gap: 18px;
-  min-width: 0;
-}
-.release-picker {
-  display: grid;
-  gap: 8px;
-}
-.catalogue-group-heading {
-  grid-column: 1 / -1;
-  margin-block: 16px 0;
-}
-.source-category {
-  display: inline-flex;
-  align-self: start;
-  width: fit-content;
-  padding: 5px 10px;
-  border-radius: var(--ui-radius-control);
-  background: var(--ui-accent-soft);
-  color: var(--ui-accent-text);
-  font-weight: 700;
-}
-.discovery-sources {
-  margin-block: 16px;
-}
-@media (min-width: 900px) {
-  .installer-methods {
-    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
-    align-items: start;
-    gap: 28px;
-  }
-}
-.dialog-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-}
-.eyebrow {
-  margin: 0 0 4px;
-  color: var(--ui-accent-text);
-  font-size: 0.75rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-.endpoint-row {
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  align-items: center;
-}
-.endpoint-add {
-  display: flex;
-  gap: 8px;
-}
-.endpoint-add input {
-  flex: 1;
-  min-width: 0;
-}
-.install-method,
-.catalogue {
-  display: grid;
-  gap: 8px;
-}
-.url-row,
-.catalogue-header,
-.catalogue-entry {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-.url-row input {
-  flex: 1;
-  min-width: 0;
-}
-.catalogue-header {
-  justify-content: space-between;
-  align-items: flex-start;
-}
-.catalogue-header > button,
-.url-row > button,
-.catalogue-entry > button {
-  flex-shrink: 0;
-  white-space: nowrap;
-}
-input[type="file"] {
-  width: 100%;
-  min-width: 0;
-  font: inherit;
-  color: var(--ui-dim);
-}
-input[type="file"]::file-selector-button {
-  min-height: var(--ui-control-height);
-  margin-right: 12px;
-  padding: 8px 12px;
-  border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius-control);
-  background: var(--ui-surface-2);
-  color: var(--ui-text);
-  font: inherit;
-  cursor: pointer;
-}
-.catalogue-header p {
-  margin: 4px 0 0;
-}
-.catalogue-entry {
-  border-radius: var(--ui-radius-card);
-  background: var(--ui-surface-2);
-  padding: 16px;
-  align-items: flex-start;
-  justify-content: space-between;
-
-  border-top: 1px solid var(--ui-border);
-}
-.catalogue-entry div {
-  min-width: 0;
-}
-.catalogue-entry span {
-  display: block;
-  color: var(--ui-dim);
-  font-size: 12px;
-}
-.catalogue-entry p {
-  margin: 4px 0 0;
-  color: var(--ui-dim);
-}
-code {
-  font-family: monospace;
-}
-h2 {
-  margin: 0 0 12px;
-  font: var(--ui-weight-heading) var(--ui-font-heading)/1.4
-    var(--ui-font-family);
-  color: var(--ui-text);
-}
-.muted {
-  color: var(--ui-dim);
-}
-.error {
-  color: var(--ui-error);
-}
-.list {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
-  gap: var(--ui-space-5);
-}
-.plugin {
-  min-width: 0;
-  overflow-wrap: anywhere;
-  border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius-control);
-  padding: var(--ui-space-5);
-  background: var(--ui-surface);
-}
-.plugin header {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-}
-.plugin header > div {
-  min-width: 0;
-  flex: 1;
-}
-.plugin header > strong {
-  flex-shrink: 0;
-}
-.plugin h3 {
-  margin: 0 0 var(--ui-space-3);
-}
-.plugin-title {
-  width: 100%;
-  text-align: left;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--ui-text);
-  font-size: var(--ui-font-heading);
-  font-weight: 700;
-}
-.plugin-title:hover {
-  color: var(--ui-accent-text);
-}
-.plugin-title span {
-  font-size: var(--ui-font-body);
-}
-.plugin p {
-  line-height: 1.6;
-  margin-block: var(--ui-space-3);
-}
-.plugin header span,
-.plugin dd {
-  color: var(--ui-dim);
-}
-.plugin dl {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 24px;
-}
-.plugin dt {
-  font-size: 12px;
-  color: var(--ui-faint);
-}
-.plugin dd {
-  margin: 2px 0 0;
-}
-.actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-button,
-.file-button {
-  cursor: pointer;
-  font: inherit;
-  font-size: 0.875rem;
-  min-height: var(--ui-control-height);
-  padding: 8px 12px;
-  color: var(--ui-text);
-  background: var(--ui-surface-2);
-  border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius-control);
-}
-button:hover,
-.file-button:hover {
-  border-color: var(--ui-accent);
-}
-button:disabled {
-  cursor: wait;
-  opacity: 0.55;
-}
-input:not([type="checkbox"]):not([type="file"]),
-select {
-  font: inherit;
-  min-height: var(--ui-control-height);
-  padding: 8px 10px;
-  color: var(--ui-text);
-  background: var(--ui-surface);
-  border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius-control);
-  min-width: 0;
-}
-.manager-filters input {
-  flex: 1;
-}
-.primary {
-  background: var(--ui-accent);
-  color: var(--ui-on-accent);
-  border-color: var(--ui-accent);
-  font-weight: 600;
-}
-.plugin img {
-  border-radius: var(--ui-radius-control);
-  margin-bottom: 8px;
-}
-.file-button {
-  display: inline-flex;
-  align-items: center;
-}
-.file-button input {
-  display: none;
-}
-.danger {
-  border-color: var(--ui-error);
-}
-summary {
-  min-height: var(--ui-control-height);
-  padding: 10px 12px;
-  border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius-control);
-  cursor: pointer;
-}
-.install-method > div,
-.catalogue-management {
-  padding-block: 12px;
-}
-.install-method > div {
-  display: grid;
-  gap: 12px;
-}
-.install-method > div > p {
-  margin: 0;
-}
-.install-method > div > button {
-  justify-self: start;
-}
-@media (max-width: 760px) {
-  .endpoint-row,
-  .endpoint-add,
-  .url-row,
-  .catalogue-entry {
-    flex-wrap: wrap;
-  }
-  .endpoint-row > span {
-    flex-basis: 100%;
-  }
-  .plugin header {
-    flex-wrap: wrap;
-  }
-}
-</style>
+<style scoped src="../../styles/settings/plugin-manager.css"></style>

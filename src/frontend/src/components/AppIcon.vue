@@ -22,6 +22,7 @@ const paths: Record<string, string> = {
   account: "M20 21a8 8 0 0 0-16 0 M16 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0",
   admin: "M12 3l8 4v5c0 5-5 8-8 10-3-2-8-5-8-10V7l8-4Z M9 12l2 2 4-4",
   plugin: "M4 5h16v14H4z M8 9h8 M8 13h5",
+  warning: "M12 3L2 21h20L12 3Z M12 9v5 M12 17h.01",
   search: "M16 9a7 7 0 1 1-14 0 7 7 0 0 1 14 0 M14 14l7 7",
   menu: "M4 6h16 M4 12h16 M4 18h16",
   close: "M6 6l12 12 M18 6L6 18",

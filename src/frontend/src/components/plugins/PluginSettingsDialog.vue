@@ -5,6 +5,7 @@ import PermissionRiskSummary from "./PermissionRiskSummary.vue";
 import PluginPermissionAccess from "./PluginPermissionAccess.vue";
 import PluginVersionInfo from "./PluginVersionInfo.vue";
 import PluginReadme from "./PluginReadme.vue";
+import PluginPackageDropZone from "./PluginPackageDropZone.vue";
 import type {
   PluginPermissionGrant,
   PluginPermissionRequest,
@@ -42,6 +43,7 @@ const emit = defineEmits<{
   deny: [requestId: string];
   refresh: [];
   update: [];
+  updatePackage: [file: File];
   operation: [operation: string, purge?: boolean];
   autoUpdate: [mode: string];
   grant: [key: string];
@@ -51,6 +53,15 @@ const emit = defineEmits<{
 type Tab = "overview" | "settings" | "permissions" | "diagnostics";
 const tab = ref<Tab>("overview");
 const closeButton = ref<HTMLButtonElement | null>(null);
+const operationFailure = ref<HTMLElement | null>(null);
+watch(
+  () => props.error,
+  async (error) => {
+    if (!error) return;
+    await nextTick();
+    operationFailure.value?.focus();
+  },
+);
 const permissions = computed(() => props.plugin.permission_details ?? []);
 const issues = computed(() => pluginIssues(props.plugin));
 
@@ -111,6 +122,30 @@ watch(
       </header>
 
       <div v-if="!loading" class="actions" aria-label="Plugin controls">
+        <PluginPackageDropZone
+          :busy="busy"
+          :show-hint="false"
+          :label="`Update package for ${plugin.name}`"
+          @package="emit('updatePackage', $event)"
+        >
+          <label class="upload-update"
+            >Upload update
+            <input
+              type="file"
+              accept=".utp,.upt,.zip"
+              :disabled="busy"
+              :aria-label="`Upload update for ${plugin.name}`"
+              @change="
+                (event) => {
+                  const input = event.target as HTMLInputElement;
+                  const file = input.files?.[0];
+                  if (file) emit('updatePackage', file);
+                  input.value = '';
+                }
+              "
+            />
+          </label>
+        </PluginPackageDropZone>
         <button
           v-if="
             plugin.available_update?.update_available || plugin.staged_update
@@ -179,7 +214,15 @@ watch(
         </button>
       </div>
 
-      <p v-if="error" class="operation-error" role="alert">{{ error }}</p>
+      <p
+        v-if="error"
+        ref="operationFailure"
+        class="operation-error"
+        role="alert"
+        tabindex="-1"
+      >
+        {{ error }}
+      </p>
 
       <nav aria-label="Plugin settings sections">
         <button
@@ -444,6 +487,30 @@ watch(
 </template>
 
 <style scoped>
+.upload-update {
+  display: inline-flex;
+  position: relative;
+  padding: 8px 14px;
+  min-height: var(--ui-control-height);
+  box-sizing: border-box;
+  align-items: center;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
+  background: var(--ui-surface-2);
+  cursor: pointer;
+}
+.upload-update input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+.upload-update:focus-within {
+  outline: 2px solid var(--ui-accent);
+  outline-offset: 2px;
+}
 .documentation {
   padding-block: var(--ui-space-4);
 }

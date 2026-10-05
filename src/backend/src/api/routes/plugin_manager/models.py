@@ -29,6 +29,8 @@ class PluginActionIn(PluginSettingsIn):
 
 
 class PluginInstallUrl(BaseModel):
+    """Remote source and administrator consent, bound to reviewed package bytes."""
+
     url: str = Field(min_length=1, max_length=2048)
     expected_digest: str | None = Field(default=None, min_length=64, max_length=64)
     source_type: str = Field(default="url", pattern=r"^(url|catalogue)$")
@@ -37,6 +39,8 @@ class PluginInstallUrl(BaseModel):
     changelog_url: str | None = Field(default=None, max_length=2048)
     admin_password: str | None = Field(default=None, min_length=1, max_length=1024)
     confirm_dangerous: bool = False
+    version_change_confirmed: bool = Field(default=False, strict=True)
+    expected_installed_version: str | None = Field(default=None, min_length=1, max_length=64)
 
 
 class CatalogueIcon(BaseModel):
@@ -139,6 +143,8 @@ class AutoUpdateIn(BaseModel):
 
 
 class PackageOperationIn(BaseModel):
+    """Explicit lifecycle decisions for a reviewed installed or retained package."""
+
     expected_digest: str | None = Field(default=None, pattern=r"^[0-9a-fA-F]{64}$")
     approved_permissions: list[str] = Field(default_factory=list)
     allow_untrusted: bool = False
@@ -146,6 +152,8 @@ class PackageOperationIn(BaseModel):
     admin_password: str | None = None
     purge: bool = False
     confirmed: bool = False
+    version_change_confirmed: bool = Field(default=False, strict=True)
+    expected_installed_version: str | None = Field(default=None, min_length=1, max_length=64)
     history_id: UUID | None = None
 
 

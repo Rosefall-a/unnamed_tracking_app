@@ -27,7 +27,6 @@ from cryptography.exceptions import InvalidSignature
 from sqlalchemy import select, update
 from sqlalchemy.exc import DataError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
-
 from src.database.models.plugin_permission_audit import PluginPermissionAudit
 from src.database.models.plugin_permissions import (
     PluginLifecycleTransaction,
@@ -86,6 +85,8 @@ class PackageTrustStatus(StrEnum):
 
 @dataclass(frozen=True, slots=True)
 class PackageTrust:
+    """Signature verification and publisher evidence kept separate from consent."""
+
     status: PackageTrustStatus
     signature_present: bool
     signature_verified: bool
@@ -101,11 +102,14 @@ class PackageTrust:
 
     @property
     def is_verified(self) -> bool:
+        """Whether this package can retain grants for the same verified publisher."""
         return self.status is PackageTrustStatus.TRUSTED
 
 
 @dataclass(frozen=True, slots=True)
 class InspectedPackage:
+    """Verified archive bytes paired with their independently evaluated trust."""
+
     package: VerifiedPackage
     trust: PackageTrust
 
@@ -224,10 +228,14 @@ class InstallationConsent:
     admin_password: str | None = None
     confirm_dangerous: bool = False
     expected_digest: str | None = None
+    version_change_confirmed: bool = False
+    expected_installed_version: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
 class InstallationPlan:
+    """Identity, dependency and grant decisions recomputed before activation."""
+
     inspected: InspectedPackage
     installation_id: UUID
     dependencies: DependencyPlan
@@ -273,6 +281,8 @@ class PluginInstaller:
         db: AsyncSession,
         *,
         operation: str = "update",
+        allow_non_newer: bool = False,
+        expected_installed_version: str | None = None,
     ) -> InstallationPlan:
         """Compare only this installation's identity, declarations and grants."""
         manifest = inspected.package.manifest
@@ -282,6 +292,13 @@ class PluginInstaller:
         )
         if installed is None or not installed.get("installation_id"):
             raise InstallationError(409, "Plugin installation identity is missing.")
+        if (
+            expected_installed_version is not None
+            and installed.get("version") != expected_installed_version
+        ):
+            raise InstallationError(
+                409, "The installed plugin changed after review. Review the package again."
+            )
         compatibility = evaluate_manifest_compatibility(
             manifest,
             os.getenv("PLUGIN_SDK_VERSION", PLUGIN_API_CONTRACT_VERSION),
@@ -294,10 +311,15 @@ class PluginInstaller:
             raise InstallationError(
                 400, "Updated package plugin ID does not match the installed plugin."
             )
-        if operation == "update" and parse_semver(manifest.version) <= parse_semver(
-            str(installed.get("version", "0.0.0"))
+        if (
+            operation == "update"
+            and not allow_non_newer
+            and parse_semver(manifest.version)
+            <= parse_semver(str(installed.get("version", "0.0.0")))
         ):
-            raise InstallationError(409, "Plugin update version must be newer.")
+            raise InstallationError(
+                409, "Confirm applying the same version or a downgrade after reviewing the package."
+            )
         if operation == "reinstall" and (
             manifest.version != installed.get("version")
             or manifest.integrity.sha256 != installed.get("digest")
@@ -459,7 +481,14 @@ class PluginInstaller:
                 409, "The remote plugin changed after preview; review it again before installing."
             )
         if update_plugin_id is not None:
-            plan = await self.plan_update(update_plugin_id, inspected, db, operation=operation)
+            plan = await self.plan_update(
+                update_plugin_id,
+                inspected,
+                db,
+                operation=operation,
+                allow_non_newer=consent.version_change_confirmed,
+                expected_installed_version=consent.expected_installed_version,
+            )
         else:
             compatibility = evaluate_manifest_compatibility(
                 manifest,
@@ -559,7 +588,10 @@ class PluginInstaller:
         if previous.get("version"):
             older = older or parse_semver(manifest.version) < parse_semver(previous["version"])
         pin = manifest.version if older or operation == "rollback" else None
-        if operation == "reinstall" and previous.get("version_pin") == manifest.version:
+        if (
+            previous.get("version") == manifest.version
+            and previous.get("version_pin") == manifest.version
+        ):
             pin = manifest.version
         update_policy = {
             "version_pin": pin,

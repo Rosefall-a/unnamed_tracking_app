@@ -1,10 +1,21 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, watch, nextTick } from "vue";
 
-const props = defineProps<{ busy: boolean }>();
+const props = defineProps<{
+  busy: boolean;
+  tag?: "div" | "article";
+  label?: string;
+  showHint?: boolean;
+}>();
 const emit = defineEmits<{ package: [file: File] }>();
 const dragDepth = ref(0);
 const error = ref("");
+const failure = ref<HTMLElement | null>(null);
+watch(error, async (value) => {
+  if (!value) return;
+  await nextTick();
+  failure.value?.focus();
+});
 
 function draggingFile(event: DragEvent) {
   return event.dataTransfer?.types.includes("Files") ?? false;
@@ -32,6 +43,7 @@ function over(event: DragEvent) {
 function drop(event: DragEvent) {
   if (!draggingFile(event)) return;
   event.preventDefault();
+  event.stopPropagation();
   dragDepth.value = 0;
   if (props.busy) return;
   error.value = "";
@@ -54,27 +66,30 @@ function drop(event: DragEvent) {
 </script>
 
 <template>
-  <div
+  <component
+    :is="tag ?? 'div'"
     class="package-drop-zone"
     :class="{ 'drop-active': dragDepth > 0 && !busy }"
     role="region"
-    aria-label="Plugin package drop area"
+    :aria-label="label ?? 'Plugin package drop area'"
     :aria-busy="busy"
     @dragenter="enter"
     @dragleave="leave"
     @dragover="over"
     @drop="drop"
   >
+    <p v-if="error" ref="failure" class="drop-error" role="alert" tabindex="-1">
+      {{ error }}
+    </p>
     <slot />
-    <p class="drop-hint" role="status">
+    <p v-if="showHint !== false" class="drop-hint" role="status">
       {{
         busy
           ? "Inspecting plugin package…"
           : "Drop a .utp or .upt package here to review it."
       }}
     </p>
-    <p v-if="error" class="drop-error" role="alert">{{ error }}</p>
-  </div>
+  </component>
 </template>
 
 <style scoped>
@@ -100,7 +115,11 @@ function drop(event: DragEvent) {
   color: var(--ui-dim);
 }
 .drop-error {
-  color: var(--ui-danger);
+  padding: var(--ui-space-3);
+  border: 1px solid var(--ui-error);
+  border-radius: var(--ui-radius-control);
+  background: var(--ui-danger-soft);
+  color: var(--ui-error);
 }
 @media (prefers-reduced-motion: reduce) {
   .package-drop-zone {

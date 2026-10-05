@@ -179,6 +179,8 @@ export interface PluginInstallPreview {
   source: PluginSourceMetadata;
   operation?: "update";
   installed_version?: string;
+  version_change?: "same" | "downgrade" | "upgrade";
+  requires_version_confirmation?: boolean;
   permission_delta?: Record<string, unknown>;
   new_permission_keys?: string[];
   existing_grants_retained?: boolean;
@@ -230,6 +232,9 @@ export interface PluginInstallConfirmation {
   approvedPermissions: string[];
   adminPassword?: string;
   confirmDangerous?: boolean;
+  versionChangeConfirmed?: boolean;
+  expectedInstalledVersion?: string;
+  expectedDigest?: string;
 }
 export interface PluginCatalogue {
   id: string;
@@ -535,7 +540,17 @@ export const updatePlugin = async (
     operation,
     allow_untrusted: allowUntrusted ? "true" : "false",
     confirm_dangerous: confirmation.confirmDangerous ? "true" : "false",
+    version_change_confirmed: confirmation.versionChangeConfirmed
+      ? "true"
+      : "false",
   });
+  if (confirmation.expectedInstalledVersion)
+    form.append(
+      "expected_installed_version",
+      confirmation.expectedInstalledVersion,
+    );
+  if (confirmation.expectedDigest)
+    form.append("expected_digest", confirmation.expectedDigest);
   if (confirmation.adminPassword)
     form.append("admin_password", confirmation.adminPassword);
   for (const permission of confirmation.approvedPermissions)
@@ -580,6 +595,8 @@ export const updatePluginFromUrl = async (
         expected_digest: expectedDigest,
         admin_password: confirmation.adminPassword,
         confirm_dangerous: confirmation.confirmDangerous ?? false,
+        version_change_confirmed: confirmation.versionChangeConfirmed ?? false,
+        expected_installed_version: confirmation.expectedInstalledVersion,
         ...remotePluginSource(source),
       }),
     },

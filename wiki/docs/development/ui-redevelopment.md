@@ -526,3 +526,62 @@ and [browser report](../assets/ui-redevelopment/isolation-and-drop-conformance.j
 ![Phone isolation acknowledgement](../assets/ui-redevelopment/isolation-acknowledgement-390-dark.png)
 
 ![Persistent phone isolation warning](../assets/ui-redevelopment/isolation-approved-390-dark.png)
+
+## Updating dropped packages and confirming release changes
+
+Installed plugin cards, their **Upload update** controls and the persistent
+action row above the plugin tabs accept package drops. The general install
+controls also recognize an installed plugin and open its update review directly.
+Dropping a different plugin onto an installed plugin reports the mismatch in
+the active dialog. Invalid-file warnings receive focus and use the native
+light/dark error colors.
+
+Applying the installed version again requires a separate confirmation. An older
+release has a prominent yellow downgrade confirmation, is pinned and disables
+automatic updates. Reapplying that pinned version retains the pin and update
+policy. The backend verifies the reviewed digest and installed-version snapshot;
+confirmation cannot bypass publisher identity, compatibility or permission
+review. Upload, URL and catalogue transports share these checks.
+
+The [update workflow report](../assets/ui-redevelopment/plugin-update-conformance.json)
+records actual runtime/browser checks at 320, 390, 1440 and 1920 pixels. These
+checks use locally built maintained example code and a private lower-version
+variant; they do not claim to validate downloaded CI archives. Same-version
+cancellation/application, downgrade pinning, all four drop targets, installation
+identity and visible failure focus pass. Backend validation passes 1,080 tests
+with two existing skips, mypy over 212 files and the configured Pylint gate at
+9.11/10. Frontend validation passes 231 tests, lint, formatting, forced types,
+production build and the 2,000-line source guard.
+
+![Desktop downgrade confirmation](../assets/ui-redevelopment/plugin-downgrade-confirmation-1440-light.png)
+
+![Phone same-version confirmation](../assets/ui-redevelopment/plugin-same-version-confirmation-390-dark.png)
+
+![Update error in the active phone dialog](../assets/ui-redevelopment/plugin-update-active-error-390-dark.png)
+
+### Remaining integration queue
+
+This is a progress checkpoint. The coordinated PRs remain in progress until the
+following work is verified and their current heads pass CI:
+
+- Exercise the maintained Session Manager with real owner/admin sessions and
+  revocation, and recheck all maintained plugins using the latest downloaded CI
+  packages. Preserve limited legacy compatibility and the v1.1 boundary.
+- Finish Collector's Archive checks using actual Cards, Sets and Bounties data,
+  including creation, updates, search, home contributions and permissions.
+- Check contribution cleanup after permission withdrawal, plugin disable and
+  master disable, including Tasks, shortcuts, native styles, settings placement
+  and reviewed page overrides.
+- Add the basic themes repository and simpler administrator installation page,
+  with a server default and account/device selection for each user.
+- Bring the paired host branches forward, preserve intentional Games/Media
+  changes, resolve inherited Plugin Manager source-size checks and verify no
+  merge conflicts or migration-head divergence.
+- Run the latest coupled production container with its database and runtime,
+  including JSON startup/error responses, OIDC, cookies, onboarding, PWA
+  settings installation, offline themes and restart recovery.
+- Complete the final light/dark/custom-theme and phone/desktop review, current
+  open-PR overlap audit and template/API documentation check. Keep screenshots
+  and full-scope PR updates current; mark PRs ready only after their checks pass.
+- Assess the low-priority Playnite extension download integration and document
+  feasibility, adding it only if the existing interfaces make it straightforward.

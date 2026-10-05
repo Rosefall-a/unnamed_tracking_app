@@ -8,9 +8,9 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
-
 from src.database.models.user import User
 from src.database.session import get_db
+from src.plugin_api.contracts import parse_semver
 from src.plugin_api.installer import (
     DependencyPlan,
     InspectedPackage,
@@ -22,13 +22,19 @@ from src.plugin_api.management_auth import get_plugin_manager_admin
 from . import acquisition, catalogues, models, runtime
 
 router = APIRouter(prefix="/api/plugins", tags=["plugins"])
+_PLUGIN_ADMIN = Depends(get_plugin_manager_admin)
+_PLUGIN_DB = Depends(get_db)
+_PACKAGE_UPLOAD = File(...)
+_APPROVED_PERMISSIONS = Query(default=None)
+_CONFIRM_DANGEROUS = Query(default=False)
 
 
 @router.get("/{plugin_id}/changelog")
 async def plugin_changelog(
     plugin_id: str,
-    admin: User = Depends(get_plugin_manager_admin),
+    admin: User = _PLUGIN_ADMIN,
 ) -> dict[str, Any]:
+    """Return catalogue notes or a bounded UTF-8 changelog for the selected release."""
     plugin = next(
         (item for item in await runtime._client.plugins() if item.get("plugin_id") == plugin_id),
         None,
@@ -83,7 +89,7 @@ async def _update_context(
 ) -> tuple[dict[str, Any], UUID, Any, DependencyPlan, bool]:
     try:
         plan = await acquisition._plugin_installer().plan_update(
-            plugin_id, inspected, db, operation=operation
+            plugin_id, inspected, db, operation=operation, allow_non_newer=True
         )
     except InstallationError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
@@ -117,6 +123,15 @@ def _update_preview(
             else None
         ),
     )
+    candidate_version = parse_semver(inspected.package.manifest.version)
+    current_version = parse_semver(str(installed.get("version", "0.0.0")))
+    version_change = (
+        "downgrade"
+        if candidate_version < current_version
+        else "same"
+        if candidate_version == current_version
+        else "upgrade"
+    )
     new_keys = {
         acquisition._permission_key(item.name.value, item.version)
         for item in permission_delta.newly_requested_grants
@@ -129,6 +144,8 @@ def _update_preview(
         {
             "operation": "update",
             "installed_version": installed.get("version"),
+            "version_change": version_change,
+            "requires_version_confirmation": version_change != "upgrade",
             "permission_delta": permission_delta.model_dump(mode="json"),
             "new_permission_keys": sorted(new_keys),
             "existing_grants_retained": can_retain_grants,
@@ -158,11 +175,12 @@ def _update_preview(
 @router.put("/{plugin_id}/update/preview")
 async def preview_plugin_update(
     plugin_id: str,
-    file: UploadFile = File(...),
-    admin: User = Depends(get_plugin_manager_admin),
-    db: AsyncSession = Depends(get_db),
+    file: UploadFile = _PACKAGE_UPLOAD,
+    admin: User = _PLUGIN_ADMIN,
+    db: AsyncSession = _PLUGIN_DB,
     operation: Literal["update", "replace"] = "update",
 ) -> dict[str, Any]:
+    """Inspect an upload without activating it, including same-version and older releases."""
     del admin
     temporary_path: Path | None = None
     try:
@@ -190,10 +208,11 @@ async def preview_plugin_update(
 async def preview_plugin_update_url(
     plugin_id: str,
     request: models.PluginInstallUrl,
-    admin: User = Depends(get_plugin_manager_admin),
-    db: AsyncSession = Depends(get_db),
+    admin: User = _PLUGIN_ADMIN,
+    db: AsyncSession = _PLUGIN_DB,
     operation: Literal["update", "replace"] = "update",
 ) -> dict[str, Any]:
+    """Inspect a bounded remote package and report its version/permission changes."""
     temporary_path: Path | None = None
     try:
         temporary_path, filename, total = await acquisition._download_remote_file(request.url)
@@ -231,11 +250,12 @@ async def update_plugin_url(
     plugin_id: str,
     request: models.PluginInstallUrl,
     allow_untrusted: bool = False,
-    approved_permissions: list[str] | None = Query(default=None),
-    admin: User = Depends(get_plugin_manager_admin),
-    db: AsyncSession = Depends(get_db),
+    approved_permissions: list[str] | None = _APPROVED_PERMISSIONS,
+    admin: User = _PLUGIN_ADMIN,
+    db: AsyncSession = _PLUGIN_DB,
     operation: Literal["update", "replace"] = "update",
 ) -> dict[str, Any]:
+    """Apply the reviewed remote bytes with explicit consent for non-newer versions."""
     temporary_path: Path | None = None
     upload: UploadFile | None = None
     try:
@@ -254,6 +274,8 @@ async def update_plugin_url(
             admin_password=request.admin_password,
             confirm_dangerous=request.confirm_dangerous,
             expected_digest=request.expected_digest,
+            version_change_confirmed=request.version_change_confirmed,
+            expected_installed_version=request.expected_installed_version,
             source_metadata=acquisition._acquisition_source(request, inspected, entries),
             admin=admin,
             db=db,
@@ -268,15 +290,19 @@ async def update_plugin_url(
 @router.put("/{plugin_id}/update", status_code=200)
 async def update_plugin(
     plugin_id: str,
-    file: UploadFile = File(...),
+    file: UploadFile = _PACKAGE_UPLOAD,
     allow_untrusted: bool = False,
-    approved_permissions: list[str] | None = Query(default=None),
+    approved_permissions: list[str] | None = _APPROVED_PERMISSIONS,
     admin_password: str | None = Form(default=None),
-    confirm_dangerous: bool = Query(default=False),
-    admin: User = Depends(get_plugin_manager_admin),
-    db: AsyncSession = Depends(get_db),
+    confirm_dangerous: bool = _CONFIRM_DANGEROUS,
+    admin: User = _PLUGIN_ADMIN,
+    db: AsyncSession = _PLUGIN_DB,
     operation: Literal["update", "replace"] = "update",
+    version_change_confirmed: bool = False,
+    expected_installed_version: str | None = Form(default=None, min_length=1, max_length=64),
+    expected_digest: str | None = Form(default=None, min_length=64, max_length=64),
 ) -> dict[str, Any]:
+    """Apply uploaded bytes only while the reviewed installed-version snapshot matches."""
     return await _update_plugin_package(
         plugin_id,
         file,
@@ -285,6 +311,11 @@ async def update_plugin(
         approved_permissions=approved_permissions,
         admin_password=admin_password,
         confirm_dangerous=confirm_dangerous,
+        version_change_confirmed=version_change_confirmed,
+        expected_installed_version=expected_installed_version
+        if isinstance(expected_installed_version, str)
+        else None,
+        expected_digest=expected_digest if isinstance(expected_digest, str) else None,
         source_metadata=None,
         admin=admin,
         db=db,
@@ -304,6 +335,8 @@ async def _update_plugin_package(
     db: AsyncSession,
     expected_digest: str | None = None,
     operation: str = "update",
+    version_change_confirmed: bool = False,
+    expected_installed_version: str | None = None,
 ) -> dict[str, Any]:
     return await acquisition._commit_plugin_upload(
         file,
@@ -315,6 +348,8 @@ async def _update_plugin_package(
             admin_password=admin_password,
             confirm_dangerous=confirm_dangerous,
             expected_digest=expected_digest,
+            version_change_confirmed=version_change_confirmed,
+            expected_installed_version=expected_installed_version,
         ),
         source_metadata=source_metadata,
         admin=admin,
