@@ -266,7 +266,8 @@ try {
     window.addEventListener("message", listener);
     window.parent.postMessage({ type: "plugin-api-request", method: "plugin.shortcut", requestId, payload: { key } }, "*");
   }), key);
-  assert.match((await postShortcut("../../settings?section=admin")).error, /Unknown host navigation shortcut/);
+  assert.equal((await postShortcut("../../settings?section=admin")).error, "This host shortcut is disabled, conflicting or unavailable on this page.");
+  assert.equal(new URL(page.url()).pathname, "/plugins/example.scoped-document-viewer/documents");
   await page.locator("#main-content").focus(); await page.keyboard.press("?");
   const shortcutHelp = page.getByRole("dialog", { name: "Keyboard shortcuts", exact: true }); await shortcutHelp.waitFor();
   await postShortcut("g"); assert.equal(new URL(page.url()).pathname, "/plugins/example.scoped-document-viewer/documents");
