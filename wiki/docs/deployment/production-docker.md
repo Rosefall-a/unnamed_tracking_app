@@ -107,5 +107,11 @@ For small deployments, start around 2 CPU cores and 2 GiB RAM and size upward ba
 
 The separate production-runtime smoke workflow validates startup, database migration, login and backend failure states against a real PostgreSQL container.
 
+Database credentials supplied through the individual `POSTGRES_*` values may
+contain reserved characters. The backend encodes them for its connection URL,
+and the migration environment preserves those percent escapes when passing the
+URL through Alembic's configuration parser. An encoded password must not prevent
+a fresh container from migrating or starting.
+
 
 The production-container workflow builds the image and validates Nginx/TLS configuration with deterministic self-signed test material. It does not run the full PostgreSQL/application runtime smoke suite; that remains #206 so normal image CI is not coupled to an environment-dependent integration stack.

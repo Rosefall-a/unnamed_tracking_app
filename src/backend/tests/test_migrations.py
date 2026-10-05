@@ -1,6 +1,5 @@
 from alembic.config import Config
 from alembic.script import ScriptDirectory
-
 from src.database.migrate import decide
 
 
@@ -12,6 +11,22 @@ def test_history_is_a_single_line():
     script = _script()
     assert len(script.get_heads()) == 1
     assert len(script.get_bases()) == 1
+
+
+def test_migration_environment_accepts_url_encoded_database_credentials(monkeypatch):
+    """Load the actual Alembic environment without connecting to a database."""
+    from io import StringIO
+
+    from alembic import command
+    from src.core.config import settings
+
+    url = "postgresql+psycopg://review%40host:pa%25ss%40word%2F%2B%3D@localhost/review"
+    monkeypatch.setattr(settings, "DATABASE_URL", url)
+    output = StringIO()
+    cfg = Config("alembic.ini", output_buffer=output)
+    command.ensure_version(cfg, sql=True)
+    assert cfg.get_main_option("sqlalchemy.url") == url
+    assert "CREATE TABLE alembic_version" in output.getvalue()
 
 
 def test_empty_database_is_built_from_the_migrations():
@@ -56,7 +71,6 @@ def test_every_migration_after_the_baseline_is_safe_to_rerun():
     change nothing, or an existing install would fail to start."""
     from alembic import command
     from sqlalchemy import create_engine, text
-
     from src.core.config import settings
 
     cfg = Config("alembic.ini")
