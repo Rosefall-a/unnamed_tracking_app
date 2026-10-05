@@ -110,8 +110,6 @@ class AssetUrlRequest(BaseModel):
     url: str
 
 
-ALLOWED_ASSET_KINDS = {"key_art", "banner", "logo", "icon"}
-
 
 def _scan_settings_to_preferences(scan_settings: UserScanSettings) -> dict:
     return {
