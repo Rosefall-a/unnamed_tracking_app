@@ -374,3 +374,13 @@ The complete local backend suite passes 955 tests with two existing opt-in skips
 Actual signed package acceptance passes native Jellyfin/Document Browser settings, iframe reader, themes/widgets, account separation, permissions, acquisition, historical version pins, updates, rollback, runtime outages and failure recovery. Strict production Docker/Bubblewrap acceptance passes the official Jellyfin preview using an isolated Jellyfin protocol fixture; it is not a claim of testing a deployed Jellyfin server. PWA browser acceptance passes Settings-based installation, early prompt timing, branding, online/offline custom palettes, updates, rollback, permission withdrawal, uninstall/reinstall and session expiry. Headless install coverage verifies the prompt event boundary rather than a physical operating-system prompt.
 
 The [open-PR integration review](ui-pr-integration-review.md) records exact overlapping heads and preservation plans. The `plugin-manager` target is an ancestor and has a clean merge tree; its full suites were checked independently. Cards, Sets and Bounties remain in this redesign. Final CI results and exact matching host/companion heads are recorded on the Draft PRs before completion.
+
+## Phone Library and Media navigation follow-up
+
+The bottom tabs now remain in the native navigation dialog's top layer while it is open, so Library and Media can switch without blocked touches. Switching a category reveals its links at the top of the menu. Queued close events cannot dismiss a reopened pane, and Home also dismisses the menu when already on Home. Closed phone dialogs retain their target for reliable tab relocation; tablet and desktop behavior is preserved.
+
+The [touch navigation report](../assets/ui-redevelopment/mobile-navigation-conformance.json) passes eight real Light/Dark cases at 320, 390, 430 and 760 pixels, repeated section and route changes, focus containment, Escape, Home dismissal and phone/tablet resizing. All 180 frontend tests, formatting, lint, type checking and production build pass. Cards, Sets and Bounties remain available; main's removal changes were not synchronized.
+
+![Phone navigation in light mode](../assets/ui-redevelopment/mobile-navigation-light.png)
+
+![Phone navigation in dark mode](../assets/ui-redevelopment/mobile-navigation-dark.png)

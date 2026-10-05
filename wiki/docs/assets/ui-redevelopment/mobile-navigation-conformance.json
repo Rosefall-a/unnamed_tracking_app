@@ -1,0 +1,60 @@
+{
+  "backend": "real",
+  "passed": [
+    "Eight real touch cases across four phone widths and Light/Dark",
+    "Library/Media switching in an open menu, repeated route changes, focus containment and dismissal",
+    "Phone/tablet resizing, desktop navigation and preserved Cards/Sets/Bounties"
+  ],
+  "screens": [
+    {
+      "theme": "light",
+      "width": 320,
+      "screen": "phone-touch-navigation"
+    },
+    {
+      "theme": "light",
+      "width": 390,
+      "screen": "phone-touch-navigation"
+    },
+    {
+      "theme": "light",
+      "width": 430,
+      "screen": "phone-touch-navigation"
+    },
+    {
+      "theme": "light",
+      "width": 760,
+      "screen": "phone-touch-navigation"
+    },
+    {
+      "theme": "dark",
+      "width": 320,
+      "screen": "phone-touch-navigation"
+    },
+    {
+      "theme": "dark",
+      "width": 390,
+      "screen": "phone-touch-navigation"
+    },
+    {
+      "theme": "dark",
+      "width": 430,
+      "screen": "phone-touch-navigation"
+    },
+    {
+      "theme": "dark",
+      "width": 760,
+      "screen": "phone-touch-navigation"
+    }
+  ],
+  "widths": [
+    320,
+    390,
+    430,
+    768,
+    1024,
+    1440,
+    1920,
+    2560
+  ]
+}

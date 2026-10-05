@@ -160,9 +160,19 @@ function close() {
     pane.value.close();
   open.value = false;
 }
-function openMenu(group?: string) {
+async function openMenu(group?: string) {
   if (group) expandedGroups.value = new Set([group]);
   open.value = true;
+  if (group && isPhone.value) {
+    await nextTick();
+    const scroll = pane.value?.querySelector<HTMLElement>(".nav-scroll");
+    if (scroll) scroll.scrollTop = 0;
+  }
+}
+function onDialogClose(event: Event) {
+  // Native close events are queued; an old pane must not dismiss a reopened one.
+  if (event.target === pane.value && !pane.value?.hasAttribute("open"))
+    open.value = false;
 }
 watch(
   () => route.fullPath,
@@ -293,7 +303,7 @@ onUnmounted(() => {
     </button>
     <component
       :is="isModal ? 'dialog' : 'aside'"
-      v-if="visible"
+      v-if="visible || isPhone"
       id="app-navigation"
       ref="pane"
       class="navigation"
@@ -305,7 +315,7 @@ onUnmounted(() => {
       :style="{ '--sidebar-width': `${sidebarWidth}px` }"
       aria-label="Main navigation"
       @cancel.prevent="close"
-      @close="open = false"
+      @close="onDialogClose"
       @click="onBackdropClick"
       @keydown="isModal && containModalTab($event, pane)"
     >
@@ -543,50 +553,59 @@ onUnmounted(() => {
         @dblclick="resetSidebarWidth"
       ></div>
     </component>
-    <nav v-if="isPhone" class="mobile-tabs" aria-label="Primary navigation">
-      <RouterLink
-        to="/"
-        :class="{ active: isActive('/') }"
-        :aria-current="isActive('/') ? 'page' : undefined"
-        :title="navigationTooltip('Home', '/')"
-        :aria-keyshortcuts="navigationShortcutForPath('/')"
-        ><AppIcon name="home" /><span>Home</span></RouterLink
-      >
-      <button
-        type="button"
-        :class="{
-          active:
-            isActive('/games') ||
-            isActive('/collections') ||
-            isActive('/cards') ||
-            isActive('/sets'),
-        }"
-        aria-controls="app-navigation"
-        :aria-expanded="open"
-        @click="openMenu('games')"
-      >
-        <AppIcon name="collections" /><span>Library</span>
-      </button>
-      <button
-        type="button"
-        :class="{
-          active: ['/movies', '/tv', '/anime', '/lists'].some(isActive),
-        }"
-        aria-controls="app-navigation"
-        :aria-expanded="open"
-        @click="openMenu('media')"
-      >
-        <AppIcon name="media" /><span>Media</span>
-      </button>
-      <button
-        type="button"
-        aria-controls="app-navigation"
-        :aria-expanded="open"
-        @click="openMenu()"
-      >
-        <AppIcon name="more" /><span>More</span>
-      </button>
-    </nav>
+    <!-- Keep phone tabs in the native modal's top layer while it is open;
+         controls outside showModal() are inert and cannot switch sections. -->
+    <Teleport
+      :to="isPhone && open ? '#app-navigation' : '.nav-shell'"
+      :disabled="!isPhone || !open"
+      defer
+    >
+      <nav v-if="isPhone" class="mobile-tabs" aria-label="Primary navigation">
+        <RouterLink
+          to="/"
+          :class="{ active: isActive('/') }"
+          :aria-current="isActive('/') ? 'page' : undefined"
+          :title="navigationTooltip('Home', '/')"
+          :aria-keyshortcuts="navigationShortcutForPath('/')"
+          @click="close"
+          ><AppIcon name="home" /><span>Home</span></RouterLink
+        >
+        <button
+          type="button"
+          :class="{
+            active:
+              isActive('/games') ||
+              isActive('/collections') ||
+              isActive('/cards') ||
+              isActive('/sets'),
+          }"
+          aria-controls="app-navigation"
+          :aria-expanded="open"
+          @click="openMenu('games')"
+        >
+          <AppIcon name="collections" /><span>Library</span>
+        </button>
+        <button
+          type="button"
+          :class="{
+            active: ['/movies', '/tv', '/anime', '/lists'].some(isActive),
+          }"
+          aria-controls="app-navigation"
+          :aria-expanded="open"
+          @click="openMenu('media')"
+        >
+          <AppIcon name="media" /><span>Media</span>
+        </button>
+        <button
+          type="button"
+          aria-controls="app-navigation"
+          :aria-expanded="open"
+          @click="openMenu()"
+        >
+          <AppIcon name="more" /><span>More</span>
+        </button>
+      </nav>
+    </Teleport>
   </div>
 </template>
 
@@ -915,7 +934,7 @@ dialog.navigation {
     width: calc(100vw - 20px);
     max-width: none;
     height: calc(100dvh - 20px);
-    padding: 20px 16px max(16px, env(safe-area-inset-bottom));
+    padding: 20px 16px calc(96px + env(safe-area-inset-bottom));
     border-radius: 28px;
   }
   .nav-brand {
