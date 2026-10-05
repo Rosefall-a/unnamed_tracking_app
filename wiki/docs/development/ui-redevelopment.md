@@ -609,3 +609,36 @@ following work is verified and their current heads pass CI:
   and full-scope PR updates current; mark PRs ready only after their checks pass.
 - Assess the low-priority Playnite extension download integration and document
   feasibility, adding it only if the existing interfaces make it straightforward.
+
+## Installed themes and current production packages
+
+The basic themes repository now builds inert `.utt` CSS packages for Forest and
+Purple Blocks. Administrators install them through a separate, simpler Themes
+page, review publisher/version details, choose a server default, disable or
+remove packages. Users select their own theme and choose account or browser
+storage. There are no theme workers or automatic updates.
+
+The [production theme report](../assets/ui-redevelopment/theme-ui-conformance.json)
+uses downloaded artifact `11379738621` from themes commit `cf22e35`, with exact
+package hashes. Metadata review, square sidebar controls, independent account
+and cosmetic-cookie choices, reloads, administrator denial, server defaults,
+sign-in/OIDC, disable/re-enable and removal pass. Fifteen captures cover 320,
+390, 768, 1440 and 1920 pixels. Recorded measurements verify the actual sidebar
+and resolved scrollbar colors. An older hard-coded dark rule on `html` was
+removed so the shared theme rules can apply.
+
+The [current CI-package report](../assets/ui-redevelopment/production-ci-package-conformance.json)
+records 32 actual install/start checks from companion commit `ec372bf`, including
+PWA `0.0.3`. All sixteen final unsigned workers remain healthy after restarting
+the committed production container. Reduced-isolation acknowledgement persists
+without an environment override. The current host, companion, PWA and theme
+heads pass their CI workflows; remaining combined browser checks are still in
+progress.
+
+![Server theme management](../assets/ui-redevelopment/themes-manager-1440-light.png)
+
+![Square Purple Blocks interface](../assets/ui-redevelopment/theme-purple-appearance-1440-light.png)
+
+![Purple Blocks on a small phone](../assets/ui-redevelopment/theme-appearance-320-light.png)
+
+![Themed sign-in](../assets/ui-redevelopment/theme-sign-in-390-dark.png)
