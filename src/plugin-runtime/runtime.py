@@ -105,6 +105,19 @@ class RuntimeGatewayError(RuntimePolicyError):
         self.envelope = envelope
         super().__init__(f"plugin gateway request failed: {envelope['message']}")
 
+    @property
+    def status_code(self) -> int:
+        """Retain recognized public failures without exposing internal transport status."""
+        code = self.envelope.get("code")
+        if not isinstance(code, str):
+            return 422
+        return {
+            "invalid_request": 400,
+            "forbidden": 403,
+            "not_found": 404,
+            "conflict": 409,
+        }.get(code, 422)
+
 
 def gateway_error_response(exc: Exception, request: Any) -> dict[str, Any]:
     """Keep the v1 SDK's string error while exposing machine-readable details."""
@@ -877,6 +890,7 @@ class PluginSupervisor:
 
             deadline = time.monotonic() + timeout
             output: bytes | None = None
+            gateway_failure: RuntimeGatewayError | None = None
             stdout_closed = False
             while time.monotonic() < deadline:
                 try:
@@ -923,7 +937,9 @@ class PluginSupervisor:
                             spec.plugin_id, message, user_id=user_id
                         )
                     )
+                    gateway_failure = None
                 except Exception as exc:
+                    gateway_failure = exc if isinstance(exc, RuntimeGatewayError) else None
                     self._log(
                         spec.plugin_id,
                         f"Gateway request failed: {exc}",
@@ -948,6 +964,8 @@ class PluginSupervisor:
                         metadata={"timeout_seconds": timeout},
                     )
                     raise RuntimePolicyError("plugin action timed out")
+                if gateway_failure is not None:
+                    raise gateway_failure
                 raise RuntimePolicyError("plugin action did not return a result")
             process.stdin.close()
             return_code = process.wait(timeout=max(0.01, deadline - time.monotonic()))
@@ -2811,6 +2829,11 @@ class RuntimeHandler(BaseHTTPRequestHandler):
             self._json(404, {"detail": "not found"})
         except KeyError:
             self._json(404, {"detail": "plugin not found"})
+        except RuntimeGatewayError as exc:
+            self._json(
+                exc.status_code,
+                {"detail": PluginSupervisor._redact(exc.envelope["message"])[:1024]},
+            )
         except (RuntimePolicyError, ValueError, json.JSONDecodeError) as exc:
             self._json(422, {"detail": str(exc)})
 

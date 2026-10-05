@@ -41,7 +41,7 @@ def _runtime_error(exc: PluginRuntimeUnavailable) -> HTTPException:
 
 
 def _runtime_request_error(exc: PluginRuntimeRequestError) -> HTTPException:
-    return HTTPException(status_code=422, detail=str(exc))
+    return HTTPException(status_code=exc.status_code, detail=exc.detail)
 
 
 @contextmanager
