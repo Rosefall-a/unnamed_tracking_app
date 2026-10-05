@@ -32,6 +32,13 @@ export default tseslint.config(
   },
 
   {
+    files: ["**/*.{js,mjs,cjs,ts,tsx,vue}"],
+    rules: {
+      "max-lines": ["error", { max: 2000, skipBlankLines: false, skipComments: false }],
+    },
+  },
+
+  {
     // top-level route views, not reusable components — named after the
     // page they render (Login, Settings, Inbox...), so a single word is
     // the natural name here, unlike a component dropped into arbitrary
