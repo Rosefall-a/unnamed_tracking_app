@@ -141,6 +141,34 @@ jobs:
               raise SystemExit(f"Expected exactly one Alembic head, found {len(heads)}: {heads}")
           PY
 
+      - name: Enforce 1,000-line maximum
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          maximum = 1000
+          excluded = Path("src/database/migrations")
+          violations = []
+          for path in Path("src").rglob("*.py"):
+              if excluded in path.parents:
+                  continue
+              text = path.read_text(encoding="utf-8")
+              if "pylint: disable=too-many-lines" in text:
+                  print(f"Skipping line-limit check for {path}: pylint too-many-lines is disabled.")
+                  continue
+              line_count = text.count("\n") + (1 if text else 0)
+              if line_count > maximum:
+                  violations.append((path, line_count))
+
+          if violations:
+              print("Python files exceeding the 1,000-line maximum:")
+              for path, line_count in sorted(violations):
+                  print(f"  {path}: {line_count} lines")
+              raise SystemExit(1)
+
+          print("All non-migration Python files are at or below 1,000 lines.")
+          PY
+
       - name: Run mypy
         run: |
           set -o pipefail

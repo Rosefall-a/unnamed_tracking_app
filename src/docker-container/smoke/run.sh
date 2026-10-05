@@ -146,6 +146,13 @@ echo "Startup diagnostics are reachable before PostgreSQL is ready."
 curl --fail --silent --show-error "$BASE_URL/_startup/status.json?ts=$RANDOM" >"$ARTIFACT_DIR/pre-ready-status.json"
 curl --fail --silent --show-error "$BASE_URL/_startup/details.txt?ts=$RANDOM" >"$ARTIFACT_DIR/pre-ready-details.txt"
 
+echo "Checking that startup API requests return JSON rather than the diagnostic HTML."
+startup_api_status="$(curl --silent --show-error --dump-header "$ARTIFACT_DIR/pre-ready-api-headers.txt" --output "$ARTIFACT_DIR/pre-ready-api.json" --write-out '%{http_code}' "$BASE_URL/api/auth/me")"
+[[ "$startup_api_status" == 503 ]]
+grep -qi '^Content-Type: application/json' "$ARTIFACT_DIR/pre-ready-api-headers.txt"
+grep -qi '^Retry-After: 5' "$ARTIFACT_DIR/pre-ready-api-headers.txt"
+python3 -c 'import json,sys; assert "starting" in json.load(open(sys.argv[1]))["detail"]' "$ARTIFACT_DIR/pre-ready-api.json"
+
 echo "Starting PostgreSQL and waiting for the production entrypoint."
 "${COMPOSE[@]}" start db
 wait_for_db

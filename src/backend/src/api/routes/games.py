@@ -1,4 +1,5 @@
 """API routes for managing games, notes, and game artwork."""
+# pylint: disable=too-many-lines
 
 import asyncio
 import os
