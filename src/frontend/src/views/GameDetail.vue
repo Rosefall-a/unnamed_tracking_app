@@ -18,11 +18,12 @@ import {
   listGameNotes,
   saveGameNote,
   setFavorite,
+  setRatings,
   setStatus,
   setResumeNote,
   setPlaytimeSeconds,
 } from "../services/games";
-import type { FieldChange } from "../services/games";
+import type { FieldChange, GameRatings } from "../services/games";
 import { peekAdjacentGameId } from "../state/libraryNav";
 import {
   uploadGameScreenshots,
@@ -95,17 +96,26 @@ import {
   addFeedItem,
   setTaskRetry,
 } from "../state/taskProgress";
-import type {
-  Achievement,
-  AchievementTier,
-  Game,
-  GameStatus,
-} from "../types/game";
+import type { Achievement, Game, GameStatus } from "../types/game";
 import GameFormModal from "../components/GameFormModal.vue";
-import CollectionPickerModal from "../components/CollectionPickerModal.vue";
+import GameRatingPicker from "../components/GameRatingPicker.vue";
+import GameCollectionsButton from "../components/GameCollectionsButton.vue";
 import BackButton from "../components/BackButton.vue";
 import GameTopBar from "../components/GameTopBar.vue";
 import HeartIcon from "../components/HeartIcon.vue";
+import SegmentedTabs from "../components/SegmentedTabs.vue";
+import type { SegmentOption } from "../components/SegmentedTabs.vue";
+import {
+  isUnlocked,
+  formatPercent,
+  unlockedOn,
+  KIND_LABEL,
+} from "../utils/achievements";
+import {
+  loadAchievementLocal,
+  saveAchievementLocal,
+} from "../state/achievementLocal";
+import type { AchievementLocal } from "../state/achievementLocal";
 import { computeScore } from "../utils/scoring";
 import { marked } from "marked";
 import DOMPurify from "dompurify";
@@ -864,8 +874,7 @@ async function loadGame(id: string) {
         game.value.achievementTotal = achievements.length;
         game.value.achievementPercent = achievements.length
           ? Math.round(
-              (achievements.filter((a) => a.unlockedAt !== null).length /
-                achievements.length) *
+              (achievements.filter(isUnlocked).length / achievements.length) *
                 100,
             )
           : 0;
@@ -1057,12 +1066,7 @@ function isTypingTarget(target: EventTarget | null): boolean {
 }
 function onDetailKeydown(e: KeyboardEvent) {
   if (isTypingTarget(e.target)) return;
-  if (
-    showEditModal.value ||
-    showDeleteConfirm.value ||
-    showCollectionPicker.value
-  )
-    return;
+  if (showEditModal.value || showDeleteConfirm.value) return;
   if (!game.value) return;
   if (e.key === "j" || e.key === "k") {
     const nextId = peekAdjacentGameId(game.value.id, e.key === "j" ? 1 : -1);
@@ -1107,10 +1111,24 @@ async function changeStatus(next: GameStatus) {
   }
 }
 
-const showCollectionPicker = ref(false);
+function onCollectionsChanged(collections: string[]) {
+  if (game.value) game.value.collections = collections;
+}
 
-async function onCollectionAdded() {
-  await loadGame(route.params.id as string);
+async function onRatingsChange(ratings: GameRatings) {
+  if (!game.value) return;
+  const previous = {
+    ratingOverall: game.value.ratingOverall,
+    ratingStory: game.value.ratingStory,
+    ratingGameplay: game.value.ratingGameplay,
+    ratingSound: game.value.ratingSound,
+  };
+  Object.assign(game.value, ratings);
+  try {
+    await setRatings(game.value.id, ratings);
+  } catch {
+    Object.assign(game.value, previous);
+  }
 }
 
 function onDeleteFromModal() {
@@ -1286,7 +1304,7 @@ const statsPlaytimeLabel = computed(() => {
   return `${hours}h ${mins}m`;
 });
 const unlockedAchievements = computed(
-  () => game.value?.achievements.filter((a) => a.unlockedAt !== null) ?? [],
+  () => game.value?.achievements.filter(isUnlocked) ?? [],
 );
 const firstUnlockedAt = computed(() => {
   const dates = unlockedAchievements.value
@@ -2094,44 +2112,260 @@ function displayFileName(filename: string): string {
   return parts.length > 1 ? parts.slice(1).join("_") : filename;
 }
 
-function sortedAchievements(achievements: Achievement[]) {
-  return [...achievements].sort((a, b) => {
-    if (a.unlockedAt === null && b.unlockedAt === null) return 0;
-    if (a.unlockedAt === null) return 1;
-    if (b.unlockedAt === null) return -1;
-    return b.unlockedAt.localeCompare(a.unlockedAt);
-  });
+// ---- achievements tab ----
+// A hidden achievement's description isn't something the services publish
+// until it's unlocked, so say that instead of leaving a blank.
+function descriptionOf(a: Achievement): string {
+  if (a.description) return a.description;
+  if (a.hidden) {
+    return isUnlocked(a)
+      ? "No description is available for this hidden achievement."
+      : "This one is hidden, so its description isn't available until you unlock it.";
+  }
+  return "";
 }
+type AchFilter = "all" | "unlocked" | "locked" | "hidden" | "pinned";
+type AchSortKey = "unlocked" | "rarity" | "name";
+const achFilter = ref<AchFilter>("all");
+const achSortKey = ref<AchSortKey>("unlocked");
+const achSortDir = ref<"asc" | "desc">("desc");
+const achProvider = ref("all");
+const achSearch = ref("");
+const achLocal = ref<AchievementLocal>({ pins: [], notes: {}, overall: "" });
+const revealedIds = ref<Set<string>>(new Set());
+const noteOpen = ref<string | null>(null);
+const noteDraft = ref("");
+const overallOpen = ref(false);
+const overallDraft = ref("");
 
-function deriveTier(achievement: Achievement): AchievementTier {
-  if (achievement.tierOverride) return achievement.tierOverride;
-  const rarity = achievement.rarityPercent;
-  if (rarity === null || rarity === undefined) return "bronze";
-  if (rarity <= 20) return "gold";
-  if (rarity <= 50) return "silver";
-  return "bronze";
-}
-
-const isPlatinumEarned = computed(
-  () =>
-    !!game.value &&
-    game.value.achievements.length > 0 &&
-    game.value.achievements.every((a) => a.unlockedAt !== null),
+watch(
+  () => game.value?.id,
+  (id) => {
+    achLocal.value = id
+      ? loadAchievementLocal(id)
+      : { pins: [], notes: {}, overall: "" };
+    revealedIds.value = new Set();
+    achProvider.value = "all";
+    noteOpen.value = null;
+    overallOpen.value = false;
+  },
+  { immediate: true },
 );
 
-const trophyCounts = computed(() => {
-  const counts = { bronze: 0, silver: 0, gold: 0 };
-  if (!game.value) return counts;
-  for (const a of game.value.achievements) {
-    if (a.unlockedAt !== null) counts[deriveTier(a)]++;
+function persistAch() {
+  if (game.value) saveAchievementLocal(game.value.id, achLocal.value);
+}
+const isPinned = (a: Achievement) => achLocal.value.pins.includes(a.id);
+function togglePin(a: Achievement) {
+  const pins = achLocal.value.pins;
+  achLocal.value = {
+    ...achLocal.value,
+    pins: isPinned(a) ? pins.filter((id) => id !== a.id) : [...pins, a.id],
+  };
+  persistAch();
+}
+// a hidden achievement stays hidden until it's unlocked or you reveal it
+const isHiddenLocked = (a: Achievement) =>
+  !!a.hidden && !isUnlocked(a) && !revealedIds.value.has(a.id);
+function revealAchievement(a: Achievement) {
+  revealedIds.value = new Set(revealedIds.value).add(a.id);
+}
+function hideAchievement(a: Achievement) {
+  const next = new Set(revealedIds.value);
+  next.delete(a.id);
+  revealedIds.value = next;
+}
+function toggleNote(a: Achievement) {
+  if (noteOpen.value === a.id) {
+    noteOpen.value = null;
+    return;
   }
-  return counts;
+  noteOpen.value = a.id;
+  noteDraft.value = achLocal.value.notes[a.id] ?? "";
+}
+function saveNote(a: Achievement) {
+  const text = noteDraft.value.trim();
+  const notes = { ...achLocal.value.notes };
+  if (text) notes[a.id] = text;
+  else delete notes[a.id];
+  achLocal.value = { ...achLocal.value, notes };
+  persistAch();
+  noteOpen.value = null;
+}
+function clearNote(a: Achievement) {
+  noteDraft.value = "";
+  saveNote(a);
+}
+function toggleOverall() {
+  overallOpen.value = !overallOpen.value;
+  if (overallOpen.value) overallDraft.value = achLocal.value.overall;
+}
+function saveOverall() {
+  achLocal.value = { ...achLocal.value, overall: overallDraft.value.trim() };
+  persistAch();
+  overallOpen.value = false;
+}
+
+const unlockedCount = computed(
+  () => game.value?.achievements.filter(isUnlocked).length ?? 0,
+);
+const achFilterOptions = computed<SegmentOption[]>(() => {
+  const list = game.value?.achievements ?? [];
+  return [
+    { value: "all", label: "All", count: list.length },
+    { value: "unlocked", label: "Unlocked", count: unlockedCount.value },
+    {
+      value: "locked",
+      label: "Locked",
+      count: list.length - unlockedCount.value,
+    },
+    {
+      value: "hidden",
+      label: "Hidden",
+      count: list.filter((a) => a.hidden && !isUnlocked(a)).length,
+    },
+    { value: "pinned", label: "Pinned", count: list.filter(isPinned).length },
+  ];
 });
 
-function formatUnlockedAt(dateStr: string) {
-  const d = new Date(dateStr);
-  return `${d.toLocaleDateString()} ${d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
+// Clicking a column header sorts by it; clicking it again flips the order.
+// A new column starts the way people usually want it: newest unlocks first,
+// rarest first, A to Z.
+function sortBy(key: AchSortKey) {
+  if (achSortKey.value === key) {
+    achSortDir.value = achSortDir.value === "asc" ? "desc" : "asc";
+  } else {
+    achSortKey.value = key;
+    achSortDir.value = key === "unlocked" ? "desc" : "asc";
+  }
 }
+const sortMark = (key: AchSortKey) =>
+  achSortKey.value === key ? (achSortDir.value === "asc" ? "▲" : "▼") : "";
+const ariaSort = (key: AchSortKey) =>
+  achSortKey.value === key
+    ? achSortDir.value === "asc"
+      ? "ascending"
+      : "descending"
+    : "none";
+// the same four orders as one dropdown, for screens too narrow for headers
+const MOBILE_SORTS: Record<string, [AchSortKey, "asc" | "desc"]> = {
+  recent: ["unlocked", "desc"],
+  rarest: ["rarity", "asc"],
+  easiest: ["rarity", "desc"],
+  name: ["name", "asc"],
+};
+const mobileSort = computed({
+  get: () =>
+    Object.entries(MOBILE_SORTS).find(
+      ([, [k, d]]) => k === achSortKey.value && d === achSortDir.value,
+    )?.[0] ?? "",
+  set: (v: string) => {
+    const pick = MOBILE_SORTS[v];
+    if (pick) [achSortKey.value, achSortDir.value] = pick;
+  },
+});
+
+// unlocked ones come before locked ones, then by when (newest or oldest first)
+function byUnlocked(a: Achievement, b: Achievement, dir: number): number {
+  const ua = isUnlocked(a);
+  const ub = isUnlocked(b);
+  if (ua !== ub) return ua ? -1 : 1;
+  if (!ua) return 0;
+  if (a.unlockedAt && b.unlockedAt)
+    return dir * a.unlockedAt.localeCompare(b.unlockedAt);
+  if (a.unlockedAt) return -1;
+  if (b.unlockedAt) return 1;
+  return 0;
+}
+// no percent known sorts last either way round
+function byRarity(a: Achievement, b: Achievement, dir: number): number {
+  const pa = a.rarityPercent ?? null;
+  const pb = b.rarityPercent ?? null;
+  if (pa === null && pb === null) return 0;
+  if (pa === null) return 1;
+  if (pb === null) return -1;
+  return dir * (pa - pb);
+}
+
+// the platforms its achievements come from, for the filter that only shows
+// when a game has achievements from more than one
+const achProviders = computed(() => [
+  ...new Set(
+    (game.value?.achievements ?? [])
+      .map((a) => a.provider)
+      .filter((x): x is string => !!x),
+  ),
+]);
+
+const shownAchievements = computed(() => {
+  const q = achSearch.value.trim().toLowerCase();
+  const list = (game.value?.achievements ?? []).filter((a) => {
+    const unlocked = isUnlocked(a);
+    if (achProvider.value !== "all" && a.provider !== achProvider.value)
+      return false;
+    if (achFilter.value === "unlocked" && !unlocked) return false;
+    if (achFilter.value === "locked" && unlocked) return false;
+    if (achFilter.value === "hidden" && !(a.hidden && !unlocked)) return false;
+    if (achFilter.value === "pinned" && !isPinned(a)) return false;
+    if (q) {
+      // a hidden achievement's text isn't searchable, so a search can't spoil it
+      if (isHiddenLocked(a)) return false;
+      return (
+        a.name.toLowerCase().includes(q) ||
+        (a.description ?? "").toLowerCase().includes(q)
+      );
+    }
+    return true;
+  });
+  const dir = achSortDir.value === "asc" ? 1 : -1;
+  const compare = (a: Achievement, b: Achievement) => {
+    if (achSortKey.value === "rarity") return byRarity(a, b, dir);
+    if (achSortKey.value === "name") {
+      // a hidden one sorts under its placeholder, so its place can't give it away
+      const label = (x: Achievement) =>
+        isHiddenLocked(x) ? "Hidden achievement" : x.name;
+      return dir * label(a).localeCompare(label(b));
+    }
+    return byUnlocked(a, b, dir);
+  };
+  // pinned always float to the top, whatever the sort
+  return [...list].sort(
+    (a, b) => Number(isPinned(b)) - Number(isPinned(a)) || compare(a, b),
+  );
+});
+
+// A few figures about your own progress, each only when there is real data
+// behind it: nothing here is estimated.
+const achStats = computed(() => {
+  const list = game.value?.achievements ?? [];
+  const done = list.filter(isUnlocked);
+  const stats: { label: string; value: string }[] = [];
+  if (list.length)
+    stats.push({
+      label: "complete",
+      value: `${Math.round((done.length / list.length) * 100)}%`,
+    });
+  const percents = done
+    .map((a) => a.rarityPercent)
+    .filter((p): p is number => typeof p === "number");
+  if (percents.length)
+    stats.push({
+      label: "rarest unlock",
+      value: formatPercent(Math.min(...percents)),
+    });
+  const times = done.map((a) => a.unlockedAt).filter((t): t is string => !!t);
+  if (times.length) {
+    const last = times.reduce((m, t) => (t > m ? t : m));
+    stats.push({
+      label: "last unlock",
+      value: new Date(last).toLocaleDateString(),
+    });
+    const weekAgo = Date.now() - 7 * 86_400_000;
+    const week = times.filter((t) => new Date(t).getTime() >= weekAgo).length;
+    if (week) stats.push({ label: "in the past 7 days", value: String(week) });
+  }
+  return stats;
+});
 
 function formatPlaytime(minutes: number) {
   if (minutes === 0) return "Not played yet";
@@ -2183,13 +2417,6 @@ function formatPlaytime(minutes: number) {
       @close="showEditModal = false"
       @saved="onGameSaved"
       @delete="onDeleteFromModal"
-    />
-
-    <CollectionPickerModal
-      v-if="showCollectionPicker"
-      :game="game"
-      @close="showCollectionPicker = false"
-      @added="onCollectionAdded"
     />
 
     <div
@@ -2268,9 +2495,15 @@ function formatPlaytime(minutes: number) {
                 {{ s }}
               </option>
             </select>
-            <span v-if="tally" class="badge rating-badge">
-              ★ {{ tally.sum.toFixed(1) }}
-            </span>
+            <GameRatingPicker
+              :model-value="{
+                ratingOverall: game.ratingOverall,
+                ratingStory: game.ratingStory,
+                ratingGameplay: game.ratingGameplay,
+                ratingSound: game.ratingSound,
+              }"
+              @change="onRatingsChange"
+            />
             <span v-if="game.dateAdded" class="badge">
               {{ new Date(game.dateAdded).toLocaleDateString() }}
             </span>
@@ -2329,23 +2562,10 @@ function formatPlaytime(minutes: number) {
             >
               <HeartIcon :filled="game.favorite" />
             </button>
-            <button
-              class="icon-btn"
-              type="button"
-              title="Add to collection"
-              @click="showCollectionPicker = true"
-            >
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
-              </svg>
-            </button>
+            <GameCollectionsButton
+              :game="game"
+              @changed="onCollectionsChanged"
+            />
           </div>
         </div>
       </div>
@@ -2689,115 +2909,286 @@ function formatPlaytime(minutes: number) {
     </section>
 
     <section v-else-if="activeTab === 'Achievements'" class="achievements">
-      <div class="achievements-header">
-        <h2>Achievements</h2>
-        <span class="percent">{{ game.achievementPercent }}%</span>
-      </div>
-
-      <div class="trophy-summary">
-        <div class="trophy-count">
-          <span
-            class="trophy-badge trophy-badge-platinum"
-            :class="{ dim: !isPlatinumEarned }"
-          ></span>
-          <span>{{ isPlatinumEarned ? 1 : 0 }}</span>
-        </div>
-        <div class="trophy-count">
-          <span class="trophy-badge trophy-badge-gold"></span>
-          <span>{{ trophyCounts.gold }}</span>
-        </div>
-        <div class="trophy-count">
-          <span class="trophy-badge trophy-badge-silver"></span>
-          <span>{{ trophyCounts.silver }}</span>
-        </div>
-        <div class="trophy-count">
-          <span class="trophy-badge trophy-badge-bronze"></span>
-          <span>{{ trophyCounts.bronze }}</span>
-        </div>
-      </div>
-
-      <ul class="achievement-list">
-        <li
-          v-for="achievement in sortedAchievements(game.achievements)"
-          :key="achievement.id"
+      <div class="ach-head">
+        <h2 class="ach-title">Achievements</h2>
+        <span class="ach-count"
+          >{{ unlockedCount }} / {{ game.achievements.length }}</span
         >
-          <router-link
-            :to="{
-              name: 'achievement-detail',
-              params: { gameId: game.id, achievementId: achievement.id },
+        <div class="ach-tools">
+          <input
+            v-model="achSearch"
+            type="text"
+            class="ui-field ach-search"
+            placeholder="Search achievements…"
+            aria-label="Search achievements"
+          />
+          <select
+            v-if="achProviders.length > 1"
+            v-model="achProvider"
+            class="ui-field ach-sort"
+            aria-label="Filter by platform"
+          >
+            <option value="all">All platforms</option>
+            <option v-for="pr in achProviders" :key="pr" :value="pr">
+              {{ pr }}
+            </option>
+          </select>
+          <select
+            v-model="mobileSort"
+            class="ui-field ach-sort ach-mobile-sort"
+            aria-label="Sort achievements"
+          >
+            <option value="recent">Recently unlocked</option>
+            <option value="rarest">Rarest first</option>
+            <option value="easiest">Easiest first</option>
+            <option value="name">A to Z</option>
+          </select>
+          <button
+            type="button"
+            class="ui-btn ui-btn-secondary ui-btn-sm"
+            :class="{ on: overallOpen || !!achLocal.overall }"
+            @click="toggleOverall"
+          >
+            Overall notes
+          </button>
+        </div>
+      </div>
+
+      <div v-if="overallOpen" class="ach-overall">
+        <textarea
+          v-model="overallDraft"
+          class="ach-textarea"
+          rows="3"
+          placeholder="Plans, routes and reminders for hunting this game"
+          aria-label="Overall achievement notes"
+        ></textarea>
+        <div class="ach-note-actions">
+          <button
+            type="button"
+            class="ui-btn ui-btn-primary ui-btn-sm"
+            @click="saveOverall"
+          >
+            Save
+          </button>
+          <button
+            type="button"
+            class="ui-btn ui-btn-ghost ui-btn-sm"
+            @click="overallOpen = false"
+          >
+            Cancel
+          </button>
+          <span class="ach-hint">Only you can see this</span>
+        </div>
+      </div>
+
+      <div v-if="achStats.length" class="ach-stats">
+        <span v-for="st in achStats" :key="st.label"
+          ><b>{{ st.value }}</b> {{ st.label }}</span
+        >
+      </div>
+
+      <SegmentedTabs
+        v-if="game.achievements.length"
+        :options="achFilterOptions"
+        :model-value="achFilter"
+        aria-label="Filter achievements"
+        @update:model-value="achFilter = $event as AchFilter"
+      />
+
+      <p v-if="!game.achievements.length" class="ach-empty">
+        No achievements yet. They appear here after a library sync for Steam,
+        PlayStation or RetroAchievements.
+      </p>
+      <p v-else-if="!shownAchievements.length" class="ach-empty">
+        Nothing matches that search or filter.
+      </p>
+
+      <div
+        v-if="game.achievements.length && shownAchievements.length"
+        class="ach-cols"
+        role="row"
+      >
+        <span></span>
+        <button
+          type="button"
+          class="ach-colbtn left"
+          :aria-sort="ariaSort('name')"
+          @click="sortBy('name')"
+        >
+          Achievement <i>{{ sortMark("name") }}</i>
+        </button>
+        <button
+          type="button"
+          class="ach-colbtn"
+          :aria-sort="ariaSort('rarity')"
+          @click="sortBy('rarity')"
+        >
+          <i>{{ sortMark("rarity") }}</i> Players
+        </button>
+        <button
+          type="button"
+          class="ach-colbtn"
+          :aria-sort="ariaSort('unlocked')"
+          @click="sortBy('unlocked')"
+        >
+          <i>{{ sortMark("unlocked") }}</i> Unlocked
+        </button>
+        <span></span>
+      </div>
+      <ul v-if="shownAchievements.length" class="ach-list">
+        <li v-for="a in shownAchievements" :key="a.id" class="ach-item">
+          <div
+            class="ach-row"
+            :class="{
+              done: isUnlocked(a),
+              lock: !isUnlocked(a),
+              pin: isPinned(a),
             }"
-            class="achievement-row"
-            :class="{ unlocked: achievement.unlockedAt !== null }"
           >
             <div
-              class="achievement-icon"
+              class="ach-icon"
               :style="
-                achievement.hidden && achievement.unlockedAt === null
-                  ? {}
-                  : { backgroundImage: `url(${game.coverImageUrl})` }
+                a.iconUrl && !isHiddenLocked(a)
+                  ? { backgroundImage: `url(${a.iconUrl})` }
+                  : {}
               "
-            >
-              <span
-                class="achievement-badge"
-                :class="
-                  achievement.unlockedAt !== null
-                    ? `badge-${deriveTier(achievement)}`
-                    : 'badge-locked'
-                "
-              >
-                <template
-                  v-if="achievement.hidden && achievement.unlockedAt === null"
-                  >?</template
-                >
-              </span>
-            </div>
+            ></div>
 
-            <div class="achievement-info">
-              <template
-                v-if="achievement.hidden && achievement.unlockedAt === null"
-              >
-                <span class="achievement-name">Hidden Trophy</span>
-                <span class="achievement-description"
-                  >Unlock this achievement to reveal it.</span
+            <div class="ach-main">
+              <div class="ach-name">
+                <span v-if="isHiddenLocked(a)" class="ach-hidden-name"
+                  >Hidden achievement</span
                 >
-              </template>
-              <template v-else>
-                <span class="achievement-name">{{ achievement.name }}</span>
+                <router-link
+                  v-else
+                  :to="{
+                    name: 'achievement-detail',
+                    params: { gameId: game.id, achievementId: a.id },
+                  }"
+                  class="ach-link"
+                  >{{ a.name }}</router-link
+                >
                 <span
-                  v-if="achievement.description"
-                  class="achievement-description"
-                  >{{ achievement.description }}</span
+                  v-if="a.kind && !isHiddenLocked(a)"
+                  class="ach-tag"
+                  :class="a.kind"
+                  >{{ KIND_LABEL[a.kind] }}</span
                 >
-              </template>
-
-              <div
-                v-if="achievement.unlockedAt !== null"
-                class="achievement-unlocked-at"
-              >
-                Unlocked {{ formatUnlockedAt(achievement.unlockedAt) }}
               </div>
-              <div
-                v-else-if="
-                  achievement.progressCurrent != null &&
-                  achievement.progressTarget
-                "
-                class="achievement-progress"
-              >
-                <div class="progress-bar">
-                  <div
-                    class="progress-fill"
-                    :style="{
-                      width: `${Math.min(100, (achievement.progressCurrent / achievement.progressTarget) * 100)}%`,
-                    }"
-                  ></div>
-                </div>
-                <span class="progress-label"
-                  >{{ achievement.progressCurrent }} /
-                  {{ achievement.progressTarget }}</span
-                >
+              <div class="ach-desc">
+                <template v-if="isHiddenLocked(a)">
+                  Details for this achievement will be revealed once unlocked.
+                  <button
+                    type="button"
+                    class="ach-reveal"
+                    @click="revealAchievement(a)"
+                  >
+                    Show
+                  </button>
+                </template>
+                <template v-else>
+                  {{ descriptionOf(a) }}
+                  <button
+                    v-if="a.hidden && !isUnlocked(a)"
+                    type="button"
+                    class="ach-reveal"
+                    @click="hideAchievement(a)"
+                  >
+                    Hide
+                  </button>
+                </template>
               </div>
             </div>
-          </router-link>
+
+            <div class="ach-col">
+              <template v-if="a.rarityPercent != null">
+                <div class="ach-big">{{ formatPercent(a.rarityPercent) }}</div>
+                <div class="ach-lab">of players</div>
+              </template>
+              <div v-else class="ach-big ach-dim">–</div>
+            </div>
+
+            <div class="ach-col">
+              <template v-if="isUnlocked(a)">
+                <template v-if="a.unlockedAt">
+                  <div class="ach-big ach-small">
+                    {{ unlockedOn(a.unlockedAt).date }}
+                  </div>
+                  <div class="ach-lab">{{ unlockedOn(a.unlockedAt).time }}</div>
+                </template>
+                <div v-else class="ach-big ach-small">Unlocked</div>
+              </template>
+              <template
+                v-else-if="a.progressCurrent != null && a.progressTarget"
+              >
+                <div class="ach-big ach-small">
+                  {{ a.progressCurrent }} / {{ a.progressTarget }}
+                </div>
+                <div class="ach-bar">
+                  <i
+                    :style="{
+                      width: `${Math.min(100, (a.progressCurrent / a.progressTarget) * 100)}%`,
+                    }"
+                  ></i>
+                </div>
+              </template>
+              <div v-else class="ach-big ach-small ach-dim">Locked</div>
+            </div>
+
+            <div class="ach-acts">
+              <button
+                type="button"
+                class="ach-btn"
+                :class="{ on: isPinned(a) }"
+                :aria-pressed="isPinned(a)"
+                @click="togglePin(a)"
+              >
+                {{ isPinned(a) ? "Pinned" : "Pin" }}
+              </button>
+              <button
+                type="button"
+                class="ach-btn"
+                :class="{ on: !!achLocal.notes[a.id] || noteOpen === a.id }"
+                @click="toggleNote(a)"
+              >
+                {{ achLocal.notes[a.id] ? "Note · 1" : "Note" }}
+              </button>
+            </div>
+          </div>
+
+          <div v-if="noteOpen === a.id" class="ach-note-box">
+            <textarea
+              v-model="noteDraft"
+              class="ach-textarea"
+              rows="2"
+              placeholder="How you got it, or how you plan to"
+              :aria-label="`Note on ${a.name}`"
+            ></textarea>
+            <div class="ach-note-actions">
+              <button
+                type="button"
+                class="ui-btn ui-btn-primary ui-btn-sm"
+                @click="saveNote(a)"
+              >
+                Save
+              </button>
+              <button
+                type="button"
+                class="ui-btn ui-btn-ghost ui-btn-sm"
+                @click="noteOpen = null"
+              >
+                Cancel
+              </button>
+              <button
+                v-if="achLocal.notes[a.id]"
+                type="button"
+                class="ui-btn ui-btn-ghost ui-btn-sm"
+                @click="clearNote(a)"
+              >
+                Delete note
+              </button>
+            </div>
+          </div>
         </li>
       </ul>
     </section>
@@ -4220,7 +4611,9 @@ function formatPlaytime(minutes: number) {
   color: #f2f2f2;
   min-height: 100vh;
   background: #0d0d0d;
-  overflow: hidden;
+  /* clip, not hidden: hidden would turn this into a scroll container and stop
+     the top bar sticking */
+  overflow-x: clip;
 }
 .detail-skeleton-body {
   padding: 24px;
@@ -4383,7 +4776,12 @@ function formatPlaytime(minutes: number) {
   color: #9c9c9c;
   text-transform: capitalize;
 }
+.status-select option {
+  background: #171717;
+  color: #f2f2f2;
+}
 .status-select {
+  color-scheme: dark;
   appearance: none;
   -webkit-appearance: none;
   -moz-appearance: none;
@@ -4442,9 +4840,6 @@ function formatPlaytime(minutes: number) {
   border-color: rgba(214, 138, 52, 0.4);
   background: rgba(214, 138, 52, 0.16);
 }
-.rating-badge {
-  color: #d68a34;
-}
 .stale-badge {
   background: rgba(220, 38, 38, 0.18);
   color: #fca5a5;
@@ -4453,10 +4848,10 @@ function formatPlaytime(minutes: number) {
 .achievement-progress-badge {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 5px;
-  border: none;
   cursor: pointer;
-  font: inherit;
+  font-family: inherit;
   text-transform: none;
 }
 .achievement-progress-badge svg {
@@ -4975,163 +5370,324 @@ function formatPlaytime(minutes: number) {
   font-size: 0.7rem;
   color: #666;
 }
-.trophy-summary {
-  display: flex;
-  gap: 20px;
-  margin: 16px 0 24px;
-}
-.trophy-count {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: #ccc;
-  font-size: 14px;
-  font-weight: 600;
-}
-.trophy-badge {
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  display: inline-block;
-}
-.trophy-badge-bronze {
-  background: #b06a35;
-  border: 2px solid #7a4a25;
-}
-.trophy-badge-silver {
-  background: #b8b8b8;
-  border: 2px solid #7a7a7a;
-}
-.trophy-badge-gold {
-  background: #d4af37;
-  border: 2px solid #9a7a1a;
-}
-.trophy-badge-platinum {
-  background: #a8b8c8;
-  border: 2px solid #6a7a8a;
-}
-.trophy-badge.dim {
-  background: #2a2a2a;
-  border-color: #3a3a3a;
-}
-.achievement-list {
-  list-style: none;
-  padding: 0;
-  margin-top: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.achievement-row {
-  display: flex;
-  gap: 14px;
-  padding: 12px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid #232323;
-  border-radius: 10px;
-  align-items: center;
-  text-decoration: none;
-  color: inherit;
-}
-.achievement-icon {
-  position: relative;
-  width: 56px;
-  height: 56px;
-  border-radius: 10px;
-  background-size: cover;
-  background-position: center;
-  background-color: #1a1a1a;
-  flex-shrink: 0;
-}
-.achievement-row:not(.unlocked) .achievement-icon {
-  filter: grayscale(100%) brightness(0.5);
-}
-.achievement-badge {
-  position: absolute;
-  bottom: -6px;
-  right: -6px;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  font-weight: 700;
-  color: #1a1a1a;
-  border: 2px solid #121212;
-}
-.badge-bronze {
-  background: #b06a35;
-}
-.badge-silver {
-  background: #b8b8b8;
-}
-.badge-gold {
-  background: #d4af37;
-}
-.badge-locked {
-  background: #3a3a3a;
-  color: #888;
-}
-.achievement-info {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.achievement-name {
-  color: #fff;
-  font-weight: 600;
-  font-size: 15px;
-}
-.achievement-row:not(.unlocked) .achievement-name {
-  color: #999;
-}
-.achievement-description {
-  color: #999;
-  font-size: 13px;
-}
-.achievement-unlocked-at {
-  color: #d68a34;
-  font-size: 12px;
-  margin-top: 4px;
-}
-.achievement-progress {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 4px;
-}
-.progress-bar {
-  flex: 1;
-  max-width: 160px;
-  height: 6px;
-  background: #2a2a2a;
-  border-radius: 3px;
-  overflow: hidden;
-}
-.progress-fill {
-  height: 100%;
-  background: #d68a34;
-}
-.progress-label {
-  color: #999;
-  font-size: 12px;
-  white-space: nowrap;
-}
 .achievements {
   max-width: 1180px;
   margin: 0 auto;
   padding: 22px 24px 60px;
   box-sizing: border-box;
 }
-.achievements-header {
+.ach-head {
   display: flex;
   align-items: center;
   gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
 }
-.percent {
+.ach-title {
+  font-weight: 800;
+  font-size: 1.25rem;
+  margin: 0;
+}
+.ach-count {
+  margin-right: auto;
+  font-size: 1rem;
+  color: #9c9c9c;
+  font-variant-numeric: tabular-nums;
+}
+.ach-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.ach-search {
+  width: 220px;
+  height: 34px;
+}
+.ach-sort {
+  height: 34px;
+}
+.ach-overall,
+.ach-note-box {
+  margin: 0 0 12px;
+  padding: 12px;
+  background: #1a1a1a;
+  border: 1px solid #202020;
+  border-radius: 10px;
+}
+.ach-note-box {
+  margin: 4px 0 0;
+}
+.ach-textarea {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  padding: 8px 10px;
+  background: #0d0d0d;
+  border: 1px solid #2b2b2b;
+  border-radius: 8px;
+  color: #f2f2f2;
+  font: inherit;
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+.ach-textarea::placeholder {
+  color: #666;
+}
+.ach-textarea:focus {
+  outline: none;
+  border-color: rgba(214, 138, 52, 0.7);
+}
+.ach-note-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+.ach-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 22px;
+  margin: 0 0 12px;
+  font-size: 0.85rem;
+  color: #666;
+}
+.ach-stats b {
+  color: #f2f2f2;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.ach-cols {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) 96px 120px 156px;
+  column-gap: 20px;
+  align-items: center;
+  margin: 14px 0 0;
+  padding: 0 19px 0 13px;
+}
+.ach-colbtn {
+  padding: 4px 0;
+  background: none;
+  border: none;
+  color: #666;
+  font: inherit;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  text-align: right;
+  cursor: pointer;
+}
+.ach-colbtn.left {
+  text-align: left;
+}
+.ach-colbtn:hover,
+.ach-colbtn[aria-sort="ascending"],
+.ach-colbtn[aria-sort="descending"] {
   color: #d68a34;
+}
+.ach-colbtn i {
+  font-style: normal;
+  font-size: 0.6rem;
+}
+.ach-mobile-sort {
+  display: none;
+}
+.ach-hint {
+  margin-left: auto;
+  font-size: 0.72rem;
+  color: #666;
+}
+.ach-empty {
+  margin: 0;
+  padding: 24px 0;
+  color: #666;
+  font-size: 0.85rem;
+}
+.ach-list {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+.ach-row {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) 96px 120px 156px;
+  column-gap: 20px;
+  align-items: center;
+  min-height: 88px;
+  padding: 12px 18px 12px 12px;
+  background: #1a1a1a;
+  border: 1px solid #202020;
+  border-radius: 12px;
+  transition: border-color 0.15s ease;
+}
+.ach-row:hover {
+  border-color: rgba(214, 138, 52, 0.4);
+}
+.ach-row.done {
+  background: #16201a;
+  border-color: #22352a;
+}
+.ach-row.pin {
+  border-color: rgba(214, 138, 52, 0.5);
+}
+.ach-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 10px;
+  background-color: #2a2a2a;
+  background-size: cover;
+  background-position: center;
+}
+.ach-row.lock .ach-icon {
+  background-color: #1f1f1f;
+  filter: grayscale(1) brightness(0.6);
+}
+.ach-main {
+  min-width: 0;
+}
+.ach-name {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-weight: 700;
+  font-size: 1.05rem;
+  line-height: 1.3;
+}
+.ach-link {
+  color: #f2f2f2;
+  text-decoration: none;
+}
+.ach-link:hover {
+  color: #d68a34;
+}
+.ach-row.lock .ach-link,
+.ach-hidden-name {
+  color: #9c9c9c;
+}
+.ach-tag {
+  padding: 2px 9px;
+  border-radius: 5px;
+  background: #262626;
+  color: #9c9c9c;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1.5;
+}
+.ach-tag.missable {
+  background: rgba(217, 111, 111, 0.14);
+  color: #d96f6f;
+}
+.ach-tag.win_condition {
+  background: rgba(214, 138, 52, 0.14);
+  color: #d68a34;
+}
+.ach-desc {
+  margin-top: 3px;
+  font-size: 0.88rem;
+  line-height: 1.5;
+  color: #9c9c9c;
+}
+.ach-reveal {
+  padding: 0;
+  background: none;
+  border: none;
+  color: #d68a34;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.ach-col {
+  text-align: right;
+}
+.ach-big {
+  font-size: 1.05rem;
+  font-weight: 700;
+  line-height: 1.25;
+  font-variant-numeric: tabular-nums;
+}
+.ach-big.ach-small {
+  font-size: 0.9rem;
+}
+.ach-dim {
+  color: #666;
+}
+.ach-lab {
+  margin-top: 3px;
+  font-size: 0.72rem;
+  color: #666;
+}
+.ach-bar {
+  width: 72px;
+  height: 5px;
+  margin: 6px 0 0 auto;
+  border-radius: 999px;
+  background: #2a2a2a;
+  overflow: hidden;
+}
+.ach-bar i {
+  display: block;
+  height: 100%;
+  background: #d68a34;
+}
+.ach-acts {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.ach-btn {
+  padding: 6px 13px;
+  background: transparent;
+  border: 1px solid #2b2b2b;
+  border-radius: 7px;
+  color: #9c9c9c;
+  font: inherit;
+  font-size: 0.78rem;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.ach-btn:hover {
+  color: #f2f2f2;
+}
+.ach-btn.on {
+  color: #d68a34;
+  border-color: rgba(214, 138, 52, 0.5);
+}
+@media (max-width: 720px) {
+  .ach-cols {
+    display: none;
+  }
+  .ach-mobile-sort {
+    display: block;
+  }
+  .ach-row {
+    grid-template-columns: 52px minmax(0, 1fr);
+    row-gap: 8px;
+    min-height: 0;
+  }
+  .ach-icon {
+    width: 52px;
+    height: 52px;
+  }
+  .ach-col,
+  .ach-acts {
+    grid-column: 2;
+    justify-content: flex-start;
+    text-align: left;
+  }
+  .ach-col {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+  }
+  .ach-bar {
+    margin-left: 0;
+  }
 }
 .notes-panel {
   width: 100%;

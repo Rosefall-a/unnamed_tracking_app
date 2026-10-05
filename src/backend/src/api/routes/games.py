@@ -436,6 +436,11 @@ async def list_game_achievements(
             "icon_url": a.icon_url,
             "unlocked": a.unlocked,
             "unlocked_at": a.unlocked_at,
+            "hidden": a.hidden,
+            "global_percent": a.global_percent,
+            # how the provider classifies it (RetroAchievements only): one of
+            # progression, missable or win_condition
+            "tier": a.tier,
         }
         for a in result.scalars().all()
     ]

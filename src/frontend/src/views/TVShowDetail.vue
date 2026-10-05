@@ -1097,7 +1097,12 @@ async function onRatingChange(value: number | null) {
   border-color: rgba(111, 191, 115, 0.4);
   color: #6fbf73;
 }
+.status-select option {
+  background: #171717;
+  color: #f2f2f2;
+}
 .status-select {
+  color-scheme: dark;
   appearance: none;
   -webkit-appearance: none;
   -moz-appearance: none;

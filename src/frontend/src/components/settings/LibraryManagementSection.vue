@@ -2,6 +2,8 @@
 import { ref, computed, onMounted } from "vue";
 import {
   fetchGames,
+  fetchAchievementsSummary,
+  refreshGameAchievements,
   refreshGameMetadata,
   previewGameMetadataRefresh,
   fetchGameTrash,
@@ -242,6 +244,72 @@ async function applyPreviewedRefresh() {
   }
 }
 
+// --- Achievements: re-reads every game's achievements from the service it
+// came from (Steam, PlayStation, RetroAchievements), one light call per game,
+// with no library sync. Only games that already have achievements are
+// refreshed. ---------------------------------------------------------------
+const refreshingAchievements = ref(false);
+const achievementProgress = ref({ done: 0, total: 0 });
+const achievementSummary = ref<{
+  games: number;
+  achievements: number;
+  unlocked: number;
+  hidden: number;
+  failed: number;
+  reason: string | null;
+} | null>(null);
+const achievementError = ref<string | null>(null);
+
+async function refreshAllAchievements() {
+  refreshingAchievements.value = true;
+  achievementSummary.value = null;
+  achievementError.value = null;
+  let taskId: string | null = null;
+  try {
+    const [allGames, withAchievements] = await Promise.all([
+      fetchGames(),
+      fetchAchievementsSummary(),
+    ]);
+    const targets = allGames.filter((g) => g.id in withAchievements);
+    achievementProgress.value = { done: 0, total: targets.length };
+    taskId = startTask("Refreshing achievements", targets.length);
+    const totals = { achievements: 0, unlocked: 0, hidden: 0, failed: 0 };
+    let reason: string | null = null;
+    let done = 0;
+    await runInBatches(targets, REFRESH_CONCURRENCY, async (game: Game) => {
+      try {
+        const result = await refreshGameAchievements(game.id);
+        totals.achievements += result.achievements;
+        totals.unlocked += result.unlocked;
+        totals.hidden += result.hidden;
+      } catch (err) {
+        totals.failed++;
+        // keep the first reason so a failure says why, instead of just a count
+        reason ??= err instanceof Error ? err.message : "Request failed";
+      }
+      done++;
+      achievementProgress.value.done = done;
+      if (taskId) updateTask(taskId, done);
+    });
+    achievementSummary.value = {
+      games: targets.length - totals.failed,
+      ...totals,
+      reason,
+    };
+    if (taskId)
+      completeTask(
+        taskId,
+        `${targets.length - totals.failed} refreshed, ${totals.failed} failed`,
+      );
+  } catch (err) {
+    achievementError.value =
+      err instanceof Error ? err.message : "Failed to refresh achievements";
+    if (taskId) errorTask(taskId, achievementError.value);
+  } finally {
+    refreshingAchievements.value = false;
+  }
+}
+
 // duplicate folder_location scan, entirely client-side against the already
 // fetched game list, no new backend endpoint needed
 const scanningDuplicates = ref(false);
@@ -386,6 +454,52 @@ async function restoreGameById(game: TrashedGame) {
           {{ entry.result === "no-match" ? "no exact match" : "failed" }}
         </li>
       </ul>
+    </div>
+  </section>
+
+  <section class="settings-section">
+    <h2>Refresh Achievements</h2>
+    <p class="section-hint">
+      Re-reads the achievements of every game that has some, from the service
+      each one came from (Steam, PlayStation or RetroAchievements): names,
+      descriptions, icons, which are hidden, what you've unlocked and when, and
+      how many players have each. It doesn't sync your library or change
+      anything else about your games, and your notes and pins are kept.
+    </p>
+    <button
+      type="button"
+      class="secondary-button"
+      :disabled="refreshingAchievements"
+      @click="refreshAllAchievements"
+    >
+      {{
+        refreshingAchievements
+          ? `Refreshing… (${achievementProgress.done}/${achievementProgress.total})`
+          : "Refresh achievements"
+      }}
+    </button>
+    <div v-if="achievementError" class="form-error">{{ achievementError }}</div>
+    <div
+      v-if="!refreshingAchievements && achievementSummary"
+      class="refresh-summary"
+    >
+      <p>
+        {{ achievementSummary.games }} game{{
+          achievementSummary.games === 1 ? "" : "s"
+        }}
+        refreshed:
+        {{ achievementSummary.achievements.toLocaleString() }} achievements,
+        {{ achievementSummary.unlocked.toLocaleString() }} unlocked,
+        {{ achievementSummary.hidden.toLocaleString() }} hidden<template
+          v-if="achievementSummary.failed"
+        >
+          . {{ achievementSummary.failed }} failed<template
+            v-if="achievementSummary.reason"
+          >
+            ({{ achievementSummary.reason }})</template
+          ></template
+        >.
+      </p>
     </div>
   </section>
 

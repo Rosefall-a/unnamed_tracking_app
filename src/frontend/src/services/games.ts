@@ -1,5 +1,6 @@
 import { mockGames } from "../data/mockGames";
 import { failedRequest } from "./apiError";
+import { normalizeKind } from "../utils/achievements";
 import type {
   Achievement,
   AchievementsProvider,
@@ -216,6 +217,12 @@ interface BackendAchievement {
   icon_url: string | null;
   unlocked: boolean;
   unlocked_at: number | null;
+  // not sent yet; read when the backend starts storing them
+  tier?: string | null;
+  hidden?: boolean | null;
+  global_percent?: number | null;
+  progress_current?: number | null;
+  progress_target?: number | null;
 }
 
 export interface FieldChange {
@@ -260,7 +267,7 @@ export async function fetchGameAchievements(
   id: string,
 ): Promise<Achievement[]> {
   if (import.meta.env.VITE_USE_MOCK_DATA === "true") {
-    return [];
+    return mockGames.find((g) => g.id === id)?.achievements ?? [];
   }
   const response = await fetch(`/api/game/${id}/achievements`, {
     credentials: "include",
@@ -275,7 +282,15 @@ export async function fetchGameAchievements(
     id: a.id,
     name: a.name,
     description: a.description,
+    unlocked: a.unlocked,
     unlockedAt: a.unlocked ? unixSecondsToIso(a.unlocked_at) : null,
+    provider: a.provider,
+    iconUrl: a.icon_url,
+    kind: normalizeKind(a.tier),
+    hidden: a.hidden ?? false,
+    rarityPercent: a.global_percent ?? null,
+    progressCurrent: a.progress_current ?? null,
+    progressTarget: a.progress_target ?? null,
   }));
 }
 
@@ -301,6 +316,30 @@ export async function fetchAchievementsSummary(): Promise<
       `Failed to fetch achievements summary: ${response.status} ${response.statusText}`,
     );
   }
+  return await response.json();
+}
+
+// Re-reads one game's achievements from the service it came from (Steam,
+// PlayStation or RetroAchievements): what each is, whether it's hidden, what
+// you've unlocked and when, and how many players have it. The backend does that
+// for just this game, with no library sync.
+export interface AchievementsRefresh {
+  provider: string;
+  achievements: number;
+  unlocked: number;
+  hidden: number;
+}
+export async function refreshGameAchievements(
+  gameId: string,
+): Promise<AchievementsRefresh> {
+  if (import.meta.env.VITE_USE_MOCK_DATA === "true") {
+    return { provider: "Mock", achievements: 0, unlocked: 0, hidden: 0 };
+  }
+  const response = await fetch(
+    `/api/library-sync/games/${gameId}/achievements`,
+    { method: "POST", credentials: "include" },
+  );
+  if (!response.ok) throw await failedRequest(response);
   return await response.json();
 }
 
@@ -1169,6 +1208,40 @@ export async function attachGameAssetFromUrl(
   }
 
   return await response.json();
+}
+
+export interface GameRatings {
+  ratingOverall: number | null;
+  ratingStory: number | null;
+  ratingGameplay: number | null;
+  ratingSound: number | null;
+}
+
+export async function setRatings(
+  gameId: string,
+  ratings: GameRatings,
+): Promise<Game> {
+  if (import.meta.env.VITE_USE_MOCK_DATA === "true") {
+    const index = mockGames.findIndex((g) => g.id === gameId);
+    if (index === -1) throw new Error(`Game ${gameId} not found`);
+    mockGames[index] = { ...mockGames[index], ...ratings };
+    return mockGames[index];
+  }
+
+  const response = await fetch(`/api/game/update/${gameId}`, {
+    method: "PATCH",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      rating_overall: ratings.ratingOverall,
+      rating_story: ratings.ratingStory,
+      rating_gameplay: ratings.ratingGameplay,
+      rating_soundtrack: ratings.ratingSound,
+    }),
+  });
+  if (!response.ok) throw await failedRequest(response);
+  const raw: BackendGame = await response.json();
+  return mapBackendGame(raw);
 }
 
 export async function setFavorite(

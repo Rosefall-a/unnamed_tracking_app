@@ -866,7 +866,12 @@ async function onRatingChange(value: number | null) {
   color: #9c9c9c;
   text-transform: capitalize;
 }
+.status-select option {
+  background: #171717;
+  color: #f2f2f2;
+}
 .status-select {
+  color-scheme: dark;
   appearance: none;
   -webkit-appearance: none;
   -moz-appearance: none;

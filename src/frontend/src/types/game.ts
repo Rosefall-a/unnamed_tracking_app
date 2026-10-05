@@ -10,6 +10,10 @@ export type GameStatus =
 
 export type AchievementTier = "bronze" | "silver" | "gold";
 
+// how a provider classifies an achievement (RetroAchievements is the only
+// one that does today)
+export type AchievementKind = "progression" | "missable" | "win_condition";
+
 // a game's relationship to its parentGameId, kept in sync with the
 // backend's GameRelationshipType (api/schemas/game.py); adding a new value
 // is a code change on both sides, never a migration
@@ -29,8 +33,16 @@ export interface Achievement {
   id: string;
   name: string;
   description?: string | null;
+  // when it was unlocked, if the provider says; PlayStation and
+  // RetroAchievements unlocks may have no time
   unlockedAt: string | null;
+  // whether it is unlocked at all; use isUnlocked() rather than the time
+  unlocked?: boolean;
+  provider?: string;
+  iconUrl?: string | null;
+  kind?: AchievementKind | null;
   hidden?: boolean;
+  // the share of all players who have it (0-100)
   rarityPercent?: number | null;
   tierOverride?: AchievementTier | null;
   progressCurrent?: number | null;

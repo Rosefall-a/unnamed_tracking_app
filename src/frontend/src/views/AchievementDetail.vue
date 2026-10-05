@@ -1,7 +1,12 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { fetchGame } from "../services/games";
+import { fetchGame, fetchGameAchievements } from "../services/games";
+import { isUnlocked } from "../utils/achievements";
+import {
+  loadAchievementLocal,
+  saveAchievementLocal,
+} from "../state/achievementLocal";
 import type { Achievement, Game } from "../types/game";
 
 const route = useRoute();
@@ -18,7 +23,11 @@ async function loadGame() {
   loading.value = true;
   error.value = null;
   try {
-    game.value = await fetchGame(route.params.gameId as string);
+    const id = route.params.gameId as string;
+    const fetched = await fetchGame(id);
+    // the game itself comes without its achievements, they're a separate call
+    if (fetched) fetched.achievements = await fetchGameAchievements(id);
+    game.value = fetched;
   } catch (err) {
     error.value = err instanceof Error ? err.message : "Failed to load game";
   } finally {
@@ -38,14 +47,25 @@ watch(
   () => [route.params.gameId, route.params.achievementId],
   async () => {
     await loadGame();
-    noteDraft.value = achievement.value?.notes ?? "";
+    noteDraft.value = achievement.value
+      ? (loadAchievementLocal(route.params.gameId as string).notes[
+          achievement.value.id
+        ] ?? "")
+      : "";
   },
   { immediate: true },
 );
 
 function saveNote() {
   if (!achievement.value) return;
-  achievement.value.notes = noteDraft.value;
+  // kept on this device for now, the same place the Achievements tab keeps it
+  const gameId = route.params.gameId as string;
+  const local = loadAchievementLocal(gameId);
+  const text = noteDraft.value.trim();
+  if (text) local.notes[achievement.value.id] = text;
+  else delete local.notes[achievement.value.id];
+  saveAchievementLocal(gameId, local);
+  achievement.value.notes = text;
   noteSaved.value = true;
   setTimeout(() => {
     noteSaved.value = false;
@@ -93,15 +113,21 @@ function goBack() {
     <div class="achievement-header">
       <div
         class="achievement-icon-large"
-        :style="{ backgroundImage: `url(${game?.coverImageUrl})` }"
+        :style="
+          achievement.iconUrl
+            ? { backgroundImage: `url(${achievement.iconUrl})` }
+            : {}
+        "
       ></div>
       <div>
         <h1>{{ achievement.name }}</h1>
         <p v-if="achievement.description" class="achievement-desc">
           {{ achievement.description }}
         </p>
-        <p v-if="achievement.unlockedAt" class="achievement-unlocked">
-          Unlocked {{ formatUnlockedAt(achievement.unlockedAt) }}
+        <p v-if="isUnlocked(achievement)" class="achievement-unlocked">
+          Unlocked<template v-if="achievement.unlockedAt">
+            {{ formatUnlockedAt(achievement.unlockedAt) }}</template
+          >
         </p>
         <p v-else class="achievement-locked">Not yet unlocked</p>
       </div>
