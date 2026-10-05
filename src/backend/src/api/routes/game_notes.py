@@ -7,9 +7,10 @@ from fastapi import APIRouter, Body, Depends, HTTPException, Response, status
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.auth import get_current_user
-from src.database.session import get_db
 from src.api.routes.game_helpers import _game_note_path, _get_game_or_404, _normalize_note_name
+from src.core.auth import get_current_user
+from src.database.models import User
+from src.database.session import get_db
 
 router = APIRouter()
 _DB_DEPENDENCY = Depends(get_db)
@@ -29,7 +30,7 @@ class NoteRename(BaseModel):
 async def create_game_note(
     game_id: UUID,
     note_name: str,
-    payload: NoteWrite = _BODY_DOTDOTDOT,
+    payload: NoteWrite = _BODY_DOTDOT_DOT,
     db: AsyncSession = _DB_DEPENDENCY,
     current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> dict[str, str | None]:
@@ -54,7 +55,7 @@ async def create_game_note(
 async def update_game_note(
     game_id: UUID,
     note_name: str,
-    payload: NoteWrite = _BODY_DOTDOTDOT,
+    payload: NoteWrite = _BODY_DOTDOT_DOT,
     db: AsyncSession = _DB_DEPENDENCY,
     current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> dict[str, str | None]:
@@ -74,7 +75,7 @@ async def update_game_note(
 async def rename_game_note(
     game_id: UUID,
     note_name: str,
-    payload: NoteRename = _BODY_DOTDOTDOT,
+    payload: NoteRename = _BODY_DOTDOT_DOT,
     db: AsyncSession = _DB_DEPENDENCY,
     current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> dict[str, str | None]:
@@ -196,5 +197,3 @@ async def delete_game_note(
         "note_name": _normalize_note_name(note_name),
         "status": "deleted",
     }
-
-
