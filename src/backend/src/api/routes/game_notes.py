@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.routes.game_helpers import _game_note_path, _get_game_or_404, _normalize_note_name
 from src.core.auth import get_current_user
-from src.database.models import User
+from src.database.models.user import User
 from src.database.session import get_db
 
 router = APIRouter()
