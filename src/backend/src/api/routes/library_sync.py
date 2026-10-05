@@ -496,6 +496,7 @@ def _steam_achievement_rows(
             "description": defn.get("description")
             or unlocked_by_name.get(api_name, {}).get("description")
             or (descriptions or {}).get(api_name.lower())
+            or (descriptions or {}).get(f"name:{(defn.get('displayName') or '').lower()}")
             or None,
             "icon_url": defn.get("icon")
             if unlocked_by_name.get(api_name, {}).get("achieved")

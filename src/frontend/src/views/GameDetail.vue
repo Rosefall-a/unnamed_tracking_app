@@ -69,7 +69,7 @@ import {
   fetchArchives,
   createArchive,
   addArchiveVersion,
-  renameArchive,
+  updateArchive,
   deleteArchive,
   deleteArchiveVersion,
   fetchWorldMaps,
@@ -93,6 +93,8 @@ import { isGuess, unlockSeconds } from "../utils/mediaDate";
 import { normalizePlatformFamily } from "../utils/platforms";
 import { frameFromSource } from "../utils/videoThumbnail";
 import GameArchivesPanel from "../components/GameArchivesPanel.vue";
+import ArchiveCard from "../components/ArchiveCard.vue";
+import ArchiveEditDialog from "../components/ArchiveEditDialog.vue";
 import GameNotesPanel from "../components/GameNotesPanel.vue";
 import { preferences, preferencesLoaded } from "../state/preferences";
 import { OPTIONAL_TABS, resolvePage, planTabs } from "../utils/gamePage";
@@ -1850,7 +1852,6 @@ function formatArchiveDate(unixSeconds: number): string {
 // --- Saves (named, versioned archives) --------------------------------------
 const saveArchives = ref<GameArchiveData[]>([]);
 const saveArchivesLoaded = ref(false);
-const expandedSaveId = ref<string | null>(null);
 const saveUploading = ref<Set<string>>(new Set()); // archive id, or '' for "new save"
 
 async function refreshSaveArchives() {
@@ -1924,21 +1925,56 @@ async function onAddSaveVersion(archive: GameArchiveData, files: File[]) {
   await attempt();
 }
 
-async function onRenameArchive(archive: GameArchiveData, isWorld: boolean) {
+// The save or world being edited. Held by id, so the dialog reads the current
+// copy from the list and shows a version as soon as it is added or removed.
+const editingArchive = ref<{ id: string; isWorld: boolean } | null>(null);
+const editingArchiveLive = computed(() => {
+  const e = editingArchive.value;
+  if (!e) return null;
+  const list: GameArchiveData[] = e.isWorld
+    ? worldMaps.value
+    : saveArchives.value;
+  return list.find((a) => a.id === e.id) ?? null;
+});
+function openArchiveEdit(archive: GameArchiveData, isWorld: boolean) {
+  editingArchive.value = { id: archive.id, isWorld };
+}
+
+async function saveArchiveDetails(
+  archive: GameArchiveData,
+  isWorld: boolean,
+  patch: { name?: string; note?: string | null; tags?: string[] },
+) {
   if (!game.value) return;
-  const name = await prompt({
-    title: "Rename",
-    message: "Name",
-    defaultValue: archive.name,
-    confirmLabel: "Rename",
-  });
-  if (!name || !name.trim() || name.trim() === archive.name) return;
   try {
-    await renameArchive(game.value.id, archive.id, name.trim());
+    await updateArchive(game.value.id, archive.id, patch);
     if (isWorld) await refreshWorldMaps();
     else await refreshSaveArchives();
   } catch (err) {
-    filesError.value = err instanceof Error ? err.message : "Failed to rename";
+    filesError.value = err instanceof Error ? err.message : "Failed to save";
+  }
+}
+
+async function bulkDeleteArchives(items: GameArchiveData[], isWorld: boolean) {
+  if (!game.value || !items.length) return;
+  const ok = await confirm({
+    title: "Move to trash",
+    message: `Move ${items.length} ${isWorld ? "world" : "save"}${items.length === 1 ? "" : "s"} to trash? ${items.length === 1 ? "It stays" : "They stay"} recoverable for 7 days, then ${items.length === 1 ? "is" : "are"} purged for good.`,
+    confirmLabel: "Move to trash",
+    danger: true,
+  });
+  if (!ok) return;
+  try {
+    for (const archive of items) await deleteArchive(game.value.id, archive.id);
+    if (isWorld) {
+      await refreshWorldMaps();
+      await refreshWorldTrash();
+    } else {
+      await refreshSaveArchives();
+      await refreshSaveTrash();
+    }
+  } catch (err) {
+    filesError.value = err instanceof Error ? err.message : "Failed to delete";
   }
 }
 
@@ -2466,6 +2502,25 @@ function formatPlaytime(minutes: number) {
       @close="showEditModal = false"
       @saved="onGameSaved"
       @delete="onDeleteFromModal"
+    />
+
+    <ArchiveEditDialog
+      v-if="editingArchive && editingArchiveLive"
+      :archive="editingArchiveLive"
+      :noun="editingArchive.isWorld ? 'world' : 'save'"
+      :uploading="saveUploading.has(editingArchive.id)"
+      @close="editingArchive = null"
+      @save="
+        (a, patch) => saveArchiveDetails(a, editingArchive!.isWorld, patch)
+      "
+      @delete="onDeleteArchive($event, editingArchive!.isWorld)"
+      @add-version="
+        (a, files) =>
+          editingArchive!.isWorld
+            ? onAddWorldVersion(a, files)
+            : onAddSaveVersion(a, files)
+      "
+      @delete-version="(a, v) => onDeleteVersion(a, v, editingArchive!.isWorld)"
     />
 
     <div
@@ -3984,108 +4039,22 @@ function formatPlaytime(minutes: number) {
         :uploading="saveUploading.has('')"
         :error="filesError"
         @files="onNewSaveSelected"
+        @bulk-delete="bulkDeleteArchives($event, false)"
         @restore="onRestoreArchive($event, false)"
         @problem="filesError = $event"
       >
-        <template #card="{ archive }">
-          <div class="archive-card">
-            <div class="archive-card-header">
-              <span class="archive-name">{{ archive.name }}</span>
-              <div class="archive-card-actions">
-                <button
-                  type="button"
-                  class="icon-button"
-                  title="Rename"
-                  @click="onRenameArchive(archive, false)"
-                >
-                  ✎
-                </button>
-                <button
-                  type="button"
-                  class="icon-button"
-                  title="Delete"
-                  @click="onDeleteArchive(archive, false)"
-                >
-                  ✕
-                </button>
-              </div>
-            </div>
-            <p class="archive-meta">
-              {{ archive.versions.length }} version{{
-                archive.versions.length === 1 ? "" : "s"
-              }}
-              · latest
-              {{
-                archive.versions[0]
-                  ? formatArchiveDate(archive.versions[0].uploaded_at)
-                  : "N/A"
-              }}
-              <template v-if="archive.versions[0]">
-                · {{ formatFileSize(archive.versions[0].size) }}
-              </template>
-            </p>
-            <div class="archive-actions-row">
-              <a
-                v-if="archive.versions[0]"
-                :href="archive.versions[0].url"
-                class="secondary-button small"
-                >Download latest</a
-              >
-              <label class="secondary-button small upload-label">
-                {{
-                  saveUploading.has(archive.id)
-                    ? "Uploading…"
-                    : "Add new version"
-                }}
-                <input
-                  type="file"
-                  class="hidden-input"
-                  :disabled="saveUploading.has(archive.id)"
-                  @change="
-                    onAddSaveVersion(
-                      archive,
-                      Array.from(
-                        ($event.target as HTMLInputElement).files ?? [],
-                      ),
-                    )
-                  "
-                />
-              </label>
-              <button
-                v-if="archive.versions.length > 1"
-                type="button"
-                class="secondary-button small"
-                @click="
-                  expandedSaveId =
-                    expandedSaveId === archive.id ? null : archive.id
-                "
-              >
-                {{ expandedSaveId === archive.id ? "Hide history" : "History" }}
-              </button>
-            </div>
-            <ul v-if="expandedSaveId === archive.id" class="archive-history">
-              <li
-                v-for="version in archive.versions.slice(1)"
-                :key="version.id"
-                class="archive-history-row"
-              >
-                <a :href="version.url" class="file-name">{{
-                  formatArchiveDate(version.uploaded_at)
-                }}</a>
-                <span class="file-size">{{
-                  formatFileSize(version.size)
-                }}</span>
-                <button
-                  type="button"
-                  class="tile-remove-inline"
-                  title="Delete this version"
-                  @click="onDeleteVersion(archive, version, false)"
-                >
-                  ✕
-                </button>
-              </li>
-            </ul>
-          </div>
+        <template #card="{ archive, selecting, selected, toggle }">
+          <ArchiveCard
+            :archive="archive"
+            kind="save"
+            :selecting="selecting"
+            :selected="selected"
+            :uploading="saveUploading.has(archive.id)"
+            @toggle="toggle"
+            @edit="openArchiveEdit($event, false)"
+            @delete="onDeleteArchive($event, false)"
+            @add-version="onAddSaveVersion"
+          />
         </template>
       </GameArchivesPanel>
     </section>
@@ -4121,117 +4090,59 @@ function formatPlaytime(minutes: number) {
         :uploading="saveUploading.has('')"
         :error="filesError"
         @files="onNewWorldSelected"
+        @bulk-delete="bulkDeleteArchives($event, true)"
         @restore="onRestoreArchive($event, true)"
         @problem="filesError = $event"
       >
-        <template #card="{ archive: world }">
-          <div
-            class="world-map-card"
-            :class="{ rendering: world.status === 'rendering' }"
+        <template #card="{ archive: world, selecting, selected, toggle }">
+          <ArchiveCard
+            :archive="world"
+            kind="world"
+            :selecting="selecting"
+            :selected="selected"
+            :uploading="saveUploading.has(world.id)"
+            :thumbnail-url="
+              world.has_thumbnail
+                ? worldMapThumbnailUrl(game.id, world.id)
+                : null
+            "
+            :rendering="world.status === 'rendering'"
+            @toggle="toggle"
+            @open="viewWorldMap($event.id)"
+            @edit="openArchiveEdit($event, true)"
+            @delete="onDeleteArchive($event, true)"
+            @add-version="onAddWorldVersion"
           >
-            <div
-              class="world-map-thumb"
-              @click="world.has_thumbnail ? viewWorldMap(world.id) : undefined"
-            >
-              <img
-                v-if="world.has_thumbnail"
-                :src="worldMapThumbnailUrl(game.id, world.id)"
-                alt=""
-              />
-              <div v-else class="world-map-thumb-placeholder">
-                <svg
-                  viewBox="0 0 24 24"
-                  width="28"
-                  height="28"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="1.5"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                >
-                  <path d="M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3z" />
-                  <path d="M9 3v15M15 6v15" />
-                </svg>
-              </div>
-              <div
-                v-if="world.status === 'rendering'"
-                class="world-map-progress"
+            <span class="world-map-status" :class="world.status">{{
+              world.detail || world.status
+            }}</span>
+            <div class="world-map-card-actions">
+              <button
+                type="button"
+                class="secondary-button small"
+                :disabled="
+                  worldMapStarting.has(world.id) || world.status === 'rendering'
+                "
+                @click="startWorldMapRender(world.id)"
               >
-                <div class="world-map-progress-fill"></div>
-              </div>
+                {{
+                  world.status === "rendering"
+                    ? "Rendering…"
+                    : world.has_thumbnail
+                      ? "Re-render"
+                      : "Render Map"
+                }}
+              </button>
+              <button
+                v-if="world.has_thumbnail"
+                type="button"
+                class="primary-button small"
+                @click="viewWorldMap(world.id)"
+              >
+                View Map
+              </button>
             </div>
-            <div class="world-map-card-body">
-              <div class="archive-card-header">
-                <span class="archive-name">{{ world.name }}</span>
-                <div class="archive-card-actions">
-                  <button
-                    type="button"
-                    class="icon-button"
-                    title="Rename"
-                    @click="onRenameArchive(world, true)"
-                  >
-                    ✎
-                  </button>
-                  <button
-                    type="button"
-                    class="icon-button"
-                    title="Delete"
-                    @click="onDeleteArchive(world, true)"
-                  >
-                    ✕
-                  </button>
-                </div>
-              </div>
-              <span class="world-map-status" :class="world.status">{{
-                world.detail || world.status
-              }}</span>
-              <div class="world-map-card-actions">
-                <button
-                  type="button"
-                  class="secondary-button small"
-                  :disabled="
-                    worldMapStarting.has(world.id) ||
-                    world.status === 'rendering'
-                  "
-                  @click="startWorldMapRender(world.id)"
-                >
-                  {{
-                    world.status === "rendering"
-                      ? "Rendering…"
-                      : world.has_thumbnail
-                        ? "Re-render"
-                        : "Render Map"
-                  }}
-                </button>
-                <button
-                  v-if="world.has_thumbnail"
-                  type="button"
-                  class="primary-button small"
-                  @click="viewWorldMap(world.id)"
-                >
-                  View Map
-                </button>
-                <label class="secondary-button small upload-label">
-                  {{
-                    saveUploading.has(world.id) ? "Uploading…" : "New version"
-                  }}
-                  <input
-                    type="file"
-                    class="hidden-input"
-                    :disabled="saveUploading.has(world.id)"
-                    @change="
-                      onAddWorldVersion(
-                        world,
-                        Array.from(
-                          ($event.target as HTMLInputElement).files ?? [],
-                        ),
-                      )
-                    "
-                  />
-                </label>
-              </div>
-            </div>
-          </div>
+          </ArchiveCard>
         </template>
         <template #after>
           <iframe

@@ -10,6 +10,7 @@ import {
   createMovie,
 } from "../services/movies";
 import type { Movie, MovieStatus } from "../types/movie";
+import { fetchRemaining } from "../utils/loadPages";
 import MediaLibraryView from "../components/library/MediaLibraryView.vue";
 import type {
   LibraryCardVM,
@@ -60,6 +61,7 @@ const items = computed(() => movies.value.map(toVM));
 let loadRequest = 0;
 const total = ref(0);
 const statusCounts = ref<Record<string, number>>({});
+const scoreRanks = ref<Record<string, number>>({});
 const pageSize = 100;
 const currentSearch = ref("");
 async function load(search = "") {
@@ -72,6 +74,7 @@ async function load(search = "") {
     movies.value = page.items;
     total.value = page.total;
     statusCounts.value = page.statusCounts;
+    scoreRanks.value = page.scoreRanks;
   } catch (e) {
     error.value = e instanceof Error ? e.message : "Failed to load movies.";
   } finally {
@@ -91,6 +94,25 @@ async function loadMore() {
   } catch (e) {
     error.value =
       e instanceof Error ? e.message : "Failed to load more movies.";
+  } finally {
+    loading.value = false;
+  }
+}
+// Sorting and filtering need every title, so this fetches the rest at once.
+async function loadAll() {
+  if (loading.value || movies.value.length >= total.value) return;
+  loading.value = true;
+  const request = loadRequest;
+  try {
+    const rest = await fetchRemaining(
+      (offset, limit) => fetchMoviesPage(offset, limit, currentSearch.value),
+      movies.value.length,
+      total.value,
+    );
+    if (request !== loadRequest) return;
+    movies.value.push(...rest);
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "Failed to load all movies.";
   } finally {
     loading.value = false;
   }
@@ -221,6 +243,7 @@ function detailRoute(id: string): string {
     :items="items"
     :total="total"
     :status-counts="statusCounts"
+    :score-ranks="scoreRanks"
     :loading="loading"
     :error="error"
     :detail-route="detailRoute"
@@ -228,6 +251,7 @@ function detailRoute(id: string): string {
     :create-from-result="createFromResult"
     @search="load"
     @load-more="loadMore"
+    @load-all="loadAll"
     @toggle-favorite="onToggleFavorite"
     @save-note="onSaveNote"
     @save-edit="onSaveEdit"

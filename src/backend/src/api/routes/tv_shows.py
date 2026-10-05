@@ -16,7 +16,7 @@ from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.schemas.pagination import PaginatedResponse
+from src.api.schemas.pagination import PaginatedResponse, score_ranks
 from src.api.schemas.tv_show import (
     EpisodesBulkWatched,
     EpisodeUpdate,
@@ -239,6 +239,7 @@ async def list_shows(
         offset=skip,
         limit=limit,
         status_counts=status_counts,
+        score_ranks=await score_ranks(db, TVShow, current_user.id),
     )
 
 @router.get("/get/{show_id}", response_model=TVShowRead)

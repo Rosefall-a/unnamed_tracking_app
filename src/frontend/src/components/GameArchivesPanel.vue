@@ -4,7 +4,7 @@
 // them: the title and count, search and sort, the big Add card, dropping files
 // anywhere over the panel, and the Recently deleted list. Dropping a file
 // starts a new archive; adding a version to an existing one stays on its card.
-import { ref, computed, onMounted, onBeforeUnmount } from "vue";
+import { ref, computed, watch, onMounted, onBeforeUnmount } from "vue";
 import type { GameArchiveData, TrashedArchive } from "../services/gameArchives";
 
 const props = defineProps<{
@@ -23,12 +23,18 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   files: [files: File[]];
+  "bulk-delete": [archives: T[]];
   restore: [archive: TrashedArchive];
   problem: [message: string];
 }>();
 
 defineSlots<{
-  card(props: { archive: T }): unknown;
+  card(props: {
+    archive: T;
+    selecting: boolean;
+    selected: boolean;
+    toggle: () => void;
+  }): unknown;
   after(): unknown;
 }>();
 
@@ -50,7 +56,13 @@ const sort = ref<"updated" | "oldest" | "name">("updated");
 const visible = computed(() => {
   let list = [...props.archives];
   const q = query.value.trim().toLowerCase();
-  if (q) list = list.filter((a) => a.name.toLowerCase().includes(q));
+  if (q)
+    list = list.filter(
+      (a) =>
+        a.name.toLowerCase().includes(q) ||
+        (a.note ?? "").toLowerCase().includes(q) ||
+        (a.tags ?? []).some((t) => t.toLowerCase().includes(q)),
+    );
   if (sort.value === "name") list.sort((a, b) => a.name.localeCompare(b.name));
   else
     list.sort((a, b) =>
@@ -60,6 +72,43 @@ const visible = computed(() => {
     );
   return list;
 });
+
+// ---- select several, then delete them together ----
+const selecting = ref(false);
+const picked = ref<Set<string>>(new Set());
+const pickedArchives = computed(() =>
+  props.archives.filter((a) => picked.value.has(a.id)),
+);
+function toggleSelecting() {
+  selecting.value = !selecting.value;
+  picked.value = new Set();
+}
+function toggle(id: string) {
+  const next = new Set(picked.value);
+  if (next.has(id)) next.delete(id);
+  else next.add(id);
+  picked.value = next;
+}
+function selectAll() {
+  picked.value =
+    picked.value.size === visible.value.length
+      ? new Set()
+      : new Set(visible.value.map((a) => a.id));
+}
+function bulkDelete() {
+  if (!pickedArchives.value.length) return;
+  emit("bulk-delete", pickedArchives.value);
+  picked.value = new Set();
+}
+watch(
+  () => props.archives.length,
+  (n) => {
+    if (!n) selecting.value = false;
+    picked.value = new Set(
+      [...picked.value].filter((id) => props.archives.some((a) => a.id === id)),
+    );
+  },
+);
 
 // ---- drop ----
 const dragging = ref(false);
@@ -151,6 +200,15 @@ function daysLeft(purgeAt: number): number {
           <option value="name">Name</option>
         </select>
         <button
+          v-if="archives.length"
+          type="button"
+          class="ui-btn ui-btn-ghost"
+          :class="{ on: selecting }"
+          @click="toggleSelecting"
+        >
+          {{ selecting ? "Done" : "Select" }}
+        </button>
+        <button
           v-if="trash.length"
           type="button"
           class="ui-btn ui-btn-ghost"
@@ -167,6 +225,28 @@ function daysLeft(purgeAt: number): number {
         class="ga-input"
         @change="onPicked"
       />
+    </div>
+
+    <div v-if="selecting" class="ga-bulk">
+      <span class="ga-bulk-count"
+        >{{ picked.size }} of {{ visible.length }} selected</span
+      >
+      <button
+        type="button"
+        class="ui-btn ui-btn-ghost ui-btn-sm"
+        @click="selectAll"
+      >
+        {{ picked.size === visible.length ? "Clear" : "Select all" }}
+      </button>
+      <span class="ga-bulk-sep"></span>
+      <button
+        type="button"
+        class="ui-btn ui-btn-danger-soft ui-btn-sm"
+        :disabled="!picked.size"
+        @click="bulkDelete"
+      >
+        Delete
+      </button>
     </div>
 
     <div v-if="error" class="ui-error-box ga-error">
@@ -215,12 +295,26 @@ function daysLeft(purgeAt: number): number {
             :disabled="uploading"
             @click="openPicker"
           >
-            <span v-if="uploading" class="ga-spin"></span>
-            <span v-else class="ga-plus">+</span>
-            <strong>{{ uploading ? "Uploading" : `Add a ${singular}` }}</strong>
-            <span class="ga-add-sub">Drop, or click to browse</span>
+            <span class="ga-add-thumb">
+              <span v-if="uploading" class="ga-spin"></span>
+              <span v-else class="ga-plus">+</span>
+            </span>
+            <span class="ga-add-body">
+              <strong>{{
+                uploading ? "Uploading" : `Add a ${singular}`
+              }}</strong>
+              <span class="ga-add-sub">Drop, paste, or click to browse</span>
+            </span>
           </button>
-          <slot v-for="a in visible" :key="a.id" name="card" :archive="a" />
+          <slot
+            v-for="a in visible"
+            :key="a.id"
+            name="card"
+            :archive="a"
+            :selecting="selecting"
+            :selected="picked.has(a.id)"
+            :toggle="() => toggle(a.id)"
+          />
         </div>
         <div v-if="!visible.length" class="ga-none">
           <span>Nothing matches.</span>
@@ -300,6 +394,26 @@ function daysLeft(purgeAt: number): number {
   color: #d68a34;
   border-color: rgba(214, 138, 52, 0.5);
 }
+.ga-bulk {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding: 10px 12px;
+  background: #171717;
+  border: 1px solid rgba(214, 138, 52, 0.4);
+  border-radius: 12px;
+}
+.ga-bulk-count {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #d68a34;
+  margin-right: 4px;
+}
+.ga-bulk-sep {
+  flex: 1;
+}
 .ga-error {
   display: flex;
   align-items: center;
@@ -361,7 +475,34 @@ function daysLeft(purgeAt: number): number {
     background 0.15s ease;
 }
 .ga-add {
-  min-height: 150px;
+  align-self: stretch;
+  padding: 0;
+  overflow: hidden;
+  text-align: left;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 0;
+  border-width: 1px;
+}
+.ga-add-thumb {
+  flex: 1 1 auto;
+  aspect-ratio: 16 / 9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ga-add-body {
+  min-height: 74px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 10px 12px 12px;
+  border-top: 1px dashed #2b2b2b;
+}
+.ga-add-body strong {
+  font-size: 0.84rem;
+  font-weight: 600;
 }
 .ga-empty {
   width: 100%;

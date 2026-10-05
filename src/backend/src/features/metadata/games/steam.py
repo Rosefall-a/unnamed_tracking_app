@@ -206,6 +206,18 @@ def get_community_descriptions(steam_id: str, app_id: int) -> dict[str, str]:
         description = _xml_text("description", block)
         if api_name and description:
             descriptions[api_name.lower()] = description
+    if not descriptions and "<achievement" not in body:
+        # Some games get the profile web page here instead of the XML. It has
+        # no internal names, so each description is keyed by the display name
+        # ("name:" + lowercase). It lists every achievement you have unlocked,
+        # hidden ones included, but only a "+N hidden" count for the locked
+        # ones: Steam does not reveal those anywhere until you unlock them.
+        for title, description in re.findall(
+            r"<h3[^>]*>(.*?)</h3>\s*<h5[^>]*>(.*?)</h5>", body, re.S
+        ):
+            title, description = html.unescape(title).strip(), html.unescape(description).strip()
+            if title and description:
+                descriptions[f"name:{title.lower()}"] = description
     return descriptions
 
 

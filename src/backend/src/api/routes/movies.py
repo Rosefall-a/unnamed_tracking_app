@@ -12,7 +12,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.routes.media_extras import log_activity, status_change_detail
-from src.api.schemas.pagination import PaginatedResponse
+from src.api.schemas.pagination import PaginatedResponse, score_ranks
 from src.api.schemas.movie import MovieCreate, MovieRead, MovieUpdate
 from src.core.app_integrations import get_or_create_app_integration_settings
 from src.core.auth import get_current_user
@@ -167,6 +167,7 @@ async def list_movies(
         offset=skip,
         limit=limit,
         status_counts=status_counts,
+        score_ranks=await score_ranks(db, Movie, current_user.id),
     )
 
 

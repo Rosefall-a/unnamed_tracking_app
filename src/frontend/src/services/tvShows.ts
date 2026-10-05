@@ -211,6 +211,7 @@ export async function fetchTVShowsPage(
   offset: number;
   limit: number;
   statusCounts: Record<string, number>;
+  scoreRanks: Record<string, number>;
 }> {
   const params = new URLSearchParams({
     skip: String(offset),
@@ -230,6 +231,7 @@ export async function fetchTVShowsPage(
     offset: page.offset,
     limit: page.limit,
     statusCounts: page.status_counts,
+    scoreRanks: page.score_ranks ?? {},
   };
 }
 

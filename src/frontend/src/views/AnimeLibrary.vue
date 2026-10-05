@@ -12,6 +12,7 @@ import {
 } from "../services/anime";
 import type { SeasonUpdateInput } from "../services/anime";
 import type { Anime, AnimeStatus } from "../types/anime";
+import { fetchRemaining } from "../utils/loadPages";
 import MediaLibraryView from "../components/library/MediaLibraryView.vue";
 import { displayTitle } from "../utils/displayTitle";
 import { statusBucket, bucketToReal } from "../utils/mediaStatus";
@@ -119,6 +120,7 @@ const items = computed(() => shows.value.map(toVM));
 let loadRequest = 0;
 const total = ref(0);
 const statusCounts = ref<Record<string, number>>({});
+const scoreRanks = ref<Record<string, number>>({});
 const pageSize = 100;
 const currentSearch = ref("");
 async function load(search = "") {
@@ -131,6 +133,7 @@ async function load(search = "") {
     shows.value = page.items;
     total.value = page.total;
     statusCounts.value = page.statusCounts;
+    scoreRanks.value = page.scoreRanks;
   } catch (e) {
     error.value = e instanceof Error ? e.message : "Failed to load anime.";
   } finally {
@@ -149,6 +152,25 @@ async function loadMore() {
     shows.value.push(...page.items);
   } catch (e) {
     error.value = e instanceof Error ? e.message : "Failed to load more anime.";
+  } finally {
+    loading.value = false;
+  }
+}
+// Sorting and filtering need every title, so this fetches the rest at once.
+async function loadAll() {
+  if (loading.value || shows.value.length >= total.value) return;
+  loading.value = true;
+  const request = loadRequest;
+  try {
+    const rest = await fetchRemaining(
+      (offset, limit) => fetchAnimePage(offset, limit, currentSearch.value),
+      shows.value.length,
+      total.value,
+    );
+    if (request !== loadRequest) return;
+    shows.value.push(...rest);
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "Failed to load all anime.";
   } finally {
     loading.value = false;
   }
@@ -344,6 +366,7 @@ function detailRoute(id: string): string {
     :items="items"
     :total="total"
     :status-counts="statusCounts"
+    :score-ranks="scoreRanks"
     :loading="loading"
     :error="error"
     :detail-route="detailRoute"
@@ -351,6 +374,7 @@ function detailRoute(id: string): string {
     :create-from-result="createFromResult"
     @search="load"
     @load-more="loadMore"
+    @load-all="loadAll"
     @toggle-favorite="onToggleFavorite"
     @advance-episode="onAdvanceEpisode"
     @save-note="onSaveNote"

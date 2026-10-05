@@ -17,7 +17,7 @@ from pydantic import BaseModel
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.schemas.pagination import PaginatedResponse
+from src.api.schemas.pagination import PaginatedResponse, score_ranks
 from src.api.schemas.anime import (
     AnimeCreate,
     AnimeLibraryRead,
@@ -442,6 +442,7 @@ async def list_anime(
         offset=skip,
         limit=limit,
         status_counts=status_counts,
+        score_ranks=await score_ranks(db, Anime, current_user.id),
     )
 
 

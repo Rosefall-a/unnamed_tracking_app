@@ -4,11 +4,12 @@
 // a short caption underneath. As a row (soundtrack) it is a line with an
 // inline player. Hover shows copy, download, edit and delete; editing opens
 // a dialog instead of growing the card.
-import { ref, computed } from "vue";
+import { ref, computed, onBeforeUnmount } from "vue";
 import MediaEditDialog from "./MediaEditDialog.vue";
 import { originalName } from "../utils/copyMedia";
 import { formatDuration, settleDuration } from "../utils/videoDuration";
 import { captureFrame } from "../utils/videoThumbnail";
+import { startPlaying, stoppedPlaying } from "../utils/nowPlaying";
 import { formatMediaDate, SOURCE_LABEL, mediaSource } from "../utils/mediaDate";
 import type { FileDetails, MediaItemUpdate } from "../services/media";
 import type { Achievement } from "../types/game";
@@ -90,8 +91,36 @@ const title = computed(() => props.item.title || fileName.value);
 const shownTags = computed(() => props.item.tags.slice(0, 2));
 const moreTags = computed(() => Math.max(0, props.item.tags.length - 2));
 
+// ---- a track plays right on its card ----
+const audio = ref<HTMLAudioElement | null>(null);
+const playing = ref(false);
+const progress = ref(0);
+function onAudioMetadata() {
+  if (audio.value && Number.isFinite(audio.value.duration))
+    measured.value = formatDuration(audio.value.duration);
+}
+function onAudioTime() {
+  const a = audio.value;
+  progress.value = a && a.duration ? (a.currentTime / a.duration) * 100 : 0;
+}
+function togglePlay() {
+  const a = audio.value;
+  if (!a) return;
+  if (a.paused) {
+    startPlaying(a);
+    void a.play();
+  } else a.pause();
+}
+onBeforeUnmount(() => {
+  if (audio.value) {
+    audio.value.pause();
+    stoppedPlaying(audio.value);
+  }
+});
+
 function onThumbClick() {
   if (props.selecting) emit("toggle", props.item);
+  else if (props.item.kind === "soundtrack") togglePlay();
   else emit("preview", props.item);
 }
 </script>
@@ -152,27 +181,64 @@ function onThumbClick() {
         </svg>
         <strong>{{ extension }}</strong>
       </div>
-      <svg
-        v-else
-        class="note-icon"
-        viewBox="0 0 24 24"
-        width="22"
-        height="22"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-      >
-        <path d="M9 18V5l12-2v13" />
-        <circle cx="6" cy="18" r="3" />
-        <circle cx="18" cy="16" r="3" />
-      </svg>
+      <div v-else class="audio-art">
+        <svg
+          class="note-icon"
+          viewBox="0 0 24 24"
+          width="34"
+          height="34"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.7"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M9 18V5l12-2v13" />
+          <circle cx="6" cy="18" r="3" />
+          <circle cx="18" cy="16" r="3" />
+        </svg>
+        <audio
+          ref="audio"
+          :src="item.url"
+          preload="metadata"
+          @loadedmetadata="onAudioMetadata"
+          @timeupdate="onAudioTime"
+          @play="playing = true"
+          @pause="playing = false"
+          @ended="
+            playing = false;
+            progress = 0;
+          "
+        ></audio>
+        <span v-if="progress" class="track-progress" aria-hidden="true">
+          <span :style="{ width: `${progress}%` }"></span>
+        </span>
+      </div>
 
       <span v-if="length" class="length">{{ length }}</span>
-      <span v-if="item.kind === 'clip'" class="play" aria-hidden="true">
-        <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+      <span
+        v-if="item.kind === 'clip' || item.kind === 'soundtrack'"
+        class="play"
+        :class="{ on: playing }"
+        aria-hidden="true"
+      >
+        <svg
+          v-if="!playing"
+          viewBox="0 0 24 24"
+          width="18"
+          height="18"
+          fill="currentColor"
+        >
           <path d="M8 5v14l11-7z" />
+        </svg>
+        <svg
+          v-else
+          viewBox="0 0 24 24"
+          width="18"
+          height="18"
+          fill="currentColor"
+        >
+          <path d="M7 5h4v14H7zM13 5h4v14h-4z" />
         </svg>
       </span>
 
@@ -584,6 +650,41 @@ function onThumbClick() {
   color: #d68a34;
   background: rgba(214, 138, 52, 0.1);
   cursor: default;
+}
+.audio-art {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #d68a34;
+  background: radial-gradient(
+    circle at 50% 40%,
+    rgba(214, 138, 52, 0.18),
+    rgba(214, 138, 52, 0.05) 70%
+  );
+}
+.audio-art .note-icon {
+  opacity: 0.55;
+  transform: translateY(-14px);
+}
+.track-progress {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.12);
+}
+.track-progress span {
+  display: block;
+  height: 100%;
+  background: #d68a34;
+}
+.play.on {
+  background: #d68a34;
+  color: #14100a;
+  border-color: #d68a34;
 }
 .doc-icon {
   display: flex;

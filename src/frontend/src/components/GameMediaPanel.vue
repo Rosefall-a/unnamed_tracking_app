@@ -69,9 +69,6 @@ const emit = defineEmits<{
 }>();
 
 const achievementList = computed(() => props.achievements ?? []);
-const isRows = computed(
-  () => props.kind !== "screenshot" && props.kind !== "clip",
-);
 const hasPreview = computed(
   () => props.kind === "screenshot" || props.kind === "clip",
 );
@@ -717,16 +714,11 @@ onBeforeUnmount(() => {
     <div class="gm-body" :class="{ dropping: dragging }">
       <div
         v-if="loading && !items.length"
-        :class="isRows ? 'gm-tracks' : 'gm-grid'"
+        class="gm-grid"
         aria-busy="true"
         aria-label="Loading"
       >
-        <div
-          v-for="n in 3"
-          :key="n"
-          class="gm-skel"
-          :class="{ row: isRows }"
-        ></div>
+        <div v-for="n in 3" :key="n" class="gm-skel"></div>
       </div>
 
       <button
@@ -745,7 +737,7 @@ onBeforeUnmount(() => {
       </button>
 
       <template v-else>
-        <div :class="isRows ? 'gm-tracks' : 'gm-grid'">
+        <div class="gm-grid">
           <button
             type="button"
             class="gm-add-card"
@@ -767,7 +759,6 @@ onBeforeUnmount(() => {
             v-for="item in visible"
             :key="item.id"
             :item="item"
-            :row="isRows"
             :selecting="selecting"
             :selected="picked.has(item.id)"
             :detect="detect"
@@ -1054,19 +1045,6 @@ onBeforeUnmount(() => {
   height: 74px;
   border-top: 1px solid #262626;
 }
-.gm-skel.row {
-  flex-direction: row;
-  height: 74px;
-}
-.gm-skel.row::before {
-  aspect-ratio: 1;
-  height: 100%;
-}
-.gm-skel.row::after {
-  flex: 1;
-  height: auto;
-  border-top: none;
-}
 .gm-hint {
   color: #777;
   font-size: 14px;
@@ -1075,11 +1053,6 @@ onBeforeUnmount(() => {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
   gap: 16px;
-}
-.gm-tracks {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
 }
 .gm-spin {
   width: 16px;
@@ -1338,25 +1311,6 @@ onBeforeUnmount(() => {
 }
 .gm-add-card:disabled {
   cursor: default;
-}
-.gm-tracks .gm-add-card {
-  flex-direction: row;
-  align-items: center;
-  height: 74px;
-}
-.gm-tracks .gm-add-thumb {
-  flex: none;
-  aspect-ratio: 1;
-  height: 100%;
-}
-.gm-tracks .gm-add-body {
-  flex: 1;
-  border-top: none;
-  justify-content: center;
-  padding: 0 12px;
-}
-.gm-tracks .gm-add-card .gm-plus {
-  font-size: 1.6rem;
 }
 .gm-pos {
   color: #777;

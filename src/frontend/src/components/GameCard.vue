@@ -526,7 +526,7 @@ function copyFolderPath() {
   overflow: hidden;
   cursor: pointer;
   background: var(--surface-2, #222222);
-  border: 1px solid var(--border-soft, #202020);
+  border: 1px solid transparent;
   box-sizing: border-box;
   transition:
     box-shadow 0.28s ease,

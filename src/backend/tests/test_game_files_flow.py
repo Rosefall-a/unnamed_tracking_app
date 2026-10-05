@@ -264,3 +264,28 @@ async def test_a_clip_keeps_its_thumbnail_and_length(flow) -> None:
         f"{flow.game}/thumbnails/{shot['id']}", files={"file": ("f.png", png.getvalue(), "image/png")}
     )
     assert wrong.status_code == 404
+
+
+async def test_a_save_can_carry_a_note_and_tags(flow) -> None:
+    created = await flow.client.post(
+        f"{flow.game}/archives/save",
+        data={"name": "Main character"},
+        files={"file": ("slot1.sav", b"v1", "application/octet-stream")},
+    )
+    archive = created.json()
+    assert archive["note"] is None and archive["tags"] == []
+
+    edited = await flow.client.patch(
+        f"{flow.game}/archives/{archive['id']}",
+        json={"note": "  Before the final boss  ", "tags": ["boss", " Boss ", "backup"]},
+    )
+    assert edited.status_code == 200, edited.text
+    body = edited.json()
+    assert body["note"] == "Before the final boss" and body["tags"] == ["boss", "backup"]
+    assert body["name"] == "Main character"  # left out, so left alone
+
+    renamed = await flow.client.patch(f"{flow.game}/archives/{archive['id']}", json={"name": "Final boss"})
+    assert renamed.json()["name"] == "Final boss" and renamed.json()["tags"] == ["boss", "backup"]
+    assert (await flow.client.patch(f"{flow.game}/archives/{archive['id']}", json={"name": " "})).status_code == 400
+    cleared = await flow.client.patch(f"{flow.game}/archives/{archive['id']}", json={"note": ""})
+    assert cleared.json()["note"] is None
