@@ -717,6 +717,8 @@
   align-items: stretch;
 }
 .shelf-card {
+  min-width: 0;
+  container-type: inline-size;
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -776,7 +778,7 @@
   justify-content: flex-end;
   gap: 6px;
   padding: 26px 8px 8px;
-  background: linear-gradient(to top, rgba(0, 0, 0, 0.65), transparent);
+  background: linear-gradient(to top, var(--ui-overlay), transparent);
   opacity: 0;
   transform: translateY(6px);
   transition:
@@ -796,7 +798,7 @@
   padding: 0;
   border-radius: 50%;
   border: 1px solid color-mix(in srgb, var(--ui-text) 16%, transparent);
-  background: rgba(20, 20, 20, 0.6);
+  background: var(--ui-popover);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
   color: var(--ui-text);
@@ -811,12 +813,43 @@
   height: 13px;
 }
 .sc-action:hover {
-  background: rgba(60, 60, 60, 0.9);
+  background: var(--ui-surface-2);
+}
+.sc-more {
+  display: none;
+  width: 44px;
+  height: 44px;
+}
+.compact-card-actions {
+  display: grid;
+  gap: 12px;
+}
+.compact-card-actions button {
+  min-height: 44px;
+}
+@container (max-width: 220px) {
+  .sc-actions > button:not(.sc-more) {
+    display: none;
+  }
+  .sc-actions > .sc-more {
+    display: flex;
+  }
 }
 .sc-action.active {
-  color: #ff6f91;
-  border-color: rgba(255, 111, 145, 0.4);
-  background: rgba(224, 86, 122, 0.2);
+  color: var(--ui-error);
+  border-color: var(--ui-error);
+  background: var(--ui-danger-soft);
+}
+@media (hover: none) {
+  .sc-actions {
+    opacity: 1;
+    transform: none;
+    pointer-events: auto;
+  }
+  .sc-action {
+    min-width: 44px;
+    min-height: 44px;
+  }
 }
 .shelf-meta-row {
   display: flex;
@@ -905,6 +938,7 @@
    force a Shelf card wider than its own art — the footer still wraps to
    a second line at the smallest card size rather than clipping. */
 .shelf-icon-cluster {
+  flex-wrap: wrap;
   gap: 6px;
 }
 .shelf-icon-cluster .icon-btn {
@@ -972,6 +1006,9 @@
   padding-bottom: 8px;
 }
 .board-card {
+  container-type: inline-size;
+  box-sizing: border-box;
+  min-width: 0;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
@@ -1050,6 +1087,15 @@
   align-items: center;
   justify-content: flex-start;
   margin-top: 8px;
+}
+@container (max-width: 140px) {
+  .shelf-footer-row,
+  .shelf-meta-row,
+  .board-footer-row,
+  .board-progress-row,
+  .board-card .shelf-type {
+    display: none;
+  }
 }
 
 /* Top rated — the one Stats panel built from real artwork instead of
@@ -1409,7 +1455,74 @@
 /* phones and narrow windows: the seven-column list row can't fit, so it
    collapses to poster + title with the status/progress/score tags stacked
    underneath, and the padding meant for the sidebar gutter shrinks */
-@media (max-width: 720px) {
+@media (max-width: 760px) {
+  @container (max-width: 140px) {
+    .shelf-art,
+    .board-art {
+      height: 100px;
+      max-height: 100px;
+    }
+    .shelf-art-wrap,
+    .board-art-wrap {
+      max-height: 100px;
+    }
+    .shelf-title-row .score-tag,
+    .board-title-row .score-tag {
+      display: none;
+    }
+  }
+  .compact-controls .head-actions {
+    display: none !important;
+  }
+  .compact-controls .filter-panel,
+  .compact-controls .toolbar > :not(.search-wrap):not(.card-size-toggle) {
+    display: none;
+  }
+  .compact-controls .page-head {
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 12px;
+  }
+  .compact-controls .page-head h1 {
+    font-size: 22px;
+  }
+  .compact-controls .page-head > div:first-child {
+    display: flex;
+    min-width: 0;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 6px;
+  }
+  .compact-controls .page-head .sub {
+    white-space: nowrap;
+    font-size: 12px;
+  }
+  .library-tools-toggle {
+    min-height: 44px;
+    padding: 0 10px;
+    flex-shrink: 0;
+  }
+  .compact-controls .search-wrap {
+    min-width: 0;
+    flex: 1;
+  }
+  .search-wrap input {
+    font-size: 16px;
+    height: 44px;
+  }
+  .card-size-button {
+    width: 44px;
+    height: 44px;
+  }
+  .status-tabs {
+    margin-top: 8px;
+    margin-bottom: 12px;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+  }
+  .status-tab {
+    flex-shrink: 0;
+  }
   .lib-inner {
     padding: 16px 14px 60px;
   }
@@ -1436,9 +1549,5 @@
   }
   .list-thumb {
     width: 100%;
-  }
-  /* the columns are set inline from the card size, so this needs !important */
-  .shelf-grid {
-    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)) !important;
   }
 }

@@ -2,6 +2,7 @@ import type { SegmentOption } from "../components/SegmentedTabs.vue";
 import { matchesShortcut } from "../state/shortcuts";
 import { preferences } from "../state/preferences";
 export type ViewMode = "cards" | "list" | "detail";
+import { PHONE_CARD_COLUMNS } from "../utils/libraryLayout";
 export type CardDensity = "compact" | "cozy" | "large";
 
 import {
@@ -1250,6 +1251,7 @@ export function useGameLibrary() {
     isLibraryActive.value = false;
     window.removeEventListener("resize", onResize);
     contentObserver?.disconnect();
+    cancelAnimationFrame(gridMeasureFrame);
   });
   onUnmounted(() => window.removeEventListener("resize", onResize));
 
@@ -1266,16 +1268,27 @@ export function useGameLibrary() {
   const contentEl = useTemplateRef<HTMLElement>("libraryContent");
   const gridWidth = ref(document.documentElement.clientWidth - 72);
   let contentObserver: ResizeObserver | null = null;
+  let gridMeasureFrame = 0;
   onMounted(() => {
     if (!contentEl.value) return;
     contentObserver = new ResizeObserver((entries) => {
-      gridWidth.value = entries[0].contentRect.width;
+      const width = entries[0].contentRect.width;
+      if (width === gridWidth.value) return;
+      cancelAnimationFrame(gridMeasureFrame);
+      gridMeasureFrame = requestAnimationFrame(() => {
+        gridWidth.value = width;
+      });
     });
     contentObserver.observe(contentEl.value);
   });
-  onUnmounted(() => contentObserver?.disconnect());
+  onUnmounted(() => {
+    contentObserver?.disconnect();
+    cancelAnimationFrame(gridMeasureFrame);
+  });
 
   const CARD_COLUMNS = computed(() => {
+    if (viewportWidth.value <= 760)
+      return PHONE_CARD_COLUMNS[cardDensity.value];
     const min = MIN_CARD_WIDTH[cardDensity.value];
     return Math.max(
       1,
@@ -1298,6 +1311,7 @@ export function useGameLibrary() {
     computed(() => ({
       count: cardRowCount.value,
       enabled: isLibraryActive.value,
+      useAnimationFrameWithResizeObserver: true,
       estimateSize: () => 330,
       overscan: 3,
     })),
@@ -1314,6 +1328,7 @@ export function useGameLibrary() {
   }
 
   return {
+    viewportWidth,
     activePriority,
     priorityLabel,
     formatDisplayDate,

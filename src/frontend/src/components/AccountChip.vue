@@ -6,12 +6,17 @@
 import { currentUser } from "../state/auth";
 import NotificationBell from "./NotificationBell.vue";
 import ProfileMenu from "./ProfileMenu.vue";
+import { navigationViewport } from "../state/sidebarMode";
 
-defineProps<{ fixed?: boolean }>();
+defineProps<{ fixed?: boolean; inline?: boolean }>();
 </script>
 
 <template>
-  <div v-if="currentUser" class="account-chip" :class="{ fixed }">
+  <div
+    v-if="currentUser && (inline || navigationViewport !== 'phone')"
+    class="account-chip"
+    :class="{ fixed, inline }"
+  >
     <NotificationBell />
     <ProfileMenu :initials="currentUser.username.slice(0, 2).toUpperCase()">
       <span class="account-name">{{ currentUser.username }}</span>
@@ -40,6 +45,10 @@ defineProps<{ fixed?: boolean }>();
 }
 .account-chip.fixed {
   position: fixed;
+}
+.account-chip.inline {
+  position: static;
+  flex-shrink: 0;
 }
 /* Pages disagree about box-sizing, which made the avatar's chevron badge
    15px on some pages and 19px on others. Pin it for everything in the chip. */

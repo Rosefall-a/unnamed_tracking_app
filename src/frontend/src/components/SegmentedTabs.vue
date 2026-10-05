@@ -52,6 +52,7 @@ const emit = defineEmits<{ "update:modelValue": [value: string] }>();
         class="seg-tab"
         :class="{ active: modelValue === o.value }"
         :title="o.title"
+        :aria-pressed="modelValue === o.value"
         @click="emit('update:modelValue', o.value)"
       >
         <svg

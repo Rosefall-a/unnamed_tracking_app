@@ -61,16 +61,16 @@ import AccountChip from "./AccountChip.vue";
     padding-left: var(--ui-edge-left);
   }
 }
-@media (max-width: 520px) {
+@media (max-width: 760px) {
   .media-topbar {
     padding-right: var(--ui-edge-right);
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 8px;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+    padding-block: 8px;
   }
   .media-topbar :deep(.account-chip) {
-    grid-column: 2;
-    grid-row: 1;
+    display: none;
   }
   .topbar-left {
     grid-column: 1;
@@ -80,6 +80,11 @@ import AccountChip from "./AccountChip.vue";
     padding-inline: 7px;
     font-size: 0.75rem;
   }
+  .media-topbar :deep(.seg) {
+    max-width: 100%;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+  }
   .media-topbar-actions {
     grid-column: 1 / -1;
     justify-content: flex-start;
@@ -87,7 +92,20 @@ import AccountChip from "./AccountChip.vue";
     gap: 6px;
   }
   .media-topbar-actions :deep(.seg-tab) {
-    padding-inline: 9px;
+    flex: 1;
+    min-width: 0;
+    padding-inline: 6px;
+    font-size: 0.75rem;
+  }
+  .media-topbar-actions :deep(.seg) {
+    flex: 1;
+    min-width: 0;
+  }
+  .media-topbar-actions :deep(.seg:not(:only-child):last-child) {
+    flex: 0 0 auto;
+  }
+  .media-topbar-actions :deep(.seg-tab svg) {
+    display: none;
   }
 }
 </style>

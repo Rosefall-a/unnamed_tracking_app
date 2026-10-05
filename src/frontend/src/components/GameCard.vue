@@ -8,6 +8,7 @@ import { ref, computed, nextTick, onUnmounted, watch } from "vue";
 import { computeScore } from "../utils/scoring";
 import { appearanceSettings } from "../state/appearance";
 import CompletionBadge from "./CompletionBadge.vue";
+import UiModal from "./UiModal.vue";
 
 const props = defineProps<{
   game: Game;
@@ -63,6 +64,7 @@ const badgeCardStyle = computed(() => {
 });
 
 const menuOpen = ref(false);
+const actionsOpen = ref(false);
 const statusSubmenuOpen = ref(false);
 const localFavorite = ref(props.game.favorite);
 watch(
@@ -274,6 +276,18 @@ function copyFolderPath() {
         <div v-if="!selectMode" class="cover-actions">
           <button
             type="button"
+            class="more-button"
+            :aria-label="`Actions for ${game.title}`"
+            @click.stop="actionsOpen = true"
+          >
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <circle cx="5" cy="12" r="2" />
+              <circle cx="12" cy="12" r="2" />
+              <circle cx="19" cy="12" r="2" />
+            </svg>
+          </button>
+          <button
+            type="button"
             class="favorite-button"
             :class="{ active: localFavorite }"
             :disabled="favoriteSaving"
@@ -321,6 +335,43 @@ function copyFolderPath() {
           </button>
         </div>
       </div>
+
+      <UiModal
+        v-if="actionsOpen"
+        :title="`Actions for ${game.title}`"
+        @close="actionsOpen = false"
+      >
+        <div class="compact-card-actions">
+          <button
+            type="button"
+            class="secondary-button"
+            :disabled="favoriteSaving"
+            @click="toggleFavorite"
+          >
+            {{ localFavorite ? "Remove favorite" : "Add favorite" }}
+          </button>
+          <button
+            type="button"
+            class="secondary-button"
+            @click="
+              actionsOpen = false;
+              emit('add-to-collection', game);
+            "
+          >
+            Add to collection
+          </button>
+          <button
+            type="button"
+            class="secondary-button"
+            @click="
+              actionsOpen = false;
+              emit('edit', game);
+            "
+          >
+            Edit game
+          </button>
+        </div>
+      </UiModal>
 
       <Teleport to="body">
         <div v-if="menuOpen" class="menu-backdrop" @click="closeMenu"></div>
@@ -425,8 +476,10 @@ function copyFolderPath() {
   width: 200px;
   flex-shrink: 0;
   min-width: 0;
+  container-type: inline-size;
 }
 .game-card {
+  min-width: 0;
   position: relative;
   width: 100%;
   border-radius: var(--ui-radius-row);
@@ -582,7 +635,8 @@ function copyFolderPath() {
 }
 .favorite-button,
 .collection-button,
-.edit-button {
+.edit-button,
+.more-button {
   width: 28px;
   height: 28px;
   padding: 0;
@@ -600,19 +654,47 @@ function copyFolderPath() {
 }
 .favorite-button svg,
 .collection-button svg,
-.edit-button svg {
+.edit-button svg,
+.more-button svg {
   width: 13px;
   height: 13px;
 }
 .favorite-button.active {
-  color: #ff6f91;
-  border-color: rgba(255, 111, 145, 0.4);
-  background: rgba(224, 86, 122, 0.2);
+  color: var(--ui-error);
+  border-color: var(--ui-error);
+  background: var(--ui-danger-soft);
 }
 .edit-button:hover,
 .favorite-button:hover,
 .collection-button:hover {
-  background: rgba(60, 60, 60, 0.9);
+  background: var(--ui-surface-2);
+}
+.more-button {
+  display: none;
+  width: 44px;
+  height: 44px;
+}
+.compact-card-actions {
+  display: grid;
+  gap: 12px;
+}
+.compact-card-actions button {
+  min-height: 44px;
+  background: var(--ui-surface-2);
+  color: var(--ui-text);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
+  padding: 10px 16px;
+  font: inherit;
+  cursor: pointer;
+}
+@container (max-width: 175px) {
+  .cover-actions > button:not(.more-button) {
+    display: none;
+  }
+  .cover-actions > .more-button {
+    display: flex;
+  }
 }
 .menu-backdrop {
   position: fixed;
@@ -622,11 +704,11 @@ function copyFolderPath() {
 .card-menu {
   position: fixed;
   width: 190px;
-  background: #1e1e1e;
+  background: var(--ui-popover);
   border: 1px solid var(--ui-border);
   border-radius: var(--ui-radius-row);
   padding: 6px;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--ui-elevation);
   z-index: 30;
   display: flex;
   flex-direction: column;
@@ -766,6 +848,17 @@ function copyFolderPath() {
   .edit-button svg {
     width: 18px;
     height: 18px;
+  }
+}
+@media (max-width: 760px) {
+  @container (max-width: 140px) {
+    .cover {
+      max-height: 100px;
+    }
+    .title-row .score-tag,
+    .meta-row {
+      display: none;
+    }
   }
 }
 </style>

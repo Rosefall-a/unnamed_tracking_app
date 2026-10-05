@@ -2,6 +2,7 @@
 // Usage: UI_REVIEW_USERNAME=... UI_REVIEW_PASSWORD=... node tools/check_ui_redevelopment.mjs plugins-root evidence-root backend-url
 import assert from "node:assert/strict";
 import { checkTasksUi } from "./check_tasks_ui.mjs";
+import { checkLibraryLayouts } from "./check_library_layouts.mjs";
 import { createServer, request as httpRequest } from "node:http";
 import { readFile, mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -79,7 +80,11 @@ try {
   const installed = await admin.request.get(origin + "/api/plugins");
   assert.equal(installed.status(), 200);
   assert.equal((await installed.json()).length, 0, "Run this stage against a clean plugin inventory to exclude embedded-media evidence.");
-  if (reviewStage === "tasks") {
+  if (reviewStage === "library-layouts") {
+    await checkLibraryLayouts({ browser, admin, origin, evidenceRoot, report, checkOverflow });
+    await writeFile(path.join(evidenceRoot, "library-layout-conformance.json"), JSON.stringify(report, null, 2) + "\n");
+    console.log(JSON.stringify({ cases: report.passed.length, screens: report.screens.length, passed: report.passed }, null, 2));
+  } else if (reviewStage === "tasks") {
     await checkTasksUi({ browser, admin, origin, evidenceRoot, report, checkOverflow });
     await writeFile(path.join(evidenceRoot, "tasks-ui-conformance.json"), JSON.stringify(report, null, 2) + "\n");
     console.log(JSON.stringify({ cases: report.screens.length, passed: report.passed }, null, 2));

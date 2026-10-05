@@ -435,3 +435,38 @@ cross-repository acceptance.
 ![Light-mode task controls and inline validation](../assets/ui-redevelopment/tasks-validation-1440-light.png)
 
 ![Phone task controls in dark mode](../assets/ui-redevelopment/tasks-validation-390-dark.png)
+
+## Responsive library layouts and phone interaction
+
+Games, Movies, TV and Anime now use distinct phone densities: Small fits three
+columns, Medium two and Large one. Virtual rows use the same available width as
+the CSS grid. Resize observers coalesce updates into animation frames; the
+virtualizer also delivers resize measurements on animation frames, eliminating
+WebKit's resize-observer loop errors during navigation and layout changes.
+
+On phones, search and density stay visible while Controls reveals sorting,
+filters and bulk actions. The account chip appears once in the global header.
+Cards expose a 44-pixel More button with native themed action dialogs. Game
+Preview fits the available viewport above the bottom navigation, shows its title
+immediately and scrolls its picker and details independently. All existing
+favorite, collection, edit, note and media episode actions remain available.
+
+The [Chromium report](../assets/ui-redevelopment/library-chromium-conformance.json)
+and [WebKit report](../assets/ui-redevelopment/library-webkit-conformance.json)
+each pass 198 checks across 320, 390, 430, 760, 768, 1024, 1440 and 1920-pixel
+viewports in light/dark mode, with owned sample records in all four libraries.
+Checks cover all views, density, card actions, local search/create shortcuts,
+phone navigation and viewport bounds. These are browser-engine tests against a
+local isolated backend, rather than a physical iPhone or network benchmark.
+
+Frontend formatting, lint, types, production build and all 207 unit tests pass.
+The frontend workflow now enforces the requested 2,000-line source-file limit;
+all 302 files pass, with the largest at 1,973 lines.
+
+![Phone game shelf in WebKit](../assets/ui-redevelopment/webkit-library-game-shelves-390-dark.png)
+
+![Phone game preview in WebKit](../assets/ui-redevelopment/webkit-library-game-preview-390-dark.png)
+
+![Phone movie shelf in WebKit](../assets/ui-redevelopment/webkit-library-movie-shelf-390-dark.png)
+
+![Desktop movie board in light mode](../assets/ui-redevelopment/webkit-library-movie-board-1440-light.png)

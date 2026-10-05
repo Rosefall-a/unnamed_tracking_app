@@ -9,7 +9,10 @@
 /* List + preview mode: the page itself doesn't scroll, only the list and
    preview panes do, via their own overflow-y (see .detail-list/.detail-preview) */
 .library.locked {
-  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  min-height: 0;
   overflow-y: hidden;
   box-sizing: border-box;
 }
@@ -18,7 +21,12 @@
 .library.locked .content {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+.library.locked .content > :not(.detail-view) {
+  flex-shrink: 0;
 }
 .library.locked .detail-view {
   flex: 1;
@@ -31,7 +39,7 @@
   padding: 24px var(--ui-edge-right) 24px var(--ui-edge-left);
   box-sizing: border-box;
 }
-@media (max-width: 720px) {
+@media (max-width: 760px) {
   .content {
     padding: 16px 14px 24px;
   }
@@ -349,16 +357,16 @@
   background: color-mix(in srgb, var(--ui-accent) 20%, transparent);
 }
 .first-use-hint {
-  position: absolute;
-  top: calc(100% + 8px);
-  left: 0;
-  width: 240px;
+  position: relative;
+  width: fit-content;
+  max-width: 100%;
+  box-sizing: border-box;
+  margin-top: 12px;
   background: var(--surface);
   border: 1px solid var(--accent-line);
   border-radius: var(--ui-radius-row);
   padding: 12px 14px;
   box-shadow: var(--ui-elevation);
-  z-index: 20;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -379,17 +387,6 @@
   font-size: 0.75rem;
   font-weight: 700;
   cursor: pointer;
-}
-/* anchored to Select, the tip ran off a phone screen */
-@media (max-width: 600px) {
-  .first-use-hint {
-    position: fixed;
-    top: auto;
-    left: 16px;
-    right: 16px;
-    bottom: 16px;
-    width: auto;
-  }
 }
 .density-toggle {
   display: flex;
@@ -1049,6 +1046,8 @@
   flex-shrink: 0;
 }
 .detail-preview {
+  box-sizing: border-box;
+  min-height: 0;
   border: 1px solid var(--border-soft);
   border-radius: var(--ui-radius-row);
   background: var(--surface);
@@ -1333,7 +1332,7 @@
   .detail-view {
     grid-template-columns: 1fr;
     grid-template-rows: auto 1fr;
-    height: auto;
+    min-height: 140px;
   }
   .detail-list {
     flex-direction: row;
@@ -1348,6 +1347,24 @@
     width: 84px;
     flex-shrink: 0;
   }
+  .library.locked .detail-list-thumb {
+    width: 22px;
+  }
+  .library.locked .preview-banner {
+    height: clamp(40px, 10dvh, 80px);
+  }
+  .library.locked .content {
+    padding-bottom: 12px;
+  }
+  .library.locked .preview-info {
+    padding: 12px;
+  }
+  .library.locked .preview-info h2 {
+    font-size: 18px;
+  }
+  .library.locked .preview-meta {
+    flex-wrap: wrap;
+  }
   .detail-list-item span {
     font-size: 11px;
     overflow: hidden;
@@ -1356,10 +1373,76 @@
     width: 100%;
   }
   .library.locked {
-    height: auto;
-    overflow-y: visible;
+    height: calc(
+      100dvh - 52px - 92px - env(safe-area-inset-top) -
+        env(safe-area-inset-bottom)
+    );
   }
-  .library.locked .content {
-    height: auto;
+  .library.locked .toolbar {
+    margin-top: 8px;
+  }
+  .library.locked .status-tabs {
+    margin-top: 8px;
+  }
+  .library.compact-controls :is(.head-actions, .advanced-panel),
+  .library.compact-controls .toolbar > :not(.search-wrap):not(.density-toggle),
+  .library.compact-preview .status-tabs {
+    display: none;
+  }
+  .library.compact-controls .page-head {
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 12px;
+  }
+  .library.compact-controls .page-head h1 {
+    font-size: 22px;
+  }
+  .library.compact-controls .page-head > div:first-child {
+    display: flex;
+    min-width: 0;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 6px;
+  }
+  .library.compact-controls .page-head .sub {
+    white-space: nowrap;
+    font-size: 12px;
+  }
+  .library.locked .detail-list-item {
+    padding: 6px 8px;
+    gap: 4px;
+  }
+  .library.locked .detail-list {
+    padding-bottom: 4px;
+  }
+  .preview-tools-toggle {
+    min-height: 44px;
+    padding: 0 10px;
+    flex-shrink: 0;
+  }
+  .library.locked .detail-view {
+    gap: 10px;
+    min-height: 0;
+  }
+  .library.compact-controls .search-wrap {
+    min-width: 0;
+    flex: 1;
+  }
+  .search-input {
+    font-size: 16px;
+    height: 44px;
+  }
+  .density-button {
+    width: 44px;
+    height: 44px;
+  }
+  .status-tabs {
+    margin-top: 8px;
+    margin-bottom: 12px;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+  }
+  .status-tab {
+    flex-shrink: 0;
   }
 }

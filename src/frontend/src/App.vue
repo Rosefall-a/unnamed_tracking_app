@@ -3,6 +3,7 @@ import { useRoute, useRouter } from "vue-router";
 import { retryStartup } from "./router";
 import SidebarNav from "./components/SidebarNav.vue";
 import AppIcon from "./components/AppIcon.vue";
+import AccountChip from "./components/AccountChip.vue";
 import TaskProgressToast from "./components/TaskProgressToast.vue";
 import ShortcutsHelp from "./components/ShortcutsHelp.vue";
 import CommandPalette from "./components/CommandPalette.vue";
@@ -173,6 +174,7 @@ const KEPT_ALIVE = [
         <AppIcon name="menu" />
       </button>
       <span>{{ route.meta.title || "Library" }}</span>
+      <AccountChip inline />
     </header>
     <!-- Library, calendar and list pages stay mounted when you leave them, so
          switching tabs is instant instead of reloading from empty. Detail
@@ -307,5 +309,9 @@ const KEPT_ALIVE = [
   border-radius: var(--ui-radius-control);
   color: var(--ui-text);
   background: var(--ui-surface);
+}
+.phone-topbar > span {
+  flex: 1;
+  min-width: 0;
 }
 </style>

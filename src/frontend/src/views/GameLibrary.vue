@@ -11,7 +11,10 @@ import GameTopBar from "../components/GameTopBar.vue";
 import SegmentedTabs from "../components/SegmentedTabs.vue";
 import type { ViewMode, CardDensity } from "../composables/useGameLibrary";
 import { useGameLibrary } from "../composables/useGameLibrary";
+import { computed, ref } from "vue";
+import { quickTourActive } from "../state/quickTour";
 const {
+  viewportWidth,
   activePriority,
   priorityLabel,
   formatDisplayDate,
@@ -111,12 +114,27 @@ const {
   rowVirtualizer,
   cardsInRow,
 } = useGameLibrary();
+const previewToolsOpen = ref(false);
+const compactControls = computed(
+  () =>
+    viewportWidth.value <= 760 &&
+    !previewToolsOpen.value &&
+    !quickTourActive.value &&
+    !selectMode.value,
+);
+const compactPreview = computed(
+  () => compactControls.value && viewMode.value === "detail",
+);
 </script>
 
 <template>
   <main
     class="library"
-    :class="{ locked: viewMode === 'detail' }"
+    :class="{
+      locked: viewMode === 'detail',
+      'compact-preview': compactPreview,
+      'compact-controls': compactControls,
+    }"
     :data-shortcut-context="
       viewMode === 'detail'
         ? 'games.preview'
@@ -144,6 +162,16 @@ const {
             {{ games.length }} {{ games.length === 1 ? "game" : "games" }}
           </div>
         </div>
+        <button
+          v-if="viewportWidth <= 760"
+          type="button"
+          class="secondary-button preview-tools-toggle"
+          :aria-expanded="!compactControls"
+          :aria-label="compactControls ? 'Library controls' : 'Hide controls'"
+          @click="previewToolsOpen = !previewToolsOpen"
+        >
+          {{ compactControls ? "Controls" : "Hide controls" }}
+        </button>
         <div class="head-actions">
           <div class="select-button-wrap">
             <button
@@ -157,19 +185,6 @@ const {
             >
               {{ selectMode ? "Done" : "Select" }}
             </button>
-            <div v-if="showBulkEditHint" class="first-use-hint">
-              <span
-                >Select games, then bulk-edit their status, tags, or collections
-                all at once.</span
-              >
-              <button
-                type="button"
-                class="first-use-hint-dismiss"
-                @click="dismissBulkEditHint"
-              >
-                Got it
-              </button>
-            </div>
           </div>
           <button
             type="button"
@@ -189,6 +204,20 @@ const {
             + Add Game
           </button>
         </div>
+      </div>
+
+      <div v-if="showBulkEditHint && !compactControls" class="first-use-hint">
+        <span
+          >Select games, then bulk-edit their status, tags, or collections all
+          at once.</span
+        >
+        <button
+          type="button"
+          class="first-use-hint-dismiss"
+          @click="dismissBulkEditHint"
+        >
+          Got it
+        </button>
       </div>
 
       <div v-if="selectMode" class="bulk-toolbar">

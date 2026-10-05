@@ -29,14 +29,19 @@ function isTypingTarget(target: EventTarget | null): boolean {
   );
 }
 
-function visibleControl(name: string): HTMLElement | undefined {
+function visibleControl(
+  name: string,
+  allowCollapsed = false,
+): HTMLElement | undefined {
   return Array.from(
     document.querySelectorAll<HTMLElement>(
       `#main-content [data-shortcut="${name}"]`,
     ),
   ).find(
     (element) =>
-      element.getClientRects().length > 0 &&
+      (element.getClientRects().length > 0 ||
+        (allowCollapsed &&
+          element.closest(".compact-controls .head-actions"))) &&
       !element.matches(":disabled") &&
       !element.closest("[inert]"),
   );
@@ -93,7 +98,7 @@ function onKeydown(event: KeyboardEvent) {
     if (control) control.focus();
     else isCommandPaletteOpen.value = true;
   } else if (shortcut.id === "app.create" || shortcut.control === "create") {
-    const control = visibleControl("create");
+    const control = visibleControl("create", true);
     if (!control) return;
     event.preventDefault();
     if (control instanceof HTMLInputElement) control.focus();

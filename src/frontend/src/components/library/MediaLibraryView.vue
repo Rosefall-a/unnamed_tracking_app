@@ -6,6 +6,8 @@ import {
   reactive,
   watch,
   onMounted,
+  onActivated,
+  onDeactivated,
   onBeforeUnmount,
 } from "vue";
 import { useRouter } from "vue-router";
@@ -18,6 +20,8 @@ import { preferences } from "../../state/preferences";
 import { matchesFilters } from "../../utils/libraryFilters";
 import type { LibraryFilters } from "../../utils/libraryFilters";
 import { blurOnLeave } from "../../utils/blurOnLeave";
+import { PHONE_CARD_COLUMNS } from "../../utils/libraryLayout";
+import { quickTourActive } from "../../state/quickTour";
 import {
   STATUS_BUCKETS,
   statusBucket,
@@ -207,10 +211,28 @@ const shelfCardMinWidth = computed(() => {
   if (shelfCardSize.value === "large") return "260px";
   return "200px";
 });
+const viewportWidth = ref(window.innerWidth);
+const libraryToolsOpen = ref(false);
+const compactControls = computed(
+  () =>
+    viewportWidth.value <= 760 &&
+    !libraryToolsOpen.value &&
+    !selectMode.value &&
+    !quickTourActive.value,
+);
+const shelfGridColumns = computed(() =>
+  viewportWidth.value <= 760
+    ? `repeat(${PHONE_CARD_COLUMNS[shelfCardSize.value]}, minmax(0, 1fr))`
+    : `repeat(auto-fill, minmax(${shelfCardMinWidth.value}, 1fr))`,
+);
 // Board's cards are fixed-width flex items (each status is its own
 // horizontally-scrolling row) rather than a minmax grid, so the same S/M/L
 // preference maps to an explicit width instead.
 const boardCardWidth = computed(() => {
+  if (viewportWidth.value <= 760) {
+    const columns = PHONE_CARD_COLUMNS[shelfCardSize.value];
+    return `calc((100% - ${(columns - 1) * 14}px) / ${columns})`;
+  }
   if (shelfCardSize.value === "compact") return "150px";
   if (shelfCardSize.value === "large") return "260px";
   return "196px";
@@ -398,8 +420,10 @@ const filteredItems = computed(() => {
 
 const boardPageStarts = reactive<Record<string, number>>({});
 const boardViewportWidth = ref(0);
-const boardContainer = ref<HTMLElement | null>(null);
+const libraryContainer = ref<HTMLElement | null>(null);
 const boardVisibleCount = computed(() => {
+  if (viewportWidth.value <= 760)
+    return PHONE_CARD_COLUMNS[shelfCardSize.value];
   const cardWidth =
     shelfCardSize.value === "compact"
       ? 150
@@ -431,14 +455,40 @@ function moveBoard(status: string, direction: -1 | 1, available: number) {
 watch([activeStatus, filters], resetBoardPages);
 watch(boardViewportWidth, resetBoardPages);
 function updateBoardViewport() {
-  boardViewportWidth.value = boardContainer.value?.clientWidth ?? 0;
+  viewportWidth.value = window.innerWidth;
+  const element = libraryContainer.value;
+  if (!element) return;
+  const style = getComputedStyle(element);
+  boardViewportWidth.value =
+    element.clientWidth -
+    parseFloat(style.paddingLeft) -
+    parseFloat(style.paddingRight);
 }
-onMounted(updateBoardViewport);
+let measureFrame = 0;
+const libraryObserver = new ResizeObserver(() => {
+  cancelAnimationFrame(measureFrame);
+  measureFrame = requestAnimationFrame(updateBoardViewport);
+});
+onMounted(() => {
+  updateBoardViewport();
+  if (libraryContainer.value) libraryObserver.observe(libraryContainer.value);
+});
+onActivated(() => {
+  updateBoardViewport();
+  window.addEventListener("resize", updateBoardViewport);
+  if (libraryContainer.value) libraryObserver.observe(libraryContainer.value);
+});
+onDeactivated(() => {
+  window.removeEventListener("resize", updateBoardViewport);
+  libraryObserver.disconnect();
+  cancelAnimationFrame(measureFrame);
+});
 watch(shelfCardSize, () => requestAnimationFrame(updateBoardViewport));
-window.addEventListener("resize", updateBoardViewport);
-onBeforeUnmount(() =>
-  window.removeEventListener("resize", updateBoardViewport),
-);
+onBeforeUnmount(() => {
+  window.removeEventListener("resize", updateBoardViewport);
+  libraryObserver.disconnect();
+  cancelAnimationFrame(measureFrame);
+});
 
 const boardGroups = computed(() => {
   const statuses =
@@ -520,6 +570,13 @@ function handleCardClick(it: LibraryCardVM) {
 }
 
 // ---- notes modal ----
+const cardActionsOpen = ref(false);
+const cardActionsTarget = ref<LibraryCardVM | null>(null);
+function openCardActions(it: LibraryCardVM) {
+  cardActionsTarget.value = it;
+  cardActionsOpen.value = true;
+}
+
 const noteOpen = ref(false);
 const noteTargetId = ref<string | null>(null);
 const noteText = ref("");
@@ -749,7 +806,7 @@ defineExpose({ openQuickAdd });
 </script>
 
 <template>
-  <div class="lib-root">
+  <div class="lib-root" :class="{ 'compact-controls': compactControls }">
     <MediaTopBar :active="kind">
       <template #actions>
         <SegmentedTabs
@@ -761,7 +818,7 @@ defineExpose({ openQuickAdd });
       </template>
     </MediaTopBar>
 
-    <div class="lib-inner">
+    <div ref="libraryContainer" class="lib-inner">
       <div class="page-head">
         <div>
           <h1>
@@ -773,7 +830,17 @@ defineExpose({ openQuickAdd });
             {{ total }} {{ total === 1 ? "title" : "titles" }}
           </div>
         </div>
-        <div style="display: flex; gap: 8px">
+        <button
+          v-if="viewportWidth <= 760"
+          type="button"
+          class="btn-outline library-tools-toggle"
+          :aria-expanded="!compactControls"
+          :aria-label="compactControls ? 'Library controls' : 'Hide controls'"
+          @click="libraryToolsOpen = !libraryToolsOpen"
+        >
+          {{ compactControls ? "Controls" : "Hide controls" }}
+        </button>
+        <div class="head-actions" style="display: flex; gap: 8px">
           <button
             type="button"
             class="select-btn"
@@ -1164,7 +1231,7 @@ defineExpose({ openQuickAdd });
             v-else
             class="shelf-grid"
             :style="{
-              gridTemplateColumns: `repeat(auto-fill, minmax(${shelfCardMinWidth}, 1fr))`,
+              gridTemplateColumns: shelfGridColumns,
             }"
           >
             <div
@@ -1197,6 +1264,22 @@ defineExpose({ openQuickAdd });
                 >
 
                 <div v-if="!selectMode" class="sc-actions no-card-click">
+                  <button
+                    type="button"
+                    class="sc-action sc-more"
+                    :aria-label="`Actions for ${it.title}`"
+                    @click.stop="openCardActions(it)"
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="currentColor"
+                      aria-hidden="true"
+                    >
+                      <circle cx="5" cy="12" r="2" />
+                      <circle cx="12" cy="12" r="2" />
+                      <circle cx="19" cy="12" r="2" />
+                    </svg>
+                  </button>
                   <button
                     v-if="it.canAdvance"
                     type="button"
@@ -1330,7 +1413,7 @@ defineExpose({ openQuickAdd });
                 </button>
               </div>
             </div>
-            <div ref="boardContainer" class="board-shelf">
+            <div class="board-shelf">
               <div
                 v-for="it in group.visibleItems"
                 :key="it.id"
@@ -1359,6 +1442,24 @@ defineExpose({ openQuickAdd });
                   <span v-if="computedRank(it)" class="board-rank rank-badge"
                     >#{{ computedRank(it) }}</span
                   >
+                  <div v-if="!selectMode" class="sc-actions no-card-click">
+                    <button
+                      type="button"
+                      class="sc-action sc-more"
+                      :aria-label="`Actions for ${it.title}`"
+                      @click.stop="openCardActions(it)"
+                    >
+                      <svg
+                        viewBox="0 0 24 24"
+                        fill="currentColor"
+                        aria-hidden="true"
+                      >
+                        <circle cx="5" cy="12" r="2" />
+                        <circle cx="12" cy="12" r="2" />
+                        <circle cx="19" cy="12" r="2" />
+                      </svg>
+                    </button>
+                  </div>
                 </div>
                 <div class="board-title-row">
                   <div class="board-title">{{ it.title }}</div>
@@ -1466,6 +1567,56 @@ defineExpose({ openQuickAdd });
     </div>
 
     <!-- ===== Notes modal ===== -->
+    <UiModal
+      v-if="cardActionsOpen"
+      @close="cardActionsOpen = false"
+      :title="`Actions for ${cardActionsTarget?.title ?? 'media'}`"
+    >
+      <div v-if="cardActionsTarget" class="compact-card-actions">
+        <button
+          v-if="cardActionsTarget.canAdvance"
+          type="button"
+          class="btn-outline"
+          @click="
+            cardActionsOpen = false;
+            advanceEpisode(cardActionsTarget);
+          "
+        >
+          Mark next episode watched
+        </button>
+        <button
+          type="button"
+          class="btn-outline"
+          @click="
+            cardActionsOpen = false;
+            emit('toggle-favorite', cardActionsTarget.id);
+          "
+        >
+          {{ cardActionsTarget.favorite ? "Remove favorite" : "Add favorite" }}
+        </button>
+        <button
+          type="button"
+          class="btn-outline"
+          @click="
+            cardActionsOpen = false;
+            openNote(cardActionsTarget);
+          "
+        >
+          {{ cardActionsTarget.note ? "Edit note" : "Add note" }}
+        </button>
+        <button
+          type="button"
+          class="btn-outline"
+          @click="
+            cardActionsOpen = false;
+            openEdit(cardActionsTarget);
+          "
+        >
+          Edit media
+        </button>
+      </div>
+    </UiModal>
+
     <UiModal
       v-if="noteOpen"
       title="Notes"
