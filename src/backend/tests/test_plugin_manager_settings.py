@@ -8,6 +8,8 @@ from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
 from src.api.routes import plugins
+from src.api.routes.plugin_manager import lifecycle as plugin_lifecycle
+from src.api.routes.plugin_manager import runtime as plugin_runtime
 from src.plugin_api.manager_state import ManagerState
 from src.plugin_api.runtime_client import PluginRuntimeUnavailable
 
@@ -16,12 +18,12 @@ from src.plugin_api.runtime_client import PluginRuntimeUnavailable
 async def test_settings_save_during_runtime_outage_and_survive_reload(tmp_path, monkeypatch):
     store = ManagerState(tmp_path / "manager.json")
     store.patch("example.retained", version="1.0.0", installation_id="existing-identity")
-    monkeypatch.setattr(plugins, "manager_state", lambda: store)
+    monkeypatch.setattr(plugin_lifecycle, "manager_state", lambda: store)
     runtime = SimpleNamespace(
         plugins=AsyncMock(side_effect=PluginRuntimeUnavailable("offline")),
         prune_history=AsyncMock(),
     )
-    monkeypatch.setattr(plugins, "_client", runtime)
+    monkeypatch.setattr(plugin_runtime, "_client", runtime)
     app = FastAPI()
     app.include_router(plugins.router)
     app.dependency_overrides[plugins.get_plugin_manager_admin] = lambda: SimpleNamespace()
@@ -48,12 +50,12 @@ async def test_settings_save_during_runtime_outage_and_survive_reload(tmp_path, 
 @pytest.mark.asyncio
 async def test_connected_save_applies_history_limit(tmp_path, monkeypatch):
     store = ManagerState(tmp_path / "manager.json")
-    monkeypatch.setattr(plugins, "manager_state", lambda: store)
+    monkeypatch.setattr(plugin_lifecycle, "manager_state", lambda: store)
     runtime = SimpleNamespace(
         plugins=AsyncMock(return_value=[{"plugin_id": "example.retained"}]),
         prune_history=AsyncMock(),
     )
-    monkeypatch.setattr(plugins, "_client", runtime)
+    monkeypatch.setattr(plugin_runtime, "_client", runtime)
     result = await plugins.save_manager_settings(
         plugins.ManagerSettingsIn(retained_versions=2), SimpleNamespace()
     )

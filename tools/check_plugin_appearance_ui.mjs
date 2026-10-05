@@ -90,7 +90,8 @@ try {
   assert(catalogue);
   const entries = await api("GET", "/api/plugins/catalog?source=" + encodeURIComponent(catalogue.url));
   const themePreview = await install("example.theme-palettes", catalogue, entries);
-  assert.deepEqual(themePreview.permissions.map(item => item.risk), ["low"]);
+  assert.deepEqual(themePreview.permissions.map(item => item.capability), ["frontend.themes", "frontend.native"]);
+  assert.deepEqual(themePreview.permissions.map(item => item.risk), ["low", "critical"]);
   await install("example.home-widgets", catalogue, entries);
   await install("example.scoped-document-viewer", catalogue, entries);
   const theme = await api("GET", "/api/plugins/example.theme-palettes/ui");

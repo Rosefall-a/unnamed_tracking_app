@@ -11,6 +11,8 @@ from uuid import uuid4
 from fastapi import UploadFile
 
 from src.api.routes import plugins
+from src.api.routes.plugin_manager import acquisition as plugin_acquisition
+from src.api.routes.plugin_manager import runtime as plugin_runtime
 from src.core.auth import hash_password
 
 # Register the relationship target before these focused tests instantiate ORM rows.
@@ -170,9 +172,9 @@ def dangerous_package_bytes() -> bytes:
 def test_upload_endpoint_verifies_and_forwards_utp(monkeypatch) -> None:
     client = FakeClient()
     payload = package_bytes()
-    monkeypatch.setattr(plugins, "_client", client)
+    monkeypatch.setattr(plugin_runtime, "_client", client)
     monkeypatch.setattr(
-        plugins,
+        plugin_acquisition,
         "_plugin_package_verifier",
         lambda: PluginPackageVerifier(require_signature=True),
     )
@@ -212,9 +214,9 @@ def test_upload_endpoint_verifies_and_forwards_utp(monkeypatch) -> None:
 def test_upload_endpoint_accepts_ui_playground_frontend_manifest(monkeypatch) -> None:
     client = FakeClient()
     payload = frontend_package_bytes()
-    monkeypatch.setattr(plugins, "_client", client)
+    monkeypatch.setattr(plugin_runtime, "_client", client)
     monkeypatch.setattr(
-        plugins,
+        plugin_acquisition,
         "_plugin_package_verifier",
         lambda: PluginPackageVerifier(require_signature=True),
     )
@@ -258,9 +260,9 @@ def test_upload_endpoint_accepts_ui_playground_frontend_manifest(monkeypatch) ->
 
 def test_upload_preview_is_static_and_lists_requested_permissions(monkeypatch) -> None:
     client = FakeClient()
-    monkeypatch.setattr(plugins, "_client", client)
+    monkeypatch.setattr(plugin_runtime, "_client", client)
     monkeypatch.setattr(
-        plugins,
+        plugin_acquisition,
         "_plugin_package_verifier",
         lambda: PluginPackageVerifier(require_signature=True),
     )
@@ -305,7 +307,7 @@ def test_upload_preview_is_static_and_lists_requested_permissions(monkeypatch) -
 def test_dangerous_unsigned_grant_requires_password_reauthentication(monkeypatch) -> None:
     client = FakeClient()
     payload = dangerous_package_bytes()
-    monkeypatch.setattr(plugins, "_client", client)
+    monkeypatch.setattr(plugin_runtime, "_client", client)
     admin = SimpleNamespace(
         id=uuid4(),
         password_hash=hash_password("Correct-password!"),
@@ -367,14 +369,14 @@ def test_upload_endpoint_accepts_zip_package() -> None:
             pass
 
     client = FakeClient()
-    original = plugins._client
-    plugins._client = client
+    original = plugin_runtime._client
+    plugin_runtime._client = client
     try:
         result = asyncio.run(
             plugins.install_plugin(upload, allow_untrusted=True, admin=object(), db=FakeDb())
         )
     finally:
-        plugins._client = original
+        plugin_runtime._client = original
     assert result["plugin_id"] == "example.upload"
     assert client.filename == "example.upload-1.0.0.utp"
 
@@ -393,14 +395,14 @@ def test_upload_endpoint_accepts_package_with_unusual_filename() -> None:
             pass
 
     client = FakeClient()
-    original = plugins._client
-    plugins._client = client
+    original = plugin_runtime._client
+    plugin_runtime._client = client
     try:
         result = asyncio.run(
             plugins.install_plugin(upload, allow_untrusted=True, admin=object(), db=FakeDb())
         )
     finally:
-        plugins._client = original
+        plugin_runtime._client = original
 
     assert result["plugin_id"] == "example.upload"
     assert client.filename == "example.upload-1.0.0.utp"
@@ -461,7 +463,7 @@ def test_remote_preview_uses_downloaded_package(monkeypatch) -> None:
         path = __import__("pathlib").Path(handle.name)
         return path, "example.zip", len(package)
 
-    monkeypatch.setattr(plugins, "_download_remote_file", fake_download)
+    monkeypatch.setattr(plugin_acquisition, "_download_remote_file", fake_download)
     result = asyncio.run(
         plugins.preview_plugin_install_url(
             plugins.PluginInstallUrl(url="https://example.com/example.zip"),
@@ -502,7 +504,7 @@ def test_catalog_entries_accept_explicit_source(monkeypatch) -> None:
         handle.close()
         return pathlib.Path(handle.name), "list.json", len(json.dumps(payload))
 
-    monkeypatch.setattr(plugins, "_download_remote_file", fake_download)
+    monkeypatch.setattr(plugin_acquisition, "_download_remote_file", fake_download)
     result = asyncio.run(
         plugins.plugin_catalog(
             source="https://example.com/list.json",
@@ -548,8 +550,8 @@ def test_upload_url_and_catalogue_converge_on_one_commit_path(monkeypatch) -> No
         handle.close()
         return __import__("pathlib").Path(handle.name), "candidate.bin", len(data)
 
-    monkeypatch.setattr(plugins, "_install_plugin_package", fake_commit)
-    monkeypatch.setattr(plugins, "_download_remote_file", fake_download)
+    monkeypatch.setattr(plugin_acquisition, "_install_plugin_package", fake_commit)
+    monkeypatch.setattr(plugin_acquisition, "_download_remote_file", fake_download)
     asyncio.run(
         plugins.install_plugin(
             UploadFile(file=io.BytesIO(payload), filename="candidate.bin"),

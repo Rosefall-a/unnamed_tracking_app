@@ -19,6 +19,8 @@ from test_plugin_install_sources import (  # noqa: F401
 )
 
 from src.api.routes import plugins
+from src.api.routes.plugin_manager import acquisition as plugin_acquisition
+from src.api.routes.plugin_manager import catalogues as plugin_catalogues
 from src.core.auth import get_current_user
 from src.database.models.auth import UserApiKey
 from src.database.models.plugin_permissions import PluginPermissionGrant
@@ -236,10 +238,10 @@ async def test_denied_staged_release_remains_denied_during_scheduled_checks(gate
             "source": source,
         }
 
-    monkeypatch.setattr(plugins, "_check_plugin_update", check)
-    monkeypatch.setattr(plugins, "_download_remote_file", download)
+    monkeypatch.setattr(plugin_catalogues, "_check_plugin_update", check)
+    monkeypatch.setattr(plugin_acquisition, "_download_remote_file", download)
     monkeypatch.setattr(
-        plugins,
+        plugin_catalogues,
         "_catalogue_store",
         lambda: SimpleNamespace(list=lambda: [{"url": source["catalogue_url"], "enabled": True}]),
     )
@@ -328,10 +330,10 @@ async def test_automatic_update_policy_downloads_without_unauthorized_activation
             "source": source,
         }
 
-    monkeypatch.setattr(plugins, "_check_plugin_update", check)
-    monkeypatch.setattr(plugins, "_download_remote_file", download)
+    monkeypatch.setattr(plugin_catalogues, "_check_plugin_update", check)
+    monkeypatch.setattr(plugin_acquisition, "_download_remote_file", download)
     monkeypatch.setattr(
-        plugins,
+        plugin_catalogues,
         "_catalogue_store",
         lambda: SimpleNamespace(list=lambda: [{"url": source["catalogue_url"], "enabled": True}]),
     )
@@ -613,7 +615,7 @@ async def test_historical_catalogue_install_pins_until_explicit_opt_in(gate, mon
             )
         ]
 
-    monkeypatch.setattr(plugins, "plugin_catalog", catalogue)
+    monkeypatch.setattr(plugin_catalogues, "plugin_catalog", catalogue)
     store = manager_state()
     store.settings({"automatic_updates": True})
     response = await acquire(gate, "catalogue", payload)

@@ -8,6 +8,7 @@ from test_plugin_install_sources import gate as _gate_fixture
 from test_plugin_install_sources import package_bytes
 
 from src.api.routes import plugins
+from src.api.routes.plugin_manager import runtime as plugin_runtime
 from src.plugin_api.runtime_client import PluginRuntimeUnavailable
 
 gate = _gate_fixture
@@ -73,7 +74,7 @@ async def test_platform_reports_actual_versions_and_health(monkeypatch, state):
         return_value=reported,
         side_effect=PluginRuntimeUnavailable("Disconnected") if state == "offline" else None,
     )
-    monkeypatch.setattr(plugins, "_client", SimpleNamespace(health=health))
+    monkeypatch.setattr(plugin_runtime, "_client", SimpleNamespace(health=health))
     result = await plugins.runtime_health(SimpleNamespace())
     assert result["host_api_contract_version"] == "1.1.0"
     assert result["host_sdk_version"] == "1.1.0"

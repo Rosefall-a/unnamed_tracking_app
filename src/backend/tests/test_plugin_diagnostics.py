@@ -6,6 +6,7 @@ import pytest
 from fastapi import HTTPException
 
 from src.api.routes import plugins
+from src.api.routes.plugin_manager import runtime as plugin_runtime
 
 
 class FakeRuntimeClient:
@@ -23,7 +24,7 @@ class FakeRuntimeClient:
 
 
 def test_admin_diagnostics_can_filter_and_bound_events(monkeypatch) -> None:
-    monkeypatch.setattr(plugins, "_client", FakeRuntimeClient())
+    monkeypatch.setattr(plugin_runtime, "_client", FakeRuntimeClient())
 
     result = asyncio.run(
         plugins.plugin_logs("example.plugin", level="error", limit=1, admin=object())
@@ -35,7 +36,7 @@ def test_admin_diagnostics_can_filter_and_bound_events(monkeypatch) -> None:
 
 
 def test_admin_diagnostics_reject_unknown_levels(monkeypatch) -> None:
-    monkeypatch.setattr(plugins, "_client", FakeRuntimeClient())
+    monkeypatch.setattr(plugin_runtime, "_client", FakeRuntimeClient())
 
     with pytest.raises(HTTPException) as raised:
         asyncio.run(plugins.plugin_logs("example.plugin", level="fatal", limit=100, admin=object()))

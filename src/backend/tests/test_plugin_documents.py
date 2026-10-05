@@ -18,6 +18,7 @@ from test_plugin_authorization_http import grant, request
 
 from src.api.routes import games as game_routes
 from src.api.routes import plugins
+from src.api.routes.plugin_manager import contributions as plugin_contributions
 from src.core.auth import session_cookie_name
 from src.database.models.game import Game, GameLink
 from src.database.models.game_file_item import GameFileItem
@@ -42,7 +43,7 @@ def stored(boundary, tmp_path, monkeypatch):
     GameLink.__table__.create(boundary.session.bind)
     GameFileItem.__table__.create(boundary.session.bind)
     monkeypatch.setattr(gateway, "_DATA_ROOT", tmp_path)
-    monkeypatch.setattr(plugins, "_DOCUMENT_DATA_ROOT", tmp_path)
+    monkeypatch.setattr(plugin_contributions, "_DOCUMENT_DATA_ROOT", tmp_path)
     monkeypatch.setattr(game_routes, "_DATA_ROOT", tmp_path)
     games = []
     for user in boundary.users:

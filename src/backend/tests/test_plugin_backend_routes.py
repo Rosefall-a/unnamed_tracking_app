@@ -12,6 +12,8 @@ from fastapi import HTTPException
 from starlette.requests import Request
 
 from src.api.routes import plugins
+from src.api.routes.plugin_manager import backend as plugin_backend
+from src.api.routes.plugin_manager import runtime as plugin_runtime
 from src.plugin_api.backend_routes import (
     BackendRouteConflictError,
     resolve_backend_route,
@@ -91,9 +93,9 @@ async def test_plugin_routes_authenticate_after_a_declared_route_matches(monkeyp
         route=AsyncMock(return_value={"status_code": 200, "body": {"ok": True}}),
     )
     authenticate = AsyncMock(return_value=user)
-    monkeypatch.setattr(plugins, "_client", client)
-    monkeypatch.setattr(plugins, "get_current_user", authenticate)
-    monkeypatch.setattr(plugins, "has_capability_grant", AsyncMock(return_value=True))
+    monkeypatch.setattr(plugin_runtime, "_client", client)
+    monkeypatch.setattr(plugin_backend, "get_current_user", authenticate)
+    monkeypatch.setattr(plugin_backend, "has_capability_grant", AsyncMock(return_value=True))
 
     request = request_for("/api/plugins/example.routes/hello/42")
     response = await plugins._dispatch_backend_route(
@@ -112,11 +114,11 @@ async def test_plugin_routes_authenticate_after_a_declared_route_matches(monkeyp
 async def test_unknown_host_route_remains_a_not_found_without_authentication(monkeypatch) -> None:
     authenticate = AsyncMock()
     monkeypatch.setattr(
-        plugins,
+        plugin_runtime,
         "_client",
         SimpleNamespace(plugins=AsyncMock(return_value=[])),
     )
-    monkeypatch.setattr(plugins, "get_current_user", authenticate)
+    monkeypatch.setattr(plugin_backend, "get_current_user", authenticate)
 
     with pytest.raises(HTTPException) as missing:
         await plugins._dispatch_backend_route(
@@ -139,8 +141,8 @@ async def test_namespaced_route_uses_authenticated_user_and_installation_grant(m
     )
     grant = AsyncMock(return_value=True)
     user = SimpleNamespace(id=uuid4(), username="alice", is_admin=False)
-    monkeypatch.setattr(plugins, "_client", client)
-    monkeypatch.setattr(plugins, "has_capability_grant", grant)
+    monkeypatch.setattr(plugin_runtime, "_client", client)
+    monkeypatch.setattr(plugin_backend, "has_capability_grant", grant)
 
     response = await plugins._dispatch_backend_route(
         request_for("/api/plugins/example.routes/hello/42"),
@@ -177,8 +179,8 @@ async def test_route_capability_denial_never_executes_plugin(monkeypatch) -> Non
         plugins=AsyncMock(return_value=[installed_plugin()]),
         route=AsyncMock(),
     )
-    monkeypatch.setattr(plugins, "_client", client)
-    monkeypatch.setattr(plugins, "has_capability_grant", AsyncMock(return_value=False))
+    monkeypatch.setattr(plugin_runtime, "_client", client)
+    monkeypatch.setattr(plugin_backend, "has_capability_grant", AsyncMock(return_value=False))
 
     with pytest.raises(HTTPException) as denied:
         await plugins._dispatch_backend_route(
@@ -212,8 +214,8 @@ async def test_privileged_host_route_requires_admin_and_host_capability(monkeypa
         route=AsyncMock(return_value={"status_code": 200, "body": {"audited": True}}),
     )
     grant = AsyncMock(return_value=True)
-    monkeypatch.setattr(plugins, "_client", client)
-    monkeypatch.setattr(plugins, "has_capability_grant", grant)
+    monkeypatch.setattr(plugin_runtime, "_client", client)
+    monkeypatch.setattr(plugin_backend, "has_capability_grant", grant)
 
     with pytest.raises(HTTPException) as denied:
         await plugins._dispatch_backend_route(
@@ -272,8 +274,8 @@ async def test_disabled_or_failed_plugin_cannot_serve_routes(monkeypatch, change
         plugins=AsyncMock(return_value=[installed_plugin(**changes)]),
         route=AsyncMock(),
     )
-    monkeypatch.setattr(plugins, "_client", client)
-    monkeypatch.setattr(plugins, "has_capability_grant", AsyncMock(return_value=True))
+    monkeypatch.setattr(plugin_runtime, "_client", client)
+    monkeypatch.setattr(plugin_backend, "has_capability_grant", AsyncMock(return_value=True))
 
     with pytest.raises(HTTPException) as unavailable:
         await plugins._dispatch_backend_route(
@@ -352,8 +354,8 @@ async def test_non_json_safe_plugin_response_is_rejected(monkeypatch) -> None:
         plugins=AsyncMock(return_value=[installed_plugin()]),
         route=AsyncMock(return_value={"status_code": 200, "body": {"value": float("nan")}}),
     )
-    monkeypatch.setattr(plugins, "_client", client)
-    monkeypatch.setattr(plugins, "has_capability_grant", AsyncMock(return_value=True))
+    monkeypatch.setattr(plugin_runtime, "_client", client)
+    monkeypatch.setattr(plugin_backend, "has_capability_grant", AsyncMock(return_value=True))
 
     with pytest.raises(HTTPException) as invalid:
         await plugins._dispatch_backend_route(

@@ -15,6 +15,9 @@ import pytest
 from fastapi import FastAPI
 
 from src.api.routes import plugins
+from src.api.routes.plugin_manager import backend as plugin_backend
+from src.api.routes.plugin_manager import contributions as plugin_contributions
+from src.api.routes.plugin_manager import runtime as plugin_runtime
 from src.features.notification_providers import registry as providers
 from src.plugin_api.runtime_client import PluginRuntimeClient
 
@@ -92,11 +95,12 @@ async def test_lifecycle_revokes_all_host_execution_boundaries(tmp_path, monkeyp
     worker = threading.Thread(target=server.serve_forever, daemon=True)
     worker.start()
     runtime_client = PluginRuntimeClient(f"http://127.0.0.1:{server.server_port}", token)
-    monkeypatch.setattr(plugins, "_client", runtime_client)
+    monkeypatch.setattr(plugin_runtime, "_client", runtime_client)
     monkeypatch.setattr(providers, "PluginRuntimeClient", lambda: runtime_client)
-    monkeypatch.setattr(plugins, "has_capability_grant", AsyncMock(return_value=True))
+    monkeypatch.setattr(plugin_contributions, "has_capability_grant", AsyncMock(return_value=True))
+    monkeypatch.setattr(plugin_backend, "has_capability_grant", AsyncMock(return_value=True))
     dispatch = AsyncMock(return_value={"events": []})
-    monkeypatch.setattr(plugins, "dispatch_gateway_request", dispatch)
+    monkeypatch.setattr(plugin_contributions, "dispatch_gateway_request", dispatch)
     registration = SimpleNamespace(
         plugin_id=plugin_id,
         installation_id=installation_id,
@@ -131,7 +135,7 @@ async def test_lifecycle_revokes_all_host_execution_boundaries(tmp_path, monkeyp
     app.dependency_overrides[plugins.get_current_user] = lambda: user
     app.dependency_overrides[plugins.get_plugin_manager_reader] = lambda: user
     app.dependency_overrides[plugins.get_plugin_manager_admin] = lambda: user
-    monkeypatch.setattr(plugins, "get_current_user", AsyncMock(return_value=user))
+    monkeypatch.setattr(plugin_backend, "get_current_user", AsyncMock(return_value=user))
     try:
         async with httpx.AsyncClient(
             transport=httpx.ASGITransport(app=app), base_url="http://host"

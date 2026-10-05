@@ -21,6 +21,8 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
 from src.api.routes import auth, plugin_permissions, plugins
+from src.api.routes.plugin_manager import contributions as plugin_contributions
+from src.api.routes.plugin_manager import runtime as plugin_runtime
 from src.core.auth import hash_token, session_cookie_name
 from src.core.geoip import GeoLocation, geoip
 from src.database.models.achievement import Achievement  # noqa: F401
@@ -164,7 +166,7 @@ def boundary(monkeypatch):
         async def database():
             yield db
 
-        monkeypatch.setattr(plugins, "_client", runtime)
+        monkeypatch.setattr(plugin_runtime, "_client", runtime)
         monkeypatch.setenv("PLUGIN_RUNTIME_TOKEN", "x" * 32)
         app = FastAPI()
         app.include_router(auth.router)
@@ -569,7 +571,7 @@ async def test_gateway_version_correlation_and_structured_denial(boundary):
 @pytest.mark.asyncio
 async def test_gateway_internal_errors_are_safe_and_dispatch_is_bounded(boundary, monkeypatch):
     dispatch = AsyncMock(side_effect=RuntimeError("private SQL password=do-not-expose"))
-    monkeypatch.setattr(plugins, "dispatch_gateway_request", dispatch)
+    monkeypatch.setattr(plugin_contributions, "dispatch_gateway_request", dispatch)
     failed = await request(boundary)
     assert failed.status_code == 500
     assert failed.json()["error"]["code"] == "internal"
@@ -583,8 +585,8 @@ async def test_gateway_internal_errors_are_safe_and_dispatch_is_bounded(boundary
         finally:
             cancelled.set()
 
-    monkeypatch.setattr(plugins, "dispatch_gateway_request", slow)
-    monkeypatch.setattr(plugins, "_GATEWAY_DISPATCH_TIMEOUT", 0.01)
+    monkeypatch.setattr(plugin_contributions, "dispatch_gateway_request", slow)
+    monkeypatch.setattr(plugin_contributions, "_GATEWAY_DISPATCH_TIMEOUT", 0.01)
     timed_out = await request(boundary)
     assert timed_out.status_code == 504
     assert timed_out.json()["error"]["code"] == "unavailable"
