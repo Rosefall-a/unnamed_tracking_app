@@ -13,6 +13,14 @@ from src.database.models.game import Game
 _DATA_ROOT = Path("/data/users")
 _NOTE_NAME_PATTERN = re.compile(r"^[^\\x00-\\x1f\\x7f/\\\\]+$")
 
+def _validate_asset_kind(asset_kind: str) -> None:
+    if asset_kind not in {"key_art", "banner", "logo", "icon"}:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unsupported asset kind '{asset_kind}'. Supported values: key_art, banner, logo, icon",
+        )
+
+
 def _normalize_note_name(note_name: str) -> str:
     normalized = note_name.strip()
     if normalized.lower().endswith(".md"):
