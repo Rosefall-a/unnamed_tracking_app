@@ -32,6 +32,8 @@ from src.api.routes.game_helpers import _DATA_ROOT, _get_game_or_404
 router = APIRouter()
 _DB_DEPENDENCY = Depends(get_db)
 _CURRENT_USER_DEPENDENCY = Depends(get_current_user)
+_NONE_FORM = None
+_NONE_QUERY_STATUS = None
 
 async def _get_profile_or_404(
     profile_id: UUID, game_id: UUID, db: AsyncSession, include_deleted: bool = False
