@@ -1,0 +1,51 @@
+name: Frontend Line Limit
+
+on:
+  push:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+
+jobs:
+  frontend-line-limit:
+    name: Frontend Line Limit
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Enforce 2,000-line maximum
+        working-directory: src/frontend
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          maximum = 2000
+          excluded = {Path("node_modules"), Path("dist")}
+          extensions = {".js", ".mjs", ".cjs", ".ts", ".tsx", ".vue"}
+          violations = []
+
+          for path in Path(".").rglob("*"):
+              if not path.is_file() or path.suffix not in extensions:
+                  continue
+              if any(parent in excluded for parent in path.parents):
+                  continue
+              text = path.read_text(encoding="utf-8")
+              if "eslint-disable" in text and "max-lines" in text:
+                  print(f"Skipping line-limit check for {path}: max-lines is disabled.")
+                  continue
+              line_count = text.count("\n") + (1 if text else 0)
+              if line_count > maximum:
+                  violations.append((path, line_count))
+
+          if violations:
+              print("Frontend source files exceeding the 2,000-line maximum:")
+              for path, line_count in sorted(violations):
+                  print(f"  {path}: {line_count} lines")
+              raise SystemExit(1)
+
+          print("All frontend source files are at or below 2,000 lines.")
+          PY
