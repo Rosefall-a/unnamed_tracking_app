@@ -56,7 +56,9 @@ export async function checkShortcutSettings({ browser, admin, origin, evidenceRo
         const screenshot = `shortcut-conflict-${width}-${theme}.png`;
         await page.screenshot({ path: path.join(evidenceRoot, screenshot) }); report.screens.push(screenshot);
         await save(dialog);
-        assert.match(await binding("nav.m").innerText(), /existing shortcut stays active/);
+        assert.match(await binding("nav.m").innerText(), /oldest enabled/);
+        assert.equal(await binding("nav.m").getByRole("checkbox").isChecked(), false);
+        await page.getByRole("button", { name: "Dismiss shortcut conflict", exact: true }).click();
         await page.locator("h1").first().click(); await page.keyboard.press("Alt+Shift+g"); await page.waitForURL(origin + "/games");
         await page.goto(origin + "/settings?section=shortcuts");
         const response = page.waitForResponse(item => item.url().endsWith("/api/preferences") && item.request().method() === "PATCH");

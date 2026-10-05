@@ -6,6 +6,8 @@ import AppIcon from "./components/AppIcon.vue";
 import AccountChip from "./components/AccountChip.vue";
 import TaskProgressToast from "./components/TaskProgressToast.vue";
 import ShortcutsHelp from "./components/ShortcutsHelp.vue";
+import ShortcutConflictNotice from "./components/ShortcutConflictNotice.vue";
+import { useShortcutReconciliation } from "./composables/useShortcutReconciliation";
 import CommandPalette from "./components/CommandPalette.vue";
 import AppDialog from "./components/AppDialog.vue";
 import AppearanceWelcome from "./components/AppearanceWelcome.vue";
@@ -45,6 +47,8 @@ import PwaStatus from "./components/PwaStatus.vue";
 
 const route = useRoute();
 const router = useRouter();
+const stopShortcutReconciliation = useShortcutReconciliation();
+onUnmounted(stopShortcutReconciliation);
 watchEffect(() => {
   applyPluginThemeStyle(
     document.documentElement,
@@ -204,6 +208,7 @@ const KEPT_ALIVE = [
     <TaskProgressToast v-if="sidebarShown" />
     <AppDialog />
     <ShortcutsHelp v-if="sidebarShown" />
+    <ShortcutConflictNotice v-if="currentUser" />
     <CommandPalette v-if="sidebarShown" />
     <QuickTour v-if="sidebarShown" />
     <AppearanceWelcome

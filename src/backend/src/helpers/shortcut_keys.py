@@ -58,10 +58,16 @@ def validate_shortcut_overrides(value: object) -> dict:
             r"[a-z0-9][a-z0-9:._-]{0,299}", identifier
         ):
             raise ValueError("Invalid shortcut identifier.")
-        if not isinstance(options, dict) or set(options) - {"enabled", "keys"}:
-            raise ValueError("Shortcut overrides accept only enabled and keys.")
+        if not isinstance(options, dict) or set(options) - {"enabled", "keys", "enabled_order"}:
+            raise ValueError("Shortcut overrides accept only enabled, keys and enabled_order.")
         if "enabled" in options and not isinstance(options["enabled"], bool):
             raise ValueError("Shortcut enabled must be true or false.")
+        if "enabled_order" in options and (
+            not isinstance(options["enabled_order"], int)
+            or isinstance(options["enabled_order"], bool)
+            or not 0 <= options["enabled_order"] <= 9_007_199_254_740_991
+        ):
+            raise ValueError("Shortcut activation order must be a nonnegative safe integer.")
         entry = dict(options)
         if "keys" in entry:
             if not isinstance(entry["keys"], list) or not 1 <= len(entry["keys"]) <= 4:

@@ -28,6 +28,7 @@ import { checkCollectionMigration } from "./check_collection_migration.mjs";
 import { checkMobileNavigation } from "./check_mobile_navigation.mjs";
 import { checkQuickTour } from "./check_quick_tour.mjs";
 import { checkShortcutSettings } from "./check_shortcut_settings.mjs";
+import { checkShortcutPriority } from "./check_shortcut_priority.mjs";
 
 const [pluginsRoot, evidenceRoot, backendUrl] = process.argv.slice(2);
 const reviewStage = process.argv[5] ?? "shell";
@@ -80,8 +81,18 @@ try {
   // Evidence must never contain embedded media from installed plugins.
   const installed = await admin.request.get(origin + "/api/plugins");
   assert.equal(installed.status(), 200);
-  assert.equal((await installed.json()).length, 0, "Run this stage against a clean plugin inventory to exclude embedded-media evidence.");
-  if (reviewStage === "library-layouts") {
+  const inventory = await installed.json();
+  if (reviewStage === "shortcut-priority") {
+    assert(inventory.some(item => item.plugin_id === "example.shortcut-playground"));
+    assert(inventory.every(item => item.plugin_id === "example.shortcut-playground"), "Keep only the shortcut example installed for this evidence stage.");
+  } else {
+    assert.equal(inventory.length, 0, "Run this stage against a clean plugin inventory to exclude embedded-media evidence.");
+  }
+  if (reviewStage === "shortcut-priority") {
+    await checkShortcutPriority({ browser, admin, origin, evidenceRoot, report, checkOverflow });
+    await writeFile(path.join(evidenceRoot, "shortcut-priority-conformance.json"), JSON.stringify(report, null, 2) + "\n");
+    console.log(JSON.stringify({ cases: report.screens.length, passed: report.passed }, null, 2));
+  } else if (reviewStage === "library-layouts") {
     await checkLibraryLayouts({ browser, admin, origin, evidenceRoot, report, checkOverflow });
     await writeFile(path.join(evidenceRoot, "library-layout-conformance.json"), JSON.stringify(report, null, 2) + "\n");
     console.log(JSON.stringify({ cases: report.passed.length, screens: report.screens.length, passed: report.passed }, null, 2));

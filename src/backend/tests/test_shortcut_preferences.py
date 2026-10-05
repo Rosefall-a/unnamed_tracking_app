@@ -18,6 +18,10 @@ from src.main import app  # noqa: F401 - register ORM models
         [],
         {"bad/key": {}},
         {"nav.g": {"enabled": "false"}},
+        {"nav.g": {"enabled_order": True}},
+        {"nav.g": {"enabled_order": -1}},
+        {"nav.g": {"enabled_order": 1.5}},
+        {"nav.g": {"enabled_order": 9_007_199_254_740_992}},
         {"nav.g": {"keys": []}},
         {"nav.g": {"keys": ["Ctrl+Ctrl+K"]}},
         {"nav.g": {"keys": ["<script>"]}},
@@ -43,14 +47,21 @@ async def test_shortcut_changes_are_personal_and_keep_unavailable_plugin_choices
     row = SimpleNamespace(data={"ui_theme": "dark"})
     db = SimpleNamespace(scalar=AsyncMock(return_value=row), commit=AsyncMock())
     overrides = {
-        "nav.g": {"keys": ["shift + alt + g"]},
-        "plugin:example.removed:action": {"enabled": False, "keys": ["CtrlOrMeta+K"]},
+        "nav.g": {"keys": ["shift + alt + g"], "enabled_order": 32},
+        "plugin:example.removed:action": {
+            "enabled": False,
+            "keys": ["CtrlOrMeta+K"],
+            "enabled_order": 31,
+        },
     }
     result = await save_preferences(
         db, user_id, {"keyboard_shortcuts_enabled": False, "keyboard_shortcut_overrides": overrides}
     )
     assert result["ui_theme"] == "dark"
     assert result["keyboard_shortcut_overrides"]["nav.g"]["keys"] == ["Alt+Shift+G"]
+    assert result["keyboard_shortcut_overrides"]["nav.g"]["enabled_order"] == 32
+    reloaded = await load_preferences(db, user_id)
+    assert reloaded["keyboard_shortcut_overrides"] == result["keyboard_shortcut_overrides"]
     assert (
         result["keyboard_shortcut_overrides"]["plugin:example.removed:action"]["enabled"] is False
     )

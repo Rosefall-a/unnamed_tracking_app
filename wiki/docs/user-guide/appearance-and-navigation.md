@@ -50,3 +50,9 @@ Navigation, Settings, [Home](home.md), games, collections, cards, sets, media an
 Open **Search library** from the menu, or press **Ctrl/Cmd + K**, to find games, movies, TV shows, anime, collections, goals, settings and active plugin pages. A failed provider leaves available results visible and offers Retry. Search and settings results respect your account's permissions.
 
 Press **?** to show keyboard help. The current page's section comes first and opens automatically; expand or collapse other sections as needed. The same help appears under Settings → Keyboard Shortcuts. **/** focuses the current page's search, or opens Search library when there is no local search. **n** opens the current page's create control when available. **Alt + a letter** navigates globally; hover navigation links to see their keys. The full mappings are in help. Shortcuts pause while you type or use a dialog.
+
+When keys conflict, the oldest enabled shortcut keeps them. A new or re-enabled
+shortcut is disabled and a popup opens its key editor. Remap it, or disable the
+older binding before enabling it. Saving replacement keys can enable the repaired
+shortcut. Disabled bindings stay off across reloads, and plugin updates retain
+your choices and priority.

@@ -1,63 +1,25 @@
 import { computed, shallowRef } from "vue";
 import { preferences } from "./preferences";
 import {
+  resolveShortcuts,
+  type ResolvedShortcut,
+} from "../utils/shortcutResolution";
+export { resolveShortcuts } from "../utils/shortcutResolution";
+export type {
+  ShortcutOverride,
+  ResolvedShortcut,
+} from "../utils/shortcutResolution";
+import {
   CORE_SHORTCUTS,
   shortcutPathMatches,
-  shortcutScopesOverlap,
   type ShortcutDefinition,
 } from "../utils/shortcutDefinitions";
 import {
   matchesShortcutKey,
   normalizeShortcutKey,
-  shortcutKeysOverlap,
   shortcutKeyLabel,
   type ShortcutKeyEvent,
 } from "../utils/shortcutKeys";
-
-export interface ShortcutOverride {
-  enabled?: boolean;
-  keys?: string[];
-}
-export interface ResolvedShortcut extends ShortcutDefinition {
-  enabled: boolean;
-  activeKeys: string[];
-  conflicts: Array<{ key: string; id: string; label: string }>;
-}
-export function resolveShortcuts(
-  definitions: ShortcutDefinition[],
-  overrides: Record<string, ShortcutOverride>,
-): ResolvedShortcut[] {
-  const resolved: ResolvedShortcut[] = [];
-  for (const item of definitions) {
-    const override = overrides[item.id];
-    const keys = (override?.keys ?? item.keys)
-      .map(normalizeShortcutKey)
-      .filter((key): key is string => !!key);
-    const entry: ResolvedShortcut = {
-      ...item,
-      keys,
-      enabled: override?.enabled !== false,
-      activeKeys: [],
-      conflicts: [],
-    };
-    if (entry.enabled)
-      for (const key of keys) {
-        const owner = resolved.find(
-          (other) =>
-            other.enabled &&
-            shortcutScopesOverlap(entry, other) &&
-            other.activeKeys.some((otherKey) =>
-              shortcutKeysOverlap(key, otherKey),
-            ),
-        );
-        if (owner)
-          entry.conflicts.push({ key, id: owner.id, label: owner.label });
-        else entry.activeKeys.push(key);
-      }
-    resolved.push(entry);
-  }
-  return resolved;
-}
 
 interface PluginRegistration {
   definition: ShortcutDefinition;
@@ -67,18 +29,18 @@ interface PluginRegistration {
 }
 const registrations = shallowRef<Map<string, PluginRegistration>>(new Map());
 let sequence = 0;
+export const shortcutDefinitions = computed(() => [
+  ...CORE_SHORTCUTS,
+  ...[...registrations.value.values()]
+    .sort((a, b) => a.sequence - b.sequence)
+    .map((item) => item.definition),
+]);
 export const keyboardShortcuts = computed(() =>
   resolveShortcuts(
-    [
-      ...CORE_SHORTCUTS,
-      ...[...registrations.value.values()]
-        .sort((a, b) => a.sequence - b.sequence)
-        .map((item) => item.definition),
-    ],
+    shortcutDefinitions.value,
     preferences.value.keyboard_shortcut_overrides ?? {},
   ),
 );
-
 export interface NativeShortcut {
   id: string;
   label: string;

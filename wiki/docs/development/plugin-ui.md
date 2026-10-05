@@ -174,8 +174,11 @@ withdrawal, account changes or failed activation. Scoped paths must stay inside
 the plugin's namespace. Retain stable IDs to preserve personal remaps.
 
 Keys use `CtrlOrMeta`, `Ctrl`, `Meta`, `Alt` and `Shift` modifiers, for example
-`Alt+Shift+L` or `CtrlOrMeta+K`. The host resolves overlapping keys in registration
-order: the existing binding keeps working and the new conflicting key is paused.
+`Alt+Shift+L` or `CtrlOrMeta+K`. The host resolves overlapping keys by the oldest
+enabled binding, with activation order saved to the user's account. Re-enabling
+or remapping an active binding creates a new claim. A conflicting newcomer is
+disabled and a notice links directly to its key editor; it stays disabled until
+the user resolves and enables it. Plugin refreshes/reinstalls retain priority.
 Users can enable, disable or remap bindings in Preferences → Keyboard shortcuts;
 help, hover hints and the tour use the resulting active keys. Composition,
 repeat, AltGraph input, editable fields and host dialogs retain their guards.

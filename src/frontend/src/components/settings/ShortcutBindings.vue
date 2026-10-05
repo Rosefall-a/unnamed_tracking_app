@@ -1,12 +1,18 @@
 <script setup lang="ts">
-import { computed, ref, nextTick } from "vue";
+import { computed, ref, nextTick, watch } from "vue";
+import { useRoute } from "vue-router";
 import { preferences } from "../../state/preferences";
 import {
   keyboardShortcuts,
-  resolveShortcuts,
+  shortcutDefinitions,
   shortcutBinding,
   type ShortcutOverride,
 } from "../../state/shortcuts";
+import {
+  prepareShortcutOverride,
+  reconcileShortcutOverrides,
+} from "../../utils/shortcutResolution";
+import { notifyShortcutConflicts } from "../../state/shortcutNotices";
 import { queuePreferences, type Preferences } from "../../services/preferences";
 import {
   normalizeShortcutKey,
@@ -17,6 +23,7 @@ import UiModal from "../UiModal.vue";
 const saving = ref(false),
   message = ref(""),
   error = ref("");
+const route = useRoute();
 const selected = ref<string | null>(null),
   draft = ref<string[]>([]),
   recording = ref<number | null>(null);
@@ -37,18 +44,13 @@ const valid = computed(
 );
 const conflicts = computed(() => {
   if (!editing.value || !valid.value) return [];
-  const overrides = {
-    ...preferences.value.keyboard_shortcut_overrides,
-    [editing.value.id]: { enabled: true, keys: normalized.value as string[] },
-  };
-  return resolveShortcuts(keyboardShortcuts.value, overrides).flatMap((item) =>
-    item.conflicts.flatMap((conflict) =>
-      item.id === editing.value?.id
-        ? [{ ...conflict, paused: editing.value.label }]
-        : conflict.id === editing.value?.id
-          ? [{ ...conflict, label: item.label, paused: item.label }]
-          : [],
-    ),
+  return (
+    prepareShortcutOverride(
+      shortcutDefinitions.value,
+      preferences.value.keyboard_shortcut_overrides,
+      editing.value.id,
+      { enabled: true, keys: normalized.value as string[] },
+    ).disabled.find((item) => item.id === editing.value?.id)?.conflicts ?? []
   );
 });
 async function save(changes: Partial<Preferences>) {
@@ -73,6 +75,19 @@ function edit(id: string) {
   draft.value = [...(shortcutBinding(id)?.keys ?? [])];
   recording.value = null;
 }
+let openedBinding = "";
+watch(
+  [() => route.query.binding, shortcutDefinitions],
+  ([value]) => {
+    const id = typeof value === "string" ? value : "";
+    if (!id) openedBinding = "";
+    if (id !== openedBinding && shortcutBinding(id)) {
+      openedBinding = id;
+      edit(id);
+    }
+  },
+  { immediate: true },
+);
 async function startRecording(index: number) {
   recording.value = recording.value === index ? null : index;
   await nextTick();
@@ -80,16 +95,32 @@ async function startRecording(index: number) {
     document.getElementById(`shortcut-key-${index}`)?.focus();
 }
 async function saveOverride(id: string, override?: ShortcutOverride) {
-  const overrides = { ...preferences.value.keyboard_shortcut_overrides };
-  if (override) overrides[id] = override;
-  else delete overrides[id];
-  return save({ keyboard_shortcut_overrides: overrides });
+  const result = prepareShortcutOverride(
+    shortcutDefinitions.value,
+    preferences.value.keyboard_shortcut_overrides,
+    id,
+    override ?? { keys: undefined },
+  );
+  const saved = await save({ keyboard_shortcut_overrides: result.overrides });
+  if (saved) notifyShortcutConflicts(result.disabled);
+  return saved;
+}
+async function restoreDefaults() {
+  const result = reconcileShortcutOverrides(shortcutDefinitions.value, {});
+  if (
+    await save({
+      keyboard_shortcut_overrides: result.overrides,
+      keyboard_shortcuts_enabled: true,
+    })
+  )
+    notifyShortcutConflicts(result.disabled);
 }
 async function apply() {
   if (!editing.value || !valid.value) return;
   if (
     await saveOverride(editing.value.id, {
       ...preferences.value.keyboard_shortcut_overrides[editing.value.id],
+      enabled: true,
       keys: normalized.value as string[],
     })
   )
@@ -147,12 +178,7 @@ function record(event: KeyboardEvent, index: number) {
         type="button"
         class="ui-btn ui-btn-ghost"
         :disabled="saving"
-        @click="
-          save({
-            keyboard_shortcut_overrides: {},
-            keyboard_shortcuts_enabled: true,
-          })
-        "
+        @click="restoreDefaults"
       >
         Restore all defaults
       </button>
@@ -162,7 +188,12 @@ function record(event: KeyboardEvent, index: number) {
     <details
       v-for="(group, index) in groups"
       :key="group.title"
-      :open="index === 0"
+      :open="
+        index === 0 ||
+        group.items.some(
+          (item) => item.id === selected || item.id === route.query.binding,
+        )
+      "
       class="binding-group"
     >
       <summary>
@@ -189,8 +220,8 @@ function record(event: KeyboardEvent, index: number) {
             role="status"
           >
             {{ shortcutKeyLabel(conflict.key) }} conflicts with
-            {{ conflict.label }}. The existing shortcut stays active; this
-            binding is paused.
+            {{ conflict.label }}. This binding is disabled; the oldest enabled
+            shortcut stays active.
           </p>
         </div>
         <div class="binding-controls">
@@ -280,8 +311,8 @@ function record(event: KeyboardEvent, index: number) {
         role="status"
       >
         {{ shortcutKeyLabel(conflict.key) }} is used by {{ conflict.label }}.
-        You can save it, but {{ conflict.paused }} stays paused until the
-        conflict is resolved by remapping or disabling a binding.
+        Saving these keys will leave this shortcut disabled. Remap it or disable
+        the older binding before enabling this one.
       </p>
       <p v-if="error" role="alert" class="error">{{ error }}</p>
     </div>
@@ -303,7 +334,9 @@ function record(event: KeyboardEvent, index: number) {
         :disabled="saving || !valid"
         @click="apply"
       >
-        {{ saving ? "Saving…" : "Save keys" }}
+        {{
+          saving ? "Saving…" : editing.enabled ? "Save keys" : "Save & enable"
+        }}
       </button></template
     >
   </UiModal>

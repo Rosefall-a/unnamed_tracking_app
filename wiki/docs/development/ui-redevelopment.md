@@ -389,8 +389,9 @@ The [touch navigation report](../assets/ui-redevelopment/mobile-navigation-confo
 
 Preferences now offers a master switch and individual enabled states, editable
 combinations, key recording and restored defaults. Personal changes use the
-existing per-account preference store. A conflicting key is highlighted and
-paused while the earlier binding stays active; other alternatives keep working.
+existing per-account preference store. A conflicting binding is disabled while
+the oldest enabled binding keeps its keys. Activation order survives reloads;
+re-enabling or remapping a binding gives it a new claim on those keys.
 Hover tooltips, current-page-first expandable help, plugin frames and the guided
 tour all use the same active bindings. Disabled shortcuts leave clickable tour
 controls available. Cards, Sets and Bounties are now supplied by the official
@@ -408,6 +409,33 @@ passes 1,020 tests with two existing opt-in skips, mypy and Pylint at 9.08/10.
 ![Desktop shortcut conflict guidance](../assets/ui-redevelopment/shortcut-conflict-1440-light.png)
 
 ![Phone shortcut conflict guidance](../assets/ui-redevelopment/shortcut-conflict-390-dark.png)
+
+### Conflict ownership and linked notices
+
+The updated host disables conflicting newcomers by default and shows a themed
+notice linking directly to the affected key editor. If Search is disabled and
+the example claims Ctrl/Cmd+K, re-enabling Search cannot take those keys back.
+Remapping to unused keys can enable the repaired binding. Disabled bindings
+stay off even when their previous owner disappears. Discovery waits for account
+preferences; a failed save keeps the local disabling and offers Retry, and logout
+clears private notices and queued changes.
+
+The [installed-plugin report](../assets/ui-redevelopment/shortcut-priority-conformance.json)
+verifies this sequence, real dispatch, linked remapping, reload persistence,
+random shortcut execution/removal and plugin disable/re-enable at 320, 390,
+1440 and 1920 pixels in Light/Dark modes. These checks used disposable installed
+packages, including a locally built example; they are not an assertion about
+downloaded final CI artifacts. The public harness's `shortcut-priority` stage
+requires only the Shortcut Playground example to be installed.
+
+The latest milestone passes 228 frontend tests, 1,071 backend tests with two
+existing skips, forced typing/build/lint/format/source-size checks and strict
+documentation. Backend Pylint remains 9.11/10; the changed shortcut validator is
+10/10. The example's wording documents the same ownership rules.
+
+![New conflict notice](../assets/ui-redevelopment/shortcut-new-conflict-1440-light.png)
+
+![Default Search disabled while the older plugin owns the keys](../assets/ui-redevelopment/shortcut-oldest-owner-390-dark.png)
 
 ## Background task controls and save feedback
 
