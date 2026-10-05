@@ -13,6 +13,7 @@ from src.core.auth import get_current_user
 from src.database.models.game_profile import GameProfile
 from src.database.models.game_profile_stat_snapshot import GameProfileStatSnapshot
 from src.database.session import get_db
+from src.database.models.user import User
 from src.features.metadata.games import wiseoldman
 from src.api.routes.game_helpers import _get_game_or_404
 
