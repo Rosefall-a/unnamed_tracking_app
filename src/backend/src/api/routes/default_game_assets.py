@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import FileResponse, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.routes.game_helpers import _DATA_ROOT, _get_game_or_404, _validate_asset_kind
+from src.api.routes.games import ALLOWED_ASSET_KINDS, _DATA_ROOT, _get_game_or_404
 from src.core.auth import get_current_user
 from src.database.models.user import User
 from src.database.session import get_db
@@ -83,7 +83,11 @@ async def get_game_asset_with_fallback(
     current_user: User = Depends(get_current_user),
 ) -> Response:
     """Serve stored artwork, falling back to generated cover art when needed."""
-    _validate_asset_kind(asset_kind)
+    if asset_kind not in ALLOWED_ASSET_KINDS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unsupported asset kind '{asset_kind}'. Supported values: {sorted(ALLOWED_ASSET_KINDS)}",
+        )
 
     game = await _get_game_or_404(game_id, db, current_user.id)
     asset_path = (
