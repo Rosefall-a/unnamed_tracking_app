@@ -27,6 +27,37 @@ The contract layer must not expose ORM models, database sessions, environment va
 
 ## Versioning
 
+### Owned library reads and retired data
+
+`games.details.list` (`games.read`) returns owned, non-deleted games with card
+metadata, achievement counts and protected artwork URLs. `games.get` returns an
+owned game and a page of its achievements, including stable provider/external
+identifiers. `games.media.list` (`media.read`) returns owned, non-deleted game
+evidence metadata and protected URLs. These methods accept `offset` and a bounded
+`limit`, and return `next_offset` and `complete`. They never expose server paths,
+credentials or other accounts. The older `games.list` transport remains supported.
+
+`library.legacy.export` requires the separate **`library.legacy.read`** grant.
+Large records use bounded base64 chunks (`chunk.offset`, `chunk.next_offset`,
+`chunk.total_bytes`, `chunk.sha256`). Retain the row `offset` and send
+`chunk_offset` and the snapshot `sha256` until the final chunk advances
+`next_offset`. A changed snapshot is rejected so imports can restart safely.
+It exports one bounded page from `cards`, `sets`, `bounties`, `bounty_objectives`,
+`bounty_evidence`, `bounty_journal_entries` or `bounty_point_transactions` for the
+authenticated gateway actor. Child rows are scoped through owned bounties. The
+payload's user identity cannot change that scope. It returns `format_version: 1`,
+`records`, `next_offset` and `complete`. The retained migration tables are read
+through host-owned reflection; retired ORM models and legacy HTTP routes are not
+needed. Importing plugins must preserve identifiers and retry without overwriting
+edits. Export never changes or deletes the server originals.
+
+`storage.compare_and_swap` (`plugin.storage`) atomically replaces one plugin
+storage value if it equals `expected`. Both `expected` and `value` are strings or
+`null`; `null` means absent/deleted. It returns `{ "swapped": true/false }` and
+preserves namespace restrictions, quota checks and live grant enforcement.
+Consumers can safely allocate archive numbers and award a reward once using
+retryable comparisons. The runtime serializes competing namespace handles.
+
 The current API version is v1. The contract library provides VersionNegotiationRequest
 and VersionNegotiationResponse. Deployed workers send an optional `api_version`
 through the existing JSON-line bridge; omission defaults to v1 for older SDKs.

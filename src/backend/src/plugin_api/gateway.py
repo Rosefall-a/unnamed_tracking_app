@@ -48,15 +48,21 @@ from src.plugin_api.documents import (
     owned_document,
     read_representation,
 )
+from src.plugin_api.game_library import dispatch_game_library
 from src.plugin_api.grants import has_capability_grant
-from src.plugin_api.sessions import dispatch_sessions
-from src.plugin_api.media_sync import dispatch_media_sync
+from src.plugin_api.legacy_library import export_legacy_records
 from src.plugin_api.media_enrichment import dispatch_enrichment
+from src.plugin_api.media_sync import dispatch_media_sync
 from src.plugin_api.outbound import outbound_json
+from src.plugin_api.sessions import dispatch_sessions
 
 _DATA_ROOT = Path("/data/users")
 _METHOD_CAPABILITIES = {
     "games.list": "games.read",
+    "games.details.list": "games.read",
+    "games.get": "games.read",
+    "games.media.list": "media.read",
+    "library.legacy.export": "library.legacy.read",
     "games.metadata.search": "games.read",
     "documents.list": "documents.read",
     "documents.read": "documents.read",
@@ -138,6 +144,12 @@ async def dispatch_gateway_request(
 
     if method == "capabilities.check":
         return {"authorized": True}
+
+    if method == "library.legacy.export":
+        return await export_legacy_records(db, user_id=user_id, payload=payload)
+
+    if method in {"games.details.list", "games.get", "games.media.list"}:
+        return await dispatch_game_library(db, user_id=user_id, method=method, payload=payload)
 
     if method == "media.sync":
         if payload.get("sync_mode") == "enrich":

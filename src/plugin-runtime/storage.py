@@ -12,12 +12,15 @@ from pathlib import Path, PurePosixPath
 import re
 import shutil
 import tarfile
+import threading
 from dataclasses import dataclass
 
 _PLUGIN_ID = re.compile(r"^[a-z0-9][a-z0-9._-]{0,127}$")
 _KEY = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9._/-]{0,254}$")
 _METADATA = ".storage.json"
 _MAX_KEY_BYTES = 255
+_NAMESPACE_LOCKS: dict[Path, threading.RLock] = {}
+_LOCK_REGISTRY = threading.Lock()
 
 class StorageError(ValueError):
     """Base error for plugin storage operations."""
@@ -46,6 +49,8 @@ class PluginStorage:
         self.plugin_id = plugin_id
         self.quota_bytes = quota_bytes
         self.root.mkdir(mode=0o700, parents=True, exist_ok=True)
+        with _LOCK_REGISTRY:
+            self._lock = _NAMESPACE_LOCKS.setdefault(self.root.resolve(), threading.RLock())
         self._metadata_path = self.root / _METADATA
         if self._metadata_path.exists():
             metadata = self._read_metadata()
@@ -114,6 +119,10 @@ class PluginStorage:
             raise StorageQuotaExceeded("plugin storage quota exceeded")
 
     def put(self, key: str, value: bytes) -> None:
+        with self._lock:
+            self._put(key, value)
+
+    def _put(self, key: str, value: bytes) -> None:
         path = self._path(key)
         if path.exists() and path.is_symlink():
             raise StorageSecurityError("symlinks are not permitted in plugin storage")
@@ -134,6 +143,10 @@ class PluginStorage:
         return path.read_bytes()
 
     def delete(self, key: str) -> bool:
+        with self._lock:
+            return self._delete(key)
+
+    def _delete(self, key: str) -> bool:
         path = self._path(key)
         if not path.exists():
             return False
@@ -141,6 +154,17 @@ class PluginStorage:
             raise StorageSecurityError("invalid storage object")
         path.unlink()
         return True
+
+    def compare_and_swap(self, key: str, expected: bytes | None, value: bytes | None) -> bool:
+        """Atomically update one object across gateway threads and namespace handles."""
+        with self._lock:
+            if self.get(key) != expected:
+                return False
+            if value is None:
+                self._delete(key)
+            else:
+                self._put(key, value)
+            return True
 
     def keys(self, prefix: str = "") -> tuple[str, ...]:
         values: list[str] = []
