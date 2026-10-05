@@ -8,6 +8,10 @@ import { ref, watch, onMounted, onBeforeUnmount, nextTick, useId } from "vue";
 import { useRouter } from "vue-router";
 import { openTopbarPopover } from "../state/topbarPopover";
 import {
+  pluginReminderRevision,
+  readPluginReminders,
+} from "../state/pluginNotifications";
+import {
   mediaNotifications,
   mediaUnread,
   refreshMediaNotifications,
@@ -22,6 +26,23 @@ const bellBtn = ref<HTMLElement | null>(null);
 const open = ref(false);
 const panel = ref<HTMLElement | null>(null);
 const panelId = useId();
+const reminders = ref<Awaited<ReturnType<typeof readPluginReminders>>>([]);
+const remindersLoading = ref(false);
+let reminderGeneration = 0;
+async function refreshReminders() {
+  const generation = ++reminderGeneration;
+  reminders.value = [];
+  remindersLoading.value = true;
+  const values = await readPluginReminders();
+  if (generation !== reminderGeneration || !open.value) return;
+  reminders.value = values;
+  remindersLoading.value = false;
+}
+watch(pluginReminderRevision, () => {
+  reminderGeneration++;
+  reminders.value = [];
+  if (open.value) void refreshReminders();
+});
 
 // Teleported to <body> so a page's own clipping/stacking context (a hero
 // section's overflow:hidden, a sticky bar's own stacking order) never cuts
@@ -53,6 +74,8 @@ function toggle() {
   }
   positionPanel();
   open.value = true;
+  void refreshReminders();
+  void refreshMediaNotifications();
   openTopbarPopover.value = "bell";
   void nextTick(() =>
     panel.value?.querySelector<HTMLButtonElement>("button")?.focus(),
@@ -103,6 +126,7 @@ onMounted(() => {
   window.addEventListener("resize", onResize);
 });
 onBeforeUnmount(() => {
+  reminderGeneration++;
   document.removeEventListener("click", onDocumentClick);
   document.removeEventListener("keydown", onKeydown);
   window.removeEventListener("resize", onResize);
@@ -160,10 +184,38 @@ onBeforeUnmount(() => {
             Mark all read
           </button>
         </div>
-        <p v-if="!mediaNotifications.length" class="panel-empty">
+        <p
+          v-if="remindersLoading && !mediaNotifications.length"
+          class="panel-empty"
+          role="status"
+        >
+          Checking alerts…
+        </p>
+        <p
+          v-else-if="!mediaNotifications.length && !reminders.length"
+          class="panel-empty"
+        >
           Nothing to flag right now.
         </p>
         <div class="panel-list">
+          <button
+            v-for="reminder in reminders.slice(0, 15)"
+            :key="`${reminder.pluginId}:${reminder.id}`"
+            type="button"
+            class="notification-row"
+            @click="
+              open = false;
+              router.push(reminder.path);
+            "
+          >
+            <span class="notification-dot"></span>
+            <span class="notification-text">
+              <span class="notification-title">{{ reminder.label }}</span>
+              <span class="notification-detail">{{
+                reminder.description
+              }}</span>
+            </span>
+          </button>
           <button
             v-for="n in mediaNotifications.slice(0, 15)"
             :key="n.id"
