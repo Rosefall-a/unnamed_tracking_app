@@ -1,10 +1,10 @@
 #!/bin/sh
 set -eu
-  
+
 log() {
   printf '[ENTRYPOINT] %s\n' "$1"
 }
-  
+
 STATUS_DIR="/run/unnamed-tracking"
 STATUS_FILE="$STATUS_DIR/status.json"
 DETAILS_FILE="$STATUS_DIR/details.txt"
@@ -203,4 +203,3 @@ while :; do
   fi
   sleep 2
 done
-  

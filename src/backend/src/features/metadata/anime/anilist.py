@@ -877,7 +877,7 @@ class AniListClient:
     ) -> list[dict[str, Any]]:
         """A top-level branch can have its own prequel/sequel that's
         invisible from the anchor's own relations — e.g. Bleach's "BURN
-        THE WITCH" ONA has its own prequel special ("BURN THE WITCH #0.8") that's only a relation of the ONA itself, 
+        THE WITCH" ONA has its own prequel special ("BURN THE WITCH #0.8") that's only a relation of the ONA itself,
         one hop past what `_collect_branches` ever looks at (the anchor's direct
         relations only). One extra fetch per still-top-level branch, pulling in any PREQUEL/SEQUEL neighbor not already known and
         nesting it under that branch (`anchor_kind: "branch"`) — the same nested-branch shape `_order_related_branches` already
