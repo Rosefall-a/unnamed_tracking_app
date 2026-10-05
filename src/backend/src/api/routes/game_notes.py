@@ -30,7 +30,7 @@ class NoteRename(BaseModel):
 async def create_game_note(
     game_id: UUID,
     note_name: str,
-    payload: NoteWrite = _BODY_DOTDOT_DOT,
+    payload: NoteWrite = _BODY_DOTDOTDOT,
     db: AsyncSession = _DB_DEPENDENCY,
     current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> dict[str, str | None]:
@@ -55,7 +55,7 @@ async def create_game_note(
 async def update_game_note(
     game_id: UUID,
     note_name: str,
-    payload: NoteWrite = _BODY_DOTDOT_DOT,
+    payload: NoteWrite = _BODY_DOTDOTDOT,
     db: AsyncSession = _DB_DEPENDENCY,
     current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> dict[str, str | None]:
@@ -75,7 +75,7 @@ async def update_game_note(
 async def rename_game_note(
     game_id: UUID,
     note_name: str,
-    payload: NoteRename = _BODY_DOTDOT_DOT,
+    payload: NoteRename = _BODY_DOTDOTDOT,
     db: AsyncSession = _DB_DEPENDENCY,
     current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> dict[str, str | None]:
