@@ -559,6 +559,28 @@ production build and the 2,000-line source guard.
 
 ![Update error in the active phone dialog](../assets/ui-redevelopment/plugin-update-active-error-390-dark.png)
 
+## Coupled production and Collector's Archive checkpoint
+
+The current Nginx production image starts with encoded database credentials,
+preserves data across restart, signs in without a refresh and returns JSON for
+unknown API routes. Both downloaded CI bundles from companion commit `b58359b`
+pass 32 actual consent/install/start checks; all sixteen final unsigned workers
+are healthy. Whole-server reduced-isolation approval survives restart with
+`NONBUBBLE_ENV` absent. The [package report](../assets/ui-redevelopment/production-ci-package-conformance.json)
+records the exact archive IDs and package hashes.
+
+Collector's Archive passes [the production browser workflow](../assets/ui-redevelopment/collector-ui-conformance.json)
+with actual new-account imports, owned Cards/Sets/Bounties, objectives, evidence,
+journal entries, idempotent points, card/set creation and edits, cross-user denial,
+global search, Home goals, deadline reminders and disable/re-enable recovery.
+Six loaded pages at 320/light, 390/dark, 1440/light and 1920/dark have no viewport
+or sidebar overflow and no browser exceptions. Mobile pages reclaim the spare
+top padding. These are downloaded CI packages, not a local preview build.
+
+![Actual CI Bounties on a phone](../assets/ui-redevelopment/collector-loaded-bounties-dark-390.png)
+
+![Actual CI Cards on desktop](../assets/ui-redevelopment/collector-loaded-cards-light-1440.png)
+
 ### Remaining integration queue
 
 This is a progress checkpoint. The coordinated PRs remain in progress until the
@@ -568,16 +590,17 @@ following work is verified and their current heads pass CI:
   Authenticated Session Manager owner/admin revocation and native replacement
   now pass; see the [native review](native-plugin-review.md). Preserve limited
   legacy compatibility and the v1.1 boundary.
-- Finish Collector's Archive checks using actual Cards, Sets and Bounties data,
-  including creation, updates, search, home contributions and permissions.
+- Preserve the completed Collector's Archive checks in the final combined
+  production and theme review.
 - Check contribution cleanup after permission withdrawal, plugin disable and
   master disable, including Tasks, shortcuts, native styles, settings placement
   and reviewed page overrides.
-- Add the basic themes repository and simpler administrator installation page,
-  with a server default and account/device selection for each user.
-- Bring the paired host branches forward, preserve intentional Games/Media
-  changes, resolve inherited Plugin Manager source-size checks and verify no
-  merge conflicts or migration-head divergence.
+- Validate the new basic themes repository and administrator installation page
+  in production, including server defaults and account/device choices. Its
+  builder and branch CI pass; host regression tests and frontend checks pass.
+- Recheck the paired host heads against main and current open PRs. Main is
+  integrated, intentional Games/Media changes are preserved and inherited
+  Plugin Manager source-size checks pass; verify these remain true at completion.
 - Run the latest coupled production container with its database and runtime,
   including JSON startup/error responses, OIDC, cookies, onboarding, PWA
   settings installation, offline themes and restart recovery.
