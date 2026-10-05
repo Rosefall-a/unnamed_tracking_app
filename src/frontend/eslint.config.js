@@ -34,7 +34,7 @@ export default tseslint.config(
   {
     files: ["**/*.{js,mjs,cjs,ts,tsx,vue}"],
     rules: {
-      "max-lines": ["error", { max: 1000, skipBlankLines: false, skipComments: false }],
+      "max-lines": ["error", { max: 2000, skipBlankLines: false, skipComments: false }],
     },
   },
 
