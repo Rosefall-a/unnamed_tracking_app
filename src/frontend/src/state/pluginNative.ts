@@ -5,6 +5,12 @@ import PageHeader from "../components/PageHeader.vue";
 import UiModal from "../components/UiModal.vue";
 import AppIcon from "../components/AppIcon.vue";
 import AccountChip from "../components/AccountChip.vue";
+import PasswordInput from "../components/PasswordInput.vue";
+import { registerPluginSearch, type PluginSearchResult } from "./pluginSearch";
+import {
+  registerPluginReminders,
+  type PluginReminder,
+} from "./pluginNotifications";
 import {
   useConfirm,
   usePrompt,
@@ -39,6 +45,7 @@ export interface NativePluginContext {
     UiModal: typeof UiModal;
     AppIcon: typeof AppIcon;
     AccountChip: typeof AccountChip;
+    PasswordInput: typeof PasswordInput;
   };
   host: {
     appearance(): PluginAppearance;
@@ -54,6 +61,12 @@ export interface NativePluginContext {
     openDialog(contributionId: string): void;
     confirm(options: ConfirmOptions): Promise<boolean>;
     prompt(options: PromptOptions): Promise<string | null>;
+    registerSearchProvider(
+      provider: (query: string) => Promise<PluginSearchResult[]>,
+    ): () => void;
+    registerNotificationProvider(
+      provider: () => Promise<PluginReminder[]>,
+    ): () => void;
   };
 }
 
@@ -230,7 +243,7 @@ async function activate(
         else cleanups.push(callback);
       },
       vue: Object.freeze({ ...Vue }),
-      ui: { PageHeader, UiModal, AppIcon, AccountChip },
+      ui: { PageHeader, UiModal, AppIcon, AccountChip, PasswordInput },
       host: {
         appearance() {
           requireActive();
@@ -294,6 +307,18 @@ async function activate(
         prompt(options) {
           requireActive();
           return usePrompt()(options);
+        },
+        registerSearchProvider(provider) {
+          requireActive();
+          const stop = registerPluginSearch(source.pluginId, provider);
+          cleanups.push(stop);
+          return stop;
+        },
+        registerNotificationProvider(provider) {
+          requireActive();
+          const stop = registerPluginReminders(source.pluginId, provider);
+          cleanups.push(stop);
+          return stop;
         },
       },
     });

@@ -57,6 +57,7 @@ export function observePluginAppearance(
       "data-theme",
       "data-density",
       "data-palette",
+      "data-plugin-theme",
     ],
   });
   return () => observer.disconnect();

@@ -10,6 +10,9 @@ import {
 describe("shared shortcut help", () => {
   it("shares Alt navigation hints with route controls", () => {
     expect(navigationShortcutForPath("/movies")).toBe("Alt+M");
+    expect(
+      navigationShortcutForPath("/plugins/official.collectors-archive/cards"),
+    ).toBe("Alt+E");
     expect(navigationShortcutForPath("/settings?section=appearance")).toBe(
       "Alt+P",
     );

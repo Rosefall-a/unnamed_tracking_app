@@ -74,16 +74,6 @@ const groups = [
     ],
   },
   {
-    id: "cards",
-    label: "Cards",
-    icon: "cards",
-    paths: ["/cards", "/sets"],
-    entries: [
-      { path: "/cards", label: "All cards", icon: "cards" },
-      { path: "/sets", label: "Sets", icon: "sets" },
-    ],
-  },
-  {
     id: "media",
     label: "Media",
     icon: "media",
@@ -111,7 +101,6 @@ function toggleGroup(id: string) {
   expandedGroups.value = next;
 }
 const tools = [
-  { path: "/bounties", label: "Bounties", icon: "bounties" },
   { path: "/calendar", label: "Calendar", icon: "calendar" },
   { path: "/statistics", label: "Statistics", icon: "statistics" },
   { path: "/notifications", label: "Notifications", icon: "notifications" },
@@ -470,8 +459,17 @@ onUnmounted(() => {
               :to="item.action ? undefined : pluginNavigationTarget(item)"
               :type="item.action ? 'button' : undefined"
               class="nav-item plugin-sidebar-item"
-              :class="{ active: isActive(`/plugins/${item.pluginId}`) }"
-              :title="item.label"
+              :class="{
+                active: isActive(
+                  router.resolve(pluginNavigationTarget(item)).path,
+                ),
+              }"
+              :title="
+                navigationTooltip(
+                  item.label,
+                  router.resolve(pluginNavigationTarget(item)).path,
+                )
+              "
               :aria-label="item.label"
               @click="item.action ? activatePluginNavigation(item) : close()"
               ><span

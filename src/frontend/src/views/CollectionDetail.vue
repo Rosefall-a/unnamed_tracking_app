@@ -1,23 +1,32 @@
 <script setup lang="ts">
+// A single collection, laid out like Media's list detail (MediaListDetail):
+// header with count and sort, in-grid reorder, a star on a tile to use it as
+// the collection's cover, remove, and an Add Games dialog. Smart collections
+// show what their rule currently matches, so they have no add, remove or
+// reorder, only the rule.
 import { computed, ref, onMounted, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import GameCard from "../components/GameCard.vue";
-import GameFormModal from "../components/GameFormModal.vue";
-import CollectionPickerModal from "../components/CollectionPickerModal.vue";
 import BackButton from "../components/BackButton.vue";
-import AccountChip from "../components/AccountChip.vue";
+import GameTopBar from "../components/GameTopBar.vue";
 import {
   fetchGames,
-  deleteGame,
+  addGameToCollection,
   removeGameFromCollection,
 } from "../services/games";
-import type { Game } from "../types/game";
+import type { Game, GameStatus } from "../types/game";
 import {
   findSmartCollectionByName,
   matchesSmartCollection,
   describeSmartCollection,
   removeSmartCollection,
+  smartCollections,
+  FAVORITES_NAME,
+  FAVORITES_RULE,
 } from "../state/smartCollections";
+import CollectionFormModal from "../components/CollectionFormModal.vue";
+import type { CollectionFormPayload } from "../components/CollectionFormModal.vue";
+import { saveCollectionEdit } from "../utils/collectionEdit";
+import { collectionMeta, forgetCollectionKeys } from "../state/collectionMeta";
 import { useConfirm } from "../state/dialog";
 
 const confirm = useConfirm();
@@ -28,13 +37,6 @@ const router = useRouter();
 const games = ref<Game[]>([]);
 const loading = ref(true);
 const error = ref<string | null>(null);
-
-const showFormModal = ref(false);
-const editingGame = ref<Game | null>(null);
-
-const deletingGame = ref<Game | null>(null);
-const deleting = ref(false);
-const deleteError = ref<string | null>(null);
 
 const collectionName = computed(() =>
   decodeURIComponent(route.params.name as string),
@@ -78,10 +80,25 @@ const gameOrder = ref<string[] | null>(
 );
 watch(collectionName, (name) => {
   gameOrder.value = loadOrders()[name] ?? null;
+  coverPickedGameId.value = loadCoverPicks()[name] ?? null;
 });
 
-const smartRule = computed(() =>
+const userRule = computed(() =>
   findSmartCollectionByName(collectionName.value),
+);
+// Favorites is kept by the app, unless the user has a collection by that name
+const isSystem = computed(
+  () =>
+    collectionName.value === FAVORITES_NAME &&
+    !userRule.value &&
+    !games.value.some((g) => g.collections.includes(collectionName.value)),
+);
+const smartRule = computed(
+  () => userRule.value ?? (isSystem.value ? FAVORITES_RULE : undefined),
+);
+const isSmart = computed(() => !!smartRule.value);
+const description = computed(
+  () => collectionMeta.value[collectionName.value]?.description ?? "",
 );
 
 const collectionGames = computed(() => {
@@ -102,16 +119,86 @@ const collectionGames = computed(() => {
   return [...ordered, ...byId.values()];
 });
 
-const reorderMode = ref(false);
-function moveGame(index: number, direction: -1 | 1) {
-  const target = index + direction;
-  if (target < 0 || target >= collectionGames.value.length) return;
-  const next = collectionGames.value.map((g) => g.id);
-  [next[index], next[target]] = [next[target], next[index]];
-  gameOrder.value = next;
-  saveOrder(next);
+// ---- sorting (view only; "manual" is the stored order) ----
+type SortMode = "manual" | "title" | "status";
+const sortMode = ref<SortMode>("manual");
+watch(isSmart, (smart) => {
+  if (smart && sortMode.value === "manual") sortMode.value = "title";
+});
+const STATUS_ORDER: GameStatus[] = [
+  "playing",
+  "beaten",
+  "mastered",
+  "played",
+  "on hold",
+  "dropped",
+  "backlog",
+  "wishlist",
+];
+const shownGames = computed<Game[]>(() => {
+  if (sortMode.value === "manual") return collectionGames.value;
+  const copy = [...collectionGames.value];
+  if (sortMode.value === "title")
+    copy.sort((a, b) => a.title.localeCompare(b.title));
+  else
+    copy.sort(
+      (a, b) => STATUS_ORDER.indexOf(a.status) - STATUS_ORDER.indexOf(b.status),
+    );
+  return copy;
+});
+
+// the status pill uses Media's five colors, so a game's status maps onto them
+function statusTone(status: GameStatus): string {
+  if (status === "playing") return "watching";
+  if (status === "beaten" || status === "mastered" || status === "played")
+    return "completed";
+  if (status === "on hold") return "hold";
+  if (status === "dropped") return "dropped";
+  return "plan";
 }
 
+function openGame(game: Game) {
+  if (reorderMode.value) return;
+  router.push(`/games/${game.id}`);
+}
+
+// ---- reordering ----
+const reorderMode = ref(false);
+const dragIndex = ref<number | null>(null);
+
+function toggleReorder() {
+  reorderMode.value = !reorderMode.value;
+  if (reorderMode.value) sortMode.value = "manual";
+}
+function moveItem(from: number, to: number) {
+  const ids = collectionGames.value.map((g) => g.id);
+  if (to < 0 || to >= ids.length || from === to) return;
+  const [moved] = ids.splice(from, 1);
+  ids.splice(to, 0, moved);
+  gameOrder.value = ids;
+}
+function persistOrder() {
+  if (gameOrder.value) saveOrder(gameOrder.value);
+}
+function onDragStart(index: number, event: DragEvent) {
+  dragIndex.value = index;
+  if (event.dataTransfer) event.dataTransfer.effectAllowed = "move";
+}
+function onDragOver(index: number) {
+  if (dragIndex.value === null || dragIndex.value === index) return;
+  moveItem(dragIndex.value, index);
+  dragIndex.value = index;
+}
+function onDragEnd() {
+  if (dragIndex.value !== null) persistOrder();
+  dragIndex.value = null;
+}
+function nudge(index: number, delta: number) {
+  moveItem(index, index + delta);
+  persistOrder();
+}
+
+// ---- cover ----
 // which game's cover represents this collection on the Collections grid,
 // keyed by collection name, alongside manualCollections' own localStorage
 // entry, since collections have no backend row of their own to hang this off
@@ -138,6 +225,10 @@ function setCoverPick(gameId: string) {
   }
   coverPickedGameId.value = gameId || null;
 }
+// with no pick, the first game is the cover
+const coverGameId = computed(
+  () => coverPickedGameId.value ?? collectionGames.value[0]?.id ?? null,
+);
 
 async function loadGames() {
   loading.value = true;
@@ -152,52 +243,90 @@ async function loadGames() {
 
 onMounted(loadGames);
 
-function openEditModal(game: Game) {
-  editingGame.value = game;
-  showFormModal.value = true;
+function replaceGame(updated: Game) {
+  games.value = games.value.map((g) => (g.id === updated.id ? updated : g));
 }
 
-async function onGameSaved() {
-  showFormModal.value = false;
-  editingGame.value = null;
-  await loadGames();
-}
-
-function onDeleteFromModal(gameId: string) {
-  const game = games.value.find((g) => g.id === gameId);
-  showFormModal.value = false;
-  editingGame.value = null;
-  if (game) requestDelete(game);
-}
-
-function requestDelete(game: Game) {
-  deletingGame.value = game;
-  deleteError.value = null;
-}
-
-async function confirmDelete() {
-  if (!deletingGame.value) return;
-  deleting.value = true;
-  deleteError.value = null;
+// ---- removing ----
+async function removeItem(game: Game) {
+  error.value = null;
   try {
-    await deleteGame(deletingGame.value.id);
-    deletingGame.value = null;
-    await loadGames();
+    replaceGame(await removeGameFromCollection(game.id, collectionName.value));
   } catch (err) {
-    deleteError.value =
-      err instanceof Error ? err.message : "Failed to delete game";
-  } finally {
-    deleting.value = false;
+    error.value =
+      err instanceof Error ? err.message : "Failed to remove from collection.";
   }
 }
 
-const collectionPickerGame = ref<Game | null>(null);
+// ---- adding games (manual collections) ----
+const showAdd = ref(false);
+const addSearch = ref("");
+const addError = ref<string | null>(null);
 
-function handleAddToCollection(game: Game) {
-  collectionPickerGame.value = game;
+function openAdd() {
+  showAdd.value = true;
+  addSearch.value = "";
+  addError.value = null;
+}
+const addResults = computed(() => {
+  const q = addSearch.value.trim().toLowerCase();
+  return games.value
+    .filter((g) => !g.collections.includes(collectionName.value))
+    .filter((g) => !q || g.title.toLowerCase().includes(q))
+    .sort((a, b) => a.title.localeCompare(b.title))
+    .slice(0, 60);
+});
+async function addGame(game: Game) {
+  addError.value = null;
+  try {
+    replaceGame(await addGameToCollection(game.id, collectionName.value));
+  } catch (err) {
+    addError.value = err instanceof Error ? err.message : "Failed to add game.";
+  }
 }
 
-async function onCollectionAdded() {
+// ---- edit ----
+const showEdit = ref(false);
+const tagOptions = computed(() => {
+  const set = new Set<string>();
+  for (const g of games.value) for (const t of g.tags) set.add(t);
+  return [...set].sort();
+});
+const sourceOptions = computed(() => {
+  const set = new Set<string>();
+  for (const g of games.value) if (g.source) set.add(g.source);
+  return [...set].sort();
+});
+const allNames = computed(() => {
+  const names = new Set<string>(smartCollections.value.map((c) => c.name));
+  for (const g of games.value) for (const c of g.collections) names.add(c);
+  return [...names];
+});
+const editing = computed(() => ({
+  name: collectionName.value,
+  description: description.value || null,
+  smart: smartRule.value
+    ? { field: smartRule.value.field, value: smartRule.value.value }
+    : null,
+}));
+async function onEdit(payload: CollectionFormPayload) {
+  const oldName = collectionName.value;
+  showEdit.value = false;
+  error.value = null;
+  try {
+    await saveCollectionEdit({
+      oldName,
+      payload,
+      smartId: smartRule.value?.id,
+      members: collectionGames.value,
+    });
+    if (payload.name !== oldName) {
+      await router.replace(`/collections/${encodeURIComponent(payload.name)}`);
+    }
+  } catch (err) {
+    error.value =
+      err instanceof Error ? err.message : "Failed to save the collection.";
+  }
   await loadGames();
 }
 
@@ -219,11 +348,11 @@ async function deleteSmartRule() {
   });
   if (!ok) return;
   removeSmartCollection(smartRule.value.id);
+  forgetCollectionKeys(collectionName.value);
   router.push("/collections");
 }
 
 const deletingCollection = ref(false);
-const deleteCollectionError = ref<string | null>(null);
 
 async function deleteCollection() {
   const ok = await confirm({
@@ -234,24 +363,15 @@ async function deleteCollection() {
   });
   if (!ok) return;
   deletingCollection.value = true;
-  deleteCollectionError.value = null;
+  error.value = null;
   try {
     for (const game of collectionGames.value) {
       await removeGameFromCollection(game.id, collectionName.value);
     }
-    try {
-      const raw = localStorage.getItem("manualCollections");
-      const names: string[] = raw ? JSON.parse(raw) : [];
-      localStorage.setItem(
-        "manualCollections",
-        JSON.stringify(names.filter((n) => n !== collectionName.value)),
-      );
-    } catch {
-      // non-critical, manual-collections cleanup is best-effort
-    }
+    forgetCollectionKeys(collectionName.value);
     router.push("/collections");
   } catch (err) {
-    deleteCollectionError.value =
+    error.value =
       err instanceof Error ? err.message : "Failed to delete collection";
     // some games may have already been removed from the collection before
     // the failure, refresh so the list reflects what actually happened
@@ -264,12 +384,15 @@ async function deleteCollection() {
 </script>
 
 <template>
-  <main class="collection-detail">
-    <BackButton fixed @click="goBack" />
+  <main class="ui-page">
+    <GameTopBar active="collections" />
 
-    <AccountChip fixed />
+    <div v-if="loading" class="ui-content">
+      <p class="ui-state">Loading…</p>
+    </div>
 
-    <div class="content">
+    <div v-else class="ui-content">
+      <BackButton class="back-spot" @click="goBack" />
       <div class="header-row">
         <h1>
           <router-link
@@ -286,144 +409,210 @@ async function deleteCollection() {
           }}</span
         >
         <span
-          v-if="smartRule"
-          class="smart-rule-badge"
-          :title="describeSmartCollection(smartRule)"
-          >⚡ {{ describeSmartCollection(smartRule) }}</span
+          v-if="isSmart"
+          class="smart-pill"
+          title="Fills itself from a filter"
+          >Smart</span
         >
         <div class="header-spacer"></div>
-        <template v-if="!smartRule">
-          <label v-if="collectionGames.length" class="cover-pick-field">
-            <span>Cover</span>
-            <select
-              class="filter-select"
-              :value="coverPickedGameId ?? ''"
-              @change="setCoverPick(($event.target as HTMLSelectElement).value)"
-            >
-              <option value="">First game (default)</option>
-              <option v-for="g in collectionGames" :key="g.id" :value="g.id">
-                {{ g.title }}
-              </option>
-            </select>
-          </label>
-          <button
-            v-if="collectionGames.length > 1"
-            type="button"
-            class="secondary-button"
-            :class="{ active: reorderMode }"
-            @click="reorderMode = !reorderMode"
-          >
-            {{ reorderMode ? "Done reordering" : "Reorder" }}
-          </button>
-          <button
-            type="button"
-            class="danger-button"
-            :disabled="deletingCollection"
-            @click="deleteCollection"
-          >
-            {{ deletingCollection ? "Deleting…" : "Delete Collection" }}
-          </button>
-        </template>
+        <select
+          v-model="sortMode"
+          class="ui-field"
+          :disabled="reorderMode"
+          title="Sort"
+        >
+          <option v-if="!isSmart" value="manual">Manual order</option>
+          <option value="title">Title</option>
+          <option value="status">Status</option>
+        </select>
         <button
-          v-else
+          v-if="!isSmart && collectionGames.length > 1"
           type="button"
-          class="danger-button"
+          class="ui-btn ui-btn-secondary"
+          :class="{ on: reorderMode }"
+          @click="toggleReorder"
+        >
+          {{ reorderMode ? "Done" : "Reorder" }}
+        </button>
+        <button
+          v-if="!isSmart"
+          type="button"
+          class="ui-btn ui-btn-primary"
+          @click="openAdd"
+        >
+          + Add Games
+        </button>
+        <button
+          v-if="!isSystem"
+          type="button"
+          class="ui-btn ui-btn-secondary"
+          @click="showEdit = true"
+        >
+          Edit
+        </button>
+        <button
+          v-if="!isSmart"
+          type="button"
+          class="ui-btn ui-btn-danger"
+          :disabled="deletingCollection"
+          @click="deleteCollection"
+        >
+          {{ deletingCollection ? "Deleting…" : "Delete" }}
+        </button>
+        <button
+          v-else-if="!isSystem"
+          type="button"
+          class="ui-btn ui-btn-danger"
           @click="deleteSmartRule"
         >
-          Delete Rule
+          Delete
         </button>
       </div>
-      <p v-if="smartRule" class="smart-hint">
-        This collection updates automatically, games are added or removed here
-        as your library changes, not managed by hand.
+      <p v-if="description" class="subtitle">{{ description }}</p>
+      <p v-if="smartRule" class="subtitle rule-line">
+        Matches: {{ describeSmartCollection(smartRule) }}
       </p>
-      <p v-if="deleteCollectionError" class="error">
-        {{ deleteCollectionError }}
+      <p v-if="error" class="ui-state error">{{ error }}</p>
+      <p v-if="reorderMode" class="hint">
+        Drag games, or use the arrows, to set the order. It saves as you go.
       </p>
 
-      <p v-if="loading">Loading…</p>
-      <p v-else-if="error" class="error">{{ error }}</p>
-
-      <template v-else>
-        <ol v-if="reorderMode && collectionGames.length" class="reorder-list">
-          <li
-            v-for="(game, index) in collectionGames"
-            :key="game.id"
-            class="reorder-item"
-          >
-            <img :src="game.coverImageUrl" alt="" class="reorder-thumb" />
-            <span class="reorder-title">{{ game.title }}</span>
-            <div class="reorder-arrows">
+      <div v-if="shownGames.length" class="grid">
+        <div
+          v-for="(game, index) in shownGames"
+          :key="game.id"
+          class="item-card"
+          :class="{ reordering: reorderMode, dragging: dragIndex === index }"
+          :draggable="reorderMode"
+          @click="openGame(game)"
+          @dragstart="onDragStart(index, $event)"
+          @dragover.prevent="onDragOver(index)"
+          @dragend="onDragEnd"
+        >
+          <div class="item-cover">
+            <div
+              class="item-poster"
+              :style="
+                game.coverImageUrl
+                  ? { backgroundImage: `url(${game.coverImageUrl})` }
+                  : {}
+              "
+            ></div>
+            <div v-if="reorderMode" class="reorder-arrows">
               <button
                 type="button"
                 :disabled="index === 0"
-                @click="moveGame(index, -1)"
+                title="Move earlier"
+                @click.stop="nudge(index, -1)"
               >
-                ↑
+                ‹
               </button>
+              <span class="reorder-pos">{{ index + 1 }}</span>
               <button
                 type="button"
-                :disabled="index === collectionGames.length - 1"
-                @click="moveGame(index, 1)"
+                :disabled="index === shownGames.length - 1"
+                title="Move later"
+                @click.stop="nudge(index, 1)"
               >
-                ↓
+                ›
               </button>
             </div>
-          </li>
-        </ol>
-        <div v-else-if="collectionGames.length" class="grid">
-          <GameCard
-            v-for="game in collectionGames"
-            :key="game.id"
-            :game="game"
-            @edit="openEditModal"
-            @add-to-collection="handleAddToCollection"
-          />
-        </div>
-        <p v-else class="empty-row">No games in this collection.</p>
-      </template>
-
-      <CollectionPickerModal
-        v-if="collectionPickerGame"
-        :game="collectionPickerGame"
-        @close="collectionPickerGame = null"
-        @added="onCollectionAdded"
-      />
-
-      <GameFormModal
-        v-if="showFormModal"
-        :game="editingGame"
-        @close="showFormModal = false"
-        @saved="onGameSaved"
-        @delete="onDeleteFromModal"
-      />
-
-      <div
-        v-if="deletingGame"
-        class="confirm-backdrop"
-        @click.self="deletingGame = null"
-      >
-        <div class="confirm-dialog">
-          <h3>Delete {{ deletingGame.title }}?</h3>
-          <p>This can't be undone.</p>
-          <div v-if="deleteError" class="confirm-error">{{ deleteError }}</div>
-          <div class="confirm-actions">
-            <button
-              type="button"
-              class="secondary-button"
-              @click="deletingGame = null"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              class="danger-button"
-              :disabled="deleting"
-              @click="confirmDelete"
-            >
-              {{ deleting ? "Deleting…" : "Delete" }}
-            </button>
+            <div v-else class="tile-actions">
+              <button
+                type="button"
+                class="tile-btn star"
+                :class="{ on: coverGameId === game.id }"
+                :title="
+                  coverGameId === game.id
+                    ? 'Collection cover'
+                    : 'Use as the collection cover'
+                "
+                @click.stop="setCoverPick(game.id)"
+              >
+                ★
+              </button>
+              <button
+                v-if="!isSmart"
+                type="button"
+                class="tile-btn"
+                title="Remove from collection"
+                @click.stop="removeItem(game)"
+              >
+                ✕
+              </button>
+            </div>
           </div>
+          <div class="card-info">
+            <h3 class="title">{{ game.title }}</h3>
+            <span class="pill" :class="statusTone(game.status)">{{
+              game.status
+            }}</span>
+          </div>
+        </div>
+      </div>
+      <p v-else-if="isSmart" class="ui-state">
+        Nothing matches this collection's rule right now. Games appear here as
+        your library changes.
+      </p>
+      <p v-else class="ui-state">
+        Nothing in this collection yet. Use "+ Add Games", or the collection
+        button on any game.
+      </p>
+    </div>
+
+    <CollectionFormModal
+      v-if="showEdit"
+      :collection="editing"
+      :existing-names="allNames"
+      :tag-options="tagOptions"
+      :source-options="sourceOptions"
+      @save="onEdit"
+      @close="showEdit = false"
+    />
+
+    <div v-if="showAdd" class="ui-backdrop" @click.self="showAdd = false">
+      <div class="ui-modal add-modal">
+        <h3>Add games</h3>
+        <input
+          v-model="addSearch"
+          type="text"
+          class="ui-field"
+          placeholder="Search your library…"
+          autofocus
+        />
+        <p v-if="addError" class="ui-error-box">{{ addError }}</p>
+        <div class="add-results">
+          <button
+            v-for="g in addResults"
+            :key="g.id"
+            type="button"
+            class="add-row"
+            @click="addGame(g)"
+          >
+            <span
+              class="add-thumb"
+              :style="
+                g.coverImageUrl
+                  ? { backgroundImage: `url(${g.coverImageUrl})` }
+                  : {}
+              "
+            ></span>
+            <span class="add-title">{{ g.title }}</span>
+            <span class="add-kind">{{ g.status }}</span>
+            <span class="add-plus">+</span>
+          </button>
+          <p v-if="!addResults.length" class="ui-state">
+            Nothing left to add{{ addSearch ? " for that search" : "" }}.
+          </p>
+        </div>
+        <div class="ui-modal-actions">
+          <button
+            type="button"
+            class="ui-btn ui-btn-primary"
+            @click="showAdd = false"
+          >
+            Done
+          </button>
         </div>
       </div>
     </div>
@@ -431,29 +620,20 @@ async function deleteCollection() {
 </template>
 
 <style scoped>
-.collection-detail {
-  position: relative;
-  box-sizing: border-box;
-  padding: 84px var(--ui-edge-right) 24px var(--ui-edge-left);
-  font-family: var(--ui-font-family);
-  background: var(--ui-bg);
-  min-height: 100vh;
-  color: var(--ui-text);
-}
 .header-row {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
-  gap: 14px;
-  margin-bottom: 24px;
+  align-items: center;
+  gap: 10px 12px;
+  margin-bottom: 8px;
 }
 .header-spacer {
   flex: 1;
 }
 .header-row h1 {
-  margin: 0;
-  font-size: 1.6rem;
-  font-weight: 700;
+  margin: 0 4px 0 0;
+  font-size: var(--ui-font-title);
+  font-weight: var(--ui-weight-title);
 }
 .parent-crumb {
   color: var(--ui-faint);
@@ -472,173 +652,242 @@ async function deleteCollection() {
   padding: 4px 12px;
   border-radius: 999px;
 }
-.smart-rule-badge {
+.smart-pill {
+  font-size: 11px;
+  font-weight: var(--ui-weight-title);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
   color: var(--ui-accent-text);
-  font-size: 12px;
-  font-weight: 600;
-  background: color-mix(in srgb, var(--ui-accent) 12%, transparent);
-  border: 1px solid color-mix(in srgb, var(--ui-accent) 30%, transparent);
-  padding: 4px 12px;
+  background: color-mix(in srgb, var(--ui-accent) 14%, transparent);
+  padding: 4px 10px;
   border-radius: 999px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 260px;
 }
-.smart-hint {
+.subtitle {
+  margin: 0 0 8px;
   color: var(--ui-dim);
-  font-size: 12.5px;
-  margin: -10px 0 16px;
+  font-size: 0.88rem;
 }
-.cover-pick-field {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.rule-line {
   color: var(--ui-dim);
-  font-size: 12.5px;
 }
-.filter-select {
-  height: 34px;
-  box-sizing: border-box;
-  background: var(--ui-surface);
-  border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius-control);
-  color: var(--ui-text);
-  padding: 0 12px;
-  font: inherit;
-  font-size: 13px;
-  max-width: 200px;
+.hint {
+  margin: 0 0 4px;
+  color: var(--ui-accent-text);
+  font-size: 0.8rem;
 }
-.filter-select:focus {
-  outline: none;
-  border-color: var(--ui-accent-line);
-}
-/* Columns respond to the available width and retain usable card sizes. */
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 150px), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
   gap: 16px;
+  margin-top: 24px;
 }
-.grid :deep(.game-card-wrap) {
-  width: auto;
-  min-width: 0;
-}
-.empty-row {
-  color: var(--ui-faint);
-  font-size: 14px;
-}
-.error {
-  color: var(--ui-error);
-}
-.confirm-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.65);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 60;
-}
-.confirm-dialog {
-  background: var(--ui-surface);
-  border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius-card);
-  padding: 22px;
-  width: 100%;
-  max-width: 360px;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
-}
-.confirm-dialog h3 {
-  margin: 0 0 8px;
-}
-.confirm-dialog p {
-  margin: 0 0 16px;
-  color: var(--ui-dim);
-  font-size: 14px;
-}
-.confirm-error {
-  color: var(--ui-error);
-  font-size: 13px;
-  margin-bottom: 12px;
-}
-.confirm-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-}
-.secondary-button,
-.danger-button {
-  border: none;
-  border-radius: var(--ui-radius-control);
-  padding: 10px 18px;
-  font-weight: 600;
+.item-card {
   cursor: pointer;
 }
-.secondary-button {
-  background: color-mix(in srgb, var(--ui-text) 8%, transparent);
-  color: var(--ui-text);
+.item-card.reordering {
+  cursor: grab;
 }
-.secondary-button.active {
-  background: var(--ui-accent);
-  color: var(--ui-on-accent);
+.item-card.dragging {
+  opacity: 0.4;
 }
-.reorder-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
+.item-cover {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  border-radius: var(--ui-radius-row);
+  overflow: hidden;
+  background: var(--ui-surface);
+  transition:
+    transform 0.32s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.item-card:hover .item-cover {
+  transform: scale(1.07) translateY(-4px);
+  box-shadow: var(--ui-elevation);
+}
+.item-card.reordering:hover .item-cover {
+  transform: none;
+  box-shadow: none;
+}
+.item-poster {
+  width: 100%;
+  height: 100%;
+  background-size: cover;
+  background-position: center;
+  background-color: var(--ui-surface);
+}
+.tile-actions {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
   display: flex;
   flex-direction: column;
   gap: 6px;
-  max-width: 480px;
 }
-.reorder-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  background: var(--ui-surface);
-  border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius-control);
-  padding: 8px 12px;
+/* the buttons appear on hover, except the star that is currently the cover,
+   which stays lit so the cover is always visible */
+.tile-btn {
+  opacity: 0;
+  transition: opacity 0.15s ease;
 }
-.reorder-thumb {
-  width: 32px;
-  height: 44px;
-  object-fit: cover;
-  border-radius: 4px;
-  flex-shrink: 0;
+.item-card:hover .tile-btn,
+.tile-btn.on {
+  opacity: 1;
 }
-.reorder-title {
-  flex: 1;
+.tile-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: none;
+  background: color-mix(in srgb, var(--ui-popover) 96%, transparent);
+  backdrop-filter: blur(4px);
   color: var(--ui-text);
-  font-size: 13.5px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  font-size: 11px;
+  cursor: pointer;
+}
+.tile-btn:hover {
+  color: var(--ui-error);
+}
+.tile-btn.star:hover,
+.tile-btn.on {
+  color: var(--ui-accent-text);
 }
 .reorder-arrows {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2;
   display: flex;
-  gap: 4px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.85));
 }
 .reorder-arrows button {
-  background: color-mix(in srgb, var(--ui-text) 8%, transparent);
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
   border: none;
-  border-radius: 6px;
+  background: color-mix(in srgb, var(--ui-text) 14%, transparent);
   color: var(--ui-text);
-  width: var(--ui-control-height);
-  height: var(--ui-control-height);
+  font-size: 15px;
   cursor: pointer;
 }
 .reorder-arrows button:disabled {
   opacity: 0.3;
-  cursor: not-allowed;
+  cursor: default;
 }
-.danger-button {
-  background: var(--ui-danger);
-  color: #fff;
+.reorder-pos {
+  font-size: 12px;
+  font-weight: var(--ui-weight-title);
+  font-variant-numeric: tabular-nums;
 }
-.danger-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+.card-info {
+  padding: 10px 2px 0;
+}
+.title {
+  margin: 0 0 6px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ui-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pill {
+  display: inline-flex;
+  align-items: center;
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  padding: 3px 9px;
+  border-radius: 999px;
+}
+.pill.watching {
+  background: color-mix(in srgb, var(--ui-accent) 16%, transparent);
+  color: var(--ui-accent-text);
+}
+.pill.completed {
+  background: color-mix(in srgb, var(--ui-good) 16%, transparent);
+  color: var(--ui-good);
+}
+.pill.hold {
+  background: color-mix(in srgb, var(--ui-info) 16%, transparent);
+  color: var(--ui-info);
+}
+.pill.dropped {
+  background: color-mix(in srgb, var(--ui-error) 16%, transparent);
+  color: var(--ui-error);
+}
+.pill.plan {
+  background: color-mix(in srgb, var(--ui-purple) 16%, transparent);
+  color: var(--ui-purple);
+}
+
+/* add-games dialog */
+.add-results {
+  overflow-y: auto;
+  min-height: 120px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.add-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: none;
+  border: none;
+  border-radius: var(--ui-radius-control);
+  padding: 6px;
+  color: var(--ui-text);
+  text-align: left;
+  font-family: inherit;
+  cursor: pointer;
+}
+.add-row:hover {
+  background: color-mix(in srgb, var(--ui-text) 6%, transparent);
+}
+.add-thumb {
+  width: 30px;
+  height: 44px;
+  border-radius: 4px;
+  background: var(--ui-surface-2) center / cover;
+  flex-shrink: 0;
+}
+.add-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.86rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.add-kind {
+  color: var(--ui-faint);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+}
+.add-plus {
+  color: var(--ui-accent-text);
+  font-weight: var(--ui-weight-title);
+  font-size: 1.1rem;
+  width: 20px;
+  text-align: center;
+}
+.back-spot {
+  margin-bottom: 14px;
+}
+.add-modal {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.add-modal h3 {
+  margin: 0;
 }
 button,
 select {
@@ -649,19 +898,11 @@ h1 {
   overflow-wrap: anywhere;
 }
 @media (max-width: 760px) {
-  .header-row h1 {
-    flex-basis: 100%;
+  .progress {
+    flex-wrap: wrap;
   }
-  .header-spacer {
-    display: none;
-  }
-  .cover-pick-field {
-    width: 100%;
-  }
-  .filter-select {
-    flex: 1;
-    min-width: 0;
-    max-width: none;
+  .cards-grid {
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 130px), 1fr));
   }
 }
 </style>

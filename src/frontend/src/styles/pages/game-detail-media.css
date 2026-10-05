@@ -1,0 +1,635 @@
+/* Screenshots / Clips / Saves / Docs / Stats / History */
+
+.game-detail-page .media-panel,
+.game-detail-page .files-panel,
+.game-detail-page .world-map-panel,
+.game-detail-page .stats-panel,
+.game-detail-page .history-panel {
+  width: 100%;
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 24px;
+  box-sizing: border-box;
+  position: relative;
+  z-index: 1;
+}
+
+.game-detail-page .panel-body {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+}
+
+.game-detail-page .panel-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.game-detail-page .stats-panel h2,
+.game-detail-page .history-panel h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.game-detail-page .stats-panel h2,
+.game-detail-page .history-panel h2 {
+  margin-bottom: 16px;
+}
+
+.game-detail-page .history-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.game-detail-page .history-entry {
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-row);
+  padding: 12px 16px;
+}
+
+.game-detail-page .history-entry-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.game-detail-page .history-field {
+  font-weight: 600;
+  color: var(--ui-text);
+}
+
+.game-detail-page .history-date {
+  color: var(--ui-faint);
+  font-size: 0.8rem;
+}
+
+.game-detail-page .history-values {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+}
+
+.game-detail-page .history-values svg {
+  flex-shrink: 0;
+  color: var(--ui-faint);
+}
+
+.game-detail-page .history-old {
+  color: var(--ui-dim);
+  text-decoration: line-through;
+  text-decoration-color: var(--ui-faint);
+}
+
+.game-detail-page .history-new {
+  color: var(--ui-accent-text);
+}
+
+.game-detail-page .upload-label {
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.game-detail-page .hidden-input {
+  display: none;
+}
+
+.game-detail-page .section-hint {
+  color: var(--ui-dim);
+  font-size: 0.85rem;
+  margin: 0 0 16px;
+}
+
+.game-detail-page .empty-row {
+  color: var(--ui-faint);
+  font-size: 14px;
+}
+
+.game-detail-page .form-error {
+  color: var(--ui-error);
+  font-size: 13px;
+  background: rgba(220, 38, 38, 0.1);
+  border: 1px solid rgba(220, 38, 38, 0.3);
+  border-radius: var(--ui-radius-control);
+  padding: 8px 10px;
+  margin-bottom: 14px;
+}
+
+.game-detail-page .media-panel h2,
+.game-detail-page .files-panel h2 {
+  margin: 0 0 16px;
+  font-size: 1.1rem;
+}
+
+.game-detail-page .media-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.game-detail-page .lightbox-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 40px;
+  box-sizing: border-box;
+}
+
+.game-detail-page .lightbox-image {
+  max-width: 100%;
+  max-height: 100%;
+  border-radius: var(--ui-radius-control);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+}
+
+.game-detail-page .file-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.game-detail-page .file-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
+  padding: 12px 16px;
+  color: var(--ui-dim);
+}
+
+.game-detail-page .file-name {
+  color: var(--ui-text);
+  font-size: 0.9rem;
+  text-decoration: none;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.game-detail-page .file-name:hover {
+  text-decoration: underline;
+}
+
+.game-detail-page .world-map-panel h2 {
+  margin: 0 0 4px;
+  color: var(--ui-text);
+}
+
+.game-detail-page .world-map-uploads {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin: 16px 0;
+}
+
+.game-detail-page .world-map-upload-col h3 {
+  margin: 0 0 8px;
+  font-size: 0.85rem;
+  color: var(--ui-text);
+}
+
+/* Saves: named, versioned archives ---------------------------------------- */
+
+.game-detail-page .archive-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
+}
+
+.game-detail-page .archive-card {
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-row);
+  padding: 14px;
+}
+
+.game-detail-page .archive-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.game-detail-page .archive-name {
+  color: var(--ui-text);
+  font-weight: 600;
+  font-size: 0.92rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.game-detail-page .archive-card-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.game-detail-page .icon-button {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  border: none;
+  background: color-mix(in srgb, var(--ui-text) 6%, transparent);
+  color: var(--ui-dim);
+  cursor: pointer;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.game-detail-page .icon-button:hover {
+  background: color-mix(in srgb, var(--ui-text) 14%, transparent);
+  color: var(--ui-text);
+}
+
+.game-detail-page .archive-meta {
+  color: var(--ui-faint);
+  font-size: 0.76rem;
+  margin: 4px 0 12px;
+}
+
+.game-detail-page .archive-actions-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.game-detail-page .archive-history {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 10px 0 0;
+  border-top: 1px solid var(--ui-border-soft);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.game-detail-page .archive-history-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+}
+
+.game-detail-page .secondary-button.small,
+.game-detail-page .primary-button.small {
+  padding: 6px 10px;
+  font-size: 0.76rem;
+}
+
+/* Trash: recoverable-for-7-days list, shared by Saves and World Map -------- */
+
+.game-detail-page .trash-section {
+  margin-top: 20px;
+  padding-top: 14px;
+  border-top: 1px solid var(--ui-border);
+}
+
+.game-detail-page .trash-toggle {
+  background: none;
+  border: none;
+  color: var(--ui-dim);
+  font-size: 0.82rem;
+  cursor: pointer;
+  padding: 0;
+}
+
+.game-detail-page .trash-toggle:hover {
+  color: var(--ui-text);
+}
+
+.game-detail-page .trash-list {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.game-detail-page .trash-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
+  font-size: 0.82rem;
+}
+
+.game-detail-page .trash-name {
+  flex: 1;
+  color: var(--ui-text);
+}
+
+.game-detail-page .trash-meta {
+  color: var(--ui-faint);
+  font-size: 0.76rem;
+}
+
+/* World Map: card grid with thumbnails ------------------------------------- */
+
+.game-detail-page .world-map-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 14px;
+}
+
+.game-detail-page .world-map-card {
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-row);
+  overflow: hidden;
+}
+
+.game-detail-page .world-map-thumb {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  background: #0c0f14;
+  cursor: default;
+}
+
+.game-detail-page .world-map-card:has(.world-map-status.done) .world-map-thumb {
+  cursor: pointer;
+}
+
+.game-detail-page .world-map-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  image-rendering: pixelated;
+}
+
+.game-detail-page .world-map-thumb-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ui-border);
+}
+
+.game-detail-page .world-map-card-body {
+  padding: 12px 14px;
+}
+
+.game-detail-page .world-map-status {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--ui-dim);
+  margin: 4px 0 10px;
+}
+
+.game-detail-page .world-map-status.error {
+  color: var(--ui-error);
+}
+
+.game-detail-page .world-map-status.done {
+  color: var(--ui-good);
+}
+
+.game-detail-page .world-map-status.rendering {
+  color: var(--ui-accent-text);
+}
+
+.game-detail-page .world-map-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.game-detail-page .world-map-progress {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 4px;
+  border-radius: 0;
+  background: rgba(0, 0, 0, 0.4);
+  overflow: hidden;
+}
+
+.game-detail-page .world-map-progress-fill {
+  width: 30%;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--ui-accent);
+  animation: world-map-scan 1.2s ease-in-out infinite;
+}
+
+@keyframes world-map-scan {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(333%);
+  }
+}
+
+.game-detail-page .world-map-frame {
+  width: 100%;
+  height: 70vh;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-row);
+  margin-top: 16px;
+  background: #000;
+}
+
+.game-detail-page .file-size {
+  color: var(--ui-faint);
+  font-size: 0.78rem;
+  flex-shrink: 0;
+}
+
+.game-detail-page .file-download {
+  color: var(--ui-info);
+  font-size: 0.8rem;
+  flex-shrink: 0;
+  text-decoration: none;
+}
+
+.game-detail-page .file-download:hover {
+  text-decoration: underline;
+}
+
+.game-detail-page .tile-remove-inline {
+  background: none;
+  border: none;
+  color: var(--ui-faint);
+  cursor: pointer;
+  font-size: 13px;
+  padding: 2px 4px;
+  flex-shrink: 0;
+}
+
+.game-detail-page .tile-remove-inline:hover {
+  color: var(--ui-error);
+}
+
+.game-detail-page .stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 14px;
+}
+
+.game-detail-page .stat-tile {
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-row);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.game-detail-page .stat-label {
+  color: var(--ui-dim);
+  font-size: 0.76rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.game-detail-page .stat-value {
+  color: var(--ui-text);
+  font-size: 1.3rem;
+  font-weight: 700;
+  text-transform: capitalize;
+}
+
+.game-detail-page .not-found {
+  padding: 24px;
+  color: var(--ui-text);
+}
+
+.game-detail-page .note-rendered {
+  color: var(--ui-text);
+  line-height: 1.6;
+  font-size: 14px;
+}
+
+.game-detail-page .note-rendered h1,
+.game-detail-page .note-rendered h2,
+.game-detail-page .note-rendered h3 {
+  color: var(--ui-text);
+  margin: 16px 0 8px;
+}
+
+.game-detail-page .note-rendered p {
+  margin: 0 0 10px;
+}
+
+.game-detail-page .note-rendered a {
+  color: var(--ui-accent-text);
+}
+
+.game-detail-page .note-rendered code {
+  background: var(--ui-surface);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+.game-detail-page .note-rendered pre {
+  background: var(--ui-surface);
+  padding: 12px;
+  border-radius: var(--ui-radius-control);
+  overflow-x: auto;
+}
+
+.game-detail-page .note-rendered ul,
+.game-detail-page .note-rendered ol {
+  padding-left: 20px;
+  margin: 0 0 10px;
+}
+
+.game-detail-page .confirm-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 60;
+}
+
+.game-detail-page .confirm-dialog {
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-card);
+  padding: 22px;
+  width: 100%;
+  max-width: 360px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+}
+
+.game-detail-page .confirm-dialog h3 {
+  margin: 0 0 8px;
+}
+
+.game-detail-page .confirm-dialog p {
+  margin: 0 0 16px;
+  color: var(--ui-dim);
+  font-size: 14px;
+}
+
+.game-detail-page .confirm-error {
+  color: var(--ui-error);
+  font-size: 13px;
+  margin-bottom: 12px;
+}
+
+.game-detail-page .confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.game-detail-page .confirm-actions .secondary-button,
+.game-detail-page .confirm-actions .danger-button {
+  padding: 10px 18px;
+}
+
+.game-detail-page .secondary-button {
+  background: color-mix(in srgb, var(--ui-text) 8%, transparent);
+  color: var(--ui-text);
+}
+
+.game-detail-page button,
+.game-detail-page input:not([type="checkbox"]),
+.game-detail-page select {
+  min-height: var(--ui-control-height);
+}
+
+@media (hover: none), (max-width: 760px) {
+  .game-detail-page .hero-actions {
+    opacity: 1;
+    position: static;
+    padding: 0 24px 20px;
+    flex-wrap: wrap;
+  }
+  .game-detail-page .hero {
+    flex-wrap: wrap;
+  }
+}

@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
 import PluginContributionHost from "../components/plugins/PluginContributionHost.vue";
+import PageHeader from "../components/PageHeader.vue";
+import { currentUser } from "../state/auth";
 import {
   fetchPluginUi,
   pluginPathForPage,
@@ -15,6 +17,10 @@ const document = ref<PluginUiDocument | null>(null);
 const loading = ref(true);
 const error = ref("");
 const activePageId = ref<string | undefined>();
+const isArchive = computed(
+  () => route.params.pluginId === "official.collectors-archive",
+);
+let loadGeneration = 0;
 const viewerContext = computed(() => {
   const context: Record<string, string | number | boolean> = {};
   for (const key of ["document_id", "game_id", "record_id"] as const) {
@@ -31,10 +37,13 @@ function requestedPluginPath(): string | undefined {
 }
 
 async function load() {
+  const generation = ++loadGeneration;
   loading.value = true;
   error.value = "";
   try {
-    document.value = await fetchPluginUi(String(route.params.pluginId));
+    const loaded = await fetchPluginUi(String(route.params.pluginId));
+    if (generation !== loadGeneration) return;
+    document.value = loaded;
     activePageId.value = resolvePluginPageId(
       document.value,
       requestedPluginPath(),
@@ -42,10 +51,11 @@ async function load() {
     if (!activePageId.value && requestedPluginPath())
       throw new Error("Plugin route not found.");
   } catch (err) {
+    if (generation !== loadGeneration) return;
     error.value =
       err instanceof Error ? err.message : "Failed to load plugin UI.";
   } finally {
-    loading.value = false;
+    if (generation === loadGeneration) loading.value = false;
   }
 }
 
@@ -82,7 +92,30 @@ onMounted(load);
 <template>
   <main class="plugin-page">
     <p v-if="loading">Loading plugin…</p>
-    <p v-else-if="error" class="error">{{ error }}</p>
+    <section v-else-if="error" class="ui-panel">
+      <PageHeader
+        :title="isArchive ? 'Collector’s Archive' : 'Plugin page unavailable'"
+      />
+      <p class="error" role="alert">{{ error }}</p>
+      <p v-if="isArchive">
+        Cards, Sets and Bounties now belong to the official Collector’s Archive
+        plugin. Install and enable it, then import your retained records from
+        its settings page.
+      </p>
+      <p v-else>
+        Check that the plugin is enabled, compatible with this host and has its
+        required UI permissions.
+      </p>
+      <RouterLink
+        v-if="currentUser?.is_admin"
+        to="/settings?area=administration&section=plugins"
+        class="ui-btn ui-btn-primary"
+        >Open plugin manager</RouterLink
+      >
+      <p v-else>
+        Ask your administrator to check the plugin’s installation and health.
+      </p>
+    </section>
     <PluginContributionHost
       v-else-if="document && activePageId"
       :plugin-id="document.plugin_id"

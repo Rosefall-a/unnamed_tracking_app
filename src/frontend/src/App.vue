@@ -33,7 +33,9 @@ import { onUnmounted, watch } from "vue";
 import {
   clearPluginExtensions,
   refreshPluginExtensions,
+  pluginThemes,
 } from "./state/pluginExtensions";
+import { applyPluginThemeStyle } from "./services/pluginThemeStyle";
 import PluginExtensionSlot from "./components/plugins/PluginExtensionSlot.vue";
 import PluginOverlayHost from "./components/plugins/PluginOverlayHost.vue";
 import { fetchCurrentUser } from "./services/auth";
@@ -41,6 +43,14 @@ import PwaStatus from "./components/PwaStatus.vue";
 
 const route = useRoute();
 const router = useRouter();
+watchEffect(() => {
+  applyPluginThemeStyle(
+    document.documentElement,
+    preferences.value.ui_palette,
+    preferences.value.ui_custom_palette,
+    pluginThemes.value,
+  );
+});
 let startupRetryTimer: ReturnType<typeof setTimeout> | undefined;
 watch(
   startupState,

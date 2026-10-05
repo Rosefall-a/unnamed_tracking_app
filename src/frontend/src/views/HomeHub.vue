@@ -27,7 +27,6 @@ import {
   selectedHomeWidgets,
 } from "../services/homeWidgets";
 import { fetchGames, deleteGame } from "../services/games";
-import { fetchBounties, type Bounty } from "../services/bounties";
 import { fetchWeeklyDigest, type WeeklyDigest } from "../services/stats";
 import type { Game } from "../types/game";
 
@@ -49,20 +48,15 @@ const pluginWidgets = computed(() =>
   ),
 );
 const games = ref<Game[]>([]);
-const bounties = ref<Bounty[]>([]);
 const digest = ref<WeeklyDigest | null>(null);
 const gamesLoading = ref(false);
-const goalsLoading = ref(false);
 const digestLoading = ref(false);
 const gamesError = ref<string | null>(null);
-const goalsError = ref<string | null>(null);
 const digestError = ref<string | null>(null);
 let gamesLoaded = false;
-let goalsLoaded = false;
 let digestLoaded = false;
 let dataGeneration = 0;
 let gamesRequest = 0;
-let goalsRequest = 0;
 let digestRequest = 0;
 const collections = computed(() =>
   [...new Set(games.value.flatMap((game) => game.collections))].sort((a, b) =>
@@ -137,25 +131,6 @@ async function loadGames() {
       gamesLoading.value = false;
   }
 }
-async function loadGoals() {
-  const generation = dataGeneration;
-  const request = ++goalsRequest;
-  goalsLoading.value = true;
-  goalsError.value = null;
-  try {
-    const result = await fetchBounties({ status: "active" });
-    if (generation !== dataGeneration || request !== goalsRequest) return;
-    bounties.value = result;
-    goalsLoaded = true;
-  } catch (reason) {
-    if (generation === dataGeneration && request === goalsRequest)
-      goalsError.value =
-        reason instanceof Error ? reason.message : "Could not load your goals.";
-  } finally {
-    if (generation === dataGeneration && request === goalsRequest)
-      goalsLoading.value = false;
-  }
-}
 async function loadDigest() {
   const generation = dataGeneration;
   const request = ++digestRequest;
@@ -196,13 +171,6 @@ function ensureData() {
   )
     void loadGames();
   if (
-    ids.some((id) => ["goals", "getting-started"].includes(id)) &&
-    !goalsLoaded &&
-    !goalsLoading.value &&
-    !goalsError.value
-  )
-    void loadGoals();
-  if (
     ids.includes("weekly-digest") &&
     !digestLoaded &&
     !digestLoading.value &&
@@ -215,11 +183,10 @@ watch(
   () => {
     dataGeneration++;
     games.value = [];
-    bounties.value = [];
     digest.value = null;
-    gamesLoaded = goalsLoaded = digestLoaded = false;
-    gamesLoading.value = goalsLoading.value = digestLoading.value = false;
-    gamesError.value = goalsError.value = digestError.value = null;
+    gamesLoaded = digestLoaded = false;
+    gamesLoading.value = digestLoading.value = false;
+    gamesError.value = digestError.value = null;
     showPicker.value =
       showTour.value =
       showForm.value =
@@ -242,23 +209,17 @@ watch(
 );
 function widgetError(id: string) {
   if (usesGames(id) && gamesError.value) return gamesError.value;
-  if (["goals", "getting-started"].includes(id)) return goalsError.value;
   if (id === "weekly-digest") return digestError.value;
   return null;
 }
 function widgetLoading(id: string) {
   return (
     (usesGames(id) && !gamesLoaded && !gamesError.value) ||
-    (["goals", "getting-started"].includes(id) &&
-      !goalsLoaded &&
-      !goalsError.value) ||
     (id === "weekly-digest" && !digestLoaded && !digestError.value)
   );
 }
 function retryWidget(id: string) {
   if (usesGames(id) && gamesError.value) void loadGames();
-  if (["goals", "getting-started"].includes(id) && goalsError.value)
-    void loadGoals();
   if (id === "weekly-digest") void loadDigest();
 }
 function pluginWidget(id: string) {
@@ -499,7 +460,6 @@ async function confirmDelete() {
               v-else
               :widget-id="widget.id"
               :games="games"
-              :bounties="bounties"
               :digest="digest"
               @edit="openEdit"
               @collection="collectionGame = $event"

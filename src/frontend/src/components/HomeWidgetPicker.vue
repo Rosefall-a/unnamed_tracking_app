@@ -12,7 +12,9 @@ const props = defineProps<{
   loading: boolean;
 }>();
 const emit = defineEmits<{ close: []; save: [ids: string[]] }>();
-const draft = ref([...props.selected]);
+const draft = ref(
+  selectedHomeWidgets(props.selected, props.choices).map((item) => item.id),
+);
 const ordered = computed(() => selectedHomeWidgets(draft.value, props.choices));
 function toggle(id: string) {
   draft.value = draft.value.includes(id)

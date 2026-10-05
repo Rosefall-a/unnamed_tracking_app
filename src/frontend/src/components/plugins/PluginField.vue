@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useId } from "vue";
+import PasswordInput from "../PasswordInput.vue";
 import type { UiField, UiValue } from "../../services/pluginUi";
 
 defineProps<{ field: UiField; error?: string; disabled?: boolean }>();
@@ -16,8 +17,20 @@ const id = useId();
       >{{ field.label
       }}<span v-if="field.required" aria-hidden="true"> *</span></label
     >
+    <PasswordInput
+      v-if="field.secret || field.type === 'password'"
+      :id="id"
+      :model-value="String(value ?? '')"
+      mode="replace"
+      :disabled="disabled"
+      :required="field.required"
+      :maxlength="field.validation?.max_length"
+      :aria-invalid="Boolean(error)"
+      :aria-describedby="`${id}-hint ${id}-error`"
+      @update:model-value="value = $event"
+    />
     <select
-      v-if="field.type === 'select' || field.type === 'multiselect'"
+      v-else-if="field.type === 'select' || field.type === 'multiselect'"
       :id="id"
       v-model="value"
       :multiple="field.type === 'multiselect'"
@@ -73,7 +86,7 @@ const id = useId();
       v-else
       :id="id"
       v-model="value"
-      :type="field.type === 'password' ? 'password' : 'text'"
+      type="text"
       :disabled="disabled"
       :required="field.required"
       :maxlength="field.validation?.max_length"

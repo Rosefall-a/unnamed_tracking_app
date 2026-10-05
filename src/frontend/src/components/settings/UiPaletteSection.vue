@@ -228,6 +228,7 @@ function apply() {
         </div>
         <div
           class="palette-preview"
+          :data-plugin-theme="selectedTheme?.key"
           :style="previewStyle"
           aria-label="Palette preview"
         >

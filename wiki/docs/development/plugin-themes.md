@@ -18,8 +18,29 @@ existing preferences. It remains editable, exportable and available after the
 plugin is disabled, revoked or uninstalled. Revocation removes its selectable
 source; it does not overwrite saved personal colors. Contrast advice never
 blocks applying a valid palette. System mode still follows the device. The
-companion `examples/theme-palettes` source demonstrates a palette-only plugin
-with no privileged native code or data permissions.
+companion `examples/theme-palettes` source includes Blue Hour and Purple Blocks.
+Its optional native permission demonstrates a stylesheet that changes component
+shapes as well as colours.
+
+## Stylesheet overrides
+
+Plugins can declare `native_frontend.styles` and receive the separate privileged
+`frontend.native` permission to load CSS into the host. This permission also
+allows native JavaScript access to the signed-in application; it is never implied
+by the palette permission. Existing native activation and deactivation remove
+styles when the installation is disabled, revoked, quarantined or uninstalled.
+
+For an optional theme, scope selectors to
+`[data-plugin-theme="plugin:<plugin_id>:<theme_id>"]`. The host applies this
+attribute to the document root only when both saved palette modes match that
+active, approved contribution. It also applies the scope to the settings preview.
+Switching palettes or editing colours removes the scope while preserving the
+personal colour copy. This lets multiple installed themes coexist.
+
+Override public `--ui-*` tokens first, then host selectors when needed. Test
+focus, contrast, touch targets and small screens. Purple Blocks demonstrates
+square controls, bold card borders and a purple palette in both modes without
+replacing the application or importing its private source.
 
 ## Native components
 

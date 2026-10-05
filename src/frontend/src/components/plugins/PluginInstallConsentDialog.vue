@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import PasswordInput from "../PasswordInput.vue";
 import { computed, nextTick, ref, watch } from "vue";
 import UiModal from "../UiModal.vue";
 import AppIcon from "../AppIcon.vue";
@@ -444,9 +445,8 @@ function close() {
         </p>
         <label>
           Administrator password
-          <input
+          <PasswordInput
             v-model="adminPassword"
-            type="password"
             autocomplete="current-password"
           />
         </label>

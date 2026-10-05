@@ -21,6 +21,7 @@ import LibrarySettings from "../components/settings/LibrarySettings.vue";
 import MetadataSettings from "../components/settings/MetadataSettings.vue";
 import AdminSection from "../components/settings/AdminSection.vue";
 import OidcSettingsSection from "../components/settings/OidcSettingsSection.vue";
+import PasswordPolicySection from "../components/settings/PasswordPolicySection.vue";
 import ServerIntegrationsSection from "../components/settings/ServerIntegrationsSection.vue";
 import LimitsSection from "../components/settings/LimitsSection.vue";
 import DevToolsSection from "../components/settings/DevToolsSection.vue";
@@ -83,6 +84,7 @@ const coreSectionIds = new Set([
   "media-refresh",
   "export",
   "oidc",
+  "password-policy",
   "server-integrations",
   "users",
   "plugins",
@@ -185,6 +187,7 @@ const groups = computed<SettingsGroup[]>(() => {
       sections: [
         { id: "users", label: "Users" },
         { id: "oidc", label: "Single sign-on" },
+        { id: "password-policy", label: "Password policy" },
         { id: "server-integrations", label: "Server integrations" },
         { id: "limits", label: "Limits" },
         { id: "dev-tools", label: "Developer tools" },
@@ -505,6 +508,11 @@ function backToArea() {
           />
           <OidcSettingsSection
             v-else-if="activeSection === 'oidc' && currentUser?.is_admin"
+          />
+          <PasswordPolicySection
+            v-else-if="
+              activeSection === 'password-policy' && currentUser?.is_admin
+            "
           />
           <ServerIntegrationsSection
             v-else-if="

@@ -39,10 +39,15 @@ describe("native plugin lifecycle", () => {
     expect(typeof context.vue.createElementVNode).toBe("function");
     expect(typeof context.vue.onMounted).toBe("function");
     expect(context.ui.UiModal).toBeDefined();
+    expect(context.ui.PasswordInput).toBeDefined();
+    context.host.registerNotificationProvider(async () => []);
     expect(nativePluginComponent("example.native", "dashboard")).toBeDefined();
     await reconcileNativePlugins([]);
     expect(() => context.host.confirm({ message: "Still active?" })).toThrow();
     expect(() => context.host.prompt({ message: "Still active?" })).toThrow();
+    expect(() =>
+      context.host.registerNotificationProvider(async () => []),
+    ).toThrow();
   });
   it("requires host confirmation before sending a destructive action", async () => {
     const confirm = vi

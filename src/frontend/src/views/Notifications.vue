@@ -3,7 +3,7 @@
 // title, what happened, and the exact time it happened (the provider's own
 // air time, not when the app noticed). The sidebar group shows the latest
 // few; this page is the full list with filters and per-item actions.
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, onMounted, watch } from "vue";
 import { useRouter } from "vue-router";
 import AppTopBar from "../components/AppTopBar.vue";
 import SegmentedTabs from "../components/SegmentedTabs.vue";
@@ -16,25 +16,20 @@ import {
   deleteMediaNotification,
 } from "../services/notifications";
 import type { MediaNotification } from "../services/notifications";
-import {
-  notifications as bountyNotifications,
-  refreshMediaNotifications,
-} from "../state/notifications";
+import { refreshMediaNotifications } from "../state/notifications";
 import { useKeptAlive } from "../utils/useKeptAlive";
 import { useConfirm } from "../state/dialog";
+import {
+  readPluginReminders,
+  pluginReminderRevision,
+} from "../state/pluginNotifications";
 import {
   notificationPresentation,
   notificationDestination,
 } from "../utils/notificationPresentation";
 
 type Filter =
-  | "all"
-  | "unread"
-  | "episodes"
-  | "seasons"
-  | "releases"
-  | "plugins"
-  | "bounties";
+  "all" | "unread" | "episodes" | "seasons" | "releases" | "plugins";
 const FILTERS: { key: Filter; label: string }[] = [
   { key: "all", label: "All" },
   { key: "unread", label: "Unread" },
@@ -42,7 +37,6 @@ const FILTERS: { key: Filter; label: string }[] = [
   { key: "seasons", label: "Seasons" },
   { key: "releases", label: "Releases" },
   { key: "plugins", label: "Plugins" },
-  { key: "bounties", label: "Bounties" },
 ];
 
 const router = useRouter();
@@ -52,9 +46,21 @@ const loading = ref(true);
 const error = ref<string | null>(null);
 const filter = ref<Filter>("all");
 const openId = ref<string | null>(null);
+const reminders = ref<Awaited<ReturnType<typeof readPluginReminders>>>([]);
+let reminderGeneration = 0;
+async function loadReminders() {
+  const generation = ++reminderGeneration;
+  const values = await readPluginReminders();
+  if (generation === reminderGeneration) reminders.value = values;
+}
+watch(pluginReminderRevision, () => void loadReminders(), { immediate: true });
+const shownReminders = computed(() =>
+  filter.value === "all" || filter.value === "plugins" ? reminders.value : [],
+);
 
 async function load() {
   error.value = null;
+  void loadReminders();
   try {
     items.value = (await fetchMediaNotifications(200)).items;
   } catch (e) {
@@ -70,13 +76,12 @@ useKeptAlive(load);
 const unreadCount = computed(() => items.value.filter((n) => !n.read).length);
 const counts = computed(() => {
   const c: Record<Filter, number> = {
-    all: items.value.length,
+    all: items.value.length + reminders.value.length,
     unread: unreadCount.value,
     episodes: 0,
     seasons: 0,
     releases: 0,
-    plugins: 0,
-    bounties: bountyNotifications.value.length,
+    plugins: reminders.value.length,
   };
   for (const n of items.value) {
     const group = notificationPresentation(n.kind).group;
@@ -92,7 +97,6 @@ const filterOptions = computed<SegmentOption[]>(() =>
   })),
 );
 const shown = computed(() => {
-  if (filter.value === "bounties") return [];
   return items.value.filter((n) => {
     if (filter.value === "all") return true;
     if (filter.value === "unread") return !n.read;
@@ -242,32 +246,22 @@ function toggleOpen(n: MediaNotification) {
       <p v-if="error" class="ui-state error">{{ error }}</p>
       <p v-if="loading" class="ui-state">Loading…</p>
 
-      <template v-else-if="filter === 'bounties'">
-        <p v-if="!bountyNotifications.length" class="ui-state">
-          No bounty deadlines or suggestions right now.
-        </p>
-        <div v-else class="list">
-          <router-link
-            v-for="b in bountyNotifications"
-            :key="b.id"
-            :to="b.to"
-            class="card plain"
-          >
-            <span class="card-main">
-              <span class="card-title">{{ b.title }}</span>
-              <span class="card-body">{{ b.detail }}</span>
-            </span>
-            <span
-              class="badge"
-              :class="b.kind === 'deadline' ? 'red' : 'amber'"
-              >{{ b.kind === "deadline" ? "Deadline" : "Suggested" }}</span
-            >
-          </router-link>
-        </div>
-      </template>
-
       <template v-else>
-        <div v-if="!grouped.length" class="empty">
+        <section v-if="shownReminders.length" class="plugin-reminders">
+          <h2>Plugin reminders</h2>
+          <button
+            v-for="reminder in shownReminders"
+            :key="`${reminder.pluginId}:${reminder.id}`"
+            type="button"
+            class="ui-panel plugin-reminder"
+            @click="router.push(reminder.path)"
+          >
+            <strong>{{ reminder.label }}</strong>
+            <span>{{ reminder.description }}</span>
+            <small>{{ reminder.pluginId }}</small>
+          </button>
+        </section>
+        <div v-if="!grouped.length && !shownReminders.length" class="empty">
           <p class="empty-title">
             {{
               filter === "unread"
@@ -378,6 +372,26 @@ function toggleOpen(n: MediaNotification) {
 </template>
 
 <style scoped>
+.plugin-reminders {
+  display: grid;
+  gap: 10px;
+  margin-bottom: var(--ui-space-6);
+}
+.plugin-reminders h2 {
+  font-size: var(--ui-font-heading);
+}
+.plugin-reminder {
+  display: grid;
+  text-align: left;
+  gap: 6px;
+  padding: 16px;
+  color: var(--ui-text);
+  cursor: pointer;
+}
+.plugin-reminder span,
+.plugin-reminder small {
+  color: var(--ui-dim);
+}
 .empty {
   text-align: center;
   padding: 56px 16px;

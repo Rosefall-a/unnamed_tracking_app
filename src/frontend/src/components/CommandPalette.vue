@@ -2,9 +2,8 @@
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from "vue";
 import { useRouter } from "vue-router";
 import { fetchGames } from "../services/games";
-import { fetchBounties } from "../services/bounties";
 import type { Game } from "../types/game";
-import type { Bounty } from "../services/bounties";
+import { searchPluginRecords } from "../state/pluginSearch";
 import { isCommandPaletteOpen } from "../state/commandPalette";
 import { smartCollections } from "../state/smartCollections";
 import { fetchMoviesPage } from "../services/movies";
@@ -24,26 +23,24 @@ const query = ref("");
 const inputRef = ref<HTMLInputElement | null>(null);
 
 const gamesCache = ref<Game[]>([]);
-const bountiesCache = ref<Bounty[]>([]);
 const loaded = ref(false);
 const loadError = ref("");
 const mediaResults = ref<Result[]>([]);
+const pluginResults = ref<Result[]>([]);
 const mediaLoading = ref(false);
 let loadGeneration = 0;
 let mediaGeneration = 0;
 let mediaTimer: ReturnType<typeof setTimeout> | undefined;
+let pluginTimer: ReturnType<typeof setTimeout> | undefined;
+let pluginGeneration = 0;
 
 async function ensureLoaded() {
   const generation = ++loadGeneration;
   loadError.value = "";
-  const [games, bounties] = await Promise.allSettled([
-    fetchGames(),
-    fetchBounties(),
-  ]);
+  const [games] = await Promise.allSettled([fetchGames()]);
   if (generation !== loadGeneration) return;
   if (games.status === "fulfilled") gamesCache.value = games.value;
-  if (bounties.status === "fulfilled") bountiesCache.value = bounties.value;
-  if (games.status === "rejected" || bounties.status === "rejected")
+  if (games.status === "rejected")
     loadError.value =
       "Some library results could not be loaded. Try again when connected.";
   loaded.value = true;
@@ -78,6 +75,7 @@ const SETTINGS_SHORTCUTS: {
   { label: "API Keys", section: "api-keys" },
   { label: "Users", section: "users", adminOnly: true },
   { label: "Single sign-on", section: "oidc", adminOnly: true },
+  { label: "Password policy", section: "password-policy", adminOnly: true },
   {
     label: "Server integrations",
     section: "server-integrations",
@@ -93,9 +91,6 @@ const PAGE_SHORTCUTS: { label: string; to: string }[] = [
   { label: "Home", to: "/" },
   { label: "Games", to: "/games" },
   { label: "Collections", to: "/collections" },
-  { label: "Cards", to: "/cards" },
-  { label: "Sets", to: "/sets" },
-  { label: "Bounties", to: "/bounties" },
   { label: "Movies", to: "/movies" },
   { label: "TV shows", to: "/tv" },
   { label: "Anime", to: "/anime" },
@@ -157,19 +152,7 @@ const results = computed<Result[]>(() => {
   }
 
   out.push(...mediaResults.value);
-
-  const bounties = bountiesCache.value
-    .filter((b) => b.title.toLowerCase().includes(q))
-    .slice(0, 4);
-  for (const b of bounties) {
-    out.push({
-      key: "bounty:" + b.id,
-      kind: "bounty",
-      label: b.title,
-      sublabel: b.status,
-      action: () => go("/bounties"),
-    });
-  }
+  out.push(...pluginResults.value);
 
   for (const s of SETTINGS_SHORTCUTS) {
     if (s.adminOnly && !currentUser.value?.is_admin) continue;
@@ -277,10 +260,12 @@ watch(
   () => {
     ++loadGeneration;
     ++mediaGeneration;
+    ++pluginGeneration;
     clearTimeout(mediaTimer);
+    clearTimeout(pluginTimer);
     gamesCache.value = [];
-    bountiesCache.value = [];
     mediaResults.value = [];
+    pluginResults.value = [];
     loaded.value = false;
     loadError.value = "";
     mediaLoading.value = false;
@@ -337,11 +322,32 @@ function searchMedia(value: string) {
         "Some library results could not be loaded. Try again when connected.";
   }, 160);
 }
-watch(query, searchMedia);
+function searchPlugins(value: string) {
+  const generation = ++pluginGeneration;
+  clearTimeout(pluginTimer);
+  pluginResults.value = [];
+  if (!value.trim()) return;
+  pluginTimer = setTimeout(async () => {
+    const matches = await searchPluginRecords(value.trim());
+    if (generation !== pluginGeneration) return;
+    pluginResults.value = matches.map((item) => ({
+      key: `plugin-record:${item.pluginId}:${item.id}`,
+      kind: "page",
+      label: item.label,
+      sublabel: item.description ?? "Extension",
+      action: () => go(item.path),
+    }));
+  }, 160);
+}
+watch(query, (value) => {
+  searchMedia(value);
+  searchPlugins(value);
+});
 
 function retrySearch() {
   void ensureLoaded();
   searchMedia(query.value);
+  searchPlugins(query.value);
 }
 
 function onGlobalKeydown(e: KeyboardEvent) {
@@ -383,8 +389,10 @@ onMounted(() => window.addEventListener("keydown", onGlobalKeydown));
 onUnmounted(() => {
   window.removeEventListener("keydown", onGlobalKeydown);
   clearTimeout(mediaTimer);
+  clearTimeout(pluginTimer);
   ++loadGeneration;
   ++mediaGeneration;
+  ++pluginGeneration;
   open.value = false;
 });
 

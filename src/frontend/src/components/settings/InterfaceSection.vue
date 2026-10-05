@@ -16,8 +16,8 @@ const defaultSort = ref<SortBy>(
 );
 
 const viewModeOptions = [
-  { value: "cards", label: "Cards" },
   { value: "list", label: "List" },
+  { value: "cards", label: "Shelves" },
   { value: "detail", label: "List + preview" },
 ];
 const sortOptions = [

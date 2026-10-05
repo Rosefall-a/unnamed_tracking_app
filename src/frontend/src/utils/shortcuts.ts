@@ -86,17 +86,20 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
   },
   {
     title: "Cards",
-    paths: [/^\/cards$/],
+    paths: [/^\/cards$/, /^\/plugins\/official\.collectors-archive\/cards$/],
     shortcuts: [{ keys: "n", label: "Create a card" }],
   },
   {
     title: "Sets",
-    paths: [/^\/sets$/],
+    paths: [/^\/sets$/, /^\/plugins\/official\.collectors-archive\/sets$/],
     shortcuts: [{ keys: "n", label: "Focus the new set name" }],
   },
   {
     title: "Bounties",
-    paths: [/^\/bounties$/],
+    paths: [
+      /^\/bounties$/,
+      /^\/plugins\/official\.collectors-archive\/bounties$/,
+    ],
     shortcuts: [
       { keys: "/", label: "Focus bounty search" },
       { keys: "n", label: "Create a bounty" },
@@ -138,9 +141,13 @@ export function shortcutGroupsForPath(path: string): ShortcutGroup[] {
 }
 
 export function navigationShortcutForPath(path: string): string | undefined {
-  const item = NAVIGATION_SHORTCUTS.find(
-    (item) => item.path === path.split("?")[0],
-  );
+  const pathname = path.split("?")[0];
+  const archive =
+    /^\/plugins\/official\.collectors-archive\/(cards|sets|bounties)$/.exec(
+      pathname ?? "",
+    );
+  const destination = archive ? `/${archive[1]}` : pathname;
+  const item = NAVIGATION_SHORTCUTS.find((item) => item.path === destination);
   return item ? "Alt+" + item.key.toUpperCase() : undefined;
 }
 export function navigationTooltip(label: string, path: string): string {

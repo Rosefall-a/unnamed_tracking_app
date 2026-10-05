@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from "vue";
+import PasswordInput from "../PasswordInput.vue";
 import {
   fetchDeploymentSettings,
   updateDeploymentSettings,
@@ -94,15 +95,26 @@ async function save() {
       <div class="grid">
         <label v-for="[key, label] in fields" :key="key"
           ><span>{{ label }}</span
-          ><input
-            v-model="providers[key]"
-            :type="
+          ><PasswordInput
+            v-if="
               key.includes('secret') ||
               key.includes('password') ||
               key.includes('api_key')
-                ? 'password'
-                : 'text'
             "
+            :model-value="providers[key] ?? ''"
+            mode="replace"
+            :placeholder="
+              deploymentSettings?.provider_locks[key]
+                ? 'Managed by deployment environment'
+                : configured[key]
+                  ? 'Already saved — enter a new value to replace it'
+                  : ''
+            "
+            :disabled="deploymentSettings?.provider_locks[key] ?? false"
+            @update:model-value="providers[key] = $event" /><input
+            v-else
+            v-model="providers[key]"
+            type="text"
             :placeholder="
               (deploymentSettings?.provider_locks[key] ?? false)
                 ? 'Managed by deployment environment'

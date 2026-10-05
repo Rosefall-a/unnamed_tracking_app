@@ -2,13 +2,11 @@
 import { computed, ref } from "vue";
 import GameCard from "./GameCard.vue";
 import type { Game } from "../types/game";
-import type { Bounty } from "../services/bounties";
 import type { WeeklyDigest } from "../services/stats";
 
 const props = defineProps<{
   widgetId: string;
   games: Game[];
-  bounties: Bounty[];
   digest: WeeklyDigest | null;
 }>();
 const emit = defineEmits<{
@@ -86,12 +84,6 @@ const steps = computed(() => [
     to: "/games",
     done: props.games.some((game) => game.favorite),
   },
-  {
-    label: "Set a goal",
-    hint: "Create a personal bounty for something you want to finish.",
-    to: "/bounties",
-    done: props.bounties.length > 0,
-  },
 ]);
 const week = computed(() => [
   { label: "Games played", value: props.digest?.games_played ?? 0 },
@@ -99,7 +91,6 @@ const week = computed(() => [
     label: "Achievements unlocked",
     value: props.digest?.achievements_unlocked ?? 0,
   },
-  { label: "Goals completed", value: props.digest?.bounties_completed ?? 0 },
   { label: "Metadata changes", value: props.digest?.metadata_changes ?? 0 },
 ]);
 function scroll(direction: -1 | 1) {
@@ -184,24 +175,6 @@ function scroll(direction: -1 | 1) {
     >
       Pick a game
     </button>
-  </div>
-  <div v-else-if="widgetId === 'goals'">
-    <ul v-if="bounties.length" class="widget-list">
-      <li v-for="bounty in bounties.slice(0, 4)" :key="bounty.id">
-        <router-link to="/bounties"
-          >{{ bounty.title
-          }}<small v-if="bounty.game_title">{{
-            bounty.game_title
-          }}</small></router-link
-        >
-      </li>
-    </ul>
-    <p v-else class="empty-message">
-      No active goals. Set a personal bounty when you want some extra structure.
-    </p>
-    <router-link to="/bounties" class="text-link">{{
-      bounties.length ? "View all goals" : "Create a goal"
-    }}</router-link>
   </div>
   <div v-else-if="widgetId === 'weekly-digest'">
     <p class="period">Over the last seven days</p>

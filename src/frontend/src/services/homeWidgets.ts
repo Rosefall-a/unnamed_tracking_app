@@ -39,11 +39,6 @@ export const CORE_HOME_WIDGETS: HomeWidgetChoice[] = [
     description: "Game, favorite and collection counts.",
   },
   {
-    id: "goals",
-    title: "Goals & bounties",
-    description: "Your active personal goals.",
-  },
-  {
     id: "random-picker",
     title: "Random picker",
     description: "Choose a game with your own filters.",
@@ -51,8 +46,7 @@ export const CORE_HOME_WIDGETS: HomeWidgetChoice[] = [
   {
     id: "weekly-digest",
     title: "This week",
-    description:
-      "Games played, achievements, completed goals and metadata activity.",
+    description: "Games played, achievements and metadata activity.",
   },
   {
     id: "backlog",
@@ -67,7 +61,7 @@ export const CORE_HOME_WIDGETS: HomeWidgetChoice[] = [
   {
     id: "getting-started",
     title: "Getting started",
-    description: "Connect a library, favorite a game and set a goal.",
+    description: "Connect a library and favorite a game.",
   },
 ];
 
@@ -78,7 +72,10 @@ export function selectedHomeWidgets(
   const available = new Map(choices.map((choice) => [choice.id, choice]));
   return ids.map(
     (id) =>
-      available.get(id) ?? {
+      available.get(id) ??
+      (id === "goals"
+        ? available.get("plugin:official.collectors-archive:goals")
+        : undefined) ?? {
         id,
         title: id.startsWith("collection:")
           ? id.slice(11)

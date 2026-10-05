@@ -41,6 +41,29 @@ const router = createRouter({
     return { top: 0 };
   },
   routes: [
+    // Preserve bookmarks and navigation shortcuts when retired native
+    // features move into their official plugin. Its page explains installation
+    // when the optional plugin is not enabled.
+    { path: "/cards", redirect: "/plugins/official.collectors-archive/cards" },
+    { path: "/sets", redirect: "/plugins/official.collectors-archive/sets" },
+    {
+      path: "/bounties",
+      redirect: "/plugins/official.collectors-archive/bounties",
+    },
+    {
+      path: "/cards/:cardId",
+      redirect: (to) => ({
+        path: "/plugins/official.collectors-archive/card-detail",
+        query: { record_id: String(to.params.cardId) },
+      }),
+    },
+    {
+      path: "/sets/:setId",
+      redirect: (to) => ({
+        path: "/plugins/official.collectors-archive/set-detail",
+        query: { record_id: String(to.params.setId) },
+      }),
+    },
     {
       path: "/",
       name: "home",
@@ -73,40 +96,10 @@ const router = createRouter({
     },
     { path: "/inbox", redirect: "/upload" },
     {
-      path: "/bounties",
-      name: "bounties",
-      meta: { title: "Bounties" },
-      component: () => import("../views/Bounties.vue"),
-    },
-    {
       path: "/games/:id",
       name: "game-detail",
       meta: { title: "Game" },
       component: () => import("../views/GameDetail.vue"),
-    },
-    {
-      path: "/cards",
-      name: "card-collection",
-      meta: { title: "Cards" },
-      component: () => import("../views/CardCollection.vue"),
-    },
-    {
-      path: "/cards/:cardId",
-      name: "card-detail",
-      meta: { title: "Card" },
-      component: () => import("../views/CardDetail.vue"),
-    },
-    {
-      path: "/sets",
-      name: "set-list",
-      meta: { title: "Sets" },
-      component: () => import("../views/SetList.vue"),
-    },
-    {
-      path: "/sets/:id",
-      name: "set-detail",
-      meta: { title: "Set" },
-      component: () => import("../views/SetDetail.vue"),
     },
     {
       path: "/movies",
