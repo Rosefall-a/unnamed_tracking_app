@@ -20,6 +20,7 @@ import {
   fetchPluginCatalogues,
   fetchPluginLogs,
   fetchPlugins,
+  fetchPluginDetails,
   checkPluginUpdates,
   installPlugin,
   installPluginFromUrl,
@@ -74,6 +75,7 @@ const installFile = ref<File | null>(null);
 const installUrl = ref<string | null>(null);
 const remoteUrl = ref("");
 const installPreview = ref<PluginInstallPreview | null>(null);
+const reviewView = ref<"overview" | "access">("access");
 const previewing = ref(false);
 const installing = ref(false);
 const installMessage = ref("");
@@ -83,6 +85,7 @@ const pluginDiagnostics = ref<PluginDiagnostics | null>(null);
 const pluginGrants = ref<PluginPermissionGrant[]>([]);
 const pluginRequests = ref<PluginPermissionRequest[]>([]);
 const popupLoading = ref(false);
+let popupGeneration = 0;
 const installOpen = ref(false);
 const catalogues = ref<PluginCatalogue[]>([]);
 const catalogueErrors = ref<string[]>([]);
@@ -433,7 +436,9 @@ async function previewSelected() {
     installUrl.value = null;
     installSource.value = { type: "upload" };
     installFile.value = selectedFile.value;
+    reviewView.value = "access";
     installPreview.value = await previewPluginInstall(selectedFile.value);
+    installOpen.value = false;
     duplicate.value =
       plugins.value.find(
         (item) => item.plugin_id === installPreview.value?.plugin_id,
@@ -450,6 +455,7 @@ async function previewSelected() {
 async function previewRemoteUrl(
   url = remoteUrl.value,
   source: Partial<PluginSourceMetadata> = { type: "url" },
+  initialView: "overview" | "access" = "access",
 ) {
   if (installing.value || previewing.value) return;
   const normalized = url.trim();
@@ -459,9 +465,11 @@ async function previewRemoteUrl(
   installMessage.value = "";
   try {
     installFile.value = null;
+    reviewView.value = initialView;
     installUrl.value = normalized;
     installSource.value = source;
     installPreview.value = await previewPluginInstallUrl(normalized, source);
+    installOpen.value = false;
     duplicate.value =
       plugins.value.find(
         (item) => item.plugin_id === installPreview.value?.plugin_id,
@@ -476,18 +484,25 @@ async function previewRemoteUrl(
   }
 }
 
-async function previewCatalogEntry(entry: PluginCatalogEntry) {
+async function previewCatalogEntry(
+  entry: PluginCatalogEntry,
+  initialView: "overview" | "access" = "access",
+) {
   error.value = "";
   const release =
     catalogueVersions(entry).find(
       (item) => item.version === selectedVersions.value[entry.plugin_id],
     ) ?? entry;
-  await previewRemoteUrl(release.url, {
-    type: "catalogue",
-    catalogue_url: entry.catalogue_url,
-    release_notes: release.release_notes,
-    changelog_url: entry.changelog_url,
-  });
+  await previewRemoteUrl(
+    release.url,
+    {
+      type: "catalogue",
+      catalogue_url: entry.catalogue_url,
+      release_notes: release.release_notes,
+      changelog_url: entry.changelog_url,
+    },
+    initialView,
+  );
   if (installPreview.value) {
     installPreview.value.readme ??= entry.readme;
     installPreview.value.icon ??= entry.icon;
@@ -506,6 +521,7 @@ function cancelInstall() {
   stagedTarget.value = null;
   grantTarget.value = null;
   duplicate.value = null;
+  reviewView.value = "access";
 }
 
 async function confirmInstall(confirmation: PluginInstallConfirmation) {
@@ -607,16 +623,30 @@ async function confirmInstall(confirmation: PluginInstallConfirmation) {
 }
 
 async function openPlugin(plugin: PluginSummary) {
+  const generation = ++popupGeneration;
   selected.value = plugin;
   popupLoading.value = true;
   error.value = "";
   try {
-    const [ui, logs, grants, requests] = await Promise.all([
+    const [ui, logs, grants, requests, details] = await Promise.all([
       fetchPluginUi(plugin.plugin_id).catch(() => null),
       fetchPluginLogs(plugin.plugin_id).catch(() => null),
       fetchPluginPermissionGrants(),
       fetchPluginPermissionRequests(),
+      fetchPluginDetails(plugin.plugin_id).catch((err: unknown) => ({
+        readme: null,
+        documentation_error:
+          err instanceof Error
+            ? err.message
+            : "Unable to load installed documentation.",
+      })),
     ]);
+    if (
+      generation !== popupGeneration ||
+      selected.value?.plugin_id !== plugin.plugin_id
+    )
+      return;
+    selected.value = { ...plugin, ...details };
     pluginUi.value = ui;
     pluginDiagnostics.value = logs;
     pluginGrants.value = grants.filter(
@@ -630,11 +660,12 @@ async function openPlugin(plugin: PluginSummary) {
     error.value =
       err instanceof Error ? err.message : "Failed to open plugin settings.";
   } finally {
-    popupLoading.value = false;
+    if (generation === popupGeneration) popupLoading.value = false;
   }
 }
 
 function closePlugin() {
+  popupGeneration++;
   selected.value = null;
   pluginUi.value = null;
   pluginDiagnostics.value = null;
@@ -1172,7 +1203,15 @@ onMounted(() => {
             width="48"
             height="48"
           />
-          <h3>{{ entry.name }}</h3>
+          <h3>
+            <button
+              class="plugin-title"
+              :disabled="previewing || installing"
+              @click="previewCatalogEntry(entry, 'overview')"
+            >
+              {{ entry.name }}<span aria-hidden="true"> →</span>
+            </button>
+          </h3>
           <span class="source-category">{{
             pluginChannel(entry) === "official"
               ? "Official"
@@ -1244,7 +1283,11 @@ onMounted(() => {
               width="48"
               height="48"
             />
-            <h3>{{ plugin.name }}</h3>
+            <h3>
+              <button class="plugin-title" @click="openPlugin(plugin)">
+                {{ plugin.name }}<span aria-hidden="true"> →</span>
+              </button>
+            </h3>
             <span>{{ plugin.plugin_id }} · v{{ plugin.version }}</span>
           </div>
           <strong>{{ plugin.status }}</strong>
@@ -1342,6 +1385,7 @@ onMounted(() => {
       v-if="installPreview && !duplicate"
       :preview="installPreview"
       :busy="installing"
+      :initial-view="reviewView"
       @cancel="cancelInstall"
       @confirm="confirmInstall"
     />
@@ -1620,12 +1664,13 @@ h2 {
 .list {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
-  gap: 14px;
+  gap: var(--ui-space-5);
 }
 .plugin {
   border: 1px solid var(--ui-border);
   border-radius: var(--ui-radius-control);
-  padding: 16px;
+  padding: var(--ui-space-5);
+  background: var(--ui-surface);
 }
 .plugin header {
   display: flex;
@@ -1633,7 +1678,27 @@ h2 {
   gap: 16px;
 }
 .plugin h3 {
-  margin: 0 0 4px;
+  margin: 0 0 var(--ui-space-3);
+}
+.plugin-title {
+  width: 100%;
+  text-align: left;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ui-text);
+  font-size: var(--ui-font-heading);
+  font-weight: 700;
+}
+.plugin-title:hover {
+  color: var(--ui-accent-text);
+}
+.plugin-title span {
+  font-size: var(--ui-font-body);
+}
+.plugin p {
+  line-height: 1.6;
+  margin-block: var(--ui-space-3);
 }
 .plugin header span,
 .plugin dd {

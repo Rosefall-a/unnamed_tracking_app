@@ -5,20 +5,34 @@ import UiModal from "../UiModal.vue";
 import AppIcon from "../AppIcon.vue";
 import PermissionRiskSummary from "./PermissionRiskSummary.vue";
 import PluginVersionInfo from "./PluginVersionInfo.vue";
-import DOMPurify from "dompurify";
-import { marked } from "marked";
+import PluginReadme from "./PluginReadme.vue";
 import type {
   PluginInstallConfirmation,
   PluginInstallPermission,
   PluginInstallPreview,
 } from "../../services/plugins";
 
-const props = defineProps<{ preview: PluginInstallPreview; busy: boolean }>();
-const readme = computed(() =>
-  DOMPurify.sanitize(
-    marked.parse(props.preview.readme ?? "", { async: false }),
-  ),
+const props = defineProps<{
+  preview: PluginInstallPreview;
+  busy: boolean;
+  initialView?: "overview" | "access";
+}>();
+const view = ref<"overview" | "access">(props.initialView ?? "access");
+const blockingIssue = computed(
+  () => !props.preview.installable || !props.preview.dependency_ready,
 );
+const blocker = ref<HTMLElement | null>(null);
+const blockingReason = computed(() => {
+  const failures =
+    props.preview.compatibility_checks?.filter(
+      (check) => check.status === "incompatible",
+    ) ?? [];
+  return failures.length
+    ? `${failures.map((check) => check.title).join(", ")} ${failures.length === 1 ? "does" : "do"} not support this release. See the highlighted requirements below.`
+    : props.preview.compatibility_reason ||
+        props.preview.trust_warning ||
+        "Required dependencies are unavailable on this server.";
+});
 const emit = defineEmits<{
   cancel: [];
   confirm: [confirmation: PluginInstallConfirmation];
@@ -42,8 +56,10 @@ watch(
     expandedCategories.value = new Set(
       props.preview.permissions.map((permission) => permission.category),
     );
+    view.value = props.initialView ?? "access";
     await nextTick();
-    cancelButton.value?.focus();
+    if (blockingIssue.value) blocker.value?.focus({ preventScroll: true });
+    else cancelButton.value?.focus();
     content.value?.scrollTo({ top: 0 });
   },
   { immediate: true },
@@ -205,22 +221,46 @@ function close() {
           trustLabel
         }}</span>
       </header>
-      <details v-if="readme" class="readme">
-        <summary>Plugin documentation</summary>
-        <article v-html="readme" />
-      </details>
-
+      <section
+        v-if="blockingIssue"
+        ref="blocker"
+        class="install-blocker"
+        role="alert"
+        tabindex="-1"
+        aria-label="Unable to install this release"
+      >
+        <AppIcon name="warning" :size="28" />
+        <div>
+          <h3>Unable to install this release</h3>
+          <p>
+            {{ blockingReason }}
+          </p>
+          <ul v-if="preview.dependency_conflicts.length">
+            <li v-for="issue in preview.dependency_conflicts" :key="issue">
+              {{ issue }}
+            </li>
+          </ul>
+        </div>
+      </section>
+      <nav class="review-tabs" aria-label="Plugin review">
+        <button
+          type="button"
+          :aria-pressed="view === 'overview'"
+          @click="view = 'overview'"
+        >
+          Release & documentation
+        </button>
+        <button
+          type="button"
+          :aria-pressed="view === 'access'"
+          @click="view = 'access'"
+        >
+          Review access & install
+        </button>
+      </nav>
       <p v-if="preview.description" class="description">
         {{ preview.description }}
       </p>
-      <div v-if="preview.compatibility_reason" class="error" role="alert">
-        <strong>This release cannot be installed on this host</strong>
-        <p>{{ preview.compatibility_reason }}</p>
-        <p>
-          Choose a verified release that supports the versions above. Existing
-          plugin data is retained when a compatible update is installed.
-        </p>
-      </div>
       <dl class="metadata">
         <div>
           <dt>Publisher</dt>
@@ -239,222 +279,237 @@ function close() {
         </div>
       </dl>
       <PluginVersionInfo :versions="preview" />
+      <aside
+        v-if="preview.compatibility_warning"
+        class="legacy-warning"
+        role="status"
+      >
+        <strong>Built for the old UI · limited support</strong>
+        <p>{{ preview.compatibility_warning }}</p>
+      </aside>
+      <section v-if="preview.release_notes" class="release-notes">
+        <h3>Release notes</h3>
+        <pre>{{ preview.release_notes }}</pre>
+      </section>
+      <details v-if="preview.readme" class="readme" :open="view === 'overview'">
+        <summary>Plugin documentation</summary>
+        <PluginReadme :text="preview.readme" />
+      </details>
       <p v-if="preview.source.version_pin" class="version-pin" role="status">
         You selected v{{ preview.source.version_pin }}; the catalogue currently
         offers v{{ preview.source.latest_version }}. If installed, this release
         will be pinned and automatic updates will be disabled. You can resume
         them in the plugin’s manager settings.
       </p>
-
-      <div
-        v-if="preview.trust_status !== 'trusted'"
-        class="warning"
-        role="alert"
-      >
-        <strong>{{ trustLabel }}</strong>
-        <p>
-          {{
-            preview.trust_warning ||
-            "Install only if you trust the package source."
-          }}
-        </p>
-        <label>
-          <input v-model="trustAccepted" type="checkbox" />
-          I understand this package is not cryptographically trusted and want to
-          continue.
-        </label>
-      </div>
-
-      <div v-if="preview.identity_warning" class="warning" role="alert">
-        <strong>Permission grants cannot be inherited</strong>
-        <p>{{ preview.identity_warning }}</p>
-      </div>
-
-      <div
-        v-if="
-          preview.permissions.some((permission) => permission.highly_privileged)
-        "
-        class="warning full-api-warning"
-        role="alert"
-      >
-        <strong>This package requests highly privileged access.</strong>
-        <p>
-          Critical capabilities can alter host behavior or sensitive data. They
-          remain disabled unless selected below.
-        </p>
-      </div>
-
-      <section
-        class="permissions"
-        aria-labelledby="requested-permissions-title"
-      >
-        <div class="section-heading">
-          <div>
-            <h3 id="requested-permissions-title">
-              {{
-                preview.operation === "update"
-                  ? "Permission changes"
-                  : "Requested permissions"
-              }}
-            </h3>
-            <p>
-              Grant only the access this plugin needs. Unchecked permissions are
-              denied.
-            </p>
-          </div>
-          <span
-            >{{ approved.size }} of {{ selectablePermissions.length }} newly
-            granted</span
-          >
-        </div>
-        <p v-if="!preview.permissions.length" class="empty">
-          This plugin requests no host permissions.
-        </p>
-        <PermissionRiskSummary :permissions="preview.permissions" />
-        <article
-          v-for="category in permissionCategories"
-          :key="category.name"
-          class="permission-category"
+      <div v-show="view === 'access'">
+        <div
+          v-if="preview.trust_status !== 'trusted'"
+          class="warning"
+          role="alert"
         >
-          <header class="category-header">
-            <button
-              type="button"
-              class="disclosure"
-              :aria-expanded="expandedCategories.has(category.name)"
-              @click="toggleExpanded(category.name)"
+          <strong>{{ trustLabel }}</strong>
+          <p>
+            {{
+              preview.trust_warning ||
+              "Install only if you trust the package source."
+            }}
+          </p>
+          <label>
+            <input v-model="trustAccepted" type="checkbox" />
+            I understand this package is not cryptographically trusted and want
+            to continue.
+          </label>
+        </div>
+
+        <div v-if="preview.identity_warning" class="warning" role="alert">
+          <strong>Permission grants cannot be inherited</strong>
+          <p>{{ preview.identity_warning }}</p>
+        </div>
+
+        <div
+          v-if="
+            preview.permissions.some(
+              (permission) => permission.highly_privileged,
+            )
+          "
+          class="warning full-api-warning"
+          role="alert"
+        >
+          <strong>This package requests highly privileged access.</strong>
+          <p>
+            Critical capabilities can alter host behavior or sensitive data.
+            They remain disabled unless selected below.
+          </p>
+        </div>
+
+        <section
+          class="permissions"
+          aria-labelledby="requested-permissions-title"
+        >
+          <div class="section-heading">
+            <div>
+              <h3 id="requested-permissions-title">
+                {{
+                  preview.operation === "update"
+                    ? "Permission changes"
+                    : "Requested permissions"
+                }}
+              </h3>
+              <p>
+                Grant only the access this plugin needs. Unchecked permissions
+                are denied.
+              </p>
+            </div>
+            <span
+              >{{ approved.size }} of {{ selectablePermissions.length }} newly
+              granted</span
             >
-              <AppIcon
-                name="chevron"
-                :size="20"
-                :class="{ expanded: expandedCategories.has(category.name) }"
-              />
-              {{ category.name }}
-              — {{ category.permissions.length }}
-              {{ category.permissions.length === 1 ? "scope" : "scopes" }}
-            </button>
-            <label>
-              <input
-                type="checkbox"
-                :disabled="selectableInCategory(category.name).length === 0"
-                :checked="
-                  selectableInCategory(category.name).length > 0 &&
-                  selectableInCategory(category.name).every((item) =>
-                    approved.has(item.key),
-                  )
-                "
-                @change="
-                  toggleCategory(
-                    category.name,
-                    ($event.target as HTMLInputElement).checked,
-                  )
-                "
-              />
-              Approve subtree
-            </label>
-          </header>
-          <PermissionRiskSummary :permissions="category.permissions" />
-          <div v-if="expandedCategories.has(category.name)">
-            <label
-              v-for="permission in category.permissions"
-              :key="permission.key"
-              class="permission"
-              :class="{
-                privileged: permission.highly_privileged,
-                retained: preview.operation && !permission.new,
-              }"
-            >
-              <input
-                type="checkbox"
-                :disabled="preview.operation === 'update' && !permission.new"
-                :checked="
-                  preview.operation === 'update' && !permission.new
-                    ? true
-                    : approved.has(permission.key)
-                "
-                @change="
-                  toggle(
-                    permission.key,
-                    ($event.target as HTMLInputElement).checked,
-                  )
-                "
-              />
-              <span class="permission-copy">
-                <span class="permission-title">
-                  <strong>{{ permission.title }}</strong>
-                  <span class="risk" :class="permission.risk"
-                    >{{ permission.risk }} risk</span
+          </div>
+          <p v-if="!preview.permissions.length" class="empty">
+            This plugin requests no host permissions.
+          </p>
+          <PermissionRiskSummary :permissions="preview.permissions" />
+          <article
+            v-for="category in permissionCategories"
+            :key="category.name"
+            class="permission-category"
+          >
+            <header class="category-header">
+              <button
+                type="button"
+                class="disclosure"
+                :aria-expanded="expandedCategories.has(category.name)"
+                @click="toggleExpanded(category.name)"
+              >
+                <AppIcon
+                  name="chevron"
+                  :size="20"
+                  :class="{ expanded: expandedCategories.has(category.name) }"
+                />
+                {{ category.name }}
+                — {{ category.permissions.length }}
+                {{ category.permissions.length === 1 ? "scope" : "scopes" }}
+              </button>
+              <label>
+                <input
+                  type="checkbox"
+                  :disabled="selectableInCategory(category.name).length === 0"
+                  :checked="
+                    selectableInCategory(category.name).length > 0 &&
+                    selectableInCategory(category.name).every((item) =>
+                      approved.has(item.key),
+                    )
+                  "
+                  @change="
+                    toggleCategory(
+                      category.name,
+                      ($event.target as HTMLInputElement).checked,
+                    )
+                  "
+                />
+                Approve subtree
+              </label>
+            </header>
+            <PermissionRiskSummary :permissions="category.permissions" />
+            <div v-if="expandedCategories.has(category.name)">
+              <label
+                v-for="permission in category.permissions"
+                :key="permission.key"
+                class="permission"
+                :class="{
+                  privileged: permission.highly_privileged,
+                  retained: preview.operation && !permission.new,
+                }"
+              >
+                <input
+                  type="checkbox"
+                  :disabled="preview.operation === 'update' && !permission.new"
+                  :checked="
+                    preview.operation === 'update' && !permission.new
+                      ? true
+                      : approved.has(permission.key)
+                  "
+                  @change="
+                    toggle(
+                      permission.key,
+                      ($event.target as HTMLInputElement).checked,
+                    )
+                  "
+                />
+                <span class="permission-copy">
+                  <span class="permission-title">
+                    <strong>{{ permission.title }}</strong>
+                    <span class="risk" :class="permission.risk"
+                      >{{ permission.risk }} risk</span
+                    >
+                  </span>
+                  <small
+                    >{{ permission.capability }} v{{
+                      permission.capability_version
+                    }}
+                    · {{ permission.rationale }}</small
+                  >
+                  <small v-if="preview.operation && !permission.new"
+                    >Existing reviewed permission retained</small
+                  >
+                  <small v-else-if="permission.children.length"
+                    >Approving this parent includes its requested
+                    subtree.</small
                   >
                 </span>
-                <small
-                  >{{ permission.capability }} v{{
-                    permission.capability_version
-                  }}
-                  · {{ permission.rationale }}</small
-                >
-                <small v-if="preview.operation && !permission.new"
-                  >Existing reviewed permission retained</small
-                >
-                <small v-else-if="permission.children.length"
-                  >Approving this parent includes its requested subtree.</small
-                >
-              </span>
-            </label>
-          </div>
-        </article>
-      </section>
+              </label>
+            </div>
+          </article>
+        </section>
 
-      <section v-if="preview.dependencies.length" class="dependencies">
-        <h3>Dependencies</h3>
-        <ul>
-          <li
-            v-for="dependency in preview.dependencies"
-            :key="dependency.plugin_id"
-            :class="dependency.state"
-          >
-            <strong>{{ dependency.plugin_id }}</strong>
-            {{ dependency.version_range }} ·
-            {{ dependency.state.replaceAll("_", " ") }}
-            <span v-if="dependency.installed_version">
-              (installed {{ dependency.installed_version }})</span
+        <section v-if="preview.dependencies.length" class="dependencies">
+          <h3>Dependencies</h3>
+          <ul>
+            <li
+              v-for="dependency in preview.dependencies"
+              :key="dependency.plugin_id"
+              :class="dependency.state"
             >
-            <span v-if="dependency.available_version">
-              (available {{ dependency.available_version }})</span
-            >
-            <span v-if="dependency.optional"> · optional</span>
-          </li>
-        </ul>
-        <p v-if="preview.dependency_conflicts.length" class="warning">
-          {{ preview.dependency_conflicts.join("; ") }}
-        </p>
-      </section>
+              <strong>{{ dependency.plugin_id }}</strong>
+              {{ dependency.version_range }} ·
+              {{ dependency.state.replaceAll("_", " ") }}
+              <span v-if="dependency.installed_version">
+                (installed {{ dependency.installed_version }})</span
+              >
+              <span v-if="dependency.available_version">
+                (available {{ dependency.available_version }})</span
+              >
+              <span v-if="dependency.optional"> · optional</span>
+            </li>
+          </ul>
+          <p v-if="preview.dependency_conflicts.length" class="warning">
+            {{ preview.dependency_conflicts.join("; ") }}
+          </p>
+        </section>
 
-      <section v-if="preview.release_notes" class="release-notes">
-        <h3>Release notes</h3>
-        <pre>{{ preview.release_notes }}</pre>
-      </section>
-
-      <div
-        v-if="reauthenticationRequired"
-        class="warning reauthentication"
-        role="alert"
-      >
-        <strong>Administrator reauthentication required</strong>
-        <p>
-          This unverified package will receive:
-          {{ dangerousApproved.map((item) => item.title).join(", ") }}.
-        </p>
-        <label>
-          Administrator password
-          <PasswordInput
-            v-model="adminPassword"
-            autocomplete="current-password"
-          />
-        </label>
-        <label>
-          <input v-model="dangerousConfirmed" type="checkbox" />
-          I explicitly confirm granting these dangerous capabilities to an
-          unverified package.
-        </label>
+        <div
+          v-if="reauthenticationRequired"
+          class="warning reauthentication"
+          role="alert"
+        >
+          <strong>Administrator reauthentication required</strong>
+          <p>
+            This unverified package will receive:
+            {{ dangerousApproved.map((item) => item.title).join(", ") }}.
+          </p>
+          <label>
+            Administrator password
+            <PasswordInput
+              v-model="adminPassword"
+              autocomplete="current-password"
+            />
+          </label>
+          <label>
+            <input v-model="dangerousConfirmed" type="checkbox" />
+            I explicitly confirm granting these dangerous capabilities to an
+            unverified package.
+          </label>
+        </div>
       </div>
     </section>
     <template #footer>
@@ -464,15 +519,21 @@ function close() {
       <button
         type="button"
         class="primary"
-        :disabled="busy || !canInstall"
-        @click="confirm"
+        :disabled="busy || (view === 'access' && !canInstall) || blockingIssue"
+        @click="view === 'overview' ? (view = 'access') : confirm()"
       >
         {{
           busy
             ? "Applying…"
-            : preview.operation === "update"
-              ? "Update with selected access"
-              : "Install with selected access"
+            : blockingIssue
+              ? "Unable to install"
+              : view === "overview"
+                ? "Review access & install"
+                : !canInstall
+                  ? "Unable to install"
+                  : preview.operation === "update"
+                    ? "Update with selected access"
+                    : "Install with selected access"
         }}
       </button>
     </template>
@@ -480,6 +541,54 @@ function close() {
 </template>
 
 <style scoped>
+.install-blocker {
+  display: flex;
+  gap: var(--ui-space-4);
+  padding: var(--ui-space-5);
+  margin-block: var(--ui-space-5);
+  border: 2px solid var(--ui-error);
+  border-radius: var(--ui-radius-card);
+  background: var(--ui-danger-soft);
+  color: var(--ui-error);
+}
+.install-blocker h3 {
+  color: var(--ui-error);
+  font-size: var(--ui-font-heading);
+  margin-bottom: var(--ui-space-3);
+}
+.install-blocker :last-child {
+  margin-bottom: 0;
+}
+.install-blocker > svg {
+  flex-shrink: 0;
+}
+.legacy-warning {
+  padding: var(--ui-space-4);
+  border: 1px solid var(--ui-warning);
+  border-radius: var(--ui-radius-card);
+  background: var(--ui-warning-soft);
+  color: var(--ui-warning);
+}
+.legacy-warning p {
+  margin: var(--ui-space-2) 0 0;
+}
+.review-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-space-2);
+  margin-block: var(--ui-space-4);
+}
+.review-tabs button {
+  flex: 1;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
+  background: var(--ui-surface-2);
+}
+.review-tabs button[aria-pressed="true"] {
+  border-color: var(--ui-accent);
+  background: var(--ui-accent-soft);
+  color: var(--ui-accent-text);
+}
 .readme {
   line-height: 1.65;
   overflow-wrap: anywhere;

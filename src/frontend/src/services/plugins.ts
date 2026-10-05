@@ -15,7 +15,9 @@ export type PluginStatus =
 export const PLUGIN_API_CONTRACT_VERSION = "1.1.0";
 export function pluginContributionsActive(plugin: PluginSummary): boolean {
   return (
-    plugin.api_contract_version === PLUGIN_API_CONTRACT_VERSION &&
+    (plugin.api_contract_version === PLUGIN_API_CONTRACT_VERSION ||
+      (plugin.legacy_compatibility === true &&
+        /^1\.0\.\d+$/.test(plugin.api_contract_version ?? "1.0.0"))) &&
     plugin.enabled &&
     plugin.compatible &&
     plugin.status === "running" &&
@@ -35,6 +37,9 @@ export interface PluginSummary {
   status: PluginStatus;
   compatible: boolean;
   compatibility_reason: string;
+  legacy_compatibility?: boolean;
+  compatibility_warning?: string | null;
+  compatibility_checks?: PluginCompatibilityCheck[];
   health: "healthy" | "degraded" | "unhealthy" | "unknown";
   permissions: string[];
   permission_refs?: Array<{ name: string; version: number }>;
@@ -44,6 +49,8 @@ export interface PluginSummary {
   source?: PluginSourceMetadata;
   trust?: Record<string, unknown>;
   description?: string;
+  readme?: string | null;
+  documentation_error?: string | null;
   icon?: string | null;
   tags?: string[];
   publisher?: string | null;
@@ -109,12 +116,23 @@ export interface PluginInstallPermission {
   highly_privileged: boolean;
   new?: boolean;
 }
+export interface PluginCompatibilityCheck {
+  key: "api_contract" | "sdk" | "application";
+  title: string;
+  required: string;
+  host: string;
+  status: "supported" | "limited" | "incompatible";
+  reason: string;
+}
 export interface PluginInstallPreview {
   api_contract_version: string;
   host_api_contract_version: string;
   host_sdk_version?: string;
   host_application_version?: string;
   compatibility_reason: string;
+  legacy_compatibility?: boolean;
+  compatibility_warning?: string | null;
+  compatibility_checks?: PluginCompatibilityCheck[];
   plugin_id: string;
   name: string;
   description: string;
@@ -464,6 +482,10 @@ export const installPluginFromUrl = async (
 };
 
 export const fetchPlugins = () => request<PluginSummary[]>("/api/plugins");
+export const fetchPluginDetails = (id: string) =>
+  request<{ readme: string | null }>(
+    `/api/plugins/${encodeURIComponent(id)}/details`,
+  );
 export const enablePlugin = (id: string) =>
   request<void>(`/api/plugins/${encodeURIComponent(id)}/enable`, {
     method: "POST",

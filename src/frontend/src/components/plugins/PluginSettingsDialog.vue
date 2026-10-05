@@ -3,6 +3,7 @@ import { computed, nextTick, ref, watch } from "vue";
 import UiModal from "../UiModal.vue";
 import PermissionRiskSummary from "./PermissionRiskSummary.vue";
 import PluginVersionInfo from "./PluginVersionInfo.vue";
+import PluginReadme from "./PluginReadme.vue";
 import type {
   PluginPermissionGrant,
   PluginPermissionRequest,
@@ -155,6 +156,21 @@ watch(
             </div>
           </dl>
           <PluginVersionInfo :versions="plugin" />
+          <aside
+            v-if="plugin.compatibility_warning"
+            class="legacy-warning"
+            role="status"
+          >
+            <strong>Built for the old UI · limited support</strong>
+            <p>{{ plugin.compatibility_warning }}</p>
+          </aside>
+          <section v-if="plugin.readme" class="documentation">
+            <h3>Plugin documentation</h3>
+            <PluginReadme :text="plugin.readme" />
+          </section>
+          <p v-else-if="plugin.documentation_error" role="status">
+            {{ plugin.documentation_error }}
+          </p>
           <aside
             v-if="issues.length"
             class="attention"
@@ -491,6 +507,16 @@ watch(
 </template>
 
 <style scoped>
+.documentation {
+  padding-block: var(--ui-space-4);
+}
+.legacy-warning {
+  padding: var(--ui-space-4);
+  border: 1px solid var(--ui-warning);
+  border-radius: var(--ui-radius-card);
+  background: var(--ui-warning-soft);
+  color: var(--ui-warning);
+}
 .plugin-dialog {
   color: var(--ui-text);
   overflow-wrap: anywhere;

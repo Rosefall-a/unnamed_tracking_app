@@ -154,6 +154,17 @@ const emptyContributions = (): PluginContributions => ({
 });
 
 function hasCapability(plugin: PluginSummary, capability: string): boolean {
+  if (
+    plugin.legacy_compatibility &&
+    (capability.startsWith("frontend.placement.") ||
+      [
+        "frontend.native",
+        "frontend.themes",
+        "frontend.home.widgets",
+        "frontend.shortcuts",
+      ].includes(capability))
+  )
+    return false;
   return plugin.effective_capabilities.includes(capability);
 }
 

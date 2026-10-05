@@ -20,6 +20,16 @@ The v1 contract covers settings fields, validation, secrets, select options, act
 
 Installed plugins are managed through a per-plugin dialog with Overview, Settings, Permissions, and Diagnostics tabs. Its Settings tab controls Plugin Manager update policy and package history. Plugin-provided application pages contain the plugin's functionality and endpoint/profile configuration; the manager links to these pages when available. A plugin may contribute a Settings application section using `settings_sections`; this remains separate from manager permissions, lifecycle and runtime administration.
 
+Plugin names open a larger release overview with publisher information and
+expanded, sanitized README content. Installed documentation comes from the
+actual installed package, including disabled releases; authenticated readers
+and control-plane tokens with `plugins.read` may access this display metadata.
+Catalogue review has separate documentation and permission views. A valid
+package selection closes the package chooser before opening its review.
+Incompatible requirements are highlighted individually, with a prominent
+“Unable to install” notice and disabled action. Limited legacy support is
+explained separately from installation failures.
+
 Settings contributions may declare `area` (`account`, `preferences` or `administration`), a plain-text `group` label and up to three nested `folders`. Omitted placement preserves the previous behavior: administrator-only sections appear in Administration, other sections in Preferences, under Extensions. Administration placement requires `visibility.admin_only: true`; it does not grant action permissions or expose administrator sections to members. Reserved core section IDs remain protected. The primary sidebar highlights the resolved settings area, including plugin destinations and legacy aliases.
 
 Joining built-in headers requires an additional, independently reviewed permission. Each permission covers its whole area, including every existing header and subtree. Folder names do not create narrower grants:

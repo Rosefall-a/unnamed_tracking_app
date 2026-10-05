@@ -20,6 +20,7 @@ import { checkStartupRecovery } from "./check_startup_recovery.mjs";
 import { checkAppearanceWelcome } from "./check_appearance_welcome.mjs";
 import { checkUploadUi } from "./check_upload_ui.mjs";
 import { checkPluginDiscoveryUi } from "./check_plugin_discovery_ui.mjs";
+import { checkPluginReviewUi } from "./check_plugin_review_ui.mjs";
 import { checkLibraryWorkflows } from "./check_library_workflows.mjs";
 import { checkMobileNavigation } from "./check_mobile_navigation.mjs";
 import { checkQuickTour } from "./check_quick_tour.mjs";
@@ -91,6 +92,10 @@ try {
   } else if (reviewStage === "plugin-discovery") {
     await checkPluginDiscoveryUi({ admin, origin, evidenceRoot, report, checkOverflow });
     await writeFile(path.join(evidenceRoot, "plugin-discovery-conformance.json"), JSON.stringify(report, null, 2) + "\n");
+    console.log(JSON.stringify({ cases: report.screens.length, passed: report.passed }, null, 2));
+  } else if (reviewStage === "plugin-review") {
+    await checkPluginReviewUi({ admin, origin, evidenceRoot, report, checkOverflow });
+    await writeFile(path.join(evidenceRoot, "plugin-review-conformance.json"), JSON.stringify(report, null, 2) + "\n");
     console.log(JSON.stringify({ cases: report.screens.length, passed: report.passed }, null, 2));
   } else if (reviewStage === "upload") {
     await checkUploadUi({ admin, origin, evidenceRoot, report, checkOverflow });
