@@ -14,8 +14,14 @@ import {
   type UiPage,
   type UiHomeWidget,
   type UiTheme,
+  type UiShortcut,
+  pluginPathForPage,
+  dispatchPluginAction,
 } from "../services/pluginUi";
 import { reconcileNativePlugins, retainNativePlugins } from "./pluginNative";
+import { registerPluginShortcut, retainPluginShortcuts } from "./shortcuts";
+import { currentUser } from "./auth";
+import { useConfirm } from "./dialog";
 import {
   pluginPlacementGroup,
   SIDEBAR_BUILT_IN_GROUPS,
@@ -129,6 +135,11 @@ export interface PluginContributions {
   replacements: PluginPageReplacementContribution[];
   documentReaders: PluginDocumentReaderContribution[];
   themes: PluginThemeContribution[];
+  shortcuts: Array<{
+    pluginId: string;
+    document: PluginUiDocument;
+    shortcut: UiShortcut;
+  }>;
 }
 
 export interface PluginDocumentReaderContribution {
@@ -151,6 +162,7 @@ const emptyContributions = (): PluginContributions => ({
   replacements: [],
   documentReaders: [],
   themes: [],
+  shortcuts: [],
 });
 
 function hasCapability(plugin: PluginSummary, capability: string): boolean {
@@ -456,6 +468,19 @@ export function derivePluginContributions(
               order: item.order,
             }))
         : [],
+    shortcuts: hasCapability(plugin, "frontend.shortcuts")
+      ? (document.shortcuts ?? [])
+          .filter(
+            (item) =>
+              (!item.route_id || hasCapability(plugin, "frontend.routes")) &&
+              (!item.when_route_id || hasCapability(plugin, "frontend.routes")),
+          )
+          .map((shortcut) => ({
+            pluginId: plugin.plugin_id,
+            document,
+            shortcut,
+          }))
+      : [],
   };
 }
 
@@ -474,6 +499,7 @@ const documentState = ref<Record<string, PluginUiDocument>>({});
 export const activePluginDocuments = shallowReadonly(documentState);
 
 function retainContributions(pluginIds: ReadonlySet<string>): void {
+  retainPluginShortcuts(pluginIds);
   themeState.value = themeState.value.filter((item) =>
     pluginIds.has(item.pluginId),
   );
@@ -608,6 +634,7 @@ export async function refreshPluginExtensions(): Promise<void> {
               styles: nativeFrontend.styles,
               pageIds: document.pages.map((page) => page.id),
               actions: document.actions,
+              shortcutPermission: hasCapability(plugin, "frontend.shortcuts"),
             },
           ]
         : [];
@@ -677,6 +704,66 @@ export async function refreshPluginExtensions(): Promise<void> {
     documentReaderState.value = contributions
       .flatMap((item) => item.documentReaders)
       .sort(comparePluginContributions);
+    const shortcuts = contributions
+      .flatMap((item) => item.shortcuts)
+      .filter(
+        (item) =>
+          !item.shortcut.visibility.admin_only || currentUser.value?.is_admin,
+      );
+    retainPluginShortcuts(
+      new Set(
+        enabled
+          .filter((plugin) => hasCapability(plugin, "frontend.shortcuts"))
+          .map((plugin) => plugin.plugin_id),
+      ),
+      new Set(
+        shortcuts.map((item) => `plugin:${item.pluginId}:${item.shortcut.id}`),
+      ),
+    );
+    for (const { pluginId, document, shortcut } of shortcuts) {
+      const prefix = `/plugins/${pluginId}/`;
+      const routePath = (id: string) =>
+        document.routes?.find((item) => item.id === id)?.path;
+      const destination = shortcut.page_id
+        ? prefix + pluginPathForPage(document, shortcut.page_id)
+        : shortcut.route_id
+          ? prefix + routePath(shortcut.route_id)
+          : undefined;
+      registerPluginShortcut(
+        pluginId,
+        {
+          id: shortcut.id,
+          label: shortcut.label,
+          group: shortcut.group,
+          keys: shortcut.keys,
+          paths: shortcut.when_route_id
+            ? [prefix + routePath(shortcut.when_route_id)]
+            : undefined,
+          destination,
+          control: shortcut.control ?? undefined,
+        },
+        shortcut.action_id
+          ? async () => {
+              const action = document.actions.find(
+                (item) => item.id === shortcut.action_id,
+              )!;
+              if (
+                action.confirmation &&
+                !(await useConfirm()({ message: action.confirmation }))
+              )
+                return;
+              await dispatchPluginAction(
+                pluginId,
+                action.id,
+                {},
+                undefined,
+                Boolean(action.confirmation),
+              );
+            }
+          : undefined,
+        false,
+      );
+    }
     // Publish lifecycle removal before waiting on privileged plugin code.
     await reconcileNativePlugins(nativeSources);
   } catch {

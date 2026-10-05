@@ -16,11 +16,7 @@ const groups = computed(() => shortcutGroupsForPath(props.path));
     >
       <summary>
         {{ group.title
-        }}<span
-          v-if="group.paths?.some((pattern) => pattern.test(path))"
-          class="current-page"
-          >Current page</span
-        >
+        }}<span v-if="group.current" class="current-page">Current page</span>
       </summary>
       <div class="group-content">
         <div
@@ -28,7 +24,12 @@ const groups = computed(() => shortcutGroupsForPath(props.path));
           :key="shortcut.keys + shortcut.label"
           class="shortcut-row"
         >
-          <span>{{ shortcut.label }}</span
+          <span
+            >{{ shortcut.label
+            }}<small v-if="shortcut.conflict" class="conflict">{{
+              shortcut.conflict
+            }}</small
+            ><small v-else-if="shortcut.disabled">Disabled</small></span
           ><kbd>{{ shortcut.keys }}</kbd>
         </div>
       </div>
@@ -88,5 +89,13 @@ kbd {
   font-size: var(--ui-font-small);
   text-align: right;
   white-space: normal;
+}
+small {
+  display: block;
+  margin-top: 4px;
+  color: var(--ui-dim);
+}
+.conflict {
+  color: var(--ui-warning);
 }
 </style>

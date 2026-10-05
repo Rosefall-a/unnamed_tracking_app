@@ -16,15 +16,29 @@ import {
   shortcutsHelpOpen,
   stopQuickTour,
 } from "../state/quickTour";
-import { matchesTourShortcut, quickTourSteps } from "../utils/quickTour";
+import {
+  matchesTourShortcut,
+  quickTourSteps,
+  TOUR_SHORTCUT_IDS,
+  type TourShortcut,
+} from "../utils/quickTour";
+import { activeShortcutKeys, shortcutHint } from "../state/shortcuts";
 import AppIcon from "./AppIcon.vue";
 
 const route = useRoute();
 const router = useRouter();
 const touch = window.matchMedia("(hover: none) and (pointer: coarse)").matches;
-const steps = quickTourSteps(touch);
+const shortcutIds = TOUR_SHORTCUT_IDS;
+const steps = computed(() =>
+  quickTourSteps(
+    touch,
+    Object.fromEntries(
+      Object.entries(shortcutIds).map(([name, id]) => [name, shortcutHint(id)]),
+    ) as Record<TourShortcut, string | undefined>,
+  ),
+);
 const index = ref(0);
-const step = computed(() => steps[index.value]!);
+const step = computed(() => steps.value[index.value]!);
 const panel = ref<HTMLElement | null>(null);
 const mountTarget = ref<HTMLElement | string>("body");
 const preparing = ref(false);
@@ -137,7 +151,7 @@ async function prepare() {
   }
 }
 function advance() {
-  if (index.value === steps.length - 1) {
+  if (index.value === steps.value.length - 1) {
     stopQuickTour();
     return;
   }
@@ -157,11 +171,22 @@ function onKeydown(event: KeyboardEvent) {
     event.getModifierState("AltGraph")
   )
     return;
-  if (event.key === "Escape" && !document.querySelector("dialog[open]")) {
+  if (
+    event.key === "Escape" &&
+    !event.defaultPrevented &&
+    !document.querySelector("dialog[open]")
+  ) {
     stopQuickTour();
     return;
   }
-  if (step.value.shortcut && matchesTourShortcut(step.value.shortcut, event)) {
+  if (
+    step.value.shortcut &&
+    matchesTourShortcut(
+      step.value.shortcut,
+      event,
+      activeShortcutKeys(shortcutIds[step.value.shortcut]),
+    )
+  ) {
     const currentStep = step.value.id;
     queueMicrotask(() => {
       // The normal handler must consume the key. Ignored keys in text fields
@@ -280,7 +305,7 @@ onBeforeUnmount(() => {
         </button>
         <button
           v-if="
-            touch &&
+            step.requirement !== 'shortcut' &&
             ['search', 'help'].includes(step.shortcut || '') &&
             !complete
           "

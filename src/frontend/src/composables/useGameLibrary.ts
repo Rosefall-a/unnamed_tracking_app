@@ -1,4 +1,6 @@
 import type { SegmentOption } from "../components/SegmentedTabs.vue";
+import { matchesShortcut } from "../state/shortcuts";
+import { preferences } from "../state/preferences";
 export type ViewMode = "cards" | "list" | "detail";
 export type CardDensity = "compact" | "cozy" | "large";
 
@@ -716,7 +718,8 @@ export function useGameLibrary() {
     );
   }
   function onGlobalKeydown(e: KeyboardEvent) {
-    if (anyModalOpen()) return;
+    if (e.defaultPrevented || anyModalOpen() || e.isComposing || e.repeat)
+      return;
     if (e.key === "Escape") {
       if (
         isTypingTarget(e.target) &&
@@ -732,14 +735,22 @@ export function useGameLibrary() {
       return;
     }
     if (isTypingTarget(e.target)) return;
-    if (e.key === "/") {
+    if (
+      preferences.value.keyboard_shortcuts_enabled === false ||
+      e.getModifierState("AltGraph")
+    )
+      return;
+    const cardDirection = ["left", "right", "up", "down"].find((direction) =>
+      matchesShortcut(`games.cards.${direction}`, e),
+    );
+    if (matchesShortcut("app.focus-search", e)) {
       e.preventDefault();
       searchInputRef.value?.focus();
-    } else if (e.key === "n") {
+    } else if (matchesShortcut("app.create", e)) {
       e.preventDefault();
       openAddModal();
     } else if (
-      (e.key === "j" || e.key === "ArrowDown") &&
+      matchesShortcut("games.preview.next", e) &&
       viewMode.value === "detail"
     ) {
       e.preventDefault();
@@ -749,7 +760,7 @@ export function useGameLibrary() {
       if (idx < filteredGames.value.length - 1)
         selectedGame.value = filteredGames.value[idx + 1];
     } else if (
-      (e.key === "k" || e.key === "ArrowUp") &&
+      matchesShortcut("games.preview.previous", e) &&
       viewMode.value === "detail"
     ) {
       e.preventDefault();
@@ -757,9 +768,15 @@ export function useGameLibrary() {
         ? filteredGames.value.findIndex((g) => g.id === selectedGame.value?.id)
         : -1;
       if (idx > 0) selectedGame.value = filteredGames.value[idx - 1];
-    } else if (/^[a-z]$/i.test(e.key) && viewMode.value === "cards") {
-      // 'n' is already claimed by "Add Game" above
-      if (e.key.toLowerCase() === "n") return;
+    } else if (
+      /^[a-z]$/i.test(e.key) &&
+      !e.ctrlKey &&
+      !e.metaKey &&
+      !e.altKey &&
+      viewMode.value === "cards" &&
+      !cardDirection &&
+      !matchesShortcut("games.cards.open", e)
+    ) {
       const letter = e.key.toLowerCase();
       const index = filteredGames.value.findIndex(
         (g) => g.title.trim()[0]?.toLowerCase() === letter,
@@ -775,23 +792,24 @@ export function useGameLibrary() {
     } else if (
       viewMode.value === "cards" &&
       !selectMode.value &&
-      ["ArrowRight", "ArrowLeft", "ArrowUp", "ArrowDown"].includes(e.key)
+      cardDirection
     ) {
       const count = filteredGames.value.length;
       if (!count) return;
       e.preventDefault();
       let idx = gridFocusIndex.value ?? 0;
-      if (e.key === "ArrowRight") idx = Math.min(idx + 1, count - 1);
-      else if (e.key === "ArrowLeft") idx = Math.max(idx - 1, 0);
-      else if (e.key === "ArrowDown")
+      if (cardDirection === "right") idx = Math.min(idx + 1, count - 1);
+      else if (cardDirection === "left") idx = Math.max(idx - 1, 0);
+      else if (cardDirection === "down")
         idx = Math.min(idx + CARD_COLUMNS.value, count - 1);
-      else if (e.key === "ArrowUp") idx = Math.max(idx - CARD_COLUMNS.value, 0);
+      else if (cardDirection === "up")
+        idx = Math.max(idx - CARD_COLUMNS.value, 0);
       gridFocusIndex.value = idx;
       rowVirtualizer.value.scrollToIndex(Math.floor(idx / CARD_COLUMNS.value), {
         align: "auto",
       });
     } else if (
-      e.key === "Enter" &&
+      matchesShortcut("games.cards.open", e) &&
       viewMode.value === "cards" &&
       gridFocusIndex.value !== null
     ) {

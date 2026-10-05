@@ -114,7 +114,17 @@ const {
 </script>
 
 <template>
-  <main class="library" :class="{ locked: viewMode === 'detail' }">
+  <main
+    class="library"
+    :class="{ locked: viewMode === 'detail' }"
+    :data-shortcut-context="
+      viewMode === 'detail'
+        ? 'games.preview'
+        : viewMode === 'cards'
+          ? 'games.cards'
+          : undefined
+    "
+  >
     <GameTopBar active="games">
       <template #actions>
         <SegmentedTabs
@@ -170,7 +180,12 @@ const {
           >
             Random
           </button>
-          <button type="button" class="add-btn" @click="openAddModal">
+          <button
+            type="button"
+            class="add-btn"
+            data-shortcut="create"
+            @click="openAddModal"
+          >
             + Add Game
           </button>
         </div>
@@ -234,6 +249,7 @@ const {
           </svg>
           <input
             ref="librarySearch"
+            data-shortcut="search"
             v-model="searchQuery"
             type="text"
             class="search-input"
@@ -578,7 +594,12 @@ const {
           Clear filters
         </button>
         <template v-else>
-          <button type="button" class="btn-solid" @click="openAddModal">
+          <button
+            type="button"
+            class="btn-solid"
+            data-shortcut="create"
+            @click="openAddModal"
+          >
             + Add Game
           </button>
           <ul class="empty-hint-list">

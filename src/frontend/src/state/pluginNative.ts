@@ -23,6 +23,7 @@ import {
   type PluginAppearance,
 } from "../services/pluginAppearance";
 import { checkAuth } from "./auth";
+import { registerPluginShortcut, type NativeShortcut } from "./shortcuts";
 
 export interface NativeFrontendSource {
   pluginId: string;
@@ -31,6 +32,7 @@ export interface NativeFrontendSource {
   styles: string[];
   pageIds: string[];
   actions?: Array<{ id: string; confirmation?: string }>;
+  shortcutPermission?: boolean;
 }
 
 export interface NativePluginContext {
@@ -66,6 +68,10 @@ export interface NativePluginContext {
     ): () => void;
     registerNotificationProvider(
       provider: () => Promise<PluginReminder[]>,
+    ): () => void;
+    registerShortcut(
+      shortcut: NativeShortcut,
+      callback: () => void | Promise<void>,
     ): () => void;
   };
 }
@@ -165,6 +171,7 @@ async function activate(
     source.entry,
     source.styles,
     [...source.pageIds].sort(),
+    source.shortcutPermission === true,
   ]);
   if (activePlugins.get(source.pluginId)?.signature === signature) return;
   deactivate(source.pluginId);
@@ -245,6 +252,19 @@ async function activate(
       vue: Object.freeze({ ...Vue }),
       ui: { PageHeader, UiModal, AppIcon, AccountChip, PasswordInput },
       host: {
+        registerShortcut(shortcut, callback) {
+          requireActive();
+          if (!source.shortcutPermission)
+            throw new Error(
+              "Permission frontend.shortcuts has not been granted.",
+            );
+          const stop = registerPluginShortcut(source.pluginId, shortcut, () => {
+            requireActive();
+            return callback();
+          });
+          cleanups.push(stop);
+          return stop;
+        },
         appearance() {
           requireActive();
           return readPluginAppearance();

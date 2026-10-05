@@ -146,6 +146,39 @@ table. If an action declares `confirmation`, the host displays that confirmation
 before dispatch, including for iframe requests. Secret fields are excluded from
 ordinary settings saves and use the separate write-only secret operation.
 
+## Keyboard shortcuts
+
+Plugin API v1.1 adds the low-risk `frontend.shortcuts` grant. A UI document can
+declare up to 64 `shortcuts`, each with a stable `id`, a `label`, one to four
+`keys`, and exactly one `page_id`, `route_id`, `action_id` or `control` target.
+References must belong to that document. Controls are `search` or `create`,
+require `when_route_id`, and use a visible `data-shortcut` marker on the page.
+Navigation, route and action permissions remain independently enforced.
+
+Native bundles can call
+`context.host.registerShortcut({ id, label, keys, group?, paths? }, callback)`.
+Registration requires both `frontend.native` and `frontend.shortcuts`, returns
+an unregister function, and is removed automatically on disable, permission
+withdrawal, account changes or failed activation. Scoped paths must stay inside
+the plugin's namespace. Retain stable IDs to preserve personal remaps.
+
+Keys use `CtrlOrMeta`, `Ctrl`, `Meta`, `Alt` and `Shift` modifiers, for example
+`Alt+Shift+L` or `CtrlOrMeta+K`. The host resolves overlapping keys in registration
+order: the existing binding keeps working and the new conflicting key is paused.
+Users can enable, disable or remap bindings in Preferences → Keyboard shortcuts;
+help, hover hints and the tour use the resulting active keys. Composition,
+repeat, AltGraph input, editable fields and host dialogs retain their guards.
+
+Sandboxed pages receive a read-only `keyboard_shortcuts` appearance snapshot.
+The public bridge forwards advertised IDs and combinations; the host rechecks
+their active state before dispatch. Legacy bridges retain default hints only
+while the corresponding original keys are active. Limited v1.0 compatibility
+does not grant this v1.1 feature.
+
+The companion repository's example Shortcut Playground deliberately conflicts
+with Search and dynamically adds and removes bindings. Collector's Archive owns
+Cards, Sets and Bounties shortcuts; they are absent from the core help page.
+
 ## Opaque sandbox asset delivery
 
 An opt-in `frontend.inline_assets: true` manifest flag lets a verified package use classic scripts and CSS in a cookie-isolated iframe. The authenticated entry response resolves only relative package assets within `frontend/`, embeds them with a fresh CSP nonce, and escapes raw-text closing tags. Limits are 32 assets and 8 MiB combined content. External URLs, traversal, query/fragment sources and module scripts are rejected. Asset endpoints remain authenticated; no origin/native privilege or unsafe-eval grant is added. The default remains false for existing frontends.

@@ -4,7 +4,7 @@ import {
   observePluginAppearance,
 } from "../../services/pluginAppearance";
 import PluginField from "./PluginField.vue";
-import { navigationShortcutForKey } from "../../utils/shortcuts";
+import { pluginShortcutEvent } from "../../services/pluginShortcutBridge";
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import {
   approvePluginAction,
@@ -202,22 +202,16 @@ async function handleFrontendMessage(event: MessageEvent) {
       );
       result = { height: iframeHeight.value };
     } else if (method === "plugin.shortcut") {
-      const navigation = navigationShortcutForKey(data.key);
-      const global = data.key === "help" || data.key === "search";
-      if (!navigation && !global)
-        throw new Error("Unknown host navigation shortcut.");
+      const event = pluginShortcutEvent(data, window.location.pathname);
+      if (!event)
+        throw new Error(
+          "This host shortcut is disabled, conflicting or unavailable on this page.",
+        );
       // The shared keyboard handler retains its modal and palette guards.
       // The frame cannot request arbitrary paths or privileged operations.
       window.dispatchEvent(
         new KeyboardEvent("keydown", {
-          key: navigation?.key ?? (data.key === "help" ? "?" : "k"),
-          code: navigation
-            ? `Key${navigation.key.toUpperCase()}`
-            : data.key === "help"
-              ? "Slash"
-              : "KeyK",
-          altKey: Boolean(navigation),
-          ctrlKey: data.key === "search",
+          ...event,
           bubbles: true,
         }),
       );

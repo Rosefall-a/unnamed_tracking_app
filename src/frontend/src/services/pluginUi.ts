@@ -1,3 +1,5 @@
+import { normalizeShortcutKey } from "../utils/shortcutKeys";
+
 export type UiFieldType =
   | "text"
   | "textarea"
@@ -149,6 +151,18 @@ export interface UiDocumentReader {
   extensions: string[];
   order: number;
 }
+export interface UiShortcut {
+  id: string;
+  label: string;
+  group: string;
+  keys: string[];
+  page_id?: string | null;
+  route_id?: string | null;
+  action_id?: string | null;
+  control?: "search" | "create" | null;
+  when_route_id?: string | null;
+  visibility: UiVisibility;
+}
 export const HOST_EXTENSION_SLOTS = [
   "home.after-widgets",
   "game.overview.after-header",
@@ -208,6 +222,7 @@ export interface PluginUiDocument {
   routes?: UiPluginRoute[];
   page_replacements?: UiPageReplacement[];
   document_readers?: UiDocumentReader[];
+  shortcuts?: UiShortcut[];
 }
 
 export function pluginDocumentDownloadUrl(
@@ -383,6 +398,7 @@ export function validateDocument(document: PluginUiDocument): string[] {
   const contextualActions = document.contextual_actions ?? [];
   const routes = document.routes ?? [];
   const pageReplacements = document.page_replacements ?? [];
+  const shortcuts = document.shortcuts ?? [];
   const routePaths = new Set<string>();
   for (const route of routes) {
     if (
@@ -412,6 +428,7 @@ export function validateDocument(document: PluginUiDocument): string[] {
     ["Contextual action", contextualActions],
     ["Route", routes],
     ["Page replacement", pageReplacements],
+    ["Shortcut", shortcuts],
   ];
   for (const [kind, items] of groups) {
     const ids = new Set<string>();
@@ -485,6 +502,51 @@ export function validateDocument(document: PluginUiDocument): string[] {
   }
   const routeIds = new Set(routes.map((item) => item.id));
   const settingsSectionIds = new Set(settingsSections.map((item) => item.id));
+  if (
+    shortcuts.length &&
+    !/^1\.[1-9]\d*\./.test(document.api_contract_version ?? "")
+  )
+    errors.push("Plugin shortcuts require API v1.1 or later.");
+  if (shortcuts.length > 64)
+    errors.push("Plugins can declare at most 64 shortcuts.");
+  for (const shortcut of shortcuts) {
+    if (
+      [
+        shortcut.page_id,
+        shortcut.route_id,
+        shortcut.action_id,
+        shortcut.control,
+      ].filter(Boolean).length !== 1
+    )
+      errors.push(
+        `Shortcut ${shortcut.id} must target exactly one destination or control.`,
+      );
+    if (
+      !shortcut.keys.length ||
+      shortcut.keys.length > 4 ||
+      shortcut.keys.some((key) => !normalizeShortcutKey(key))
+    )
+      errors.push(`Shortcut ${shortcut.id} has invalid keys.`);
+    if (shortcut.page_id && !pages.has(shortcut.page_id))
+      errors.push(`Shortcut ${shortcut.id} references an unknown page.`);
+    if (shortcut.action_id && !actions.has(shortcut.action_id))
+      errors.push(`Shortcut ${shortcut.id} references an unknown action.`);
+    if (
+      (shortcut.route_id && !routeIds.has(shortcut.route_id)) ||
+      (shortcut.when_route_id && !routeIds.has(shortcut.when_route_id))
+    )
+      errors.push(
+        `Shortcut ${shortcut.id} references an unknown plugin route.`,
+      );
+    if (
+      shortcut.control &&
+      (!shortcut.when_route_id ||
+        !["create", "search"].includes(shortcut.control))
+    )
+      errors.push(
+        `Shortcut ${shortcut.id} controls must be scoped to a plugin route.`,
+      );
+  }
   for (const contribution of navigation) {
     const targets = [
       contribution.page_id,

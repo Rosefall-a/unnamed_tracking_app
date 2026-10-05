@@ -1,4 +1,5 @@
 import type { SegmentOption } from "../components/SegmentedTabs.vue";
+import { matchesShortcut } from "../state/shortcuts";
 
 // A real month-grid calendar with three layers (episode airings, upcoming
 // Plan to Watch releases, and what you actually watched), an agenda view
@@ -825,7 +826,7 @@ export function useCalendar() {
     )
       return;
     if (tab.value !== "calendar" || calView.value === "agenda") return;
-    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.isComposing || e.repeat || e.getModifierState("AltGraph")) return;
     const target = e.target as HTMLElement | null;
     if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
     if (
@@ -835,13 +836,16 @@ export function useCalendar() {
       showFeed.value
     )
       return;
-    if (e.key === "ArrowLeft") {
+    if (matchesShortcut("calendar.previous", e)) {
+      e.preventDefault();
       if (calView.value === "month") prevMonth();
       else if (canWeekPrev.value) shiftWeek(-1);
-    } else if (e.key === "ArrowRight") {
+    } else if (matchesShortcut("calendar.next", e)) {
+      e.preventDefault();
       if (calView.value === "month") nextMonth();
       else if (canWeekNext.value) shiftWeek(1);
-    } else if (e.key.toLowerCase() === "t") {
+    } else if (matchesShortcut("calendar.today", e)) {
+      e.preventDefault();
       goToday();
     }
   }

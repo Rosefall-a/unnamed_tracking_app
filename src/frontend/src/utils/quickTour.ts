@@ -1,6 +1,14 @@
-import { NAVIGATION_SHORTCUTS } from "./shortcuts";
+import { CORE_SHORTCUTS } from "./shortcutDefinitions";
+import { matchesShortcutKey, type ShortcutKeyEvent } from "./shortcutKeys";
 
 export type TourShortcut = "search" | "games" | "media" | "settings" | "help";
+export const TOUR_SHORTCUT_IDS: Record<TourShortcut, string> = {
+  search: "app.search",
+  games: "nav.g",
+  media: "nav.m",
+  settings: "nav.p",
+  help: "app.help",
+};
 export interface QuickTourStep {
   id: string;
   title: string;
@@ -14,8 +22,11 @@ export interface QuickTourStep {
 }
 
 const fallback = ', [data-tour="open-menu"], .home-shortcuts';
-export function quickTourSteps(touch: boolean): QuickTourStep[] {
-  return [
+export function quickTourSteps(
+  touch: boolean,
+  bindings?: Record<TourShortcut, string | undefined>,
+): QuickTourStep[] {
+  const steps: QuickTourStep[] = [
     {
       id: "welcome",
       title: "Explore your library",
@@ -123,41 +134,38 @@ export function quickTourSteps(touch: boolean): QuickTourStep[] {
       requirement: touch ? "open-close" : "shortcut",
     },
   ];
+  if (bindings)
+    for (const step of steps) {
+      if (!step.shortcut) continue;
+      const hint = bindings[step.shortcut];
+      if (touch || !hint) {
+        step.requirement = step.destination ? "navigate" : "open-close";
+        step.description =
+          step.shortcut === "search"
+            ? "Open Search using the button below, try a title or page name, then close it."
+            : step.shortcut === "help"
+              ? "Open shortcut help using the button below, expand a section, then close it."
+              : `Use the ${step.shortcut === "media" ? "Media" : step.shortcut === "games" ? "Games" : "Settings"} navigation control to open this page.`;
+        if (!touch)
+          step.description +=
+            " This shortcut is currently disabled; you can enable or remap it in shortcut settings.";
+      } else {
+        step.description =
+          step.shortcut === "search"
+            ? `Press ${hint} to open Search, try a title or page name, then press Escape to close it.`
+            : step.shortcut === "help"
+              ? `Press ${hint} to open shortcut help, expand a section, then press Escape to close it. You can enable, disable and remap keys in shortcut settings.`
+              : `Try ${hint} to ${step.shortcut === "games" ? "open All games" : step.shortcut === "media" ? "open Movies" : "open Settings"}. Navigation shortcuts pause while you type or use a dialog.`;
+      }
+    }
+  return steps;
 }
 
 export function matchesTourShortcut(
   shortcut: TourShortcut,
-  event: {
-    key: string;
-    code?: string;
-    altKey: boolean;
-    ctrlKey: boolean;
-    metaKey: boolean;
-    shiftKey: boolean;
-  },
+  event: ShortcutKeyEvent,
+  keys = CORE_SHORTCUTS.find((item) => item.id === TOUR_SHORTCUT_IDS[shortcut])
+    ?.keys ?? [],
 ): boolean {
-  if (shortcut === "search")
-    return (
-      (event.ctrlKey || event.metaKey) &&
-      !event.altKey &&
-      !event.shiftKey &&
-      event.key.toLowerCase() === "k"
-    );
-  if (shortcut === "help")
-    return (
-      event.key === "?" && !event.altKey && !event.ctrlKey && !event.metaKey
-    );
-  if (!event.altKey || event.ctrlKey || event.metaKey || event.shiftKey)
-    return false;
-  const path = { games: "/games", media: "/movies", settings: "/settings" }[
-    shortcut
-  ];
-  const key = /^[a-z]$/i.test(event.key)
-    ? event.key.toLowerCase()
-    : /^Key[A-Z]$/.test(event.code || "")
-      ? event.code!.slice(3).toLowerCase()
-      : "";
-  return NAVIGATION_SHORTCUTS.some(
-    (item) => item.path === path && item.key === key,
-  );
+  return keys.some((key) => matchesShortcutKey(key, event));
 }

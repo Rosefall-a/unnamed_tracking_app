@@ -20,7 +20,7 @@ Capabilities use a canonical hierarchy. An administrator can grant one leaf, suc
 The principal families are:
 
 - user data: `users`, `games`, `media`, `documents`, and `sessions`;
-- frontend: navigation locations, Settings sections, overlays/dialogs, page extensions, page-scoped replacements, plugin routes, and `frontend.native`;
+- frontend: navigation locations, Settings sections, overlays/dialogs, page extensions, page-scoped replacements, plugin routes, `frontend.shortcuts`, and `frontend.native`;
 - backend: namespaced plugin routes and privileged host routes;
 - notifications: sending notifications and registering/delivering through providers;
 - external access: `network.outbound`.

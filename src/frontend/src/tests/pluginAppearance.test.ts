@@ -40,6 +40,7 @@ it("exposes only public cosmetic tokens and releases its observer", () => {
     "reduce_motion",
     "navigation_shortcuts",
     "global_shortcuts",
+    "keyboard_shortcuts",
     "tokens",
   ]);
   expect(

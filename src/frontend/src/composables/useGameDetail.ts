@@ -1,3 +1,4 @@
+import { matchesShortcut } from "../state/shortcuts";
 import {
   displayFileName,
   sortedAchievements,
@@ -951,9 +952,9 @@ export function useGameDetail() {
   function onDetailKeydown(e: KeyboardEvent) {
     if (
       e.defaultPrevented ||
-      e.ctrlKey ||
-      e.metaKey ||
-      e.altKey ||
+      e.isComposing ||
+      e.repeat ||
+      e.getModifierState("AltGraph") ||
       document.querySelector("dialog[open]")
     )
       return;
@@ -965,8 +966,9 @@ export function useGameDetail() {
     )
       return;
     if (!game.value) return;
-    if (e.key === "j" || e.key === "k") {
-      const nextId = peekAdjacentGameId(game.value.id, e.key === "j" ? 1 : -1);
+    const next = matchesShortcut("games.next", e);
+    if (next || matchesShortcut("games.previous", e)) {
+      const nextId = peekAdjacentGameId(game.value.id, next ? 1 : -1);
       if (nextId) {
         e.preventDefault();
         router.push(`/games/${nextId}`);

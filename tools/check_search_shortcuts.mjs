@@ -34,12 +34,11 @@ export async function checkSearchShortcuts({ admin, member, origin, evidenceRoot
     for (const [kind, title] of [['movie', 'Nebula film'], ['tv', 'Nebula series'], ['anime', 'Nebula animation']]) {
       const item = await json(await admin.request.post(`${origin}/api/${kind}/create`, { data: { title } }), 201); created.push([`${kind}/delete`, item.id]);
     }
-    const goal = await json(await admin.request.post(origin + '/api/bounties', { data: { title: 'Nebula completion goal', type: 'challenge', game_id: game.id, progress_target: 2 } })); created.push(['bounties', goal.bounty.id]);
     await page.setViewportSize({ width: 1440, height: 1000 }); await page.goto(origin + '/statistics');
     await admin.route('**/api/game/list?*', async route => { await new Promise(resolve => setTimeout(resolve, 250)); await route.continue(); });
     assert.equal(await page.locator('.navigation a[href="/statistics"]').getAttribute('title'), 'Statistics · Alt + R'); assert.equal(await page.locator('.navigation a[href="/statistics"]').getAttribute('aria-keyshortcuts'), 'Alt+R'); await page.getByRole('button', { name: 'Search library', exact: true }).click();
     await dialog.getByRole('textbox', { name: 'Search library', exact: true }).fill('Nebula');
-    for (const title of ['Nebula inventory adventure', 'Nebula favorites', 'Nebula film', 'Nebula series', 'Nebula animation', 'Nebula completion goal']) await dialog.locator('.palette-item').filter({ hasText: title }).waitFor();
+    for (const title of ['Nebula inventory adventure', 'Nebula favorites', 'Nebula film', 'Nebula series', 'Nebula animation']) await dialog.locator('.palette-item').filter({ hasText: title }).waitFor();
     await admin.unroute('**/api/game/list?*');
     await page.screenshot({ path: path.join(evidenceRoot, 'stage-search-library-desktop.png') });
     await dialog.getByRole('textbox', { name: 'Search library', exact: true }).fill('Nebula film');
@@ -54,7 +53,7 @@ export async function checkSearchShortcuts({ admin, member, origin, evidenceRoot
     await dialog.locator('.palette-item').filter({ hasText: 'Nebula film' }).waitFor(); await page.keyboard.press('Escape');
     const fresh = await json(await admin.request.post(origin + '/api/game/create', { data: { title: 'A freshly added searchable game', folder_location: `ui-search-fresh-${Date.now()}` } }), 201); created.push(['game/delete', fresh.id]);
     await openSearch(); await dialog.getByRole('textbox', { name: 'Search library', exact: true }).fill(fresh.title); await dialog.locator('.palette-item').filter({ hasText: fresh.title }).waitFor(); await page.keyboard.press('Escape');
-    const routes = [['h','/','Anywhere'], ['g','/games','Games library'], ['c','/collections','Collections & lists'], ['m','/movies','Media libraries'], ['t','/tv','Media libraries'], ['a','/anime','Media libraries'], ['l','/lists','Collections & lists'], ['e','/cards','Cards'], ['s','/sets','Sets'], ['b','/bounties','Bounties'], ['v','/calendar','Calendar'], ['r','/statistics','Anywhere'], ['p','/settings','Anywhere'], ['u','/upload','Anywhere'], ['o','/notifications','Anywhere']];
+    const routes = [['h','/','Anywhere'], ['g','/games','Games library'], ['c','/collections','Page actions'], ['m','/movies','Page actions'], ['t','/tv','Page actions'], ['a','/anime','Page actions'], ['l','/lists','Page actions'], ['v','/calendar','Calendar'], ['r','/statistics','Anywhere'], ['p','/settings','Anywhere'], ['u','/upload','Anywhere'], ['o','/notifications','Anywhere']];
     for (const theme of ['light','dark']) {
       await json(await admin.request.patch(origin + '/api/preferences', { data: { ui_theme: theme } }));
       for (const width of [390,1440]) {
@@ -74,7 +73,7 @@ export async function checkSearchShortcuts({ admin, member, origin, evidenceRoot
     }
     await page.goto(origin + '/statistics'); await bodyFocus(); await page.keyboard.press('n'); await page.keyboard.press('Enter');
     assert.equal(new URL(page.url()).pathname, '/statistics'); assert.equal(await page.locator('dialog[open]').count(), 0, 'Inactive cached library handlers cannot open games or editors on another page');
-    for (const route of ['/games','/collections','/lists','/movies','/tv','/anime','/bounties']) {
+    for (const route of ['/games','/collections','/lists','/movies','/tv','/anime']) {
       await page.goto(origin + route); await bodyFocus(); await page.keyboard.press('/');
       assert(await page.evaluate(() => document.activeElement?.getAttribute('data-shortcut') === 'search'), `${route}: slash focuses its search`);
       await page.keyboard.type('gmn?'); await page.keyboard.press('Alt+m'); assert.equal(new URL(page.url()).pathname, route, 'Typing never triggers global navigation/help');
@@ -87,7 +86,7 @@ export async function checkSearchShortcuts({ admin, member, origin, evidenceRoot
     await memberPage.waitForResponse(response => response.url().includes('/api/anime/list?')); assert.equal(await memberDialog.locator('.palette-item').count(), 0, 'Private search results belong to their account');
     await memberDialog.getByRole('textbox', { name: 'Search library', exact: true }).fill('Single sign-on'); await memberPage.waitForResponse(response => response.url().includes('/api/anime/list?')); assert.equal(await memberDialog.locator('.palette-item').count(), 0, 'Members do not see administrator settings results');
     assert.deepEqual(errors, []);
-    report.passed.push('Sidebar first-open search with delayed real loading, games/collections/goals/all media, keyboard Enter navigation, new-game refresh and offline retry', '60 route/theme/width combinations with Alt navigation, Search library and current-page-first expandable keyboard help', 'Local slash/new controls, typing guards and native dialog containment', 'Member search excludes another account and administrator-only settings');
+    report.passed.push('Sidebar first-open search with delayed real loading, games/collections/all media, keyboard Enter navigation, new-game refresh and offline retry', '48 core route/theme/width combinations with Alt navigation, Search library and current-page-first expandable keyboard help; Cards, Sets and Bounties are independently tested in Collector\'s Archive', 'Local slash/new controls, typing guards and native dialog containment', 'Member search excludes another account and administrator-only settings');
   } finally {
     await admin.setOffline(false); await admin.unroute('**/api/game/list?*');
     for (const [endpoint,id] of created.reverse()) await admin.request.delete(`${origin}/api/${endpoint}/${id}`);

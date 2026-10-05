@@ -8,6 +8,11 @@ export interface Preferences {
   ui_reduce_motion: boolean;
   ui_high_contrast: boolean;
   ui_welcome_completed: boolean;
+  keyboard_shortcuts_enabled: boolean;
+  keyboard_shortcut_overrides: Record<
+    string,
+    import("../state/shortcuts").ShortcutOverride
+  >;
   home_widgets: string[];
   home_widget_config: Record<string, import("./pluginUi").UiValues>;
   calendar_game_releases: boolean;
@@ -44,6 +49,8 @@ export const DEFAULT_PREFERENCES: Preferences = {
   ui_reduce_motion: false,
   ui_high_contrast: false,
   ui_welcome_completed: false,
+  keyboard_shortcuts_enabled: true,
+  keyboard_shortcut_overrides: {},
   home_widgets: [],
   home_widget_config: {},
   calendar_game_releases: true,

@@ -6,6 +6,7 @@ import {
   resetNativePluginsForTests,
   type NativePluginContext,
 } from "../state/pluginNative";
+import { keyboardShortcuts, runPluginShortcut } from "../state/shortcuts";
 
 const source = {
   pluginId: "example.native",
@@ -21,6 +22,51 @@ afterEach(() => {
 });
 
 describe("native plugin lifecycle", () => {
+  it("requires shortcut consent and cleans bindings on removal or failed activation", async () => {
+    let context!: NativePluginContext;
+    await reconcileNativePlugins([source], async () => ({
+      activate(value) {
+        context = value;
+      },
+    }));
+    const shortcut = { id: "demo", label: "Demo", keys: ["Alt+Shift+Q"] };
+    expect(() => context.host.registerShortcut(shortcut, () => {})).toThrow(
+      /frontend.shortcuts/,
+    );
+    let count = 0;
+    await reconcileNativePlugins(
+      [{ ...source, shortcutPermission: true }],
+      async () => ({
+        activate(value) {
+          context = value;
+          value.host.registerShortcut(shortcut, () => {
+            count++;
+          });
+        },
+      }),
+    );
+    await runPluginShortcut("plugin:example.native:demo");
+    expect(count).toBe(1);
+    await reconcileNativePlugins([]);
+    expect(
+      keyboardShortcuts.value.some((item) => item.pluginId === source.pluginId),
+    ).toBe(false);
+    expect(() => context.host.registerShortcut(shortcut, () => {})).toThrow(
+      /no longer active/,
+    );
+    await reconcileNativePlugins(
+      [{ ...source, shortcutPermission: true }],
+      async () => ({
+        activate(value) {
+          value.host.registerShortcut(shortcut, () => {});
+          throw new Error("Activation failed");
+        },
+      }),
+    );
+    expect(
+      keyboardShortcuts.value.some((item) => item.pluginId === source.pluginId),
+    ).toBe(false);
+  });
   it("supports independently compiled Vue components through the public runtime", async () => {
     let context!: NativePluginContext;
     await reconcileNativePlugins([source], async () => ({

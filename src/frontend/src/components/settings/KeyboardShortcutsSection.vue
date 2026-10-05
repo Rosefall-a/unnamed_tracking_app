@@ -1,20 +1,22 @@
 <script setup lang="ts">
-import { useRoute } from "vue-router";
-import ShortcutGroups from "../ShortcutGroups.vue";
+import ShortcutBindings from "./ShortcutBindings.vue";
+import { shortcutHint } from "../../state/shortcuts";
 import { startQuickTour } from "../../state/quickTour";
-const route = useRoute();
 </script>
 
 <template>
   <section class="settings-section">
     <h2>Keyboard Shortcuts</h2>
     <p class="hint">
-      Press <kbd>?</kbd> to show shortcuts for the current page first. Expand or
-      collapse any section. Navigation works across the app; page shortcuts work
-      where their controls are available. Shortcuts pause while you type or use
-      a dialog.
+      <template v-if="shortcutHint('app.help')"
+        >Press <kbd>{{ shortcutHint("app.help") }}</kbd> to show shortcuts for
+        the current page first.</template
+      >
+      Expand or collapse any section. Navigation works across the app; page
+      shortcuts work where their controls are available. Shortcuts pause while
+      you type or use a dialog.
     </p>
-    <ShortcutGroups :path="route.path" />
+    <ShortcutBindings />
     <button type="button" class="ui-btn ui-btn-ghost" @click="startQuickTour">
       Replay guided tour
     </button>

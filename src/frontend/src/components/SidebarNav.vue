@@ -29,6 +29,7 @@ import AppBrand from "./AppBrand.vue";
 import { branding } from "../state/branding";
 import { containModalTab } from "../services/focus";
 import { useConfirm } from "../state/dialog";
+import { shortcutAriaKeys, shortcutHint } from "../state/shortcuts";
 import {
   navigationShortcutForPath,
   navigationTooltip,
@@ -364,12 +365,20 @@ onUnmounted(() => {
         class="nav-item nav-search"
         aria-label="Search library"
         data-tour="open-search"
-        title="Search library · Ctrl/Cmd + K"
-        aria-keyshortcuts="Control+K Meta+K"
+        :title="
+          shortcutHint('app.search')
+            ? `Search library · ${shortcutHint('app.search')}`
+            : 'Search library'
+        "
+        :aria-keyshortcuts="shortcutAriaKeys('app.search')"
         @click="search"
       >
         <AppIcon name="search" /><span class="nav-label">Search library</span
-        ><kbd class="nav-label">Ctrl K</kbd>
+        ><kbd v-if="shortcutHint('app.search') && !isPhone" class="nav-label">{{
+          shortcutHint("app.search")
+            ?.replaceAll("Ctrl/Cmd", "Ctrl")
+            .replaceAll(" + ", " ")
+        }}</kbd>
       </button>
       <div class="nav-body">
         <nav class="nav-scroll" aria-label="Library and tools">
@@ -498,8 +507,8 @@ onUnmounted(() => {
               active:
                 isActive('/settings') && activeSettingsArea === 'preferences',
             }"
-            title="Preferences · Alt + P opens Settings"
-            aria-keyshortcuts="Alt+P"
+            :title="navigationTooltip('Preferences', '/settings')"
+            :aria-keyshortcuts="shortcutAriaKeys('nav.p')"
             aria-label="Preferences"
             data-tour="nav-settings"
             @click="close"

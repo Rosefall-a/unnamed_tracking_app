@@ -384,3 +384,27 @@ The [touch navigation report](../assets/ui-redevelopment/mobile-navigation-confo
 ![Phone navigation in light mode](../assets/ui-redevelopment/mobile-navigation-light.png)
 
 ![Phone navigation in dark mode](../assets/ui-redevelopment/mobile-navigation-dark.png)
+
+## Personal and plugin keyboard shortcuts
+
+Preferences now offers a master switch and individual enabled states, editable
+combinations, key recording and restored defaults. Personal changes use the
+existing per-account preference store. A conflicting key is highlighted and
+paused while the earlier binding stays active; other alternatives keep working.
+Hover tooltips, current-page-first expandable help, plugin frames and the guided
+tour all use the same active bindings. Disabled shortcuts leave clickable tour
+controls available. Cards, Sets and Bounties are now supplied by the official
+Collector's Archive plugin rather than the core shortcut list.
+
+The [shortcut settings report](../assets/ui-redevelopment/shortcut-settings-conformance.json)
+covers recording, persistence after reload, conflict priority, master disable
+and a clickable tour in four Light/Dark cases from 320 to 1920 px. Search and
+navigation checks pass another 48 core route/theme/width combinations, local
+search/create controls, typing guards, dialog containment and account separation.
+All ten guided tour steps also pass on Light/Dark desktop and phone layouts.
+Frontend type, lint, format, build and 203 unit tests pass; backend validation
+passes 1,020 tests with two existing opt-in skips, mypy and Pylint at 9.08/10.
+
+![Desktop shortcut conflict guidance](../assets/ui-redevelopment/shortcut-conflict-1440-light.png)
+
+![Phone shortcut conflict guidance](../assets/ui-redevelopment/shortcut-conflict-390-dark.png)

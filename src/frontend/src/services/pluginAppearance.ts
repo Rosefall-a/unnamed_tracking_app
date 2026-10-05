@@ -1,5 +1,8 @@
 import { ORANGE_PALETTE, paletteTokens, type PaletteMode } from "./uiPalette";
-import { NAVIGATION_SHORTCUTS } from "../utils/shortcuts";
+import { watch } from "vue";
+import { keyboardShortcuts, activeShortcutKeys } from "../state/shortcuts";
+import { NAVIGATION_SHORTCUTS } from "../utils/shortcutDefinitions";
+import { pluginShortcutBindings } from "./pluginShortcutBridge";
 
 // Only public appearance tokens and navigation keys cross the opaque boundary.
 export const PLUGIN_APPEARANCE_TOKENS = [
@@ -20,6 +23,7 @@ export interface PluginAppearance {
   reduce_motion: boolean;
   navigation_shortcuts: string[];
   global_shortcuts: string[];
+  keyboard_shortcuts: Array<{ id: string; key: string }>;
   tokens: Record<string, string>;
 }
 export function readPluginAppearance(): PluginAppearance {
@@ -31,8 +35,19 @@ export function readPluginAppearance(): PluginAppearance {
     mode: root?.dataset.theme === "dark" ? "dark" : "light",
     high_contrast: root?.classList.contains("high-contrast") ?? false,
     reduce_motion: root?.classList.contains("reduce-motion") ?? false,
-    navigation_shortcuts: NAVIGATION_SHORTCUTS.map((item) => item.key),
-    global_shortcuts: ["help", "search"],
+    navigation_shortcuts: NAVIGATION_SHORTCUTS.filter((item) =>
+      activeShortcutKeys(`nav.${item.key}`).includes(
+        `Alt+${item.key.toUpperCase()}`,
+      ),
+    ).map((item) => item.key),
+    global_shortcuts: ["help", "search"].filter((id) =>
+      activeShortcutKeys(`app.${id}`).includes(
+        id === "help" ? "?" : "CtrlOrMeta+K",
+      ),
+    ),
+    keyboard_shortcuts: pluginShortcutBindings(
+      typeof window === "undefined" ? "/" : window.location.pathname,
+    ),
     tokens: Object.fromEntries(
       PLUGIN_APPEARANCE_TOKENS.map((token) => [
         token,
@@ -48,6 +63,10 @@ export function observePluginAppearance(
 ): () => void {
   callback(readPluginAppearance());
   if (typeof document === "undefined") return () => {};
+  const stopBindings = watch(
+    () => [keyboardShortcuts.value, activeShortcutKeys("app.search")],
+    () => callback(readPluginAppearance()),
+  );
   const observer = new MutationObserver(() => callback(readPluginAppearance()));
   observer.observe(document.documentElement, {
     attributes: true,
@@ -60,5 +79,8 @@ export function observePluginAppearance(
       "data-plugin-theme",
     ],
   });
-  return () => observer.disconnect();
+  return () => {
+    stopBindings();
+    observer.disconnect();
+  };
 }

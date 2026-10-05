@@ -10,6 +10,27 @@ const key = {
   shiftKey: false,
 };
 describe("guided tour practice", () => {
+  it("uses configured keys and gives disabled bindings a clickable practice path", () => {
+    const steps = quickTourSteps(false, {
+      search: "Ctrl/Cmd + J",
+      games: "Alt + Shift + G",
+      media: undefined,
+      settings: "Alt + P",
+      help: undefined,
+    });
+    expect(steps.find((step) => step.id === "games")?.description).toContain(
+      "Alt + Shift + G",
+    );
+    expect(steps.find((step) => step.id === "search")?.description).toContain(
+      "Ctrl/Cmd + J",
+    );
+    expect(steps.find((step) => step.id === "media")?.requirement).toBe(
+      "navigate",
+    );
+    expect(steps.find((step) => step.id === "help")?.requirement).toBe(
+      "open-close",
+    );
+  });
   it("requires the documented shortcut and ignores conflicting modifiers", () => {
     expect(matchesTourShortcut("games", key)).toBe(true);
     expect(matchesTourShortcut("games", { ...key, altKey: false })).toBe(false);

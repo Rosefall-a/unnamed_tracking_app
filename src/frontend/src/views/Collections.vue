@@ -388,6 +388,7 @@ const tagOptions = computed(() => {
             v-model="searchQuery"
             type="text"
             class="ui-field search-input"
+            data-shortcut="search"
             placeholder="Search collections…"
             aria-label="Search collections"
           />

@@ -237,10 +237,6 @@ function close() {
   query.value = "";
 }
 
-async function openPalette() {
-  open.value = true;
-}
-
 watch(
   open,
   async (value) => {
@@ -351,24 +347,11 @@ function retrySearch() {
 }
 
 function onGlobalKeydown(e: KeyboardEvent) {
-  const isMeta = e.metaKey || e.ctrlKey;
-  if (isMeta && e.key.toLowerCase() === "k") {
-    if (
-      e.defaultPrevented ||
-      (!open.value &&
-        document.querySelector(
-          'dialog[open], [role="dialog"], [role="alertdialog"]',
-        ))
-    )
-      return;
-    e.preventDefault();
-    if (open.value) close();
-    else void openPalette();
-    return;
-  }
+  if (e.defaultPrevented) return;
   if (!open.value) return;
   if (e.key !== "Escape" && e.target !== inputRef.value) return;
   if (e.key === "Escape") {
+    e.preventDefault();
     close();
   } else if (e.key === "ArrowDown") {
     e.preventDefault();
