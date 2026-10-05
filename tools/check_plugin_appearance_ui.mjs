@@ -95,7 +95,8 @@ try {
   await install("example.home-widgets", catalogue, entries);
   await install("example.scoped-document-viewer", catalogue, entries);
   const theme = await api("GET", "/api/plugins/example.theme-palettes/ui");
-  assert.equal(theme.themes.length, 1);
+  assert.deepEqual(theme.themes.map(item => item.id), ["blue-hour", "purple-blocks"]);
+  assert.equal(theme.native_frontend.entry, "native/app.js");
   const nativeDocs = await api("GET", "/api/plugins/example.scoped-document-viewer/ui");
   assert(nativeDocs.native_frontend && nativeDocs.frontend, "Native configuration and opaque content renderer coexist");
   const game = await api("POST", "/api/game/create", { title: "The Manual of Suspiciously Specific Quests",
