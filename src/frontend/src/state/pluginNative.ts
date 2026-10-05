@@ -6,6 +6,8 @@ import UiModal from "../components/UiModal.vue";
 import AppIcon from "../components/AppIcon.vue";
 import AccountChip from "../components/AccountChip.vue";
 import PasswordInput from "../components/PasswordInput.vue";
+import { dispatchPluginAction } from "../services/pluginUi";
+import { pluginRequestError } from "../services/apiError";
 import { registerPluginSearch, type PluginSearchResult } from "./pluginSearch";
 import {
   registerPluginReminders,
@@ -286,21 +288,13 @@ async function activate(
           const action = source.actions?.find((item) => item.id === actionId);
           if (action?.confirmation && !window.confirm(action.confirmation))
             return { cancelled: true };
-          const response = await fetch(
-            `/api/plugins/${encodeURIComponent(source.pluginId)}/actions/${encodeURIComponent(actionId)}`,
-            {
-              method: "POST",
-              credentials: "include",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                values,
-                confirmed: Boolean(action?.confirmation),
-              }),
-            },
+          return dispatchPluginAction(
+            source.pluginId,
+            actionId,
+            values,
+            undefined,
+            Boolean(action?.confirmation),
           );
-          if (!response.ok)
-            throw new Error("Plugin action could not be completed.");
-          return (await response.json()) as Record<string, unknown>;
         },
         async saveSettings(values) {
           requireActive();
@@ -314,7 +308,10 @@ async function activate(
             },
           );
           if (!response.ok)
-            throw new Error("Plugin settings could not be saved.");
+            throw await pluginRequestError(
+              response,
+              "Plugin settings could not be saved",
+            );
         },
         openDialog(contributionId) {
           requireActive();

@@ -22,6 +22,35 @@ afterEach(() => {
 });
 
 describe("native plugin lifecycle", () => {
+  it("shows host guidance for native action and settings failures", async () => {
+    let context!: NativePluginContext;
+    await reconcileNativePlugins([source], async () => ({
+      activate(value) {
+        context = value;
+      },
+    }));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation(() =>
+        Promise.resolve(
+          new Response(
+            JSON.stringify({
+              detail:
+                "Plugin runtime is unavailable. Retry after it becomes ready.",
+            }),
+            { status: 503 },
+          ),
+        ),
+      ),
+    );
+    await expect(context.host.runAction("get-config")).rejects.toMatchObject({
+      status: 503,
+      message: expect.stringContaining("Plugin runtime is unavailable"),
+    });
+    await expect(context.host.saveSettings({ enabled: true })).rejects.toThrow(
+      "Plugin runtime is unavailable",
+    );
+  });
   it("requires shortcut consent and cleans bindings on removal or failed activation", async () => {
     let context!: NativePluginContext;
     await reconcileNativePlugins([source], async () => ({

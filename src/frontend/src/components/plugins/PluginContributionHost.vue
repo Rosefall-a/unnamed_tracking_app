@@ -7,6 +7,7 @@ import type {
   UiValues,
 } from "../../services/pluginUi";
 import { dispatchPluginAction } from "../../services/pluginUi";
+import { pluginRequestError } from "../../services/apiError";
 import { approvePluginAction } from "../../services/pluginUi";
 import {
   nativePluginComponents,
@@ -58,7 +59,11 @@ async function save(values: UiValues) {
       body: JSON.stringify(values),
     },
   );
-  if (!response.ok) throw new Error("Plugin settings could not be saved.");
+  if (!response.ok)
+    throw await pluginRequestError(
+      response,
+      "Plugin settings could not be saved",
+    );
 }
 
 async function run(action: UiAction, values: UiValues) {

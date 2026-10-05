@@ -6,6 +6,7 @@ import {
   previewPluginUpdateUrl,
   updatePlugin,
 } from "../services/plugins";
+import { dispatchPluginAction } from "../services/pluginUi";
 
 afterEach(() => vi.unstubAllGlobals());
 const confirmation = { approvedPermissions: [] };
@@ -22,6 +23,7 @@ describe("plugin compatibility rejection details", () => {
     ],
     ["upload update", () => updatePlugin("example", file, confirmation)],
     ["upload installation", () => installPlugin(file, confirmation)],
+    ["plugin action", () => dispatchPluginAction("example", "get-config")],
   ])(
     "preserves the server's version explanation for %s",
     async (_name, run) => {
@@ -83,5 +85,25 @@ describe("plugin compatibility rejection details", () => {
     await expect(enablePlugin("example")).rejects.toThrow(
       "version range is invalid",
     );
+  });
+  it("keeps the action status and the missing capability explanation", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            detail:
+              "The plugin needs plugin.storage approval. Review its access in Plugin Manager.",
+          }),
+          { status: 403 },
+        ),
+      ),
+    );
+    await expect(
+      dispatchPluginAction("example", "get-config"),
+    ).rejects.toMatchObject({
+      status: 403,
+      message: expect.stringContaining("plugin.storage approval"),
+    });
   });
 });

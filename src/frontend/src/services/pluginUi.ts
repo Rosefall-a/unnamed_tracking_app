@@ -1,4 +1,5 @@
 import { normalizeShortcutKey } from "../utils/shortcutKeys";
+import { pluginRequestError } from "./apiError";
 
 export type UiFieldType =
   | "text"
@@ -240,7 +241,11 @@ export async function downloadPluginDocument(
 ): Promise<void> {
   const url = pluginDocumentDownloadUrl(pluginId, documentId);
   const response = await fetch(url, { method: "HEAD", credentials: "include" });
-  if (!response.ok) throw new PluginActionError(response.status);
+  if (!response.ok)
+    throw new PluginActionError(
+      response.status,
+      (await pluginRequestError(response, "Plugin download failed")).message,
+    );
   const link = document.createElement("a");
   link.href = url;
   link.download = "";
@@ -261,8 +266,11 @@ export interface PluginActionContext {
 export class PluginActionError extends Error {
   readonly status: number;
 
-  constructor(status: number) {
-    super("Plugin action could not be completed.");
+  constructor(
+    status: number,
+    message = "Plugin action could not be completed.",
+  ) {
+    super(message);
     this.name = "PluginActionError";
     this.status = status;
   }
@@ -284,7 +292,11 @@ export async function dispatchPluginAction(
       body: JSON.stringify({ values, context, confirmed }),
     },
   );
-  if (!response.ok) throw new PluginActionError(response.status);
+  if (!response.ok)
+    throw new PluginActionError(
+      response.status,
+      (await pluginRequestError(response, "Plugin action failed")).message,
+    );
   return (await response.json()) as Record<string, unknown>;
 }
 

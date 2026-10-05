@@ -1,3 +1,5 @@
+import { pluginRequestError } from "./apiError";
+
 export type PluginStatus =
   | "enabled"
   | "starting"
@@ -268,40 +270,6 @@ export interface PluginDiagnostics {
   last_exit_code: number | null;
   events: PluginDiagnosticEvent[];
 }
-async function pluginRequestError(
-  response: Response,
-  action: string,
-): Promise<Error> {
-  const body: unknown = await response
-    .clone()
-    .json()
-    .catch(() => null);
-  let message = "";
-  if (body && typeof body === "object" && "detail" in body) {
-    const detail = body.detail;
-    if (typeof detail === "string") message = detail;
-    else if (
-      detail &&
-      typeof detail === "object" &&
-      "message" in detail &&
-      typeof detail.message === "string"
-    )
-      message = detail.message;
-    else if (Array.isArray(detail))
-      message = detail
-        .flatMap((item) =>
-          item && typeof item === "object" && typeof item.msg === "string"
-            ? [item.msg]
-            : [],
-        )
-        .slice(0, 3)
-        .join("; ");
-  }
-  return new Error(
-    `${action} (${response.status})${message ? `: ${message}` : "."}`,
-  );
-}
-
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
     ...init,
