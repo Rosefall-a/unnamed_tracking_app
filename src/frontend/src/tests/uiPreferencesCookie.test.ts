@@ -42,6 +42,8 @@ describe("cosmetic preference cookies", () => {
       density: "compact",
       style: "archive-pocket",
       reduceMotion: true,
+      scope: "account",
+      themePackage: "server",
     });
     vi.stubGlobal("location", { protocol: "http:" });
     saveUiPreferencesCookie(device, value);
@@ -61,6 +63,10 @@ describe("cosmetic preference cookies", () => {
       "x".repeat(4097),
       encodeURIComponent(JSON.stringify({ ...valid, density: "tiny" })),
       encodeURIComponent(JSON.stringify({ ...valid, reduceMotion: "yes" })),
+      encodeURIComponent(JSON.stringify({ ...valid, scope: "everywhere" })),
+      encodeURIComponent(
+        JSON.stringify({ ...valid, themePackage: "../bad.css" }),
+      ),
       encodeURIComponent(
         JSON.stringify({ ...valid, colors: { light: device.colors.light } }),
       ),
@@ -97,5 +103,24 @@ describe("cosmetic preference cookies", () => {
     expect(() =>
       saveUiPreferencesCookie(device, DEFAULT_PREFERENCES),
     ).not.toThrow();
+  });
+  it("keeps device scope and the selected package in the cosmetic cookie", () => {
+    vi.stubGlobal("document", { cookie: "" });
+    vi.stubGlobal("location", { protocol: "https:" });
+    const value = {
+      ...DEFAULT_PREFERENCES,
+      ui_theme_package: "official.forest",
+    };
+    saveUiPreferencesCookie(
+      createDeviceAppearance("dark", "green", {}, false),
+      value,
+      "device",
+    );
+    expect(readUiPreferencesCookie()).toMatchObject({
+      scope: "device",
+      themePackage: "official.forest",
+      theme: "dark",
+      palette: "green",
+    });
   });
 });

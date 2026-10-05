@@ -1,5 +1,10 @@
 # Plugin palettes and appearance
 
+For CSS-only packages without executable plugin access, use the simpler
+[installed themes](../administration/themes.md) workflow. These packages use
+`data-theme-package="<theme-id>"` on the document root and can override native
+tokens and selectors. Plugin permissions described below remain independent.
+
 Plugin UI/API **1.1.0** offers named personal palettes through `ui.json`'s
 `themes` array. Declare and receive `frontend.themes` v1. This independent,
 low-risk permission does not grant native code, account data, arbitrary CSS or

@@ -9,11 +9,23 @@ import {
 import { queuePreferences, type Preferences } from "../../services/preferences";
 import { currentUser } from "../../state/auth";
 import UiPaletteSection from "./UiPaletteSection.vue";
+import InstalledThemeChoice from "./InstalledThemeChoice.vue";
+import {
+  appearancePreferences,
+  appearanceScope,
+  changeAppearanceScope,
+  changeDeviceAppearance,
+} from "../../state/uiAppearance";
 
 const saving = ref(false);
 const error = ref<string | null>(null);
 const saved = ref(false);
 async function change(changes: Partial<Preferences>) {
+  if (changeDeviceAppearance(changes)) {
+    error.value = null;
+    saved.value = true;
+    return;
+  }
   const accountId = currentUser.value?.id;
   const previous = { ...preferences.value };
   preferences.value = { ...previous, ...changes };
@@ -39,7 +51,8 @@ async function change(changes: Partial<Preferences>) {
   <section class="appearance-preferences" aria-labelledby="appearance-heading">
     <h2 id="appearance-heading">Theme & layout</h2>
     <p class="section-hint">
-      Your appearance follows your account between devices.
+      Choose whether your theme, color mode and palette follow your account or
+      this browser. Layout preferences follow your account.
     </p>
     <p v-if="!preferencesLoaded" role="status">Loading appearance…</p>
     <div v-else-if="preferencesError" role="alert" class="ui-alert">
@@ -55,6 +68,29 @@ async function change(changes: Partial<Preferences>) {
     <fieldset v-else :disabled="saving" class="appearance-fields">
       <div class="appearance-row">
         <div>
+          <label for="appearance-scope">Save theme choices to</label>
+          <p>
+            Browser choices use a cosmetic cookie and do not change your
+            account.
+          </p>
+        </div>
+        <select
+          id="appearance-scope"
+          class="ui-field"
+          :value="appearanceScope"
+          @change="
+            changeAppearanceScope(
+              ($event.target as HTMLSelectElement).value as
+                'account' | 'device',
+            )
+          "
+        >
+          <option value="account">My account</option>
+          <option value="device">This browser</option>
+        </select>
+      </div>
+      <div class="appearance-row">
+        <div>
           <label for="ui-theme">Theme</label>
           <p>Choose light, dark, or follow your device.</p>
         </div>
@@ -62,7 +98,7 @@ async function change(changes: Partial<Preferences>) {
           id="ui-theme"
           data-tour="ui-appearance"
           class="ui-field"
-          :value="preferences.ui_theme"
+          :value="appearancePreferences.ui_theme"
           @change="
             change({
               ui_theme: ($event.target as HTMLSelectElement)
@@ -119,7 +155,7 @@ async function change(changes: Partial<Preferences>) {
         <input
           id="ui-contrast"
           type="checkbox"
-          :checked="preferences.ui_high_contrast"
+          :checked="appearancePreferences.ui_high_contrast"
           @change="
             change({
               ui_high_contrast: ($event.target as HTMLInputElement).checked,
@@ -128,10 +164,16 @@ async function change(changes: Partial<Preferences>) {
         />
       </div>
     </fieldset>
+    <InstalledThemeChoice
+      v-if="preferencesLoaded && !preferencesError"
+      :selection="appearancePreferences.ui_theme_package"
+      :saving="saving"
+      @change="change({ ui_theme_package: $event })"
+    />
     <UiPaletteSection
       v-if="preferencesLoaded && !preferencesError"
-      :palette="preferences.ui_palette"
-      :custom="preferences.ui_custom_palette"
+      :palette="appearancePreferences.ui_palette"
+      :custom="appearancePreferences.ui_custom_palette"
       :saving="saving"
       @change="change"
     />

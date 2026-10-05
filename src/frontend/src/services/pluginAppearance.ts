@@ -77,6 +77,8 @@ export function observePluginAppearance(
       "data-density",
       "data-palette",
       "data-plugin-theme",
+      "data-theme-package",
+      "data-theme-revision",
     ],
   });
   return () => {

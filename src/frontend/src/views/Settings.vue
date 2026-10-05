@@ -34,6 +34,7 @@ import ConnectionsSection from "../components/settings/ConnectionsSection.vue";
 import AniListImportSection from "../components/settings/AniListImportSection.vue";
 import ApiKeysSection from "../components/settings/ApiKeysSection.vue";
 import PluginManagerSection from "../components/settings/PluginManagerSection.vue";
+import ThemesSection from "../components/settings/ThemesSection.vue";
 import PwaSettingsSection from "../components/settings/PwaSettingsSection.vue";
 import PluginContributionHost from "../components/plugins/PluginContributionHost.vue";
 import {
@@ -88,6 +89,7 @@ const coreSectionIds = new Set([
   "server-integrations",
   "users",
   "plugins",
+  "themes",
   "stats",
   "tasks",
   "logs",
@@ -193,6 +195,7 @@ const groups = computed<SettingsGroup[]>(() => {
         { id: "dev-tools", label: "Developer tools" },
         { id: "branding", label: "App branding" },
         { id: "plugins", label: "Plugins" },
+        { id: "themes", label: "Themes" },
         { id: "tasks", label: "Background tasks" },
         { id: "stats", label: "Storage & usage" },
       ],
@@ -493,6 +496,9 @@ function backToArea() {
           />
           <PluginManagerSection
             v-else-if="activeSection === 'plugins' && currentUser?.is_admin"
+          />
+          <ThemesSection
+            v-else-if="activeSection === 'themes' && currentUser?.is_admin"
           />
           <template v-else-if="activeSection === 'export'">
             <ExportImportSection />

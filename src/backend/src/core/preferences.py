@@ -15,6 +15,7 @@ from src.helpers.shortcut_keys import validate_shortcut_overrides
 
 DEFAULTS: dict[str, Any] = {
     "ui_theme": "system",
+    "ui_theme_package": "server",
     "ui_palette": "orange",
     "ui_custom_palette": {},
     "ui_density": "comfortable",
@@ -107,6 +108,10 @@ def validate_preference(key: str, value: Any) -> Any:
     if key not in DEFAULTS:
         raise ValueError(f"Unknown preference {key!r}")
     default = DEFAULTS[key]
+    if key == "ui_theme_package":
+        if not isinstance(value, str) or not re.fullmatch(r"[a-z0-9][a-z0-9._-]{0,127}", value):
+            raise ValueError("ui_theme_package must be a bounded theme identifier")
+        return value
     if key == "home_widgets":
         return _validate_home_widgets(value)
     if key == "home_widget_config":

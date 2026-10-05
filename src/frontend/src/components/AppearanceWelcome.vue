@@ -7,10 +7,12 @@ import { startQuickTour } from "../state/quickTour";
 import { queuePreferences } from "../services/preferences";
 import { applyPalette } from "../services/uiPalette";
 import { resolveUiTheme, type UiAppearance } from "../state/uiAppearance";
+import { themeCatalogue } from "../state/themes";
 
 const accountId = currentUser.value?.id;
 const choices = ref<UiAppearance>({
   ui_theme: preferences.value.ui_theme,
+  ui_theme_package: preferences.value.ui_theme_package,
   ui_palette: preferences.value.ui_palette,
   ui_custom_palette: preferences.value.ui_custom_palette,
   ui_density: preferences.value.ui_density,
@@ -81,6 +83,22 @@ async function finish(withTour = false) {
           <option value="system">System</option>
           <option value="light">Light</option>
           <option value="dark">Dark</option>
+        </select>
+        <label for="welcome-theme-package">Interface theme</label>
+        <select
+          id="welcome-theme-package"
+          v-model="choices.ui_theme_package"
+          class="ui-field"
+        >
+          <option value="server">Server default</option>
+          <option value="native">Native interface</option>
+          <option
+            v-for="theme in themeCatalogue.themes"
+            :key="theme.id"
+            :value="theme.id"
+          >
+            {{ theme.name }}
+          </option>
         </select>
         <label for="welcome-palette">Color palette</label>
         <select

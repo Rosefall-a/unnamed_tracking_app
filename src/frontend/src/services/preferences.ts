@@ -1,6 +1,7 @@
 // Server-side per-user preferences. Defaults live on the server; this only carries the shape.
 export interface Preferences {
   ui_theme: "system" | "light" | "dark";
+  ui_theme_package: string;
   ui_palette: import("./uiPalette").PaletteId;
   ui_custom_palette: import("./uiPalette").CustomPalette;
   ui_density: "comfortable" | "compact";
@@ -42,6 +43,7 @@ export interface Preferences {
 
 export const DEFAULT_PREFERENCES: Preferences = {
   ui_theme: "system",
+  ui_theme_package: "server",
   ui_palette: "orange",
   ui_custom_palette: {},
   ui_density: "comfortable",

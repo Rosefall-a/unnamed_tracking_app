@@ -10,6 +10,8 @@ export interface CachedUiPreferences extends DeviceAppearance {
   density: UiAppearance["ui_density"];
   style: UiAppearance["ui_style"];
   reduceMotion: boolean;
+  scope: "account" | "device";
+  themePackage: string;
 }
 
 export function readUiPreferencesCookie(): CachedUiPreferences | null {
@@ -31,11 +33,21 @@ export function readUiPreferencesCookie(): CachedUiPreferences | null {
       typeof value.reduceMotion !== "boolean"
     )
       return null;
+    if (
+      (value.scope !== undefined &&
+        !["account", "device"].includes(value.scope)) ||
+      (value.themePackage !== undefined &&
+        (typeof value.themePackage !== "string" ||
+          !/^[a-z0-9][a-z0-9._-]{0,127}$/.test(value.themePackage)))
+    )
+      return null;
     return {
       ...appearance,
       density: value.density,
       style: value.style,
       reduceMotion: value.reduceMotion,
+      scope: value.scope ?? "account",
+      themePackage: value.themePackage ?? "server",
     };
   } catch {
     return null;
@@ -45,12 +57,15 @@ export function readUiPreferencesCookie(): CachedUiPreferences | null {
 export function saveUiPreferencesCookie(
   device: DeviceAppearance,
   value: UiAppearance,
+  scope: CachedUiPreferences["scope"] = "account",
 ): void {
   const cache: CachedUiPreferences = {
     ...device,
     density: value.ui_density,
     style: value.ui_style,
     reduceMotion: value.ui_reduce_motion,
+    scope,
+    themePackage: value.ui_theme_package,
   };
   try {
     const encoded = encodeURIComponent(JSON.stringify(cache));
