@@ -41,7 +41,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     credentials: "include",
     headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
   });
-  if (!response.ok) throw await pluginRequestError(response);
+  if (!response.ok)
+    throw await pluginRequestError(
+      response,
+      "Plugin permissions request failed",
+    );
   return response.json() as Promise<T>;
 }
 export const fetchPluginPermissionRequests = () =>
