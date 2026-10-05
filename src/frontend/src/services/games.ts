@@ -243,7 +243,32 @@ export async function fetchGameFieldChanges(
   id: string,
 ): Promise<FieldChange[]> {
   if (import.meta.env.VITE_USE_MOCK_DATA === "true") {
-    return [];
+    // a few sample entries so the timeline can be tried without a backend
+    const at = (days: number, hour = 12) =>
+      new Date(Date.now() - days * 86_400_000 + hour * 3_600_000)
+        .toISOString()
+        .slice(0, 19);
+    const row = (
+      n: number,
+      fieldName: string,
+      oldValue: string | null,
+      newValue: string | null,
+      days: number,
+    ): FieldChange => ({
+      id: `mock-${id}-${n}`,
+      fieldName,
+      oldValue,
+      newValue,
+      changedAt: at(days),
+    });
+    return [
+      row(1, "status", "BACKLOG", "PLAYING", 40),
+      row(2, "purchase_price", "59.99", "39.99", 31),
+      row(3, "developer", null, "FromSoftware", 12),
+      row(4, "publisher", null, "Bandai Namco", 12),
+      row(5, "tags", "Action", "Action, RPG, Open World", 12),
+      row(6, "status", "PLAYING", "BEATEN", 3),
+    ];
   }
   const response = await fetch(`/api/game/${id}/field-changes`, {
     credentials: "include",
@@ -983,6 +1008,42 @@ function getMockNoteMap(gameId: string): Map<string, string> {
   return mockNotesStore.get(gameId)!;
 }
 
+// When each mock note was last written, so the mock Notes tab can sort and
+// show "edited" times like the real one.
+const mockNoteTimes = new Map<string, number>();
+function touchMockNote(gameId: string, name: string) {
+  mockNoteTimes.set(`${gameId}/${name}`, Math.floor(Date.now() / 1000));
+}
+
+// A note as the Notes tab lists it: the name, when it was last edited, how
+// long it is, and the start of it for the card preview.
+export interface GameNoteSummary {
+  name: string;
+  updated_at: number;
+  size: number;
+  words: number;
+  preview: string;
+}
+
+export async function listGameNoteSummaries(
+  gameId: string,
+): Promise<GameNoteSummary[]> {
+  if (import.meta.env.VITE_USE_MOCK_DATA === "true") {
+    return [...getMockNoteMap(gameId).entries()].map(([name, text]) => ({
+      name,
+      updated_at: mockNoteTimes.get(`${gameId}/${name}`) ?? 0,
+      size: text.length,
+      words: text.split(/\s+/).filter(Boolean).length,
+      preview: text.slice(0, 600),
+    }));
+  }
+  const response = await fetch(`/api/game/${gameId}/notes-summary`, {
+    credentials: "include",
+  });
+  if (!response.ok) throw new Error("The game notes could not be loaded.");
+  return (await response.json()).notes ?? [];
+}
+
 export async function listGameNotes(gameId: string): Promise<string[]> {
   if (import.meta.env.VITE_USE_MOCK_DATA === "true") {
     return Array.from(getMockNoteMap(gameId).keys());
@@ -1053,6 +1114,7 @@ export async function createGameNote(
         `A note titled "${noteName}" already exists. Choose a different title or cancel the operation.`,
       );
     notes.set(noteName, content);
+    touchMockNote(gameId, noteName);
     return { game_id: gameId, note_name: noteName, status: "saved" };
   }
   const response = await fetch(
@@ -1079,6 +1141,7 @@ export async function saveGameNote(
     if (!notes.has(noteName))
       throw new Error(`The note "${noteName}" no longer exists.`);
     notes.set(noteName, content);
+    touchMockNote(gameId, noteName);
     return { game_id: gameId, note_name: noteName, status: "saved" };
   }
   const response = await fetch(
@@ -1113,6 +1176,7 @@ export async function renameGameNote(
     if (noteName !== newName) {
       notes.delete(noteName);
       notes.set(newName, content);
+      touchMockNote(gameId, newName);
     }
     return { game_id: gameId, note_name: newName, status: "saved" };
   }

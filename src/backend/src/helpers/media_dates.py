@@ -189,6 +189,9 @@ def detect_date(
     found = from_filename(filename, now)
     if found is not None:
         return found, "filename"
+    # the browser reports a file's modified time in milliseconds
+    if client_modified is not None and client_modified > 10**11:
+        client_modified //= 1000
     found = _sane(client_modified, now)
     if found is not None:
         return found, "file"

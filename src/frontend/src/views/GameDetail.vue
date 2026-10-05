@@ -5,18 +5,12 @@ import { activePriority, priorityLabel } from "../utils/priority";
 import { computed, ref, watch, onMounted, onUnmounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import {
-  createGameNote,
   deleteGame,
-  deleteGameNote,
   fetchGame,
   fetchGameVariants,
   fetchGameAchievements,
   fetchGameFieldChanges,
-  fetchGameNote,
   fetchGames,
-  renameGameNote,
-  listGameNotes,
-  saveGameNote,
   setFavorite,
   setRatings,
   setStatus,
@@ -45,6 +39,7 @@ import type {
   FileDetails,
   MediaItemUpdate,
   GameFile,
+  GameFileUpdate,
   GameFileKind,
   TrashedMediaItem,
   TrashedGameFile,
@@ -94,6 +89,8 @@ import MediaTile from "../components/MediaTile.vue";
 import GameMediaPanel from "../components/GameMediaPanel.vue";
 import { isGuess, unlockSeconds } from "../utils/mediaDate";
 import GameArchivesPanel from "../components/GameArchivesPanel.vue";
+import GameNotesPanel from "../components/GameNotesPanel.vue";
+import GameStatsPanel from "../components/GameStatsPanel.vue";
 import {
   startTask,
   updateTask,
@@ -123,7 +120,6 @@ import {
 } from "../state/achievementLocal";
 import type { AchievementLocal } from "../state/achievementLocal";
 import { computeScore } from "../utils/scoring";
-import { marked } from "marked";
 import DOMPurify from "dompurify";
 import { useConfirm, usePrompt } from "../state/dialog";
 
@@ -150,124 +146,6 @@ const showEditModal = ref(false);
 const deleting = ref(false);
 const deleteError = ref<string | null>(null);
 const showDeleteConfirm = ref(false);
-
-const noteNames = ref<string[]>([]);
-const noteMode = ref<"list" | "view" | "editor">("list");
-const viewingNoteName = ref<string | null>(null);
-const viewingNoteContent = ref("");
-const editingNoteName = ref<string | null>(null);
-const draftName = ref("");
-const draftContent = ref("");
-const noteLoading = ref(false);
-const noteSaving = ref(false);
-const noteError = ref<string | null>(null);
-
-const hasDraft = computed(
-  () =>
-    editingNoteName.value === null &&
-    (draftName.value.trim() !== "" || draftContent.value.trim() !== ""),
-);
-
-const renderedNoteHtml = computed(
-  () => marked.parse(viewingNoteContent.value || "") as string,
-);
-
-function startNewNote() {
-  if (!hasDraft.value) {
-    draftName.value = "";
-    draftContent.value = "";
-  }
-  editingNoteName.value = null;
-  noteMode.value = "editor";
-}
-
-async function viewNote(noteName: string) {
-  if (!game.value) return;
-  viewingNoteName.value = noteName;
-  noteLoading.value = true;
-  noteError.value = null;
-  try {
-    viewingNoteContent.value = await fetchGameNote(game.value.id, noteName);
-    noteMode.value = "view";
-  } catch (err) {
-    noteError.value =
-      err instanceof Error ? err.message : "Failed to load note";
-  } finally {
-    noteLoading.value = false;
-  }
-}
-
-function editFromView() {
-  if (!viewingNoteName.value) return;
-  editingNoteName.value = viewingNoteName.value;
-  draftName.value = viewingNoteName.value;
-  draftContent.value = viewingNoteContent.value;
-  noteMode.value = "editor";
-}
-
-function backToList() {
-  noteMode.value = "list";
-  viewingNoteName.value = null;
-}
-
-async function saveDraft() {
-  if (!game.value) return;
-  const newName = draftName.value.trim();
-  if (!newName) {
-    noteError.value = "Enter a note name first.";
-    return;
-  }
-
-  noteSaving.value = true;
-  noteError.value = null;
-
-  try {
-    if (editingNoteName.value) {
-      const originalName = editingNoteName.value;
-      await saveGameNote(game.value.id, originalName, draftContent.value);
-      if (originalName !== newName) {
-        await renameGameNote(game.value.id, originalName, newName);
-      }
-    } else {
-      await createGameNote(game.value.id, newName, draftContent.value);
-    }
-    editingNoteName.value = null;
-    draftName.value = "";
-    draftContent.value = "";
-    noteMode.value = "list";
-    await loadNotes();
-  } catch (err) {
-    noteError.value =
-      err instanceof Error ? err.message : "Failed to save note";
-  } finally {
-    noteSaving.value = false;
-  }
-}
-
-async function deleteNote(noteName: string) {
-  if (!game.value) return;
-
-  noteSaving.value = true;
-  noteError.value = null;
-
-  try {
-    await deleteGameNote(game.value.id, noteName);
-    if (
-      viewingNoteName.value === noteName ||
-      editingNoteName.value === noteName
-    ) {
-      noteMode.value = "list";
-      viewingNoteName.value = null;
-      editingNoteName.value = null;
-    }
-    await loadNotes();
-  } catch (err) {
-    noteError.value =
-      err instanceof Error ? err.message : "Failed to delete note";
-  } finally {
-    noteSaving.value = false;
-  }
-}
 
 // Steam's "About This Game" section is rich HTML (headers, screenshots,
 // gifs), sanitize it instead of stripping it down to plain text so that
@@ -1158,35 +1036,9 @@ async function confirmDelete() {
   }
 }
 
-async function loadNotes() {
-  if (!game.value) {
-    noteNames.value = [];
-    return;
-  }
-  noteLoading.value = true;
-  noteError.value = null;
-  try {
-    noteNames.value = await listGameNotes(game.value.id);
-  } catch (err) {
-    noteError.value =
-      err instanceof Error ? err.message : "Failed to load notes";
-  } finally {
-    noteLoading.value = false;
-  }
-}
-
 // re-fetches automatically if you ever navigate from one game's page
 // straight to another, not just on the first load
 watch(() => route.params.id as string, loadGame, { immediate: true });
-watch(
-  () => game.value?.id,
-  () => {
-    if (game.value) {
-      void loadNotes();
-    }
-  },
-);
-
 const recentActivity = computed(() => game.value?.lastPlayedAt ?? null);
 
 const tally = computed(() => (game.value ? computeScore(game.value) : null));
@@ -1297,46 +1149,6 @@ const mainTags = computed(
 );
 const moreTags = computed(() => game.value?.tags.slice(MAIN_TAG_COUNT) ?? []);
 
-const statsPlaytimeMinutes = computed(() =>
-  game.value
-    ? game.value.platforms.reduce((sum, p) => sum + p.playtimeMinutes, 0)
-    : 0,
-);
-const statsPlaytimeLabel = computed(() => {
-  const minutes = statsPlaytimeMinutes.value;
-  const hours = Math.floor(minutes / 60);
-  const mins = minutes % 60;
-  if (hours === 0) return `${mins}m`;
-  return `${hours}h ${mins}m`;
-});
-const unlockedAchievements = computed(
-  () => game.value?.achievements.filter(isUnlocked) ?? [],
-);
-const firstUnlockedAt = computed(() => {
-  const dates = unlockedAchievements.value
-    .map((a) => a.unlockedAt)
-    .filter((d): d is string => d !== null);
-  return dates.length
-    ? dates.reduce((earliest, d) => (d < earliest ? d : earliest))
-    : null;
-});
-const lastUnlockedAt = computed(() => {
-  const dates = unlockedAchievements.value
-    .map((a) => a.unlockedAt)
-    .filter((d): d is string => d !== null);
-  return dates.length
-    ? dates.reduce((latest, d) => (d > latest ? d : latest))
-    : null;
-});
-function formatStatsDate(iso: string | null): string {
-  if (!iso) return "N/A";
-  return formatDisplayDate(iso, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
-}
-
 const tabs = [
   "Overview",
   "Achievements",
@@ -1349,7 +1161,6 @@ const tabs = [
   "Notes",
   "Accounts",
   "Stats",
-  "History",
 ] as const;
 const activeTab = ref<(typeof tabs)[number]>("Overview");
 
@@ -1740,8 +1551,9 @@ watch(activeTab, (tab) => {
     void refreshWorldMaps();
     void refreshWorldTrash();
   }
-  if (tab === "History") {
+  if (tab === "Stats") {
     void loadFieldChanges();
+    if (game.value && mediaLoadedFor.value !== game.value.id) void loadMedia();
   }
 });
 
@@ -1761,27 +1573,6 @@ async function loadFieldChanges() {
     fieldChangesLoading.value = false;
   }
 }
-const FIELD_CHANGE_LABELS: Record<string, string> = {
-  developer: "Developer",
-  publisher: "Publisher",
-  series: "Series",
-  tags: "Tags",
-  features: "Features",
-  description: "Description",
-  age_rating: "Age rating",
-  release_date: "Release date",
-  time_to_beat_hours: "Time to beat",
-};
-function formatFieldChangeDate(iso: string): string {
-  return new Date(iso).toLocaleString(undefined, {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
-
 async function onGameFilesSelected(files: File[], kind: FlatFileKind) {
   if (!files.length || !game.value) return;
   const gameId = game.value.id;
@@ -1834,13 +1625,16 @@ async function saveGameFile(
 ) {
   if (!game.value) return;
   try {
-    const updated = await updateGameFile(game.value.id, kind, file.id, {
-      title: patch.title,
-      note: patch.note,
-      tags: patch.tags,
-      taken_at: patch.taken_at,
-      taken_source: patch.taken_source,
-    });
+    // only the fields that changed: a missing key means "leave it alone"
+    const changes: GameFileUpdate = {};
+    if ("title" in patch) changes.title = patch.title;
+    if ("note" in patch) changes.note = patch.note;
+    if ("tags" in patch) changes.tags = patch.tags;
+    if ("taken_at" in patch) {
+      changes.taken_at = patch.taken_at;
+      changes.taken_source = patch.taken_source;
+    }
+    const updated = await updateGameFile(game.value.id, kind, file.id, changes);
     const list = filesRefFor(kind);
     const index = list.value.findIndex((f) => f.id === updated.id);
     if (index !== -1) list.value[index] = updated;
@@ -3377,106 +3171,7 @@ function formatPlaytime(minutes: number) {
     </section>
 
     <section v-else-if="activeTab === 'Notes'" class="notes-panel">
-      <div v-if="noteMode === 'list'" class="notes-list-view">
-        <div class="notes-header-row">
-          <h2>Notes</h2>
-          <button type="button" class="primary-button" @click="startNewNote">
-            {{ hasDraft ? "Continue Draft" : "New Note" }}
-          </button>
-        </div>
-
-        <div v-if="noteError" class="note-error">{{ noteError }}</div>
-
-        <p v-if="noteLoading" class="empty-state">Loading…</p>
-        <p v-else-if="!noteNames.length" class="empty-state">No notes yet.</p>
-        <ul v-else class="notes-list">
-          <li
-            v-for="note in noteNames"
-            :key="note"
-            class="notes-list-row"
-            @click="void viewNote(note)"
-          >
-            <span class="note-name">{{ note }}</span>
-            <div class="notes-list-actions">
-              <button
-                type="button"
-                class="danger-button"
-                :disabled="noteSaving"
-                @click.stop="void deleteNote(note)"
-              >
-                Delete
-              </button>
-            </div>
-          </li>
-        </ul>
-      </div>
-
-      <div v-else-if="noteMode === 'view'" class="notes-editor">
-        <div class="notes-editor-card">
-          <div class="notes-toolbar">
-            <button type="button" class="small-button" @click="backToList">
-              ← Back
-            </button>
-            <span class="selected-note">{{ viewingNoteName }}</span>
-            <button type="button" class="small-button" @click="editFromView">
-              Edit
-            </button>
-          </div>
-
-          <div v-if="noteLoading" class="empty-state">Loading…</div>
-          <div v-else class="note-rendered" v-html="renderedNoteHtml"></div>
-
-          <div v-if="noteError" class="note-error">{{ noteError }}</div>
-        </div>
-      </div>
-
-      <div v-else class="notes-editor">
-        <div class="notes-editor-card">
-          <div class="notes-toolbar">
-            <button type="button" class="small-button" @click="backToList">
-              ← Back
-            </button>
-          </div>
-
-          <label class="field">
-            <span>Note name</span>
-            <input
-              v-model="draftName"
-              type="text"
-              placeholder="Meeting notes"
-              autocomplete="off"
-            />
-          </label>
-
-          <textarea
-            v-model="draftContent"
-            placeholder="Write markdown here…"
-            spellcheck="true"
-          ></textarea>
-
-          <div v-if="noteError" class="note-error">{{ noteError }}</div>
-
-          <div class="notes-editor-actions">
-            <button type="button" class="small-button" @click="backToList">
-              Cancel
-            </button>
-            <button
-              type="button"
-              class="primary-button"
-              :disabled="noteSaving || !draftName.trim()"
-              @click="void saveDraft()"
-            >
-              {{
-                noteSaving
-                  ? "Saving…"
-                  : editingNoteName
-                    ? "Save changes"
-                    : "Create note"
-              }}
-            </button>
-          </div>
-        </div>
-      </div>
+      <GameNotesPanel :game-id="game.id" />
     </section>
 
     <section v-else-if="activeTab === 'Accounts'" class="accounts-panel">
@@ -4377,118 +4072,13 @@ function formatPlaytime(minutes: number) {
     </section>
 
     <section v-else-if="activeTab === 'Stats'" class="stats-panel">
-      <h2>Stats</h2>
-      <div class="stats-grid">
-        <div class="stat-tile">
-          <span class="stat-label">Total playtime</span>
-          <span class="stat-value">{{ statsPlaytimeLabel }}</span>
-        </div>
-        <div class="stat-tile">
-          <span class="stat-label">Achievements</span>
-          <span class="stat-value">
-            {{
-              game.achievementTotal
-                ? `${unlockedAchievements.length} / ${game.achievementTotal}`
-                : "N/A"
-            }}
-          </span>
-        </div>
-        <div class="stat-tile">
-          <span class="stat-label">Completion</span>
-          <span class="stat-value">{{
-            game.achievementTotal ? `${game.achievementPercent}%` : "N/A"
-          }}</span>
-        </div>
-        <div class="stat-tile">
-          <span class="stat-label">Rating</span>
-          <span class="stat-value">{{
-            tally ? `${tally.sum.toFixed(1)} / ${tally.max}` : "N/A"
-          }}</span>
-        </div>
-        <div class="stat-tile">
-          <span class="stat-label">Status</span>
-          <span class="stat-value">{{ game.status }}</span>
-        </div>
-        <div class="stat-tile">
-          <span class="stat-label">Source</span>
-          <span class="stat-value">{{ game.source || "N/A" }}</span>
-        </div>
-        <div class="stat-tile">
-          <span class="stat-label">Date added</span>
-          <span class="stat-value">{{ formatStatsDate(game.dateAdded) }}</span>
-        </div>
-        <div class="stat-tile">
-          <span class="stat-label">Last played</span>
-          <span class="stat-value">{{
-            formatStatsDate(game.lastPlayedAt)
-          }}</span>
-        </div>
-        <div class="stat-tile">
-          <span class="stat-label">First achievement</span>
-          <span class="stat-value">{{ formatStatsDate(firstUnlockedAt) }}</span>
-        </div>
-        <div class="stat-tile">
-          <span class="stat-label">Latest achievement</span>
-          <span class="stat-value">{{ formatStatsDate(lastUnlockedAt) }}</span>
-        </div>
-        <div class="stat-tile">
-          <span class="stat-label">Purchase date</span>
-          <span class="stat-value">{{
-            formatStatsDate(game.ownership.purchaseDate)
-          }}</span>
-        </div>
-        <div v-if="game.completionDate" class="stat-tile">
-          <span class="stat-label">100% completed</span>
-          <span class="stat-value">{{
-            formatStatsDate(game.completionDate)
-          }}</span>
-        </div>
-      </div>
-    </section>
-
-    <section v-else-if="activeTab === 'History'" class="history-panel">
-      <h2>Metadata History</h2>
-      <p v-if="fieldChangesLoading" class="empty-state">Loading…</p>
-      <p v-else-if="fieldChangesError" class="empty-state">
-        {{ fieldChangesError }}
-      </p>
-      <p v-else-if="!fieldChanges.length" class="empty-state">
-        No metadata changes yet. Edits from the game form or a metadata refresh
-        show up here.
-      </p>
-      <ul v-else class="history-list">
-        <li
-          v-for="change in fieldChanges"
-          :key="change.id"
-          class="history-entry"
-        >
-          <div class="history-entry-head">
-            <span class="history-field">{{
-              FIELD_CHANGE_LABELS[change.fieldName] || change.fieldName
-            }}</span>
-            <span class="history-date">{{
-              formatFieldChangeDate(change.changedAt)
-            }}</span>
-          </div>
-          <div class="history-values">
-            <span class="history-old">{{ change.oldValue || "Empty" }}</span>
-            <svg
-              viewBox="0 0 24 24"
-              width="14"
-              height="14"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <path d="M5 12h14" />
-              <path d="M13 6l6 6-6 6" />
-            </svg>
-            <span class="history-new">{{ change.newValue || "Empty" }}</span>
-          </div>
-        </li>
-      </ul>
+      <GameStatsPanel
+        :game="game"
+        :changes="fieldChanges"
+        :media="mediaItems"
+        :loading="fieldChangesLoading"
+        :error="fieldChangesError"
+      />
     </section>
   </main>
 
@@ -5624,54 +5214,6 @@ function formatPlaytime(minutes: number) {
   padding: 22px 24px 60px;
   box-sizing: border-box;
 }
-.notes-list-view {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-.notes-header-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-.notes-header-row h2 {
-  margin: 0;
-  font-size: 1.1rem;
-}
-.notes-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.notes-list-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  background: rgba(0, 0, 0, 0.2);
-  border: 1px solid #2a2a2a;
-  border-radius: 8px;
-  padding: 12px 16px;
-  cursor: pointer;
-  transition:
-    background 0.15s ease,
-    border-color 0.15s ease;
-}
-.notes-list-row:hover {
-  background: rgba(255, 255, 255, 0.05);
-  border-color: #3a3a3a;
-}
-.note-name {
-  color: #fff;
-  font-weight: 600;
-}
-.notes-list-actions {
-  display: flex;
-  gap: 8px;
-}
 .account-bar {
   display: flex;
   flex-wrap: wrap;
@@ -6231,58 +5773,12 @@ function formatPlaytime(minutes: number) {
   opacity: 0.5;
   cursor: not-allowed;
 }
-.notes-editor {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  max-width: 100%;
-}
-.notes-editor-card {
-  background: rgba(0, 0, 0, 0.2);
-  border: 1px solid #2a2a2a;
-  border-radius: 12px;
-  padding: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-.notes-toolbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 8px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid #2a2a2a;
-}
-.selected-note {
-  color: #fff;
-  font-weight: 600;
-  font-size: 1.05rem;
-}
-.field input:focus,
-.notes-editor textarea:focus {
-  outline: none;
-  border-color: #d68a34;
-}
-.notes-editor textarea {
-  width: 100%;
-  min-height: 420px;
-  box-sizing: border-box;
-  border: 1px solid #3a3a3a;
-  border-radius: 10px;
-  background: #111;
-  color: #f5f5f5;
-  resize: vertical;
-  padding: 14px;
-  font: inherit;
-}
-.notes-editor-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-}
 .note-error {
   color: #fca5a5;
+}
+.field input:focus {
+  outline: none;
+  border-color: #d68a34;
 }
 .empty-state {
   color: #777;
@@ -6323,52 +5819,6 @@ function formatPlaytime(minutes: number) {
 .stats-panel h2,
 .history-panel h2 {
   margin-bottom: 16px;
-}
-.history-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.history-entry {
-  background: #1a1a1a;
-  border: 1px solid #2a2a2a;
-  border-radius: 10px;
-  padding: 12px 16px;
-}
-.history-entry-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 6px;
-}
-.history-field {
-  font-weight: 600;
-  color: #ccc;
-}
-.history-date {
-  color: #777;
-  font-size: 0.8rem;
-}
-.history-values {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 0.9rem;
-}
-.history-values svg {
-  flex-shrink: 0;
-  color: #666;
-}
-.history-old {
-  color: #999;
-  text-decoration: line-through;
-  text-decoration-color: #444;
-}
-.history-new {
-  color: #d68a34;
 }
 .upload-label {
   display: inline-flex;
@@ -6706,69 +6156,9 @@ function formatPlaytime(minutes: number) {
 .tile-remove-inline:hover {
   color: #fca5a5;
 }
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: 14px;
-}
-.stat-tile {
-  background: rgba(0, 0, 0, 0.2);
-  border: 1px solid #2a2a2a;
-  border-radius: 10px;
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.stat-label {
-  color: #999;
-  font-size: 0.76rem;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-}
-.stat-value {
-  color: #fff;
-  font-size: 1.3rem;
-  font-weight: 700;
-  text-transform: capitalize;
-}
 .not-found {
   padding: 24px;
   color: #fff;
-}
-.note-rendered {
-  color: #ddd;
-  line-height: 1.6;
-  font-size: 14px;
-}
-.note-rendered :deep(h1),
-.note-rendered :deep(h2),
-.note-rendered :deep(h3) {
-  color: #fff;
-  margin: 16px 0 8px;
-}
-.note-rendered :deep(p) {
-  margin: 0 0 10px;
-}
-.note-rendered :deep(a) {
-  color: #d68a34;
-}
-.note-rendered :deep(code) {
-  background: #111;
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-size: 13px;
-}
-.note-rendered :deep(pre) {
-  background: #111;
-  padding: 12px;
-  border-radius: 8px;
-  overflow-x: auto;
-}
-.note-rendered :deep(ul),
-.note-rendered :deep(ol) {
-  padding-left: 20px;
-  margin: 0 0 10px;
 }
 .confirm-backdrop {
   position: fixed;

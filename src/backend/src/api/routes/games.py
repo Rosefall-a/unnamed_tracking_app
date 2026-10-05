@@ -4,6 +4,9 @@ import asyncio
 import os
 import re
 import time
+from datetime import UTC, datetime
+from decimal import Decimal
+from enum import Enum
 from pathlib import Path
 from typing import Literal, cast
 from urllib.parse import urlparse
@@ -245,12 +248,24 @@ FIELD_CHANGE_TRACKED_FIELDS = {
     "age_rating",
     "release_date",
     "time_to_beat_hours",
+    # what the history timeline shows as "changed status" and "changed price"
+    "status",
+    "purchase_price",
+    "purchase_price_currency_code",
+    "purchase_date",
 }
 
 
-def _field_change_value_to_text(value: object) -> str | None:
+def _field_change_value_to_text(value: object, field: str = "") -> str | None:
     if value is None:
         return None
+    if isinstance(value, Enum):
+        return str(value.value)
+    if isinstance(value, Decimal | float):
+        # 59.9 and Decimal("59.90") are the same price, not a change
+        return f"{Decimal(str(value)).normalize():f}"
+    if isinstance(value, int) and not isinstance(value, bool) and field.endswith("_date"):
+        return datetime.fromtimestamp(value, UTC).strftime("%Y-%m-%d")
     if isinstance(value, list):
         return ", ".join(str(v) for v in value) if value else None
     return str(value)
@@ -259,8 +274,8 @@ def _field_change_value_to_text(value: object) -> str | None:
 def _record_field_changes(game: Game, updates: dict, db: AsyncSession) -> None:
     now = int(time.time())
     for field in FIELD_CHANGE_TRACKED_FIELDS & updates.keys():
-        old_text = _field_change_value_to_text(getattr(game, field))
-        new_text = _field_change_value_to_text(updates[field])
+        old_text = _field_change_value_to_text(getattr(game, field), field)
+        new_text = _field_change_value_to_text(updates[field], field)
         if old_text == new_text:
             continue
         db.add(
@@ -1310,6 +1325,40 @@ async def list_game_notes(
         path.stem for path in notes_dir.iterdir() if path.is_file() and path.suffix.lower() == ".md"
     )
     return {"notes": note_names}
+
+
+def _note_summary(path: Path) -> dict:
+    """What a note card shows: its name, when it was last edited, how long it
+    is, and the start of it. Read from the file, so nothing extra is stored."""
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        text = ""
+    stat = path.stat()
+    return {
+        "name": path.stem,
+        "updated_at": int(stat.st_mtime),
+        "size": stat.st_size,
+        "words": len(text.split()),
+        "preview": text[:600],
+    }
+
+
+@router.get("/{game_id}/notes-summary")
+async def list_game_note_summaries(
+    game_id: UUID,
+    db: AsyncSession = _DB_DEPENDENCY,
+    current_user: User = _CURRENT_USER_DEPENDENCY,
+) -> dict[str, list[dict]]:
+    """The notes with their edit time, length and a preview, for the Notes tab."""
+    game = await _get_game_or_404(game_id, db, current_user.id)
+    if not game.folder_location:
+        return {"notes": []}
+    notes_dir = _DATA_ROOT / str(game.user_id) / "games" / game.folder_location / "notes"
+    if not notes_dir.exists():
+        return {"notes": []}
+    paths = [p for p in notes_dir.iterdir() if p.is_file() and p.suffix.lower() == ".md"]
+    return {"notes": [_note_summary(p) for p in sorted(paths, key=lambda p: p.stem.lower())]}
 
 
 @router.get(

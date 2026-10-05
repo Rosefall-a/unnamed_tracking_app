@@ -69,11 +69,25 @@ function uploadWithProgress(
   });
 }
 
+// Mock mode keeps archives in memory for the session, like the media, so the
+// Saves tab can be tried without a backend.
+const mockArchives: GameArchiveData[] = [];
+function mockVersion(file: File): ArchiveVersion {
+  return {
+    id: crypto.randomUUID(),
+    filename: file.name,
+    size: file.size,
+    uploaded_at: Math.floor(Date.now() / 1000),
+    url: URL.createObjectURL(file),
+  };
+}
+
 export async function fetchArchives(
   gameId: string,
   kind: ArchiveKind,
 ): Promise<GameArchiveData[]> {
-  if (import.meta.env.VITE_USE_MOCK_DATA === "true") return [];
+  if (import.meta.env.VITE_USE_MOCK_DATA === "true")
+    return mockArchives.filter((a) => a.kind === kind);
   const response = await fetch(`/api/game/${gameId}/archives/${kind}`, {
     credentials: "include",
   });
@@ -92,14 +106,17 @@ export async function createArchive(
   onProgress?: (fraction: number, speedLabel?: string) => void,
 ): Promise<GameArchiveData> {
   if (import.meta.env.VITE_USE_MOCK_DATA === "true") {
-    return {
+    const now = Math.floor(Date.now() / 1000);
+    const created: GameArchiveData = {
       id: crypto.randomUUID(),
       name,
       kind,
-      created_at: 0,
-      updated_at: 0,
-      versions: [],
+      created_at: now,
+      updated_at: now,
+      versions: [mockVersion(file)],
     };
+    mockArchives.push(created);
+    return created;
   }
   const form = new FormData();
   form.append("name", name);
@@ -120,14 +137,11 @@ export async function addArchiveVersion(
   onProgress?: (fraction: number, speedLabel?: string) => void,
 ): Promise<GameArchiveData> {
   if (import.meta.env.VITE_USE_MOCK_DATA === "true") {
-    return {
-      id: archiveId,
-      name: "",
-      kind: "save",
-      created_at: 0,
-      updated_at: 0,
-      versions: [],
-    };
+    const archive = mockArchives.find((a) => a.id === archiveId);
+    if (!archive) throw new Error("Archive not found");
+    archive.versions = [mockVersion(file), ...archive.versions];
+    archive.updated_at = Math.floor(Date.now() / 1000);
+    return { ...archive };
   }
   const form = new FormData();
   form.append("file", file);
@@ -145,6 +159,12 @@ export async function renameArchive(
   archiveId: string,
   name: string,
 ): Promise<GameArchiveData> {
+  if (import.meta.env.VITE_USE_MOCK_DATA === "true") {
+    const archive = mockArchives.find((a) => a.id === archiveId);
+    if (!archive) throw new Error("Archive not found");
+    archive.name = name;
+    return { ...archive };
+  }
   const response = await fetch(`/api/game/${gameId}/archives/${archiveId}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
@@ -162,6 +182,11 @@ export async function deleteArchive(
   gameId: string,
   archiveId: string,
 ): Promise<void> {
+  if (import.meta.env.VITE_USE_MOCK_DATA === "true") {
+    const i = mockArchives.findIndex((a) => a.id === archiveId);
+    if (i !== -1) mockArchives.splice(i, 1);
+    return;
+  }
   const response = await fetch(`/api/game/${gameId}/archives/${archiveId}`, {
     method: "DELETE",
     credentials: "include",

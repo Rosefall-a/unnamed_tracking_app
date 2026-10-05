@@ -56,6 +56,11 @@ def test_order_is_name_then_modified_then_upload() -> None:
         utc(2026, 9, 1),
         "file",
     )
+    # the browser sends milliseconds
+    assert detect_date(data, "shot.png", "screenshot", utc(2026, 9, 1) * 1000, NOW) == (
+        utc(2026, 9, 1),
+        "file",
+    )
     # a modified date in the future is a wrong clock, not a date
     assert detect_date(data, "shot.png", "screenshot", NOW + 10**7, NOW) == (NOW, "uploaded")
     assert detect_date(data, "shot.png", "screenshot", None, NOW) == (NOW, "uploaded")
