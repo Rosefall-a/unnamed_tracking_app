@@ -9,7 +9,6 @@ from typing import Any
 from urllib.parse import quote
 
 import httpx
-
 from src.plugin_api.manager_state import manager_state
 
 _ACTION_REQUEST_TIMEOUT = 35.0  # Allow the isolated runner's 30-second wall limit to report.
@@ -21,6 +20,12 @@ class PluginRuntimeUnavailable(RuntimeError):
 
 class PluginRuntimeRequestError(RuntimeError):
     """Raised when the runtime rejects a validly reached request."""
+
+    def __init__(self, message: str, *, status_code: int = 422, detail: str | None = None) -> None:
+        """Retain bounded public rejection details; legacy callers default to 422."""
+        self.status_code = status_code if 400 <= status_code < 500 else 422
+        self.detail = detail or message
+        super().__init__(message)
 
 
 class PluginRuntimeClient:
@@ -59,8 +64,15 @@ class PluginRuntimeClient:
                 f"plugin runtime returned {response.status_code}: {response.text[:1024]}"
             )
         if response.status_code >= 400:
+            try:
+                body = response.json()
+                detail = body.get("detail") if isinstance(body, dict) else None
+            except ValueError:
+                detail = None
             raise PluginRuntimeRequestError(
-                f"plugin runtime rejected the request ({response.status_code}): {response.text[:1024]}"
+                f"plugin runtime rejected the request ({response.status_code}): {response.text[:1024]}",
+                status_code=response.status_code,
+                detail=detail[:1024] if isinstance(detail, str) else None,
             )
         return response.json() if response.content else None
 

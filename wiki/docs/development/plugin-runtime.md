@@ -83,6 +83,14 @@ visible as a diagnostic when fallback is explicitly enabled, but does not block
 worker startup. Start, Enable and Retry failures return the runtime's explanation
 inside the dialog; they do not become an unexplained HTTP 500.
 
+Unhandled gateway rejections also retain their public explanation through the
+isolated action process and host HTTP adapter. Known permission, validation,
+missing-resource and conflict codes keep their corresponding 4xx status, rather
+than becoming a generic "action did not return a result" error. Plugin-handled
+failures and successful retries still return the plugin's result; timeouts and
+unrelated process failures keep their own diagnostics. Public details are bounded
+and runtime secrets are redacted.
+
 The runtime also needs its private `PLUGIN_GATEWAY_URL`. The supplied production
 configurations use `http://app` through Nginx; development uses
 `http://backend:8000`. This broker address and its transport token are never
