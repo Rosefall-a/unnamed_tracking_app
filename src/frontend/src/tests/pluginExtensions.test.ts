@@ -473,6 +473,54 @@ describe("plugin extension registry", () => {
     expect(native.activate).not.toHaveBeenCalled();
   });
 
+  it("publishes a slow initial load when background mounts and polls overlap", async () => {
+    let finish!: (response: Response) => void;
+    const fetcher = vi.fn(async (url: string) =>
+      url === "/api/plugins"
+        ? new Response(JSON.stringify([plugin]))
+        : new Promise<Response>((resolve) => {
+            finish = resolve;
+          }),
+    );
+    vi.stubGlobal("fetch", fetcher);
+    const first = refreshPluginExtensions({ background: true });
+    await vi.waitFor(() => expect(finish).toBeDefined());
+    const overlapping = Array.from({ length: 6 }, () =>
+      refreshPluginExtensions({ background: true }),
+    );
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    finish(new Response(JSON.stringify(document)));
+    await Promise.all([first, ...overlapping]);
+    expect(activePluginDocuments.value[plugin.plugin_id]).toEqual(document);
+    expect(native.activate).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not share a pending background load across an account change", async () => {
+    let finish!: (response: Response) => void;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) =>
+        url === "/api/plugins"
+          ? new Response(JSON.stringify([plugin]))
+          : new Promise<Response>((resolve) => {
+              finish = resolve;
+            }),
+      ),
+    );
+    const stale = refreshPluginExtensions({ background: true });
+    await vi.waitFor(() => expect(finish).toBeDefined());
+    clearPluginExtensions();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify([]))),
+    );
+    await refreshPluginExtensions({ background: true });
+    finish(new Response(JSON.stringify(document)));
+    await stale;
+    expect(activePluginDocuments.value).toEqual({});
+    expect(native.activate).not.toHaveBeenCalled();
+  });
+
   it("refuses to load native code from a legacy UI document", async () => {
     vi.stubGlobal(
       "fetch",

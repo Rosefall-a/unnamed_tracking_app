@@ -57,7 +57,7 @@ watch(
   },
   { immediate: true },
 );
-onMounted(() => void refreshPluginExtensions());
+onMounted(() => void refreshPluginExtensions({ background: true }));
 
 const coreSectionIds = new Set([
   "admin",

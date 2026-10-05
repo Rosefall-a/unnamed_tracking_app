@@ -51,7 +51,7 @@ const actionContext = computed<PluginActionContext | undefined>(() => {
   return undefined;
 });
 
-onMounted(() => void refreshPluginExtensions());
+onMounted(() => void refreshPluginExtensions({ background: true }));
 </script>
 
 <template>

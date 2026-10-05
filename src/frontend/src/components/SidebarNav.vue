@@ -278,7 +278,7 @@ async function handleLogout() {
 let notificationTimer: number | undefined;
 onMounted(() => {
   void refreshInboxCount();
-  void refreshPluginExtensions();
+  void refreshPluginExtensions({ background: true });
   void refreshMediaNotifications();
   notificationTimer = window.setInterval(
     refreshMediaNotifications,

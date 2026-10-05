@@ -495,6 +495,7 @@ const routeState = ref<PluginRouteContribution[]>([]);
 const replacementState = ref<PluginPageReplacementContribution[]>([]);
 const documentReaderState = ref<PluginDocumentReaderContribution[]>([]);
 let refreshVersion = 0;
+let pendingRefresh: Promise<void> | undefined;
 const documentState = ref<Record<string, PluginUiDocument>>({});
 export const activePluginDocuments = shallowReadonly(documentState);
 
@@ -543,6 +544,7 @@ function retainContributions(pluginIds: ReadonlySet<string>): void {
 
 export function clearPluginExtensions(): void {
   refreshVersion++;
+  pendingRefresh = undefined;
   retainContributions(new Set());
 }
 
@@ -588,7 +590,21 @@ export function comparePluginContributions(
   );
 }
 
-export async function refreshPluginExtensions(): Promise<void> {
+export function refreshPluginExtensions(
+  options: { background?: boolean } = {},
+): Promise<void> {
+  // Mounts and the five-second poll share a pending load. Otherwise a slow
+  // multi-plugin refresh is repeatedly invalidated before it can publish.
+  // Explicit manager mutations still start a fresh load to reflect revocation.
+  if (options.background && pendingRefresh) return pendingRefresh;
+  const refresh = loadPluginExtensions().finally(() => {
+    if (pendingRefresh === refresh) pendingRefresh = undefined;
+  });
+  pendingRefresh = refresh;
+  return refresh;
+}
+
+async function loadPluginExtensions(): Promise<void> {
   const version = ++refreshVersion;
   try {
     const plugins = await fetchPlugins();

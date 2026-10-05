@@ -84,7 +84,7 @@ watch(
     clearInterval(pluginRefreshTimer);
     clearPluginExtensions();
     if (id) {
-      void refreshPluginExtensions();
+      void refreshPluginExtensions({ background: true });
       pluginRefreshTimer = setInterval(async () => {
         try {
           const user = await fetchCurrentUser();
@@ -94,7 +94,7 @@ watch(
             await router.replace("/login");
             return;
           }
-          await refreshPluginExtensions();
+          await refreshPluginExtensions({ background: true });
         } catch {
           // Preserve the current screen during transient connectivity failures.
         }
