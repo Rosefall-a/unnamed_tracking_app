@@ -665,6 +665,7 @@ async function addTitle(m: PickItem) {
   width: 100%;
   height: 100%;
   background-size: cover;
+  background-repeat: no-repeat;
   background-position: center;
   background-color: #1c1c1c;
 }

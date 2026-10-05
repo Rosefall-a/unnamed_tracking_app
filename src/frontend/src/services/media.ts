@@ -14,6 +14,10 @@ export interface FileDetails {
   note: string | null;
   created_at: number;
   size?: number;
+  // clips only: a saved preview picture and the length, so the gallery does
+  // not have to load the video to show them
+  thumbnail_url?: string | null;
+  duration?: number | null;
   // an in-app name; the file keeps its own name
   title?: string | null;
   // when it was really taken and where that came from, see utils/mediaDate.ts
@@ -259,6 +263,34 @@ export async function updateMediaItem(
       `Failed to update media item: ${response.status} ${response.statusText} ${message}`,
     );
   }
+  return await response.json();
+}
+
+// Keeps a clip's preview picture and length on the server, made once in the
+// browser. Returns the updated clip.
+export async function saveClipThumbnail(
+  gameId: string,
+  mediaId: string,
+  blob: Blob,
+  duration: number,
+): Promise<MediaItem> {
+  if (import.meta.env.VITE_USE_MOCK_DATA === "true") {
+    const item = mockMedia.find((m) => m.id === mediaId);
+    if (!item) throw new Error("Media item not found");
+    item.thumbnail_url = URL.createObjectURL(blob);
+    item.duration = duration;
+    return { ...item };
+  }
+  const form = new FormData();
+  form.append("file", blob, "thumbnail.jpg");
+  form.append("duration", String(duration));
+  const response = await fetch(`/api/game/${gameId}/thumbnails/${mediaId}`, {
+    method: "POST",
+    credentials: "include",
+    body: form,
+  });
+  if (!response.ok)
+    throw new Error(`Failed to save thumbnail: ${response.status}`);
   return await response.json();
 }
 

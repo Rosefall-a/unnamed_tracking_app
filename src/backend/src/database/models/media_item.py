@@ -4,7 +4,7 @@ import time
 from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
-from sqlalchemy import BigInteger, ForeignKey, String, Text
+from sqlalchemy import BigInteger, Float, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -57,6 +57,10 @@ class MediaItem(Base):
     # from before this existed, which fall back to created_at.
     taken_at: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     taken_source: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    # a clip's saved preview picture (a file under the game's thumbs folder) and
+    # its length, so the gallery does not have to load every video to show them
+    thumb_filename: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    duration: Mapped[float | None] = mapped_column(Float, nullable=True)
     # set instead of deleting the row — the file moves to a trash folder
     # alongside it (see features/trash/media_trash.py) and
     # features/trash/sweep.py purges both after 7 days. NULL means active.

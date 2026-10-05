@@ -1,6 +1,7 @@
 """API routes for managing games, notes, and game artwork."""
 
 import asyncio
+import io
 import os
 import re
 import time
@@ -13,6 +14,7 @@ from urllib.parse import urlparse
 from uuid import UUID
 
 import requests
+from PIL import Image, UnidentifiedImageError
 from fastapi import (
     APIRouter,
     Body,
@@ -52,6 +54,8 @@ from src.database.models.game import Game, GameLink, GameStatus
 from src.database.models.game_checklist_item import GameChecklistItem
 from src.database.models.game_field_change import GameFieldChange
 from src.database.models.game_file_item import GameFileItem
+from src.database.models.game_note_detail import GameNoteDetail
+from src.features import game_notes
 from src.database.models.game_profile import GameProfile
 from src.database.models.game_profile_stat_snapshot import GameProfileStatSnapshot
 from src.database.models.media_item import MediaItem
@@ -610,7 +614,92 @@ def _media_item_to_dict(item: MediaItem, game_id: UUID) -> dict:
         "title": item.title,
         "taken_at": item.taken_at,
         "taken_source": item.taken_source,
+        "thumbnail_url": f"/api/game/{game_id}/thumbnails/{item.id}"
+        if item.thumb_filename
+        else None,
+        "duration": item.duration,
     }
+
+
+_THUMB_MAX_WIDTH = 640
+_THUMB_UPLOAD = File(...)
+_THUMB_DURATION = Form(None)
+
+
+def _thumb_dir(game: Game) -> Path:
+    return _DATA_ROOT / str(game.user_id) / "games" / (game.folder_location or "") / "thumbs"
+
+
+@router.post("/{game_id}/thumbnails/{media_id}")
+async def save_clip_thumbnail(
+    game_id: UUID,
+    media_id: UUID,
+    file: UploadFile = _THUMB_UPLOAD,
+    duration: float | None = _THUMB_DURATION,
+    db: AsyncSession = _DB_DEPENDENCY,
+    current_user: User = _CURRENT_USER_DEPENDENCY,
+) -> dict:
+    """Keep a clip's preview picture, made in the browser when it was uploaded
+    (or the first time it was shown), so it never has to be made again. The
+    picture is shrunk and saved as a JPEG; the clip's length is kept with it."""
+    game = await _get_game_or_404(game_id, db, current_user.id)
+    item = await db.scalar(
+        select(MediaItem).where(
+            MediaItem.id == media_id,
+            MediaItem.game_id == game_id,
+            MediaItem.kind == "clip",
+            MediaItem.deleted_at.is_(None),
+        )
+    )
+    if item is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Clip not found.")
+    data = await file.read()
+    if len(data) > 5 * 1024 * 1024:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="Thumbnail is too large."
+        )
+    try:
+        with Image.open(io.BytesIO(data)) as image:
+            picture = image.convert("RGB")
+    except (UnidentifiedImageError, OSError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="That is not a picture."
+        ) from exc
+    if picture.width > _THUMB_MAX_WIDTH:
+        picture = picture.resize(
+            (_THUMB_MAX_WIDTH, max(1, round(picture.height * _THUMB_MAX_WIDTH / picture.width)))
+        )
+    directory = _thumb_dir(game)
+    directory.mkdir(parents=True, exist_ok=True)
+    name = f"{item.id}.jpg"
+    picture.save(directory / name, "JPEG", quality=80)
+    item.thumb_filename = name
+    if duration is not None and duration > 0:
+        item.duration = float(duration)
+    await db.commit()
+    return _media_item_to_dict(item, game_id)
+
+
+@router.get("/{game_id}/thumbnails/{media_id}", response_class=FileResponse)
+async def get_clip_thumbnail(
+    game_id: UUID,
+    media_id: UUID,
+    db: AsyncSession = _DB_DEPENDENCY,
+    current_user: User = _CURRENT_USER_DEPENDENCY,
+) -> FileResponse:
+    game = await _get_game_or_404(game_id, db, current_user.id)
+    item = await db.scalar(
+        select(MediaItem).where(MediaItem.id == media_id, MediaItem.game_id == game_id)
+    )
+    path = _thumb_dir(game) / item.thumb_filename if item and item.thumb_filename else None
+    if path is None or not path.is_file():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No thumbnail yet.")
+    # the picture for a given clip never changes, so the browser may keep it
+    return FileResponse(
+        path,
+        media_type="image/jpeg",
+        headers={"Cache-Control": "private, max-age=31536000, immutable"},
+    )
 
 
 @router.post("/{game_id}/screenshots")
@@ -1233,6 +1322,8 @@ async def create_game_note(
             status_code=status.HTTP_409_CONFLICT,
             detail={"error": "note_already_exists", "message": f'A note titled "{normalized_name}" already exists.'},
         ) from exc
+    await game_notes.ensure_row(db, game_id, normalized_name)
+    await db.commit()
     return {"game_id": str(game_id), "note_name": normalized_name, "path": str(note_path), "status": "saved"}
 
 
@@ -1252,7 +1343,14 @@ async def update_game_note(
     note_path = _game_note_path(game, normalized_name)
     if not note_path.is_file():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f'Note "{normalized_name}" was not found.')
+    previous = note_path.read_text(encoding="utf-8", errors="replace")
+    row = await game_notes.ensure_row(
+        db, game_id, normalized_name, created_at=int(note_path.stat().st_mtime)
+    )
+    if previous != payload.content:
+        await game_notes.record_version(db, row, previous)
     note_path.write_text(payload.content, encoding="utf-8")
+    await db.commit()
     return {"game_id": str(game_id), "note_name": normalized_name, "path": str(note_path), "status": "saved"}
 
 
@@ -1293,6 +1391,8 @@ async def rename_game_note(
         except OSError:
             pass
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="The note could not be renamed.") from exc
+    await game_notes.rename_row(db, game_id, source_name, destination_name)
+    await db.commit()
     return {"game_id": str(game_id), "note_name": destination_name, "path": str(destination_path), "status": "saved"}
 
 
@@ -1327,20 +1427,30 @@ async def list_game_notes(
     return {"notes": note_names}
 
 
-def _note_summary(path: Path) -> dict:
-    """What a note card shows: its name, when it was last edited, how long it
-    is, and the start of it. Read from the file, so nothing extra is stored."""
+def _note_summary(path: Path, row: GameNoteDetail | None = None) -> dict:
+    """What a note card shows: its name, when it was created and last edited,
+    how long it is, checklist progress, the start of it, and its pin, tags and
+    achievement. Text comes from the file; the rest from its details row."""
     try:
         text = path.read_text(encoding="utf-8", errors="replace")
     except OSError:
         text = ""
     stat = path.stat()
+    done, total = game_notes.task_counts(text)
     return {
         "name": path.stem,
+        "created_at": row.created_at if row else int(stat.st_mtime),
         "updated_at": int(stat.st_mtime),
         "size": stat.st_size,
         "words": len(text.split()),
         "preview": text[:600],
+        "tasks_done": done,
+        "tasks_total": total,
+        "pinned": row.pinned if row else False,
+        "tags": row.tags if row else [],
+        "linked_achievement_id": str(row.linked_achievement_id)
+        if row and row.linked_achievement_id
+        else None,
     }
 
 
@@ -1357,8 +1467,13 @@ async def list_game_note_summaries(
     notes_dir = _DATA_ROOT / str(game.user_id) / "games" / game.folder_location / "notes"
     if not notes_dir.exists():
         return {"notes": []}
+    rows = await game_notes.sync_rows(db, game_id, notes_dir)
     paths = [p for p in notes_dir.iterdir() if p.is_file() and p.suffix.lower() == ".md"]
-    return {"notes": [_note_summary(p) for p in sorted(paths, key=lambda p: p.stem.lower())]}
+    return {
+        "notes": [
+            _note_summary(p, rows.get(p.stem)) for p in sorted(paths, key=lambda p: p.stem.lower())
+        ]
+    }
 
 
 @router.get(
@@ -1413,6 +1528,8 @@ async def delete_game_note(
         )
 
     note_path.unlink()
+    await game_notes.delete_row(db, game_id, _normalize_note_name(note_name))
+    await db.commit()
     return {
         "game_id": str(game_id),
         "note_name": _normalize_note_name(note_name),

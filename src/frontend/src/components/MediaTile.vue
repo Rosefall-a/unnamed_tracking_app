@@ -8,6 +8,7 @@ import { ref, computed } from "vue";
 import MediaEditDialog from "./MediaEditDialog.vue";
 import { originalName } from "../utils/copyMedia";
 import { formatDuration, settleDuration } from "../utils/videoDuration";
+import { captureFrame } from "../utils/videoThumbnail";
 import { formatMediaDate, SOURCE_LABEL, mediaSource } from "../utils/mediaDate";
 import type { FileDetails, MediaItemUpdate } from "../services/media";
 import type { Achievement } from "../types/game";
@@ -37,14 +38,24 @@ const emit = defineEmits<{
   copy: [item: FileDetails];
   download: [item: FileDetails];
   "open-achievement": [achievementId: string];
+  // a preview picture made for a clip that had none, to be saved
+  thumbnail: [item: FileDetails, blob: Blob, duration: number];
 }>();
 
 const editing = ref(false);
-const length = ref("");
+const measured = ref("");
+// the saved length when there is one, otherwise what the video reports
+const length = computed(() =>
+  props.item.duration ? formatDuration(props.item.duration) : measured.value,
+);
 async function onClipMetadata(e: Event) {
-  length.value = formatDuration(
-    await settleDuration(e.target as HTMLVideoElement),
-  );
+  const video = e.target as HTMLVideoElement;
+  if (props.item.thumbnail_url) return;
+  // no saved picture yet: make one from this video, once, and hand it up to be
+  // kept, so the next visit shows a picture instead of loading the video
+  measured.value = formatDuration(await settleDuration(video));
+  const frame = await captureFrame(video);
+  if (frame) emit("thumbnail", props.item, frame.blob, frame.duration);
 }
 
 const linkedName = computed(() => {
@@ -106,6 +117,12 @@ function onThumbClick() {
       <img
         v-if="item.kind === 'screenshot'"
         :src="item.url"
+        alt=""
+        loading="lazy"
+      />
+      <img
+        v-else-if="item.kind === 'clip' && item.thumbnail_url"
+        :src="item.thumbnail_url"
         alt=""
         loading="lazy"
       />

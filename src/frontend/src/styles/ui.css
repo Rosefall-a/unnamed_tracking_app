@@ -32,6 +32,8 @@
   /* page gutters */
   --ui-edge-left: 24px;
   --ui-edge-right: 24px;
+  /* the big "add your first one" card on every empty gallery tab */
+  --ui-empty-min: 280px;
   /* stacking */
   --ui-z-drawer: 150;
   --ui-z-modal: 300;

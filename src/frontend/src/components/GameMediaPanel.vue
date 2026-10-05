@@ -64,6 +64,7 @@ const emit = defineEmits<{
   "bulk-detect": [ids: string[]];
   restore: [item: TrashedFile];
   "open-achievement": [achievementId: string];
+  thumbnail: [item: MediaItem, blob: Blob, duration: number];
   problem: [message: string];
 }>();
 
@@ -714,7 +715,19 @@ onBeforeUnmount(() => {
     </ul>
 
     <div class="gm-body" :class="{ dropping: dragging }">
-      <p v-if="loading && !items.length" class="gm-hint">Loading…</p>
+      <div
+        v-if="loading && !items.length"
+        :class="isRows ? 'gm-tracks' : 'gm-grid'"
+        aria-busy="true"
+        aria-label="Loading"
+      >
+        <div
+          v-for="n in 3"
+          :key="n"
+          class="gm-skel"
+          :class="{ row: isRows }"
+        ></div>
+      </div>
 
       <button
         v-else-if="!items.length"
@@ -767,6 +780,9 @@ onBeforeUnmount(() => {
             @copy="copy"
             @download="download"
             @open-achievement="emit('open-achievement', $event)"
+            @thumbnail="
+              (item, blob, duration) => emit('thumbnail', item, blob, duration)
+            "
           />
         </div>
         <div v-if="!visible.length && filtering" class="gm-none">
@@ -1016,6 +1032,41 @@ onBeforeUnmount(() => {
   cursor: pointer;
   padding: 0 2px;
 }
+.gm-skel {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #262626;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #141414;
+}
+.gm-skel::before,
+.gm-skel::after {
+  content: "";
+  background: linear-gradient(100deg, #181818 30%, #212121 50%, #181818 70%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s linear infinite;
+}
+.gm-skel::before {
+  aspect-ratio: 16 / 9;
+}
+.gm-skel::after {
+  height: 74px;
+  border-top: 1px solid #262626;
+}
+.gm-skel.row {
+  flex-direction: row;
+  height: 74px;
+}
+.gm-skel.row::before {
+  aspect-ratio: 1;
+  height: 100%;
+}
+.gm-skel.row::after {
+  flex: 1;
+  height: auto;
+  border-top: none;
+}
 .gm-hint {
   color: #777;
   font-size: 14px;
@@ -1059,7 +1110,7 @@ onBeforeUnmount(() => {
 }
 .gm-empty {
   width: 100%;
-  min-height: 280px;
+  min-height: var(--ui-empty-min, 280px);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1326,6 +1377,22 @@ onBeforeUnmount(() => {
 .gm-nav:hover {
   background: #d68a34;
   color: #14100a;
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .gm-skel,
+  .gm-skel::before,
+  .gm-skel::after {
+    animation: none !important;
+  }
 }
 .fade-enter-active,
 .fade-leave-active {

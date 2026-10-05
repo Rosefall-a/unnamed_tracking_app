@@ -241,6 +241,7 @@ const emptySlots = computed(() => Math.max(0, 4 - covers.value.length));
 }
 .cover-cell {
   background-size: cover;
+  background-repeat: no-repeat;
   background-position: center;
   background-color: #1c1c1c;
 }

@@ -191,7 +191,9 @@ function daysLeft(purgeAt: number): number {
     </ul>
 
     <div class="ga-body">
-      <p v-if="!loaded" class="ga-hint">Loading…</p>
+      <div v-if="!loaded" class="ga-grid" aria-busy="true" aria-label="Loading">
+        <div v-for="n in 3" :key="n" class="ga-skel"></div>
+      </div>
 
       <button
         v-else-if="!archives.length"
@@ -311,6 +313,14 @@ function daysLeft(purgeAt: number): number {
   cursor: pointer;
   padding: 0 2px;
 }
+.ga-skel {
+  min-height: 150px;
+  border: 1px solid #262626;
+  border-radius: 12px;
+  background: linear-gradient(100deg, #181818 30%, #212121 50%, #181818 70%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s linear infinite;
+}
 .ga-hint {
   color: #777;
   font-size: 14px;
@@ -355,7 +365,7 @@ function daysLeft(purgeAt: number): number {
 }
 .ga-empty {
   width: 100%;
-  min-height: 260px;
+  min-height: var(--ui-empty-min, 280px);
   border-radius: 14px;
 }
 .ga-add strong,
@@ -447,6 +457,20 @@ function daysLeft(purgeAt: number): number {
 .ga-drop strong {
   color: #f2f2f2;
   font-size: 1.05rem;
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ga-skel {
+    animation: none !important;
+  }
 }
 .fade-enter-active,
 .fade-leave-active {

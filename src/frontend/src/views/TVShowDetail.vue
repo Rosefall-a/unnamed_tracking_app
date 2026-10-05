@@ -987,6 +987,7 @@ async function onRatingChange(value: number | null) {
 .hero {
   position: relative;
   background-size: cover;
+  background-repeat: no-repeat;
   background-position: center 25%;
   background-color: #1a1a1a;
   min-height: 440px;
@@ -1001,6 +1002,7 @@ async function onRatingChange(value: number | null) {
   position: absolute;
   inset: 0;
   background-size: cover;
+  background-repeat: no-repeat;
   background-position: center 20%;
   filter: brightness(0.55) saturate(1.15);
   z-index: 0;
@@ -1044,9 +1046,12 @@ async function onRatingChange(value: number | null) {
   flex-shrink: 0;
   border-radius: 8px;
   background-size: cover;
+  background-repeat: no-repeat;
+  background-origin: border-box;
+  background-clip: border-box;
   background-position: center;
   background-color: #222222;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid transparent;
   box-shadow: 0 24px 48px -14px rgba(0, 0, 0, 0.8);
   display: flex;
   align-items: center;
@@ -1360,9 +1365,12 @@ async function onRatingChange(value: number | null) {
   aspect-ratio: 2 / 3;
   border-radius: 8px;
   background-size: cover;
+  background-repeat: no-repeat;
+  background-origin: border-box;
+  background-clip: border-box;
   background-position: center;
   background-color: #222222;
-  border: 1px solid #2b2b2b;
+  border: 1px solid transparent;
   transition: border-color 0.15s ease;
 }
 .poster-card-sm:hover .poster-card-sm-art {

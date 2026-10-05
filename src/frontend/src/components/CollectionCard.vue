@@ -262,6 +262,7 @@ const displayName = computed(() =>
 }
 .cover-cell {
   background-size: cover;
+  background-repeat: no-repeat;
   background-position: center;
   background-color: #1c1c1c;
 }

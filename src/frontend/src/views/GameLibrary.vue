@@ -540,11 +540,31 @@ if (
 ) {
   sortBy.value = querySort as SortBy;
 }
-// arriving from Server Stats' tag chart (?tag=Name)
-const queryTag = route.query.tag;
-if (typeof queryTag === "string" && queryTag) {
-  genreFilter.value = queryTag;
+// arriving from a link (Server Stats' tag chart, or a genre, developer,
+// publisher, platform or series on a game's page): ?tag= ?company= ?platform=
+// ?series=. It shows exactly that, not that on top of whatever filters were
+// left on from last time.
+function applyLinkedFilter() {
+  if (route.path !== "/games") return;
+  const pick = (key: string) => {
+    const v = route.query[key];
+    return typeof v === "string" && v ? v : null;
+  };
+  const tag = pick("tag");
+  const company = pick("company");
+  const platform = pick("platform");
+  const series = pick("series");
+  if (!tag && !company && !platform && !series) return;
+  clearAllFilters();
+  if (tag) genreFilter.value = tag;
+  if (company) companyFilter.value = company;
+  if (platform) platformFilter.value = platform;
+  if (series) franchiseFilter.value = series;
+  showAdvancedFilters.value = true;
 }
+applyLinkedFilter();
+// the library is kept alive, so a link can arrive while it already exists
+watch(() => route.fullPath, applyLinkedFilter);
 
 const platformOptions = computed(() => {
   const set = new Set<string>(PLATFORM_OPTIONS);
@@ -3276,6 +3296,7 @@ function cardsInRow(rowIndex: number): Game[] {
   height: 260px;
   background-color: var(--surface-2);
   background-size: cover;
+  background-repeat: no-repeat;
   background-position: center;
 }
 .preview-banner-overlay {

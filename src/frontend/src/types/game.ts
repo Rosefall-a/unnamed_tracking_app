@@ -51,6 +51,8 @@ export interface Achievement {
   media?: string[];
 }
 
+import type { PageOverrides } from "../utils/gamePage";
+
 export interface GamePlatform {
   platform: string;
   playtimeMinutes: number;
@@ -81,6 +83,8 @@ export interface Game {
   // this game's Notes checklist and Screenshots gallery. Off by default
   // since most games never need more than one account tracked separately.
   profilesEnabled: boolean;
+  // this game's overrides of the page defaults (which tabs show, and so on)
+  pageSettings?: PageOverrides | null;
   // second, independent opt-in, accounts work for any game (checklist +
   // media grouping), but WiseOldMan sync/skill-boss icons on the Stats
   // card are OSRS-specific and would be noise on every other game

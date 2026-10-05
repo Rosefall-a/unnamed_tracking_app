@@ -9,6 +9,7 @@ import {
   fetchGame,
   fetchGameVariants,
   fetchGameAchievements,
+  fetchContentCounts,
   fetchGameFieldChanges,
   fetchGames,
   setFavorite,
@@ -26,6 +27,7 @@ import {
   updateMediaItem,
   updateGameFile,
   detectMediaDates,
+  saveClipThumbnail,
   uploadGameFiles,
   listGameFiles,
   deleteGameFile,
@@ -88,8 +90,14 @@ import SkeletonBlock from "../components/SkeletonBlock.vue";
 import MediaTile from "../components/MediaTile.vue";
 import GameMediaPanel from "../components/GameMediaPanel.vue";
 import { isGuess, unlockSeconds } from "../utils/mediaDate";
+import { normalizePlatformFamily } from "../utils/platforms";
+import { frameFromSource } from "../utils/videoThumbnail";
 import GameArchivesPanel from "../components/GameArchivesPanel.vue";
 import GameNotesPanel from "../components/GameNotesPanel.vue";
+import { preferences, preferencesLoaded } from "../state/preferences";
+import { OPTIONAL_TABS, resolvePage, planTabs } from "../utils/gamePage";
+import type { OptionalTab } from "../utils/gamePage";
+import type { ContentCounts } from "../utils/gamePage";
 import GameStatsPanel from "../components/GameStatsPanel.vue";
 import {
   startTask,
@@ -1045,21 +1053,31 @@ const tally = computed(() => (game.value ? computeScore(game.value) : null));
 
 // the developer and publisher sit by the title, the way Media shows an
 // alternate name, instead of in the details
-const heroCredits = computed(() =>
-  [
-    ...new Set(
-      [game.value?.developer, game.value?.publisher].filter(
-        (x): x is string => !!x,
-      ),
+const heroCredits = computed(() => [
+  ...new Set(
+    [game.value?.developer, game.value?.publisher].filter(
+      (x): x is string => !!x,
     ),
-  ].join(" · "),
-);
+  ),
+]);
+
+// A genre, developer, publisher, platform or series is a link to the library
+// with that filter on: click FromSoftware and see all their games.
+type LibraryFilter = "tag" | "company" | "platform" | "series";
+function libraryLink(filter: LibraryFilter, value: string) {
+  return {
+    path: "/games",
+    query: {
+      [filter]: filter === "platform" ? normalizePlatformFamily(value) : value,
+    },
+  };
+}
 
 // The parts of the score you have rated, named, in the order they're listed
 // elsewhere. Whole numbers show without a ".0".
 const ratingParts = computed(() => {
   const g = game.value;
-  if (!g) return [];
+  if (!g || pageSettings.value.hide_rating) return [];
   const shown = (n: number) => String(Number(n.toFixed(1)));
   return [
     { name: "Atmosphere", value: g.ratingOverall },
@@ -1099,27 +1117,29 @@ const overviewFacts = computed(() => {
   }[] = [];
   // your verdict first (score and where it ranks), then how you played it;
   // the individual ratings get their own row under these
-  facts.push(
-    tally.value
-      ? {
-          label: "Your score",
-          value: tally.value.sum.toFixed(1),
-          accent: true,
-        }
-      : { label: "Your score", value: "–", muted: true },
-  );
-  facts.push(
-    libraryRank.value !== null
-      ? { label: "Rank", value: `#${libraryRank.value}` }
-      : { label: "Rank", value: "–", muted: true },
-  );
+  if (!pageSettings.value.hide_rating) {
+    facts.push(
+      tally.value
+        ? {
+            label: "Your score",
+            value: tally.value.sum.toFixed(1),
+            accent: true,
+          }
+        : { label: "Your score", value: "–", muted: true },
+    );
+    facts.push(
+      libraryRank.value !== null
+        ? { label: "Rank", value: `#${libraryRank.value}` }
+        : { label: "Rank", value: "–", muted: true },
+    );
+  }
   const minutes = g.platforms.reduce((sum, p) => sum + p.playtimeMinutes, 0);
   facts.push(
     minutes > 0
       ? { label: "Playtime", value: formatPlaytime(minutes) }
       : { label: "Playtime", value: "–", muted: true },
   );
-  if (g.achievementTotal > 0)
+  if (g.achievementTotal > 0 && achievementsOn.value)
     facts.push({
       label: "Achievements",
       value: `${g.achievementPercent}%`,
@@ -1173,12 +1193,88 @@ const isMinecraftGame = computed(() => {
   const parentTitle = parentGameTitle.value ?? "";
   return /minecraft/i.test(title) || /minecraft/i.test(parentTitle);
 });
-const visibleTabs = computed(() =>
+// ---- what this page shows: the defaults from Settings, then this game's own
+// overrides. A tab can be shown, hidden, or shown once it has something in it.
+const contentCounts = ref<ContentCounts | null>(null);
+async function refreshCounts() {
+  if (!game.value) return;
+  const id = game.value.id;
+  try {
+    const counts = await fetchContentCounts(id);
+    if (game.value?.id === id) contentCounts.value = counts;
+  } catch {
+    // the tabs just stay as they are until the next try
+  }
+}
+const pageSettings = computed(() =>
+  resolvePage(preferences.value.game_page, game.value?.pageSettings),
+);
+const baseTabs = computed(() =>
   tabs.filter(
     (tab) =>
       (tab !== "World Map" || isMinecraftGame.value) &&
       (tab !== "Accounts" || game.value?.profilesEnabled),
   ),
+);
+const tabPlan = computed(() =>
+  game.value
+    ? planTabs(
+        baseTabs.value,
+        pageSettings.value,
+        contentCounts.value,
+        game.value,
+        activeTab.value,
+      )
+    : { visible: [...baseTabs.value] as string[], more: [] as string[] },
+);
+const visibleTabs = computed(
+  () => tabPlan.value.visible as (typeof tabs)[number][],
+);
+const moreTabs = computed(() => tabPlan.value.more as (typeof tabs)[number][]);
+const showMoreTabs = ref(false);
+function closeMoreTabs() {
+  showMoreTabs.value = false;
+}
+onMounted(() => document.addEventListener("click", closeMoreTabs));
+onUnmounted(() => document.removeEventListener("click", closeMoreTabs));
+function openMoreTab(tab: (typeof tabs)[number]) {
+  showMoreTabs.value = false;
+  activeTab.value = tab;
+}
+// With no Achievements tab there is nothing to tie things to or count, so
+// everything that depends on achievements steps aside too.
+const achievementsOn = computed(() => {
+  const mode = pageSettings.value.tabs.Achievements;
+  if (mode === "hide") return false;
+  if (mode === "show") return true;
+  return !!game.value && game.value.achievementTotal > 0;
+});
+const tieAchievements = computed(() =>
+  achievementsOn.value ? (game.value?.achievements ?? []) : [],
+);
+
+// Opens on the tab the page settings name (or the one a link asked for), once
+// for each game, when both the game and the settings have arrived.
+let openedFor: string | null = null;
+watch(
+  () => [game.value?.id, preferencesLoaded.value] as const,
+  ([id, ready]) => {
+    if (!id || !ready || openedFor === id) return;
+    openedFor = id;
+    void refreshCounts();
+    const asked = route.query.tab as string | undefined;
+    const wanted = asked ?? pageSettings.value.default_tab;
+    const hidden =
+      (OPTIONAL_TABS as readonly string[]).includes(wanted) &&
+      pageSettings.value.tabs[wanted as OptionalTab] === "hide";
+    if (
+      (tabs as readonly string[]).includes(wanted) &&
+      !(hidden && !asked) &&
+      baseTabs.value.includes(wanted as (typeof tabs)[number])
+    )
+      activeTab.value = wanted as (typeof tabs)[number];
+  },
+  { immediate: true },
 );
 
 // Screenshots/Clips/Soundtrack/Saves/Docs/World Map all share the same
@@ -1281,7 +1377,9 @@ watch(activeTab, (tab) => {
   }
   if (tab === "Screenshots" || tab === "Clips" || tab === "Soundtrack") {
     void loadProfiles();
-    void loadMedia();
+    // Screenshots, Clips and Soundtrack are one list, so it is loaded once for
+    // the game and switching between them does not reload (and flash) it
+    if (!game.value || mediaLoadedFor.value !== game.value.id) void loadMedia();
     void refreshMediaTrash();
   }
   if (tab === "Accounts") {
@@ -1340,6 +1438,9 @@ async function onMediaFilesSelected(files: File[]) {
         completeTask(taskId, summary);
       }
       await reloadMediaForCurrentTab();
+      // clips get their preview picture now, from the file in hand, so it is
+      // saved before anyone has to load the video to see it
+      void makeClipThumbnails(files, results);
     } catch (err) {
       // a network blip shouldn't force re-picking files from scratch
       errorTask(taskId, err instanceof Error ? err.message : "Upload failed");
@@ -1354,6 +1455,35 @@ async function onMediaFilesSelected(files: File[]) {
 function openAchievement(achievementId: string) {
   if (game.value)
     router.push(`/games/${game.value.id}/achievements/${achievementId}`);
+}
+
+const thumbnailing = new Set<string>();
+function applyClip(updated: MediaItem) {
+  const i = mediaItems.value.findIndex((m) => m.id === updated.id);
+  if (i !== -1) mediaItems.value[i] = updated;
+}
+async function keepThumbnail(item: MediaItem, blob: Blob, duration: number) {
+  if (!game.value || thumbnailing.has(item.id)) return;
+  thumbnailing.add(item.id);
+  try {
+    applyClip(await saveClipThumbnail(game.value.id, item.id, blob, duration));
+  } catch {
+    // the picture is a nicety; the clip still plays and will be tried again
+    thumbnailing.delete(item.id);
+  }
+}
+async function makeClipThumbnails(
+  files: File[],
+  results: { filename: string; status: string; kind?: string }[],
+) {
+  for (let i = 0; i < results.length; i++) {
+    const r = results[i];
+    if (r.status !== "saved" || r.kind !== "clip") continue;
+    const item = mediaItems.value.find((m) => m.filename === r.filename);
+    if (!item || item.thumbnail_url) continue;
+    const frame = await frameFromSource(files[i]);
+    if (frame) await keepThumbnail(item, frame.blob, frame.duration);
+  }
 }
 
 async function removeMedia(item: MediaItem) {
@@ -1537,6 +1667,7 @@ async function loadGameFiles(kind: FlatFileKind) {
 }
 
 watch(activeTab, (tab) => {
+  void refreshCounts();
   if (tab === "Docs") {
     void loadGameFiles("doc");
     void refreshFileTrash("doc");
@@ -2396,7 +2527,20 @@ function formatPlaytime(minutes: number) {
             }}</span>
             →
           </router-link>
-          <div v-if="heroCredits" class="native-title">{{ heroCredits }}</div>
+          <div
+            v-if="heroCredits.length && !pageSettings.hide_credits"
+            class="native-title"
+          >
+            <template v-for="(name, i) in heroCredits" :key="name">
+              <span v-if="i" class="credit-dot"> · </span>
+              <router-link
+                class="filter-link"
+                :to="libraryLink('company', name)"
+                :title="`All games by ${name}`"
+                >{{ name }}</router-link
+              >
+            </template>
+          </div>
           <h1 class="title">{{ game.title }}</h1>
           <div class="badge-row">
             <select
@@ -2414,6 +2558,7 @@ function formatPlaytime(minutes: number) {
               </option>
             </select>
             <GameRatingPicker
+              v-if="!pageSettings.hide_rating"
               :model-value="{
                 ratingOverall: game.ratingOverall,
                 ratingStory: game.ratingStory,
@@ -2422,14 +2567,21 @@ function formatPlaytime(minutes: number) {
               }"
               @change="onRatingsChange"
             />
-            <span v-if="game.dateAdded" class="badge">
+            <span
+              v-if="game.dateAdded && !pageSettings.hide_date_badge"
+              class="badge"
+            >
               {{ new Date(game.dateAdded).toLocaleDateString() }}
             </span>
-            <span v-if="game.platforms.length" class="badge">{{
-              game.platforms[0].platform
-            }}</span>
+            <router-link
+              v-if="game.platforms.length && !pageSettings.hide_platform_badge"
+              class="badge filter-badge"
+              :to="libraryLink('platform', game.platforms[0].platform)"
+              :title="`All ${normalizePlatformFamily(game.platforms[0].platform)} games`"
+              >{{ game.platforms[0].platform }}</router-link
+            >
             <button
-              v-if="game.achievementTotal > 0"
+              v-if="game.achievementTotal > 0 && achievementsOn"
               type="button"
               class="badge achievement-progress-badge"
               title="Jump to Achievements"
@@ -2470,6 +2622,7 @@ function formatPlaytime(minutes: number) {
               ✎ Edit
             </button>
             <button
+              v-if="!pageSettings.hide_favorite"
               class="icon-btn"
               :class="{ active: game.favorite }"
               type="button"
@@ -2481,6 +2634,7 @@ function formatPlaytime(minutes: number) {
               <HeartIcon :filled="game.favorite" />
             </button>
             <GameCollectionsButton
+              v-if="!pageSettings.hide_collections"
               :game="game"
               @changed="onCollectionsChanged"
             />
@@ -2501,6 +2655,25 @@ function formatPlaytime(minutes: number) {
         >
           {{ tab }}
         </button>
+        <div v-if="moreTabs.length" class="tab-more">
+          <button
+            type="button"
+            class="tab-btn tab-more-btn"
+            title="Tabs with nothing in them yet"
+            aria-haspopup="menu"
+            :aria-expanded="showMoreTabs"
+            @click.stop="showMoreTabs = !showMoreTabs"
+          >
+            +
+          </button>
+          <ul v-if="showMoreTabs" class="tab-more-menu" role="menu">
+            <li v-for="tab in moreTabs" :key="tab">
+              <button type="button" role="menuitem" @click="openMoreTab(tab)">
+                {{ tab }}
+              </button>
+            </li>
+          </ul>
+        </div>
       </nav>
     </div>
 
@@ -2534,9 +2707,14 @@ function formatPlaytime(minutes: number) {
       </div>
 
       <div v-if="mainTags.length" class="chip-row">
-        <span v-for="tag in mainTags" :key="tag" class="chip primary">{{
-          tag
-        }}</span>
+        <router-link
+          v-for="tag in mainTags"
+          :key="tag"
+          class="chip primary chip-link"
+          :to="libraryLink('tag', tag)"
+          :title="`All ${tag} games`"
+          >{{ tag }}</router-link
+        >
       </div>
 
       <div v-if="descriptionHtml" class="description-block">
@@ -2718,9 +2896,14 @@ function formatPlaytime(minutes: number) {
         <div v-if="moreTags.length || game.features.length" class="more-block">
           <h3 class="more-title">Tags and features</h3>
           <div class="chip-row">
-            <span v-for="tag in moreTags" :key="tag" class="chip">{{
-              tag
-            }}</span>
+            <router-link
+              v-for="tag in moreTags"
+              :key="tag"
+              class="chip chip-link"
+              :to="libraryLink('tag', tag)"
+              :title="`All ${tag} games`"
+              >{{ tag }}</router-link
+            >
             <span v-for="f in game.features" :key="f" class="chip">{{
               f
             }}</span>
@@ -2732,7 +2915,12 @@ function formatPlaytime(minutes: number) {
           <div class="kv-grid">
             <div v-if="game.series" class="kv-row">
               <span class="kv-label">Series</span>
-              <span class="kv-value">{{ game.series }}</span>
+              <router-link
+                class="kv-value filter-link"
+                :to="libraryLink('series', game.series)"
+                :title="`All games in ${game.series}`"
+                >{{ game.series }}</router-link
+              >
             </div>
             <div v-if="game.dateAdded" class="kv-row">
               <span class="kv-label">Added</span>
@@ -3171,7 +3359,12 @@ function formatPlaytime(minutes: number) {
     </section>
 
     <section v-else-if="activeTab === 'Notes'" class="notes-panel">
-      <GameNotesPanel :game-id="game.id" />
+      <GameNotesPanel
+        :game-id="game.id"
+        :achievements="tieAchievements"
+        :open-note="(route.query.note as string | undefined) ?? null"
+        @open-achievement="openAchievement"
+      />
     </section>
 
     <section v-else-if="activeTab === 'Accounts'" class="accounts-panel">
@@ -3482,7 +3675,7 @@ function formatPlaytime(minutes: number) {
                 v-for="item in accountMediaFiltered"
                 :key="item.id"
                 :item="item"
-                :achievements="game.achievements"
+                :achievements="tieAchievements"
                 :profiles="profiles"
                 @preview="onPreviewMedia($event.url)"
                 @delete="removeMedia"
@@ -3760,9 +3953,9 @@ function formatPlaytime(minutes: number) {
               : soundtrackItems
         "
         :trash="activeTabTrash"
-        :achievements="game.achievements"
+        :achievements="tieAchievements"
         :profiles="game.profilesEnabled ? profiles : undefined"
-        :loading="mediaLoading"
+        :loading="mediaLoadedFor !== game.id && !mediaError"
         :uploading="uploadingMedia"
         :error="mediaError"
         @files="onMediaFilesSelected"
@@ -3774,6 +3967,7 @@ function formatPlaytime(minutes: number) {
         @bulk-detect="detectMany"
         @restore="restoreMediaItem"
         @open-achievement="openAchievement"
+        @thumbnail="keepThumbnail"
         @problem="mediaError = $event"
       />
     </section>
@@ -4073,6 +4267,9 @@ function formatPlaytime(minutes: number) {
 
     <section v-else-if="activeTab === 'Stats'" class="stats-panel">
       <GameStatsPanel
+        :show-achievements="achievementsOn"
+        :show-rating="!pageSettings.hide_rating"
+        :hide-history="pageSettings.hide_history"
         :game="game"
         :changes="fieldChanges"
         :media="mediaItems"
@@ -4121,6 +4318,7 @@ function formatPlaytime(minutes: number) {
   position: absolute;
   inset: 0;
   background-size: cover;
+  background-repeat: no-repeat;
   background-position: center 20%;
   filter: brightness(0.55) saturate(1.15);
   z-index: 0;
@@ -4160,9 +4358,12 @@ function formatPlaytime(minutes: number) {
   flex-shrink: 0;
   border-radius: 8px;
   background-size: cover;
+  background-repeat: no-repeat;
+  background-origin: border-box;
+  background-clip: border-box;
   background-position: center;
   background-color: #222222;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid transparent;
   box-shadow: 0 24px 48px -14px rgba(0, 0, 0, 0.8);
   display: flex;
   align-items: center;
@@ -4348,6 +4549,44 @@ function formatPlaytime(minutes: number) {
 .meta {
   text-transform: capitalize;
   color: #ddd;
+}
+.tab-more {
+  position: relative;
+  flex-shrink: 0;
+}
+.tab-more-btn {
+  min-width: 36px;
+  font-size: 1.05rem;
+  line-height: 1;
+}
+.tab-more-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 60;
+  min-width: 150px;
+  list-style: none;
+  margin: 0;
+  padding: 6px;
+  background: #171717;
+  border: 1px solid #2b2b2b;
+  border-radius: 12px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+}
+.tab-more-menu button {
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: #ddd;
+  font-family: inherit;
+  font-size: 0.84rem;
+  text-align: left;
+  cursor: pointer;
+}
+.tab-more-menu button:hover {
+  background: rgba(255, 255, 255, 0.07);
 }
 .tabbar-wrap {
   position: relative;
@@ -4796,6 +5035,48 @@ function formatPlaytime(minutes: number) {
   font-size: 0.78rem;
   font-weight: 600;
 }
+.filter-link {
+  color: inherit;
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition:
+    color 0.15s ease,
+    border-color 0.15s ease;
+}
+.filter-link:hover,
+.filter-link:focus-visible {
+  color: #d68a34;
+  border-bottom-color: rgba(214, 138, 52, 0.5);
+  outline: none;
+}
+.credit-dot {
+  opacity: 0.6;
+}
+.badge.filter-badge {
+  text-decoration: none;
+  transition:
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+.badge.filter-badge:hover,
+.badge.filter-badge:focus-visible {
+  color: #d68a34;
+  border-color: rgba(214, 138, 52, 0.5);
+  outline: none;
+}
+.chip.chip-link {
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+.chip.chip-link:hover,
+.chip.chip-link:focus-visible {
+  border-color: rgba(214, 138, 52, 0.6);
+  color: #fff;
+  outline: none;
+}
 .chip.primary {
   background: rgba(214, 138, 52, 0.16);
   color: #d68a34;
@@ -4830,9 +5111,12 @@ function formatPlaytime(minutes: number) {
   aspect-ratio: 2 / 3;
   border-radius: 8px;
   background-size: cover;
+  background-repeat: no-repeat;
+  background-origin: border-box;
+  background-clip: border-box;
   background-position: center;
   background-color: #222222;
-  border: 1px solid #2b2b2b;
+  border: 1px solid transparent;
   transition: border-color 0.15s ease;
 }
 .poster-card-sm:hover .poster-card-sm-art {
@@ -5024,6 +5308,7 @@ function formatPlaytime(minutes: number) {
   border-radius: 10px;
   background-color: #2a2a2a;
   background-size: cover;
+  background-repeat: no-repeat;
   background-position: center;
 }
 .ach-row.lock .ach-icon {

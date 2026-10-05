@@ -13,13 +13,20 @@ import type { Game } from "../types/game";
 import type { FieldChange } from "../services/games";
 import type { MediaItem } from "../services/media";
 
-const props = defineProps<{
-  game: Game;
-  changes: FieldChange[];
-  media: MediaItem[];
-  loading: boolean;
-  error: string | null;
-}>();
+const props = withDefaults(
+  defineProps<{
+    game: Game;
+    changes: FieldChange[];
+    media: MediaItem[];
+    loading: boolean;
+    error: string | null;
+    // what the game's page settings leave out
+    showAchievements?: boolean;
+    showRating?: boolean;
+    hideHistory?: boolean;
+  }>(),
+  { showAchievements: true, showRating: true, hideHistory: false },
+);
 
 // ---------------------------------------------------------------- stats ----
 const minutes = computed(() =>
@@ -108,31 +115,41 @@ const purchase = computed(() => {
   return bits.length ? bits.join(" · ") : "N/A";
 });
 
-const summary = computed(() => [
-  { label: "Playtime", value: playtime.value, sub: platformsLabel() },
-  {
-    label: "Achievements",
-    value: props.game.achievementTotal
-      ? `${unlocked.value.length} / ${props.game.achievementTotal}`
-      : "N/A",
-    sub: props.game.achievementTotal
-      ? `${props.game.achievementPercent}% complete`
-      : "",
-    progress: props.game.achievementTotal
-      ? Math.min(100, props.game.achievementPercent)
-      : null,
-  },
-  {
-    label: "Rating",
-    value: tally.value ? `${tally.value.sum.toFixed(1)}` : "Not rated",
-    sub: tally.value ? `out of ${tally.value.max}` : "",
-  },
-  {
-    label: "Status",
-    value: STATUS_LABEL[props.game.status] ?? props.game.status,
-    sub: props.game.source ? `from ${props.game.source}` : "",
-  },
-]);
+const summary = computed(() =>
+  [
+    { label: "Playtime", value: playtime.value, sub: platformsLabel() },
+    {
+      key: "achievements",
+      label: "Achievements",
+      value: props.game.achievementTotal
+        ? `${unlocked.value.length} / ${props.game.achievementTotal}`
+        : "N/A",
+      sub: props.game.achievementTotal
+        ? `${props.game.achievementPercent}% complete`
+        : "",
+      progress: props.game.achievementTotal
+        ? Math.min(100, props.game.achievementPercent)
+        : null,
+    },
+    {
+      key: "rating",
+      label: "Rating",
+      value: tally.value ? `${tally.value.sum.toFixed(1)}` : "Not rated",
+      sub: tally.value ? `out of ${tally.value.max}` : "",
+    },
+    {
+      label: "Status",
+      value: STATUS_LABEL[props.game.status] ?? props.game.status,
+      sub: props.game.source ? `from ${props.game.source}` : "",
+    },
+  ].filter(
+    (s) =>
+      !(s as { key?: string }).key ||
+      ((s as { key?: string }).key === "achievements" &&
+        props.showAchievements) ||
+      ((s as { key?: string }).key === "rating" && props.showRating),
+  ),
+);
 function platformsLabel(): string {
   const p = props.game.platforms.filter((x) => x.playtimeMinutes > 0);
   return p.length > 1 ? p.map((x) => x.platform).join(", ") : "";
@@ -143,21 +160,25 @@ const facts = computed(() => {
     { label: "Added", value: day(when(props.game.dateAdded)) },
     { label: "Purchased", value: purchase.value },
     { label: "Last played", value: day(when(props.game.lastPlayedAt)) },
-    { label: "First achievement", value: day(firstUnlock.value) },
-    { label: "Latest achievement", value: day(lastUnlock.value) },
+    ...(props.showAchievements
+      ? [
+          { label: "First achievement", value: day(firstUnlock.value) },
+          { label: "Latest achievement", value: day(lastUnlock.value) },
+        ]
+      : []),
   ];
-  if (props.game.completionDate)
+  if (props.game.completionDate && props.showAchievements)
     list.push({
       label: "Completed",
       value: day(when(props.game.completionDate)),
     });
-  if (rarest.value)
+  if (rarest.value && props.showAchievements)
     list.push({
       label: "Rarest unlocked",
       value: rarest.value.name,
       note: `${rarest.value.rarityPercent}% of players`,
     });
-  if (busiest.value)
+  if (busiest.value && props.showAchievements)
     list.push({
       label: "Busiest day",
       value: dayFmt.format(new Date(busiest.value.key)),
@@ -270,6 +291,7 @@ function list(names: string[], max = 2): string {
 
 const entries = computed<Entry[]>(() => {
   const out: Entry[] = [];
+  if (props.hideHistory) return out;
 
   const added = when(props.game.dateAdded);
   if (added !== null)
@@ -515,17 +537,22 @@ const entries = computed<Entry[]>(() => {
       details: [],
     });
 
-  return out.sort((a, b) => b.at - a.at);
+  return out
+    .filter((e) => props.showAchievements || e.group !== "achievements")
+    .sort((a, b) => b.at - a.at);
 });
 
 const filter = ref<Filter>("all");
-const FILTERS: { key: Filter; label: string }[] = [
+const ALL_FILTERS: { key: Filter; label: string }[] = [
   { key: "all", label: "All" },
   { key: "achievements", label: "Achievements" },
   { key: "library", label: "Library" },
   { key: "metadata", label: "Metadata" },
   { key: "media", label: "Media" },
 ];
+const FILTERS = computed(() =>
+  ALL_FILTERS.filter((f) => f.key !== "achievements" || props.showAchievements),
+);
 const counts = computed(() => {
   const c: Record<Filter, number> = {
     all: entries.value.length,
@@ -607,7 +634,7 @@ const ICONS: Record<string, string> = {
     </section>
 
     <section
-      v-if="monthly.length > 1"
+      v-if="monthly.length > 1 && showAchievements"
       class="gs-chart"
       aria-label="Achievements by month"
     >
@@ -626,7 +653,7 @@ const ICONS: Record<string, string> = {
       </div>
     </section>
 
-    <section class="gs-timeline" aria-label="History">
+    <section v-if="!hideHistory" class="gs-timeline" aria-label="History">
       <div class="gs-tl-head">
         <h2>History</h2>
         <div class="gs-chips" role="group" aria-label="Filter history">

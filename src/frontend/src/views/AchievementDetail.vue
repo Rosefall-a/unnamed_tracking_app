@@ -1,7 +1,12 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { fetchGame, fetchGameAchievements } from "../services/games";
+import {
+  fetchGame,
+  fetchGameAchievements,
+  listGameNoteSummaries,
+} from "../services/games";
+import type { GameNoteSummary } from "../services/games";
 import { isUnlocked } from "../utils/achievements";
 import {
   listGameScreenshots,
@@ -81,6 +86,26 @@ function saveNote() {
 // Media here is the game's own uploads (the Screenshots, Clips and
 // Soundtrack tabs) that are tied to this achievement. Adding one uploads it
 // to the game and ties it to this achievement in one step.
+// notes written about this achievement, from the game's Notes tab
+const tiedNotes = ref<GameNoteSummary[]>([]);
+async function loadTiedNotes() {
+  try {
+    const all = await listGameNoteSummaries(route.params.gameId as string);
+    tiedNotes.value = all.filter(
+      (n) => n.linked_achievement_id === route.params.achievementId,
+    );
+  } catch {
+    tiedNotes.value = [];
+  }
+}
+watch(() => route.params.achievementId, loadTiedNotes, { immediate: true });
+function openNote(name: string) {
+  void router.push({
+    path: `/games/${route.params.gameId}`,
+    query: { tab: "Notes", note: name },
+  });
+}
+
 const linkedMedia = ref<MediaItem[]>([]);
 const mediaError = ref<string | null>(null);
 const mediaBusy = ref(false);
@@ -202,6 +227,23 @@ function goBack() {
       </button>
     </section>
 
+    <section v-if="tiedNotes.length" class="detail-section">
+      <h2>Notes about this</h2>
+      <ul class="tied-notes">
+        <li v-for="n in tiedNotes" :key="n.name">
+          <button type="button" @click="openNote(n.name)">
+            <strong>{{ n.name }}</strong>
+            <span>{{
+              n.preview
+                .replace(/[#*_`>\-]/g, "")
+                .trim()
+                .slice(0, 140)
+            }}</span>
+          </button>
+        </li>
+      </ul>
+    </section>
+
     <section class="detail-section">
       <h2>Media</h2>
       <label class="add-media">
@@ -283,6 +325,7 @@ function goBack() {
   height: 96px;
   border-radius: 14px;
   background-size: cover;
+  background-repeat: no-repeat;
   background-position: center;
   flex-shrink: 0;
 }
@@ -419,5 +462,39 @@ function goBack() {
   max-width: 100%;
   max-height: 100%;
   border-radius: 8px;
+}
+.tied-notes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.tied-notes button {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+  background: #161616;
+  border: 1px solid #262626;
+  border-radius: 10px;
+  color: inherit;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.tied-notes button:hover {
+  border-color: rgba(214, 138, 52, 0.5);
+}
+.tied-notes strong {
+  font-size: 0.92rem;
+  color: #f2f2f2;
+}
+.tied-notes span {
+  font-size: 0.8rem;
+  color: #888;
+  overflow-wrap: anywhere;
 }
 </style>

@@ -803,6 +803,7 @@ async function restoreItem(item: TrashedInboxItem) {
   height: 34px;
   border-radius: 4px;
   background-size: cover;
+  background-repeat: no-repeat;
   background-position: center;
   flex-shrink: 0;
 }
@@ -879,6 +880,7 @@ async function restoreItem(item: TrashedInboxItem) {
   height: 40px;
   border-radius: 4px;
   background-size: cover;
+  background-repeat: no-repeat;
   background-position: center;
   flex-shrink: 0;
 }

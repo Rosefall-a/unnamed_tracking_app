@@ -380,6 +380,10 @@ async def list_all_media(
             "title": item.title,
             "taken_at": item.taken_at,
             "taken_source": item.taken_source,
+            "thumbnail_url": f"/api/game/{item.game_id}/thumbnails/{item.id}"
+            if item.thumb_filename
+            else None,
+            "duration": item.duration,
         }
         for item, game_title in rows
     ]

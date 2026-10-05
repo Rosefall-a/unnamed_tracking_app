@@ -18,6 +18,8 @@ from src.api.routes import (
     default_game_assets,
     export_import,
     game_archives,
+    game_notes,
+    game_page,
     games,
     jobs,
     library_sync,
@@ -85,6 +87,8 @@ app.include_router(movies.router)
 app.include_router(tv_shows.router)
 app.include_router(anime.router)
 app.include_router(game_archives.router)
+app.include_router(game_notes.router)
+app.include_router(game_page.router)
 app.include_router(users.router)
 app.include_router(api_keys.router)
 app.include_router(auth.router)

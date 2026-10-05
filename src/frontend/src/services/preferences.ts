@@ -1,4 +1,7 @@
 // Server-side per-user preferences. Defaults live on the server; this only carries the shape.
+import { DEFAULT_PAGE_SETTINGS } from "../utils/gamePage";
+import type { PageSettings } from "../utils/gamePage";
+
 export interface Preferences {
   calendar_game_releases: boolean;
   calendar_game_history: boolean;
@@ -23,6 +26,8 @@ export interface Preferences {
   anilist_import_interval_minutes: number;
   anilist_import_update_existing: boolean;
   anilist_import_last_run_at: number | null;
+  // what every game page shows; a game can override it
+  game_page: PageSettings;
 }
 
 export const DEFAULT_PREFERENCES: Preferences = {
@@ -49,6 +54,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   anilist_import_interval_minutes: 1440,
   anilist_import_update_existing: false,
   anilist_import_last_run_at: null,
+  game_page: DEFAULT_PAGE_SETTINGS,
 };
 
 export async function fetchPreferences(): Promise<Preferences> {

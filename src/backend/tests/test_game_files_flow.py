@@ -13,7 +13,7 @@ from fastapi import Response
 from PIL import Image
 from sqlalchemy import delete
 
-from src.api.routes import game_archives, games
+from src.api.routes import game_archives, game_notes as game_notes_routes, game_page, games
 from src.api.schemas.game import GameCreate
 from src.core.auth import get_current_user
 from src.database.models.user import User
@@ -26,6 +26,8 @@ from tests.test_media_dates import _mp4_with_creation, utc
 async def flow(tmp_path, monkeypatch):
     monkeypatch.setattr(games, "_DATA_ROOT", tmp_path)
     monkeypatch.setattr(game_archives, "_DATA_ROOT", tmp_path)
+    monkeypatch.setattr(game_notes_routes, "_DATA_ROOT", tmp_path)
+    monkeypatch.setattr(game_page, "_DATA_ROOT", tmp_path)
     monkeypatch.setattr(games, "create_game_folder", lambda *_a: None)
     async with SessionLocal() as db:
         user = User(
@@ -47,7 +49,9 @@ async def flow(tmp_path, monkeypatch):
         game_id = game.id
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
-        yield SimpleNamespace(client=client, game=f"/api/game/{game_id}", tmp=tmp_path)
+        yield SimpleNamespace(
+            client=client, game=f"/api/game/{game_id}", game_id=game_id, user_id=user_id, tmp=tmp_path
+        )
     app.dependency_overrides.pop(get_current_user, None)
     async with SessionLocal() as db:
         await db.execute(delete(User).where(User.id == user_id))
@@ -208,3 +212,55 @@ async def test_saves_are_named_archives_with_versions(flow) -> None:
     restored = await flow.client.post(f"{flow.game}/archives/{archive['id']}/restore")
     assert restored.status_code == 200, restored.text
     assert len((await flow.client.get(f"{flow.game}/archives/save")).json()) == 1
+
+
+async def test_a_clip_keeps_its_thumbnail_and_length(flow) -> None:
+    from tests.test_media_dates import _mp4_with_creation, utc
+
+    clip = _mp4_with_creation(utc(2026, 5, 15, 19, 10, 11))
+    uploaded = await flow.client.post(
+        f"{flow.game}/screenshots", files=[("files", ("run.mp4", clip, "video/mp4"))]
+    )
+    assert uploaded.status_code == 200, uploaded.text
+    media = (await flow.client.get(f"{flow.game}/screenshots")).json()["media"]
+    item = media[0]
+    assert item["thumbnail_url"] is None and item["duration"] is None
+
+    # a wide picture is stored shrunk to 640 across, as a JPEG
+    wide = io.BytesIO()
+    Image.new("RGB", (1920, 1080), (200, 100, 20)).save(wide, "PNG")
+    saved = await flow.client.post(
+        f"{flow.game}/thumbnails/{item['id']}",
+        files={"file": ("frame.png", wide.getvalue(), "image/png")},
+        data={"duration": "93.5"},
+    )
+    assert saved.status_code == 200, saved.text
+    assert saved.json()["duration"] == 93.5
+    assert saved.json()["thumbnail_url"] == f"{flow.game}/thumbnails/{item['id']}"
+
+    shown = await flow.client.get(saved.json()["thumbnail_url"])
+    assert shown.status_code == 200 and shown.headers["content-type"] == "image/jpeg"
+    assert "immutable" in shown.headers["cache-control"]
+    with Image.open(io.BytesIO(shown.content)) as picture:
+        assert picture.size == (640, 360)
+
+    # the list now carries both, so nothing has to load the video to show them
+    again = (await flow.client.get(f"{flow.game}/screenshots")).json()["media"][0]
+    assert again["thumbnail_url"] and again["duration"] == 93.5
+
+    refused = await flow.client.post(
+        f"{flow.game}/thumbnails/{item['id']}",
+        files={"file": ("frame.png", b"not a picture", "image/png")},
+    )
+    assert refused.status_code == 400
+    # only clips have thumbnails
+    png = io.BytesIO()
+    Image.new("RGB", (4, 4)).save(png, "PNG")
+    await flow.client.post(
+        f"{flow.game}/screenshots", files=[("files", ("shot.png", png.getvalue(), "image/png"))]
+    )
+    shot = [m for m in (await flow.client.get(f"{flow.game}/screenshots")).json()["media"] if m["kind"] == "screenshot"][0]
+    wrong = await flow.client.post(
+        f"{flow.game}/thumbnails/{shot['id']}", files={"file": ("f.png", png.getvalue(), "image/png")}
+    )
+    assert wrong.status_code == 404
