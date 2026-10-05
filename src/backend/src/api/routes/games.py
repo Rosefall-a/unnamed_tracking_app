@@ -1,7 +1,6 @@
 """API routes for managing games, notes, and game artwork."""
 
 import asyncio
-import os
 import re
 import time
 from pathlib import Path
@@ -48,13 +47,10 @@ from src.database.models.game import Game, GameLink, GameStatus
 from src.database.models.game_checklist_item import GameChecklistItem
 from src.database.models.game_field_change import GameFieldChange
 from src.database.models.game_file_item import GameFileItem
-from src.database.models.game_profile import GameProfile
-from src.database.models.game_profile_stat_snapshot import GameProfileStatSnapshot
 from src.database.models.media_item import MediaItem
 from src.database.models.user import User
 from src.database.models.user_scan_settings import UserScanSettings
 from src.database.session import get_db
-from src.features.metadata.games import wiseoldman
 from src.features.metadata.games.search import search_game_metadata
 from src.features.trash.game_trash import move_game_to_trash, restore_game_from_trash
 from src.features.trash.media_trash import move_media_file_to_trash, restore_media_file_from_trash
@@ -66,12 +62,16 @@ from src.helpers.save_game_asset import (
     create_game_folder,
     save_game_asset,
 )
+from src.api.routes.game_notes import router as game_notes_router
+from src.api.routes.game_profiles import router as game_profiles_router
 
 router = APIRouter(
     prefix="/api/game",
     tags=["game"],
     dependencies=[Depends(get_current_user)],
 )
+router.include_router(game_notes_router)
+router.include_router(game_profiles_router)
 
 _DATA_ROOT = Path("/data/users")
 _NOTE_NAME_PATTERN = re.compile(r"^[^\x00-\x1f\x7f/\\]+$")
@@ -330,46 +330,6 @@ async def _ensure_folder_location_available(
         raise _duplicate_folder_error(folder_name)
 
 
-def _normalize_note_name(note_name: str) -> str:
-    normalized = note_name.strip()
-    if normalized.lower().endswith(".md"):
-        normalized = normalized[:-3]
-
-    if (
-        not normalized
-        or normalized in {".", ".."}
-        or normalized.startswith(".")
-        or normalized.endswith(".")
-        or normalized.endswith(" ")
-        or ":" in normalized
-        or not _NOTE_NAME_PATTERN.fullmatch(normalized)
-        or re.fullmatch(r"(?i)(con|prn|aux|nul|com[1-9]|lpt[1-9])", normalized)
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail={
-                "error": "invalid_note_name",
-                "message": (
-                    "Note title must be a normal file name: spaces and common punctuation are allowed, "
-                    "but path separators, control characters, absolute paths, drive-style names, "
-                    "and path-like titles are not allowed."
-                ),
-            },
-        )
-    return normalized
-
-
-def _game_note_path(game: Game, note_name: str) -> Path:
-    if not game.folder_location:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Game folder_location is missing.",
-        )
-
-    note_file_name = f"{_normalize_note_name(note_name)}.md"
-    note_dir = _DATA_ROOT / str(game.user_id) / "games" / game.folder_location / "notes"
-    note_dir.mkdir(parents=True, exist_ok=True)
-    return note_dir / note_file_name
 
 
 async def _get_game_or_404(
