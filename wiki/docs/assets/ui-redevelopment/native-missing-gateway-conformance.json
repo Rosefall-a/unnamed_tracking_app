@@ -1,0 +1,25 @@
+{
+  "status": "passed",
+  "host_source_head": "dd457b9d9ec7abc7e1b22655c3962b0a78616b23",
+  "gateway_state": "missing",
+  "checks": [
+    "Real missing production callback produces prominent manager guidance and inline 503 errors on native Jellyfin and Session Manager pages at 320/1440; no invalid-action 422 or hidden main-page message."
+  ],
+  "captures": [
+    "gateway-missing-manager-320-light.png",
+    "gateway-missing-jellyfin-admin-320-light.png",
+    "gateway-missing-jellyfin-accounts-320-light.png",
+    "gateway-missing-sessions-320-light.png",
+    "gateway-missing-admin-sessions-320-light.png",
+    "gateway-missing-manager-1440-dark.png",
+    "gateway-missing-jellyfin-admin-1440-dark.png",
+    "gateway-missing-jellyfin-accounts-1440-dark.png",
+    "gateway-missing-sessions-1440-dark.png",
+    "gateway-missing-admin-sessions-1440-dark.png"
+  ],
+  "layout_demo_overlays_disabled": [
+    "example.help-button",
+    "example.shortcut-playground",
+    "example.ui-playground"
+  ]
+}

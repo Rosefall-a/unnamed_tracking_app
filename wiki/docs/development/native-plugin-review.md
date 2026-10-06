@@ -109,7 +109,7 @@ configured backend Pylint remains 9.11/10.
 ## Production sidebar access and overflow
 
 Committed production image `47e93aeb` passes all 24 pinned, rail and overlay
-layouts in Chromium and WebKit, from 200 × 280 to 1920 × 1050 pixels. The resize
+layouts in Chromium and WebKit, from 200 Ã— 280 to 1920 Ã— 1050 pixels. The resize
 handle stays inside the sidebar, sticky toolbars leave the hamburger accessible,
 and short menus scroll to their library, settings and account controls.
 
@@ -122,3 +122,47 @@ The reproducible checker is `tools/check_sidebar_layouts.mjs`.
 ![Phone sidebar with long-label stress fixtures](../assets/ui-redevelopment/sidebar-overlay-320-webkit.png)
 
 ![Desktop overlay sidebar with long-label stress fixtures](../assets/ui-redevelopment/sidebar-overlay-1440-webkit.png)
+
+## Current CI packages and gateway repair
+
+Production host/runtime source `dd457b9d` and companion source `34852cf` pass
+all 32 install/start cases from the downloaded `unsigned-dist` and
+`validated-plugin-distribution` CI artifacts. The
+[current package report](../assets/ui-redevelopment/current-ci-package-conformance.json)
+records artifact identities, archive digests, versions and running health. These
+are actual production packages, with administrator-reviewed reduced isolation,
+no `NONBUBBLE_ENV`, and media-writing access withheld.
+
+The [gateway report](../assets/ui-redevelopment/gateway-production-conformance.json)
+reproduces missing callback configuration on three actual plugin actions, repairs
+it using only the app's explicit callback setting, then restarts the runtime.
+Jellyfin, Session Manager and Archive return HTTP 200 after both repair and
+restart while the runtime callback environment variable remains omitted.
+The missing case returns actionable HTTP 503 guidance; the
+[missing-configuration browser report](../assets/ui-redevelopment/native-missing-gateway-conformance.json)
+checks the prominent manager warning and errors inside the active native page.
+
+![Missing callback guidance in Plugin Manager](../assets/ui-redevelopment/gateway-missing-manager-1440-dark.png)
+
+The [native page report](../assets/ui-redevelopment/native-current-ci-conformance.json)
+checks twenty loaded Jellyfin, Session Manager and Document Browser settings
+pages at 320, 390, 1440 and 1920 pixels in light and dark modes. The public
+`tools/check_native_plugin_ui.mjs` checker uses the real authenticated production
+host and installed plugin actions.
+
+![Current CI Jellyfin native settings](../assets/ui-redevelopment/gateway-jellyfin-settings-1440-light.png)
+
+![Current CI Document Browser settings on a phone](../assets/ui-redevelopment/gateway-document-settings-390-dark.png)
+
+Archive 0.0.2 contributes Cards, Sets and Bounties directly under Games, with
+import directly under Account. The
+[current Archive production report](../assets/ui-redevelopment/collector-current-production-conformance.json)
+also checks legacy import, owned records, card/set editors, bounty objectives and
+idempotent rewards, cross-user denial, global search, Home goals/reminders and
+live disable/re-enable behavior. Six loaded native pages pass all four recorded
+phone/desktop layouts.
+
+![Flat Archive navigation](../assets/ui-redevelopment/archive-flat-navigation-1440-dark.png)
+
+This milestone does not close the subsequently reported appearance-selection
+and Session Manager content-width issues; those remain in the progress queue.
