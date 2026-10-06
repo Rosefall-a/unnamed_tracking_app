@@ -69,6 +69,7 @@ from .compatibility import (
     manifest_compatibility_checks,
     plugin_contract_compatibility_reason,
 )
+from .dependency_graph import walk_dependency_graph
 from .ui_contracts import (
     HostExtensionSlot,
     HostPage,
@@ -225,19 +226,9 @@ def resolve_plugin_dependencies(
                     f"matching {dependency.version_range}, found {target.version}"
                 )
 
-    visiting: set[str] = set()
-    visited: set[str] = set()
-    order: list[str] = []
-
-    def visit(plugin_id: str, path: tuple[str, ...]) -> None:
-        if plugin_id in visiting:
-            cycle = " -> ".join((*path, plugin_id))
-            raise DependencyResolutionError(f"dependency cycle detected: {cycle}")
-        if plugin_id in visited:
-            return
-        visiting.add(plugin_id)
+    def dependencies(plugin_id: str) -> list[str]:
         manifest = by_id[plugin_id]
-        dependencies = sorted(
+        return sorted(
             (
                 dependency.plugin_id
                 for dependency in manifest.dependencies
@@ -251,15 +242,13 @@ def resolve_plugin_dependencies(
                 )
             ),
         )
-        for dependency_id in dependencies:
-            visit(dependency_id, (*path, plugin_id))
-        visiting.remove(plugin_id)
-        visited.add(plugin_id)
-        order.append(plugin_id)
 
-    for plugin_id in sorted(by_id):
-        visit(plugin_id, ())
-    return tuple(order)
+    def report_cycle(path: tuple[str, ...]) -> None:
+        cycle = " -> ".join(path)
+        raise DependencyResolutionError(f"dependency cycle detected: {cycle}")
+
+    order, _visited = walk_dependency_graph(sorted(by_id), dependencies, report_cycle)
+    return order
 
 
 __all__ = [

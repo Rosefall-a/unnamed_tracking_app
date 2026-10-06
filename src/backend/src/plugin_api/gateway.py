@@ -18,7 +18,6 @@ from uuid import NAMESPACE_URL, UUID, uuid5
 from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import raiseload
 
 from src.api.routes.settings import (
     get_or_create_app_integration_settings,
@@ -48,6 +47,7 @@ from src.plugin_api.documents import (
     DocumentAccessError,
     document_path,
     owned_document,
+    owned_documents_query,
     read_representation,
 )
 from src.plugin_api.game_library import dispatch_game_library
@@ -311,15 +311,7 @@ async def _list_documents(
     offset = max(0, int(payload.get("offset", 0)))
     document_rows = (
         await db.execute(
-            select(GameFileItem, Game)
-            .options(raiseload("*"))
-            .join(Game, Game.id == GameFileItem.game_id)
-            .where(
-                Game.user_id == user_id,
-                Game.deleted_at.is_(None),
-                GameFileItem.kind == "doc",
-                GameFileItem.deleted_at.is_(None),
-            )
+            owned_documents_query(user_id)
             .order_by(Game.sort_title, GameFileItem.filename, GameFileItem.id)
             .offset(offset)
             .limit(limit)

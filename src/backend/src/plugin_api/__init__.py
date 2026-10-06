@@ -121,6 +121,8 @@ from .validation import (
     validation_event,
 )
 
+# Compatibility exports deliberately repeat the defining modules' explicit public names.
+# pylint: disable=duplicate-code
 __all__ = [
     "API_VERSION",
     "PLUGIN_API_CONTRACT_VERSION",
@@ -227,3 +229,4 @@ __all__ = [
     "ValidationGatewayError",
     "validation_event",
 ]
+# pylint: enable=duplicate-code

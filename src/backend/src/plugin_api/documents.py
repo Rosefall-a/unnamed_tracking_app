@@ -15,7 +15,7 @@ from pathlib import Path
 from urllib.parse import unquote
 from xml.etree import ElementTree
 
-from sqlalchemy import select
+from sqlalchemy import Select, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import raiseload
 
@@ -64,23 +64,27 @@ MAX_OFFICE_EXPANDED_BYTES = 20 * 1024 * 1024
 MAX_OFFICE_XML_BYTES = 2 * 1024 * 1024
 
 
+def owned_documents_query(user_id: object) -> Select[tuple[GameFileItem, Game]]:
+    """Apply the persisted owner/live-document boundary for listing and individual reads."""
+    return (
+        select(GameFileItem, Game)
+        .options(raiseload("*"))
+        .join(Game, Game.id == GameFileItem.game_id)
+        .where(
+            Game.user_id == user_id,
+            Game.deleted_at.is_(None),
+            GameFileItem.kind == "doc",
+            GameFileItem.deleted_at.is_(None),
+        )
+    )
+
+
 async def owned_document(
     db: AsyncSession, user_id: object, document_id: object
 ) -> tuple[GameFileItem, Game] | None:
     """Share the same persisted ownership boundary for reads and downloads."""
     row = (
-        await db.execute(
-            select(GameFileItem, Game)
-            .options(raiseload("*"))
-            .join(Game, Game.id == GameFileItem.game_id)
-            .where(
-                GameFileItem.id == document_id,
-                GameFileItem.kind == "doc",
-                GameFileItem.deleted_at.is_(None),
-                Game.user_id == user_id,
-                Game.deleted_at.is_(None),
-            )
-        )
+        await db.execute(owned_documents_query(user_id).where(GameFileItem.id == document_id))
     ).one_or_none()
     return (row[0], row[1]) if row is not None else None
 

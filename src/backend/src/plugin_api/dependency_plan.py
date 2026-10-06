@@ -7,6 +7,7 @@ from enum import StrEnum
 from typing import Any, Iterable, Mapping
 
 from .contracts import PluginDependency, PluginManifest, version_satisfies
+from .dependency_graph import walk_dependency_graph
 
 
 class DependencyState(StrEnum):
@@ -125,27 +126,17 @@ def _dependency_order(
     graph[manifest.plugin_id] = tuple(
         dependency.plugin_id for dependency in manifest.dependencies if not dependency.optional
     )
-    visiting: set[str] = set()
-    visited: set[str] = set()
-    order: list[str] = []
 
-    def visit(plugin_id: str, path: tuple[str, ...]) -> None:
-        if plugin_id in visiting:
-            cycle = " -> ".join((*path, plugin_id))
-            cycles.append(f"dependency cycle detected: {cycle}")
-            return
-        if plugin_id in visited:
-            return
-        visiting.add(plugin_id)
-        for dependency_id in graph.get(plugin_id, ()):
-            if dependency_id in graph:
-                visit(dependency_id, (*path, plugin_id))
-        visiting.remove(plugin_id)
-        visited.add(plugin_id)
-        order.append(plugin_id)
+    def dependencies(plugin_id: str) -> tuple[str, ...]:
+        return tuple(
+            dependency_id for dependency_id in graph.get(plugin_id, ()) if dependency_id in graph
+        )
 
-    visit(manifest.plugin_id, ())
-    return tuple(order), visited, cycles
+    def report_cycle(path: tuple[str, ...]) -> None:
+        cycles.append(f"dependency cycle detected: {' -> '.join(path)}")
+
+    order, visited = walk_dependency_graph((manifest.plugin_id,), dependencies, report_cycle)
+    return order, visited, cycles
 
 
 def _reverse_conflicts(
