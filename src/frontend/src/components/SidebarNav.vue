@@ -209,7 +209,7 @@ async function handleLogout() {
 
       <div
         class="sidebar-parent-row"
-        :class="{ active: route.path === "/games" || route.path.startsWith("/games/") && !route.path.startsWith("/games/collections") }"
+        :class="{ active: route.path === '/games' || (route.path.startsWith('/games/') && !route.path.startsWith('/games/collections')) }"
       >
         <button
           type="button"
