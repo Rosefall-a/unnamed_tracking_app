@@ -43,8 +43,8 @@ const serverName = computed(
   >
     <h2 id="installed-theme-heading">Interface theme</h2>
     <p class="section-hint">
-      Installed themes can change colors, spacing and the shape of menus. Your
-      selection applies to this preview and the rest of the site.
+      Use an installed theme, or choose native colors with your own palette. The
+      preview follows the current light or dark mode.
     </p>
     <div v-if="themesError" class="ui-alert" role="alert">
       {{ themesError }}
@@ -52,9 +52,13 @@ const serverName = computed(
         Retry
       </button>
     </div>
-    <div v-else class="theme-choice-layout">
+    <div
+      v-else
+      class="theme-choice-layout"
+      :class="{ 'theme-choice-native': !current }"
+    >
       <div>
-        <label for="installed-theme">Interface theme</label>
+        <label for="installed-theme">Style</label>
         <select
           id="installed-theme"
           class="ui-field"
@@ -63,7 +67,7 @@ const serverName = computed(
           @change="emit('change', ($event.target as HTMLSelectElement).value)"
         >
           <option value="server">Server default · {{ serverName }}</option>
-          <option value="native">Native interface</option>
+          <option value="native">Native interface · choose colors</option>
           <option
             v-for="theme in themeCatalogue.themes"
             :key="theme.id"
@@ -87,6 +91,18 @@ const serverName = computed(
             current.version
           }}
         </p>
+        <p v-if="current" class="section-hint">
+          This theme supplies the interface colors and style. Your native
+          palette is kept for when you return to the native interface.
+          <button
+            type="button"
+            class="ui-btn ui-btn-ghost"
+            :disabled="saving"
+            @click="emit('change', 'native')"
+          >
+            Choose native colors
+          </button>
+        </p>
         <p v-if="unavailable" class="section-hint" role="status">
           This theme is unavailable in the current color mode. The native
           interface is shown; your choice is retained.
@@ -98,10 +114,11 @@ const serverName = computed(
         >
       </div>
       <div
+        v-if="current"
         class="theme-menu-preview"
         aria-label="Current interface theme preview"
       >
-        <strong>Menu preview</strong>
+        <strong>{{ current.name }} preview</strong>
         <button type="button" class="ui-btn ui-btn-primary">
           Selected item
         </button>
@@ -115,6 +132,7 @@ const serverName = computed(
         >
       </div>
     </div>
+    <slot v-if="!current && !themesError" />
   </section>
 </template>
 
@@ -137,6 +155,9 @@ h2 {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(220px, 0.8fr);
   gap: 24px;
+}
+.theme-choice-native {
+  grid-template-columns: minmax(0, 1fr);
 }
 label {
   display: grid;

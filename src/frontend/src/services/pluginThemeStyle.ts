@@ -35,8 +35,11 @@ export function applyPluginThemeStyle(
   palette: PaletteId,
   colors: CustomPalette,
   themes: readonly ThemePalette[],
+  installedTheme = false,
 ): void {
-  const key = pluginThemeStyleKey(palette, colors, themes);
+  const key = installedTheme
+    ? undefined
+    : pluginThemeStyleKey(palette, colors, themes);
   if (key) root.dataset.pluginTheme = key;
   else delete root.dataset.pluginTheme;
 }

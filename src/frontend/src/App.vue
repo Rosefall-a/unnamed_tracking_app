@@ -44,6 +44,10 @@ import PluginExtensionSlot from "./components/plugins/PluginExtensionSlot.vue";
 import PluginOverlayHost from "./components/plugins/PluginOverlayHost.vue";
 import { fetchCurrentUser } from "./services/auth";
 import PwaStatus from "./components/PwaStatus.vue";
+import {
+  activeInstalledTheme,
+  appearancePreferences,
+} from "./state/uiAppearance";
 
 const route = useRoute();
 const router = useRouter();
@@ -52,9 +56,10 @@ onUnmounted(stopShortcutReconciliation);
 watchEffect(() => {
   applyPluginThemeStyle(
     document.documentElement,
-    preferences.value.ui_palette,
-    preferences.value.ui_custom_palette,
+    appearancePreferences.value.ui_palette,
+    appearancePreferences.value.ui_custom_palette,
     pluginThemes.value,
+    Boolean(activeInstalledTheme.value),
   );
 });
 let startupRetryTimer: ReturnType<typeof setTimeout> | undefined;

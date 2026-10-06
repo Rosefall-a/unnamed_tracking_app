@@ -32,4 +32,14 @@ describe("selected plugin stylesheet scope", () => {
     applyPluginThemeStyle(root, "custom", ORANGE_PALETTE, []);
     expect(root.dataset.pluginTheme).toBeUndefined();
   });
+
+  it("releases a palette plugin's style while an installed theme is active", () => {
+    const root = { dataset: {} } as HTMLElement;
+    applyPluginThemeStyle(root, "custom", ORANGE_PALETTE, [theme]);
+    expect(root.dataset.pluginTheme).toContain("purple-blocks");
+    applyPluginThemeStyle(root, "custom", ORANGE_PALETTE, [theme], true);
+    expect(root.dataset.pluginTheme).toBeUndefined();
+    applyPluginThemeStyle(root, "custom", ORANGE_PALETTE, [theme], false);
+    expect(root.dataset.pluginTheme).toContain("purple-blocks");
+  });
 });

@@ -11,8 +11,16 @@ pages when the browser has no personal theme choice. Disabling or removing the
 default returns the server to the native interface.
 
 Users select **Server default**, **Native interface** or an enabled installed
-theme in **Preferences → Appearance & interface → Interface theme**. The menu
-preview uses the current theme. **Save theme choices to** selects an account
+theme in **Preferences → Appearance & interface → Interface theme**. **Color
+mode** controls Light, Dark or System independently. The interface theme has one
+active preview: installed themes supply its colors and shape; choosing **Native
+interface** opens the preset, custom and approved plugin palette controls instead.
+The native palette is retained while an installed theme is selected, and returns
+when the theme is unavailable or the user chooses native colors. Palette-plugin
+style overrides follow the same account/browser choice and pause while an
+installed theme is active.
+
+**Save theme choices to** selects an account
 preference or a cosmetic browser cookie for the theme, light/dark/system mode,
 palette and higher-contrast choice. Browser choices do not update the account;
 layout preferences continue to follow the account. Missing or unsupported themes

@@ -91,7 +91,7 @@ async function change(changes: Partial<Preferences>) {
       </div>
       <div class="appearance-row">
         <div>
-          <label for="ui-theme">Theme</label>
+          <label for="ui-theme">Color mode</label>
           <p>Choose light, dark, or follow your device.</p>
         </div>
         <select
@@ -169,14 +169,14 @@ async function change(changes: Partial<Preferences>) {
       :selection="appearancePreferences.ui_theme_package"
       :saving="saving"
       @change="change({ ui_theme_package: $event })"
-    />
-    <UiPaletteSection
-      v-if="preferencesLoaded && !preferencesError"
-      :palette="appearancePreferences.ui_palette"
-      :custom="appearancePreferences.ui_custom_palette"
-      :saving="saving"
-      @change="change"
-    />
+    >
+      <UiPaletteSection
+        :palette="appearancePreferences.ui_palette"
+        :custom="appearancePreferences.ui_custom_palette"
+        :saving="saving"
+        @change="change"
+      />
+    </InstalledThemeChoice>
     <p v-if="error" class="ui-error" role="alert">{{ error }}</p>
     <p class="appearance-status" role="status" aria-live="polite">
       {{ saving ? "Saving…" : saved ? "Appearance saved" : "" }}

@@ -55,6 +55,13 @@ export const appearancePreferences = computed<UiAppearance>(() => ({
   ...preferences.value,
   ...(appearanceScope.value === "device" ? devicePreferences.value : {}),
 }));
+export const activeInstalledTheme = computed(() =>
+  resolveInstalledTheme(
+    themeCatalogue.value,
+    appearancePreferences.value.ui_theme_package,
+    resolvedUiTheme.value,
+  ),
+);
 export function changeAppearanceScope(scope: "account" | "device"): void {
   if (scope === appearanceScope.value) return;
   if (scope === "device") {
@@ -131,9 +138,14 @@ export function initializeUiAppearance(): void {
     }
     root.dataset.theme = resolveUiTheme(device.theme, system.matches);
     resolvedUiTheme.value = resolveUiTheme(device.theme, system.matches);
+    const installed = resolveInstalledTheme(
+      themeCatalogue.value,
+      themePackage,
+      resolvedUiTheme.value,
+    );
     applyPalette(
       root,
-      device.palette,
+      installed ? "orange" : device.palette,
       resolveUiTheme(device.theme, system.matches),
       device.colors,
       device.highContrast,
@@ -143,11 +155,6 @@ export function initializeUiAppearance(): void {
     root.classList.toggle("reduce-motion", reduceMotion);
     root.classList.toggle("high-contrast", device.highContrast);
     root.classList.toggle("compact", density === "compact");
-    const installed = resolveInstalledTheme(
-      themeCatalogue.value,
-      themePackage,
-      resolvedUiTheme.value,
-    );
     root.dataset.themePackage = installed?.id ?? "native";
     if (!installed) root.dataset.themeRevision = "native";
     try {

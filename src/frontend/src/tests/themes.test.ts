@@ -7,10 +7,13 @@ import {
 } from "../services/themes";
 import {
   appearancePreferences,
+  activeInstalledTheme,
   appearanceScope,
   changeAppearanceScope,
   changeDeviceAppearance,
+  resolvedUiTheme,
 } from "../state/uiAppearance";
+import { themeCatalogue } from "../state/themes";
 import { preferences } from "../state/preferences";
 import { DEFAULT_PREFERENCES } from "../services/preferences";
 
@@ -31,6 +34,8 @@ const catalogue: ThemeCatalogue = { default_theme: theme.id, themes: [theme] };
 beforeEach(() => {
   appearanceScope.value = "account";
   preferences.value = { ...DEFAULT_PREFERENCES };
+  themeCatalogue.value = catalogue;
+  resolvedUiTheme.value = "light";
 });
 describe("installed theme choices", () => {
   it("follows the server default or an explicit native/personal selection", () => {
@@ -90,5 +95,21 @@ describe("installed theme choices", () => {
     expect(appearancePreferences.value.ui_theme).toBe("dark");
     expect(appearancePreferences.value.ui_theme_package).toBe(theme.id);
     expect(changeDeviceAppearance({ ui_theme: "light" })).toBe(false);
+  });
+  it("resolves the active style from the chosen appearance scope", () => {
+    preferences.value = { ...DEFAULT_PREFERENCES, ui_theme_package: theme.id };
+    expect(activeInstalledTheme.value).toEqual(theme);
+    changeAppearanceScope("device");
+    changeDeviceAppearance({
+      ui_theme_package: "native",
+      ui_palette: "custom",
+    });
+    expect(activeInstalledTheme.value).toBeUndefined();
+    expect(preferences.value.ui_theme_package).toBe(theme.id);
+    changeAppearanceScope("account");
+    expect(activeInstalledTheme.value).toEqual(theme);
+    themeCatalogue.value = { ...catalogue, themes: [] };
+    expect(activeInstalledTheme.value).toBeUndefined();
+    expect(appearancePreferences.value.ui_theme_package).toBe(theme.id);
   });
 });

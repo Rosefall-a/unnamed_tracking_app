@@ -160,7 +160,7 @@ function apply() {
 
 <template>
   <section class="palette-section" aria-labelledby="palette-heading">
-    <h2 id="palette-heading">Color palette</h2>
+    <h3 id="palette-heading">Native colors</h3>
     <p class="section-hint">
       Preview colors before applying them. Each palette has a light and dark
       version; System follows your device.
@@ -326,9 +326,8 @@ function apply() {
 .palette-section {
   margin-block: var(--ui-space-8);
 }
-h2 {
-  font: var(--ui-weight-heading) var(--ui-font-heading)/1.4
-    var(--ui-font-family);
+h3 {
+  font: var(--ui-weight-heading) var(--ui-font-body)/1.4 var(--ui-font-family);
 }
 .section-hint {
   color: var(--ui-dim);
