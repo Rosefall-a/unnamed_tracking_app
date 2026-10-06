@@ -58,10 +58,11 @@ def wait_until(predicate, timeout=30):
 
 
 def configure_downloads(work):
+    """Substitute only fixture acquisition at the host's current download boundary."""
     sys.path.insert(0, str(HOST / "src/backend"))
-    from src.api.routes import plugins
+    from src.api.routes.plugin_manager import acquisition
 
-    original = plugins._download_remote_file
+    original = acquisition._download_remote_file
 
     async def download(url, *, json_document=False):
         if not url.startswith(FIXTURE_BASE + "/"):
@@ -75,7 +76,7 @@ def configure_downloads(work):
             path = Path(stream.name)
         return path, source.name, len(data)
 
-    plugins._download_remote_file = download
+    acquisition._download_remote_file = download
 
 
 def serve_host(work, port):
@@ -222,7 +223,7 @@ class Jellyfin(BaseHTTPRequestHandler):
         elif path.path == "/Library/VirtualFolders":
             data = [
                 {"ItemId": c * 32, "Name": n}
-                for c, n in zip("123", ("Movies", "TV Shows", "Anime"))
+                for c, n in zip("123", ("Movies", "TV Shows", "Anime"), strict=True)
             ]
         else:
             query = parse_qs(path.query)
