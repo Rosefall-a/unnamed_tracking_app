@@ -155,3 +155,12 @@ Backend and migration output passes through credential redaction before Docker f
 
 
 The production-container workflow builds the image and validates Nginx/TLS configuration with deterministic self-signed test material. The separate production-runtime workflow covers application startup, PostgreSQL migrations, login, JSON API responses and backend failure states.
+
+## Upload transport
+
+Embedded Nginx forwards upload bodies to the application instead of applying its
+default 1 MB ceiling. The host still enforces each saved image/file, clip, save
+archive, world-save and plugin-package limit. This keeps administrator overrides
+and large supported archives usable and returns native JSON validation results.
+HTTP and HTTPS use the same limits; operator backend/migration logs remain private
+in both modes. An additional external proxy must allow the configured upload size.
