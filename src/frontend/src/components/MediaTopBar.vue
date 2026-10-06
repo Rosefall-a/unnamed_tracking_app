@@ -2,7 +2,6 @@
 // The Media-area bar: AppTopBar with the Movies / TV Shows / Anime / Lists
 // switcher on the left, and on the right whatever the page adds (its
 // `actions` slot).
-import { useRoute } from "vue-router";
 import AppTopBar from "./AppTopBar.vue";
 import MediaKindSwitch from "./MediaKindSwitch.vue";
 
