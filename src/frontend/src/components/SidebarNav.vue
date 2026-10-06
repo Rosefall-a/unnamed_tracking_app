@@ -909,7 +909,7 @@ dialog.navigation {
 }
 .nav-resize {
   position: absolute;
-  right: -5px;
+  right: 0;
   top: 20px;
   bottom: 20px;
   width: 10px;
