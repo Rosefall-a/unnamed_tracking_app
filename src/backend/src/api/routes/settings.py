@@ -1,4 +1,3 @@
-# pylint: disable=missing-class-docstring,missing-function-docstring,not-callable,too-many-locals,too-many-branches,duplicate-code
 """API routes for app/user Settings — scan (metadata) preferences,
 per-user metadata-provider credentials, and read-only server config the
 frontend needs to display (e.g. upload limits)."""
@@ -12,8 +11,9 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql.functions import count as sql_count
 
 from src.api.schemas.appearance_settings import AppearanceSettingsRead, AppearanceSettingsUpdate
 from src.api.schemas.scan_settings import ScanSettingsRead, ScanSettingsUpdate
@@ -399,7 +399,7 @@ async def get_provider_credentials(
     }
     for provider, last_synced in sync_timestamp_columns.items():
         count = await db.scalar(
-            select(func.count(Game.id)).where(
+            select(sql_count(Game.id)).where(
                 Game.user_id == current_user.id, Game.source == provider
             )
         )
@@ -421,6 +421,63 @@ async def get_provider_credentials(
     return result
 
 
+async def _save_steam_credentials(
+    db: AsyncSession, current_user: User, fields: dict[str, str]
+) -> dict[str, str | None]:
+    # Steam has two boxes but doesn't care which value lands in which one —
+    # a Web API key has a fixed, unambiguous shape (32 hex chars), so if it
+    # ended up in the profile-ID box (or vice versa) this just swaps them
+    # before anything tries to use them. A blank box means "leave it
+    # alone", not "clear it" — saving just one field (e.g. adding the API
+    # key in a second pass) must never wipe out the other one that's
+    # already saved.
+    provider = "Steam"
+    steam_id_input = (fields.get("steam_id") or "").strip()
+    api_key_input = (fields.get("api_key") or "").strip()
+    if steam_id_input and api_key_input:
+        if steam.looks_like_api_key(steam_id_input) and not steam.looks_like_api_key(api_key_input):
+            steam_id_input, api_key_input = api_key_input, steam_id_input
+
+    if steam_id_input:
+        current_user.steam_id = steam_id_input
+    if api_key_input:
+        current_user.steam_api_key = api_key_input
+    await db.commit()
+
+    if not current_user.steam_id or not current_user.steam_api_key:
+        missing = "profile ID" if not current_user.steam_id else "API key"
+        return {
+            "provider": provider,
+            "status": "saved",
+            "detail": f"Saved: now add your {missing} to connect.",
+        }
+
+    try:
+        resolved = await asyncio.to_thread(
+            steam.resolve_steam_id, current_user.steam_id, current_user.steam_api_key
+        )
+    except SteamLibraryError as exc:
+        return {"provider": provider, "status": "error", "detail": str(exc)}
+    if resolved != current_user.steam_id:
+        current_user.steam_id = resolved
+        await db.commit()
+
+    try:
+        result = await asyncio.to_thread(_validate_provider, provider, current_user)
+    except _ProviderClientError as exc:
+        return {"provider": provider, "status": "error", "detail": str(exc)}
+    connected = result.get("validated", True)
+    if connected:
+        current_user.steam_persona_name = result.get("persona_name")
+        current_user.steam_avatar_url = result.get("avatar_url")
+        await db.commit()
+    return {
+        "provider": provider,
+        "status": "connected" if connected else "saved",
+        "detail": None,
+    }
+
+
 @router.put("/provider-credentials/{provider}")
 async def save_provider_credentials(
     provider: str,
@@ -434,60 +491,8 @@ async def save_provider_credentials(
             status_code=status.HTTP_400_BAD_REQUEST, detail=f"Unknown provider: {provider}"
         )
 
-    # Steam has two boxes but doesn't care which value lands in which one —
-    # a Web API key has a fixed, unambiguous shape (32 hex chars), so if it
-    # ended up in the profile-ID box (or vice versa) this just swaps them
-    # before anything tries to use them. A blank box means "leave it
-    # alone", not "clear it" — saving just one field (e.g. adding the API
-    # key in a second pass) must never wipe out the other one that's
-    # already saved.
     if provider == "Steam":
-        steam_id_input = (payload.fields.get("steam_id") or "").strip()
-        api_key_input = (payload.fields.get("api_key") or "").strip()
-        if steam_id_input and api_key_input:
-            if steam.looks_like_api_key(steam_id_input) and not steam.looks_like_api_key(
-                api_key_input
-            ):
-                steam_id_input, api_key_input = api_key_input, steam_id_input
-
-        if steam_id_input:
-            current_user.steam_id = steam_id_input
-        if api_key_input:
-            current_user.steam_api_key = api_key_input
-        await db.commit()
-
-        if not current_user.steam_id or not current_user.steam_api_key:
-            missing = "profile ID" if not current_user.steam_id else "API key"
-            return {
-                "provider": provider,
-                "status": "saved",
-                "detail": f"Saved: now add your {missing} to connect.",
-            }
-
-        try:
-            resolved = await asyncio.to_thread(
-                steam.resolve_steam_id, current_user.steam_id, current_user.steam_api_key
-            )
-        except SteamLibraryError as exc:
-            return {"provider": provider, "status": "error", "detail": str(exc)}
-        if resolved != current_user.steam_id:
-            current_user.steam_id = resolved
-            await db.commit()
-
-        try:
-            result = await asyncio.to_thread(_validate_provider, provider, current_user)
-        except _ProviderClientError as exc:
-            return {"provider": provider, "status": "error", "detail": str(exc)}
-        connected = result.get("validated", True)
-        if connected:
-            current_user.steam_persona_name = result.get("persona_name")
-            current_user.steam_avatar_url = result.get("avatar_url")
-            await db.commit()
-        return {
-            "provider": provider,
-            "status": "connected" if connected else "saved",
-            "detail": None,
-        }
+        return await _save_steam_credentials(db, current_user, payload.fields)
 
     for payload_field, column, encrypted in field_map:
         value = payload.fields.get(payload_field)
