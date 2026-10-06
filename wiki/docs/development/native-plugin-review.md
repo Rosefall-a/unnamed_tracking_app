@@ -218,3 +218,50 @@ plugin lifecycle and real session-expiry/cache acceptance. All companion checks
 and host integration workflows are green at `2236d8f`; mobile PWA checks are
 green at `a3e4d92`. These results close this appearance/layout milestone;
 the final cross-project withdrawal, UI and merge-readiness review continues.
+
+## Current package updates and worker recovery
+
+Production host/runtime `688c1d66` accepts all 32 update/start cases from the
+actual companion `f858db6` CI bundles: `unsigned-dist` artifact `11388472902`
+and `validated-plugin-distribution` artifact `11389180378`. The
+[package report](../assets/ui-redevelopment/reliability-ci-package-conformance.json)
+records archive/payload digests, active versions, stable installation identities
+and healthy workers. Media-writing access remains denied. A completed manual
+permission review can activate an update with only the administrator's selected
+new capabilities, bound to the reviewed digest; unattended updates still stage
+new access for review.
+
+The [startup report](../assets/ui-redevelopment/reliability-startup-conformance.json)
+records committed image identities, sign-in, JSON errors and provider startup
+before the app callback is available. Discord provider 1.2.1 retries only its
+idempotent registration on temporary unavailable errors; it does not retry
+permission failures or send a notification during these checks.
+
+The [recovery report](../assets/ui-redevelopment/reliability-worker-conformance.json)
+checks a runtime-only restart, restored identities/grants and all sixteen healthy
+unsigned workers. Actual Jellyfin configuration, Session listing and Archive
+migration-status actions return HTTP 200. A controlled worker exit exposes its
+actual status in both Plugin Manager and Diagnostics; restarting clears the
+failure. Bubblewrap warnings remain server-wide. The administrator's reduced
+isolation acknowledgement persists without `NONBUBBLE_ENV` or a runtime callback
+environment value.
+
+The [current native report](../assets/ui-redevelopment/native-current-conformance.json)
+checks twenty loaded settings pages and flat Archive placement at 320, 390,
+1440 and 1920 pixels in light/dark modes, using the exact packages above.
+Reproduce the browser portion with `tools/check_native_plugin_ui.mjs`.
+
+![Current Jellyfin administration settings](../assets/ui-redevelopment/native-current-jellyfin-admin-1440-light.png)
+
+![Current Document Browser settings on a phone](../assets/ui-redevelopment/native-current-reader-settings-390-dark.png)
+
+![Current Session Manager at 320 pixels](../assets/ui-redevelopment/native-current-sessions-320-light.png)
+
+All eleven UI workflow runs are green at `688c1d66`; all thirteen foundation
+workflow runs are green at `19b56e7`, all four companion runs at `f858db6`, and
+both template runs at `0f0afd2`. Local checks pass 1,116 backend tests (two existing
+skips), 143 runtime tests, 243 frontend tests, lint/types/build, mypy on 214 files
+and the 2,000-line frontend limit. Configured backend Pylint is 9.13; changed
+runtime/tests score 9.27. This closes the package reliability milestone. Latest
+main integration, combined contribution withdrawal and the final UI/readiness
+review remain in progress.

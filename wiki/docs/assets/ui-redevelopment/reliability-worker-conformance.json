@@ -1,0 +1,15 @@
+{
+  "status": "passed",
+  "source_head": "688c1d66cc8bc7a67256e7b382c1a70faf02a350",
+  "passed": [
+    "Runtime-only restart restores all 16 unsigned workers, identities, grants and server isolation acknowledgement without runtime URL or NONBUBBLE_ENV",
+    "Actual Jellyfin configuration, Session listing and Archive migration-status actions return 200 after restart; no sync or delivery is invoked",
+    "A controlled worker exit exposes actual status -9 in both manager and Diagnostics; normal restart clears it and retains all 16 healthy installations"
+  ],
+  "controlled_failure": {
+    "plugin_id": "example.discord-delivery-provider",
+    "status": "failed",
+    "last_exit_code": -9,
+    "last_error": "Plugin worker exited with status -9. Open Diagnostics for recent events."
+  }
+}
