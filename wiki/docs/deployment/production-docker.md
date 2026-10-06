@@ -44,10 +44,23 @@ The Compose example persists `./data:/data` and PostgreSQL state in a named volu
 
 ## Nginx security
 
-The production edge disables version disclosure, keeps bounded proxy timeouts, forwards the original request protocol, and emits `X-Content-Type-Options`, `Referrer-Policy`, and `X-Frame-Options`. HSTS is emitted only on HTTPS.
+## Logging and diagnostics
+
+The production container uses Docker stdout/stderr rather than an application-specific log aggregation system. Use `docker logs <container>` or `docker logs -f <container>` for lifecycle, backend, and Nginx diagnostics.
+
+The backend log is also retained at `/run/unnamed-tracking/backend.log` and migration output at `/run/unnamed-tracking/migration.log`. Retrieve them with `docker exec <container> cat /run/unnamed-tracking/backend.log` and `docker exec <container> cat /run/unnamed-tracking/migration.log`, or copy them with `docker cp <container>:/run/unnamed-tracking/backend.log ./backend.log`. Raw logs are not exposed as public `/_startup` HTTP resources.
+
+The startup page deliberately shows concise lifecycle status instead of raw logs. This keeps normal startup readable while preserving detailed failure diagnostics for operators.
+
+## Startup diagnostics
 
 ## Optional embedded TLS
 
+It displays the lifecycle phase, database status, migration status, backend status, frontend status, and the current message. On failure the loading indicator stops and the failure state is shown. Raw logs are deliberately not displayed by default.
+
+Diagnostic endpoints are `/_startup/status.json` and `/_startup/details.txt`. Raw backend and migration logs are not public HTTP resources.
+
+The startup JavaScript polls asynchronously and slows down after READY. When a failure is reported, the loading animation stops and concise diagnostic details open.
 HTTP-only remains the default. TLS is deployment-only. When TLS is enabled, the container selects `readytls.conf` or `readytlsredirect.conf` before replacing `/etc/nginx/nginx.conf`. If `NGINX_TLS_CERTIFICATE` and `NGINX_TLS_PRIVATE_KEY` are empty, a complete `/etc/nginx/tls/tls.crt` and `/etc/nginx/tls/tls.key` pair is used automatically when present; otherwise a self-signed localhost certificate/key pair is generated under `/run/unnamed-tracking/tls`. Explicit certificate/key paths remain supported for production. TLS is disabled by default.
 
 | Variable | Default | Meaning |
@@ -87,5 +100,23 @@ Persist application and PostgreSQL data independently from logs. Backups should 
 For small deployments, start around 2 CPU cores and 2 GiB RAM and size upward based on observed application and PostgreSQL workload.
 
 ## CI scope
+
+## Persistence
+
+The production Compose deployment persists application data through ./data:/data and PostgreSQL data through the named pgdata volume.
+
+Do not remove these storage locations when recreating the production container.
+
+## CI and publishing
+
+.github/workflows/docker-container.yml builds the production image on pull requests and pushes images for non-pull-request events. For non-PR events it pushes both a ref-derived tag and a sha-<commit> tag to GHCR.
+
+The current workflow does not perform a full PostgreSQL/application runtime smoke test after building the image. Its failure diagnostics are Docker log commands if a workflow step fails.
+
+## Secrets
+
+The production entrypoint does not print passwords, tokens, API keys, SMTP credentials, private keys, webhook secrets, or session secrets.
+
+## TLS
 
 The production-container workflow builds the image and validates Nginx/TLS configuration with deterministic self-signed test material. It does not run the full PostgreSQL/application runtime smoke suite; that remains #206 so normal image CI is not coupled to an environment-dependent integration stack.
