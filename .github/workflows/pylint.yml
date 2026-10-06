@@ -1,15 +1,7 @@
 name: pylint
 
 on:
-  push:
-    paths:
-      - "src/backend/**"
-      - ".github/workflows/pylint.yml"
-  pull_request:
-    paths:
-      - "src/backend/**"
-      - ".github/workflows/pylint.yml"
-    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_call:
 
 permissions:
   contents: read

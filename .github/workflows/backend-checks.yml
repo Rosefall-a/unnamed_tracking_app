@@ -13,7 +13,7 @@ defaults:
     shell: bash
 
 jobs:
-  backend-checks:
+  backend-tests:
     name: Backend tests
     runs-on: ubuntu-latest
 
@@ -75,6 +75,37 @@ jobs:
             src/backend/pytest-output.txt
             src/backend/migrations-output.txt
           if-no-files-found: ignore
+
+  backend-pylint:
+    uses: ./.github/workflows/pylint.yml
+
+  # Preserve the required status name while each check runs independently.
+  backend-checks:
+    if: ${{ always() }}
+    needs:
+      - backend-tests
+      - migration-graph
+      - backend-file-size
+      - backend-mypy
+      - plugin-runtime-tests
+      - backend-pylint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every backend check to pass
+        env:
+          CHECK_RESULTS: ${{ toJSON(needs) }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+
+          results = json.loads(os.environ["CHECK_RESULTS"])
+          failures = {name: job["result"] for name, job in results.items() if job["result"] != "success"}
+          for name, job in results.items():
+              print(f"{name}: {job['result']}")
+          if failures:
+              raise SystemExit(f"Backend checks did not all pass: {failures}")
+          PY
 
   migration-graph:
     name: Alembic migration graph

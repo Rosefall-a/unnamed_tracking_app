@@ -18,7 +18,7 @@ The backend CI uses Python 3.12 and runs:
 - pylint;
 - Ruff format and lint.
 
-These checks run independently. A database setup, test, size, or formatting failure does not skip unrelated checks. Database-backed tests still require a successful migration upgrade. The CI migration check requires a valid single Alembic head.
+These checks run independently. A database setup, test, size, or formatting failure does not skip unrelated checks. Database-backed tests still require a successful migration upgrade. The CI migration check requires a valid single Alembic head. The final `backend-checks` summary preserves the repository's required status name and fails if any backend job, including the reusable pylint check, fails or is skipped.
 
 Pylint uses the shared `pyproject.toml` configuration and fails below 10/10. Missing docstrings are reviewed for usefulness instead of requiring boilerplate on every symbol. SQLAlchemy and Pydantic data models are exempt from the minimum public-method count; service classes remain checked. Correctness and complexity checks remain enabled.
 

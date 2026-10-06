@@ -12,7 +12,7 @@ PR [250](https://github.com/Rosefall-a/unnamed_tracking_app/pull/250) is being r
 
 ## CI behavior
 
-Backend tests, plugin runtime tests, migration graph validation, module size, mypy, and pylint run independently. Ruff format, lint, and autofix also run independently; the autofix job is the only writer and targets the actual same-repository PR head. Commands piped through `tee` use Bash's failure propagation, and diagnostic artifacts upload after failures.
+Backend tests, plugin runtime tests, migration graph validation, module size, mypy, and pylint run independently. The dedicated pylint workflow is reusable and is called once by the backend workflow. A final `backend-checks` summary waits for all backend jobs and fails if any fails or is skipped, preserving the existing required status name without making the checks depend on each other's success. Ruff format, lint, and autofix also run independently; the autofix job is the only writer and targets the actual same-repository PR head. Commands piped through `tee` use Bash's failure propagation, and diagnostic artifacts upload after failures.
 
 The duplicate 9/10 pylint check in the backend test job is replaced by the existing dedicated 10/10 job. That job reads the shared configuration and uses pylint's numeric `--fail-under=10` gate rather than parsing a rounded score. Its workflow-only `duplicate-code` disable has been removed.
 
@@ -30,7 +30,7 @@ The agreed policy relaxes missing module/class/function docstrings and the minim
 
 The initial source inventory found **131 suppression directives across 125 files**, including **99 file headers**. Common suppressed rules included missing function docstrings (66 directives), module docstrings (54), class docstrings (42), duplicate code (33), minimum public methods (30), local-variable count (25), and broad exception handling (22).
 
-An audit of a temporary source copy with all inline pylint directives removed exposes roughly **1,000 findings**, even after the agreed policy changes. That audit does not modify application files. It prevents the existing suppressed score from being mistaken for the actual cleanup scope.
+An audit of a temporary source copy with all inline pylint directives removed exposes **999 findings**, with a **9.43/10** score under the agreed policy. The largest groups are redundant import aliases (218), protected access (150), duplicate code (143), unused imports (78), too many locals (64), and broad catches (60). That audit does not modify application files. It prevents the existing suppressed score from being mistaken for the actual cleanup scope.
 
 ## Recommended cleanup order
 
@@ -50,4 +50,4 @@ The focused regression suite covers model status columns, airing jobs, branding,
 
 The session-network regression uses a real SQLite database to verify column/data preservation, while PostgreSQL migration replay and the full backend suite remain required in CI. Production runtime smoke remains required too. Local Windows execution cannot substitute for the Linux database/container workflows.
 
-Breaking changes: no public API changes. CI job names and strict size enforcement change; repositories using required status checks must include the independent checks in their branch rules.
+Breaking changes: no public API changes. Strict size enforcement changes, and individual backend results now have separate names. The required `backend-checks` status is preserved and covers every backend job, including pylint.
