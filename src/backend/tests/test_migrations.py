@@ -1,5 +1,6 @@
 from alembic.config import Config
 from alembic.script import ScriptDirectory
+
 from src.database.migrate import decide
 
 
@@ -18,6 +19,7 @@ def test_migration_environment_accepts_url_encoded_database_credentials(monkeypa
     from io import StringIO
 
     from alembic import command
+
     from src.core.config import settings
 
     url = "postgresql+psycopg://review%40host:pa%25ss%40word%2F%2B%3D@localhost/review"
@@ -71,6 +73,7 @@ def test_every_migration_after_the_baseline_is_safe_to_rerun():
     change nothing, or an existing install would fail to start."""
     from alembic import command
     from sqlalchemy import create_engine, text
+
     from src.core.config import settings
 
     cfg = Config("alembic.ini")

@@ -21,9 +21,9 @@ import io
 import re
 import struct
 import time
-from email.utils import parsedate_to_datetime
 from calendar import timegm
 from datetime import UTC, datetime
+from email.utils import parsedate_to_datetime
 from pathlib import Path
 from typing import Literal
 

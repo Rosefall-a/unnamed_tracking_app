@@ -8,8 +8,9 @@ from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database.models.plugin_permissions import PluginLifecycleTransaction, PluginPermissionGrant
-from .manager_state import manager_state
+
 from .lifecycle_lock import serialized_lifecycle
+from .manager_state import manager_state
 from .runtime_client import PluginRuntimeClient, PluginRuntimeRequestError, PluginRuntimeUnavailable
 
 

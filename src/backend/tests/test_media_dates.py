@@ -80,6 +80,7 @@ async def test_title_and_date_can_be_set_and_cleared() -> None:
     import uuid
     from types import SimpleNamespace
 
+    from fastapi import Response
     from sqlalchemy import delete
 
     from src.api.routes import games
@@ -87,7 +88,6 @@ async def test_title_and_date_can_be_set_and_cleared() -> None:
     from src.database.models.media_item import MediaItem
     from src.database.models.user import User
     from src.database.session import SessionLocal
-    from fastapi import Response
 
     async with SessionLocal() as db:
         user = User(

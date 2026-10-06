@@ -9,8 +9,8 @@ from decimal import Decimal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
-from src.api.schemas.provider_identity import ProviderIDs
 
+from src.api.schemas.provider_identity import ProviderIDs
 from src.database.models.tv_show import TVShowStatus
 
 

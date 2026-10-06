@@ -16,9 +16,11 @@ from sqlalchemy import delete
 from src.api.routes import (
     default_game_assets,
     game_archives,
-    game_notes as game_notes_routes,
     game_page,
     games,
+)
+from src.api.routes import (
+    game_notes as game_notes_routes,
 )
 from src.api.schemas.game import GameCreate
 from src.core.auth import get_current_user

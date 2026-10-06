@@ -9,6 +9,7 @@ from typing import Any
 from urllib.parse import quote
 
 import httpx
+
 from src.plugin_api.manager_state import manager_state
 
 _ACTION_REQUEST_TIMEOUT = 35.0  # Allow the isolated runner's 30-second wall limit to report.

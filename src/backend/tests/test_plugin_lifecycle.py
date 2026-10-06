@@ -9,6 +9,7 @@ import zipfile
 from pathlib import Path
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
 from src.plugin_api.contracts import PluginManifest
 from src.plugin_api.lifecycle import (
     LifecycleState,

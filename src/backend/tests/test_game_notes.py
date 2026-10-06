@@ -9,7 +9,6 @@ from fastapi import HTTPException
 
 from src.api.routes import games
 
-
 USER_ID = UUID("00000000-0000-0000-0000-000000000001")
 GAME_ID = UUID("00000000-0000-0000-0000-000000000002")
 

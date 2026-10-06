@@ -10,6 +10,7 @@ from uuid import UUID
 from fastapi import Depends, HTTPException, Response
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from src.database.models.plugin_permissions import PluginPermissionGrant
 from src.database.models.user import User
 from src.database.session import get_db

@@ -8,8 +8,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from src.database.models.movies import MovieStatus
 from src.api.schemas.provider_identity import ProviderIDs
+from src.database.models.movies import MovieStatus
 
 # pylint: disable=duplicate-code
 

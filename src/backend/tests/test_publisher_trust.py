@@ -3,8 +3,8 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
-from pathlib import Path
 import zipfile
+from pathlib import Path
 
 import pytest
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey

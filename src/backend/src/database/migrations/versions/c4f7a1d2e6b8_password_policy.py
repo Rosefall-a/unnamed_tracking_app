@@ -6,11 +6,10 @@ down_revision: 7b2d4a9e8c11
 
 from collections.abc import Sequence
 
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 
 from src.database import migration_helpers as h
-
 
 revision: str = "c4f7a1d2e6b8"
 down_revision: str | None = "a3f1c7e9d2b4"

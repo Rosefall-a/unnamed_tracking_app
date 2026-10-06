@@ -18,7 +18,6 @@ from src.core.auth import (
     get_current_admin,
     get_current_user,
     hash_password,
-    hash_token,
     password_policy,
     revoke_session,
     session_cookie_name,
@@ -29,9 +28,9 @@ from src.core.auth import (
 from src.core.config import settings
 from src.core.crypto import encrypt_secret
 from src.core.session_manager import create_session
+from src.database.models.app_integration_settings import AppIntegrationSettings
 from src.database.models.auth import UserApiKey
 from src.database.models.user import User
-from src.database.models.app_integration_settings import AppIntegrationSettings
 from src.database.session import get_db
 from src.features.metadata.games.psn import PSNClient, PSNError
 

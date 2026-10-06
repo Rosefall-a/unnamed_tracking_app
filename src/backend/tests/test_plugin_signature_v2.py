@@ -7,6 +7,7 @@ import zipfile
 
 import pytest
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
 from src.plugin_api.installer import inspect_package
 from src.plugin_api.updates import (
     PackageVerificationError,

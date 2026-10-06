@@ -4,6 +4,7 @@ from types import SimpleNamespace
 
 import httpx
 import pytest
+
 from src.plugin_api import runtime_client
 
 

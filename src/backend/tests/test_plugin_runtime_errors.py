@@ -7,6 +7,7 @@ from uuid import uuid4
 import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
+
 from src.api.routes import plugins
 from src.api.routes.plugin_manager import lifecycle, runtime
 from src.plugin_api.contracts import PLUGIN_API_CONTRACT_VERSION

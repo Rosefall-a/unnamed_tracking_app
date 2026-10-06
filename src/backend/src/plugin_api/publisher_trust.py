@@ -6,8 +6,8 @@ import base64
 import binascii
 import hashlib
 import json
-from pathlib import Path
 import re
+from pathlib import Path
 
 from .updates import TrustedPublisher
 

@@ -2,8 +2,9 @@
 
 import pytest
 import test_plugin_install_sources as install_sources
-from src.plugin_api.manager_state import manager_state
 from test_plugin_install_sources import grants, package_bytes, seed_update
+
+from src.plugin_api.manager_state import manager_state
 
 # Register the existing protocol fixture locally, including when its source
 # module has already been collected by the full suite.

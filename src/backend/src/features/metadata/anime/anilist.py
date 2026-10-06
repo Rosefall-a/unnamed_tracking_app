@@ -1,9 +1,12 @@
 # pylint: disable=too-many-lines,missing-module-docstring,missing-function-docstring,too-many-locals
 from __future__ import annotations
+
 import re
 import time
 from typing import Any
+
 import requests
+
 from src.features.metadata.rate_limit import throttle
 
 _URL = "https://graphql.anilist.co"

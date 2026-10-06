@@ -6,6 +6,7 @@ from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from src.database.models.notification_provider_setting import NotificationProviderSetting
 from src.database.models.plugin_notification_provider import (
     PluginNotificationProviderRegistration,
