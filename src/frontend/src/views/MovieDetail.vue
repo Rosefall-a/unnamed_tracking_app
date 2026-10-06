@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { localMediaImage } from "../utils/mediaImages";
 import { usePageTitle } from "../state/pageTitle";
 import MyNote from "../components/MyNote.vue";
 import MediaDetailHero from "../components/MediaDetailHero.vue";
@@ -201,8 +202,15 @@ const nativeTitleLine = computed(() => {
   const credit = movie.value.director || movie.value.studios[0];
   return credit ? `Movie · ${credit}` : "Movie";
 });
-const heroBackdropUrl = computed(
-  () => movie.value?.backdropUrl ?? movie.value?.posterUrl ?? null,
+const heroBackdropUrl = computed(() =>
+  movie.value
+    ? localMediaImage(
+        "movie",
+        movie.value.id,
+        "hero",
+        movie.value.backdropUrl ?? movie.value.posterUrl,
+      )
+    : null,
 );
 
 // ---- related (real TMDB collection data) ----
@@ -443,7 +451,9 @@ async function onRatingChange(value: number | null) {
       v-model:status="statusBucketModel"
       :title="movie.title"
       :native-title="nativeTitleLine"
-      :poster-url="movie.posterUrl"
+      :poster-url="
+        localMediaImage('movie', movie.id, 'poster', movie.posterUrl)
+      "
       :hero-backdrop-url="heroBackdropUrl"
       :has-backdrop="!!movie.backdropUrl"
       :rating-overall="movie.ratingOverall"
@@ -534,9 +544,14 @@ async function onRatingChange(value: number | null) {
         </div>
 
         <div v-if="movie.genres.length" class="chip-row">
-          <span v-for="g in movie.genres" :key="g" class="chip primary">{{
-            g
-          }}</span>
+          <router-link
+            v-for="g in movie.genres"
+            :key="g"
+            class="chip primary chip-link"
+            :to="{ path: '/movies', query: { genre: g } }"
+            :title="`All movies tagged ${g}`"
+            >{{ g }}</router-link
+          >
         </div>
         <div v-if="movie.tags.length" class="chip-row">
           <span v-for="t in movie.tags" :key="t" class="chip">{{ t }}</span>

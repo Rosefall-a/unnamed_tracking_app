@@ -2,6 +2,8 @@
 // One game, movie, show or anime inside a collection or list: poster, name and
 // a status pill. In reorder mode it is draggable and shows move arrows;
 // otherwise a star (use as the cover) and a remove button show on hover.
+import { vLazyBg } from "../directives/lazyBackground";
+
 defineProps<{
   title: string;
   posterUrl: string | null | undefined;
@@ -44,10 +46,7 @@ const emit = defineEmits<{
     @dragend="emit('dragend')"
   >
     <div class="item-cover">
-      <div
-        class="item-poster"
-        :style="posterUrl ? { backgroundImage: `url(${posterUrl})` } : {}"
-      ></div>
+      <div class="item-poster" v-lazy-bg="posterUrl"></div>
       <span
         v-if="coverMark"
         class="cover-mark"

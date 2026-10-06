@@ -4,6 +4,7 @@
 // lists show what their saved filter currently matches, so they have no
 // add/remove/reorder, only an editable rule. Item tiles use the
 // poster+status-pill look already established across Movies/TV/Anime.
+import { localMediaImage } from "../utils/mediaImages";
 import { computed, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import {
@@ -390,7 +391,14 @@ async function addTitle(m: PickItem) {
           v-for="(item, index) in shownItems"
           :key="item.id"
           :title="item.title"
-          :poster-url="item.posterUrl"
+          :poster-url="
+            localMediaImage(
+              item.mediaType,
+              item.mediaId,
+              'poster',
+              item.posterUrl,
+            )
+          "
           :status-label="statusBucketLabel(item.status)"
           :status-class="statusBucket(item.status)"
           :index="index"

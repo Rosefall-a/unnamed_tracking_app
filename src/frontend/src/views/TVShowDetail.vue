@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { localMediaImage } from "../utils/mediaImages";
 import { usePageTitle } from "../state/pageTitle";
 import MyNote from "../components/MyNote.vue";
 import MediaDetailHero from "../components/MediaDetailHero.vue";
@@ -144,8 +145,15 @@ const nativeTitleLine = computed(() => {
     : show.value.creators.join(", ");
   return studios ? `Series · ${studios}` : "Series";
 });
-const heroBackdropUrl = computed(
-  () => show.value?.backdropUrl ?? show.value?.posterUrl ?? null,
+const heroBackdropUrl = computed(() =>
+  show.value
+    ? localMediaImage(
+        "tv",
+        show.value.id,
+        "hero",
+        show.value.backdropUrl ?? show.value.posterUrl,
+      )
+    : null,
 );
 
 // ---- episodes (every season's real episode list, no season picker) ----
@@ -626,7 +634,7 @@ async function onRatingChange(value: number | null) {
       v-model:status="statusBucketModel"
       :title="show.title"
       :native-title="nativeTitleLine"
-      :poster-url="show.posterUrl"
+      :poster-url="localMediaImage('tv', show.id, 'poster', show.posterUrl)"
       :hero-backdrop-url="heroBackdropUrl"
       :has-backdrop="!!show.backdropUrl"
       :rating-overall="show.ratingOverall"
@@ -684,9 +692,14 @@ async function onRatingChange(value: number | null) {
         </div>
 
         <div v-if="show.genres.length" class="chip-row">
-          <span v-for="g in show.genres" :key="g" class="chip primary">{{
-            g
-          }}</span>
+          <router-link
+            v-for="g in show.genres"
+            :key="g"
+            class="chip primary chip-link"
+            :to="{ path: '/tv', query: { genre: g } }"
+            :title="`All shows tagged ${g}`"
+            >{{ g }}</router-link
+          >
         </div>
         <div v-if="show.tags.length" class="chip-row">
           <span v-for="t in show.tags" :key="t" class="chip">{{ t }}</span>

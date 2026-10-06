@@ -10,6 +10,7 @@ import {
   fetchGameVariants,
   fetchGameAchievements,
   fetchContentCounts,
+  peekGame,
   fetchGameFieldChanges,
   fetchGames,
   setFavorite,
@@ -20,6 +21,12 @@ import {
 } from "../services/games";
 import type { FieldChange, GameRatings } from "../services/games";
 import { peekAdjacentGameId } from "../state/libraryNav";
+import {
+  HERO_WIDTH,
+  POSTER_WIDTH,
+  preloadImage,
+  sizedAssetUrl,
+} from "../utils/gameImages";
 import {
   uploadGameScreenshots,
   listGameScreenshots,
@@ -749,9 +756,115 @@ watch(activeProfileId, () => {
   void reloadMediaForCurrentTab();
 });
 
+// Opening a game: forget what belonged to the one before, and have whichever
+// tab is showing start loading its own things.
+function resetForGame() {
+  mediaItems.value = [];
+  mediaLoadedFor.value = null;
+  mediaTrash.value = [];
+  showMediaTrash.value = false;
+  fieldChanges.value = [];
+  fieldChangesError.value = null;
+  docsFiles.value = [];
+  modpackFiles.value = [];
+  filesLoaded.value = { doc: null, modpack: null };
+  docsTrash.value = [];
+  modpackTrash.value = [];
+  showDocsTrash.value = false;
+  showModpackTrash.value = false;
+  saveArchives.value = [];
+  saveArchivesLoaded.value = false;
+  saveTrash.value = [];
+  showSaveTrash.value = false;
+  stopWorldMapPolling();
+  worldMaps.value = [];
+  worldMapsLoaded.value = false;
+  worldTrash.value = [];
+  showWorldTrash.value = false;
+  activeMapArchiveId.value = null;
+  profiles.value = [];
+  profilesLoadedFor.value = null;
+  activeProfileId.value = null;
+  checklistItems.value = [];
+  if (
+    activeTab.value === "Screenshots" ||
+    activeTab.value === "Clips" ||
+    activeTab.value === "Soundtrack"
+  ) {
+    void loadProfiles();
+    void loadMedia();
+    void refreshMediaTrash();
+  }
+  if (activeTab.value === "Accounts") {
+    void loadProfiles();
+    void loadChecklist();
+    void reloadMediaForCurrentTab();
+  }
+  if (activeTab.value === "Saves") {
+    void refreshSaveArchives();
+    void refreshSaveTrash();
+  }
+  if (activeTab.value === "Docs") {
+    void loadGameFiles("doc");
+    void refreshFileTrash("doc");
+  }
+  if (activeTab.value === "World Map") {
+    void loadGameFiles("modpack");
+    void refreshFileTrash("modpack");
+    void refreshWorldMaps();
+    void refreshWorldTrash();
+  }
+}
+
 async function loadGame(id: string) {
-  loading.value = true;
   error.value = null;
+  // the hero picture is big, so it starts downloading now rather than once the
+  // game's details have come back
+  preloadImage(sizedAssetUrl(`/api/game/${id}/assets/banner`, HERO_WIDTH));
+  preloadImage(sizedAssetUrl(`/api/game/${id}/assets/key_art`, POSTER_WIDTH));
+  // true when this only refreshes the game already on screen (after an edit)
+  const refresh = game.value?.id === id;
+  // everything the page fills in on its own is asked for at once, so none of
+  // it waits for the game or for each other
+  let achievements: Achievement[] | null = null;
+  const applyAchievements = () => {
+    if (route.params.id !== id || !game.value || !achievements) return;
+    game.value.achievements = achievements;
+    game.value.achievementTotal = achievements.length;
+    game.value.achievementPercent = achievements.length
+      ? Math.round(
+          (achievements.filter(isUnlocked).length / achievements.length) * 100,
+        )
+      : 0;
+  };
+  void fetchGameAchievements(id)
+    .then((list) => {
+      achievements = list;
+      applyAchievements();
+    })
+    .catch(() => {
+      // achievements are a nice-to-have overlay, a failure here
+      // shouldn't block the rest of the game page from rendering
+    });
+  if (!refresh) variants.value = [];
+  void fetchGameVariants(id)
+    .then((list) => {
+      if (route.params.id === id) variants.value = list;
+    })
+    .catch(() => {
+      // variants section just doesn't show, not worth failing the page
+    });
+
+  // a game seen before is on screen straight away, and refreshed behind it
+  const seen = refresh ? undefined : peekGame(id);
+  if (seen) {
+    game.value = seen;
+    resetForGame();
+    parentGameTitle.value = null;
+    loading.value = false;
+  } else if (!refresh) {
+    loading.value = true;
+  }
   try {
     const fetched = await fetchGame(id);
     // the route can change again while this was in flight (fast
@@ -760,97 +873,26 @@ async function loadGame(id: string) {
     // must not overwrite the newer one that may have already loaded
     if (route.params.id !== id) return;
     game.value = fetched;
-    if (game.value) {
-      try {
-        const achievements = await fetchGameAchievements(id);
-        if (route.params.id !== id) return;
-        game.value.achievements = achievements;
-        game.value.achievementTotal = achievements.length;
-        game.value.achievementPercent = achievements.length
-          ? Math.round(
-              (achievements.filter(isUnlocked).length / achievements.length) *
-                100,
-            )
-          : 0;
-      } catch {
-        // achievements are a nice-to-have overlay, a failure here
-        // shouldn't block the rest of the game page from rendering
-      }
-      mediaItems.value = [];
-      mediaLoadedFor.value = null;
-      mediaTrash.value = [];
-      showMediaTrash.value = false;
-      fieldChanges.value = [];
-      fieldChangesError.value = null;
-      docsFiles.value = [];
-      modpackFiles.value = [];
-      filesLoaded.value = { doc: null, modpack: null };
-      docsTrash.value = [];
-      modpackTrash.value = [];
-      showDocsTrash.value = false;
-      showModpackTrash.value = false;
-      saveArchives.value = [];
-      saveArchivesLoaded.value = false;
-      saveTrash.value = [];
-      showSaveTrash.value = false;
-      stopWorldMapPolling();
-      worldMaps.value = [];
-      worldMapsLoaded.value = false;
-      worldTrash.value = [];
-      showWorldTrash.value = false;
-      activeMapArchiveId.value = null;
-      profiles.value = [];
-      profilesLoadedFor.value = null;
-      activeProfileId.value = null;
-      checklistItems.value = [];
-      if (
-        activeTab.value === "Screenshots" ||
-        activeTab.value === "Clips" ||
-        activeTab.value === "Soundtrack"
-      ) {
-        void loadProfiles();
-        void loadMedia();
-        void refreshMediaTrash();
-      }
-      if (activeTab.value === "Accounts") {
-        void loadProfiles();
-        void loadChecklist();
-        void reloadMediaForCurrentTab();
-      }
-      if (activeTab.value === "Saves") {
-        void refreshSaveArchives();
-        void refreshSaveTrash();
-      }
-      if (activeTab.value === "Docs") {
-        void loadGameFiles("doc");
-        void refreshFileTrash("doc");
-      }
-      if (activeTab.value === "World Map") {
-        void loadGameFiles("modpack");
-        void refreshFileTrash("modpack");
-        void refreshWorldMaps();
-        void refreshWorldTrash();
-      }
-
+    if (fetched && !seen && !refresh) {
+      resetForGame();
       parentGameTitle.value = null;
-      if (game.value.parentGameId) {
-        try {
-          const parent = await fetchGame(game.value.parentGameId);
-          parentGameTitle.value = parent?.title ?? null;
-        } catch {
+    }
+    applyAchievements();
+    if (fetched?.parentGameId) {
+      const parentId = fetched.parentGameId;
+      void fetchGame(parentId)
+        .then((parent) => {
+          if (route.params.id === id)
+            parentGameTitle.value = parent?.title ?? null;
+        })
+        .catch(() => {
           // breadcrumb just doesn't show a name, not worth failing the page
-        }
-      }
-
-      variants.value = [];
-      try {
-        variants.value = await fetchGameVariants(id);
-      } catch {
-        // variants section just doesn't show, not worth failing the page
-      }
+        });
     }
   } catch (err) {
-    error.value = err instanceof Error ? err.message : "Failed to load game";
+    // with the game already showing, a failed refresh is not worth an error page
+    if (!seen && !refresh)
+      error.value = err instanceof Error ? err.message : "Failed to load game";
   } finally {
     loading.value = false;
   }
@@ -1048,7 +1090,7 @@ async function confirmDelete() {
 
 // re-fetches automatically if you ever navigate from one game's page
 // straight to another, not just on the first load
-watch(() => route.params.id as string, loadGame, { immediate: true });
+watch(() => route.params.id as string, loadGame);
 const recentActivity = computed(() => game.value?.lastPlayedAt ?? null);
 
 const tally = computed(() => (game.value ? computeScore(game.value) : null));
@@ -2458,31 +2500,56 @@ function formatPlaytime(minutes: number) {
   const mins = minutes % 60;
   return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
 }
+
+// Last, so everything the first load touches has been set up by now.
+void loadGame(route.params.id as string);
 </script>
 
 <template>
-  <main v-if="loading" class="detail loading-state">
+  <main v-if="loading" class="detail loading-state" aria-busy="true">
     <GameTopBar active="games" />
-    <div class="detail-skeleton">
-      <SkeletonBlock height="320px" radius="0" />
-      <div class="detail-skeleton-body">
-        <SkeletonBlock width="45%" height="28px" />
-        <div class="detail-skeleton-pills">
-          <SkeletonBlock width="80px" height="24px" radius="999px" />
-          <SkeletonBlock width="100px" height="24px" radius="999px" />
-          <SkeletonBlock width="70px" height="24px" radius="999px" />
+    <!-- the shape of the real page: hero with poster, title, badges and
+         buttons, then the tabs, then the first block of content -->
+    <section class="hero">
+      <div class="hero-overlay"></div>
+      <div class="hero-content">
+        <SkeletonBlock width="212px" height="307px" radius="8px" />
+        <div class="hero-text detail-skeleton-text">
+          <SkeletonBlock width="30%" height="12px" />
+          <SkeletonBlock width="60%" height="40px" />
+          <div class="detail-skeleton-row">
+            <SkeletonBlock
+              v-for="w in [64, 96, 80, 72]"
+              :key="w"
+              :width="`${w}px`"
+              height="24px"
+              radius="999px"
+            />
+          </div>
+          <div class="detail-skeleton-row">
+            <SkeletonBlock width="88px" height="36px" radius="8px" />
+            <SkeletonBlock width="36px" height="36px" radius="8px" />
+            <SkeletonBlock width="36px" height="36px" radius="8px" />
+          </div>
         </div>
-        <div class="detail-skeleton-tabs">
-          <SkeletonBlock
-            v-for="i in 6"
-            :key="i"
-            width="70px"
-            height="30px"
-            radius="8px"
-          />
-        </div>
-        <SkeletonBlock height="140px" />
       </div>
+    </section>
+    <div class="tabbar-wrap">
+      <SkeletonBlock width="470px" height="44px" radius="10px" />
+    </div>
+    <div class="detail-skeleton-body">
+      <div class="detail-skeleton-row">
+        <SkeletonBlock
+          v-for="i in 4"
+          :key="i"
+          width="120px"
+          height="44px"
+          radius="8px"
+        />
+      </div>
+      <SkeletonBlock height="14px" />
+      <SkeletonBlock height="14px" width="92%" />
+      <SkeletonBlock height="14px" width="70%" />
     </div>
   </main>
 
@@ -2555,7 +2622,9 @@ function formatPlaytime(minutes: number) {
     <section class="hero">
       <div
         class="hero-backdrop"
-        :style="{ backgroundImage: `url(${game.bannerImageUrl})` }"
+        :style="{
+          backgroundImage: `url(${sizedAssetUrl(game.bannerImageUrl, HERO_WIDTH)})`,
+        }"
       ></div>
       <div class="hero-overlay"></div>
       <div class="hero-content">
@@ -2563,7 +2632,9 @@ function formatPlaytime(minutes: number) {
           class="poster-card"
           :style="
             game.coverImageUrl
-              ? { backgroundImage: `url(${game.coverImageUrl})` }
+              ? {
+                  backgroundImage: `url(${sizedAssetUrl(game.coverImageUrl, POSTER_WIDTH)})`,
+                }
               : {}
           "
         >
@@ -2857,7 +2928,9 @@ function formatPlaytime(minutes: number) {
               class="poster-card-sm-art"
               :style="
                 variant.coverImageUrl
-                  ? { backgroundImage: `url(${variant.coverImageUrl})` }
+                  ? {
+                      backgroundImage: `url(${sizedAssetUrl(variant.coverImageUrl, POSTER_WIDTH)})`,
+                    }
                   : {}
               "
             ></div>
@@ -2887,7 +2960,9 @@ function formatPlaytime(minutes: number) {
               class="poster-card-sm-art"
               :style="
                 g.coverImageUrl
-                  ? { backgroundImage: `url(${g.coverImageUrl})` }
+                  ? {
+                      backgroundImage: `url(${sizedAssetUrl(g.coverImageUrl, POSTER_WIDTH)})`,
+                    }
                   : {}
               "
             ></div>
@@ -4207,15 +4282,28 @@ function formatPlaytime(minutes: number) {
   overflow-x: clip;
 }
 .detail-skeleton-body {
-  padding: 24px;
+  max-width: 1180px;
+  margin: 22px auto 0;
+  padding: 0 24px 40px;
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 14px;
 }
-.detail-skeleton-pills,
-.detail-skeleton-tabs {
+.detail-skeleton-text {
+  flex: 1;
+  max-width: 560px;
   display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.detail-skeleton-row {
+  display: flex;
+  flex-wrap: wrap;
   gap: 10px;
+}
+.loading-state .tabbar-wrap {
+  max-width: 1180px;
 }
 .hero {
   position: relative;

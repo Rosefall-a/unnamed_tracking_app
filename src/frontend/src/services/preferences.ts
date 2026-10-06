@@ -26,6 +26,8 @@ export interface Preferences {
   anilist_import_interval_minutes: number;
   anilist_import_update_existing: boolean;
   anilist_import_last_run_at: number | null;
+  // genres from the tags Steam players vote on, not just Steam's broad ones
+  steam_user_tags: boolean;
   // what every game page shows; a game can override it
   game_page: PageSettings;
 }
@@ -54,6 +56,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   anilist_import_interval_minutes: 1440,
   anilist_import_update_existing: false,
   anilist_import_last_run_at: null,
+  steam_user_tags: true,
   game_page: DEFAULT_PAGE_SETTINGS,
 };
 

@@ -5,6 +5,7 @@
 // name) and a list (keyed by id) use it the same way.
 import { computed } from "vue";
 import { blurOnLeave } from "../utils/blurOnLeave";
+import { vLazyBg } from "../directives/lazyBackground";
 
 const props = defineProps<{
   id: string;
@@ -76,7 +77,7 @@ const displayName = computed(() =>
             v-for="(cover, i) in shownCovers"
             :key="i"
             class="cover-cell"
-            :style="cover ? { backgroundImage: `url(${cover})` } : {}"
+            v-lazy-bg="cover"
           ></div>
           <div
             v-for="i in emptySlots"

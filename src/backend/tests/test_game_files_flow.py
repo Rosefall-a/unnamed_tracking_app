@@ -13,7 +13,13 @@ from fastapi import Response
 from PIL import Image
 from sqlalchemy import delete
 
-from src.api.routes import game_archives, game_notes as game_notes_routes, game_page, games
+from src.api.routes import (
+    default_game_assets,
+    game_archives,
+    game_notes as game_notes_routes,
+    game_page,
+    games,
+)
 from src.api.schemas.game import GameCreate
 from src.core.auth import get_current_user
 from src.database.models.user import User
@@ -28,6 +34,7 @@ async def flow(tmp_path, monkeypatch):
     monkeypatch.setattr(game_archives, "_DATA_ROOT", tmp_path)
     monkeypatch.setattr(game_notes_routes, "_DATA_ROOT", tmp_path)
     monkeypatch.setattr(game_page, "_DATA_ROOT", tmp_path)
+    monkeypatch.setattr(default_game_assets, "_DATA_ROOT", tmp_path)
     monkeypatch.setattr(games, "create_game_folder", lambda *_a: None)
     async with SessionLocal() as db:
         user = User(
@@ -289,3 +296,32 @@ async def test_a_save_can_carry_a_note_and_tags(flow) -> None:
     assert (await flow.client.patch(f"{flow.game}/archives/{archive['id']}", json={"name": " "})).status_code == 400
     cleared = await flow.client.patch(f"{flow.game}/archives/{archive['id']}", json={"note": ""})
     assert cleared.json()["note"] is None
+
+
+async def test_banner_preview_is_a_small_cached_jpeg(flow) -> None:
+    folder = flow.tmp / str(flow.user_id) / "games" / "Flow"
+    folder.mkdir(parents=True, exist_ok=True)
+    Image.new("RGB", (4000, 1000), (200, 40, 40)).save(folder / "banner.png", "PNG")
+
+    full = await flow.client.get(f"{flow.game}/assets/banner")
+    assert full.status_code == 200, full.text
+    assert full.headers["content-type"] == "image/png"
+
+    small = await flow.client.get(f"{flow.game}/assets/banner", params={"w": 800})
+    assert small.status_code == 200
+    assert small.headers["content-type"] == "image/jpeg"
+    shrunk = Image.open(io.BytesIO(small.content))
+    assert shrunk.width == 800 and len(small.content) < len(full.content) / 4
+
+    # the second ask is served from the cache folder, not made again
+    cached = list((flow.tmp / str(flow.user_id) / ".cache" / "asset-previews").rglob("banner-800.jpg"))
+    assert len(cached) == 1
+    first_mtime = cached[0].stat().st_mtime_ns
+    await flow.client.get(f"{flow.game}/assets/banner", params={"w": 800})
+    assert cached[0].stat().st_mtime_ns == first_mtime
+
+    # an image already smaller than asked for comes back as it is
+    big = await flow.client.get(f"{flow.game}/assets/banner", params={"w": 4096})
+    assert big.headers["content-type"] == "image/png"
+    # nonsense sizes are refused
+    assert (await flow.client.get(f"{flow.game}/assets/banner", params={"w": 5})).status_code == 422

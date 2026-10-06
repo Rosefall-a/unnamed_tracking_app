@@ -1,6 +1,8 @@
 import { mockGames } from "../data/mockGames";
 import { failedRequest } from "./apiError";
 import { normalizeKind } from "../utils/achievements";
+import { createEntityCache } from "../utils/entityCache";
+import { POSTER_WIDTH, sizedAssetUrl } from "../utils/gameImages";
 import type { ContentCounts, PageOverrides } from "../utils/gamePage";
 import type {
   Achievement,
@@ -109,7 +111,12 @@ export function mapBackendGame(raw: BackendGame): Game {
     title: raw.title,
     // placeholders, the backend has no artwork yet
     coverColor: "#2a2a2a",
-    coverImageUrl: `/api/game/${raw.id}/assets/key_art`,
+    // every place a cover is shown is a card or a poster well under 400 px
+    // wide, and the stored cover is a PNG of up to a megabyte
+    coverImageUrl: sizedAssetUrl(
+      `/api/game/${raw.id}/assets/key_art`,
+      POSTER_WIDTH,
+    ),
     bannerImageUrl: `/api/game/${raw.id}/assets/banner`,
     status: normalizeStatus(raw.status),
     ratingOverall: toNumberOrNull(raw.rating_overall),
@@ -183,6 +190,29 @@ export function mapBackendGame(raw: BackendGame): Game {
   };
 }
 
+// Every game this page has seen, so opening one can draw at once from what the
+// library already fetched and refresh quietly behind it.
+const gameCache = createEntityCache<Game>();
+export const peekGame = gameCache.peek;
+// Every game, if a full list has been fetched this visit, so the library can
+// draw at once and refresh behind it.
+export const peekAllGames = (): Game[] | null =>
+  gameCache.listLoaded() ? gameCache.all() : null;
+function rememberGame(game: Game): Game {
+  const before = gameCache.peek(game.id);
+  // what a visit to the page loaded for this game (the achievements) is not
+  // in the list, so keep it until the next visit replaces it
+  if (before && !game.achievements.length && before.achievements.length) {
+    game.achievements = before.achievements;
+  }
+  // likewise the completion numbers the library fills in from its summary
+  if (before && !game.achievementTotal && before.achievementTotal) {
+    game.achievementTotal = before.achievementTotal;
+    game.achievementPercent = before.achievementPercent;
+  }
+  return gameCache.put(game);
+}
+
 // /api/game/list caps a single page at 200, page through until a page
 // comes back short, otherwise only the first 50 (the endpoint's default)
 // ever reached the library view once a synced library grew past that.
@@ -209,7 +239,9 @@ export async function fetchGames(): Promise<Game[]> {
     if (page.length < GAMES_PAGE_SIZE) break;
     skip += GAMES_PAGE_SIZE;
   }
-  return all.map(mapBackendGame);
+  const games = all.map(mapBackendGame).map(rememberGame);
+  gameCache.markListLoaded();
+  return games;
 }
 
 interface BackendAchievement {
@@ -385,7 +417,7 @@ export async function fetchGame(id: string): Promise<Game | null> {
     );
   }
   const raw: BackendGame = await response.json();
-  return mapBackendGame(raw);
+  return rememberGame(mapBackendGame(raw));
 }
 
 // every game whose parentGameId points at this one, e.g. Minecraft's

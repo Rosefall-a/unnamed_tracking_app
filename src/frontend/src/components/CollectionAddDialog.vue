@@ -1,6 +1,8 @@
 <script setup lang="ts">
 // "Add games" / "Add titles": a searchable list of what is not in the
 // collection or list yet, one click each. Done closes it.
+import { vLazyBg } from "../directives/lazyBackground";
+
 defineProps<{
   heading: string;
   results: {
@@ -42,10 +44,7 @@ const emit = defineEmits<{
           class="add-row"
           @click="emit('add', r.key)"
         >
-          <span
-            class="add-thumb"
-            :style="r.thumbUrl ? { backgroundImage: `url(${r.thumbUrl})` } : {}"
-          ></span>
+          <span class="add-thumb" v-lazy-bg="r.thumbUrl"></span>
           <span class="add-title">{{ r.title }}</span>
           <span class="add-kind">{{ r.kind }}</span>
           <span class="add-plus">+</span>

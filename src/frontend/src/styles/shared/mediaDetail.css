@@ -79,6 +79,21 @@
   font-weight: 600;
 }
 
+.chip.chip-link {
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.chip.chip-link:hover,
+.chip.chip-link:focus-visible {
+  border-color: rgba(214, 138, 52, 0.6);
+  color: #fff;
+  outline: none;
+}
+
 .chip.primary {
   background: rgba(214, 138, 52, 0.16);
   color: #d68a34;

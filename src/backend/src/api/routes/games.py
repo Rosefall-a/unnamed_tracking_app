@@ -64,6 +64,7 @@ from src.database.models.user import User
 from src.database.models.user_scan_settings import UserScanSettings
 from src.database.session import get_db
 from src.features.metadata.games import wiseoldman
+from src.core.preferences import load_preferences
 from src.features.metadata.games.search import search_game_metadata
 from src.features.trash.game_trash import move_game_to_trash, restore_game_from_trash
 from src.features.trash.media_trash import move_media_file_to_trash, restore_media_file_from_trash
@@ -163,6 +164,7 @@ async def search_metadata(
     """
     scan_settings = await get_or_create_scan_settings(current_user.id, db)
     preferences = _scan_settings_to_preferences(scan_settings)
+    preferences["steam_user_tags"] = (await load_preferences(db, current_user.id))["steam_user_tags"]
     app_integrations = resolve_integrations(await get_or_create_app_integration_settings(db))
     try:
         result = await asyncio.to_thread(

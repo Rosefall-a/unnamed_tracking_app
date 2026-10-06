@@ -30,6 +30,7 @@ from src.helpers.steam_achievement_rows import (  # noqa: F401
     steam_achievement_rows as _steam_achievement_rows,
 )
 from src.api.routes.games import _scan_settings_to_preferences
+from src.core.preferences import load_preferences
 from src.api.routes.settings import (
     get_or_create_app_integration_settings,
     get_or_create_scan_settings,
@@ -42,7 +43,7 @@ from src.database.models.achievement import Achievement
 from src.database.models.game import Game, GameStatus
 from src.database.models.user import User
 from src.database.session import get_db
-from src.features.metadata.games import steam
+from src.features.metadata.games import steam, steam_tags
 from src.features.metadata.games.igdb import IGDBClient
 from src.features.metadata.games.psn import PSNClient, PSNError
 from src.features.metadata.games.retroachievements import (
@@ -127,7 +128,8 @@ async def _fetch_key_art_from_steamgriddb(app_id: int, api_key: str | None) -> s
 
 
 async def _enrich_steam_game_by_appid(
-    game: Game, app_id: int, user: User, igdb_client_id: str | None, igdb_client_secret: str | None
+    game: Game, app_id: int, user: User, igdb_client_id: str | None, igdb_client_secret: str | None,
+    use_user_tags: bool = True,
 ) -> None:
     """Steam-sourced games already carry an authoritative Steam appid from
     the account's real owned-games list — no text matching needed at all,
@@ -157,6 +159,8 @@ async def _enrich_steam_game_by_appid(
             game.description = description
         genres = details.get("genres") or []
         tags = [g["description"] for g in genres if g.get("description")]
+        if use_user_tags:
+            tags = await asyncio.to_thread(steam_tags.tags_with_player_votes, app_id, tags)
         if tags:
             game.tags = tags
         categories = details.get("categories") or []
@@ -688,6 +692,7 @@ async def sync_steam_library(
 
     scan_settings = await get_or_create_scan_settings(current_user.id, db)
     preferences = _scan_settings_to_preferences(scan_settings)
+    preferences["steam_user_tags"] = (await load_preferences(db, current_user.id))["steam_user_tags"]
     app_integrations = resolve_integrations(await get_or_create_app_integration_settings(db))
     igdb_client_id = app_integrations.igdb_client_id
     igdb_client_secret = app_integrations.igdb_client_secret
@@ -782,7 +787,7 @@ async def sync_steam_library(
             # different game's data/art the way the generic search-based
             # _enrich_new_game occasionally did
             await _enrich_steam_game_by_appid(
-                game, app_id, current_user, igdb_client_id, igdb_client_secret
+                game, app_id, current_user, igdb_client_id, igdb_client_secret, preferences["steam_user_tags"]
             )
 
     await asyncio.gather(*(_enrich(g, app_id) for g, app_id in newly_created))

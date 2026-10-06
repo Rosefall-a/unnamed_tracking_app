@@ -215,7 +215,13 @@ function copyFolderPath() {
         @touchmove="onTouchMove"
         @touchend="onTouchEnd"
       >
-        <img class="cover-image" :src="game.coverImageUrl" alt="" />
+        <img
+          class="cover-image"
+          :src="game.coverImageUrl"
+          alt=""
+          loading="lazy"
+          decoding="async"
+        />
         <div
           v-if="selectMode"
           class="select-checkbox"

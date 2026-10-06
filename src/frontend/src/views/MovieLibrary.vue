@@ -10,6 +10,7 @@ import {
   createMovie,
 } from "../services/movies";
 import type { Movie, MovieStatus } from "../types/movie";
+import { localMediaImage } from "../utils/mediaImages";
 import MediaLibraryView from "../components/library/MediaLibraryView.vue";
 import type {
   LibraryCardVM,
@@ -36,7 +37,7 @@ function toVM(m: Movie): LibraryCardVM {
   return {
     id: m.id,
     title: m.title,
-    poster: m.posterUrl,
+    poster: localMediaImage("movie", m.id, "poster", m.posterUrl),
     status: m.status,
     favorite: m.favorite,
     score: m.ratingOverall,

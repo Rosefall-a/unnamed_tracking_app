@@ -8,7 +8,7 @@ import {
   onMounted,
   onBeforeUnmount,
 } from "vue";
-import { useRouter } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import CheckIcon from "../CheckIcon.vue";
 import MediaTopBar from "../MediaTopBar.vue";
 import SegmentedTabs from "../SegmentedTabs.vue";
@@ -125,12 +125,15 @@ const emit = defineEmits<{
 }>();
 
 const router = useRouter();
+const route = useRoute();
 
 function maybeLoadMore() {
   if (
     layout.value === "board" ||
     props.loading ||
-    props.items.length >= props.total
+    props.items.length >= props.total ||
+    // what is already loaded is still being drawn a screenful at a time
+    renderLimit.value < filteredItems.value.length
   )
     return;
   if (
@@ -296,6 +299,21 @@ const activeFilterCount = computed(
       yearFrom.value.trim() !== "" || yearTo.value.trim() !== "",
     ].filter(Boolean).length,
 );
+// A genre chip on a title's page links here as ?genre=Action. It shows exactly
+// that, not that on top of whatever filters were left on from last time.
+const BASE_PATH: Record<string, string> = {
+  movie: "/movies",
+  tv: "/tv",
+  anime: "/anime",
+};
+function applyLinkedFilter() {
+  if (route.path !== BASE_PATH[props.kind]) return;
+  const genre = route.query.genre;
+  if (typeof genre !== "string" || !genre) return;
+  clearFilters();
+  selectedGenres.value = new Set([genre]);
+  filtersOpen.value = true;
+}
 function clearFilters() {
   selectedGenres.value = new Set();
   selectedFormats.value = new Set();
@@ -307,6 +325,39 @@ function clearFilters() {
   yearFrom.value = "";
   yearTo.value = "";
 }
+
+applyLinkedFilter();
+// the library is kept alive, so a link can arrive while it already exists
+watch(() => route.fullPath, applyLinkedFilter);
+
+// ---- drawing a long library a screenful at a time ----
+// A shelf or list of hundreds of cards is slow to open if every one is drawn
+// at once, so the first screenfuls are drawn and a marker below them draws the
+// next batch as it nears the screen. Search, sort and filters start over.
+const RENDER_STEP = 48;
+const renderLimit = ref(RENDER_STEP);
+const moreSentinel = ref<HTMLElement | null>(null);
+const sentinelObserver =
+  typeof IntersectionObserver === "undefined"
+    ? null
+    : new IntersectionObserver(
+        (entries) => {
+          if (!entries.some((e) => e.isIntersecting)) return;
+          renderLimit.value += RENDER_STEP;
+          // asked again, so a marker still in view after the batch draws more
+          const el = moreSentinel.value;
+          if (el) {
+            sentinelObserver?.unobserve(el);
+            sentinelObserver?.observe(el);
+          }
+        },
+        { rootMargin: "800px" },
+      );
+watch(moreSentinel, (el, old) => {
+  if (old) sentinelObserver?.unobserve(old);
+  if (el) sentinelObserver?.observe(el);
+});
+onBeforeUnmount(() => sentinelObserver?.disconnect());
 
 // Every filter except the status tab (the Board shows the tabs as rows).
 const filters = computed<LibraryFilters>(() => ({
@@ -400,6 +451,12 @@ const filteredItems = computed(() => {
     });
   }
   return sorted;
+});
+const renderedItems = computed(() =>
+  filteredItems.value.slice(0, renderLimit.value),
+);
+watch([searchQuery, sortKey, activeStatus, filters, layout], () => {
+  renderLimit.value = RENDER_STEP;
 });
 
 const boardPageStarts = reactive<Record<string, number>>({});
@@ -1027,7 +1084,7 @@ defineExpose({ openQuickAdd });
             </div>
             <div class="list-rows">
               <div
-                v-for="it in filteredItems"
+                v-for="it in renderedItems"
                 :key="it.id"
                 class="list-row"
                 @click="handleCardClick(it)"
@@ -1154,6 +1211,11 @@ defineExpose({ openQuickAdd });
               </div>
             </div>
           </div>
+          <div
+            v-if="renderLimit < filteredItems.length"
+            ref="moreSentinel"
+            class="render-sentinel"
+          ></div>
           <div v-if="items.length < total" class="load-more-indicator">
             {{ loading ? "Loading more…" : "Scroll for more" }}
           </div>
@@ -1172,7 +1234,7 @@ defineExpose({ openQuickAdd });
             }"
           >
             <div
-              v-for="it in filteredItems"
+              v-for="it in renderedItems"
               :key="it.id"
               class="shelf-card"
               @click="handleCardClick(it)"
@@ -1296,6 +1358,11 @@ defineExpose({ openQuickAdd });
               </div>
             </div>
           </div>
+          <div
+            v-if="renderLimit < filteredItems.length"
+            ref="moreSentinel"
+            class="render-sentinel"
+          ></div>
           <div v-if="items.length < total" class="load-more-indicator">
             {{ loading ? "Loading more…" : "Scroll for more" }}
           </div>
@@ -2394,6 +2461,9 @@ defineExpose({ openQuickAdd });
   gap: 8px;
 }
 .list-row {
+  /* a row below the fold is not drawn until it is near */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 76px;
   display: grid;
   grid-template-columns:
     76px minmax(180px, 1fr)

@@ -12,6 +12,7 @@ import {
 } from "../services/anime";
 import type { SeasonUpdateInput } from "../services/anime";
 import type { Anime, AnimeStatus } from "../types/anime";
+import { localMediaImage } from "../utils/mediaImages";
 import MediaLibraryView from "../components/library/MediaLibraryView.vue";
 import { displayTitle } from "../utils/displayTitle";
 import { statusBucket, bucketToReal } from "../utils/mediaStatus";
@@ -88,7 +89,7 @@ function toVM(show: Anime): LibraryCardVM {
   return {
     id: show.id,
     title: displayTitle(show),
-    poster: show.posterUrl,
+    poster: localMediaImage("anime", show.id, "poster", show.posterUrl),
     status: show.status,
     favorite: show.favorite,
     score: show.ratingOverall,

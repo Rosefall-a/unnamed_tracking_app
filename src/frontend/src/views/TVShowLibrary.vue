@@ -12,6 +12,7 @@ import {
 } from "../services/tvShows";
 import type { SeasonUpdateInput } from "../services/tvShows";
 import type { TVShow, TVShowStatus } from "../types/tv_show";
+import { localMediaImage } from "../utils/mediaImages";
 import MediaLibraryView from "../components/library/MediaLibraryView.vue";
 import { statusBucket, bucketToReal } from "../utils/mediaStatus";
 import type {
@@ -48,7 +49,7 @@ function toVM(show: TVShow): LibraryCardVM {
   return {
     id: show.id,
     title: show.title,
-    poster: show.posterUrl,
+    poster: localMediaImage("tv", show.id, "poster", show.posterUrl),
     status: show.status,
     favorite: show.favorite,
     score: show.ratingOverall,

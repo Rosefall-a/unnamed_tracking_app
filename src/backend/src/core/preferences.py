@@ -35,6 +35,9 @@ DEFAULTS: dict[str, Any] = {
     "anilist_import_interval_minutes": 24 * 60,
     "anilist_import_update_existing": False,
     "anilist_import_last_run_at": None,
+    # genres from the tags Steam players vote on (Souls-like, Open World ...)
+    # instead of only Steam's broad official genres
+    "steam_user_tags": True,
     # what every game page shows (tabs, buttons); a game can override it
     "game_page": DEFAULT_PAGE_SETTINGS,
 }
