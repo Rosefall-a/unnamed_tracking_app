@@ -1,53 +1,55 @@
-# Backend quality rework checkpoint
+# Backend quality checks
 
-PR [250](https://github.com/Rosefall-a/unnamed_tracking_app/pull/250) is being repaired on its existing branch. PR [432](https://github.com/Rosefall-a/unnamed_tracking_app/pull/432) was retargeted and merged into that branch first. PR250 is not ready to merge until the remaining quality work is complete.
-
-## Repaired failures
-
-- Restore the SQLAlchemy enum import used by movie and TV status columns.
-- Use one consistent airing-job running flag; cover status, duplicate starts, and cleanup after success/failure.
-- Reconcile the maintenance branch's session-network migration with main. The predecessor already owns the same columns, so the repair uses the existing guarded migration helper and preserves predecessor columns on downgrade. Keep the existing revision identity for databases that applied it, and join the two heads with revision `65acf36995e5`. This is a migration repair, not a new schema feature.
-- Normalize branding images in place before conversion so mypy can verify the image type; retain EXIF orientation and metadata removal.
-- Apply Ruff's safe import/format fixes. The remaining lint findings are reported separately.
+The rework of [PR250](https://github.com/Rosefall-a/unnamed_tracking_app/pull/250) includes [PR432](https://github.com/Rosefall-a/unnamed_tracking_app/pull/432), which was retargeted and merged into the maintenance branch first. Continued cleanup is published on the [ObsoleteLabs fork branch](https://github.com/obsoletelabs/unnamed_tracking_app_2/tree/fix/pylint-ci-rework).
 
 ## CI behavior
 
-Backend tests, plugin runtime tests, migration graph validation, module size, mypy, and pylint run independently. The dedicated pylint workflow is reusable and is called once by the backend workflow. A final `backend-checks` summary waits for all backend jobs and fails if any fails or is skipped, preserving the existing required status name without making the checks depend on each other's success. Ruff format, lint, and autofix also run independently; the autofix job is the only writer and targets the actual same-repository PR head. Commands piped through `tee` use Bash's failure propagation, and diagnostic artifacts upload after failures.
+Backend tests, plugin runtime tests, migration graph validation, module size, mypy, and Pylint run independently. The reusable Pylint workflow runs once. The final `backend-checks` summary fails when any required job fails or is skipped, preserving the required status name while allowing every diagnostic check to run.
 
-The duplicate 9/10 pylint check in the backend test job is replaced by the existing dedicated 10/10 job. That job reads the shared configuration and uses pylint's numeric `--fail-under=10` gate rather than parsing a rounded score. Its workflow-only `duplicate-code` disable has been removed.
+Ruff format, lint, and autofix run independently. Autofix is the only writer, targets the actual same-repository PR head, and checks for a stale head before pushing. A formatting failure does not prevent autofix. Commands piped through `tee` propagate failures, and diagnostic artifacts upload after failures.
 
-The 1,000-line size gate now counts physical lines correctly and cannot be bypassed by `pylint: disable=too-many-lines`. The following modules still require coherent extraction:
+Pylint uses the shared configuration and `--fail-under=10`. Its score is not parsed from rounded console output. The physical 1,000-line source limit is checked independently and cannot be bypassed by a Pylint directive.
 
-| Module | Lines at this checkpoint |
-| --- | ---: |
-| `src/api/routes/games.py` | 2,723 |
-| `src/api/routes/library_sync.py` | 1,010 |
-| `src/features/metadata/anime/anilist.py` | 1,011 |
+## Agreed Pylint policy
 
-## Pylint policy and audit
+- Missing module, class, and function docstrings are relaxed globally. Public contracts, security boundaries, and non-obvious business logic still need useful documentation.
+- SQLAlchemy and Pydantic data models do not need artificial public methods.
+- Ruff retains a 100-character formatting target; Pylint checks a 120-character maximum.
+- Correctness checks, including `import-error`, `no-member`, `not-callable`, undefined names, and unused imports, remain enabled globally.
+- Existing workflows and declared interfaces may have local complexity exemptions for argument counts, locals, branches, statements, or boolean expressions. These preserve explicit validation and transaction steps without raising global limits.
+- Similar route bodies, response shapes, field declarations, and compatibility adapters may have local `duplicate-code` exemptions. Similarity alone does not justify changing an application boundary.
 
-The agreed policy relaxes missing module/class/function docstrings and the minimum public-method count for SQLAlchemy/Pydantic models. Public contracts, security boundaries, and non-obvious business logic should still have useful documentation. The line-length setting is restored from 180 to the repository's documented 120 characters.
+Old blanket file-header disables have been removed. Exceptions use the relevant statement, class, or an explicit disable/enable pair around the affected workflow. A 10/10 score means the code passes this documented policy; it does not mean every complexity or similarity finding has been eliminated.
 
-The initial source inventory found **131 suppression directives across 125 files**, including **99 file headers**. Common suppressed rules included missing function docstrings (66 directives), module docstrings (54), class docstrings (42), duplicate code (33), minimum public methods (30), local-variable count (25), and broad exception handling (22).
+Broad exception handling remains limited to boundaries with defined recovery behavior, such as external-provider fallbacks, per-entry import failure reporting, plugin isolation, and background retry loops. Inner logic should catch the specific failures it can handle.
 
-An audit of a temporary source copy with all inline pylint directives removed exposes **999 findings**, with a **9.43/10** score under the agreed policy. The largest groups are redundant import aliases (218), protected access (150), duplicate code (143), unused imports (78), too many locals (64), and broad catches (60). That audit does not modify application files. It prevents the existing suppressed score from being mistaken for the actual cleanup scope.
+## Cleanup and architectural boundaries
 
-## Recommended cleanup order
+The cleanup fixes source issues rather than hiding them behind file-wide rules: fixture registration, shadowed upload arguments, invalid merge-time names, timestamp handling, provider normalization, public permission lookups, session/job lifecycle handling, and typed SQLAlchemy expressions. Compatibility exports use explicit `__all__` declarations.
 
-1. Fix the remaining Ruff lint findings. Most are reused pytest fixtures imported under the same name as fixture parameters. Register or extract those fixtures deliberately rather than ignoring all fixture-related errors. The other findings concern an unused variable, a shadowed import, a lambda assignment, and an unspecified `zip` length contract.
-2. Remove redundant `X as X` import aliases. Preserve intentional compatibility exports with an explicit `__all__` and verify callers before changing facade modules.
-3. Remove blanket file-header pylint disables feature by feature. Delete redundant docstring/data-model disables under the shared policy, then address genuine unused code, mutable-state naming, unsafe closures, and dependency cycles with regression coverage.
-4. Split large routes along existing API/feature boundaries. Share only actual duplicated responsibilities; similar response models or migration declarations are not automatically reasons for a new generic abstraction.
-5. Review broad exception handlers individually. Runtime/plugin isolation and startup boundaries may need a broad catch with logging and defined failure behavior. Inner business logic should catch the actual failures it can handle.
-6. Verify SQLAlchemy, Alembic, and Pydantic inference findings against real behavior. Keep correctness rules such as `no-member` and `not-callable` enabled globally. If a demonstrated framework limitation remains, use a narrowly scoped, explained exception rather than disabling a rule throughout a file.
-7. Reassess the inherited global `import-error` disable with all backend dependencies installed. It should not hide broken imports as the cleanup progresses.
+The games router composes its existing responsibilities from `game_assets`, `game_files`, `game_profiles`, `game_checklists`, and `game_metadata`. Basic and advanced notes share the existing `game_notes` module. Shared route ownership, paths, validation, and history helpers live under `api/routes/utils/games.py`. Route order, authentication dependencies, public parameters, and OpenAPI component identities are preserved. Shared title normalization and Steam CDN URLs reside in the existing title/provider modules.
 
-Additional policy candidates should be reviewed separately: aligning the positional-argument limit with the existing total-argument limit, accepting documented lazy imports for initialization cycles/optional dependencies, and keeping third-party protected API use explicitly justified. Complexity limits should not be raised simply to obtain a score.
+Plugin infrastructure remains in the host application. Plugin implementations are not copied into the host to satisfy tests. Runtime acquisition, trust, permissions, updates, and gateway access retain the supported public contract and their security boundaries.
 
-## Verification limits
+The migration repair preserves the existing session-network revision identity and predecessor columns on downgrade. Revision `65acf36995e5` joins the maintenance/main histories; it does not introduce an unrelated schema feature.
 
-The focused regression suite covers model status columns, airing jobs, branding, migration metadata, and guarded session-network migration behavior. Mypy checks the backend source. Workflow verification executes the actual migration/size scripts, parses changed shell commands, and exercises detached-head autofix pushes plus stale-head protection against a local bare repository. The issue forms are parsed and checked for unique field IDs.
+## Verification
 
-The session-network regression uses a real SQLite database to verify column/data preservation, while PostgreSQL migration replay and the full backend suite remain required in CI. Production runtime smoke remains required too. Local Windows execution cannot substitute for the Linux database/container workflows.
+From `src/backend`, run:
 
-Breaking changes: no public API changes. Strict size enforcement changes, and individual backend results now have separate names. The required `backend-checks` status is preserved and covers every backend job, including pylint.
+```bash
+python -m ruff check .
+python -m ruff format --check .
+python -m mypy --config-file pyproject.toml src
+python -m pylint --rcfile=pyproject.toml --fail-under=10 src
+```
+
+The database-backed backend suite runs against PostgreSQL in CI. With the development stack running:
+
+```bash
+docker compose exec -e PYTHONPATH=/app backend python -m pytest tests -q
+```
+
+Focused checks cover session persistence and OIDC state/account linking, deployment environment locks and encrypted secrets, media lifecycle and exact statistics, imports/exports, provider fallbacks, plugin authorization, package integrity, and runtime cleanup. Before/after comparisons validate the complete OpenAPI document and selected policy/calculation outputs. PostgreSQL migration replay and production container smoke checks remain part of CI; supplementary SQLite checks do not replace them.
+
+Breaking changes: no public API changes. Individual backend checks have separate result names, and the required `backend-checks` summary covers every backend job, including Pylint.
