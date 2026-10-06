@@ -21,11 +21,21 @@ ignore = ["__pycache__", "migrations"]
 [tool.pylint.messages_control]
 disable = [
 	"import-error",
+    # Require useful documentation during review, rather than boilerplate on every symbol.
+    "missing-module-docstring",
+    "missing-class-docstring",
+    "missing-function-docstring",
 ]
 
 [tool.pylint.format]
-max-line-length = 180
+max-line-length = 120
 
 [tool.pylint.design]
 max-args = 12
 max-module-lines = 1000
+# SQLAlchemy and Pydantic models describe data; they need no artificial public methods.
+exclude-too-few-public-methods = [
+    '^(src\.)?database\.base\.Base$',
+    '^sqlalchemy\.orm\.decl_api\.DeclarativeBase$',
+    '^pydantic\.main\.BaseModel$',
+]

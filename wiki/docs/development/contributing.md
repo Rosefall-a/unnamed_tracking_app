@@ -10,12 +10,21 @@ Keep backend-only logic in the backend and frontend-only behavior in the fronten
 
 The backend CI uses Python 3.12 and runs:
 
-- pytest;
+- backend pytest (with PostgreSQL and an Alembic upgrade);
+- plugin runtime policy tests;
 - Alembic migration graph validation;
+- Python module size validation;
 - mypy;
-- pylint.
+- pylint;
+- Ruff format and lint.
 
-The CI migration check requires a valid single Alembic head.
+These checks run independently. A database setup, test, size, or formatting failure does not skip unrelated checks. Database-backed tests still require a successful migration upgrade. The CI migration check requires a valid single Alembic head.
+
+Pylint uses the shared `pyproject.toml` configuration and fails below 10/10. Missing docstrings are reviewed for usefulness instead of requiring boilerplate on every symbol. SQLAlchemy and Pydantic data models are exempt from the minimum public-method count; service classes remain checked. Correctness and complexity checks remain enabled.
+
+Ruff checks the submitted commit. A separate job applies safe fixes and formatting to same-repository PR branches, including draft PRs. Fork PRs receive the read-only checks. The writer checks the PR head before pushing and never force-pushes. GitHub may require approval to run workflows after a bot updates a PR; follow the PR's workflow approval banner or push a normal follow-up commit. See [GitHub's workflow trigger behavior](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow).
+
+See the [backend quality rework checkpoint](backend-quality.md) for the suppression audit and remaining cleanup.
 
 For local checks:
 
@@ -83,6 +92,12 @@ For bug fixes, include the related GitHub issue reference in the pull request so
 
 Document user-facing behavior changes in the wiki when they affect setup, configuration, deployment, or normal application usage.
 
+## Reporting issues
+
+Use the three issue forms for bugs, feature requests, and engineering tasks. Bug reports should include the exact application version, deployment method, reproduction, and relevant logs. Feature requests should describe the affected user and expected outcome. Maintenance tasks should include acceptance criteria and verification steps, with links to failing CI jobs where applicable.
+
+Report host Plugin API, plugin manager, and runtime problems in this repository. Report problems within an individual plugin in that plugin's repository. Remove credentials and private data from attached evidence.
+
 ## Frontend checks
 
 The frontend CI runs, from `src/frontend`:
@@ -96,7 +111,7 @@ The frontend CI runs, from `src/frontend`:
 
 Source files are kept small enough to read:
 
-- Python modules (outside migrations) must be 1,000 lines or fewer. A module that opts out with `# pylint: disable=too-many-lines` is skipped.
+- Python modules (outside migrations) must be 1,000 lines or fewer. Pylint suppression comments do not bypass this independent CI check.
 - Frontend files are limited to 2,000 lines by ESLint (`max-lines`). A short list of files that were already larger when the rule was added is exempted in `eslint.config.js`. Split those up and remove them from the list, rather than adding to it.
 
 If a file is near its limit, move cohesive pieces into their own modules or components.

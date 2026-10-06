@@ -9,116 +9,87 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - "src/backend/**"
+      - ".github/workflows/ruff.yml"
 
 permissions:
-  contents: write
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+    working-directory: src/backend
 
 jobs:
-  # -------------------------
-  # 1. Ruff Format Job
-  # -------------------------
   ruff-format:
-    if: github.event_name == 'push' || github.event.pull_request.draft == false
     runs-on: ubuntu-latest
-
-    defaults:
-      run:
-        working-directory: src/backend
-
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-
       - name: Install Ruff
         run: python -m pip install ruff
+      - name: Check Ruff formatting
+        run: ruff format . --check
 
-      - name: Run Ruff format
-        run: ruff format .
-
-      - name: Commit formatting changes
-        working-directory: .
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          git add -A
-          if git diff --cached --quiet; then
-            exit 0
-          fi
-
-          git commit -m "chore(ruff): apply formatting fixes"
-          git push origin HEAD:${GITHUB_REF_NAME}
-
-  # -------------------------
-  # 2. Ruff Auto-Fix Job
-  # -------------------------
-  ruff-autofix:
-    needs: ruff-format
-    if: github.event_name == 'push' || github.event.pull_request.draft == false
-    runs-on: ubuntu-latest
-
-    defaults:
-      run:
-        working-directory: src/backend
-
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Install Ruff
-        run: python -m pip install ruff
-
-      - name: Ruff Safe Auto-Fixes
-        run: ruff check . --fix || true
-
-      - name: Commit Ruff safe fixes
-        working-directory: .
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          # Remove temporary workflow if present
-          if [ -f ".github/workflows/temporary-ruff-fix.yml" ]; then
-            git rm .github/workflows/temporary-ruff-fix.yml
-          fi
-
-          git add -A
-          if git diff --cached --quiet; then
-            exit 0
-          fi
-
-          git commit -m "fix(ruff): apply safe auto-fixes"
-          git push origin HEAD:${GITHUB_REF_NAME}
-
-  # -------------------------
-  # 3. Ruff Lint Job
-  # -------------------------
   ruff-lint:
-    needs: ruff-autofix
-    if: github.event_name == 'push' || github.event.pull_request.draft == false
     runs-on: ubuntu-latest
-
-    defaults:
-      run:
-        working-directory: src/backend
-
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-
       - name: Install Ruff
         run: python -m pip install ruff
-
-      - name: Run Ruff lint (with GitHub annotations)
+      - name: Run Ruff lint
         run: ruff check . --output-format=github
+
+  # One writer applies both transformations; checks still run on the submitted commit.
+  ruff-autofix:
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    concurrency:
+      group: ruff-autofix-${{ github.event.pull_request.number }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Ruff
+        run: python -m pip install ruff
+      - name: Apply Ruff safe fixes
+        id: fixes
+        run: |
+          # Remaining lint findings belong to ruff-lint; tool failures still fail this step.
+          ruff check . --fix --exit-zero
+      - name: Apply Ruff formatting
+        if: ${{ !cancelled() }}
+        run: ruff format .
+      - name: Commit Ruff fixes to the PR branch
+        if: ${{ !cancelled() && steps.fixes.outcome == 'success' }}
+        working-directory: .
+        env:
+          PR_BRANCH: ${{ github.event.pull_request.head.ref }}
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          git add -- src/backend
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git fetch origin "refs/heads/$PR_BRANCH"
+          if [ "$(git rev-parse FETCH_HEAD)" != "$EXPECTED_HEAD" ]; then
+            echo "::notice::The PR branch advanced; a newer run will apply Ruff fixes."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "chore: apply Ruff safe fixes and formatting"
+          git push origin "HEAD:refs/heads/$PR_BRANCH"
