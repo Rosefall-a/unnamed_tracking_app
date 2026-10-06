@@ -102,39 +102,25 @@ def watch_revision(item: Any, kind: str) -> str:
     return hashlib.sha256(json.dumps(state, sort_keys=True).encode()).hexdigest()
 
 
-async def dispatch_media_sync(
+# These independent SQLAlchemy media tables expose the same domain fields;
+# validated media_type selects their concrete model/status/episode classes.
+_MEDIA_MODELS: dict[str, tuple[Any, Any, Any, Any]] = {
+    "movie": (Movie, MovieStatus, None, None),
+    "tv_show": (TVShow, TVShowStatus, TVSeason, TVEpisode),
+    "anime": (Anime, AnimeStatus, AnimeSeason, AnimeEpisode),
+}
+
+
+async def _load_sync_media(
     db: AsyncSession,
+    item: MediaSyncInput,
     *,
-    plugin_id: str,
+    identity: UUID,
+    model: Any,
+    season_model: Any,
     user_id: UUID,
-    payload: dict[str, Any],
-    options: ResolvedSync | None = None,
-) -> dict[str, Any]:
-    """Upsert only the caller's media and reject stale watch-state revisions."""
-    item = MediaSyncInput.model_validate(payload)
-    options = options or ResolvedSync()
-    enrich, update_watch, commit = options.enrich, options.update_watch, options.commit
-    episode_ids = options.episode_ids
-    identity = options.identity or media_identity(plugin_id, user_id, item)
-    # These independent SQLAlchemy media tables expose the same domain fields;
-    # validated media_type selects their concrete model/status/episode classes.
-    models: dict[str, tuple[Any, Any, Any, Any]] = {
-        "movie": (Movie, MovieStatus, None, None),
-        "tv_show": (TVShow, TVShowStatus, TVSeason, TVEpisode),
-        "anime": (Anime, AnimeStatus, AnimeSeason, AnimeEpisode),
-    }
-    model, status_type, season_model, episode_model = models[item.media_type]
-    # Serialize same-identity upserts, including concurrent first creation.
-    await db.execute(
-        text("SELECT pg_advisory_xact_lock(:key)"),
-        {"key": int.from_bytes(identity.bytes[:8], "big", signed=True)},
-    )
-    # A remap must never create another media row or discard local notes/lists.
-    for other in (Movie, TVShow, Anime):
-        if other is model:
-            continue
-        if await db.scalar(select(other.id).where(other.id == identity, other.user_id == user_id)):
-            return {"id": str(identity), "conflict": "category_changed"}
+    status_type: Any,
+) -> tuple[Any, bool]:
     statement = select(model).where(model.id == identity, model.user_id == user_id)
     if season_model is not None:
         statement = statement.options(
@@ -154,111 +140,195 @@ async def dispatch_media_sync(
         if season_model is not None:
             media.seasons = []
         db.add(media)
-    elif media.deleted_at is not None:
-        return {"id": str(identity), "conflict": "locally_deleted"}
-    elif update_watch and item.expected_revision != watch_revision(media, item.media_type):
-        return {
-            "id": str(identity),
-            "conflict": "local_watch_state_changed",
-            "revision": watch_revision(media, item.media_type),
-        }
+    return media, created
+
+
+def _sync_metadata(media: Any, item: MediaSyncInput, options: ResolvedSync) -> None:
     for field_name, value in (
         ("title", item.title),
         ("sort_title", item.title.casefold()),
         ("genres", item.genres),
         ("poster_url", item.poster_url),
     ):
-        if field_name not in (media.locked_fields or []) and (not enrich or value):
-            if enrich and field_name == "genres":
+        if field_name not in (media.locked_fields or []) and (not options.enrich or value):
+            if options.enrich and field_name == "genres":
                 value = list(dict.fromkeys([*(media.genres or []), *item.genres]))
             setattr(media, field_name, value)
-    if item.media_type == "movie":
-        if "runtime_minutes" not in (media.locked_fields or []) and (
-            not enrich or item.runtime_minutes is not None
-        ):
-            media.runtime_minutes = item.runtime_minutes
-        if update_watch:
-            media.status = (
-                status_type.WATCHED
-                if item.played
-                else status_type.IN_PROGRESS
-                if item.in_progress
-                else status_type.WATCHLIST
-            )
+
+
+def _sync_movie(media: Any, item: MediaSyncInput, status_type: Any, options: ResolvedSync) -> None:
+    if "runtime_minutes" not in (media.locked_fields or []) and (
+        not options.enrich or item.runtime_minutes is not None
+    ):
+        media.runtime_minutes = item.runtime_minutes
+    if options.update_watch:
+        media.status = (
+            status_type.WATCHED
+            if item.played
+            else status_type.IN_PROGRESS
+            if item.in_progress
+            else status_type.WATCHLIST
+        )
+
+
+def _sync_episode(
+    media: Any,
+    remote: EpisodeInput,
+    *,
+    identity: UUID,
+    season_model: Any,
+    episode_model: Any,
+    status_type: Any,
+    options: ResolvedSync,
+) -> None:
+    season = next((s for s in media.seasons if s.season_number == remote.season), None)
+    if season is None:
+        season = season_model(
+            id=uuid5(identity, f"season:{remote.season}"),
+            season_number=remote.season,
+            status=status_type.WATCHLIST,
+            episode_count=0,
+            episodes_watched=0,
+        )
+        season.episodes = []
+        media.seasons.append(season)
+    episode_id = (options.episode_ids or {}).get(remote.external_id) or uuid5(
+        identity, f"episode:{remote.external_id}"
+    )
+    episode = next((e for s in media.seasons for e in s.episodes if e.id == episode_id), None)
+    occupied = next(
+        (e for e in season.episodes if e.episode_number == remote.number and e is not episode),
+        None,
+    )
+    if options.enrich and episode is None and occupied is not None:
+        episode = occupied
+        occupied = None
+    if not remote.removed and occupied is not None:
+        raise ValueError("episode number conflicts with another external identity")
+    if episode is not None:
+        origin = next(s for s in media.seasons if episode in s.episodes)
+        if not remote.removed:
+            if origin is not season:
+                origin.episodes.remove(episode)
+                season.episodes.append(episode)
+            episode.episode_number = remote.number
+    if remote.removed:
+        if episode is not None:
+            origin.episodes.remove(episode)
     else:
-        for remote in item.episodes:
-            season = next((s for s in media.seasons if s.season_number == remote.season), None)
-            if season is None:
-                season = season_model(
-                    id=uuid5(identity, f"season:{remote.season}"),
-                    season_number=remote.season,
-                    status=status_type.WATCHLIST,
-                    episode_count=0,
-                    episodes_watched=0,
-                )
-                season.episodes = []
-                media.seasons.append(season)
-            episode_id = (episode_ids or {}).get(remote.external_id) or uuid5(
-                identity, f"episode:{remote.external_id}"
+        if episode is None:
+            episode = episode_model(
+                id=uuid5(identity, f"episode:{remote.external_id}"),
+                episode_number=remote.number,
             )
-            episode = next(
-                (e for s in media.seasons for e in s.episodes if e.id == episode_id), None
-            )
-            occupied = next(
-                (
-                    e
-                    for e in season.episodes
-                    if e.episode_number == remote.number and e is not episode
-                ),
-                None,
-            )
-            if enrich and episode is None and occupied is not None:
-                episode = occupied
-                occupied = None
-            if not remote.removed and occupied is not None:
-                raise ValueError("episode number conflicts with another external identity")
-            if episode is not None:
-                origin = next(s for s in media.seasons if episode in s.episodes)
-                if not remote.removed:
-                    if origin is not season:
-                        origin.episodes.remove(episode)
-                        season.episodes.append(episode)
-                    episode.episode_number = remote.number
-            if remote.removed:
-                if episode is not None:
-                    origin.episodes.remove(episode)
-            else:
-                if episode is None:
-                    episode = episode_model(
-                        id=uuid5(identity, f"episode:{remote.external_id}"),
-                        episode_number=remote.number,
-                    )
-                    season.episodes.append(episode)
-                if remote.title or not enrich:
-                    episode.title = remote.title
-                if update_watch or episode.watched is None:
-                    episode.watched = remote.watched
-        for season in media.seasons if update_watch else []:
-            season.episode_count = len(season.episodes)
-            season.episodes_watched = sum(e.watched for e in season.episodes)
-            season.status = (
-                status_type.WATCHED
-                if item.inventory_complete
-                and season.episode_count > 0
-                and season.episodes_watched == season.episode_count
-                else status_type.IN_PROGRESS
-                if season.episodes_watched
-                else status_type.WATCHLIST
-            )
-        episodes = [e for s in media.seasons for e in s.episodes]
-        if update_watch:
-            media.status = (
-                status_type.WATCHED
-                if item.inventory_complete and episodes and all(e.watched for e in episodes)
-                else status_type.IN_PROGRESS
-                if any(e.watched for e in episodes) or item.in_progress
-                else status_type.WATCHLIST
-            )
+            season.episodes.append(episode)
+        if remote.title or not options.enrich:
+            episode.title = remote.title
+        if options.update_watch or episode.watched is None:
+            episode.watched = remote.watched
+
+
+def _sync_show(
+    media: Any,
+    item: MediaSyncInput,
+    *,
+    identity: UUID,
+    season_model: Any,
+    episode_model: Any,
+    status_type: Any,
+    options: ResolvedSync,
+) -> None:
+    for remote in item.episodes:
+        _sync_episode(
+            media,
+            remote,
+            identity=identity,
+            season_model=season_model,
+            episode_model=episode_model,
+            status_type=status_type,
+            options=options,
+        )
+    for season in media.seasons if options.update_watch else []:
+        season.episode_count = len(season.episodes)
+        season.episodes_watched = sum(e.watched for e in season.episodes)
+        season.status = (
+            status_type.WATCHED
+            if item.inventory_complete
+            and season.episode_count > 0
+            and season.episodes_watched == season.episode_count
+            else status_type.IN_PROGRESS
+            if season.episodes_watched
+            else status_type.WATCHLIST
+        )
+    episodes = [e for s in media.seasons for e in s.episodes]
+    if options.update_watch:
+        media.status = (
+            status_type.WATCHED
+            if item.inventory_complete and episodes and all(e.watched for e in episodes)
+            else status_type.IN_PROGRESS
+            if any(e.watched for e in episodes) or item.in_progress
+            else status_type.WATCHLIST
+        )
+
+
+async def dispatch_media_sync(
+    db: AsyncSession,
+    *,
+    plugin_id: str,
+    user_id: UUID,
+    payload: dict[str, Any],
+    options: ResolvedSync | None = None,
+) -> dict[str, Any]:
+    """Upsert only the caller's media and reject stale watch-state revisions."""
+    item = MediaSyncInput.model_validate(payload)
+    options = options or ResolvedSync()
+    identity = options.identity or media_identity(plugin_id, user_id, item)
+    model, status_type, season_model, episode_model = _MEDIA_MODELS[item.media_type]
+    # Serialize same-identity upserts, including concurrent first creation.
+    await db.execute(
+        text("SELECT pg_advisory_xact_lock(:key)"),
+        {"key": int.from_bytes(identity.bytes[:8], "big", signed=True)},
+    )
+    # A remap must never create another media row or discard local notes/lists.
+    for other in (Movie, TVShow, Anime):
+        if other is model:
+            continue
+        if await db.scalar(select(other.id).where(other.id == identity, other.user_id == user_id)):
+            return {"id": str(identity), "conflict": "category_changed"}
+    media, created = await _load_sync_media(
+        db,
+        item,
+        identity=identity,
+        model=model,
+        season_model=season_model,
+        user_id=user_id,
+        status_type=status_type,
+    )
+    if not created and media.deleted_at is not None:
+        return {"id": str(identity), "conflict": "locally_deleted"}
+    if (
+        not created
+        and options.update_watch
+        and item.expected_revision != watch_revision(media, item.media_type)
+    ):
+        return {
+            "id": str(identity),
+            "conflict": "local_watch_state_changed",
+            "revision": watch_revision(media, item.media_type),
+        }
+    _sync_metadata(media, item, options)
+    if item.media_type == "movie":
+        _sync_movie(media, item, status_type, options)
+    else:
+        _sync_show(
+            media,
+            item,
+            identity=identity,
+            season_model=season_model,
+            episode_model=episode_model,
+            status_type=status_type,
+            options=options,
+        )
     await db.flush()
     result = {
         "id": str(identity),
@@ -266,6 +336,6 @@ async def dispatch_media_sync(
         "revision": watch_revision(media, item.media_type),
         "status": media.status.value,
     }
-    if commit:
+    if options.commit:
         await db.commit()
     return result
