@@ -1,4 +1,3 @@
-# pylint: disable=missing-class-docstring,import-outside-toplevel,unused-import,broad-exception-caught,missing-function-docstring,try-except-raise
 """Brings the database up to date on every start, so updating the app is
 just pulling the new version and starting it.
 
@@ -36,6 +35,9 @@ from alembic.migration import MigrationContext
 from alembic.script import ScriptDirectory
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.engine import Engine
+from sqlalchemy.exc import SQLAlchemyError
+
+from src.database.base import Base
 
 _LOCK_ID = 7_310_442_901
 _WAIT_SECONDS = 60
@@ -66,8 +68,8 @@ def missing_from_database(engine: Engine) -> list[str]:
     """What the models need that the database does not have: whole tables
     and columns. Extra things in the database (an old index, a spare
     column) are harmless and ignored."""
-    import src.main  # noqa: F401  registers every model on Base.metadata
-    from src.database.base import Base
+    # Register application models only when comparing a live database's schema.
+    import src.main  # noqa: F401  # pylint: disable=import-outside-toplevel,unused-import
 
     with engine.connect() as conn:
         diff = compare_metadata(MigrationContext.configure(conn), Base.metadata)
@@ -84,7 +86,8 @@ def missing_from_database(engine: Engine) -> list[str]:
 
 
 def _engine() -> Engine:
-    from src.core.config import settings
+    # Migration planning can run without loading deployment credentials.
+    from src.core.config import settings  # pylint: disable=import-outside-toplevel
 
     return create_engine(settings.DATABASE_URL.replace("+asyncpg", "+psycopg"), pool_pre_ping=True)
 
@@ -97,7 +100,7 @@ def _wait_for_database(engine: Engine) -> None:
             with engine.connect() as conn:
                 conn.execute(text("SELECT 1"))
             return
-        except Exception as exc:  # noqa: BLE001
+        except (SQLAlchemyError, OSError) as exc:
             last = str(exc).splitlines()[0]
             if time.time() > deadline:
                 raise SystemExit(
@@ -170,8 +173,7 @@ def main() -> None:
 if __name__ == "__main__":
     try:
         main()
-    except SystemExit:
-        raise
-    except Exception as exc:  # noqa: BLE001
+    # The CLI reports unexpected failures before exiting with a nonzero status.
+    except Exception as exc:  # pylint: disable=broad-exception-caught
         print(f"Migration failed: {exc}", file=sys.stderr, flush=True)
         raise SystemExit(1) from exc

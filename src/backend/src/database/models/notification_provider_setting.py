@@ -12,7 +12,9 @@ from sqlalchemy.orm import Mapped, mapped_column
 from src.database.base import Base
 
 
+# Repeated column declarations preserve this table's explicit schema contract.
 class NotificationProviderSetting(Base):
+    # pylint: disable=duplicate-code
     __tablename__ = "notification_provider_settings"
     __table_args__ = (
         UniqueConstraint(

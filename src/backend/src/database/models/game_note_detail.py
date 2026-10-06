@@ -12,6 +12,8 @@ from src.database.base import Base
 
 
 class GameNoteDetail(Base):
+    # Repeated declarations preserve independent database table/enum contracts.
+    # pylint: disable=duplicate-code
     """What a note carries beyond its text. The note itself is still a markdown
     file in the game's notes folder; this row adds the things a file cannot
     hold: when it was created, whether it is pinned, its tags, and the

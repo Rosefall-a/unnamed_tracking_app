@@ -1,4 +1,3 @@
-# pylint: disable=missing-module-docstring,missing-class-docstring,too-few-public-methods,unsubscriptable-object
 import time
 from datetime import date
 from decimal import Decimal
@@ -32,7 +31,9 @@ if TYPE_CHECKING:
     from src.database.models.user import User
 
 
+# Separate SQLAlchemy enum types intentionally share the same serialized status values.
 class AnimeStatus(str, Enum):
+    # pylint: disable=duplicate-code
     """Anime status aligned with a media library workflow — same value
     set as MovieStatus/TVShowStatus, shared here since a season also
     uses it."""
@@ -47,7 +48,9 @@ class AnimeStatus(str, Enum):
     REWATCH = "REWATCH"
 
 
+# Repeated column declarations preserve this table's explicit schema contract.
 class Anime(Base):
+    # pylint: disable=duplicate-code
     __tablename__ = "anime"
 
     # ------------------------------------------------------------------
@@ -239,7 +242,9 @@ class Anime(Base):
     )
 
 
+# Repeated column declarations preserve this table's explicit schema contract.
 class AnimeSeason(Base):
+    # pylint: disable=duplicate-code
     """One season/cour of an Anime — a real child row, not just a count,
     so progress and status can be tracked per season independently of the
     show overall. Most anime will carry exactly one season row (a new
@@ -290,7 +295,9 @@ class AnimeSeason(Base):
     )
 
 
+# Repeated column declarations preserve this table's explicit schema contract.
 class AnimeEpisode(Base):
+    # pylint: disable=duplicate-code
     """One episode of an AnimeSeason. Rows are synced in from the source
     provider (Jikan/MyAnimeList) the first time a season's episode list
     is requested, then persisted here — later requests read straight from

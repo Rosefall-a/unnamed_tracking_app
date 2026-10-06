@@ -1,4 +1,3 @@
-# pylint: disable=missing-module-docstring,too-few-public-methods
 from __future__ import annotations
 
 import time
@@ -19,7 +18,9 @@ DEFAULT_BADGE_COLOR = "#d4af37"  # gold
 DEFAULT_BADGE_PLACEMENT = "top-right"
 
 
+# Repeated column declarations preserve this table's explicit schema contract.
 class UserAppearanceSettings(Base):
+    # pylint: disable=duplicate-code
     """Per-user cosmetic preferences for how a 100%-complete (Mastered)
     game's card is highlighted. One row per user, created lazily like
     UserScanSettings."""

@@ -1,4 +1,3 @@
-# pylint: disable=missing-module-docstring,missing-class-docstring,too-few-public-methods,unsubscriptable-object
 import time
 from datetime import date
 from decimal import Decimal
@@ -27,6 +26,8 @@ if TYPE_CHECKING:
 
 
 class MovieStatus(str, Enum):
+    # Repeated declarations preserve independent database table/enum contracts.
+    # pylint: disable=duplicate-code
     """Movie status aligned with a media library workflow."""
 
     DROPPED = "DROPPED"
@@ -39,7 +40,9 @@ class MovieStatus(str, Enum):
     REWATCH = "REWATCH"
 
 
+# Repeated column declarations preserve this table's explicit schema contract.
 class Movie(Base):
+    # pylint: disable=duplicate-code
     __tablename__ = "movies"
 
     # ------------------------------------------------------------------

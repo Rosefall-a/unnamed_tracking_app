@@ -1,4 +1,3 @@
-# pylint: disable=missing-module-docstring,too-few-public-methods
 from __future__ import annotations
 
 import time
@@ -11,7 +10,9 @@ from sqlalchemy.orm import Mapped, mapped_column
 from src.database.base import Base
 
 
+# Repeated column declarations preserve this table's explicit schema contract.
 class GameChecklistItem(Base):
+    # pylint: disable=duplicate-code
     """One to-do line on a game's Notes tab — e.g. "get quest cape" or
     "finish collection log". profile_id is NULL for a checklist item that
     applies to the game as a whole; set when it belongs to one specific

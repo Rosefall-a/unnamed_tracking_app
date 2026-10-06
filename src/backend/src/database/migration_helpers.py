@@ -13,14 +13,13 @@ import sqlalchemy as sa
 
 # alembic.op is a proxy filled in while a migration runs, so pylint can't
 # see its members
-from alembic import op  # pylint: disable=no-name-in-module
-
-# pylint: disable=no-member
+from alembic import op
 
 
 def _inspector() -> sa.engine.Inspector:
     # a fresh inspector per call: Inspector caches what it has read, and
     # the schema changes between calls inside one migration
+    # pylint: disable-next=no-member
     return sa.inspect(op.get_bind())
 
 
@@ -45,6 +44,7 @@ def has_index(table: str, name: str) -> bool:
 
 def has_constraint(name: str) -> bool:
     """Whether any constraint in the database has this name."""
+    # pylint: disable-next=no-member
     row = op.get_bind().execute(
         sa.text("SELECT 1 FROM pg_constraint WHERE conname = :name"), {"name": name}
     )
@@ -54,12 +54,14 @@ def has_constraint(name: str) -> bool:
 def create_table_if_missing(table: str, *columns: sa.schema.SchemaItem, **kw: object) -> None:
     """op.create_table, skipped when the table already exists."""
     if not has_table(table):
+        # pylint: disable-next=no-member
         op.create_table(table, *columns, **kw)
 
 
 def add_column_if_missing(table: str, column: sa.Column) -> None:
     """op.add_column, skipped when the column already exists."""
     if not has_column(table, column.name):
+        # pylint: disable-next=no-member
         op.add_column(table, column)
 
 
@@ -73,18 +75,21 @@ def create_index_if_missing(
 ) -> None:
     """op.create_index, skipped when an index with this name exists."""
     if not has_index(table, name):
+        # pylint: disable-next=no-member
         op.create_index(name, table, columns, unique=unique, postgresql_where=postgresql_where)
 
 
 def drop_index_if_exists(name: str, table: str) -> None:
     """op.drop_index, skipped when there is no such index."""
     if has_index(table, name):
+        # pylint: disable-next=no-member
         op.drop_index(name, table_name=table)
 
 
 def create_unique_constraint_if_missing(name: str, table: str, columns: list[str]) -> None:
     """op.create_unique_constraint, skipped when the name is taken."""
     if not has_constraint(name):
+        # pylint: disable-next=no-member
         op.create_unique_constraint(name, table, columns)
 
 
@@ -92,6 +97,7 @@ def delete_duplicate_episodes(table: str) -> None:
     """Keep one row per (season_id, episode_number), preferring the one with
     the most progress, so a unique constraint on the pair can be created on
     a database where a sync once raced."""
+    # pylint: disable-next=no-member
     op.execute(
         f"""
         DELETE FROM {table} WHERE id IN (

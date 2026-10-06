@@ -1,4 +1,3 @@
-# pylint: disable=missing-module-docstring,too-few-public-methods
 from __future__ import annotations
 
 import time
@@ -22,6 +21,8 @@ DEFAULT_IMAGE_PROVIDER_ORDER = ["SteamGridDB", "ScreenScraper"]
 
 
 class UserScanSettings(Base):
+    # Repeated declarations preserve independent database table/enum contracts.
+    # pylint: disable=duplicate-code
     """Per-user metadata search preferences — provider priority and which
     fields a search result is allowed to save. One row per user."""
 

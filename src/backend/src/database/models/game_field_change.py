@@ -1,4 +1,3 @@
-# pylint: disable=missing-module-docstring,too-few-public-methods
 from __future__ import annotations
 
 import time
@@ -12,6 +11,8 @@ from src.database.base import Base
 
 
 class GameFieldChange(Base):
+    # Repeated declarations preserve independent database table/enum contracts.
+    # pylint: disable=duplicate-code
     """One entry in a game's metadata history: a single field that actually
     changed value, either from a manual edit or a metadata search/refresh
     being applied. Written by update_game (see FIELD_CHANGE_TRACKED_FIELDS

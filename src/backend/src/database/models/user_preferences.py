@@ -1,4 +1,3 @@
-# pylint: disable=missing-class-docstring,too-few-public-methods,unsubscriptable-object
 """Per-user app preferences that live on the server (so they follow the
 user across browsers): calendar options, notification toggles, and
 whatever the Settings page grows next. One row per user, created lazily;
@@ -16,6 +15,8 @@ from src.database.base import Base
 
 
 class UserPreferences(Base):
+    # Repeated declarations preserve independent database table/enum contracts.
+    # pylint: disable=duplicate-code
     __tablename__ = "user_preferences"
 
     id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)

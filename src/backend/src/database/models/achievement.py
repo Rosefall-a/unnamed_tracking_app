@@ -1,4 +1,3 @@
-# pylint: disable=missing-module-docstring,too-few-public-methods
 from __future__ import annotations
 
 import time
@@ -16,6 +15,8 @@ if TYPE_CHECKING:
 
 
 class Achievement(Base):
+    # Repeated declarations preserve independent database table/enum contracts.
+    # pylint: disable=duplicate-code
     """One achievement/trophy pulled from a library-sync provider (Steam,
     PlayStation, RetroAchievements). Fully replaced (delete + reinsert) on
     every sync for a given game rather than diffed field-by-field — simpler

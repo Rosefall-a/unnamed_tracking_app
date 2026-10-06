@@ -1,4 +1,3 @@
-# pylint: disable=missing-module-docstring,too-few-public-methods
 from __future__ import annotations
 
 import time
@@ -12,7 +11,9 @@ from sqlalchemy.orm import Mapped, mapped_column
 from src.database.base import Base
 
 
+# Repeated column declarations preserve this table's explicit schema contract.
 class GameProfile(Base):
+    # pylint: disable=duplicate-code
     """A named sub-scope within one game — e.g. separate OSRS accounts
     (Main, Ironman) or separate save slots you're tracking independently.
     Not a new Game row: a profile shares the parent game's library entry

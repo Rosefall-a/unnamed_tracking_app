@@ -1,4 +1,3 @@
-# pylint: disable=missing-module-docstring,too-few-public-methods
 from __future__ import annotations
 
 import time
@@ -16,7 +15,9 @@ if TYPE_CHECKING:
     from src.database.models.game import Game
 
 
+# Repeated column declarations preserve this table's explicit schema contract.
 class GameArchive(Base):
+    # pylint: disable=duplicate-code
     """A named save slot for a game — "Main World", "Pre-Nether-Update
     Backup", etc. Replaces the old convention of a save just being an
     anonymous uploaded file: an archive is the durable identity (name,

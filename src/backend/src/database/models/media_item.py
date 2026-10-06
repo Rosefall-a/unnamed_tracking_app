@@ -1,4 +1,3 @@
-# pylint: disable=missing-module-docstring,too-few-public-methods
 from __future__ import annotations
 
 import time
@@ -18,6 +17,8 @@ if TYPE_CHECKING:
 
 
 class MediaItem(Base):
+    # Repeated declarations preserve independent database table/enum contracts.
+    # pylint: disable=duplicate-code
     """A screenshot, clip, or soundtrack file for a game. The file itself
     still lives on disk (games/<folder>/<screenshots|clips|soundtrack>/) —
     this row is what makes it taggable, note-able, and linkable to an

@@ -1,4 +1,3 @@
-# pylint: disable=missing-module-docstring,too-few-public-methods
 from __future__ import annotations
 
 import time
@@ -12,7 +11,9 @@ from sqlalchemy.orm import Mapped, mapped_column
 from src.database.base import Base
 
 
+# Repeated column declarations preserve this table's explicit schema contract.
 class GameFileItem(Base):
+    # pylint: disable=duplicate-code
     """A doc/manual or modpack file attached to a game. Previously tracked
     only as a bare file on disk (games.py's /files/{kind} routes walked the
     directory directly) with no DB row at all — same gap the inbox had:

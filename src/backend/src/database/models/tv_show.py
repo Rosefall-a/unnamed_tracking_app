@@ -1,4 +1,3 @@
-# pylint: disable=missing-module-docstring,missing-class-docstring,too-few-public-methods,unsubscriptable-object
 import time
 from datetime import date
 from decimal import Decimal
@@ -46,7 +45,9 @@ class TVShowStatus(str, Enum):
     REWATCH = "REWATCH"
 
 
+# Repeated column declarations preserve this table's explicit schema contract.
 class TVShow(Base):
+    # pylint: disable=duplicate-code
     __tablename__ = "tv_shows"
 
     # ------------------------------------------------------------------
@@ -189,6 +190,8 @@ class TVShow(Base):
 
 
 class TVSeason(Base):
+    # Repeated declarations preserve independent database table/enum contracts.
+    # pylint: disable=duplicate-code
     """One season of a TVShow — a real child row, so progress and status
     can be tracked per season independently of the show overall.
     `episodes_watched`/`episode_count` stay as the flat progress numbers
@@ -241,6 +244,8 @@ class TVSeason(Base):
 
 
 class TVEpisode(Base):
+    # Repeated declarations preserve independent database table/enum contracts.
+    # pylint: disable=duplicate-code
     """One episode of a TVSeason. Rows are synced in from the source
     provider (TVmaze) the first time a season's episode list is
     requested, then persisted here — later requests read straight from

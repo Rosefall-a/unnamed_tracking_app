@@ -1,4 +1,3 @@
-# pylint: disable=missing-module-docstring,too-few-public-methods
 from __future__ import annotations
 
 import time
@@ -12,6 +11,8 @@ from src.database.base import Base
 
 
 class InboxItem(Base):
+    # Repeated declarations preserve independent database table/enum contracts.
+    # pylint: disable=duplicate-code
     """A bulk-uploaded screenshot/clip/soundtrack not yet assigned to a
     game. Previously tracked only as a bare file on disk with no DB row at
     all — that meant no real upload date (the design called for one under
