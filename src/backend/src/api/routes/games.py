@@ -1,21 +1,8 @@
-# pylint: disable=too-many-lines,missing-class-docstring,not-callable,missing-function-docstring,unnecessary-comprehension,too-many-positional-arguments,broad-exception-caught,too-many-arguments,duplicate-code
 """API routes for managing games, notes, and game artwork."""
-# pylint: disable=too-many-lines
 
-import asyncio
-import io
-import os
-import re
 import time
-from datetime import UTC, datetime
-from decimal import Decimal
-from enum import Enum
-from pathlib import Path
-from typing import Literal, cast
-from urllib.parse import urlparse
 from uuid import UUID
 
-import requests
 from fastapi import (
     APIRouter,
     Body,
@@ -24,21 +11,120 @@ from fastapi import (
     Form,
     HTTPException,
     Query,
-    Request,
     Response,
-    UploadFile,
     status,
 )
-from fastapi.responses import FileResponse
-from PIL import Image, UnidentifiedImageError
-from pydantic import BaseModel, Field
 from sqlalchemy import Integer, func, select
+from sqlalchemy import cast as sql_cast
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql.functions import count as sql_count
 
-from src.api.routes.settings import (
-    get_or_create_app_integration_settings,
-    get_or_create_scan_settings,
+from src.api.routes import (
+    game_assets,
+    game_checklists,
+    game_files,
+    game_metadata,
+    game_notes,
+    game_profiles,
+)
+from src.api.routes.game_assets import (
+    AssetUrlRequest,
+    DetectDatesRequest,
+    MediaItemUpdate,
+    _media_item_to_dict,
+    _thumb_dir,
+    delete_game_screenshot,
+    detect_media_dates,
+    download_game_asset,
+    get_clip_thumbnail,
+    get_game_asset,
+    get_game_screenshot,
+    list_game_screenshot_trash,
+    list_game_screenshots,
+    restore_game_screenshot,
+    save_clip_thumbnail,
+    update_media_item,
+    upload_game_asset,
+    upload_game_screenshots,
+)
+from src.api.routes.game_checklists import (
+    ChecklistItemUpdate,
+    ChecklistItemWrite,
+    ChecklistReorder,
+    _checklist_item_to_dict,
+    create_checklist_item,
+    delete_checklist_item,
+    list_game_checklist,
+    reorder_checklist,
+    update_checklist_item,
+)
+from src.api.routes.game_files import (
+    GameFileUpdate,
+    _game_file_subdir,
+    _game_file_to_dict,
+    _sync_game_file_items,
+    delete_game_file,
+    get_game_file,
+    list_game_file_trash,
+    list_game_files,
+    restore_game_file,
+    update_game_file,
+    upload_game_files,
+)
+from src.api.routes.game_metadata import (
+    _GAME_METADATA_FIELDS,
+    MetadataRefreshRequest,
+    MetadataSearchResponse,
+    _metadata_value_is_present,
+    _normalize_metadata_title,
+    refresh_game_metadata,
+    search_metadata,
+)
+from src.api.routes.game_notes import (
+    NoteRename,
+    NoteWrite,
+    create_game_note,
+    delete_game_note,
+    get_game_note,
+    list_game_note_summaries,
+    list_game_notes,
+    rename_game_note,
+    update_game_note,
+)
+from src.api.routes.game_profiles import (
+    ProfileUpdate,
+    ProfileWrite,
+    WiseOldManSyncRequest,
+    _get_profile_or_404,
+    _profile_to_dict,
+    _record_stat_snapshot,
+    create_game_profile,
+    delete_game_profile,
+    get_profile_stat_history,
+    list_game_profile_trash,
+    list_game_profiles,
+    restore_game_profile,
+    sync_profile_wiseoldman,
+    update_game_profile,
+)
+from src.api.routes.utils.games import (
+    _DATA_ROOT,
+    _NON_NULLABLE_UPDATE_FIELDS,
+    _NOTE_NAME_PATTERN,
+    ALLOWED_ASSET_KINDS,
+    FIELD_CHANGE_TRACKED_FIELDS,
+    _derive_sort_title,
+    _drop_nulls_for_required_fields,
+    _duplicate_folder_error,
+    _ensure_folder_location_available,
+    _field_change_value_to_text,
+    _game_note_path,
+    _get_game_or_404,
+    _normalize_note_name,
+    _note_summary,
+    _record_field_changes,
+    _scan_settings_to_preferences,
 )
 from src.api.schemas.game import (
     GameBulkUpdate,
@@ -47,37 +133,17 @@ from src.api.schemas.game import (
     GameRead,
     GameUpdate,
 )
-from src.core.app_integrations import get_max_upload_size_mb, get_upload_limits_mb
 from src.core.auth import get_current_user
-from src.core.integrations import resolve_integrations
-from src.core.preferences import load_preferences
 from src.database.models.achievement import Achievement
 from src.database.models.game import Game, GameLink, GameStatus
-from src.database.models.game_checklist_item import GameChecklistItem
 from src.database.models.game_field_change import GameFieldChange
-from src.database.models.game_file_item import GameFileItem
-from src.database.models.game_note_detail import GameNoteDetail
-from src.database.models.game_profile import GameProfile
-from src.database.models.game_profile_stat_snapshot import GameProfileStatSnapshot
-from src.database.models.media_item import MediaItem
 from src.database.models.user import User
-from src.database.models.user_scan_settings import UserScanSettings
 from src.database.session import get_db
-from src.features import game_notes
-from src.features.metadata.games import wiseoldman
-from src.features.metadata.games.search import search_game_metadata
 from src.features.metadata.locked_fields import apply_updates_with_locking
 from src.features.trash.game_trash import move_game_to_trash, restore_game_from_trash
-from src.features.trash.media_trash import move_media_file_to_trash, restore_media_file_from_trash
 from src.features.trash.sweep import RETENTION_SECONDS
-from src.helpers.media import MediaKind, classify_media, list_media, media_subdir, save_media_bytes
-from src.helpers.media_dates import detect_date, detect_from_stored
-from src.helpers.range_response import ranged_file_response
 from src.helpers.save_game_asset import (
-    ASSET_FILENAMES,
-    AssetKind,
     create_game_folder,
-    save_game_asset,
 )
 
 _QUERY_DEFAULT = Query(..., min_length=2, max_length=100)
@@ -97,9 +163,6 @@ router = APIRouter(
     dependencies=[Depends(get_current_user)],
 )
 
-_DATA_ROOT = Path("/data/users")
-_NOTE_NAME_PATTERN = re.compile(r"^[^\x00-\x1f\x7f/\\]+$")
-_LEADING_ARTICLE = re.compile(r"^(a|an|the)\s+", flags=re.IGNORECASE)
 
 _DB_DEPENDENCY = Depends(get_db)
 _CURRENT_USER_DEPENDENCY = Depends(get_current_user)
@@ -114,154 +177,10 @@ _FILE_MODIFIED_FORM = Form(None)
 _NONE_QUERY_STATUS = Query(default=None, alias="status")
 
 
-class NoteWrite(BaseModel):
-    """Request body used to create or update a game note."""
-
-    content: str
+router.include_router(game_metadata.search_router)
 
 
-class NoteRename(BaseModel):
-    """Request body used to rename a game note."""
-
-    new_name: str
-
-
-class MetadataSearchResponse(BaseModel):
-    query: str
-    providers: list[str]
-    steamgriddb_configured: bool = False
-    provider_errors: list[str] = []
-    results: list[dict]
-
-
-class AssetUrlRequest(BaseModel):
-    url: str
-
-
-class MetadataRefreshRequest(BaseModel):
-    dry_run: bool = False
-    update_text: bool = True
-    fill_missing_art: bool = True
-    overwrite_existing_art: bool = False
-    expected_updated_at: int | None = None
-
-
-ALLOWED_ASSET_KINDS = {"key_art", "banner", "logo", "icon"}
-
-
-def _scan_settings_to_preferences(scan_settings: UserScanSettings) -> dict:
-    return {
-        "provider_order": scan_settings.provider_order,
-        "image_provider_order": scan_settings.image_provider_order,
-        "save_developer": scan_settings.save_developer,
-        "save_publisher": scan_settings.save_publisher,
-        "save_series": scan_settings.save_series,
-        "save_tags": scan_settings.save_tags,
-        "save_features": scan_settings.save_features,
-        "save_description": scan_settings.save_description,
-        "save_age_rating": scan_settings.save_age_rating,
-        "save_release_date": scan_settings.save_release_date,
-        "save_time_to_beat": scan_settings.save_time_to_beat,
-        "save_key_art": scan_settings.save_key_art,
-        "save_banner": scan_settings.save_banner,
-        "save_logo": scan_settings.save_logo,
-        "save_icon": scan_settings.save_icon,
-    }
-
-
-@router.get("/metadata/search", response_model=MetadataSearchResponse)
-async def search_metadata(
-    query: str = _QUERY_DEFAULT,
-    limit: int = _LIMIT_DEFAULT,
-    include_images: bool = _INCLUDE_IMAGES_DEFAULT,
-    db: AsyncSession = _DB_DEPENDENCY,
-    current_user: User = _CURRENT_USER_DEPENDENCY,
-) -> dict:
-    """Search external providers for data that can prefill a new game.
-
-    Keys come from the user's own settings first, then the server-wide ones
-    (Server Integrations or the environment). Provider order and which
-    fields get saved come from the user's scan settings.
-    """
-    scan_settings = await get_or_create_scan_settings(current_user.id, db)
-    preferences = _scan_settings_to_preferences(scan_settings)
-    preferences["steam_user_tags"] = (await load_preferences(db, current_user.id))[
-        "steam_user_tags"
-    ]
-    app_integrations = resolve_integrations(await get_or_create_app_integration_settings(db))
-    try:
-        result = await asyncio.to_thread(
-            search_game_metadata,
-            query.strip(),
-            limit,
-            steamgriddb_api_key=current_user.steamgriddb_api_key,
-            preferences=preferences,
-            user=current_user,
-            igdb_client_id=app_integrations.igdb_client_id,
-            igdb_client_secret=app_integrations.igdb_client_secret,
-            include_image_providers=include_images,
-        )
-    except Exception as exc:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"Metadata providers could not be reached: {exc}",
-        ) from exc
-
-    if result.get("providers"):
-        now = int(time.time())
-        last_used = dict(scan_settings.provider_last_used)
-        for provider_name in result["providers"]:
-            last_used[provider_name] = now
-        scan_settings.provider_last_used = last_used
-        await db.commit()
-    return result
-
-
-@router.get("/{game_id}/assets/{asset_kind}", response_class=FileResponse)
-async def get_game_asset(
-    game_id: UUID,
-    asset_kind: AssetKind,
-    db: AsyncSession = _DB_DEPENDENCY,
-    current_user: User = _CURRENT_USER_DEPENDENCY,
-) -> FileResponse:
-    """Return a stored PNG asset for a game."""
-    if asset_kind not in ALLOWED_ASSET_KINDS:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Unsupported asset kind '{asset_kind}'. Supported values: {sorted(ALLOWED_ASSET_KINDS)}",
-        )
-
-    game = await _get_game_or_404(game_id, db, current_user.id)
-    asset_path = (
-        _DATA_ROOT
-        / str(game.user_id)
-        / "games"
-        / game.folder_location
-        / ASSET_FILENAMES[asset_kind]
-    )
-    if not asset_path.is_file():
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Asset '{asset_kind}' has not been uploaded for game {game_id}.",
-        )
-
-    return FileResponse(
-        asset_path,
-        media_type="image/png",
-        # was "no-store, max-age=0" — meant the browser re-downloaded every
-        # cover/banner on every scroll, reload, and revisit, even when
-        # nothing changed. Starlette's FileResponse already sets
-        # Last-Modified/ETag from the file's own stat, so a "revalidate"
-        # cache still gets a cheap 304 instead of a full re-fetch the
-        # instant an asset actually changes (a refresh/re-sync overwrites
-        # the file in place, changing its mtime).
-        headers={"Cache-Control": "private, max-age=3600, must-revalidate"},
-    )
-
-
-def _derive_sort_title(title: str) -> str:
-    """'The Witcher 3' -> 'witcher 3' so articles don't affect sort order."""
-    return _LEADING_ARTICLE.sub("", title).strip().lower()
+router.include_router(game_assets.asset_read_router)
 
 
 # the same set a metadata search/refresh is allowed to overwrite (see the
@@ -269,176 +188,11 @@ def _derive_sort_title(title: str) -> str:
 # this set (folder_location, favorite, playtime, ...) isn't "metadata" in
 # that sense, so history only tracks what a provider could plausibly have
 # changed underneath the user
-FIELD_CHANGE_TRACKED_FIELDS = {
-    "developer",
-    "publisher",
-    "series",
-    "tags",
-    "features",
-    "description",
-    "age_rating",
-    "release_date",
-    "time_to_beat_hours",
-    # what the history timeline shows as "changed status" and "changed price"
-    "status",
-    "purchase_price",
-    "purchase_price_currency_code",
-    "purchase_date",
-}
-
-
-def _field_change_value_to_text(value: object, field: str = "") -> str | None:
-    if value is None:
-        return None
-    if isinstance(value, Enum):
-        return str(value.value)
-    if isinstance(value, Decimal | float):
-        # 59.9 and Decimal("59.90") are the same price, not a change
-        return f"{Decimal(str(value)).normalize():f}"
-    if isinstance(value, int) and not isinstance(value, bool) and field.endswith("_date"):
-        return datetime.fromtimestamp(value, UTC).strftime("%Y-%m-%d")
-    if isinstance(value, list):
-        return ", ".join(str(v) for v in value) if value else None
-    return str(value)
-
-
-def _record_field_changes(game: Game, updates: dict, db: AsyncSession) -> None:
-    now = int(time.time())
-    for field in FIELD_CHANGE_TRACKED_FIELDS & updates.keys():
-        old_text = _field_change_value_to_text(getattr(game, field), field)
-        new_text = _field_change_value_to_text(updates[field], field)
-        if old_text == new_text:
-            continue
-        db.add(
-            GameFieldChange(
-                game_id=game.id,
-                field_name=field,
-                old_value=old_text,
-                new_value=new_text,
-                changed_at=now,
-            )
-        )
 
 
 # columns a PATCH can't blank: an explicit null for one of these means "no
 # change", not "clear it" (the database would reject the NULL anyway, which
 # used to surface as a misleading duplicate-folder error)
-_NON_NULLABLE_UPDATE_FIELDS = frozenset(
-    {
-        "title",
-        "sort_title",
-        "created_at",
-        "folder_location",
-        "status",
-        "favorite",
-        "profiles_enabled",
-        "osrs_stats_enabled",
-        "playtime_seconds",
-        "tags",
-        "features",
-        "collections",
-    }
-)
-
-
-def _drop_nulls_for_required_fields(updates: dict) -> dict:
-    cleaned = {
-        field: value
-        for field, value in updates.items()
-        if value is not None or field not in _NON_NULLABLE_UPDATE_FIELDS
-    }
-    # a cleared sorting name is still a request: re-derive it from the title
-    if "sort_title" in updates and updates["sort_title"] is None:
-        cleaned["sort_title"] = ""
-    return cleaned
-
-
-def _duplicate_folder_error(folder_name: str) -> HTTPException:
-    return HTTPException(
-        status_code=status.HTTP_409_CONFLICT,
-        detail={
-            "error": "duplicate_folder_location",
-            "field": "folder_location",
-            "value": folder_name,
-            "message": f"A game with folder_location '{folder_name}' already exists.",
-        },
-    )
-
-
-async def _ensure_folder_location_available(
-    folder_name: str,
-    user_id: UUID,
-    db: AsyncSession,
-    exclude_game_id: UUID | None = None,
-) -> None:
-    stmt = select(Game.id).where(
-        Game.user_id == user_id,
-        Game.folder_location == folder_name,
-        Game.deleted_at.is_(None),
-    )
-    if exclude_game_id is not None:
-        stmt = stmt.where(Game.id != exclude_game_id)
-
-    existing = await db.scalar(stmt)
-    if existing is not None:
-        raise _duplicate_folder_error(folder_name)
-
-
-def _normalize_note_name(note_name: str) -> str:
-    normalized = note_name.strip()
-    if normalized.lower().endswith(".md"):
-        normalized = normalized[:-3]
-
-    if (
-        not normalized
-        or normalized in {".", ".."}
-        or normalized.startswith(".")
-        or normalized.endswith(".")
-        or normalized.endswith(" ")
-        or ":" in normalized
-        or not _NOTE_NAME_PATTERN.fullmatch(normalized)
-        or re.fullmatch(r"(?i)(con|prn|aux|nul|com[1-9]|lpt[1-9])", normalized)
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail={
-                "error": "invalid_note_name",
-                "message": (
-                    "Note title must be a normal file name: spaces and common punctuation are allowed, "
-                    "but path separators, control characters, absolute paths, drive-style names, "
-                    "and path-like titles are not allowed."
-                ),
-            },
-        )
-    return normalized
-
-
-def _game_note_path(game: Game, note_name: str) -> Path:
-    if not game.folder_location:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Game folder_location is missing.",
-        )
-
-    note_file_name = f"{_normalize_note_name(note_name)}.md"
-    note_dir = _DATA_ROOT / str(game.user_id) / "games" / game.folder_location / "notes"
-    note_dir.mkdir(parents=True, exist_ok=True)
-    return note_dir / note_file_name
-
-
-async def _get_game_or_404(
-    game_id: UUID, db: AsyncSession, user_id: UUID, include_deleted: bool = False
-) -> Game:
-    stmt = select(Game).where(Game.id == game_id, Game.user_id == user_id)
-    if not include_deleted:
-        stmt = stmt.where(Game.deleted_at.is_(None))
-    game = await db.scalar(stmt)
-    if game is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Game {game_id} not found",
-        )
-    return game
 
 
 @router.get("/achievements-summary")
@@ -452,8 +206,8 @@ async def get_achievements_summary(
     rows = await db.execute(
         select(
             Achievement.game_id,
-            func.count(Achievement.id),
-            func.sum(func.cast(Achievement.unlocked, Integer)),
+            sql_count(Achievement.id),
+            func.sum(sql_cast(Achievement.unlocked, Integer)),
         )
         .join(Game, Game.id == Achievement.game_id)
         .where(Game.user_id == current_user.id, Game.deleted_at.is_(None))
@@ -500,1573 +254,19 @@ async def list_game_achievements(
     ]
 
 
-@router.post(
-    "/{game_id}/assets/{asset_kind}",
-    responses={
-        status.HTTP_200_OK: {"description": "Image uploaded and resized"},
-        status.HTTP_400_BAD_REQUEST: {"description": "Invalid asset kind or upload"},
-        status.HTTP_404_NOT_FOUND: {"description": "Game not found"},
-    },
-)
-async def upload_game_asset(
-    game_id: UUID,
-    asset_kind: AssetKind,
-    file: UploadFile = _FILE_UPLOAD,
-    db: AsyncSession = _DB_DEPENDENCY,
-    current_user: User = _CURRENT_USER_DEPENDENCY,
-) -> dict[str, str]:
-    """Upload and persist artwork for a game."""
-    if asset_kind not in ALLOWED_ASSET_KINDS:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Unsupported asset kind '{asset_kind}'. Supported values: {sorted(ALLOWED_ASSET_KINDS)}",
-        )
+router.include_router(game_assets.router)
 
-    await _get_game_or_404(game_id, db, current_user.id)
 
-    if not file.filename:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="File is required.",
-        )
+router.include_router(game_files.router)
 
-    # Do not trust the browser-supplied MIME type here. Some valid image
-    # files are reported as application/octet-stream (or with no type at all).
-    # save_game_asset decodes the actual image bytes with Pillow, which gives
-    # us the real validation without rejecting otherwise valid manual uploads.
-    image_bytes = await file.read()
-    max_upload_mb = await get_max_upload_size_mb(db)
-    max_bytes = max_upload_mb * 1024 * 1024
-    if len(image_bytes) > max_bytes:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Image is larger than the {max_upload_mb} MB limit.",
-        )
 
-    try:
-        target_path = await save_game_asset(image_bytes, game_id, asset_kind)
-    except (OSError, ValueError) as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Could not process image: {exc}",
-        ) from exc
+router.include_router(game_notes.crud_router)
 
-    return {
-        "game_id": str(game_id),
-        "asset_kind": asset_kind,
-        "path": str(target_path),
-        "status": "saved",
-    }
 
+router.include_router(game_profiles.router)
 
-@router.post(
-    "/{game_id}/assets/{asset_kind}/from-url",
-    responses={
-        status.HTTP_200_OK: {"description": "Image downloaded and resized"},
-        status.HTTP_400_BAD_REQUEST: {"description": "Invalid URL or image"},
-        status.HTTP_404_NOT_FOUND: {"description": "Game not found"},
-    },
-)
-async def download_game_asset(
-    game_id: UUID,
-    asset_kind: AssetKind,
-    payload: AssetUrlRequest,
-    db: AsyncSession = _DB_DEPENDENCY,
-    current_user: User = _CURRENT_USER_DEPENDENCY,
-) -> dict[str, str]:
-    """Download an image URL and persist it as a normalized game asset."""
-    if asset_kind not in ALLOWED_ASSET_KINDS:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Unsupported asset kind '{asset_kind}'.",
-        )
 
-    await _get_game_or_404(game_id, db, current_user.id)
-    parsed_url = urlparse(payload.url)
-    if parsed_url.scheme not in {"http", "https"} or not parsed_url.netloc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Image URL must use http or https."
-        )
-
-    try:
-        response = await asyncio.to_thread(requests.get, payload.url, timeout=20)
-        response.raise_for_status()
-    except requests.RequestException as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=f"Could not download image: {exc}"
-        ) from exc
-
-    content_type = response.headers.get("content-type", "").split(";", 1)[0].lower()
-    if not content_type.startswith("image/"):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="URL did not return an image."
-        )
-    image_bytes = response.content
-    max_upload_mb = await get_max_upload_size_mb(db)
-    max_bytes = max_upload_mb * 1024 * 1024
-    if len(image_bytes) > max_bytes:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Image is larger than the {max_upload_mb} MB limit.",
-        )
-
-    try:
-        output_path = await save_game_asset(image_bytes, game_id, asset_kind)
-    except (OSError, ValueError) as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=f"Could not save image: {exc}"
-        ) from exc
-
-    return {
-        "game_id": str(game_id),
-        "asset_kind": asset_kind,
-        "path": str(output_path),
-        "status": "saved",
-    }
-
-
-def _media_item_to_dict(item: MediaItem, game_id: UUID) -> dict:
-    return {
-        "id": str(item.id),
-        "filename": item.filename,
-        "kind": item.kind,
-        "url": f"/api/game/{game_id}/screenshots/{item.kind}/{item.filename}",
-        "tags": item.tags,
-        "note": item.note,
-        "linked_achievement_id": str(item.linked_achievement_id)
-        if item.linked_achievement_id
-        else None,
-        "profile_id": str(item.profile_id) if item.profile_id else None,
-        "created_at": item.created_at,
-        "title": item.title,
-        "taken_at": item.taken_at,
-        "taken_source": item.taken_source,
-        "thumbnail_url": f"/api/game/{game_id}/thumbnails/{item.id}"
-        if item.thumb_filename
-        else None,
-        "duration": item.duration,
-    }
-
-
-_THUMB_MAX_WIDTH = 640
-_THUMB_UPLOAD = File(...)
-_THUMB_DURATION = Form(None)
-
-
-def _thumb_dir(game: Game) -> Path:
-    return _DATA_ROOT / str(game.user_id) / "games" / (game.folder_location or "") / "thumbs"
-
-
-@router.post("/{game_id}/thumbnails/{media_id}")
-async def save_clip_thumbnail(
-    game_id: UUID,
-    media_id: UUID,
-    file: UploadFile = _THUMB_UPLOAD,
-    duration: float | None = _THUMB_DURATION,
-    db: AsyncSession = _DB_DEPENDENCY,
-    current_user: User = _CURRENT_USER_DEPENDENCY,
-) -> dict:
-    """Keep a clip's preview picture, made in the browser when it was uploaded
-    (or the first time it was shown), so it never has to be made again. The
-    picture is shrunk and saved as a JPEG; the clip's length is kept with it."""
-    game = await _get_game_or_404(game_id, db, current_user.id)
-    item = await db.scalar(
-        select(MediaItem).where(
-            MediaItem.id == media_id,
-            MediaItem.game_id == game_id,
-            MediaItem.kind == "clip",
-            MediaItem.deleted_at.is_(None),
-        )
-    )
-    if item is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Clip not found.")
-    data = await file.read()
-    if len(data) > 5 * 1024 * 1024:
-        raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="Thumbnail is too large."
-        )
-    try:
-        with Image.open(io.BytesIO(data)) as image:
-            picture = image.convert("RGB")
-    except (UnidentifiedImageError, OSError) as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="That is not a picture."
-        ) from exc
-    if picture.width > _THUMB_MAX_WIDTH:
-        picture = picture.resize(
-            (_THUMB_MAX_WIDTH, max(1, round(picture.height * _THUMB_MAX_WIDTH / picture.width)))
-        )
-    directory = _thumb_dir(game)
-    directory.mkdir(parents=True, exist_ok=True)
-    name = f"{item.id}.jpg"
-    picture.save(directory / name, "JPEG", quality=80)
-    item.thumb_filename = name
-    if duration is not None and duration > 0:
-        item.duration = float(duration)
-    await db.commit()
-    return _media_item_to_dict(item, game_id)
-
-
-@router.get("/{game_id}/thumbnails/{media_id}", response_class=FileResponse)
-async def get_clip_thumbnail(
-    game_id: UUID,
-    media_id: UUID,
-    db: AsyncSession = _DB_DEPENDENCY,
-    current_user: User = _CURRENT_USER_DEPENDENCY,
-) -> FileResponse:
-    game = await _get_game_or_404(game_id, db, current_user.id)
-    item = await db.scalar(
-        select(MediaItem).where(MediaItem.id == media_id, MediaItem.game_id == game_id)
-    )
-    path = _thumb_dir(game) / item.thumb_filename if item and item.thumb_filename else None
-    if path is None or not path.is_file():
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No thumbnail yet.")
-    # the picture for a given clip never changes, so the browser may keep it
-    return FileResponse(
-        path,
-        media_type="image/jpeg",
-        headers={"Cache-Control": "private, max-age=31536000, immutable"},
-    )
-
-
-@router.post("/{game_id}/screenshots")
-async def upload_game_screenshots(
-    game_id: UUID,
-    files: list[UploadFile] | None = _FILES_DEFAULT,
-    file: UploadFile | None = _FILE_DEFAULT,
-    profile_id: UUID | None = _NONE_FORM,
-    last_modified: list[int] | None = _MODIFIED_FORM,
-    db: AsyncSession = _DB_DEPENDENCY,
-    current_user: User = _CURRENT_USER_DEPENDENCY,
-) -> dict[str, list[dict]]:
-    """Bulk upload — accepts any mix of images, videos, and audio in one
-    request. Images become screenshots, videos become clips, audio becomes
-    soundtrack; anything else is rejected per-file (the rest still save).
-    Each saved file gets a MediaItem row (not just a file on disk) so it can
-    be tagged, noted, and linked to an achievement afterward. An optional
-    profile_id tags the whole batch to one account (e.g. an OSRS ironman) —
-    useful for a "levelup dump from this account" upload in one go."""
-    game = await _get_game_or_404(game_id, db, current_user.id)
-    if not game.folder_location:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Game folder_location is missing."
-        )
-    if profile_id is not None:
-        await _get_profile_or_404(profile_id, game_id, db)
-
-    # Accept both the current plural field used by the frontend and the
-    # legacy/single-file field used by older clients. This keeps the upload
-    # endpoint backwards-compatible while still returning a useful 400 when
-    # a multipart request contains no file at all.
-    uploads = list(files or [])
-    if file is not None:
-        uploads.append(file)
-    if not uploads:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="At least one file is required.",
-        )
-
-    results: list[dict] = []
-    for index, file in enumerate(uploads):
-        kind = classify_media(file.content_type, file.filename or "")
-        if kind is None:
-            results.append(
-                {
-                    "filename": file.filename,
-                    "status": "rejected",
-                    "reason": "Unsupported file type.",
-                }
-            )
-            continue
-
-        # clips/soundtrack get a much larger cap than images — a real video
-        # clip routinely exceeds a cover-art-sized limit
-        limit_mb = (
-            (await get_upload_limits_mb(db))["max_clip_size_mb"]
-            if kind in ("clip", "soundtrack")
-            else await get_max_upload_size_mb(db)
-        )
-        max_bytes = limit_mb * 1024 * 1024
-
-        data = await file.read()
-        if len(data) > max_bytes:
-            results.append(
-                {
-                    "filename": file.filename,
-                    "status": "rejected",
-                    "reason": f"Larger than {limit_mb} MB.",
-                }
-            )
-            continue
-
-        dest_dir = (
-            _DATA_ROOT / str(game.user_id) / "games" / game.folder_location / media_subdir(kind)
-        )
-        saved_path = save_media_bytes(data, dest_dir, file.filename or "file")
-        taken_at, taken_source = detect_date(
-            data,
-            file.filename or "",
-            kind,
-            last_modified[index] if last_modified and index < len(last_modified) else None,
-        )
-        db.add(
-            MediaItem(
-                game_id=game_id,
-                kind=kind,
-                filename=saved_path.name,
-                profile_id=profile_id,
-                taken_at=taken_at,
-                taken_source=taken_source,
-            )
-        )
-        results.append({"filename": saved_path.name, "status": "saved", "kind": kind})
-
-    await db.commit()
-    return {"results": results}
-
-
-@router.get("/{game_id}/screenshots")
-async def list_game_screenshots(
-    game_id: UUID,
-    profile_id: UUID | None = _NONE_FORM,
-    unscoped_only: bool = _UNSCOPED_ONLY_DEFAULT,
-    db: AsyncSession = _DB_DEPENDENCY,
-    current_user: User = _CURRENT_USER_DEPENDENCY,
-) -> dict[str, list[dict]]:
-    await _get_game_or_404(game_id, db, current_user.id)
-    stmt = select(MediaItem).where(MediaItem.game_id == game_id, MediaItem.deleted_at.is_(None))
-    if profile_id is not None:
-        stmt = stmt.where(MediaItem.profile_id == profile_id)
-    elif unscoped_only:
-        stmt = stmt.where(MediaItem.profile_id.is_(None))
-    result = await db.execute(stmt.order_by(MediaItem.created_at.desc()))
-    return {"media": [_media_item_to_dict(item, game_id) for item in result.scalars().all()]}
-
-
-@router.get("/{game_id}/screenshots/{kind}/{filename}", response_class=FileResponse)
-async def get_game_screenshot(
-    request: Request,
-    game_id: UUID,
-    kind: MediaKind,
-    filename: str,
-    db: AsyncSession = _DB_DEPENDENCY,
-    current_user: User = _CURRENT_USER_DEPENDENCY,
-) -> Response:
-    game = await _get_game_or_404(game_id, db, current_user.id)
-    path = (
-        _DATA_ROOT
-        / str(game.user_id)
-        / "games"
-        / (game.folder_location or "")
-        / media_subdir(kind)
-        / Path(filename).name
-    )
-    if not path.is_file():
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Media file not found.")
-    return ranged_file_response(request, path)
-
-
-class DetectDatesRequest(BaseModel):
-    ids: list[UUID]
-
-
-class MediaItemUpdate(BaseModel):
-    tags: list[str] | None = None
-    note: str | None = None
-    linked_achievement_id: UUID | None = None
-    profile_id: UUID | None = None
-    title: str | None = Field(default=None, max_length=200)
-    taken_at: int | None = None
-    # "achievement" when the date was copied from an achievement's unlock time
-    taken_source: Literal["manual", "achievement"] | None = None
-
-
-@router.post("/{game_id}/screenshots/detect-dates")
-async def detect_media_dates(
-    game_id: UUID,
-    payload: DetectDatesRequest,
-    db: AsyncSession = _DB_DEPENDENCY,
-    current_user: User = _CURRENT_USER_DEPENDENCY,
-) -> dict[str, list[dict]]:
-    """Re-read the date from the files themselves (photo data, then the file
-    name) for the chosen items. Files with nothing to read keep their date, so
-    a date you set by hand is only replaced when the file really has one."""
-    game = await _get_game_or_404(game_id, db, current_user.id)
-    items = (
-        await db.scalars(
-            select(MediaItem).where(
-                MediaItem.game_id == game_id,
-                MediaItem.id.in_(payload.ids),
-                MediaItem.deleted_at.is_(None),
-            )
-        )
-    ).all()
-    game_dir = _DATA_ROOT / str(game.user_id) / "games" / (game.folder_location or "")
-    changed: list[dict] = []
-    for item in items:
-        found = detect_from_stored(
-            game_dir / media_subdir(cast(MediaKind, item.kind)) / item.filename, item.kind
-        )
-        if found is None:
-            continue
-        item.taken_at, item.taken_source = found
-        changed.append(_media_item_to_dict(item, game_id))
-    await db.commit()
-    return {"media": changed}
-
-
-@router.patch("/{game_id}/screenshots/{media_id}")
-async def update_media_item(
-    game_id: UUID,
-    media_id: UUID,
-    payload: MediaItemUpdate,
-    db: AsyncSession = _DB_DEPENDENCY,
-    current_user: User = _CURRENT_USER_DEPENDENCY,
-) -> dict:
-    await _get_game_or_404(game_id, db, current_user.id)
-    item = await db.scalar(
-        select(MediaItem).where(MediaItem.id == media_id, MediaItem.game_id == game_id)
-    )
-    if item is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Media item not found.")
-    changes = payload.model_dump(exclude_unset=True)
-    if "title" in changes and changes["title"] is not None:
-        changes["title"] = changes["title"].strip() or None
-    source = changes.pop("taken_source", None)
-    for field, value in changes.items():
-        setattr(item, field, value)
-    if "taken_at" in changes:
-        # a date typed in by hand, or cleared back to the upload date
-        item.taken_source = (source or "manual") if changes["taken_at"] is not None else None
-    await db.commit()
-    await db.refresh(item)
-    return _media_item_to_dict(item, game_id)
-
-
-@router.delete("/{game_id}/screenshots/{kind}/{filename}")
-async def delete_game_screenshot(
-    game_id: UUID,
-    kind: MediaKind,
-    filename: str,
-    db: AsyncSession = _DB_DEPENDENCY,
-    current_user: User = _CURRENT_USER_DEPENDENCY,
-) -> dict[str, str]:
-    """Soft-delete: moves the file to trash and marks its row deleted
-    rather than removing it — restorable for 7 days, same as game
-    archives (features/trash/sweep.py does the eventual real deletion)."""
-    game = await _get_game_or_404(game_id, db, current_user.id)
-    item = await db.scalar(
-        select(MediaItem).where(
-            MediaItem.game_id == game_id,
-            MediaItem.kind == kind,
-            MediaItem.filename == filename,
-            MediaItem.deleted_at.is_(None),
-        )
-    )
-    if item is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Media item not found.")
-    game_dir = _DATA_ROOT / str(game.user_id) / "games" / (game.folder_location or "")
-    path = game_dir / media_subdir(kind) / Path(filename).name
-    move_media_file_to_trash(path, game_dir, kind)
-    item.deleted_at = int(time.time())
-    await db.commit()
-    return {"status": "trashed", "filename": filename}
-
-
-@router.get("/{game_id}/screenshots/trash")
-async def list_game_screenshot_trash(
-    game_id: UUID,
-    db: AsyncSession = _DB_DEPENDENCY,
-    current_user: User = _CURRENT_USER_DEPENDENCY,
-) -> dict[str, list[dict]]:
-    await _get_game_or_404(game_id, db, current_user.id)
-    result = await db.execute(
-        select(MediaItem)
-        .where(MediaItem.game_id == game_id, MediaItem.deleted_at.is_not(None))
-        .order_by(MediaItem.deleted_at.desc())
-    )
-    media = []
-    for item in result.scalars().all():
-        assert item.deleted_at is not None  # guaranteed by the deleted_at.is_not(None) filter above
-        media.append(
-            {
-                **_media_item_to_dict(item, game_id),
-                "deleted_at": item.deleted_at,
-                "purge_at": item.deleted_at + RETENTION_SECONDS,
-            }
-        )
-    return {"media": media}
-
-
-@router.post("/{game_id}/screenshots/{kind}/{filename}/restore")
-async def restore_game_screenshot(
-    game_id: UUID,
-    kind: MediaKind,
-    filename: str,
-    db: AsyncSession = _DB_DEPENDENCY,
-    current_user: User = _CURRENT_USER_DEPENDENCY,
-) -> dict:
-    game = await _get_game_or_404(game_id, db, current_user.id)
-    item = await db.scalar(
-        select(MediaItem).where(
-            MediaItem.game_id == game_id,
-            MediaItem.kind == kind,
-            MediaItem.filename == filename,
-            MediaItem.deleted_at.is_not(None),
-        )
-    )
-    if item is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Deleted media item not found."
-        )
-    game_dir = _DATA_ROOT / str(game.user_id) / "games" / (game.folder_location or "")
-    restore_media_file_from_trash(filename, game_dir / media_subdir(kind), game_dir, kind)
-    item.deleted_at = None
-    await db.commit()
-    return _media_item_to_dict(item, game_id)
-
-
-GameFileKind = Literal["doc", "modpack"]
-# "save" and "world_save" moved to game_archives.py — named, versioned
-# archives instead of an anonymous single flat file each
-
-_GAME_FILE_SUBDIRS: dict[GameFileKind, str] = {
-    "doc": "docs",
-    "modpack": "modpacks",
-}
-
-
-def _game_file_subdir(kind: GameFileKind) -> str:
-    return _GAME_FILE_SUBDIRS[kind]
-
-
-async def _sync_game_file_items(game_id: UUID, game_dir: Path, db: AsyncSession) -> None:
-    """Docs/modpacks used to be tracked only on disk, with no DB row at
-    all — this backfills a row (created_at from the file's mtime) for
-    anything already sitting in the active folder that doesn't have one
-    yet, so existing files from before this migration still show up
-    without a one-time manual migration script (same approach as
-    media.py's _sync_inbox_items)."""
-    existing = await db.execute(
-        select(GameFileItem.kind, GameFileItem.filename).where(
-            GameFileItem.game_id == game_id, GameFileItem.deleted_at.is_(None)
-        )
-    )
-    known = {(kind, filename) for kind, filename in existing.all()}
-    added = False
-    for kind in ("doc", "modpack"):
-        for filename in list_media(game_dir / _game_file_subdir(kind)):  # type: ignore[arg-type]
-            if (kind, filename) in known:
-                continue
-            path = game_dir / _game_file_subdir(kind) / filename  # type: ignore[arg-type]
-            try:
-                mtime = int(path.stat().st_mtime)
-            except OSError:
-                mtime = int(time.time())
-            db.add(GameFileItem(game_id=game_id, kind=kind, filename=filename, created_at=mtime))
-            added = True
-    if added:
-        await db.commit()
-
-
-def _game_file_to_dict(item: GameFileItem, game_id: UUID, game_dir: Path) -> dict:
-    path = game_dir / _game_file_subdir(cast(GameFileKind, item.kind)) / item.filename
-    return {
-        "id": str(item.id),
-        "filename": item.filename,
-        "kind": item.kind,
-        "size": path.stat().st_size if path.is_file() else 0,
-        "url": f"/api/game/{game_id}/files/{item.kind}/{item.filename}",
-        "created_at": item.created_at,
-        "title": item.title,
-        "note": item.note,
-        "tags": item.tags,
-        "taken_at": item.taken_at,
-        "taken_source": item.taken_source,
-    }
-
-
-@router.post("/{game_id}/files/{kind}")
-async def upload_game_files(
-    game_id: UUID,
-    kind: GameFileKind,
-    files: list[UploadFile] | None = _FILES_DEFAULT,
-    file: UploadFile | None = _FILE_DEFAULT,
-    last_modified: list[int] | None = _FILE_MODIFIED_FORM,
-    db: AsyncSession = _DB_DEPENDENCY,
-    current_user: User = _CURRENT_USER_DEPENDENCY,
-) -> dict[str, list[dict]]:
-    """Generic file attachments for a game — docs/manuals and modpacks can
-    be almost any format, so unlike screenshots/clips there's no
-    content-type validation, just a size cap."""
-    game = await _get_game_or_404(game_id, db, current_user.id)
-    if not game.folder_location:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Game folder_location is missing."
-        )
-
-    # a modpack zip is routinely hundreds of MB to a few GB — far past a
-    # doc-sized limit
-    limit_mb = (
-        (await get_upload_limits_mb(db))["max_world_save_size_mb"]
-        if kind == "modpack"
-        else await get_max_upload_size_mb(db)
-    )
-    max_bytes = limit_mb * 1024 * 1024
-    # Accept both the current plural field used by the frontend and the
-    # legacy/single-file field used by older clients.
-    uploads = list(files or [])
-    if file is not None:
-        uploads.append(file)
-    if not uploads:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="At least one file is required.",
-        )
-    results: list[dict] = []
-    for index, file in enumerate(uploads):
-        data = await file.read()
-        if len(data) > max_bytes:
-            results.append(
-                {
-                    "filename": file.filename,
-                    "status": "rejected",
-                    "reason": f"Larger than {limit_mb} MB.",
-                }
-            )
-            continue
-        dest_dir = (
-            _DATA_ROOT
-            / str(game.user_id)
-            / "games"
-            / game.folder_location
-            / _game_file_subdir(kind)
-        )
-        saved_path = save_media_bytes(data, dest_dir, file.filename or "file")
-        taken_at, taken_source = detect_date(
-            data,
-            file.filename or "",
-            "doc",
-            last_modified[index] if last_modified and index < len(last_modified) else None,
-        )
-        db.add(
-            GameFileItem(
-                game_id=game_id,
-                kind=kind,
-                filename=saved_path.name,
-                taken_at=taken_at,
-                taken_source=taken_source,
-            )
-        )
-        results.append({"filename": saved_path.name, "status": "saved", "size": len(data)})
-
-    await db.commit()
-    return {"results": results}
-
-
-@router.get("/{game_id}/files/{kind}")
-async def list_game_files(
-    game_id: UUID,
-    kind: GameFileKind,
-    db: AsyncSession = _DB_DEPENDENCY,
-    current_user: User = _CURRENT_USER_DEPENDENCY,
-) -> dict[str, list[dict]]:
-    game = await _get_game_or_404(game_id, db, current_user.id)
-    if not game.folder_location:
-        return {"files": []}
-    game_dir = _DATA_ROOT / str(game.user_id) / "games" / game.folder_location
-    await _sync_game_file_items(game_id, game_dir, db)
-    result = await db.execute(
-        select(GameFileItem)
-        .where(
-            GameFileItem.game_id == game_id,
-            GameFileItem.kind == kind,
-            GameFileItem.deleted_at.is_(None),
-        )
-        .order_by(GameFileItem.filename)
-    )
-    return {
-        "files": [_game_file_to_dict(item, game_id, game_dir) for item in result.scalars().all()]
-    }
-
-
-class GameFileUpdate(BaseModel):
-    title: str | None = Field(default=None, max_length=200)
-    note: str | None = None
-    tags: list[str] | None = None
-    taken_at: int | None = None
-    taken_source: Literal["manual", "achievement"] | None = None
-
-
-@router.patch("/{game_id}/files/{kind}/by-id/{item_id}")
-async def update_game_file(
-    game_id: UUID,
-    kind: GameFileKind,
-    item_id: UUID,
-    payload: GameFileUpdate,
-    db: AsyncSession = _DB_DEPENDENCY,
-    current_user: User = _CURRENT_USER_DEPENDENCY,
-) -> dict:
-    game = await _get_game_or_404(game_id, db, current_user.id)
-    item = await db.scalar(
-        select(GameFileItem).where(
-            GameFileItem.id == item_id,
-            GameFileItem.game_id == game_id,
-            GameFileItem.kind == kind,
-            GameFileItem.deleted_at.is_(None),
-        )
-    )
-    if item is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found.")
-    changes = payload.model_dump(exclude_unset=True)
-    if "title" in changes and changes["title"] is not None:
-        changes["title"] = changes["title"].strip() or None
-    source = changes.pop("taken_source", None)
-    for field, value in changes.items():
-        setattr(item, field, value)
-    if "taken_at" in changes:
-        item.taken_source = (source or "manual") if changes["taken_at"] is not None else None
-    await db.commit()
-    await db.refresh(item)
-    game_dir = _DATA_ROOT / str(game.user_id) / "games" / (game.folder_location or "")
-    return _game_file_to_dict(item, game_id, game_dir)
-
-
-@router.get("/{game_id}/files/{kind}/trash")
-async def list_game_file_trash(
-    game_id: UUID,
-    kind: GameFileKind,
-    db: AsyncSession = _DB_DEPENDENCY,
-    current_user: User = _CURRENT_USER_DEPENDENCY,
-) -> dict[str, list[dict]]:
-    await _get_game_or_404(game_id, db, current_user.id)
-    result = await db.execute(
-        select(GameFileItem)
-        .where(
-            GameFileItem.game_id == game_id,
-            GameFileItem.kind == kind,
-            GameFileItem.deleted_at.is_not(None),
-        )
-        .order_by(GameFileItem.deleted_at.desc())
-    )
-    files = []
-    for item in result.scalars().all():
-        assert item.deleted_at is not None  # guaranteed by the deleted_at.is_not(None) filter above
-        files.append(
-            {
-                "id": str(item.id),
-                "filename": item.filename,
-                "deleted_at": item.deleted_at,
-                "purge_at": item.deleted_at + RETENTION_SECONDS,
-            }
-        )
-    return {"files": files}
-
-
-@router.get("/{game_id}/files/{kind}/{filename}", response_class=FileResponse)
-async def get_game_file(
-    game_id: UUID,
-    kind: GameFileKind,
-    filename: str,
-    db: AsyncSession = _DB_DEPENDENCY,
-    current_user: User = _CURRENT_USER_DEPENDENCY,
-) -> FileResponse:
-    game = await _get_game_or_404(game_id, db, current_user.id)
-    path = (
-        _DATA_ROOT
-        / str(game.user_id)
-        / "games"
-        / (game.folder_location or "")
-        / _game_file_subdir(kind)
-        / Path(filename).name
-    )
-    if not path.is_file():
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found.")
-    # arbitrary user files (saves/docs) should download, not attempt to
-    # render inline the way an image/video screenshot asset does — the
-    # random 8-char prefix save_media_bytes adds to dedupe filenames is
-    # stripped back off for the name the browser actually saves it as
-    original_name = Path(filename).name.split("_", 1)[-1]
-    return FileResponse(path, filename=original_name, media_type="application/octet-stream")
-
-
-@router.delete("/{game_id}/files/{kind}/{filename}")
-async def delete_game_file(
-    game_id: UUID,
-    kind: GameFileKind,
-    filename: str,
-    db: AsyncSession = _DB_DEPENDENCY,
-    current_user: User = _CURRENT_USER_DEPENDENCY,
-) -> dict[str, str]:
-    """Soft-delete: moves the file to trash and marks its row deleted
-    rather than removing it — restorable for 7 days, same as every other
-    delete path in the app (features/trash/sweep.py does the eventual
-    real deletion)."""
-    game = await _get_game_or_404(game_id, db, current_user.id)
-    game_dir = _DATA_ROOT / str(game.user_id) / "games" / (game.folder_location or "")
-    await _sync_game_file_items(game_id, game_dir, db)
-    name = Path(filename).name
-    item = await db.scalar(
-        select(GameFileItem).where(
-            GameFileItem.game_id == game_id,
-            GameFileItem.kind == kind,
-            GameFileItem.filename == name,
-            GameFileItem.deleted_at.is_(None),
-        )
-    )
-    if item is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found.")
-    path = game_dir / _game_file_subdir(kind) / name
-    move_media_file_to_trash(path, game_dir, kind)
-    item.deleted_at = int(time.time())
-    await db.commit()
-    return {"status": "trashed", "filename": name}
-
-
-@router.post("/{game_id}/files/{kind}/{filename}/restore")
-async def restore_game_file(
-    game_id: UUID,
-    kind: GameFileKind,
-    filename: str,
-    db: AsyncSession = _DB_DEPENDENCY,
-    current_user: User = _CURRENT_USER_DEPENDENCY,
-) -> dict[str, str]:
-    game = await _get_game_or_404(game_id, db, current_user.id)
-    name = Path(filename).name
-    item = await db.scalar(
-        select(GameFileItem).where(
-            GameFileItem.game_id == game_id,
-            GameFileItem.kind == kind,
-            GameFileItem.filename == name,
-            GameFileItem.deleted_at.is_not(None),
-        )
-    )
-    if item is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Deleted file not found.")
-    game_dir = _DATA_ROOT / str(game.user_id) / "games" / (game.folder_location or "")
-    restore_media_file_from_trash(name, game_dir / _game_file_subdir(kind), game_dir, kind)
-    item.deleted_at = None
-    await db.commit()
-    return {"status": "restored", "filename": name}
-
-
-@router.post(
-    "/{game_id}/notes/{note_name}",
-    status_code=status.HTTP_201_CREATED,
-)
-async def create_game_note(
-    game_id: UUID,
-    note_name: str,
-    payload: NoteWrite = _BODY_DOTDOTDOT,
-    db: AsyncSession = _DB_DEPENDENCY,
-    current_user: User = _CURRENT_USER_DEPENDENCY,
-) -> dict[str, str | None]:
-    """Create a markdown note without replacing an existing note."""
-    game = await _get_game_or_404(game_id, db, current_user.id)
-    normalized_name = _normalize_note_name(note_name)
-    note_path = _game_note_path(game, normalized_name)
-    try:
-        with note_path.open("x", encoding="utf-8") as note_file:
-            note_file.write(payload.content)
-    except FileExistsError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail={
-                "error": "note_already_exists",
-                "message": f'A note titled "{normalized_name}" already exists.',
-            },
-        ) from exc
-    await game_notes.ensure_row(db, game_id, normalized_name)
-    await db.commit()
-    return {
-        "game_id": str(game_id),
-        "note_name": normalized_name,
-        "path": str(note_path),
-        "status": "saved",
-    }
-
-
-@router.put(
-    "/{game_id}/notes/{note_name}",
-)
-async def update_game_note(
-    game_id: UUID,
-    note_name: str,
-    payload: NoteWrite = _BODY_DOTDOTDOT,
-    db: AsyncSession = _DB_DEPENDENCY,
-    current_user: User = _CURRENT_USER_DEPENDENCY,
-) -> dict[str, str | None]:
-    """Update an existing markdown note."""
-    game = await _get_game_or_404(game_id, db, current_user.id)
-    normalized_name = _normalize_note_name(note_name)
-    note_path = _game_note_path(game, normalized_name)
-    if not note_path.is_file():
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=f'Note "{normalized_name}" was not found.'
-        )
-    previous = note_path.read_text(encoding="utf-8", errors="replace")
-    row = await game_notes.ensure_row(
-        db, game_id, normalized_name, created_at=int(note_path.stat().st_mtime)
-    )
-    if previous != payload.content:
-        await game_notes.record_version(db, row, previous)
-    note_path.write_text(payload.content, encoding="utf-8")
-    await db.commit()
-    return {
-        "game_id": str(game_id),
-        "note_name": normalized_name,
-        "path": str(note_path),
-        "status": "saved",
-    }
-
-
-@router.patch(
-    "/{game_id}/notes/{note_name}/rename",
-)
-async def rename_game_note(
-    game_id: UUID,
-    note_name: str,
-    payload: NoteRename = _BODY_DOTDOTDOT,
-    db: AsyncSession = _DB_DEPENDENCY,
-    current_user: User = _CURRENT_USER_DEPENDENCY,
-) -> dict[str, str | None]:
-    """Rename a note without replacing the destination or losing its contents."""
-    game = await _get_game_or_404(game_id, db, current_user.id)
-    source_name = _normalize_note_name(note_name)
-    destination_name = _normalize_note_name(payload.new_name)
-    source_path = _game_note_path(game, source_name)
-    destination_path = _game_note_path(game, destination_name)
-    if not source_path.is_file():
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=f'Note "{source_name}" was not found.'
-        )
-    if source_name == destination_name:
-        return {
-            "game_id": str(game_id),
-            "note_name": source_name,
-            "path": str(source_path),
-            "status": "saved",
-        }
-    try:
-        os.link(source_path, destination_path)
-    except FileExistsError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail={
-                "error": "note_already_exists",
-                "message": f'A note titled "{destination_name}" already exists.',
-            },
-        ) from exc
-    except OSError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="The note could not be renamed.",
-        ) from exc
-    try:
-        source_path.unlink()
-    except OSError as exc:
-        try:
-            destination_path.unlink()
-        except OSError:
-            pass
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="The note could not be renamed.",
-        ) from exc
-    await game_notes.rename_row(db, game_id, source_name, destination_name)
-    await db.commit()
-    return {
-        "game_id": str(game_id),
-        "note_name": destination_name,
-        "path": str(destination_path),
-        "status": "saved",
-    }
-
-
-@router.get(
-    "/{game_id}/notes",
-    responses={
-        status.HTTP_200_OK: {"description": "List of markdown notes for the game"},
-        status.HTTP_404_NOT_FOUND: {"description": "Game not found"},
-    },
-)
-async def list_game_notes(
-    game_id: UUID,
-    db: AsyncSession = _DB_DEPENDENCY,
-    current_user: User = _CURRENT_USER_DEPENDENCY,
-) -> dict[str, list[str]]:
-    """Return the markdown note names associated with a game."""
-    game = await _get_game_or_404(game_id, db, current_user.id)
-
-    if not game.folder_location:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Game folder_location is missing.",
-        )
-
-    notes_dir = _DATA_ROOT / str(game.user_id) / "games" / game.folder_location / "notes"
-    if not notes_dir.exists():
-        return {"notes": []}
-
-    note_names = sorted(
-        path.stem for path in notes_dir.iterdir() if path.is_file() and path.suffix.lower() == ".md"
-    )
-    return {"notes": note_names}
-
-
-def _note_summary(path: Path, row: GameNoteDetail | None = None) -> dict:
-    """What a note card shows: its name, when it was created and last edited,
-    how long it is, checklist progress, the start of it, and its pin, tags and
-    achievement. Text comes from the file; the rest from its details row."""
-    try:
-        text = path.read_text(encoding="utf-8", errors="replace")
-    except OSError:
-        text = ""
-    stat = path.stat()
-    done, total = game_notes.task_counts(text)
-    return {
-        "name": path.stem,
-        "created_at": row.created_at if row else int(stat.st_mtime),
-        "updated_at": int(stat.st_mtime),
-        "size": stat.st_size,
-        "words": len(text.split()),
-        "preview": text[:600],
-        "tasks_done": done,
-        "tasks_total": total,
-        "pinned": row.pinned if row else False,
-        "tags": row.tags if row else [],
-        "linked_achievement_id": str(row.linked_achievement_id)
-        if row and row.linked_achievement_id
-        else None,
-    }
-
-
-@router.get("/{game_id}/notes-summary")
-async def list_game_note_summaries(
-    game_id: UUID,
-    db: AsyncSession = _DB_DEPENDENCY,
-    current_user: User = _CURRENT_USER_DEPENDENCY,
-) -> dict[str, list[dict]]:
-    """The notes with their edit time, length and a preview, for the Notes tab."""
-    game = await _get_game_or_404(game_id, db, current_user.id)
-    if not game.folder_location:
-        return {"notes": []}
-    notes_dir = _DATA_ROOT / str(game.user_id) / "games" / game.folder_location / "notes"
-    if not notes_dir.exists():
-        return {"notes": []}
-    rows = await game_notes.sync_rows(db, game_id, notes_dir)
-    paths = [p for p in notes_dir.iterdir() if p.is_file() and p.suffix.lower() == ".md"]
-    return {
-        "notes": [
-            _note_summary(p, rows.get(p.stem)) for p in sorted(paths, key=lambda p: p.stem.lower())
-        ]
-    }
-
-
-@router.get(
-    "/{game_id}/notes/{note_name}",
-    responses={
-        status.HTTP_200_OK: {"description": "Markdown note contents"},
-        status.HTTP_404_NOT_FOUND: {"description": "Game or note not found"},
-    },
-)
-async def get_game_note(
-    game_id: UUID,
-    note_name: str,
-    db: AsyncSession = _DB_DEPENDENCY,
-    current_user: User = _CURRENT_USER_DEPENDENCY,
-) -> Response:
-    """Return the contents of one game note as markdown."""
-    game = await _get_game_or_404(game_id, db, current_user.id)
-    note_path = _game_note_path(game, note_name)
-
-    if not note_path.exists():
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Note '{_normalize_note_name(note_name)}' not found for game {game_id}",
-        )
-
-    return Response(
-        content=note_path.read_text(encoding="utf-8"), media_type="text/markdown; charset=utf-8"
-    )
-
-
-@router.delete(
-    "/{game_id}/notes/{note_name}",
-    responses={
-        status.HTTP_200_OK: {"description": "Note deleted"},
-        status.HTTP_404_NOT_FOUND: {"description": "Game or note not found"},
-    },
-)
-async def delete_game_note(
-    game_id: UUID,
-    note_name: str,
-    db: AsyncSession = _DB_DEPENDENCY,
-    current_user: User = _CURRENT_USER_DEPENDENCY,
-) -> dict[str, str]:
-    """Delete one markdown note from a game."""
-    game = await _get_game_or_404(game_id, db, current_user.id)
-    note_path = _game_note_path(game, note_name)
-
-    if not note_path.exists():
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Note '{_normalize_note_name(note_name)}' not found for game {game_id}",
-        )
-
-    note_path.unlink()
-    await game_notes.delete_row(db, game_id, _normalize_note_name(note_name))
-    await db.commit()
-    return {
-        "game_id": str(game_id),
-        "note_name": _normalize_note_name(note_name),
-        "status": "deleted",
-    }
-
-
-async def _get_profile_or_404(
-    profile_id: UUID, game_id: UUID, db: AsyncSession, include_deleted: bool = False
-) -> GameProfile:
-    stmt = select(GameProfile).where(GameProfile.id == profile_id, GameProfile.game_id == game_id)
-    if not include_deleted:
-        stmt = stmt.where(GameProfile.deleted_at.is_(None))
-    profile = await db.scalar(stmt)
-    if profile is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found.")
-    return profile
-
-
-def _profile_to_dict(profile: GameProfile) -> dict:
-    return {
-        "id": str(profile.id),
-        "game_id": str(profile.game_id),
-        "name": profile.name,
-        "note": profile.note,
-        "stats": profile.stats,
-        "wiseoldman_username": profile.wiseoldman_username,
-        "created_at": profile.created_at,
-    }
-
-
-async def _record_stat_snapshot(
-    db: AsyncSession,
-    profile_id: UUID,
-    stats: dict[str, str],
-    recorded_at: int | None = None,
-    xp: dict[str, int] | None = None,
-    kc: dict[str, int] | None = None,
-) -> None:
-    """Called whenever a profile's stats change (manual edit or WiseOldMan
-    sync) — a dated copy so progression can be shown later instead of only
-    ever seeing the current numbers. xp/kc (WiseOldMan syncs only — a
-    manual edit leaves them empty) are the raw integers a "gained this
-    much" digest needs; `stats` alone (display strings) isn't precise
-    enough since a level can span tens of thousands of XP. Not deduped:
-    two saves the same minute just make two rows, which is harmless and
-    keeps this simple."""
-    if not stats:
-        return
-    db.add(
-        GameProfileStatSnapshot(
-            profile_id=profile_id,
-            stats=stats,
-            xp=xp or {},
-            kc=kc or {},
-            recorded_at=recorded_at or int(time.time()),
-        )
-    )
-
-
-class ProfileWrite(BaseModel):
-    name: str
-
-
-class ProfileUpdate(BaseModel):
-    name: str | None = None
-    note: str | None = None
-    stats: dict[str, str] | None = None
-    wiseoldman_username: str | None = None
-
-
-@router.get("/{game_id}/profiles")
-async def list_game_profiles(
-    game_id: UUID,
-    db: AsyncSession = _DB_DEPENDENCY,
-    current_user: User = _CURRENT_USER_DEPENDENCY,
-) -> dict[str, list[dict]]:
-    """Named sub-scopes for a game (e.g. separate OSRS accounts) — lets
-    checklist items and screenshots be filtered down to one instead of
-    mixed together across every account the game has."""
-    await _get_game_or_404(game_id, db, current_user.id)
-    result = await db.execute(
-        select(GameProfile)
-        .where(GameProfile.game_id == game_id, GameProfile.deleted_at.is_(None))
-        .order_by(GameProfile.created_at.asc())
-    )
-    return {"profiles": [_profile_to_dict(p) for p in result.scalars().all()]}
-
-
-@router.post("/{game_id}/profiles", status_code=status.HTTP_201_CREATED)
-async def create_game_profile(
-    game_id: UUID,
-    payload: ProfileWrite,
-    db: AsyncSession = _DB_DEPENDENCY,
-    current_user: User = _CURRENT_USER_DEPENDENCY,
-) -> dict:
-    await _get_game_or_404(game_id, db, current_user.id)
-    name = payload.name.strip()
-    if not name:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="name is required.")
-    profile = GameProfile(game_id=game_id, name=name)
-    db.add(profile)
-    await db.commit()
-    await db.refresh(profile)
-    return _profile_to_dict(profile)
-
-
-@router.patch("/{game_id}/profiles/{profile_id}")
-async def update_game_profile(
-    game_id: UUID,
-    profile_id: UUID,
-    payload: ProfileUpdate,
-    db: AsyncSession = _DB_DEPENDENCY,
-    current_user: User = _CURRENT_USER_DEPENDENCY,
-) -> dict:
-    await _get_game_or_404(game_id, db, current_user.id)
-    profile = await _get_profile_or_404(profile_id, game_id, db)
-    updates = payload.model_dump(exclude_unset=True)
-    if "name" in updates:
-        name = (updates["name"] or "").strip()
-        if not name:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="name is required.")
-        updates["name"] = name
-    for field, value in updates.items():
-        setattr(profile, field, value)
-    if "stats" in updates:
-        await _record_stat_snapshot(db, profile.id, updates["stats"])
-    await db.commit()
-    await db.refresh(profile)
-    return _profile_to_dict(profile)
-
-
-class WiseOldManSyncRequest(BaseModel):
-    username: str | None = None
-
-
-_WISEOLDMAN_SYNC_BODY = Body(default=WiseOldManSyncRequest())
-
-
-@router.post("/{game_id}/profiles/{profile_id}/sync-wiseoldman")
-async def sync_profile_wiseoldman(
-    game_id: UUID,
-    profile_id: UUID,
-    payload: WiseOldManSyncRequest = _WISEOLDMAN_SYNC_BODY,
-    db: AsyncSession = _DB_DEPENDENCY,
-    current_user: User = _CURRENT_USER_DEPENDENCY,
-) -> dict:
-    """Pulls current skill levels from wiseoldman.net (OSRS's community
-    stat tracker, no account/API key needed) into this profile's stats.
-    Manual, click-to-sync — no scheduled background refresh."""
-    await _get_game_or_404(game_id, db, current_user.id)
-    profile = await _get_profile_or_404(profile_id, game_id, db)
-    username = (payload.username or profile.wiseoldman_username or "").strip()
-    if not username:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="A WiseOldMan username is required."
-        )
-    try:
-        result = await asyncio.to_thread(wiseoldman.get_player_stats, username)
-    except wiseoldman.WiseOldManError as exc:
-        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
-    stats = dict(result["stats"])
-    if result.get("combat_level"):
-        stats["Combat"] = result["combat_level"]
-    profile.stats = stats
-    profile.wiseoldman_username = username
-
-    # first sync ever for this profile — backfill whatever history
-    # WiseOldMan already has for the account (only as good as how often
-    # *someone* updated it there before), so progression doesn't start
-    # from a blank slate just because this is the first time this app
-    # asked. A later sync only ever adds today's snapshot below.
-    has_history = await db.scalar(
-        select(GameProfileStatSnapshot.id)
-        .where(GameProfileStatSnapshot.profile_id == profile.id)
-        .limit(1)
-    )
-    if has_history is None:
-        try:
-            history = await asyncio.to_thread(wiseoldman.get_player_snapshots, username)
-        except Exception:  # noqa: BLE001 — backfill is best-effort, never blocks the sync itself
-            history = []
-        for entry in history:
-            await _record_stat_snapshot(
-                db,
-                profile.id,
-                entry["stats"],
-                entry["recorded_at"],
-                entry.get("xp"),
-                entry.get("kc"),
-            )
-
-    await _record_stat_snapshot(db, profile.id, stats, xp=result.get("xp"), kc=result.get("kc"))
-    await db.commit()
-    await db.refresh(profile)
-    return _profile_to_dict(profile)
-
-
-@router.get("/{game_id}/profiles/{profile_id}/stat-history")
-async def get_profile_stat_history(
-    game_id: UUID,
-    profile_id: UUID,
-    db: AsyncSession = _DB_DEPENDENCY,
-    current_user: User = _CURRENT_USER_DEPENDENCY,
-) -> dict[str, list[dict]]:
-    await _get_game_or_404(game_id, db, current_user.id)
-    await _get_profile_or_404(profile_id, game_id, db)
-    result = await db.execute(
-        select(GameProfileStatSnapshot)
-        .where(GameProfileStatSnapshot.profile_id == profile_id)
-        .order_by(GameProfileStatSnapshot.recorded_at.desc())
-    )
-    return {
-        "snapshots": [
-            {
-                "id": str(s.id),
-                "recorded_at": s.recorded_at,
-                "stats": s.stats,
-                "xp": s.xp,
-                "kc": s.kc,
-            }
-            for s in result.scalars().all()
-        ]
-    }
-
-
-@router.delete("/{game_id}/profiles/{profile_id}")
-async def delete_game_profile(
-    game_id: UUID,
-    profile_id: UUID,
-    db: AsyncSession = _DB_DEPENDENCY,
-    current_user: User = _CURRENT_USER_DEPENDENCY,
-) -> dict[str, str]:
-    """Soft-delete only — no files involved, so this just flips the flag
-    (features/trash/sweep.py purges the row itself after 7 days). Checklist
-    items and media tagged to this profile keep their profile_id and
-    simply stop showing up under an active profile filter until restored."""
-    await _get_game_or_404(game_id, db, current_user.id)
-    profile = await _get_profile_or_404(profile_id, game_id, db)
-    profile.deleted_at = int(time.time())
-    await db.commit()
-    return {"status": "trashed", "id": str(profile_id)}
-
-
-@router.get("/{game_id}/profiles/trash")
-async def list_game_profile_trash(
-    game_id: UUID,
-    db: AsyncSession = _DB_DEPENDENCY,
-    current_user: User = _CURRENT_USER_DEPENDENCY,
-) -> dict[str, list[dict]]:
-    await _get_game_or_404(game_id, db, current_user.id)
-    result = await db.execute(
-        select(GameProfile).where(
-            GameProfile.game_id == game_id, GameProfile.deleted_at.is_not(None)
-        )
-    )
-    profiles = []
-    for p in result.scalars().all():
-        assert p.deleted_at is not None  # guaranteed by the deleted_at.is_not(None) filter above
-        profiles.append(
-            {
-                **_profile_to_dict(p),
-                "deleted_at": p.deleted_at,
-                "purge_at": p.deleted_at + RETENTION_SECONDS,
-            }
-        )
-    return {"profiles": profiles}
-
-
-@router.post("/{game_id}/profiles/{profile_id}/restore")
-async def restore_game_profile(
-    game_id: UUID,
-    profile_id: UUID,
-    db: AsyncSession = _DB_DEPENDENCY,
-    current_user: User = _CURRENT_USER_DEPENDENCY,
-) -> dict:
-    await _get_game_or_404(game_id, db, current_user.id)
-    profile = await _get_profile_or_404(profile_id, game_id, db, include_deleted=True)
-    if profile.deleted_at is None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Profile is not trashed."
-        )
-    profile.deleted_at = None
-    await db.commit()
-    await db.refresh(profile)
-    return _profile_to_dict(profile)
-
-
-def _checklist_item_to_dict(item: GameChecklistItem) -> dict:
-    return {
-        "id": str(item.id),
-        "game_id": str(item.game_id),
-        "profile_id": str(item.profile_id) if item.profile_id else None,
-        "text": item.text,
-        "done": item.done,
-        "is_header": item.is_header,
-        "sort_order": item.sort_order,
-        "created_at": item.created_at,
-    }
-
-
-class ChecklistItemWrite(BaseModel):
-    text: str
-    profile_id: UUID | None = None
-    is_header: bool = False
-
-
-class ChecklistItemUpdate(BaseModel):
-    text: str | None = None
-    done: bool | None = None
-    is_header: bool | None = None
-    sort_order: float | None = None
-
-
-@router.get("/{game_id}/checklist")
-async def list_game_checklist(
-    game_id: UUID,
-    profile_id: UUID | None = _NONE_FORM,
-    unscoped_only: bool = _UNSCOPED_ONLY_DEFAULT,
-    db: AsyncSession = _DB_DEPENDENCY,
-    current_user: User = _CURRENT_USER_DEPENDENCY,
-) -> dict[str, list[dict]]:
-    await _get_game_or_404(game_id, db, current_user.id)
-    stmt = select(GameChecklistItem).where(
-        GameChecklistItem.game_id == game_id, GameChecklistItem.deleted_at.is_(None)
-    )
-    if profile_id is not None:
-        stmt = stmt.where(GameChecklistItem.profile_id == profile_id)
-    elif unscoped_only:
-        stmt = stmt.where(GameChecklistItem.profile_id.is_(None))
-    result = await db.execute(
-        stmt.order_by(GameChecklistItem.sort_order.asc(), GameChecklistItem.created_at.asc())
-    )
-    return {"items": [_checklist_item_to_dict(item) for item in result.scalars().all()]}
-
-
-@router.post("/{game_id}/checklist", status_code=status.HTTP_201_CREATED)
-async def create_checklist_item(
-    game_id: UUID,
-    payload: ChecklistItemWrite,
-    db: AsyncSession = _DB_DEPENDENCY,
-    current_user: User = _CURRENT_USER_DEPENDENCY,
-) -> dict:
-    await _get_game_or_404(game_id, db, current_user.id)
-    text = payload.text.strip()
-    if not text:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="text is required.")
-    if payload.profile_id is not None:
-        await _get_profile_or_404(payload.profile_id, game_id, db)
-    max_sort = await db.scalar(
-        select(func.max(GameChecklistItem.sort_order)).where(
-            GameChecklistItem.game_id == game_id, GameChecklistItem.profile_id == payload.profile_id
-        )
-    )
-    item = GameChecklistItem(
-        game_id=game_id,
-        profile_id=payload.profile_id,
-        text=text,
-        is_header=payload.is_header,
-        sort_order=(max_sort or 0) + 1,
-    )
-    db.add(item)
-    await db.commit()
-    await db.refresh(item)
-    return _checklist_item_to_dict(item)
-
-
-class ChecklistReorder(BaseModel):
-    # the full ordered list of item ids within one scope (profile_id must
-    # match what they were fetched/created under) — sent whole rather than
-    # as a single move, so an up/down-arrow swap and a future drag-and-drop
-    # both reduce to "here's the new order" instead of two different APIs
-    profile_id: UUID | None = None
-    item_ids: list[UUID]
-
-
-@router.put("/{game_id}/checklist/reorder")
-async def reorder_checklist(
-    game_id: UUID,
-    payload: ChecklistReorder,
-    db: AsyncSession = _DB_DEPENDENCY,
-    current_user: User = _CURRENT_USER_DEPENDENCY,
-) -> dict[str, str]:
-    await _get_game_or_404(game_id, db, current_user.id)
-    result = await db.execute(
-        select(GameChecklistItem).where(
-            GameChecklistItem.game_id == game_id,
-            GameChecklistItem.profile_id == payload.profile_id,
-            GameChecklistItem.deleted_at.is_(None),
-        )
-    )
-    items_by_id = {item.id: item for item in result.scalars().all()}
-    for index, item_id in enumerate(payload.item_ids):
-        item = items_by_id.get(item_id)
-        if item is not None:
-            item.sort_order = float(index)
-    await db.commit()
-    return {"status": "reordered"}
-
-
-@router.patch("/{game_id}/checklist/{item_id}")
-async def update_checklist_item(
-    game_id: UUID,
-    item_id: UUID,
-    payload: ChecklistItemUpdate,
-    db: AsyncSession = _DB_DEPENDENCY,
-    current_user: User = _CURRENT_USER_DEPENDENCY,
-) -> dict:
-    await _get_game_or_404(game_id, db, current_user.id)
-    item = await db.scalar(
-        select(GameChecklistItem).where(
-            GameChecklistItem.id == item_id,
-            GameChecklistItem.game_id == game_id,
-            GameChecklistItem.deleted_at.is_(None),
-        )
-    )
-    if item is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Checklist item not found."
-        )
-    for field, value in payload.model_dump(exclude_unset=True).items():
-        setattr(item, field, value)
-    await db.commit()
-    await db.refresh(item)
-    return _checklist_item_to_dict(item)
-
-
-@router.delete("/{game_id}/checklist/{item_id}")
-async def delete_checklist_item(
-    game_id: UUID,
-    item_id: UUID,
-    db: AsyncSession = _DB_DEPENDENCY,
-    current_user: User = _CURRENT_USER_DEPENDENCY,
-) -> dict[str, str]:
-    await _get_game_or_404(game_id, db, current_user.id)
-    item = await db.scalar(
-        select(GameChecklistItem).where(
-            GameChecklistItem.id == item_id,
-            GameChecklistItem.game_id == game_id,
-            GameChecklistItem.deleted_at.is_(None),
-        )
-    )
-    if item is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Checklist item not found."
-        )
-    item.deleted_at = int(time.time())
-    await db.commit()
-    return {"status": "trashed", "id": str(item_id)}
+router.include_router(game_checklists.router)
 
 
 async def _find_playnite_game(payload: GameCreate, user_id: UUID, db: AsyncSession) -> Game | None:
@@ -2208,6 +408,8 @@ async def create_game(
     return game
 
 
+# Keep the established workflow and public parameters together.
+# pylint: disable=too-many-positional-arguments
 @router.get("/list", response_model=list[GameRead])
 async def list_games(
     db: AsyncSession = _DB_DEPENDENCY,
@@ -2232,6 +434,9 @@ async def list_games(
 
     result = await db.execute(stmt)
     return list(result.scalars().all())
+
+
+# pylint: enable=too-many-positional-arguments
 
 
 @router.get("/get/{game_id}", response_model=GameRead)
@@ -2348,258 +553,7 @@ async def update_game(
     return game
 
 
-_GAME_METADATA_FIELDS = frozenset(
-    {
-        "title",
-        "description",
-        "developer",
-        "publisher",
-        "series",
-        "tags",
-        "features",
-        "age_rating",
-        "release_date",
-        "time_to_beat_hours",
-        "links",
-    }
-)
-
-
-def _normalize_metadata_title(title: str) -> str:
-    return title.replace("™", "").replace("®", "").replace("©", "").strip().lower()
-
-
-def _metadata_value_is_present(value: object) -> bool:
-    return value is not None and value != "" and value != []
-
-
-@router.post("/{game_id}/metadata/refresh")
-async def refresh_game_metadata(
-    game_id: UUID,
-    payload: MetadataRefreshRequest,
-    db: AsyncSession = _DB_DEPENDENCY,
-    current_user: User = _CURRENT_USER_DEPENDENCY,
-) -> dict:
-    """Preview or apply a metadata-provider refresh for one game.
-
-    Provider lookup uses the same configured game metadata registry as the
-    existing search flow. Applying is server-side so authorization, locks,
-    history, artwork protection, and stale-editor detection cannot be bypassed
-    by a client replaying a provider result.
-    """
-    game = await _get_game_or_404(game_id, db, current_user.id)
-    scan_settings = await get_or_create_scan_settings(current_user.id, db)
-    preferences = _scan_settings_to_preferences(scan_settings)
-    app_integrations = resolve_integrations(await get_or_create_app_integration_settings(db))
-
-    try:
-        result = await asyncio.to_thread(
-            search_game_metadata,
-            game.title,
-            8,
-            steamgriddb_api_key=current_user.steamgriddb_api_key,
-            preferences=preferences,
-            user=current_user,
-            igdb_client_id=app_integrations.igdb_client_id,
-            igdb_client_secret=app_integrations.igdb_client_secret,
-        )
-    except Exception as exc:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"Metadata providers could not be reached: {exc}",
-        ) from exc
-
-    providers = result.get("providers", [])
-    provider_errors = result.get("provider_errors", [])
-    if providers:
-        last_used = dict(scan_settings.provider_last_used)
-        now = int(time.time())
-        for provider_name in providers:
-            last_used[provider_name] = now
-        scan_settings.provider_last_used = last_used
-
-    match = next(
-        (
-            candidate
-            for candidate in result.get("results", [])
-            if isinstance(candidate, dict)
-            and _normalize_metadata_title(str(candidate.get("title") or ""))
-            == _normalize_metadata_title(game.title)
-        ),
-        None,
-    )
-    if match is None:
-        await db.commit()
-        return {
-            "status": "no-match",
-            "provider": None,
-            "provider_errors": provider_errors,
-            "changed_fields": [],
-            "skipped_locked_fields": [],
-            "would_add_key_art": False,
-            "would_add_banner": False,
-            "game_updated_at": game.updated_at,
-        }
-
-    field_values: dict[str, object] = {
-        "title": match.get("title"),
-        "description": match.get("description"),
-        "developer": match.get("developer"),
-        "publisher": match.get("publisher"),
-        "series": match.get("series"),
-        "tags": match.get("tags"),
-        "features": match.get("features"),
-        "age_rating": match.get("age_rating"),
-        "release_date": match.get("release_date"),
-        "time_to_beat_hours": match.get("time_to_beat_hours"),
-        "links": match.get("links"),
-    }
-    gated_flags = {
-        "developer": "save_developer",
-        "publisher": "save_publisher",
-        "series": "save_series",
-        "tags": "save_tags",
-        "features": "save_features",
-        "description": "save_description",
-        "age_rating": "save_age_rating",
-        "release_date": "save_release_date",
-        "time_to_beat_hours": "save_time_to_beat",
-    }
-    updates: dict[str, object] = {}
-    skipped_locked: list[str] = []
-    for field, fresh in field_values.items():
-        if (
-            field != "title"
-            and gated_flags.get(field)
-            and not preferences.get(gated_flags[field], True)
-        ):
-            continue
-        if not _metadata_value_is_present(fresh):
-            continue
-        if field in game.locked_fields:
-            skipped_locked.append(field)
-            continue
-        current = getattr(game, field)
-        if fresh != current:
-            updates[field] = fresh
-
-    changed_fields = sorted(updates)
-    key_art_url = match.get("key_art_url")
-    banner_url = match.get("banner_url")
-    game_dir = _DATA_ROOT / str(game.user_id) / "games" / game.folder_location
-    key_art_exists = (game_dir / ASSET_FILENAMES["key_art"]).is_file()
-    banner_exists = (game_dir / ASSET_FILENAMES["banner"]).is_file()
-    would_add_key_art = bool(
-        payload.fill_missing_art
-        and key_art_url
-        and (payload.overwrite_existing_art or not key_art_exists)
-    )
-    would_add_banner = bool(
-        payload.fill_missing_art
-        and banner_url
-        and (payload.overwrite_existing_art or not banner_exists)
-    )
-
-    if payload.dry_run:
-        # A preview records no game changes, but the existing provider-last-used
-        # telemetry may be updated as part of the provider lookup.
-        await db.commit()
-        return {
-            "status": "preview",
-            "provider": match.get("provider"),
-            "provider_errors": provider_errors,
-            "changed_fields": changed_fields,
-            "skipped_locked_fields": sorted(set(skipped_locked)),
-            "would_add_key_art": would_add_key_art,
-            "would_add_banner": would_add_banner,
-            "game_updated_at": game.updated_at,
-        }
-
-    if payload.expected_updated_at is not None:
-        # The preview may have been open while another tab or sync changed the game.
-        # Re-read under a row lock before applying so two concurrent refreshes cannot
-        # both pass the same stale timestamp.
-        await db.rollback()
-        locked_game = await db.scalar(
-            select(Game)
-            .where(Game.id == game_id, Game.user_id == current_user.id, Game.deleted_at.is_(None))
-            .with_for_update()
-        )
-        if locked_game is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail=f"Game {game_id} not found"
-            )
-        if locked_game.updated_at != payload.expected_updated_at:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Game changed after the metadata preview. Refresh the editor and try again.",
-            )
-        game = locked_game
-        # Recompute from the freshly locked row. Locks and configured save_* flags
-        # may have changed while the preview was open, so do not trust preview data.
-        updates = {}
-        skipped_locked = []
-        for field, fresh in field_values.items():
-            if (
-                field != "title"
-                and gated_flags.get(field)
-                and not preferences.get(gated_flags[field], True)
-            ):
-                continue
-            if not _metadata_value_is_present(fresh):
-                continue
-            if field in game.locked_fields:
-                skipped_locked.append(field)
-                continue
-            if getattr(game, field) != fresh:
-                updates[field] = fresh
-        changed_fields = sorted(updates)
-        key_art_exists = (game_dir / ASSET_FILENAMES["key_art"]).is_file()
-        banner_exists = (game_dir / ASSET_FILENAMES["banner"]).is_file()
-
-    if payload.update_text:
-        _record_field_changes(game, updates, db)
-        for field, value in updates.items():
-            setattr(game, field, value)
-
-    if payload.fill_missing_art:
-
-        async def _download_art(url: str) -> bytes:
-            response = await asyncio.to_thread(requests.get, url, timeout=20)
-            response.raise_for_status()
-            return response.content
-
-        if key_art_url and (payload.overwrite_existing_art or not key_art_exists):
-            try:
-                await save_game_asset(await _download_art(str(key_art_url)), game.id, "key_art")
-            except Exception as exc:  # noqa: BLE001 — one image must not cancel text metadata
-                provider_errors.append(
-                    f"{match.get('provider', 'Metadata')}: cover art could not be downloaded: {exc}"
-                )
-            else:
-                would_add_key_art = True
-        if banner_url and (payload.overwrite_existing_art or not banner_exists):
-            try:
-                await save_game_asset(await _download_art(str(banner_url)), game.id, "banner")
-            except Exception as exc:  # noqa: BLE001 — one image must not cancel text metadata
-                provider_errors.append(
-                    f"{match.get('provider', 'Metadata')}: banner art could not be downloaded: {exc}"
-                )
-            else:
-                would_add_banner = True
-
-    await db.commit()
-    await db.refresh(game)
-    return {
-        "status": "updated",
-        "provider": match.get("provider"),
-        "provider_errors": provider_errors,
-        "changed_fields": changed_fields,
-        "skipped_locked_fields": sorted(set(skipped_locked)),
-        "would_add_key_art": would_add_key_art,
-        "would_add_banner": would_add_banner,
-        "game_updated_at": game.updated_at,
-    }
+router.include_router(game_metadata.router)
 
 
 @router.get("/{game_id}/field-changes", response_model=list[GameFieldChangeRead])
@@ -2721,3 +675,92 @@ async def restore_game(
     await db.commit()
     await db.refresh(game)
     return game
+
+
+# Compatibility exports for existing callers and stable OpenAPI model identities.
+__all__ = [
+    "ALLOWED_ASSET_KINDS",
+    "AssetUrlRequest",
+    "ChecklistItemUpdate",
+    "ChecklistItemWrite",
+    "ChecklistReorder",
+    "DetectDatesRequest",
+    "FIELD_CHANGE_TRACKED_FIELDS",
+    "GameFileUpdate",
+    "MediaItemUpdate",
+    "MetadataRefreshRequest",
+    "MetadataSearchResponse",
+    "NoteRename",
+    "NoteWrite",
+    "ProfileUpdate",
+    "ProfileWrite",
+    "WiseOldManSyncRequest",
+    "_DATA_ROOT",
+    "_GAME_METADATA_FIELDS",
+    "_NON_NULLABLE_UPDATE_FIELDS",
+    "_NOTE_NAME_PATTERN",
+    "_checklist_item_to_dict",
+    "_derive_sort_title",
+    "_drop_nulls_for_required_fields",
+    "_duplicate_folder_error",
+    "_ensure_folder_location_available",
+    "_field_change_value_to_text",
+    "_game_file_subdir",
+    "_game_file_to_dict",
+    "_game_note_path",
+    "_get_game_or_404",
+    "_get_profile_or_404",
+    "_media_item_to_dict",
+    "_metadata_value_is_present",
+    "_normalize_metadata_title",
+    "_normalize_note_name",
+    "_note_summary",
+    "_profile_to_dict",
+    "_record_field_changes",
+    "_record_stat_snapshot",
+    "_scan_settings_to_preferences",
+    "_sync_game_file_items",
+    "_thumb_dir",
+    "create_checklist_item",
+    "create_game_note",
+    "create_game_profile",
+    "delete_checklist_item",
+    "delete_game_file",
+    "delete_game_note",
+    "delete_game_profile",
+    "delete_game_screenshot",
+    "detect_media_dates",
+    "download_game_asset",
+    "get_clip_thumbnail",
+    "get_game_asset",
+    "get_game_file",
+    "get_game_note",
+    "get_game_screenshot",
+    "get_profile_stat_history",
+    "list_game_checklist",
+    "list_game_file_trash",
+    "list_game_files",
+    "list_game_note_summaries",
+    "list_game_notes",
+    "list_game_profile_trash",
+    "list_game_profiles",
+    "list_game_screenshot_trash",
+    "list_game_screenshots",
+    "refresh_game_metadata",
+    "rename_game_note",
+    "reorder_checklist",
+    "restore_game_file",
+    "restore_game_profile",
+    "restore_game_screenshot",
+    "save_clip_thumbnail",
+    "search_metadata",
+    "sync_profile_wiseoldman",
+    "update_checklist_item",
+    "update_game_file",
+    "update_game_note",
+    "update_game_profile",
+    "update_media_item",
+    "upload_game_asset",
+    "upload_game_files",
+    "upload_game_screenshots",
+]

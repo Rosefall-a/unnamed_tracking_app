@@ -9,7 +9,7 @@ from sqlalchemy import ColumnElement, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql.functions import count as sql_count
 
-from src.api.routes.games import _DATA_ROOT, _get_game_or_404
+from src.api.routes.utils.games import _DATA_ROOT, _get_game_or_404
 from src.core.auth import get_current_user
 from src.database.models.achievement import Achievement
 from src.database.models.game_archive import GameArchive

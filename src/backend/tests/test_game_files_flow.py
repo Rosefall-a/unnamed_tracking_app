@@ -16,12 +16,14 @@ from sqlalchemy import delete
 from src.api.routes import (
     default_game_assets,
     game_archives,
+    game_assets,
+    game_files,
+    game_metadata,
     game_page,
     games,
 )
-from src.api.routes import (
-    game_notes as game_notes_routes,
-)
+from src.api.routes import game_notes as game_notes_routes
+from src.api.routes.utils import games as game_route_helpers
 from src.api.schemas.game import GameCreate
 from src.core.auth import get_current_user
 from src.database.models.user import User
@@ -33,6 +35,8 @@ from tests.test_media_dates import _mp4_with_creation, utc
 @pytest.fixture(name="flow")
 async def game_flow(tmp_path, monkeypatch):
     monkeypatch.setattr(games, "_DATA_ROOT", tmp_path)
+    for routes in (game_assets, game_files, game_notes_routes, game_metadata, game_route_helpers):
+        monkeypatch.setattr(routes, "_DATA_ROOT", tmp_path)
     monkeypatch.setattr(game_archives, "_DATA_ROOT", tmp_path)
     monkeypatch.setattr(game_notes_routes, "_DATA_ROOT", tmp_path)
     monkeypatch.setattr(game_page, "_DATA_ROOT", tmp_path)

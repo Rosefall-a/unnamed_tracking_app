@@ -19,6 +19,8 @@ import time
 
 import requests
 
+from src.helpers.save_game_asset import AssetKind
+
 # a Steam Web API key is always exactly 32 hex characters — distinct enough
 # from a profile URL/vanity name/SteamID64 to tell the two apart
 # automatically, so the two credential fields don't need to be entered in
@@ -315,3 +317,17 @@ def search_store(term: str, country: str = "us") -> list[dict]:
     resp = SESSION.get(f"{BASE_URL}/storesearch", params=params, timeout=10)
     resp.raise_for_status()
     return resp.json().get("items", [])
+
+
+# Steam's CDN asset naming convention is stable and public (used by Playnite,
+# LaunchBox, etc.) — since a Steam library sync already knows the exact
+# appid, art can come straight from here instead of a text search that might
+# match the wrong game. _download_asset silently no-ops on a 404, so trying
+# a URL that doesn't exist for an older game is harmless.
+def cdn_art_urls(app_id: int) -> dict[AssetKind, str]:
+    base = f"https://cdn.akamai.steamstatic.com/steam/apps/{app_id}"
+    return {
+        "key_art": f"{base}/library_600x900.jpg",
+        "banner": f"{base}/library_hero.jpg",
+        "logo": f"{base}/logo.png",
+    }

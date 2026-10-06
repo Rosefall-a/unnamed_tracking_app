@@ -7,7 +7,9 @@ from uuid import UUID
 import pytest
 from fastapi import HTTPException
 
-from src.api.routes import games
+from src.api.routes import game_assets, game_files, game_metadata, games
+from src.api.routes import game_notes as game_notes_routes
+from src.api.routes.utils import games as game_route_helpers
 
 USER_ID = UUID("00000000-0000-0000-0000-000000000001")
 GAME_ID = UUID("00000000-0000-0000-0000-000000000002")
@@ -47,6 +49,8 @@ class FakeDB:
 @pytest.fixture
 def note_storage(tmp_path, monkeypatch):
     monkeypatch.setattr(games, "_DATA_ROOT", tmp_path)
+    for routes in (game_assets, game_files, game_notes_routes, game_metadata, game_route_helpers):
+        monkeypatch.setattr(routes, "_DATA_ROOT", tmp_path)
     return tmp_path
 
 
@@ -171,7 +175,7 @@ async def test_rename_failure_does_not_remove_source(note_storage: Path, monkeyp
     def fail_link(_source, _destination):
         raise OSError("simulated rename failure")
 
-    monkeypatch.setattr(games.os, "link", fail_link)
+    monkeypatch.setattr(game_notes_routes.os, "link", fail_link)
 
     with pytest.raises(HTTPException) as exc_info:
         await games.rename_game_note(

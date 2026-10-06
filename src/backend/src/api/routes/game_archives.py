@@ -1,4 +1,3 @@
-# pylint: disable=duplicate-code,too-many-positional-arguments,too-many-boolean-expressions
 """Named, versioned save archives for a game — "Main World", "Pre-Nether-
 Update Backup", etc. — plus the BlueMap world-map render/view routes for
 archives of kind "world_save". Replaces the old convention (still used by
@@ -29,7 +28,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from src.api.routes.games import _DATA_ROOT, _get_game_or_404
+from src.api.routes.utils.games import _DATA_ROOT, _get_game_or_404
 from src.core.app_integrations import get_upload_limits_mb
 from src.core.auth import get_current_user
 from src.database.models.game_archive import GameArchive, GameArchiveVersion
@@ -98,6 +97,8 @@ def _archive_dir(game_folder: str, kind: str, archive_id: UUID, user_id: UUID) -
     )
 
 
+# Keep the established workflow and public parameters together.
+# pylint: disable=too-many-boolean-expressions,too-many-positional-arguments
 async def _get_archive_or_404(
     game_id: UUID,
     archive_id: UUID,
@@ -123,6 +124,9 @@ async def _get_archive_or_404(
     ):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Archive not found.")
     return archive
+
+
+# pylint: enable=too-many-boolean-expressions,too-many-positional-arguments
 
 
 def _version_to_dict(game_id: UUID, archive: GameArchive, v: GameArchiveVersion) -> dict:
@@ -216,6 +220,8 @@ async def list_archive_trash(
     return [_trash_entry(game_id, a) for a in result.scalars().all()]
 
 
+# Keep the established workflow and public parameters together.
+# pylint: disable=too-many-positional-arguments
 @router.post("/{game_id}/archives/{kind}")
 async def create_archive(
     game_id: UUID,
@@ -263,6 +269,11 @@ async def create_archive(
     return _archive_to_dict(game_id, archive)
 
 
+# pylint: enable=too-many-positional-arguments
+
+
+# Parallel routes/models intentionally share this shape.
+# pylint: disable=duplicate-code
 @router.post("/{game_id}/archives/{archive_id}/versions")
 async def add_archive_version(
     game_id: UUID,
@@ -286,7 +297,12 @@ async def add_archive_version(
         else (await get_upload_limits_mb(db))["max_save_archive_size_mb"]
     )
 
-    dest_dir = _archive_dir(game.folder_location, archive.kind, archive.id, user_id=current_user.id)  # type: ignore[arg-type]
+    dest_dir = _archive_dir(
+        game.folder_location,
+        archive.kind,  # type: ignore[arg-type]
+        archive.id,
+        user_id=current_user.id,
+    )
     try:
         saved_path, size = await _save_upload_stream(
             file, dest_dir, file.filename or "file", limit_mb
@@ -302,6 +318,9 @@ async def add_archive_version(
         raise
     await db.refresh(archive, attribute_names=["versions"])
     return _archive_to_dict(game_id, archive)
+
+
+# pylint: enable=duplicate-code
 
 
 @router.patch("/{game_id}/archives/{archive_id}")
@@ -342,7 +361,12 @@ async def delete_archive(
     game = await _get_game_or_404(game_id, db, current_user.id)
     if game.folder_location:
         game_dir = _DATA_ROOT / str(current_user.id) / "games" / game.folder_location
-        dir_path = _archive_dir(game.folder_location, archive.kind, archive.id, current_user.id)  # type: ignore[arg-type]
+        dir_path = _archive_dir(
+            game.folder_location,
+            archive.kind,  # type: ignore[arg-type]
+            archive.id,
+            current_user.id,
+        )
         work_dir = game_dir / "world_map" / str(archive.id)
         archive_trash.move_archive_to_trash(dir_path, work_dir, game_dir, archive.kind, archive.id)
     archive.deleted_at = int(time.time())
@@ -368,7 +392,12 @@ async def restore_archive(
     game = await _get_game_or_404(game_id, db, current_user.id)
     if game.folder_location:
         game_dir = _DATA_ROOT / str(current_user.id) / "games" / game.folder_location
-        dir_path = _archive_dir(game.folder_location, archive.kind, archive.id, current_user.id)  # type: ignore[arg-type]
+        dir_path = _archive_dir(
+            game.folder_location,
+            archive.kind,  # type: ignore[arg-type]
+            archive.id,
+            current_user.id,
+        )
         work_dir = game_dir / "world_map" / str(archive.id)
         archive_trash.restore_archive_from_trash(
             dir_path, work_dir, game_dir, archive.kind, archive.id
@@ -438,7 +467,12 @@ async def restore_archive_version(
         )
     if game.folder_location:
         game_dir = _DATA_ROOT / str(current_user.id) / "games" / game.folder_location
-        dir_path = _archive_dir(game.folder_location, archive.kind, archive.id, current_user.id)  # type: ignore[arg-type]
+        dir_path = _archive_dir(
+            game.folder_location,
+            archive.kind,  # type: ignore[arg-type]
+            archive.id,
+            current_user.id,
+        )
         archive_trash.restore_file_from_trash(
             version.filename, dir_path, game_dir, archive.kind, archive.id
         )

@@ -1,4 +1,3 @@
-# pylint: disable=line-too-long
 """Fallback artwork for games that do not have stored cover art."""
 
 import asyncio
@@ -11,7 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import FileResponse, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.routes.games import _DATA_ROOT, ALLOWED_ASSET_KINDS, _get_game_or_404
+from src.api.routes.utils.games import _DATA_ROOT, ALLOWED_ASSET_KINDS, _get_game_or_404
 from src.core.auth import get_current_user
 from src.database.models.user import User
 from src.database.session import get_db
@@ -50,7 +49,8 @@ def _default_cover_svg(game_id: UUID, title: str) -> str:
     x2 = 35 + int(digest[16:20], 16) % 55
     y2 = 40 + int(digest[20:24], 16) % 45
 
-    return f"""<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 600 900\" role=\"img\" aria-label=\"{safe_title} default cover\">
+    return f"""<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 600 900\" role=\"img\"
+    aria-label=\"{safe_title} default cover\">
   <defs>
     <linearGradient id=\"bg\" x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\">
       <stop offset=\"0\" stop-color=\"{background}\"/>
@@ -66,18 +66,23 @@ def _default_cover_svg(game_id: UUID, title: str) -> str:
   <circle cx=\"{x1 * 6}\" cy=\"{y1 * 9}\" r=\"250\" fill=\"url(#glow)\" filter=\"url(#blur)\"/>
   <circle cx=\"{x2 * 6}\" cy=\"{y2 * 9}\" r=\"180\" fill=\"{accent}\" opacity=\".09\"/>
   <path d=\"M0 650 C140 570 260 760 600 600 V900 H0Z\" fill=\"#000\" opacity=\".22\"/>
-  <g transform=\"translate(300 330)\" fill=\"none\" stroke=\"{accent}\" stroke-width=\"10\" stroke-linecap=\"round\" stroke-linejoin=\"round\" opacity=\".9\">
+  <g transform=\"translate(300 330)\" fill=\"none\" stroke=\"{accent}\" stroke-width=\"10\"
+    stroke-linecap=\"round\" stroke-linejoin=\"round\" opacity=\".9\">
     <path d=\"M-112 8 L-84 -48 H-32 L-16 -70 H16 L32 -48 H84 L112 8 L90 62 H52 L26 20 H-26 L-52 62 H-90 Z\"/>
     <path d=\"M-67 -10 V26 M-85 8 H-49\"/>
     <circle cx=\"62\" cy=\"-5\" r=\"7\" fill=\"{accent}\" stroke=\"none\"/>
     <circle cx=\"84\" cy=\"17\" r=\"7\" fill=\"{accent}\" stroke=\"none\"/>
   </g>
   <rect x=\"54\" y=\"650\" width=\"492\" height=\"2\" fill=\"{accent}\" opacity=\".45\"/>
-  <text x=\"54\" y=\"705\" fill=\"#fff\" font-family=\"system-ui, -apple-system, Segoe UI, sans-serif\" font-size=\"42\" font-weight=\"700\">{safe_title}</text>
-  <text x=\"54\" y=\"750\" fill=\"#fff\" opacity=\".55\" font-family=\"system-ui, -apple-system, Segoe UI, sans-serif\" font-size=\"16\" letter-spacing=\"3\">NO COVER ART</text>
+  <text x=\"54\" y=\"705\" fill=\"#fff\" font-family=\"system-ui, -apple-system, Segoe UI, sans-serif\"
+    font-size=\"42\" font-weight=\"700\">{safe_title}</text>
+  <text x=\"54\" y=\"750\" fill=\"#fff\" opacity=\".55\" font-family=\"system-ui, -apple-system, Segoe UI,
+    sans-serif\" font-size=\"16\" letter-spacing=\"3\">NO COVER ART</text>
 </svg>"""
 
 
+# Parallel routes/models intentionally share this shape.
+# pylint: disable=duplicate-code
 @router.get("/preview-cover")
 async def preview_default_cover(
     title: Annotated[str, Query(max_length=80)] = "Preview Game",
@@ -90,6 +95,11 @@ async def preview_default_cover(
     )
 
 
+# pylint: enable=duplicate-code
+
+
+# Parallel routes/models intentionally share this shape.
+# pylint: disable=duplicate-code
 @router.get("/{game_id}/assets/{asset_kind}")
 async def get_game_asset_with_fallback(
     game_id: UUID,
@@ -144,3 +154,6 @@ async def get_game_asset_with_fallback(
         media_type="image/svg+xml",
         headers={"Cache-Control": "private, max-age=3600, must-revalidate"},
     )
+
+
+# pylint: enable=duplicate-code

@@ -6,6 +6,9 @@ from datetime import datetime
 
 from PIL import Image
 
+from src.api.routes import game_assets, game_files, game_metadata
+from src.api.routes import game_notes as game_notes_routes
+from src.api.routes.utils import games as game_route_helpers
 from src.helpers.media_dates import detect_date, detect_from_stored, from_filename
 
 NOW = timegm(datetime(2026, 10, 4, 12, 0, 0).timetuple())
@@ -202,6 +205,8 @@ async def test_detect_endpoint_reads_dates_from_stored_files(tmp_path, monkeypat
     from src.database.session import SessionLocal
 
     monkeypatch.setattr(games, "_DATA_ROOT", tmp_path)
+    for routes in (game_assets, game_files, game_notes_routes, game_metadata, game_route_helpers):
+        monkeypatch.setattr(routes, "_DATA_ROOT", tmp_path)
     monkeypatch.setattr(games, "create_game_folder", lambda *_a: None)
     async with SessionLocal() as db:
         user = User(

@@ -8,7 +8,9 @@ from types import SimpleNamespace
 from fastapi import Response
 from sqlalchemy import delete
 
-from src.api.routes import games
+from src.api.routes import game_assets, game_files, game_metadata, games
+from src.api.routes import game_notes as game_notes_routes
+from src.api.routes.utils import games as game_route_helpers
 from src.api.schemas.game import GameCreate, GameUpdate
 from src.database.models.game import GameStatus
 from src.database.models.user import User
@@ -78,6 +80,8 @@ async def test_status_and_price_changes_are_recorded(monkeypatch) -> None:
 
 async def test_note_summaries_carry_edit_time_length_and_preview(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(games, "_DATA_ROOT", tmp_path)
+    for routes in (game_assets, game_files, game_notes_routes, game_metadata, game_route_helpers):
+        monkeypatch.setattr(routes, "_DATA_ROOT", tmp_path)
     monkeypatch.setattr(games, "create_game_folder", lambda *_a: None)
     user_id = await _scratch()
     try:

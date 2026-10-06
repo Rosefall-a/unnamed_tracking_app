@@ -41,3 +41,18 @@ def apply_alt_titles(show: Any, meta: dict[str, Any]) -> bool:
             setattr(show, field, meta[field])
             changed = True
     return changed
+
+
+_TITLE_NOISE = re.compile(r"[™®©]")
+
+
+def normalize_metadata_title(title: str) -> str:
+    """A library-sync title (from Steam's owned-games list, etc.) and a
+    metadata search result's title (from Steam's storefront search, which
+    routinely includes ™/® in the marketing name, e.g. "Apex Legends™")
+    refer to the same game but rarely compare equal as raw strings — that
+    was silently failing the exact-match gate below for a large fraction of
+    perfectly normal titles. Strip trademark/copyright marks and collapse
+    whitespace/case before comparing; the original, unmodified title is
+    still what gets applied to the game."""
+    return _TITLE_NOISE.sub("", title).strip().lower()
