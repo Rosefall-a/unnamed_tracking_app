@@ -19,7 +19,10 @@ async def list_user_api_keys(
 ) -> list[dict[str, str | int | list[str] | None]]:
     keys = await db.scalars(
         select(UserApiKey)
-        .where(UserApiKey.user_id == user.id)
+        .where(
+            UserApiKey.user_id == user.id,
+            UserApiKey.revoked_at.is_(None),
+        )
         .order_by(UserApiKey.created_at.desc())
     )
     return [
