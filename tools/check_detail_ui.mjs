@@ -154,7 +154,10 @@ export async function checkDetailUi({ admin, member, origin, evidenceRoot, repor
       await page.goto(origin + `/lists/${list.id}`); await page.locator("h1").waitFor();
       await page.evaluate(() => window.scrollTo(0, 160));
       await page.getByRole("button", { name: "Open menu", exact: true }).click();
-      await page.getByRole("dialog", { name: "Main navigation", exact: true }).getByRole("link", { name: "All games", exact: true }).click();
+      const navigation = page.getByRole("dialog", { name: "Main navigation", exact: true });
+      const allGames = navigation.getByRole("link", { name: "All games", exact: true });
+      if (!await allGames.isVisible()) await navigation.getByRole("button", { name: "Games", exact: true }).click();
+      await allGames.click();
       await page.getByRole("heading", { name: "Games", level: 1, exact: true }).waitFor();
       await page.waitForFunction(() => scrollY === 0);
       await page.close();

@@ -468,7 +468,7 @@ async function save() {
 
 .login-panel,
 .provider-card {
-  border: 1px solid #2f2f2f;
+  border: 1px solid var(--ui-border);
   border-radius: var(--ui-radius-control);
   padding: 16px;
   background: var(--ui-surface);
@@ -476,9 +476,20 @@ async function save() {
 
 .login-panel {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
   gap: 20px;
+}
+
+.login-panel > div {
+  flex: 1 1 16rem;
+  min-width: 0;
+}
+
+.login-panel select {
+  flex-shrink: 0;
+  width: min(100%, 18rem);
 }
 
 .login-panel select,
@@ -494,9 +505,15 @@ async function save() {
 
 .providers-header {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 20px;
+}
+
+.providers-header > div {
+  flex: 1 1 16rem;
+  min-width: 0;
 }
 
 .providers-header h3 {
@@ -539,6 +556,8 @@ button {
 
 .provider-title {
   display: flex;
+  min-width: 0;
+  overflow-wrap: anywhere;
   align-items: center;
   gap: 10px;
 }
@@ -579,7 +598,7 @@ button {
 
 .remove {
   background: transparent !important;
-  border: 1px solid #633 !important;
+  border: 1px solid var(--ui-error) !important;
   color: var(--ui-error) !important;
 }
 
@@ -591,6 +610,7 @@ button {
 
 .grid label {
   display: flex;
+  min-width: 0;
   flex-direction: column;
   gap: 6px;
   color: var(--ui-text);
