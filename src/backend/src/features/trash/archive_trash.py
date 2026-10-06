@@ -13,7 +13,6 @@ deliberate: a version can be trashed on its own while the rest of the
 archive stays active, and a later archive-level trash of the same id must
 not collide with files already sitting there from that earlier move.
 """
-# pylint: disable=missing-function-docstring
 
 from __future__ import annotations
 
