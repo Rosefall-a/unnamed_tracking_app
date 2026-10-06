@@ -181,6 +181,8 @@ async def render_world_map(
         await asyncio.to_thread(
             generate_world_thumbnail, world_dir, thumbnail_path(game_dir, archive_id)
         )
+    # A failed optional thumbnail must not invalidate an otherwise complete map render.
+    # pylint: disable-next=broad-exception-caught
     except Exception:
         pass  # thumbnail is cosmetic — a failure here shouldn't fail the render
 

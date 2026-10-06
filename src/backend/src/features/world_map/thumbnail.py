@@ -1,4 +1,3 @@
-# pylint: disable=too-many-locals
 """Generates a lightweight top-down thumbnail for a Minecraft world save —
 deliberately NOT built from BlueMap's own render output. BlueMap's tiles
 turn out to be 3D-viewer geometry (JSON meshes for its WebGL client), not
@@ -54,15 +53,7 @@ def _present_chunks(region_path: Path) -> set[tuple[int, int]]:
     return present
 
 
-def generate_world_thumbnail(world_dir: Path, output_path: Path) -> bool:
-    """world_dir is the extracted world folder (containing level.dat).
-    Returns whether a thumbnail was actually produced — a world with no
-    readable region files (corrupt upload, wrong folder) just gets no
-    thumbnail rather than an error, since this is cosmetic."""
-    region_dir = world_dir / "region"
-    if not region_dir.is_dir():
-        return False
-
+def _world_chunks(region_dir: Path) -> list[tuple[int, int]]:
     chunk_points: list[tuple[int, int]] = []
     for region_file in region_dir.glob("r.*.*.mca"):
         coords = _region_coords(region_file.name)
@@ -74,9 +65,10 @@ def generate_world_thumbnail(world_dir: Path, output_path: Path) -> bool:
                 (rx * _REGION_CHUNKS_PER_SIDE + cx, rz * _REGION_CHUNKS_PER_SIDE + cz)
             )
 
-    if not chunk_points:
-        return False
+    return chunk_points
 
+
+def _chunk_bounds(chunk_points: list[tuple[int, int]]) -> tuple[int, int, int, int]:
     xs = [p[0] for p in chunk_points]
     zs = [p[1] for p in chunk_points]
     min_x, max_x = min(xs), max(xs)
@@ -84,15 +76,44 @@ def generate_world_thumbnail(world_dir: Path, output_path: Path) -> bool:
     width = max(max_x - min_x + 1, 1)
     height = max(max_z - min_z + 1, 1)
 
-    scale = max(1, _MAX_THUMBNAIL_PX // max(width, height))
-    img_w, img_h = width * scale, height * scale
+    return min_x, min_z, width, height
 
-    image = Image.new("RGBA", (img_w, img_h), (14, 18, 24, 255))
+
+def _render_chunks(chunk_points: list[tuple[int, int]]) -> Image.Image:
+    min_x, min_z, width, height = _chunk_bounds(chunk_points)
+    longest_side = max(width, height)
+    scale = (
+        max(1, _MAX_THUMBNAIL_PX // longest_side)
+        if longest_side <= _MAX_THUMBNAIL_PX
+        else _MAX_THUMBNAIL_PX / longest_side
+    )
+    image_size = (max(1, int(width * scale)), max(1, int(height * scale)))
+
+    image = Image.new("RGBA", image_size, (14, 18, 24, 255))
     land_color = (94, 168, 122, 255)
     for x, z in chunk_points:
-        px, pz = (x - min_x) * scale, (z - min_z) * scale
-        image.paste(land_color, (px, pz, px + scale, pz + scale))
+        pixel_x, pixel_z = int((x - min_x) * scale), int((z - min_z) * scale)
+        image.paste(
+            land_color,
+            (pixel_x, pixel_z, pixel_x + max(1, int(scale)), pixel_z + max(1, int(scale))),
+        )
 
+    return image
+
+
+def generate_world_thumbnail(world_dir: Path, output_path: Path) -> bool:
+    """world_dir is the extracted world folder (containing level.dat).
+    Returns whether a thumbnail was actually produced — a world with no
+    readable region files (corrupt upload, wrong folder) just gets no
+    thumbnail rather than an error, since this is cosmetic. The silhouette
+    stays within 512 pixels even when generated chunks are far apart."""
+    region_dir = world_dir / "region"
+    if not region_dir.is_dir():
+        return False
+    chunk_points = _world_chunks(region_dir)
+    if not chunk_points:
+        return False
+    image = _render_chunks(chunk_points)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     image.save(output_path, format="PNG")
     return True
