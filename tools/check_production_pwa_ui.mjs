@@ -45,11 +45,13 @@ page.on("pageerror", (error) => errors.push(String(error)));
 const plugin = "/api/plugins/official.pwa",
   prefix = "unnamed-tracking:pwa:",
   unrelated = "uta-review:unrelated-pwa-cache";
+const expectedVersion = process.env.PWA_EXPECTED_VERSION ?? "0.0.4";
 const report = {
   status: "running",
   host_source_head: process.env.PWA_HOST_HEAD ?? null,
   plugin_source_head: process.env.PWA_SOURCE_HEAD ?? null,
   plugin_package_sha256: process.env.PWA_PACKAGE_SHA256 ?? null,
+  plugin_version: expectedVersion,
   theme_source_head: process.env.THEME_SOURCE_HEAD ?? null,
   limitation:
     "Headless browser validation exercises the install-event boundary; physical OS install surfaces remain manual.",
@@ -101,7 +103,7 @@ async function waitBrowser(predicate, argument, timeout = 30000) {
 async function controlled() {
   const status = await request("GET", "/pwa/status");
   assert.equal(status.enabled, true);
-  assert.equal(status.version, "0.0.3");
+  assert.equal(status.version, expectedVersion);
   await page.reload();
   await waitBrowser(async (generation) => {
     const registration = await navigator.serviceWorker.getRegistration("/");
@@ -167,7 +169,7 @@ try {
   const installed = (await request("GET", "/api/plugins")).find(
     (item) => item.plugin_id === "official.pwa",
   );
-  assert.equal(installed?.version, "0.0.3");
+  assert.equal(installed?.version, expectedVersion);
   assert.equal(installed.status, "running");
   assert.deepEqual(await request("GET", "/api/themes/manage"), {
     default_theme: "native",
@@ -292,6 +294,7 @@ try {
     ui_welcome_completed: true,
     ui_theme_package: "official.forest",
     ui_theme: "light",
+    ui_palette: "green",
   });
   await page.goto(
     origin + "/settings?area=preferences&section=app-installation",
@@ -339,7 +342,7 @@ try {
     );
   }, unrelated);
   checkpoint(
-    "Actual CI PWA 0.0.3 supplies the root worker, manifest and icons; installation is in Settings and consumes the browser event once",
+    `Actual CI PWA ${expectedVersion} supplies the root worker, manifest and icons; installation is in Settings and consumes the browser event once`,
   );
   for (const [width, mode, id] of [
     [320, "light", "example.purple-blocks"],
@@ -396,6 +399,20 @@ try {
       await page.evaluate(() => getComputedStyle(document.body).color),
       online.color,
     );
+    assert.deepEqual(
+      await page.evaluate(() =>
+        [
+          "--ui-bg",
+          "--ui-surface",
+          "--ui-text",
+          "--ui-dim",
+          "--ui-accent",
+          "--ui-on-accent",
+        ].map((key) => document.documentElement.style.getPropertyValue(key)),
+      ),
+      ["", "", "", "", "", ""],
+      "Loaded offline theme CSS owns its colors without inline palette overrides",
+    );
     assert.equal(
       await page.locator('meta[name="theme-color"]').getAttribute("content"),
       online.bar,
@@ -444,6 +461,65 @@ try {
   checkpoint(
     "Forest and Purple Blocks retain their exact public CSS and browser colors offline at phone, tablet and desktop widths; private APIs and metadata are absent from caches",
   );
+  // Remove only the owned cached stylesheet to exercise a real offline load failure.
+  const fallbackStatus = await controlled();
+  await page.waitForFunction(
+    () =>
+      document.documentElement.dataset.themePackage ===
+        "example.purple-blocks" &&
+      document.documentElement.dataset.themeRevision?.length === 64 &&
+      localStorage.getItem("ui-theme-stylesheet"),
+  );
+  const fallbackPath = await page.evaluate(() =>
+    localStorage.getItem("ui-theme-stylesheet"),
+  );
+  await waitBrowser(
+    async ({ prefix, generation, cssPath }) =>
+      (await caches.match(cssPath, { cacheName: prefix + generation }))?.ok,
+    { prefix, generation: fallbackStatus.generation, cssPath: fallbackPath },
+  );
+  // Immutable CSS also lives in Chromium's HTTP cache. Clear that independent
+  // cache so this probe actually reaches the offline stylesheet error path.
+  const network = await context.newCDPSession(page);
+  await network.send("Network.clearBrowserCache");
+  await network.detach();
+  await context.setOffline(true);
+  assert(
+    await page.evaluate(
+      async ({ prefix, generation, cssPath }) =>
+        (await caches.open(prefix + generation)).delete(cssPath),
+      { prefix, generation: fallbackStatus.generation, cssPath: fallbackPath },
+    ),
+  );
+  assert.equal(
+    await page.evaluate(
+      async ({ prefix, generation, cssPath }) =>
+        Boolean(
+          await caches.match(cssPath, { cacheName: prefix + generation }),
+        ),
+      { prefix, generation: fallbackStatus.generation, cssPath: fallbackPath },
+    ),
+    false,
+  );
+  await page.goto(origin + "/?pwa=1");
+  await page.waitForFunction(
+    () =>
+      document.documentElement.dataset.themePackage === "native" &&
+      document.documentElement.style.getPropertyValue("--ui-bg") === "#141c18",
+  );
+  await save("pwa-production-missing-theme-fallback-1440-dark.png");
+  await context.setOffline(false);
+  await page.goto(
+    origin + "/settings?area=preferences&section=app-installation",
+  );
+  await controlled();
+  assert.equal(
+    (await request("GET", "/api/preferences")).ui_theme_package,
+    "example.purple-blocks",
+  );
+  checkpoint(
+    "A missing cached theme stylesheet restores retained native colors offline without changing the account's theme selection",
+  );
   await request("POST", plugin + "/disable");
   pluginDisabled = true;
   await retired();
@@ -466,6 +542,19 @@ try {
   report.status = "passed";
 } catch (error) {
   report.status = "failed";
+  report.failure_appearance = await page
+    .evaluate(() => ({
+      theme: document.documentElement.dataset.theme,
+      theme_package: document.documentElement.dataset.themePackage,
+      palette: document.documentElement.dataset.palette,
+      inline_background:
+        document.documentElement.style.getPropertyValue("--ui-bg"),
+      computed_background: getComputedStyle(document.body).backgroundColor,
+      saved_appearance: JSON.parse(
+        localStorage.getItem("ui-appearance") || "null",
+      ),
+    }))
+    .catch(() => null);
   await context.setOffline(false);
   await page.screenshot({
     path: path.join(output, "pwa-production-private-failure.png"),

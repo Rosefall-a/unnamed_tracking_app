@@ -1,7 +1,7 @@
 {
   "status": "passed",
   "real_production_host": true,
-  "browser": "chromium",
+  "browser": "webkit",
   "theme_artifact_id": null,
   "theme_source_head": "cf22e35649104a28c3cffc9f97ec6c98124ead41",
   "host_source_head": "a1bf2452caa5588ca12893b0454363f450e07811",
@@ -52,7 +52,7 @@
     {
       "name": "theme-install-review-1440-light.png",
       "width": 1440,
-      "scroll": 1430,
+      "scroll": 1440,
       "sidebarScroll": 210,
       "sidebarClient": 210,
       "scrollbar": "rgb(166, 173, 181) rgb(238, 236, 231)",
@@ -66,11 +66,11 @@
     {
       "name": "themes-manager-1440-light.png",
       "width": 1440,
-      "scroll": 1430,
+      "scroll": 1440,
       "sidebarScroll": 210,
       "sidebarClient": 210,
       "scrollbar": "rgb(104, 133, 112) rgb(229, 240, 229)",
-      "scrollbarThumb": "rgb(64, 89, 71)",
+      "scrollbarThumb": "rgb(104, 133, 112)",
       "scrollbarTrack": "rgb(229, 240, 229)",
       "expectedScrollbar": "rgb(104, 133, 112) rgb(229, 240, 229)",
       "expectedThumb": "rgb(104, 133, 112)",
@@ -80,7 +80,7 @@
     {
       "name": "theme-purple-appearance-1440-light.png",
       "width": 1440,
-      "scroll": 1430,
+      "scroll": 1440,
       "sidebarScroll": 208,
       "sidebarClient": 208,
       "scrollbar": "rgb(133, 85, 164) rgb(243, 226, 255)",
@@ -94,11 +94,11 @@
     {
       "name": "theme-plugin-palette-browser-1440-light.png",
       "width": 1440,
-      "scroll": 1430,
+      "scroll": 1440,
       "sidebarScroll": 210,
       "sidebarClient": 210,
       "scrollbar": "color(srgb 0.629608 0.556667 0.675294) rgb(229, 202, 255)",
-      "scrollbarThumb": "rgb(102, 64, 120)",
+      "scrollbarThumb": "color(srgb 0.629608 0.556667 0.675294)",
       "scrollbarTrack": "rgb(229, 202, 255)",
       "expectedScrollbar": "color(srgb 0.629608 0.556667 0.675294) rgb(229, 202, 255)",
       "expectedThumb": "color(srgb 0.629608 0.556667 0.675294)",
@@ -108,21 +108,21 @@
     {
       "name": "theme-appearance-320-light.png",
       "width": 320,
-      "scroll": 310,
+      "scroll": 320,
       "sidebarScroll": 0,
       "sidebarClient": 0,
-      "scrollbar": "rgb(133, 85, 164) rgb(243, 226, 255)",
-      "scrollbarThumb": "rgb(133, 85, 164)",
-      "scrollbarTrack": "rgb(243, 226, 255)",
-      "expectedScrollbar": "rgb(133, 85, 164) rgb(243, 226, 255)",
-      "expectedThumb": "rgb(133, 85, 164)",
-      "expectedTrack": "rgb(243, 226, 255)",
-      "expectedHover": "rgb(107, 33, 134)"
+      "scrollbar": "rgb(166, 173, 181) rgb(238, 236, 231)",
+      "scrollbarThumb": "rgb(166, 173, 181)",
+      "scrollbarTrack": "rgb(238, 236, 231)",
+      "expectedScrollbar": "rgb(166, 173, 181) rgb(238, 236, 231)",
+      "expectedThumb": "rgb(166, 173, 181)",
+      "expectedTrack": "rgb(238, 236, 231)",
+      "expectedHover": "rgb(89, 97, 108)"
     },
     {
       "name": "theme-management-320-light.png",
       "width": 320,
-      "scroll": 310,
+      "scroll": 320,
       "sidebarScroll": 0,
       "sidebarClient": 0,
       "scrollbar": "rgb(133, 85, 164) rgb(243, 226, 255)",
@@ -136,7 +136,7 @@
     {
       "name": "theme-appearance-390-dark.png",
       "width": 390,
-      "scroll": 380,
+      "scroll": 390,
       "sidebarScroll": 0,
       "sidebarClient": 0,
       "scrollbar": "rgb(144, 174, 151) rgb(37, 60, 44)",
@@ -150,7 +150,7 @@
     {
       "name": "theme-choice-390-dark.png",
       "width": 390,
-      "scroll": 380,
+      "scroll": 390,
       "sidebarScroll": 0,
       "sidebarClient": 0,
       "scrollbar": "rgb(144, 174, 151) rgb(37, 60, 44)",
@@ -164,7 +164,7 @@
     {
       "name": "theme-management-390-dark.png",
       "width": 390,
-      "scroll": 380,
+      "scroll": 390,
       "sidebarScroll": 0,
       "sidebarClient": 0,
       "scrollbar": "rgb(144, 174, 151) rgb(37, 60, 44)",
@@ -178,7 +178,7 @@
     {
       "name": "theme-appearance-768-dark.png",
       "width": 768,
-      "scroll": 758,
+      "scroll": 768,
       "sidebarScroll": 48,
       "sidebarClient": 48,
       "scrollbar": "rgb(189, 144, 215) rgb(73, 27, 101)",
@@ -192,7 +192,7 @@
     {
       "name": "theme-management-768-dark.png",
       "width": 768,
-      "scroll": 758,
+      "scroll": 768,
       "sidebarScroll": 48,
       "sidebarClient": 48,
       "scrollbar": "rgb(189, 144, 215) rgb(73, 27, 101)",
@@ -206,7 +206,7 @@
     {
       "name": "theme-appearance-1440-light.png",
       "width": 1440,
-      "scroll": 1430,
+      "scroll": 1440,
       "sidebarScroll": 210,
       "sidebarClient": 210,
       "scrollbar": "rgb(104, 133, 112) rgb(229, 240, 229)",
@@ -220,7 +220,7 @@
     {
       "name": "theme-choice-1440-light.png",
       "width": 1440,
-      "scroll": 1430,
+      "scroll": 1440,
       "sidebarScroll": 210,
       "sidebarClient": 210,
       "scrollbar": "rgb(104, 133, 112) rgb(229, 240, 229)",
@@ -234,7 +234,7 @@
     {
       "name": "theme-management-1440-light.png",
       "width": 1440,
-      "scroll": 1430,
+      "scroll": 1440,
       "sidebarScroll": 210,
       "sidebarClient": 210,
       "scrollbar": "rgb(104, 133, 112) rgb(229, 240, 229)",
@@ -248,7 +248,7 @@
     {
       "name": "theme-appearance-1920-dark.png",
       "width": 1920,
-      "scroll": 1910,
+      "scroll": 1920,
       "sidebarScroll": 208,
       "sidebarClient": 208,
       "scrollbar": "rgb(189, 144, 215) rgb(73, 27, 101)",
@@ -262,7 +262,7 @@
     {
       "name": "theme-management-1920-dark.png",
       "width": 1920,
-      "scroll": 1910,
+      "scroll": 1920,
       "sidebarScroll": 208,
       "sidebarClient": 208,
       "scrollbar": "rgb(189, 144, 215) rgb(73, 27, 101)",

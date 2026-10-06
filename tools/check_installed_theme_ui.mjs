@@ -17,14 +17,20 @@ await mkdir(output, { recursive: true });
 const require = createRequire(
   path.join(path.resolve(pluginsArgument), "package.json"),
 );
-const { chromium } = require("playwright");
-const browser = await chromium.launch({
+const browserName = process.env.BROWSER_ENGINE ?? "chromium";
+assert.ok(["chromium", "webkit"].includes(browserName));
+assert.ok(
+  ["localhost", "127.0.0.1", "[::1]"].includes(new URL(origin).hostname),
+  "Use a disposable local production host",
+);
+const browser = await require("playwright")[browserName].launch({
   headless: true,
-  args: ["--no-sandbox"],
+  ...(browserName === "chromium" ? { args: ["--no-sandbox"] } : {}),
 });
 const admin = await browser.newContext({
   viewport: { width: 1440, height: 1050 },
   colorScheme: "light",
+  serviceWorkers: "block",
 });
 await admin.addCookies(
   JSON.parse(await readFile(cookieFile, "utf8")).map(({ name, value }) => ({
@@ -42,6 +48,7 @@ page.on("pageerror", (error) => errors.push(String(error)));
 const report = {
   status: "running",
   real_production_host: true,
+  browser: browserName,
   theme_artifact_id: process.env.THEME_ARTIFACT_ID ?? null,
   theme_source_head: process.env.THEME_SOURCE_HEAD ?? null,
   host_source_head: process.env.THEME_HOST_HEAD ?? null,
@@ -77,6 +84,50 @@ async function rootTheme(target) {
       (expected) => document.documentElement.dataset.themeRevision === expected,
       digest,
     );
+  if (await page.locator("#installed-theme").count()) {
+    assert.equal(
+      await page
+        .getByRole("heading", {
+          name: "Interface theme",
+          exact: true,
+          level: 2,
+        })
+        .count(),
+      1,
+    );
+    assert.equal(
+      await page.locator("#ui-palette").count(),
+      target === "native" ? 1 : 0,
+    );
+    assert.equal(
+      await page
+        .getByLabel("Current interface theme preview", {
+          exact: true,
+        })
+        .count(),
+      target === "native" ? 0 : 1,
+    );
+    if (target !== "native") {
+      assert.deepEqual(
+        await page.evaluate(() =>
+          [
+            "--ui-bg",
+            "--ui-surface",
+            "--ui-text",
+            "--ui-dim",
+            "--ui-accent",
+            "--ui-on-accent",
+          ].map((key) => document.documentElement.style.getPropertyValue(key)),
+        ),
+        ["", "", "", "", "", ""],
+      );
+      assert.equal(
+        await page.evaluate(() => document.documentElement.dataset.pluginTheme),
+        undefined,
+        "Installed styles withdraw native palette plugin scopes",
+      );
+    }
+  }
 }
 async function screen(name) {
   // Sidebar layout animates when crossing the phone breakpoint; measure its
@@ -234,9 +285,9 @@ try {
   await screen("themes-manager-1440-light.png");
   await page.goto(origin + "/settings?area=preferences&section=appearance");
   await page
-    .getByRole("combobox", { name: "Interface theme", exact: true })
+    .getByRole("combobox", { name: "Style", exact: true })
     .selectOption("official.forest");
-  await page.getByLabel("Theme", { exact: true }).selectOption("dark");
+  await page.getByLabel("Color mode", { exact: true }).selectOption("dark");
   await page.waitForFunction(
     () => document.documentElement.dataset.theme === "dark",
   );
@@ -249,20 +300,47 @@ try {
     );
   });
   await page.reload();
-  await page
-    .getByRole("combobox", { name: "Interface theme", exact: true })
-    .waitFor();
+  await page.getByRole("combobox", { name: "Style", exact: true }).waitFor();
   assert.equal(
     (await http(admin, "GET", "/preferences")).ui_theme_package,
     "official.forest",
   );
   await page
+    .getByRole("button", { name: "Choose native colors", exact: true })
+    .click();
+  await rootTheme("native");
+  await page.locator("#ui-palette").selectOption("green");
+  const paletteSaved = page.waitForResponse(
+    (response) =>
+      response.url().endsWith("/api/preferences") &&
+      response.request().method() === "PATCH",
+  );
+  await page
+    .getByRole("button", { name: "Apply palette", exact: true })
+    .click();
+  assert.equal((await paletteSaved).status(), 200);
+  await page.waitForFunction(
+    () => document.documentElement.dataset.palette === "green",
+  );
+  assert.equal(
+    await page
+      .getByRole("button", { name: "Dark preview", exact: true })
+      .getAttribute("aria-pressed"),
+    "true",
+  );
+  await page.locator("#installed-theme").selectOption("official.forest");
+  await rootTheme("official.forest");
+  assert.equal((await http(admin, "GET", "/preferences")).ui_palette, "green");
+  checkpoint(
+    "One appearance selector hides inactive native palette controls; switching back restores the saved palette and current-mode preview",
+  );
+  await page
     .getByRole("combobox", { name: "Save theme choices to", exact: true })
     .selectOption("device");
   await page
-    .getByRole("combobox", { name: "Interface theme", exact: true })
+    .getByRole("combobox", { name: "Style", exact: true })
     .selectOption("example.purple-blocks");
-  await page.getByLabel("Theme", { exact: true }).selectOption("light");
+  await page.getByLabel("Color mode", { exact: true }).selectOption("light");
   await page.waitForFunction(
     () => document.documentElement.dataset.theme === "light",
   );
@@ -310,6 +388,83 @@ try {
     "Account appearance survives reload; browser-only Purple Blocks and light mode persist without changing account choices, including square sidebar controls",
   );
   await screen("theme-purple-appearance-1440-light.png");
+  await page
+    .getByRole("button", { name: "Choose native colors", exact: true })
+    .click();
+  await rootTheme("native");
+  assert.equal(await page.locator("#ui-palette").inputValue(), "green");
+  const pluginPalette = "plugin:example.theme-palettes:purple-blocks";
+  await page
+    .locator(`#ui-palette option[value='${pluginPalette}']`)
+    .waitFor({ state: "attached" });
+  await page.locator("#ui-palette").selectOption(pluginPalette);
+  await page
+    .getByRole("button", { name: "Apply palette", exact: true })
+    .click();
+  await page.waitForFunction(
+    (key) => document.documentElement.dataset.pluginTheme === key,
+    pluginPalette,
+  );
+  assert.equal((await http(admin, "GET", "/preferences")).ui_palette, "green");
+  assert.equal(
+    await page
+      .getByRole("button", { name: "Light preview", exact: true })
+      .getAttribute("aria-pressed"),
+    "true",
+  );
+  await screen("theme-plugin-palette-browser-1440-light.png");
+  await page.locator("#installed-theme").selectOption("official.forest");
+  await rootTheme("official.forest");
+  await page
+    .getByRole("button", { name: "Choose native colors", exact: true })
+    .click();
+  await rootTheme("native");
+  await page.waitForFunction(
+    (key) => document.documentElement.dataset.pluginTheme === key,
+    pluginPalette,
+  );
+  await page.reload();
+  await rootTheme("native");
+  await page.waitForFunction(
+    (key) => document.documentElement.dataset.pluginTheme === key,
+    pluginPalette,
+  );
+  assert.equal(await page.locator("#ui-palette").inputValue(), pluginPalette);
+  await page.getByLabel("Color mode", { exact: true }).selectOption("system");
+  for (const mode of ["dark", "light"]) {
+    await page.emulateMedia({ colorScheme: mode });
+    await page.waitForFunction(
+      (expected) => document.documentElement.dataset.theme === expected,
+      mode,
+    );
+    assert.equal(
+      await page
+        .getByRole("button", {
+          name: mode === "dark" ? "Dark preview" : "Light preview",
+          exact: true,
+        })
+        .getAttribute("aria-pressed"),
+      "true",
+    );
+  }
+  await page.getByLabel("Color mode", { exact: true }).selectOption("light");
+  await page.locator("#ui-palette").selectOption("green");
+  await page
+    .getByRole("button", { name: "Apply palette", exact: true })
+    .click();
+  await page.waitForFunction(
+    () =>
+      document.documentElement.dataset.palette === "green" &&
+      document.documentElement.dataset.pluginTheme === undefined,
+  );
+  assert.equal(
+    (await http(admin, "GET", "/preferences")).ui_theme_package,
+    "official.forest",
+  );
+  assert.equal((await http(admin, "GET", "/preferences")).ui_theme, "dark");
+  checkpoint(
+    "Browser-scoped plugin palettes apply their approved CSS, survive reload, pause for installed styles and restore without changing account choices; native previews follow System mode",
+  );
   for (const [width, mode, id] of [
     [320, "light", "example.purple-blocks"],
     [390, "dark", "official.forest"],
@@ -319,22 +474,26 @@ try {
   ]) {
     await page.setViewportSize({ width, height: width < 500 ? 800 : 1050 });
     await page
-      .getByRole("combobox", { name: "Interface theme", exact: true })
+      .getByRole("combobox", { name: "Style", exact: true })
       .selectOption(id);
-    await page.getByLabel("Theme", { exact: true }).selectOption(mode);
+    await page.getByLabel("Color mode", { exact: true }).selectOption(mode);
     await rootTheme(id);
     await page.waitForFunction(
       (theme) => document.documentElement.dataset.theme === theme,
       mode,
     );
     await screen(`theme-appearance-${width}-${mode}.png`);
+    if (width === 390 || width === 1440) {
+      await page.locator("#installed-theme-heading").evaluate((heading) => {
+        window.scrollTo(0, heading.getBoundingClientRect().top + scrollY - 100);
+      });
+      await screen(`theme-choice-${width}-${mode}.png`);
+    }
     await page.goto(origin + "/settings?area=administration&section=themes");
     await page.getByLabel("Server default", { exact: true }).waitFor();
     await screen(`theme-management-${width}-${mode}.png`);
     await page.goto(origin + "/settings?area=preferences&section=appearance");
-    await page
-      .getByRole("combobox", { name: "Interface theme", exact: true })
-      .waitFor();
+    await page.getByRole("combobox", { name: "Style", exact: true }).waitFor();
   }
   checkpoint(
     "Installed theme menus, previews and administrator controls fit phone, tablet and wide desktop viewports with themed scrollbars and no sidebar overflow",
@@ -342,6 +501,7 @@ try {
   const anonymous = await browser.newContext({
     viewport: { width: 390, height: 800 },
     colorScheme: "dark",
+    serviceWorkers: "block",
   });
   const signIn = await anonymous.newPage();
   for (const route of ["/login", "/login/oidcstart"]) {
@@ -383,6 +543,7 @@ try {
   const ordinary = await browser.newContext({
     viewport: { width: 1440, height: 1050 },
     colorScheme: "light",
+    serviceWorkers: "block",
   });
   await ordinary.addCookies(
     (await admin.cookies()).filter(
@@ -413,7 +574,7 @@ try {
     .getByRole("combobox", { name: "Save theme choices to", exact: true })
     .selectOption("account");
   await personal
-    .getByRole("combobox", { name: "Interface theme", exact: true })
+    .getByRole("combobox", { name: "Style", exact: true })
     .selectOption("official.forest");
   await personal.waitForFunction(
     () => document.documentElement.dataset.themePackage === "official.forest",

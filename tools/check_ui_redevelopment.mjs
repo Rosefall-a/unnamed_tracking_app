@@ -220,7 +220,7 @@ try {
           await page.locator(".page-header h1").waitFor();
           await page.waitForFunction(expected => document.documentElement.dataset.theme === expected, theme);
           await page.waitForFunction(() => !document.querySelector('.navigation a[href="/"]')?.classList.contains("active"));
-          if (screen.includes("appearance")) await page.getByLabel("Theme", { exact: true }).waitFor();
+          if (screen.includes("appearance")) await page.getByLabel("Color mode", { exact: true }).waitFor();
           const style = await page.locator(".page-header h1").evaluate(element => { const s = getComputedStyle(element); return [s.fontSize, s.fontWeight, s.lineHeight, s.letterSpacing]; });
           titleStyle ??= style;
           assert.deepEqual(style, titleStyle, `${role}/${theme}/${width}: Settings title styles must match.`);
@@ -248,7 +248,7 @@ try {
         }
         if (role === "admin" && [390, 1024, 1440].includes(width)) {
           await page.goto(origin + "/settings?section=appearance");
-          await page.getByLabel("Theme", { exact: true }).waitFor();
+          await page.getByLabel("Color mode", { exact: true }).waitFor();
           await page.getByRole("button", { name: "Save", exact: true }).waitFor();
           await page.screenshot({ path: path.join(evidenceRoot, `stage-shell-appearance-${width}-${theme}.png`), fullPage: width > 430 });
         }
@@ -262,7 +262,7 @@ try {
   assert.equal((await admin.request.patch(origin + "/api/preferences", { data: { ui_theme: "dark", ui_reduce_motion: false } })).status(), 200);
   const page = await admin.newPage();
   await page.goto(origin + "/settings?section=appearance");
-  await page.getByLabel("Theme", { exact: true }).selectOption("light");
+  await page.getByLabel("Color mode", { exact: true }).selectOption("light");
   await page.getByText("Appearance saved", { exact: true }).waitFor();
   await page.reload();
   await page.waitForFunction(() => document.documentElement.dataset.theme === "light");

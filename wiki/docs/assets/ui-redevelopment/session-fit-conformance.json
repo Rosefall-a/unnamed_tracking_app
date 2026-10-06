@@ -1,0 +1,1003 @@
+{
+  "status": "passed",
+  "real_production_host": true,
+  "source_head": "2236d8f1c93682dda68282545f98d6301762503d",
+  "host_image": "uta-ui-production:a1bf2452",
+  "artifact_id": "11386044038",
+  "package_sha256": "512dc8370dcdd330b0719c47da28153fae087962bbfce78bc70484c9d9712ba1",
+  "package_version": "2.3.1",
+  "browser_only_stress": "Expanded GeoIP controls and a long account label inserted into the rendered selector; no account or GeoIP data is changed",
+  "navigation": "Fresh initial document per viewport/color, then the actual Administration and Session Manager settings buttons",
+  "passed": [
+    "chromium: 16 loaded owner/admin layouts fit their real panels; expanded GeoIP controls, long account labels, focus and table scrolling pass",
+    "webkit: 16 loaded owner/admin layouts fit their real panels; expanded GeoIP controls, long account labels, focus and table scrolling pass"
+  ],
+  "captures": [
+    "session-fit-chromium-admin-sessions-320-light.png",
+    "session-fit-chromium-sessions-390-dark.png",
+    "session-fit-chromium-sessions-1440-light.png",
+    "session-fit-chromium-admin-sessions-1440-light.png",
+    "session-fit-webkit-admin-sessions-320-light.png",
+    "session-fit-webkit-sessions-390-dark.png",
+    "session-fit-webkit-sessions-1440-light.png",
+    "session-fit-webkit-admin-sessions-1440-light.png"
+  ],
+  "measurements": [
+    {
+      "browser": "chromium",
+      "width": 320,
+      "mode": "light",
+      "section": "sessions",
+      "viewport": 320,
+      "document": 310,
+      "root": {
+        "left": 41,
+        "right": 269,
+        "width": 228,
+        "client": 228,
+        "scroll": 228
+      },
+      "host": {
+        "left": 20,
+        "right": 290,
+        "width": 270,
+        "client": 268,
+        "scroll": 268
+      },
+      "hostContentLeft": 40,
+      "hostContentRight": 270,
+      "outside": [],
+      "selectAppearance": "none",
+      "table": null
+    },
+    {
+      "browser": "chromium",
+      "width": 320,
+      "mode": "light",
+      "section": "admin-sessions",
+      "viewport": 320,
+      "document": 310,
+      "root": {
+        "left": 41,
+        "right": 269,
+        "width": 228,
+        "client": 228,
+        "scroll": 228
+      },
+      "host": {
+        "left": 20,
+        "right": 290,
+        "width": 270,
+        "client": 268,
+        "scroll": 268
+      },
+      "hostContentLeft": 40,
+      "hostContentRight": 270,
+      "outside": [],
+      "selectAppearance": "none",
+      "table": {
+        "left": 41,
+        "right": 269,
+        "width": 228,
+        "client": 228,
+        "scroll": 1400,
+        "overflow": "auto"
+      }
+    },
+    {
+      "browser": "chromium",
+      "width": 320,
+      "mode": "dark",
+      "section": "sessions",
+      "viewport": 320,
+      "document": 310,
+      "root": {
+        "left": 41,
+        "right": 269,
+        "width": 228,
+        "client": 228,
+        "scroll": 228
+      },
+      "host": {
+        "left": 20,
+        "right": 290,
+        "width": 270,
+        "client": 268,
+        "scroll": 268
+      },
+      "hostContentLeft": 40,
+      "hostContentRight": 270,
+      "outside": [],
+      "selectAppearance": "none",
+      "table": null
+    },
+    {
+      "browser": "chromium",
+      "width": 320,
+      "mode": "dark",
+      "section": "admin-sessions",
+      "viewport": 320,
+      "document": 310,
+      "root": {
+        "left": 41,
+        "right": 269,
+        "width": 228,
+        "client": 228,
+        "scroll": 228
+      },
+      "host": {
+        "left": 20,
+        "right": 290,
+        "width": 270,
+        "client": 268,
+        "scroll": 268
+      },
+      "hostContentLeft": 40,
+      "hostContentRight": 270,
+      "outside": [],
+      "selectAppearance": "none",
+      "table": {
+        "left": 41,
+        "right": 269,
+        "width": 228,
+        "client": 228,
+        "scroll": 1400,
+        "overflow": "auto"
+      }
+    },
+    {
+      "browser": "chromium",
+      "width": 390,
+      "mode": "light",
+      "section": "sessions",
+      "viewport": 390,
+      "document": 380,
+      "root": {
+        "left": 41,
+        "right": 339,
+        "width": 298,
+        "client": 298,
+        "scroll": 298
+      },
+      "host": {
+        "left": 20,
+        "right": 360,
+        "width": 340,
+        "client": 338,
+        "scroll": 338
+      },
+      "hostContentLeft": 40,
+      "hostContentRight": 340,
+      "outside": [],
+      "selectAppearance": "none",
+      "table": null
+    },
+    {
+      "browser": "chromium",
+      "width": 390,
+      "mode": "light",
+      "section": "admin-sessions",
+      "viewport": 390,
+      "document": 380,
+      "root": {
+        "left": 41,
+        "right": 339,
+        "width": 298,
+        "client": 298,
+        "scroll": 298
+      },
+      "host": {
+        "left": 20,
+        "right": 360,
+        "width": 340,
+        "client": 338,
+        "scroll": 338
+      },
+      "hostContentLeft": 40,
+      "hostContentRight": 340,
+      "outside": [],
+      "selectAppearance": "none",
+      "table": {
+        "left": 41,
+        "right": 339,
+        "width": 298,
+        "client": 298,
+        "scroll": 1400,
+        "overflow": "auto"
+      }
+    },
+    {
+      "browser": "chromium",
+      "width": 390,
+      "mode": "dark",
+      "section": "sessions",
+      "viewport": 390,
+      "document": 380,
+      "root": {
+        "left": 41,
+        "right": 339,
+        "width": 298,
+        "client": 298,
+        "scroll": 298
+      },
+      "host": {
+        "left": 20,
+        "right": 360,
+        "width": 340,
+        "client": 338,
+        "scroll": 338
+      },
+      "hostContentLeft": 40,
+      "hostContentRight": 340,
+      "outside": [],
+      "selectAppearance": "none",
+      "table": null
+    },
+    {
+      "browser": "chromium",
+      "width": 390,
+      "mode": "dark",
+      "section": "admin-sessions",
+      "viewport": 390,
+      "document": 380,
+      "root": {
+        "left": 41,
+        "right": 339,
+        "width": 298,
+        "client": 298,
+        "scroll": 298
+      },
+      "host": {
+        "left": 20,
+        "right": 360,
+        "width": 340,
+        "client": 338,
+        "scroll": 338
+      },
+      "hostContentLeft": 40,
+      "hostContentRight": 340,
+      "outside": [],
+      "selectAppearance": "none",
+      "table": {
+        "left": 41,
+        "right": 339,
+        "width": 298,
+        "client": 298,
+        "scroll": 1400,
+        "overflow": "auto"
+      }
+    },
+    {
+      "browser": "chromium",
+      "width": 768,
+      "mode": "light",
+      "section": "sessions",
+      "viewport": 768,
+      "document": 758,
+      "root": {
+        "left": 329,
+        "right": 707,
+        "width": 378,
+        "client": 378,
+        "scroll": 378
+      },
+      "host": {
+        "left": 306,
+        "right": 730,
+        "width": 424,
+        "client": 422,
+        "scroll": 422
+      },
+      "hostContentLeft": 328,
+      "hostContentRight": 708,
+      "outside": [],
+      "selectAppearance": "none",
+      "table": null
+    },
+    {
+      "browser": "chromium",
+      "width": 768,
+      "mode": "light",
+      "section": "admin-sessions",
+      "viewport": 768,
+      "document": 758,
+      "root": {
+        "left": 329,
+        "right": 707,
+        "width": 378,
+        "client": 378,
+        "scroll": 378
+      },
+      "host": {
+        "left": 306,
+        "right": 730,
+        "width": 424,
+        "client": 422,
+        "scroll": 422
+      },
+      "hostContentLeft": 328,
+      "hostContentRight": 708,
+      "outside": [],
+      "selectAppearance": "none",
+      "table": {
+        "left": 329,
+        "right": 707,
+        "width": 378,
+        "client": 378,
+        "scroll": 1400,
+        "overflow": "auto"
+      }
+    },
+    {
+      "browser": "chromium",
+      "width": 768,
+      "mode": "dark",
+      "section": "sessions",
+      "viewport": 768,
+      "document": 758,
+      "root": {
+        "left": 329,
+        "right": 707,
+        "width": 378,
+        "client": 378,
+        "scroll": 378
+      },
+      "host": {
+        "left": 306,
+        "right": 730,
+        "width": 424,
+        "client": 422,
+        "scroll": 422
+      },
+      "hostContentLeft": 328,
+      "hostContentRight": 708,
+      "outside": [],
+      "selectAppearance": "none",
+      "table": null
+    },
+    {
+      "browser": "chromium",
+      "width": 768,
+      "mode": "dark",
+      "section": "admin-sessions",
+      "viewport": 768,
+      "document": 758,
+      "root": {
+        "left": 329,
+        "right": 707,
+        "width": 378,
+        "client": 378,
+        "scroll": 378
+      },
+      "host": {
+        "left": 306,
+        "right": 730,
+        "width": 424,
+        "client": 422,
+        "scroll": 422
+      },
+      "hostContentLeft": 328,
+      "hostContentRight": 708,
+      "outside": [],
+      "selectAppearance": "none",
+      "table": {
+        "left": 329,
+        "right": 707,
+        "width": 378,
+        "client": 378,
+        "scroll": 1400,
+        "overflow": "auto"
+      }
+    },
+    {
+      "browser": "chromium",
+      "width": 1440,
+      "mode": "light",
+      "section": "sessions",
+      "viewport": 1440,
+      "document": 1430,
+      "root": {
+        "left": 545,
+        "right": 1373,
+        "width": 828,
+        "client": 828,
+        "scroll": 828
+      },
+      "host": {
+        "left": 516,
+        "right": 1402,
+        "width": 886,
+        "client": 884,
+        "scroll": 884
+      },
+      "hostContentLeft": 544,
+      "hostContentRight": 1374,
+      "outside": [],
+      "selectAppearance": "none",
+      "table": null
+    },
+    {
+      "browser": "chromium",
+      "width": 1440,
+      "mode": "light",
+      "section": "admin-sessions",
+      "viewport": 1440,
+      "document": 1430,
+      "root": {
+        "left": 545,
+        "right": 1373,
+        "width": 828,
+        "client": 828,
+        "scroll": 828
+      },
+      "host": {
+        "left": 516,
+        "right": 1402,
+        "width": 886,
+        "client": 884,
+        "scroll": 884
+      },
+      "hostContentLeft": 544,
+      "hostContentRight": 1374,
+      "outside": [],
+      "selectAppearance": "none",
+      "table": {
+        "left": 545,
+        "right": 1373,
+        "width": 828,
+        "client": 828,
+        "scroll": 1400,
+        "overflow": "auto"
+      }
+    },
+    {
+      "browser": "chromium",
+      "width": 1440,
+      "mode": "dark",
+      "section": "sessions",
+      "viewport": 1440,
+      "document": 1430,
+      "root": {
+        "left": 545,
+        "right": 1373,
+        "width": 828,
+        "client": 828,
+        "scroll": 828
+      },
+      "host": {
+        "left": 516,
+        "right": 1402,
+        "width": 886,
+        "client": 884,
+        "scroll": 884
+      },
+      "hostContentLeft": 544,
+      "hostContentRight": 1374,
+      "outside": [],
+      "selectAppearance": "none",
+      "table": null
+    },
+    {
+      "browser": "chromium",
+      "width": 1440,
+      "mode": "dark",
+      "section": "admin-sessions",
+      "viewport": 1440,
+      "document": 1430,
+      "root": {
+        "left": 545,
+        "right": 1373,
+        "width": 828,
+        "client": 828,
+        "scroll": 828
+      },
+      "host": {
+        "left": 516,
+        "right": 1402,
+        "width": 886,
+        "client": 884,
+        "scroll": 884
+      },
+      "hostContentLeft": 544,
+      "hostContentRight": 1374,
+      "outside": [],
+      "selectAppearance": "none",
+      "table": {
+        "left": 545,
+        "right": 1373,
+        "width": 828,
+        "client": 828,
+        "scroll": 1400,
+        "overflow": "auto"
+      }
+    },
+    {
+      "browser": "webkit",
+      "width": 320,
+      "mode": "light",
+      "section": "sessions",
+      "viewport": 320,
+      "document": 320,
+      "root": {
+        "left": 41,
+        "right": 279,
+        "width": 238,
+        "client": 238,
+        "scroll": 238
+      },
+      "host": {
+        "left": 20,
+        "right": 300,
+        "width": 280,
+        "client": 278,
+        "scroll": 278
+      },
+      "hostContentLeft": 40,
+      "hostContentRight": 280,
+      "outside": [],
+      "selectAppearance": "none",
+      "table": null
+    },
+    {
+      "browser": "webkit",
+      "width": 320,
+      "mode": "light",
+      "section": "admin-sessions",
+      "viewport": 320,
+      "document": 320,
+      "root": {
+        "left": 41,
+        "right": 279,
+        "width": 238,
+        "client": 238,
+        "scroll": 238
+      },
+      "host": {
+        "left": 20,
+        "right": 300,
+        "width": 280,
+        "client": 278,
+        "scroll": 278
+      },
+      "hostContentLeft": 40,
+      "hostContentRight": 280,
+      "outside": [],
+      "selectAppearance": "none",
+      "table": {
+        "left": 41,
+        "right": 279,
+        "width": 238,
+        "client": 238,
+        "scroll": 1400,
+        "overflow": "auto"
+      }
+    },
+    {
+      "browser": "webkit",
+      "width": 320,
+      "mode": "dark",
+      "section": "sessions",
+      "viewport": 320,
+      "document": 320,
+      "root": {
+        "left": 41,
+        "right": 279,
+        "width": 238,
+        "client": 238,
+        "scroll": 238
+      },
+      "host": {
+        "left": 20,
+        "right": 300,
+        "width": 280,
+        "client": 278,
+        "scroll": 278
+      },
+      "hostContentLeft": 40,
+      "hostContentRight": 280,
+      "outside": [],
+      "selectAppearance": "none",
+      "table": null
+    },
+    {
+      "browser": "webkit",
+      "width": 320,
+      "mode": "dark",
+      "section": "admin-sessions",
+      "viewport": 320,
+      "document": 320,
+      "root": {
+        "left": 41,
+        "right": 279,
+        "width": 238,
+        "client": 238,
+        "scroll": 238
+      },
+      "host": {
+        "left": 20,
+        "right": 300,
+        "width": 280,
+        "client": 278,
+        "scroll": 278
+      },
+      "hostContentLeft": 40,
+      "hostContentRight": 280,
+      "outside": [],
+      "selectAppearance": "none",
+      "table": {
+        "left": 41,
+        "right": 279,
+        "width": 238,
+        "client": 238,
+        "scroll": 1400,
+        "overflow": "auto"
+      }
+    },
+    {
+      "browser": "webkit",
+      "width": 390,
+      "mode": "light",
+      "section": "sessions",
+      "viewport": 390,
+      "document": 390,
+      "root": {
+        "left": 41,
+        "right": 349,
+        "width": 308,
+        "client": 308,
+        "scroll": 308
+      },
+      "host": {
+        "left": 20,
+        "right": 370,
+        "width": 350,
+        "client": 348,
+        "scroll": 348
+      },
+      "hostContentLeft": 40,
+      "hostContentRight": 350,
+      "outside": [],
+      "selectAppearance": "none",
+      "table": null
+    },
+    {
+      "browser": "webkit",
+      "width": 390,
+      "mode": "light",
+      "section": "admin-sessions",
+      "viewport": 390,
+      "document": 390,
+      "root": {
+        "left": 41,
+        "right": 349,
+        "width": 308,
+        "client": 308,
+        "scroll": 308
+      },
+      "host": {
+        "left": 20,
+        "right": 370,
+        "width": 350,
+        "client": 348,
+        "scroll": 348
+      },
+      "hostContentLeft": 40,
+      "hostContentRight": 350,
+      "outside": [],
+      "selectAppearance": "none",
+      "table": {
+        "left": 41,
+        "right": 349,
+        "width": 308,
+        "client": 308,
+        "scroll": 1400,
+        "overflow": "auto"
+      }
+    },
+    {
+      "browser": "webkit",
+      "width": 390,
+      "mode": "dark",
+      "section": "sessions",
+      "viewport": 390,
+      "document": 390,
+      "root": {
+        "left": 41,
+        "right": 349,
+        "width": 308,
+        "client": 308,
+        "scroll": 308
+      },
+      "host": {
+        "left": 20,
+        "right": 370,
+        "width": 350,
+        "client": 348,
+        "scroll": 348
+      },
+      "hostContentLeft": 40,
+      "hostContentRight": 350,
+      "outside": [],
+      "selectAppearance": "none",
+      "table": null
+    },
+    {
+      "browser": "webkit",
+      "width": 390,
+      "mode": "dark",
+      "section": "admin-sessions",
+      "viewport": 390,
+      "document": 390,
+      "root": {
+        "left": 41,
+        "right": 349,
+        "width": 308,
+        "client": 308,
+        "scroll": 308
+      },
+      "host": {
+        "left": 20,
+        "right": 370,
+        "width": 350,
+        "client": 348,
+        "scroll": 348
+      },
+      "hostContentLeft": 40,
+      "hostContentRight": 350,
+      "outside": [],
+      "selectAppearance": "none",
+      "table": {
+        "left": 41,
+        "right": 349,
+        "width": 308,
+        "client": 308,
+        "scroll": 1400,
+        "overflow": "auto"
+      }
+    },
+    {
+      "browser": "webkit",
+      "width": 768,
+      "mode": "light",
+      "section": "sessions",
+      "viewport": 768,
+      "document": 768,
+      "root": {
+        "left": 329,
+        "right": 717,
+        "width": 388,
+        "client": 388,
+        "scroll": 388
+      },
+      "host": {
+        "left": 306,
+        "right": 740,
+        "width": 434,
+        "client": 432,
+        "scroll": 432
+      },
+      "hostContentLeft": 328,
+      "hostContentRight": 718,
+      "outside": [],
+      "selectAppearance": "none",
+      "table": null
+    },
+    {
+      "browser": "webkit",
+      "width": 768,
+      "mode": "light",
+      "section": "admin-sessions",
+      "viewport": 768,
+      "document": 768,
+      "root": {
+        "left": 329,
+        "right": 717,
+        "width": 388,
+        "client": 388,
+        "scroll": 388
+      },
+      "host": {
+        "left": 306,
+        "right": 740,
+        "width": 434,
+        "client": 432,
+        "scroll": 432
+      },
+      "hostContentLeft": 328,
+      "hostContentRight": 718,
+      "outside": [],
+      "selectAppearance": "none",
+      "table": {
+        "left": 329,
+        "right": 717,
+        "width": 388,
+        "client": 388,
+        "scroll": 1400,
+        "overflow": "auto"
+      }
+    },
+    {
+      "browser": "webkit",
+      "width": 768,
+      "mode": "dark",
+      "section": "sessions",
+      "viewport": 768,
+      "document": 768,
+      "root": {
+        "left": 329,
+        "right": 717,
+        "width": 388,
+        "client": 388,
+        "scroll": 388
+      },
+      "host": {
+        "left": 306,
+        "right": 740,
+        "width": 434,
+        "client": 432,
+        "scroll": 432
+      },
+      "hostContentLeft": 328,
+      "hostContentRight": 718,
+      "outside": [],
+      "selectAppearance": "none",
+      "table": null
+    },
+    {
+      "browser": "webkit",
+      "width": 768,
+      "mode": "dark",
+      "section": "admin-sessions",
+      "viewport": 768,
+      "document": 768,
+      "root": {
+        "left": 329,
+        "right": 717,
+        "width": 388,
+        "client": 388,
+        "scroll": 388
+      },
+      "host": {
+        "left": 306,
+        "right": 740,
+        "width": 434,
+        "client": 432,
+        "scroll": 432
+      },
+      "hostContentLeft": 328,
+      "hostContentRight": 718,
+      "outside": [],
+      "selectAppearance": "none",
+      "table": {
+        "left": 329,
+        "right": 717,
+        "width": 388,
+        "client": 388,
+        "scroll": 1400,
+        "overflow": "auto"
+      }
+    },
+    {
+      "browser": "webkit",
+      "width": 1440,
+      "mode": "light",
+      "section": "sessions",
+      "viewport": 1440,
+      "document": 1440,
+      "root": {
+        "left": 545,
+        "right": 1383,
+        "width": 838,
+        "client": 838,
+        "scroll": 838
+      },
+      "host": {
+        "left": 516,
+        "right": 1412,
+        "width": 896,
+        "client": 894,
+        "scroll": 894
+      },
+      "hostContentLeft": 544,
+      "hostContentRight": 1384,
+      "outside": [],
+      "selectAppearance": "none",
+      "table": null
+    },
+    {
+      "browser": "webkit",
+      "width": 1440,
+      "mode": "light",
+      "section": "admin-sessions",
+      "viewport": 1440,
+      "document": 1440,
+      "root": {
+        "left": 545,
+        "right": 1383,
+        "width": 838,
+        "client": 838,
+        "scroll": 838
+      },
+      "host": {
+        "left": 516,
+        "right": 1412,
+        "width": 896,
+        "client": 894,
+        "scroll": 894
+      },
+      "hostContentLeft": 544,
+      "hostContentRight": 1384,
+      "outside": [],
+      "selectAppearance": "none",
+      "table": {
+        "left": 545,
+        "right": 1383,
+        "width": 838,
+        "client": 838,
+        "scroll": 1400,
+        "overflow": "auto"
+      }
+    },
+    {
+      "browser": "webkit",
+      "width": 1440,
+      "mode": "dark",
+      "section": "sessions",
+      "viewport": 1440,
+      "document": 1440,
+      "root": {
+        "left": 545,
+        "right": 1383,
+        "width": 838,
+        "client": 838,
+        "scroll": 838
+      },
+      "host": {
+        "left": 516,
+        "right": 1412,
+        "width": 896,
+        "client": 894,
+        "scroll": 894
+      },
+      "hostContentLeft": 544,
+      "hostContentRight": 1384,
+      "outside": [],
+      "selectAppearance": "none",
+      "table": null
+    },
+    {
+      "browser": "webkit",
+      "width": 1440,
+      "mode": "dark",
+      "section": "admin-sessions",
+      "viewport": 1440,
+      "document": 1440,
+      "root": {
+        "left": 545,
+        "right": 1383,
+        "width": 838,
+        "client": 838,
+        "scroll": 838
+      },
+      "host": {
+        "left": 516,
+        "right": 1412,
+        "width": 896,
+        "client": 894,
+        "scroll": 894
+      },
+      "hostContentLeft": 544,
+      "hostContentRight": 1384,
+      "outside": [],
+      "selectAppearance": "none",
+      "table": {
+        "left": 545,
+        "right": 1383,
+        "width": 838,
+        "client": 838,
+        "scroll": 1400,
+        "overflow": "auto"
+      }
+    }
+  ]
+}

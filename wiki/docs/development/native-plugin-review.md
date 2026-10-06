@@ -164,5 +164,57 @@ phone/desktop layouts.
 
 ![Flat Archive navigation](../assets/ui-redevelopment/archive-flat-navigation-1440-dark.png)
 
-This milestone does not close the subsequently reported appearance-selection
-and Session Manager content-width issues; those remain in the progress queue.
+The appearance-selection and Session Manager content-width follow-on is
+recorded below.
+
+## Consolidated appearance and narrow native panels
+
+Production image `a1bf2452` passes the updated installed-theme journey in
+Chromium and WebKit. Appearance has one **Interface theme** selector and one
+active preview. Installed styles supply the colors and shape; returning to the
+native interface restores the retained preset, custom or approved plugin
+palette. Browser-scoped palette styles now follow the browser choice, pause
+while an installed theme is active, and return when native colors are selected.
+System previews follow the current device mode.
+
+The [Chromium report](../assets/ui-redevelopment/theme-ui-conformance.json) and
+[WebKit report](../assets/ui-redevelopment/theme-ui-webkit-conformance.json)
+record actual CI Forest/Purple Blocks archives, account/browser persistence,
+five widths, sign-in/OIDC themes, ordinary-user administration denial and
+disable/re-enable/removal. Reproduce with `tools/check_installed_theme_ui.mjs`.
+
+![Consolidated theme selector and current preview on desktop](../assets/ui-redevelopment/theme-choice-1440-light.png)
+
+![Consolidated theme selector and current preview on a phone](../assets/ui-redevelopment/theme-choice-390-dark.png)
+
+Session Manager 2.3.1 is installed from actual unsigned CI artifact
+`11386044038`, companion source `2236d8f`. All 32 loaded owner/administrator
+layouts fit their actual host panel in Chromium/WebKit at 320, 390, 768 and
+1440 pixels, in light and dark modes. Expanded GeoIP controls, long account
+labels, keyboard focus and internal table scrolling pass without injected CSS.
+The administrator journey uses the real Settings buttons; session data is
+unchanged. The [layout report](../assets/ui-redevelopment/session-fit-conformance.json)
+records package/payload provenance and each measurement. Its public checker is
+`tools/check_session_layouts.mjs` in the companion repository.
+
+![Current Session Manager on a phone](../assets/ui-redevelopment/session-fit-webkit-sessions-390-dark.png)
+
+![Current administrator Session Manager on desktop](../assets/ui-redevelopment/session-fit-chromium-admin-sessions-1440-light.png)
+
+The actual unsigned PWA 0.0.4 package from the same CI artifact passes the
+[production PWA journey](../assets/ui-redevelopment/pwa-production-conformance.json).
+Installation stays in Settings. Loaded installed-theme CSS owns offline colors
+without inline palette overrides at four widths. A real stylesheet failure,
+with both the HTTP and service-worker CSS caches cleared, restores the saved
+native colors without changing the account's theme selection. Private APIs and
+account metadata remain uncached. Disable/re-enable and explicit grant
+withdrawal/restoration retire and restore the worker and its owned cache,
+preserving unrelated caches. The physical OS install prompt remains manual.
+
+![Offline native-color fallback when theme CSS is unavailable](../assets/ui-redevelopment/pwa-production-missing-theme-fallback-1440-dark.png)
+
+All foundation CI workflows are green at `c2fd3fb`, including its production
+plugin lifecycle and real session-expiry/cache acceptance. All companion checks
+and host integration workflows are green at `2236d8f`; mobile PWA checks are
+green at `a3e4d92`. These results close this appearance/layout milestone;
+the final cross-project withdrawal, UI and merge-readiness review continues.

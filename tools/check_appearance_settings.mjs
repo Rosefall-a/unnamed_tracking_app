@@ -13,7 +13,7 @@ export async function checkAppearanceSettings({ admin, origin, evidenceRoot, rep
         for (const section of ['appearance', 'interface']) {
           await page.goto(`${origin}/settings?section=${section}`);
           await page.getByRole('heading', { name: 'Appearance & interface', level: 1, exact: true }).waitFor();
-          await page.getByLabel('Theme', { exact: true }).waitFor();
+          await page.getByLabel('Color mode', { exact: true }).waitFor();
           for (const title of ['Theme & layout', 'Navigation & library defaults', 'Completed game badges']) {
             assert.equal(await page.getByRole('heading', { name: title, level: 2, exact: true }).count(), 1);
           }
@@ -30,7 +30,7 @@ export async function checkAppearanceSettings({ admin, origin, evidenceRoot, rep
     await page.getByRole('button', { name: 'List + preview', exact: true }).click();
     await page.getByRole('button', { name: 'Recently played', exact: true }).click();
     await page.getByRole('button', { name: 'Icon rail', exact: true }).click();
-    await page.reload(); await page.getByLabel('Theme', { exact: true }).waitFor();
+    await page.reload(); await page.getByLabel('Color mode', { exact: true }).waitFor();
     for (const name of ['List + preview', 'Recently played', 'Icon rail']) {
       assert.equal(await page.getByRole('button', { name, exact: true }).getAttribute('aria-pressed'), 'true');
     }

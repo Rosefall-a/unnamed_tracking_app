@@ -1,14 +1,15 @@
 {
   "status": "passed",
-  "host_source_head": "0e0dcbc34b5400e4a39f3a5c05f47ea28cfbc89b",
-  "plugin_source_head": "ec372bf4e8910d75cf1c6e94de98b9ff145c2252",
-  "plugin_package_sha256": "0bb14053b49023cf6997cfb5db132b69a5117ab3a619f060cdc4a58ff5b195ba",
+  "host_source_head": "a1bf2452caa5588ca12893b0454363f450e07811",
+  "plugin_source_head": "2236d8f1c93682dda68282545f98d6301762503d",
+  "plugin_package_sha256": "8f89a45ee2c57fba55fedd5437cee1edb7d9cdc33d73d0910eb559c7511c29b0",
+  "plugin_version": "0.0.4",
   "theme_source_head": "cf22e35649104a28c3cffc9f97ec6c98124ead41",
   "limitation": "Headless browser validation exercises the install-event boundary; physical OS install surfaces remain manual.",
   "passed": [
-    "An already controlled PWA receives the new offline policy and retires its old cache after a host-only production upgrade; its plugin version and sign-in remain unchanged",
-    "Actual CI PWA 0.0.3 supplies the root worker, manifest and icons; installation is in Settings and consumes the browser event once",
+    "Actual CI PWA 0.0.4 supplies the root worker, manifest and icons; installation is in Settings and consumes the browser event once",
     "Forest and Purple Blocks retain their exact public CSS and browser colors offline at phone, tablet and desktop widths; private APIs and metadata are absent from caches",
+    "A missing cached theme stylesheet restores retained native colors offline without changing the account's theme selection",
     "Disabling the PWA withdraws installability, its worker and its public theme cache while retaining unrelated caches; enabling restores a controlled app",
     "Withdrawing and explicitly restoring the reviewed site-wide permission retires and restores the production worker without browser exceptions"
   ],
@@ -18,7 +19,8 @@
     "pwa-production-settings-390-dark.png",
     "pwa-production-offline-390-dark.png",
     "pwa-production-offline-768-dark.png",
-    "pwa-production-offline-1440-dark.png"
+    "pwa-production-offline-1440-dark.png",
+    "pwa-production-missing-theme-fallback-1440-dark.png"
   ],
   "themes": [
     {
@@ -30,11 +32,6 @@
       "sha256": "ff9884a0a6386cd732bbe7388f94c2d0b30539b6cef5d3e7d46cea7e6a3454c7"
     }
   ],
-  "host_upgrade": {
-    "previous_generation": "b259319a7ad0e12afc46753de9a5bc22fdb6b17f88003bf0191c8270e5b18b65",
-    "current_generation": "ca2f76ae4003ce808d713ae02d0fa3cb3f652c7fc8155f30fb0180dc110b14af",
-    "plugin_version": "0.0.3"
-  },
   "manifest_name": "Unnamed Tracking",
   "install_button": "Install Archive",
   "cache_entries": [
