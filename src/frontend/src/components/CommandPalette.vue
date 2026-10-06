@@ -60,7 +60,7 @@ const SETTINGS_SHORTCUTS: { label: string; section: string }[] = [
 const PAGE_SHORTCUTS: { label: string; to: string }[] = [
   { label: "Home", to: "/" },
   { label: "Games", to: "/games" },
-  { label: "Collections", to: "/collections" },
+  { label: "Collections", to: "/games/collections" },
 ];
 
 const collectionNames = computed(() => {
@@ -142,7 +142,7 @@ const results = computed<Result[]>(() => {
       kind: "collection",
       label: c,
       sublabel: "Collection",
-      action: () => go(`/collections/${encodeURIComponent(c)}`),
+      action: () => go(`/games/collections/${encodeURIComponent(c)}`),
     });
   }
 

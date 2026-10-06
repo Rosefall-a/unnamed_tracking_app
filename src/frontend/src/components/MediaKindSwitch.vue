@@ -12,7 +12,7 @@ const OPTIONS: SegmentOption[] = [
   { value: "movie", label: "Movies", to: "/movies" },
   { value: "tv", label: "TV Shows", to: "/tv" },
   { value: "anime", label: "Anime", to: "/anime" },
-  { value: "lists", label: "Collections", to: "/lists" },
+  { value: "lists", label: "Collections", to: "/media/collections" },
 ];
 </script>
 

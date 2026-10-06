@@ -19,7 +19,7 @@ const KINDS: SegmentOption[] = [
   {
     value: "collections",
     label: "Collections",
-    to: "/collections",
+    to: "/games/collections",
     icon: '<path d="M4 7l8-4 8 4-8 4-8-4z" /><path d="M4 12l8 4 8-4M4 17l8 4 8-4" />',
   },
 ];

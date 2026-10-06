@@ -42,12 +42,12 @@ function isActive(path: string) {
   return route.path === path || route.path.startsWith(`${path}/`);
 }
 
-const gamesExpanded = ref(isActive("/games") || isActive("/collections"));
+const gamesExpanded = ref(isActive("/games") || isActive("/games/collections"));
 const mediaExpanded = ref(
   isActive("/movies") ||
     isActive("/tv") ||
     isActive("/anime") ||
-    isActive("/lists"),
+    isActive("/media/collections"),
 );
 
 const isMockData = import.meta.env.VITE_USE_MOCK_DATA === "true";
@@ -209,7 +209,7 @@ async function handleLogout() {
 
       <div
         class="sidebar-parent-row"
-        :class="{ active: isActive('/games') || isActive('/collections') }"
+        :class="{ active: isActive('/games') || isActive('/games/collections') }"
       >
         <button
           type="button"
@@ -288,9 +288,9 @@ async function handleLogout() {
           <span>Games</span>
         </router-link>
         <router-link
-          to="/collections"
+          to="/games/collections"
           class="sidebar-item sidebar-subitem"
-          :class="{ active: isActive('/collections') }"
+          :class="{ active: isActive('/games/collections') }"
           @click="close"
         >
           <svg
@@ -317,7 +317,7 @@ async function handleLogout() {
             isActive('/movies') ||
             isActive('/tv') ||
             isActive('/anime') ||
-            isActive('/lists'),
+            isActive('/media/collections'),
         }"
       >
         <button
@@ -461,9 +461,9 @@ async function handleLogout() {
           <span>Anime</span>
         </router-link>
         <router-link
-          to="/lists"
+          to="/media/collections"
           class="sidebar-item sidebar-subitem"
-          :class="{ active: isActive('/lists') }"
+          :class="{ active: isActive('/media/collections') }"
           @click="close"
         >
           <svg
