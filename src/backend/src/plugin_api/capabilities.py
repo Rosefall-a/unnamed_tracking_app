@@ -308,6 +308,11 @@ def package_identity_can_retain_grants(
     )
 
 
+def permission_key(capability: CapabilityRef) -> str:
+    """Stable consent key shared by install planning and persisted grants."""
+    return f"{capability.name.value}:v{capability.version}"
+
+
 __all__ = [
     "CapabilityDefinition",
     "CapabilityRisk",
@@ -320,4 +325,5 @@ __all__ = [
     "capability_implies",
     "expand_capabilities",
     "package_identity_can_retain_grants",
+    "permission_key",
 ]

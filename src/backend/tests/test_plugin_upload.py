@@ -8,7 +8,9 @@ import zipfile
 from types import SimpleNamespace
 from uuid import uuid4
 
+import pytest
 from fastapi import UploadFile
+from sqlalchemy.exc import IntegrityError
 
 from src.api.routes import plugins
 from src.api.routes.plugin_manager import acquisition as plugin_acquisition
@@ -17,6 +19,7 @@ from src.core.auth import hash_password
 
 # Register the relationship target before these focused tests instantiate ORM rows.
 from src.database.models import achievement as _achievement  # noqa: F401
+from src.plugin_api.manager_state import manager_state
 from src.plugin_api.updates import PluginPackageVerifier
 
 
@@ -91,6 +94,53 @@ class FakeClient:
     async def plugin_health(self, plugin_id: str) -> bool:
         self.health_checked = plugin_id
         return True
+
+
+@pytest.mark.parametrize(
+    "failure,abort_preparation",
+    [
+        (ConnectionError("Lost COMMIT acknowledgement"), False),
+        (IntegrityError("COMMIT", {}, ValueError("Constraint rejected")), True),
+    ],
+)
+def test_database_commit_failure_never_activates_candidate(
+    monkeypatch, failure, abort_preparation
+) -> None:
+    client = FakeClient()
+    monkeypatch.setattr(plugin_runtime, "_client", client)
+    monkeypatch.setattr(
+        plugin_acquisition,
+        "_plugin_package_verifier",
+        lambda: PluginPackageVerifier(require_signature=True),
+    )
+
+    class FailingDb:
+        rolled_back = False
+
+        def add_all(self, rows):
+            pass
+
+        async def commit(self):
+            raise failure
+
+        async def rollback(self):
+            self.rolled_back = True
+
+    db = FailingDb()
+    upload = UploadFile(file=io.BytesIO(package_bytes()), filename="example-upload.utp")
+    with pytest.raises(type(failure)) as raised:
+        asyncio.run(plugins.install_plugin(upload, allow_untrusted=True, admin=object(), db=db))
+    assert raised.value is failure
+    assert db.rolled_back
+    assert not hasattr(client, "started")
+    candidate = manager_state().read()["plugins"].get("example.upload")
+    if abort_preparation:
+        assert client.completed == ("example.upload", False)
+        assert candidate is None
+    else:
+        assert not hasattr(client, "completed")
+        assert candidate["enabled"] is False
+        assert candidate["status"] == "stopped"
 
 
 def frontend_package_bytes() -> bytes:
