@@ -15,7 +15,6 @@ from src.database.models.job_setting import JobSetting
 from src.database.models.user import User
 from src.database.models.user_preferences import UserPreferences
 from src.database.session import SessionLocal
-from src.features.imports.anilist import import_anilist_library
 from src.features.metadata import refresh_job
 from src.features.metadata.refresh import check_airing_episodes
 
@@ -120,42 +119,11 @@ def _on_media_refresh_finished(progress: dict[str, Any]) -> None:
 refresh_job.finish_hooks.append(_on_media_refresh_finished)
 
 
-async def _run_due_anilist_imports(now: int) -> None:
-    """Run a small bounded batch so one deployment with many users cannot starve other jobs."""
-    async with SessionLocal() as db:
-        rows = (
-            await db.execute(
-                select(UserPreferences, User)
-                .join(User, User.id == UserPreferences.user_id)
-                .where(UserPreferences.data["anilist_import_enabled"].as_boolean().is_(True))
-                .limit(ANILIST_IMPORT_MAX_USERS_PER_TICK)
-            )
-        ).all()
-    for pref_row, user in rows:
-        data = pref_row.data
-        username = str(data.get("anilist_import_username") or "").strip()
-        interval = int(data.get("anilist_import_interval_minutes") or 24 * 60)
-        last_run = data.get("anilist_import_last_run_at")
-        if not username or not is_due(True, last_run, interval, now):
-            continue
-        try:
-            async with SessionLocal() as db:
-                result = await import_anilist_library(db, user.id, username, bool(data.get("anilist_import_update_existing")))
-                pref = await db.get(UserPreferences, pref_row.id)
-                if pref is not None:
-                    pref.data = {**pref.data, "anilist_import_last_run_at": now}
-                    await db.commit()
-            logger.info("Scheduled AniList import for user %s: %s", user.id, result)
-        except Exception:
-            logger.exception("Scheduled AniList import failed for user %s", user.id)
-
-
 async def run_jobs_loop() -> None:
     while True:
         await asyncio.sleep(TICK_SECONDS)
         try:
             now = int(time.time())
-            await _run_due_anilist_imports(now)
             async with SessionLocal() as db:
                 due = []
                 for spec in JOBS.values():
