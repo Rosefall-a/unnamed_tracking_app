@@ -13,14 +13,46 @@
     "webkit: 16 loaded owner/admin layouts fit their real panels; expanded GeoIP controls, long account labels, focus and table scrolling pass"
   ],
   "captures": [
-    "session-fit-chromium-admin-sessions-320-light.png",
-    "session-fit-chromium-sessions-390-dark.png",
-    "session-fit-chromium-sessions-1440-light.png",
-    "session-fit-chromium-admin-sessions-1440-light.png",
-    "session-fit-webkit-admin-sessions-320-light.png",
-    "session-fit-webkit-sessions-390-dark.png",
-    "session-fit-webkit-sessions-1440-light.png",
-    "session-fit-webkit-admin-sessions-1440-light.png"
+    {
+      "filename": "session-fit-chromium-admin-sessions-320-light.png",
+      "description": "Actual installed CI Session Manager layout; browser, area, width and color mode are recorded in the filename and measurements",
+      "sha256": "758212df5f1dee4e235bbdefaf645723b97d30aa930a637de1528e18bf52cd1b"
+    },
+    {
+      "filename": "session-fit-chromium-sessions-390-dark.png",
+      "description": "Actual installed CI Session Manager layout; browser, area, width and color mode are recorded in the filename and measurements",
+      "sha256": "f50be6474d340bc62fd6c5fba5bfd8d151751193324d78da87fa0b0bbdf62856"
+    },
+    {
+      "filename": "session-fit-chromium-sessions-1440-light.png",
+      "description": "Actual installed CI Session Manager layout; browser, area, width and color mode are recorded in the filename and measurements",
+      "sha256": "73a914308efbfc1667c11cc78a79b7166c507c3aa448678ac2bd2795d8682f60"
+    },
+    {
+      "filename": "session-fit-chromium-admin-sessions-1440-light.png",
+      "description": "Actual installed CI Session Manager layout; browser, area, width and color mode are recorded in the filename and measurements",
+      "sha256": "81180cfd4aecf8495a0458c8342f744f6f7795e5be744c9d32b58b0750a459af"
+    },
+    {
+      "filename": "session-fit-webkit-admin-sessions-320-light.png",
+      "description": "Actual installed CI Session Manager layout; browser, area, width and color mode are recorded in the filename and measurements",
+      "sha256": "bea69f9b43587285c73a76d642c5096ad57ac7cdf3841ca2cab263352b4fb905"
+    },
+    {
+      "filename": "session-fit-webkit-sessions-390-dark.png",
+      "description": "Actual installed CI Session Manager layout; browser, area, width and color mode are recorded in the filename and measurements",
+      "sha256": "f70654255736d4e687b88ac5a24cb0fd365e66520bfb47c9a05c1f0900150f09"
+    },
+    {
+      "filename": "session-fit-webkit-sessions-1440-light.png",
+      "description": "Actual installed CI Session Manager layout; browser, area, width and color mode are recorded in the filename and measurements",
+      "sha256": "5a05dadadc4b75d9e0203b18bc1fd5b7f2f3b80e1d107ef9fa91770b4626e2bf"
+    },
+    {
+      "filename": "session-fit-webkit-admin-sessions-1440-light.png",
+      "description": "Actual installed CI Session Manager layout; browser, area, width and color mode are recorded in the filename and measurements",
+      "sha256": "041a8ead0699df8bb17f73c3cb1d3f059e6f68b87fa5dbd9e82a3c118955bb54"
+    }
   ],
   "measurements": [
     {
