@@ -10,7 +10,7 @@ From the repository root:
 
 Then open http://localhost:999/.
 
-The default port can be changed with `WIKI_CONTAINER_PORT`.
+The default port can be changed with `WIKI_CONTAINER_PORT` and `WIKI_CONTAINER_BIND_PORT`.
 
 ## Development reload
 
