@@ -109,6 +109,13 @@ CONFIG_SECTIONS: tuple[ConfigSectionSpec, ...] = (
         "Optional SSO configuration. Selecting this section enables OIDC once its provider credentials are saved.",
         40,
     ),
+    ConfigSectionSpec(
+        "proxy",
+        "Reverse proxy",
+        "Control which reverse proxies may provide the originating client address to production Nginx.",
+        50,
+        default=True,
+    ),
 )
 
 # Add a field here first when introducing a new deployment/setup variable.
@@ -431,6 +438,26 @@ CONFIG_REGISTRY: tuple[ConfigSpec, ...] = (
         default="",
         description="Optional profile: development, testing, or empty/default.",
         visible=False,
+    ),
+    ConfigSpec(
+        "NGINX_REALIP_HEADER",
+        "proxy",
+        ConfigSource.BOTH,
+        label="Real client IP header",
+        placeholder="X-Forwarded-For",
+        default="X-Forwarded-For",
+        storage="app_integration",
+        description="HTTP header used by Nginx after a request arrives from a trusted proxy.",
+    ),
+    ConfigSpec(
+        "NGINX_REALIP_TRUSTED_PROXIES",
+        "proxy",
+        ConfigSource.BOTH,
+        label="Trusted proxy ranges",
+        placeholder="127.0.0.1/32 ::1/128",
+        default="127.0.0.1/32 ::1/128",
+        storage="app_integration",
+        description="Space-separated IP addresses or CIDRs. Environment values override the saved deployment setting.",
     ),
     ConfigSpec(
         "MAX_UPLOAD_SIZE_MB",

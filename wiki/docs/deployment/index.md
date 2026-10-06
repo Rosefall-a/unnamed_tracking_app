@@ -20,4 +20,9 @@ The production container supports optional embedded Nginx TLS. HTTP-only remains
 
 Set `NGINX_TLS_ENABLED=true`, configure `NGINX_TLS_CERTIFICATE` and `NGINX_TLS_PRIVATE_KEY` to the mounted PEM paths, and publish host port 443 to container port 443. Set `NGINX_TLS_REDIRECT_HTTP=true` when HTTP should redirect to HTTPS after the production configuration becomes ready. For HTTPS deployments, set `AUTH_COOKIE_SECURE=true`.
 
-See [Production Docker Image](production-docker.md) for certificate mounts, permissions, OIDC/proxy behavior, and TLS troubleshooting.
+See [Production Docker Image](production-docker.md) for certificate mounts, permissions, OIDC/proxy behavior, client-IP/proxy trust configuration, and TLS troubleshooting.
+
+
+## Reverse-proxy client IPs
+
+The production container supports trusted reverse-proxy client-IP headers. `X-Forwarded-For` is used by default, but only loopback is trusted initially. Settings/setup can explicitly enable Cloudflare, local/private, CGNAT/VPS, and custom trusted ranges. See [Production Docker Image](production-docker.md) for the full configuration.
