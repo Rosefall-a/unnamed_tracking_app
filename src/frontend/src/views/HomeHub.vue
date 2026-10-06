@@ -727,7 +727,7 @@ function scrollShelf(e: MouseEvent, dir: 1 | -1) {
         >
           <div class="row-header">
             <router-link
-              :to="`/collections/${encodeURIComponent(group.name)}`"
+              :to="`/games/collections/${encodeURIComponent(group.name)}`"
               class="row-title"
             >
               <svg
