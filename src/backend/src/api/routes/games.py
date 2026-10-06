@@ -81,6 +81,7 @@ from src.helpers.save_game_asset import (
 
 _QUERY_DEFAULT = Query(..., min_length=2, max_length=100)
 _LIMIT_DEFAULT = Query(default=8, ge=1, le=20)
+_INCLUDE_IMAGES_DEFAULT = Query(default=True)
 _FILES_DEFAULT = File(None, alias="files")
 _FILE_DEFAULT = File(None, alias="file")
 _UNSCOPED_ONLY_DEFAULT = Query(False, description="Only items with no profile_id set.")
@@ -171,6 +172,7 @@ def _scan_settings_to_preferences(scan_settings: UserScanSettings) -> dict:
 async def search_metadata(
     query: str = _QUERY_DEFAULT,
     limit: int = _LIMIT_DEFAULT,
+    include_images: bool = _INCLUDE_IMAGES_DEFAULT,
     db: AsyncSession = _DB_DEPENDENCY,
     current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> dict:
@@ -196,6 +198,7 @@ async def search_metadata(
             current_user,
             app_integrations.igdb_client_id,
             app_integrations.igdb_client_secret,
+            include_images,
         )
     except Exception as exc:
         raise HTTPException(

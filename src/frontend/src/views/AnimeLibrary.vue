@@ -427,9 +427,16 @@ function detailRoute(id: string): string {
         </li>
       </ul>
       <div class="import-actions">
-        <button type="button" @click="showAniListImport = false">Close</button>
         <button
           type="button"
+          class="ui-btn ui-btn-secondary"
+          @click="showAniListImport = false"
+        >
+          Close
+        </button>
+        <button
+          type="button"
+          class="ui-btn ui-btn-primary"
           :disabled="aniListImporting || !aniListUsername.trim()"
           @click="importFromAniList"
         >
@@ -506,9 +513,27 @@ function detailRoute(id: string): string {
   justify-content: flex-end;
   gap: 8px;
 }
-.import-actions button {
+.import-actions .btn-outline,
+.import-actions .btn-solid {
+  min-height: 44px;
+  font-family: inherit;
+  font-weight: var(--ui-weight-heading);
   padding: 8px 14px;
   border-radius: var(--ui-radius-control);
   cursor: pointer;
+}
+.import-actions .btn-outline {
+  background: transparent;
+  border: 1px solid var(--ui-border);
+  color: var(--ui-text);
+}
+.import-actions .btn-solid {
+  background: var(--ui-accent);
+  border: none;
+  color: var(--ui-on-accent);
+}
+.import-actions .btn-solid:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 </style>

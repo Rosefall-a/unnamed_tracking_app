@@ -46,7 +46,9 @@ describe("shared shortcut help", () => {
     ["/tv", "Page actions"],
     ["/anime", "Page actions"],
     ["/collections", "Page actions"],
+    ["/games/collections", "Page actions"],
     ["/lists", "Page actions"],
+    ["/media/collections", "Page actions"],
     ["/calendar", "Calendar"],
   ])("prioritizes %s without dropping other help", (path, expected) => {
     const groups = shortcutGroupsForPath(path);

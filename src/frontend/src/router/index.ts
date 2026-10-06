@@ -77,16 +77,22 @@ const router = createRouter({
       component: () => import("../views/GameLibrary.vue"),
     },
     {
-      path: "/collections",
+      path: "/games/collections",
       name: "collections",
       meta: { title: "Collections" },
       component: () => import("../views/Collections.vue"),
     },
     {
-      path: "/collections/:name",
+      path: "/games/collections/:name",
       name: "collection-detail",
       meta: { title: "Collection" },
       component: () => import("../views/CollectionDetail.vue"),
+    },
+    { path: "/collections", redirect: "/games/collections" },
+    {
+      path: "/collections/:name",
+      redirect: (to) =>
+        `/games/collections/${encodeURIComponent(String(to.params.name))}`,
     },
     {
       path: "/upload",
@@ -156,16 +162,22 @@ const router = createRouter({
       component: () => import("../views/Notifications.vue"),
     },
     {
-      path: "/lists",
+      path: "/media/collections",
       name: "media-lists",
-      meta: { title: "Lists" },
+      meta: { title: "Collections" },
       component: () => import("../views/MediaLists.vue"),
     },
     {
-      path: "/lists/:id",
+      path: "/media/collections/:id",
       name: "media-list-detail",
-      meta: { title: "List" },
+      meta: { title: "Collection" },
       component: () => import("../views/MediaListDetail.vue"),
+    },
+    { path: "/lists", redirect: "/media/collections" },
+    {
+      path: "/lists/:id",
+      redirect: (to) =>
+        `/media/collections/${encodeURIComponent(String(to.params.id))}`,
     },
     // History merged into the Calendar page as a second tab
     { path: "/history", redirect: "/calendar" },

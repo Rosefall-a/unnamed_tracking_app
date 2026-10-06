@@ -74,7 +74,7 @@ export function quickTourSteps(
       title: "Make a collection",
       description:
         "Open Create Collection to explore Manual and Smart collections, then close the dialog. You do not need to save anything for the tour.",
-      path: "/collections",
+      path: "/games/collections",
       target: '[data-tour="collection-create"]',
       openedTarget: 'dialog[data-tour="collection-editor"][open] .kind-pick',
       requirement: "open-close",
@@ -83,8 +83,8 @@ export function quickTourSteps(
       id: "media",
       title: "Switch to your media",
       description: touch
-        ? "Tap Media in the bottom bar. It opens Movies; the top bar also offers TV, Anime and Lists."
-        : "Try Alt + M to open Movies. The top bar also offers TV, Anime and Lists.",
+        ? "Tap Media in the bottom bar. It opens Movies; the top bar also offers TV, Anime and Collections."
+        : "Try Alt + M to open Movies. The top bar also offers TV, Anime and Collections.",
       target: '[data-tour="nav-media"]' + fallback,
       destination: "/movies",
       shortcut: "media",

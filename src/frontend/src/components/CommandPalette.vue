@@ -100,11 +100,11 @@ const SETTINGS_SHORTCUTS: {
 const PAGE_SHORTCUTS: { label: string; to: string }[] = [
   { label: "Home", to: "/" },
   { label: "Games", to: "/games" },
-  { label: "Collections", to: "/collections" },
+  { label: "Game collections", to: "/games/collections" },
   { label: "Movies", to: "/movies" },
   { label: "TV shows", to: "/tv" },
   { label: "Anime", to: "/anime" },
-  { label: "Lists", to: "/lists" },
+  { label: "Media collections", to: "/media/collections" },
   { label: "Calendar", to: "/calendar" },
   { label: "Statistics", to: "/statistics" },
   { label: "Notifications", to: "/notifications" },
@@ -191,7 +191,7 @@ const results = computed<Result[]>(() => {
       kind: "collection",
       label: c,
       sublabel: "Collection",
-      action: () => go(`/collections/${encodeURIComponent(c)}`),
+      action: () => go(`/games/collections/${encodeURIComponent(c)}`),
     });
   }
 

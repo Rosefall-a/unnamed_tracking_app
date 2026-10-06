@@ -20,14 +20,18 @@ export function takeLibraryScroll(): number {
   return y;
 }
 
+export function isGameDetailPath(path: string): boolean {
+  return /^\/games\/[^/]+$/.test(path) && path !== "/games/collections";
+}
+
 export function captureLibraryNavigation(
   toPath: string,
   fromPath: string,
   scrollY: number,
 ): void {
-  if (fromPath === "/games" && /^\/games\/[^/]+$/.test(toPath)) {
+  if (fromPath === "/games" && isGameDetailPath(toPath)) {
     saveLibraryScroll(scrollY);
-  } else if (!/^\/games\/[^/]+$/.test(fromPath)) {
+  } else if (!isGameDetailPath(fromPath)) {
     saveLibraryScroll(0);
   }
 }

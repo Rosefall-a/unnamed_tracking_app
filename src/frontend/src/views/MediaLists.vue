@@ -72,7 +72,7 @@ async function onCreate(payload: {
     );
     lists.value.push(created);
     showCreate.value = false;
-    router.push(`/lists/${created.id}`);
+    router.push(`/media/collections/${created.id}`);
   } catch (e) {
     showCreate.value = false;
     createError.value =
@@ -187,7 +187,7 @@ async function onEditSave(payload: {
 }
 
 function openList(id: string) {
-  router.push(`/lists/${id}`);
+  router.push(`/media/collections/${id}`);
 }
 
 const confirm = useConfirm();

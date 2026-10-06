@@ -61,22 +61,22 @@ const groups = [
     id: "games",
     label: "Games",
     icon: "games",
-    paths: ["/games", "/collections"],
+    paths: ["/games", "/games/collections"],
     entries: [
       { path: "/games", label: "All games", icon: "games" },
-      { path: "/collections", label: "Collections", icon: "collections" },
+      { path: "/games/collections", label: "Collections", icon: "collections" },
     ],
   },
   {
     id: "media",
     label: "Media",
     icon: "media",
-    paths: ["/movies", "/tv", "/anime", "/lists"],
+    paths: ["/movies", "/tv", "/anime", "/media/collections"],
     entries: [
       { path: "/movies", label: "Movies", icon: "media" },
       { path: "/tv", label: "TV shows", icon: "tv" },
       { path: "/anime", label: "Anime", icon: "anime" },
-      { path: "/lists", label: "Lists", icon: "lists" },
+      { path: "/media/collections", label: "Collections", icon: "lists" },
     ],
   },
 ];
@@ -602,7 +602,7 @@ onUnmounted(() => {
           :class="{
             active:
               isActive('/games') ||
-              isActive('/collections') ||
+              isActive('/games/collections') ||
               isActive('/cards') ||
               isActive('/sets'),
           }"
@@ -616,7 +616,9 @@ onUnmounted(() => {
           to="/movies"
           data-tour="nav-media"
           :class="{
-            active: ['/movies', '/tv', '/anime', '/lists'].some(isActive),
+            active: ['/movies', '/tv', '/anime', '/media/collections'].some(
+              isActive,
+            ),
           }"
           :aria-current="isActive('/movies') ? 'page' : undefined"
           :title="navigationTooltip('Movies', '/movies')"

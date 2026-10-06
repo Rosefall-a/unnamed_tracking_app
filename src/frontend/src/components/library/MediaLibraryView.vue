@@ -188,17 +188,12 @@ const shelfGridColumns = computed(() =>
     ? `repeat(${PHONE_CARD_COLUMNS[shelfCardSize.value]}, minmax(0, 1fr))`
     : `repeat(auto-fill, minmax(${shelfCardMinWidth.value}, 1fr))`,
 );
-// Board's cards are fixed-width flex items (each status is its own
-// horizontally-scrolling row) rather than a minmax grid, so the same S/M/L
-// preference maps to an explicit width instead.
-const boardCardWidth = computed(() => {
-  if (viewportWidth.value <= 760) {
-    const columns = PHONE_CARD_COLUMNS[shelfCardSize.value];
-    return `calc((100% - ${(columns - 1) * 14}px) / ${columns})`;
-  }
-  if (shelfCardSize.value === "compact") return "150px";
-  if (shelfCardSize.value === "large") return "260px";
-  return "196px";
+// Board rows fill the available width. S/M/L controls the minimum desktop
+// card width; phones retain their distinct 3/2/1 column counts.
+const boardCardMinWidth = computed(() => {
+  if (shelfCardSize.value === "compact") return 150;
+  if (shelfCardSize.value === "large") return 260;
+  return 196;
 });
 const activeStatus = ref<string>("all");
 const searchQuery = ref("");
@@ -451,15 +446,11 @@ const libraryContainer = ref<HTMLElement | null>(null);
 const boardVisibleCount = computed(() => {
   if (viewportWidth.value <= 760)
     return PHONE_CARD_COLUMNS[shelfCardSize.value];
-  const cardWidth =
-    shelfCardSize.value === "compact"
-      ? 150
-      : shelfCardSize.value === "large"
-        ? 260
-        : 196;
   return Math.max(
     1,
-    Math.floor((boardViewportWidth.value + 14) / (cardWidth + 14)) || 1,
+    Math.floor(
+      (boardViewportWidth.value + 14) / (boardCardMinWidth.value + 14),
+    ) || 1,
   );
 });
 function resetBoardPages() {
@@ -513,7 +504,9 @@ onDeactivated(() => {
   libraryObserver.disconnect();
   cancelAnimationFrame(measureFrame);
 });
-watch(shelfCardSize, () => requestAnimationFrame(updateBoardViewport));
+watch([shelfCardSize, layout], () =>
+  requestAnimationFrame(updateBoardViewport),
+);
 onBeforeUnmount(() => {
   window.removeEventListener("resize", updateBoardViewport);
   libraryObserver.disconnect();
@@ -1453,12 +1446,16 @@ defineExpose({ openQuickAdd });
                 </button>
               </div>
             </div>
-            <div class="board-shelf">
+            <div
+              class="board-shelf"
+              :style="{
+                gridTemplateColumns: `repeat(${boardVisibleCount}, minmax(0, 1fr))`,
+              }"
+            >
               <div
                 v-for="it in group.visibleItems"
                 :key="it.id"
                 class="board-card"
-                :style="{ width: boardCardWidth }"
                 @click="handleCardClick(it)"
               >
                 <div class="board-art-wrap">

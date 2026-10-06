@@ -118,8 +118,8 @@ const SOURCES: {
     value: "yamtrack",
     label: "Yamtrack",
     accept: ".csv,text/csv",
-    what: "movies, TV shows and anime",
-    how: "Use Yamtrack's CSV export. Movies, TV shows and anime are grouped by Yamtrack's provider ID, with seasons and watched episodes restored under the correct parent.",
+    what: "movies and TV shows",
+    how: "Use Yamtrack's CSV export. Movies and TV shows are grouped by Yamtrack's provider ID, with seasons and watched episodes restored under the correct parent. Anime is currently not imported.",
   },
 ];
 const source = ref<ImportSource>("mal");
@@ -364,6 +364,10 @@ async function onFileSelected(e: Event) {
           Yamtrack imports directly and skips items already in your library.
         </template>
       </p>
+      <div v-if="source === 'yamtrack'" class="form-warning">
+        Anime from Yamtrack is currently not imported. Movies and TV shows will
+        still be imported.
+      </div>
       <div v-if="malError" class="form-error">{{ malError }}</div>
       <div v-if="yamtrackError" class="form-error">{{ yamtrackError }}</div>
       <div v-if="yamtrackResult" class="form-success">
@@ -648,6 +652,15 @@ async function onFileSelected(e: Event) {
 }
 .hidden-input {
   display: none;
+}
+.form-warning {
+  color: #fcd34d;
+  font-size: 13px;
+  background: rgba(234, 179, 8, 0.1);
+  border: 1px solid rgba(234, 179, 8, 0.3);
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin-bottom: 12px;
 }
 .form-error {
   color: var(--ui-error);

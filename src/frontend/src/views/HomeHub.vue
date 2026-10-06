@@ -355,7 +355,7 @@ async function confirmDelete() {
         <router-link to="/movies"
           >Movies <span aria-hidden="true">↗</span></router-link
         >
-        <router-link to="/collections"
+        <router-link to="/games/collections"
           >Collections <span aria-hidden="true">↗</span></router-link
         >
       </nav>

@@ -1002,16 +1002,17 @@
   font-variant-numeric: tabular-nums;
 }
 .board-shelf {
-  display: flex;
+  display: grid;
   gap: 14px;
-  overflow: hidden;
+  width: 100%;
+  min-width: 0;
   padding-bottom: 8px;
 }
 .board-card {
   container-type: inline-size;
   box-sizing: border-box;
   min-width: 0;
-  flex-shrink: 0;
+  width: auto;
   display: flex;
   flex-direction: column;
   background: var(--ui-surface);

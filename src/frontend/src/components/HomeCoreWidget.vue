@@ -45,7 +45,7 @@ const shelfLink = computed(() =>
     ? "/games?status=playing"
     : props.widgetId === "recently-added"
       ? "/games?sort=recent"
-      : `/collections/${encodeURIComponent(props.widgetId.slice(11))}`,
+      : `/games/collections/${encodeURIComponent(props.widgetId.slice(11))}`,
 );
 const collectionsCount = computed(
   () => new Set(props.games.flatMap((game) => game.collections)).size,

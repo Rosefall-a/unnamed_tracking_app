@@ -58,7 +58,7 @@ function positionPopover(anchor: HTMLElement | null) {
 
 function goToLists() {
   showListPopover.value = false;
-  router.push("/lists");
+  router.push("/media/collections");
 }
 
 // ---- rewatch log ----

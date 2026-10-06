@@ -95,7 +95,7 @@ function onCreate(payload: CollectionFormPayload) {
     description: payload.description ?? undefined,
   });
   showCreate.value = false;
-  router.push(`/collections/${encodeURIComponent(payload.name)}`);
+  router.push(`/games/collections/${encodeURIComponent(payload.name)}`);
 }
 
 async function loadGames() {
@@ -309,7 +309,7 @@ const filtering = computed(
 );
 
 function openCollection(name: string) {
-  router.push(`/collections/${encodeURIComponent(name)}`);
+  router.push(`/games/collections/${encodeURIComponent(name)}`);
 }
 
 // options offered by the create dialog's rule builder

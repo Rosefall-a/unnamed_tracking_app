@@ -141,24 +141,40 @@ async def get_current_user(
     authorization = request.headers.get("authorization")
     now = int(time.time())
 
-    if authorization and authorization.startswith("Bearer "):
+    if authorization:
+        if not authorization.startswith("Bearer "):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid authentication credentials.",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
         api_key = authorization[7:].strip()
         if api_key.startswith("utpm_"):
             raise HTTPException(
                 status_code=403, detail="Plugin management tokens cannot access application APIs."
             )
-        if api_key.startswith(API_KEY_PREFIX):
-            user = await db.scalar(
-                select(User)
-                .join(UserApiKey, UserApiKey.user_id == User.id)
-                .where(
-                    UserApiKey.key_hash == hash_token(api_key),
-                    UserApiKey.revoked_at.is_(None),
-                    User.is_active.is_(True),
-                )
+        if not api_key.startswith(API_KEY_PREFIX):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid API key.",
+                headers={"WWW-Authenticate": "Bearer"},
             )
-
-    if user is None and session_token:
+        user = await db.scalar(
+            select(User)
+            .join(UserApiKey, UserApiKey.user_id == User.id)
+            .where(
+                UserApiKey.key_hash == hash_token(api_key),
+                UserApiKey.revoked_at.is_(None),
+                User.is_active.is_(True),
+            )
+        )
+        if user is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid or revoked API key.",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+    elif session_token:
         user = await db.scalar(
             select(User)
             .join(UserSession, UserSession.user_id == User.id)
@@ -231,7 +247,10 @@ async def ensure_primary_user(db: AsyncSession) -> User:
     return user
 
 
-async def get_current_admin(user: User = Depends(get_current_user)) -> User:
+_CURRENT_USER_DEPENDENCY = Depends(get_current_user)
+
+
+async def get_current_admin(user: User = _CURRENT_USER_DEPENDENCY) -> User:
     if not user.is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
