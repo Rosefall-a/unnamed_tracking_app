@@ -1535,6 +1535,7 @@ defineExpose({ openQuickAdd });
                   </div>
                 </div>
               </div>
+            </div>
           </div>
         </template>
       </div>
