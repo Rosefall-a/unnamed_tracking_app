@@ -50,7 +50,7 @@ const router = createRouter({
       component: () => import("../views/CollectionDetail.vue"),
     },
     { path: "/collections", redirect: "/games/collections" },
-    { path: "/collections/:name", redirect: "/games/collections/:name" },
+    { path: "/collections/:name", redirect: (to) => `/games/collections/${encodeURIComponent(String(to.params.name))}` },
     { path: "/upload", redirect: "/settings?section=upload" },
     { path: "/inbox", redirect: "/settings?section=upload" },
     {
@@ -126,7 +126,7 @@ const router = createRouter({
       component: () => import("../views/MediaListDetail.vue"),
     },
     { path: "/lists", redirect: "/media/collections" },
-    { path: "/lists/:id", redirect: "/media/collections/:id" },
+    { path: "/lists/:id", redirect: (to) => `/media/collections/${encodeURIComponent(String(to.params.id))}` },
     // History merged into the Calendar page as a second tab
     { path: "/history", redirect: "/calendar" },
     {
