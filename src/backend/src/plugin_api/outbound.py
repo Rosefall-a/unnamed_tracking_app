@@ -15,13 +15,14 @@ MAX_BYTES = 4 * 1024 * 1024
 class NoRedirects(HTTPRedirectHandler):
     """Do not forward plugin credentials to a redirect destination."""
 
+    # urllib calls this override with its fixed positional callback signature.
+    # pylint: disable-next=too-many-positional-arguments
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         raise ValueError("Redirect refused; configure the final server URL.")
 
 
-def outbound_json(payload: dict[str, Any]) -> dict[str, Any]:
-    """Bounded JSON GET/POST; never return remote error bodies or credentials."""
-    url = payload.get("url")
+def _validated_url(url: object) -> str:
+    """Allow HTTP(S) endpoints without URL credentials, fragments or ambiguous separators."""
     if not isinstance(url, str) or len(url) > 8192:
         raise ValueError("Invalid outbound URL.")
     try:
@@ -29,32 +30,47 @@ def outbound_json(payload: dict[str, Any]) -> dict[str, Any]:
         _ = parts.port
     except ValueError as exc:
         raise ValueError("Invalid outbound URL.") from exc
-    if (
-        parts.scheme not in {"https", "http"}
-        or not parts.hostname
-        or parts.username
-        or parts.password
-        or parts.fragment
-        or any(c.isspace() for c in url)
-        or "\\" in url
+    if any(
+        (
+            parts.scheme not in {"https", "http"},
+            not parts.hostname,
+            parts.username,
+            parts.password,
+            parts.fragment,
+            any(c.isspace() for c in url),
+            "\\" in url,
+        )
     ):
         raise ValueError("Use an HTTP(S) URL without credentials or fragment.")
-    headers = payload.get("headers", {})
+    return url
+
+
+def _valid_header(key: object, value: object) -> bool:
+    if not isinstance(key, str) or not isinstance(value, str):
+        return False
+    return (
+        len(key) <= 128
+        and len(value) <= 2048
+        and "\n" not in key + value
+        and "\r" not in key + value
+        and key.lower() in {"accept", "authorization", "x-emby-token"}
+    )
+
+
+def _validated_headers(headers: object) -> dict[str, str]:
     if (
         not isinstance(headers, dict)
         or len(headers) > 16
-        or any(
-            not isinstance(k, str)
-            or not isinstance(v, str)
-            or len(k) > 128
-            or len(v) > 2048
-            or "\n" in k + v
-            or "\r" in k + v
-            or k.lower() not in {"accept", "authorization", "x-emby-token"}
-            for k, v in headers.items()
-        )
+        or any(not _valid_header(key, value) for key, value in headers.items())
     ):
         raise ValueError("Invalid outbound headers.")
+    return headers
+
+
+def _outbound_request(payload: dict[str, Any]) -> Request:
+    """Validate the request before the isolated worker performs any network operation."""
+    url = _validated_url(payload.get("url"))
+    headers = _validated_headers(payload.get("headers", {}))
     method = payload.get("method", "GET")
     if method not in {"GET", "POST"}:
         raise ValueError("Outbound method must be GET or POST.")
@@ -68,7 +84,7 @@ def outbound_json(payload: dict[str, Any]) -> dict[str, Any]:
             raise ValueError("Invalid outbound JSON body.") from exc
         if len(body_data) > 64 * 1024:
             raise ValueError("Outbound request exceeded the 64 KiB limit.")
-    request = Request(
+    return Request(
         url,
         data=body_data,
         method=method,
@@ -78,6 +94,11 @@ def outbound_json(payload: dict[str, Any]) -> dict[str, Any]:
             **({"Content-Type": "application/json"} if body_data else {}),
         },
     )
+
+
+def outbound_json(payload: dict[str, Any]) -> dict[str, Any]:
+    """Bounded JSON GET/POST; never return remote error bodies or credentials."""
+    request = _outbound_request(payload)
     try:
         with build_opener(NoRedirects()).open(request, timeout=8) as response:
             body = response.read(MAX_BYTES + 1)

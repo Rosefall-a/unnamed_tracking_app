@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any, Iterable, Mapping
 
-from .contracts import PluginManifest, version_satisfies
+from .contracts import PluginDependency, PluginManifest, version_satisfies
 
 
 class DependencyState(StrEnum):
@@ -61,64 +61,49 @@ def _dependencies(summary: Mapping[str, Any]) -> Iterable[Mapping[str, Any]]:
     return (item for item in value if isinstance(item, Mapping))
 
 
-def plan_dependencies(
+def _plan_item(
+    dependency: PluginDependency,
+    installed_item: Mapping[str, Any] | None,
+    available_item: Mapping[str, Any] | None,
+) -> DependencyPlanItem:
+    """Resolve the candidate's one direct dependency without modifying any installation."""
+    installed_version = _summary_version(installed_item)
+    available_version = _summary_version(available_item)
+    source_url = (
+        str(available_item.get("url"))
+        if available_item is not None and isinstance(available_item.get("url"), str)
+        else None
+    )
+    if installed_version and version_satisfies(installed_version, dependency.version_range):
+        state = DependencyState.SATISFIED
+    elif installed_version:
+        state = (
+            DependencyState.OPTIONAL_INCOMPATIBLE
+            if dependency.optional
+            else DependencyState.INCOMPATIBLE
+        )
+    elif available_version and version_satisfies(available_version, dependency.version_range):
+        state = DependencyState.AVAILABLE
+    else:
+        state = DependencyState.OPTIONAL_MISSING if dependency.optional else DependencyState.MISSING
+    return DependencyPlanItem(
+        plugin_id=dependency.plugin_id,
+        version_range=dependency.version_range,
+        optional=dependency.optional,
+        state=state,
+        installed_version=installed_version,
+        available_version=available_version,
+        source_url=source_url,
+    )
+
+
+def _dependency_order(
     manifest: PluginManifest,
-    installed: Iterable[Mapping[str, Any]],
-    available: Iterable[Mapping[str, Any]] = (),
-) -> DependencyPlan:
-    """Resolve one candidate against installed and source-advertised versions."""
-    installed_by_id = {
-        str(item.get("plugin_id")): item
-        for item in installed
-        if item.get("plugin_id") and not item.get("installation_pending")
-    }
-    available_by_id = {
-        str(item.get("plugin_id")): item for item in available if item.get("plugin_id")
-    }
-    items: list[DependencyPlanItem] = []
-    conflicts: list[str] = []
-
-    for dependency in manifest.dependencies:
-        installed_item = installed_by_id.get(dependency.plugin_id)
-        installed_version = _summary_version(installed_item)
-        available_item = available_by_id.get(dependency.plugin_id)
-        available_version = _summary_version(available_item)
-        source_url = (
-            str(available_item.get("url"))
-            if available_item is not None and isinstance(available_item.get("url"), str)
-            else None
-        )
-        if installed_version and version_satisfies(installed_version, dependency.version_range):
-            state = DependencyState.SATISFIED
-        elif installed_version:
-            state = (
-                DependencyState.OPTIONAL_INCOMPATIBLE
-                if dependency.optional
-                else DependencyState.INCOMPATIBLE
-            )
-        elif available_version and version_satisfies(available_version, dependency.version_range):
-            state = DependencyState.AVAILABLE
-        else:
-            state = (
-                DependencyState.OPTIONAL_MISSING if dependency.optional else DependencyState.MISSING
-            )
-        if state is DependencyState.INCOMPATIBLE:
-            conflicts.append(
-                f"{dependency.plugin_id} {installed_version} does not satisfy "
-                f"{dependency.version_range}"
-            )
-        items.append(
-            DependencyPlanItem(
-                plugin_id=dependency.plugin_id,
-                version_range=dependency.version_range,
-                optional=dependency.optional,
-                state=state,
-                installed_version=installed_version,
-                available_version=available_version,
-                source_url=source_url,
-            )
-        )
-
+    installed_by_id: Mapping[str, Mapping[str, Any]],
+    available_by_id: Mapping[str, Mapping[str, Any]],
+) -> tuple[tuple[str, ...], set[str], list[str]]:
+    """Visit the installed/candidate graph in dependency order and retain cycle diagnostics."""
+    cycles: list[str] = []
     graph: dict[str, tuple[str, ...]] = {
         plugin_id: tuple(
             str(item.get("plugin_id"))
@@ -147,7 +132,7 @@ def plan_dependencies(
     def visit(plugin_id: str, path: tuple[str, ...]) -> None:
         if plugin_id in visiting:
             cycle = " -> ".join((*path, plugin_id))
-            conflicts.append(f"dependency cycle detected: {cycle}")
+            cycles.append(f"dependency cycle detected: {cycle}")
             return
         if plugin_id in visited:
             return
@@ -160,6 +145,15 @@ def plan_dependencies(
         order.append(plugin_id)
 
     visit(manifest.plugin_id, ())
+    return tuple(order), visited, cycles
+
+
+def _reverse_conflicts(
+    manifest: PluginManifest,
+    installed_by_id: Mapping[str, Mapping[str, Any]],
+    visited: set[str],
+) -> list[str]:
+    conflicts: list[str] = []
     # Check transitive dependencies and reverse constraints on an update, not
     # just the candidate's direct declarations. Available packages are preview
     # hints; they cannot satisfy the installed graph before activation.
@@ -178,4 +172,40 @@ def plan_dependencies(
             version_range = str(summary_dependency.get("version_range", "*"))
             if version is None or not version_satisfies(version, version_range):
                 conflicts.append(f"{owner_id} requires {dependency_id} matching {version_range}")
-    return DependencyPlan(tuple(items), tuple(order), tuple(dict.fromkeys(conflicts)))
+    return conflicts
+
+
+def plan_dependencies(
+    manifest: PluginManifest,
+    installed: Iterable[Mapping[str, Any]],
+    available: Iterable[Mapping[str, Any]] = (),
+) -> DependencyPlan:
+    """Resolve one candidate against installed and source-advertised versions."""
+    installed_by_id = {
+        str(item.get("plugin_id")): item
+        for item in installed
+        if item.get("plugin_id") and not item.get("installation_pending")
+    }
+    available_by_id = {
+        str(item.get("plugin_id")): item for item in available if item.get("plugin_id")
+    }
+    items: list[DependencyPlanItem] = []
+    conflicts: list[str] = []
+
+    for dependency in manifest.dependencies:
+        item = _plan_item(
+            dependency,
+            installed_by_id.get(dependency.plugin_id),
+            available_by_id.get(dependency.plugin_id),
+        )
+        if item.state is DependencyState.INCOMPATIBLE:
+            conflicts.append(
+                f"{dependency.plugin_id} {item.installed_version} does not satisfy "
+                f"{dependency.version_range}"
+            )
+        items.append(item)
+
+    order, visited, cycles = _dependency_order(manifest, installed_by_id, available_by_id)
+    conflicts.extend(cycles)
+    conflicts.extend(_reverse_conflicts(manifest, installed_by_id, visited))
+    return DependencyPlan(tuple(items), order, tuple(dict.fromkeys(conflicts)))
