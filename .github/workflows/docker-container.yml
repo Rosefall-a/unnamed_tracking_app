@@ -39,7 +39,7 @@ jobs:
           cache-from: type=gha,scope=production-container
           cache-to: type=gha,mode=max,scope=production-container
 
-          
+
       - name: Validate production Nginx and TLS configuration
         run: docker run --rm --entrypoint /bin/sh unnamed_tracking_app:ci /opt/production-tests/test-nginx-config.sh
 

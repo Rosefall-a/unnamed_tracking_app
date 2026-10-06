@@ -337,14 +337,13 @@ async function sendRequest() {
   max-width: 680px;
 }
 .settings-section h2 {
-  margin: 0 0 8px;
-  padding-left: 12px;
-  border-left: 3px solid #d68a34;
-  font-size: 1rem;
-  color: #fff;
+  margin: 0 0 12px;
+  font: var(--ui-weight-heading) var(--ui-font-heading)/1.4
+    var(--ui-font-family);
+  color: var(--ui-text);
 }
 .hint {
-  color: #888;
+  color: var(--ui-faint);
   font-size: 0.85rem;
   line-height: 1.5;
   margin: 0 0 18px;
@@ -354,16 +353,16 @@ async function sendRequest() {
   flex-direction: column;
   gap: 6px;
   font-size: 0.85rem;
-  color: #ccc;
+  color: var(--ui-text);
   margin-bottom: 12px;
 }
 .field select,
 .field input,
 .field textarea {
-  background: #111;
-  border: 1px solid #3a3a3a;
-  border-radius: 8px;
-  color: #fff;
+  background: var(--ui-bg);
+  border: 1px solid var(--ui-border-strong);
+  border-radius: var(--ui-radius-control);
+  color: var(--ui-text);
   padding: 10px 12px;
   font: inherit;
   resize: vertical;
@@ -372,13 +371,13 @@ async function sendRequest() {
 .field input:focus,
 .field textarea:focus {
   outline: none;
-  border-color: #d68a34;
+  border-color: var(--ui-accent);
 }
 .primary-button {
-  background: #d68a34;
-  color: #111;
+  background: var(--ui-accent);
+  color: var(--ui-on-accent);
   border: none;
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   padding: 10px 18px;
   font-weight: 600;
   cursor: pointer;
@@ -393,7 +392,7 @@ async function sendRequest() {
   border: none;
   padding: 0;
   margin-top: 12px;
-  color: #d68a34;
+  color: var(--ui-accent-text);
   font-size: 0.82rem;
   cursor: pointer;
 }
@@ -402,20 +401,20 @@ async function sendRequest() {
 }
 .form-error {
   margin-top: 12px;
-  color: #fca5a5;
+  color: var(--ui-error);
   font-size: 13px;
   background: rgba(220, 38, 38, 0.1);
   border: 1px solid rgba(220, 38, 38, 0.3);
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   padding: 8px 10px;
 }
 .form-success {
   margin-top: 12px;
-  color: #86efac;
+  color: var(--ui-good);
   font-size: 13px;
   background: rgba(34, 197, 94, 0.1);
   border: 1px solid rgba(34, 197, 94, 0.3);
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   padding: 8px 10px;
 }
 .info-list {
@@ -430,16 +429,16 @@ async function sendRequest() {
   gap: 12px;
   font-size: 0.85rem;
   padding: 8px 12px;
-  background: #111;
-  border: 1px solid #2a2a2a;
-  border-radius: 8px;
+  background: var(--ui-bg);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
 }
 .info-row dt {
-  color: #888;
+  color: var(--ui-faint);
 }
 .info-row dd {
   margin: 0;
-  color: #eee;
+  color: var(--ui-text);
   font-weight: 600;
   text-align: right;
 }
@@ -451,28 +450,28 @@ async function sendRequest() {
 .method-select {
   flex-shrink: 0;
   width: 100px;
-  background: #111;
-  border: 1px solid #3a3a3a;
-  border-radius: 8px;
-  color: #fff;
+  background: var(--ui-bg);
+  border: 1px solid var(--ui-border-strong);
+  border-radius: var(--ui-radius-control);
+  color: var(--ui-text);
   padding: 10px 12px;
   font: inherit;
 }
 .path-input {
   flex: 1;
   min-width: 0;
-  background: #111;
-  border: 1px solid #3a3a3a;
-  border-radius: 8px;
-  color: #fff;
+  background: var(--ui-bg);
+  border: 1px solid var(--ui-border-strong);
+  border-radius: var(--ui-radius-control);
+  color: var(--ui-text);
   padding: 10px 12px;
   font: inherit;
   font-family: ui-monospace, monospace;
 }
 .response {
   margin-top: 12px;
-  border: 1px solid #2a2a2a;
-  border-radius: 8px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
   overflow: hidden;
 }
 .response-status {
@@ -483,17 +482,17 @@ async function sendRequest() {
 }
 .response-status.ok {
   background: rgba(34, 197, 94, 0.12);
-  color: #86efac;
+  color: var(--ui-good);
 }
 .response-status.err {
   background: rgba(220, 38, 38, 0.12);
-  color: #fca5a5;
+  color: var(--ui-error);
 }
 .response-body {
   margin: 0;
   padding: 12px;
   background: #0c0c0c;
-  color: #ddd;
+  color: var(--ui-text);
   font-family: ui-monospace, monospace;
   font-size: 0.78rem;
   line-height: 1.5;

@@ -180,31 +180,30 @@ function formatTime(epochSeconds: number): string {
 
 <style scoped>
 .settings-section h2 {
-  margin: 0 0 8px;
-  padding-left: 12px;
-  border-left: 3px solid #d68a34;
-  font-size: 1rem;
-  color: #fff;
+  margin: 0 0 12px;
+  font: var(--ui-weight-heading) var(--ui-font-heading)/1.4
+    var(--ui-font-family);
+  color: var(--ui-text);
 }
 .section-hint {
-  color: #999;
+  color: var(--ui-dim);
   font-size: 0.82rem;
   line-height: 1.6;
   margin: 0 0 20px;
 }
 .tile {
-  background: #111;
-  border: 1px solid #2a2a2a;
-  border-radius: 10px;
+  background: var(--ui-bg);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
   padding: 18px 20px;
 }
 .tile h3 {
   margin: 0 0 6px;
   font-size: 0.9rem;
-  color: #fff;
+  color: var(--ui-text);
 }
 .tile-desc {
-  color: #999;
+  color: var(--ui-dim);
   font-size: 0.8rem;
   line-height: 1.5;
   margin: 0 0 14px;
@@ -218,9 +217,9 @@ function formatTime(epochSeconds: number): string {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  background: rgba(214, 138, 52, 0.06);
-  border: 1px solid rgba(214, 138, 52, 0.25);
-  border-radius: 8px;
+  background: color-mix(in srgb, var(--ui-accent) 6%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ui-accent) 25%, transparent);
+  border-radius: var(--ui-radius-control);
   padding: 12px 14px;
   margin-bottom: 14px;
 }
@@ -237,18 +236,18 @@ function formatTime(epochSeconds: number): string {
 .refresh-result-label {
   flex-shrink: 0;
   font-weight: 700;
-  color: #d68a34;
+  color: var(--ui-accent-text);
 }
 .progress-track {
   height: 8px;
   border-radius: 999px;
-  background: #1f1f1f;
+  background: var(--ui-surface-2);
   overflow: hidden;
   margin: 8px 0 6px;
 }
 .progress-fill {
   height: 100%;
-  background: #d68a34;
+  background: var(--ui-accent);
   transition: width 0.4s ease;
 }
 .progress-line {
@@ -265,7 +264,7 @@ function formatTime(epochSeconds: number): string {
   white-space: nowrap;
 }
 .refresh-note {
-  color: #999;
+  color: var(--ui-dim);
   font-size: 0.76rem;
   line-height: 1.5;
   margin: 8px 0 0;
@@ -279,10 +278,10 @@ function formatTime(epochSeconds: number): string {
   gap: 14px;
 }
 .primary-button {
-  background: #d68a34;
-  color: #111;
+  background: var(--ui-accent);
+  color: var(--ui-on-accent);
   border: none;
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   padding: 11px 20px;
   font-weight: 600;
   cursor: pointer;
@@ -290,14 +289,14 @@ function formatTime(epochSeconds: number): string {
 .refresh-secondary {
   background: transparent;
   color: #e5e5e5;
-  border: 1px solid #333;
-  border-radius: 8px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
   padding: 11px 20px;
   font-weight: 600;
   cursor: pointer;
 }
 .refresh-secondary:hover:not(:disabled) {
-  border-color: rgba(214, 138, 52, 0.5);
+  border-color: color-mix(in srgb, var(--ui-accent) 50%, transparent);
 }
 .refresh-secondary:disabled {
   opacity: 0.6;
@@ -308,7 +307,7 @@ function formatTime(epochSeconds: number): string {
   cursor: default;
 }
 .last-run {
-  color: #777;
+  color: var(--ui-faint);
   font-size: 0.78rem;
 }
 </style>

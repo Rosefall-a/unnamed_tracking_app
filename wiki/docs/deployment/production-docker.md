@@ -36,13 +36,41 @@ The diagnostic Nginx listener intentionally remains available during startup fai
 
 PID 1 handles SIGTERM/SIGINT, sends SIGTERM to FastAPI, waits for it, then asks Nginx to quit. This is intended to give active requests a normal shutdown path without leaving orphaned child processes.
 
+## Plugin Runtime isolation
+
+Production Compose also defines a separate plugin-runtime service for the
+Plugin Manager. Set `PLUGIN_RUNTIME_TOKEN` to a random value of at least 32
+characters; it is passed only to the application and runtime services for
+their authenticated internal transport.
+
+The application joins a dedicated internal gateway network so it can reach the
+runtime. The runtime has no membership in the core application/database
+network, no host port, no core environment or application volume, and no
+Docker socket.
+
+Container hardening includes a non-root user, read-only root filesystem,
+temporary filesystem only for /tmp, dropped Linux capabilities,
+no-new-privileges, and bounded PID/CPU/memory resources.
+
+Inside that container, each plugin is launched by the runtime supervisor in
+its own bubblewrap namespaces and process group with independent CPU, memory,
+file-descriptor and child-process limits. Plugin subprocesses receive a
+fresh environment and cannot receive core secrets.
+
+Outbound plugin networking is default-deny. The plugin sandbox has no direct
+network namespace access. Approved external traffic uses runtime-owned,
+narrowly validated senders rather than unrestricted network sharing. The
+reference Discord provider additionally requires
+`PLUGIN_RUNTIME_DISCORD_EGRESS=true`; its host/path and payload size are
+validated by the runtime.
+
+The host enforces authenticated gateway access and capability grants. Plugin browser traffic is served through the application and is never published directly from the runtime.
+
 ## Permissions and filesystem
 
 Nginx workers run as `www-data`; the master retains the privileges required to bind ports 80/443 and control the process. Runtime status/log files are under `/run/unnamed-tracking`.
 
 The Compose example persists `./data:/data` and PostgreSQL state in a named volume. Runtime diagnostics are ephemeral. Use Docker logging or an external collector when durable logs are required.
-
-## Nginx security
 
 ## Logging and diagnostics
 
@@ -54,13 +82,13 @@ The startup page deliberately shows concise lifecycle status instead of raw logs
 
 ## Startup diagnostics
 
-## Optional embedded TLS
-
 It displays the lifecycle phase, database status, migration status, backend status, frontend status, and the current message. On failure the loading indicator stops and the failure state is shown. Raw logs are deliberately not displayed by default.
 
 Diagnostic endpoints are `/_startup/status.json` and `/_startup/details.txt`. Raw backend and migration logs are not public HTTP resources.
 
 The startup JavaScript polls asynchronously and slows down after READY. When a failure is reported, the loading animation stops and concise diagnostic details open.
+## Optional embedded TLS
+
 HTTP-only remains the default. TLS is deployment-only. When TLS is enabled, the container selects `readytls.conf` or `readytlsredirect.conf` before replacing `/etc/nginx/nginx.conf`. If `NGINX_TLS_CERTIFICATE` and `NGINX_TLS_PRIVATE_KEY` are empty, a complete `/etc/nginx/tls/tls.crt` and `/etc/nginx/tls/tls.key` pair is used automatically when present; otherwise a self-signed localhost certificate/key pair is generated under `/run/unnamed-tracking/tls`. Explicit certificate/key paths remain supported for production. TLS is disabled by default.
 
 | Variable | Default | Meaning |
@@ -101,6 +129,14 @@ For small deployments, start around 2 CPU cores and 2 GiB RAM and size upward ba
 
 ## CI scope
 
+The separate production-runtime smoke workflow validates startup, database migration, login and backend failure states against a real PostgreSQL container.
+
+Database credentials supplied through the individual `POSTGRES_*` values may
+contain reserved characters. The backend encodes them for its connection URL,
+and the migration environment preserves those percent escapes when passing the
+URL through Alembic's configuration parser. An encoded password must not prevent
+a fresh container from migrating or starting.
+
 ## Persistence
 
 The production Compose deployment persists application data through ./data:/data and PostgreSQL data through the named pgdata volume.
@@ -111,12 +147,20 @@ Do not remove these storage locations when recreating the production container.
 
 .github/workflows/docker-container.yml builds the production image on pull requests and pushes images for non-pull-request events. For non-PR events it pushes both a ref-derived tag and a sha-<commit> tag to GHCR.
 
-The current workflow does not perform a full PostgreSQL/application runtime smoke test after building the image. Its failure diagnostics are Docker log commands if a workflow step fails.
+The image-build workflow validates the image and Nginx configuration. The separate production-runtime smoke workflow exercises startup, migration, login and backend failures with PostgreSQL.
 
 ## Secrets
 
-The production entrypoint does not print passwords, tokens, API keys, SMTP credentials, private keys, webhook secrets, or session secrets.
+Backend and migration output passes through credential redaction before Docker forwarding and private log retention. Public startup details contain concise lifecycle status and operator log paths; raw logs are not published as HTTP resources.
 
-## TLS
 
-The production-container workflow builds the image and validates Nginx/TLS configuration with deterministic self-signed test material. It does not run the full PostgreSQL/application runtime smoke suite; that remains #206 so normal image CI is not coupled to an environment-dependent integration stack.
+The production-container workflow builds the image and validates Nginx/TLS configuration with deterministic self-signed test material. The separate production-runtime workflow covers application startup, PostgreSQL migrations, login, JSON API responses and backend failure states.
+
+## Upload transport
+
+Embedded Nginx forwards upload bodies to the application instead of applying its
+default 1 MB ceiling. The host still enforces each saved image/file, clip, save
+archive, world-save and plugin-package limit. This keeps administrator overrides
+and large supported archives usable and returns native JSON validation results.
+HTTP and HTTPS use the same limits; operator backend/migration logs remain private
+in both modes. An additional external proxy must allow the configured upload size.

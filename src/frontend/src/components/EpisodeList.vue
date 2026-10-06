@@ -473,10 +473,10 @@ function goToPage(p: number) {
   padding: 4px 0;
 }
 .pager-btn {
-  background: #1a1a1a;
-  border: 1px solid #2b2b2b;
-  color: #ccc;
-  border-radius: 7px;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  color: var(--ui-text);
+  border-radius: var(--ui-radius-control);
   padding: 6px 14px;
   font-family: inherit;
   font-size: 0.8rem;
@@ -484,8 +484,8 @@ function goToPage(p: number) {
   cursor: pointer;
 }
 .pager-btn:hover:not(:disabled) {
-  border-color: rgba(214, 138, 52, 0.4);
-  color: #d68a34;
+  border-color: color-mix(in srgb, var(--ui-accent) 40%, transparent);
+  color: var(--ui-accent-text);
 }
 .pager-btn:disabled {
   opacity: 0.4;
@@ -493,27 +493,27 @@ function goToPage(p: number) {
 }
 .pager-label {
   font-size: 0.78rem;
-  color: #9c9c9c;
+  color: var(--ui-dim);
   font-variant-numeric: tabular-nums;
 }
 .episode-pager select {
-  background: #1a1a1a;
-  border: 1px solid #2b2b2b;
-  color: #f2f2f2;
-  border-radius: 7px;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  color: var(--ui-text);
+  border-radius: var(--ui-radius-control);
   padding: 6px 10px;
   font-family: inherit;
   font-size: 0.8rem;
 }
 .episodes-loading {
-  color: #9c9c9c;
+  color: var(--ui-dim);
   font-size: 0.85rem;
 }
 .episodes-unavailable {
-  border: 1px dashed #2a2a2a;
-  border-radius: 10px;
+  border: 1px dashed var(--ui-border);
+  border-radius: var(--ui-radius-row);
   padding: 24px;
-  color: #666;
+  color: var(--ui-faint);
   font-size: 0.86rem;
   line-height: 1.6;
   text-align: center;
@@ -523,17 +523,17 @@ function goToPage(p: number) {
   grid-template-columns: 26px 140px 1fr auto auto;
   gap: 14px;
   align-items: center;
-  background: #1a1a1a;
-  border: 1px solid #202020;
-  border-radius: 10px;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-row);
   padding: 10px;
   transition: border-color 0.15s ease;
 }
 .catch-up-btn {
   background: none;
-  border: 1px solid #2b2b2b;
-  color: #666;
-  border-radius: 7px;
+  border: 1px solid var(--ui-border);
+  color: var(--ui-faint);
+  border-radius: var(--ui-radius-control);
   padding: 5px 10px;
   font-family: inherit;
   font-size: 0.72rem;
@@ -550,17 +550,17 @@ function goToPage(p: number) {
   opacity: 1;
 }
 .catch-up-btn:hover {
-  color: #d68a34;
-  border-color: rgba(214, 138, 52, 0.4);
+  color: var(--ui-accent-text);
+  border-color: color-mix(in srgb, var(--ui-accent) 40%, transparent);
 }
 .add-note-btn {
   align-self: flex-start;
   margin-top: 6px;
   background: none;
-  border: 1px dashed #333;
+  border: 1px dashed var(--ui-border);
   border-radius: 6px;
   padding: 3px 10px;
-  color: #666;
+  color: var(--ui-faint);
   font-family: inherit;
   font-size: 0.72rem;
   font-weight: 600;
@@ -582,23 +582,23 @@ function goToPage(p: number) {
   }
 }
 .add-note-btn:hover {
-  color: #d68a34;
-  border-color: rgba(214, 138, 52, 0.5);
+  color: var(--ui-accent-text);
+  border-color: color-mix(in srgb, var(--ui-accent) 50%, transparent);
 }
 .note-card {
   margin-top: 8px;
   padding: 8px 12px 8px;
-  background: rgba(214, 138, 52, 0.07);
-  border: 1px solid rgba(214, 138, 52, 0.22);
-  border-radius: 8px;
+  background: color-mix(in srgb, var(--ui-accent) 7%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ui-accent) 22%, transparent);
+  border-radius: var(--ui-radius-control);
 }
 .note-head {
   display: flex;
   align-items: center;
   gap: 6px;
-  color: #d68a34;
+  color: var(--ui-accent-text);
   font-size: 0.66rem;
-  font-weight: 800;
+  font-weight: var(--ui-weight-title);
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
@@ -607,18 +607,18 @@ function goToPage(p: number) {
   background: none;
   border: none;
   padding: 0;
-  color: #9c8760;
+  color: var(--ui-dim);
   font-family: inherit;
   font-size: 0.7rem;
   font-weight: 700;
   cursor: pointer;
 }
 .note-edit:hover {
-  color: #d68a34;
+  color: var(--ui-accent-text);
 }
 .note-body {
   margin: 4px 0 0;
-  color: #e3d5bb;
+  color: var(--ui-text);
   font-size: 0.82rem;
   line-height: 1.5;
   white-space: pre-wrap;
@@ -635,14 +635,14 @@ function goToPage(p: number) {
   background: none;
   border: none;
   padding: 0;
-  color: #9c8760;
+  color: var(--ui-dim);
   font-family: inherit;
   font-size: 0.7rem;
   font-weight: 700;
   cursor: pointer;
 }
 .note-more:hover {
-  color: #d68a34;
+  color: var(--ui-accent-text);
 }
 .note-editor {
   display: flex;
@@ -653,10 +653,10 @@ function goToPage(p: number) {
 .note-editor textarea {
   width: 100%;
   box-sizing: border-box;
-  background: #0d0d0d;
-  border: 1px solid #3a3a3a;
-  border-radius: 8px;
-  color: #eee;
+  background: var(--ui-bg);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
+  color: var(--ui-text);
   padding: 9px 11px;
   font: inherit;
   font-size: 0.82rem;
@@ -665,7 +665,7 @@ function goToPage(p: number) {
 }
 .note-editor textarea:focus {
   outline: none;
-  border-color: #d68a34;
+  border-color: var(--ui-accent-line);
 }
 .note-foot {
   display: flex;
@@ -679,11 +679,11 @@ function goToPage(p: number) {
 .note-count,
 .note-hint {
   font-size: 0.68rem;
-  color: #666;
+  color: var(--ui-faint);
   font-variant-numeric: tabular-nums;
 }
 .note-count.near {
-  color: #e57373;
+  color: var(--ui-error);
 }
 .note-save,
 .note-cancel,
@@ -697,33 +697,33 @@ function goToPage(p: number) {
   cursor: pointer;
 }
 .note-save {
-  background: #d68a34;
-  color: #14100a;
+  background: var(--ui-accent);
+  color: var(--ui-on-accent);
 }
 .note-cancel {
-  background: rgba(255, 255, 255, 0.08);
-  color: #ccc;
+  background: color-mix(in srgb, var(--ui-text) 8%, transparent);
+  color: var(--ui-text);
 }
 .note-remove {
   background: none;
-  color: #d96f6f;
+  color: var(--ui-error);
 }
 .episode-row.watched {
-  border-color: rgba(214, 138, 52, 0.4);
+  border-color: color-mix(in srgb, var(--ui-accent) 40%, transparent);
 }
 .episode-row.next-up {
-  border-color: rgba(214, 138, 52, 0.55);
-  background: rgba(214, 138, 52, 0.06);
+  border-color: color-mix(in srgb, var(--ui-accent) 55%, transparent);
+  background: color-mix(in srgb, var(--ui-accent) 6%, transparent);
 }
 .episode-row.projected {
-  border-color: rgba(214, 138, 52, 0.3);
+  border-color: color-mix(in srgb, var(--ui-accent) 30%, transparent);
   border-style: dashed;
 }
 .episode-row.virtual {
   opacity: 0.6;
 }
 .episode-row.virtual .episode-title {
-  color: #9c9c9c;
+  color: var(--ui-dim);
   font-style: italic;
 }
 .episode-checkbox:disabled,
@@ -733,13 +733,13 @@ function goToPage(p: number) {
 }
 .episode-countdown {
   font-size: 0.72rem;
-  color: #d68a34;
+  color: var(--ui-accent-text);
   font-weight: 700;
   margin-left: auto;
   white-space: nowrap;
 }
 .episode-countdown.projected {
-  color: #b8874a;
+  color: var(--ui-accent-text);
   font-weight: 600;
   opacity: 0.8;
 }
@@ -747,36 +747,36 @@ function goToPage(p: number) {
   width: 20px;
   height: 20px;
   border-radius: 5px;
-  border: 1.5px solid #2b2b2b;
-  background: #222222;
+  border: 1.5px solid var(--ui-border);
+  background: var(--ui-surface-2);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #d68a34;
+  color: var(--ui-accent-text);
   font-size: 0.75rem;
-  font-weight: 800;
+  font-weight: var(--ui-weight-title);
   flex-shrink: 0;
   padding: 0;
 }
 .episode-row.watched .episode-checkbox {
-  background: rgba(214, 138, 52, 0.16);
-  border-color: #d68a34;
+  background: color-mix(in srgb, var(--ui-accent) 16%, transparent);
+  border-color: var(--ui-accent-line);
 }
 .episode-thumb {
   width: 140px;
   aspect-ratio: 16 / 9;
-  border-radius: 7px;
+  border-radius: var(--ui-radius-control);
   background-size: cover;
   background-repeat: no-repeat;
   background-position: center;
-  background-color: #222222;
+  background-color: var(--ui-surface-2);
   flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 0.68rem;
-  color: #666;
+  color: var(--ui-faint);
   text-align: center;
 }
 .episode-info {
@@ -791,24 +791,24 @@ function goToPage(p: number) {
 }
 .episode-number {
   font-size: 0.76rem;
-  color: #666;
+  color: var(--ui-faint);
   font-variant-numeric: tabular-nums;
   flex-shrink: 0;
 }
 .episode-title {
   font-weight: 700;
   font-size: 0.9rem;
-  color: #fff;
+  color: var(--ui-text);
 }
 .episode-air {
   font-size: 0.72rem;
-  color: #666;
+  color: var(--ui-faint);
   margin-left: auto;
   white-space: nowrap;
 }
 .episode-desc {
   font-size: 0.8rem;
-  color: #9c9c9c;
+  color: var(--ui-dim);
   line-height: 1.5;
   margin: 0;
   display: -webkit-box;
@@ -823,14 +823,14 @@ function goToPage(p: number) {
   flex-shrink: 0;
 }
 .episode-rating .star {
-  color: #d68a34;
+  color: var(--ui-accent-text);
   font-size: 0.85rem;
 }
 .episode-rating input {
   width: 52px;
-  background: #222222;
-  border: 1px solid #2b2b2b;
-  color: #fff;
+  background: var(--ui-surface-2);
+  border: 1px solid var(--ui-border);
+  color: var(--ui-text);
   border-radius: 6px;
   padding: 5px 6px;
   font-family: inherit;

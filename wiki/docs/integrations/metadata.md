@@ -1,4 +1,4 @@
-# Metadata Providers
+# Metadata providers
 
 Unnamed Tracking App uses the existing game metadata-provider registry for both adding games and refreshing metadata on an existing game. Provider order and field-saving preferences are configured per user under **Settings → Metadata → Scan Settings / Metadata/API**.
 
@@ -63,6 +63,15 @@ configured**, so the same provider appearing in both places isn't a sign
 that they're out of sync.
 
 IGDB, TMDB, OMDb and TVDB are server-wide only.
+## Safe operation
+
+- Keep provider client secrets and API keys out of browser storage, screenshots, logs, and the wiki.
+- Environment-managed server credentials should be rotated through deployment tooling.
+- Search results are previews; users review data before creating a record.
+- Refresh operations respect supported locked fields and user ownership.
+- Provider failures are contained and reported rather than granting a fallback access path.
+
+Plugins do not receive provider credentials. A plugin can use only the normalized methods granted through Plugin API v1.
 
 
 ## Steam tags as genres

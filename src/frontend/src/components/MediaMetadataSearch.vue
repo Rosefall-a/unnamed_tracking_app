@@ -88,21 +88,21 @@ const emit = defineEmits<{
   width: 100%;
   padding: 9px 10px;
   text-align: left;
-  color: #fff;
-  background: #202020;
-  border: 1px solid #2a2a2a;
+  color: var(--ui-text);
+  background: var(--ui-border);
+  border: 1px solid var(--ui-border);
   border-radius: 6px;
   cursor: pointer;
   font-family: inherit;
 }
 
 .metadata-result:hover {
-  border-color: #d68a34;
+  border-color: var(--ui-accent-text);
   background: #282828;
 }
 
 .metadata-result small {
-  color: #999;
+  color: var(--ui-dim);
   font-size: 0.78rem;
 }
 
@@ -130,7 +130,7 @@ const emit = defineEmits<{
 
 .field span {
   font-size: 0.78rem;
-  color: #999;
+  color: var(--ui-dim);
 }
 
 .field-row {
@@ -144,10 +144,10 @@ const emit = defineEmits<{
 }
 
 .text-input {
-  background: #111;
-  border: 1px solid #2a2a2a;
-  border-radius: 8px;
-  color: #fff;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
+  color: var(--ui-text);
   padding: 8px 10px;
   font-size: 0.85rem;
   font-family: inherit;
@@ -156,22 +156,22 @@ const emit = defineEmits<{
 }
 
 .text-input:focus {
-  outline: 2px solid #d68a34;
+  outline: 2px solid var(--ui-accent-text);
   outline-offset: 1px;
 }
 
 .secondary-button {
-  background: #111;
-  border: 1px solid #2a2a2a;
-  color: #ccc;
-  border-radius: 8px;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  color: var(--ui-text);
+  border-radius: var(--ui-radius-control);
   padding: 9px 14px;
   font-size: 0.85rem;
   cursor: pointer;
 }
 .hint {
   font-size: 0.78rem;
-  color: #999;
+  color: var(--ui-dim);
   margin: 0;
 }
 </style>

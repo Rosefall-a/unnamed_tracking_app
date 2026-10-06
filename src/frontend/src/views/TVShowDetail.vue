@@ -30,8 +30,11 @@ import RelationsGraph from "../components/RelationsGraph.vue";
 import type { ChainNode, BranchNode } from "../components/RelationsGraph.vue";
 import MediaPreviewModal from "../components/MediaPreviewModal.vue";
 import { useConfirm } from "../state/dialog";
+import MediaProviderPanel from "../components/MediaProviderPanel.vue";
 import MediaTopBar from "../components/MediaTopBar.vue";
 import BackButton from "../components/BackButton.vue";
+import PluginExtensionSlot from "../components/plugins/PluginExtensionSlot.vue";
+import PluginContextualActions from "../components/plugins/PluginContextualActions.vue";
 import { formatAiringCountdown } from "../utils/countdown";
 import { statusBucket, bucketToReal } from "../utils/mediaStatus";
 
@@ -619,6 +622,21 @@ async function onRatingChange(value: number | null) {
 
   <main v-else-if="show" class="detail">
     <MediaTopBar active="tv" />
+    <PluginExtensionSlot
+      slot-id="media.detail.after-header"
+      :context="{
+        host_page: 'media.detail',
+        media_id: show.id,
+        media_type: 'tv',
+      }"
+    />
+    <PluginContextualActions
+      :context="{
+        kind: 'media',
+        resource_id: String(show.id),
+        resource_type: 'tv',
+      }"
+    />
 
     <BackButton class="back-spot" @click="goBack" />
 
@@ -709,6 +727,7 @@ async function onRatingChange(value: number | null) {
           :text="show.description"
         />
         <MyNote :note="show.note" @save="saveNote" />
+        <MediaProviderPanel media-type="tv" :media-id="show.id" />
       </div>
 
       <div v-else-if="activeTab === 'episodes'" class="tab-panel">
@@ -879,14 +898,14 @@ async function onRatingChange(value: number | null) {
 
 <style scoped>
 .error-text {
-  color: #e57373;
+  color: var(--ui-error);
   font-size: 0.85rem;
   margin: 0 0 12px;
 }
 
 .episodes-total {
   font-size: 0.8rem;
-  color: #d68a34;
+  color: var(--ui-accent-text);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
@@ -900,10 +919,10 @@ async function onRatingChange(value: number | null) {
 .airing-ctl {
   height: 30px;
   box-sizing: border-box;
-  background: #1a1a1a;
-  border: 1px solid #2b2b2b;
-  color: #ccc;
-  border-radius: 7px;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  color: var(--ui-text);
+  border-radius: var(--ui-radius-control);
   padding: 0 12px;
   font-family: inherit;
   font-size: 0.76rem;
@@ -912,8 +931,8 @@ async function onRatingChange(value: number | null) {
 }
 
 .airing-ctl:hover:not(:disabled) {
-  border-color: rgba(214, 138, 52, 0.4);
-  color: #d68a34;
+  border-color: color-mix(in srgb, var(--ui-accent) 40%, transparent);
+  color: var(--ui-accent-text);
 }
 
 .airing-ctl:disabled {
@@ -922,9 +941,9 @@ async function onRatingChange(value: number | null) {
 }
 
 .next-episode-banner {
-  background: rgba(214, 138, 52, 0.12);
-  border: 1px solid rgba(214, 138, 52, 0.35);
-  color: #d68a34;
+  background: color-mix(in srgb, var(--ui-accent) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ui-accent) 35%, transparent);
+  color: var(--ui-accent-text);
   border-radius: 999px;
   padding: 4px 12px;
   font-size: 0.76rem;
@@ -937,7 +956,7 @@ async function onRatingChange(value: number | null) {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: #666;
+  color: var(--ui-faint);
 }
 
 .season-divider:first-child {
@@ -949,6 +968,6 @@ async function onRatingChange(value: number | null) {
 }
 
 .poster-card-sm:hover .poster-card-sm-art {
-  border-color: rgba(214, 138, 52, 0.5);
+  border-color: color-mix(in srgb, var(--ui-accent) 50%, transparent);
 }
 </style>

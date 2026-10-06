@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#f5f4f1"><title>Waiting for internet · Unnamed Tracking</title>
+<style>
+:root{color-scheme:light;--ui-bg:#f5f4f1;--ui-surface:#ffffff;--ui-text:#252a30;--ui-dim:#59616c;--ui-accent:#a4520d;--ui-on-accent:#ffffff}
+:root[data-theme="dark"]{color-scheme:dark;--ui-bg:#17191c;--ui-surface:#212428;--ui-text:#edf0f3;--ui-dim:#adb5c0;--ui-accent:#efac59;--ui-on-accent:#000000}
+*{box-sizing:border-box}body{margin:0;background:var(--ui-bg);color:var(--ui-text);font:16px Inter,"Segoe UI",system-ui,sans-serif;display:grid;place-items:center;min-height:100vh;min-height:100svh;padding:max(20px,env(safe-area-inset-top)) max(20px,env(safe-area-inset-right)) max(20px,env(safe-area-inset-bottom)) max(20px,env(safe-area-inset-left))}
+main{width:100%;max-width:36rem;padding:clamp(20px,5vw,32px);background:var(--ui-surface);border:1px solid color-mix(in srgb,var(--ui-text) 22%,var(--ui-surface));border-radius:24px}h1{font-size:clamp(1.625rem,5vw,2rem);margin:0 0 20px;overflow-wrap:anywhere}p{color:var(--ui-dim);line-height:1.6}button,a{font:inherit}button{min-height:44px;padding:12px 20px;background:var(--ui-accent);color:var(--ui-on-accent);border:0;border-radius:14px;cursor:pointer;font-weight:600}a{display:inline-flex;align-items:center;min-height:44px;color:var(--ui-accent)}:focus-visible{outline:3px solid var(--ui-accent);outline-offset:4px}
+</style>
+<script>
+(() => {
+  const root = document.documentElement;
+  const system = matchMedia('(prefers-color-scheme: dark)');
+  let theme = 'system', appearance = null, stylesheet = null, packageId = null, themeReady = false;
+  const roles = ['background','surface','surface_alt','text','muted','accent','success','warning','error','info','purple'];
+  try {
+    const legacy = localStorage.getItem('ui-theme');
+    if (['light','dark','system'].includes(legacy)) theme = legacy;
+    const raw = localStorage.getItem('ui-appearance');
+    if (raw && raw.length <= 4096) {
+      const saved = JSON.parse(raw);
+      if (saved.version === 1 && ['light','dark','system'].includes(saved.theme) && ['orange','green','custom'].includes(saved.palette) && typeof saved.highContrast === 'boolean' &&
+          ['light','dark'].every(mode => saved.colors?.[mode] && Object.keys(saved.colors[mode]).length === roles.length && roles.every(role => typeof saved.colors[mode][role] === 'string' && /^#[0-9a-f]{6}$/i.test(saved.colors[mode][role])))) {
+        appearance = saved;
+        theme = saved.theme;
+      }
+    }
+    const css = localStorage.getItem('ui-theme-stylesheet');
+    const id = localStorage.getItem('ui-theme-package');
+    if (typeof css === 'string' && css.length <= 800 && typeof id === 'string' && /^[a-z0-9][a-z0-9._-]{0,127}$/.test(id) &&
+        css.startsWith('/api/themes/assets/'+id+'/') && /^\/api\/themes\/assets\/[a-z0-9][a-z0-9._-]{0,127}\/[a-f0-9]{64}\/(?:[a-z0-9_./% -])+\.css$/i.test(css) && !css.includes('..')) {
+      stylesheet = css;
+      packageId = id;
+    }
+  } catch { /* Storage denial or invalid data uses the accessible defaults. */ }
+  const luminance = hex => {
+    const channels = [1,3,5].map(offset => parseInt(hex.slice(offset,offset+2),16)/255).map(value => value <= .04045 ? value/12.92 : ((value+.055)/1.055)**2.4);
+    return channels[0]*.2126 + channels[1]*.7152 + channels[2]*.0722;
+  };
+  const apply = () => {
+    const mode = theme === 'system' ? (system.matches ? 'dark' : 'light') : theme;
+    root.dataset.theme = mode;
+    if (themeReady) {
+      for (const token of ['bg','surface','text','dim','accent','on-accent']) root.style.removeProperty('--ui-'+token);
+    } else if (appearance) {
+      const colors = appearance.colors[mode];
+      root.dataset.palette = appearance.palette;
+      for (const [token,role] of [['bg','background'],['surface','surface'],['text','text'],['dim',appearance.highContrast?'text':'muted'],['accent','accent']]) root.style.setProperty('--ui-'+token,colors[role]);
+      const light = luminance(colors.accent);
+      root.style.setProperty('--ui-on-accent',1.05/(light+.05) >= (light+.05)/.05 ? '#ffffff' : '#000000');
+    }
+    document.querySelector('meta[name="theme-color"]').content = getComputedStyle(root).getPropertyValue('--ui-bg').trim();
+  };
+  apply();
+  if (stylesheet) {
+    root.dataset.themePackage = packageId;
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = stylesheet;
+    link.addEventListener('load', () => { themeReady = true; apply(); });
+    link.addEventListener('error', () => { themeReady = false; root.dataset.themePackage = 'native'; apply(); });
+    document.head.append(link);
+  }
+  system.addEventListener('change',apply);
+})();
+</script></head>
+<body><main><h1>Waiting for internet</h1><p>Reconnect to your tracking server to use Unnamed Tracking. Your account data and API responses are never stored in this offline page.</p><p>The installed app opens the complete web application when you reconnect. If its plugin was disabled or removed, the ordinary website remains available.</p><button type="button" id="retry">Try again</button><p><a href="/settings?section=plugins">Open plugin settings when online</a></p></main>
+<script>document.getElementById('retry').addEventListener('click',()=>location.reload());window.addEventListener('online',()=>location.reload());</script></body></html>

@@ -11,7 +11,11 @@ import ToggleButton from "./ToggleButton.vue";
 import PasswordInput from "../PasswordInput.vue";
 import type { AdminUser } from "../../services/admin";
 import PasswordRequirements from "./PasswordRequirements.vue";
-import { fetchPasswordPolicy, passwordValidationErrors, type PasswordPolicy } from "../../services/passwordPolicy";
+import {
+  fetchPasswordPolicy,
+  passwordValidationErrors,
+  type PasswordPolicy,
+} from "../../services/passwordPolicy";
 
 const users = ref<AdminUser[]>([]);
 const loading = ref(true);
@@ -32,9 +36,14 @@ async function loadUsers() {
 onMounted(async () => {
   await Promise.all([
     loadUsers(),
-    fetchPasswordPolicy().then((policy) => { passwordPolicy.value = policy; }).catch((err) => {
-      error.value = err instanceof Error ? err.message : "Failed to load password policy";
-    }),
+    fetchPasswordPolicy()
+      .then((policy) => {
+        passwordPolicy.value = policy;
+      })
+      .catch((err) => {
+        error.value =
+          err instanceof Error ? err.message : "Failed to load password policy";
+      }),
   ]);
 });
 
@@ -139,23 +148,23 @@ function openCreateForm() {
       <table class="user-table">
         <thead>
           <tr>
-            <th>Username</th>
-            <th>Email</th>
-            <th>Role</th>
-            <th>Joined</th>
-            <th></th>
+            <th scope="col">Username</th>
+            <th scope="col">Email</th>
+            <th scope="col">Role</th>
+            <th scope="col">Joined</th>
+            <th scope="col">Actions</th>
           </tr>
         </thead>
         <tbody>
           <tr v-for="user in users" :key="user.id">
-            <td>{{ user.username }}</td>
-            <td>{{ user.email }}</td>
-            <td>
+            <td data-label="Username">{{ user.username }}</td>
+            <td data-label="Email">{{ user.email }}</td>
+            <td data-label="Role">
               <span class="role-badge" :class="{ admin: user.is_admin }">{{
                 user.is_admin ? "Admin" : "User"
               }}</span>
             </td>
-            <td class="joined">
+            <td class="joined" data-label="Joined">
               {{
                 user.created_at
                   ? new Date(user.created_at * 1000).toLocaleDateString()
@@ -214,8 +223,12 @@ function openCreateForm() {
             mode="new"
             autocomplete="new-password"
             :required="true"
-          /></label>
-        <PasswordRequirements v-if="passwordPolicy" :password="newPassword" :policy="passwordPolicy" />
+        /></label>
+        <PasswordRequirements
+          v-if="passwordPolicy"
+          :password="newPassword"
+          :policy="passwordPolicy"
+        />
         <label class="field"
           ><span>Confirm password</span
           ><PasswordInput
@@ -223,7 +236,7 @@ function openCreateForm() {
             mode="new"
             autocomplete="new-password"
             :required="true"
-          /></label>
+        /></label>
         <ToggleButton v-model="newIsAdmin" label="Grant admin access"
           >Grant admin access</ToggleButton
         >
@@ -265,14 +278,13 @@ function openCreateForm() {
 
 <style scoped>
 .settings-section h2 {
-  margin: 0 0 8px;
-  padding-left: 12px;
-  border-left: 3px solid #d68a34;
-  font-size: 1rem;
-  color: #fff;
+  margin: 0 0 12px;
+  font: var(--ui-weight-heading) var(--ui-font-heading)/1.4
+    var(--ui-font-family);
+  color: var(--ui-text);
 }
 .section-hint {
-  color: #999;
+  color: var(--ui-dim);
   font-size: 0.82rem;
   line-height: 1.6;
   margin: 0 0 16px;
@@ -285,32 +297,78 @@ function openCreateForm() {
 }
 .user-table th {
   text-align: left;
-  color: #777;
+  color: var(--ui-faint);
   font-size: 0.72rem;
   text-transform: uppercase;
   letter-spacing: 0.03em;
   padding: 0 10px 8px;
-  border-bottom: 1px solid #2a2a2a;
+  border-bottom: 1px solid var(--ui-border);
 }
 .user-table td {
   padding: 10px;
-  border-bottom: 1px solid #232323;
-  color: #ccc;
+  border-bottom: 1px solid var(--ui-border-soft);
+  color: var(--ui-text);
+}
+.user-table td:not(.actions) {
+  overflow-wrap: anywhere;
+}
+@media (max-width: 1100px) {
+  .user-table {
+    display: block;
+  }
+  .user-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+  .user-table tbody {
+    display: grid;
+    gap: 12px;
+  }
+  .user-table tr {
+    display: block;
+    padding: 12px;
+    border: 1px solid var(--ui-border-soft);
+    border-radius: var(--ui-radius-row);
+    background: var(--ui-bg);
+    min-width: 0;
+  }
+  .user-table td {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+    padding: 8px 4px;
+    border: 0;
+  }
+  .user-table td[data-label]::before {
+    content: attr(data-label);
+    width: 80px;
+    white-space: nowrap;
+    flex-shrink: 0;
+    color: var(--ui-dim);
+    font-size: var(--ui-font-small);
+  }
+  .user-table td.actions {
+    padding-top: 12px;
+    border-top: 1px solid var(--ui-border-soft);
+  }
 }
 .role-badge {
   font-size: 11px;
   font-weight: 700;
   padding: 3px 10px;
   border-radius: 999px;
-  color: #999;
-  background: rgba(255, 255, 255, 0.06);
+  color: var(--ui-dim);
+  background: color-mix(in srgb, var(--ui-text) 6%, transparent);
 }
 .role-badge.admin {
-  color: #d68a34;
-  background: rgba(214, 138, 52, 0.14);
+  color: var(--ui-accent-text);
+  background: color-mix(in srgb, var(--ui-accent) 14%, transparent);
 }
 .joined {
-  color: #999;
+  color: var(--ui-dim);
   font-size: 0.8rem;
 }
 .actions {
@@ -318,8 +376,8 @@ function openCreateForm() {
   gap: 6px;
 }
 .small-button {
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
+  background: color-mix(in srgb, var(--ui-text) 8%, transparent);
+  color: var(--ui-text);
   border: none;
   border-radius: 6px;
   padding: 6px 10px;
@@ -332,13 +390,13 @@ function openCreateForm() {
   cursor: not-allowed;
 }
 .small-button.danger {
-  color: #fca5a5;
+  color: var(--ui-error);
 }
 .secondary-button {
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
+  background: color-mix(in srgb, var(--ui-text) 8%, transparent);
+  color: var(--ui-text);
   border: none;
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   padding: 10px 18px;
   font-weight: 600;
   cursor: pointer;
@@ -349,32 +407,32 @@ function openCreateForm() {
   gap: 14px;
   margin-top: 16px;
   padding-top: 16px;
-  border-top: 1px solid #2a2a2a;
+  border-top: 1px solid var(--ui-border);
 }
 .field {
   display: flex;
   flex-direction: column;
   gap: 6px;
   font-size: 0.85rem;
-  color: #ccc;
+  color: var(--ui-text);
 }
 .field input {
-  background: #111;
-  border: 1px solid #3a3a3a;
-  border-radius: 8px;
-  color: #fff;
+  background: var(--ui-bg);
+  border: 1px solid var(--ui-border-strong);
+  border-radius: var(--ui-radius-control);
+  color: var(--ui-text);
   padding: 10px 12px;
   font: inherit;
 }
 .field input:focus {
   outline: none;
-  border-color: #d68a34;
+  border-color: var(--ui-accent);
 }
 .primary-button {
-  background: #d68a34;
-  color: #111;
+  background: var(--ui-accent);
+  color: var(--ui-on-accent);
   border: none;
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   padding: 11px;
   font-weight: 600;
   cursor: pointer;
@@ -384,11 +442,11 @@ function openCreateForm() {
   cursor: not-allowed;
 }
 .form-error {
-  color: #fca5a5;
+  color: var(--ui-error);
   font-size: 13px;
   background: rgba(220, 38, 38, 0.1);
   border: 1px solid rgba(220, 38, 38, 0.3);
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   padding: 8px 10px;
 }
 .confirm-backdrop {
@@ -401,8 +459,8 @@ function openCreateForm() {
   z-index: 60;
 }
 .confirm-dialog {
-  background: #1a1a1a;
-  border: 1px solid #2a2a2a;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
   border-radius: 12px;
   padding: 22px;
   max-width: 360px;
@@ -410,11 +468,11 @@ function openCreateForm() {
 }
 .confirm-dialog h3 {
   margin: 0 0 8px;
-  color: #fff;
+  color: var(--ui-text);
 }
 .confirm-dialog p {
   margin: 0 0 18px;
-  color: #999;
+  color: var(--ui-dim);
   font-size: 0.85rem;
 }
 .confirm-actions {
@@ -424,9 +482,9 @@ function openCreateForm() {
 }
 .danger-button {
   background: rgba(220, 38, 38, 0.18);
-  color: #fca5a5;
+  color: var(--ui-error);
   border: none;
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   padding: 10px 18px;
   font-weight: 600;
   cursor: pointer;

@@ -1,0 +1,20 @@
+[
+  {
+    "label": "coupled-production-2693",
+    "host_head": "e01f28c330ba25f9c3c2cab3ba039a03bce436b9",
+    "runtime_head": "688c1d66cc8bc7a67256e7b382c1a70faf02a350",
+    "native_upload_transport": true,
+    "retained_plugin_count": 16,
+    "identities_and_grants_preserved": true,
+    "runtime_container_preserved": true
+  },
+  {
+    "label": "uta-final-main-core-2693",
+    "host_head": "e01f28c330ba25f9c3c2cab3ba039a03bce436b9",
+    "runtime_head": "688c1d66cc8bc7a67256e7b382c1a70faf02a350",
+    "native_upload_transport": true,
+    "retained_plugin_count": 0,
+    "identities_and_grants_preserved": true,
+    "runtime_container_preserved": true
+  }
+]

@@ -100,21 +100,21 @@ const weeks = computed<Cell[][]>(() => {
   width: 12px;
   height: 12px;
   border-radius: 3px;
-  background: #1c1c1c;
+  background: var(--ui-surface-2);
 }
 .heat-cell.off {
   background: transparent;
 }
 .heat-cell.l1 {
-  background: rgba(214, 138, 52, 0.28);
+  background: color-mix(in srgb, var(--ui-accent) 28%, transparent);
 }
 .heat-cell.l2 {
-  background: rgba(214, 138, 52, 0.5);
+  background: color-mix(in srgb, var(--ui-accent) 50%, transparent);
 }
 .heat-cell.l3 {
-  background: rgba(214, 138, 52, 0.75);
+  background: color-mix(in srgb, var(--ui-accent) 75%, transparent);
 }
 .heat-cell.l4 {
-  background: #d68a34;
+  background: var(--ui-accent);
 }
 </style>

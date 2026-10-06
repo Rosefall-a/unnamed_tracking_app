@@ -2,103 +2,38 @@
 
 Unnamed Tracking App is split into a Python/FastAPI backend and a Vue/Vite frontend, with PostgreSQL providing persistent application data.
 
+## Plugin platform
+
+The plugin platform adds a separate execution boundary. The frontend calls FastAPI /api/plugins; the backend authenticates the user and communicates with plugin-runtime over an authenticated internal transport; plugin-runtime performs package discovery, integrity validation and isolated process execution.
+
+The backend owns the application-facing API, authentication, compatibility and permission policy. The runtime owns plugin process execution and private plugin storage. Plugin packages do not run inside the backend and do not receive the core environment, database connection, Docker socket or unrestricted network.
+
+Compose connects the backend and runtime through an internal-only network. PostgreSQL and the frontend remain on the normal application network; the runtime is not attached to it and is not published to the host.
+
+The frontend plugin manager calls /api/plugins for lifecycle state and /api/plugins/{id}/ui, /settings and /actions for the declarative plugin host. There is no browser-to-runtime connection.
+
 ## Repository structure
 
-The main application code lives under `src/`:
+- src/backend/src/api/ — FastAPI routes and API schemas.
+- src/backend/src/plugin_api/ — plugin contracts, lifecycle, gateway and runtime transport.
+- src/frontend/src/components/ — reusable Vue components.
+- src/frontend/src/views/ — application pages/views.
+- src/frontend/src/services/ — frontend API/service clients.
+- src/plugin-runtime/ — isolated runtime service and sandbox supervisor.
 
-- `src/backend/src/api/` — FastAPI routes and API schemas.
-- `src/backend/src/core/` — configuration, authentication, and other shared backend infrastructure.
-- `src/backend/src/database/` — database access and migrations.
-- `src/backend/src/features/` — feature-specific backend logic.
-- `src/frontend/src/components/` — reusable Vue components.
-- `src/frontend/src/views/` — application pages/views.
-- `src/frontend/src/services/` — frontend API/service clients.
-- `src/frontend/src/router/` — Vue Router configuration.
-- `src/frontend/src/state/` — frontend state management.
-- `src/frontend/src/types/` — shared frontend TypeScript types.
+Plugin management routes are composed in `api/routes/plugins.py`; their implementations live in `api/routes/plugin_manager/`. Acquisition, catalogue access, lifecycle, updates, contributions and backend dispatch each have their own module. The shared runtime module owns the authenticated client and gateway helpers. Keep patches and dependency overrides at the module that owns the implementation.
 
-The backend is the source of truth for application configuration and API behavior. The frontend consumes those APIs rather than maintaining a second backend configuration system.
+`plugin_api/contracts.py` remains the public import surface. It composes the core manifest models in `base_contracts.py` and the declarative UI models in `ui_contracts.py`. The UI branch keeps its v1.1 declarations, scoped placement permissions, tasks, shortcuts and themes when integrating the original Plugin Manager's source extraction.
+
+Large frontend pages keep their state in composables and their styles in `styles/pages/`. Game detail panels share `gameDetailContext.ts`; their stylesheet selectors stay under `.game-detail-page` so panel extraction does not restyle other pages. Integrating the same extraction on both branches preserves the redesigned Games and Media screens and their existing verification.
 
 ## Configuration architecture
 
-Deployment configuration is defined by the backend configuration registry.
-
-The flow is:
-
-```
-CONFIG_REGISTRY
-      |
-      v
-EnvConfigHandler
-      |
-      +--> process environment
-      +--> .env
-      +--> persisted application configuration
-      +--> startup-mode defaults
-      |
-      v
-/api/setup/configuration
-      |
-      v
-Vue setup renderer
-```
-
-Environment values have higher precedence than persisted settings. Environment-owned fields are treated as deployment-owned and are not editable through the setup UI.
-
-The setup UI is generated from the backend schema, so adding a normal configuration field should generally be handled in the registry rather than by hard-coding another field into the Vue setup component.
-
-## Per-user scheduled AniList imports
-
-AniList automatic imports are implemented as a lightweight extension of the existing application scheduler.
-
-The flow is:
-
-```
-existing scheduler loop
-        |
-        v
-per-user AniList preferences
-        |
-        v
-check whether each user's interval is due
-        |
-        v
-reusable AniList import service
-        |
-        v
-that user's anime library
-```
-
-The scheduler reads each user's preferences, skips disabled or incomplete configurations, and runs a bounded batch of due users.
-
-The current scheduler checks for due AniList imports once per minute and processes at most four users per tick. This is intentionally bounded so a deployment with many users does not let AniList imports starve the application's other scheduled work.
-
-AniList scheduling is per user rather than an administrator-configured deployment job. It therefore does not use the administrator's Scheduled Tasks settings.
+Deployment configuration is defined by the backend configuration registry. Environment values have higher precedence than persisted settings and environment-owned fields remain deployment-owned.
 
 ## Database
 
-PostgreSQL is the normal production database.
-
-Schema changes are managed with Alembic migrations. The application startup process applies pending migrations before the backend is considered ready.
-
-Migrations should remain on a single history line. Multiple Alembic heads are treated as an error and should be resolved before deployment.
-
-The application applies pending Alembic migrations during startup. Keep the migration history on a single head and add a new migration rather than editing one that has already shipped.
-
-## Production container
-
-The production deployment is packaged separately under `src/docker-container/`.
-
-The production image contains:
-
-- the built Vue frontend;
-- the Python backend and runtime dependencies;
-- Nginx;
-- the startup/status page and startup scripts.
-
-The container's entrypoint coordinates startup: it prepares the status page, waits for PostgreSQL, applies migrations, starts Uvicorn, waits for the backend health check, and then switches Nginx to the ready configuration.
-
-This means the public HTTP endpoint can display startup status while the application is still initializing.
+PostgreSQL is the normal production database. Schema changes are managed with Alembic migrations and must extend the single current head. The reconciliation revision `b8c7d6e5f403` joins the independently published main and plugin-manager histories without changing their revision IDs or dropping schema objects.
 
 ### Logging architecture
 
@@ -158,21 +93,15 @@ The game pages work adds its tables and columns in one migration, `d4a8b2c6e9f1`
 
 ## API
 
-The backend exposes the application's REST API under `/api`.
-
-Interactive API documentation is generated by the running FastAPI application and is available at:
-
-`/api/docs`
-
-See [API Documentation](api.md) for how to access it.
+The backend exposes the application's REST API under /api; interactive documentation is available at /api/docs.
 
 ## Authentication
 
-Normal application authentication uses server-side sessions and authentication cookies.
+Normal application authentication uses server-side sessions and host/port-scoped authentication cookies. Plugin management and plugin backend routes use the same request-scoped authentication boundary. Revoked sessions are rejected, and session metadata remains available for the session manager.
 
 OIDC/SSO is integrated into the same application authentication flow. OIDC provider credentials are kept server-side; client secrets are not exposed to the frontend.
 
-See [OIDC / SSO](../integrations/oidc.md) for provider configuration.
+See [OIDC / SSO](../user-guide/oidc.md) for provider configuration.
 
 ## Production container
 

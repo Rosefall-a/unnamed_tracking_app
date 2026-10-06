@@ -1,0 +1,162 @@
+{
+  "kind": "authenticated-production-host",
+  "passed": [
+    "New-account import, bounty objectives/evidence/journal, idempotent rewards and cross-user denial pass through the installed worker",
+    "Native set creation and searched game-card picker persist real records; completed sets, edits, ownership and prestige prerequisites pass",
+    "Six loaded native pages, theme and viewport/side-navigation overflow pass at 320/light",
+    "Six loaded native pages, theme and viewport/side-navigation overflow pass at 390/dark",
+    "Six loaded native pages, theme and viewport/side-navigation overflow pass at 1440/light",
+    "Six loaded native pages, theme and viewport/side-navigation overflow pass at 1920/dark",
+    "The installed native search provider contributes a real bounty to global Ctrl+K results",
+    "Home goals show real records and earned points; a deadline reminder opens the exact bounty",
+    "Disabling the installed archive removes its live Home component; re-enabling restores the same owned records"
+  ],
+  "captures": [
+    {
+      "filename": "collector-loaded-cards-320-light.png",
+      "route": "cards",
+      "width": 320,
+      "theme": "light"
+    },
+    {
+      "filename": "collector-loaded-card-detail-320-light.png",
+      "route": "card-detail",
+      "width": 320,
+      "theme": "light"
+    },
+    {
+      "filename": "collector-loaded-sets-320-light.png",
+      "route": "sets",
+      "width": 320,
+      "theme": "light"
+    },
+    {
+      "filename": "collector-loaded-set-detail-320-light.png",
+      "route": "set-detail",
+      "width": 320,
+      "theme": "light"
+    },
+    {
+      "filename": "collector-loaded-bounties-320-light.png",
+      "route": "bounties",
+      "width": 320,
+      "theme": "light"
+    },
+    {
+      "filename": "collector-loaded-migration-320-light.png",
+      "route": "migration",
+      "width": 320,
+      "theme": "light"
+    },
+    {
+      "filename": "collector-loaded-cards-390-dark.png",
+      "route": "cards",
+      "width": 390,
+      "theme": "dark"
+    },
+    {
+      "filename": "collector-loaded-card-detail-390-dark.png",
+      "route": "card-detail",
+      "width": 390,
+      "theme": "dark"
+    },
+    {
+      "filename": "collector-loaded-sets-390-dark.png",
+      "route": "sets",
+      "width": 390,
+      "theme": "dark"
+    },
+    {
+      "filename": "collector-loaded-set-detail-390-dark.png",
+      "route": "set-detail",
+      "width": 390,
+      "theme": "dark"
+    },
+    {
+      "filename": "collector-loaded-bounties-390-dark.png",
+      "route": "bounties",
+      "width": 390,
+      "theme": "dark"
+    },
+    {
+      "filename": "collector-loaded-migration-390-dark.png",
+      "route": "migration",
+      "width": 390,
+      "theme": "dark"
+    },
+    {
+      "filename": "collector-loaded-cards-1440-light.png",
+      "route": "cards",
+      "width": 1440,
+      "theme": "light"
+    },
+    {
+      "filename": "collector-loaded-card-detail-1440-light.png",
+      "route": "card-detail",
+      "width": 1440,
+      "theme": "light"
+    },
+    {
+      "filename": "collector-loaded-sets-1440-light.png",
+      "route": "sets",
+      "width": 1440,
+      "theme": "light"
+    },
+    {
+      "filename": "collector-loaded-set-detail-1440-light.png",
+      "route": "set-detail",
+      "width": 1440,
+      "theme": "light"
+    },
+    {
+      "filename": "collector-loaded-bounties-1440-light.png",
+      "route": "bounties",
+      "width": 1440,
+      "theme": "light"
+    },
+    {
+      "filename": "collector-loaded-migration-1440-light.png",
+      "route": "migration",
+      "width": 1440,
+      "theme": "light"
+    },
+    {
+      "filename": "collector-loaded-cards-1920-dark.png",
+      "route": "cards",
+      "width": 1920,
+      "theme": "dark"
+    },
+    {
+      "filename": "collector-loaded-card-detail-1920-dark.png",
+      "route": "card-detail",
+      "width": 1920,
+      "theme": "dark"
+    },
+    {
+      "filename": "collector-loaded-sets-1920-dark.png",
+      "route": "sets",
+      "width": 1920,
+      "theme": "dark"
+    },
+    {
+      "filename": "collector-loaded-set-detail-1920-dark.png",
+      "route": "set-detail",
+      "width": 1920,
+      "theme": "dark"
+    },
+    {
+      "filename": "collector-loaded-bounties-1920-dark.png",
+      "route": "bounties",
+      "width": 1920,
+      "theme": "dark"
+    },
+    {
+      "filename": "collector-loaded-migration-1920-dark.png",
+      "route": "migration",
+      "width": 1920,
+      "theme": "dark"
+    }
+  ],
+  "status": "passed",
+  "package_sha256": "b121fc283239774528a02f0e2b4a8a58aaafccee39661ea8769dbe1b67b17da6"
+}

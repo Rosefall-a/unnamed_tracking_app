@@ -163,30 +163,29 @@ async function sync(row: Row) {
 
 <style scoped>
 .settings-section h2 {
-  margin: 0 0 8px;
-  padding-left: 12px;
-  border-left: 3px solid #d68a34;
-  font-size: 1rem;
-  color: #fff;
+  margin: 0 0 12px;
+  font: var(--ui-weight-heading) var(--ui-font-heading)/1.4
+    var(--ui-font-family);
+  color: var(--ui-text);
 }
 h3 {
   margin: 24px 0 10px;
   font-size: 0.85rem;
-  color: #999;
+  color: var(--ui-dim);
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
 .hint {
-  color: #888;
+  color: var(--ui-faint);
   font-size: 0.85rem;
   margin: 0 0 8px;
 }
 .error {
-  color: #fca5a5;
+  color: var(--ui-error);
   font-size: 0.85rem;
 }
 .note {
-  color: #86efac;
+  color: var(--ui-good);
   font-size: 0.85rem;
 }
 .rows {
@@ -202,9 +201,9 @@ h3 {
   align-items: center;
   gap: 12px;
   padding: 10px 12px;
-  background: #151515;
+  background: var(--ui-surface);
   border: 1px solid #262626;
-  border-radius: 10px;
+  border-radius: var(--ui-radius-control);
 }
 .mark {
   width: 34px;
@@ -223,11 +222,11 @@ h3 {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  color: #eee;
+  color: var(--ui-text);
   font-size: 0.9rem;
 }
 .detail {
-  color: #888;
+  color: var(--ui-faint);
   font-size: 0.78rem;
   white-space: nowrap;
   overflow: hidden;
@@ -238,23 +237,23 @@ h3 {
   font-weight: 700;
   padding: 3px 9px;
   border-radius: 999px;
-  color: #999;
-  background: rgba(255, 255, 255, 0.06);
+  color: var(--ui-dim);
+  background: color-mix(in srgb, var(--ui-text) 6%, transparent);
   white-space: nowrap;
 }
 .pill.ok {
-  color: #86efac;
+  color: var(--ui-good);
   background: rgba(34, 197, 94, 0.12);
 }
 .pill.bad {
-  color: #fca5a5;
+  color: var(--ui-error);
   background: rgba(220, 38, 38, 0.14);
 }
 .btn {
-  background: #d68a34;
-  color: #111;
+  background: var(--ui-accent);
+  color: var(--ui-on-accent);
   border: none;
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   padding: 7px 12px;
   font: inherit;
   font-size: 0.8rem;
@@ -262,8 +261,8 @@ h3 {
   cursor: pointer;
 }
 .btn.ghost {
-  background: rgba(255, 255, 255, 0.06);
-  color: #ddd;
+  background: color-mix(in srgb, var(--ui-text) 6%, transparent);
+  color: var(--ui-text);
 }
 .btn:disabled {
   opacity: 0.6;

@@ -10,15 +10,24 @@ import time
 from pathlib import Path
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Query,
+    Request,
+    UploadFile,
+    status,
+)
 from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.app_integrations import get_max_upload_size_mb
+from src.core.app_integrations import get_max_upload_size_mb, get_upload_limits_mb
 from src.core.auth import get_current_user
-from src.core.config import settings
 from src.database.models.game import Game
 from src.database.models.inbox_item import InboxItem
 from src.database.models.media_item import MediaItem
@@ -34,6 +43,13 @@ from src.helpers.media_dates import detect_date
 from src.helpers.range_response import ranged_file_response
 from src.helpers.save_game_asset import DATA_ROOT as GAMES_DATA_ROOT
 from src.helpers.save_game_asset import create_game_folder
+
+_FILES_DEFAULT = File(None, alias="files")
+_FILE_DEFAULT = File(None, alias="file")
+_LAST_MODIFIED_DEFAULT = Form(None)
+_DB_DEFAULT = Depends(get_db)
+_CURRENT_USER_DEFAULT = Depends(get_current_user)
+_KIND_DEFAULT = Query(default=None)
 
 router = APIRouter(prefix="/api/media", tags=["media"], dependencies=[Depends(get_current_user)])
 
@@ -80,16 +96,26 @@ async def _sync_inbox_items(user_id: UUID, db: AsyncSession) -> None:
 
 @router.post("/inbox")
 async def upload_to_inbox(
-    files: list[UploadFile] = File(...),
-    last_modified: list[int] | None = Form(None),
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    files: list[UploadFile] | None = _FILES_DEFAULT,
+    file: UploadFile | None = _FILE_DEFAULT,
+    last_modified: list[int] | None = _LAST_MODIFIED_DEFAULT,
+    db: AsyncSession = _DB_DEFAULT,
+    current_user: User = _CURRENT_USER_DEFAULT,
 ) -> dict[str, list[dict]]:
     """Bulk upload with no game attached yet — sorted into
     screenshots/clips/soundtrack by file type, to be grouped and assigned
     to games later."""
     results: list[dict] = []
-    for index, file in enumerate(files):
+    uploads = list(files or [])
+    if file is not None:
+        uploads.append(file)
+    if not uploads:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="At least one file is required.",
+        )
+
+    for index, file in enumerate(uploads):
         kind = classify_media(file.content_type, file.filename or "")
         if kind is None:
             results.append(
@@ -105,7 +131,7 @@ async def upload_to_inbox(
         # clip routinely exceeds a cover-art-sized limit (see games.py's
         # upload_game_screenshots, same fix)
         limit_mb = (
-            settings.MAX_CLIP_SIZE_MB
+            (await get_upload_limits_mb(db))["max_clip_size_mb"]
             if kind in ("clip", "soundtrack")
             else await get_max_upload_size_mb(db)
         )
@@ -147,8 +173,8 @@ async def upload_to_inbox(
 
 @router.get("/inbox")
 async def list_inbox(
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = _DB_DEFAULT,
+    current_user: User = _CURRENT_USER_DEFAULT,
 ) -> dict[str, list[dict]]:
     await _sync_inbox_items(current_user.id, db)
     result = await db.execute(
@@ -173,8 +199,8 @@ async def list_inbox(
 
 @router.get("/inbox/trash")
 async def list_inbox_trash(
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = _DB_DEFAULT,
+    current_user: User = _CURRENT_USER_DEFAULT,
 ) -> dict[str, list[dict]]:
     result = await db.execute(
         select(InboxItem)
@@ -202,7 +228,7 @@ async def get_inbox_media(
     request: Request,
     kind: MediaKind,
     filename: str,
-    current_user: User = Depends(get_current_user),
+    current_user: User = _CURRENT_USER_DEFAULT,
 ) -> Response:
     path = _inbox_dir(current_user.id) / media_subdir(kind) / Path(filename).name
     if not path.is_file():
@@ -214,8 +240,8 @@ async def get_inbox_media(
 async def delete_inbox_media(
     kind: MediaKind,
     filename: str,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = _DB_DEFAULT,
+    current_user: User = _CURRENT_USER_DEFAULT,
 ) -> dict[str, str]:
     """Soft-delete: moves the file to trash and marks its row deleted
     rather than removing it — restorable for 7 days (features/trash/
@@ -243,8 +269,8 @@ async def delete_inbox_media(
 async def restore_inbox_media(
     kind: MediaKind,
     filename: str,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = _DB_DEFAULT,
+    current_user: User = _CURRENT_USER_DEFAULT,
 ) -> dict[str, str]:
     name = Path(filename).name
     item = await db.scalar(
@@ -271,8 +297,8 @@ async def assign_inbox_media(
     kind: MediaKind,
     filename: str,
     payload: AssignMediaRequest,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = _DB_DEFAULT,
+    current_user: User = _CURRENT_USER_DEFAULT,
 ) -> dict[str, str]:
     """Move a bulk-uploaded file out of the inbox and into a specific
     game's screenshots/clips/soundtrack folder, registering it as a real
@@ -336,11 +362,11 @@ async def assign_inbox_media(
 
 @router.get("")
 async def list_all_media(
-    kind: MediaKind | None = Query(default=None),
-    tag: str | None = Query(default=None),
-    game_id: UUID | None = Query(default=None),
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    kind: MediaKind | None = _KIND_DEFAULT,
+    tag: str | None = _KIND_DEFAULT,
+    game_id: UUID | None = _KIND_DEFAULT,
+    db: AsyncSession = _DB_DEFAULT,
+    current_user: User = _CURRENT_USER_DEFAULT,
 ) -> list[dict]:
     """Every already-assigned screenshot/clip/soundtrack across the whole
     library — the inbox above is deliberately separate (unassigned media

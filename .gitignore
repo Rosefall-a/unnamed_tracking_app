@@ -6,3 +6,5 @@ data
 .env.old
 src/devcontainer/.instances.json
 src/devcontainer/environments/
+/wiki/site/
+/.validation/

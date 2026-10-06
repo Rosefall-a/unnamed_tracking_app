@@ -111,29 +111,29 @@ const emit = defineEmits<{
 .header-row h1 {
   margin: 0 4px 0 0;
   font-size: 1.7rem;
-  font-weight: 800;
+  font-weight: var(--ui-weight-title);
 }
 
 .count-badge {
-  color: #9c9c9c;
+  color: var(--ui-dim);
   font-size: 13px;
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--ui-text) 6%, transparent);
   padding: 4px 12px;
   border-radius: 999px;
 }
 
 .smart-pill {
   font-size: 11px;
-  font-weight: 800;
+  font-weight: var(--ui-weight-title);
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  color: #d68a34;
-  background: rgba(214, 138, 52, 0.14);
+  color: var(--ui-accent-text);
+  background: color-mix(in srgb, var(--ui-accent) 14%, transparent);
   padding: 4px 10px;
   border-radius: 999px;
 }
 .parent-crumb {
-  color: #666;
+  color: var(--ui-faint);
   font-size: 1.1rem;
   font-weight: 600;
   text-decoration: none;
@@ -141,6 +141,13 @@ const emit = defineEmits<{
 }
 
 .parent-crumb:hover {
-  color: #d68a34;
+  color: var(--ui-accent-text);
+}
+h1 {
+  font: var(--ui-weight-title) var(--ui-font-title)/1.2 var(--ui-font-family);
+  overflow-wrap: anywhere;
+}
+button {
+  min-height: var(--ui-control-height);
 }
 </style>

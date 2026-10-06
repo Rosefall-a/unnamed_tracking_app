@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, nextTick, onMounted, watch } from "vue";
+import UiModal from "./UiModal.vue";
 import {
   attachGameAssetFromUrl,
   createGame,
@@ -292,7 +293,6 @@ const searchingMedia = ref(false);
 let metadataSearchTimer: ReturnType<typeof setTimeout> | null = null;
 let metadataSearchRequest = 0;
 
-
 const metadataFormDirty = computed(() => {
   if (!isEditing.value || !props.game) return false;
   return (
@@ -351,7 +351,8 @@ async function refreshMetadataFromEditor() {
       return;
     }
     if (preview.status === "error") {
-      refreshMetadataError.value = "The metadata providers could not be reached. No changes were applied.";
+      refreshMetadataError.value =
+        "The metadata providers could not be reached. No changes were applied.";
       return;
     }
     const locked = preview.skippedLockedFields.length
@@ -411,7 +412,9 @@ async function searchMetadata() {
   const query = metadataQuery.value.trim();
   if (query.length < 2) {
     metadataResults.value = [];
-    metadataMessage.value = query ? "Enter at least two characters to search." : null;
+    metadataMessage.value = query
+      ? "Enter at least two characters to search."
+      : null;
     searchingMetadata.value = false;
     return;
   }
@@ -428,7 +431,8 @@ async function searchMetadata() {
     );
     steamgriddbConfigured.value = response.steamgriddb_configured;
     providerWarnings.value = response.provider_errors ?? [];
-    if (!metadataResults.value.length) metadataMessage.value = "No games found.";
+    if (!metadataResults.value.length)
+      metadataMessage.value = "No games found.";
   } catch (err) {
     if (requestId !== metadataSearchRequest) return;
     metadataMessage.value =
@@ -471,7 +475,8 @@ async function searchMedia() {
       pickedBannerUrl.value = bannerCandidates.value[0];
     }
     if (!mediaSearchResults.value.length) {
-      metadataMessage.value = "No artwork was found from the configured media sources.";
+      metadataMessage.value =
+        "No artwork was found from the configured media sources.";
     } else {
       metadataMessage.value = `Found artwork from ${mediaSearchResults.value.map((result) => result.provider).join(", ")}.`;
     }
@@ -655,15 +660,12 @@ async function submit() {
 </script>
 
 <template>
-  <div class="modal-backdrop" @click.self="emit('close')">
-    <div class="modal">
-      <div class="modal-header">
-        <h2>{{ isEditing ? "Edit Game" : "Add Game" }}</h2>
-        <button type="button" class="close-button" @click="emit('close')">
-          ✕
-        </button>
-      </div>
-
+  <UiModal
+    :title="isEditing ? 'Edit Game' : 'Add Game'"
+    size="wide"
+    @close="emit('close')"
+  >
+    <div class="game-editor">
       <nav ref="tabsEl" class="modal-tabs">
         <button
           v-for="tab in tabs"
@@ -678,7 +680,7 @@ async function submit() {
       </nav>
 
       <form class="modal-form" @submit.prevent="onFormSubmit">
-        <div class="modal-body">
+        <div class="editor-body">
           <div
             v-if="activeTab === 'General' || activeTab === 'Find'"
             class="tab-panel"
@@ -1044,7 +1046,9 @@ async function submit() {
               <div>
                 <strong>Repull metadata</strong>
                 <p class="hint">
-                  Re-fetch the current game title from your configured providers. Locked/manual fields are preserved; existing artwork is never replaced.
+                  Re-fetch the current game title from your configured
+                  providers. Locked/manual fields are preserved; existing
+                  artwork is never replaced.
                 </p>
               </div>
               <label class="checkbox-field">
@@ -1057,17 +1061,41 @@ async function submit() {
                 :disabled="refreshingMetadata || saving"
                 @click="refreshMetadataFromEditor"
               >
-                {{ refreshingMetadata ? "Checking provider…" : "Repull Metadata" }}
+                {{
+                  refreshingMetadata ? "Checking provider…" : "Repull Metadata"
+                }}
               </button>
-              <p v-if="refreshMetadataError" class="form-error">{{ refreshMetadataError }}</p>
-              <p v-if="metadataRefreshPreview && metadataRefreshPreview.status === 'preview'" class="hint">
-                Preview: {{ metadataRefreshPreview.changedFields.length ? metadataRefreshPreview.changedFields.join(", ") : "no text changes" }}<span v-if="metadataRefreshPreview.skippedLockedFields.length"> · preserved {{ metadataRefreshPreview.skippedLockedFields.length }} locked field(s)</span>.
+              <p v-if="refreshMetadataError" class="form-error">
+                {{ refreshMetadataError }}
+              </p>
+              <p
+                v-if="
+                  metadataRefreshPreview &&
+                  metadataRefreshPreview.status === 'preview'
+                "
+                class="hint"
+              >
+                Preview:
+                {{
+                  metadataRefreshPreview.changedFields.length
+                    ? metadataRefreshPreview.changedFields.join(", ")
+                    : "no text changes"
+                }}<span
+                  v-if="metadataRefreshPreview.skippedLockedFields.length"
+                >
+                  · preserved
+                  {{ metadataRefreshPreview.skippedLockedFields.length }} locked
+                  field(s)</span
+                >.
               </p>
             </div>
             <div class="media-search-panel">
               <div>
                 <strong>Find artwork</strong>
-                <p class="hint">Search SteamGridDB and other configured media sources for cover and banner choices.</p>
+                <p class="hint">
+                  Search SteamGridDB and other configured media sources for
+                  cover and banner choices.
+                </p>
               </div>
               <button
                 type="button"
@@ -1077,7 +1105,9 @@ async function submit() {
               >
                 {{ searchingMedia ? "Searching artwork…" : "Search artwork" }}
               </button>
-              <p v-if="mediaSearchResults.length" class="hint">{{ mediaSearchResults.map((result) => result.provider).join(" · ") }}</p>
+              <p v-if="metadataMessage" class="hint" role="status">
+                {{ metadataMessage }}
+              </p>
             </div>
 
             <label class="field">
@@ -1299,79 +1329,32 @@ async function submit() {
         </div>
       </form>
     </div>
-  </div>
+  </UiModal>
 </template>
 
 <style scoped>
-.modal-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.65);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 50;
-}
-.modal {
-  background: #1a1a1a;
-  border: 1px solid #2a2a2a;
-  border-radius: 14px;
+.game-editor {
   width: 100%;
-  max-width: 760px;
-  height: 640px;
-  max-height: 88vh;
-  display: flex;
-  flex-direction: column;
-  color: #fff;
-  font-family: system-ui, sans-serif;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
-}
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 18px 22px;
-  border-bottom: 1px solid #2a2a2a;
-  flex-shrink: 0;
-}
-.modal-header h2 {
-  margin: 0;
-  font-size: 1.2rem;
-}
-.close-button {
-  background: none;
-  border: none;
-  color: #999;
-  font-size: 15px;
-  cursor: pointer;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  transition:
-    background 0.15s ease,
-    color 0.15s ease;
-}
-.close-button:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: #fff;
+  min-width: 0;
 }
 .modal-tabs {
   display: flex;
   gap: 4px;
-  padding: 12px 20px 0;
-  border-bottom: 1px solid #2a2a2a;
+  padding: 0;
+  border-bottom: 1px solid var(--ui-border);
   flex-shrink: 0;
   overflow-x: auto;
 }
 .modal-tab {
   background: none;
   border: none;
-  color: #999;
+  color: var(--ui-dim);
   padding: 9px 16px;
+  min-height: var(--ui-control-height);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
-  border-radius: 8px 8px 0 0;
+  border-radius: var(--ui-radius-control) 8px 0 0;
   white-space: nowrap;
   border-bottom: 2px solid transparent;
   transition:
@@ -1379,13 +1362,13 @@ async function submit() {
     background 0.15s ease;
 }
 .modal-tab:hover {
-  color: #ddd;
-  background: rgba(255, 255, 255, 0.05);
+  color: var(--ui-text);
+  background: color-mix(in srgb, var(--ui-text) 5%, transparent);
 }
 .modal-tab.active {
-  color: #fff;
-  background: rgba(214, 138, 52, 0.1);
-  border-bottom-color: #d68a34;
+  color: var(--ui-text);
+  background: color-mix(in srgb, var(--ui-accent) 10%, transparent);
+  border-bottom-color: var(--ui-accent-text);
 }
 .modal-form {
   display: flex;
@@ -1393,8 +1376,8 @@ async function submit() {
   flex: 1;
   min-height: 0;
 }
-.modal-body {
-  padding: 20px 22px;
+.editor-body {
+  padding: 20px 0;
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -1409,35 +1392,46 @@ async function submit() {
   min-height: 380px;
 }
 .metadata-refresh-panel {
-  border: 1px solid #3a3a3a;
-  border-radius: 8px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
   padding: 12px;
-  background: #151515;
+  background: var(--ui-surface);
   display: flex;
   flex-direction: column;
   gap: 10px;
 }
-.metadata-refresh-panel strong { color: #fff; }
+.metadata-refresh-panel strong {
+  color: var(--ui-text);
+}
 .media-search-panel {
-  border: 1px solid #3a3a3a;
-  border-radius: 8px;
+  flex-wrap: wrap;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
   padding: 12px;
-  background: #151515;
+  background: var(--ui-surface-2);
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
 }
-.media-search-panel > div { min-width: 0; }
-.media-search-panel strong { color: #fff; }
-.media-search-panel .hint { margin: 2px 0 0; }
-.metadata-refresh-panel .hint { margin: 0; }
+.media-search-panel > div {
+  min-width: 0;
+}
+.media-search-panel strong {
+  color: var(--ui-text);
+}
+.media-search-panel .hint {
+  margin: 2px 0 0;
+}
+.metadata-refresh-panel .hint {
+  margin: 0;
+}
 
 .metadata-search {
-  border: 1px solid #3a3a3a;
-  border-radius: 8px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
   padding: 12px;
-  background: #151515;
+  background: var(--ui-surface);
 }
 .search-heading {
   display: flex;
@@ -1447,21 +1441,21 @@ async function submit() {
 }
 .search-heading span,
 .metadata-result small {
-  color: #999;
+  color: var(--ui-dim);
   font-size: 0.78rem;
 }
 .steamgriddb-hint {
   margin: 0 0 10px;
   padding: 8px 10px;
-  background: rgba(214, 138, 52, 0.1);
-  border: 1px solid rgba(214, 138, 52, 0.3);
-  border-radius: 8px;
-  color: #ddd;
+  background: color-mix(in srgb, var(--ui-accent) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ui-accent) 30%, transparent);
+  border-radius: var(--ui-radius-control);
+  color: var(--ui-text);
   font-size: 0.78rem;
   line-height: 1.5;
 }
 .steamgriddb-hint a {
-  color: #d68a34;
+  color: var(--ui-accent-text);
   font-weight: 600;
   text-decoration: none;
 }
@@ -1475,16 +1469,16 @@ async function submit() {
 .search-row input {
   flex: 1;
   min-width: 0;
-  background: #111;
-  border: 1px solid #3a3a3a;
-  border-radius: 8px;
-  color: #fff;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
+  color: var(--ui-text);
   padding: 9px 11px;
   font: inherit;
 }
 .search-row input:focus {
   outline: none;
-  border-color: #d68a34;
+  border-color: var(--ui-accent-line);
 }
 .metadata-results {
   display: grid;
@@ -1499,22 +1493,22 @@ async function submit() {
   width: 100%;
   padding: 9px 10px;
   text-align: left;
-  color: #fff;
-  background: #202020;
-  border: 1px solid #3a3a3a;
+  color: var(--ui-text);
+  background: var(--ui-border);
+  border: 1px solid var(--ui-border);
   border-radius: 6px;
   cursor: pointer;
 }
 .metadata-result:hover {
-  border-color: #d68a34;
-  background: #282828;
+  border-color: var(--ui-accent-line);
+  background: var(--ui-surface-2);
 }
 .field {
   display: flex;
   flex-direction: column;
   gap: 6px;
   font-size: 0.85rem;
-  color: #ccc;
+  color: var(--ui-text);
   flex: 1;
   min-width: 0;
 }
@@ -1526,7 +1520,7 @@ async function submit() {
   align-items: flex-start;
   gap: 10px;
   font-size: 0.85rem;
-  color: #ccc;
+  color: var(--ui-text);
   flex: 1;
   cursor: pointer;
 }
@@ -1534,7 +1528,7 @@ async function submit() {
   margin-top: 3px;
   width: 16px;
   height: 16px;
-  accent-color: #d68a34;
+  accent-color: var(--ui-accent-text);
   flex-shrink: 0;
 }
 .checkbox-field span {
@@ -1543,17 +1537,17 @@ async function submit() {
   gap: 2px;
 }
 .checkbox-field small {
-  color: #888;
+  color: var(--ui-dim);
   font-size: 0.75rem;
   font-weight: 400;
 }
 .field input,
 .field select,
 .field textarea {
-  background: #111;
-  border: 1px solid #3a3a3a;
-  border-radius: 8px;
-  color: #fff;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
+  color: var(--ui-text);
   padding: 9px 11px;
   font: inherit;
   transition: border-color 0.15s ease;
@@ -1562,7 +1556,7 @@ async function submit() {
 .field select:focus,
 .field textarea:focus {
   outline: none;
-  border-color: #d68a34;
+  border-color: var(--ui-accent-line);
 }
 .field-row {
   display: flex;
@@ -1583,25 +1577,25 @@ async function submit() {
   flex-basis: 0;
 }
 .remove-button {
-  background: rgba(220, 38, 38, 0.15);
-  color: #fca5a5;
+  background: color-mix(in srgb, var(--ui-error) 15%, transparent);
+  color: var(--ui-error);
   border: none;
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   width: 38px;
   height: 38px;
   cursor: pointer;
   transition: background 0.15s ease;
 }
 .remove-button:hover {
-  background: rgba(220, 38, 38, 0.3);
+  background: color-mix(in srgb, var(--ui-error) 30%, transparent);
 }
 .hint {
-  color: #888;
+  color: var(--ui-dim);
   font-size: 0.8rem;
   margin: 0;
 }
 .field-hint {
-  color: #888;
+  color: var(--ui-dim);
   font-size: 0.75rem;
   font-weight: 400;
 }
@@ -1614,7 +1608,7 @@ async function submit() {
   gap: 3px;
 }
 .provider-warnings li {
-  color: #f0b458;
+  color: var(--ui-warning);
   font-size: 0.78rem;
 }
 .media-candidates {
@@ -1624,7 +1618,7 @@ async function submit() {
   margin-top: -6px;
 }
 .candidates-label {
-  color: #999;
+  color: var(--ui-dim);
   font-size: 0.78rem;
 }
 .candidates-grid {
@@ -1640,7 +1634,7 @@ async function submit() {
   border-radius: 6px;
   overflow: hidden;
   cursor: pointer;
-  background: #111;
+  background: var(--ui-surface);
   flex-shrink: 0;
 }
 .candidate-thumb img {
@@ -1650,18 +1644,18 @@ async function submit() {
   display: block;
 }
 .candidate-thumb.active {
-  border-color: #d68a34;
+  border-color: var(--ui-accent-line);
 }
 .banner-thumb {
   width: 120px;
   height: 45px;
 }
 .form-error {
-  color: #fca5a5;
+  color: var(--ui-error);
   font-size: 0.85rem;
-  background: rgba(220, 38, 38, 0.1);
-  border: 1px solid rgba(220, 38, 38, 0.3);
-  border-radius: 8px;
+  background: color-mix(in srgb, var(--ui-error) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ui-error) 30%, transparent);
+  border-radius: var(--ui-radius-control);
   padding: 10px 12px;
 }
 .modal-actions {
@@ -1669,14 +1663,14 @@ async function submit() {
   align-items: center;
   gap: 10px;
   padding: 14px 22px;
-  border-top: 1px solid #2a2a2a;
+  border-top: 1px solid var(--ui-border);
   flex-shrink: 0;
 }
 .modal-actions-spacer {
   flex: 1;
 }
 .step-count {
-  color: #888;
+  color: var(--ui-dim);
   font-size: 0.8rem;
   white-space: nowrap;
 }
@@ -1684,10 +1678,10 @@ async function submit() {
   white-space: nowrap;
 }
 .danger-button {
-  background: rgba(220, 38, 38, 0.15);
-  color: #fca5a5;
+  background: color-mix(in srgb, var(--ui-error) 15%, transparent);
+  color: var(--ui-error);
   border: none;
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   padding: 10px 20px;
   font-weight: 600;
   font-size: 0.9rem;
@@ -1695,12 +1689,12 @@ async function submit() {
   transition: background 0.15s ease;
 }
 .danger-button:hover {
-  background: rgba(220, 38, 38, 0.3);
+  background: color-mix(in srgb, var(--ui-error) 30%, transparent);
 }
 .primary-button,
 .secondary-button {
   border: none;
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   padding: 10px 20px;
   font-weight: 600;
   font-size: 0.9rem;
@@ -1710,11 +1704,11 @@ async function submit() {
     transform 0.05s ease;
 }
 .primary-button {
-  background: #d68a34;
-  color: #111;
+  background: var(--ui-accent);
+  color: var(--ui-on-accent);
 }
 .primary-button:hover:not(:disabled) {
-  background: #ffd83d;
+  filter: brightness(1.08);
 }
 .primary-button:active:not(:disabled) {
   transform: scale(0.98);
@@ -1724,17 +1718,15 @@ async function submit() {
   cursor: not-allowed;
 }
 .secondary-button {
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
+  background: color-mix(in srgb, var(--ui-text) 8%, transparent);
+  color: var(--ui-text);
 }
 .secondary-button:hover {
-  background: rgba(255, 255, 255, 0.15);
+  background: color-mix(in srgb, var(--ui-text) 15%, transparent);
 }
 @media (max-width: 480px) {
-  .modal-header,
-  .modal-body {
-    padding-left: 16px;
-    padding-right: 16px;
+  .editor-body {
+    padding-inline: 0;
   }
   .modal-tabs {
     padding-left: 12px;

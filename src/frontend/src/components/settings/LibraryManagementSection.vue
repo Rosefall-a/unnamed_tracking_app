@@ -619,21 +619,20 @@ async function restoreGameById(game: TrashedGame) {
 
 <style scoped>
 .settings-section h2 {
-  margin: 0 0 8px;
-  padding-left: 12px;
-  border-left: 3px solid #d68a34;
-  font-size: 1rem;
-  color: #fff;
+  margin: 0 0 12px;
+  font: var(--ui-weight-heading) var(--ui-font-heading)/1.4
+    var(--ui-font-family);
+  color: var(--ui-text);
 }
 .section-hint {
-  color: #999;
+  color: var(--ui-dim);
   font-size: 0.82rem;
   line-height: 1.6;
   margin: 0 0 16px;
 }
 .settings-divider {
   height: 1px;
-  background: #2a2a2a;
+  background: var(--ui-border);
   margin: 24px 0;
 }
 .refresh-options {
@@ -646,34 +645,34 @@ async function restoreGameById(game: TrashedGame) {
   color: #f0b458;
 }
 .secondary-button {
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
+  background: color-mix(in srgb, var(--ui-text) 8%, transparent);
+  color: var(--ui-text);
   border: none;
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   padding: 10px 18px;
   font-weight: 600;
   cursor: pointer;
 }
 .secondary-button:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.14);
+  background: color-mix(in srgb, var(--ui-text) 14%, transparent);
 }
 .secondary-button:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
 .form-error {
-  color: #fca5a5;
+  color: var(--ui-error);
   font-size: 13px;
   background: rgba(220, 38, 38, 0.1);
   border: 1px solid rgba(220, 38, 38, 0.3);
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   padding: 8px 10px;
   margin-top: 10px;
 }
 .refresh-summary {
   margin-top: 14px;
   font-size: 0.82rem;
-  color: #ccc;
+  color: var(--ui-text);
 }
 .refresh-summary p {
   margin: 0 0 8px;
@@ -687,23 +686,23 @@ async function restoreGameById(game: TrashedGame) {
   gap: 4px;
   max-height: 160px;
   overflow-y: auto;
-  color: #999;
+  color: var(--ui-dim);
   font-size: 0.78rem;
 }
 
 .confirm-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.65);
+  background: color-mix(in srgb, var(--ui-bg) 65%, transparent);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 60;
 }
 .confirm-dialog {
-  background: #1a1a1a;
-  border: 1px solid #2a2a2a;
-  border-radius: 12px;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-card);
   padding: 22px;
   width: 100%;
   max-width: 360px;
@@ -711,11 +710,11 @@ async function restoreGameById(game: TrashedGame) {
 }
 .confirm-dialog h3 {
   margin: 0 0 8px;
-  color: #fff;
+  color: var(--ui-text);
 }
 .confirm-dialog p {
   margin: 0 0 16px;
-  color: #aaa;
+  color: var(--ui-dim);
   font-size: 13.5px;
 }
 .confirm-actions {
@@ -740,29 +739,29 @@ async function restoreGameById(game: TrashedGame) {
   display: flex;
   justify-content: space-between;
   gap: 12px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid #232323;
-  border-radius: 8px;
+  background: color-mix(in srgb, var(--ui-text) 3%, transparent);
+  border: 1px solid var(--ui-border-soft);
+  border-radius: var(--ui-radius-control);
   padding: 8px 10px;
   font-size: 12.5px;
 }
 .preview-change-title {
-  color: #fff;
+  color: var(--ui-text);
   font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .preview-change-fields {
-  color: #d68a34;
+  color: var(--ui-accent-text);
   text-align: right;
   flex-shrink: 0;
 }
 .primary-button {
-  background: #d68a34;
-  color: #111;
+  background: var(--ui-accent);
+  color: var(--ui-on-accent);
   border: none;
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   padding: 9px 16px;
   font-weight: 600;
   cursor: pointer;
@@ -772,7 +771,7 @@ async function restoreGameById(game: TrashedGame) {
   cursor: not-allowed;
 }
 .empty-hint {
-  color: #777;
+  color: var(--ui-faint);
   font-size: 0.82rem;
 }
 .trash-list {
@@ -788,20 +787,20 @@ async function restoreGameById(game: TrashedGame) {
   align-items: center;
   gap: 12px;
   padding: 8px 12px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid #232323;
-  border-radius: 8px;
+  background: color-mix(in srgb, var(--ui-text) 3%, transparent);
+  border: 1px solid var(--ui-border-soft);
+  border-radius: var(--ui-radius-control);
   font-size: 0.82rem;
 }
 .trash-name {
   flex: 1;
-  color: #ccc;
+  color: var(--ui-text);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .trash-meta {
-  color: #777;
+  color: var(--ui-faint);
   font-size: 0.76rem;
 }
 </style>

@@ -10,7 +10,6 @@ permissions:
 
 jobs:
   frontend-checks:
-    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     name: Frontend
     runs-on: ubuntu-latest
 
@@ -28,6 +27,9 @@ jobs:
       - name: Install dependencies
         working-directory: src/frontend
         run: npm ci
+
+      - name: Check frontend file size
+        run: node tools/check_frontend_size.mjs
 
       - name: Fix formatting
         working-directory: src/frontend

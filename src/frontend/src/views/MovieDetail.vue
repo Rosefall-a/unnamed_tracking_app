@@ -24,8 +24,11 @@ import MovieFormModal from "../components/MovieFormModal.vue";
 import RelationsGraph from "../components/RelationsGraph.vue";
 import type { ChainNode, BranchNode } from "../components/RelationsGraph.vue";
 import MediaPreviewModal from "../components/MediaPreviewModal.vue";
+import MediaProviderPanel from "../components/MediaProviderPanel.vue";
 import MediaTopBar from "../components/MediaTopBar.vue";
 import BackButton from "../components/BackButton.vue";
+import PluginExtensionSlot from "../components/plugins/PluginExtensionSlot.vue";
+import PluginContextualActions from "../components/plugins/PluginContextualActions.vue";
 import { statusBucket, bucketToReal } from "../utils/mediaStatus";
 import {
   formatProgressMinutes,
@@ -436,6 +439,21 @@ async function onRatingChange(value: number | null) {
 
   <main v-else-if="movie" class="detail">
     <MediaTopBar active="movie" />
+    <PluginExtensionSlot
+      slot-id="media.detail.after-header"
+      :context="{
+        host_page: 'media.detail',
+        media_id: movie.id,
+        media_type: 'movie',
+      }"
+    />
+    <PluginContextualActions
+      :context="{
+        kind: 'media',
+        resource_id: String(movie.id),
+        resource_type: 'movie',
+      }"
+    />
 
     <BackButton class="back-spot" @click="goBack" />
 
@@ -561,6 +579,7 @@ async function onRatingChange(value: number | null) {
           :text="movie.description"
         />
         <MyNote :note="movie.note" @save="saveNote" />
+        <MediaProviderPanel media-type="movie" :media-id="movie.id" />
       </div>
 
       <div v-else-if="activeTab === 'related'" class="tab-panel">
@@ -664,7 +683,7 @@ async function onRatingChange(value: number | null) {
   gap: 8px;
   margin: -6px 0 16px;
   font-size: 0.8rem;
-  color: #9c9c9c;
+  color: var(--ui-dim);
 }
 
 .resume-label {
@@ -676,16 +695,16 @@ async function onRatingChange(value: number | null) {
   height: 30px;
   box-sizing: border-box;
   padding: 0 8px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 7px;
-  color: #f2f2f2;
+  background: color-mix(in srgb, var(--ui-text) 6%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ui-text) 10%, transparent);
+  border-radius: var(--ui-radius-control);
+  color: var(--ui-text);
   font: inherit;
 }
 
 .resume-input:focus {
   outline: none;
-  border-color: #d68a34;
+  border-color: var(--ui-accent-line);
 }
 
 .resume-bar {
@@ -693,26 +712,26 @@ async function onRatingChange(value: number | null) {
   width: 120px;
   height: 6px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.1);
+  background: color-mix(in srgb, var(--ui-text) 10%, transparent);
   overflow: hidden;
 }
 
 .resume-bar > span {
   position: absolute;
   inset: 0 auto 0 0;
-  background: #d68a34;
+  background: var(--ui-accent);
 }
 
 .resume-hint {
-  color: #666;
+  color: var(--ui-faint);
   font-size: 0.74rem;
 }
 
 .error-text {
-  color: #e57373;
+  color: var(--ui-error);
 }
 
 .poster-card-sm:hover .poster-card-sm-art {
-  border-color: rgba(214, 138, 52, 0.5);
+  border-color: color-mix(in srgb, var(--ui-accent) 50%, transparent);
 }
 </style>

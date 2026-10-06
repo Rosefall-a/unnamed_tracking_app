@@ -1,108 +1,296 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, nextTick } from "vue";
-import GameCard from "../components/GameCard.vue";
+import { computed, ref, watch } from "vue";
+import PageHeader from "../components/PageHeader.vue";
+import AccountChip from "../components/AccountChip.vue";
+import HomeWidgetPicker from "../components/HomeWidgetPicker.vue";
+import HomeCoreWidget from "../components/HomeCoreWidget.vue";
+import UiModal from "../components/UiModal.vue";
+import { startQuickTour } from "../state/quickTour";
+import PluginExtensionSlot from "../components/plugins/PluginExtensionSlot.vue";
+import PluginHomeWidget from "../components/plugins/PluginHomeWidget.vue";
+import PluginWidgetConfiguration from "../components/plugins/PluginWidgetConfiguration.vue";
+import type { PluginSlotContribution } from "../state/pluginExtensions";
+import type { UiValues } from "../services/pluginUi";
 import GameFormModal from "../components/GameFormModal.vue";
-import { fetchGames, deleteGame } from "../services/games";
 import CollectionPickerModal from "../components/CollectionPickerModal.vue";
 import RandomGamePicker from "../components/RandomGamePicker.vue";
-import AccountChip from "../components/AccountChip.vue";
-import type { Game } from "../types/game";
+import { pluginSlots } from "../state/pluginExtensions";
 import { currentUser } from "../state/auth";
-import { fetchWeeklyDigest } from "../services/stats";
-import type { WeeklyDigest } from "../services/stats";
+import {
+  preferences,
+  preferencesLoaded,
+  preferencesError,
+  loadSharedPreferences,
+} from "../state/preferences";
+import { queuePreferences } from "../services/preferences";
+import {
+  CORE_HOME_WIDGETS,
+  selectedHomeWidgets,
+} from "../services/homeWidgets";
+import { fetchGames, deleteGame } from "../services/games";
+import { fetchWeeklyDigest, type WeeklyDigest } from "../services/stats";
+import type { Game } from "../types/game";
 
+const hasHomeOverride = computed(() =>
+  pluginSlots.value.some((item) => item.slot === "home.replace"),
+);
+const replacementFailed = ref(false);
+watch(
+  () => pluginSlots.value,
+  () => {
+    replacementFailed.value = false;
+  },
+);
+const pluginWidgets = computed(() =>
+  pluginSlots.value.filter(
+    (item) =>
+      item.slot === "home.after-widgets" &&
+      (!item.widget?.visibility.admin_only || currentUser.value?.is_admin),
+  ),
+);
 const games = ref<Game[]>([]);
-const loading = ref(true);
-const error = ref<string | null>(null);
-
-const showFormModal = ref(false);
+const digest = ref<WeeklyDigest | null>(null);
+const gamesLoading = ref(false);
+const digestLoading = ref(false);
+const gamesError = ref<string | null>(null);
+const digestError = ref<string | null>(null);
+let gamesLoaded = false;
+let digestLoaded = false;
+let dataGeneration = 0;
+let gamesRequest = 0;
+let digestRequest = 0;
+const collections = computed(() =>
+  [...new Set(games.value.flatMap((game) => game.collections))].sort((a, b) =>
+    a.localeCompare(b),
+  ),
+);
+const choices = computed(() => [
+  ...CORE_HOME_WIDGETS,
+  ...collections.value.map((name) => ({
+    id: `collection:${name}`,
+    title: name,
+    description: "A shelf from your game collection.",
+  })),
+  ...pluginWidgets.value.map((item) => ({
+    id: `plugin:${item.pluginId}:${item.extensionId}`,
+    title: item.widget?.title ?? item.page.title,
+    description: item.widget?.description || `From ${item.pluginId}`,
+  })),
+]);
+const selected = computed(() =>
+  selectedHomeWidgets(preferences.value.home_widgets, choices.value),
+);
+const showPicker = ref(false);
+const saving = ref(false);
+const saveError = ref<string | null>(null);
+const saved = ref(false);
+const configuring = ref<PluginSlotContribution | null>(null);
+const configuringBusy = ref(false);
+const configurationError = ref<string | null>(null);
+watch(
+  () => currentUser.value?.id,
+  () => {
+    configuring.value = null;
+  },
+);
+watch(pluginWidgets, (widgets) => {
+  if (
+    configuring.value &&
+    !widgets.some(
+      (item) =>
+        item.pluginId === configuring.value?.pluginId &&
+        item.extensionId === configuring.value?.extensionId,
+    )
+  )
+    configuring.value = null;
+});
 const editingGame = ref<Game | null>(null);
-
+const showForm = ref(false);
+const collectionGame = ref<Game | null>(null);
+const showRandom = ref(false);
 const deletingGame = ref<Game | null>(null);
 const deleting = ref(false);
 const deleteError = ref<string | null>(null);
 
-const totalGames = computed(() => games.value.length);
-const favoriteCount = computed(
-  () => games.value.filter((g) => g.favorite).length,
-);
-
-// opens the filtered picker (#33) rather than jumping to any game at all,
-// finished and wishlisted ones included
-const showRandomPicker = ref(false);
-function pickRandomGame() {
-  if (!games.value.length) return;
-  showRandomPicker.value = true;
-}
-
-// same overlapping-call guard as GameLibrary.vue's loadGames, this is
-// re-triggered from many places (save, delete, collection changes) that
-// can overlap, and a slower earlier call could otherwise overwrite a newer one
-let loadGamesToken = 0;
-
 async function loadGames() {
-  const token = ++loadGamesToken;
-  loading.value = true;
+  const generation = dataGeneration;
+  const request = ++gamesRequest;
+  gamesLoading.value = true;
+  gamesError.value = null;
   try {
-    const fetched = await fetchGames();
-    if (token !== loadGamesToken) return;
-    games.value = fetched;
-  } catch (err) {
-    if (token !== loadGamesToken) return;
-    error.value = err instanceof Error ? err.message : "Failed to load games";
+    const result = await fetchGames();
+    if (generation !== dataGeneration || request !== gamesRequest) return;
+    games.value = result;
+    gamesLoaded = true;
+  } catch (reason) {
+    if (generation === dataGeneration && request === gamesRequest)
+      gamesError.value =
+        reason instanceof Error ? reason.message : "Could not load your games.";
   } finally {
-    if (token === loadGamesToken) {
-      loading.value = false;
-      await nextTick();
-      updateAllShelfArrows();
-    }
+    if (generation === dataGeneration && request === gamesRequest)
+      gamesLoading.value = false;
   }
 }
-
-// toggles each arrow's visibility based on whether its shelf can actually
-// scroll further that direction, no point showing a left arrow at scrollLeft 0
-function updateShelfArrows(shelf: HTMLElement) {
-  const wrap = shelf.closest(".shelf-wrap");
-  if (!wrap) return;
-  const left = wrap.querySelector(".shelf-arrow.left");
-  const right = wrap.querySelector(".shelf-arrow.right");
-  const maxScroll = shelf.scrollWidth - shelf.clientWidth;
-  left?.classList.toggle("can-scroll", shelf.scrollLeft > 4);
-  right?.classList.toggle("can-scroll", shelf.scrollLeft < maxScroll - 4);
+async function loadDigest() {
+  const generation = dataGeneration;
+  const request = ++digestRequest;
+  digestLoading.value = true;
+  digestError.value = null;
+  try {
+    const result = await fetchWeeklyDigest();
+    if (generation !== dataGeneration || request !== digestRequest) return;
+    digest.value = result;
+    digestLoaded = true;
+  } catch (reason) {
+    if (generation === dataGeneration && request === digestRequest)
+      digestError.value =
+        reason instanceof Error
+          ? reason.message
+          : "Could not load this week's activity.";
+  } finally {
+    if (generation === dataGeneration && request === digestRequest)
+      digestLoading.value = false;
+  }
 }
-
-function updateAllShelfArrows() {
-  document.querySelectorAll<HTMLElement>(".shelf").forEach(updateShelfArrows);
+function usesGames(id: string) {
+  return !id.startsWith("plugin:") && !["goals", "weekly-digest"].includes(id);
 }
-
-window.addEventListener("resize", updateAllShelfArrows);
-onUnmounted(() => window.removeEventListener("resize", updateAllShelfArrows));
-
-onMounted(loadGames);
-
-function openEditModal(game: Game) {
+function ensureData() {
+  if (
+    !preferencesLoaded.value ||
+    preferencesError.value ||
+    (hasHomeOverride.value && !replacementFailed.value)
+  )
+    return;
+  const ids = preferences.value.home_widgets;
+  if (
+    (showPicker.value || ids.some(usesGames)) &&
+    !gamesLoaded &&
+    !gamesLoading.value &&
+    !gamesError.value
+  )
+    void loadGames();
+  if (
+    ids.includes("weekly-digest") &&
+    !digestLoaded &&
+    !digestLoading.value &&
+    !digestError.value
+  )
+    void loadDigest();
+}
+watch(
+  () => currentUser.value?.id,
+  () => {
+    dataGeneration++;
+    games.value = [];
+    digest.value = null;
+    gamesLoaded = digestLoaded = false;
+    gamesLoading.value = digestLoading.value = false;
+    gamesError.value = digestError.value = null;
+    showPicker.value = showForm.value = showRandom.value = false;
+    editingGame.value = collectionGame.value = deletingGame.value = null;
+  },
+);
+watch(
+  [
+    () => preferences.value.home_widgets,
+    preferencesLoaded,
+    preferencesError,
+    showPicker,
+    hasHomeOverride,
+    replacementFailed,
+  ],
+  ensureData,
+  { immediate: true },
+);
+function widgetError(id: string) {
+  if (usesGames(id) && gamesError.value) return gamesError.value;
+  if (id === "weekly-digest") return digestError.value;
+  return null;
+}
+function widgetLoading(id: string) {
+  return (
+    (usesGames(id) && !gamesLoaded && !gamesError.value) ||
+    (id === "weekly-digest" && !digestLoaded && !digestError.value)
+  );
+}
+function retryWidget(id: string) {
+  if (usesGames(id) && gamesError.value) void loadGames();
+  if (id === "weekly-digest") void loadDigest();
+}
+function pluginWidget(id: string) {
+  return pluginWidgets.value.find(
+    (item) => `plugin:${item.pluginId}:${item.extensionId}` === id,
+  );
+}
+async function saveWidgetConfiguration(values: UiValues) {
+  const contribution = configuring.value;
+  if (!contribution) return;
+  const accountId = currentUser.value?.id;
+  const id = `plugin:${contribution.pluginId}:${contribution.extensionId}`;
+  configuringBusy.value = true;
+  configurationError.value = null;
+  try {
+    const result = await queuePreferences({
+      home_widget_config: {
+        ...preferences.value.home_widget_config,
+        [id]: values,
+      },
+    });
+    if (currentUser.value?.id !== accountId) return;
+    preferences.value = result.latest
+      ? result.prefs
+      : {
+          ...preferences.value,
+          home_widget_config: result.prefs.home_widget_config,
+        };
+    configuring.value = null;
+  } catch (reason) {
+    if (currentUser.value?.id === accountId)
+      configurationError.value =
+        reason instanceof Error
+          ? reason.message
+          : "Could not save widget options.";
+  } finally {
+    configuringBusy.value = false;
+  }
+}
+async function saveHome(ids: string[]) {
+  const accountId = currentUser.value?.id;
+  saving.value = true;
+  saveError.value = null;
+  saved.value = false;
+  try {
+    const result = await queuePreferences({ home_widgets: [...ids] });
+    if (currentUser.value?.id !== accountId) return;
+    preferences.value = result.latest
+      ? result.prefs
+      : { ...preferences.value, home_widgets: result.prefs.home_widgets };
+    showPicker.value = false;
+    saved.value = true;
+  } catch (reason) {
+    if (currentUser.value?.id === accountId)
+      saveError.value =
+        reason instanceof Error ? reason.message : "Could not save Home.";
+  } finally {
+    saving.value = false;
+  }
+}
+function openEdit(game: Game) {
   editingGame.value = game;
-  showFormModal.value = true;
+  showForm.value = true;
 }
-
-async function onGameSaved() {
-  showFormModal.value = false;
+async function gameSaved() {
+  showForm.value = false;
   editingGame.value = null;
   await loadGames();
 }
-
-function requestDelete(game: Game) {
-  deletingGame.value = game;
+function requestDelete(id: string) {
+  showForm.value = false;
+  editingGame.value = null;
+  deletingGame.value = games.value.find((game) => game.id === id) ?? null;
   deleteError.value = null;
 }
-
-function onDeleteFromModal(gameId: string) {
-  const game = games.value.find((g) => g.id === gameId);
-  showFormModal.value = false;
-  editingGame.value = null;
-  if (game) requestDelete(game);
-}
-
 async function confirmDelete() {
   if (!deletingGame.value) return;
   deleting.value = true;
@@ -111,1218 +299,354 @@ async function confirmDelete() {
     await deleteGame(deletingGame.value.id);
     deletingGame.value = null;
     await loadGames();
-  } catch (err) {
+  } catch (reason) {
     deleteError.value =
-      err instanceof Error ? err.message : "Failed to delete game";
+      reason instanceof Error ? reason.message : "Could not delete the game.";
   } finally {
     deleting.value = false;
   }
 }
-
-const collectionPickerGame = ref<Game | null>(null);
-
-function handleAddToCollection(game: Game) {
-  collectionPickerGame.value = game;
-}
-
-async function onCollectionAdded() {
-  await loadGames();
-}
-
-const SHELF_CAP = 20;
-
-// most-recently-played first, this is the shelf you land on, so it should
-// lead with whatever you were actually just doing, not insertion order
-const playingGames = computed(() =>
-  [...games.value]
-    .filter((g) => g.status === "playing")
-    .sort((a, b) => (b.lastPlayedAt ?? "").localeCompare(a.lastPlayedAt ?? ""))
-    .slice(0, SHELF_CAP),
-);
-
-const recentlyAdded = computed(() =>
-  [...games.value]
-    .filter((g) => g.dateAdded)
-    .sort((a, b) => (b.dateAdded! > a.dateAdded! ? 1 : -1))
-    .slice(0, SHELF_CAP),
-);
-
-const collectionGroups = computed(() => {
-  const map = new Map<string, Game[]>();
-  for (const g of games.value) {
-    for (const c of g.collections) {
-      if (!map.has(c)) map.set(c, []);
-      map.get(c)!.push(g);
-    }
-  }
-  return Array.from(map.entries()).map(([name, list]) => ({
-    name,
-    games: list.slice(0, SHELF_CAP),
-  }));
-});
-
-const collectionsCount = computed(() => collectionGroups.value.length);
-
-// which shelves show, and in what order, persisted per browser. Reordering
-// isn't exposed (drag-and-drop has no precedent in this codebase, and
-// re-doing it as up/down arrows for a handful of shelves felt like more
-// chrome than it was worth); show/hide covers the actual complaint, which
-// is a Home Hub cluttered with collection shelves nobody wants to see here
-const HIDDEN_SHELVES_KEY = "homeHubHiddenShelves";
-function loadHiddenShelves(): Set<string> {
-  try {
-    const raw = localStorage.getItem(HIDDEN_SHELVES_KEY);
-    return new Set(raw ? (JSON.parse(raw) as string[]) : []);
-  } catch {
-    return new Set();
-  }
-}
-const hiddenShelves = ref<Set<string>>(loadHiddenShelves());
-function toggleShelfVisibility(id: string) {
-  const next = new Set(hiddenShelves.value);
-  if (next.has(id)) next.delete(id);
-  else next.add(id);
-  hiddenShelves.value = next;
-  try {
-    localStorage.setItem(HIDDEN_SHELVES_KEY, JSON.stringify([...next]));
-  } catch {
-    // worst case the customization just doesn't persist, not worth failing over
-  }
-}
-const showShelfCustomizer = ref(false);
-const shelfChoices = computed(() => [
-  { id: "continue-playing", label: "Continue Playing" },
-  { id: "recently-added", label: "Recently Added" },
-  ...collectionGroups.value.map((g) => ({
-    id: "collection:" + g.name,
-    label: g.name,
-  })),
-]);
-
-// a small, dismissible nudge toward a few features that are easy to miss
-// entirely on a fresh install, gone for good once dismissed, not
-// re-shown just because every item happens to get checked off later
-const CHECKLIST_DISMISSED_KEY = "homeHubChecklistDismissed";
-const checklistDismissed = ref(
-  localStorage.getItem(CHECKLIST_DISMISSED_KEY) === "true",
-);
-function dismissChecklist() {
-  checklistDismissed.value = true;
-  try {
-    localStorage.setItem(CHECKLIST_DISMISSED_KEY, "true");
-  } catch {
-    // worst case it just shows again next visit, not worth failing over
-  }
-}
-const onboardingSteps = computed(() => [
-  {
-    done: games.value.some((g) => g.source),
-    label: "Connect a library",
-    hint: "Steam, GOG, or PlayStation, Settings → Metadata/API",
-    to: "/settings",
-  },
-  {
-    done: games.value.some((g) => g.favorite),
-    label: "Favorite a game",
-    hint: "The heart icon on any card",
-    to: "/games",
-  },
-]);
-const showChecklist = computed(
-  () => !checklistDismissed.value && onboardingSteps.value.some((s) => !s.done),
-);
-
-// one-time welcome tour, a plain feature summary rather than positioned
-// coach-marks pointing at live elements (this app has no such overlay
-// system, and building one just for a first-run pass felt disproportionate)
-const WELCOME_TOUR_KEY = "seenWelcomeTour";
-const showWelcomeTour = ref(localStorage.getItem(WELCOME_TOUR_KEY) !== "true");
-function dismissWelcomeTour() {
-  showWelcomeTour.value = false;
-  try {
-    localStorage.setItem(WELCOME_TOUR_KEY, "true");
-  } catch {
-    // worst case it shows again next visit, not worth failing over
-  }
-}
-const TOUR_STEPS = [
-  {
-    title: "Find anything fast",
-    body: "Press Ctrl/Cmd+K anywhere to jump straight to a game, collection, or Settings section.",
-  },
-  {
-    title: "Filter and save combos",
-    body: "Games has status, platform, genre, and advanced filters, save a combination as a preset to reuse it later.",
-  },
-  {
-    title: "Collections",
-    body: "Group games however you like, in any order, open a collection and hit Reorder to arrange it.",
-  },
-  {
-    title: "Press ? anytime",
-    body: "Shows every keyboard shortcut this app supports.",
-  },
-];
-
-// --- "this week" recap: playtime data has no history (just a running
-// total + lastPlayedAt), so "minutes logged this week" isn't derivable,
-// this counts what actually is: games touched, achievements unlocked,
-// and metadata edited/refreshed ------
-const weeklyDigestSetting = ref(
-  localStorage.getItem("weeklyDigestEnabled") !== "false",
-);
-const weeklyDigest = ref<WeeklyDigest | null>(null);
-onMounted(async () => {
-  if (!weeklyDigestSetting.value) return;
-  try {
-    weeklyDigest.value = await fetchWeeklyDigest();
-  } catch {
-    weeklyDigest.value = null;
-  }
-});
-const gamesPlayedThisWeek = computed(() => {
-  const weekAgo = Date.now() - 7 * 86_400_000;
-  return games.value.filter(
-    (g) => g.lastPlayedAt && new Date(g.lastPlayedAt).getTime() >= weekAgo,
-  ).length;
-});
-const achievementsUnlockedThisWeek = computed(
-  () => weeklyDigest.value?.achievements_unlocked ?? 0,
-);
-const metadataChangesThisWeek = computed(
-  () => weeklyDigest.value?.metadata_changes ?? 0,
-);
-const showWeeklyRecap = computed(
-  () =>
-    weeklyDigestSetting.value &&
-    (gamesPlayedThisWeek.value > 0 ||
-      achievementsUnlockedThisWeek.value > 0 ||
-      metadataChangesThisWeek.value > 0),
-);
-
-// backlog games sitting untouched a while, added 90+ days ago, never
-// played, still marked backlog. No dedicated "revisit date" field exists,
-// so this is a heuristic rather than something the user explicitly set.
-const staleBacklogGames = computed(() => {
-  const cutoff = Date.now() - 90 * 86_400_000;
-  return games.value.filter(
-    (g) =>
-      g.status === "backlog" &&
-      !g.lastPlayedAt &&
-      g.dateAdded &&
-      new Date(g.dateAdded).getTime() < cutoff,
-  );
-});
-
-// "on this day", games added in a previous year, on today's month/day.
-// Uses dateAdded (the one date every game reliably has) rather than
-// lastPlayedAt, which is often null.
-const onThisDayGames = computed(() => {
-  const now = new Date();
-  return games.value
-    .filter((g) => {
-      if (!g.dateAdded) return false;
-      const d = new Date(g.dateAdded);
-      return (
-        d.getMonth() === now.getMonth() &&
-        d.getDate() === now.getDate() &&
-        d.getFullYear() < now.getFullYear()
-      );
-    })
-    .map((g) => ({
-      game: g,
-      yearsAgo: now.getFullYear() - new Date(g.dateAdded!).getFullYear(),
-    }));
-});
-
-function scrollShelf(e: MouseEvent, dir: 1 | -1) {
-  const row = (e.currentTarget as HTMLElement).closest(".row");
-  const shelf = row?.querySelector(".shelf") as HTMLElement | null;
-  if (!shelf) return;
-  shelf.scrollBy({ left: dir * shelf.clientWidth * 0.9, behavior: "smooth" });
-}
 </script>
 
 <template>
-  <main class="home">
+  <PluginExtensionSlot
+    v-if="hasHomeOverride && !replacementFailed"
+    slot-id="home.replace"
+    :context="{ host_page: 'home' }"
+    @failed="replacementFailed = true"
+  />
+  <main v-else class="home-page">
     <AccountChip fixed />
-
-    <div
-      v-if="showWelcomeTour"
-      class="tour-backdrop"
-      @click.self="dismissWelcomeTour"
-    >
-      <div class="tour-dialog">
-        <h2>Welcome to your library</h2>
-        <p class="tour-intro">
-          A quick tour of what's here, this won't show again.
-        </p>
-        <div class="tour-steps">
-          <div v-for="step in TOUR_STEPS" :key="step.title" class="tour-step">
-            <h3>{{ step.title }}</h3>
-            <p>{{ step.body }}</p>
-          </div>
-        </div>
-        <button type="button" class="tour-dismiss" @click="dismissWelcomeTour">
-          Let's go
-        </button>
-      </div>
-    </div>
-
-    <div class="content">
-      <div class="home-header">
-        <div>
-          <p class="eyebrow">Welcome back, {{ currentUser?.username }}</p>
-          <h1>Your Library</h1>
-        </div>
-        <div class="home-header-actions">
-          <div v-if="showWeeklyRecap" class="weekly-recap">
-            <span class="weekly-recap-label">This week</span>
-            <span v-if="gamesPlayedThisWeek" class="weekly-recap-item"
-              >{{ gamesPlayedThisWeek }} game{{
-                gamesPlayedThisWeek === 1 ? "" : "s"
-              }}
-              played</span
-            >
-            <span v-if="achievementsUnlockedThisWeek" class="weekly-recap-item"
-              >{{ achievementsUnlockedThisWeek }} achievement{{
-                achievementsUnlockedThisWeek === 1 ? "" : "s"
-              }}
-              unlocked</span
-            >
-            <span v-if="metadataChangesThisWeek" class="weekly-recap-item"
-              >{{ metadataChangesThisWeek }} metadata change{{
-                metadataChangesThisWeek === 1 ? "" : "s"
-              }}</span
-            >
-          </div>
-          <div class="shelf-customizer-wrap">
-            <button
-              type="button"
-              class="customize-button"
-              @click="showShelfCustomizer = !showShelfCustomizer"
-            >
-              Customize shelves
-            </button>
-            <div v-if="showShelfCustomizer" class="shelf-customizer-dropdown">
-              <label
-                v-for="choice in shelfChoices"
-                :key="choice.id"
-                class="shelf-choice"
-              >
-                <input
-                  type="checkbox"
-                  :checked="!hiddenShelves.has(choice.id)"
-                  @change="toggleShelfVisibility(choice.id)"
-                />
-                <span>{{ choice.label }}</span>
-              </label>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="stats-strip">
-        <div class="stat-card">
-          <span class="stat-value">{{ totalGames }}</span>
-          <span class="stat-label">Games</span>
-        </div>
-        <div class="stat-card">
-          <span class="stat-value">{{ favoriteCount }}</span>
-          <span class="stat-label">Favorites</span>
-        </div>
-        <div class="stat-card">
-          <span class="stat-value">{{ collectionsCount }}</span>
-          <span class="stat-label">Collections</span>
-        </div>
-      </div>
-
-      <div v-if="showChecklist" class="onboarding-checklist">
-        <div class="onboarding-header">
-          <span>Get the most out of your library</span>
+    <div class="home-content">
+      <p v-if="replacementFailed" role="status" class="ui-alert">
+        The plugin Home page failed. Your Home is available below.
+      </p>
+      <PageHeader
+        title="Home"
+        :eyebrow="`Welcome back, ${currentUser?.username ?? ''}`"
+        description="Your library, at your own pace."
+      >
+        <template #actions>
           <button
             type="button"
-            class="onboarding-dismiss"
-            title="Dismiss"
-            @click="dismissChecklist"
+            class="ui-btn ui-btn-ghost"
+            :disabled="!preferencesLoaded || Boolean(preferencesError)"
+            data-tour="customize-home"
+            @click="
+              saveError = null;
+              showPicker = true;
+            "
           >
-            ✕
+            Customize Home
           </button>
-        </div>
-        <router-link
-          v-for="step in onboardingSteps"
-          :key="step.label"
-          :to="step.to"
-          class="onboarding-step"
-          :class="{ done: step.done }"
+          <button
+            type="button"
+            class="ui-btn ui-btn-ghost"
+            @click="startQuickTour"
+          >
+            Quick tour
+          </button>
+        </template>
+      </PageHeader>
+      <nav class="home-shortcuts" aria-label="Library shortcuts">
+        <router-link to="/games"
+          >Games <span aria-hidden="true">↗</span></router-link
         >
-          <span class="onboarding-check">{{ step.done ? "✓" : "" }}</span>
-          <span class="onboarding-text">
-            <span class="onboarding-label">{{ step.label }}</span>
-            <span class="onboarding-hint">{{ step.hint }}</span>
-          </span>
-        </router-link>
-      </div>
-
-      <section class="widgets-row">
+        <router-link to="/movies"
+          >Movies <span aria-hidden="true">↗</span></router-link
+        >
+        <router-link to="/games/collections"
+          >Collections <span aria-hidden="true">↗</span></router-link
+        >
+      </nav>
+      <p v-if="!preferencesLoaded" role="status">Loading your Home…</p>
+      <div v-else-if="preferencesError" role="alert" class="ui-alert">
+        {{ preferencesError }}
         <button
           type="button"
-          class="widget-card random-widget"
-          @click="pickRandomGame"
+          class="ui-btn ui-btn-ghost"
+          @click="loadSharedPreferences"
         >
-          <svg
-            class="widget-icon"
-            viewBox="0 0 24 24"
-            width="22"
-            height="22"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <rect x="3" y="3" width="18" height="18" rx="4" />
-            <circle
-              cx="8.5"
-              cy="8.5"
-              r="1.2"
-              fill="currentColor"
-              stroke="none"
-            />
-            <circle
-              cx="15.5"
-              cy="8.5"
-              r="1.2"
-              fill="currentColor"
-              stroke="none"
-            />
-            <circle
-              cx="8.5"
-              cy="15.5"
-              r="1.2"
-              fill="currentColor"
-              stroke="none"
-            />
-            <circle
-              cx="15.5"
-              cy="15.5"
-              r="1.2"
-              fill="currentColor"
-              stroke="none"
-            />
-            <circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none" />
-          </svg>
-          <div>
-            <span class="widget-title">Pick something random</span>
-            <span class="widget-subtitle">Can't decide? Let us choose.</span>
-          </div>
+          Retry
         </button>
-
-        <router-link
-          v-if="staleBacklogGames.length"
-          to="/games?status=backlog"
-          class="widget-card backlog-widget"
-        >
-          <svg
-            class="widget-icon"
-            viewBox="0 0 24 24"
-            width="22"
-            height="22"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <rect x="4" y="4" width="16" height="16" rx="2" />
-            <path d="M8 2v4M16 2v4" />
-          </svg>
-          <div>
-            <span class="widget-title"
-              >{{ staleBacklogGames.length }} backlog
-              {{ staleBacklogGames.length === 1 ? "game" : "games" }} waiting a
-              while</span
-            >
-            <span class="widget-subtitle"
-              >Added 90+ days ago, never played, {{ staleBacklogGames[0].title
-              }}{{
-                staleBacklogGames.length > 1
-                  ? ` +${staleBacklogGames.length - 1} more`
-                  : ""
-              }}</span
-            >
-          </div>
-        </router-link>
-
-        <router-link
-          v-if="onThisDayGames.length"
-          :to="`/games/${onThisDayGames[0].game.id}`"
-          class="widget-card on-this-day-widget"
-        >
-          <svg
-            class="widget-icon"
-            viewBox="0 0 24 24"
-            width="22"
-            height="22"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <rect x="3" y="4" width="18" height="17" rx="2" />
-            <line x1="3" y1="9" x2="21" y2="9" />
-            <line x1="8" y1="2" x2="8" y2="6" />
-            <line x1="16" y1="2" x2="16" y2="6" />
-          </svg>
-          <div>
-            <span class="widget-title">On this day</span>
-            <span
-              class="widget-subtitle"
-              v-for="entry in onThisDayGames.slice(0, 2)"
-              :key="entry.game.id"
-            >
-              Added {{ entry.game.title }} {{ entry.yearsAgo }} year{{
-                entry.yearsAgo === 1 ? "" : "s"
-              }}
-              ago
-            </span>
-          </div>
-        </router-link>
-      </section>
-
-      <p v-if="loading">Loading…</p>
-      <p v-else-if="error" class="error">{{ error }}</p>
-
-      <template v-else>
-        <section v-if="!hiddenShelves.has('continue-playing')" class="row">
-          <div class="row-header">
-            <router-link to="/games?status=playing" class="row-title">
-              <svg
-                class="row-icon"
-                viewBox="0 0 24 24"
-                width="18"
-                height="18"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <rect x="2" y="6" width="20" height="12" rx="6" />
-                <line x1="7" y1="12" x2="11" y2="12" />
-                <line x1="9" y1="10" x2="9" y2="14" />
-                <circle
-                  cx="16"
-                  cy="10.5"
-                  r="1"
-                  fill="currentColor"
-                  stroke="none"
-                />
-                <circle
-                  cx="18"
-                  cy="13"
-                  r="1"
-                  fill="currentColor"
-                  stroke="none"
-                />
-              </svg>
-              <h2>Continue Playing</h2>
-              <span class="row-count">{{ playingGames.length }}</span>
-            </router-link>
-          </div>
-          <div v-if="playingGames.length" class="shelf-wrap">
-            <button
-              type="button"
-              class="shelf-arrow left"
-              @click="scrollShelf($event, -1)"
-              aria-label="Scroll left"
-            >
-              ‹
-            </button>
-            <div
-              class="shelf"
-              @scroll="updateShelfArrows($event.target as HTMLElement)"
-            >
-              <GameCard
-                v-for="game in playingGames"
-                :key="game.id"
-                :game="game"
-                @edit="openEditModal"
-                @add-to-collection="handleAddToCollection"
-              />
-            </div>
-            <button
-              type="button"
-              class="shelf-arrow right"
-              @click="scrollShelf($event, 1)"
-              aria-label="Scroll right"
-            >
-              ›
-            </button>
-          </div>
-          <p v-else class="empty-row">Nothing in progress right now.</p>
-        </section>
-
-        <section v-if="!hiddenShelves.has('recently-added')" class="row">
-          <div class="row-header">
-            <router-link to="/games?sort=recent" class="row-title">
-              <svg
-                class="row-icon"
-                viewBox="0 0 24 24"
-                width="18"
-                height="18"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <circle cx="12" cy="12" r="9" />
-                <polyline points="12 7 12 12 15.5 14" />
-              </svg>
-              <h2>Recently Added</h2>
-              <span class="row-count">{{ recentlyAdded.length }}</span>
-            </router-link>
-          </div>
-          <div v-if="recentlyAdded.length" class="shelf-wrap">
-            <button
-              type="button"
-              class="shelf-arrow left"
-              @click="scrollShelf($event, -1)"
-              aria-label="Scroll left"
-            >
-              ‹
-            </button>
-            <div
-              class="shelf"
-              @scroll="updateShelfArrows($event.target as HTMLElement)"
-            >
-              <GameCard
-                v-for="game in recentlyAdded"
-                :key="game.id"
-                :game="game"
-                @edit="openEditModal"
-                @add-to-collection="handleAddToCollection"
-              />
-            </div>
-            <button
-              type="button"
-              class="shelf-arrow right"
-              @click="scrollShelf($event, 1)"
-              aria-label="Scroll right"
-            >
-              ›
-            </button>
-          </div>
-          <p v-else class="empty-row">No games added yet.</p>
-        </section>
-
-        <section
-          v-for="group in collectionGroups.filter(
-            (g) => !hiddenShelves.has('collection:' + g.name),
-          )"
-          :key="group.name"
-          class="row"
-        >
-          <div class="row-header">
-            <router-link
-              :to="`/games/collections/${encodeURIComponent(group.name)}`"
-              class="row-title"
-            >
-              <svg
-                class="row-icon"
-                viewBox="0 0 24 24"
-                width="18"
-                height="18"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <path
-                  d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"
-                />
-              </svg>
-              <h2>{{ group.name }}</h2>
-              <span class="row-count">{{ group.games.length }}</span>
-            </router-link>
-          </div>
-          <div class="shelf-wrap">
-            <button
-              type="button"
-              class="shelf-arrow left"
-              @click="scrollShelf($event, -1)"
-              aria-label="Scroll left"
-            >
-              ‹
-            </button>
-            <div
-              class="shelf"
-              @scroll="updateShelfArrows($event.target as HTMLElement)"
-            >
-              <GameCard
-                v-for="game in group.games"
-                :key="game.id"
-                :game="game"
-                @edit="openEditModal"
-                @add-to-collection="handleAddToCollection"
-              />
-            </div>
-            <button
-              type="button"
-              class="shelf-arrow right"
-              @click="scrollShelf($event, 1)"
-              aria-label="Scroll right"
-            >
-              ›
-            </button>
-          </div>
-        </section>
-        <p v-if="!collectionGroups.length" class="empty-row">
-          No collections yet: use a card's collection button to start one.
-        </p>
-      </template>
-
-      <GameFormModal
-        v-if="showFormModal"
-        :game="editingGame"
-        @close="showFormModal = false"
-        @saved="onGameSaved"
-        @delete="onDeleteFromModal"
-      />
-
-      <CollectionPickerModal
-        v-if="collectionPickerGame"
-        :game="collectionPickerGame"
-        @close="collectionPickerGame = null"
-        @added="onCollectionAdded"
-      />
-
-      <RandomGamePicker
-        v-if="showRandomPicker"
-        :games="games"
-        @close="showRandomPicker = false"
-      />
-
-      <div
-        v-if="deletingGame"
-        class="confirm-backdrop"
-        @click.self="deletingGame = null"
-      >
-        <div class="confirm-dialog">
-          <h3>Delete {{ deletingGame.title }}?</h3>
-          <p>This can't be undone.</p>
-          <div v-if="deleteError" class="confirm-error">{{ deleteError }}</div>
-          <div class="confirm-actions">
-            <button
-              type="button"
-              class="secondary-button"
-              @click="deletingGame = null"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              class="danger-button"
-              :disabled="deleting"
-              @click="confirmDelete"
-            >
-              {{ deleting ? "Deleting…" : "Delete" }}
-            </button>
-          </div>
-        </div>
       </div>
+      <template v-else>
+        <p v-if="saved" role="status" class="save-feedback">
+          Home saved to your account.
+        </p>
+        <section
+          v-if="!selected.length"
+          class="home-empty"
+          aria-labelledby="home-empty-title"
+        >
+          <p class="home-empty-eyebrow">A little room for you</p>
+          <h2 id="home-empty-title">Make yourself at home.</h2>
+          <p>
+            Keep things quiet, or add your games in progress, favorite
+            collections and personal goals.
+          </p>
+          <button
+            type="button"
+            class="ui-btn ui-btn-primary"
+            @click="
+              saveError = null;
+              showPicker = true;
+            "
+          >
+            Add widgets
+          </button>
+        </section>
+        <div v-else class="home-widgets">
+          <section
+            v-for="widget in selected"
+            :key="widget.id"
+            class="home-widget"
+            :class="{
+              'wide-widget':
+                ['continue-playing', 'recently-added'].includes(widget.id) ||
+                widget.id.startsWith('collection:'),
+            }"
+            :aria-label="widget.title"
+            :data-widget-id="widget.id"
+          >
+            <h2>{{ widget.title }}</h2>
+            <p v-if="widget.available === false" class="widget-unavailable">
+              {{ widget.description }}
+            </p>
+            <template v-else-if="widget.id.startsWith('plugin:')">
+              <button
+                v-if="pluginWidget(widget.id)?.widget?.configuration.length"
+                type="button"
+                class="ui-btn ui-btn-ghost widget-configure"
+                :aria-label="`Customize ${widget.title}`"
+                @click="
+                  configuring = pluginWidget(widget.id)!;
+                  configurationError = null;
+                "
+              >
+                Options
+              </button>
+              <PluginHomeWidget
+                v-if="pluginWidget(widget.id)"
+                :contribution="pluginWidget(widget.id)!"
+                :saved="preferences.home_widget_config[widget.id] ?? {}"
+              />
+            </template>
+            <div
+              v-else-if="widgetError(widget.id)"
+              role="alert"
+              class="ui-alert"
+            >
+              {{ widgetError(widget.id) }}
+              <button
+                type="button"
+                class="ui-btn ui-btn-ghost"
+                @click="retryWidget(widget.id)"
+              >
+                Retry
+              </button>
+            </div>
+            <p
+              v-else-if="widgetLoading(widget.id)"
+              role="status"
+              class="widget-loading"
+            >
+              Loading {{ widget.title.toLowerCase() }}…
+            </p>
+            <HomeCoreWidget
+              v-else
+              :widget-id="widget.id"
+              :games="games"
+              :digest="digest"
+              @edit="openEdit"
+              @collection="collectionGame = $event"
+              @random="showRandom = true"
+              @changed="loadGames"
+            />
+          </section>
+        </div>
+      </template>
     </div>
+    <HomeWidgetPicker
+      v-if="showPicker"
+      :choices="choices"
+      :selected="preferences.home_widgets"
+      :busy="saving"
+      :error="saveError || gamesError"
+      :loading="gamesLoading"
+      @close="showPicker = false"
+      @save="saveHome"
+    />
+    <PluginWidgetConfiguration
+      v-if="configuring?.widget"
+      :key="`${configuring.pluginId}:${configuring.extensionId}`"
+      :widget="configuring.widget"
+      :saved="
+        preferences.home_widget_config[
+          `plugin:${configuring.pluginId}:${configuring.extensionId}`
+        ] ?? {}
+      "
+      :busy="configuringBusy"
+      :error="configurationError"
+      @close="configuring = null"
+      @save="saveWidgetConfiguration"
+    />
+    <GameFormModal
+      v-if="showForm"
+      :game="editingGame"
+      @close="showForm = false"
+      @saved="gameSaved"
+      @delete="requestDelete"
+    />
+    <CollectionPickerModal
+      v-if="collectionGame"
+      :game="collectionGame"
+      @close="collectionGame = null"
+      @added="loadGames"
+    />
+    <RandomGamePicker
+      v-if="showRandom"
+      :games="games"
+      @close="showRandom = false"
+    />
+    <UiModal
+      v-if="deletingGame"
+      :title="`Delete ${deletingGame.title}?`"
+      description="This cannot be undone."
+      :dismissible="!deleting"
+      @close="deletingGame = null"
+    >
+      <p v-if="deleteError" role="alert" class="ui-alert">{{ deleteError }}</p>
+      <template #footer>
+        <button
+          type="button"
+          class="ui-btn ui-btn-ghost"
+          :disabled="deleting"
+          @click="deletingGame = null"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          class="ui-btn ui-btn-danger"
+          :disabled="deleting"
+          @click="confirmDelete"
+        >
+          {{ deleting ? "Deleting…" : "Delete" }}
+        </button>
+      </template>
+    </UiModal>
   </main>
 </template>
 
 <style scoped>
-.home {
-  position: relative;
-  padding: 84px 24px 24px;
-  font-family: system-ui, sans-serif;
-  background: #0d0d0d;
-  min-height: 100vh;
-  color: #fff;
-  overflow: hidden;
-}
-.home::before {
-  content: "";
-  position: fixed;
-  top: -100px;
-  left: -100px;
-  width: 500px;
-  height: 500px;
-  background: radial-gradient(
-    circle,
-    rgba(214, 138, 52, 0.08) 0%,
-    transparent 70%
-  );
-  z-index: 0;
-  pointer-events: none;
-}
-.content {
-  position: relative;
-  z-index: 1;
-}
-.home-header {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 16px;
-  margin-bottom: 28px;
-}
-.home-header-actions {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.weekly-recap {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid #232323;
-  border-radius: 999px;
-  padding: 8px 16px;
-  font-size: 12.5px;
-}
-.weekly-recap-label {
-  color: #777;
-  text-transform: uppercase;
-  font-size: 10.5px;
-  letter-spacing: 0.04em;
-  font-weight: 700;
-}
-.weekly-recap-item {
-  color: #d68a34;
-  font-weight: 600;
-}
-.shelf-customizer-wrap {
-  position: relative;
-}
-.customize-button {
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid #2a2a2a;
-  color: #ccc;
-  border-radius: 8px;
-  padding: 9px 14px;
-  font-size: 12.5px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.customize-button:hover {
-  border-color: #3a3a3a;
-  color: #fff;
-}
-.shelf-customizer-dropdown {
-  position: absolute;
-  top: calc(100% + 6px);
-  right: 0;
-  width: 220px;
-  background: #1a1a1a;
-  border: 1px solid #2a2a2a;
-  border-radius: 8px;
-  padding: 10px 12px;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
-  z-index: 20;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.shelf-choice {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: #eee;
-  font-size: 13px;
-  padding: 5px 2px;
-  cursor: pointer;
-}
-.shelf-choice input {
-  accent-color: #d68a34;
-}
-.eyebrow {
-  margin: 0 0 4px;
-  color: #d68a34;
-  font-size: 13px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-.home-header h1 {
-  margin: 0;
-  font-size: 1.7rem;
-  font-weight: 800;
-  color: #fff;
-}
-.stats-strip {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 14px;
-  margin-bottom: 24px;
-}
-.stat-card {
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid #232323;
-  border-radius: 10px;
-  padding: 10px 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 80px;
-  transition:
-    transform 0.15s ease,
-    border-color 0.15s ease;
-}
-.stat-card:hover {
-  transform: translateY(-2px);
-  border-color: #3a3a3a;
-}
-.stat-value {
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: #d68a34;
-}
-.stat-label {
-  font-size: 12px;
-  color: #999;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-.widgets-row {
-  display: flex;
-  gap: 14px;
-  margin-bottom: 32px;
-}
-.onboarding-checklist {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px 20px;
-  background: rgba(214, 138, 52, 0.06);
-  border: 1px solid rgba(214, 138, 52, 0.25);
-  border-radius: 12px;
-  padding: 12px 18px;
-  margin-bottom: 20px;
-}
-.onboarding-header {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  color: #d68a34;
-  font-size: 12.5px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  flex-basis: 100%;
-}
-.onboarding-dismiss {
-  margin-left: auto;
-  background: none;
-  border: none;
-  color: #a3703c;
-  cursor: pointer;
-  font-size: 12px;
-  min-width: 28px;
-  min-height: 28px;
-  margin-top: -5px;
-  margin-bottom: -5px;
-  padding: 2px 4px;
-}
-.onboarding-dismiss:hover {
-  color: #d68a34;
-}
-.onboarding-step {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  text-decoration: none;
-  color: inherit;
-  padding: 6px 0;
-}
-.onboarding-check {
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  border: 1px solid #555;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 10px;
-  color: #4ade80;
-  flex-shrink: 0;
-}
-.onboarding-step.done .onboarding-check {
-  border-color: #4ade80;
-}
-.onboarding-text {
-  display: flex;
-  flex-direction: column;
-}
-.onboarding-label {
-  font-size: 13px;
-  color: #eee;
-}
-.onboarding-step.done .onboarding-label {
-  color: #888;
-  text-decoration: line-through;
-}
-.onboarding-hint {
-  font-size: 11px;
-  color: #777;
-}
-.widget-card {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid #232323;
-  border-radius: 12px;
-  padding: 14px 18px;
-  flex: 1;
-  max-width: 280px;
-  text-align: left;
-  cursor: pointer;
-  transition:
-    background 0.15s ease,
-    border-color 0.15s ease,
-    transform 0.15s ease;
-}
-.random-widget:hover {
-  background: rgba(255, 255, 255, 0.06);
-  border-color: #3a3a3a;
-  transform: translateY(-2px);
-}
-.backlog-widget,
-.on-this-day-widget {
-  max-width: 340px;
-  text-decoration: none;
-  color: inherit;
-}
-.on-this-day-widget:hover {
-  background: rgba(255, 255, 255, 0.06);
-  border-color: #3a3a3a;
-  transform: translateY(-2px);
-}
-.widget-icon {
-  color: #d68a34;
-  flex-shrink: 0;
-}
-.widget-title {
-  display: block;
-  color: #fff;
-  font-weight: 600;
-  font-size: 14px;
-}
-.widget-subtitle {
-  display: block;
-  color: #888;
-  font-size: 12px;
-  margin-top: 2px;
-}
-.row {
-  margin-bottom: 32px;
-}
-.row-header {
-  display: flex;
-  align-items: center;
-  margin-bottom: 14px;
-}
-.row-title {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding-left: 12px;
-  border-left: 3px solid #d68a34;
-  text-decoration: none;
-  cursor: pointer;
-}
-.row-title:hover h2 {
-  color: #d68a34;
-}
-.row-title h2 {
-  margin: 0;
-  font-size: 1.1rem;
-  color: #fff;
-  transition: color 0.15s ease;
-}
-.row-icon {
-  color: #d68a34;
-  flex-shrink: 0;
-}
-.row-count {
-  background: rgba(255, 255, 255, 0.06);
-  color: #999;
-  font-size: 12px;
-  font-weight: 600;
-  padding: 3px 10px;
-  border-radius: 999px;
-}
-.shelf-wrap {
-  position: relative;
-}
-.shelf {
-  display: flex;
-  gap: 16px;
-  overflow-x: auto;
-  scroll-behavior: smooth;
-  padding: 20px 16px 28px;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
-.shelf::-webkit-scrollbar {
-  display: none;
-}
-.shelf-arrow {
-  position: absolute;
-  top: 0;
-  bottom: 28px;
-  width: 40px;
-  border: none;
-  background: linear-gradient(to right, rgba(10, 10, 10, 0.85), transparent);
-  color: #fff;
-  font-size: 26px;
-  line-height: 1;
-  cursor: pointer;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.15s ease;
-  z-index: 20;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.shelf-arrow.right {
-  left: auto;
-  right: 0;
-  background: linear-gradient(to left, rgba(10, 10, 10, 0.85), transparent);
-}
-.shelf-arrow.left {
-  left: 0;
-}
-.shelf-wrap:hover .shelf-arrow.can-scroll {
-  opacity: 1;
-  pointer-events: auto;
-}
-.shelf-arrow:hover {
-  color: #d68a34;
-}
-.empty-row {
-  color: #777;
-  font-size: 14px;
-  margin: 0;
-}
-.error {
-  color: #f87171;
-}
-.tour-backdrop,
-.confirm-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.65);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 60;
-}
-.tour-dialog {
-  background: #1a1a1a;
-  border: 1px solid #2a2a2a;
-  border-radius: 14px;
-  padding: 28px;
-  width: 100%;
-  max-width: 460px;
-  max-height: 85vh;
-  overflow-y: auto;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+.home-page {
   box-sizing: border-box;
+  padding: 80px var(--ui-edge-right) 32px var(--ui-edge-left);
+  min-height: 100vh;
+  color: var(--ui-text);
+  font-family: var(--ui-font-family);
 }
-.tour-dialog h2 {
-  margin: 0 0 4px;
-  color: #fff;
-  font-size: 1.3rem;
+.home-content {
+  max-width: var(--ui-content-width);
+  margin: 0 auto;
 }
-.tour-intro {
-  color: #999;
-  font-size: 13px;
-  margin: 0 0 20px;
-}
-.tour-steps {
+.home-shortcuts {
   display: flex;
-  flex-direction: column;
-  gap: 14px;
-  margin-bottom: 22px;
-}
-.tour-step h3 {
-  margin: 0 0 3px;
-  color: #d68a34;
-  font-size: 13.5px;
-}
-.tour-step p {
-  margin: 0;
-  color: #ccc;
-  font-size: 13px;
-  line-height: 1.5;
-}
-.tour-dismiss {
-  width: 100%;
-  background: #d68a34;
-  color: #111;
-  border: none;
-  border-radius: 8px;
-  padding: 12px;
-  font-weight: 700;
-  cursor: pointer;
-}
-.confirm-dialog {
-  background: #1a1a1a;
-  border: 1px solid #2a2a2a;
-  border-radius: 12px;
-  padding: 22px;
-  width: 100%;
-  max-width: 360px;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
-}
-.confirm-dialog h3 {
-  margin: 0 0 8px;
-}
-.confirm-dialog p {
-  margin: 0 0 16px;
-  color: #aaa;
-  font-size: 14px;
-}
-.confirm-error {
-  color: #fca5a5;
-  font-size: 13px;
-  margin-bottom: 12px;
-}
-.confirm-actions {
-  display: flex;
-  justify-content: flex-end;
+  flex-wrap: wrap;
   gap: 10px;
+  margin: 0 0 32px;
 }
-.secondary-button,
-.danger-button {
-  border: none;
-  border-radius: 8px;
-  padding: 10px 18px;
-  font-weight: 600;
-  cursor: pointer;
+.home-shortcuts a {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  min-height: var(--ui-control-height);
+  padding: 10px 16px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
+  color: var(--ui-text);
+  text-decoration: none;
+  background: var(--ui-surface);
+  font-size: var(--ui-font-small);
 }
-.secondary-button {
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
+.home-shortcuts a:hover {
+  border-color: var(--ui-accent-line);
+  color: var(--ui-accent-text);
 }
-.danger-button {
-  background: #dc2626;
-  color: #fff;
+.home-shortcuts span {
+  color: var(--ui-faint);
 }
-.danger-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+.home-empty {
+  max-width: 760px;
+  padding: clamp(24px, 5vw, 64px);
+  border: 1px solid var(--ui-border-soft);
+  border-radius: var(--ui-radius-card);
+  background: var(--ui-surface);
+}
+.home-empty-eyebrow {
+  color: var(--ui-accent-text);
+  font-size: var(--ui-font-small);
+  margin: 0 0 16px;
+}
+.home-empty h2 {
+  font-size: clamp(1.5rem, 2.5vw, 2rem);
+  font-weight: var(--ui-weight-title);
+  letter-spacing: -0.025em;
+  margin: 0 0 16px;
+}
+.home-empty > p:not(.home-empty-eyebrow) {
+  max-width: 48ch;
+  line-height: 1.65;
+  color: var(--ui-dim);
+  margin: 0 0 24px;
+}
+.home-widgets {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+}
+.home-widget {
+  min-width: 0;
+  padding: 24px;
+  border-radius: var(--ui-radius-card);
+  border: 1px solid var(--ui-border-soft);
+  background: var(--ui-surface);
+}
+.home-widget h2 {
+  margin: 0 0 20px;
+  font: var(--ui-weight-heading) var(--ui-font-heading)/1.4
+    var(--ui-font-family);
+  overflow-wrap: anywhere;
+}
+.wide-widget {
+  grid-column: 1 / -1;
+}
+.widget-unavailable,
+.widget-loading {
+  color: var(--ui-dim);
+  line-height: 1.6;
+}
+.save-feedback {
+  margin-bottom: 18px;
+  color: var(--ui-good);
+  font-size: var(--ui-font-small);
+}
+@media (max-width: 760px) {
+  .home-widgets {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 18px;
+  }
+  .home-widget {
+    padding: 20px;
+  }
+  .home-shortcuts {
+    gap: 8px;
+    margin-bottom: 24px;
+  }
+  .home-shortcuts a {
+    padding: 10px 13px;
+    gap: 12px;
+  }
 }
 </style>

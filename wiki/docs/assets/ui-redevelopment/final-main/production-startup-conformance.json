@@ -1,0 +1,23 @@
+{
+  "status": "passed",
+  "host_head": "31491feb00863f3f71872206fd103b4b009fb5de",
+  "images": {
+    "source_head": "31491feb00863f3f71872206fd103b4b009fb5de",
+    "app": {
+      "tag": "uta-ui-production:31491feb",
+      "id": "sha256:4fa5984c786f4f27ef0b81bc7a1189bd5d6675e2a29db33d4c258fed62bee568"
+    },
+    "runtime": {
+      "tag": "uta-plugin-runtime:688c1d66",
+      "source_head": "688c1d66cc8bc7a67256e7b382c1a70faf02a350",
+      "note": "Runtime source is unchanged in the final-main integration."
+    }
+  },
+  "passed": [
+    "Actual startup API returns JSON 503 with Retry-After before database availability",
+    "Existing database upgrades and direct production sign-in succeeds without refresh",
+    "Unknown API returns JSON; private raw backend/migration logs are not public",
+    "All 16 existing unsigned plugins retain identity and recover healthy",
+    "Unchanged runtime, volumes, grants and server isolation acknowledgement are preserved"
+  ]
+}

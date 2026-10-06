@@ -24,8 +24,6 @@ The Docker healthcheck reads the file-backed startup status rather than treating
 
 A backend crash after readiness changes the status to `BACKEND_CRASHED` and makes the healthcheck fail while keeping diagnostics available.
 
-## Failure states
-
 ## Startup page
 
 The static startup page reports application starting, database state, migration state, backend state, frontend state, application ready, and application failed. Normal startup does not render backend, migration, Nginx, or Docker log output. On failure the spinner is replaced by a failure indicator and a concise diagnostic message.
@@ -59,7 +57,7 @@ docker cp <container>:/run/unnamed-tracking/migration.log ./migration.log
 
 Do not inspect Docker's internal logging-driver files directly.
 
-## Diagnostic endpoints
+## Failure states
 
 - `CONFIGURATION_FAILED`
 - `DATABASE_FAILED`
@@ -69,12 +67,13 @@ Do not inspect Docker's internal logging-driver files directly.
 - `FRONTEND_FAILED`
 - `BACKEND_CRASHED`
 
+## Diagnostic endpoints
+
 Inspect:
 
 ```text
 /_startup/status.json
 /_startup/details.txt
-/_startup/backend.log
 ```
 
 These are operational diagnostics, not durable log storage.
@@ -102,11 +101,26 @@ Nginx forwards `X-Forwarded-Proto` and Uvicorn trusts that header only from the 
 
 If another reverse proxy is placed in front of the container, ensure it preserves the external HTTPS scheme and that the deployment’s proxy trust boundary remains limited to the expected internal hop.
 
+If the application frontend loads while setup or authentication requests are
+temporarily unavailable, it shows a themed **Backend unavailable** screen. It
+rechecks startup after five seconds, retries when connectivity returns, and
+offers **Retry connection**. Recovery preserves the requested path and query
+without reloading the document. A failed authentication check is retried rather
+than treated as a confirmed signed-out response; older responses cannot replace
+a newer successful login. A confirmed 401 still leads to ordinary sign-in.
+
+[Startup recovery validation](../assets/ui-redevelopment/stage-startup-conformance.json)
+covers 16 real-backend connection-failure cases across phone/desktop and both
+themes, plus automatic recovery.
+
+API requests during startup return HTTP 503 with a JSON explanation and `Retry-After: 5`. They never receive the diagnostic HTML document. The frontend retries temporary startup failures and preserves the requested page.
+
 ## Shutdown
 
 Docker stop sends SIGTERM to PID 1. PID 1 forwards shutdown to FastAPI, waits for it, and then asks Nginx to quit. If shutdown behavior is incorrect in a deployment, inspect the container logs for the entrypoint’s shutdown messages.
 
+The production smoke test validates database startup, migrations, compiled frontend/API handoff, authentication, controlled failures and shutdown.
 
 ## Secrets
 
-The production entrypoint does not print passwords, tokens, API keys, SMTP credentials, private keys, webhook secrets, or session secrets. Detailed logs remain operator-only diagnostics because application components may produce their own log output.
+Backend and migration logs pass through credential redaction before private retention and Docker forwarding. Public startup endpoints contain concise lifecycle status and operator log paths, without publishing raw log files.

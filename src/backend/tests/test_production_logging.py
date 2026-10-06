@@ -1,8 +1,8 @@
 """Regression tests for the production container logging/startup presentation contract."""
 
-from pathlib import Path
 import importlib.util
 import re
+from pathlib import Path
 
 ROOT = Path(__file__).parents[2]
 DOCKER = ROOT / "docker-container"
@@ -119,7 +119,10 @@ def test_backend_and_migration_diagnostics_are_redacted_before_docker_output() -
     entrypoint = (DOCKER / "entrypoint.sh").read_text(encoding="utf-8")
 
     assert 'python /srv/startup/redact_logs.py <"$BACKEND_FIFO" | tee "$BACKEND_LOG"' in entrypoint
-    assert 'python /srv/startup/redact_logs.py <"$MIGRATION_FIFO" | tee -a "$MIGRATION_LOG"' not in entrypoint
-    assert 'python -m src.database.migrate >>"$DETAILS_FILE" 2>&1' in entrypoint
-    assert 'uvicorn src.main:app' in entrypoint
-    assert '>' + '"$BACKEND_FIFO" 2>&1 &' in entrypoint
+    assert (
+        'python /srv/startup/redact_logs.py <"$MIGRATION_FIFO" | tee "$MIGRATION_LOG"' in entrypoint
+    )
+    assert 'python -m src.database.migrate >"$MIGRATION_FIFO" 2>&1' in entrypoint
+    assert 'python -m src.database.migrate >>"$DETAILS_FILE" 2>&1' not in entrypoint
+    assert "uvicorn src.main:app" in entrypoint
+    assert ">" + '"$BACKEND_FIFO" 2>&1 &' in entrypoint

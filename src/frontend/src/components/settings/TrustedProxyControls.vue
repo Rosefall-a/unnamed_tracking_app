@@ -20,7 +20,10 @@ const custom = ref("");
 const error = ref<string | null>(null);
 
 function tokens(value: string): string[] {
-  return value.split(/\s+/).map((item) => item.trim()).filter(Boolean);
+  return value
+    .split(/\s+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
 
 function add(values: string[]) {
@@ -49,9 +52,11 @@ onMounted(async () => {
       credentials: "include",
     });
     if (!response.ok) throw new Error();
-    presets.value = (await response.json() as {
-      presets: Record<string, Preset>;
-    }).presets;
+    presets.value = (
+      (await response.json()) as {
+        presets: Record<string, Preset>;
+      }
+    ).presets;
   } catch {
     error.value = "Unable to load proxy presets.";
   }
@@ -75,7 +80,9 @@ onMounted(async () => {
       :value="modelValue"
       :disabled="disabled"
       placeholder="127.0.0.1/32 ::1/128"
-      @input="emit('update:modelValue', ($event.target as HTMLInputElement).value)"
+      @input="
+        emit('update:modelValue', ($event.target as HTMLInputElement).value)
+      "
     />
     <div class="custom-row">
       <input
@@ -113,10 +120,10 @@ onMounted(async () => {
 }
 
 .proxy-controls input {
-  background: #111;
-  border: 1px solid #3a3a3a;
-  border-radius: 8px;
-  color: #fff;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border-strong);
+  border-radius: var(--ui-radius-control);
+  color: var(--ui-text);
   padding: 10px;
   font: inherit;
 }
@@ -131,20 +138,20 @@ onMounted(async () => {
 }
 
 .proxy-controls button {
-  background: #252525;
-  color: #ddd;
-  border: 1px solid #3a3a3a;
-  border-radius: 8px;
+  background: var(--ui-surface-2);
+  color: var(--ui-text);
+  border: 1px solid var(--ui-border-strong);
+  border-radius: var(--ui-radius-control);
   padding: 8px 10px;
   cursor: pointer;
 }
 
 .proxy-controls small {
-  color: #777;
+  color: var(--ui-faint);
   font-size: 11px;
 }
 
 .proxy-controls .error {
-  color: #fca5a5;
+  color: var(--ui-error);
 }
 </style>

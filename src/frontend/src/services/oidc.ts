@@ -1,3 +1,5 @@
+import { contrastRatio } from "./uiPalette";
+
 export interface OidcLoginProvider {
   name: string;
   slug: string;
@@ -42,7 +44,7 @@ export async function oidcLoginStatus(): Promise<OidcLoginStatus> {
           button_color:
             typeof provider.button_color === "string"
               ? provider.button_color
-              : "#d68a34",
+              : "",
           autostart_enabled: provider.autostart_enabled !== false,
         }))
       : [],
@@ -51,10 +53,27 @@ export async function oidcLoginStatus(): Promise<OidcLoginStatus> {
 export async function oidcEnabled(): Promise<boolean> {
   return (await oidcLoginStatus()).enabled;
 }
-export function startOidcLogin(slug?: string): void {
+export function startOidcLogin(slug?: string, autostart = false): void {
   window.location.assign(
     slug && slug !== "default"
-      ? `/api/auth/oidc/login/${encodeURIComponent(slug)}`
+      ? `/api/auth/oidc/login/${encodeURIComponent(slug)}${autostart ? "" : "?autostart=false"}`
       : "/api/auth/oidc/login",
   );
+}
+
+export function oidcButtonStyle(color: string | null | undefined) {
+  if (!color || !/^#[0-9a-f]{6}$/i.test(color))
+    return {
+      backgroundColor: "var(--ui-accent)",
+      borderColor: "var(--ui-accent)",
+      color: "var(--ui-on-accent)",
+    };
+  return {
+    backgroundColor: color,
+    borderColor: color,
+    color:
+      contrastRatio(color, "#ffffff") >= contrastRatio(color, "#000000")
+        ? "#ffffff"
+        : "#000000",
+  };
 }

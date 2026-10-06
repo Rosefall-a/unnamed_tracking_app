@@ -1,0 +1,149 @@
+/* Public semantic tokens. Layout/shape/type are independent of the palette,
+   so later style presets and permission-granted themes can override a layer. */
+:root {
+  color-scheme: light;
+  --ui-bg: #f5f4f1;
+  --ui-surface: #ffffff;
+  --ui-surface-2: #eeece7;
+  --ui-popover: #ffffff;
+  --ui-border-soft: #e5e4df;
+  --ui-border: #d6d8da;
+  --ui-border-strong: #a6adb5;
+  --ui-text: #252a30;
+  --ui-dim: #59616c;
+  --ui-faint: #626b76;
+  --ui-accent: #a4520d;
+  --ui-accent-text: #914807;
+  --ui-accent-soft: #f7ead8;
+  --ui-accent-line: #c08a50;
+  --ui-on-accent: #ffffff;
+  --ui-danger: #b42318;
+  --ui-error: #b42318;
+  --ui-danger-soft: #fff0ee;
+  --ui-warning: #855000;
+  --ui-warning-soft: #fff2d9;
+  --ui-info: #265a8b;
+  --ui-info-soft: #e9f1fa;
+  --ui-purple: #6951a2;
+  --ui-purple-soft: #f0ebfa;
+  --ui-good: #216e3e;
+  --ui-good-soft: #e8f4ec;
+  --ui-overlay: rgb(15 19 24 / 55%);
+  --ui-elevation: 0 12px 38px rgb(26 30 36 / 10%);
+  --ui-font-family: Inter, "Segoe UI", system-ui, sans-serif;
+  --ui-font-mono: ui-monospace, Consolas, monospace;
+  --ui-font-title: clamp(1.625rem, 2.2vw, 2rem);
+  --ui-font-heading: 1.0625rem;
+  --ui-font-body: 0.9375rem;
+  --ui-font-small: 0.8125rem;
+  --ui-weight-title: 650;
+  --ui-weight-heading: 600;
+  --ui-space-1: 4px;
+  --ui-space-2: 8px;
+  --ui-space-3: 12px;
+  --ui-space-4: 16px;
+  --ui-space-5: 20px;
+  --ui-space-6: 24px;
+  --ui-space-8: 32px;
+  --ui-radius-control: 10px;
+  --ui-radius-row: 12px;
+  --ui-radius-card: 14px;
+  --ui-radius-dialog: 20px;
+  --ui-radius-nav: 20px;
+  --ui-control-height: 40px;
+  --ui-row-padding: 16px;
+  --ui-edge-left: 28px;
+  --ui-edge-right: 28px;
+  --ui-reading-width: 880px;
+  --ui-content-width: 1560px;
+  --ui-empty-min: 280px;
+  --ui-motion-fast: 140ms;
+  --ui-motion-normal: 200ms;
+  --ui-motion-easing: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ui-z-topbar: 80;
+  --ui-z-drawer: 150;
+  --ui-z-notice: 200;
+  --ui-z-modal: 300;
+  --ui-z-popover: 350;
+  --ui-z-dialog: 400;
+  /* Existing host/plugin token names are aliases during migration. */
+  --text: var(--ui-dim);
+  --text-h: var(--ui-text);
+  --text-primary: var(--ui-text);
+  --text-secondary: var(--ui-dim);
+  --bg: var(--ui-bg);
+  --bg-primary: var(--ui-bg);
+  --bg-secondary: var(--ui-surface);
+  --border: var(--ui-border);
+  --code-bg: var(--ui-surface-2);
+  --accent: var(--ui-accent);
+  --accent-bg: var(--ui-accent-soft);
+  --accent-border: var(--ui-accent-line);
+  --shadow: var(--ui-elevation);
+  --sans: var(--ui-font-family);
+  --heading: var(--ui-font-family);
+  --mono: var(--ui-font-mono);
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ui-bg: #17191c;
+  --ui-surface: #212428;
+  --ui-surface-2: #2b2f34;
+  --ui-popover: #25292e;
+  --ui-border-soft: #30353b;
+  --ui-border: #3a4149;
+  --ui-border-strong: #66717f;
+  --ui-text: #edf0f3;
+  --ui-dim: #adb5c0;
+  --ui-faint: #939eab;
+  --ui-accent: #efac59;
+  --ui-accent-text: #f1b36c;
+  --ui-accent-soft: #352c21;
+  --ui-accent-line: #94693b;
+  --ui-on-accent: #251808;
+  --ui-danger: #b42318;
+  --ui-error: #ffa6a0;
+  --ui-danger-soft: #3f2525;
+  --ui-warning: #f2c87a;
+  --ui-warning-soft: #3b3020;
+  --ui-info: #a2c8ef;
+  --ui-info-soft: #263445;
+  --ui-purple: #c6b5f1;
+  --ui-purple-soft: #332c45;
+  --ui-good: #96d5a9;
+  --ui-good-soft: #23382b;
+  --ui-overlay: rgb(0 0 0 / 65%);
+  --ui-elevation: 0 12px 38px rgb(0 0 0 / 25%);
+}
+:root[data-density="compact"] {
+  --ui-row-padding: 10px;
+  --ui-space-6: 20px;
+  --ui-edge-left: 24px;
+  --ui-edge-right: 24px;
+}
+:root.high-contrast {
+  --ui-faint: var(--ui-text);
+  --ui-dim: var(--ui-text);
+  --ui-border: var(--ui-border-strong);
+}
+:root.reduce-motion {
+  --ui-motion-fast: 0ms;
+  --ui-motion-normal: 0ms;
+}
+@media (max-width: 760px) {
+  :root {
+    --ui-edge-left: 20px;
+    --ui-edge-right: 20px;
+    --ui-radius-control: 12px;
+    --ui-radius-row: 16px;
+    --ui-radius-card: 22px;
+    --ui-control-height: 44px;
+    --ui-row-padding: 18px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --ui-motion-fast: 0ms;
+    --ui-motion-normal: 0ms;
+  }
+}

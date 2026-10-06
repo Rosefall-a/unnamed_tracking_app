@@ -52,7 +52,7 @@ const max = computed(() => Math.max(1, ...props.columns.map((c) => c.value)));
 .col-value {
   height: 14px;
   font-size: 0.68rem;
-  color: #9c9c9c;
+  color: var(--ui-dim);
   font-variant-numeric: tabular-nums;
 }
 .col-bar-wrap {
@@ -66,16 +66,16 @@ const max = computed(() => Math.max(1, ...props.columns.map((c) => c.value)));
   width: 100%;
   min-height: 2px;
   border-radius: 4px 4px 0 0;
-  background: linear-gradient(180deg, #d68a34, #e8a552);
+  background: linear-gradient(180deg, var(--ui-accent-text), var(--ui-accent));
 }
 .col-label {
   font-size: 0.66rem;
-  color: #666;
+  color: var(--ui-faint);
   white-space: nowrap;
 }
 .col-empty {
   margin: 0;
-  color: #666;
+  color: var(--ui-faint);
   font-size: 0.82rem;
 }
 </style>

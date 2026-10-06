@@ -15,7 +15,6 @@ from urllib.parse import urlparse
 from uuid import UUID
 
 import requests
-from PIL import Image, UnidentifiedImageError
 from fastapi import (
     APIRouter,
     Body,
@@ -30,6 +29,7 @@ from fastapi import (
     status,
 )
 from fastapi.responses import FileResponse
+from PIL import Image, UnidentifiedImageError
 from pydantic import BaseModel, Field
 from sqlalchemy import Integer, func, select
 from sqlalchemy.exc import IntegrityError
@@ -46,27 +46,26 @@ from src.api.schemas.game import (
     GameRead,
     GameUpdate,
 )
-from src.core.app_integrations import get_max_upload_size_mb
+from src.core.app_integrations import get_max_upload_size_mb, get_upload_limits_mb
 from src.core.auth import get_current_user
-from src.core.config import settings
 from src.core.integrations import resolve_integrations
+from src.core.preferences import load_preferences
 from src.database.models.achievement import Achievement
 from src.database.models.game import Game, GameLink, GameStatus
 from src.database.models.game_checklist_item import GameChecklistItem
 from src.database.models.game_field_change import GameFieldChange
 from src.database.models.game_file_item import GameFileItem
 from src.database.models.game_note_detail import GameNoteDetail
-from src.features import game_notes
 from src.database.models.game_profile import GameProfile
 from src.database.models.game_profile_stat_snapshot import GameProfileStatSnapshot
 from src.database.models.media_item import MediaItem
 from src.database.models.user import User
 from src.database.models.user_scan_settings import UserScanSettings
 from src.database.session import get_db
-from src.features.metadata.locked_fields import apply_updates_with_locking
+from src.features import game_notes
 from src.features.metadata.games import wiseoldman
-from src.core.preferences import load_preferences
 from src.features.metadata.games.search import search_game_metadata
+from src.features.metadata.locked_fields import apply_updates_with_locking
 from src.features.trash.game_trash import move_game_to_trash, restore_game_from_trash
 from src.features.trash.media_trash import move_media_file_to_trash, restore_media_file_from_trash
 from src.features.trash.sweep import RETENTION_SECONDS
@@ -79,6 +78,17 @@ from src.helpers.save_game_asset import (
     create_game_folder,
     save_game_asset,
 )
+
+_QUERY_DEFAULT = Query(..., min_length=2, max_length=100)
+_LIMIT_DEFAULT = Query(default=8, ge=1, le=20)
+_INCLUDE_IMAGES_DEFAULT = Query(default=True)
+_FILES_DEFAULT = File(None, alias="files")
+_FILE_DEFAULT = File(None, alias="file")
+_UNSCOPED_ONLY_DEFAULT = Query(False, description="Only items with no profile_id set.")
+_FAVORITE_DEFAULT = Query(default=None)
+_SEARCH_DEFAULT = Query(default=None, description="Case-insensitive title search")
+_SKIP_DEFAULT = Query(default=0, ge=0)
+_LIMIT_DEFAULT_2 = Query(default=50, ge=1, le=200)
 
 router = APIRouter(
     prefix="/api/game",
@@ -160,9 +170,9 @@ def _scan_settings_to_preferences(scan_settings: UserScanSettings) -> dict:
 
 @router.get("/metadata/search", response_model=MetadataSearchResponse)
 async def search_metadata(
-    query: str = Query(..., min_length=2, max_length=100),
-    limit: int = Query(default=8, ge=1, le=20),
-    include_images: bool = Query(default=True),
+    query: str = _QUERY_DEFAULT,
+    limit: int = _LIMIT_DEFAULT,
+    include_images: bool = _INCLUDE_IMAGES_DEFAULT,
     db: AsyncSession = _DB_DEPENDENCY,
     current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> dict:
@@ -174,7 +184,9 @@ async def search_metadata(
     """
     scan_settings = await get_or_create_scan_settings(current_user.id, db)
     preferences = _scan_settings_to_preferences(scan_settings)
-    preferences["steam_user_tags"] = (await load_preferences(db, current_user.id))["steam_user_tags"]
+    preferences["steam_user_tags"] = (await load_preferences(db, current_user.id))[
+        "steam_user_tags"
+    ]
     app_integrations = resolve_integrations(await get_or_create_app_integration_settings(db))
     try:
         result = await asyncio.to_thread(
@@ -719,7 +731,8 @@ async def get_clip_thumbnail(
 @router.post("/{game_id}/screenshots")
 async def upload_game_screenshots(
     game_id: UUID,
-    files: list[UploadFile] = _FILES_UPLOAD,
+    files: list[UploadFile] | None = _FILES_DEFAULT,
+    file: UploadFile | None = _FILE_DEFAULT,
     profile_id: UUID | None = _NONE_FORM,
     last_modified: list[int] | None = _MODIFIED_FORM,
     db: AsyncSession = _DB_DEPENDENCY,
@@ -740,8 +753,21 @@ async def upload_game_screenshots(
     if profile_id is not None:
         await _get_profile_or_404(profile_id, game_id, db)
 
+    # Accept both the current plural field used by the frontend and the
+    # legacy/single-file field used by older clients. This keeps the upload
+    # endpoint backwards-compatible while still returning a useful 400 when
+    # a multipart request contains no file at all.
+    uploads = list(files or [])
+    if file is not None:
+        uploads.append(file)
+    if not uploads:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="At least one file is required.",
+        )
+
     results: list[dict] = []
-    for index, file in enumerate(files):
+    for index, file in enumerate(uploads):
         kind = classify_media(file.content_type, file.filename or "")
         if kind is None:
             results.append(
@@ -756,7 +782,7 @@ async def upload_game_screenshots(
         # clips/soundtrack get a much larger cap than images — a real video
         # clip routinely exceeds a cover-art-sized limit
         limit_mb = (
-            settings.MAX_CLIP_SIZE_MB
+            (await get_upload_limits_mb(db))["max_clip_size_mb"]
             if kind in ("clip", "soundtrack")
             else await get_max_upload_size_mb(db)
         )
@@ -803,7 +829,7 @@ async def upload_game_screenshots(
 async def list_game_screenshots(
     game_id: UUID,
     profile_id: UUID | None = _NONE_FORM,
-    unscoped_only: bool = Query(False, description="Only items with no profile_id set."),
+    unscoped_only: bool = _UNSCOPED_ONLY_DEFAULT,
     db: AsyncSession = _DB_DEPENDENCY,
     current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> dict[str, list[dict]]:
@@ -1064,7 +1090,8 @@ def _game_file_to_dict(item: GameFileItem, game_id: UUID, game_dir: Path) -> dic
 async def upload_game_files(
     game_id: UUID,
     kind: GameFileKind,
-    files: list[UploadFile] = _FILES_UPLOAD,
+    files: list[UploadFile] | None = _FILES_DEFAULT,
+    file: UploadFile | None = _FILE_DEFAULT,
     last_modified: list[int] | None = _FILE_MODIFIED_FORM,
     db: AsyncSession = _DB_DEPENDENCY,
     current_user: User = _CURRENT_USER_DEPENDENCY,
@@ -1081,11 +1108,23 @@ async def upload_game_files(
     # a modpack zip is routinely hundreds of MB to a few GB — far past a
     # doc-sized limit
     limit_mb = (
-        settings.MAX_WORLD_SAVE_SIZE_MB if kind == "modpack" else await get_max_upload_size_mb(db)
+        (await get_upload_limits_mb(db))["max_world_save_size_mb"]
+        if kind == "modpack"
+        else await get_max_upload_size_mb(db)
     )
     max_bytes = limit_mb * 1024 * 1024
+    # Accept both the current plural field used by the frontend and the
+    # legacy/single-file field used by older clients.
+    uploads = list(files or [])
+    if file is not None:
+        uploads.append(file)
+    if not uploads:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="At least one file is required.",
+        )
     results: list[dict] = []
-    for index, file in enumerate(files):
+    for index, file in enumerate(uploads):
         data = await file.read()
         if len(data) > max_bytes:
             results.append(
@@ -1147,9 +1186,7 @@ async def list_game_files(
         .order_by(GameFileItem.filename)
     )
     return {
-        "files": [
-            _game_file_to_dict(item, game_id, game_dir) for item in result.scalars().all()
-        ]
+        "files": [_game_file_to_dict(item, game_id, game_dir) for item in result.scalars().all()]
     }
 
 
@@ -1334,11 +1371,19 @@ async def create_game_note(
     except FileExistsError as exc:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail={"error": "note_already_exists", "message": f'A note titled "{normalized_name}" already exists.'},
+            detail={
+                "error": "note_already_exists",
+                "message": f'A note titled "{normalized_name}" already exists.',
+            },
         ) from exc
     await game_notes.ensure_row(db, game_id, normalized_name)
     await db.commit()
-    return {"game_id": str(game_id), "note_name": normalized_name, "path": str(note_path), "status": "saved"}
+    return {
+        "game_id": str(game_id),
+        "note_name": normalized_name,
+        "path": str(note_path),
+        "status": "saved",
+    }
 
 
 @router.put(
@@ -1356,7 +1401,9 @@ async def update_game_note(
     normalized_name = _normalize_note_name(note_name)
     note_path = _game_note_path(game, normalized_name)
     if not note_path.is_file():
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f'Note "{normalized_name}" was not found.')
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=f'Note "{normalized_name}" was not found.'
+        )
     previous = note_path.read_text(encoding="utf-8", errors="replace")
     row = await game_notes.ensure_row(
         db, game_id, normalized_name, created_at=int(note_path.stat().st_mtime)
@@ -1365,7 +1412,12 @@ async def update_game_note(
         await game_notes.record_version(db, row, previous)
     note_path.write_text(payload.content, encoding="utf-8")
     await db.commit()
-    return {"game_id": str(game_id), "note_name": normalized_name, "path": str(note_path), "status": "saved"}
+    return {
+        "game_id": str(game_id),
+        "note_name": normalized_name,
+        "path": str(note_path),
+        "status": "saved",
+    }
 
 
 @router.patch(
@@ -1385,18 +1437,31 @@ async def rename_game_note(
     source_path = _game_note_path(game, source_name)
     destination_path = _game_note_path(game, destination_name)
     if not source_path.is_file():
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f'Note "{source_name}" was not found.')
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=f'Note "{source_name}" was not found.'
+        )
     if source_name == destination_name:
-        return {"game_id": str(game_id), "note_name": source_name, "path": str(source_path), "status": "saved"}
+        return {
+            "game_id": str(game_id),
+            "note_name": source_name,
+            "path": str(source_path),
+            "status": "saved",
+        }
     try:
         os.link(source_path, destination_path)
     except FileExistsError as exc:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail={"error": "note_already_exists", "message": f'A note titled "{destination_name}" already exists.'},
+            detail={
+                "error": "note_already_exists",
+                "message": f'A note titled "{destination_name}" already exists.',
+            },
         ) from exc
     except OSError as exc:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="The note could not be renamed.") from exc
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="The note could not be renamed.",
+        ) from exc
     try:
         source_path.unlink()
     except OSError as exc:
@@ -1404,10 +1469,18 @@ async def rename_game_note(
             destination_path.unlink()
         except OSError:
             pass
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="The note could not be renamed.") from exc
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="The note could not be renamed.",
+        ) from exc
     await game_notes.rename_row(db, game_id, source_name, destination_name)
     await db.commit()
-    return {"game_id": str(game_id), "note_name": destination_name, "path": str(destination_path), "status": "saved"}
+    return {
+        "game_id": str(game_id),
+        "note_name": destination_name,
+        "path": str(destination_path),
+        "status": "saved",
+    }
 
 
 @router.get(
@@ -1862,7 +1935,7 @@ class ChecklistItemUpdate(BaseModel):
 async def list_game_checklist(
     game_id: UUID,
     profile_id: UUID | None = _NONE_FORM,
-    unscoped_only: bool = Query(False, description="Only items with no profile_id set."),
+    unscoped_only: bool = _UNSCOPED_ONLY_DEFAULT,
     db: AsyncSession = _DB_DEPENDENCY,
     current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> dict[str, list[dict]]:
@@ -2139,10 +2212,10 @@ async def list_games(
     db: AsyncSession = _DB_DEPENDENCY,
     current_user: User = _CURRENT_USER_DEPENDENCY,
     status_filter: GameStatus | None = _NONE_QUERY_STATUS,
-    favorite: bool | None = Query(default=None),
-    search: str | None = Query(default=None, description="Case-insensitive title search"),
-    skip: int = Query(default=0, ge=0),
-    limit: int = Query(default=50, ge=1, le=200),
+    favorite: bool | None = _FAVORITE_DEFAULT,
+    search: str | None = _SEARCH_DEFAULT,
+    skip: int = _SKIP_DEFAULT,
+    limit: int = _LIMIT_DEFAULT_2,
 ) -> list[Game]:
     """Return games filtered by status, favorite flag, or title search."""
     stmt = select(Game).where(Game.user_id == current_user.id, Game.deleted_at.is_(None))
@@ -2274,19 +2347,21 @@ async def update_game(
     return game
 
 
-_GAME_METADATA_FIELDS = frozenset({
-    "title",
-    "description",
-    "developer",
-    "publisher",
-    "series",
-    "tags",
-    "features",
-    "age_rating",
-    "release_date",
-    "time_to_beat_hours",
-    "links",
-})
+_GAME_METADATA_FIELDS = frozenset(
+    {
+        "title",
+        "description",
+        "developer",
+        "publisher",
+        "series",
+        "tags",
+        "features",
+        "age_rating",
+        "release_date",
+        "time_to_beat_hours",
+        "links",
+    }
+)
 
 
 def _normalize_metadata_title(title: str) -> str:
@@ -2392,7 +2467,11 @@ async def refresh_game_metadata(
     updates: dict[str, object] = {}
     skipped_locked: list[str] = []
     for field, fresh in field_values.items():
-        if field != "title" and gated_flags.get(field) and not preferences.get(gated_flags[field], True):
+        if (
+            field != "title"
+            and gated_flags.get(field)
+            and not preferences.get(gated_flags[field], True)
+        ):
             continue
         if not _metadata_value_is_present(fresh):
             continue
@@ -2410,10 +2489,14 @@ async def refresh_game_metadata(
     key_art_exists = (game_dir / ASSET_FILENAMES["key_art"]).is_file()
     banner_exists = (game_dir / ASSET_FILENAMES["banner"]).is_file()
     would_add_key_art = bool(
-        payload.fill_missing_art and key_art_url and (payload.overwrite_existing_art or not key_art_exists)
+        payload.fill_missing_art
+        and key_art_url
+        and (payload.overwrite_existing_art or not key_art_exists)
     )
     would_add_banner = bool(
-        payload.fill_missing_art and banner_url and (payload.overwrite_existing_art or not banner_exists)
+        payload.fill_missing_art
+        and banner_url
+        and (payload.overwrite_existing_art or not banner_exists)
     )
 
     if payload.dry_run:
@@ -2442,7 +2525,9 @@ async def refresh_game_metadata(
             .with_for_update()
         )
         if locked_game is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Game {game_id} not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail=f"Game {game_id} not found"
+            )
         if locked_game.updated_at != payload.expected_updated_at:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
@@ -2454,7 +2539,11 @@ async def refresh_game_metadata(
         updates = {}
         skipped_locked = []
         for field, fresh in field_values.items():
-            if field != "title" and gated_flags.get(field) and not preferences.get(gated_flags[field], True):
+            if (
+                field != "title"
+                and gated_flags.get(field)
+                and not preferences.get(gated_flags[field], True)
+            ):
                 continue
             if not _metadata_value_is_present(fresh):
                 continue
@@ -2473,6 +2562,7 @@ async def refresh_game_metadata(
             setattr(game, field, value)
 
     if payload.fill_missing_art:
+
         async def _download_art(url: str) -> bytes:
             response = await asyncio.to_thread(requests.get, url, timeout=20)
             response.raise_for_status()
@@ -2482,14 +2572,18 @@ async def refresh_game_metadata(
             try:
                 await save_game_asset(await _download_art(str(key_art_url)), game.id, "key_art")
             except Exception as exc:  # noqa: BLE001 — one image must not cancel text metadata
-                provider_errors.append(f"{match.get('provider', 'Metadata')}: cover art could not be downloaded: {exc}")
+                provider_errors.append(
+                    f"{match.get('provider', 'Metadata')}: cover art could not be downloaded: {exc}"
+                )
             else:
                 would_add_key_art = True
         if banner_url and (payload.overwrite_existing_art or not banner_exists):
             try:
                 await save_game_asset(await _download_art(str(banner_url)), game.id, "banner")
             except Exception as exc:  # noqa: BLE001 — one image must not cancel text metadata
-                provider_errors.append(f"{match.get('provider', 'Metadata')}: banner art could not be downloaded: {exc}")
+                provider_errors.append(
+                    f"{match.get('provider', 'Metadata')}: banner art could not be downloaded: {exc}"
+                )
             else:
                 would_add_banner = True
 

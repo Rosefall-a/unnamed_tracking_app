@@ -8,7 +8,6 @@ import MediaKindSwitch from "./MediaKindSwitch.vue";
 defineProps<{
   active: "movie" | "tv" | "anime" | "lists";
 }>();
-
 </script>
 
 <template>

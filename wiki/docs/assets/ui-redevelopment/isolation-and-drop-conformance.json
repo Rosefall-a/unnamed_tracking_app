@@ -1,0 +1,17 @@
+{
+  "real_downloaded_ci_packages": true,
+  "passed": [
+    "Invalid extensions and multiple file drops are rejected within the install box",
+    "An invalid .upt archive goes through backend validation and never installs or executes",
+    "Both .utp and .upt drops open verified review directly without the upload chooser",
+    "Installation waits for explicit whole-server isolation acknowledgement and then resumes; warning persists without env override",
+    "Withdraw approval is available in settings and restores the warning and startup boundary"
+  ],
+  "screens": [
+    "package-drop-review-1440-light.png",
+    "package-drop-review-390-dark.png",
+    "isolation-acknowledgement-390-dark.png",
+    "isolation-approved-390-dark.png"
+  ],
+  "status": "passed"
+}

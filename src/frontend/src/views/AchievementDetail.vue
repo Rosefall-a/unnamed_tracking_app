@@ -297,16 +297,16 @@ function goBack() {
   max-width: 900px;
   margin: 0 auto;
   padding: 32px 24px;
-  color: #fff;
-  font-family: system-ui, sans-serif;
-  background: #121212;
+  color: var(--ui-text);
+  font-family: var(--ui-font-family);
+  background: var(--ui-bg);
   min-height: 100vh;
   box-sizing: border-box;
 }
 .back-button {
   background: none;
   border: none;
-  color: #d68a34;
+  color: var(--ui-accent-text);
   font-size: 14px;
   cursor: pointer;
   padding: 0;
@@ -317,13 +317,13 @@ function goBack() {
   gap: 20px;
   align-items: flex-start;
   padding-bottom: 24px;
-  border-bottom: 1px solid #2a2a2a;
+  border-bottom: 1px solid var(--ui-border);
   margin-bottom: 24px;
 }
 .achievement-icon-large {
   width: 96px;
   height: 96px;
-  border-radius: 14px;
+  border-radius: var(--ui-radius-dialog);
   background-size: cover;
   background-repeat: no-repeat;
   background-position: center;
@@ -331,19 +331,19 @@ function goBack() {
 }
 .achievement-header h1 {
   margin: 0 0 8px;
-  font-size: 1.6rem;
+  font-size: var(--ui-font-title);
 }
 .achievement-desc {
-  color: #ccc;
+  color: var(--ui-text);
   margin: 0 0 8px;
 }
 .achievement-unlocked {
-  color: #d68a34;
+  color: var(--ui-accent-text);
   font-size: 13px;
   margin: 0;
 }
 .achievement-locked {
-  color: #777;
+  color: var(--ui-faint);
   font-size: 13px;
   margin: 0;
 }
@@ -358,20 +358,20 @@ function goBack() {
   width: 100%;
   min-height: 140px;
   box-sizing: border-box;
-  border: 1px solid #3a3a3a;
-  border-radius: 10px;
-  background: #111;
-  color: #f5f5f5;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-row);
+  background: var(--ui-surface);
+  color: var(--ui-text);
   resize: vertical;
   padding: 12px;
   font: inherit;
   margin-bottom: 10px;
 }
 .primary-button {
-  background: #d68a34;
-  color: #111;
+  background: var(--ui-accent);
+  color: var(--ui-on-accent);
   border: none;
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   padding: 10px 18px;
   font-weight: 600;
   cursor: pointer;
@@ -386,9 +386,9 @@ function goBack() {
   position: relative;
   width: 140px;
   height: 140px;
-  border-radius: 10px;
+  border-radius: var(--ui-radius-row);
   overflow: hidden;
-  border: 1px solid #2a2a2a;
+  border: 1px solid var(--ui-border);
 }
 .media-item img {
   width: 100%;
@@ -399,23 +399,23 @@ function goBack() {
   position: absolute;
   top: 6px;
   right: 6px;
-  background: rgba(0, 0, 0, 0.6);
-  color: #fff;
+  background: color-mix(in srgb, var(--ui-bg) 60%, transparent);
+  color: var(--ui-text);
   border: none;
   border-radius: 50%;
-  width: 24px;
-  height: 24px;
+  width: var(--ui-control-height);
+  height: var(--ui-control-height);
   cursor: pointer;
 }
 .empty-state {
-  color: #777;
+  color: var(--ui-faint);
   margin-top: 10px;
 }
 .not-found,
 .loading-state,
 .error-state {
   padding: 40px;
-  color: #fff;
+  color: var(--ui-text);
   text-align: center;
 }
 .add-media {
@@ -423,9 +423,9 @@ function goBack() {
   align-items: center;
   height: 34px;
   padding: 0 16px;
-  border-radius: 8px;
-  background: #d68a34;
-  color: #14100a;
+  border-radius: var(--ui-radius-control);
+  background: var(--ui-accent);
+  color: var(--ui-on-accent);
   font-size: 0.82rem;
   font-weight: 700;
   cursor: pointer;
@@ -435,7 +435,7 @@ function goBack() {
   display: none;
 }
 .media-error {
-  color: #fca5a5;
+  color: var(--ui-error);
   font-size: 0.82rem;
   margin: 8px 0 0;
 }
@@ -451,7 +451,7 @@ function goBack() {
   position: fixed;
   inset: 0;
   z-index: 300;
-  background: rgba(0, 0, 0, 0.9);
+  background: color-mix(in srgb, var(--ui-bg) 90%, transparent);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -461,7 +461,7 @@ function goBack() {
 .lightbox img {
   max-width: 100%;
   max-height: 100%;
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
 }
 .tied-notes {
   list-style: none;
@@ -478,23 +478,23 @@ function goBack() {
   gap: 4px;
   padding: 12px 14px;
   background: #161616;
-  border: 1px solid #262626;
-  border-radius: 10px;
+  border: 1px solid var(--ui-surface-2);
+  border-radius: var(--ui-radius-row);
   color: inherit;
   font-family: inherit;
   text-align: left;
   cursor: pointer;
 }
 .tied-notes button:hover {
-  border-color: rgba(214, 138, 52, 0.5);
+  border-color: color-mix(in srgb, var(--ui-accent) 50%, transparent);
 }
 .tied-notes strong {
   font-size: 0.92rem;
-  color: #f2f2f2;
+  color: var(--ui-text);
 }
 .tied-notes span {
   font-size: 0.8rem;
-  color: #888;
+  color: var(--ui-dim);
   overflow-wrap: anywhere;
 }
 </style>
