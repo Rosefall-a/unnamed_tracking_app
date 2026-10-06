@@ -22,7 +22,7 @@ from src.api.routes.media_extras import log_activity, status_change_detail
 from src.api.schemas.movie import MovieCreate, MovieRead, MovieUpdate
 from src.api.schemas.pagination import PaginatedResponse
 from src.core.app_integrations import get_or_create_app_integration_settings
-from src.core.auth import get_current_user
+from src.core.auth import AuthenticatedActor, get_current_actor, get_current_user
 from src.core.integrations import resolve_integrations
 from src.database.models.media_extras import ActivityEventType
 from src.database.models.movies import Movie, MovieStatus
@@ -50,6 +50,8 @@ _ONLY_WITH_NOTE_DEFAULT = Query(default=False, alias="only_with_note")
 _MIN_SCORE_DEFAULT = Query(default=None, ge=0, le=10, alias="min_score")
 _YEAR_FROM_DEFAULT = Query(default=None, ge=1, le=9999, alias="year_from")
 _YEAR_TO_DEFAULT = Query(default=None, ge=1, le=9999, alias="year_to")
+
+_ACTOR_DEPENDENCY = Depends(get_current_actor)
 
 router = APIRouter(prefix="/api/movie", tags=["movie"], dependencies=[Depends(get_current_user)])
 
@@ -88,11 +90,18 @@ def _derive_sort_title(title: str) -> str:
 
 
 async def _get_movie_or_404(
-    movie_id: UUID, db: AsyncSession, user_id: UUID, include_deleted: bool = False
+    movie_id: UUID,
+    db: AsyncSession,
+    user_id: UUID,
+    include_deleted: bool = False,
+    *,
+    for_update: bool = False,
 ) -> Movie:
     stmt = select(Movie).where(Movie.id == movie_id, Movie.user_id == user_id)
     if not include_deleted:
         stmt = stmt.where(Movie.deleted_at.is_(None))
+    if for_update:
+        stmt = stmt.with_for_update().execution_options(populate_existing=True)
     movie = await db.scalar(stmt)
     if movie is None:
         raise HTTPException(
@@ -241,14 +250,15 @@ async def update_movie(
     payload: MovieUpdate,
     db: AsyncSession = _DB_DEFAULT,
     current_user: User = _CURRENT_USER_DEFAULT,
+    actor: AuthenticatedActor = _ACTOR_DEPENDENCY,
 ) -> Movie:
     """Update a movie and keep its derived sort title synchronized."""
-    movie = await _get_movie_or_404(movie_id, db, current_user.id)
+    movie = await _get_movie_or_404(movie_id, db, current_user.id, for_update=True)
     previous_status = movie.status
 
     updates = payload.model_dump(exclude_unset=True)
 
-    apply_updates_with_locking(movie, updates, _LOCKABLE_FIELDS)
+    apply_updates_with_locking(movie, updates, _LOCKABLE_FIELDS, actor=actor)
     _sync_watch_progress(movie, updates)
 
     if "title" in updates and "sort_title" not in updates:

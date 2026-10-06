@@ -47,7 +47,7 @@ from src.api.schemas.game import (
     GameUpdate,
 )
 from src.core.app_integrations import get_max_upload_size_mb, get_upload_limits_mb
-from src.core.auth import get_current_user
+from src.core.auth import AuthenticatedActor, get_current_actor, get_current_user
 from src.core.integrations import resolve_integrations
 from src.core.preferences import load_preferences
 from src.database.models.achievement import Achievement
@@ -65,7 +65,11 @@ from src.database.session import get_db
 from src.features import game_notes
 from src.features.metadata.games import wiseoldman
 from src.features.metadata.games.search import search_game_metadata
-from src.features.metadata.locked_fields import apply_updates_with_locking
+from src.features.metadata.locked_fields import (
+    apply_metadata_updates,
+    apply_updates_with_locking,
+    authorize_title_update,
+)
 from src.features.trash.game_trash import move_game_to_trash, restore_game_from_trash
 from src.features.trash.media_trash import move_media_file_to_trash, restore_media_file_from_trash
 from src.features.trash.sweep import RETENTION_SECONDS
@@ -89,6 +93,8 @@ _FAVORITE_DEFAULT = Query(default=None)
 _SEARCH_DEFAULT = Query(default=None, description="Case-insensitive title search")
 _SKIP_DEFAULT = Query(default=0, ge=0)
 _LIMIT_DEFAULT_2 = Query(default=50, ge=1, le=200)
+
+_ACTOR_DEPENDENCY = Depends(get_current_actor)
 
 router = APIRouter(
     prefix="/api/game",
@@ -426,11 +432,18 @@ def _game_note_path(game: Game, note_name: str) -> Path:
 
 
 async def _get_game_or_404(
-    game_id: UUID, db: AsyncSession, user_id: UUID, include_deleted: bool = False
+    game_id: UUID,
+    db: AsyncSession,
+    user_id: UUID,
+    include_deleted: bool = False,
+    *,
+    for_update: bool = False,
 ) -> Game:
     stmt = select(Game).where(Game.id == game_id, Game.user_id == user_id)
     if not include_deleted:
         stmt = stmt.where(Game.deleted_at.is_(None))
+    if for_update:
+        stmt = stmt.with_for_update().execution_options(populate_existing=True)
     game = await db.scalar(stmt)
     if game is None:
         raise HTTPException(
@@ -2293,11 +2306,14 @@ async def update_game(
     payload: GameUpdate,
     db: AsyncSession = _DB_DEPENDENCY,
     current_user: User = _CURRENT_USER_DEPENDENCY,
+    actor: AuthenticatedActor = _ACTOR_DEPENDENCY,
 ) -> Game:
     """Update a game and keep its derived sort title synchronized."""
-    game = await _get_game_or_404(game_id, db, current_user.id)
+    game = await _get_game_or_404(game_id, db, current_user.id, for_update=True)
 
     updates = _drop_nulls_for_required_fields(payload.model_dump(exclude_unset=True))
+
+    authorize_title_update(game, updates, actor)
 
     if "folder_location" in updates and updates["folder_location"] is not None:
         await _ensure_folder_location_available(
@@ -2320,10 +2336,7 @@ async def update_game(
         game.links = [GameLink(label=link["label"], url=link["url"]) for link in new_links]
 
     _record_field_changes(game, updates, db)
-    apply_updates_with_locking(game, updates, frozenset(_GAME_METADATA_FIELDS))
-
-    for field, value in updates.items():
-        setattr(game, field, value)
+    apply_updates_with_locking(game, updates, frozenset(_GAME_METADATA_FIELDS), actor=actor)
 
     # Keep sort_title in sync if title changed but sort_title wasn't explicitly
     # set, or was cleared (a blank sorting name means "sort by the title")
@@ -2439,6 +2452,9 @@ async def refresh_game_metadata(
             "would_add_banner": False,
             "game_updated_at": game.updated_at,
         }
+
+    if not payload.dry_run:
+        await db.refresh(game, with_for_update=True)
 
     field_values: dict[str, object] = {
         "title": match.get("title"),
@@ -2558,8 +2574,7 @@ async def refresh_game_metadata(
 
     if payload.update_text:
         _record_field_changes(game, updates, db)
-        for field, value in updates.items():
-            setattr(game, field, value)
+        apply_metadata_updates(game, updates)
 
     if payload.fill_missing_art:
 

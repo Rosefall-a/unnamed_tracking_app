@@ -4,8 +4,9 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from src.database.models.movies import MovieStatus
 from src.api.schemas.provider_identity import ProviderIDs
+from src.api.schemas.title_protection import TitleProtectionUpdate
+from src.database.models.movies import MovieStatus
 
 
 class MovieBase(BaseModel):
@@ -55,7 +56,7 @@ class MovieCreate(MovieBase):
     sort_title: str | None = Field(default=None, max_length=500)
 
 
-class MovieUpdate(BaseModel):
+class MovieUpdate(TitleProtectionUpdate):
     """Payload for partial updates — every field optional."""
 
     provider_ids: ProviderIDs = Field(default_factory=dict)

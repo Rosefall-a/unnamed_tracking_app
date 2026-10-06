@@ -25,12 +25,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.helpers.steam_achievement_rows import (  # noqa: F401
-    needs_community_descriptions as _needs_community_descriptions,
-    steam_achievement_rows as _steam_achievement_rows,
-)
 from src.api.routes.games import _scan_settings_to_preferences
-from src.core.preferences import load_preferences
 from src.api.routes.settings import (
     get_or_create_app_integration_settings,
     get_or_create_scan_settings,
@@ -39,6 +34,7 @@ from src.core.auth import get_current_user
 from src.core.config import settings as app_settings
 from src.core.crypto import decrypt_secret
 from src.core.integrations import resolve_integrations
+from src.core.preferences import load_preferences
 from src.database.models.achievement import Achievement
 from src.database.models.game import Game, GameStatus
 from src.database.models.user import User
@@ -52,7 +48,14 @@ from src.features.metadata.games.retroachievements import (
 )
 from src.features.metadata.games.search import search_game_metadata
 from src.features.metadata.games.steam_grid_db import SteamGridDBClient
+from src.features.metadata.locked_fields import apply_metadata_updates
 from src.helpers.save_game_asset import AssetKind, create_game_folder, save_game_asset
+from src.helpers.steam_achievement_rows import (  # noqa: F401
+    needs_community_descriptions as _needs_community_descriptions,
+)
+from src.helpers.steam_achievement_rows import (
+    steam_achievement_rows as _steam_achievement_rows,
+)
 
 router = APIRouter(
     prefix="/api/library-sync", tags=["library-sync"], dependencies=[Depends(get_current_user)]
@@ -128,7 +131,11 @@ async def _fetch_key_art_from_steamgriddb(app_id: int, api_key: str | None) -> s
 
 
 async def _enrich_steam_game_by_appid(
-    game: Game, app_id: int, user: User, igdb_client_id: str | None, igdb_client_secret: str | None,
+    game: Game,
+    app_id: int,
+    user: User,
+    igdb_client_id: str | None,
+    igdb_client_secret: str | None,
     use_user_tags: bool = True,
 ) -> None:
     """Steam-sourced games already carry an authoritative Steam appid from
@@ -392,29 +399,20 @@ async def _get_or_create_game(
     display name for the same appid between calls, e.g. briefly appending
     "- GOTY Edition"), which was creating duplicate rows for one real game.
     Falls back to matching by (user, source, title) when no id is given."""
-    existing: Game | None = None
-    if external_id:
-        existing = await db.scalar(
-            select(Game).where(
-                Game.user_id == user_id,
-                Game.source == source,
-                Game.external_id == external_id,
-                Game.deleted_at.is_(None),
-            )
-        )
+    statement = (
+        select(Game)
+        .where(Game.user_id == user_id, Game.source == source, Game.deleted_at.is_(None))
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    existing = (
+        await db.scalar(statement.where(Game.external_id == external_id)) if external_id else None
+    )
     if existing is None:
-        existing = await db.scalar(
-            select(Game).where(
-                Game.user_id == user_id,
-                Game.source == source,
-                Game.title == title,
-                Game.deleted_at.is_(None),
-            )
-        )
+        existing = await db.scalar(statement.where(Game.title == title))
     if existing:
         if existing.title != title:
-            existing.title = title
-            existing.sort_title = title.lower()
+            apply_metadata_updates(existing, {"title": title, "sort_title": title.lower()})
         if external_id and not existing.external_id:
             existing.external_id = external_id
         # this sync just saw it again — clear any earlier "missing from your
@@ -692,7 +690,9 @@ async def sync_steam_library(
 
     scan_settings = await get_or_create_scan_settings(current_user.id, db)
     preferences = _scan_settings_to_preferences(scan_settings)
-    preferences["steam_user_tags"] = (await load_preferences(db, current_user.id))["steam_user_tags"]
+    preferences["steam_user_tags"] = (await load_preferences(db, current_user.id))[
+        "steam_user_tags"
+    ]
     app_integrations = resolve_integrations(await get_or_create_app_integration_settings(db))
     igdb_client_id = app_integrations.igdb_client_id
     igdb_client_secret = app_integrations.igdb_client_secret
@@ -787,7 +787,12 @@ async def sync_steam_library(
             # different game's data/art the way the generic search-based
             # _enrich_new_game occasionally did
             await _enrich_steam_game_by_appid(
-                game, app_id, current_user, igdb_client_id, igdb_client_secret, preferences["steam_user_tags"]
+                game,
+                app_id,
+                current_user,
+                igdb_client_id,
+                igdb_client_secret,
+                preferences["steam_user_tags"],
             )
 
     await asyncio.gather(*(_enrich(g, app_id) for g, app_id in newly_created))

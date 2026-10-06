@@ -17,6 +17,8 @@ ALT_FIELDS = ("title_english", "title_romaji", "title_native")
 
 
 def display_title(item: Any, language: str) -> str:
+    if "title" in (getattr(item, "locked_fields", None) or []):
+        return str(item.title)
     for field in _ORDER.get(language, _ORDER["english"]):
         value = getattr(item, field, None)
         if value:

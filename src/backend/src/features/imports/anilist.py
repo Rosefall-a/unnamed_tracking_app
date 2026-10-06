@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database.models.anime import Anime, AnimeSeason
 from src.features.metadata.anime.anilist_import import AniListImportClient
+from src.features.metadata.locked_fields import apply_metadata_updates
 
 
 def _derive_sort_title(title: str) -> str:
@@ -31,11 +32,14 @@ async def import_anilist_library(
     for entry in entries:
         try:
             show = await db.scalar(
-                select(Anime).where(
+                select(Anime)
+                .where(
                     Anime.user_id == user_id,
                     Anime.anilist_id == entry["anilist_id"],
                     Anime.deleted_at.is_(None),
                 )
+                .with_for_update()
+                .execution_options(populate_existing=True)
             )
             if show is not None and not update_existing:
                 skipped += 1
@@ -85,7 +89,9 @@ async def import_anilist_library(
                 )
                 created += 1
             else:
-                show.sort_title = _derive_sort_title(entry["title"])
+                metadata_updates: dict[str, Any] = {
+                    "sort_title": _derive_sort_title(entry["title"])
+                }
                 for field in (
                     "title",
                     "description",
@@ -106,13 +112,12 @@ async def import_anilist_library(
                     "end_date",
                     "rating_overall",
                 ):
-                    setattr(
-                        show,
-                        field,
+                    metadata_updates[field] = (
                         parsed(field)
                         if field in {"first_air_date", "start_date", "end_date"}
-                        else entry[field],
+                        else entry["repeat" if field == "rewatches" else field]
                     )
+                apply_metadata_updates(show, metadata_updates)
                 season = show.seasons[0] if show.seasons else None
                 if season is None:
                     season = AnimeSeason(show_id=show.id, season_number=1)

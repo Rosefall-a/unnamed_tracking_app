@@ -5,6 +5,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from src.api.schemas.title_protection import TitleProtectionUpdate
 from src.core.page_settings import validate_page_settings
 from src.database.models.game import (
     FOLDER_NAME_MAX_LENGTH,
@@ -129,7 +130,7 @@ class GameCreate(GameBase):
     created_at: int | None = Field(default=None, ge=0, description=_CREATED_AT_DESCRIPTION)
 
 
-class GameUpdate(BaseModel):
+class GameUpdate(TitleProtectionUpdate):
     """Payload for partial updates — every field optional."""
 
     title: str | None = Field(default=None, min_length=1, max_length=500)
