@@ -29,10 +29,16 @@ nav:
       - OpenID Connect / SSO: user-guide/oidc.md
       - Data, Exports & Backups: user-guide/data-and-backups.md
       - Games: user-guide/games.md
+      - Game Media and Files: user-guide/game-media.md
+      - Game Notes: user-guide/game-notes.md
+      - Game Page Settings: user-guide/game-page-settings.md
+      - Collections and Lists: user-guide/collections-and-lists.md
+      - Movie, TV and Anime Libraries: user-guide/media-libraries.md
       - Anime: user-guide/anime.md
       - AniList Import: user-guide/anilist.md
       - TV Shows: user-guide/tv-shows.md
       - Movies: user-guide/movies.md
+      - Calendar & ICS: user-guide/calendar.md
   - Integrations:
       - Overview: integrations/index.md
       - Playnite: integrations/playnite.md
@@ -51,3 +57,4 @@ nav:
       - API: development/api.md
       - API Examples: development/api-examples.md
       - Contributing: development/contributing.md
+      - Calendar / ICS: development/calendar-ics.md

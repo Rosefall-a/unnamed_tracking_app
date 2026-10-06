@@ -1,10 +1,9 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from "vue";
 import { useRouter } from "vue-router";
-import { fetchGames } from "../services/games";
-import { fetchBounties } from "../services/bounties";
+import { fetchGames, searchNotes } from "../services/games";
+import type { NoteSearchHit } from "../services/games";
 import type { Game } from "../types/game";
-import type { Bounty } from "../services/bounties";
 import { isCommandPaletteOpen } from "../state/commandPalette";
 import { smartCollections } from "../state/smartCollections";
 
@@ -19,21 +18,14 @@ const inputRef = ref<HTMLInputElement | null>(null);
 // list (a game added a minute ago) is an acceptable tradeoff for not
 // re-fetching the whole library every keystroke
 let gamesCache: Game[] | null = null;
-let bountiesCache: Bounty[] | null = null;
 const loaded = ref(false);
 
 async function ensureLoaded() {
   if (loaded.value) return;
   try {
-    const [games, bounties] = await Promise.all([
-      fetchGames(),
-      fetchBounties(),
-    ]);
-    gamesCache = games;
-    bountiesCache = bounties;
+    gamesCache = await fetchGames();
   } catch {
     gamesCache = gamesCache ?? [];
-    bountiesCache = bountiesCache ?? [];
   } finally {
     loaded.value = true;
   }
@@ -41,7 +33,7 @@ async function ensureLoaded() {
 
 interface Result {
   key: string;
-  kind: "game" | "collection" | "bounty" | "page";
+  kind: "game" | "collection" | "page" | "note";
   label: string;
   sublabel?: string;
   action: () => void;
@@ -50,11 +42,17 @@ interface Result {
 const SETTINGS_SHORTCUTS: { label: string; section: string }[] = [
   { label: "Profile", section: "profile" },
   { label: "User Interface", section: "interface" },
+  { label: "Game Page", section: "game-page" },
   { label: "Appearance", section: "appearance" },
   { label: "Upload", section: "upload" },
-  { label: "Library Management", section: "library" },
-  { label: "Scan Settings", section: "scan" },
-  { label: "Metadata/API", section: "sources" },
+  { label: "Notifications", section: "notifications" },
+  { label: "Calendar", section: "calendar" },
+  { label: "Keyboard Shortcuts", section: "shortcuts" },
+  { label: "Connections", section: "connections" },
+  { label: "Library", section: "library" },
+  { label: "Media Trash", section: "media-trash" },
+  { label: "Metadata", section: "metadata" },
+  { label: "Metadata API keys", section: "sources" },
   { label: "Server Stats", section: "stats" },
   { label: "Export / Import", section: "export" },
 ];
@@ -63,8 +61,6 @@ const PAGE_SHORTCUTS: { label: string; to: string }[] = [
   { label: "Home", to: "/" },
   { label: "Games", to: "/games" },
   { label: "Collections", to: "/collections" },
-  { label: "Bounties", to: "/bounties" },
-  { label: "Inbox", to: "/inbox" },
 ];
 
 const collectionNames = computed(() => {
@@ -72,6 +68,29 @@ const collectionNames = computed(() => {
   for (const g of gamesCache ?? []) for (const c of g.collections) set.add(c);
   for (const c of smartCollections.value) set.add(c.name);
   return [...set].sort();
+});
+
+// Notes from every game, looked up on the server as you type. Only the latest
+// answer is kept, so a slow reply to an older query never replaces a newer one.
+const noteHits = ref<NoteSearchHit[]>([]);
+let noteTimer: number | undefined;
+let noteQuery = 0;
+watch(query, (value) => {
+  window.clearTimeout(noteTimer);
+  const q = value.trim();
+  if (q.length < 2) {
+    noteHits.value = [];
+    return;
+  }
+  const ticket = ++noteQuery;
+  noteTimer = window.setTimeout(async () => {
+    try {
+      const hits = await searchNotes(q);
+      if (ticket === noteQuery) noteHits.value = hits;
+    } catch {
+      if (ticket === noteQuery) noteHits.value = [];
+    }
+  }, 220);
 });
 
 const results = computed<Result[]>(() => {
@@ -103,6 +122,17 @@ const results = computed<Result[]>(() => {
     });
   }
 
+  for (const n of noteHits.value.slice(0, 5)) {
+    out.push({
+      key: `note:${n.game_id}:${n.name}`,
+      kind: "note",
+      label: n.name,
+      sublabel: `Note in ${n.game_title}${n.snippet ? ` · ${n.snippet.slice(0, 70)}` : ""}`,
+      action: () =>
+        go(`/games/${n.game_id}?tab=Notes&note=${encodeURIComponent(n.name)}`),
+    });
+  }
+
   const collections = collectionNames.value
     .filter((c) => c.toLowerCase().includes(q))
     .slice(0, 4);
@@ -113,19 +143,6 @@ const results = computed<Result[]>(() => {
       label: c,
       sublabel: "Collection",
       action: () => go(`/collections/${encodeURIComponent(c)}`),
-    });
-  }
-
-  const bounties = (bountiesCache ?? [])
-    .filter((b) => b.title.toLowerCase().includes(q))
-    .slice(0, 4);
-  for (const b of bounties) {
-    out.push({
-      key: "bounty:" + b.id,
-      kind: "bounty",
-      label: b.title,
-      sublabel: b.status,
-      action: () => go("/bounties"),
     });
   }
 
@@ -167,6 +184,7 @@ function go(to: string) {
 function close() {
   open.value = false;
   query.value = "";
+  noteHits.value = [];
 }
 
 async function openPalette() {
@@ -222,7 +240,7 @@ onUnmounted(() => window.removeEventListener("keydown", onGlobalKeydown));
 const KIND_ICON: Record<Result["kind"], string> = {
   game: "🎮",
   collection: "📁",
-  bounty: "🎯",
+  note: "📝",
   page: "→",
 };
 </script>
@@ -235,7 +253,7 @@ const KIND_ICON: Record<Result["kind"], string> = {
         v-model="query"
         type="text"
         class="palette-input"
-        placeholder="Jump to a game, collection, bounty, or settings section…"
+        placeholder="Jump to a game, note, collection, or settings section…"
       />
       <div v-if="!loaded" class="palette-loading">Loading…</div>
       <div v-else-if="!results.length" class="palette-empty">No matches.</div>

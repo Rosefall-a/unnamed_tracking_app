@@ -10,6 +10,10 @@ export type GameStatus =
 
 export type AchievementTier = "bronze" | "silver" | "gold";
 
+// how a provider classifies an achievement (RetroAchievements is the only
+// one that does today)
+export type AchievementKind = "progression" | "missable" | "win_condition";
+
 // a game's relationship to its parentGameId, kept in sync with the
 // backend's GameRelationshipType (api/schemas/game.py); adding a new value
 // is a code change on both sides, never a migration
@@ -29,8 +33,16 @@ export interface Achievement {
   id: string;
   name: string;
   description?: string | null;
+  // when it was unlocked, if the provider says; PlayStation and
+  // RetroAchievements unlocks may have no time
   unlockedAt: string | null;
+  // whether it is unlocked at all; use isUnlocked() rather than the time
+  unlocked?: boolean;
+  provider?: string;
+  iconUrl?: string | null;
+  kind?: AchievementKind | null;
   hidden?: boolean;
+  // the share of all players who have it (0-100)
   rarityPercent?: number | null;
   tierOverride?: AchievementTier | null;
   progressCurrent?: number | null;
@@ -38,6 +50,8 @@ export interface Achievement {
   notes?: string | null;
   media?: string[];
 }
+
+import type { PageOverrides } from "../utils/gamePage";
 
 export interface GamePlatform {
   platform: string;
@@ -69,6 +83,8 @@ export interface Game {
   // this game's Notes checklist and Screenshots gallery. Off by default
   // since most games never need more than one account tracked separately.
   profilesEnabled: boolean;
+  // this game's overrides of the page defaults (which tabs show, and so on)
+  pageSettings?: PageOverrides | null;
   // second, independent opt-in, accounts work for any game (checklist +
   // media grouping), but WiseOldMan sync/skill-boss icons on the Stats
   // card are OSRS-specific and would be noise on every other game
@@ -101,6 +117,13 @@ export interface Game {
   folderLocation: string | null;
   releaseDate: string | null;
   source: string | null;
+  // the system it's played on, separate from `source` (where the copy came
+  // from), optional so hand-built/mock games don't need it
+  platform?: string | null;
+  // "1" (highest) .. "5" (lowest), see utils/priority.ts
+  priority?: string | null;
+  // the name the library sorts by; blank means the title
+  sortTitle?: string | null;
   ageRating: string | null;
   timeToBeatHours: number | null;
   region: string | null;

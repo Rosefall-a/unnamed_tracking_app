@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from "vue";
-import MaskedInput from "./MaskedInput.vue";
+import PasswordInput from "../PasswordInput.vue";
 import { currentUser, checkAuth } from "../../state/auth";
 import { updateProfile } from "../../services/auth";
 import { fetchPsnStatus, connectPsn, disconnectPsn } from "../../services/psn";
@@ -549,11 +549,18 @@ function passwordPlaceholder(
   return `Paste your ${label.toLowerCase()}`;
 }
 
+// no personal key, but the server's own key covers searches (#234)
+function usesServerKey(key: string): boolean {
+  const entry = credentialStatus[key];
+  return entry?.status === "not_configured" && !!entry.server_configured;
+}
+
 function statusLabel(key: string): string {
   const status = credentialStatus[key]?.status;
   if (status === "connected") return "Connected";
   if (status === "saved" || status === "configured") return "Saved";
   if (status === "error") return "Error";
+  if (usesServerKey(key)) return "Using server key";
   return "Not configured";
 }
 function statusClass(key: string): string {
@@ -561,6 +568,7 @@ function statusClass(key: string): string {
   if (status === "connected") return "connected";
   if (status === "saved" || status === "configured") return "saved";
   if (status === "error") return "error";
+  if (usesServerKey(key)) return "saved";
   return "disconnected";
 }
 
@@ -710,6 +718,12 @@ async function toggleHltb(enabled: boolean) {
       achievement/account connections. Click a tile's key icon to configure it:
       hover a name for details.
     </p>
+    <p class="section-hint">
+      Keys saved here are yours alone. An administrator can also set server-wide
+      keys under Settings &rsaquo; Server Integrations; those are used for
+      anyone without their own, shown here as "Using server key". A key of your
+      own always takes precedence for your account.
+    </p>
 
     <h3 class="group-heading">Metadata</h3>
 
@@ -728,14 +742,26 @@ async function toggleHltb(enabled: boolean) {
         <div class="tile-body">
           <span
             class="tile-name"
-            title="Cover art and hero banners. Your key alone, not shared with other accounts."
+            title="Cover art and hero banners. Your own key, used instead of the server's for your account."
             >SteamGridDB</span
           >
           <span
             class="tile-status"
-            :class="steamgriddbApiKey ? 'connected' : 'disconnected'"
+            :class="
+              steamgriddbApiKey
+                ? 'connected'
+                : credentialStatus.SteamGridDB?.server_configured
+                  ? 'saved'
+                  : 'disconnected'
+            "
           >
-            {{ steamgriddbApiKey ? "Configured" : "Not configured" }}
+            {{
+              steamgriddbApiKey
+                ? "Configured"
+                : credentialStatus.SteamGridDB?.server_configured
+                  ? "Using server key"
+                  : "Not configured"
+            }}
           </span>
         </div>
         <p class="tile-desc">{{ SHORT_DESC.SteamGridDB }}</p>
@@ -793,7 +819,7 @@ async function toggleHltb(enabled: boolean) {
         >
           <label class="field">
             <span>API Key</span>
-            <MaskedInput
+            <PasswordInput
               v-model="steamgriddbApiKey"
               placeholder="Paste your SteamGridDB API key"
             />
@@ -880,7 +906,7 @@ async function toggleHltb(enabled: boolean) {
           </label>
           <label class="field">
             <span>Client Secret</span>
-            <MaskedInput
+            <PasswordInput
               v-model="igdbClientSecret"
               :placeholder="
                 keyPlaceholder(
@@ -973,7 +999,7 @@ async function toggleHltb(enabled: boolean) {
           </p>
           <label class="field">
             <span>API Key</span>
-            <MaskedInput
+            <PasswordInput
               v-model="tmdbApiKey"
               :placeholder="
                 keyPlaceholder(
@@ -1066,7 +1092,7 @@ async function toggleHltb(enabled: boolean) {
           </p>
           <label class="field">
             <span>API Key</span>
-            <MaskedInput
+            <PasswordInput
               v-model="omdbApiKey"
               :placeholder="
                 keyPlaceholder(
@@ -1159,7 +1185,7 @@ async function toggleHltb(enabled: boolean) {
           </p>
           <label class="field">
             <span>API Key</span>
-            <MaskedInput
+            <PasswordInput
               v-model="tvdbApiKey"
               :placeholder="
                 keyPlaceholder(
@@ -1271,7 +1297,7 @@ async function toggleHltb(enabled: boolean) {
             class="field"
           >
             <span>{{ field.label }}</span>
-            <MaskedInput
+            <PasswordInput
               v-if="field.type === 'password'"
               v-model="fieldValues[key][field.key]"
               :placeholder="passwordPlaceholder(key, field.key, field.label)"
@@ -1362,7 +1388,7 @@ async function toggleHltb(enabled: boolean) {
             class="field"
           >
             <span>{{ field.label }}</span>
-            <MaskedInput
+            <PasswordInput
               v-model="fieldValues.GOG[field.key]"
               :placeholder="passwordPlaceholder('GOG', field.key, field.label)"
             />
@@ -1514,7 +1540,7 @@ async function toggleHltb(enabled: boolean) {
             class="field"
           >
             <span>{{ field.label }}</span>
-            <MaskedInput
+            <PasswordInput
               v-if="field.type === 'password'"
               v-model="fieldValues.Steam[field.key]"
               :placeholder="
@@ -1677,7 +1703,7 @@ async function toggleHltb(enabled: boolean) {
             class="field"
           >
             <span>{{ field.label }}</span>
-            <MaskedInput
+            <PasswordInput
               v-if="field.type === 'password'"
               v-model="fieldValues.RetroAchievements[field.key]"
               :placeholder="
@@ -1829,7 +1855,7 @@ async function toggleHltb(enabled: boolean) {
             <template v-if="!psnStatus.connected">
               <label class="field">
                 <span>npsso token</span>
-                <MaskedInput
+                <PasswordInput
                   v-model="npssoToken"
                   placeholder="Paste your npsso token"
                 />
@@ -1916,7 +1942,7 @@ async function toggleHltb(enabled: boolean) {
             class="field"
           >
             <span>{{ field.label }}</span>
-            <MaskedInput
+            <PasswordInput
               v-if="field.type === 'password'"
               v-model="fieldValues.Xbox[field.key]"
               :placeholder="passwordPlaceholder('Xbox', field.key, field.label)"

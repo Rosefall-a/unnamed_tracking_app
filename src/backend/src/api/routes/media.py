@@ -10,12 +10,13 @@ import time
 from pathlib import Path
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile, status
+from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.app_integrations import get_max_upload_size_mb
 from src.core.auth import get_current_user
 from src.core.config import settings
 from src.database.models.game import Game
@@ -29,6 +30,8 @@ from src.features.trash.inbox_trash import (
 )
 from src.features.trash.sweep import RETENTION_SECONDS
 from src.helpers.media import MediaKind, classify_media, list_media, media_subdir, save_media_bytes
+from src.helpers.media_dates import detect_date
+from src.helpers.range_response import ranged_file_response
 from src.helpers.save_game_asset import DATA_ROOT as GAMES_DATA_ROOT
 from src.helpers.save_game_asset import create_game_folder
 
@@ -78,6 +81,7 @@ async def _sync_inbox_items(user_id: UUID, db: AsyncSession) -> None:
 @router.post("/inbox")
 async def upload_to_inbox(
     files: list[UploadFile] = File(...),
+    last_modified: list[int] | None = Form(None),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict[str, list[dict]]:
@@ -85,7 +89,7 @@ async def upload_to_inbox(
     screenshots/clips/soundtrack by file type, to be grouped and assigned
     to games later."""
     results: list[dict] = []
-    for file in files:
+    for index, file in enumerate(files):
         kind = classify_media(file.content_type, file.filename or "")
         if kind is None:
             results.append(
@@ -103,7 +107,7 @@ async def upload_to_inbox(
         limit_mb = (
             settings.MAX_CLIP_SIZE_MB
             if kind in ("clip", "soundtrack")
-            else settings.MAX_UPLOAD_SIZE_MB
+            else await get_max_upload_size_mb(db)
         )
         max_bytes = limit_mb * 1024 * 1024
 
@@ -120,7 +124,21 @@ async def upload_to_inbox(
 
         dest_dir = _inbox_dir(current_user.id) / media_subdir(kind)
         saved_path = save_media_bytes(data, dest_dir, file.filename or "file")
-        db.add(InboxItem(user_id=current_user.id, kind=kind, filename=saved_path.name))
+        taken_at, taken_source = detect_date(
+            data,
+            file.filename or "",
+            kind,
+            last_modified[index] if last_modified and index < len(last_modified) else None,
+        )
+        db.add(
+            InboxItem(
+                user_id=current_user.id,
+                kind=kind,
+                filename=saved_path.name,
+                taken_at=taken_at,
+                taken_source=taken_source,
+            )
+        )
         results.append({"filename": saved_path.name, "status": "saved", "kind": kind})
 
     await db.commit()
@@ -145,6 +163,8 @@ async def list_inbox(
                 "kind": item.kind,
                 "url": f"/api/media/inbox/{item.kind}/{item.filename}",
                 "created_at": item.created_at,
+                "taken_at": item.taken_at,
+                "taken_source": item.taken_source,
             }
             for item in result.scalars().all()
         ]
@@ -179,14 +199,15 @@ async def list_inbox_trash(
 
 @router.get("/inbox/{kind}/{filename}", response_class=FileResponse)
 async def get_inbox_media(
+    request: Request,
     kind: MediaKind,
     filename: str,
     current_user: User = Depends(get_current_user),
-) -> FileResponse:
+) -> Response:
     path = _inbox_dir(current_user.id) / media_subdir(kind) / Path(filename).name
     if not path.is_file():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Media file not found.")
-    return FileResponse(path)
+    return ranged_file_response(request, path)
 
 
 @router.delete("/inbox/{kind}/{filename}")
@@ -280,7 +301,22 @@ async def assign_inbox_media(
     dest_path = dest_dir / source_path.name
     shutil.move(str(source_path), str(dest_path))
 
-    db.add(MediaItem(game_id=payload.game_id, kind=kind, filename=dest_path.name))
+    inbox_row = await db.scalar(
+        select(InboxItem).where(
+            InboxItem.user_id == current_user.id,
+            InboxItem.kind == kind,
+            InboxItem.filename == source_path.name,
+        )
+    )
+    db.add(
+        MediaItem(
+            game_id=payload.game_id,
+            kind=kind,
+            filename=dest_path.name,
+            taken_at=inbox_row.taken_at if inbox_row else None,
+            taken_source=inbox_row.taken_source if inbox_row else None,
+        )
+    )
     # promoted to a real MediaItem, not deleted — remove the inbox tracking
     # row outright rather than soft-deleting it (there's nothing to restore
     # "from trash", the file just lives somewhere else now)
@@ -341,6 +377,13 @@ async def list_all_media(
             if item.linked_achievement_id
             else None,
             "created_at": item.created_at,
+            "title": item.title,
+            "taken_at": item.taken_at,
+            "taken_source": item.taken_source,
+            "thumbnail_url": f"/api/game/{item.game_id}/thumbnails/{item.id}"
+            if item.thumb_filename
+            else None,
+            "duration": item.duration,
         }
         for item, game_title in rows
     ]

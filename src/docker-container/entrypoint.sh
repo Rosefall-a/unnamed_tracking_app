@@ -1,6 +1,6 @@
 #!/bin/sh
 set -eu
-
+   
 log() {
   printf '[ENTRYPOINT] %s\n' "$1"
 }
@@ -21,6 +21,7 @@ mkdir -p "$STATUS_DIR"
 : > "$MIGRATION_LOG"
 rm -f "$MIGRATION_FIFO"
 rm -f "$BACKEND_FIFO"
+BACKEND_PID=""
 
 write_status() {
   phase="$1"; overall="$2"; database="$3"; migrations="$4"; backend="$5"; frontend="$6"; message="$7"
@@ -49,23 +50,39 @@ cleanup() {
   fi
   if [ -n "${BACKEND_PID:-}" ] && kill -0 "$BACKEND_PID" 2>/dev/null; then
     log "Stopping backend PID $BACKEND_PID"
-    kill "$BACKEND_PID" 2>/dev/null
+    kill -TERM "$BACKEND_PID" 2>/dev/null
+    wait "$BACKEND_PID" 2>/dev/null || true
   fi
   if [ -f "$NGINX_PID" ]; then
     log "Stopping Nginx"
-    nginx -s quit 2>/dev/null
+    nginx -s quit 2>/dev/null || true
   fi
 }
-trap cleanup INT TERM EXIT
 
-log "Initializing Nginx with startup configuration"
+shutdown() {
+  log "Shutdown signal received"
+  exit 0
+}
+
+trap shutdown INT TERM
+trap cleanup EXIT
+
+log "Initialising status directory"
+mkdir -p "$STATUS_DIR"
+: > "$DETAILS_FILE"
+: > "$BACKEND_LOG"
+chmod 0644 "$STATUS_FILE" "$DETAILS_FILE" "$BACKEND_LOG" 2>/dev/null || true
+
+log "Initialising Nginx with startup configuration"
 write_status "INITIALIZING" "starting" "waiting" "waiting" "unknown" "unknown" "Starting production services."
 
 cp /etc/nginx/startup.conf /etc/nginx/nginx.conf
+if ! nginx -t; then
+  fail_startup "FRONTEND_FAILED" "The startup Nginx configuration failed validation." "unknown" "unknown" "unknown" "failed"
+fi
 nginx
 
 log "Resolving application configuration"
-
 if [ -n "${POSTGRES_USER:-}" ] || [ -n "${POSTGRES_PASSWORD:-}" ] || [ -n "${POSTGRES_DB:-}" ]; then
   if [ -z "${POSTGRES_USER:-}" ] || [ -z "${POSTGRES_PASSWORD:-}" ] || [ -z "${POSTGRES_DB:-}" ]; then
     fail_startup "CONFIGURATION_FAILED" "POSTGRES_USER, POSTGRES_PASSWORD, and POSTGRES_DB must be supplied together." "unknown" "unknown" "unknown" "unknown"
@@ -107,28 +124,12 @@ write_status "DATABASE_READY" "starting" "ready" "unknown" "unknown" "unknown" "
 log "Running database migrations"
 write_status "MIGRATING_DATABASE" "starting" "ready" "starting" "unknown" "unknown" "Applying database migrations."
 
-attempt=1
-while :; do
-  rm -f "$MIGRATION_FIFO"
-  mkfifo "$MIGRATION_FIFO"
-  python /srv/startup/redact_logs.py < "$MIGRATION_FIFO" | tee -a "$MIGRATION_LOG" &
-  MIGRATION_REDACTOR_PID="$!"
-  set +e
-  alembic upgrade heads > "$MIGRATION_FIFO" 2>&1
-  migration_rc="$?"
-  set -e
-  wait "$MIGRATION_REDACTOR_PID" 2>/dev/null || true
-  rm -f "$MIGRATION_FIFO"
-  if [ "$migration_rc" -eq 0 ]; then
-    break
-  fi
-  log "Migration attempt $attempt failed"
-  if [ "$attempt" -ge 30 ]; then
-    printf 'Migration attempts exhausted. See /run/unnamed-tracking/migration.log for command output.\n' >> "$DETAILS_FILE"
-    fail_startup "MIGRATION_FAILED" "Database migrations failed after 30 attempts. Detailed migration output is retained at /run/unnamed-tracking/migration.log." "ready" "failed" "unknown" "unknown"
-  fi
-  attempt=$((attempt + 1)); sleep 2
-done
+# src/database/migrate.py adopts a database made by an older (squashed)
+# migration history instead of failing on its unknown revision, and stops
+# with the reason on a real error rather than retrying it.
+if ! python -m src.database.migrate >>"$DETAILS_FILE" 2>&1; then
+  fail_startup "MIGRATION_FAILED" "Database migrations failed. See startup details for the reason." "ready" "failed" "unknown" "unknown"
+fi
 
 log "Migrations completed"
 printf '%s\n' "Database migrations completed successfully. Detailed migration output is retained at /run/unnamed-tracking/migration.log." >> "$DETAILS_FILE"
@@ -140,7 +141,7 @@ write_status "STARTING_BACKEND" "starting" "ready" "ready" "starting" "unknown" 
 mkfifo "$BACKEND_FIFO"
 python /srv/startup/redact_logs.py <"$BACKEND_FIFO" | tee "$BACKEND_LOG" &
 BACKEND_TAIL_PID="$!"
-uvicorn src.main:app --host 127.0.0.1 --port 8000 >"$BACKEND_FIFO" 2>&1 &
+uvicorn src.main:app --host 127.0.0.1 --port 8000 --proxy-headers --forwarded-allow-ips=127.0.0.1 >"$BACKEND_FIFO" 2>&1 &
 BACKEND_PID="$!"
 log "Backend PID is $BACKEND_PID"
 
@@ -163,13 +164,38 @@ done
 log "Backend healthy"
 write_status "STARTING_FRONTEND" "starting" "ready" "ready" "ready" "starting" "Activating the production frontend."
 
-log "Testing ready.conf"
-if ! nginx -t -c /etc/nginx/ready.conf; then
-  fail_startup "FRONTEND_FAILED" "The production Nginx configuration failed validation. See Docker stderr for Nginx diagnostics." "ready" "ready" "ready" "failed"
+log "Selecting production Nginx configuration"
+case "${NGINX_TLS_ENABLED:-false}" in
+  true|TRUE|1|yes|YES)
+    case "${NGINX_TLS_REDIRECT_HTTP:-false}" in
+      true|TRUE|1|yes|YES) selected_config="/etc/nginx/readytlsredirect.conf" ;;
+      false|FALSE|0|no|NO|"") selected_config="/etc/nginx/readytls.conf" ;;
+      *) fail_startup "FRONTEND_FAILED" "Invalid NGINX_TLS_REDIRECT_HTTP value." "ready" "ready" "ready" "failed" ;;
+    esac
+    ;;
+  false|FALSE|0|no|NO|"")
+    selected_config="/etc/nginx/ready.conf"
+    ;;
+  *)
+    fail_startup "FRONTEND_FAILED" "Invalid NGINX_TLS_ENABLED value." "ready" "ready" "ready" "failed"
+    ;;
+esac
+
+log "Activating $selected_config"
+if [ "$selected_config" = "/etc/nginx/ready.conf" ]; then
+  cp "$selected_config" /etc/nginx/nginx.conf
+else
+  render_output="$({ /usr/local/bin/render-production-nginx "$selected_config" /etc/nginx/nginx.conf; } 2>&1)" || {
+    printf '%s\n' "$render_output" >> "$DETAILS_FILE"
+    fail_startup "FRONTEND_FAILED" "Production Nginx/TLS configuration is invalid. See startup details." "ready" "ready" "ready" "failed"
+  }
 fi
 
-log "Overwriting active nginx.conf with ready.conf"
-cp /etc/nginx/ready.conf /etc/nginx/nginx.conf
+log "Testing active Nginx configuration"
+nginx_output="$(nginx -t 2>&1)" || {
+  printf '%s\n' "$nginx_output" >> "$DETAILS_FILE"
+  fail_startup "FRONTEND_FAILED" "The production Nginx configuration failed validation." "ready" "ready" "ready" "failed"
+}
 
 log "Reloading Nginx to activate production frontend"
 if ! nginx -s reload; then
