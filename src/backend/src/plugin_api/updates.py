@@ -30,6 +30,7 @@ from .contracts import (
     CompatibilityStatus,
     PluginManifest,
     PluginUiDocument,
+    evaluate_manifest_compatibility,
     parse_semver,
     resolve_plugin_dependencies,
 )
@@ -74,6 +75,9 @@ class UpdateRuntime(Protocol):
 @dataclass(frozen=True)
 class TrustedPublisher:
     """Trusted Ed25519 publisher key."""
+
+    # The trust record keeps reviewed identity, scope, channel, and signature policy explicit.
+    # pylint: disable=too-many-instance-attributes
 
     key_id: str
     public_key: bytes
@@ -205,53 +209,14 @@ class PluginPackageVerifier:
                     raise PackageFormatError("plugin payload file exceeds maximum size")
         return bytes(data)
 
-    def inspect(self, package_path: Path, *, verify_signature: bool = True) -> VerifiedPackage:
+    def _read_package(self, package_path: Path) -> tuple[bytes, list[tuple[str, bytes]]]:
         if not package_path.is_file():
             raise PackageFormatError("plugin package must be a file")
         try:
             if package_path.stat().st_size > self.max_package_bytes:
                 raise PackageFormatError("plugin package exceeds maximum compressed size")
             with zipfile.ZipFile(package_path) as archive:
-                infos = archive.infolist()
-                if len(infos) > self.max_entries:
-                    raise PackageFormatError("plugin package exceeds maximum entry count")
-                total_uncompressed = 0
-                names: set[str] = set()
-                payload: list[tuple[str, bytes]] = []
-                manifest_data: bytes | None = None
-                for info in infos:
-                    self._validate_member(info.filename)
-                    mode = (info.external_attr >> 16) & 0o170000
-                    if mode == stat.S_IFLNK:
-                        raise PackageFormatError("package contains a symbolic link")
-                    if info.file_size > self.max_file_bytes:
-                        raise PackageFormatError("plugin payload file exceeds maximum size")
-                    total_uncompressed += info.file_size
-                    if total_uncompressed > self.max_uncompressed_bytes:
-                        raise PackageFormatError("plugin package exceeds maximum uncompressed size")
-                    if (
-                        info.compress_size
-                        and info.file_size / info.compress_size > self.max_compression_ratio
-                    ):
-                        raise PackageFormatError("plugin package exceeds maximum compression ratio")
-                    if info.filename in names:
-                        raise PackageFormatError("package contains duplicate paths")
-                    names.add(info.filename)
-                    if info.is_dir():
-                        if info.filename != self.PAYLOAD_PREFIX and not info.filename.startswith(
-                            self.PAYLOAD_PREFIX
-                        ):
-                            raise PackageFormatError("package contains an unsupported directory")
-                        continue
-                    if info.filename == self.MANIFEST:
-                        manifest_data = self._read_bounded(archive, info)
-                    elif info.filename.startswith(self.PAYLOAD_PREFIX):
-                        relative = info.filename[len(self.PAYLOAD_PREFIX) :]
-                        if not relative:
-                            raise PackageFormatError("payload entry must have a filename")
-                        payload.append((relative, self._read_bounded(archive, info)))
-                    else:
-                        raise PackageFormatError("package contains an unexpected file")
+                manifest_data, payload = self._read_archive(archive)
         except (
             OSError,
             zipfile.BadZipFile,
@@ -264,21 +229,66 @@ class PluginPackageVerifier:
 
         if manifest_data is None:
             raise PackageFormatError("package is missing manifest.json")
-        try:
-            manifest = PluginManifest.model_validate_json(manifest_data)
-        except ValueError as exc:
-            raise PackageFormatError("package manifest is invalid") from exc
+        return manifest_data, payload
 
+    def _read_archive(
+        self, archive: zipfile.ZipFile
+    ) -> tuple[bytes | None, list[tuple[str, bytes]]]:
+        infos = archive.infolist()
+        if len(infos) > self.max_entries:
+            raise PackageFormatError("plugin package exceeds maximum entry count")
+        total_uncompressed = 0
+        names: set[str] = set()
+        payload: list[tuple[str, bytes]] = []
+        manifest_data: bytes | None = None
+        for info in infos:
+            total_uncompressed = self._validate_archive_entry(info, names, total_uncompressed)
+            if info.is_dir():
+                if info.filename != self.PAYLOAD_PREFIX and not info.filename.startswith(
+                    self.PAYLOAD_PREFIX
+                ):
+                    raise PackageFormatError("package contains an unsupported directory")
+                continue
+            if info.filename == self.MANIFEST:
+                manifest_data = self._read_bounded(archive, info)
+            elif info.filename.startswith(self.PAYLOAD_PREFIX):
+                relative = info.filename[len(self.PAYLOAD_PREFIX) :]
+                if not relative:
+                    raise PackageFormatError("payload entry must have a filename")
+                payload.append((relative, self._read_bounded(archive, info)))
+            else:
+                raise PackageFormatError("package contains an unexpected file")
+        return manifest_data, payload
+
+    def _validate_archive_entry(
+        self, info: zipfile.ZipInfo, names: set[str], total_uncompressed: int
+    ) -> int:
+        self._validate_member(info.filename)
+        mode = (info.external_attr >> 16) & 0o170000
+        if mode == stat.S_IFLNK:
+            raise PackageFormatError("package contains a symbolic link")
+        if info.file_size > self.max_file_bytes:
+            raise PackageFormatError("plugin payload file exceeds maximum size")
+        total_uncompressed += info.file_size
+        if total_uncompressed > self.max_uncompressed_bytes:
+            raise PackageFormatError("plugin package exceeds maximum uncompressed size")
+        if info.compress_size and info.file_size / info.compress_size > self.max_compression_ratio:
+            raise PackageFormatError("plugin package exceeds maximum compression ratio")
+        if info.filename in names:
+            raise PackageFormatError("package contains duplicate paths")
+        names.add(info.filename)
+        return total_uncompressed
+
+    @staticmethod
+    def _validate_pwa(manifest: PluginManifest, payload: list[tuple[str, bytes]]) -> None:
         if manifest.pwa is not None:
             try:
                 validate_pwa_assets(manifest.pwa, dict(payload))
             except (KeyError, ValueError, OSError) as exc:
                 raise PackageFormatError("PWA package assets are invalid") from exc
 
-        digest = self._payload_digest(payload)
-        if digest.lower() != manifest.integrity.sha256.lower():
-            raise PackageVerificationError("plugin package integrity verification failed")
-
+    @staticmethod
+    def _validate_ui_contract(manifest: PluginManifest, payload: list[tuple[str, bytes]]) -> None:
         ui_content = dict(payload).get("ui.json")
         if manifest.scheduled_tasks:
             try:
@@ -302,6 +312,34 @@ class PluginPackageVerifier:
             except (ValueError, UnicodeError) as exc:
                 raise PackageFormatError("plugin UI and manifest API contracts must match") from exc
 
+    @staticmethod
+    def _validate_distribution(metadata: object, manifest: PluginManifest) -> dict[str, object]:
+        if not isinstance(metadata, dict):
+            raise ValueError("invalid release metadata")
+        if (
+            metadata.get("schema_version") != 1
+            or metadata.get("version") != manifest.version
+            or not isinstance(metadata.get("automatic_update"), bool)
+        ):
+            raise ValueError("invalid release metadata")
+        tags = metadata.get("tags")
+        if not isinstance(tags, list) or len(tags) > 32:
+            raise ValueError("invalid release metadata")
+        if any(
+            not isinstance(tag, str) or not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,47}", tag)
+            for tag in tags
+        ):
+            raise ValueError("invalid release metadata")
+        if len(tags) != len(set(tags)):
+            raise ValueError("invalid release metadata")
+        release_notes = metadata.get("release_notes", "")
+        if not isinstance(release_notes, str) or len(release_notes) > 4000:
+            raise ValueError("invalid release metadata")
+        return metadata
+
+    def _distribution_metadata(
+        self, manifest: PluginManifest, payload: list[tuple[str, bytes]]
+    ) -> dict[str, object]:
         distribution: dict[str, object] = {}
         for name, content in payload:
             if name != "distribution.json":
@@ -310,76 +348,62 @@ class PluginPackageVerifier:
                 if len(content) > 128 * 1024:
                     raise ValueError("release metadata is too large")
                 metadata = json.loads(content)
-                if (
-                    not isinstance(metadata, dict)
-                    or metadata.get("schema_version") != 1
-                    or metadata.get("version") != manifest.version
-                    or type(metadata.get("automatic_update")) is not bool
-                    or not isinstance(metadata.get("tags"), list)
-                    or len(metadata["tags"]) > 32
-                    or any(
-                        not isinstance(tag, str)
-                        or not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,47}", tag)
-                        for tag in metadata["tags"]
-                    )
-                    or len(metadata["tags"]) != len(set(metadata["tags"]))
-                    or not isinstance(metadata.get("release_notes", ""), str)
-                    or len(metadata.get("release_notes", "")) > 4000
-                ):
-                    raise ValueError("invalid release metadata")
-                distribution = metadata
+                distribution = self._validate_distribution(metadata, manifest)
             except (ValueError, UnicodeError) as exc:
                 raise PackageFormatError("package distribution metadata is invalid") from exc
 
-        signing_version = 2 if (manifest.integrity.signature or "").startswith("v2:") else 1
-        if signing_version == 2:
-            try:
-                envelope = json.loads(dict(payload)["package-signature-v2.json"])
-                if (
-                    not isinstance(envelope, dict)
-                    or set(envelope) != {"schema_version", "key_id", "manifest"}
-                    or envelope.get("schema_version") != 2
-                    or envelope.get("key_id") != manifest.integrity.key_id
-                    or not isinstance(envelope.get("manifest"), dict)
-                    or "integrity" in envelope["manifest"]
-                ):
-                    raise ValueError("invalid signing envelope identity")
-                signed = PluginManifest.model_validate(
-                    {**envelope["manifest"], "integrity": manifest.integrity}
-                )
-                if signed != manifest:
-                    raise ValueError("signed manifest does not match")
-            except (KeyError, ValueError, TypeError) as exc:
-                raise PackageVerificationError("signed manifest envelope does not match") from exc
+        return distribution
 
-        if manifest.integrity.signature and signing_version == 1:
-            publisher = self.publishers.get(manifest.integrity.key_id or "")
+    @staticmethod
+    def _validate_signing_envelope(
+        manifest: PluginManifest, payload: list[tuple[str, bytes]]
+    ) -> None:
+        try:
+            envelope = json.loads(dict(payload)["package-signature-v2.json"])
             if (
-                publisher is not None
-                and publisher.require_manifest_binding
-                and publisher.allows_plugin(manifest.plugin_id)
+                not isinstance(envelope, dict)
+                or set(envelope) != {"schema_version", "key_id", "manifest"}
+                or envelope.get("schema_version") != 2
+                or envelope.get("key_id") != manifest.integrity.key_id
             ):
-                raw_manifest = json.loads(manifest_data)
-                claim = {key: value for key, value in raw_manifest.items() if key != "integrity"}
-                claim_hash = hashlib.sha256(
-                    json.dumps(claim, sort_keys=True, separators=(",", ":")).encode()
-                ).hexdigest()
-                if claim_hash not in publisher.legacy_manifest_hashes.get(digest, []):
-                    raise PackageVerificationError(
-                        "legacy signed manifest is not reviewed; use a v2 package"
-                    )
-            if manifest.pwa is not None:
-                raise PackageVerificationError("signed PWA contributions require a v2 signature")
-
-        if not verify_signature:
-            return VerifiedPackage(
-                manifest=manifest,
-                package_path=package_path,
-                payload_digest=digest,
-                distribution=distribution,
-                signing_version=signing_version,
+                raise ValueError("invalid signing envelope identity")
+            if (
+                not isinstance(envelope.get("manifest"), dict)
+                or "integrity" in envelope["manifest"]
+            ):
+                raise ValueError("invalid signing envelope identity")
+            signed = PluginManifest.model_validate(
+                {**envelope["manifest"], "integrity": manifest.integrity}
             )
+            if signed != manifest:
+                raise ValueError("signed manifest does not match")
+        except (KeyError, ValueError, TypeError) as exc:
+            raise PackageVerificationError("signed manifest envelope does not match") from exc
 
+    def _validate_legacy_manifest(
+        self, manifest: PluginManifest, manifest_data: bytes, digest: str
+    ) -> None:
+        publisher = self.publishers.get(manifest.integrity.key_id or "")
+        if (
+            publisher is not None
+            and publisher.require_manifest_binding
+            and publisher.allows_plugin(manifest.plugin_id)
+        ):
+            raw_manifest = json.loads(manifest_data)
+            claim = {key: value for key, value in raw_manifest.items() if key != "integrity"}
+            claim_hash = hashlib.sha256(
+                json.dumps(claim, sort_keys=True, separators=(",", ":")).encode()
+            ).hexdigest()
+            if claim_hash not in publisher.legacy_manifest_hashes.get(digest, []):
+                raise PackageVerificationError(
+                    "legacy signed manifest is not reviewed; use a v2 package"
+                )
+        if manifest.pwa is not None:
+            raise PackageVerificationError("signed PWA contributions require a v2 signature")
+
+    def _verify_signature(
+        self, manifest: PluginManifest, digest: str, signing_version: int
+    ) -> None:
         signature = manifest.integrity.signature
         if signature is None:
             if self.require_signature:
@@ -410,6 +434,26 @@ class PluginPackageVerifier:
                     "plugin package signature verification failed"
                 ) from exc
 
+    def inspect(self, package_path: Path, *, verify_signature: bool = True) -> VerifiedPackage:
+        manifest_data, payload = self._read_package(package_path)
+        try:
+            manifest = PluginManifest.model_validate_json(manifest_data)
+        except ValueError as exc:
+            raise PackageFormatError("package manifest is invalid") from exc
+        # Validate PWA assets before integrity, as in the original package policy.
+        self._validate_pwa(manifest, payload)
+        digest = self._payload_digest(payload)
+        if digest.lower() != manifest.integrity.sha256.lower():
+            raise PackageVerificationError("plugin package integrity verification failed")
+        self._validate_ui_contract(manifest, payload)
+        distribution = self._distribution_metadata(manifest, payload)
+        signing_version = 2 if (manifest.integrity.signature or "").startswith("v2:") else 1
+        if signing_version == 2:
+            self._validate_signing_envelope(manifest, payload)
+        if manifest.integrity.signature and signing_version == 1:
+            self._validate_legacy_manifest(manifest, manifest_data, digest)
+        if verify_signature:
+            self._verify_signature(manifest, digest, signing_version)
         return VerifiedPackage(
             manifest=manifest,
             package_path=package_path,
@@ -546,8 +590,6 @@ class PluginUpdateManager:
     def stage(self, package_path: Path) -> VerifiedPackage:
         """Verify and extract a package without changing the active version."""
         verified = self.verifier.inspect(package_path)
-        from .contracts import evaluate_manifest_compatibility
-
         decision = evaluate_manifest_compatibility(
             verified.manifest, self.sdk_version, self.application_version
         )
@@ -641,9 +683,13 @@ class PluginUpdateManager:
             await self.runtime.start(plugin_id, candidate_path)
             if not await self.runtime.health(plugin_id):
                 raise UpdateActivationError("staged plugin failed its health check")
+        # Runtime failures must trigger recovery regardless of their exception type.
+        # pylint: disable-next=broad-exception-caught
         except Exception as exc:
             try:
                 await self.runtime.stop(plugin_id)
+            # A secondary stop failure must not replace the original activation/rollback error.
+            # pylint: disable-next=broad-exception-caught
             except Exception:
                 pass
             if old_version and old_path and old_path.is_dir():
@@ -651,6 +697,8 @@ class PluginUpdateManager:
                 self.store.atomically_set_active(plugin_id, old_version, previous_version)
                 try:
                     await self.runtime.start(plugin_id, old_path)
+                # Runtime failures must trigger recovery regardless of their exception type.
+                # pylint: disable-next=broad-exception-caught
                 except Exception as rollback_exc:
                     raise UpdateActivationError(
                         "update failed and previous version could not be restarted"
@@ -681,9 +729,13 @@ class PluginUpdateManager:
             await self.runtime.start(plugin_id, previous)
             if not await self.runtime.health(plugin_id):
                 raise UpdateActivationError("rollback target failed its health check")
+        # Runtime failures must trigger recovery regardless of their exception type.
+        # pylint: disable-next=broad-exception-caught
         except Exception as exc:
             try:
                 await self.runtime.stop(plugin_id)
+            # A secondary stop failure must not replace the original activation/rollback error.
+            # pylint: disable-next=broad-exception-caught
             except Exception:
                 pass
             self.store.atomically_set_active(
@@ -695,7 +747,9 @@ class PluginUpdateManager:
                 if not await self.runtime.health(plugin_id):
                     raise UpdateActivationError(
                         "former active version failed recovery health check"
-                    )
+                    ) from exc
+            # Runtime failures must trigger recovery regardless of their exception type.
+            # pylint: disable-next=broad-exception-caught
             except Exception as recovery_exc:
                 raise UpdateActivationError(
                     "rollback target failed and former active version could not be recovered"
