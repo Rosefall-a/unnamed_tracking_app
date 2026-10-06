@@ -3,7 +3,7 @@ from __future__ import annotations
 import time
 from uuid import UUID, uuid4
 
-from sqlalchemy import BigInteger, Integer, LargeBinary, String, Text
+from sqlalchemy import BigInteger, Integer, String, Text
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -60,15 +60,6 @@ class AppIntegrationSettings(Base):
     # means "use the .env default", so a deployment that never touches this
     # in Settings behaves exactly as it did before this column existed.
     max_upload_size_mb: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    max_save_archive_size_mb: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    max_clip_size_mb: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    max_world_save_size_mb: Mapped[int | None] = mapped_column(Integer, nullable=True)
-
-    # Public deployment identity. Inert normalized PNGs belong in the database
-    # so branding follows the same backup/restore boundary as its metadata.
-    branding_name: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    branding_logo_png: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
-    branding_favicon_png: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
 
     nginx_realip_header: Mapped[str | None] = mapped_column(String(128), nullable=True)
     nginx_realip_trusted_proxies: Mapped[str | None] = mapped_column(Text, nullable=True)

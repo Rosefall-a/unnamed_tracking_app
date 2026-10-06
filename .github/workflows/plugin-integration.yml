@@ -97,12 +97,6 @@ jobs:
         run: |
           npm ci
           npx playwright install --with-deps chromium --only-shell
-      - name: Verify actual legacy worker withdrawal and signed v1.1 upgrade
-        env:
-          NONBUBBLE_ENV: 'true'
-        run: |
-          python tools/check_plugin_contract_upgrade.py --plugins-root .integration-plugins \
-            --work-root "${{ runner.temp }}/contract-upgrade-acceptance"
       - name: Verify official distribution and the full real-worker lifecycle
         env:
           JELLYFIN_SCREENSHOT_DIR: ${{ runner.temp }}/plugin-acceptance/screenshots
@@ -135,5 +129,4 @@ jobs:
             ${{ runner.temp }}/pwa-acceptance/*.log
             ${{ runner.temp }}/pwa-acceptance/*.png
             ${{ runner.temp }}/pwa-acceptance/pwa-conformance.json
-            ${{ runner.temp }}/contract-upgrade-acceptance/conformance.json
           if-no-files-found: warn

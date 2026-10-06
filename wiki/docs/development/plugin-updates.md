@@ -2,14 +2,6 @@
 
 Updates use the same package verification, compatibility, dependencies, route ownership, publisher trust and permission boundaries as installation. Packages are bounded v1 ZIP archives containing manifest.json and payload/. Their canonical sorted payload paths/bytes determine SHA-256; Ed25519 signatures cover plugin-package-v1:<sha256>. Invalid signatures and malformed packages are hard failures. Catalogue provenance never substitutes for signature trust.
 
-## Historical releases and pins
-
-Catalogue entries may include a bounded `releases` array with version, public package URL, payload/archive hashes and release notes. The host validates unique semantic versions and checks each selected archive against that release's identity and advertised hashes before normal signature, compatibility and consent checks. Published archives and their signatures are preserved.
-
-The installer derives historical selection from the checked catalogue's current version, or a replacement/rollback compared with the installed version. It persists `version_pin` and `automatic_updates: disabled` within the existing installation transaction. Reinstall preserves a pin; failed preparation or activation restores the prior policy. The automatic task may discover/stage a release but cannot activate a pinned installation. Explicit Enabled/Follow selection clears the pin. A manual latest-version update clears a stale pin without silently re-enabling automatic updates.
-
-`catalogue_channel` is derived from the scoped trusted publisher registry for discovery grouping. It is provisional catalogue metadata, not a signature verification result. Installation review and installed publisher trust continue to use the inspected package.
-
 ## Staging and permission review
 
 Discovered releases are distinct from installed versions. A staged archive is stored on the backend persistent volume with downloaded, awaiting_permissions or denied status. Discovery/download never changes the active package or grants.

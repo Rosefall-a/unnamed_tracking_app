@@ -584,50 +584,51 @@ async function onFileSelected(e: Event) {
 
 <style scoped>
 .settings-section h2 {
-  margin: 0 0 12px;
-  font: var(--ui-weight-heading) var(--ui-font-heading)/1.4
-    var(--ui-font-family);
-  color: var(--ui-text);
+  margin: 0 0 8px;
+  padding-left: 12px;
+  border-left: 3px solid #d68a34;
+  font-size: 1rem;
+  color: #fff;
 }
 .section-hint {
-  color: var(--ui-dim);
+  color: #999;
   font-size: 0.82rem;
   line-height: 1.6;
   margin: 0 0 20px;
 }
 .tile {
-  background: var(--ui-bg);
-  border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius-control);
+  background: #111;
+  border: 1px solid #2a2a2a;
+  border-radius: 10px;
   padding: 18px 20px;
   margin-bottom: 16px;
 }
 .tile h3 {
   margin: 0 0 6px;
   font-size: 0.9rem;
-  color: var(--ui-text);
+  color: #fff;
 }
 .tile-desc {
-  color: var(--ui-dim);
+  color: #999;
   font-size: 0.8rem;
   line-height: 1.5;
   margin: 0 0 14px;
 }
 .backup-status-tile {
-  border-color: color-mix(in srgb, var(--ui-accent) 30%, transparent);
-  background: color-mix(in srgb, var(--ui-accent) 4%, transparent);
+  border-color: rgba(214, 138, 52, 0.3);
+  background: rgba(214, 138, 52, 0.04);
 }
 .backup-status-line {
   margin: 0;
-  color: var(--ui-accent-text);
+  color: #d68a34;
   font-size: 0.78rem;
   font-weight: 600;
 }
 .primary-button {
-  background: var(--ui-accent);
-  color: var(--ui-on-accent);
+  background: #d68a34;
+  color: #111;
   border: none;
-  border-radius: var(--ui-radius-control);
+  border-radius: 8px;
   padding: 11px 20px;
   font-weight: 600;
   cursor: pointer;
@@ -637,10 +638,10 @@ async function onFileSelected(e: Event) {
   cursor: not-allowed;
 }
 .secondary-button {
-  background: color-mix(in srgb, var(--ui-text) 8%, transparent);
-  color: var(--ui-text);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
   border: none;
-  border-radius: var(--ui-radius-control);
+  border-radius: 8px;
   padding: 10px 16px;
   font-size: 0.82rem;
   font-weight: 600;
@@ -663,27 +664,27 @@ async function onFileSelected(e: Event) {
   margin-bottom: 12px;
 }
 .form-error {
-  color: var(--ui-error);
+  color: #fca5a5;
   font-size: 13px;
   background: rgba(220, 38, 38, 0.1);
   border: 1px solid rgba(220, 38, 38, 0.3);
-  border-radius: var(--ui-radius-control);
+  border-radius: 8px;
   padding: 8px 10px;
   margin-bottom: 12px;
 }
 .form-success {
-  color: var(--ui-good);
+  color: #86efac;
   font-size: 13px;
   background: rgba(34, 197, 94, 0.1);
   border: 1px solid rgba(34, 197, 94, 0.3);
-  border-radius: var(--ui-radius-control);
+  border-radius: 8px;
   padding: 8px 10px;
   margin-bottom: 12px;
 }
 .import-errors {
   margin: 8px 0 0;
   padding-left: 18px;
-  color: var(--ui-error);
+  color: #fca5a5;
   font-size: 12px;
 }
 .mal-source {
@@ -706,12 +707,12 @@ async function onFileSelected(e: Event) {
   padding: 0;
   max-height: 360px;
   overflow-y: auto;
-  border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius-control);
+  border: 1px solid #2a2a2a;
+  border-radius: 8px;
 }
 .mal-list > li {
   padding: 10px 12px;
-  border-bottom: 1px solid var(--ui-surface-2);
+  border-bottom: 1px solid #1f1f1f;
 }
 .mal-list > li:last-child {
   border-bottom: none;
@@ -721,7 +722,7 @@ async function onFileSelected(e: Event) {
   align-items: center;
   gap: 10px;
   cursor: pointer;
-  color: var(--ui-text);
+  color: #fff;
   font-size: 0.85rem;
 }
 .mal-title {
@@ -732,21 +733,21 @@ async function onFileSelected(e: Event) {
   white-space: nowrap;
 }
 .mal-choice {
-  color: var(--ui-accent-text);
+  color: #d68a34;
   font-size: 0.75rem;
 }
 .mal-diffs {
   list-style: none;
   margin: 6px 0 0 26px;
   padding: 0;
-  color: var(--ui-dim);
+  color: #999;
   font-size: 0.75rem;
   line-height: 1.5;
 }
 .mal-details {
   display: flex;
   gap: 8px;
-  color: var(--ui-dim);
+  color: #999;
   font-size: 0.8rem;
   line-height: 1.5;
 }

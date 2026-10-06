@@ -3,22 +3,6 @@ import { DEFAULT_PAGE_SETTINGS } from "../utils/gamePage";
 import type { PageSettings } from "../utils/gamePage";
 
 export interface Preferences {
-  ui_theme: "system" | "light" | "dark";
-  ui_theme_package: string;
-  ui_palette: import("./uiPalette").PaletteId;
-  ui_custom_palette: import("./uiPalette").CustomPalette;
-  ui_density: "comfortable" | "compact";
-  ui_style: "archive-pocket";
-  ui_reduce_motion: boolean;
-  ui_high_contrast: boolean;
-  ui_welcome_completed: boolean;
-  keyboard_shortcuts_enabled: boolean;
-  keyboard_shortcut_overrides: Record<
-    string,
-    import("../state/shortcuts").ShortcutOverride
-  >;
-  home_widgets: string[];
-  home_widget_config: Record<string, import("./pluginUi").UiValues>;
   calendar_game_releases: boolean;
   calendar_game_history: boolean;
   calendar_default_view: "month" | "week" | "agenda";
@@ -49,19 +33,6 @@ export interface Preferences {
 }
 
 export const DEFAULT_PREFERENCES: Preferences = {
-  ui_theme: "system",
-  ui_theme_package: "server",
-  ui_palette: "orange",
-  ui_custom_palette: {},
-  ui_density: "comfortable",
-  ui_style: "archive-pocket",
-  ui_reduce_motion: false,
-  ui_high_contrast: false,
-  ui_welcome_completed: false,
-  keyboard_shortcuts_enabled: true,
-  keyboard_shortcut_overrides: {},
-  home_widgets: [],
-  home_widget_config: {},
   calendar_game_releases: true,
   calendar_game_history: true,
   calendar_default_view: "month",
@@ -112,38 +83,19 @@ export async function updatePreferences(
 
 let saveQueue: Promise<unknown> = Promise.resolve();
 let saving = 0;
-let sessionGeneration = 0;
-
-// Discard queued work and late responses when authentication changes. An old
-// account's queued PATCH must never start with a new account's session cookie.
-export function invalidateQueuedPreferences(): void {
-  sessionGeneration++;
-  saveQueue = Promise.resolve();
-  saving = 0;
-}
-
 export function queuePreferences(
   changes: Partial<Preferences>,
 ): Promise<{ prefs: Preferences; latest: boolean }> {
   saving += 1;
-  const session = sessionGeneration;
-  const assertSession = () => {
-    if (session !== sessionGeneration)
-      throw new Error("Your session changed. Please try again.");
-  };
-  const run = saveQueue.then(() => {
-    assertSession();
-    return updatePreferences(changes);
-  });
+  const run = saveQueue.then(() => updatePreferences(changes));
   saveQueue = run.catch(() => undefined);
   return run.then(
     (prefs) => {
-      assertSession();
       saving -= 1;
       return { prefs, latest: saving === 0 };
     },
     (err) => {
-      if (session === sessionGeneration) saving -= 1;
+      saving -= 1;
       throw err;
     },
   );

@@ -24,13 +24,6 @@ The manifest is validated as data before plugin code is loaded. Unknown fields a
 
 ## Compatibility
 
-New plugins require `api_contract_version: "1.1.0"` in both the manifest and UI
-document. Missing declarations remain v1.0.0. Shipped historical examples and
-already-installed plugins have limited legacy support, with an install warning;
-native UI, themes, shortcuts and built-in placement need a v1.1 update. Other new
-v1.0 packages remain incompatible. Plugin release versions remain separate.
-See [the migration guide](plugin-v1.1-migration.md).
-
 SDK and application compatibility are independent. A plugin must satisfy both ranges before activation.
 
 Supported range forms are exact versions, comparisons, caret/tilde ranges, and bounded x/* minor/major wildcards. Invalid ranges are rejected.
@@ -69,21 +62,3 @@ host only exposes that endpoint and activates the bundle while the exact grant i
 effective for an enabled compatible installation.
 
 These fields and capability names are additive Plugin API v1 contracts. Existing v1 manifests remain valid. Any future incompatible contract must use an explicit manifest/API migration rather than changing v1 interpretation in place.
-
-## Host-managed schedules
-
-A v1.1 plugin can declare up to 32 `scheduled_tasks`, with a stable task `id`,
-`name`, `description`, `action_id` and integer minimum, maximum and default
-intervals in minutes. Bounds must be within one minute and thirty days, and the
-default must fit the declared range. The manifest must explicitly request
-`tasks.background`. Each action must exist in `ui.json`, have a handler and
-require no interactive confirmation. Package validation rejects invalid targets
-before execution.
-
-Schedules appear in Administration → Tasks and start off. They use the existing
-background administrator identity and live action grants, never the identity of
-who presses Run now. Disabled plugins, revoked access and runtime outages pause
-the controls. Existing scheduling persistence survives updates within the same
-installation identity. See [Tasks](../administration/tasks.md) for host controls
-and the [companion recipe](https://rosefall-a.github.io/unnamed_tracking_app_plugins/development/background-tasks/)
-for a bounded action example.

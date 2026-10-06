@@ -1,72 +1,13 @@
 """Persistence-backed capability grant lookup shared by gateway consumers."""
 
-import hashlib
-import time
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
-
 from src.database.models.plugin_permissions import PluginPermissionGrant
 from src.plugin_api.capabilities import capability_grant_candidates, expand_capabilities
 from src.plugin_api.lifecycle import plugin_contributions_active
-
-
-def permission_scope_filters(grant: PluginPermissionGrant) -> tuple:
-    """Match a capability's exact installation, user and device scope."""
-    return (
-        PluginPermissionGrant.plugin_id == grant.plugin_id,
-        PluginPermissionGrant.installation_id == grant.installation_id,
-        PluginPermissionGrant.capability == grant.capability,
-        PluginPermissionGrant.capability_version == grant.capability_version,
-        PluginPermissionGrant.user_id == grant.user_id,
-        PluginPermissionGrant.device_id == grant.device_id,
-    )
-
-
-async def lock_permission_scope(db: AsyncSession, grant: PluginPermissionGrant) -> None:
-    """Serialize first creation and reinstatement of the same persisted grant."""
-    if db.get_bind().dialect.name == "postgresql":
-        identity = (
-            f"plugin-grant/{grant.plugin_id}/{grant.installation_id}/"
-            f"{grant.capability}/v{grant.capability_version}/{grant.user_id}/{grant.device_id}"
-        )
-        key = int.from_bytes(hashlib.sha256(identity.encode()).digest()[:8], "big", signed=True)
-        await db.execute(select(func.pg_advisory_xact_lock(key)))
-
-
-async def ensure_capability_grant(
-    db: AsyncSession, proposed: PluginPermissionGrant
-) -> PluginPermissionGrant:
-    """Reuse one exact-scope grant while retaining historical revocation records."""
-    await lock_permission_scope(db, proposed)
-    rows = list(
-        await db.scalars(
-            select(PluginPermissionGrant)
-            .where(*permission_scope_filters(proposed))
-            .order_by(
-                PluginPermissionGrant.revoked_at.is_not(None),
-                PluginPermissionGrant.granted_at,
-                PluginPermissionGrant.id,
-            )
-            .with_for_update()
-            .execution_options(populate_existing=True)
-        )
-    )
-    if not rows:
-        db.add(proposed)
-        return proposed
-    current = rows[0]
-    if current.revoked_at is not None:
-        current.granted_at = int(time.time())
-        current.revoked_at = None
-        current.revoked_by_operation = None
-    for duplicate in rows[1:]:
-        if duplicate.revoked_at is None:
-            duplicate.revoked_at = int(time.time())
-            duplicate.revoked_by_operation = None
-    return current
 
 
 def installation_is_executable(plugin: dict[str, Any]) -> bool:

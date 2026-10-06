@@ -329,13 +329,14 @@ async function save() {
 
 <style scoped>
 .settings-section h2 {
-  margin: 0 0 12px;
-  font: var(--ui-weight-heading) var(--ui-font-heading)/1.4
-    var(--ui-font-family);
-  color: var(--ui-text);
+  margin: 0 0 8px;
+  padding-left: 12px;
+  border-left: 3px solid #d68a34;
+  font-size: 1rem;
+  color: #fff;
 }
 .section-hint {
-  color: var(--ui-dim);
+  color: #999;
   font-size: 0.82rem;
   line-height: 1.6;
   margin: 0 0 16px;
@@ -355,11 +356,11 @@ async function save() {
 .field-label {
   display: block;
   font-size: 0.85rem;
-  color: var(--ui-text);
+  color: #ccc;
   margin-bottom: 4px;
 }
 .field-sublabel {
-  color: var(--ui-faint);
+  color: #777;
   font-size: 0.76rem;
   line-height: 1.5;
   margin: 0 0 12px;
@@ -376,11 +377,11 @@ async function save() {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: var(--ui-bg);
-  border: 1px solid var(--ui-border-strong);
-  border-radius: var(--ui-radius-control);
+  background: #111;
+  border: 1px solid #3a3a3a;
+  border-radius: 8px;
   padding: 10px 12px;
-  color: var(--ui-text);
+  color: #fff;
   font-size: 0.85rem;
 }
 .provider-item-label {
@@ -389,7 +390,7 @@ async function save() {
   gap: 2px;
 }
 .provider-last-used {
-  color: var(--ui-faint);
+  color: #777;
   font-size: 0.7rem;
   font-weight: 400;
 }
@@ -398,10 +399,10 @@ async function save() {
   gap: 4px;
 }
 .provider-arrows button {
-  background: color-mix(in srgb, var(--ui-text) 8%, transparent);
+  background: rgba(255, 255, 255, 0.08);
   border: none;
   border-radius: 6px;
-  color: var(--ui-text);
+  color: #fff;
   width: 26px;
   height: 26px;
   cursor: pointer;
@@ -416,28 +417,28 @@ async function save() {
   gap: 10px;
 }
 .form-error {
-  color: var(--ui-error);
+  color: #fca5a5;
   font-size: 13px;
   background: rgba(220, 38, 38, 0.1);
   border: 1px solid rgba(220, 38, 38, 0.3);
-  border-radius: var(--ui-radius-control);
+  border-radius: 8px;
   padding: 8px 10px;
   margin-bottom: 14px;
 }
 .form-success {
-  color: var(--ui-good);
+  color: #86efac;
   font-size: 13px;
   background: rgba(34, 197, 94, 0.1);
   border: 1px solid rgba(34, 197, 94, 0.3);
-  border-radius: var(--ui-radius-control);
+  border-radius: 8px;
   padding: 8px 10px;
   margin-bottom: 14px;
 }
 .primary-button {
-  background: var(--ui-accent);
-  color: var(--ui-on-accent);
+  background: #d68a34;
+  color: #111;
   border: none;
-  border-radius: var(--ui-radius-control);
+  border-radius: 8px;
   padding: 11px 20px;
   font-weight: 600;
   cursor: pointer;

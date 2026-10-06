@@ -950,8 +950,8 @@ onBeforeUnmount(() => {
   font-size: 1.1rem;
 }
 .gm-count {
-  background: color-mix(in srgb, var(--ui-accent) 16%, transparent);
-  color: var(--ui-accent-text);
+  background: rgba(214, 138, 52, 0.16);
+  color: #d68a34;
   font-size: 0.72rem;
   font-weight: 700;
   border-radius: 999px;
@@ -975,12 +975,12 @@ onBeforeUnmount(() => {
   color-scheme: dark;
 }
 .gm-select option {
-  background: var(--ui-surface);
-  color: var(--ui-text);
+  background: #171717;
+  color: #f2f2f2;
 }
 .ui-btn.on {
-  color: var(--ui-accent-text);
-  border-color: color-mix(in srgb, var(--ui-accent) 50%, transparent);
+  color: #d68a34;
+  border-color: rgba(214, 138, 52, 0.5);
 }
 .gm-bulk {
   display: flex;
@@ -989,14 +989,14 @@ onBeforeUnmount(() => {
   gap: 8px;
   margin-bottom: 16px;
   padding: 10px 12px;
-  background: var(--ui-surface);
-  border: 1px solid color-mix(in srgb, var(--ui-accent) 40%, transparent);
-  border-radius: var(--ui-radius-card);
+  background: #171717;
+  border: 1px solid rgba(214, 138, 52, 0.4);
+  border-radius: 12px;
 }
 .gm-bulk-count {
   font-size: 0.82rem;
   font-weight: 700;
-  color: var(--ui-accent-text);
+  color: #d68a34;
   margin-right: 4px;
 }
 .gm-bulk-check {
@@ -1004,11 +1004,11 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 6px;
   font-size: 0.74rem;
-  color: var(--ui-dim);
+  color: #888;
   cursor: pointer;
 }
 .gm-bulk-check input {
-  accent-color: var(--ui-accent-text);
+  accent-color: #d68a34;
 }
 .gm-bulk-sep {
   flex: 1;
@@ -1035,10 +1035,10 @@ onBeforeUnmount(() => {
 .gm-skel {
   display: flex;
   flex-direction: column;
-  border: 1px solid var(--ui-surface-2);
-  border-radius: var(--ui-radius-card);
+  border: 1px solid #262626;
+  border-radius: 12px;
   overflow: hidden;
-  background: var(--ui-surface);
+  background: #141414;
 }
 .gm-skel::before,
 .gm-skel::after {
@@ -1052,10 +1052,10 @@ onBeforeUnmount(() => {
 }
 .gm-skel::after {
   height: 74px;
-  border-top: 1px solid var(--ui-surface-2);
+  border-top: 1px solid #262626;
 }
 .gm-hint {
-  color: var(--ui-faint);
+  color: #777;
   font-size: 14px;
 }
 .gm-grid {
@@ -1067,8 +1067,8 @@ onBeforeUnmount(() => {
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  border: 2px solid var(--ui-border-strong);
-  border-top-color: var(--ui-accent-text);
+  border: 2px solid #3a3a3a;
+  border-top-color: #d68a34;
   animation: gm-rot 0.8s linear infinite;
 }
 @keyframes gm-rot {
@@ -1080,7 +1080,7 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   gap: 12px;
-  color: var(--ui-faint);
+  color: #777;
   font-size: 0.85rem;
   padding: 24px 0;
 }
@@ -1088,7 +1088,7 @@ onBeforeUnmount(() => {
   font-size: 1.6rem;
   line-height: 1;
   font-weight: 300;
-  color: var(--ui-accent-text);
+  color: #d68a34;
 }
 .gm-empty {
   width: 100%;
@@ -1100,10 +1100,10 @@ onBeforeUnmount(() => {
   gap: 8px;
   padding: 24px;
   text-align: center;
-  background: color-mix(in srgb, var(--ui-text) 2%, transparent);
-  border: 1.5px dashed var(--ui-border-strong);
-  border-radius: var(--ui-radius-dialog);
-  color: var(--ui-dim);
+  background: rgba(255, 255, 255, 0.02);
+  border: 1.5px dashed #3a3a3a;
+  border-radius: 14px;
+  color: #999;
   font-family: inherit;
   font-size: 0.85rem;
   cursor: pointer;
@@ -1112,12 +1112,12 @@ onBeforeUnmount(() => {
     background 0.15s ease;
 }
 .gm-empty strong {
-  color: var(--ui-text);
+  color: #f2f2f2;
   font-size: 1rem;
 }
 .gm-empty:hover:not(:disabled) {
-  border-color: var(--ui-accent-text);
-  background: color-mix(in srgb, var(--ui-accent) 6%, transparent);
+  border-color: #d68a34;
+  background: rgba(214, 138, 52, 0.06);
 }
 .gm-empty:disabled {
   cursor: default;
@@ -1137,9 +1137,9 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   gap: 10px;
-  background: var(--ui-surface);
-  border: 1px solid var(--ui-surface-2);
-  border-radius: var(--ui-radius-control);
+  background: #151515;
+  border: 1px solid #262626;
+  border-radius: 8px;
   padding: 6px 10px;
   font-size: 0.8rem;
 }
@@ -1149,10 +1149,10 @@ onBeforeUnmount(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--ui-text);
+  color: #ccc;
 }
 .gm-trash-meta {
-  color: var(--ui-faint);
+  color: #777;
   font-size: 0.74rem;
 }
 .gm-body {
@@ -1170,13 +1170,13 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  border: 2px dashed var(--ui-accent-text);
-  border-radius: var(--ui-radius-dialog);
+  border: 2px dashed #d68a34;
+  border-radius: 14px;
   background: rgba(20, 16, 10, 0.9);
   pointer-events: none;
 }
 .gm-drop strong {
-  color: var(--ui-text);
+  color: #f2f2f2;
   font-size: 1.05rem;
 }
 .gm-drop .gm-plus {
@@ -1191,21 +1191,21 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   gap: 14px;
-  background: var(--ui-surface);
-  border: 1px solid var(--ui-border);
+  background: #171717;
+  border: 1px solid #2b2b2b;
   border-radius: 999px;
   padding: 8px 16px;
   font-size: 0.82rem;
   font-weight: 600;
-  color: var(--ui-text);
+  color: #f2f2f2;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
 }
 .gm-toast button {
   background: none;
   border: none;
-  color: var(--ui-accent-text);
+  color: #d68a34;
   font: inherit;
-  font-weight: var(--ui-weight-title);
+  font-weight: 800;
   cursor: pointer;
   padding: 0;
 }
@@ -1213,7 +1213,7 @@ onBeforeUnmount(() => {
   position: fixed;
   inset: 0;
   z-index: var(--ui-z-modal, 300);
-  background: color-mix(in srgb, var(--ui-bg) 92%, transparent);
+  background: rgba(0, 0, 0, 0.92);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1235,9 +1235,9 @@ onBeforeUnmount(() => {
   max-width: 100%;
   max-height: calc(100vh - 130px);
   object-fit: contain;
-  border-radius: var(--ui-radius-control);
+  border-radius: 8px;
   box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
-  background: var(--ui-surface);
+  background: #000;
 }
 .gm-figure figcaption {
   display: flex;
@@ -1252,7 +1252,7 @@ onBeforeUnmount(() => {
   flex-wrap: wrap;
   gap: 10px;
   min-width: 0;
-  color: var(--ui-text);
+  color: #ccc;
   font-size: 0.82rem;
 }
 .gm-cap-actions {
@@ -1262,7 +1262,7 @@ onBeforeUnmount(() => {
 .gm-open {
   background: none;
   border: none;
-  color: var(--ui-accent-text);
+  color: #d68a34;
   font: inherit;
   font-size: 0.78rem;
   font-weight: 700;
@@ -1276,10 +1276,10 @@ onBeforeUnmount(() => {
   padding: 0;
   overflow: hidden;
   text-align: left;
-  background: color-mix(in srgb, var(--ui-text) 2%, transparent);
-  border: 1px dashed var(--ui-border-strong);
-  border-radius: var(--ui-radius-card);
-  color: var(--ui-dim);
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px dashed #3a3a3a;
+  border-radius: 12px;
+  color: #999;
   font-family: inherit;
   cursor: pointer;
   transition:
@@ -1300,10 +1300,10 @@ onBeforeUnmount(() => {
   flex-direction: column;
   gap: 5px;
   padding: 10px 12px 12px;
-  border-top: 1px dashed var(--ui-border);
+  border-top: 1px dashed #2b2b2b;
 }
 .gm-add-body strong {
-  color: var(--ui-text);
+  color: #f2f2f2;
   font-size: 0.84rem;
   font-weight: 600;
 }
@@ -1312,17 +1312,17 @@ onBeforeUnmount(() => {
 }
 .gm-add-sub {
   font-size: 0.72rem;
-  color: var(--ui-faint);
+  color: #777;
 }
 .gm-add-card:hover:not(:disabled) {
-  border-color: var(--ui-accent-text);
-  background: color-mix(in srgb, var(--ui-accent) 6%, transparent);
+  border-color: #d68a34;
+  background: rgba(214, 138, 52, 0.06);
 }
 .gm-add-card:disabled {
   cursor: default;
 }
 .gm-pos {
-  color: var(--ui-faint);
+  color: #777;
   font-variant-numeric: tabular-nums;
 }
 .gm-nav {
@@ -1330,16 +1330,16 @@ onBeforeUnmount(() => {
   width: 44px;
   height: 44px;
   border-radius: 50%;
-  border: 1px solid var(--ui-border);
-  background: color-mix(in srgb, var(--ui-text) 6%, transparent);
-  color: var(--ui-text);
+  border: 1px solid #333;
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
   font-size: 1.6rem;
   line-height: 1;
   cursor: pointer;
 }
 .gm-nav:hover {
-  background: var(--ui-accent);
-  color: var(--ui-on-accent);
+  background: #d68a34;
+  color: #14100a;
 }
 
 @keyframes shimmer {

@@ -128,23 +128,23 @@ async function updateNow() {
 .settings-section h2 {
   margin: 0 0 8px;
   padding-left: 12px;
-  border-left: 3px solid var(--ui-accent-text);
+  border-left: 3px solid #d68a34;
   font-size: 1rem;
-  color: var(--ui-text);
+  color: #fff;
 }
 .section-hint {
-  color: var(--ui-dim);
+  color: #999;
   font-size: 0.82rem;
   line-height: 1.6;
   margin: 0 0 16px;
 }
 .saved {
   margin-left: 8px;
-  color: var(--ui-accent-text);
+  color: #d68a34;
   font-weight: 700;
 }
 .error {
-  color: var(--ui-error);
+  color: #fca5a5;
   font-size: 0.85rem;
 }
 .update-row {
@@ -155,7 +155,7 @@ async function updateNow() {
   margin-top: 16px;
 }
 .update-hint {
-  color: var(--ui-faint);
+  color: #777;
   font-size: 0.78rem;
   line-height: 1.5;
   max-width: 460px;

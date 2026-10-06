@@ -1,8 +1,8 @@
 .detail {
   min-height: 100vh;
-  background: var(--ui-bg);
-  color: var(--ui-text);
-  font-family: var(--ui-font-family);
+  background: #0d0d0d;
+  color: #f2f2f2;
+  font-family: system-ui, sans-serif;
   position: relative;
 }
 
@@ -10,7 +10,7 @@
 .error-state {
   display: flex;
   flex-direction: column;
-  color: var(--ui-dim);
+  color: #9c9c9c;
 }
 
 .loading-text {
@@ -34,7 +34,7 @@
   gap: 18px 24px;
   margin-bottom: 24px;
   padding-bottom: 24px;
-  border-bottom: 1px solid var(--ui-border);
+  border-bottom: 1px solid #202020;
 }
 
 .meta-item {
@@ -47,18 +47,18 @@
   font-size: 0.68rem;
   text-transform: uppercase;
   letter-spacing: 0.07em;
-  color: var(--ui-faint);
+  color: #666;
   font-weight: 700;
 }
 
 .meta-value {
   font-size: 0.9rem;
-  color: var(--ui-text);
+  color: #f2f2f2;
   font-variant-numeric: tabular-nums;
 }
 
 .meta-value.accent {
-  color: var(--ui-accent-text);
+  color: #d68a34;
   font-weight: 700;
 }
 
@@ -70,9 +70,9 @@
 }
 
 .chip {
-  background: var(--ui-surface-2);
-  color: var(--ui-dim);
-  border: 1px solid var(--ui-border);
+  background: #222222;
+  color: #9c9c9c;
+  border: 1px solid #2b2b2b;
   border-radius: 999px;
   padding: 5px 13px;
   font-size: 0.78rem;
@@ -89,15 +89,15 @@
 
 .chip.chip-link:hover,
 .chip.chip-link:focus-visible {
-  border-color: color-mix(in srgb, var(--ui-accent) 60%, transparent);
-  color: var(--ui-text);
+  border-color: rgba(214, 138, 52, 0.6);
+  color: #fff;
   outline: none;
 }
 
 .chip.primary {
-  background: color-mix(in srgb, var(--ui-accent) 16%, transparent);
-  color: var(--ui-accent-text);
-  border-color: color-mix(in srgb, var(--ui-accent) 40%, transparent);
+  background: rgba(214, 138, 52, 0.16);
+  color: #d68a34;
+  border-color: rgba(214, 138, 52, 0.4);
 }
 
 .section-heading {
@@ -108,13 +108,13 @@
 }
 
 .section-heading h2 {
-  font-weight: var(--ui-weight-title);
+  font-weight: 800;
   font-size: 1.05rem;
   margin: 0;
 }
 
 .empty-state {
-  color: var(--ui-faint);
+  color: #666;
   font-size: 0.85rem;
 }
 
@@ -131,13 +131,13 @@
 
 .poster-card-sm-art {
   aspect-ratio: 2 / 3;
-  border-radius: var(--ui-radius-control);
+  border-radius: 8px;
   background-size: cover;
   background-repeat: no-repeat;
   background-origin: border-box;
   background-clip: border-box;
   background-position: center;
-  background-color: var(--ui-surface-2);
+  background-color: #222222;
   border: 1px solid transparent;
   transition: border-color 0.15s ease;
 }
@@ -156,7 +156,7 @@
 .poster-card-sm-meta {
   margin-top: 2px;
   font-size: 0.7rem;
-  color: var(--ui-faint);
+  color: #666;
 }
 
 /* Sits under the top bar and stays there while the page scrolls. It is sticky

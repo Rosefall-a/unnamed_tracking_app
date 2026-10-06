@@ -1,6 +1,3 @@
-import { normalizeShortcutKey } from "../utils/shortcutKeys";
-import { pluginRequestError } from "./apiError";
-
 export type UiFieldType =
   | "text"
   | "textarea"
@@ -28,7 +25,7 @@ export interface UiField {
   description: string;
   required: boolean;
   secret: boolean;
-  default?: string | number | boolean | string[] | null;
+  default?: string | number | boolean | string[];
   options: UiOption[];
   validation?: UiValidation;
 }
@@ -101,9 +98,6 @@ export interface UiNavigationContribution {
   action_id?: string;
   icon?: string;
   order: number;
-  area?: "account" | "preferences" | "administration" | null;
-  group?: string;
-  folders?: string[];
   visibility: UiVisibility;
 }
 export interface UiSettingsContribution {
@@ -112,9 +106,6 @@ export interface UiSettingsContribution {
   page_id: string;
   icon?: string;
   order: number;
-  area?: "account" | "preferences" | "administration" | null;
-  group?: string;
-  folders?: string[];
   visibility: UiVisibility;
 }
 export interface UiOverlayContribution {
@@ -152,18 +143,6 @@ export interface UiDocumentReader {
   extensions: string[];
   order: number;
 }
-export interface UiShortcut {
-  id: string;
-  label: string;
-  group: string;
-  keys: string[];
-  page_id?: string | null;
-  route_id?: string | null;
-  action_id?: string | null;
-  control?: "search" | "create" | null;
-  when_route_id?: string | null;
-  visibility: UiVisibility;
-}
 export const HOST_EXTENSION_SLOTS = [
   "home.after-widgets",
   "game.overview.after-header",
@@ -179,29 +158,8 @@ export interface UiExtension {
   page_id: string;
   order: number;
 }
-export interface UiHomeWidget {
-  id: string;
-  title: string;
-  description: string;
-  page_id: string;
-  mobile_page_id?: string | null;
-  configuration: UiField[];
-  order: number;
-  visibility: UiVisibility;
-}
-export interface UiTheme {
-  id: string;
-  label: string;
-  description: string;
-  colors: Record<
-    import("./uiPalette").PaletteMode,
-    import("./uiPalette").PaletteColors
-  >;
-  order: number;
-}
 export interface PluginUiDocument {
   schema_version: "v1";
-  api_contract_version?: string;
   frontend?: { entry: string; inline_assets?: boolean };
   native_frontend?: { entry: string; styles: string[] };
   plugin_id: string;
@@ -213,8 +171,6 @@ export interface PluginUiDocument {
   menus: UiMenuItem[];
   pages: UiPage[];
   extensions?: UiExtension[];
-  home_widgets?: UiHomeWidget[];
-  themes?: UiTheme[];
   navigation?: UiNavigationContribution[];
   settings_sections?: UiSettingsContribution[];
   overlays?: UiOverlayContribution[];
@@ -223,7 +179,6 @@ export interface PluginUiDocument {
   routes?: UiPluginRoute[];
   page_replacements?: UiPageReplacement[];
   document_readers?: UiDocumentReader[];
-  shortcuts?: UiShortcut[];
 }
 
 export function pluginDocumentDownloadUrl(
@@ -241,11 +196,7 @@ export async function downloadPluginDocument(
 ): Promise<void> {
   const url = pluginDocumentDownloadUrl(pluginId, documentId);
   const response = await fetch(url, { method: "HEAD", credentials: "include" });
-  if (!response.ok)
-    throw new PluginActionError(
-      response.status,
-      (await pluginRequestError(response, "Plugin download failed")).message,
-    );
+  if (!response.ok) throw new PluginActionError(response.status);
   const link = document.createElement("a");
   link.href = url;
   link.download = "";
@@ -266,11 +217,8 @@ export interface PluginActionContext {
 export class PluginActionError extends Error {
   readonly status: number;
 
-  constructor(
-    status: number,
-    message = "Plugin action could not be completed.",
-  ) {
-    super(message);
+  constructor(status: number) {
+    super("Plugin action could not be completed.");
     this.name = "PluginActionError";
     this.status = status;
   }
@@ -292,11 +240,7 @@ export async function dispatchPluginAction(
       body: JSON.stringify({ values, context, confirmed }),
     },
   );
-  if (!response.ok)
-    throw new PluginActionError(
-      response.status,
-      (await pluginRequestError(response, "Plugin action failed")).message,
-    );
+  if (!response.ok) throw new PluginActionError(response.status);
   return (await response.json()) as Record<string, unknown>;
 }
 
@@ -321,16 +265,8 @@ export function validateField(
     return "This field is required.";
   }
   if (value === undefined || value === "") return null;
-  if (
-    field.type === "number" &&
-    (typeof value !== "number" || !Number.isFinite(value))
-  )
+  if (field.type === "number" && typeof value !== "number")
     return "Enter a number.";
-  if (
-    ["text", "textarea", "password"].includes(field.type) &&
-    typeof value !== "string"
-  )
-    return "Enter text.";
   if (field.type === "boolean" && typeof value !== "boolean")
     return "Enter a boolean value.";
   if (field.type === "select") {
@@ -402,7 +338,6 @@ export function validateDocument(document: PluginUiDocument): string[] {
   const dialogs = new Set(document.dialogs.map((item) => item.id));
   const pages = new Set(document.pages.map((item) => item.id));
   const extensions = document.extensions ?? [];
-  const homeWidgets = document.home_widgets ?? [];
   const navigation = document.navigation ?? [];
   const settingsSections = document.settings_sections ?? [];
   const overlays = document.overlays ?? [];
@@ -410,7 +345,6 @@ export function validateDocument(document: PluginUiDocument): string[] {
   const contextualActions = document.contextual_actions ?? [];
   const routes = document.routes ?? [];
   const pageReplacements = document.page_replacements ?? [];
-  const shortcuts = document.shortcuts ?? [];
   const routePaths = new Set<string>();
   for (const route of routes) {
     if (
@@ -432,7 +366,6 @@ export function validateDocument(document: PluginUiDocument): string[] {
     ["Menu", document.menus],
     ["Page", document.pages],
     ["Extension", extensions],
-    ["Home widget", homeWidgets],
     ["Navigation", navigation],
     ["Settings contribution", settingsSections],
     ["Overlay", overlays],
@@ -440,7 +373,6 @@ export function validateDocument(document: PluginUiDocument): string[] {
     ["Contextual action", contextualActions],
     ["Route", routes],
     ["Page replacement", pageReplacements],
-    ["Shortcut", shortcuts],
   ];
   for (const [kind, items] of groups) {
     const ids = new Set<string>();
@@ -481,26 +413,6 @@ export function validateDocument(document: PluginUiDocument): string[] {
     if (extension.order < -1000 || extension.order > 1000)
       errors.push(`Extension ${extension.id} has an invalid order.`);
   }
-  const homeExtensionIds = new Set(
-    extensions
-      .filter((item) => item.slot === "home.after-widgets")
-      .map((item) => item.id),
-  );
-  for (const widget of homeWidgets) {
-    if (
-      !pages.has(widget.page_id) ||
-      (widget.mobile_page_id && !pages.has(widget.mobile_page_id))
-    )
-      errors.push(`Home widget ${widget.id} references an unknown page.`);
-    if (homeExtensionIds.has(widget.id))
-      errors.push(`Home widget ${widget.id} has an ambiguous identifier.`);
-    if (
-      widget.configuration.some(
-        (field) => field.secret || field.type === "password",
-      )
-    )
-      errors.push(`Home widget ${widget.id} cannot store personal secrets.`);
-  }
   for (const contribution of [
     ...settingsSections,
     ...overlays,
@@ -514,51 +426,6 @@ export function validateDocument(document: PluginUiDocument): string[] {
   }
   const routeIds = new Set(routes.map((item) => item.id));
   const settingsSectionIds = new Set(settingsSections.map((item) => item.id));
-  if (
-    shortcuts.length &&
-    !/^1\.[1-9]\d*\./.test(document.api_contract_version ?? "")
-  )
-    errors.push("Plugin shortcuts require API v1.1 or later.");
-  if (shortcuts.length > 64)
-    errors.push("Plugins can declare at most 64 shortcuts.");
-  for (const shortcut of shortcuts) {
-    if (
-      [
-        shortcut.page_id,
-        shortcut.route_id,
-        shortcut.action_id,
-        shortcut.control,
-      ].filter(Boolean).length !== 1
-    )
-      errors.push(
-        `Shortcut ${shortcut.id} must target exactly one destination or control.`,
-      );
-    if (
-      !shortcut.keys.length ||
-      shortcut.keys.length > 4 ||
-      shortcut.keys.some((key) => !normalizeShortcutKey(key))
-    )
-      errors.push(`Shortcut ${shortcut.id} has invalid keys.`);
-    if (shortcut.page_id && !pages.has(shortcut.page_id))
-      errors.push(`Shortcut ${shortcut.id} references an unknown page.`);
-    if (shortcut.action_id && !actions.has(shortcut.action_id))
-      errors.push(`Shortcut ${shortcut.id} references an unknown action.`);
-    if (
-      (shortcut.route_id && !routeIds.has(shortcut.route_id)) ||
-      (shortcut.when_route_id && !routeIds.has(shortcut.when_route_id))
-    )
-      errors.push(
-        `Shortcut ${shortcut.id} references an unknown plugin route.`,
-      );
-    if (
-      shortcut.control &&
-      (!shortcut.when_route_id ||
-        !["create", "search"].includes(shortcut.control))
-    )
-      errors.push(
-        `Shortcut ${shortcut.id} controls must be scoped to a plugin route.`,
-      );
-  }
   for (const contribution of navigation) {
     const targets = [
       contribution.page_id,
@@ -649,7 +516,7 @@ export function buildInitialValues(document: PluginUiDocument): UiValues {
   const values: UiValues = {};
   for (const section of document.settings) {
     for (const field of section.fields) {
-      if (field.default != null && !field.secret)
+      if (field.default !== undefined && !field.secret)
         values[field.id] = field.default;
     }
   }

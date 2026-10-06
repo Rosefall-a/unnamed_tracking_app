@@ -50,9 +50,7 @@ const hideLabel = computed(() => `Hide ${secretLabel.value}`);
       :placeholder="placeholder"
       :disabled="disabled"
       :readonly="readonly"
-      :aria-label="
-        inputAriaLabel || (attrs['aria-label'] as string) || undefined
-      "
+      :aria-label="inputAriaLabel || undefined"
       @input="
         emit('update:modelValue', ($event.target as HTMLInputElement).value)
       "
@@ -98,7 +96,7 @@ const hideLabel = computed(() => `Hide ${secretLabel.value}`);
   box-sizing: border-box;
   background: var(--ui-bg);
   border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius-control);
+  border-radius: 8px;
   color: var(--ui-text);
   padding: 10px 52px 10px 12px;
   min-height: 44px;

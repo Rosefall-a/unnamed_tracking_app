@@ -10,8 +10,6 @@ from uuid import UUID, uuid4
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
-from starlette.responses import JSONResponse
-
 from src.core.auth import get_current_user
 from src.database.models.user import User
 from src.database.session import get_db
@@ -24,6 +22,7 @@ from src.plugin_api.backend_routes import (
 from src.plugin_api.contracts import BackendRouteAuthorization, BackendRouteScope, Capability
 from src.plugin_api.grants import has_capability_grant, installation_is_executable
 from src.plugin_api.runtime_client import PluginRuntimeRequestError, PluginRuntimeUnavailable
+from starlette.responses import JSONResponse
 
 from . import contributions, models, runtime
 
@@ -36,6 +35,9 @@ _MAX_PLUGIN_ROUTE_BODY_BYTES = 48 * 1024
 
 
 _MAX_PLUGIN_ROUTE_ENVELOPE_BYTES = 64 * 1024
+
+
+_PLUGIN_DB = Depends(get_db)
 
 
 def _backend_route_error(
@@ -377,7 +379,7 @@ async def plugin_backend_route(
     plugin_id: str,
     route_path: str,
     request: Request,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = _PLUGIN_DB,
 ) -> Response:
     """Dispatch one authenticated request within a plugin-owned namespace."""
 
@@ -398,7 +400,7 @@ async def plugin_backend_route(
 async def plugin_host_backend_route(
     route_path: str,
     request: Request,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = _PLUGIN_DB,
 ) -> Response:
     """Dispatch a privileged plugin route only after all core routes were considered."""
 

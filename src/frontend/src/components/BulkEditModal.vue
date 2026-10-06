@@ -298,23 +298,23 @@ async function submit() {
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: var(--ui-overlay);
+  background: rgba(0, 0, 0, 0.65);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: var(--ui-z-modal);
+  z-index: 70;
 }
 .modal {
-  background: var(--ui-surface);
-  border: 1px solid var(--ui-border);
+  background: #1a1a1a;
+  border: 1px solid #2a2a2a;
   border-radius: 14px;
   width: 100%;
   max-width: 520px;
   max-height: 88vh;
   display: flex;
   flex-direction: column;
-  color: var(--ui-text);
-  font-family: var(--ui-font-family);
+  color: #fff;
+  font-family: system-ui, sans-serif;
   box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
 }
 .modal-header {
@@ -322,7 +322,7 @@ async function submit() {
   justify-content: space-between;
   align-items: center;
   padding: 18px 22px;
-  border-bottom: 1px solid var(--ui-border);
+  border-bottom: 1px solid #2a2a2a;
   flex-shrink: 0;
 }
 .modal-header h2 {
@@ -332,19 +332,19 @@ async function submit() {
 .close-button {
   background: none;
   border: none;
-  color: var(--ui-dim);
+  color: #999;
   font-size: 15px;
   cursor: pointer;
-  width: var(--ui-control-height);
-  height: var(--ui-control-height);
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
   transition:
     background 0.15s ease,
     color 0.15s ease;
 }
 .close-button:hover {
-  background: color-mix(in srgb, var(--ui-text) 10%, transparent);
-  color: var(--ui-text);
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
 }
 .modal-form {
   display: flex;
@@ -362,7 +362,7 @@ async function submit() {
   min-height: 0;
 }
 .hint {
-  color: var(--ui-dim);
+  color: #999;
   font-size: 12.5px;
   line-height: 1.5;
   margin: 0 0 4px;
@@ -377,12 +377,12 @@ async function submit() {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: var(--ui-text);
+  color: #ccc;
   font-size: 13px;
   cursor: pointer;
 }
 .field-check input {
-  accent-color: var(--ui-accent-text);
+  accent-color: #d68a34;
   width: 15px;
   height: 15px;
   cursor: pointer;
@@ -390,10 +390,10 @@ async function submit() {
 .field-input {
   height: 36px;
   box-sizing: border-box;
-  background: var(--ui-surface);
-  border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius-control);
-  color: var(--ui-text);
+  background: #111;
+  border: 1px solid #3a3a3a;
+  border-radius: 8px;
+  color: #fff;
   padding: 0 12px;
   font: inherit;
   font-size: 13px;
@@ -404,14 +404,14 @@ async function submit() {
 }
 .field-input:focus:not(:disabled) {
   outline: none;
-  border-color: var(--ui-accent-line);
+  border-color: #d68a34;
 }
 .form-error {
-  color: var(--ui-error);
+  color: #fca5a5;
   font-size: 13px;
   background: rgba(220, 38, 38, 0.1);
   border: 1px solid rgba(220, 38, 38, 0.3);
-  border-radius: var(--ui-radius-control);
+  border-radius: 8px;
   padding: 8px 10px;
 }
 .modal-footer {
@@ -419,28 +419,28 @@ async function submit() {
   justify-content: flex-end;
   gap: 10px;
   padding: 16px 22px;
-  border-top: 1px solid var(--ui-border);
+  border-top: 1px solid #2a2a2a;
   flex-shrink: 0;
 }
 .primary-button,
 .secondary-button {
   border: none;
-  border-radius: var(--ui-radius-control);
+  border-radius: 8px;
   padding: 10px 18px;
   font-weight: 600;
   cursor: pointer;
   font-size: 13px;
 }
 .primary-button {
-  background: var(--ui-accent);
-  color: var(--ui-on-accent);
+  background: #d68a34;
+  color: #111;
 }
 .primary-button:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
 .secondary-button {
-  background: color-mix(in srgb, var(--ui-text) 8%, transparent);
-  color: var(--ui-text);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
 }
 </style>

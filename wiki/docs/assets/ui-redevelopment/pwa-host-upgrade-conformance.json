@@ -1,8 +1,0 @@
-{
-  "status": "passed",
-  "previous_generation": "b259319a7ad0e12afc46753de9a5bc22fdb6b17f88003bf0191c8270e5b18b65",
-  "current_generation": "ca2f76ae4003ce808d713ae02d0fa3cb3f652c7fc8155f30fb0180dc110b14af",
-  "plugin_version": "0.0.3",
-  "host_source_head": "0e0dcbc34b5400e4a39f3a5c05f47ea28cfbc89b",
-  "plugin_package_sha256": "0bb14053b49023cf6997cfb5db132b69a5117ab3a619f060cdc4a58ff5b195ba"
-}

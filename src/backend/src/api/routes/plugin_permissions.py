@@ -8,10 +8,11 @@ from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
-from sqlalchemy import select, update
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.auth import get_current_user
+from src.plugin_api.management_auth import get_plugin_manager_admin
 from src.database.models.plugin_permissions import (
     PluginClientIdentity,
     PluginPermissionGrant,
@@ -19,21 +20,14 @@ from src.database.models.plugin_permissions import (
 )
 from src.database.models.user import User
 from src.database.session import get_db
-from src.plugin_api.capabilities import capability_definition
 from src.plugin_api.contracts import Capability
-from src.plugin_api.grants import (
-    ensure_capability_grant,
-    lock_permission_scope,
-    permission_scope_filters,
-)
-from src.plugin_api.management_auth import get_plugin_manager_admin
 from src.plugin_api.permissions import issue_client_credential
+from src.plugin_api.capabilities import capability_definition
 
 
 async def _declared_permission(
     plugin_id: str, installation_id: UUID, capability: str, version: int
 ) -> dict:
-    """Validate a requested capability against the current installation's declaration."""
     from src.api.routes.plugins import _live_plugin
 
     plugin = await _live_plugin(plugin_id, require_enabled=False)
@@ -46,14 +40,9 @@ async def _declared_permission(
 
 
 router = APIRouter(prefix="/api/plugin-permissions", tags=["plugin-permissions"])
-_PLUGIN_DB = Depends(get_db)
-_PLUGIN_ADMIN = Depends(get_plugin_manager_admin)
-_PLUGIN_USER = Depends(get_current_user)
 
 
 class PermissionRequestIn(BaseModel):
-    """Request one declared capability for an installation and optional user."""
-
     plugin_id: str = Field(min_length=1, max_length=128)
     installation_id: UUID
     capability: Capability
@@ -63,8 +52,6 @@ class PermissionRequestIn(BaseModel):
 
 
 class ClientIdentityIn(BaseModel):
-    """Create an authenticated user's plugin-scoped device credential."""
-
     plugin_id: str = Field(min_length=1, max_length=128)
     installation_id: UUID
     device_id: UUID = Field(default_factory=uuid4)
@@ -73,9 +60,8 @@ class ClientIdentityIn(BaseModel):
 
 @router.get("/requests")
 async def list_permission_requests(
-    db: AsyncSession = _PLUGIN_DB, admin: User = _PLUGIN_ADMIN
+    db: AsyncSession = Depends(get_db), admin: User = Depends(get_plugin_manager_admin)
 ) -> list[dict]:
-    """List permission proposals for administrator review."""
     del admin
     rows = await db.scalars(
         select(PluginPermissionRequest).order_by(PluginPermissionRequest.requested_at.desc())
@@ -100,10 +86,9 @@ async def list_permission_requests(
 @router.post("/requests", status_code=status.HTTP_201_CREATED)
 async def create_permission_request(
     payload: PermissionRequestIn,
-    db: AsyncSession = _PLUGIN_DB,
-    user: User = _PLUGIN_USER,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
 ) -> dict:
-    """Reuse a pending proposal without granting or broadening its requested access."""
     if payload.user_id is not None and payload.user_id != user.id and not user.is_admin:
         raise HTTPException(status_code=403, detail="Cannot request permissions for another user.")
     await _declared_permission(
@@ -112,32 +97,6 @@ async def create_permission_request(
         payload.capability.value,
         payload.capability_version,
     )
-    await lock_permission_scope(
-        db,
-        PluginPermissionGrant(
-            plugin_id=payload.plugin_id,
-            installation_id=payload.installation_id,
-            capability=payload.capability.value,
-            capability_version=payload.capability_version,
-            user_id=payload.user_id,
-        ),
-    )
-    row = await db.scalar(
-        select(PluginPermissionRequest)
-        .where(
-            PluginPermissionRequest.plugin_id == payload.plugin_id,
-            PluginPermissionRequest.installation_id == payload.installation_id,
-            PluginPermissionRequest.capability == payload.capability.value,
-            PluginPermissionRequest.capability_version == payload.capability_version,
-            PluginPermissionRequest.user_id == payload.user_id,
-            PluginPermissionRequest.status == "pending",
-        )
-        .order_by(PluginPermissionRequest.requested_at, PluginPermissionRequest.id)
-        .with_for_update()
-    )
-    if row is not None:
-        await db.commit()
-        return {"id": str(row.id), "status": row.status}
     row = PluginPermissionRequest(**payload.model_dump(), status="pending")
     db.add(row)
     await db.commit()
@@ -148,10 +107,9 @@ async def create_permission_request(
 @router.post("/requests/{request_id}/deny")
 async def deny_permission_request(
     request_id: UUID,
-    db: AsyncSession = _PLUGIN_DB,
-    admin: User = _PLUGIN_ADMIN,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(get_plugin_manager_admin),
 ) -> dict:
-    """Reject a pending proposal without changing its existing grants."""
     row = await db.scalar(
         select(PluginPermissionRequest).where(PluginPermissionRequest.id == request_id)
     )
@@ -167,10 +125,9 @@ async def deny_permission_request(
 @router.post("/requests/{request_id}/approve", status_code=status.HTTP_201_CREATED)
 async def approve_permission_request(
     request_id: UUID,
-    db: AsyncSession = _PLUGIN_DB,
-    admin: User = _PLUGIN_ADMIN,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(get_plugin_manager_admin),
 ) -> dict:
-    """Approve declared access while reusing its exact-scope grant record."""
     row = await db.scalar(
         select(PluginPermissionRequest).where(PluginPermissionRequest.id == request_id)
     )
@@ -187,26 +144,25 @@ async def approve_permission_request(
             409,
             "Review this unverified privileged grant with administrator reauthentication in Plugin Manager.",
         )
-    grant = await ensure_capability_grant(
-        db,
-        PluginPermissionGrant(
-            plugin_id=row.plugin_id,
-            installation_id=row.installation_id,
-            capability=row.capability,
-            capability_version=row.capability_version,
-            user_id=row.user_id,
-        ),
+    grant = PluginPermissionGrant(
+        plugin_id=row.plugin_id,
+        installation_id=row.installation_id,
+        capability=row.capability,
+        capability_version=row.capability_version,
+        user_id=row.user_id,
     )
     row.status = "approved"
     row.resolved_at = int(time.time())
     row.resolved_by = admin.id
+    db.add(grant)
     await db.commit()
     return {"id": str(grant.id), "status": "granted"}
 
 
 @router.get("/grants")
-async def list_grants(db: AsyncSession = _PLUGIN_DB, admin: User = _PLUGIN_ADMIN) -> list[dict]:
-    """List persisted grants and revocation history for administrator review."""
+async def list_grants(
+    db: AsyncSession = Depends(get_db), admin: User = Depends(get_plugin_manager_admin)
+) -> list[dict]:
     del admin
     rows = await db.scalars(
         select(PluginPermissionGrant).order_by(PluginPermissionGrant.granted_at.desc())
@@ -231,21 +187,15 @@ async def list_grants(db: AsyncSession = _PLUGIN_DB, admin: User = _PLUGIN_ADMIN
 @router.post("/grants/{grant_id}/revoke")
 async def revoke_grant(
     grant_id: UUID,
-    db: AsyncSession = _PLUGIN_DB,
-    admin: User = _PLUGIN_ADMIN,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(get_plugin_manager_admin),
 ) -> dict:
-    """Revoke the logical scope, including duplicates retained by older hosts."""
     del admin
     row = await db.scalar(select(PluginPermissionGrant).where(PluginPermissionGrant.id == grant_id))
     if row is None:
         raise HTTPException(status_code=404, detail="Permission grant not found.")
-    await lock_permission_scope(db, row)
-    await db.execute(
-        update(PluginPermissionGrant)
-        .where(*permission_scope_filters(row))
-        .values(revoked_at=int(time.time()), revoked_by_operation=None)
-        .execution_options(synchronize_session="fetch")
-    )
+    row.revoked_at = int(time.time())
+    row.revoked_by_operation = None
     await db.commit()
     return {"id": str(row.id), "status": "revoked"}
 
@@ -253,10 +203,9 @@ async def revoke_grant(
 @router.post("/clients", status_code=status.HTTP_201_CREATED)
 async def create_client_identity(
     payload: ClientIdentityIn,
-    db: AsyncSession = _PLUGIN_DB,
-    user: User = _PLUGIN_USER,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
 ) -> dict:
-    """Issue a credential bound to the authenticated user's installation and device."""
     issued = issue_client_credential(
         plugin_id=payload.plugin_id,
         installation_id=payload.installation_id,
@@ -287,9 +236,8 @@ async def create_client_identity(
 
 @router.get("/clients")
 async def list_client_identities(
-    db: AsyncSession = _PLUGIN_DB, user: User = _PLUGIN_USER
+    db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)
 ) -> list[dict]:
-    """List only device identities owned by the authenticated user."""
     rows = await db.scalars(
         select(PluginClientIdentity)
         .where(PluginClientIdentity.user_id == user.id)
@@ -313,9 +261,8 @@ async def list_client_identities(
 
 @router.post("/clients/{client_id}/revoke")
 async def revoke_client_identity(
-    client_id: UUID, db: AsyncSession = _PLUGIN_DB, user: User = _PLUGIN_USER
+    client_id: UUID, db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)
 ) -> dict:
-    """Withdraw the authenticated user's own device credential."""
     row = await db.scalar(
         select(PluginClientIdentity).where(
             PluginClientIdentity.id == client_id, PluginClientIdentity.user_id == user.id

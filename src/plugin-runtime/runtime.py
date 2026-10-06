@@ -35,7 +35,6 @@ from urllib.parse import unquote, urlsplit
 from urllib.request import Request, urlopen
 from uuid import UUID, uuid4
 
-from legacy_compatibility import LEGACY_WARNING, legacy_plugin_allowed
 from storage import PluginStorage
 
 try:
@@ -44,13 +43,10 @@ except ImportError:  # pragma: no cover - Windows development/test fallback
     resource = None  # type: ignore[assignment]
 
 _PLUGIN_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
-PLUGIN_API_CONTRACT_VERSION = "1.1.0"
 _ENTRYPOINT = re.compile(r"^[A-Za-z_][A-Za-z0-9_.-]*(?::[A-Za-z_][A-Za-z0-9_]*)?$")
 # Linux parent-death signals follow the spawning thread. HTTP request threads
 # end after their response, while supervised workers must live until shutdown.
-_WORKER_LAUNCHER = ThreadPoolExecutor(
-    max_workers=1, thread_name_prefix="plugin-launcher"
-)
+_WORKER_LAUNCHER = ThreadPoolExecutor(max_workers=1, thread_name_prefix="plugin-launcher")
 _RESERVED_ENV = {
     "DATABASE_URL",
     "SECRET_KEY",
@@ -100,28 +96,6 @@ _RESERVED_PLUGIN_ROUTE_ROOTS = {
 
 class RuntimePolicyError(ValueError):
     """Raised when a plugin request violates the runtime contract."""
-
-
-def plugin_contract_compatibility_reason(
-    manifest: Mapping[str, Any], *, allow_legacy: bool = False
-) -> str | None:
-    """Independent runtime enforcement of the public host contract boundary."""
-    declared = manifest.get("api_contract_version", "1.0.0")
-    if not isinstance(declared, str) or not re.fullmatch(
-        r"(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)", declared
-    ):
-        return "Plugin API contract version is invalid."
-    version = tuple(int(part) for part in declared.split("."))
-    if version[:2] == (1, 0):
-        if allow_legacy:
-            return None
-        return (
-            f"Plugin API contract {declared} is v1.0-only. Limited compatibility is available "
-            "for shipped examples and already-installed plugins; new plugins must target v1.1."
-        )
-    if version != (1, 1, 0):
-        return f"Plugin API contract {declared} is not supported by this host (1.1.0)."
-    return None
 
 
 class RuntimeGatewayError(RuntimePolicyError):
@@ -529,32 +503,17 @@ class PluginSupervisor:
         if not isinstance(payload, dict):
             raise RuntimePolicyError("gateway payload must be an object")
         # Host-owned opt-in records cannot be forged through plugin storage.
-        if method.startswith("storage.") and str(payload.get("key", "")).startswith(
-            "host/"
-        ):
+        if method.startswith("storage.") and str(payload.get("key", "")).startswith("host/"):
             raise RuntimePolicyError("host storage namespace is reserved")
-        if method == "storage.keys" and str(payload.get("prefix", "")).startswith(
-            "host/"
-        ):
+        if method == "storage.keys" and str(payload.get("prefix", "")).startswith("host/"):
             raise RuntimePolicyError("host storage namespace is reserved")
-        if method in {
-            "tasks.subscribe",
-            "tasks.unsubscribe",
-            "tasks.subscribers",
-            "tasks.request",
-        }:
-            self._authorize_capability(
-                plugin_id,
-                "tasks.background",
-                user_id=user_id,
-                request_id=request["request_id"],
-            )
+        if method in {"tasks.subscribe", "tasks.unsubscribe", "tasks.subscribers", "tasks.request"}:
+            self._authorize_capability(plugin_id, "tasks.background", user_id=user_id,
+                                       request_id=request["request_id"])
             storage = self._storage(plugin_id)
             if method in {"tasks.subscribe", "tasks.unsubscribe"}:
                 if user_id is None:
-                    raise RuntimePolicyError(
-                        "background subscriptions require an authenticated action"
-                    )
+                    raise RuntimePolicyError("background subscriptions require an authenticated action")
                 key = "host/tasks/" + str(UUID(user_id))
                 if method == "tasks.subscribe":
                     storage.put(key, json.dumps({"user_id": user_id}).encode())
@@ -565,45 +524,23 @@ class PluginSupervisor:
                 keys = list(storage.keys("host/tasks/"))
                 limit = max(1, min(int(payload.get("limit", 100)), 100))
                 offset = max(0, int(payload.get("offset", 0)))
-                return {
-                    "payload": {
-                        "users": [
-                            key.removeprefix("host/tasks/")
-                            for key in sorted(keys)[offset : offset + limit]
-                        ],
-                        "total": len(keys),
-                    }
-                }
+                return {"payload": {"users": [key.removeprefix("host/tasks/")
+                                               for key in sorted(keys)[offset:offset + limit]],
+                                    "total": len(keys)}}
             target = str(UUID(str(payload.get("user_id", ""))))
             if storage.get("host/tasks/" + target) is None:
-                raise RuntimePolicyError(
-                    "user has not subscribed to this plugin's background tasks"
-                )
+                raise RuntimePolicyError("user has not subscribed to this plugin's background tasks")
             # A reviewed, bounded operation with its own live target-user grant.
-            operations = {
-                "media.sync": "media.write",
-                "notifications.send": "notifications.send",
-            }
-            if payload.get("method") not in operations or operations[
-                payload["method"]
-            ] != payload.get("capability"):
+            operations = {"media.sync": "media.write", "notifications.send": "notifications.send"}
+            if (payload.get("method") not in operations
+                    or operations[payload["method"]] != payload.get("capability")):
                 raise RuntimePolicyError("unsupported background operation")
-            self._authorize_capability(
-                plugin_id,
-                "tasks.background",
-                user_id=target,
-                request_id=request["request_id"],
-            )
-            return self._dispatch_gateway_request(
-                plugin_id,
-                {
-                    **request,
-                    "method": payload["method"],
-                    "capability": payload["capability"],
-                    "payload": payload.get("payload", {}),
-                },
-                user_id=target,
-            )
+            self._authorize_capability(plugin_id, "tasks.background", user_id=target,
+                                       request_id=request["request_id"])
+            return self._dispatch_gateway_request(plugin_id, {
+                **request, "method": payload["method"], "capability": payload["capability"],
+                "payload": payload.get("payload", {}),
+            }, user_id=target)
         local_capability = {
             "storage.put": "plugin.storage",
             "storage.compare_and_swap": "plugin.storage",
@@ -645,18 +582,12 @@ class PluginSupervisor:
             if (expected is not None and not isinstance(expected, str)) or (
                 value is not None and not isinstance(value, str)
             ):
-                raise RuntimePolicyError(
-                    "storage compare-and-swap values must be strings or null"
-                )
-            return {
-                "payload": {
-                    "swapped": self._storage(plugin_id).compare_and_swap(
-                        str(payload.get("key", "")),
-                        None if expected is None else expected.encode(),
-                        None if value is None else value.encode(),
-                    )
-                }
-            }
+                raise RuntimePolicyError("storage compare-and-swap values must be strings or null")
+            return {"payload": {"swapped": self._storage(plugin_id).compare_and_swap(
+                str(payload.get("key", "")),
+                None if expected is None else expected.encode(),
+                None if value is None else value.encode(),
+            )}}
         if method == "storage.delete":
             return {
                 "payload": {
@@ -668,13 +599,9 @@ class PluginSupervisor:
         if method == "storage.keys":
             return {
                 "payload": {
-                    "keys": [
-                        key
-                        for key in self._storage(plugin_id).keys(
-                            str(payload.get("prefix", ""))
-                        )
-                        if not key.startswith("host/")
-                    ]
+                    "keys": [key for key in
+                             self._storage(plugin_id).keys(str(payload.get("prefix", "")))
+                             if not key.startswith("host/")]
                 }
             }
         configuration = self.gateway_health()
@@ -821,6 +748,7 @@ class PluginSupervisor:
             self.isolation.get("bubblewrap_available") is False
             and self.reduced_isolation_acknowledged
         )
+
 
     def _sandbox_command(
         self, spec: PluginSpec, workdir: Path, package_dir: Path
@@ -1276,10 +1204,7 @@ class PluginRegistry:
             raise RuntimePolicyError("runtime isolation policy must not be a symlink")
         if self.policy_path.exists():
             policy = json.loads(self.policy_path.read_text(encoding="utf-8"))
-            if (
-                not isinstance(policy, dict)
-                or type(policy.get("acknowledged")) is not bool
-            ):
+            if not isinstance(policy, dict) or type(policy.get("acknowledged")) is not bool:
                 raise RuntimePolicyError("runtime isolation acknowledgement is invalid")
             self.supervisor.reduced_isolation_acknowledged = policy["acknowledged"]
         self._recover_publication()
@@ -1306,17 +1231,13 @@ class PluginRegistry:
             )
             if unavailable and not acknowledged and not forced:
                 for plugin_id, item in self._state().items():
-                    if (
-                        isinstance(item, dict)
-                        and item.get("enabled")
-                        and item.get("status") == "running"
-                    ):
+                    if isinstance(item, dict) and item.get("enabled") and item.get("status") == "running":
                         self._transition(
-                            plugin_id,
-                            status="failed",
+                            plugin_id, status="failed",
                             last_error="Reduced isolation approval was withdrawn. Review Plugin Manager.",
                         )
                 self.supervisor.stop_all()
+
 
     def _transaction_backup(
         self, plugin_id: str, pending: dict[str, Any]
@@ -1410,20 +1331,7 @@ class PluginRegistry:
             self._save_state(state)
             return record
 
-    def _contract_error(self, manifest: Mapping[str, Any]) -> str | None:
-        return plugin_contract_compatibility_reason(
-            manifest,
-            allow_legacy=legacy_plugin_allowed(
-                str(manifest.get("plugin_id", "")), self._state()
-            ),
-        )
-
     def _execution_allowed(self, plugin_id: str, method: str = "action") -> bool:
-        try:
-            if self._contract_error(self.package(plugin_id)[1]):
-                return False
-        except (OSError, ValueError, KeyError):
-            return False
         state = self._state().get(plugin_id)
         if (
             isinstance(state, dict)
@@ -1661,14 +1569,9 @@ class PluginRegistry:
                 pass
         plugin_id = data["plugin_id"]
         expected = data.get("integrity", {}).get("sha256")
-        integrity_valid = (
+        compatible = (
             bool(expected) and self.digest(package).lower() == str(expected).lower()
         )
-        contract_error = self._contract_error(data)
-        compatible = integrity_valid and contract_error is None
-        legacy = compatible and str(
-            data.get("api_contract_version", "1.0.0")
-        ).startswith("1.0.")
         state = self._state()
         raw_state = state.get(plugin_id, False)
         enabled = (
@@ -1697,16 +1600,6 @@ class PluginRegistry:
         ):
             self._transition(plugin_id, status="failed")
             self.supervisor.stop(plugin_id)
-        if contract_error:
-            # Preserve the enablement preference, installation identity and storage
-            # for a verified update, but never restore an old worker or contribution.
-            if running:
-                self.supervisor.stop(plugin_id)
-                running = False
-            enabled = False
-            status = "incompatible"
-            if not isinstance(raw_state, dict) or raw_state.get("status") != status:
-                self._transition(plugin_id, status=status, last_error=contract_error)
         last_exit_code = self.supervisor.exit_code(plugin_id)
         worker_error = (
             f"Plugin worker exited with status {last_exit_code}. Open Diagnostics for recent events."
@@ -1723,10 +1616,6 @@ class PluginRegistry:
             and distribution.get("automatic_update", True),
             "release_notes": distribution.get("release_notes"),
             "version": data.get("version", "0.0.0"),
-            "api_contract_version": data.get("api_contract_version", "1.0.0"),
-            "host_api_contract_version": PLUGIN_API_CONTRACT_VERSION,
-            "sdk_version_range": data.get("sdk_version_range"),
-            "application_version_range": data.get("application_version_range"),
             "publisher": (
                 data.get("integrity", {}).get("key_id")
                 if data.get("integrity", {}).get("signature")
@@ -1737,11 +1626,9 @@ class PluginRegistry:
             if isinstance(raw_state, dict)
             else None,
             "compatible": compatible,
-            "legacy_compatibility": legacy,
-            "compatibility_warning": LEGACY_WARNING if legacy else None,
             "compatibility_reason": ""
             if compatible
-            else contract_error or "package integrity verification failed",
+            else "package integrity verification failed",
             "permissions": [
                 p.get("capability", {}).get("name") for p in data.get("permissions", [])
             ],
@@ -1752,10 +1639,6 @@ class PluginRegistry:
                 if isinstance(p.get("capability"), dict)
             ],
             "backend_routes": self._backend_routes(data),
-            "scheduled_tasks": [] if legacy else data.get("scheduled_tasks", []),
-            "background_user_id": raw_state.get("user_id")
-            if isinstance(raw_state, dict)
-            else None,
             "pwa": data.get("pwa"),
             "dependencies": [
                 dependency
@@ -1767,11 +1650,6 @@ class PluginRegistry:
             else {"type": "unknown"},
             "trust": raw_state.get("trust", {}) if isinstance(raw_state, dict) else {},
             "enabled": enabled,
-            "activation_requested": (
-                bool(raw_state.get("enabled", False))
-                if isinstance(raw_state, dict)
-                else bool(raw_state)
-            ),
             "installation_pending": bool(raw_state.get("pending_installation"))
             if isinstance(raw_state, dict)
             else False,
@@ -1785,8 +1663,7 @@ class PluginRegistry:
             "logs_available": bool(self.supervisor.logs(plugin_id)),
             "last_exit_code": last_exit_code,
             "status": status,
-            "last_error": contract_error
-            or (raw_state.get("last_error") if isinstance(raw_state, dict) else None)
+            "last_error": (raw_state.get("last_error") if isinstance(raw_state, dict) else None)
             or worker_error,
             "runtime": dict(self.supervisor.isolation),
             "pending_transaction": (
@@ -1955,23 +1832,6 @@ class PluginRegistry:
             raise RuntimePolicyError("plugin manifest has an invalid plugin id")
         if not _ENTRYPOINT.fullmatch(str(manifest.get("entrypoint", ""))):
             raise RuntimePolicyError("plugin manifest has an invalid entrypoint")
-        contract_error = self._contract_error(manifest)
-        if contract_error:
-            raise RuntimePolicyError(contract_error)
-        for name, content in payload:
-            if name == "ui.json":
-                try:
-                    document = json.loads(content)
-                except (ValueError, UnicodeError) as exc:
-                    raise RuntimePolicyError(
-                        "plugin UI document is invalid JSON"
-                    ) from exc
-                if not isinstance(document, dict) or document.get(
-                    "api_contract_version", "1.0.0"
-                ) != manifest.get("api_contract_version", "1.0.0"):
-                    raise RuntimePolicyError(
-                        "plugin UI and manifest API contracts must match"
-                    )
         backend_routes = self._backend_routes(manifest)
         capabilities = {
             item.get("name")
@@ -2432,14 +2292,10 @@ class PluginRegistry:
         declaration = manifest.get("pwa")
         if not isinstance(declaration, dict):
             raise KeyError(relative)
-        allowed = {
-            declaration.get("manifest", "pwa/manifest.webmanifest"),
-            *declaration.get("icons", ["pwa/icon-192.png", "pwa/icon-512.png"]),
-        }
+        allowed = {declaration.get("manifest", "pwa/manifest.webmanifest"),
+                   *declaration.get("icons", ["pwa/icon-192.png", "pwa/icon-512.png"])}
         if relative not in allowed or relative not in {
-            "pwa/manifest.webmanifest",
-            "pwa/icon-192.png",
-            "pwa/icon-512.png",
+            "pwa/manifest.webmanifest", "pwa/icon-192.png", "pwa/icon-512.png"
         }:
             raise RuntimePolicyError("PWA asset is not declared")
         path = package / relative
@@ -2449,10 +2305,7 @@ class PluginRegistry:
             raise RuntimePolicyError("PWA asset escapes the package") from exc
         if not path.is_file() or path.is_symlink() or path.stat().st_size > 256 * 1024:
             raise RuntimePolicyError("PWA asset is missing or exceeds 256 KiB")
-        return {
-            "path": relative,
-            "content": base64.b64encode(path.read_bytes()).decode("ascii"),
-        }
+        return {"path": relative, "content": base64.b64encode(path.read_bytes()).decode("ascii")}
 
     def ui(self, plugin_id: str) -> dict[str, Any]:
         package, manifest = self.package(plugin_id)
@@ -2460,7 +2313,6 @@ class PluginRegistry:
         if not ui_path.is_file():
             document = {
                 "schema_version": "v1",
-                "api_contract_version": manifest.get("api_contract_version", "1.0.0"),
                 "plugin_id": plugin_id,
                 "title": manifest.get("name", plugin_id),
                 "settings": [],
@@ -2477,21 +2329,13 @@ class PluginRegistry:
                 raise RuntimePolicyError("plugin UI document is invalid JSON") from exc
         if document.get("plugin_id") != plugin_id:
             raise RuntimePolicyError("plugin UI document has the wrong plugin_id")
-        if document.get("api_contract_version", "1.0.0") != manifest.get(
-            "api_contract_version", "1.0.0"
-        ):
-            raise RuntimePolicyError("plugin UI and manifest API contracts must match")
         frontend = manifest.get("frontend")
         if isinstance(frontend, dict) and frontend.get("entry"):
             document["frontend"] = {"entry": str(frontend["entry"])}
             if frontend.get("inline_assets") is True:
                 document["frontend"]["inline_assets"] = True
         native_frontend = manifest.get("native_frontend")
-        if (
-            not str(manifest.get("api_contract_version", "1.0.0")).startswith("1.0.")
-            and isinstance(native_frontend, dict)
-            and native_frontend.get("entry")
-        ):
+        if isinstance(native_frontend, dict) and native_frontend.get("entry"):
             document["native_frontend"] = {
                 "entry": str(native_frontend["entry"]),
                 "styles": [str(value) for value in native_frontend.get("styles", [])],
@@ -2656,11 +2500,8 @@ class PluginRegistry:
 
     def storage_keys(self, plugin_id: str, prefix: str = "") -> list[str]:
         self.package(plugin_id)
-        return [
-            key
-            for key in self.supervisor._storage(plugin_id).keys(prefix)
-            if not key.startswith("host/")
-        ]
+        return [key for key in self.supervisor._storage(plugin_id).keys(prefix)
+                if not key.startswith("host/")]
 
     def health(self, plugin_id: str) -> bool:
         self.package(plugin_id)
@@ -2726,63 +2567,6 @@ class PluginRegistry:
                     )
         except OSError as exc:
             raise RuntimePolicyError("Discord webhook delivery failed") from exc
-
-    def scheduled_task(
-        self, plugin_id: str, task_id: str, *, installation_id: str, trigger: str
-    ) -> dict[str, Any]:
-        """Run only a signed declaration using its existing background identity."""
-        self._require_active(plugin_id)
-        package, manifest = self.package(plugin_id)
-        installed = self._item(package)
-        if (
-            installed.get("legacy_compatibility")
-            or not isinstance(trigger, str)
-            or trigger not in {"scheduled", "manual"}
-        ):
-            raise RuntimePolicyError(
-                "scheduled tasks require Plugin API v1.1 and a valid trigger"
-            )
-        if installed.get("installation_id") != str(UUID(installation_id)):
-            raise RuntimePolicyError("scheduled task installation identity changed")
-        declaration = next(
-            (
-                task
-                for task in manifest.get("scheduled_tasks", [])
-                if task.get("id") == task_id
-            ),
-            None,
-        )
-        if declaration is None:
-            raise KeyError(task_id)
-        user_id = installed.get("background_user_id")
-        if not user_id:
-            raise RuntimePolicyError(
-                "plugin background identity is unavailable; enable the plugin again"
-            )
-        user_id = str(UUID(str(user_id)))
-        self.supervisor._authorize_capability(
-            plugin_id, "tasks.background", user_id=user_id
-        )
-        document = self.ui(plugin_id)
-        action_id = declaration.get("action_id")
-        action = next(
-            (
-                item
-                for item in document.get("actions", [])
-                if item.get("id") == action_id
-            ),
-            None,
-        )
-        if action is None or action.get("confirmation") is not None:
-            raise RuntimePolicyError(
-                "scheduled task must reference an action without confirmation"
-            )
-        return self.action(
-            plugin_id,
-            action_id,
-            {"_scheduled_task": {"id": task_id, "trigger": trigger}},
-            user_id=user_id,
-        )
 
     def action(
         self,
@@ -2951,11 +2735,7 @@ class PluginRegistry:
         state = self._state()
         for package in self.packages():
             try:
-                manifest = self.package(package.name)[1]
-                plugin_id = manifest["plugin_id"]
-                if self._contract_error(manifest):
-                    self._item(package)
-                    continue
+                plugin_id = self.package(package.name)[1]["plugin_id"]
                 raw_state = state.get(plugin_id, True)
                 enabled = (
                     raw_state.get("enabled", True)
@@ -2973,8 +2753,6 @@ class PluginRegistry:
                         or raw_state.get("pending_installation")
                     )
                 ):
-                    if self.supervisor.running(plugin_id):
-                        continue
                     self._transition(plugin_id, status="stopped")
                     try:
                         self.start(plugin_id, user_id=user_id)
@@ -2985,13 +2763,11 @@ class PluginRegistry:
 
 
 class RuntimeHandler(BaseHTTPRequestHandler):
-    server_version = "UnnamedTrackingPluginRuntime/1.1"
+    server_version = "UnnamedTrackingPluginRuntime/1.0"
 
     def _authorize(self) -> bool:
         token = os.environ.get("PLUGIN_RUNTIME_TOKEN", "")
-        authenticated = (
-            len(token) >= 32 and self.headers.get("X-Plugin-Runtime-Token") == token
-        )
+        authenticated = len(token) >= 32 and self.headers.get("X-Plugin-Runtime-Token") == token
         if authenticated:
             gateway_url = self.headers.get("X-Plugin-Gateway-URL")
             if gateway_url:
@@ -3000,26 +2776,15 @@ class RuntimeHandler(BaseHTTPRequestHandler):
                 except ValueError:
                     self._json(422, {"detail": "App PLUGIN_GATEWAY_URL is invalid."})
                     return False
-            acknowledgement = self.headers.get(
-                "X-Plugin-Reduced-Isolation-Acknowledged"
-            )
+            acknowledgement = self.headers.get("X-Plugin-Reduced-Isolation-Acknowledged")
             if acknowledgement is not None:
                 if acknowledgement not in {"true", "false"}:
-                    self._json(
-                        422, {"detail": "invalid reduced isolation acknowledgement"}
-                    )
+                    self._json(422, {"detail": "invalid reduced isolation acknowledgement"})
                     return False
                 try:
-                    self.server.registry.acknowledge_reduced_isolation(
-                        acknowledgement == "true"
-                    )
+                    self.server.registry.acknowledge_reduced_isolation(acknowledgement == "true")
                 except (OSError, RuntimePolicyError) as exc:
-                    self._json(
-                        503,
-                        {
-                            "detail": f"runtime isolation approval could not be applied: {exc}"
-                        },
-                    )
+                    self._json(503, {"detail": f"runtime isolation approval could not be applied: {exc}"})
                     return False
         if authenticated or self.path.split("?", 1)[0] == "/health":
             return True
@@ -3049,13 +2814,6 @@ class RuntimeHandler(BaseHTTPRequestHandler):
                         "status": "ok",
                         "available": True,
                         "api_version": "v1",
-                        "api_contract_version": PLUGIN_API_CONTRACT_VERSION,
-                        "sdk_version": os.getenv(
-                            "PLUGIN_SDK_VERSION", PLUGIN_API_CONTRACT_VERSION
-                        ),
-                        "application_version": os.getenv(
-                            "PLUGIN_APPLICATION_VERSION", "1.0.0"
-                        ),
                         "supported_api_versions": ["v1"],
                         "transport": "http",
                         "plugin_transport": "json-lines",
@@ -3078,9 +2836,7 @@ class RuntimeHandler(BaseHTTPRequestHandler):
             elif len(parts) == 3 and parts[0] == "plugins" and parts[2] == "logs":
                 self._json(200, self.server.registry.diagnostics(parts[1]))  # type: ignore[attr-defined]
             elif len(parts) >= 4 and parts[0] == "plugins" and parts[2] == "pwa":
-                self._json(
-                    200, self.server.registry.pwa_asset(parts[1], "/".join(parts[3:]))
-                )
+                self._json(200, self.server.registry.pwa_asset(parts[1], "/".join(parts[3:])))
             elif len(parts) >= 3 and parts[0] == "plugins" and parts[2] == "frontend":
                 relative = "/".join(parts[3:])
                 self._json(200, self.server.registry.frontend(parts[1], relative))  # type: ignore[attr-defined]
@@ -3140,26 +2896,6 @@ class RuntimeHandler(BaseHTTPRequestHandler):
                     payload.get("values", {}),
                     user_id=payload.get("user_id"),
                 )  # type: ignore[attr-defined]
-                self._json(200, result)
-                return
-            if len(parts) == 4 and parts[0] == "plugins" and parts[2] == "tasks":
-                length = int(self.headers.get("Content-Length", "0"))
-                if not 1 <= length <= 1024:
-                    raise RuntimePolicyError(
-                        "plugin task request must be between 1 byte and 1 KiB"
-                    )
-                payload = json.loads(self.rfile.read(length))
-                if not isinstance(payload, dict) or set(payload) != {
-                    "installation_id",
-                    "trigger",
-                }:
-                    raise RuntimePolicyError("plugin task request is invalid")
-                result = self.server.registry.scheduled_task(
-                    parts[1],
-                    parts[3],
-                    installation_id=str(payload["installation_id"]),
-                    trigger=payload["trigger"],
-                )
                 self._json(200, result)
                 return
             if len(parts) == 4 and parts[0] == "plugins" and parts[2] == "routes":

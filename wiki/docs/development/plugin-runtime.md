@@ -34,15 +34,8 @@ local token. Deployments must always set a unique `PLUGIN_RUNTIME_TOKEN`;
 At startup the runtime executes a real Bubblewrap namespace probe. Its health
 response reports probe status, Bubblewrap usability, active isolation mechanism,
 sandbox availability, reduced-isolation policy and probe error. Plugin Settings
-displays runtime availability and isolation when first opened; its diagnostics
-show plugin process status and errors. An unavailable runtime is never reported
-as fully isolated.
-
-The failed Bubblewrap probe and acknowledgement warning belong to the server-wide
-Plugin Manager warning. They are not duplicated as a plugin's last error or failed
-startup event. Actual worker, action, compatibility, and update errors remain
-visible. Diagnostic events are shown newest first by their runtime sequence, while
-the underlying buffer retains the original history.
+displays this report when first opened; details and diagnostics show process
+status and errors. An unavailable runtime is never reported as fully isolated.
 
 A failed probe does not require an environment-variable change. An administrator
 can select **Review reduced isolation** in Plugin Manager, read the explanation,
@@ -108,9 +101,8 @@ characters long. Addresses must use HTTP(S), without embedded credentials, query
 parameters or fragments.
 
 If both services omit the callback, native Jellyfin, Session Manager and Archive
-actions cannot obtain host authorization. Plugin Manager prominently reports the
-missing configuration, and actions return a service failure with repair guidance
-rather than a generic 422. Set the callback on either service and recreate that
+actions cannot obtain host authorization. Runtime health reports the missing configuration, and actions return a service
+failure with repair guidance rather than a generic 422. Set the callback on either service and recreate that
 service; refresh Plugin Manager to check **Gateway configuration**. An older
 runtime must be upgraded with the host to support app-advertised callbacks.
 Configured health means the address/token format is valid; a real action is still

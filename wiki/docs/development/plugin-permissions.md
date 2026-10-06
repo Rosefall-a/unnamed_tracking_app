@@ -12,19 +12,6 @@ permission requests, never grant access.
 5. Active grants can be revoked at any time from the same dialog.
 6. Grants are scoped to the plugin installation and may be narrowed to a user or device.
 
-The Permissions tab groups **Active access**, **Pending requests**, and **Denied
-access** in collapsible sections. Denied access starts collapsed. Each permission
-shows its category, capability version, scope, and risk-coloured icon. Rows retain
-the same category/risk/name order after approval or revocation; an old revoked
-record does not create a second row for an active scope.
-
-Reinstating a permission reuses its persisted grant for the exact plugin,
-installation, capability version, user and device scope. Concurrent approvals are
-serialized for that identity. Revoking a scope also withdraws historical duplicate
-active records for that same identity; other user or device grants are unaffected.
-The interface does not convert a withdrawn scoped grant into server-wide access.
-Audit events retain the approval and revocation history.
-
 Manifest declarations never grant access by themselves.
 
 ## Scoped clients

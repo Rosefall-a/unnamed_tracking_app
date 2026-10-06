@@ -38,11 +38,6 @@ const emit = defineEmits<{
 <template>
   <div
     class="item-card"
-    tabindex="0"
-    role="button"
-    :aria-label="`Open ${title}`"
-    @keydown.enter.self.prevent="emit('open')"
-    @keydown.space.self.prevent="emit('open')"
     :class="{ reordering: reorderMode, dragging }"
     :draggable="reorderMode"
     @click="emit('open')"
@@ -122,9 +117,9 @@ const emit = defineEmits<{
   position: relative;
   width: 100%;
   aspect-ratio: 2 / 3;
-  border-radius: var(--ui-radius-row);
+  border-radius: 10px;
   overflow: hidden;
-  background: var(--ui-surface);
+  background: #1a1a1a;
   transition:
     transform 0.32s cubic-bezier(0.22, 1, 0.36, 1),
     box-shadow 0.32s cubic-bezier(0.22, 1, 0.36, 1);
@@ -146,7 +141,7 @@ const emit = defineEmits<{
   background-size: cover;
   background-repeat: no-repeat;
   background-position: center;
-  background-color: var(--ui-surface);
+  background-color: #1c1c1c;
 }
 
 .tile-btn {
@@ -154,9 +149,9 @@ const emit = defineEmits<{
   height: 24px;
   border-radius: 50%;
   border: none;
-  background: color-mix(in srgb, var(--ui-bg) 75%, transparent);
+  background: rgba(20, 20, 20, 0.75);
   backdrop-filter: blur(4px);
-  color: var(--ui-text);
+  color: #ccc;
   font-size: 11px;
   cursor: pointer;
 }
@@ -171,10 +166,7 @@ const emit = defineEmits<{
   align-items: center;
   justify-content: space-between;
   padding: 6px;
-  background: linear-gradient(
-    transparent,
-    color-mix(in srgb, var(--ui-bg) 85%, transparent)
-  );
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.85));
 }
 
 .reorder-arrows button {
@@ -182,8 +174,8 @@ const emit = defineEmits<{
   height: 26px;
   border-radius: 50%;
   border: none;
-  background: color-mix(in srgb, var(--ui-text) 14%, transparent);
-  color: var(--ui-text);
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
   font-size: 15px;
   cursor: pointer;
 }
@@ -195,7 +187,7 @@ const emit = defineEmits<{
 
 .reorder-pos {
   font-size: 12px;
-  font-weight: var(--ui-weight-title);
+  font-weight: 800;
   font-variant-numeric: tabular-nums;
 }
 
@@ -207,7 +199,7 @@ const emit = defineEmits<{
   margin: 0 0 6px;
   font-size: 14px;
   font-weight: 600;
-  color: var(--ui-text);
+  color: #fff;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -225,35 +217,35 @@ const emit = defineEmits<{
 }
 
 .pill.watching {
-  background: color-mix(in srgb, var(--ui-accent) 16%, transparent);
-  color: var(--ui-accent-text);
+  background: rgba(214, 138, 52, 0.16);
+  color: #d68a34;
 }
 
 .pill.completed {
-  background: color-mix(in srgb, var(--ui-good) 16%, transparent);
-  color: var(--ui-good);
+  background: rgba(111, 191, 115, 0.16);
+  color: #6fbf73;
 }
 
 .pill.hold {
-  background: color-mix(in srgb, var(--ui-info) 16%, transparent);
-  color: var(--ui-info);
+  background: rgba(123, 167, 217, 0.16);
+  color: #7ba7d9;
 }
 
 .pill.dropped {
-  background: color-mix(in srgb, var(--ui-error) 16%, transparent);
-  color: var(--ui-error);
+  background: rgba(217, 111, 111, 0.16);
+  color: #d96f6f;
 }
 
 .pill.plan {
-  background: color-mix(in srgb, var(--ui-purple) 16%, transparent);
-  color: var(--ui-purple);
+  background: rgba(157, 140, 217, 0.16);
+  color: #9d8cd9;
 }
 .cover-mark {
   position: absolute;
   left: 8px;
   top: 8px;
   z-index: 2;
-  color: var(--ui-accent-text);
+  color: #d68a34;
   font-size: 14px;
   text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
 }
@@ -281,29 +273,11 @@ const emit = defineEmits<{
 }
 
 .tile-btn:hover {
-  color: var(--ui-error);
+  color: #e57373;
 }
 
 .tile-btn.star:hover,
 .tile-btn.on {
-  color: var(--ui-accent-text);
-}
-.item-card:focus-visible {
-  outline: 2px solid var(--ui-accent-text);
-  outline-offset: 4px;
-  border-radius: var(--ui-radius-card);
-}
-.item-card:focus-within .tile-actions {
-  opacity: 1;
-}
-.tile-btn,
-.reorder-arrows button {
-  min-width: var(--ui-control-height);
-  min-height: var(--ui-control-height);
-}
-@media (hover: none), (max-width: 760px) {
-  .tile-actions {
-    opacity: 1;
-  }
+  color: #d68a34;
 }
 </style>

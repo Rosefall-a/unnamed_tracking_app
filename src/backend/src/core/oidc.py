@@ -40,9 +40,6 @@ class OidcConfig:
         return urljoin(configured + "/", ".well-known/openid-configuration")
 
 
-_registered_configs: dict[str, OidcConfig] = {}
-
-
 def env_oidc_config() -> OidcConfig | None:
     if not (settings.OIDC_ISSUER_URL and settings.OIDC_CLIENT_ID and settings.OIDC_CLIENT_SECRET):
         return None
@@ -61,12 +58,6 @@ def env_oidc_config() -> OidcConfig | None:
 
 
 def register_oidc_provider(config: OidcConfig, client_name: str = "oidc") -> None:
-    # Authlib's overwrite flag updates framework configuration, but it does
-    # not replace an already-created client. Invalidate that client when an
-    # administrator changes the issuer, credentials or scopes so sign-in uses
-    # the saved configuration without requiring a server restart.
-    if _registered_configs.get(client_name) != config:
-        oauth._clients.pop(client_name, None)
     oauth.register(
         name=client_name,
         client_id=config.client_id,
@@ -75,7 +66,6 @@ def register_oidc_provider(config: OidcConfig, client_name: str = "oidc") -> Non
         client_kwargs={"scope": config.scopes},
         overwrite=True,
     )
-    _registered_configs[client_name] = config
 
 
 def callback_url(request: Request, config: OidcConfig) -> str:

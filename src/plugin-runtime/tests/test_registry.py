@@ -31,7 +31,6 @@ def test_runtime_discovers_and_serves_declarative_plugin(tmp_path: Path) -> None
     (package / "ui.json").write_text(
         json.dumps(
             {
-                "api_contract_version": "1.1.0",
                 "schema_version": "v1",
                 "plugin_id": "example.plugin",
                 "title": "Example",
@@ -49,7 +48,6 @@ def test_runtime_discovers_and_serves_declarative_plugin(tmp_path: Path) -> None
     (package / "manifest.json").write_text(
         json.dumps(
             {
-                "api_contract_version": "1.1.0",
                 "plugin_id": "example.plugin",
                 "name": "Example",
                 "version": "1.0.0",
@@ -79,7 +77,6 @@ def test_runtime_dispatches_declared_action_in_supervisor(
     (package / "ui.json").write_text(
         json.dumps(
             {
-                "api_contract_version": "1.1.0",
                 "plugin_id": "example.plugin",
                 "settings": [],
                 "actions": [{"id": "ping", "handler": "main:action"}],
@@ -91,7 +88,6 @@ def test_runtime_dispatches_declared_action_in_supervisor(
     (package / "manifest.json").write_text(
         json.dumps(
             {
-                "api_contract_version": "1.1.0",
                 "plugin_id": "example.plugin",
                 "name": "Example",
                 "version": "1.0.0",
@@ -128,7 +124,6 @@ def test_runtime_handles_discord_action_output(
     (package / "ui.json").write_text(
         json.dumps(
             {
-                "api_contract_version": "1.1.0",
                 "plugin_id": "example.plugin",
                 "settings": [],
                 "actions": [{"id": "announce", "handler": "main:action"}],
@@ -140,7 +135,6 @@ def test_runtime_handles_discord_action_output(
     (package / "manifest.json").write_text(
         json.dumps(
             {
-                "api_contract_version": "1.1.0",
                 "plugin_id": "example.plugin",
                 "name": "Example",
                 "version": "1.0.0",
@@ -190,7 +184,6 @@ def test_runtime_rejects_tampered_package(tmp_path: Path) -> None:
     (package / "manifest.json").write_text(
         json.dumps(
             {
-                "api_contract_version": "1.1.0",
                 "plugin_id": "example.plugin",
                 "name": "Example",
                 "version": "1.0.0",
@@ -218,7 +211,6 @@ def test_runtime_executes_declared_backend_route_with_request_user(
     (package / "manifest.json").write_text(
         json.dumps(
             {
-                "api_contract_version": "1.1.0",
                 "plugin_id": "example.routes",
                 "name": "Routes",
                 "version": "1.0.0",

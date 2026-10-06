@@ -128,21 +128,7 @@ function onThumbClick() {
 
 <template>
   <article class="tile" :class="{ row, selecting, selected }">
-    <div
-      class="thumb"
-      role="button"
-      tabindex="0"
-      :aria-label="
-        (selecting
-          ? 'Select '
-          : item.kind === 'soundtrack'
-            ? 'Play '
-            : 'Preview ') + title
-      "
-      @click="onThumbClick"
-      @keydown.enter.self.prevent="onThumbClick"
-      @keydown.space.self.prevent="onThumbClick"
-    >
+    <div class="thumb" @click="onThumbClick">
       <span v-if="selecting" class="check" aria-hidden="true">
         <svg
           v-if="selected"
@@ -422,9 +408,9 @@ function onThumbClick() {
 
 <style scoped>
 .tile {
-  background: var(--ui-surface);
-  border: 1px solid var(--ui-surface-2);
-  border-radius: var(--ui-radius-card);
+  background: #141414;
+  border: 1px solid #262626;
+  border-radius: 12px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -433,7 +419,7 @@ function onThumbClick() {
     transform 0.15s ease;
 }
 .tile:hover {
-  border-color: var(--ui-border-strong);
+  border-color: #3a3a3a;
 }
 .thumb {
   position: relative;
@@ -460,10 +446,10 @@ function onThumbClick() {
   inset: 0;
   background: linear-gradient(
     to bottom,
-    color-mix(in srgb, var(--ui-bg) 45%, transparent),
+    rgba(0, 0, 0, 0.45),
     transparent 40%,
     transparent 60%,
-    color-mix(in srgb, var(--ui-bg) 55%, transparent)
+    rgba(0, 0, 0, 0.55)
   );
   opacity: 0;
   transition: opacity 0.15s ease;
@@ -481,9 +467,9 @@ function onThumbClick() {
   width: 42px;
   height: 42px;
   border-radius: 50%;
-  background: color-mix(in srgb, var(--ui-bg) 60%, transparent);
-  border: 1px solid color-mix(in srgb, var(--ui-text) 25%, transparent);
-  color: var(--ui-text);
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  color: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -499,21 +485,21 @@ function onThumbClick() {
   width: 22px;
   height: 22px;
   border-radius: 6px;
-  border: 2px solid color-mix(in srgb, var(--ui-text) 85%, transparent);
-  background: color-mix(in srgb, var(--ui-bg) 60%, transparent);
-  color: var(--ui-on-accent);
+  border: 2px solid rgba(255, 255, 255, 0.85);
+  background: rgba(15, 15, 15, 0.6);
+  color: #14100a;
   display: flex;
   align-items: center;
   justify-content: center;
   pointer-events: none;
 }
 .tile.selected {
-  border-color: var(--ui-accent-text);
-  box-shadow: 0 0 0 1px var(--ui-accent-text);
+  border-color: #d68a34;
+  box-shadow: 0 0 0 1px #d68a34;
 }
 .tile.selected .check {
-  background: var(--ui-accent);
-  border-color: var(--ui-accent-text);
+  background: #d68a34;
+  border-color: #d68a34;
 }
 .tile.selecting .thumb::after {
   opacity: 0;
@@ -521,7 +507,7 @@ function onThumbClick() {
 .file {
   margin: -2px 0 0;
   font-size: 0.72rem;
-  color: var(--ui-faint);
+  color: #777;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -533,8 +519,8 @@ function onThumbClick() {
   z-index: 1;
   padding: 2px 7px;
   border-radius: 6px;
-  background: color-mix(in srgb, var(--ui-bg) 82%, transparent);
-  color: var(--ui-text);
+  background: rgba(15, 15, 15, 0.82);
+  color: #eee;
   font-size: 0.7rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
@@ -562,10 +548,10 @@ function onThumbClick() {
 .actions button {
   width: 28px;
   height: 28px;
-  border-radius: var(--ui-radius-control);
+  border-radius: 8px;
   border: none;
-  background: color-mix(in srgb, var(--ui-bg) 78%, transparent);
-  color: var(--ui-text);
+  background: rgba(15, 15, 15, 0.78);
+  color: #eee;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -574,12 +560,12 @@ function onThumbClick() {
   backdrop-filter: blur(4px);
 }
 .actions button:hover {
-  background: var(--ui-accent);
-  color: var(--ui-on-accent);
+  background: #d68a34;
+  color: #14100a;
 }
 .actions button:last-child:hover {
-  background: var(--ui-error);
-  color: var(--ui-text);
+  background: #d96f6f;
+  color: #fff;
 }
 .ach {
   position: absolute;
@@ -593,15 +579,15 @@ function onThumbClick() {
   justify-content: center;
   border: none;
   border-radius: 50%;
-  background: color-mix(in srgb, var(--ui-bg) 82%, transparent);
-  color: var(--ui-accent-text);
+  background: rgba(15, 15, 15, 0.82);
+  color: #d68a34;
   padding: 0;
   cursor: pointer;
   backdrop-filter: blur(4px);
 }
 .ach:hover {
-  background: var(--ui-accent);
-  color: var(--ui-on-accent);
+  background: #d68a34;
+  color: #14100a;
 }
 .body {
   min-height: 74px;
@@ -616,7 +602,7 @@ function onThumbClick() {
   margin: 0;
   font-size: 0.7rem;
   font-weight: 700;
-  color: var(--ui-accent-text);
+  color: #d68a34;
 }
 .title {
   margin: 0;
@@ -633,12 +619,12 @@ function onThumbClick() {
   flex-wrap: wrap;
   gap: 5px 6px;
   font-size: 0.72rem;
-  color: var(--ui-faint);
+  color: #777;
   min-width: 0;
 }
 .chip {
-  background: color-mix(in srgb, var(--ui-text) 7%, transparent);
-  color: var(--ui-dim);
+  background: rgba(255, 255, 255, 0.07);
+  color: #aaa;
   border-radius: 999px;
   padding: 1px 8px;
   font-size: 0.68rem;
@@ -646,13 +632,13 @@ function onThumbClick() {
   font-family: inherit;
 }
 .chip.strong {
-  background: color-mix(in srgb, var(--ui-text) 14%, transparent);
-  color: var(--ui-text);
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
   font-weight: 700;
 }
 .chip.link {
-  background: color-mix(in srgb, var(--ui-accent) 16%, transparent);
-  color: var(--ui-accent-text);
+  background: rgba(214, 138, 52, 0.16);
+  color: #d68a34;
   cursor: pointer;
 }
 
@@ -668,12 +654,12 @@ function onThumbClick() {
   width: 52px;
   aspect-ratio: 1;
   flex-shrink: 0;
-  border-radius: var(--ui-radius-control);
+  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--ui-accent-text);
-  background: color-mix(in srgb, var(--ui-accent) 10%, transparent);
+  color: #d68a34;
+  background: rgba(214, 138, 52, 0.1);
   cursor: default;
 }
 .audio-art {
@@ -682,11 +668,11 @@ function onThumbClick() {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--ui-accent-text);
+  color: #d68a34;
   background: radial-gradient(
     circle at 50% 40%,
-    color-mix(in srgb, var(--ui-accent) 18%, transparent),
-    color-mix(in srgb, var(--ui-accent) 5%, transparent) 70%
+    rgba(214, 138, 52, 0.18),
+    rgba(214, 138, 52, 0.05) 70%
   );
 }
 .audio-art .note-icon {
@@ -699,24 +685,24 @@ function onThumbClick() {
   right: 0;
   bottom: 0;
   height: 3px;
-  background: color-mix(in srgb, var(--ui-text) 12%, transparent);
+  background: rgba(255, 255, 255, 0.12);
 }
 .track-progress span {
   display: block;
   height: 100%;
-  background: var(--ui-accent);
+  background: #d68a34;
 }
 .play.on {
-  background: var(--ui-accent);
-  color: var(--ui-on-accent);
-  border-color: var(--ui-accent-text);
+  background: #d68a34;
+  color: #14100a;
+  border-color: #d68a34;
 }
 .doc-icon {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 4px;
-  color: var(--ui-accent-text);
+  color: #d68a34;
 }
 .doc-icon strong {
   font-size: 0.7rem;
@@ -726,7 +712,7 @@ function onThumbClick() {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: color-mix(in srgb, var(--ui-accent) 8%, transparent);
+  background: rgba(214, 138, 52, 0.08);
 }
 .row .thumb::after {
   display: none;
@@ -747,56 +733,21 @@ function onThumbClick() {
 .row-actions button {
   height: 28px;
   padding: 0 10px;
-  border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius-control);
+  border: 1px solid #2b2b2b;
+  border-radius: 8px;
   background: none;
-  color: var(--ui-dim);
+  color: #aaa;
   font-family: inherit;
   font-size: 0.74rem;
   font-weight: 600;
   cursor: pointer;
 }
 .row-actions button:hover {
-  color: var(--ui-text);
-  border-color: var(--ui-border-strong);
+  color: #fff;
+  border-color: #444;
 }
 .row-actions .danger:hover {
-  color: var(--ui-error);
-  border-color: color-mix(in srgb, var(--ui-error) 50%, transparent);
-}
-button,
-input,
-select {
-  min-height: var(--ui-control-height);
-}
-.media-tile:focus-within .tile-remove {
-  opacity: 1;
-}
-@media (hover: none), (max-width: 760px) {
-  .tile-remove {
-    opacity: 1;
-  }
-}
-.thumb:focus-visible {
-  outline: 2px solid var(--ui-accent-text);
-  outline-offset: -2px;
-}
-.tile:focus-within .actions {
-  opacity: 1;
-}
-.actions button,
-.row-actions button,
-.play-btn {
-  min-width: var(--ui-control-height);
-  min-height: var(--ui-control-height);
-}
-.reader-link {
-  margin: 12px;
-}
-@media (hover: none), (max-width: 760px) {
-  .actions {
-    opacity: 1;
-    flex-wrap: wrap;
-  }
+  color: #d96f6f;
+  border-color: rgba(217, 111, 111, 0.5);
 }
 </style>

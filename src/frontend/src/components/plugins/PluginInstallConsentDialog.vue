@@ -1,39 +1,21 @@
 <script setup lang="ts">
 import PasswordInput from "../PasswordInput.vue";
 import { computed, nextTick, ref, watch } from "vue";
-import UiModal from "../UiModal.vue";
-import AppIcon from "../AppIcon.vue";
 import PermissionRiskSummary from "./PermissionRiskSummary.vue";
-import PluginVersionInfo from "./PluginVersionInfo.vue";
-import PluginReadme from "./PluginReadme.vue";
+import DOMPurify from "dompurify";
+import { marked } from "marked";
 import type {
   PluginInstallConfirmation,
   PluginInstallPermission,
   PluginInstallPreview,
 } from "../../services/plugins";
 
-const props = defineProps<{
-  preview: PluginInstallPreview;
-  busy: boolean;
-  initialView?: "overview" | "access";
-  error?: string;
-}>();
-const view = ref<"overview" | "access">(props.initialView ?? "access");
-const blockingIssue = computed(
-  () => !props.preview.installable || !props.preview.dependency_ready,
+const props = defineProps<{ preview: PluginInstallPreview; busy: boolean }>();
+const readme = computed(() =>
+  DOMPurify.sanitize(
+    marked.parse(props.preview.readme ?? "", { async: false }),
+  ),
 );
-const blocker = ref<HTMLElement | null>(null);
-const blockingReason = computed(() => {
-  const failures =
-    props.preview.compatibility_checks?.filter(
-      (check) => check.status === "incompatible",
-    ) ?? [];
-  return failures.length
-    ? `${failures.map((check) => check.title).join(", ")} ${failures.length === 1 ? "does" : "do"} not support this release. See the highlighted requirements below.`
-    : props.preview.compatibility_reason ||
-        props.preview.trust_warning ||
-        "Required dependencies are unavailable on this server.";
-});
 const emit = defineEmits<{
   cancel: [];
   confirm: [confirmation: PluginInstallConfirmation];
@@ -46,15 +28,6 @@ const adminPassword = ref("");
 const expandedCategories = ref(new Set<string>());
 const cancelButton = ref<HTMLButtonElement | null>(null);
 const content = ref<HTMLElement | null>(null);
-const failure = ref<HTMLElement | null>(null);
-watch(
-  () => props.error,
-  async (error) => {
-    if (!error) return;
-    await nextTick();
-    failure.value?.focus();
-  },
-);
 
 watch(
   () => [props.preview.plugin_id, props.preview.version, props.preview.digest],
@@ -66,10 +39,8 @@ watch(
     expandedCategories.value = new Set(
       props.preview.permissions.map((permission) => permission.category),
     );
-    view.value = props.initialView ?? "access";
     await nextTick();
-    if (blockingIssue.value) blocker.value?.focus({ preventScroll: true });
-    else cancelButton.value?.focus();
+    cancelButton.value?.focus();
     content.value?.scrollTo({ top: 0 });
   },
   { immediate: true },
@@ -205,122 +176,68 @@ function close() {
 </script>
 
 <template>
-  <UiModal
-    size="wide"
-    :title="`Review ${preview.name}`"
-    :dismissible="!busy"
-    @close="close"
-  >
-    <section class="consent-dialog" ref="content">
-      <p
-        v-if="error"
-        ref="failure"
-        class="install-error"
-        role="alert"
-        tabindex="-1"
-      >
-        {{ error }}
-      </p>
-      <header>
-        <div>
-          <p class="eyebrow">Plugin installation</p>
-          <img
-            v-if="preview.icon"
-            :src="preview.icon"
-            alt=""
-            width="48"
-            height="48"
-          />
-
-          <p class="identity">
-            {{ preview.plugin_id }} · v{{ preview.version }}
-          </p>
-        </div>
-        <span class="trust" :class="preview.trust_status">{{
-          trustLabel
-        }}</span>
-      </header>
+  <Teleport to="body">
+    <div class="modal-backdrop" @click.self="close" @keydown.esc="close">
       <section
-        v-if="blockingIssue"
-        ref="blocker"
-        class="install-blocker"
-        role="alert"
-        tabindex="-1"
-        aria-label="Unable to install this release"
+        class="consent-dialog"
+        ref="content"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="plugin-consent-title"
       >
-        <AppIcon name="warning" :size="28" />
-        <div>
-          <h3>Unable to install this release</h3>
-          <p>
-            {{ blockingReason }}
-          </p>
-          <ul v-if="preview.dependency_conflicts.length">
-            <li v-for="issue in preview.dependency_conflicts" :key="issue">
-              {{ issue }}
-            </li>
-          </ul>
-        </div>
-      </section>
-      <nav class="review-tabs" aria-label="Plugin review">
-        <button
-          type="button"
-          :aria-pressed="view === 'overview'"
-          @click="view = 'overview'"
-        >
-          Release & documentation
-        </button>
-        <button
-          type="button"
-          :aria-pressed="view === 'access'"
-          @click="view = 'access'"
-        >
-          Review access & install
-        </button>
-      </nav>
-      <p v-if="preview.description" class="description">
-        {{ preview.description }}
-      </p>
-      <dl class="metadata">
-        <div>
-          <dt>Publisher</dt>
-          <dd>
-            {{
-              preview.publisher || preview.publisher_key_id || "Not supplied"
-            }}
-            <small v-if="preview.publisher_key_id"
-              >Key {{ preview.publisher_key_id }}</small
-            >
-          </dd>
-        </div>
-        <div>
-          <dt>Package digest</dt>
-          <dd class="digest">{{ preview.digest }}</dd>
-        </div>
-      </dl>
-      <PluginVersionInfo :versions="preview" />
-      <aside
-        v-if="preview.compatibility_warning"
-        class="legacy-warning"
-        role="status"
-      >
-        <strong>Built for the old UI · limited support</strong>
-        <p>{{ preview.compatibility_warning }}</p>
-      </aside>
-      <section v-if="preview.release_notes" class="release-notes">
-        <h3>Release notes</h3>
-        <pre>{{ preview.release_notes }}</pre>
-      </section>
-      <details v-if="preview.readme" class="readme" :open="view === 'overview'">
-        <summary>Plugin documentation</summary>
-        <PluginReadme :text="preview.readme" />
-      </details>
-      <p v-if="preview.source.version_pin" class="version-pin" role="status">
-        You selected v{{ preview.source.version_pin }}; the catalogue currently
-        offers v{{ preview.source.latest_version }}. If installed, this release
-        will be pinned and automatic updates will be disabled. You can resume
-        them in the plugin’s manager settings.
-      </p>
-      <div v-show="view === 'access'">
+        <header>
+          <div>
+            <p class="eyebrow">Plugin installation</p>
+            <img
+              v-if="preview.icon"
+              :src="preview.icon"
+              alt=""
+              width="48"
+              height="48"
+            />
+            <h2 id="plugin-consent-title">Review {{ preview.name }}</h2>
+            <p class="identity">
+              {{ preview.plugin_id }} · v{{ preview.version }}
+            </p>
+          </div>
+          <span class="trust" :class="preview.trust_status">{{
+            trustLabel
+          }}</span>
+        </header>
+        <details v-if="readme" class="readme">
+          <summary>Plugin documentation</summary>
+          <article v-html="readme" />
+        </details>
+
+        <p v-if="preview.description" class="description">
+          {{ preview.description }}
+        </p>
+        <dl class="metadata">
+          <div>
+            <dt>Publisher</dt>
+            <dd>
+              {{
+                preview.publisher || preview.publisher_key_id || "Not supplied"
+              }}
+              <small v-if="preview.publisher_key_id"
+                >Key {{ preview.publisher_key_id }}</small
+              >
+            </dd>
+          </div>
+          <div>
+            <dt>Host versions</dt>
+            <dd>{{ preview.application_version_range }}</dd>
+          </div>
+          <div>
+            <dt>SDK versions</dt>
+            <dd>{{ preview.sdk_version_range }}</dd>
+          </div>
+          <div>
+            <dt>Package digest</dt>
+            <dd class="digest">{{ preview.digest }}</dd>
+          </div>
+        </dl>
+
         <div
           v-if="preview.trust_status !== 'trusted'"
           class="warning"
@@ -397,14 +314,9 @@ function close() {
               <button
                 type="button"
                 class="disclosure"
-                :aria-expanded="expandedCategories.has(category.name)"
                 @click="toggleExpanded(category.name)"
               >
-                <AppIcon
-                  name="chevron"
-                  :size="20"
-                  :class="{ expanded: expandedCategories.has(category.name) }"
-                />
+                {{ expandedCategories.has(category.name) ? "▾" : "▸" }}
                 {{ category.name }}
                 — {{ category.permissions.length }}
                 {{ category.permissions.length === 1 ? "scope" : "scopes" }}
@@ -506,6 +418,11 @@ function close() {
           </p>
         </section>
 
+        <section v-if="preview.release_notes" class="release-notes">
+          <h3>Release notes</h3>
+          <pre>{{ preview.release_notes }}</pre>
+        </section>
+
         <div
           v-if="reauthenticationRequired"
           class="warning reauthentication"
@@ -529,92 +446,37 @@ function close() {
             unverified package.
           </label>
         </div>
-      </div>
-    </section>
-    <template #footer>
-      <button ref="cancelButton" type="button" :disabled="busy" @click="close">
-        Cancel
-      </button>
-      <button
-        type="button"
-        class="primary"
-        :disabled="busy || (view === 'access' && !canInstall) || blockingIssue"
-        @click="view === 'overview' ? (view = 'access') : confirm()"
-      >
-        {{
-          busy
-            ? "Applying…"
-            : blockingIssue
-              ? "Unable to install"
-              : view === "overview"
-                ? "Review access & install"
-                : !canInstall
-                  ? "Unable to install"
-                  : preview.operation === "update"
-                    ? "Update with selected access"
-                    : "Install with selected access"
-        }}
-      </button>
-    </template>
-  </UiModal>
+
+        <footer>
+          <button
+            ref="cancelButton"
+            type="button"
+            :disabled="busy"
+            @click="close"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            class="primary"
+            :disabled="busy || !canInstall"
+            @click="confirm"
+          >
+            {{
+              busy
+                ? "Applying…"
+                : preview.operation === "update"
+                  ? "Update with selected access"
+                  : "Install with selected access"
+            }}
+          </button>
+        </footer>
+      </section>
+    </div>
+  </Teleport>
 </template>
 
 <style scoped>
-.install-error {
-  padding: var(--ui-space-4);
-  border: 2px solid var(--ui-error);
-  border-radius: var(--ui-radius-control);
-  color: var(--ui-error);
-  background: var(--ui-danger-soft);
-}
-.install-blocker {
-  display: flex;
-  gap: var(--ui-space-4);
-  padding: var(--ui-space-5);
-  margin-block: var(--ui-space-5);
-  border: 2px solid var(--ui-error);
-  border-radius: var(--ui-radius-card);
-  background: var(--ui-danger-soft);
-  color: var(--ui-error);
-}
-.install-blocker h3 {
-  color: var(--ui-error);
-  font-size: var(--ui-font-heading);
-  margin-bottom: var(--ui-space-3);
-}
-.install-blocker :last-child {
-  margin-bottom: 0;
-}
-.install-blocker > svg {
-  flex-shrink: 0;
-}
-.legacy-warning {
-  padding: var(--ui-space-4);
-  border: 1px solid var(--ui-warning);
-  border-radius: var(--ui-radius-card);
-  background: var(--ui-warning-soft);
-  color: var(--ui-warning);
-}
-.legacy-warning p {
-  margin: var(--ui-space-2) 0 0;
-}
-.review-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--ui-space-2);
-  margin-block: var(--ui-space-4);
-}
-.review-tabs button {
-  flex: 1;
-  border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius-control);
-  background: var(--ui-surface-2);
-}
-.review-tabs button[aria-pressed="true"] {
-  border-color: var(--ui-accent);
-  background: var(--ui-accent-soft);
-  color: var(--ui-accent-text);
-}
 .readme {
   line-height: 1.65;
   overflow-wrap: anywhere;
@@ -638,8 +500,8 @@ function close() {
 .readme :deep(pre) {
   overflow: auto;
   padding: 12px;
-  background: var(--ui-surface-2);
-  border-radius: var(--ui-radius-control);
+  background: #0d0d0d;
+  border-radius: 8px;
 }
 .readme :deep(table) {
   width: 100%;
@@ -651,17 +513,26 @@ function close() {
   border: 1px solid var(--ui-border);
   text-align: left;
 }
-.consent-dialog {
-  color: var(--ui-text);
-  padding-block: clamp(12px, 2vh, 28px);
-  overflow-wrap: anywhere;
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--ui-z-dialog);
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.72);
 }
-.version-pin {
-  padding: 16px;
-  border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius-control);
-  background: var(--ui-surface-2);
-  line-height: 1.6;
+.consent-dialog {
+  width: min(760px, 100%);
+  max-height: 90vh;
+  overflow: auto;
+  box-sizing: border-box;
+  padding: 24px;
+  background: #151515;
+  color: #f4f4f4;
+  border: 1px solid #3b3b3b;
+  border-radius: 14px;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.65);
 }
 header,
 .section-heading,
@@ -683,7 +554,7 @@ h3 {
 }
 .eyebrow {
   margin-bottom: 4px;
-  color: var(--ui-accent-text);
+  color: #d68a34;
   font-size: 0.75rem;
   font-weight: 700;
   text-transform: uppercase;
@@ -695,7 +566,7 @@ h3 {
 .empty,
 .dependencies,
 small {
-  color: var(--ui-dim);
+  color: #aaa;
 }
 .trust,
 .risk {
@@ -707,20 +578,20 @@ small {
 }
 .trust.trusted,
 .risk.low {
-  background: var(--ui-good-soft);
-  color: var(--ui-good);
+  background: #173f2a;
+  color: #9ae6b4;
 }
 .trust.unknown_publisher,
 .trust.invalid_signature,
 .trust.unsigned,
 .risk.high,
 .risk.critical {
-  background: var(--ui-danger-soft);
-  color: var(--ui-error);
+  background: #571d1d;
+  color: #fecaca;
 }
 .risk.medium {
-  background: var(--ui-warning-soft);
-  color: var(--ui-warning);
+  background: #503a13;
+  color: #fde68a;
 }
 .metadata {
   display: grid;
@@ -731,12 +602,12 @@ small {
 .metadata div {
   min-width: 0;
   padding: 10px;
-  background: var(--ui-surface-2);
-  border-radius: var(--ui-radius-control);
+  background: #0d0d0d;
+  border-radius: 8px;
 }
 .metadata dt {
   font-size: 0.72rem;
-  color: var(--ui-faint);
+  color: #777;
 }
 .metadata dd {
   margin: 4px 0 0;
@@ -750,17 +621,17 @@ small {
 .warning {
   margin: 16px 0;
   padding: 14px;
-  border: 1px solid var(--ui-error);
-  border-radius: var(--ui-radius-row);
-  background: var(--ui-danger-soft);
+  border: 1px solid #8b3434;
+  border-radius: 10px;
+  background: #2d1515;
 }
 .warning.full-api-warning {
-  border-color: var(--ui-warning);
-  background: var(--ui-warning-soft);
+  border-color: #9b5b1b;
+  background: #321f0e;
 }
 .warning p {
   margin: 6px 0 10px;
-  color: var(--ui-error);
+  color: #f0b6b6;
 }
 .permissions {
   margin-top: 22px;
@@ -769,7 +640,7 @@ small {
   margin-bottom: 0;
 }
 .section-heading > span {
-  color: var(--ui-dim);
+  color: #aaa;
   font-size: 0.8rem;
 }
 .permission {
@@ -777,28 +648,28 @@ small {
   gap: 12px;
   margin-top: 10px;
   padding: 13px;
-  border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius-row);
-  background: var(--ui-surface);
+  border: 1px solid #303030;
+  border-radius: 10px;
+  background: #111;
   cursor: pointer;
 }
 .permission.privileged {
-  border-color: var(--ui-warning);
-  background: var(--ui-warning-soft);
+  border-color: #9b5b1b;
+  background: #25170c;
 }
 .permission.retained {
   opacity: 0.72;
 }
 .permission-category {
   margin-top: 12px;
-  border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius-row);
+  border: 1px solid #303030;
+  border-radius: 10px;
   overflow: hidden;
 }
 .category-header {
   align-items: center;
   padding: 10px 12px;
-  background: var(--ui-surface-2);
+  background: #0d0d0d;
 }
 .category-header label {
   display: flex;
@@ -810,44 +681,24 @@ small {
   border: 0;
   background: transparent;
   font-weight: 700;
-  flex: 1;
-  text-align: left;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.disclosure .expanded {
-  transform: rotate(90deg);
-}
-.category-header label {
-  min-height: var(--ui-control-height);
-}
-.permission-category > .risk-summary {
-  margin-inline: 12px;
-}
-.permissions input[type="checkbox"] {
-  width: 20px;
-  height: 20px;
-  flex-shrink: 0;
-  accent-color: var(--ui-accent);
 }
 .dependencies ul {
   padding-left: 20px;
 }
 .dependencies .missing,
 .dependencies .incompatible {
-  color: var(--ui-error);
+  color: #fecaca;
 }
 .dependencies .available {
-  color: var(--ui-warning);
+  color: #fde68a;
 }
 .release-notes pre {
   max-height: 220px;
   overflow: auto;
   padding: 12px;
   white-space: pre-wrap;
-  background: var(--ui-surface-2);
-  border-radius: var(--ui-radius-control);
+  background: #0d0d0d;
+  border-radius: 8px;
 }
 .reauthentication > label {
   display: flex;
@@ -879,21 +730,20 @@ footer {
   justify-content: flex-end;
   margin-top: 24px;
   padding-top: 18px;
-  border-top: 1px solid var(--ui-border);
+  border-top: 1px solid #2b2b2b;
 }
 button {
-  min-height: var(--ui-control-height);
   padding: 9px 14px;
-  border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius-control);
-  background: var(--ui-surface-2);
-  color: var(--ui-text);
+  border: 1px solid #444;
+  border-radius: 8px;
+  background: #242424;
+  color: #eee;
   cursor: pointer;
 }
 button.primary {
-  background: var(--ui-accent);
-  color: var(--ui-on-accent);
-  border-color: var(--ui-accent);
+  background: #d68a34;
+  color: #111;
+  border-color: #d68a34;
   font-weight: 700;
 }
 button:disabled {
@@ -908,10 +758,6 @@ button:disabled {
     height: 100%;
     max-height: none;
     border-radius: 0;
-  }
-  .permission-title,
-  .reauthentication > label {
-    flex-wrap: wrap;
   }
   .metadata {
     grid-template-columns: 1fr;

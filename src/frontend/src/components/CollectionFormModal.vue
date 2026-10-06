@@ -6,7 +6,6 @@
 // live results are different things, and silently dropping one for the other
 // would lose work.
 import { ref, computed } from "vue";
-import UiModal from "./UiModal.vue";
 import { SMART_FIELD_LABELS } from "../state/smartCollections";
 import type { SmartField } from "../state/smartCollections";
 import type { GameStatus } from "../types/game";
@@ -56,7 +55,7 @@ const name = ref(props.collection?.name ?? "");
 const description = ref(props.collection?.description ?? "");
 const smart = ref(props.collection?.smart != null);
 const field = ref<SmartField>(props.collection?.smart?.field ?? "status");
-const value = ref<string | number>(props.collection?.smart?.value ?? "");
+const value = ref(props.collection?.smart?.value ?? "");
 const error = ref<string | null>(null);
 
 function taken(candidate: string): boolean {
@@ -69,7 +68,6 @@ function taken(candidate: string): boolean {
 
 function submit() {
   const trimmed = name.value.trim();
-  const ruleValue = String(value.value).trim();
   if (!trimmed) {
     error.value = "Give the collection a name.";
     return;
@@ -78,7 +76,7 @@ function submit() {
     error.value = `"${trimmed}" already exists.`;
     return;
   }
-  if (smart.value && field.value !== "favorite" && !ruleValue) {
+  if (smart.value && field.value !== "favorite" && !value.value.trim()) {
     error.value = "Pick a value for the rule.";
     return;
   }
@@ -88,7 +86,7 @@ function submit() {
     smart: smart.value
       ? {
           field: field.value,
-          value: field.value === "favorite" ? "" : ruleValue,
+          value: field.value === "favorite" ? "" : value.value.trim(),
         }
       : null,
   });
@@ -96,12 +94,15 @@ function submit() {
 </script>
 
 <template>
-  <UiModal
-    :title="editing ? 'Edit collection' : 'Create a collection'"
-    data-tour="collection-editor"
-    @close="emit('close')"
-  >
-    <form @submit.prevent="submit">
+  <div class="ui-backdrop" @click.self="emit('close')">
+    <form
+      class="ui-modal"
+      role="dialog"
+      aria-modal="true"
+      @submit.prevent="submit"
+    >
+      <h3>{{ editing ? "Edit collection" : "Create a collection" }}</h3>
+
       <div v-if="!editing" class="kind-pick">
         <button
           type="button"
@@ -220,7 +221,7 @@ function submit() {
         </button>
       </div>
     </form>
-  </UiModal>
+  </div>
 </template>
 
 <style scoped>
@@ -235,37 +236,37 @@ function submit() {
   flex-direction: column;
   gap: 3px;
   text-align: left;
-  background: var(--ui-surface);
-  border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius-row);
+  background: #111;
+  border: 1px solid #333;
+  border-radius: 10px;
   padding: 10px 12px;
-  color: var(--ui-text);
+  color: #ccc;
   font-family: inherit;
   cursor: pointer;
 }
 .kind-pick button strong {
   font-size: 0.86rem;
-  color: var(--ui-text);
+  color: #fff;
 }
 .kind-pick button span {
   font-size: 0.72rem;
-  color: var(--ui-dim);
+  color: #9c9c9c;
 }
 .kind-pick button.active {
-  border-color: var(--ui-accent-line);
-  background: color-mix(in srgb, var(--ui-accent) 10%, transparent);
+  border-color: #d68a34;
+  background: rgba(214, 138, 52, 0.1);
 }
 .field {
   display: flex;
   flex-direction: column;
   gap: 6px;
   font-size: 0.82rem;
-  color: var(--ui-text);
+  color: #ccc;
   margin-bottom: 14px;
   flex: 1;
 }
 .field small {
-  color: var(--ui-faint);
+  color: #666;
   font-size: 0.72rem;
 }
 .chips {

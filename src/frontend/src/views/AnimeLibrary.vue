@@ -449,10 +449,10 @@ function detailRoute(id: string): string {
 
 <style scoped>
 .anilist-import-btn {
-  border: 1px solid color-mix(in srgb, var(--ui-text) 16%, transparent);
-  background: color-mix(in srgb, var(--ui-text) 6%, transparent);
-  color: var(--ui-text);
-  border-radius: var(--ui-radius-control);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.06);
+  color: #ddd;
+  border-radius: 8px;
   padding: 9px 13px;
   cursor: pointer;
 }
@@ -462,13 +462,13 @@ function detailRoute(id: string): string {
   z-index: 100;
   display: grid;
   place-items: center;
-  background: color-mix(in srgb, var(--ui-bg) 70%, transparent);
+  background: rgba(0, 0, 0, 0.7);
 }
 .import-modal {
   width: min(520px, calc(100vw - 32px));
-  background: var(--ui-surface);
-  border: 1px solid color-mix(in srgb, var(--ui-text) 12%, transparent);
-  border-radius: var(--ui-radius-card);
+  background: #191919;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
   padding: 22px;
   display: flex;
   flex-direction: column;
@@ -478,34 +478,34 @@ function detailRoute(id: string): string {
   margin: 0;
 }
 .import-modal p {
-  color: var(--ui-dim);
+  color: #aaa;
   margin: 0;
 }
 .import-input {
   width: 100%;
   box-sizing: border-box;
   padding: 10px;
-  border-radius: var(--ui-radius-control);
-  border: 1px solid color-mix(in srgb, var(--ui-text) 15%, transparent);
-  background: var(--ui-surface);
-  color: var(--ui-text);
+  border-radius: 7px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: #111;
+  color: #fff;
 }
 .import-check {
   display: flex;
   gap: 8px;
   align-items: center;
-  color: var(--ui-text);
+  color: #ddd;
 }
 .import-error {
-  color: var(--ui-error) !important;
+  color: #e57373 !important;
 }
 .import-result {
-  color: var(--ui-good) !important;
+  color: #8bc98f !important;
 }
 .import-errors {
   max-height: 120px;
   overflow: auto;
-  color: var(--ui-error);
+  color: #e57373;
   margin: 0;
 }
 .import-actions {
@@ -515,22 +515,23 @@ function detailRoute(id: string): string {
 }
 .import-actions .btn-outline,
 .import-actions .btn-solid {
-  min-height: 44px;
+  height: 36px;
+  padding: 0 16px;
+  border-radius: 8px;
   font-family: inherit;
-  font-weight: var(--ui-weight-heading);
-  padding: 8px 14px;
-  border-radius: var(--ui-radius-control);
+  font-size: 0.82rem;
+  font-weight: 700;
   cursor: pointer;
 }
 .import-actions .btn-outline {
   background: transparent;
-  border: 1px solid var(--ui-border);
-  color: var(--ui-text);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
 }
 .import-actions .btn-solid {
-  background: var(--ui-accent);
+  background: var(--accent);
   border: none;
-  color: var(--ui-on-accent);
+  color: #14100a;
 }
 .import-actions .btn-solid:disabled {
   opacity: 0.4;

@@ -15,7 +15,6 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-
 from src.database.models.notification import Notification
 from src.database.models.user import User
 from src.database.session import get_db
@@ -33,6 +32,12 @@ _PLUGIN_CATALOG_URL = os.getenv(
     "PLUGIN_CATALOG_URL",
     "https://raw.githubusercontent.com/Rosefall-a/unnamed_tracking_app_plugins/main/list.json",
 )
+
+
+_PLUGIN_ADMIN = Depends(get_plugin_manager_admin)
+_SOURCE_QUERY = Query(default=None, min_length=1, max_length=2048)
+_PLUGIN_READER = Depends(get_plugin_manager_reader)
+_PLUGIN_DB = Depends(get_db)
 
 
 @lru_cache(maxsize=8)
@@ -76,29 +81,6 @@ def _catalog_entries(payload: Any, *, source_url: str | None = None) -> list[dic
                 entry.compatibility = f"SDK {raw_entry.get('sdk_version_range', '*')}; application {raw_entry.get('application_version_range', '*')}"
             parse_semver(entry.version)
             acquisition._validate_remote_url(entry.url)
-            versions: set[str] = set()
-            for release in entry.releases:
-                parse_semver(release.version)
-                acquisition._validate_remote_url(release.url)
-                if release.version in versions:
-                    raise ValueError("Catalogue release versions must be unique")
-                versions.add(release.version)
-                if parse_semver(release.version) > parse_semver(entry.version):
-                    raise ValueError("Catalogue history cannot be newer than its current entry")
-                if release.version == entry.version and (
-                    release.url != entry.url
-                    or release.digest != entry.digest
-                    or release.package_sha256 != entry.package_sha256
-                ):
-                    raise ValueError("Catalogue current release and history disagree")
-            publisher = acquisition._plugin_package_verifier().publishers.get(
-                str(entry.signing.get("key_id", ""))
-            )
-            entry.catalogue_channel = (
-                publisher.channel
-                if publisher and publisher.allows_plugin(entry.plugin_id)
-                else "unverified"
-            )
             if entry.changelog_url:
                 acquisition._validate_remote_url(entry.changelog_url)
         except (ValidationError, ValueError, HTTPException) as exc:
@@ -111,7 +93,7 @@ def _catalog_entries(payload: Any, *, source_url: str | None = None) -> list[dic
 
 @router.get("/catalogues")
 async def list_plugin_catalogues(
-    admin: User = Depends(get_plugin_manager_admin),
+    admin: User = _PLUGIN_ADMIN,
 ) -> list[dict[str, Any]]:
     del admin
     try:
@@ -123,7 +105,7 @@ async def list_plugin_catalogues(
 @router.post("/catalogues", status_code=201)
 async def create_plugin_catalogue(
     payload: models.PluginCatalogueCreate,
-    admin: User = Depends(get_plugin_manager_admin),
+    admin: User = _PLUGIN_ADMIN,
 ) -> dict[str, Any]:
     del admin
     url = acquisition._validate_remote_url(payload.url)
@@ -142,7 +124,7 @@ async def create_plugin_catalogue(
 async def update_plugin_catalogue(
     catalogue_id: str,
     payload: models.PluginCatalogueUpdate,
-    admin: User = Depends(get_plugin_manager_admin),
+    admin: User = _PLUGIN_ADMIN,
 ) -> dict[str, Any]:
     del admin
     changes = payload.model_dump(exclude_unset=True)
@@ -159,7 +141,7 @@ async def update_plugin_catalogue(
 @router.delete("/catalogues/{catalogue_id}", status_code=204)
 async def delete_plugin_catalogue(
     catalogue_id: str,
-    admin: User = Depends(get_plugin_manager_admin),
+    admin: User = _PLUGIN_ADMIN,
 ) -> Response:
     del admin
     try:
@@ -171,8 +153,8 @@ async def delete_plugin_catalogue(
 
 @router.get("/catalog", response_model=list[models.PluginCatalogEntry])
 async def plugin_catalog(
-    source: str | None = Query(default=None, min_length=1, max_length=2048),
-    user: User = Depends(get_plugin_manager_reader),
+    source: str | None = _SOURCE_QUERY,
+    user: User = _PLUGIN_READER,
 ) -> list[models.PluginCatalogEntry]:
     del user
     catalog_url = source or _PLUGIN_CATALOG_URL
@@ -324,8 +306,8 @@ async def _notify_plugin_update(
 
 @router.post("/updates/check")
 async def check_plugin_updates(
-    admin: User = Depends(get_plugin_manager_admin),
-    db: AsyncSession = Depends(get_db),
+    admin: User = _PLUGIN_ADMIN,
+    db: AsyncSession = _PLUGIN_DB,
 ) -> dict[str, Any]:
     updates: list[dict[str, Any]] = []
     for plugin in await runtime._installed_plugins():

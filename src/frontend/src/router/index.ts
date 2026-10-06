@@ -3,17 +3,12 @@ import {
   currentUser,
   authChecked,
   authCheckFailed,
-  ensureAuthChecked,
+  checkAuth,
 } from "../state/auth";
-import {
-  captureLibraryNavigation,
-  hasLibraryScroll,
-} from "../state/libraryScroll";
 import { appearanceLoaded, loadAppearanceSettings } from "../state/appearance";
 import { fetchSetupStatus } from "../services/setup";
 import {
   classifySetupStatus,
-  consumeReturnPath,
   rememberReturnPath,
   safeReturnPath,
   setStartupState,
@@ -21,7 +16,7 @@ import {
 
 declare module "vue-router" {
   interface RouteMeta {
-    // Shown on the browser tab as "<title> · Archive". Left unset, the
+    // Shown on the browser tab as "<title> Â· Archive". Left unset, the
     // tab just falls back to "Archive".
     title?: string;
   }
@@ -29,41 +24,12 @@ declare module "vue-router" {
 
 const router = createRouter({
   history: createWebHistory(),
-  scrollBehavior(to, from, savedPosition) {
-    // A game-detail return restores after the asynchronous library has painted.
-    if (
-      to.path === "/games" &&
-      from.name === "game-detail" &&
-      hasLibraryScroll()
-    )
-      return false;
+  scrollBehavior(to, _from, savedPosition) {
+    if (to.path === "/games") return { top: 0 };
     if (savedPosition) return savedPosition;
     return { top: 0 };
   },
   routes: [
-    // Preserve bookmarks and navigation shortcuts when retired native
-    // features move into their official plugin. Its page explains installation
-    // when the optional plugin is not enabled.
-    { path: "/cards", redirect: "/plugins/official.collectors-archive/cards" },
-    { path: "/sets", redirect: "/plugins/official.collectors-archive/sets" },
-    {
-      path: "/bounties",
-      redirect: "/plugins/official.collectors-archive/bounties",
-    },
-    {
-      path: "/cards/:cardId",
-      redirect: (to) => ({
-        path: "/plugins/official.collectors-archive/card-detail",
-        query: { record_id: String(to.params.cardId) },
-      }),
-    },
-    {
-      path: "/sets/:setId",
-      redirect: (to) => ({
-        path: "/plugins/official.collectors-archive/set-detail",
-        query: { record_id: String(to.params.setId) },
-      }),
-    },
     {
       path: "/",
       name: "home",
@@ -94,13 +60,8 @@ const router = createRouter({
       redirect: (to) =>
         `/games/collections/${encodeURIComponent(String(to.params.name))}`,
     },
-    {
-      path: "/upload",
-      name: "upload",
-      meta: { title: "Upload" },
-      component: () => import("../views/Upload.vue"),
-    },
-    { path: "/inbox", redirect: "/upload" },
+    { path: "/upload", redirect: "/settings?section=upload" },
+    { path: "/inbox", redirect: "/settings?section=upload" },
     {
       path: "/games/:id",
       name: "game-detail",
@@ -194,18 +155,6 @@ const router = createRouter({
       component: () => import("../views/OidcStart.vue"),
     },
     {
-      path: "/login/local",
-      name: "local-login",
-      meta: { title: "Sign in" },
-      component: () => import("../views/Login.vue"),
-    },
-    {
-      path: "/login/:provider",
-      name: "oidc-provider-start",
-      meta: { title: "Sign in" },
-      component: () => import("../views/OidcProviderStart.vue"),
-    },
-    {
       path: "/setup",
       name: "setup",
       meta: { title: "Setup" },
@@ -247,21 +196,6 @@ const router = createRouter({
 let setupState: "unknown" | "required" | "complete" = "unknown";
 let startupUiShown = false;
 
-export async function retryStartup() {
-  setupState = "unknown";
-  authChecked.value = false;
-  setStartupState("checking");
-  const target = router.resolve(
-    window.location.pathname + window.location.search + window.location.hash,
-  );
-  return router.replace({
-    path: target.path,
-    query: target.query,
-    hash: target.hash,
-    force: true,
-  });
-}
-
 function loginRedirect(toPath: string) {
   const returnPath = rememberReturnPath(toPath);
   return returnPath
@@ -276,9 +210,7 @@ function setupRedirect(toPath: string) {
     : { path: "/setup" };
 }
 
-router.beforeEach(async (to, from) => {
-  captureLibraryNavigation(to.path, from.path, window.scrollY);
-
+router.beforeEach(async (to) => {
   if (setupState === "unknown") {
     setStartupState("checking");
     try {
@@ -336,7 +268,7 @@ router.beforeEach(async (to, from) => {
       }
       setupState = "complete";
       const returnPath = safeReturnPath(to.query.return_to);
-      await ensureAuthChecked();
+      if (!authChecked.value) await checkAuth();
       if (currentUser.value) {
         setStartupState("ready");
         return returnPath ?? "/";
@@ -356,12 +288,9 @@ router.beforeEach(async (to, from) => {
 
   // This public route deliberately bypasses the normal auth redirect so a
   // bookmark or reverse-proxy login entrypoint can start OIDC immediately.
-  if (to.name === "oidc-start" || to.name === "oidc-provider-start") {
-    setStartupState("auth-required");
-    return;
-  }
+  if (to.path === "/login/oidcstart") return;
 
-  await ensureAuthChecked();
+  if (!authChecked.value) await checkAuth();
   if (authCheckFailed.value) {
     setStartupState(
       "unavailable",
@@ -370,15 +299,14 @@ router.beforeEach(async (to, from) => {
     return false;
   }
 
-  const loginPage = to.name === "login" || to.name === "local-login";
-  if (!loginPage && !currentUser.value) {
+  if (to.path !== "/login" && !currentUser.value) {
     setStartupState("auth-required");
     return loginRedirect(to.fullPath);
   }
 
-  if (loginPage && currentUser.value) {
+  if (to.path === "/login" && currentUser.value) {
     setStartupState("ready");
-    return consumeReturnPath(to.query.return_to) ?? "/";
+    return safeReturnPath(to.query.return_to) ?? "/";
   }
 
   if (currentUser.value) {

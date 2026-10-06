@@ -69,7 +69,7 @@ const emit = defineEmits<{
   position: fixed;
   inset: 0;
   z-index: 300;
-  background: color-mix(in srgb, var(--ui-bg) 65%, transparent);
+  background: rgba(0, 0, 0, 0.65);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -79,9 +79,9 @@ const emit = defineEmits<{
   position: relative;
   width: 100%;
   max-width: 520px;
-  background: var(--ui-surface);
-  border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius-dialog);
+  background: #171717;
+  border: 1px solid #2b2b2b;
+  border-radius: 14px;
   padding: 22px;
 }
 .preview-close {
@@ -90,17 +90,17 @@ const emit = defineEmits<{
   right: 12px;
   background: none;
   border: none;
-  color: var(--ui-dim);
+  color: #888;
   font-size: 1.3rem;
   cursor: pointer;
   line-height: 1;
   padding: 4px;
 }
 .preview-close:hover {
-  color: var(--ui-text);
+  color: #fff;
 }
 .preview-loading {
-  color: var(--ui-dim);
+  color: #999;
   font-size: 0.85rem;
   text-align: center;
   padding: 30px 0;
@@ -113,19 +113,19 @@ const emit = defineEmits<{
   width: 130px;
   aspect-ratio: 2 / 3;
   flex-shrink: 0;
-  border-radius: var(--ui-radius-control);
+  border-radius: 8px;
   background-size: cover;
   background-repeat: no-repeat;
   background-origin: border-box;
   background-clip: border-box;
   background-position: center;
-  background-color: var(--ui-surface-2);
+  background-color: #222222;
   border: 1px solid transparent;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 0.72rem;
-  color: var(--ui-faint);
+  color: #666;
   text-align: center;
   padding: 8px;
 }
@@ -137,7 +137,7 @@ const emit = defineEmits<{
 .preview-title {
   margin: 0 0 6px;
   font-size: 1.15rem;
-  font-weight: var(--ui-weight-title);
+  font-weight: 800;
 }
 .preview-meta {
   display: flex;
@@ -147,15 +147,15 @@ const emit = defineEmits<{
 }
 .preview-meta span {
   font-size: 0.74rem;
-  color: var(--ui-dim);
-  background: var(--ui-surface-2);
-  border: 1px solid var(--ui-border);
+  color: #9c9c9c;
+  background: #222222;
+  border: 1px solid #2b2b2b;
   border-radius: 6px;
   padding: 3px 8px;
 }
 .preview-description {
   font-size: 0.84rem;
-  color: var(--ui-dim);
+  color: #999;
   line-height: 1.6;
   margin: 0 0 14px;
   display: -webkit-box;
@@ -164,17 +164,17 @@ const emit = defineEmits<{
   overflow: hidden;
 }
 .preview-error {
-  color: var(--ui-error);
+  color: #fca5a5;
   font-size: 0.82rem;
   margin: 0 0 10px;
 }
 .preview-add-btn {
   margin-top: auto;
   align-self: flex-start;
-  background: var(--ui-accent);
-  color: var(--ui-on-accent);
+  background: #d68a34;
+  color: #0d0d0d;
   border: none;
-  border-radius: var(--ui-radius-control);
+  border-radius: 8px;
   padding: 9px 18px;
   font-weight: 700;
   font-size: 0.86rem;

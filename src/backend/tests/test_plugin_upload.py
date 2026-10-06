@@ -9,7 +9,6 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 from fastapi import UploadFile
-
 from src.api.routes import plugins
 from src.api.routes.plugin_manager import acquisition as plugin_acquisition
 from src.api.routes.plugin_manager import runtime as plugin_runtime
@@ -29,7 +28,6 @@ def package_bytes() -> bytes:
         digest.update(data)
         digest.update(b"\0")
     manifest = {
-        "api_contract_version": "1.1.0",
         "manifest_version": 1,
         "plugin_id": "example.upload",
         "name": "Upload Example",
@@ -106,7 +104,6 @@ def frontend_package_bytes() -> bytes:
         digest.update(data)
         digest.update(b"\0")
     manifest = {
-        "api_contract_version": "1.1.0",
         "manifest_version": 1,
         "plugin_id": "example.ui-playground",
         "name": "Plugin UI Playground",
@@ -144,7 +141,6 @@ def dangerous_package_bytes() -> bytes:
         digest.update(data)
         digest.update(b"\0")
     manifest = {
-        "api_contract_version": "1.1.0",
         "manifest_version": 1,
         "plugin_id": "example.dangerous",
         "name": "Dangerous Example",

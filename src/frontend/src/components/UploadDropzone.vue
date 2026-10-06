@@ -93,18 +93,12 @@ function onInputChange(e: Event) {
 <template>
   <div
     class="dropzone"
-    role="button"
-    :tabindex="uploading ? -1 : 0"
-    :aria-label="title"
-    :aria-disabled="uploading"
     :class="{ dragging, uploading }"
     @dragenter="onDragEnter"
     @dragover="onDragOver"
     @dragleave="onDragLeave"
     @drop="onDrop"
     @click="onClick"
-    @keydown.enter.prevent="onClick"
-    @keydown.space.prevent="onClick"
   >
     <svg
       viewBox="0 0 24 24"
@@ -137,8 +131,8 @@ function onInputChange(e: Event) {
 
 <style scoped>
 .dropzone {
-  border: 2px dashed var(--ui-border-strong);
-  border-radius: var(--ui-radius-card);
+  border: 2px dashed #3a3a3a;
+  border-radius: 12px;
   padding: 36px 20px;
   display: flex;
   flex-direction: column;
@@ -146,33 +140,33 @@ function onInputChange(e: Event) {
   justify-content: center;
   gap: 8px;
   cursor: pointer;
-  background: var(--ui-surface-2);
+  background: rgba(255, 255, 255, 0.02);
   transition:
     border-color 0.15s ease,
     background 0.15s ease;
 }
 .dropzone:hover {
-  border-color: var(--ui-accent);
-  background: var(--ui-accent-soft);
+  border-color: #d68a34;
+  background: rgba(214, 138, 52, 0.04);
 }
 .dropzone.dragging {
-  border-color: var(--ui-accent);
-  background: var(--ui-accent-soft);
+  border-color: #d68a34;
+  background: rgba(214, 138, 52, 0.08);
 }
 .dropzone.uploading {
   cursor: wait;
   opacity: 0.7;
 }
 .dropzone-icon {
-  color: var(--ui-accent);
+  color: #d68a34;
 }
 .dropzone-title {
-  color: var(--ui-text);
+  color: #fff;
   font-weight: 600;
   font-size: 0.95rem;
 }
 .dropzone-hint {
-  color: var(--ui-dim);
+  color: #777;
   font-size: 0.78rem;
 }
 .hidden-input {

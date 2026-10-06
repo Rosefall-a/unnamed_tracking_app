@@ -1,41 +1,26 @@
-import { markRaw, shallowReadonly, shallowRef, type Component } from "vue";
+import {
+  computed,
+  defineComponent,
+  onBeforeUnmount,
+  h,
+  markRaw,
+  reactive,
+  readonly,
+  ref,
+  shallowReadonly,
+  shallowRef,
+  type Component,
+} from "vue";
 import type { Router } from "vue-router";
-import * as Vue from "vue";
-import PageHeader from "../components/PageHeader.vue";
-import UiModal from "../components/UiModal.vue";
-import AppIcon from "../components/AppIcon.vue";
-import AccountChip from "../components/AccountChip.vue";
-import PasswordInput from "../components/PasswordInput.vue";
-import { dispatchPluginAction } from "../services/pluginUi";
-import { pluginRequestError } from "../services/apiError";
-import { registerPluginSearch, type PluginSearchResult } from "./pluginSearch";
-import {
-  registerPluginReminders,
-  type PluginReminder,
-} from "./pluginNotifications";
-import {
-  useConfirm,
-  usePrompt,
-  type ConfirmOptions,
-  type PromptOptions,
-} from "./dialog";
-import {
-  readPluginAppearance,
-  observePluginAppearance,
-  type PluginAppearance,
-} from "../services/pluginAppearance";
 import { checkAuth } from "./auth";
-import { registerPluginShortcut, type NativeShortcut } from "./shortcuts";
 
 export interface NativeFrontendSource {
   pluginId: string;
   version: string;
-  digest?: string;
   entry: string;
   styles: string[];
   pageIds: string[];
   actions?: Array<{ id: string; confirmation?: string }>;
-  shortcutPermission?: boolean;
 }
 
 export interface NativePluginContext {
@@ -43,20 +28,16 @@ export interface NativePluginContext {
   version: string;
   registerComponent(pageId: string, component: Component): void;
   onCleanup(callback: () => void): void;
-  /** The shared Vue 3 runtime supports independently compiled plugin SFCs. */
-  vue: Readonly<typeof Vue>;
-  ui: {
-    PageHeader: typeof PageHeader;
-    UiModal: typeof UiModal;
-    AppIcon: typeof AppIcon;
-    AccountChip: typeof AccountChip;
-    PasswordInput: typeof PasswordInput;
+  vue: {
+    computed: typeof computed;
+    defineComponent: typeof defineComponent;
+    onBeforeUnmount: typeof onBeforeUnmount;
+    h: typeof h;
+    reactive: typeof reactive;
+    readonly: typeof readonly;
+    ref: typeof ref;
   };
   host: {
-    appearance(): PluginAppearance;
-    onAppearanceChange(
-      callback: (appearance: PluginAppearance) => void,
-    ): () => void;
     navigate(path: string): Promise<void>;
     runAction(
       actionId: string,
@@ -64,18 +45,6 @@ export interface NativePluginContext {
     ): Promise<Record<string, unknown>>;
     saveSettings(values: Record<string, unknown>): Promise<void>;
     openDialog(contributionId: string): void;
-    confirm(options: ConfirmOptions): Promise<boolean>;
-    prompt(options: PromptOptions): Promise<string | null>;
-    registerSearchProvider(
-      provider: (query: string) => Promise<PluginSearchResult[]>,
-    ): () => void;
-    registerNotificationProvider(
-      provider: () => Promise<PluginReminder[]>,
-    ): () => void;
-    registerShortcut(
-      shortcut: NativeShortcut,
-      callback: () => void | Promise<void>,
-    ): () => void;
   };
 }
 
@@ -171,11 +140,9 @@ async function activate(
 ): Promise<void> {
   const signature = JSON.stringify([
     source.version,
-    source.digest ?? "",
     source.entry,
     source.styles,
     [...source.pageIds].sort(),
-    source.shortcutPermission === true,
   ]);
   if (activePlugins.get(source.pluginId)?.signature === signature) return;
   deactivate(source.pluginId);
@@ -217,13 +184,13 @@ async function activate(
         const link = document.createElement("link");
         link.rel = "stylesheet";
         link.dataset.pluginId = source.pluginId;
-        link.href = `${assetUrl(source.pluginId, style)}?v=${encodeURIComponent(source.digest || source.version)}`;
+        link.href = assetUrl(source.pluginId, style);
         document.head.appendChild(link);
         cleanups.push(() => link.remove());
       }
     }
     const module = await importer(
-      `${assetUrl(source.pluginId, source.entry)}?v=${encodeURIComponent(source.digest || source.version)}`,
+      `${assetUrl(source.pluginId, source.entry)}?v=${encodeURIComponent(source.version)}`,
     );
     if (disposed) return;
     const entry = module.activate ?? module.default;
@@ -253,32 +220,16 @@ async function activate(
         if (disposed) callback();
         else cleanups.push(callback);
       },
-      vue: Object.freeze({ ...Vue }),
-      ui: { PageHeader, UiModal, AppIcon, AccountChip, PasswordInput },
+      vue: {
+        computed,
+        defineComponent,
+        h,
+        reactive,
+        readonly,
+        ref,
+        onBeforeUnmount,
+      },
       host: {
-        registerShortcut(shortcut, callback) {
-          requireActive();
-          if (!source.shortcutPermission)
-            throw new Error(
-              "Permission frontend.shortcuts has not been granted.",
-            );
-          const stop = registerPluginShortcut(source.pluginId, shortcut, () => {
-            requireActive();
-            return callback();
-          });
-          cleanups.push(stop);
-          return stop;
-        },
-        appearance() {
-          requireActive();
-          return readPluginAppearance();
-        },
-        onAppearanceChange(callback) {
-          requireActive();
-          const stop = observePluginAppearance(callback);
-          cleanups.push(stop);
-          return stop;
-        },
         async navigate(path) {
           requireActive();
           if (!hostRouter) throw new Error("Host router is not ready.");
@@ -290,13 +241,21 @@ async function activate(
           const action = source.actions?.find((item) => item.id === actionId);
           if (action?.confirmation && !window.confirm(action.confirmation))
             return { cancelled: true };
-          return dispatchPluginAction(
-            source.pluginId,
-            actionId,
-            values,
-            undefined,
-            Boolean(action?.confirmation),
+          const response = await fetch(
+            `/api/plugins/${encodeURIComponent(source.pluginId)}/actions/${encodeURIComponent(actionId)}`,
+            {
+              method: "POST",
+              credentials: "include",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                values,
+                confirmed: Boolean(action?.confirmation),
+              }),
+            },
           );
+          if (!response.ok)
+            throw new Error("Plugin action could not be completed.");
+          return (await response.json()) as Record<string, unknown>;
         },
         async saveSettings(values) {
           requireActive();
@@ -310,34 +269,11 @@ async function activate(
             },
           );
           if (!response.ok)
-            throw await pluginRequestError(
-              response,
-              "Plugin settings could not be saved",
-            );
+            throw new Error("Plugin settings could not be saved.");
         },
         openDialog(contributionId) {
           requireActive();
           dialogOpener(source.pluginId, contributionId);
-        },
-        confirm(options) {
-          requireActive();
-          return useConfirm()(options);
-        },
-        prompt(options) {
-          requireActive();
-          return usePrompt()(options);
-        },
-        registerSearchProvider(provider) {
-          requireActive();
-          const stop = registerPluginSearch(source.pluginId, provider);
-          cleanups.push(stop);
-          return stop;
-        },
-        registerNotificationProvider(provider) {
-          requireActive();
-          const stop = registerPluginReminders(source.pluginId, provider);
-          cleanups.push(stop);
-          return stop;
         },
       },
     });

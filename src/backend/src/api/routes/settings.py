@@ -10,16 +10,15 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from fastapi.responses import FileResponse
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.schemas.appearance_settings import AppearanceSettingsRead, AppearanceSettingsUpdate
 from src.api.schemas.scan_settings import ScanSettingsRead, ScanSettingsUpdate
 from src.core.app_integrations import (
-    UPLOAD_LIMIT_FIELDS,
+    get_max_upload_size_mb,
     get_or_create_app_integration_settings,
-    get_upload_limits_mb,
 )
 from src.core.auth import get_current_admin, get_current_user
 from src.core.config import settings
@@ -31,7 +30,6 @@ from src.database.models.user import User
 from src.database.models.user_appearance_settings import UserAppearanceSettings
 from src.database.models.user_scan_settings import UserScanSettings
 from src.database.session import get_db
-from src.features.metadata import refresh_job
 from src.features.metadata.games import steam
 from src.features.metadata.games.giant_bomb import GiantBombClient, GiantBombError
 from src.features.metadata.games.gog import GOGClient, GOGError
@@ -42,6 +40,7 @@ from src.features.metadata.games.retroachievements import (
 from src.features.metadata.games.screenscraper import ScreenScraperClient, ScreenScraperError
 from src.features.metadata.games.steam import SteamLibraryError
 from src.features.metadata.games.xbox import XboxClient, XboxError
+from src.features.metadata import refresh_job
 from src.helpers.save_badge_image import badge_image_path, delete_badge_image, save_badge_image
 
 router = APIRouter(
@@ -232,12 +231,11 @@ async def upload_badge_image(
             status_code=status.HTTP_400_BAD_REQUEST, detail="File must be an image."
         )
     data = await file.read()
-    limit_mb = (await get_upload_limits_mb(db))["max_upload_size_mb"]
-    max_bytes = limit_mb * 1024 * 1024
+    max_bytes = settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024
     if len(data) > max_bytes:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Image is larger than the {limit_mb} MB limit.",
+            detail=f"Image is larger than the {settings.MAX_UPLOAD_SIZE_MB} MB limit.",
         )
     try:
         save_badge_image(data, current_user.id)
@@ -297,17 +295,15 @@ async def get_system_info(admin: User = Depends(get_current_admin)) -> dict:
 
 @router.get("/upload-limits")
 async def get_upload_limits(db: AsyncSession = Depends(get_db)) -> dict[str, int]:
-    """Effective upload caps; missing overrides fall back to their environment values."""
-    return await get_upload_limits_mb(db)
+    """The effective max upload size: an admin's override from Settings >
+    Administration > Limits if one's been saved, else the MAX_UPLOAD_SIZE_MB
+    env default. Read-only here — PUT /upload-limit is the admin-only way
+    to change it."""
+    return {"max_upload_size_mb": await get_max_upload_size_mb(db)}
 
 
 class UploadLimitRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    max_upload_size_mb: int | None = Field(default=None, ge=1, le=2147483647, strict=True)
-    max_save_archive_size_mb: int | None = Field(default=None, ge=1, le=2147483647, strict=True)
-    max_clip_size_mb: int | None = Field(default=None, ge=1, le=2147483647, strict=True)
-    max_world_save_size_mb: int | None = Field(default=None, ge=1, le=2147483647, strict=True)
+    max_upload_size_mb: int | None = None
 
 
 @router.put("/upload-limit")
@@ -316,14 +312,18 @@ async def update_upload_limit(
     db: AsyncSession = Depends(get_db),
     admin: User = Depends(get_current_admin),
 ) -> dict[str, int]:
-    """Update only supplied caps. Null clears that override back to its environment value."""
+    """Admin-only. `max_upload_size_mb: null` clears the override and goes
+    back to the .env default."""
     del admin
+    if payload.max_upload_size_mb is not None and payload.max_upload_size_mb < 1:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Max upload size must be at least 1 MB.",
+        )
     row = await get_or_create_app_integration_settings(db)
-    for name in UPLOAD_LIMIT_FIELDS:
-        if name in payload.model_fields_set:
-            setattr(row, name, getattr(payload, name))
+    row.max_upload_size_mb = payload.max_upload_size_mb
     await db.commit()
-    return await get_upload_limits_mb(db)
+    return {"max_upload_size_mb": await get_max_upload_size_mb(db)}
 
 
 @router.get("/provider-credentials")

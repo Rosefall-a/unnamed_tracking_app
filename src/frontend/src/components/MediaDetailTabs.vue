@@ -37,8 +37,8 @@ const emit = defineEmits<{
 .tabbar {
   display: flex;
   gap: 4px;
-  background: var(--ui-surface);
-  border-radius: var(--ui-radius-row);
+  background: #1a1a1a;
+  border-radius: 10px;
   width: fit-content;
   max-width: 100%;
   overflow-x: auto;
@@ -50,26 +50,17 @@ const emit = defineEmits<{
   white-space: nowrap;
   background: transparent;
   border: none;
-  color: var(--ui-dim);
+  color: #9c9c9c;
   font-family: inherit;
   font-size: 0.84rem;
   font-weight: 600;
   padding: 8px 18px;
-  border-radius: var(--ui-radius-control);
+  border-radius: 7px;
   cursor: pointer;
 }
 
 .tab-btn.active {
-  background: var(--ui-accent);
-  color: var(--ui-on-accent);
-}
-.tabbar {
-  max-width: 100%;
-}
-.tab-btn {
-  min-height: var(--ui-control-height);
-}
-.tabbar-wrap {
-  padding-inline: var(--ui-edge-left) var(--ui-edge-right);
+  background: #d68a34;
+  color: #14100a;
 }
 </style>

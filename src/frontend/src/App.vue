@@ -1,34 +1,18 @@
 <script setup lang="ts">
 import { useRoute, useRouter } from "vue-router";
-import { retryStartup } from "./router";
 import SidebarNav from "./components/SidebarNav.vue";
-import AppIcon from "./components/AppIcon.vue";
-import AccountChip from "./components/AccountChip.vue";
 import TaskProgressToast from "./components/TaskProgressToast.vue";
 import ShortcutsHelp from "./components/ShortcutsHelp.vue";
-import ShortcutConflictNotice from "./components/ShortcutConflictNotice.vue";
-import { useShortcutReconciliation } from "./composables/useShortcutReconciliation";
 import CommandPalette from "./components/CommandPalette.vue";
 import AppDialog from "./components/AppDialog.vue";
-import AppearanceWelcome from "./components/AppearanceWelcome.vue";
-import QuickTour from "./components/QuickTour.vue";
 import { authChecked, currentUser } from "./state/auth";
 import { mediaUnread } from "./state/notifications";
 import { formatDocumentTitle, pageTitleOverride } from "./state/pageTitle";
+import { loadSharedPreferences } from "./state/preferences";
 import {
-  preferences,
-  preferencesLoaded,
-  preferencesError,
-  loadSharedPreferences,
-  resetSharedPreferences,
-} from "./state/preferences";
-import {
-  effectiveSidebarMode,
+  sidebarMode,
   sidebarWidth,
   sidebarResizing,
-  navigationViewport,
-  navigationMenuOpen,
-  initializeNavigationViewport,
 } from "./state/sidebarMode";
 import { computed, watchEffect } from "vue";
 import { startupError, startupState } from "./state/startup";
@@ -37,51 +21,14 @@ import { onUnmounted, watch } from "vue";
 import {
   clearPluginExtensions,
   refreshPluginExtensions,
-  pluginThemes,
 } from "./state/pluginExtensions";
-import { applyPluginThemeStyle } from "./services/pluginThemeStyle";
 import PluginExtensionSlot from "./components/plugins/PluginExtensionSlot.vue";
 import PluginOverlayHost from "./components/plugins/PluginOverlayHost.vue";
 import { fetchCurrentUser } from "./services/auth";
 import PwaStatus from "./components/PwaStatus.vue";
-import {
-  activeInstalledTheme,
-  appearancePreferences,
-} from "./state/uiAppearance";
 
 const route = useRoute();
 const router = useRouter();
-const stopShortcutReconciliation = useShortcutReconciliation();
-onUnmounted(stopShortcutReconciliation);
-watchEffect(() => {
-  applyPluginThemeStyle(
-    document.documentElement,
-    appearancePreferences.value.ui_palette,
-    appearancePreferences.value.ui_custom_palette,
-    pluginThemes.value,
-    Boolean(activeInstalledTheme.value),
-  );
-});
-let startupRetryTimer: ReturnType<typeof setTimeout> | undefined;
-watch(
-  startupState,
-  (state) => {
-    clearTimeout(startupRetryTimer);
-    if (state === "unavailable")
-      startupRetryTimer = setTimeout(() => void retryStartup(), 5000);
-  },
-  { immediate: true },
-);
-const retryWhenOnline = () => {
-  if (startupState.value === "unavailable") void retryStartup();
-};
-window.addEventListener("online", retryWhenOnline);
-onUnmounted(() => {
-  clearTimeout(startupRetryTimer);
-  window.removeEventListener("online", retryWhenOnline);
-});
-const disposeNavigationViewport = initializeNavigationViewport();
-onUnmounted(disposeNavigationViewport);
 let pluginRefreshTimer: ReturnType<typeof setInterval> | undefined;
 watch(
   () => currentUser.value?.id,
@@ -89,17 +36,16 @@ watch(
     clearInterval(pluginRefreshTimer);
     clearPluginExtensions();
     if (id) {
-      void refreshPluginExtensions({ background: true });
+      void refreshPluginExtensions();
       pluginRefreshTimer = setInterval(async () => {
         try {
           const user = await fetchCurrentUser();
-          if (currentUser.value?.id !== id) return;
           if (!user) {
             currentUser.value = null;
             await router.replace("/login");
             return;
           }
-          await refreshPluginExtensions({ background: true });
+          await refreshPluginExtensions();
         } catch {
           // Preserve the current screen during transient connectivity failures.
         }
@@ -123,13 +69,15 @@ watchEffect(() => {
 watch(
   () => currentUser.value?.id,
   (id) => {
-    resetSharedPreferences();
     if (id) loadSharedPreferences();
   },
-  { immediate: true, flush: "sync" },
+  { immediate: true },
 );
 const sidebarShown = computed(
-  () => !route.path.startsWith("/login") && route.path !== "/setup",
+  () =>
+    route.path !== "/login" &&
+    route.path !== "/setup" &&
+    route.path !== "/login/oidcstart",
 );
 // Pinned and rail modes sit in the page's own layout, so content needs to
 // make room for them. Overlay floats above everything and reserves nothing.
@@ -137,13 +85,12 @@ const sidebarShown = computed(
 // rail's collapsed width is fixed, since that's the "just icons" point.
 const contentStyle = computed(() => {
   if (!sidebarShown.value) return {};
-  if (effectiveSidebarMode.value === "pinned")
-    return { marginLeft: `${sidebarWidth.value + 24}px` };
-  if (effectiveSidebarMode.value === "rail") return { marginLeft: "88px" };
+  if (sidebarMode.value === "pinned")
+    return { marginLeft: `${sidebarWidth.value}px` };
+  if (sidebarMode.value === "rail") return { marginLeft: "56px" };
   return {};
 });
 const KEPT_ALIVE = [
-  "GameLibrary",
   "MovieLibrary",
   "TVShowLibrary",
   "AnimeLibrary",
@@ -160,46 +107,22 @@ const KEPT_ALIVE = [
        normal authentication, so both must render while authChecked is false. -->
   <template
     v-if="
-      (authChecked && startupState !== 'unavailable') ||
+      authChecked ||
       route.path === '/setup' ||
-      route.name === 'oidc-start' ||
-      route.name === 'oidc-provider-start'
+      route.path === '/login/oidcstart'
     "
   >
     <SidebarNav v-if="sidebarShown" />
-    <header
-      v-if="sidebarShown && navigationViewport === 'phone'"
-      class="phone-topbar"
-      aria-label="Page navigation"
-    >
-      <button
-        type="button"
-        aria-label="Open menu"
-        aria-controls="app-navigation"
-        data-tour="open-menu"
-        :aria-expanded="navigationMenuOpen"
-        @click="navigationMenuOpen = true"
-      >
-        <AppIcon name="menu" />
-      </button>
-      <span>{{ route.meta.title || "Library" }}</span>
-      <AccountChip inline />
-    </header>
     <!-- Library, calendar and list pages stay mounted when you leave them, so
          switching tabs is instant instead of reloading from empty. Detail
          pages are deliberately not kept: they must reload per title. -->
     <div
       class="app-content"
-      id="main-content"
-      tabindex="-1"
-      :class="{
-        resizing: sidebarResizing,
-        'phone-content': sidebarShown && navigationViewport === 'phone',
-      }"
+      :class="{ resizing: sidebarResizing }"
       :style="contentStyle"
     >
       <router-view v-slot="{ Component }">
-        <KeepAlive :include="KEPT_ALIVE" :max="8" :key="currentUser?.id">
+        <KeepAlive :include="KEPT_ALIVE" :max="8">
           <component :is="Component" />
         </KeepAlive>
       </router-view>
@@ -210,21 +133,23 @@ const KEPT_ALIVE = [
       :context="{ host_page: route.path }"
     />
     <PluginOverlayHost v-if="currentUser" />
-    <TaskProgressToast v-if="sidebarShown" />
+    <TaskProgressToast
+      v-if="route.path !== '/setup' && route.path !== '/login/oidcstart'"
+    />
     <AppDialog />
-    <ShortcutsHelp v-if="sidebarShown" />
-    <ShortcutConflictNotice v-if="currentUser" />
-    <CommandPalette v-if="sidebarShown" />
-    <QuickTour v-if="sidebarShown" />
-    <AppearanceWelcome
+    <ShortcutsHelp
       v-if="
-        sidebarShown &&
-        currentUser &&
-        preferencesLoaded &&
-        !preferencesError &&
-        !preferences.ui_welcome_completed
+        route.path !== '/login' &&
+        route.path !== '/setup' &&
+        route.path !== '/login/oidcstart'
       "
-      :key="currentUser.id"
+    />
+    <CommandPalette
+      v-if="
+        route.path !== '/login' &&
+        route.path !== '/setup' &&
+        route.path !== '/login/oidcstart'
+      "
     />
   </template>
   <main v-else-if="startupState === 'unavailable'" class="app-loading">
@@ -235,8 +160,7 @@ const KEPT_ALIVE = [
         may be temporarily unavailable.
       </p>
       <p v-if="startupError" class="startup-detail">{{ startupError }}</p>
-      <p>Checking again automatically. You can retry now.</p>
-      <button type="button" @click="retryStartup">Retry connection</button>
+      <button type="button" @click="router.go(0)">Retry</button>
     </section>
   </main>
   <main v-else class="app-loading">
@@ -249,13 +173,13 @@ const KEPT_ALIVE = [
   max-width: 520px;
   padding: 32px;
   text-align: center;
-  border: 1px solid var(--ui-border);
+  border: 1px solid #2a2a2a;
   border-radius: 14px;
-  background: var(--ui-surface);
+  background: #1a1a1a;
 }
 
 .startup-error h1 {
-  color: var(--ui-text);
+  color: #fff;
   margin: 0 0 12px;
 }
 
@@ -264,7 +188,7 @@ const KEPT_ALIVE = [
 }
 
 .startup-detail {
-  color: var(--ui-error);
+  color: #fca5a5;
   font-size: 12px;
   word-break: break-word;
 }
@@ -274,8 +198,8 @@ const KEPT_ALIVE = [
   border: 0;
   border-radius: 8px;
   padding: 10px 16px;
-  background: var(--ui-accent);
-  color: var(--ui-on-accent);
+  background: #d68a34;
+  color: #111;
   font-weight: 700;
   cursor: pointer;
 }
@@ -285,9 +209,9 @@ const KEPT_ALIVE = [
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--ui-bg);
-  color: var(--ui-dim);
-  font-family: var(--ui-font-family);
+  background: #0d0d0d;
+  color: #999;
+  font-family: system-ui, sans-serif;
 }
 
 .app-content {
@@ -296,32 +220,5 @@ const KEPT_ALIVE = [
 
 .app-content.resizing {
   transition: none;
-}
-.phone-content {
-  padding-bottom: calc(92px + env(safe-area-inset-bottom));
-}
-.phone-topbar {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-height: 52px;
-  padding: env(safe-area-inset-top) 16px 0;
-  color: var(--ui-dim);
-  background: var(--ui-bg);
-  font-size: var(--ui-font-small);
-}
-.phone-topbar button {
-  display: grid;
-  place-items: center;
-  min-width: 44px;
-  min-height: 44px;
-  border: 1px solid var(--ui-border-soft);
-  border-radius: var(--ui-radius-control);
-  color: var(--ui-text);
-  background: var(--ui-surface);
-}
-.phone-topbar > span {
-  flex: 1;
-  min-width: 0;
 }
 </style>

@@ -4,7 +4,6 @@ import asyncio
 
 import pytest
 from fastapi import HTTPException
-
 from src.api.routes import plugins
 from src.api.routes.plugin_manager import runtime as plugin_runtime
 

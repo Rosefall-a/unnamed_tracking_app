@@ -142,14 +142,14 @@ const emit = defineEmits<{
   background:
     linear-gradient(
       180deg,
-      color-mix(in srgb, var(--ui-bg) 25%, transparent) 0%,
-      color-mix(in srgb, var(--ui-bg) 55%, transparent) 45%,
-      var(--ui-bg) 96%
+      rgba(13, 13, 13, 0.25) 0%,
+      rgba(13, 13, 13, 0.55) 45%,
+      #0d0d0d 96%
     ),
     linear-gradient(
       90deg,
-      color-mix(in srgb, var(--ui-bg) 75%, transparent) 0%,
-      color-mix(in srgb, var(--ui-bg) 15%, transparent) 40%
+      rgba(13, 13, 13, 0.75) 0%,
+      rgba(13, 13, 13, 0.15) 40%
     );
 }
 
@@ -175,7 +175,7 @@ const emit = defineEmits<{
   background-size: cover;
   background-repeat: no-repeat;
   background-position: center 25%;
-  background-color: var(--ui-surface);
+  background-color: #1a1a1a;
   min-height: 440px;
   display: flex;
   align-items: flex-end;
@@ -183,20 +183,20 @@ const emit = defineEmits<{
 }
 
 .hero.no-poster {
-  background: linear-gradient(160deg, var(--ui-accent-soft), var(--ui-bg) 70%);
+  background: linear-gradient(160deg, #241a10, #0d0d0d 70%);
 }
 
 .poster-card {
   width: 190px;
   aspect-ratio: 2 / 3;
   flex-shrink: 0;
-  border-radius: var(--ui-radius-control);
+  border-radius: 8px;
   background-size: cover;
   background-repeat: no-repeat;
   background-origin: border-box;
   background-clip: border-box;
   background-position: center;
-  background-color: var(--ui-surface-2);
+  background-color: #222222;
   border: 1px solid transparent;
   box-shadow: 0 24px 48px -14px rgba(0, 0, 0, 0.8);
   display: flex;
@@ -204,13 +204,13 @@ const emit = defineEmits<{
   justify-content: center;
   font-size: 0.78rem;
   font-weight: 700;
-  color: color-mix(in srgb, var(--ui-text) 30%, transparent);
+  color: rgba(255, 255, 255, 0.3);
   text-align: center;
   padding: 10px;
 }
 
 .title {
-  font-weight: var(--ui-weight-title);
+  font-weight: 800;
   font-size: 2.5rem;
   line-height: 1.05;
   margin: 0 0 14px;
@@ -227,19 +227,19 @@ const emit = defineEmits<{
 
 .badge {
   line-height: 1.25;
-  background: color-mix(in srgb, var(--ui-text) 6%, transparent);
-  border: 1px solid color-mix(in srgb, var(--ui-text) 10%, transparent);
-  border-radius: var(--ui-radius-control);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 7px;
   padding: 4px 11px;
   font-size: 0.78rem;
   font-weight: 600;
-  color: var(--ui-dim);
+  color: #9c9c9c;
   text-transform: capitalize;
 }
 
 .status-select option {
-  background: var(--ui-surface);
-  color: var(--ui-text);
+  background: #171717;
+  color: #f2f2f2;
 }
 
 .status-select {
@@ -247,8 +247,8 @@ const emit = defineEmits<{
   appearance: none;
   -webkit-appearance: none;
   -moz-appearance: none;
-  border-color: color-mix(in srgb, var(--ui-accent) 40%, transparent);
-  color: var(--ui-accent-text);
+  border-color: rgba(214, 138, 52, 0.4);
+  color: #d68a34;
   font-family: inherit;
   cursor: pointer;
   padding-right: 26px;
@@ -265,10 +265,10 @@ const emit = defineEmits<{
 }
 
 .edit-btn {
-  background: var(--ui-accent);
+  background: #d68a34;
   border: none;
-  color: var(--ui-on-accent);
-  border-radius: var(--ui-radius-control);
+  color: #14100a;
+  border-radius: 8px;
   padding: 0 20px;
   height: 38px;
   font-family: inherit;
@@ -284,9 +284,9 @@ const emit = defineEmits<{
   width: 38px;
   height: 38px;
   border-radius: 50%;
-  background: color-mix(in srgb, var(--ui-text) 6%, transparent);
-  border: 1px solid color-mix(in srgb, var(--ui-text) 12%, transparent);
-  color: var(--ui-text);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #f2f2f2;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -295,13 +295,13 @@ const emit = defineEmits<{
 }
 
 .icon-btn:hover {
-  border-color: color-mix(in srgb, var(--ui-accent) 40%, transparent);
+  border-color: rgba(214, 138, 52, 0.4);
 }
 
 .icon-btn.active {
-  color: var(--ui-accent-text);
-  border-color: color-mix(in srgb, var(--ui-accent) 40%, transparent);
-  background: color-mix(in srgb, var(--ui-accent) 16%, transparent);
+  color: #d68a34;
+  border-color: rgba(214, 138, 52, 0.4);
+  background: rgba(214, 138, 52, 0.16);
 }
 
 @media (max-width: 640px) {
@@ -312,37 +312,18 @@ const emit = defineEmits<{
 }
 .native-title {
   font-size: 0.82rem;
-  color: var(--ui-faint);
+  color: #666;
   margin-bottom: 4px;
   font-weight: 500;
 }
 
 .native-title.bright {
-  color: var(--ui-dim);
+  color: #9a9a9a;
 }
 
 .badge.good {
-  background: color-mix(in srgb, var(--ui-good) 16%, transparent);
-  border-color: color-mix(in srgb, var(--ui-good) 40%, transparent);
-  color: var(--ui-good);
-}
-.title {
-  font-size: var(--ui-font-title);
-  font-weight: var(--ui-weight-title);
-  overflow-wrap: anywhere;
-}
-button,
-select {
-  min-height: var(--ui-control-height);
-}
-.icon-btn {
-  width: var(--ui-control-height);
-  height: var(--ui-control-height);
-}
-.action-row {
-  flex-wrap: wrap;
-}
-.hero-content {
-  padding-inline: var(--ui-edge-left) var(--ui-edge-right);
+  background: rgba(111, 191, 115, 0.16);
+  border-color: rgba(111, 191, 115, 0.4);
+  color: #6fbf73;
 }
 </style>

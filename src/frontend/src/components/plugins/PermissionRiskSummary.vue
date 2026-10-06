@@ -3,12 +3,10 @@ import { computed } from "vue";
 import type { PluginInstallPermission } from "../../services/plugins";
 const props = defineProps<{ permissions: PluginInstallPermission[] }>();
 const counts = computed(() =>
-  ["critical", "high", "medium", "low"]
-    .map((risk) => ({
-      risk,
-      count: props.permissions.filter((item) => item.risk === risk).length,
-    }))
-    .filter((item) => item.count > 0),
+  ["critical", "high", "medium", "low"].map((risk) => ({
+    risk,
+    count: props.permissions.filter((item) => item.risk === risk).length,
+  })),
 );
 </script>
 <template>
@@ -48,19 +46,19 @@ const counts = computed(() =>
   font-size: 0.85rem;
 }
 .critical {
-  color: var(--ui-error);
-  background: var(--ui-danger-soft);
+  color: #ff737b;
+  background: #491c29;
 }
 .high {
-  color: var(--ui-warning);
-  background: var(--ui-warning-soft);
+  color: #ffb35c;
+  background: #49321d;
 }
 .medium {
-  color: var(--ui-warning);
-  background: var(--ui-warning-soft);
+  color: #f2da6d;
+  background: #3c381c;
 }
 .low {
-  color: var(--ui-good);
-  background: var(--ui-good-soft);
+  color: #79dca5;
+  background: #1b3e2a;
 }
 </style>

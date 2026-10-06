@@ -9,24 +9,20 @@ import {
 } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { currentUser } from "../state/auth";
-import { activeSettingsArea } from "../state/settingsArea";
 import { startTrackingSaves, stopTrackingSaves } from "../state/saveStatus";
 import SettingsNav from "../components/settings/SettingsNav.vue";
 import type { SettingsGroup } from "../components/settings/SettingsNav.vue";
 import SaveStatus from "../components/settings/SaveStatus.vue";
 import ProfileSection from "../components/settings/ProfileSection.vue";
+import InterfaceSection from "../components/settings/InterfaceSection.vue";
 import GamePageSection from "../components/settings/GamePageSection.vue";
 import AppearanceSection from "../components/settings/AppearanceSection.vue";
-import BrandingSection from "../components/settings/BrandingSection.vue";
+import UploadSection from "../components/settings/UploadSection.vue";
 import LibrarySettings from "../components/settings/LibrarySettings.vue";
 import MetadataSettings from "../components/settings/MetadataSettings.vue";
-import AdminSection from "../components/settings/AdminSection.vue";
-import OidcSettingsSection from "../components/settings/OidcSettingsSection.vue";
-import PasswordPolicySection from "../components/settings/PasswordPolicySection.vue";
-import ServerIntegrationsSection from "../components/settings/ServerIntegrationsSection.vue";
-import LimitsSection from "../components/settings/LimitsSection.vue";
-import DevToolsSection from "../components/settings/DevToolsSection.vue";
+import AdminSettings from "../components/settings/AdminSettings.vue";
 import TasksSection from "../components/settings/TasksSection.vue";
+import ComingSoonSection from "../components/settings/ComingSoonSection.vue";
 import StatsSection from "../components/settings/StatsSection.vue";
 import ExportImportSection from "../components/settings/ExportImportSection.vue";
 import CalendarNotificationsSection from "../components/settings/CalendarNotificationsSection.vue";
@@ -35,8 +31,6 @@ import ConnectionsSection from "../components/settings/ConnectionsSection.vue";
 import AniListImportSection from "../components/settings/AniListImportSection.vue";
 import ApiKeysSection from "../components/settings/ApiKeysSection.vue";
 import PluginManagerSection from "../components/settings/PluginManagerSection.vue";
-import ThemesSection from "../components/settings/ThemesSection.vue";
-import PwaSettingsSection from "../components/settings/PwaSettingsSection.vue";
 import PluginContributionHost from "../components/plugins/PluginContributionHost.vue";
 import {
   pluginSettingsSections,
@@ -45,26 +39,16 @@ import {
   pageReplacementConflicts,
   refreshPluginExtensions,
 } from "../state/pluginExtensions";
+import PasswordPolicySection from "../components/settings/PasswordPolicySection.vue";
 import AccountChip from "../components/AccountChip.vue";
-import PageHeader from "../components/PageHeader.vue";
-import AppIcon from "../components/AppIcon.vue";
-import { usePageTitle } from "../state/pageTitle";
+import BackButton from "../components/BackButton.vue";
 
 const router = useRouter();
 const route = useRoute();
-watch(
-  () => route.query.section,
-  (section) => {
-    if (section === "upload") void router.replace("/upload");
-  },
-  { immediate: true },
-);
-onMounted(() => void refreshPluginExtensions({ background: true }));
+onMounted(() => void refreshPluginExtensions());
 
 const coreSectionIds = new Set([
   "admin",
-  "limits",
-  "dev-tools",
   "metadata",
   "connections",
   "notifications",
@@ -73,9 +57,6 @@ const coreSectionIds = new Set([
   "profile",
   "interface",
   "appearance",
-  "game-page",
-  "app-installation",
-  "branding",
   "api-keys",
   "calendar-notifications",
   "upload",
@@ -87,11 +68,10 @@ const coreSectionIds = new Set([
   "media-refresh",
   "export",
   "oidc",
-  "password-policy",
   "server-integrations",
   "users",
   "plugins",
-  "themes",
+  "password-policy",
   "stats",
   "tasks",
   "logs",
@@ -149,6 +129,11 @@ const activePluginSettingsNavigation = computed(() =>
   ),
 );
 
+function goBack() {
+  if (window.history.length > 1) router.back();
+  else router.push("/");
+}
+
 onMounted(startTrackingSaves);
 onBeforeUnmount(stopTrackingSaves);
 
@@ -156,7 +141,6 @@ const groups = computed<SettingsGroup[]>(() => {
   const result: SettingsGroup[] = [
     {
       label: "Account",
-      area: "account",
       sections: [
         { id: "profile", label: "Profile" },
         { id: "connections", label: "Connections" },
@@ -165,11 +149,10 @@ const groups = computed<SettingsGroup[]>(() => {
     },
     {
       label: "Preferences",
-      area: "preferences",
       sections: [
-        { id: "appearance", label: "Appearance & interface" },
-        { id: "app-installation", label: "App installation" },
-        { id: "game-page", label: "Game page" },
+        { id: "interface", label: "User Interface" },
+        { id: "game-page", label: "Game Page" },
+        { id: "appearance", label: "Appearance" },
         { id: "notifications", label: "Notifications" },
         { id: "calendar", label: "Calendar" },
         { id: "shortcuts", label: "Keyboard Shortcuts" },
@@ -177,72 +160,46 @@ const groups = computed<SettingsGroup[]>(() => {
     },
     {
       label: "Library",
-      area: "preferences",
       sections: [
+        { id: "upload", label: "Upload" },
         { id: "library", label: "Library" },
         { id: "metadata", label: "Metadata" },
         { id: "export", label: "Export / Import" },
       ],
     },
   ];
-  if (currentUser.value?.is_admin)
-    result.push({
-      label: "Server management",
-      area: "administration",
-      sections: [
-        { id: "users", label: "Users" },
-        { id: "oidc", label: "Single sign-on" },
-        { id: "password-policy", label: "Password policy" },
-        { id: "server-integrations", label: "Server integrations" },
-        { id: "limits", label: "Limits" },
-        { id: "dev-tools", label: "Developer tools" },
-        { id: "branding", label: "App branding" },
-        { id: "plugins", label: "Plugins" },
-        { id: "themes", label: "Themes" },
-        { id: "tasks", label: "Background tasks" },
-        { id: "stats", label: "Storage & usage" },
-      ],
-    });
-  else
-    result.push({
-      label: "Information",
-      area: "preferences",
-      sections: [{ id: "stats", label: "Storage & usage" }],
-    });
+  result.push({
+    label: "System",
+    sections: [
+      { id: "stats", label: "Server Stats" },
+      ...(currentUser.value?.is_admin
+        ? [
+            { id: "admin", label: "Administration" },
+            { id: "plugins", label: "Plugins" },
+            { id: "password-policy", label: "Password policy" },
+            { id: "tasks", label: "Tasks" },
+            { id: "logs", label: "Logs", comingSoon: true },
+          ]
+        : []),
+    ],
+  });
   if (
     visiblePluginSettings.value.length ||
     visiblePluginSettingsNavigation.value.length
   ) {
-    for (const item of visiblePluginSettings.value) {
-      let group = result.find(
-        (candidate) =>
-          candidate.area === item.area && candidate.label === item.group,
-      );
-      if (!group) {
-        group = { label: item.group, area: item.area, sections: [] };
-        result.push(group);
-      }
-      group.sections.push({
-        id: pluginSettingsId(item.contributionId),
-        label: item.label,
-        folders: item.folders,
-      });
-    }
-    for (const item of visiblePluginSettingsNavigation.value) {
-      let group = result.find(
-        (candidate) =>
-          candidate.area === item.area && candidate.label === item.group,
-      );
-      if (!group) {
-        group = { label: item.group, area: item.area, sections: [] };
-        result.push(group);
-      }
-      group.sections.push({
-        id: item.contributionId,
-        label: item.label,
-        folders: item.folders,
-      });
-    }
+    result.push({
+      label: "Plugin sections",
+      sections: [
+        ...visiblePluginSettings.value.map((item) => ({
+          id: pluginSettingsId(item.contributionId),
+          label: item.label,
+        })),
+        ...visiblePluginSettingsNavigation.value.map((item) => ({
+          id: item.contributionId,
+          label: item.label,
+        })),
+      ],
+    });
   }
   return result;
 });
@@ -251,31 +208,21 @@ const groups = computed<SettingsGroup[]>(() => {
 // merged page as a tab, so old links (command palette, bookmarks) still
 // land in the right place.
 const SECTION_ALIASES: Record<string, { section: string; tab?: string }> = {
-  interface: { section: "appearance" },
   "calendar-notifications": { section: "notifications" },
   "media-prefs": { section: "library", tab: "preferences" },
   "media-trash": { section: "library", tab: "trash" },
   sources: { section: "metadata", tab: "sources" },
   scan: { section: "metadata", tab: "scan" },
   "media-refresh": { section: "metadata", tab: "refresh" },
+  users: { section: "admin", tab: "users" },
+  oidc: { section: "admin", tab: "sso" },
+  "server-integrations": { section: "admin", tab: "integrations" },
 };
 function resolveSection(id: string | undefined): {
   section: string;
   tab?: string;
 } {
-  const raw = id || "";
-  if (raw === "admin") {
-    const legacyTab =
-      typeof route.query.tab === "string" ? route.query.tab : "users";
-    const sections: Record<string, string> = {
-      users: "users",
-      sso: "oidc",
-      integrations: "server-integrations",
-      limits: "limits",
-      "dev-tools": "dev-tools",
-    };
-    return { section: sections[legacyTab] ?? "users" };
-  }
+  const raw = id || "profile";
   return SECTION_ALIASES[raw] ?? { section: raw };
 }
 const initial = resolveSection(route.query.section as string | undefined);
@@ -303,7 +250,7 @@ watch(
 
 watch(activeSection, (section) => {
   const current =
-    typeof route.query.section === "string" ? route.query.section : "";
+    typeof route.query.section === "string" ? route.query.section : "profile";
   if (current === section) return;
   void router.replace({ query: { ...route.query, section } });
 });
@@ -312,63 +259,8 @@ const card = ref<HTMLElement | null>(null);
 watch(activeSection, async () => {
   if (!window.matchMedia("(max-width: 760px)").matches) return;
   await nextTick();
-  card.value?.focus({ preventScroll: true });
-  card.value?.scrollIntoView({ behavior: "instant", block: "start" });
+  card.value?.scrollIntoView({ behavior: "smooth", block: "start" });
 });
-
-const selectedGroup = computed(() =>
-  groups.value.find((group) =>
-    group.sections.some((section) => section.id === activeSection.value),
-  ),
-);
-const selectedSection = computed(() =>
-  selectedGroup.value?.sections.find(
-    (section) => section.id === activeSection.value,
-  ),
-);
-const area = computed(() => {
-  if (selectedGroup.value) return selectedGroup.value.area;
-  if (route.query.area === "account") return "account";
-  if (route.query.area === "administration" && currentUser.value?.is_admin)
-    return "administration";
-  return "preferences";
-});
-watch(
-  area,
-  (value) => {
-    activeSettingsArea.value = value;
-  },
-  { immediate: true, flush: "sync" },
-);
-onBeforeUnmount(() => {
-  activeSettingsArea.value = "preferences";
-});
-const areaNames = {
-  preferences: "Preferences",
-  account: "Account",
-  administration: "Administration",
-};
-const areaDescriptions = {
-  preferences: "Make your library feel like yours.",
-  account: "Your profile, security and connected services.",
-  administration: "Server-wide settings affect everyone on this instance.",
-};
-const areaGroups = computed(() =>
-  groups.value.filter((group) => group.area === area.value),
-);
-const sectionTitle = computed(
-  () => selectedSection.value?.label ?? areaNames[area.value],
-);
-usePageTitle(() => sectionTitle.value);
-function openArea(next: string) {
-  void router.push({
-    path: "/settings",
-    query: { area: next, ...(showHostSettings.value ? { host: "1" } : {}) },
-  });
-}
-function backToArea() {
-  openArea(area.value);
-}
 </script>
 
 <template>
@@ -397,88 +289,24 @@ function backToArea() {
     />
   </main>
   <main v-else class="settings-page">
+    <BackButton fixed @click="goBack" />
     <AccountChip fixed />
     <div class="settings-layout">
-      <nav class="settings-areas" aria-label="Settings areas">
-        <button
-          v-for="next in [
-            'preferences',
-            'account',
-            ...(currentUser?.is_admin ? ['administration'] : []),
-          ]"
-          :key="next"
-          type="button"
-          :class="{ active: area === next }"
-          :aria-current="area === next ? 'page' : undefined"
-          @click="openArea(next)"
-        >
-          {{ areaNames[next as keyof typeof areaNames] }}
-        </button>
-      </nav>
-      <button
-        v-if="selectedSection"
-        type="button"
-        class="section-back"
-        @click="backToArea"
-      >
-        <AppIcon name="chevron" :size="15" />{{ areaNames[area] }}
-      </button>
-      <PageHeader
-        :title="sectionTitle"
-        :eyebrow="selectedSection ? areaNames[area] : undefined"
-        :description="selectedSection ? undefined : areaDescriptions[area]"
-      >
-        <template #actions><SaveStatus /></template>
-      </PageHeader>
-      <p v-if="area === 'administration'" class="server-scope">
-        <AppIcon name="admin" :size="18" /><span
-          >Administration · Changes apply to the entire server.</span
-        >
-      </p>
+      <div class="settings-head">
+        <h1>Settings</h1>
+        <SaveStatus />
+      </div>
       <div class="settings-body">
         <SettingsNav
-          v-if="selectedSection"
-          class="desktop-settings-nav"
           :active-section="activeSection"
-          :groups="areaGroups"
+          :groups="groups"
           @update:active-section="openSection"
         />
-        <div v-if="!selectedSection" class="settings-landing">
-          <section
-            v-for="group in areaGroups"
-            :key="group.label"
-            class="settings-landing-group"
-          >
-            <h2>{{ group.label }}</h2>
-            <div class="settings-links">
-              <button
-                v-for="section in group.sections"
-                :key="section.id"
-                type="button"
-                @click="openSection(section.id)"
-              >
-                <span>{{ section.label }}</span
-                ><AppIcon name="chevron" :size="18" />
-              </button>
-            </div>
-          </section>
-        </div>
-        <div
-          v-else
-          ref="card"
-          class="settings-card"
-          tabindex="-1"
-          :aria-label="sectionTitle"
-        >
+        <div ref="card" class="settings-card">
           <ProfileSection v-if="activeSection === 'profile'" />
+          <InterfaceSection v-else-if="activeSection === 'interface'" />
           <GamePageSection v-else-if="activeSection === 'game-page'" />
           <AppearanceSection v-else-if="activeSection === 'appearance'" />
-          <PwaSettingsSection
-            v-else-if="activeSection === 'app-installation'"
-          />
-          <BrandingSection
-            v-else-if="activeSection === 'branding' && currentUser?.is_admin"
-          />
           <CalendarNotificationsSection
             v-else-if="activeSection === 'notifications'"
             part="notifications"
@@ -493,6 +321,7 @@ function backToArea() {
             @navigate="openSection"
           />
           <ApiKeysSection v-else-if="activeSection === 'api-keys'" />
+          <UploadSection v-else-if="activeSection === 'upload'" />
           <LibrarySettings
             v-else-if="activeSection === 'library'"
             :key="'library' + initialTab"
@@ -501,9 +330,12 @@ function backToArea() {
           <PluginManagerSection
             v-else-if="activeSection === 'plugins' && currentUser?.is_admin"
           />
-          <ThemesSection
-            v-else-if="activeSection === 'themes' && currentUser?.is_admin"
+          <PasswordPolicySection
+            v-else-if="
+              activeSection === 'password-policy' && currentUser?.is_admin
+            "
           />
+          <StatsSection v-else-if="activeSection === 'stats'" />
           <template v-else-if="activeSection === 'export'">
             <ExportImportSection />
             <AniListImportSection />
@@ -513,31 +345,23 @@ function backToArea() {
             :key="'metadata' + initialTab"
             :initial-tab="initialTab"
           />
-          <StatsSection v-else-if="activeSection === 'stats'" />
-          <AdminSection
-            v-else-if="activeSection === 'users' && currentUser?.is_admin"
-          />
-          <OidcSettingsSection
-            v-else-if="activeSection === 'oidc' && currentUser?.is_admin"
-          />
-          <PasswordPolicySection
-            v-else-if="
-              activeSection === 'password-policy' && currentUser?.is_admin
-            "
-          />
-          <ServerIntegrationsSection
-            v-else-if="
-              activeSection === 'server-integrations' && currentUser?.is_admin
-            "
-          />
-          <LimitsSection
-            v-else-if="activeSection === 'limits' && currentUser?.is_admin"
-          />
-          <DevToolsSection
-            v-else-if="activeSection === 'dev-tools' && currentUser?.is_admin"
+          <AdminSettings
+            v-else-if="activeSection === 'admin' && currentUser?.is_admin"
+            :key="'admin' + initialTab"
+            :initial-tab="initialTab"
           />
           <TasksSection
             v-else-if="activeSection === 'tasks' && currentUser?.is_admin"
+          />
+          <ComingSoonSection
+            v-else-if="activeSection === 'logs' && currentUser?.is_admin"
+            title="Logs"
+            description="An audit trail of edits made across the library, including changes made by other users."
+            :planned-features="[
+              'Who changed what, and when',
+              'Filter by user, game, or field',
+              'Restore a previous value',
+            ]"
           />
           <PluginContributionHost
             v-else-if="activePluginSettings"
@@ -564,14 +388,13 @@ function backToArea() {
 .settings-page {
   position: relative;
   min-height: 100vh;
-  box-sizing: border-box;
-  padding: 84px var(--ui-edge-right) 48px var(--ui-edge-left);
+  padding: 84px 40px 40px;
   background: var(--ui-bg);
-  font-family: var(--ui-font-family);
+  font-family: system-ui, sans-serif;
 }
 .replacement-notice {
   margin: 0 0 16px;
-  color: var(--ui-accent-text);
+  color: #d8a15e;
 }
 .replacement-notice a {
   margin-left: 8px;
@@ -579,39 +402,19 @@ function backToArea() {
 }
 .settings-layout {
   width: 100%;
-  max-width: var(--ui-content-width);
-  margin: auto;
-  color: var(--ui-text);
+  color: #fff;
 }
-.settings-areas {
+.settings-head {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding-bottom: 18px;
-  margin-bottom: 30px;
-  border-bottom: 1px solid var(--ui-border-soft);
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 0 0 24px;
 }
-.settings-areas button {
-  min-height: var(--ui-control-height);
-  padding: 10px 18px;
-  border: 0;
-  border-radius: 999px;
-  color: var(--ui-dim);
-  background: transparent;
-  cursor: pointer;
-  font: inherit;
-  font-size: var(--ui-font-small);
-  font-weight: 500;
-}
-.settings-areas button:hover {
-  background: var(--ui-surface-2);
-}
-.settings-areas button.active {
-  color: var(--ui-accent-text);
-  background: var(--ui-accent-soft);
-}
-.section-back {
-  display: none;
+.settings-layout h1 {
+  margin: 0;
+  font-size: 1.7rem;
+  font-weight: 800;
 }
 .settings-body {
   display: flex;
@@ -621,159 +424,19 @@ function backToArea() {
 .settings-card {
   flex: 1;
   min-width: 0;
-  scroll-margin-top: 20px;
-  background: var(--ui-surface);
-  border: 1px solid var(--ui-border-soft);
-  border-radius: var(--ui-radius-card);
-  padding: 28px;
-  box-sizing: border-box;
-}
-.settings-card :deep(input:not([type="checkbox"]):not([type="radio"])),
-.settings-card :deep(select),
-.settings-card :deep(button) {
-  min-height: var(--ui-control-height);
-}
-.settings-landing {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 28px;
-  width: 100%;
-  max-width: 1040px;
-}
-.settings-landing-group h2 {
-  font-size: var(--ui-font-small);
-  font-weight: 600;
-  color: var(--ui-dim);
-  margin: 0 0 12px 4px;
-}
-.settings-links {
-  background: var(--ui-surface);
-  border: 1px solid var(--ui-border-soft);
-  border-radius: var(--ui-radius-card);
-  padding: 4px 18px;
-}
-.settings-links button {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  width: 100%;
-  min-height: 60px;
-  padding: 16px 4px;
-  border: 0;
-  border-bottom: 1px solid var(--ui-border-soft);
-  color: var(--ui-text);
-  background: transparent;
-  font: inherit;
-  font-size: var(--ui-font-body);
-  text-align: left;
-  cursor: pointer;
-}
-.settings-links button:last-child {
-  border-bottom: 0;
-}
-.settings-links button:hover {
-  color: var(--ui-accent-text);
-}
-.settings-links button svg {
-  color: var(--ui-faint);
-  flex-shrink: 0;
-}
-.server-scope {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 14px 18px;
-  margin: 0 0 24px;
-  background: var(--ui-accent-soft);
-  color: var(--ui-accent-text);
-  border-radius: var(--ui-radius-control);
-  font-size: var(--ui-font-small);
-}
-@media (max-width: 1100px) {
-  .settings-body {
-    gap: 20px;
-  }
-  .desktop-settings-nav {
-    width: 170px;
-  }
-  .settings-card {
-    padding: 22px;
-  }
+  scroll-margin-top: 64px;
+  background: #1a1a1a;
+  border: 1px solid #2a2a2a;
+  border-radius: 14px;
+  padding: 32px;
 }
 @media (max-width: 760px) {
-  .settings-page {
-    padding-top: 24px;
-  }
-  .settings-areas {
-    flex-wrap: nowrap;
-    margin-bottom: 16px;
-    gap: 4px;
-    padding-bottom: 12px;
-  }
-  .settings-areas button {
-    flex: 1;
-    min-width: 0;
-    padding: 8px 6px;
-    font-size: 12px;
-  }
-  .settings-page :deep(.page-header) {
-    margin-bottom: 16px;
-  }
-  .server-scope {
-    padding: 10px 12px;
-    margin-bottom: 16px;
-    font-size: 12px;
-    line-height: 1.5;
-  }
-  .server-scope svg {
-    flex-shrink: 0;
-  }
-  .settings-landing {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 24px;
-  }
-  .settings-links {
-    padding: 3px 20px;
-  }
-  .settings-links button {
-    min-height: 64px;
-  }
-  .desktop-settings-nav {
-    display: none;
+  .settings-body {
+    flex-direction: column;
   }
   .settings-card {
     width: 100%;
     padding: 20px;
   }
-  .section-back {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    min-height: 44px;
-    margin: -12px 0 12px -6px;
-    padding: 8px 6px;
-    border: 0;
-    background: transparent;
-    color: var(--ui-accent-text);
-    font: inherit;
-    font-size: var(--ui-font-small);
-    cursor: pointer;
-  }
-  .section-back svg {
-    transform: rotate(180deg);
-  }
-}
-/* Native controls must fit their settings card at phone widths. */
-.settings-card :deep(input:not([type="checkbox"]):not([type="radio"])),
-.settings-card :deep(select),
-.settings-card :deep(textarea) {
-  box-sizing: border-box;
-  min-width: 0;
-  max-width: 100%;
-  min-height: var(--ui-control-height);
-}
-.settings-card :deep(button) {
-  min-height: var(--ui-control-height);
 }
 </style>

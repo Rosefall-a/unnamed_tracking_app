@@ -42,6 +42,19 @@ export default tseslint.config(
   },
 
   {
+    // already over the limit before it was added; split these up and delete
+    // them from this list rather than adding to it
+    files: [
+      "src/components/library/MediaLibraryView.vue",
+      "src/components/settings/MetadataSourcesSection.vue",
+      "src/views/Calendar.vue",
+      "src/views/GameDetail.vue",
+      "src/views/GameLibrary.vue",
+    ],
+    rules: { "max-lines": "off" },
+  },
+
+  {
     // top-level route views, not reusable components — named after the
     // page they render (Login, Settings, Inbox...), so a single word is
     // the natural name here, unlike a component dropped into arbitrary

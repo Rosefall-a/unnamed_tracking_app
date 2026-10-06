@@ -2,8 +2,8 @@
   width: 100%;
   max-height: 220px;
   object-fit: cover;
-  border-radius: var(--ui-radius-control);
-  border: 1px solid var(--ui-border);
+  border-radius: 8px;
+  border: 1px solid #2a2a2a;
 }
 
 .field {
@@ -16,7 +16,7 @@
 
 .field span {
   font-size: 0.78rem;
-  color: var(--ui-dim);
+  color: #999;
 }
 
 .field-row {
@@ -37,14 +37,14 @@
 
 .checkbox-field span {
   font-size: 0.85rem;
-  color: var(--ui-text);
+  color: #fff;
 }
 
 .text-input {
-  background: var(--ui-surface);
-  border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius-control);
-  color: var(--ui-text);
+  background: #111;
+  border: 1px solid #2a2a2a;
+  border-radius: 8px;
+  color: #fff;
   padding: 8px 10px;
   font-size: 0.85rem;
   font-family: inherit;
@@ -53,7 +53,7 @@
 }
 
 .text-input:focus {
-  outline: 2px solid var(--ui-accent-text);
+  outline: 2px solid #d68a34;
   outline-offset: 1px;
 }
 

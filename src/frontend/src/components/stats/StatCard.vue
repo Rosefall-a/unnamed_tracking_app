@@ -61,19 +61,15 @@ const path = computed(() => PATHS[props.icon ?? "grid"]);
 .stat-card {
   position: relative;
   overflow: hidden;
-  background: linear-gradient(
-    160deg,
-    var(--ui-surface) 0%,
-    var(--ui-surface-2) 130%
-  );
-  border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius-card);
+  background: linear-gradient(160deg, #1a1a1a 0%, #222222 130%);
+  border: 1px solid #202020;
+  border-radius: 12px;
   padding: 18px 20px;
   transition: border-color 0.15s ease;
   min-width: 0;
 }
 .stat-card:hover {
-  border-color: color-mix(in srgb, var(--ui-accent) 40%, transparent);
+  border-color: rgba(214, 138, 52, 0.4);
 }
 .stat-icon {
   position: absolute;
@@ -81,20 +77,20 @@ const path = computed(() => PATHS[props.icon ?? "grid"]);
   right: 14px;
   width: 20px;
   height: 20px;
-  color: var(--ui-accent-text);
+  color: #d68a34;
   opacity: 0.55;
 }
 .stat-value {
   font-size: 1.9rem;
-  font-weight: var(--ui-weight-title);
-  color: var(--ui-accent-text);
+  font-weight: 800;
+  color: #d68a34;
   font-variant-numeric: tabular-nums;
   line-height: 1.1;
 }
 .stat-label {
   margin-top: 6px;
   font-size: 0.76rem;
-  color: var(--ui-faint);
+  color: #666;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   font-weight: 700;
@@ -102,6 +98,6 @@ const path = computed(() => PATHS[props.icon ?? "grid"]);
 .stat-sub {
   margin-top: 4px;
   font-size: 0.72rem;
-  color: var(--ui-dim);
+  color: #9c9c9c;
 }
 </style>

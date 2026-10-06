@@ -15,7 +15,6 @@ const props = defineProps({
     default: () => ({}),
   },
 });
-const emit = defineEmits<{ failed: [] }>();
 const matchingContributions = computed(() =>
   pluginSlots.value.filter((item) => item.slot === props.slotId),
 );
@@ -51,7 +50,7 @@ const actionContext = computed<PluginActionContext | undefined>(() => {
   return undefined;
 });
 
-onMounted(() => void refreshPluginExtensions({ background: true }));
+onMounted(() => void refreshPluginExtensions());
 </script>
 
 <template>
@@ -73,7 +72,6 @@ onMounted(() => void refreshPluginExtensions({ background: true }));
       :context="context"
       :action-context="actionContext"
       embedded
-      @failed="emit('failed')"
     />
   </section>
 </template>
@@ -86,7 +84,7 @@ onMounted(() => void refreshPluginExtensions({ background: true }));
 }
 .plugin-conflict {
   margin: 0;
-  color: var(--ui-accent-text);
+  color: #d8a15e;
   font-size: 0.85rem;
 }
 </style>

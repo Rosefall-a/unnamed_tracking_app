@@ -12,9 +12,6 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse, Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from starlette.concurrency import run_in_threadpool
-
-from src.core.branding import load_branding, pwa_branding_icon
 from src.database.models.plugin_permissions import PluginPermissionGrant
 from src.database.session import get_db
 from src.plugin_api.contracts import PluginPwaDeclaration
@@ -31,21 +28,6 @@ client = PluginRuntimeClient()
 _DB = Depends(get_db)
 _ASSETS = Path(__file__).with_name("pwa_assets")
 _HEADERS = {"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"}
-_OFFLINE_CSP = (
-    "default-src 'none'; style-src 'self' 'unsafe-inline'; "
-    "script-src 'unsafe-inline'; img-src 'self'; font-src 'self'"
-)
-
-
-def host_asset_revision() -> str:
-    """Retire cached reconnect pages when reviewed host assets or policy change."""
-    digest = hashlib.sha256(_OFFLINE_CSP.encode())
-    for name in ("service-worker.js", "offline.html"):
-        digest.update((_ASSETS / name).read_bytes())
-    return digest.hexdigest()
-
-
-_HOST_ASSET_REVISION = host_asset_revision()
 
 
 async def provider(db: AsyncSession) -> dict[str, Any] | None:
@@ -80,31 +62,12 @@ async def provider(db: AsyncSession) -> dict[str, Any] | None:
         raise HTTPException(
             status_code=409, detail="Multiple PWA providers are enabled; enable only one"
         )
-    if not candidates:
-        return None
-    return {**candidates[0], "branding": await load_branding(db)}
+    return candidates[0] if candidates else None
 
 
 def generation(plugin: dict[str, Any]) -> str:
-    """Bind cache identity to the installation, branding and reviewed host assets."""
-    identity = [
-        plugin["plugin_id"],
-        plugin["installation_id"],
-        plugin["version"],
-        plugin["digest"],
-        _HOST_ASSET_REVISION,
-    ]
-    branding = plugin.get("branding")
-    if branding and (
-        branding.branding_name or branding.branding_logo_png or branding.branding_favicon_png
-    ):
-        identity.extend(
-            [
-                branding.branding_name,
-                hashlib.sha256(branding.branding_logo_png or b"").hexdigest(),
-                hashlib.sha256(branding.branding_favicon_png or b"").hexdigest(),
-            ]
-        )
+    """Bind browser assets/cache identity to installation, version and payload."""
+    identity = [plugin["plugin_id"], plugin["installation_id"], plugin["version"], plugin["digest"]]
     return hashlib.sha256(json.dumps(identity).encode()).hexdigest()
 
 
@@ -154,15 +117,13 @@ async def manifest(db: AsyncSession = _DB) -> Response:
         raise HTTPException(status_code=404, detail="PWA plugin is not enabled")
     await checked_assets(plugin)
     declaration = plugin["declaration"]
-    branding = plugin.get("branding")
-    name = branding.branding_name if branding else None
     data = {
         "id": "/",
         "start_url": "/?pwa=1",
         "scope": "/",
         "display": "standalone",
-        "name": name or declaration.name,
-        "short_name": name or declaration.short_name,
+        "name": declaration.name,
+        "short_name": declaration.short_name,
         "theme_color": declaration.theme_color,
         "background_color": declaration.background_color,
         "icons": [
@@ -185,13 +146,6 @@ async def icon(revision: str, size: int, db: AsyncSession = _DB) -> Response:
     if plugin is None or revision != generation(plugin) or size not in {192, 512}:
         raise HTTPException(status_code=404, detail="PWA icon not available")
     files = await checked_assets(plugin)
-    branding = plugin.get("branding")
-    image = (branding.branding_logo_png or branding.branding_favicon_png) if branding else None
-    if image:
-        content = await run_in_threadpool(
-            pwa_branding_icon, image, size, plugin["declaration"].background_color
-        )
-        return Response(content, media_type="image/png", headers=_HEADERS)
     return Response(files[f"pwa/icon-{size}.png"], media_type="image/png", headers=_HEADERS)
 
 
@@ -203,7 +157,9 @@ async def offline() -> Response:
         media_type="text/html",
         headers={
             **_HEADERS,
-            "Content-Security-Policy": _OFFLINE_CSP,
+            "Content-Security-Policy": (
+                "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'"
+            ),
         },
     )
 

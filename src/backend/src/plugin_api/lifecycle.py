@@ -18,14 +18,12 @@ from pathlib import Path
 from typing import Awaitable, Mapping, Protocol
 from uuid import UUID, uuid4
 
-from .compatibility import is_legacy_contract, legacy_plugin_allowed
 from .contracts import (
     CompatibilityStatus,
     IntegrityMetadata,
     PluginManifest,
     PluginUiDeclaration,
     StorageRequirements,
-    plugin_contract_compatibility_reason,
     resolve_plugin_dependencies,
 )
 from .updates import (
@@ -60,28 +58,12 @@ class RuntimeUnavailable(RuntimeError):
 
 def plugin_contributions_active(plugin: Mapping[str, object]) -> bool:
     """Enablement is a preference; contributions require a live, healthy runtime."""
-    if not plugin_contract_active(plugin):
-        return False
     return bool(
         plugin.get("enabled") is True
         and plugin.get("compatible") is True
         and plugin.get("status") == LifecycleState.RUNNING
         and plugin.get("health") in {"healthy", "unknown"}
     )
-
-
-def plugin_contract_active(plugin: Mapping[str, object]) -> bool:
-    """Missing metadata remains legacy, including cached runtime responses."""
-    try:
-        return plugin_contract_compatibility_reason(
-            str(plugin.get("api_contract_version", "1.0.0"))
-        ) is None or (
-            plugin.get("legacy_compatibility") is True
-            and is_legacy_contract(str(plugin.get("api_contract_version", "1.0.0")))
-            and legacy_plugin_allowed(str(plugin.get("plugin_id", "")), plugin)
-        )
-    except ValueError:
-        return False
 
 
 class RuntimeController(Protocol):
@@ -156,6 +138,8 @@ class Sha256PackageVerifier:
 
         if not package_path.is_dir():
             return False
+
+        from .updates import canonical_payload_digest
 
         entries: list[tuple[str, bytes]] = []
         try:
@@ -298,12 +282,7 @@ class PluginLifecycleManager:
             if decision.status == CompatibilityStatus.INCOMPATIBLE
             else LifecycleState.DISCOVERED
         )
-        record = PluginRecord(
-            manifest=verified.manifest,
-            package_path=package_path,
-            state=state,
-            last_error=decision.reason if state == LifecycleState.INCOMPATIBLE else None,
-        )
+        record = PluginRecord(manifest=verified.manifest, package_path=package_path, state=state)
         self._records[record.manifest.plugin_id] = record
         self._log(
             "info", "package_discovered", record.manifest.plugin_id, "verified package discovered"
@@ -324,12 +303,7 @@ class PluginLifecycleManager:
             if decision.status == CompatibilityStatus.INCOMPATIBLE
             else LifecycleState.DISCOVERED
         )
-        return PluginRecord(
-            manifest=manifest,
-            package_path=package_path,
-            state=state,
-            last_error=decision.reason if state == LifecycleState.INCOMPATIBLE else None,
-        )
+        return PluginRecord(manifest=manifest, package_path=package_path, state=state)
 
     @staticmethod
     def _invalid_record(plugin_id: str | None, manifest_path: Path, error: str) -> PluginRecord:
@@ -705,7 +679,6 @@ __all__ = [
     "PluginLifecycleManager",
     "PluginRecord",
     "plugin_contributions_active",
-    "plugin_contract_active",
     "RuntimeController",
     "RuntimeUnavailable",
     "Sha256PackageVerifier",

@@ -16,24 +16,10 @@ from urllib.parse import urljoin, urlparse
 import httpx
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
-from starlette.datastructures import UploadFile as StarletteUploadFile
-
 from src.core.auth import verify_password
 from src.database.models.user import User
 from src.database.session import get_db
 from src.plugin_api.capabilities import capability_children, capability_definition
-from src.plugin_api.compatibility import (
-    LEGACY_WARNING,
-    is_legacy_contract,
-    legacy_plugin_allowed,
-    manifest_compatibility_checks,
-)
-from src.plugin_api.contracts import (
-    PLUGIN_API_CONTRACT_VERSION,
-    CompatibilityStatus,
-    evaluate_manifest_compatibility,
-    parse_semver,
-)
 from src.plugin_api.installer import (
     DependencyPlan,
     InspectedPackage,
@@ -44,8 +30,6 @@ from src.plugin_api.installer import (
     plan_dependencies,
 )
 from src.plugin_api.management_auth import get_plugin_manager_admin
-from src.plugin_api.manager_state import manager_state
-from src.plugin_api.package_metadata import package_readme
 from src.plugin_api.publisher_trust import PublisherTrustError, load_trusted_publishers
 from src.plugin_api.runtime_client import PluginRuntimeRequestError, PluginRuntimeUnavailable
 from src.plugin_api.updates import (
@@ -53,6 +37,7 @@ from src.plugin_api.updates import (
     PackageVerificationError,
     PluginPackageVerifier,
 )
+from starlette.datastructures import UploadFile as StarletteUploadFile
 
 from . import catalogues, models, runtime, updates
 
@@ -67,6 +52,15 @@ _REMOTE_FETCH_TIMEOUT = httpx.Timeout(20.0, connect=5.0)
 
 
 _MAX_REMOTE_REDIRECTS = 3
+
+
+_PLUGIN_ADMIN = Depends(get_plugin_manager_admin)
+_APPROVED_PERMISSIONS_QUERY = Query(default=None)
+_PLUGIN_DB = Depends(get_db)
+_OPTIONAL_PLUGIN_UPLOAD = File(default=None)
+_PLUGIN_UPLOAD = File(...)
+_ADMIN_PASSWORD_FORM = Form(default=None)
+_CONFIRM_DANGEROUS_QUERY = Query(default=False)
 
 
 def _plugin_package_verifier() -> PluginPackageVerifier:
@@ -249,22 +243,6 @@ def _install_preview(
 ) -> dict[str, Any]:
     manifest = inspected.package.manifest
     trust = inspected.trust
-    allow_legacy = legacy_plugin_allowed(
-        manifest.plugin_id, manager_state().read()["plugins"].get(manifest.plugin_id)
-    )
-    compatibility = evaluate_manifest_compatibility(
-        manifest,
-        os.getenv("PLUGIN_SDK_VERSION", PLUGIN_API_CONTRACT_VERSION),
-        os.getenv("PLUGIN_APPLICATION_VERSION", "1.0.0"),
-        allow_legacy=allow_legacy,
-    )
-    checks = manifest_compatibility_checks(
-        manifest,
-        os.getenv("PLUGIN_SDK_VERSION", PLUGIN_API_CONTRACT_VERSION),
-        os.getenv("PLUGIN_APPLICATION_VERSION", "1.0.0"),
-        allow_legacy=allow_legacy,
-    )
-    legacy = allow_legacy and is_legacy_contract(manifest.api_contract_version)
     readme = None
     icon = manifest.icon
     if inspected.package.package_path.exists():
@@ -280,7 +258,16 @@ def _install_preview(
                         archive.read(name)
                     ).decode("ascii")
                     break
-            readme = package_readme(archive)
+            readme_name = next(
+                (
+                    name
+                    for name in archive.namelist()
+                    if name.lower() in {"payload/readme.md", "payload/readme.txt"}
+                ),
+                None,
+            )
+            if readme_name:
+                readme = archive.read(readme_name)[: 128 * 1024].decode("utf-8", errors="replace")
     dependency_items = (
         [
             {
@@ -328,17 +315,7 @@ def _install_preview(
         "trust_warning": trust.warning,
         "signature_present": trust.signature_present,
         "signature_verified": trust.signature_verified,
-        "installable": trust.installable and compatibility.status == CompatibilityStatus.COMPATIBLE,
-        "api_contract_version": manifest.api_contract_version,
-        "host_api_contract_version": PLUGIN_API_CONTRACT_VERSION,
-        "host_sdk_version": os.getenv("PLUGIN_SDK_VERSION", PLUGIN_API_CONTRACT_VERSION),
-        "host_application_version": os.getenv("PLUGIN_APPLICATION_VERSION", "1.0.0"),
-        "compatibility_reason": compatibility.reason
-        if compatibility.status != CompatibilityStatus.COMPATIBLE
-        else "",
-        "compatibility_checks": checks,
-        "legacy_compatibility": legacy,
-        "compatibility_warning": LEGACY_WARNING if legacy else None,
+        "installable": trust.installable,
         "sdk_version_range": manifest.sdk_version_range,
         "application_version_range": manifest.application_version_range,
         "dependencies": dependency_items,
@@ -412,66 +389,43 @@ async def _validate_catalogue_candidate(
     entries = await catalogues.plugin_catalog(source=request.catalogue_url, user=admin)
     manifest = inspected.package.manifest
     entry = next((item for item in entries if item.plugin_id == manifest.plugin_id), None)
-    release = (
-        entry
-        if entry and entry.version == manifest.version
-        else next((item for item in entry.releases if item.version == manifest.version), None)
-        if entry
-        else None
-    )
     if (
-        release is None
-        or release.url != request.url
-        or release.digest
-        and release.digest.lower() != manifest.integrity.sha256.lower()
-        or release.package_sha256
-        and release.package_sha256.lower() != hashlib.sha256(path.read_bytes()).hexdigest()
+        entry is None
+        or entry.url != request.url
+        or entry.version != manifest.version
+        or entry.digest
+        and entry.digest.lower() != manifest.integrity.sha256.lower()
+        or entry.package_sha256
+        and entry.package_sha256.lower() != hashlib.sha256(path.read_bytes()).hexdigest()
     ):
         raise HTTPException(409, "Catalogue release and package identity or hashes differ.")
     return entries
 
 
-def _acquisition_source(
-    request: models.PluginInstallUrl,
-    inspected: InspectedPackage,
-    entries: list[models.PluginCatalogEntry],
-) -> dict[str, Any]:
-    """Historical selection is derived from checked catalogue data, never a client flag."""
-    source: dict[str, Any] = {
-        "type": request.source_type,
-        "url": request.url,
-        "catalogue_url": request.catalogue_url,
-        "release_notes": request.release_notes,
-        "changelog_url": request.changelog_url,
-    }
-    manifest = inspected.package.manifest
-    entry = next((item for item in entries if item.plugin_id == manifest.plugin_id), None)
-    if entry is not None:
-        source["latest_version"] = entry.version
-        source["version_pin"] = (
-            manifest.version
-            if parse_semver(manifest.version) < parse_semver(entry.version)
-            else None
-        )
-    return source
-
-
 @router.post("/install/preview-url")
 async def preview_plugin_install_url(
-    request: models.PluginInstallUrl, admin: User = Depends(get_plugin_manager_admin)
+    request: models.PluginInstallUrl, admin: User = _PLUGIN_ADMIN
 ) -> dict[str, Any]:
     """Download and statically inspect a remote .utp/.zip package."""
     path: Path | None = None
     try:
         path, filename, total = await _download_remote_file(request.url)
         inspected = _inspect_install_candidate(path)
-        entries = await _validate_catalogue_candidate(path, inspected, request, admin)
-        available = [entry.model_dump() for entry in entries]
+        available = [
+            entry.model_dump()
+            for entry in await _validate_catalogue_candidate(path, inspected, request, admin)
+        ]
         dependencies = await _plan_candidate_dependencies(
             inspected.package.manifest,
             available=available,
         )
-        source = _acquisition_source(request, inspected, entries)
+        source = {
+            "type": request.source_type,
+            "url": request.url,
+            "catalogue_url": request.catalogue_url,
+            "release_notes": request.release_notes,
+            "changelog_url": request.changelog_url,
+        }
         return {
             **_install_preview(inspected, dependencies, source=source),
             "source_url": request.url,
@@ -487,9 +441,9 @@ async def preview_plugin_install_url(
 async def install_plugin_url(
     request: models.PluginInstallUrl,
     allow_untrusted: bool = False,
-    approved_permissions: list[str] | None = Query(default=None),
-    admin: User = Depends(get_plugin_manager_admin),
-    db: AsyncSession = Depends(get_db),
+    approved_permissions: list[str] | None = _APPROVED_PERMISSIONS_QUERY,
+    admin: User = _PLUGIN_ADMIN,
+    db: AsyncSession = _PLUGIN_DB,
 ) -> dict[str, Any]:
     """Download a remote package and send it through the same install/consent path."""
     path: Path | None = None
@@ -497,7 +451,7 @@ async def install_plugin_url(
     try:
         path, filename, _ = await _download_remote_file(request.url)
         inspected = _inspect_install_candidate(path)
-        entries = await _validate_catalogue_candidate(path, inspected, request, admin)
+        await _validate_catalogue_candidate(path, inspected, request, admin)
         upload = UploadFile(path.open("rb"), filename=filename)
         return await _install_plugin_package(
             upload,
@@ -506,7 +460,13 @@ async def install_plugin_url(
             admin_password=request.admin_password,
             confirm_dangerous=request.confirm_dangerous,
             expected_digest=request.expected_digest,
-            source_metadata=_acquisition_source(request, inspected, entries),
+            source_metadata={
+                "type": request.source_type,
+                "url": request.url,
+                "catalogue_url": request.catalogue_url,
+                "release_notes": request.release_notes,
+                "changelog_url": request.changelog_url,
+            },
             admin=admin,
             db=db,
         )
@@ -520,8 +480,8 @@ async def install_plugin_url(
 @router.post("/install/preview")
 async def preview_plugin_install(
     request: Request,
-    file: UploadFile | None = File(default=None),
-    admin: User = Depends(get_plugin_manager_admin),
+    file: UploadFile | None = _OPTIONAL_PLUGIN_UPLOAD,
+    admin: User = _PLUGIN_ADMIN,
 ) -> dict[str, Any]:
     """Statically inspect an upload for consent without installing or executing it."""
     del admin
@@ -551,13 +511,13 @@ async def preview_plugin_install(
 
 @router.post("/install", status_code=201)
 async def install_plugin(
-    file: UploadFile = File(...),
+    file: UploadFile = _PLUGIN_UPLOAD,
     allow_untrusted: bool = False,
-    approved_permissions: list[str] | None = Query(default=None),
-    admin_password: str | None = Form(default=None),
-    confirm_dangerous: bool = Query(default=False),
-    admin: User = Depends(get_plugin_manager_admin),
-    db: AsyncSession = Depends(get_db),
+    approved_permissions: list[str] | None = _APPROVED_PERMISSIONS_QUERY,
+    admin_password: str | None = _ADMIN_PASSWORD_FORM,
+    confirm_dangerous: bool = _CONFIRM_DANGEROUS_QUERY,
+    admin: User = _PLUGIN_ADMIN,
+    db: AsyncSession = _PLUGIN_DB,
 ) -> dict[str, Any]:
     return await _install_plugin_package(
         file,

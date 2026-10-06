@@ -109,13 +109,13 @@ function save() {
 .note-head h3 {
   margin: 0;
   font-size: 0.9rem;
-  font-weight: var(--ui-weight-title);
-  color: var(--ui-text);
+  font-weight: 800;
+  color: #f2f2f2;
 }
 .note-private {
   flex: 1;
   font-size: 0.72rem;
-  color: var(--ui-faint);
+  color: #666;
 }
 .note-text {
   margin: 0;
@@ -133,20 +133,20 @@ function save() {
   resize: none;
   overflow: hidden;
   padding: 12px 14px;
-  border-radius: var(--ui-radius-row);
-  border: 1px solid var(--ui-border);
-  background: var(--ui-surface);
-  color: var(--ui-text);
+  border-radius: 10px;
+  border: 1px solid #2a2a2a;
+  background: #1a1a1a;
+  color: #f2f2f2;
   font: inherit;
   font-size: 0.96rem;
   line-height: 1.7;
 }
 .note-input::placeholder {
-  color: var(--ui-faint);
+  color: #666;
 }
 .note-input:focus {
   outline: none;
-  border-color: color-mix(in srgb, var(--ui-accent) 70%, transparent);
+  border-color: rgba(214, 138, 52, 0.7);
 }
 .note-actions {
   display: flex;
@@ -157,7 +157,7 @@ function save() {
 .note-hint {
   margin-left: auto;
   font-size: 0.72rem;
-  color: var(--ui-faint);
+  color: #666;
 }
 .btn-text {
   background: none;
@@ -165,30 +165,30 @@ function save() {
   /* larger tap target without moving the text */
   padding: 6px 4px;
   margin: -6px -4px;
-  color: var(--ui-accent-text);
+  color: #d68a34;
   font-family: inherit;
   font-size: 0.82rem;
   font-weight: 700;
   cursor: pointer;
 }
 .btn-text:hover {
-  color: var(--ui-accent);
+  color: #e8a552;
 }
 .btn-text.muted {
-  color: var(--ui-dim);
+  color: #9c9c9c;
 }
 .btn-text.muted:hover {
-  color: var(--ui-text);
+  color: #f2f2f2;
 }
 .btn-solid {
-  background: var(--ui-accent);
+  background: #d68a34;
   border: none;
-  border-radius: var(--ui-radius-control);
+  border-radius: 8px;
   padding: 8px 18px;
-  color: var(--ui-on-accent);
+  color: #14100a;
   font-family: inherit;
   font-size: 0.82rem;
-  font-weight: var(--ui-weight-title);
+  font-weight: 800;
   cursor: pointer;
 }
 .btn-solid:hover {
@@ -196,7 +196,7 @@ function save() {
 }
 .btn-text:focus-visible,
 .btn-solid:focus-visible {
-  outline: 2px solid var(--ui-accent-text);
+  outline: 2px solid #d68a34;
   outline-offset: 3px;
   border-radius: 4px;
 }

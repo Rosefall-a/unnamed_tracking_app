@@ -6,22 +6,17 @@ import {
   reactive,
   watch,
   onMounted,
-  onActivated,
-  onDeactivated,
   onBeforeUnmount,
 } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import CheckIcon from "../CheckIcon.vue";
 import MediaTopBar from "../MediaTopBar.vue";
-import UiModal from "../UiModal.vue";
 import SegmentedTabs from "../SegmentedTabs.vue";
 import type { SegmentOption } from "../SegmentedTabs.vue";
 import { preferences } from "../../state/preferences";
 import { matchesFilters } from "../../utils/libraryFilters";
 import type { LibraryFilters } from "../../utils/libraryFilters";
 import { blurOnLeave } from "../../utils/blurOnLeave";
-import { PHONE_CARD_COLUMNS } from "../../utils/libraryLayout";
-import { quickTourActive } from "../../state/quickTour";
 import {
   STATUS_BUCKETS,
   statusBucket,
@@ -33,18 +28,64 @@ import {
 // Shows, and Anime without knowing about seasons, episode tables, or any
 // other per-entity detail — each Library.vue page adapts its real
 // entities into this shape and reacts to the events below.
-import type {
-  LibraryCardVM,
-  SearchResultVM,
-  QuickAddForm,
-  EditForm,
-} from "../../types/mediaLibrary";
-export type {
-  LibraryCardVM,
-  SearchResultVM,
-  QuickAddForm,
-  EditForm,
-} from "../../types/mediaLibrary";
+export interface LibraryCardVM {
+  id: string;
+  title: string;
+  poster: string | null;
+  status: string;
+  favorite: boolean;
+  score: number | null;
+  personalRank: number | null;
+  note: string | null;
+  genres: string[];
+  isEpisodic: boolean;
+  watched: number;
+  total: number | null;
+  progressLabel: string;
+  canAdvance: boolean;
+  // No real "currently airing" data source is wired up for any of the
+  // three entities yet (would need extending the TVmaze/AniList/TMDB
+  // clients) — the field and its always-rendered-but-invisible tag stay
+  // here so the capability and layout are ready the moment that data
+  // exists, matching the mockup exactly rather than dropping the feature.
+  airing?: boolean;
+  // The real sub-format (e.g. "TV", "Movie", "OVA") when the entity
+  // carries one — currently only Anime does (from AniList/Jikan). Falls
+  // back to the generic per-kind typeLabel below when absent.
+  format?: string | null;
+  // Release/first-air year, shown right under the format label — null
+  // when the underlying date is unknown.
+  releaseYear: string | null;
+  // when it was added to the library (ms), for sorting by recently added
+  addedAt?: number | null;
+  // other spellings of the title, so search finds any of them
+  altTitles?: string[];
+}
+
+export interface SearchResultVM {
+  title: string;
+  poster: string | null;
+  description: string | null;
+  episodeTotal: number | null;
+  releaseYear: string | null;
+}
+
+export interface QuickAddForm {
+  status: string;
+  watched: number;
+  seen: boolean;
+  score: number | null;
+  startDate: string | null;
+  endDate: string | null;
+}
+
+export interface EditForm {
+  status: string;
+  score: number | null;
+  watched: number;
+  totalEpisodes: number | null;
+  seen: boolean;
+}
 
 // The pill/tab labels shown everywhere in this view come from the shared
 // 5-value bucket set in utils/mediaStatus.ts — the pill's CSS modifier
@@ -174,22 +215,9 @@ const shelfCardMinWidth = computed(() => {
   if (shelfCardSize.value === "large") return "260px";
   return "200px";
 });
-const viewportWidth = ref(window.innerWidth);
-const libraryToolsOpen = ref(false);
-const compactControls = computed(
-  () =>
-    viewportWidth.value <= 760 &&
-    !libraryToolsOpen.value &&
-    !selectMode.value &&
-    !quickTourActive.value,
-);
-const shelfGridColumns = computed(() =>
-  viewportWidth.value <= 760
-    ? `repeat(${PHONE_CARD_COLUMNS[shelfCardSize.value]}, minmax(0, 1fr))`
-    : `repeat(auto-fill, minmax(${shelfCardMinWidth.value}, 1fr))`,
-);
-// Board rows fill the available width. S/M/L controls the minimum desktop
-// card width; phones retain their distinct 3/2/1 column counts.
+// Board's cards are fixed-width flex items (each status is its own
+// horizontally-scrolling row) rather than a minmax grid, so the same S/M/L
+// preference maps to an explicit width instead.
 const boardCardMinWidth = computed(() => {
   if (shelfCardSize.value === "compact") return 150;
   if (shelfCardSize.value === "large") return 260;
@@ -442,17 +470,14 @@ watch([searchQuery, sortKey, activeStatus, filters, layout], () => {
 
 const boardPageStarts = reactive<Record<string, number>>({});
 const boardViewportWidth = ref(0);
-const libraryContainer = ref<HTMLElement | null>(null);
-const boardVisibleCount = computed(() => {
-  if (viewportWidth.value <= 760)
-    return PHONE_CARD_COLUMNS[shelfCardSize.value];
-  return Math.max(
+const boardVisibleCount = computed(() =>
+  Math.max(
     1,
     Math.floor(
       (boardViewportWidth.value + 14) / (boardCardMinWidth.value + 14),
     ) || 1,
-  );
-});
+  ),
+);
 function resetBoardPages() {
   Object.keys(boardPageStarts).forEach((key) => delete boardPageStarts[key]);
 }
@@ -476,42 +501,17 @@ watch([activeStatus, filters], () => {
 });
 watch(boardViewportWidth, resetBoardPages);
 function updateBoardViewport() {
-  viewportWidth.value = window.innerWidth;
-  const element = libraryContainer.value;
-  if (!element) return;
-  const style = getComputedStyle(element);
-  boardViewportWidth.value =
-    element.clientWidth -
-    parseFloat(style.paddingLeft) -
-    parseFloat(style.paddingRight);
+  const shelf = document.querySelector<HTMLElement>(".board-shelf");
+  boardViewportWidth.value = shelf?.clientWidth ?? 0;
 }
-let measureFrame = 0;
-const libraryObserver = new ResizeObserver(() => {
-  cancelAnimationFrame(measureFrame);
-  measureFrame = requestAnimationFrame(updateBoardViewport);
-});
-onMounted(() => {
-  updateBoardViewport();
-  if (libraryContainer.value) libraryObserver.observe(libraryContainer.value);
-});
-onActivated(() => {
-  updateBoardViewport();
-  window.addEventListener("resize", updateBoardViewport);
-  if (libraryContainer.value) libraryObserver.observe(libraryContainer.value);
-});
-onDeactivated(() => {
-  window.removeEventListener("resize", updateBoardViewport);
-  libraryObserver.disconnect();
-  cancelAnimationFrame(measureFrame);
-});
+onMounted(updateBoardViewport);
 watch([shelfCardSize, layout], () =>
   requestAnimationFrame(updateBoardViewport),
 );
-onBeforeUnmount(() => {
-  window.removeEventListener("resize", updateBoardViewport);
-  libraryObserver.disconnect();
-  cancelAnimationFrame(measureFrame);
-});
+window.addEventListener("resize", updateBoardViewport);
+onBeforeUnmount(() =>
+  window.removeEventListener("resize", updateBoardViewport),
+);
 
 const boardGroups = computed(() => {
   const statuses =
@@ -593,13 +593,6 @@ function handleCardClick(it: LibraryCardVM) {
 }
 
 // ---- notes modal ----
-const cardActionsOpen = ref(false);
-const cardActionsTarget = ref<LibraryCardVM | null>(null);
-function openCardActions(it: LibraryCardVM) {
-  cardActionsTarget.value = it;
-  cardActionsOpen.value = true;
-}
-
 const noteOpen = ref(false);
 const noteTargetId = ref<string | null>(null);
 const noteText = ref("");
@@ -829,7 +822,7 @@ defineExpose({ openQuickAdd });
 </script>
 
 <template>
-  <div class="lib-root" :class="{ 'compact-controls': compactControls }">
+  <div class="lib-root">
     <MediaTopBar :active="kind">
       <template #actions>
         <SegmentedTabs
@@ -841,7 +834,7 @@ defineExpose({ openQuickAdd });
       </template>
     </MediaTopBar>
 
-    <div ref="libraryContainer" class="lib-inner">
+    <div class="lib-inner">
       <div class="page-head">
         <div>
           <h1>
@@ -853,17 +846,7 @@ defineExpose({ openQuickAdd });
             {{ total }} {{ total === 1 ? "title" : "titles" }}
           </div>
         </div>
-        <button
-          v-if="viewportWidth <= 760"
-          type="button"
-          class="btn-outline library-tools-toggle"
-          :aria-expanded="!compactControls"
-          :aria-label="compactControls ? 'Library controls' : 'Hide controls'"
-          @click="libraryToolsOpen = !libraryToolsOpen"
-        >
-          {{ compactControls ? "Controls" : "Hide controls" }}
-        </button>
-        <div class="head-actions" style="display: flex; gap: 8px">
+        <div style="display: flex; gap: 8px">
           <button
             type="button"
             class="select-btn"
@@ -877,7 +860,6 @@ defineExpose({ openQuickAdd });
             class="add-btn"
             :disabled="selectMode"
             @click="openQuickAdd"
-            data-shortcut="create"
           >
             {{ addLabel }}
           </button>
@@ -919,7 +901,6 @@ defineExpose({ openQuickAdd });
           </svg>
           <input
             v-model="searchQuery"
-            data-shortcut="search"
             placeholder="Search your library..."
             aria-label="Search your library"
           />
@@ -1259,7 +1240,7 @@ defineExpose({ openQuickAdd });
             v-else
             class="shelf-grid"
             :style="{
-              gridTemplateColumns: shelfGridColumns,
+              gridTemplateColumns: `repeat(auto-fill, minmax(${shelfCardMinWidth}, 1fr))`,
             }"
           >
             <div
@@ -1292,22 +1273,6 @@ defineExpose({ openQuickAdd });
                 >
 
                 <div v-if="!selectMode" class="sc-actions no-card-click">
-                  <button
-                    type="button"
-                    class="sc-action sc-more"
-                    :aria-label="`Actions for ${it.title}`"
-                    @click.stop="openCardActions(it)"
-                  >
-                    <svg
-                      viewBox="0 0 24 24"
-                      fill="currentColor"
-                      aria-hidden="true"
-                    >
-                      <circle cx="5" cy="12" r="2" />
-                      <circle cx="12" cy="12" r="2" />
-                      <circle cx="19" cy="12" r="2" />
-                    </svg>
-                  </button>
                   <button
                     v-if="it.canAdvance"
                     type="button"
@@ -1479,24 +1444,6 @@ defineExpose({ openQuickAdd });
                   <span v-if="computedRank(it)" class="board-rank rank-badge"
                     >#{{ computedRank(it) }}</span
                   >
-                  <div v-if="!selectMode" class="sc-actions no-card-click">
-                    <button
-                      type="button"
-                      class="sc-action sc-more"
-                      :aria-label="`Actions for ${it.title}`"
-                      @click.stop="openCardActions(it)"
-                    >
-                      <svg
-                        viewBox="0 0 24 24"
-                        fill="currentColor"
-                        aria-hidden="true"
-                      >
-                        <circle cx="5" cy="12" r="2" />
-                        <circle cx="12" cy="12" r="2" />
-                        <circle cx="19" cy="12" r="2" />
-                      </svg>
-                    </button>
-                  </div>
                 </div>
                 <div class="board-title-row">
                   <div class="board-title">{{ it.title }}</div>
@@ -1604,66 +1551,12 @@ defineExpose({ openQuickAdd });
     </div>
 
     <!-- ===== Notes modal ===== -->
-    <UiModal
-      v-if="cardActionsOpen"
-      @close="cardActionsOpen = false"
-      :title="`Actions for ${cardActionsTarget?.title ?? 'media'}`"
-    >
-      <div v-if="cardActionsTarget" class="compact-card-actions">
-        <button
-          v-if="cardActionsTarget.canAdvance"
-          type="button"
-          class="btn-outline"
-          @click="
-            cardActionsOpen = false;
-            advanceEpisode(cardActionsTarget);
-          "
-        >
-          Mark next episode watched
-        </button>
-        <button
-          type="button"
-          class="btn-outline"
-          @click="
-            cardActionsOpen = false;
-            emit('toggle-favorite', cardActionsTarget.id);
-          "
-        >
-          {{ cardActionsTarget.favorite ? "Remove favorite" : "Add favorite" }}
-        </button>
-        <button
-          type="button"
-          class="btn-outline"
-          @click="
-            cardActionsOpen = false;
-            openNote(cardActionsTarget);
-          "
-        >
-          {{ cardActionsTarget.note ? "Edit note" : "Add note" }}
-        </button>
-        <button
-          type="button"
-          class="btn-outline"
-          @click="
-            cardActionsOpen = false;
-            openEdit(cardActionsTarget);
-          "
-        >
-          Edit media
-        </button>
-      </div>
-    </UiModal>
-
-    <UiModal
-      v-if="noteOpen"
-      title="Notes"
-      description="Only visible to you."
-      @close="closeNote"
-    >
-      <div class="media-modal-content">
+    <div v-if="noteOpen" class="modal-overlay" @click.self="closeNote">
+      <div class="modal-card">
+        <h3>Notes</h3>
+        <div class="sub">Only visible to you.</div>
         <textarea
           v-model="noteText"
-          aria-label="Personal media notes"
           placeholder="Nothing written yet: first impressions, things to remember, why you dropped it..."
         ></textarea>
         <div class="modal-actions">
@@ -1675,16 +1568,11 @@ defineExpose({ openQuickAdd });
           </button>
         </div>
       </div>
-    </UiModal>
+    </div>
 
     <!-- ===== "You finished it" rating prompt ===== -->
-    <UiModal
-      v-if="finishOpen"
-      title="Rating"
-      description="Give it a rating, or skip for now."
-      @close="closeFinish"
-    >
-      <div class="media-modal-content finish-card">
+    <div v-if="finishOpen" class="modal-overlay" @click.self="closeFinish">
+      <div class="modal-card finish-card">
         <div
           v-if="finishPoster"
           class="finish-poster"
@@ -1693,18 +1581,11 @@ defineExpose({ openQuickAdd });
         <div class="finish-body">
           <div class="finish-eyebrow">You finished it</div>
           <h3>{{ finishTitle }}</h3>
-
+          <div class="sub">Give it a rating, or skip for now.</div>
           <div class="decimal-rate finish-rate">
-            <button
-              type="button"
-              aria-label="Decrease rating"
-              @click="stepFinishScore(-0.5)"
-            >
-              −
-            </button>
+            <button type="button" @click="stepFinishScore(-0.5)">−</button>
             <input
               v-model.number="finishScore"
-              aria-label="Completion rating"
               type="number"
               min="0"
               max="10"
@@ -1712,13 +1593,7 @@ defineExpose({ openQuickAdd });
               placeholder="–"
             />
             <span class="of10">/ 10</span>
-            <button
-              type="button"
-              aria-label="Increase rating"
-              @click="stepFinishScore(0.5)"
-            >
-              +
-            </button>
+            <button type="button" @click="stepFinishScore(0.5)">+</button>
           </div>
           <div class="modal-actions">
             <button type="button" class="btn-outline" @click="closeFinish">
@@ -1730,16 +1605,13 @@ defineExpose({ openQuickAdd });
           </div>
         </div>
       </div>
-    </UiModal>
+    </div>
 
     <!-- ===== Small edit modal ===== -->
-    <UiModal
-      v-if="editOpen"
-      title="Quick edit"
-      description="Update status, rating and progress."
-      @close="closeEdit"
-    >
-      <div class="media-modal-content">
+    <div v-if="editOpen" class="modal-overlay" @click.self="closeEdit">
+      <div class="modal-card">
+        <h3>Edit</h3>
+        <div class="sub">Quick edit: status, rating, progress.</div>
         <div class="qa-field-grid">
           <label class="qa-field">
             <span>Status</span>
@@ -1789,23 +1661,32 @@ defineExpose({ openQuickAdd });
           </button>
         </div>
       </div>
-    </UiModal>
+    </div>
 
     <!-- ===== Quick Add ===== -->
-    <UiModal
-      v-if="quickAddOpen"
-      :title="addLabel.replace('+ ', '')"
-      description="Search, then pick the right result."
-      size="wide"
-      @close="closeQuickAdd"
-    >
-      <div class="media-modal-content qa-card">
+    <div v-if="quickAddOpen" class="modal-overlay" @click.self="closeQuickAdd">
+      <div class="modal-card qa-card">
         <div v-if="quickAddStep === 'search'">
+          <div class="qa-header">
+            <div class="qa-header-row">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+              >
+                <circle cx="11" cy="11" r="7" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
+              <h3>{{ addLabel.replace("+ ", "") }}</h3>
+            </div>
+            <div class="sub">Search, then pick the right result.</div>
+          </div>
           <div class="qa-body">
             <div class="qa-search-row">
               <input
                 v-model="quickAddQuery"
-                aria-label="Search media by title"
                 autofocus
                 placeholder="Search by title..."
                 @keyup.enter="runQuickAddSearch"
@@ -1966,7 +1847,7 @@ defineExpose({ openQuickAdd });
           </div>
         </div>
       </div>
-    </UiModal>
+    </div>
   </div>
 </template>
 

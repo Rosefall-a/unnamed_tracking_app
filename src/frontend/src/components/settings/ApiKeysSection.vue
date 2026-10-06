@@ -185,7 +185,7 @@ onMounted(loadKeys);
 
 <style scoped>
 .section {
-  color: var(--ui-text);
+  color: #fff;
 }
 
 .section-header {
@@ -193,10 +193,8 @@ onMounted(loadKeys);
 }
 
 h2 {
-  margin: 0 0 12px;
-  font: var(--ui-weight-heading) var(--ui-font-heading)/1.4
-    var(--ui-font-family);
-  color: var(--ui-text);
+  margin: 0 0 8px;
+  font-size: 1.35rem;
 }
 
 h3 {
@@ -206,17 +204,17 @@ h3 {
 
 p {
   margin: 0;
-  color: color-mix(in srgb, var(--ui-text) 68%, transparent);
+  color: rgba(255, 255, 255, 0.68);
   line-height: 1.5;
 }
 
 .notice {
   margin-bottom: 24px;
   padding: 12px 14px;
-  border: 1px solid color-mix(in srgb, var(--ui-text) 10%, transparent);
-  border-radius: var(--ui-radius-control);
-  background: color-mix(in srgb, var(--ui-text) 3.5%, transparent);
-  color: color-mix(in srgb, var(--ui-text) 75%, transparent);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.035);
+  color: rgba(255, 255, 255, 0.75);
   font-size: 0.9rem;
 }
 
@@ -240,24 +238,24 @@ input {
   flex: 1;
   min-width: 0;
   padding: 10px 12px;
-  border: 1px solid var(--ui-border);
+  border: 1px solid #383838;
   border-radius: 7px;
-  background: var(--ui-bg);
-  color: var(--ui-text);
+  background: #111;
+  color: #fff;
   font: inherit;
 }
 
 input:focus {
   outline: none;
-  border-color: var(--ui-accent);
+  border-color: #666;
 }
 
 button {
   padding: 10px 14px;
   border: 0;
   border-radius: 7px;
-  background: var(--ui-accent);
-  color: var(--ui-on-accent);
+  background: #fff;
+  color: #111;
   font: inherit;
   font-weight: 600;
   cursor: pointer;
@@ -275,22 +273,22 @@ button:disabled {
 
 .secondary {
   margin-top: 12px;
-  background: color-mix(in srgb, var(--ui-text) 10%, transparent);
-  color: var(--ui-text);
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
 }
 
 .danger {
   border: 1px solid rgba(255, 143, 143, 0.25);
   background: transparent;
-  color: var(--ui-error);
+  color: #ff8f8f;
 }
 
 .created-key {
   margin-bottom: 32px;
   padding: 16px;
-  border: 1px solid color-mix(in srgb, var(--ui-text) 14%, transparent);
+  border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 9px;
-  background: color-mix(in srgb, var(--ui-text) 4%, transparent);
+  background: rgba(255, 255, 255, 0.04);
 }
 
 .created-key :deep(.password-input-field) {
@@ -311,8 +309,8 @@ code {
   overflow-x: auto;
   padding: 12px;
   border-radius: 6px;
-  background: var(--ui-bg);
-  color: var(--ui-text);
+  background: #0d0d0d;
+  color: #fff;
   font:
     0.85rem/1.5 ui-monospace,
     SFMono-Regular,
@@ -335,7 +333,7 @@ code {
 }
 
 .key-list {
-  border-top: 1px solid var(--ui-border);
+  border-top: 1px solid #2a2a2a;
 }
 
 .key-row {
@@ -344,7 +342,7 @@ code {
   justify-content: space-between;
   gap: 16px;
   padding: 14px 0;
-  border-bottom: 1px solid var(--ui-border);
+  border-bottom: 1px solid #2a2a2a;
 }
 
 .key-row strong,
@@ -354,7 +352,7 @@ code {
 
 .key-row span {
   margin-top: 4px;
-  color: color-mix(in srgb, var(--ui-text) 50%, transparent);
+  color: rgba(255, 255, 255, 0.5);
   font-size: 0.82rem;
 }
 

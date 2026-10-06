@@ -138,13 +138,7 @@ def prepare_releases(plugins_root, work):
             root / name,
             ignore=shutil.ignore_patterns("__pycache__"),
         )
-    for name in (
-        "jellyfin-media-sync",
-        "help-button",
-        "theme-palettes",
-        "home-widgets",
-        "scoped-document-viewer",
-    ):
+    for name in ("jellyfin-media-sync", "help-button"):
         shutil.copytree(
             plugins_root / "examples" / name,
             root / "examples" / name,
@@ -175,7 +169,6 @@ def prepare_releases(plugins_root, work):
         ).hexdigest(),
         "status": "active",
         "plugin_id_prefixes": ["example."],
-        "channel": "demo",
     }
     (root / "publishers/integration.public-key.b64").write_text(public)
     (root / "publishers/registry.json").write_text(
@@ -359,7 +352,8 @@ def acceptance(plugins_root, work, browser=False):
     def launch(mode, port):
         log = (work / f"{mode}-{len(logs)}.log").open("w")
         logs.append(log)
-        command = [
+        process = subprocess.Popen(
+            [
                 sys.executable,
                 __file__,
                 "--work-root",
@@ -368,20 +362,7 @@ def acceptance(plugins_root, work, browser=False):
                 mode,
                 "--port",
                 str(port),
-            ]
-        if mode == "host" and os.getenv("PLUGIN_ACCEPTANCE_ISOLATE_HOST_DATA") == "true":
-            data = work / "host-data"
-            data.mkdir(exist_ok=True)
-            command = [
-                "bwrap", "--tmpfs", "/", "--ro-bind", "/usr", "/usr",
-                "--ro-bind", "/etc", "/etc", "--ro-bind", "/lib", "/lib",
-                "--ro-bind", "/lib64", "/lib64", "--ro-bind", "/bin", "/bin",
-                "--ro-bind", "/sbin", "/sbin", "--proc", "/proc", "--dev", "/dev",
-                "--bind", "/tmp", "/tmp", "--ro-bind", "/mnt", "/mnt",
-                "--bind", str(data), "/data", "--", *command,
-            ]
-        process = subprocess.Popen(
-            command,
+            ],
             env=env,
             cwd=HOST / "src/backend",
             stdout=log,
@@ -416,13 +397,6 @@ def acceptance(plugins_root, work, browser=False):
         )
         assert result.returncode == 0, result.stdout + result.stderr
         print(result.stdout, flush=True)
-        if phase == "install":
-            extensions = subprocess.run(
-                ["node", str(HOST / "tools/check_plugin_appearance_ui.mjs"), str(plugins_root)],
-                env=env, capture_output=True, check=False, text=True,
-            )
-            assert extensions.returncode == 0, extensions.stdout + extensions.stderr
-            print(extensions.stdout, flush=True)
 
     runtime = launch("runtime", runtime_port)
     host = launch("host", host_port)
@@ -522,60 +496,28 @@ def acceptance(plugins_root, work, browser=False):
                 "catalogue_url": "https://raw.githubusercontent.com/Rosefall-a/unnamed_tracking_app_plugins/main/list.json",
             }
             live_preview = request("POST", "/install/preview-url", json=live_source)
-            if live_preview["api_contract_version"] == "1.0.0":
-                assert live_preview["installable"] is True
-                assert live_preview["legacy_compatibility"] is True
-                assert "old v1.0 UI" in live_preview["compatibility_warning"]
-                assert (
-                    next(
-                        check
-                        for check in live_preview["compatibility_checks"]
-                        if check["key"] == "api_contract"
-                    )["status"]
-                    == "limited"
-                )
-                request(
-                    "POST",
-                    "/install/url",
-                    201,
-                    params={
-                        "approved_permissions": [p["key"] for p in live_preview["permissions"]]
-                    },
-                    json={**live_source, "admin_password": PASSWORD, "confirm_dangerous": True},
-                )
-                conformance.assert_ready()
-                assert current()["legacy_compatibility"] is True
-                legacy_ui = request("GET", f"/{PLUGIN}/ui")
-                assert not legacy_ui["native_frontend"]
-                assert not legacy_ui["themes"] and not legacy_ui["shortcuts"]
-                request("DELETE", f"/{PLUGIN}", 204)
-                assert not request("GET", "")
-                checkpoint(
-                    "verified shipped legacy release warns, runs its backend and retains no v1.1 native UI features"
-                )
-            else:
-                request(
-                    "POST",
-                    "/install/url",
-                    201,
-                    params={
-                        "approved_permissions": [
-                            p["key"] for p in live_preview["permissions"]
-                        ]
-                    },
-                    json=live_source,
-                )
-                assert current()["status"] == "running" and current()["health"] == "healthy"
-                conformance.assert_ready()
-                assert current()["version"] == live_release["version"]
-                assert current()["source"]["type"] == "catalogue"
-                assert request("GET", f"/{PLUGIN}/ui")["native_frontend"]
-                request("DELETE", f"/{PLUGIN}", 204)
-                print(
-                    "Live official Jellyfin package installation and healthy startup: passed",
-                    flush=True,
-                )
-                checkpoint("live official package install, gateway readiness and native UI")
+            request(
+                "POST",
+                "/install/url",
+                201,
+                params={
+                    "approved_permissions": [
+                        p["key"] for p in live_preview["permissions"]
+                    ]
+                },
+                json=live_source,
+            )
+            assert current()["status"] == "running" and current()["health"] == "healthy"
+            conformance.assert_ready()
+            assert current()["version"] == live_release["version"]
+            assert current()["source"]["type"] == "catalogue"
+            assert request("GET", f"/{PLUGIN}/ui")["native_frontend"]
+            request("DELETE", f"/{PLUGIN}", 204)
+            print(
+                "Live official Jellyfin package installation and healthy startup: passed",
+                flush=True,
+            )
+            checkpoint("live official package install, gateway readiness and native UI")
             request(
                 "POST",
                 "/catalogues",
@@ -923,13 +865,8 @@ def acceptance(plugins_root, work, browser=False):
             preserved()
             request("POST", f"/{PLUGIN}/rollback", json={})
             assert current()["version"] == entry["version"]
-            assert current()["version_pin"] == entry["version"]
-            assert current()["automatic_updates"] == "disabled"
             preserved()
             request("POST", f"/{PLUGIN}/update/url", json=source(second))
-            assert current()["version_pin"] is None
-            assert current()["automatic_updates"] == "disabled"
-            request("PUT", f"/{PLUGIN}/auto-update", json={"mode": "follow"})
             request(
                 "PUT",
                 "/manager-settings",
@@ -1125,26 +1062,6 @@ def acceptance(plugins_root, work, browser=False):
             checkpoint(
                 "revocation/regrant, management-token scope confinement, purge and uninstall"
             )
-            # Published historical archives retain their package identity and
-            # signature. Selecting one must not immediately advance it again.
-            historical_preview = request("POST", "/install/preview-url", json=source(entry))
-            assert historical_preview["source"]["version_pin"] == entry["version"]
-            request("PUT", "/manager-settings", json={"automatic_updates": True, "retained_versions": 2})
-            if browser:
-                request("PATCH", "/catalogues/official", json={"enabled": False})
-                browser_check("historical", historical_preview)
-            else:
-                request("POST", "/install/url", 201, params={"approved_permissions": keys}, json=source(entry))
-            assert current()["version_pin"] == entry["version"]
-            assert current()["automatic_updates"] == "disabled"
-            assert automatic()["installed"] == 0
-            assert current()["version"] == entry["version"] and current()["status"] == "running"
-            request("POST", f"/{PLUGIN}/reinstall", json={})
-            assert current()["version_pin"] == entry["version"]
-            resumed = request("PUT", f"/{PLUGIN}/auto-update", json={"mode": "follow"})
-            assert resumed["version_pin"] is None
-            request("DELETE", f"/{PLUGIN}", 204)
-            checkpoint("historical signed release installs pinned; global updates, reinstall and explicit resume")
             report["status"] = "passed"
             (work / "conformance.json").write_text(json.dumps(report, indent=2) + "\n")
     finally:

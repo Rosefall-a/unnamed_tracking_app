@@ -1,6 +1,3 @@
-import type { SegmentOption } from "../components/SegmentedTabs.vue";
-import { matchesShortcut } from "../state/shortcuts";
-
 // A real month-grid calendar with three layers (episode airings, upcoming
 // Plan to Watch releases, and what you actually watched), an agenda view
 // for "what's next", and History folded in as a second tab. Grid cells hold
@@ -17,9 +14,8 @@ import {
   onDeactivated,
   watch,
 } from "vue";
-import { useRoute, useRouter } from "vue-router";
-import { blurOnLeave } from "../utils/blurOnLeave";
-
+import { useRouter } from "vue-router";
+import type { SegmentOption } from "../components/SegmentedTabs.vue";
 import {
   fetchCalendar,
   fetchActivity,
@@ -56,7 +52,6 @@ import { fetchAnime } from "../services/anime";
 import { displayTitle } from "../utils/displayTitle";
 export function useCalendar() {
   const router = useRouter();
-  const route = useRoute();
   const tab = ref<"calendar" | "history">("calendar");
   const calView = ref<"month" | "week" | "agenda">("month");
   const TAB_OPTIONS: SegmentOption[] = [
@@ -819,14 +814,8 @@ export function useCalendar() {
 
   // ---- keyboard: left and right change month or week, T goes to today ----
   function onKey(e: KeyboardEvent) {
-    if (
-      route.path !== "/calendar" ||
-      e.defaultPrevented ||
-      document.querySelector("dialog[open]")
-    )
-      return;
     if (tab.value !== "calendar" || calView.value === "agenda") return;
-    if (e.isComposing || e.repeat || e.getModifierState("AltGraph")) return;
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
     const target = e.target as HTMLElement | null;
     if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
     if (
@@ -836,24 +825,21 @@ export function useCalendar() {
       showFeed.value
     )
       return;
-    if (matchesShortcut("calendar.previous", e)) {
-      e.preventDefault();
+    if (e.key === "ArrowLeft") {
       if (calView.value === "month") prevMonth();
       else if (canWeekPrev.value) shiftWeek(-1);
-    } else if (matchesShortcut("calendar.next", e)) {
-      e.preventDefault();
+    } else if (e.key === "ArrowRight") {
       if (calView.value === "month") nextMonth();
       else if (canWeekNext.value) shiftWeek(1);
-    } else if (matchesShortcut("calendar.today", e)) {
-      e.preventDefault();
+    } else if (e.key.toLowerCase() === "t") {
       goToday();
     }
   }
   // Escape closes whichever dialog is open, like every other dialog in the app
   function onEscape(e: KeyboardEvent) {
     if (e.key !== "Escape") return;
-    if (showEventForm.value && !eventSaving.value) closeEventForm();
-    else if (showManualForm.value && !manualSaving.value) closeManualForm();
+    if (showEventForm.value) closeEventForm();
+    else if (showManualForm.value) closeManualForm();
     else if (showFeed.value) showFeed.value = false;
   }
   function listen() {
@@ -1150,7 +1136,6 @@ export function useCalendar() {
   }
 
   return {
-    blurOnLeave,
     tab,
     calView,
     TAB_OPTIONS,

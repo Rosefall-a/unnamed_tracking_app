@@ -14,7 +14,6 @@ from .capabilities import (
 )
 from .contracts import (
     API_VERSION,
-    PLUGIN_API_CONTRACT_VERSION,
     ApiVersion,
     BackendRouteAuthorization,
     BackendRouteMethod,
@@ -54,7 +53,6 @@ from .contracts import (
     evaluate_manifest_compatibility,
     migrate_manifest_data,
     parse_semver,
-    plugin_contract_compatibility_reason,
     resolve_plugin_dependencies,
     validate_version_range,
     version_satisfies,
@@ -123,7 +121,6 @@ from .validation import (
 
 __all__ = [
     "API_VERSION",
-    "PLUGIN_API_CONTRACT_VERSION",
     "ApiVersion",
     "BackendRouteAuthorization",
     "BackendRouteMethod",
@@ -151,7 +148,6 @@ __all__ = [
     "migrate_manifest_data",
     "resolve_plugin_dependencies",
     "parse_semver",
-    "plugin_contract_compatibility_reason",
     "validate_version_range",
     "version_satisfies",
     "ErrorCode",

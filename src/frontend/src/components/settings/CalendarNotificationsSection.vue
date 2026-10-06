@@ -303,15 +303,16 @@ const props = withDefaults(
 
 <style scoped>
 .settings-section h2 {
-  margin: 0 0 12px;
-  font: var(--ui-weight-heading) var(--ui-font-heading)/1.4
-    var(--ui-font-family);
-  color: var(--ui-text);
+  margin: 0 0 8px;
+  padding-left: 12px;
+  border-left: 3px solid #d68a34;
+  font-size: 1rem;
+  color: #fff;
 }
 .settings-section h3 {
   margin: 22px 0 8px;
   font-size: 0.86rem;
-  color: var(--ui-text);
+  color: #ddd;
 }
 .scope-title {
   margin: 18px 0 8px;
@@ -325,18 +326,18 @@ const props = withDefaults(
   margin-top: 10px;
 }
 .section-hint {
-  color: var(--ui-dim);
+  color: #9c9c9c;
   font-size: 0.82rem;
   line-height: 1.6;
   margin: 0 0 14px;
 }
 .saved {
-  color: var(--ui-good);
+  color: #6fbf73;
   margin-left: 8px;
   font-weight: 700;
 }
 .error {
-  color: var(--ui-error);
+  color: #e57373;
   font-size: 0.82rem;
 }
 .field {
@@ -345,7 +346,7 @@ const props = withDefaults(
   gap: 8px;
   margin: 14px 0;
   font-size: 0.82rem;
-  color: var(--ui-text);
+  color: #ccc;
 }
 .settings-section :deep(.toggle-button) {
   margin: 12px 0;

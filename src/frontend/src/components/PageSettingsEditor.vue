@@ -182,26 +182,26 @@ const achievementsGone = computed(() => {
 .pse-block h3 {
   margin: 0 0 8px;
   font-size: 0.72rem;
-  font-weight: var(--ui-weight-title);
+  font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--ui-accent-text);
+  color: #d68a34;
 }
 .pse-hint {
   margin: 0 0 12px;
   font-size: 0.8rem;
   line-height: 1.55;
-  color: var(--ui-dim);
+  color: #888;
 }
 .pse-note {
   margin: 12px 0 0;
   padding: 10px 12px;
   font-size: 0.8rem;
   line-height: 1.5;
-  color: var(--ui-accent-text);
-  background: color-mix(in srgb, var(--ui-accent) 8%, transparent);
-  border: 1px solid color-mix(in srgb, var(--ui-accent) 25%, transparent);
-  border-radius: var(--ui-radius-row);
+  color: #d68a34;
+  background: rgba(214, 138, 52, 0.08);
+  border: 1px solid rgba(214, 138, 52, 0.25);
+  border-radius: 10px;
 }
 .pse-rows {
   list-style: none;
@@ -216,7 +216,7 @@ const achievementsGone = computed(() => {
   justify-content: space-between;
   gap: 16px;
   padding: 11px 0;
-  border-bottom: 1px solid var(--ui-surface-2);
+  border-bottom: 1px solid #222;
 }
 .pse-row:last-child {
   border-bottom: none;
@@ -229,16 +229,16 @@ const achievementsGone = computed(() => {
 }
 .pse-name strong {
   font-size: 0.88rem;
-  color: var(--ui-text);
+  color: #f0f0f0;
 }
 .pse-name span {
   font-size: 0.78rem;
-  color: var(--ui-dim);
+  color: #888;
 }
 .pse-name small,
 .pse-default {
   font-size: 0.74rem;
-  color: var(--ui-faint);
+  color: #777;
 }
 @media (max-width: 640px) {
   .pse-row {

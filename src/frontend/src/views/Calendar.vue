@@ -1,10 +1,9 @@
 <script setup lang="ts">
-import UiModal from "../components/UiModal.vue";
 import AppTopBar from "../components/AppTopBar.vue";
 import SegmentedTabs from "../components/SegmentedTabs.vue";
+import { blurOnLeave } from "../utils/blurOnLeave";
 import { useCalendar } from "../composables/useCalendar";
 const {
-  blurOnLeave,
   tab,
   calView,
   TAB_OPTIONS,
@@ -729,246 +728,242 @@ const {
       </div>
     </Teleport>
 
-    <UiModal
-      v-if="showFeed"
-      title="Subscribe in your calendar app"
-      @close="showFeed = false"
-    >
-      <p class="modal-hint">
-        Paste this link into Google Calendar (Other calendars, From URL), Apple
-        Calendar or Outlook and every airing episode and release shows up there,
-        kept up to date. Anyone with the link can see your schedule, so treat it
-        like a password. The app has to be reachable from the internet for
-        Google Calendar to fetch it.
-      </p>
-      <input
-        class="ui-field"
-        type="text"
-        readonly
-        aria-label="Calendar subscription link"
-        :value="feedUrl"
-        placeholder="Loading…"
-        @focus="($event.target as HTMLInputElement).select()"
-      />
-      <p v-if="feedError" class="ui-error-box feed-error">{{ feedError }}</p>
-      <div class="ui-modal-actions">
-        <button
-          type="button"
-          class="ui-btn ui-btn-secondary"
-          :disabled="feedBusy"
-          @click="regenerateFeed"
-        >
-          New link
-        </button>
-        <button
-          type="button"
-          class="ui-btn ui-btn-primary"
-          :disabled="!feedUrl"
-          @click="copyFeed"
-        >
-          {{ feedCopied ? "Copied" : "Copy link" }}
-        </button>
-      </div>
-    </UiModal>
-
-    <UiModal
-      v-if="showEventForm"
-      :title="eventId ? 'Edit entry' : 'Add a calendar entry'"
-      size="wide"
-      :dismissible="!eventSaving"
-      @close="closeEventForm"
-    >
-      <p class="modal-hint">
-        For anything the sources do not list: a premiere date, a watch party, a
-        reminder. It only appears here and in your calendar feed.
-      </p>
-      <label class="modal-field">
-        <span>Title</span>
+    <div v-if="showFeed" class="ui-backdrop" @click.self="showFeed = false">
+      <div class="ui-modal" role="dialog" aria-modal="true">
+        <h3>Subscribe in your calendar app</h3>
+        <p class="modal-hint">
+          Paste this link into Google Calendar (Other calendars, From URL),
+          Apple Calendar or Outlook and every airing episode and release shows
+          up there, kept up to date. Anyone with the link can see your schedule,
+          so treat it like a password. The app has to be reachable from the
+          internet for Google Calendar to fetch it.
+        </p>
         <input
-          v-model="eventTitle"
-          type="text"
           class="ui-field"
-          maxlength="200"
-          placeholder="e.g. Dune Part 3 premiere"
-        />
-      </label>
-      <div class="modal-field-row">
-        <label class="modal-field">
-          <span>Date</span>
-          <input v-model="eventDate" type="date" class="ui-field" />
-        </label>
-        <label class="modal-field">
-          <span>Time (optional)</span>
-          <input v-model="eventTime" type="time" class="ui-field" />
-        </label>
-      </div>
-      <label class="modal-field">
-        <span>Related title (optional)</span>
-        <input
-          v-model="eventLinkSearch"
           type="text"
-          class="ui-field"
-          placeholder="Search your library…"
-          @input="eventLink = null"
+          readonly
+          :value="feedUrl"
+          placeholder="Loading…"
+          @focus="($event.target as HTMLInputElement).select()"
         />
-        <div v-if="eventLinkResults.length" class="modal-search-results">
+        <p v-if="feedError" class="ui-error-box feed-error">{{ feedError }}</p>
+        <div class="ui-modal-actions">
           <button
-            v-for="m in eventLinkResults"
-            :key="`${m.mediaType}-${m.mediaId}`"
             type="button"
-            class="modal-search-result"
-            @click="pickEventLink(m)"
+            class="ui-btn ui-btn-secondary"
+            :disabled="feedBusy"
+            @click="regenerateFeed"
           >
-            {{ m.title }}
-            <span class="modal-search-kind">{{ m.mediaType }}</span>
+            New link
+          </button>
+          <button
+            type="button"
+            class="ui-btn ui-btn-primary"
+            :disabled="!feedUrl"
+            @click="copyFeed"
+          >
+            {{ feedCopied ? "Copied" : "Copy link" }}
           </button>
         </div>
-      </label>
-      <label class="modal-field">
-        <span>Note (optional)</span>
-        <input
-          v-model="eventNote"
-          type="text"
-          class="ui-field"
-          maxlength="2000"
-        />
-      </label>
-      <p v-if="eventError" class="ui-error-box">{{ eventError }}</p>
-      <div class="ui-modal-actions">
-        <button
-          v-if="eventId"
-          type="button"
-          class="ui-btn ui-btn-danger"
-          @click="removeEvent"
-        >
-          Delete
-        </button>
-        <button
-          v-if="eventLink"
-          type="button"
-          class="ui-btn ui-btn-secondary"
-          @click="openLinkedTitle"
-        >
-          Open title
-        </button>
-        <button
-          type="button"
-          class="ui-btn ui-btn-secondary"
-          @click="closeEventForm"
-        >
-          Cancel
-        </button>
-        <button
-          type="button"
-          class="ui-btn ui-btn-primary"
-          :disabled="eventSaving"
-          @click="saveEvent"
-        >
-          {{ eventSaving ? "Saving…" : "Save" }}
-        </button>
       </div>
-    </UiModal>
+    </div>
 
-    <UiModal
-      v-if="showManualForm"
-      title="Log a history entry"
-      size="wide"
-      :dismissible="!manualSaving"
-      @close="closeManualForm"
-    >
-      <p class="modal-hint">
-        For anything the app didn't catch automatically: watch history from
-        before you added this title, or an import.
-      </p>
-
-      <label class="modal-field">
-        <span>Title</span>
-        <input
-          v-model="manualSearch"
-          type="text"
-          placeholder="Search your library…"
-          class="ui-field"
-          @input="manualPicked = null"
-        />
-        <div
-          v-if="manualSearchResults.length && !manualPicked"
-          class="modal-search-results"
-        >
-          <button
-            v-for="m in manualSearchResults"
-            :key="`${m.mediaType}-${m.mediaId}`"
-            type="button"
-            class="modal-search-result"
-            @click="pickManualMedia(m)"
-          >
-            {{ m.title }}
-            <span class="modal-search-kind">{{ m.mediaType }}</span>
-          </button>
-        </div>
-      </label>
-
-      <label class="modal-field">
-        <span>What happened</span>
-        <select v-model="manualEventType" class="ui-field">
-          <option
-            v-for="(label, key) in EVENT_TYPE_LABELS"
-            :key="key"
-            :value="key"
-          >
-            {{ label }}
-          </option>
-        </select>
-      </label>
-
-      <div class="modal-field-row">
+    <div v-if="showEventForm" class="ui-backdrop" @click.self="closeEventForm">
+      <div class="ui-modal" role="dialog" aria-modal="true">
+        <h3>{{ eventId ? "Edit entry" : "Add a calendar entry" }}</h3>
+        <p class="modal-hint">
+          For anything the sources do not list: a premiere date, a watch party,
+          a reminder. It only appears here and in your calendar feed.
+        </p>
         <label class="modal-field">
-          <span>Date</span>
-          <input v-model="manualDate" type="date" class="ui-field" />
-        </label>
-        <label
-          v-if="manualEventType === 'episodes_watched'"
-          class="modal-field"
-        >
-          <span>Episodes</span>
+          <span>Title</span>
           <input
-            v-model.number="manualCount"
-            type="number"
-            min="1"
+            v-model="eventTitle"
+            type="text"
             class="ui-field"
+            maxlength="200"
+            placeholder="e.g. Dune Part 3 premiere"
           />
         </label>
+        <div class="modal-field-row">
+          <label class="modal-field">
+            <span>Date</span>
+            <input v-model="eventDate" type="date" class="ui-field" />
+          </label>
+          <label class="modal-field">
+            <span>Time (optional)</span>
+            <input v-model="eventTime" type="time" class="ui-field" />
+          </label>
+        </div>
+        <label class="modal-field">
+          <span>Related title (optional)</span>
+          <input
+            v-model="eventLinkSearch"
+            type="text"
+            class="ui-field"
+            placeholder="Search your library…"
+            @input="eventLink = null"
+          />
+          <div v-if="eventLinkResults.length" class="modal-search-results">
+            <button
+              v-for="m in eventLinkResults"
+              :key="`${m.mediaType}-${m.mediaId}`"
+              type="button"
+              class="modal-search-result"
+              @click="pickEventLink(m)"
+            >
+              {{ m.title }}
+              <span class="modal-search-kind">{{ m.mediaType }}</span>
+            </button>
+          </div>
+        </label>
+        <label class="modal-field">
+          <span>Note (optional)</span>
+          <input
+            v-model="eventNote"
+            type="text"
+            class="ui-field"
+            maxlength="2000"
+          />
+        </label>
+        <p v-if="eventError" class="ui-error-box">{{ eventError }}</p>
+        <div class="ui-modal-actions">
+          <button
+            v-if="eventId"
+            type="button"
+            class="ui-btn ui-btn-danger"
+            @click="removeEvent"
+          >
+            Delete
+          </button>
+          <button
+            v-if="eventLink"
+            type="button"
+            class="ui-btn ui-btn-secondary"
+            @click="openLinkedTitle"
+          >
+            Open title
+          </button>
+          <button
+            type="button"
+            class="ui-btn ui-btn-secondary"
+            @click="closeEventForm"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            class="ui-btn ui-btn-primary"
+            :disabled="eventSaving"
+            @click="saveEvent"
+          >
+            {{ eventSaving ? "Saving…" : "Save" }}
+          </button>
+        </div>
       </div>
+    </div>
 
-      <label class="modal-field">
-        <span>Note (optional)</span>
-        <input
-          v-model="manualDetail"
-          type="text"
-          class="ui-field"
-          placeholder="e.g. rewatched with friends"
-        />
-      </label>
+    <div
+      v-if="showManualForm"
+      class="ui-backdrop"
+      @click.self="closeManualForm"
+    >
+      <div class="ui-modal" role="dialog" aria-modal="true">
+        <h3>Log a history entry</h3>
+        <p class="modal-hint">
+          For anything the app didn't catch automatically: watch history from
+          before you added this title, or an import.
+        </p>
 
-      <p v-if="manualError" class="ui-error-box">{{ manualError }}</p>
+        <label class="modal-field">
+          <span>Title</span>
+          <input
+            v-model="manualSearch"
+            type="text"
+            placeholder="Search your library…"
+            class="ui-field"
+            @input="manualPicked = null"
+          />
+          <div
+            v-if="manualSearchResults.length && !manualPicked"
+            class="modal-search-results"
+          >
+            <button
+              v-for="m in manualSearchResults"
+              :key="`${m.mediaType}-${m.mediaId}`"
+              type="button"
+              class="modal-search-result"
+              @click="pickManualMedia(m)"
+            >
+              {{ m.title }}
+              <span class="modal-search-kind">{{ m.mediaType }}</span>
+            </button>
+          </div>
+        </label>
 
-      <div class="ui-modal-actions">
-        <button
-          type="button"
-          class="ui-btn ui-btn-secondary"
-          @click="closeManualForm"
-        >
-          Cancel
-        </button>
-        <button
-          type="button"
-          class="ui-btn ui-btn-primary"
-          :disabled="manualSaving"
-          @click="submitManualEntry"
-        >
-          {{ manualSaving ? "Logging…" : "Log entry" }}
-        </button>
+        <label class="modal-field">
+          <span>What happened</span>
+          <select v-model="manualEventType" class="ui-field">
+            <option
+              v-for="(label, key) in EVENT_TYPE_LABELS"
+              :key="key"
+              :value="key"
+            >
+              {{ label }}
+            </option>
+          </select>
+        </label>
+
+        <div class="modal-field-row">
+          <label class="modal-field">
+            <span>Date</span>
+            <input v-model="manualDate" type="date" class="ui-field" />
+          </label>
+          <label
+            v-if="manualEventType === 'episodes_watched'"
+            class="modal-field"
+          >
+            <span>Episodes</span>
+            <input
+              v-model.number="manualCount"
+              type="number"
+              min="1"
+              class="ui-field"
+            />
+          </label>
+        </div>
+
+        <label class="modal-field">
+          <span>Note (optional)</span>
+          <input
+            v-model="manualDetail"
+            type="text"
+            class="ui-field"
+            placeholder="e.g. rewatched with friends"
+          />
+        </label>
+
+        <p v-if="manualError" class="ui-error-box">{{ manualError }}</p>
+
+        <div class="ui-modal-actions">
+          <button
+            type="button"
+            class="ui-btn ui-btn-secondary"
+            @click="closeManualForm"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            class="ui-btn ui-btn-primary"
+            :disabled="manualSaving"
+            @click="submitManualEntry"
+          >
+            {{ manualSaving ? "Logging…" : "Log entry" }}
+          </button>
+        </div>
       </div>
-    </UiModal>
+    </div>
   </main>
 </template>
 

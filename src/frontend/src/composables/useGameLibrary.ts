@@ -1,28 +1,16 @@
-import type { SegmentOption } from "../components/SegmentedTabs.vue";
-import { matchesShortcut } from "../state/shortcuts";
-import { preferences } from "../state/preferences";
-export type ViewMode = "cards" | "list" | "detail";
-import { PHONE_CARD_COLUMNS } from "../utils/libraryLayout";
-export type CardDensity = "compact" | "cozy" | "large";
-
 import {
   ref,
   computed,
   onMounted,
   onUnmounted,
-  onActivated,
-  onDeactivated,
-  nextTick,
   watch,
   useTemplateRef,
 } from "vue";
-import { useKeptAlive } from "../utils/useKeptAlive";
-import { takeLibraryScroll } from "../state/libraryScroll";
 import { useRoute, useRouter } from "vue-router";
 import { useWindowVirtualizer } from "@tanstack/vue-virtual";
 
-import { activePriority, priorityLabel } from "../utils/priority";
-import { formatDisplayDate } from "../utils/dates";
+import { activePriority } from "../utils/priority";
+import type { SegmentOption } from "../components/SegmentedTabs.vue";
 
 import {
   fetchGames,
@@ -45,6 +33,8 @@ import {
 import { genreOptionsFor, hasGenre } from "../utils/genres";
 import type { Game, GameStatus } from "../types/game";
 import { usePrompt } from "../state/dialog";
+export type ViewMode = "cards" | "list" | "detail";
+export type CardDensity = "compact" | "cozy" | "large";
 export function useGameLibrary() {
   const prompt = usePrompt();
 
@@ -69,7 +59,6 @@ export function useGameLibrary() {
 
   const games = ref<Game[]>([]);
   const loading = ref(true);
-  const isLibraryActive = ref(true);
   const error = ref<string | null>(null);
 
   const showFormModal = ref(false);
@@ -673,10 +662,6 @@ export function useGameLibrary() {
       ]);
       if (token !== loadGamesToken) return;
       games.value = fetched;
-      error.value = null;
-      if (selectedGame.value)
-        selectedGame.value =
-          fetched.find((game) => game.id === selectedGame.value?.id) ?? null;
       if (summary) {
         for (const game of games.value) {
           const entry = summary[game.id];
@@ -696,28 +681,11 @@ export function useGameLibrary() {
     }
   }
 
-  async function restoreLibraryScroll() {
-    await nextTick();
-    if (route.path !== "/games") return;
-    const y = takeLibraryScroll();
-    if (y > 0) window.scrollTo(0, y);
-  }
-  onMounted(async () => {
-    await loadGames();
-    await restoreLibraryScroll();
-  });
-  useKeptAlive(() => {
-    void loadGames();
-    void restoreLibraryScroll();
-  });
+  onMounted(loadGames);
 
   // filters are only remembered while you stay on this page, leaving it
   // (any other route) wipes them so the next visit starts from a clean slate
-  onDeactivated(() => {
-    clearAllFilters();
-    showAdvancedFilters.value = false;
-    selectMode.value = false;
-    selectedIds.value.clear();
+  onUnmounted(() => {
     localStorage.removeItem(FILTERS_KEY);
   });
 
@@ -747,8 +715,7 @@ export function useGameLibrary() {
     );
   }
   function onGlobalKeydown(e: KeyboardEvent) {
-    if (e.defaultPrevented || anyModalOpen() || e.isComposing || e.repeat)
-      return;
+    if (anyModalOpen()) return;
     if (e.key === "Escape") {
       if (
         isTypingTarget(e.target) &&
@@ -764,22 +731,14 @@ export function useGameLibrary() {
       return;
     }
     if (isTypingTarget(e.target)) return;
-    if (
-      preferences.value.keyboard_shortcuts_enabled === false ||
-      e.getModifierState("AltGraph")
-    )
-      return;
-    const cardDirection = ["left", "right", "up", "down"].find((direction) =>
-      matchesShortcut(`games.cards.${direction}`, e),
-    );
-    if (matchesShortcut("app.focus-search", e)) {
+    if (e.key === "/") {
       e.preventDefault();
       searchInputRef.value?.focus();
-    } else if (matchesShortcut("app.create", e)) {
+    } else if (e.key === "n") {
       e.preventDefault();
       openAddModal();
     } else if (
-      matchesShortcut("games.preview.next", e) &&
+      (e.key === "j" || e.key === "ArrowDown") &&
       viewMode.value === "detail"
     ) {
       e.preventDefault();
@@ -789,7 +748,7 @@ export function useGameLibrary() {
       if (idx < filteredGames.value.length - 1)
         selectedGame.value = filteredGames.value[idx + 1];
     } else if (
-      matchesShortcut("games.preview.previous", e) &&
+      (e.key === "k" || e.key === "ArrowUp") &&
       viewMode.value === "detail"
     ) {
       e.preventDefault();
@@ -797,15 +756,9 @@ export function useGameLibrary() {
         ? filteredGames.value.findIndex((g) => g.id === selectedGame.value?.id)
         : -1;
       if (idx > 0) selectedGame.value = filteredGames.value[idx - 1];
-    } else if (
-      /^[a-z]$/i.test(e.key) &&
-      !e.ctrlKey &&
-      !e.metaKey &&
-      !e.altKey &&
-      viewMode.value === "cards" &&
-      !cardDirection &&
-      !matchesShortcut("games.cards.open", e)
-    ) {
+    } else if (/^[a-z]$/i.test(e.key) && viewMode.value === "cards") {
+      // 'n' is already claimed by "Add Game" above
+      if (e.key.toLowerCase() === "n") return;
       const letter = e.key.toLowerCase();
       const index = filteredGames.value.findIndex(
         (g) => g.title.trim()[0]?.toLowerCase() === letter,
@@ -821,24 +774,23 @@ export function useGameLibrary() {
     } else if (
       viewMode.value === "cards" &&
       !selectMode.value &&
-      cardDirection
+      ["ArrowRight", "ArrowLeft", "ArrowUp", "ArrowDown"].includes(e.key)
     ) {
       const count = filteredGames.value.length;
       if (!count) return;
       e.preventDefault();
       let idx = gridFocusIndex.value ?? 0;
-      if (cardDirection === "right") idx = Math.min(idx + 1, count - 1);
-      else if (cardDirection === "left") idx = Math.max(idx - 1, 0);
-      else if (cardDirection === "down")
+      if (e.key === "ArrowRight") idx = Math.min(idx + 1, count - 1);
+      else if (e.key === "ArrowLeft") idx = Math.max(idx - 1, 0);
+      else if (e.key === "ArrowDown")
         idx = Math.min(idx + CARD_COLUMNS.value, count - 1);
-      else if (cardDirection === "up")
-        idx = Math.max(idx - CARD_COLUMNS.value, 0);
+      else if (e.key === "ArrowUp") idx = Math.max(idx - CARD_COLUMNS.value, 0);
       gridFocusIndex.value = idx;
       rowVirtualizer.value.scrollToIndex(Math.floor(idx / CARD_COLUMNS.value), {
         align: "auto",
       });
     } else if (
-      matchesShortcut("games.cards.open", e) &&
+      e.key === "Enter" &&
       viewMode.value === "cards" &&
       gridFocusIndex.value !== null
     ) {
@@ -849,8 +801,7 @@ export function useGameLibrary() {
       }
     }
   }
-  onActivated(() => window.addEventListener("keydown", onGlobalKeydown));
-  onDeactivated(() => window.removeEventListener("keydown", onGlobalKeydown));
+  onMounted(() => window.addEventListener("keydown", onGlobalKeydown));
   onUnmounted(() => window.removeEventListener("keydown", onGlobalKeydown));
 
   function openAddModal() {
@@ -1269,18 +1220,7 @@ export function useGameLibrary() {
   function onResize() {
     viewportWidth.value = window.innerWidth;
   }
-  onActivated(() => {
-    isLibraryActive.value = true;
-    onResize();
-    window.addEventListener("resize", onResize);
-    if (contentEl.value) contentObserver?.observe(contentEl.value);
-  });
-  onDeactivated(() => {
-    isLibraryActive.value = false;
-    window.removeEventListener("resize", onResize);
-    contentObserver?.disconnect();
-    cancelAnimationFrame(gridMeasureFrame);
-  });
+  onMounted(() => window.addEventListener("resize", onResize));
   onUnmounted(() => window.removeEventListener("resize", onResize));
 
   // Same card widths as the Media shelf (150 / 200 / 260px, 14px gap): the
@@ -1296,27 +1236,16 @@ export function useGameLibrary() {
   const contentEl = useTemplateRef<HTMLElement>("libraryContent");
   const gridWidth = ref(document.documentElement.clientWidth - 72);
   let contentObserver: ResizeObserver | null = null;
-  let gridMeasureFrame = 0;
   onMounted(() => {
     if (!contentEl.value) return;
     contentObserver = new ResizeObserver((entries) => {
-      const width = entries[0].contentRect.width;
-      if (width === gridWidth.value) return;
-      cancelAnimationFrame(gridMeasureFrame);
-      gridMeasureFrame = requestAnimationFrame(() => {
-        gridWidth.value = width;
-      });
+      gridWidth.value = entries[0].contentRect.width;
     });
     contentObserver.observe(contentEl.value);
   });
-  onUnmounted(() => {
-    contentObserver?.disconnect();
-    cancelAnimationFrame(gridMeasureFrame);
-  });
+  onUnmounted(() => contentObserver?.disconnect());
 
   const CARD_COLUMNS = computed(() => {
-    if (viewportWidth.value <= 760)
-      return PHONE_CARD_COLUMNS[cardDensity.value];
     const min = MIN_CARD_WIDTH[cardDensity.value];
     return Math.max(
       1,
@@ -1338,8 +1267,6 @@ export function useGameLibrary() {
   const rowVirtualizer = useWindowVirtualizer(
     computed(() => ({
       count: cardRowCount.value,
-      enabled: isLibraryActive.value,
-      useAnimationFrameWithResizeObserver: true,
       estimateSize: () => 330,
       overscan: 3,
     })),
@@ -1356,11 +1283,6 @@ export function useGameLibrary() {
   }
 
   return {
-    viewportWidth,
-    activePriority,
-    priorityLabel,
-    formatDisplayDate,
-    computeScore,
     games,
     loading,
     error,

@@ -472,23 +472,24 @@ const formatBreakdown = computed(() => stats.value?.format_breakdown ?? []);
 
 <style scoped>
 .settings-section h2 {
-  margin: 0 0 12px;
-  font: var(--ui-weight-heading) var(--ui-font-heading)/1.4
-    var(--ui-font-family);
-  color: var(--ui-text);
+  margin: 0 0 8px;
+  padding-left: 12px;
+  border-left: 3px solid #d68a34;
+  font-size: 1rem;
+  color: #fff;
 }
 .section-hint {
-  color: var(--ui-dim);
+  color: #999;
   font-size: 0.82rem;
   line-height: 1.6;
   margin: 0 0 20px;
 }
 .form-error {
-  color: var(--ui-error);
+  color: #fca5a5;
   font-size: 13px;
   background: rgba(220, 38, 38, 0.1);
   border: 1px solid rgba(220, 38, 38, 0.3);
-  border-radius: var(--ui-radius-control);
+  border-radius: 8px;
   padding: 8px 10px;
 }
 .tiles {
@@ -498,9 +499,9 @@ const formatBreakdown = computed(() => stats.value?.format_breakdown ?? []);
   margin-bottom: 28px;
 }
 .tile {
-  background: var(--ui-bg);
-  border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius-control);
+  background: #111;
+  border: 1px solid #2a2a2a;
+  border-radius: 10px;
   padding: 16px;
   display: flex;
   flex-direction: column;
@@ -510,16 +511,16 @@ const formatBreakdown = computed(() => stats.value?.format_breakdown ?? []);
   display: flex;
   align-items: center;
   gap: 18px;
-  background: color-mix(in srgb, var(--ui-accent) 6%, transparent);
-  border: 1px solid color-mix(in srgb, var(--ui-accent) 25%, transparent);
-  border-radius: var(--ui-radius-control);
+  background: rgba(214, 138, 52, 0.06);
+  border: 1px solid rgba(214, 138, 52, 0.25);
+  border-radius: 10px;
   padding: 16px 20px;
   margin-bottom: 28px;
 }
 .burn-down-count {
   font-size: 2.2rem;
   font-weight: 700;
-  color: var(--ui-accent-text);
+  color: #d68a34;
   flex-shrink: 0;
 }
 .burn-down-body {
@@ -528,22 +529,22 @@ const formatBreakdown = computed(() => stats.value?.format_breakdown ?? []);
   gap: 2px;
 }
 .burn-down-title {
-  color: var(--ui-text);
+  color: #fff;
   font-size: 13.5px;
   font-weight: 600;
 }
 .burn-down-estimate {
-  color: var(--ui-dim);
+  color: #999;
   font-size: 12.5px;
 }
 .tile-value {
   font-size: 1.4rem;
   font-weight: 700;
-  color: var(--ui-accent-text);
+  color: #d68a34;
 }
 .tile-label {
   font-size: 0.78rem;
-  color: var(--ui-dim);
+  color: #999;
 }
 .breakdown-block {
   margin-bottom: 26px;
@@ -551,7 +552,7 @@ const formatBreakdown = computed(() => stats.value?.format_breakdown ?? []);
 .breakdown-block h3 {
   margin: 0 0 12px;
   font-size: 0.9rem;
-  color: var(--ui-text);
+  color: #fff;
 }
 .breakdown-header {
   display: flex;
@@ -563,7 +564,7 @@ const formatBreakdown = computed(() => stats.value?.format_breakdown ?? []);
   margin: 0;
 }
 .empty-hint {
-  color: var(--ui-faint);
+  color: #777;
   font-size: 0.82rem;
 }
 .bar-chart {
@@ -585,10 +586,10 @@ const formatBreakdown = computed(() => stats.value?.format_breakdown ?? []);
   margin: -3px -6px;
 }
 .bar-row-link:hover {
-  background: color-mix(in srgb, var(--ui-accent) 10%, transparent);
+  background: rgba(214, 138, 52, 0.1);
 }
 .bar-row-link:hover .bar-label {
-  color: var(--ui-accent-text);
+  color: #d68a34;
 }
 .plain-list-link {
   display: flex;
@@ -598,7 +599,7 @@ const formatBreakdown = computed(() => stats.value?.format_breakdown ?? []);
   text-decoration: none;
 }
 .bar-label {
-  color: var(--ui-text);
+  color: #ccc;
   font-size: 0.8rem;
   text-transform: capitalize;
   overflow: hidden;
@@ -606,19 +607,19 @@ const formatBreakdown = computed(() => stats.value?.format_breakdown ?? []);
   white-space: nowrap;
 }
 .bar-track {
-  background: var(--ui-bg);
+  background: #111;
   border-radius: 6px;
   height: 16px;
   overflow: hidden;
 }
 .bar-fill {
-  background: var(--ui-accent);
+  background: #d68a34;
   height: 100%;
   border-radius: 6px;
   transition: width 0.3s ease;
 }
 .bar-count {
-  color: var(--ui-dim);
+  color: #999;
   font-size: 0.78rem;
   text-align: right;
 }
@@ -636,13 +637,13 @@ const formatBreakdown = computed(() => stats.value?.format_breakdown ?? []);
   display: flex;
   justify-content: space-between;
   font-size: 0.82rem;
-  color: var(--ui-text);
-  background: var(--ui-bg);
+  color: #ccc;
+  background: #111;
   border-radius: 6px;
   padding: 8px 12px;
 }
 .ranked-value {
-  color: var(--ui-accent-text);
+  color: #d68a34;
   font-weight: 600;
 }
 </style>

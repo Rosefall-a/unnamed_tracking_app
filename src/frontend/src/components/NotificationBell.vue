@@ -4,13 +4,9 @@
 // corner). Same list markup and the same shared state SidebarNav.vue's
 // panel already used, just always reachable instead of one tap into the
 // hamburger menu first.
-import { ref, watch, onMounted, onBeforeUnmount, nextTick, useId } from "vue";
+import { ref, watch, onMounted, onBeforeUnmount } from "vue";
 import { useRouter } from "vue-router";
 import { openTopbarPopover } from "../state/topbarPopover";
-import {
-  pluginReminderRevision,
-  readPluginReminders,
-} from "../state/pluginNotifications";
 import {
   mediaNotifications,
   mediaUnread,
@@ -24,25 +20,6 @@ const router = useRouter();
 const root = ref<HTMLElement | null>(null);
 const bellBtn = ref<HTMLElement | null>(null);
 const open = ref(false);
-const panel = ref<HTMLElement | null>(null);
-const panelId = useId();
-const reminders = ref<Awaited<ReturnType<typeof readPluginReminders>>>([]);
-const remindersLoading = ref(false);
-let reminderGeneration = 0;
-async function refreshReminders() {
-  const generation = ++reminderGeneration;
-  reminders.value = [];
-  remindersLoading.value = true;
-  const values = await readPluginReminders();
-  if (generation !== reminderGeneration || !open.value) return;
-  reminders.value = values;
-  remindersLoading.value = false;
-}
-watch(pluginReminderRevision, () => {
-  reminderGeneration++;
-  reminders.value = [];
-  if (open.value) void refreshReminders();
-});
 
 // Teleported to <body> so a page's own clipping/stacking context (a hero
 // section's overflow:hidden, a sticky bar's own stacking order) never cuts
@@ -74,21 +51,13 @@ function toggle() {
   }
   positionPanel();
   open.value = true;
-  void refreshReminders();
-  void refreshMediaNotifications();
   openTopbarPopover.value = "bell";
-  void nextTick(() =>
-    panel.value?.querySelector<HTMLButtonElement>("button")?.focus(),
-  );
 }
 watch(openTopbarPopover, (v) => {
   if (v !== "bell") open.value = false;
 });
 function onKeydown(e: KeyboardEvent) {
-  if (e.key === "Escape" && open.value) {
-    open.value = false;
-    bellBtn.value?.focus();
-  }
+  if (e.key === "Escape" && open.value) open.value = false;
 }
 
 function timeAgo(unix: number): string {
@@ -126,7 +95,6 @@ onMounted(() => {
   window.addEventListener("resize", onResize);
 });
 onBeforeUnmount(() => {
-  reminderGeneration++;
   document.removeEventListener("click", onDocumentClick);
   document.removeEventListener("keydown", onKeydown);
   window.removeEventListener("resize", onResize);
@@ -141,9 +109,7 @@ onBeforeUnmount(() => {
       class="bell-button"
       :class="{ active: open }"
       title="Notifications"
-      aria-label="Notifications"
       aria-haspopup="true"
-      :aria-controls="panelId"
       :aria-expanded="open"
       @click.stop="toggle"
     >
@@ -166,10 +132,6 @@ onBeforeUnmount(() => {
     <Teleport to="body">
       <div
         v-if="open"
-        :id="panelId"
-        ref="panel"
-        role="region"
-        aria-label="Recent notifications"
         class="bell-panel"
         :style="{ ...panelStyle, '--caret-offset': `${caretOffset}px` }"
       >
@@ -184,38 +146,10 @@ onBeforeUnmount(() => {
             Mark all read
           </button>
         </div>
-        <p
-          v-if="remindersLoading && !mediaNotifications.length"
-          class="panel-empty"
-          role="status"
-        >
-          Checking alerts…
-        </p>
-        <p
-          v-else-if="!mediaNotifications.length && !reminders.length"
-          class="panel-empty"
-        >
+        <p v-if="!mediaNotifications.length" class="panel-empty">
           Nothing to flag right now.
         </p>
         <div class="panel-list">
-          <button
-            v-for="reminder in reminders.slice(0, 15)"
-            :key="`${reminder.pluginId}:${reminder.id}`"
-            type="button"
-            class="notification-row"
-            @click="
-              open = false;
-              router.push(reminder.path);
-            "
-          >
-            <span class="notification-dot"></span>
-            <span class="notification-text">
-              <span class="notification-title">{{ reminder.label }}</span>
-              <span class="notification-detail">{{
-                reminder.description
-              }}</span>
-            </span>
-          </button>
           <button
             v-for="n in mediaNotifications.slice(0, 15)"
             :key="n.id"
@@ -256,12 +190,12 @@ onBeforeUnmount(() => {
   display: flex;
 }
 .bell-button {
-  width: 44px;
-  height: 44px;
+  width: 34px;
+  height: 34px;
   border-radius: 50%;
   border: none;
   background: none;
-  color: var(--ui-dim);
+  color: #ccc;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -271,20 +205,8 @@ onBeforeUnmount(() => {
 }
 .bell-button:hover,
 .bell-button.active {
-  color: var(--ui-accent-text);
-  background: var(--ui-accent-soft);
-}
-.bell-button.active {
-  color: var(--ui-on-accent);
-  background: var(--ui-accent);
-}
-.bell-button:focus-visible {
-  outline: 2px solid var(--ui-accent);
-  outline-offset: 3px;
-}
-.bell-button.active .bell-dot {
-  background: var(--ui-on-accent);
-  border-color: var(--ui-accent);
+  color: #fff;
+  background: rgba(255, 255, 255, 0.08);
 }
 .bell-dot {
   position: absolute;
@@ -293,8 +215,8 @@ onBeforeUnmount(() => {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--ui-accent-text);
-  border: 2px solid var(--ui-popover);
+  background: #d68a34;
+  border: 2px solid #171717;
 }
 </style>
 
@@ -307,16 +229,11 @@ onBeforeUnmount(() => {
   width: 320px;
   max-width: calc(100vw - 32px);
   box-sizing: border-box;
-  background: var(--ui-popover);
-  border: 1px solid var(--ui-border);
+  background: #171717;
+  border: 1px solid #2b2b2b;
   border-radius: 12px;
   padding: 6px;
-  color: var(--ui-text);
-  box-shadow: var(--ui-elevation);
-  font-family: var(--ui-font-family);
-  max-height: calc(100dvh - 120px);
-  display: flex;
-  flex-direction: column;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
 }
 .bell-panel::before {
   content: "";
@@ -325,14 +242,13 @@ onBeforeUnmount(() => {
   left: var(--caret-offset, 20px);
   width: 11px;
   height: 11px;
-  background: var(--ui-popover);
-  border-left: 1px solid var(--ui-border);
-  border-top: 1px solid var(--ui-border);
+  background: #171717;
+  border-left: 1px solid #2b2b2b;
+  border-top: 1px solid #2b2b2b;
   border-radius: 2px;
   transform: rotate(45deg);
 }
 .bell-panel .panel-head {
-  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -341,36 +257,32 @@ onBeforeUnmount(() => {
   font-weight: 800;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--ui-dim);
+  color: #888;
 }
 .bell-panel .mark-read-btn {
   background: none;
   border: none;
-  padding: 6px;
-  min-height: var(--ui-control-height);
+  padding: 0;
   font: inherit;
   font-size: 11px;
   text-transform: none;
   letter-spacing: 0;
-  color: var(--ui-accent-text);
+  color: #d68a34;
   cursor: pointer;
 }
 .bell-panel .panel-empty {
-  color: var(--ui-dim);
+  color: #777;
   font-size: 13px;
   padding: 10px 8px;
   margin: 0;
 }
 .bell-panel .panel-list {
   max-height: 340px;
-  min-height: 0;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
 }
 .bell-panel .notification-row {
-  flex-shrink: 0;
-  line-height: 1.4;
   display: flex;
   align-items: flex-start;
   gap: 10px;
@@ -378,8 +290,7 @@ onBeforeUnmount(() => {
   background: none;
   border: none;
   padding: 8px;
-  min-height: var(--ui-control-height);
-  border-radius: var(--ui-radius-row);
+  border-radius: 8px;
   text-align: left;
   text-decoration: none;
   color: inherit;
@@ -387,19 +298,18 @@ onBeforeUnmount(() => {
   font-size: 13px;
   cursor: pointer;
 }
-.bell-panel .notification-row:hover,
-.bell-panel .notification-row:focus-visible {
-  background: var(--ui-accent-soft);
+.bell-panel .notification-row:hover {
+  background: rgba(255, 255, 255, 0.06);
 }
 .bell-panel .notification-row.read {
-  color: var(--ui-dim);
+  opacity: 0.55;
 }
 .bell-panel .notification-poster {
   width: 30px;
   height: 42px;
   border-radius: 4px;
   flex-shrink: 0;
-  background: var(--ui-surface-2) center / cover;
+  background: #222 center / cover;
 }
 .bell-panel .notification-dot {
   width: 7px;
@@ -409,30 +319,29 @@ onBeforeUnmount(() => {
   flex-shrink: 0;
 }
 .bell-panel .notification-dot.unread {
-  background: var(--ui-good);
+  background: #6fbf73;
 }
 .bell-panel .notification-text {
-  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 2px;
   min-width: 0;
 }
 .bell-panel .notification-title {
-  color: var(--ui-text);
+  color: #eee;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .bell-panel .notification-detail {
-  color: var(--ui-dim);
+  color: #888;
   font-size: 11.5px;
 }
 .bell-panel .notification-unread-dot {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: var(--ui-accent-text);
+  background: #d68a34;
   flex-shrink: 0;
   margin: 5px 0 0 auto;
 }
@@ -441,15 +350,13 @@ onBeforeUnmount(() => {
   width: 100%;
   background: none;
   border: none;
-  border-top: 1px solid var(--ui-border-soft);
+  border-top: 1px solid #232323;
   margin-top: 4px;
-  padding: 9px 8px;
-  min-height: var(--ui-control-height);
-  flex-shrink: 0;
+  padding: 9px 8px 4px;
   font: inherit;
   font-size: 12px;
   font-weight: 700;
-  color: var(--ui-accent-text);
+  color: #d68a34;
   text-align: center;
   cursor: pointer;
 }

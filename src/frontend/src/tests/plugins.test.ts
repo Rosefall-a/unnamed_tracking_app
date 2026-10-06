@@ -16,45 +16,9 @@ import {
   previewPluginUpdateUrl,
   updatePluginFromUrl,
   updatePlugin,
-  pluginContributionsActive,
-  type PluginSummary,
 } from "../services/plugins";
 
 describe("plugin management service", () => {
-  it("accepts old UI only after the server qualifies limited compatibility", () => {
-    const legacy: PluginSummary = {
-      plugin_id: "thirdparty.existing",
-      name: "Existing",
-      version: "4.0.0",
-      api_contract_version: "1.0.0",
-      enabled: true,
-      compatible: true,
-      compatibility_reason: "",
-      status: "running",
-      health: "healthy",
-      permissions: [],
-      granted_capabilities: [],
-      effective_capabilities: [],
-    };
-    expect(pluginContributionsActive(legacy)).toBe(false);
-    expect(
-      pluginContributionsActive({ ...legacy, legacy_compatibility: true }),
-    ).toBe(true);
-    expect(
-      pluginContributionsActive({
-        ...legacy,
-        legacy_compatibility: true,
-        enabled: false,
-      }),
-    ).toBe(false);
-    expect(
-      pluginContributionsActive({
-        ...legacy,
-        legacy_compatibility: true,
-        api_contract_version: "1.2.0",
-      }),
-    ).toBe(false);
-  });
   it("sends administrator upload confirmation passwords only in multipart bodies", async () => {
     const mock = vi.spyOn(globalThis, "fetch").mockImplementation(
       async () =>

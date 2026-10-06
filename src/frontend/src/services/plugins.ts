@@ -1,5 +1,3 @@
-import { pluginRequestError } from "./apiError";
-
 export type PluginStatus =
   | "enabled"
   | "starting"
@@ -12,14 +10,9 @@ export type PluginStatus =
   | "failed_start"
   | "failed_stop"
   | "disabled"
-  | "incompatible"
   | "unknown";
-export const PLUGIN_API_CONTRACT_VERSION = "1.1.0";
 export function pluginContributionsActive(plugin: PluginSummary): boolean {
   return (
-    (plugin.api_contract_version === PLUGIN_API_CONTRACT_VERSION ||
-      (plugin.legacy_compatibility === true &&
-        /^1\.0\.\d+$/.test(plugin.api_contract_version ?? "1.0.0"))) &&
     plugin.enabled &&
     plugin.compatible &&
     plugin.status === "running" &&
@@ -30,18 +23,9 @@ export interface PluginSummary {
   plugin_id: string;
   name: string;
   version: string;
-  api_contract_version?: string;
-  host_api_contract_version?: string;
-  host_sdk_version?: string;
-  host_application_version?: string;
-  sdk_version_range?: string;
-  application_version_range?: string;
   status: PluginStatus;
   compatible: boolean;
   compatibility_reason: string;
-  legacy_compatibility?: boolean;
-  compatibility_warning?: string | null;
-  compatibility_checks?: PluginCompatibilityCheck[];
   health: "healthy" | "degraded" | "unhealthy" | "unknown";
   permissions: string[];
   permission_refs?: Array<{ name: string; version: number }>;
@@ -51,8 +35,6 @@ export interface PluginSummary {
   source?: PluginSourceMetadata;
   trust?: Record<string, unknown>;
   description?: string;
-  readme?: string | null;
-  documentation_error?: string | null;
   icon?: string | null;
   tags?: string[];
   publisher?: string | null;
@@ -65,26 +47,14 @@ export interface PluginSummary {
   available_update?: PluginUpdateCheck;
   staged_update?: PluginUpdateCheck & { status: string; version?: string };
   automatic_updates?: "follow" | "enabled" | "disabled";
-  version_pin?: string | null;
   history?: Array<{ id: string; version: string; digest: string }>;
   permission_details?: PluginInstallPermission[];
 }
 export interface RuntimeCapabilities {
   api_version?: string;
-  api_contract_version?: string;
-  host_api_contract_version?: string;
-  host_sdk_version?: string;
-  host_application_version?: string;
-  sdk_version?: string;
-  application_version?: string;
-  version_health?: "healthy" | "incompatible" | "unavailable";
-  version_error?: string | null;
   supported_api_versions?: string[];
   transport?: string;
   plugin_transport?: string;
-  gateway_configured?: boolean;
-  gateway_configuration_source?: "runtime" | "host" | "missing";
-  gateway_error?: string | null;
   bubblewrap_available: boolean | null;
   sandbox_available: boolean;
   mechanism: string;
@@ -108,8 +78,6 @@ export interface PluginSourceMetadata {
   catalogue_url?: string;
   release_notes?: string | null;
   changelog_url?: string | null;
-  latest_version?: string;
-  version_pin?: string | null;
 }
 export interface PluginInstallPermission {
   key: string;
@@ -124,23 +92,7 @@ export interface PluginInstallPermission {
   highly_privileged: boolean;
   new?: boolean;
 }
-export interface PluginCompatibilityCheck {
-  key: "api_contract" | "sdk" | "application";
-  title: string;
-  required: string;
-  host: string;
-  status: "supported" | "limited" | "incompatible";
-  reason: string;
-}
 export interface PluginInstallPreview {
-  api_contract_version: string;
-  host_api_contract_version: string;
-  host_sdk_version?: string;
-  host_application_version?: string;
-  compatibility_reason: string;
-  legacy_compatibility?: boolean;
-  compatibility_warning?: string | null;
-  compatibility_checks?: PluginCompatibilityCheck[];
   plugin_id: string;
   name: string;
   description: string;
@@ -182,8 +134,6 @@ export interface PluginInstallPreview {
   source: PluginSourceMetadata;
   operation?: "update";
   installed_version?: string;
-  version_change?: "same" | "downgrade" | "upgrade";
-  requires_version_confirmation?: boolean;
   permission_delta?: Record<string, unknown>;
   new_permission_keys?: string[];
   existing_grants_retained?: boolean;
@@ -206,12 +156,6 @@ export interface PluginCatalogEntry {
   release_notes?: string | null;
   changelog_url?: string | null;
   catalogue_url?: string;
-  catalogue_channel?: "official" | "demo" | "community" | "unverified";
-  releases?: Array<{
-    version: string;
-    url: string;
-    release_notes?: string | null;
-  }>;
   dependencies?: Array<{
     plugin_id: string;
     version_range: string;
@@ -235,8 +179,6 @@ export interface PluginInstallConfirmation {
   approvedPermissions: string[];
   adminPassword?: string;
   confirmDangerous?: boolean;
-  versionChangeConfirmed?: boolean;
-  expectedInstalledVersion?: string;
   expectedDigest?: string;
 }
 export interface PluginCatalogue {
@@ -278,6 +220,40 @@ export interface PluginDiagnostics {
   last_exit_code: number | null;
   events: PluginDiagnosticEvent[];
 }
+async function pluginRequestError(
+  response: Response,
+  action: string,
+): Promise<Error> {
+  const body: unknown = await response
+    .clone()
+    .json()
+    .catch(() => null);
+  let message = "";
+  if (body && typeof body === "object" && "detail" in body) {
+    const detail = body.detail;
+    if (typeof detail === "string") message = detail;
+    else if (
+      detail &&
+      typeof detail === "object" &&
+      "message" in detail &&
+      typeof detail.message === "string"
+    )
+      message = detail.message;
+    else if (Array.isArray(detail))
+      message = detail
+        .flatMap((item) =>
+          item && typeof item === "object" && typeof item.msg === "string"
+            ? [item.msg]
+            : [],
+        )
+        .slice(0, 3)
+        .join("; ");
+  }
+  return new Error(
+    `${action} (${response.status})${message ? `: ${message}` : "."}`,
+  );
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
     ...init,
@@ -351,8 +327,16 @@ export const previewPluginInstall = async (
     credentials: "include",
     body: form,
   });
-  if (!response.ok)
-    throw await pluginRequestError(response, "Plugin preview failed");
+  if (!response.ok) {
+    const body = await response.json().catch(() => null);
+    const detail =
+      typeof body?.detail === "object" ? body.detail.message : body?.detail;
+    throw new Error(
+      detail
+        ? `Plugin preview failed (${response.status}): ${detail}`
+        : `Plugin preview failed (${response.status}).`,
+    );
+  }
   return response.json() as Promise<PluginInstallPreview>;
 };
 
@@ -377,15 +361,20 @@ export const installPlugin = async (
     body: form,
   });
   if (response.status === 409) {
-    const body = await response
-      .clone()
-      .json()
-      .catch(() => null);
+    const body = await response.json().catch(() => null);
     if (body?.detail?.code === "untrusted_plugin")
       throw new UntrustedPluginError(body.detail);
   }
-  if (!response.ok)
-    throw await pluginRequestError(response, "Plugin installation failed");
+  if (!response.ok) {
+    const body = await response.json().catch(() => null);
+    const detail =
+      typeof body?.detail === "object" ? body.detail.message : body?.detail;
+    throw new Error(
+      detail
+        ? `Plugin installation failed (${response.status}): ${detail}`
+        : `Plugin installation failed (${response.status}).`,
+    );
+  }
   return response.json();
 };
 
@@ -422,8 +411,16 @@ export const previewPluginInstallUrl = async (
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ url, ...remotePluginSource(source) }),
   });
-  if (!response.ok)
-    throw await pluginRequestError(response, "Plugin URL preview failed");
+  if (!response.ok) {
+    const body = await response.json().catch(() => null);
+    const detail =
+      typeof body?.detail === "object" ? body.detail.message : body?.detail;
+    throw new Error(
+      detail
+        ? `Plugin URL preview failed (${response.status}): ${detail}`
+        : `Plugin URL preview failed (${response.status}).`,
+    );
+  }
   return response.json();
 };
 
@@ -452,23 +449,24 @@ export const installPluginFromUrl = async (
     }),
   });
   if (response.status === 409) {
-    const body = await response
-      .clone()
-      .json()
-      .catch(() => null);
+    const body = await response.json().catch(() => null);
     if (body?.detail?.code === "untrusted_plugin")
       throw new UntrustedPluginError(body.detail);
   }
-  if (!response.ok)
-    throw await pluginRequestError(response, "Plugin installation failed");
+  if (!response.ok) {
+    const body = await response.json().catch(() => null);
+    const detail =
+      typeof body?.detail === "object" ? body.detail.message : body?.detail;
+    throw new Error(
+      detail
+        ? `Plugin installation failed (${response.status}): ${detail}`
+        : `Plugin installation failed (${response.status}).`,
+    );
+  }
   return response.json();
 };
 
 export const fetchPlugins = () => request<PluginSummary[]>("/api/plugins");
-export const fetchPluginDetails = (id: string) =>
-  request<{ readme: string | null }>(
-    `/api/plugins/${encodeURIComponent(id)}/details`,
-  );
 export const enablePlugin = (id: string) =>
   request<void>(`/api/plugins/${encodeURIComponent(id)}/enable`, {
     method: "POST",
@@ -501,7 +499,7 @@ export const previewPluginUpdate = async (
     { method: "PUT", credentials: "include", body: form },
   );
   if (!response.ok)
-    throw await pluginRequestError(response, "Plugin update preview failed");
+    throw new Error(`Plugin update preview failed (${response.status}).`);
   return response.json();
 };
 
@@ -521,7 +519,7 @@ export const previewPluginUpdateUrl = async (
     },
   );
   if (!response.ok)
-    throw await pluginRequestError(response, "Plugin update preview failed");
+    throw new Error(`Plugin update preview failed (${response.status}).`);
   return response.json();
 };
 
@@ -544,15 +542,7 @@ export const updatePlugin = async (
     allow_untrusted: allowUntrusted ? "true" : "false",
     confirm_dangerous: confirmation.confirmDangerous ? "true" : "false",
     permissions_reviewed: confirmation.expectedDigest ? "true" : "false",
-    version_change_confirmed: confirmation.versionChangeConfirmed
-      ? "true"
-      : "false",
   });
-  if (confirmation.expectedInstalledVersion)
-    form.append(
-      "expected_installed_version",
-      confirmation.expectedInstalledVersion,
-    );
   if (confirmation.expectedDigest)
     form.append("expected_digest", confirmation.expectedDigest);
   if (confirmation.adminPassword)
@@ -564,7 +554,7 @@ export const updatePlugin = async (
     { method: "PUT", credentials: "include", body: form },
   );
   if (!response.ok)
-    throw await pluginRequestError(response, "Plugin update failed");
+    throw new Error(`Plugin update failed (${response.status}).`);
   return response.json();
 };
 
@@ -600,14 +590,20 @@ export const updatePluginFromUrl = async (
         expected_digest: expectedDigest,
         admin_password: confirmation.adminPassword,
         confirm_dangerous: confirmation.confirmDangerous ?? false,
-        version_change_confirmed: confirmation.versionChangeConfirmed ?? false,
-        expected_installed_version: confirmation.expectedInstalledVersion,
         ...remotePluginSource(source),
       }),
     },
   );
-  if (!response.ok)
-    throw await pluginRequestError(response, "Plugin update failed");
+  if (!response.ok) {
+    const body = await response.json().catch(() => null);
+    const detail =
+      typeof body?.detail === "object" ? body.detail.message : body?.detail;
+    throw new Error(
+      detail
+        ? `Plugin update failed (${response.status}): ${detail}`
+        : `Plugin update failed (${response.status}).`,
+    );
+  }
   return response.json();
 };
 
@@ -645,7 +641,7 @@ export const deletePluginCatalogue = async (id: string): Promise<void> => {
     },
   );
   if (!response.ok && response.status !== 204)
-    throw await pluginRequestError(response, "Catalogue removal failed");
+    throw new Error(`Catalogue removal failed (${response.status}).`);
 };
 export const checkPluginUpdates = () =>
   request<{
@@ -669,5 +665,5 @@ export const deletePlugin = async (id: string): Promise<void> => {
     credentials: "include",
   });
   if (!response.ok && response.status !== 204)
-    throw await pluginRequestError(response, "Plugin deletion failed");
+    throw new Error(`Plugin deletion failed (${response.status}).`);
 };

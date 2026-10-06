@@ -29,7 +29,6 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 from .contracts import (
     CompatibilityStatus,
     PluginManifest,
-    PluginUiDocument,
     parse_semver,
     resolve_plugin_dependencies,
 )
@@ -279,29 +278,6 @@ class PluginPackageVerifier:
         if digest.lower() != manifest.integrity.sha256.lower():
             raise PackageVerificationError("plugin package integrity verification failed")
 
-        ui_content = dict(payload).get("ui.json")
-        if manifest.scheduled_tasks:
-            try:
-                document = PluginUiDocument.model_validate_json(ui_content or b"{}")
-                actions = {action.id: action for action in document.actions}
-                for task in manifest.scheduled_tasks:
-                    action = actions.get(task.action_id)
-                    if action is None or action.confirmation is not None or action.handler is None:
-                        raise ValueError("scheduled action must have a handler and no confirmation")
-            except ValueError as exc:
-                raise PackageFormatError("plugin scheduled task targets are invalid") from exc
-        if ui_content is not None and parse_semver(manifest.api_contract_version) >= (1, 1, 0):
-            try:
-                ui_document = json.loads(ui_content)
-                if (
-                    not isinstance(ui_document, dict)
-                    or ui_document.get("api_contract_version", "1.0.0")
-                    != manifest.api_contract_version
-                ):
-                    raise ValueError("UI contract declaration does not match the manifest")
-            except (ValueError, UnicodeError) as exc:
-                raise PackageFormatError("plugin UI and manifest API contracts must match") from exc
-
         distribution: dict[str, object] = {}
         for name, content in payload:
             if name != "distribution.json":
@@ -344,9 +320,7 @@ class PluginPackageVerifier:
                     or "integrity" in envelope["manifest"]
                 ):
                     raise ValueError("invalid signing envelope identity")
-                signed = PluginManifest.model_validate(
-                    {**envelope["manifest"], "integrity": manifest.integrity}
-                )
+                signed = PluginManifest.model_validate({**envelope["manifest"], "integrity": manifest.integrity})
                 if signed != manifest:
                     raise ValueError("signed manifest does not match")
             except (KeyError, ValueError, TypeError) as exc:
@@ -365,9 +339,7 @@ class PluginPackageVerifier:
                     json.dumps(claim, sort_keys=True, separators=(",", ":")).encode()
                 ).hexdigest()
                 if claim_hash not in publisher.legacy_manifest_hashes.get(digest, []):
-                    raise PackageVerificationError(
-                        "legacy signed manifest is not reviewed; use a v2 package"
-                    )
+                    raise PackageVerificationError("legacy signed manifest is not reviewed; use a v2 package")
             if manifest.pwa is not None:
                 raise PackageVerificationError("signed PWA contributions require a v2 signature")
 

@@ -6,7 +6,7 @@
 .collection-card {
   position: relative;
   width: 100%;
-  border-radius: var(--ui-radius-row);
+  border-radius: 10px;
   transition:
     transform 0.32s cubic-bezier(0.22, 1, 0.36, 1),
     box-shadow 0.32s cubic-bezier(0.22, 1, 0.36, 1);
@@ -47,16 +47,16 @@
   height: 26px;
   border-radius: 50%;
   border: none;
-  background: color-mix(in srgb, var(--ui-bg) 78%, transparent);
+  background: rgba(20, 20, 20, 0.78);
   backdrop-filter: blur(4px);
-  color: var(--ui-text);
+  color: #ccc;
   font-size: 11px;
   cursor: pointer;
 }
 
 .card-actions button:hover,
 .card-actions button.on {
-  color: var(--ui-accent-text);
+  color: #d68a34;
 }
 
 .pin-badge {
@@ -69,9 +69,9 @@
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  background: color-mix(in srgb, var(--ui-bg) 80%, transparent);
+  background: rgba(20, 20, 20, 0.8);
   backdrop-filter: blur(4px);
-  color: var(--ui-accent-text);
+  color: #d68a34;
 }
 
 .collection-card-wrap[draggable="true"] {
@@ -79,12 +79,12 @@
 }
 
 .collection-card-wrap.drop-target .collection-card {
-  outline: 2px dashed var(--ui-accent-text);
+  outline: 2px dashed #d68a34;
   outline-offset: 3px;
 }
 
 .card-actions button[title^="Delete"]:hover {
-  color: var(--ui-error);
+  color: #e57373;
 }
 
 .desc {
@@ -92,16 +92,16 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--ui-faint);
+  color: #666;
 }
 
 .cover {
   position: relative;
   width: 100%;
   aspect-ratio: 2 / 3;
-  border-radius: var(--ui-radius-row);
+  border-radius: 10px;
   overflow: hidden;
-  background: var(--ui-surface);
+  background: #1a1a1a;
 }
 
 .cover-grid {
@@ -117,7 +117,7 @@
   background-size: cover;
   background-repeat: no-repeat;
   background-position: center;
-  background-color: var(--ui-surface);
+  background-color: #1c1c1c;
 }
 
 .cover-cell.empty {
@@ -130,14 +130,14 @@
   bottom: 8px;
   z-index: 2;
   font-size: 10px;
-  font-weight: var(--ui-weight-title);
+  font-weight: 800;
   letter-spacing: 0.05em;
   text-transform: uppercase;
   padding: 3px 8px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--ui-bg) 80%, transparent);
+  background: rgba(20, 20, 20, 0.8);
   backdrop-filter: blur(4px);
-  color: var(--ui-accent-text);
+  color: #d68a34;
 }
 
 .card-info {
@@ -148,7 +148,7 @@
   margin: 0 0 2px;
   font-size: 14px;
   font-weight: 600;
-  color: var(--ui-text);
+  color: #fff;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -158,12 +158,12 @@
   display: flex;
   gap: 8px;
   font-size: 12px;
-  color: var(--ui-dim);
+  color: #9c9c9c;
 }
 
 .parent-eyebrow {
   display: block;
-  color: var(--ui-faint);
+  color: #666;
   font-size: 10.5px;
   text-transform: uppercase;
   letter-spacing: 0.04em;

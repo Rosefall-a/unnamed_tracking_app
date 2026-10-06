@@ -2,7 +2,6 @@
 import { onMounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { startOidcLogin } from "../services/oidc";
-import { rememberReturnPath } from "../state/startup";
 
 const route = useRoute();
 const router = useRouter();
@@ -16,8 +15,7 @@ onMounted(() => {
     router.replace("/login");
     return;
   }
-  rememberReturnPath(route.query.return_to);
-  startOidcLogin(provider, true);
+  startOidcLogin(provider);
 });
 </script>
 <template>
@@ -30,9 +28,9 @@ onMounted(() => {
   min-height: 100vh;
   display: grid;
   place-items: center;
-  background: var(--ui-bg);
-  color: var(--ui-dim);
-  font-family: var(--ui-font-family);
+  background: #121212;
+  color: #999;
+  font-family: system-ui, sans-serif;
   font-size: 13px;
 }
 </style>

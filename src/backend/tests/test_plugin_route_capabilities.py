@@ -6,7 +6,6 @@ from uuid import UUID, uuid4
 
 import pytest
 from fastapi import HTTPException, Request
-
 from src.api.routes import plugins
 from src.api.routes.plugin_manager import contributions as plugin_contributions
 from src.api.routes.plugin_manager import runtime as plugin_runtime
@@ -37,7 +36,6 @@ class FakeRuntimeClient:
     async def plugins(self) -> list[dict]:
         return [
             {
-                "api_contract_version": "1.1.0",
                 "plugin_id": "example.plugin",
                 "installation_id": str(self.installation_id),
                 "enabled": True,

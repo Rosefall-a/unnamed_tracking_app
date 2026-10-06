@@ -5,8 +5,7 @@
 // tied to (achievement, account, tags). The title is only a name inside the
 // app; the file keeps its own. It opens over the page, so the gallery behind
 // it never reflows.
-import UiModal from "./UiModal.vue";
-import { ref, computed, watch } from "vue";
+import { ref, computed, watch, onMounted, onBeforeUnmount } from "vue";
 import AchievementPicker from "./AchievementPicker.vue";
 import { copyLink, downloadMedia, originalName } from "../utils/copyMedia";
 import { formatDuration, settleDuration } from "../utils/videoDuration";
@@ -256,226 +255,251 @@ function remove() {
 }
 
 function onKey(e: KeyboardEvent) {
-  if (
-    !e.isComposing &&
-    e.key === "Enter" &&
-    (e.ctrlKey || e.metaKey) &&
-    dirty.value
-  ) {
-    e.preventDefault();
-    save();
-  }
+  if (e.key === "Escape") emit("close");
+  else if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) save();
 }
+onMounted(() => document.addEventListener("keydown", onKey));
+onBeforeUnmount(() => document.removeEventListener("keydown", onKey));
 </script>
 
 <template>
-  <UiModal
-    :title="title.trim() || originalName(item.filename)"
-    :description="originalName(item.filename)"
-    size="wide"
-    @close="emit('close')"
-    @keydown="onKey"
-  >
-    <div class="med-body">
-      <aside class="med-side">
-        <div class="med-preview" :class="{ doc: !isMedia }">
-          <img
-            v-if="item.kind === 'screenshot'"
-            :src="item.url"
-            alt=""
-            @load="onImageLoad"
-          />
-          <video
-            v-else-if="item.kind === 'clip'"
-            :src="item.url"
-            controls
-            preload="metadata"
-            @loadedmetadata="onVideoMeta"
-          ></video>
-          <audio
-            v-else-if="item.kind === 'soundtrack'"
-            :src="item.url"
-            controls
-            preload="metadata"
-            @loadedmetadata="onAudioMeta"
-          ></audio>
-          <div v-else class="med-doc">
-            <svg
-              viewBox="0 0 24 24"
-              width="34"
-              height="34"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.6"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <path
-                d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"
-              />
-              <path d="M14 2v6h6" />
-            </svg>
-            <strong>{{ extension }}</strong>
+  <Teleport to="body">
+    <div class="ui-backdrop" @click.self="emit('close')">
+      <div
+        class="ui-modal med"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Edit details"
+      >
+        <header class="med-head">
+          <div class="med-head-text">
+            <h3>{{ title.trim() || originalName(item.filename) }}</h3>
+            <p :title="originalName(item.filename)">
+              {{ originalName(item.filename) }}
+            </p>
           </div>
-        </div>
-
-        <div class="med-quick">
           <button
             type="button"
-            class="ui-btn ui-btn-ghost ui-btn-sm"
-            @click="copyTheLink"
+            class="med-x"
+            aria-label="Close"
+            @click="emit('close')"
           >
-            {{ copied ? "Copied" : "Copy link" }}
+            ✕
           </button>
-          <button
-            type="button"
-            class="ui-btn ui-btn-ghost ui-btn-sm"
-            @click="downloadMedia(item.url, originalName(item.filename))"
-          >
-            Download
-          </button>
-        </div>
+        </header>
 
-        <dl class="med-facts">
-          <div v-for="f in facts" :key="f.label">
-            <dt>{{ f.label }}</dt>
-            <dd>{{ f.value }}</dd>
-          </div>
-        </dl>
-      </aside>
-
-      <div class="med-main">
-        <section class="med-group">
-          <h4>Details</h4>
-          <label class="med-field">
-            <span>Title</span>
-            <input
-              v-model="title"
-              type="text"
-              class="ui-field"
-              maxlength="200"
-              placeholder="A name for this in the app"
-            />
-          </label>
-          <label class="med-field">
-            <span>Note</span>
-            <textarea
-              v-model="note"
-              class="ui-field"
-              rows="3"
-              placeholder="What is this?"
-            ></textarea>
-          </label>
-        </section>
-
-        <section class="med-group">
-          <h4>When</h4>
-          <div class="med-field">
-            <span>Date</span>
-            <div class="med-date">
-              <input
-                v-model="date"
-                type="date"
-                class="ui-field"
-                @input="onDateInput"
+        <div class="med-body">
+          <aside class="med-side">
+            <div class="med-preview" :class="{ doc: !isMedia }">
+              <img
+                v-if="item.kind === 'screenshot'"
+                :src="item.url"
+                alt=""
+                @load="onImageLoad"
               />
+              <video
+                v-else-if="item.kind === 'clip'"
+                :src="item.url"
+                controls
+                preload="metadata"
+                @loadedmetadata="onVideoMeta"
+              ></video>
+              <audio
+                v-else-if="item.kind === 'soundtrack'"
+                :src="item.url"
+                controls
+                preload="metadata"
+                @loadedmetadata="onAudioMeta"
+              ></audio>
+              <div v-else class="med-doc">
+                <svg
+                  viewBox="0 0 24 24"
+                  width="34"
+                  height="34"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.6"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path
+                    d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"
+                  />
+                  <path d="M14 2v6h6" />
+                </svg>
+                <strong>{{ extension }}</strong>
+              </div>
+            </div>
+
+            <div class="med-quick">
               <button
-                v-if="detect && isMedia"
                 type="button"
-                class="ui-btn ui-btn-ghost"
-                :disabled="detecting"
-                @click="detectDate"
+                class="ui-btn ui-btn-ghost ui-btn-sm"
+                @click="copyTheLink"
               >
-                {{ detecting ? "Reading…" : "Detect from file" }}
+                {{ copied ? "Copied" : "Copy link" }}
+              </button>
+              <button
+                type="button"
+                class="ui-btn ui-btn-ghost ui-btn-sm"
+                @click="downloadMedia(item.url, originalName(item.filename))"
+              >
+                Download
               </button>
             </div>
-            <small class="med-hint">{{ dateNote }}</small>
-            <button
-              v-if="unlock !== null && pending === null"
-              type="button"
-              class="med-link"
-              @click="takeUnlockDate"
-            >
-              Use the achievement's unlock date, {{ unlockLabel }}
-            </button>
-          </div>
-        </section>
 
-        <section class="med-group">
-          <h4>Connections</h4>
-          <div v-if="list.length" class="med-field">
-            <span>Achievement</span>
-            <AchievementPicker
-              :model-value="linked || null"
-              :achievements="list"
-              @change="onLink"
-            />
-            <label class="med-check">
-              <input
-                v-model="fromAchievement"
-                type="checkbox"
-                @change="onTogglePref"
-              />
-              <span
-                >Take the date from the achievement when I tie one. Only
-                replaces a guessed date.</span
-              >
-            </label>
-          </div>
-          <label v-if="profiles && profiles.length" class="med-field">
-            <span>Account</span>
-            <select v-model="profile" class="ui-field">
-              <option value="">None</option>
-              <option v-for="p in profiles" :key="p.id" :value="p.id">
-                {{ p.name }}
-              </option>
-            </select>
-          </label>
-          <div class="med-field">
-            <span>Tags</span>
-            <div class="med-tags ui-field" @click="tagInput?.focus()">
-              <span v-for="t in tags" :key="t" class="med-tag">
-                {{ t }}
+            <dl class="med-facts">
+              <div v-for="f in facts" :key="f.label">
+                <dt>{{ f.label }}</dt>
+                <dd>{{ f.value }}</dd>
+              </div>
+            </dl>
+          </aside>
+
+          <div class="med-main">
+            <section class="med-group">
+              <h4>Details</h4>
+              <label class="med-field">
+                <span>Title</span>
+                <input
+                  v-model="title"
+                  type="text"
+                  class="ui-field"
+                  maxlength="200"
+                  placeholder="A name for this in the app"
+                />
+              </label>
+              <label class="med-field">
+                <span>Note</span>
+                <textarea
+                  v-model="note"
+                  class="ui-field"
+                  rows="3"
+                  placeholder="What is this?"
+                ></textarea>
+              </label>
+            </section>
+
+            <section class="med-group">
+              <h4>When</h4>
+              <div class="med-field">
+                <span>Date</span>
+                <div class="med-date">
+                  <input
+                    v-model="date"
+                    type="date"
+                    class="ui-field"
+                    @input="onDateInput"
+                  />
+                  <button
+                    v-if="detect && isMedia"
+                    type="button"
+                    class="ui-btn ui-btn-ghost"
+                    :disabled="detecting"
+                    @click="detectDate"
+                  >
+                    {{ detecting ? "Reading…" : "Detect from file" }}
+                  </button>
+                </div>
+                <small class="med-hint">{{ dateNote }}</small>
                 <button
+                  v-if="unlock !== null && pending === null"
                   type="button"
-                  :aria-label="`Remove ${t}`"
-                  @click.stop="tags = tags.filter((x) => x !== t)"
+                  class="med-link"
+                  @click="takeUnlockDate"
                 >
-                  ✕
+                  Use the achievement's unlock date, {{ unlockLabel }}
                 </button>
-              </span>
-              <input
-                ref="tagInput"
-                v-model="tagDraft"
-                type="text"
-                :placeholder="tags.length ? '' : 'boss fight, funny, glitch'"
-                @keydown="onTagKey"
-                @blur="commitTag"
-              />
-            </div>
+              </div>
+            </section>
+
+            <section class="med-group">
+              <h4>Connections</h4>
+              <div v-if="list.length" class="med-field">
+                <span>Achievement</span>
+                <AchievementPicker
+                  :model-value="linked || null"
+                  :achievements="list"
+                  @change="onLink"
+                />
+                <label class="med-check">
+                  <input
+                    v-model="fromAchievement"
+                    type="checkbox"
+                    @change="onTogglePref"
+                  />
+                  <span
+                    >Take the date from the achievement when I tie one. Only
+                    replaces a guessed date.</span
+                  >
+                </label>
+              </div>
+              <label v-if="profiles && profiles.length" class="med-field">
+                <span>Account</span>
+                <select v-model="profile" class="ui-field">
+                  <option value="">None</option>
+                  <option v-for="p in profiles" :key="p.id" :value="p.id">
+                    {{ p.name }}
+                  </option>
+                </select>
+              </label>
+              <div class="med-field">
+                <span>Tags</span>
+                <div class="med-tags ui-field" @click="tagInput?.focus()">
+                  <span v-for="t in tags" :key="t" class="med-tag">
+                    {{ t }}
+                    <button
+                      type="button"
+                      :aria-label="`Remove ${t}`"
+                      @click.stop="tags = tags.filter((x) => x !== t)"
+                    >
+                      ✕
+                    </button>
+                  </span>
+                  <input
+                    ref="tagInput"
+                    v-model="tagDraft"
+                    type="text"
+                    :placeholder="
+                      tags.length ? '' : 'boss fight, funny, glitch'
+                    "
+                    @keydown="onTagKey"
+                    @blur="commitTag"
+                  />
+                </div>
+              </div>
+            </section>
           </div>
-        </section>
+        </div>
+
+        <footer class="med-actions">
+          <button
+            type="button"
+            class="ui-btn ui-btn-danger-soft"
+            @click="remove"
+          >
+            Delete
+          </button>
+          <span class="med-spacer"></span>
+          <button
+            type="button"
+            class="ui-btn ui-btn-ghost"
+            @click="emit('close')"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            class="ui-btn ui-btn-primary"
+            :disabled="!dirty"
+            @click="save"
+          >
+            Save
+          </button>
+        </footer>
       </div>
     </div>
-
-    <template #footer>
-      <button type="button" class="ui-btn ui-btn-danger-soft" @click="remove">
-        Delete
-      </button>
-      <span class="med-spacer"></span>
-      <button type="button" class="ui-btn ui-btn-ghost" @click="emit('close')">
-        Cancel
-      </button>
-      <button
-        type="button"
-        class="ui-btn ui-btn-primary"
-        :disabled="!dirty"
-        @click="save"
-      >
-        Save
-      </button>
-    </template>
-  </UiModal>
+  </Teleport>
 </template>
 
 <style scoped>
@@ -493,7 +517,7 @@ function onKey(e: KeyboardEvent) {
   justify-content: space-between;
   gap: 12px;
   padding: 18px 22px 14px;
-  border-bottom: 1px solid var(--ui-surface-2);
+  border-bottom: 1px solid #262626;
 }
 .med-head-text {
   min-width: 0;
@@ -508,7 +532,7 @@ function onKey(e: KeyboardEvent) {
 .med-head p {
   margin: 3px 0 0;
   font-size: 0.78rem;
-  color: var(--ui-faint);
+  color: #777;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -518,14 +542,14 @@ function onKey(e: KeyboardEvent) {
   width: 30px;
   height: 30px;
   border: none;
-  border-radius: var(--ui-radius-control);
+  border-radius: 8px;
   background: none;
-  color: var(--ui-dim);
+  color: #888;
   cursor: pointer;
 }
 .med-x:hover {
-  background: color-mix(in srgb, var(--ui-text) 8%, transparent);
-  color: var(--ui-text);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
 }
 .med-body {
   flex: 1;
@@ -543,9 +567,9 @@ function onKey(e: KeyboardEvent) {
   min-width: 0;
 }
 .med-preview {
-  border-radius: var(--ui-radius-row);
+  border-radius: 10px;
   overflow: hidden;
-  background: var(--ui-surface);
+  background: #000;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -562,7 +586,7 @@ function onKey(e: KeyboardEvent) {
   margin: 14px;
 }
 .med-preview.doc {
-  background: color-mix(in srgb, var(--ui-accent) 8%, transparent);
+  background: rgba(214, 138, 52, 0.08);
   min-height: 150px;
 }
 .med-doc {
@@ -570,7 +594,7 @@ function onKey(e: KeyboardEvent) {
   flex-direction: column;
   align-items: center;
   gap: 8px;
-  color: var(--ui-accent-text);
+  color: #d68a34;
 }
 .med-doc strong {
   font-size: 0.82rem;
@@ -593,11 +617,11 @@ function onKey(e: KeyboardEvent) {
   gap: 12px;
 }
 .med-facts dt {
-  color: var(--ui-faint);
+  color: #777;
 }
 .med-facts dd {
   margin: 0;
-  color: var(--ui-text);
+  color: #ddd;
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
@@ -615,10 +639,10 @@ function onKey(e: KeyboardEvent) {
 .med-group h4 {
   margin: 0;
   font-size: 0.7rem;
-  font-weight: var(--ui-weight-title);
+  font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--ui-accent-text);
+  color: #d68a34;
 }
 .med-field {
   display: flex;
@@ -628,7 +652,7 @@ function onKey(e: KeyboardEvent) {
 .med-field > span {
   font-size: 0.74rem;
   font-weight: 700;
-  color: var(--ui-dim);
+  color: #9c9c9c;
 }
 .med-field input.ui-field,
 .med-field textarea {
@@ -649,14 +673,14 @@ function onKey(e: KeyboardEvent) {
 }
 .med-hint {
   font-size: 0.74rem;
-  color: var(--ui-faint);
+  color: #777;
 }
 .med-link {
   align-self: flex-start;
   background: none;
   border: none;
   padding: 0;
-  color: var(--ui-accent-text);
+  color: #d68a34;
   font: inherit;
   font-size: 0.78rem;
   font-weight: 700;
@@ -671,12 +695,12 @@ function onKey(e: KeyboardEvent) {
   align-items: flex-start;
   gap: 8px;
   font-size: 0.76rem;
-  color: var(--ui-dim);
+  color: #888;
   cursor: pointer;
 }
 .med-check input {
   margin-top: 2px;
-  accent-color: var(--ui-accent-text);
+  accent-color: #d68a34;
 }
 .med-tags {
   display: flex;
@@ -695,11 +719,11 @@ function onKey(e: KeyboardEvent) {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  background: color-mix(in srgb, var(--ui-text) 9%, transparent);
+  background: rgba(255, 255, 255, 0.09);
   border-radius: 999px;
   padding: 2px 4px 2px 10px;
   font-size: 0.76rem;
-  color: var(--ui-text);
+  color: #ddd;
 }
 .med-tag button {
   width: 16px;
@@ -707,14 +731,14 @@ function onKey(e: KeyboardEvent) {
   border: none;
   border-radius: 50%;
   background: none;
-  color: var(--ui-dim);
+  color: #999;
   font-size: 0.6rem;
   cursor: pointer;
   padding: 0;
 }
 .med-tag button:hover {
-  background: color-mix(in srgb, var(--ui-text) 15%, transparent);
-  color: var(--ui-text);
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
 }
 .med-tags input {
   flex: 1;
@@ -731,8 +755,8 @@ function onKey(e: KeyboardEvent) {
   align-items: center;
   gap: 8px;
   padding: 14px 22px;
-  border-top: 1px solid var(--ui-surface-2);
-  background: var(--ui-popover, var(--ui-surface));
+  border-top: 1px solid #262626;
+  background: var(--ui-popover, #171717);
 }
 .med-spacer {
   flex: 1;

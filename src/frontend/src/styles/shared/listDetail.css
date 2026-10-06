@@ -1,16 +1,16 @@
 .subtitle {
   margin: 0 0 8px;
-  color: var(--ui-dim);
+  color: #9c9c9c;
   font-size: 0.88rem;
 }
 
 .rule-line {
-  color: var(--ui-dim);
+  color: #b9a37f;
 }
 
 .hint {
   margin: 0 0 4px;
-  color: var(--ui-accent-text);
+  color: #d68a34;
   font-size: 0.8rem;
 }
 

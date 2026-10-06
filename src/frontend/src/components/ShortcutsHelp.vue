@@ -1,139 +1,136 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, watch, ref } from "vue";
-import { useRoute, useRouter } from "vue-router";
-import {
-  shortcutForEvent,
-  matchesShortcut,
-  runPluginShortcut,
-} from "../state/shortcuts";
-import { isCommandPaletteOpen } from "../state/commandPalette";
-import UiModal from "./UiModal.vue";
-import ShortcutGroups from "./ShortcutGroups.vue";
-import { shortcutsHelpOpen as open } from "../state/quickTour";
+import { ref, onMounted, onUnmounted } from "vue";
+import { SHORTCUT_GROUPS } from "../utils/shortcuts";
 
-const route = useRoute();
-const router = useRouter();
-const shortcutError = ref("");
-watch(
-  () => route.fullPath,
-  () => {
-    open.value = false;
-  },
-);
+const open = ref(false);
 
 function isTypingTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  const tag = target.tagName;
   return (
-    target instanceof HTMLElement &&
-    (Boolean(target.closest("input, textarea, select, [role=combobox]")) ||
-      target.isContentEditable)
+    tag === "INPUT" ||
+    tag === "TEXTAREA" ||
+    tag === "SELECT" ||
+    target.isContentEditable
   );
 }
 
-function visibleControl(
-  name: string,
-  allowCollapsed = false,
-): HTMLElement | undefined {
-  return Array.from(
-    document.querySelectorAll<HTMLElement>(
-      `#main-content [data-shortcut="${name}"]`,
-    ),
-  ).find(
-    (element) =>
-      (element.getClientRects().length > 0 ||
-        (allowCollapsed &&
-          element.closest(".compact-controls .head-actions"))) &&
-      !element.matches(":disabled") &&
-      !element.closest("[inert]"),
-  );
-}
-
-function onKeydown(event: KeyboardEvent) {
-  if (event.defaultPrevented || event.isComposing || event.repeat) return;
-  if (event.getModifierState("AltGraph")) return;
-  if (open.value) {
-    if (matchesShortcut("app.help", event) || event.key === "Escape") {
-      event.preventDefault();
-      open.value = false;
-    }
+function onKeydown(e: KeyboardEvent) {
+  if (e.key === "Escape" && open.value) {
+    open.value = false;
     return;
   }
-  if (isCommandPaletteOpen.value) {
-    if (matchesShortcut("app.search", event)) {
-      event.preventDefault();
-      isCommandPaletteOpen.value = false;
-    }
-    return;
-  }
-  if (
-    document.querySelector(
-      'dialog[open], [role="dialog"], [role="alertdialog"]',
-    )
-  ) {
-    return;
-  }
-  const shortcut = shortcutForEvent(event, route.path);
-  if (
-    !shortcut ||
-    (isTypingTarget(event.target) && shortcut.id !== "app.search")
-  )
-    return;
-  if (shortcut.id === "app.help") {
-    event.preventDefault();
-    open.value = true;
-    return;
-  }
-  if (shortcut.id === "app.search") {
-    event.preventDefault();
-    isCommandPaletteOpen.value = true;
-    return;
-  }
-  if (shortcut.destination) {
-    event.preventDefault();
-    void router.push(shortcut.destination);
-    return;
-  }
-  if (shortcut.id === "app.focus-search" || shortcut.control === "search") {
-    event.preventDefault();
-    const control = visibleControl("search");
-    if (control) control.focus();
-    else isCommandPaletteOpen.value = true;
-  } else if (shortcut.id === "app.create" || shortcut.control === "create") {
-    const control = visibleControl("create", true);
-    if (!control) return;
-    event.preventDefault();
-    if (control instanceof HTMLInputElement) control.focus();
-    else control.click();
-  } else if (shortcut.pluginId) {
-    event.preventDefault();
-    void runPluginShortcut(shortcut.id).catch(() => {
-      shortcutError.value =
-        "This extension shortcut could not run. Check its permissions and runtime status in plugin settings.";
-    });
+  if (isTypingTarget(e.target)) return;
+  if (e.key === "?") {
+    e.preventDefault();
+    open.value = !open.value;
   }
 }
 
-onMounted(() => window.addEventListener("keydown", onKeydown, true));
-onUnmounted(() => {
-  open.value = false;
-  window.removeEventListener("keydown", onKeydown, true);
-});
+onMounted(() => window.addEventListener("keydown", onKeydown));
+onUnmounted(() => window.removeEventListener("keydown", onKeydown));
+
+const GROUPS = SHORTCUT_GROUPS;
 </script>
 
 <template>
-  <UiModal
-    v-if="open"
-    title="Keyboard shortcuts"
-    data-tour="shortcut-help"
-    size="wide"
-    description="This page comes first. Expand another section to see its shortcuts. Keys pause while you type or use a dialog."
-    @close="open = false"
-  >
-    <ShortcutGroups :path="route.path" />
-  </UiModal>
-  <UiModal
-    v-if="shortcutError"
-    title="Shortcut unavailable"
-    @close="shortcutError = ''"
-    ><p role="alert">{{ shortcutError }}</p></UiModal
-  >
+  <div v-if="open" class="shortcuts-backdrop" @click.self="open = false">
+    <div class="shortcuts-dialog">
+      <div class="shortcuts-header">
+        <h2>Keyboard shortcuts</h2>
+        <button type="button" class="close-button" @click="open = false">
+          ✕
+        </button>
+      </div>
+      <div v-for="group in GROUPS" :key="group.title" class="shortcuts-group">
+        <h3>{{ group.title }}</h3>
+        <div v-for="s in group.shortcuts" :key="s.label" class="shortcut-row">
+          <span>{{ s.label }}</span>
+          <kbd>{{ s.keys }}</kbd>
+        </div>
+      </div>
+    </div>
+  </div>
 </template>
+
+<style scoped>
+.shortcuts-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+}
+.shortcuts-dialog {
+  background: #1a1a1a;
+  border: 1px solid #2a2a2a;
+  border-radius: 12px;
+  padding: 22px 24px;
+  width: 440px;
+  max-width: calc(100vw - 40px);
+  max-height: 85vh;
+  overflow-y: auto;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+  box-sizing: border-box;
+}
+.shortcuts-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+.shortcuts-header h2 {
+  margin: 0;
+  font-size: 16px;
+  color: #fff;
+}
+.close-button {
+  background: none;
+  border: none;
+  color: #999;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 4px;
+}
+.close-button:hover {
+  color: #fff;
+}
+.shortcuts-group {
+  margin-bottom: 16px;
+}
+.shortcuts-group:last-child {
+  margin-bottom: 0;
+}
+.shortcuts-group h3 {
+  margin: 0 0 8px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #777;
+}
+.shortcut-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 7px 0;
+  font-size: 13px;
+  color: #ccc;
+}
+.shortcut-row kbd {
+  background: #111;
+  border: 1px solid #3a3a3a;
+  border-radius: 6px;
+  padding: 3px 8px;
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+  color: #d68a34;
+  white-space: normal;
+  flex-shrink: 0;
+  max-width: 200px;
+  text-align: right;
+  box-sizing: border-box;
+}
+</style>

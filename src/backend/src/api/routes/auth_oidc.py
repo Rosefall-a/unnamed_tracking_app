@@ -3,22 +3,23 @@ from __future__ import annotations
 import json
 import logging
 import secrets
-from typing import Annotated
+import time
 from urllib.parse import urlparse
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.responses import RedirectResponse
 
-from src.core.auth import SESSION_TTL_SECONDS, hash_password, session_cookie_name
+from src.core.auth import SESSION_TTL_SECONDS, hash_password, hash_token, session_cookie_name
 from src.core.config import settings
 from src.core.crypto import decrypt_secret
 from src.core.oidc import OidcConfig, begin_oidc, oauth, register_oidc_provider
-from src.core.session_manager import create_session
+from src.database.models.auth import UserSession
 from src.database.models.oidc_settings import OidcSettings
 from src.database.models.user import User
 from src.database.session import get_db
+from src.core.session_manager import create_session
 
 router = APIRouter(prefix="/api/auth/oidc", tags=["auth"])
 logger = logging.getLogger(__name__)
@@ -108,7 +109,7 @@ async def _get_config(db, request: Request, slug="default", require_autostart=Fa
 
 
 @router.get("/status")
-async def oidc_status(request: Request, db: Annotated[AsyncSession, Depends(get_db)]):
+async def oidc_status(request: Request, db: AsyncSession = Depends(get_db)):
     row = await db.scalar(select(OidcSettings).limit(1))
     config = await _get_config(db, request)
     providers = []
@@ -123,8 +124,6 @@ async def oidc_status(request: Request, db: Annotated[AsyncSession, Depends(get_
                     "slug": provider["slug"],
                     "button_text": provider.get("button_text") or "Continue with SSO",
                     "button_image_url": provider.get("button_image_url"),
-                    "button_color": provider.get("button_colour") or provider.get("button_color"),
-                    "autostart_enabled": provider.get("autostart_enabled", True) is not False,
                 }
             )
     if not providers and config:
@@ -158,23 +157,20 @@ async def oidc_status(request: Request, db: Annotated[AsyncSession, Depends(get_
 
 
 @router.get("/login", name="oidc_login")
-async def oidc_login(request: Request, db: Annotated[AsyncSession, Depends(get_db)]):
+async def oidc_login(request: Request, db: AsyncSession = Depends(get_db)):
     config = await _get_config(db, request)
     if config is None:
-        return RedirectResponse("/login?oidc_error=not_configured", 303)
+        raise HTTPException(404, "OIDC login is not configured.")
     return await begin_oidc(request, config)
 
 
 @router.get("/login/{provider_slug}")
 async def oidc_provider_login(
-    provider_slug: str,
-    request: Request,
-    db: Annotated[AsyncSession, Depends(get_db)],
-    autostart: bool = True,
+    provider_slug: str, request: Request, db: AsyncSession = Depends(get_db)
 ):
-    config = await _get_config(db, request, provider_slug, require_autostart=autostart)
+    config = await _get_config(db, request, provider_slug, require_autostart=True)
     if config is None:
-        return RedirectResponse("/login?oidc_error=not_configured", 303)
+        raise HTTPException(404, "OIDC provider autostart is not enabled.")
     return await begin_oidc(request, config)
 
 
@@ -308,7 +304,7 @@ async def _complete_callback(request, db, config, client_name):
 
 
 @router.get("/callback", name="oidc_callback")
-async def oidc_callback(request: Request, db: Annotated[AsyncSession, Depends(get_db)]):
+async def oidc_callback(request: Request, db: AsyncSession = Depends(get_db)):
     config = await _get_config(db, request)
     if config is None:
         return RedirectResponse("/login?oidc_error=not_configured", 303)
@@ -317,7 +313,7 @@ async def oidc_callback(request: Request, db: Annotated[AsyncSession, Depends(ge
 
 @router.get("/callback/{provider_slug}", name="oidc_callback_provider")
 async def oidc_callback_provider(
-    provider_slug: str, request: Request, db: Annotated[AsyncSession, Depends(get_db)]
+    provider_slug: str, request: Request, db: AsyncSession = Depends(get_db)
 ):
     config = await _get_config(db, request, provider_slug)
     if config is None:

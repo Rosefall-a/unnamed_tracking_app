@@ -898,14 +898,14 @@ async function onRatingChange(value: number | null) {
 
 <style scoped>
 .error-text {
-  color: var(--ui-error);
+  color: #e57373;
   font-size: 0.85rem;
   margin: 0 0 12px;
 }
 
 .episodes-total {
   font-size: 0.8rem;
-  color: var(--ui-accent-text);
+  color: #d68a34;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
@@ -919,10 +919,10 @@ async function onRatingChange(value: number | null) {
 .airing-ctl {
   height: 30px;
   box-sizing: border-box;
-  background: var(--ui-surface);
-  border: 1px solid var(--ui-border);
-  color: var(--ui-text);
-  border-radius: var(--ui-radius-control);
+  background: #1a1a1a;
+  border: 1px solid #2b2b2b;
+  color: #ccc;
+  border-radius: 7px;
   padding: 0 12px;
   font-family: inherit;
   font-size: 0.76rem;
@@ -931,8 +931,8 @@ async function onRatingChange(value: number | null) {
 }
 
 .airing-ctl:hover:not(:disabled) {
-  border-color: color-mix(in srgb, var(--ui-accent) 40%, transparent);
-  color: var(--ui-accent-text);
+  border-color: rgba(214, 138, 52, 0.4);
+  color: #d68a34;
 }
 
 .airing-ctl:disabled {
@@ -941,9 +941,9 @@ async function onRatingChange(value: number | null) {
 }
 
 .next-episode-banner {
-  background: color-mix(in srgb, var(--ui-accent) 12%, transparent);
-  border: 1px solid color-mix(in srgb, var(--ui-accent) 35%, transparent);
-  color: var(--ui-accent-text);
+  background: rgba(214, 138, 52, 0.12);
+  border: 1px solid rgba(214, 138, 52, 0.35);
+  color: #d68a34;
   border-radius: 999px;
   padding: 4px 12px;
   font-size: 0.76rem;
@@ -956,7 +956,7 @@ async function onRatingChange(value: number | null) {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--ui-faint);
+  color: #666;
 }
 
 .season-divider:first-child {
@@ -968,6 +968,6 @@ async function onRatingChange(value: number | null) {
 }
 
 .poster-card-sm:hover .poster-card-sm-art {
-  border-color: color-mix(in srgb, var(--ui-accent) 50%, transparent);
+  border-color: rgba(214, 138, 52, 0.5);
 }
 </style>

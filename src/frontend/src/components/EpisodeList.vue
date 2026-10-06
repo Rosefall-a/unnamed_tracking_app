@@ -473,10 +473,10 @@ function goToPage(p: number) {
   padding: 4px 0;
 }
 .pager-btn {
-  background: var(--ui-surface);
-  border: 1px solid var(--ui-border);
-  color: var(--ui-text);
-  border-radius: var(--ui-radius-control);
+  background: #1a1a1a;
+  border: 1px solid #2b2b2b;
+  color: #ccc;
+  border-radius: 7px;
   padding: 6px 14px;
   font-family: inherit;
   font-size: 0.8rem;
@@ -484,8 +484,8 @@ function goToPage(p: number) {
   cursor: pointer;
 }
 .pager-btn:hover:not(:disabled) {
-  border-color: color-mix(in srgb, var(--ui-accent) 40%, transparent);
-  color: var(--ui-accent-text);
+  border-color: rgba(214, 138, 52, 0.4);
+  color: #d68a34;
 }
 .pager-btn:disabled {
   opacity: 0.4;
@@ -493,27 +493,27 @@ function goToPage(p: number) {
 }
 .pager-label {
   font-size: 0.78rem;
-  color: var(--ui-dim);
+  color: #9c9c9c;
   font-variant-numeric: tabular-nums;
 }
 .episode-pager select {
-  background: var(--ui-surface);
-  border: 1px solid var(--ui-border);
-  color: var(--ui-text);
-  border-radius: var(--ui-radius-control);
+  background: #1a1a1a;
+  border: 1px solid #2b2b2b;
+  color: #f2f2f2;
+  border-radius: 7px;
   padding: 6px 10px;
   font-family: inherit;
   font-size: 0.8rem;
 }
 .episodes-loading {
-  color: var(--ui-dim);
+  color: #9c9c9c;
   font-size: 0.85rem;
 }
 .episodes-unavailable {
-  border: 1px dashed var(--ui-border);
-  border-radius: var(--ui-radius-row);
+  border: 1px dashed #2a2a2a;
+  border-radius: 10px;
   padding: 24px;
-  color: var(--ui-faint);
+  color: #666;
   font-size: 0.86rem;
   line-height: 1.6;
   text-align: center;
@@ -523,17 +523,17 @@ function goToPage(p: number) {
   grid-template-columns: 26px 140px 1fr auto auto;
   gap: 14px;
   align-items: center;
-  background: var(--ui-surface);
-  border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius-row);
+  background: #1a1a1a;
+  border: 1px solid #202020;
+  border-radius: 10px;
   padding: 10px;
   transition: border-color 0.15s ease;
 }
 .catch-up-btn {
   background: none;
-  border: 1px solid var(--ui-border);
-  color: var(--ui-faint);
-  border-radius: var(--ui-radius-control);
+  border: 1px solid #2b2b2b;
+  color: #666;
+  border-radius: 7px;
   padding: 5px 10px;
   font-family: inherit;
   font-size: 0.72rem;
@@ -550,17 +550,17 @@ function goToPage(p: number) {
   opacity: 1;
 }
 .catch-up-btn:hover {
-  color: var(--ui-accent-text);
-  border-color: color-mix(in srgb, var(--ui-accent) 40%, transparent);
+  color: #d68a34;
+  border-color: rgba(214, 138, 52, 0.4);
 }
 .add-note-btn {
   align-self: flex-start;
   margin-top: 6px;
   background: none;
-  border: 1px dashed var(--ui-border);
+  border: 1px dashed #333;
   border-radius: 6px;
   padding: 3px 10px;
-  color: var(--ui-faint);
+  color: #666;
   font-family: inherit;
   font-size: 0.72rem;
   font-weight: 600;
@@ -582,23 +582,23 @@ function goToPage(p: number) {
   }
 }
 .add-note-btn:hover {
-  color: var(--ui-accent-text);
-  border-color: color-mix(in srgb, var(--ui-accent) 50%, transparent);
+  color: #d68a34;
+  border-color: rgba(214, 138, 52, 0.5);
 }
 .note-card {
   margin-top: 8px;
   padding: 8px 12px 8px;
-  background: color-mix(in srgb, var(--ui-accent) 7%, transparent);
-  border: 1px solid color-mix(in srgb, var(--ui-accent) 22%, transparent);
-  border-radius: var(--ui-radius-control);
+  background: rgba(214, 138, 52, 0.07);
+  border: 1px solid rgba(214, 138, 52, 0.22);
+  border-radius: 8px;
 }
 .note-head {
   display: flex;
   align-items: center;
   gap: 6px;
-  color: var(--ui-accent-text);
+  color: #d68a34;
   font-size: 0.66rem;
-  font-weight: var(--ui-weight-title);
+  font-weight: 800;
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
@@ -607,18 +607,18 @@ function goToPage(p: number) {
   background: none;
   border: none;
   padding: 0;
-  color: var(--ui-dim);
+  color: #9c8760;
   font-family: inherit;
   font-size: 0.7rem;
   font-weight: 700;
   cursor: pointer;
 }
 .note-edit:hover {
-  color: var(--ui-accent-text);
+  color: #d68a34;
 }
 .note-body {
   margin: 4px 0 0;
-  color: var(--ui-text);
+  color: #e3d5bb;
   font-size: 0.82rem;
   line-height: 1.5;
   white-space: pre-wrap;
@@ -635,14 +635,14 @@ function goToPage(p: number) {
   background: none;
   border: none;
   padding: 0;
-  color: var(--ui-dim);
+  color: #9c8760;
   font-family: inherit;
   font-size: 0.7rem;
   font-weight: 700;
   cursor: pointer;
 }
 .note-more:hover {
-  color: var(--ui-accent-text);
+  color: #d68a34;
 }
 .note-editor {
   display: flex;
@@ -653,10 +653,10 @@ function goToPage(p: number) {
 .note-editor textarea {
   width: 100%;
   box-sizing: border-box;
-  background: var(--ui-bg);
-  border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius-control);
-  color: var(--ui-text);
+  background: #0d0d0d;
+  border: 1px solid #3a3a3a;
+  border-radius: 8px;
+  color: #eee;
   padding: 9px 11px;
   font: inherit;
   font-size: 0.82rem;
@@ -665,7 +665,7 @@ function goToPage(p: number) {
 }
 .note-editor textarea:focus {
   outline: none;
-  border-color: var(--ui-accent-line);
+  border-color: #d68a34;
 }
 .note-foot {
   display: flex;
@@ -679,11 +679,11 @@ function goToPage(p: number) {
 .note-count,
 .note-hint {
   font-size: 0.68rem;
-  color: var(--ui-faint);
+  color: #666;
   font-variant-numeric: tabular-nums;
 }
 .note-count.near {
-  color: var(--ui-error);
+  color: #e57373;
 }
 .note-save,
 .note-cancel,
@@ -697,33 +697,33 @@ function goToPage(p: number) {
   cursor: pointer;
 }
 .note-save {
-  background: var(--ui-accent);
-  color: var(--ui-on-accent);
+  background: #d68a34;
+  color: #14100a;
 }
 .note-cancel {
-  background: color-mix(in srgb, var(--ui-text) 8%, transparent);
-  color: var(--ui-text);
+  background: rgba(255, 255, 255, 0.08);
+  color: #ccc;
 }
 .note-remove {
   background: none;
-  color: var(--ui-error);
+  color: #d96f6f;
 }
 .episode-row.watched {
-  border-color: color-mix(in srgb, var(--ui-accent) 40%, transparent);
+  border-color: rgba(214, 138, 52, 0.4);
 }
 .episode-row.next-up {
-  border-color: color-mix(in srgb, var(--ui-accent) 55%, transparent);
-  background: color-mix(in srgb, var(--ui-accent) 6%, transparent);
+  border-color: rgba(214, 138, 52, 0.55);
+  background: rgba(214, 138, 52, 0.06);
 }
 .episode-row.projected {
-  border-color: color-mix(in srgb, var(--ui-accent) 30%, transparent);
+  border-color: rgba(214, 138, 52, 0.3);
   border-style: dashed;
 }
 .episode-row.virtual {
   opacity: 0.6;
 }
 .episode-row.virtual .episode-title {
-  color: var(--ui-dim);
+  color: #9c9c9c;
   font-style: italic;
 }
 .episode-checkbox:disabled,
@@ -733,13 +733,13 @@ function goToPage(p: number) {
 }
 .episode-countdown {
   font-size: 0.72rem;
-  color: var(--ui-accent-text);
+  color: #d68a34;
   font-weight: 700;
   margin-left: auto;
   white-space: nowrap;
 }
 .episode-countdown.projected {
-  color: var(--ui-accent-text);
+  color: #b8874a;
   font-weight: 600;
   opacity: 0.8;
 }
@@ -747,36 +747,36 @@ function goToPage(p: number) {
   width: 20px;
   height: 20px;
   border-radius: 5px;
-  border: 1.5px solid var(--ui-border);
-  background: var(--ui-surface-2);
+  border: 1.5px solid #2b2b2b;
+  background: #222222;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--ui-accent-text);
+  color: #d68a34;
   font-size: 0.75rem;
-  font-weight: var(--ui-weight-title);
+  font-weight: 800;
   flex-shrink: 0;
   padding: 0;
 }
 .episode-row.watched .episode-checkbox {
-  background: color-mix(in srgb, var(--ui-accent) 16%, transparent);
-  border-color: var(--ui-accent-line);
+  background: rgba(214, 138, 52, 0.16);
+  border-color: #d68a34;
 }
 .episode-thumb {
   width: 140px;
   aspect-ratio: 16 / 9;
-  border-radius: var(--ui-radius-control);
+  border-radius: 7px;
   background-size: cover;
   background-repeat: no-repeat;
   background-position: center;
-  background-color: var(--ui-surface-2);
+  background-color: #222222;
   flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 0.68rem;
-  color: var(--ui-faint);
+  color: #666;
   text-align: center;
 }
 .episode-info {
@@ -791,24 +791,24 @@ function goToPage(p: number) {
 }
 .episode-number {
   font-size: 0.76rem;
-  color: var(--ui-faint);
+  color: #666;
   font-variant-numeric: tabular-nums;
   flex-shrink: 0;
 }
 .episode-title {
   font-weight: 700;
   font-size: 0.9rem;
-  color: var(--ui-text);
+  color: #fff;
 }
 .episode-air {
   font-size: 0.72rem;
-  color: var(--ui-faint);
+  color: #666;
   margin-left: auto;
   white-space: nowrap;
 }
 .episode-desc {
   font-size: 0.8rem;
-  color: var(--ui-dim);
+  color: #9c9c9c;
   line-height: 1.5;
   margin: 0;
   display: -webkit-box;
@@ -823,14 +823,14 @@ function goToPage(p: number) {
   flex-shrink: 0;
 }
 .episode-rating .star {
-  color: var(--ui-accent-text);
+  color: #d68a34;
   font-size: 0.85rem;
 }
 .episode-rating input {
   width: 52px;
-  background: var(--ui-surface-2);
-  border: 1px solid var(--ui-border);
-  color: var(--ui-text);
+  background: #222222;
+  border: 1px solid #2b2b2b;
+  color: #fff;
   border-radius: 6px;
   padding: 5px 6px;
   font-family: inherit;

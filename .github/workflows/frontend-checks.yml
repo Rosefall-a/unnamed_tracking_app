@@ -28,9 +28,6 @@ jobs:
         working-directory: src/frontend
         run: npm ci
 
-      - name: Check frontend file size
-        run: node tools/check_frontend_size.mjs
-
       - name: Fix formatting
         working-directory: src/frontend
         run: npm run format:fix

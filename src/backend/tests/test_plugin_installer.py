@@ -39,7 +39,6 @@ def _manifest(
     dependencies: list[dict] | None = None,
 ) -> dict:
     return {
-        "api_contract_version": "1.1.0",
         "manifest_version": 1,
         "plugin_id": "example.candidate",
         "name": "Candidate",

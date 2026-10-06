@@ -6,12 +6,15 @@ import { configureNativePluginHost } from "./state/pluginNative";
 import { startPwa } from "./services/pwa";
 import "./style.css";
 import "./styles/ui.css";
-import "./styles/tokens.css";
-import { initializeUiAppearance } from "./state/uiAppearance";
-import { loadBranding } from "./state/branding";
 
-initializeUiAppearance();
-void loadBranding();
+document.documentElement.classList.toggle(
+  "compact",
+  localStorage.getItem("compactMode") === "true",
+);
+document.documentElement.classList.toggle(
+  "high-contrast",
+  localStorage.getItem("highContrastMode") === "true",
+);
 
 configureNativePluginHost(router, openPluginDialog);
 startPwa();

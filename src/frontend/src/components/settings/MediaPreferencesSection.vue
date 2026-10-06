@@ -169,24 +169,25 @@ const listSortOptions = [
 
 <style scoped>
 .settings-section h2 {
-  margin: 0 0 12px;
-  font: var(--ui-weight-heading) var(--ui-font-heading)/1.4
-    var(--ui-font-family);
-  color: var(--ui-text);
+  margin: 0 0 8px;
+  padding-left: 12px;
+  border-left: 3px solid #d68a34;
+  font-size: 1rem;
+  color: #fff;
 }
 .section-hint {
-  color: var(--ui-dim);
+  color: #9c9c9c;
   font-size: 0.82rem;
   line-height: 1.6;
   margin: 0 0 14px;
 }
 .saved {
-  color: var(--ui-good);
+  color: #6fbf73;
   margin-left: 8px;
   font-weight: 700;
 }
 .error {
-  color: var(--ui-error);
+  color: #e57373;
   font-size: 0.82rem;
 }
 .field {
@@ -195,10 +196,10 @@ const listSortOptions = [
   gap: 8px;
   margin: 14px 0;
   font-size: 0.82rem;
-  color: var(--ui-text);
+  color: #ccc;
 }
 .field small {
-  color: var(--ui-faint);
+  color: #666;
 }
 .settings-section :deep(.toggle-button) {
   margin: 12px 0;

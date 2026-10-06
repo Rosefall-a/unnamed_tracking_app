@@ -2,7 +2,6 @@
 
 from fastapi import APIRouter
 from fastapi import HTTPException as HTTPException
-
 from src.core.auth import get_current_admin as get_current_admin
 from src.core.auth import get_current_user as get_current_user
 from src.database.session import get_db as get_db
@@ -19,9 +18,6 @@ from .plugin_manager.acquisition import (
 )
 from .plugin_manager.acquisition import (
     _REMOTE_FETCH_TIMEOUT as _REMOTE_FETCH_TIMEOUT,
-)
-from .plugin_manager.acquisition import (
-    _acquisition_source as _acquisition_source,
 )
 from .plugin_manager.acquisition import (
     _commit_plugin_upload as _commit_plugin_upload,
@@ -161,7 +157,9 @@ from .plugin_manager.contributions import (
 from .plugin_manager.contributions import (
     _current_browser_session_id as _current_browser_session_id,
 )
-from .plugin_manager.contributions import _filter_ui_document as _filter_ui_document
+from .plugin_manager.contributions import (
+    _filter_ui_document as _filter_ui_document,
+)
 from .plugin_manager.contributions import (
     plugin_action as plugin_action,
 )
@@ -292,9 +290,6 @@ from .plugin_manager.models import (
     PluginCatalogEntry as PluginCatalogEntry,
 )
 from .plugin_manager.models import (
-    PluginCatalogRelease as PluginCatalogRelease,
-)
-from .plugin_manager.models import (
     PluginCatalogueCreate as PluginCatalogueCreate,
 )
 from .plugin_manager.models import (
@@ -334,6 +329,9 @@ from .plugin_manager.runtime import (
     _runtime_error as _runtime_error,
 )
 from .plugin_manager.runtime import (
+    _runtime_errors as _runtime_errors,
+)
+from .plugin_manager.runtime import (
     _runtime_request_error as _runtime_request_error,
 )
 from .plugin_manager.updates import (
@@ -365,3 +363,131 @@ router = APIRouter()
 for module in (acquisition, catalogues, lifecycle, updates, contributions, backend):
     router.include_router(module.router)
 host_router = backend.host_router
+
+
+# Retain established imports while their implementations have separate owners.
+__all__ = [
+    "AutoUpdateIn",
+    "CatalogueIcon",
+    "HTTPException",
+    "ManagementTokenIn",
+    "ManagerSettingsIn",
+    "PackageOperationIn",
+    "PluginActionContext",
+    "PluginActionIn",
+    "PluginBackendRouteResponse",
+    "PluginCatalogEntry",
+    "PluginCatalogueCreate",
+    "PluginCatalogueUpdate",
+    "PluginDependency",
+    "PluginGatewayIn",
+    "PluginInstallUrl",
+    "PluginSettingsIn",
+    "_DOCUMENT_DATA_ROOT",
+    "_GATEWAY_DISPATCH_TIMEOUT",
+    "_GEOIP_UPLOAD_FILE",
+    "_MAX_PLUGIN_PACKAGE_BYTES",
+    "_MAX_PLUGIN_ROUTE_BODY_BYTES",
+    "_MAX_PLUGIN_ROUTE_ENVELOPE_BYTES",
+    "_MAX_REMOTE_REDIRECTS",
+    "_PLUGIN_ADMIN",
+    "_PLUGIN_CATALOG_URL",
+    "_PLUGIN_DB",
+    "_PLUGIN_FRONTEND_CSP",
+    "_REMOTE_FETCH_TIMEOUT",
+    "_authorize_plugin_backend_route",
+    "_backend_route_error",
+    "_backend_route_request",
+    "_catalog_entries",
+    "_catalogue_store",
+    "_catalogue_store_for",
+    "_check_plugin_update",
+    "_client",
+    "_commit_plugin_upload",
+    "_current_browser_session_id",
+    "_dispatch_backend_route",
+    "_download_remote_file",
+    "_execute_plugin_backend_route",
+    "_filter_ui_document",
+    "_inspect_install_candidate",
+    "_install_plugin_package",
+    "_install_preview",
+    "_installed_plugins",
+    "_live_plugin",
+    "_notify_plugin_update",
+    "_perform_package_operation",
+    "_permission_key",
+    "_permission_preview",
+    "_plan_candidate_dependencies",
+    "_plugin_and_capabilities",
+    "_plugin_installer",
+    "_plugin_package_verifier",
+    "_private_plugin_response",
+    "_purge_plugin_database",
+    "_resolve_plugin_backend_route",
+    "_resolve_plugin_upload",
+    "_route_installation",
+    "_runtime_error",
+    "_runtime_errors",
+    "_runtime_request_error",
+    "_store_plugin_upload",
+    "_update_context",
+    "_update_plugin_package",
+    "_update_preview",
+    "_validate_catalogue_candidate",
+    "_validate_remote_url",
+    "activate_staged_update",
+    "check_plugin_updates",
+    "create_management_token",
+    "create_plugin_catalogue",
+    "delete_package_history",
+    "delete_plugin",
+    "delete_plugin_catalogue",
+    "disable_plugin",
+    "enable_plugin",
+    "get_current_admin",
+    "get_current_user",
+    "get_db",
+    "get_manager_settings",
+    "get_plugin_manager_admin",
+    "get_plugin_manager_reader",
+    "grant_plugin_permissions",
+    "install_plugin",
+    "install_plugin_url",
+    "list_plugin_catalogues",
+    "list_plugins",
+    "plugin_action",
+    "plugin_backend_route",
+    "plugin_catalog",
+    "plugin_changelog",
+    "plugin_document_download",
+    "plugin_frontend",
+    "plugin_gateway",
+    "plugin_geoip_upload",
+    "plugin_host_backend_route",
+    "plugin_logs",
+    "plugin_native_frontend",
+    "plugin_ui",
+    "preview_plugin_install",
+    "preview_plugin_install_url",
+    "preview_plugin_permissions",
+    "preview_plugin_update",
+    "preview_plugin_update_url",
+    "preview_staged_update",
+    "reinstall_plugin",
+    "retry_plugin",
+    "revoke_management_token",
+    "revoke_plugin_permissions",
+    "rollback_plugin",
+    "run_automatic_plugin_updates",
+    "runtime_health",
+    "save_manager_settings",
+    "save_plugin_secret",
+    "save_plugin_settings",
+    "set_plugin_auto_update",
+    "start_plugin",
+    "stop_plugin",
+    "update_plugin",
+    "update_plugin_catalogue",
+    "update_plugin_url",
+]

@@ -61,11 +61,6 @@ const displayName = computed(() =>
 <template>
   <div
     class="collection-card-wrap"
-    tabindex="0"
-    role="button"
-    :aria-label="`Open ${noun} ${name}`"
-    @keydown.enter.self.prevent="emit('open', id)"
-    @keydown.space.self.prevent="emit('open', id)"
     :class="{ 'drop-target': dragOver }"
     :draggable="reorderable"
     @click="emit('open', id)"
@@ -171,22 +166,4 @@ const displayName = computed(() =>
   </div>
 </template>
 
-<style scoped src="../styles/shared/collectionTile.css">
-.collection-card-wrap:focus-visible {
-  outline: 2px solid var(--ui-accent-text);
-  outline-offset: 4px;
-  border-radius: var(--ui-radius-card);
-}
-.collection-card-wrap:focus-within .card-actions {
-  opacity: 1;
-}
-.card-actions button {
-  min-width: var(--ui-control-height);
-  min-height: var(--ui-control-height);
-}
-@media (hover: none), (max-width: 760px) {
-  .card-actions {
-    opacity: 1;
-  }
-}
-</style>
+<style scoped src="../styles/shared/collectionTile.css"></style>

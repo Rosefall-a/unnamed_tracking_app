@@ -5,7 +5,6 @@ const CACHE = PREFIX + CONFIG.generation;
 const OFFLINE = "/pwa/offline.html";
 let retired = false;
 let precache = Promise.resolve();
-const themeWrites = new Set();
 
 async function clean(keep) {
   const keys = await caches.keys();
@@ -18,7 +17,6 @@ async function retire() {
   // An installing worker may still be writing the offline page. Do not report
   // retirement until that operation has settled and its cache is removed.
   try { await precache; } catch { /* Failed installation still needs cleanup. */ }
-  await Promise.allSettled([...themeWrites]);
   try { await clean(null); } catch { /* Storage unavailable: still unregister. */ }
   await self.registration.unregister();
 }
@@ -57,42 +55,6 @@ self.addEventListener("activate", event => event.waitUntil((async () => {
 
 self.addEventListener("fetch", event => {
   const url = new URL(event.request.url);
-  // A narrow public exception: digest-addressed, inert theme assets contain no
-  // account data. Never cache theme metadata, private APIs or HTML as an asset.
-  if (CONFIG.enabled && !retired && event.request.method === "GET" &&
-      url.origin === self.location.origin && event.request.mode !== "navigate" && !url.search &&
-      /^\/api\/themes\/assets\/[a-z0-9][a-z0-9._-]{0,127}\/[a-f0-9]{64}\/.+\.(?:css|png|jpe?g|webp|gif|svg|woff2?|ttf|otf)$/i.test(url.pathname)) {
-    const task = (async () => {
-      try {
-        const response = await fetch(event.request);
-        const type = response.headers.get("content-type") || "";
-        if (response.ok && response.headers.get("cache-control")?.includes("immutable") &&
-            /^(?:text\/css|image\/|font\/|application\/(?:font|x-font|vnd.ms-fontobject))/.test(type) && !retired) {
-          try {
-            const cache = await caches.open(CACHE);
-            if (!retired) {
-              await cache.put(url.href, response.clone());
-              const assets = (await cache.keys()).filter(key => new URL(key.url).pathname.startsWith("/api/themes/assets/"));
-              for (const key of assets.slice(0, Math.max(0, assets.length - 32))) await cache.delete(key);
-            }
-          } catch { /* Cosmetic cache failure must not hide a successful response. */ }
-        }
-        return response;
-      } catch (error) {
-        if (!retired) {
-          try {
-            const cached = await caches.match(url.href, { cacheName: CACHE });
-            if (cached && !retired) return cached;
-          } catch { /* The ordinary failed asset request remains visible. */ }
-        }
-        throw error;
-      }
-    })();
-    themeWrites.add(task);
-    task.then(() => themeWrites.delete(task), () => themeWrites.delete(task));
-    event.respondWith(task);
-    return;
-  }
   // Private responses never enter a runtime cache. Only navigation has an
   // offline fallback; API/auth/cross-origin and non-GET traffic pass through.
   if (!CONFIG.enabled || retired || event.request.method !== "GET" || url.origin !== self.location.origin ||

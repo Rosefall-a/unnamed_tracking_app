@@ -204,13 +204,14 @@ async function purge(kind: Kind, id: string, title: string) {
 
 <style scoped>
 .settings-section h2 {
-  margin: 0 0 12px;
-  font: var(--ui-weight-heading) var(--ui-font-heading)/1.4
-    var(--ui-font-family);
-  color: var(--ui-text);
+  margin: 0 0 8px;
+  padding-left: 12px;
+  border-left: 3px solid #d68a34;
+  font-size: 1rem;
+  color: #fff;
 }
 .section-hint {
-  color: var(--ui-dim);
+  color: #999;
   font-size: 0.82rem;
   line-height: 1.6;
   margin: 0 0 20px;
@@ -221,17 +222,17 @@ async function purge(kind: Kind, id: string, title: string) {
 .trash-group h3 {
   margin: 0 0 8px;
   font-size: 0.85rem;
-  color: var(--ui-text);
+  color: #ccc;
 }
 .trash-search {
   width: 100%;
   max-width: 360px;
   box-sizing: border-box;
   margin-bottom: 18px;
-  background: var(--ui-surface);
+  background: #1a1a1a;
   color: #e5e5e5;
-  border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius-control);
+  border: 1px solid #2a2a2a;
+  border-radius: 8px;
   padding: 8px 12px;
   font-size: 0.85rem;
 }
@@ -245,7 +246,7 @@ async function purge(kind: Kind, id: string, title: string) {
   margin-top: 10px;
 }
 .empty-hint {
-  color: var(--ui-faint);
+  color: #777;
   font-size: 0.82rem;
 }
 .trash-list {
@@ -261,34 +262,34 @@ async function purge(kind: Kind, id: string, title: string) {
   align-items: center;
   gap: 12px;
   padding: 8px 12px;
-  background: color-mix(in srgb, var(--ui-text) 3%, transparent);
-  border: 1px solid var(--ui-border-soft);
-  border-radius: var(--ui-radius-control);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid #232323;
+  border-radius: 8px;
   font-size: 0.82rem;
 }
 .trash-name {
   flex: 1;
-  color: var(--ui-text);
+  color: #ccc;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .trash-meta {
-  color: var(--ui-faint);
+  color: #777;
   font-size: 0.76rem;
 }
 .secondary-button {
-  background: color-mix(in srgb, var(--ui-text) 8%, transparent);
-  color: var(--ui-text);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
   border: none;
-  border-radius: var(--ui-radius-control);
+  border-radius: 8px;
   padding: 6px 14px;
   font-weight: 600;
   font-size: 0.78rem;
   cursor: pointer;
 }
 .secondary-button:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--ui-text) 14%, transparent);
+  background: rgba(255, 255, 255, 0.14);
 }
 .secondary-button:disabled {
   opacity: 0.6;
@@ -296,9 +297,9 @@ async function purge(kind: Kind, id: string, title: string) {
 }
 .danger-button {
   background: rgba(220, 38, 38, 0.12);
-  color: var(--ui-error);
+  color: #fca5a5;
   border: 1px solid rgba(220, 38, 38, 0.3);
-  border-radius: var(--ui-radius-control);
+  border-radius: 8px;
   padding: 6px 14px;
   font-weight: 600;
   font-size: 0.78rem;
@@ -312,11 +313,11 @@ async function purge(kind: Kind, id: string, title: string) {
   cursor: not-allowed;
 }
 .form-error {
-  color: var(--ui-error);
+  color: #fca5a5;
   font-size: 13px;
   background: rgba(220, 38, 38, 0.1);
   border: 1px solid rgba(220, 38, 38, 0.3);
-  border-radius: var(--ui-radius-control);
+  border-radius: 8px;
   padding: 8px 10px;
   margin-bottom: 16px;
 }

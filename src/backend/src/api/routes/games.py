@@ -46,8 +46,9 @@ from src.api.schemas.game import (
     GameRead,
     GameUpdate,
 )
-from src.core.app_integrations import get_max_upload_size_mb, get_upload_limits_mb
+from src.core.app_integrations import get_max_upload_size_mb
 from src.core.auth import get_current_user
+from src.core.config import settings
 from src.core.integrations import resolve_integrations
 from src.core.preferences import load_preferences
 from src.database.models.achievement import Achievement
@@ -782,7 +783,7 @@ async def upload_game_screenshots(
         # clips/soundtrack get a much larger cap than images — a real video
         # clip routinely exceeds a cover-art-sized limit
         limit_mb = (
-            (await get_upload_limits_mb(db))["max_clip_size_mb"]
+            settings.MAX_CLIP_SIZE_MB
             if kind in ("clip", "soundtrack")
             else await get_max_upload_size_mb(db)
         )
@@ -1108,9 +1109,7 @@ async def upload_game_files(
     # a modpack zip is routinely hundreds of MB to a few GB — far past a
     # doc-sized limit
     limit_mb = (
-        (await get_upload_limits_mb(db))["max_world_save_size_mb"]
-        if kind == "modpack"
-        else await get_max_upload_size_mb(db)
+        settings.MAX_WORLD_SAVE_SIZE_MB if kind == "modpack" else await get_max_upload_size_mb(db)
     )
     max_bytes = limit_mb * 1024 * 1024
     # Accept both the current plural field used by the frontend and the

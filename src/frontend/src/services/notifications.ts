@@ -8,8 +8,8 @@ export type MediaNotificationKind =
 
 export interface MediaNotification {
   id: string;
-  kind: string;
-  mediaType: string;
+  kind: MediaNotificationKind;
+  mediaType: "movie" | "tv" | "anime";
   mediaId: string;
   title: string;
   body: string;
@@ -20,8 +20,8 @@ export interface MediaNotification {
 
 interface BackendNotification {
   id: string;
-  kind: string;
-  media_type: string;
+  kind: MediaNotificationKind;
+  media_type: "movie" | "tv" | "anime";
   media_id: string;
   title: string;
   body: string;

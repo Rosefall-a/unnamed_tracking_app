@@ -9,7 +9,6 @@ import {
   saveGameNote,
 } from "../services/games";
 import { marked } from "marked";
-import DOMPurify from "dompurify";
 export function useGameNotes(game: Ref<Game | null>) {
   const noteNames = ref<string[]>([]);
   const noteMode = ref<"list" | "view" | "editor">("list");
@@ -28,8 +27,8 @@ export function useGameNotes(game: Ref<Game | null>) {
       (draftName.value.trim() !== "" || draftContent.value.trim() !== ""),
   );
 
-  const renderedNoteHtml = computed(() =>
-    DOMPurify.sanitize(marked.parse(viewingNoteContent.value || "") as string),
+  const renderedNoteHtml = computed(
+    () => marked.parse(viewingNoteContent.value || "") as string,
   );
 
   function startNewNote() {

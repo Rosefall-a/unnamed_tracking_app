@@ -208,19 +208,16 @@ onMounted(load);
 
 <style scoped>
 .focus {
-  color: var(--ui-accent-text);
+  color: #d68a34;
 }
 h2 {
-  margin: 0 0 12px;
-  font: var(--ui-weight-heading) var(--ui-font-heading)/1.4
-    var(--ui-font-family);
-  color: var(--ui-text);
+  margin-top: 0;
 }
 h3 {
   margin: 28px 0 10px;
 }
 .muted {
-  color: var(--ui-dim);
+  color: #aaa;
 }
 .error {
   color: #ff7b7b;
@@ -231,7 +228,7 @@ h3 {
   justify-content: space-between;
   gap: 16px;
   padding: 14px 0;
-  border-bottom: 1px solid var(--ui-border);
+  border-bottom: 1px solid #2a2a2a;
 }
 .row div {
   display: grid;
@@ -239,7 +236,7 @@ h3 {
 }
 .row span,
 .row small {
-  color: var(--ui-dim);
+  color: #aaa;
 }
 .actions {
   display: flex;

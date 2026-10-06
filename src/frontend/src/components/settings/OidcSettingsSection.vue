@@ -35,7 +35,7 @@ function newProvider(): OidcProviderSetting {
     allow_new_users: true,
     button_text: "Continue with SSO",
     button_image_url: null,
-    button_colour: "",
+    button_colour: "#d68a34",
     enabled: true,
     show_on_login: true,
     autostart_enabled: true,
@@ -107,11 +107,6 @@ function endDrag() {
   dragIndex.value = null;
 }
 
-function setProviderColour(provider: OidcProviderSetting, event: Event) {
-  if (event.target instanceof HTMLInputElement)
-    provider.button_colour = event.target.value;
-}
-
 onMounted(async () => {
   try {
     const response = await fetchDeploymentSettings();
@@ -122,7 +117,7 @@ onMounted(async () => {
     providers.value = (response.oidc.named_providers ?? []).map((provider) => ({
       ...provider,
       client_secret: "",
-      button_colour: provider.button_colour || "",
+      button_colour: provider.button_colour || "#d68a34",
       autostart_enabled: provider.autostart_enabled !== false,
     }));
   } catch (err) {
@@ -153,7 +148,7 @@ async function save() {
     providers.value = (response.oidc.named_providers ?? []).map((provider) => ({
       ...provider,
       client_secret: "",
-      button_colour: provider.button_colour || "",
+      button_colour: provider.button_colour || "#d68a34",
       autostart_enabled: provider.autostart_enabled !== false,
     }));
     saved.value = true;
@@ -340,38 +335,18 @@ async function save() {
               v-model="provider.button_text"
               placeholder="Continue with Authentik"
           /></label>
-          <div>
-            <label
-              ><input
-                type="checkbox"
-                :checked="!provider.button_colour"
-                @change="
-                  provider.button_colour = provider.button_colour
-                    ? ''
-                    : '#d68a34'
-                "
+          <label>
+            <span>Button color</span>
+            <div class="color-control">
+              <input v-model="provider.button_colour" type="color" />
+              <input
+                v-model="provider.button_colour"
+                class="color-text"
+                placeholder="#d68a34"
+                pattern="^#[0-9a-fA-F]{6}$"
               />
-              Use app palette for this sign-in button</label
-            >
-            <label
-              ><span>Provider button color</span>
-              <div class="color-control">
-                <input
-                  :value="provider.button_colour || '#d68a34'"
-                  type="color"
-                  :disabled="!provider.button_colour"
-                  @input="setProviderColour(provider, $event)"
-                />
-                <input
-                  v-model="provider.button_colour"
-                  :disabled="!provider.button_colour"
-                  class="color-text"
-                  placeholder="#d68a34"
-                  pattern="^#[0-9a-fA-F]{6}$"
-                />
-              </div>
-            </label>
-          </div>
+            </div>
+          </label>
           <label
             ><span>Button image URL</span
             ><input v-model="provider.button_image_url" placeholder="Optional"
@@ -457,68 +432,51 @@ async function save() {
 
 .section h2 {
   margin: 0;
-  color: var(--ui-text);
+  color: #fff;
 }
 
 .hint {
-  color: var(--ui-dim);
+  color: #999;
   font-size: 13px;
   line-height: 1.5;
 }
 
 .login-panel,
 .provider-card {
-  border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius-control);
+  border: 1px solid #2f2f2f;
+  border-radius: 10px;
   padding: 16px;
-  background: var(--ui-surface);
+  background: #151515;
 }
 
 .login-panel {
   display: flex;
-  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
   gap: 20px;
 }
 
-.login-panel > div {
-  flex: 1 1 16rem;
-  min-width: 0;
-}
-
-.login-panel select {
-  flex-shrink: 0;
-  width: min(100%, 18rem);
-}
-
 .login-panel select,
 .grid input,
 .grid select {
-  background: var(--ui-bg);
-  border: 1px solid var(--ui-border-strong);
-  border-radius: var(--ui-radius-control);
-  color: var(--ui-text);
+  background: #111;
+  border: 1px solid #3a3a3a;
+  border-radius: 8px;
+  color: #fff;
   padding: 10px;
   font: inherit;
 }
 
 .providers-header {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 20px;
 }
 
-.providers-header > div {
-  flex: 1 1 16rem;
-  min-width: 0;
-}
-
 .providers-header h3 {
   margin: 0;
-  color: var(--ui-text);
+  color: #fff;
 }
 
 .providers-header .hint {
@@ -527,10 +485,9 @@ async function save() {
 
 .providers-header button,
 button {
-  background: var(--ui-accent);
-  color: var(--ui-on-accent);
+  background: #d68a34;
   border: 0;
-  border-radius: var(--ui-radius-control);
+  border-radius: 8px;
   padding: 10px 14px;
   font-weight: 600;
   cursor: pointer;
@@ -556,20 +513,18 @@ button {
 
 .provider-title {
   display: flex;
-  min-width: 0;
-  overflow-wrap: anywhere;
   align-items: center;
   gap: 10px;
 }
 
 .provider-card-head small {
   display: block;
-  color: var(--ui-faint);
+  color: #777;
   margin-top: 3px;
 }
 
 .drag-handle {
-  color: var(--ui-faint);
+  color: #777;
   font-size: 20px;
   cursor: grab;
 }
@@ -585,9 +540,9 @@ button {
 }
 
 .move {
-  background: var(--ui-surface-2);
-  border: 1px solid var(--ui-border-strong);
-  color: var(--ui-text);
+  background: #252525;
+  border: 1px solid #3a3a3a;
+  color: #ddd;
   padding: 7px 10px;
 }
 
@@ -598,8 +553,8 @@ button {
 
 .remove {
   background: transparent !important;
-  border: 1px solid var(--ui-error) !important;
-  color: var(--ui-error) !important;
+  border: 1px solid #633 !important;
+  color: #fca5a5 !important;
 }
 
 .grid {
@@ -610,10 +565,9 @@ button {
 
 .grid label {
   display: flex;
-  min-width: 0;
   flex-direction: column;
   gap: 6px;
-  color: var(--ui-text);
+  color: #ccc;
   font-size: 13px;
 }
 
@@ -631,9 +585,9 @@ button {
   width: 48px;
   height: 40px;
   padding: 3px;
-  background: var(--ui-bg);
-  border: 1px solid var(--ui-border-strong);
-  border-radius: var(--ui-radius-control);
+  background: #111;
+  border: 1px solid #3a3a3a;
+  border-radius: 8px;
   cursor: pointer;
 }
 
@@ -642,20 +596,20 @@ button {
 }
 
 .generated-input {
-  background: var(--ui-surface-2) !important;
-  color: var(--ui-faint) !important;
-  border-color: var(--ui-border) !important;
+  background: #202020 !important;
+  color: #777 !important;
+  border-color: #333 !important;
   cursor: not-allowed;
 }
 
 .generated-label {
-  color: var(--ui-faint);
+  color: #777;
   font-weight: 400;
   margin-left: 6px;
 }
 
 .field-hint {
-  color: var(--ui-faint);
+  color: #666;
   font-size: 11px;
   line-height: 1.4;
 }
@@ -665,7 +619,7 @@ button {
   gap: 18px;
   flex-wrap: wrap;
   margin-top: 14px;
-  color: var(--ui-dim);
+  color: #bbb;
   font-size: 13px;
 }
 
@@ -676,49 +630,49 @@ button {
 }
 
 .provider-options input {
-  accent-color: var(--ui-accent-text);
+  accent-color: #d68a34;
 }
 
 .autostart {
   margin-top: 14px;
   padding: 12px;
-  border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius-control);
-  background: var(--ui-bg);
+  border: 1px solid #333;
+  border-radius: 8px;
+  background: #111;
   display: flex;
   flex-direction: column;
   gap: 5px;
-  color: var(--ui-text);
+  color: #ccc;
   font-size: 12px;
 }
 
 .autostart strong {
-  color: var(--ui-text);
+  color: #fff;
 }
 
 .autostart code {
-  color: var(--ui-accent-text);
+  color: #d68a34;
   overflow-wrap: anywhere;
 }
 
 .autostart small {
-  color: var(--ui-faint);
+  color: #777;
 }
 
 .empty {
-  border: 1px dashed var(--ui-border-strong);
-  border-radius: var(--ui-radius-control);
+  border: 1px dashed #3a3a3a;
+  border-radius: 10px;
   padding: 24px;
-  color: var(--ui-faint);
+  color: #888;
   text-align: center;
 }
 
 .error {
-  color: var(--ui-error);
+  color: #fca5a5;
 }
 
 .success {
-  color: var(--ui-good);
+  color: #86efac;
 }
 
 button:disabled {

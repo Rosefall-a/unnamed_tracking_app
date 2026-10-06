@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { ref, computed, nextTick, onMounted, watch } from "vue";
-import UiModal from "./UiModal.vue";
 import {
   attachGameAssetFromUrl,
   createGame,
@@ -660,12 +659,15 @@ async function submit() {
 </script>
 
 <template>
-  <UiModal
-    :title="isEditing ? 'Edit Game' : 'Add Game'"
-    size="wide"
-    @close="emit('close')"
-  >
-    <div class="game-editor">
+  <div class="modal-backdrop" @click.self="emit('close')">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>{{ isEditing ? "Edit Game" : "Add Game" }}</h2>
+        <button type="button" class="close-button" @click="emit('close')">
+          ✕
+        </button>
+      </div>
+
       <nav ref="tabsEl" class="modal-tabs">
         <button
           v-for="tab in tabs"
@@ -680,7 +682,7 @@ async function submit() {
       </nav>
 
       <form class="modal-form" @submit.prevent="onFormSubmit">
-        <div class="editor-body">
+        <div class="modal-body">
           <div
             v-if="activeTab === 'General' || activeTab === 'Find'"
             class="tab-panel"
@@ -1105,8 +1107,12 @@ async function submit() {
               >
                 {{ searchingMedia ? "Searching artwork…" : "Search artwork" }}
               </button>
-              <p v-if="metadataMessage" class="hint" role="status">
-                {{ metadataMessage }}
+              <p v-if="mediaSearchResults.length" class="hint">
+                {{
+                  mediaSearchResults
+                    .map((result) => result.provider)
+                    .join(" · ")
+                }}
               </p>
             </div>
 
@@ -1329,32 +1335,79 @@ async function submit() {
         </div>
       </form>
     </div>
-  </UiModal>
+  </div>
 </template>
 
 <style scoped>
-.game-editor {
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+.modal {
+  background: #1a1a1a;
+  border: 1px solid #2a2a2a;
+  border-radius: 14px;
   width: 100%;
-  min-width: 0;
+  max-width: 760px;
+  height: 640px;
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  color: #fff;
+  font-family: system-ui, sans-serif;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+}
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 18px 22px;
+  border-bottom: 1px solid #2a2a2a;
+  flex-shrink: 0;
+}
+.modal-header h2 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+.close-button {
+  background: none;
+  border: none;
+  color: #999;
+  font-size: 15px;
+  cursor: pointer;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+.close-button:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
 }
 .modal-tabs {
   display: flex;
   gap: 4px;
-  padding: 0;
-  border-bottom: 1px solid var(--ui-border);
+  padding: 12px 20px 0;
+  border-bottom: 1px solid #2a2a2a;
   flex-shrink: 0;
   overflow-x: auto;
 }
 .modal-tab {
   background: none;
   border: none;
-  color: var(--ui-dim);
+  color: #999;
   padding: 9px 16px;
-  min-height: var(--ui-control-height);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
-  border-radius: var(--ui-radius-control) 8px 0 0;
+  border-radius: 8px 8px 0 0;
   white-space: nowrap;
   border-bottom: 2px solid transparent;
   transition:
@@ -1362,13 +1415,13 @@ async function submit() {
     background 0.15s ease;
 }
 .modal-tab:hover {
-  color: var(--ui-text);
-  background: color-mix(in srgb, var(--ui-text) 5%, transparent);
+  color: #ddd;
+  background: rgba(255, 255, 255, 0.05);
 }
 .modal-tab.active {
-  color: var(--ui-text);
-  background: color-mix(in srgb, var(--ui-accent) 10%, transparent);
-  border-bottom-color: var(--ui-accent-text);
+  color: #fff;
+  background: rgba(214, 138, 52, 0.1);
+  border-bottom-color: #d68a34;
 }
 .modal-form {
   display: flex;
@@ -1376,8 +1429,8 @@ async function submit() {
   flex: 1;
   min-height: 0;
 }
-.editor-body {
-  padding: 20px 0;
+.modal-body {
+  padding: 20px 22px;
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -1392,23 +1445,22 @@ async function submit() {
   min-height: 380px;
 }
 .metadata-refresh-panel {
-  border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius-control);
+  border: 1px solid #3a3a3a;
+  border-radius: 8px;
   padding: 12px;
-  background: var(--ui-surface);
+  background: #151515;
   display: flex;
   flex-direction: column;
   gap: 10px;
 }
 .metadata-refresh-panel strong {
-  color: var(--ui-text);
+  color: #fff;
 }
 .media-search-panel {
-  flex-wrap: wrap;
-  border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius-control);
+  border: 1px solid #3a3a3a;
+  border-radius: 8px;
   padding: 12px;
-  background: var(--ui-surface-2);
+  background: #151515;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1418,7 +1470,7 @@ async function submit() {
   min-width: 0;
 }
 .media-search-panel strong {
-  color: var(--ui-text);
+  color: #fff;
 }
 .media-search-panel .hint {
   margin: 2px 0 0;
@@ -1428,10 +1480,10 @@ async function submit() {
 }
 
 .metadata-search {
-  border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius-control);
+  border: 1px solid #3a3a3a;
+  border-radius: 8px;
   padding: 12px;
-  background: var(--ui-surface);
+  background: #151515;
 }
 .search-heading {
   display: flex;
@@ -1441,21 +1493,21 @@ async function submit() {
 }
 .search-heading span,
 .metadata-result small {
-  color: var(--ui-dim);
+  color: #999;
   font-size: 0.78rem;
 }
 .steamgriddb-hint {
   margin: 0 0 10px;
   padding: 8px 10px;
-  background: color-mix(in srgb, var(--ui-accent) 10%, transparent);
-  border: 1px solid color-mix(in srgb, var(--ui-accent) 30%, transparent);
-  border-radius: var(--ui-radius-control);
-  color: var(--ui-text);
+  background: rgba(214, 138, 52, 0.1);
+  border: 1px solid rgba(214, 138, 52, 0.3);
+  border-radius: 8px;
+  color: #ddd;
   font-size: 0.78rem;
   line-height: 1.5;
 }
 .steamgriddb-hint a {
-  color: var(--ui-accent-text);
+  color: #d68a34;
   font-weight: 600;
   text-decoration: none;
 }
@@ -1469,16 +1521,16 @@ async function submit() {
 .search-row input {
   flex: 1;
   min-width: 0;
-  background: var(--ui-surface);
-  border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius-control);
-  color: var(--ui-text);
+  background: #111;
+  border: 1px solid #3a3a3a;
+  border-radius: 8px;
+  color: #fff;
   padding: 9px 11px;
   font: inherit;
 }
 .search-row input:focus {
   outline: none;
-  border-color: var(--ui-accent-line);
+  border-color: #d68a34;
 }
 .metadata-results {
   display: grid;
@@ -1493,22 +1545,22 @@ async function submit() {
   width: 100%;
   padding: 9px 10px;
   text-align: left;
-  color: var(--ui-text);
-  background: var(--ui-border);
-  border: 1px solid var(--ui-border);
+  color: #fff;
+  background: #202020;
+  border: 1px solid #3a3a3a;
   border-radius: 6px;
   cursor: pointer;
 }
 .metadata-result:hover {
-  border-color: var(--ui-accent-line);
-  background: var(--ui-surface-2);
+  border-color: #d68a34;
+  background: #282828;
 }
 .field {
   display: flex;
   flex-direction: column;
   gap: 6px;
   font-size: 0.85rem;
-  color: var(--ui-text);
+  color: #ccc;
   flex: 1;
   min-width: 0;
 }
@@ -1520,7 +1572,7 @@ async function submit() {
   align-items: flex-start;
   gap: 10px;
   font-size: 0.85rem;
-  color: var(--ui-text);
+  color: #ccc;
   flex: 1;
   cursor: pointer;
 }
@@ -1528,7 +1580,7 @@ async function submit() {
   margin-top: 3px;
   width: 16px;
   height: 16px;
-  accent-color: var(--ui-accent-text);
+  accent-color: #d68a34;
   flex-shrink: 0;
 }
 .checkbox-field span {
@@ -1537,17 +1589,17 @@ async function submit() {
   gap: 2px;
 }
 .checkbox-field small {
-  color: var(--ui-dim);
+  color: #888;
   font-size: 0.75rem;
   font-weight: 400;
 }
 .field input,
 .field select,
 .field textarea {
-  background: var(--ui-surface);
-  border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius-control);
-  color: var(--ui-text);
+  background: #111;
+  border: 1px solid #3a3a3a;
+  border-radius: 8px;
+  color: #fff;
   padding: 9px 11px;
   font: inherit;
   transition: border-color 0.15s ease;
@@ -1556,7 +1608,7 @@ async function submit() {
 .field select:focus,
 .field textarea:focus {
   outline: none;
-  border-color: var(--ui-accent-line);
+  border-color: #d68a34;
 }
 .field-row {
   display: flex;
@@ -1577,25 +1629,25 @@ async function submit() {
   flex-basis: 0;
 }
 .remove-button {
-  background: color-mix(in srgb, var(--ui-error) 15%, transparent);
-  color: var(--ui-error);
+  background: rgba(220, 38, 38, 0.15);
+  color: #fca5a5;
   border: none;
-  border-radius: var(--ui-radius-control);
+  border-radius: 8px;
   width: 38px;
   height: 38px;
   cursor: pointer;
   transition: background 0.15s ease;
 }
 .remove-button:hover {
-  background: color-mix(in srgb, var(--ui-error) 30%, transparent);
+  background: rgba(220, 38, 38, 0.3);
 }
 .hint {
-  color: var(--ui-dim);
+  color: #888;
   font-size: 0.8rem;
   margin: 0;
 }
 .field-hint {
-  color: var(--ui-dim);
+  color: #888;
   font-size: 0.75rem;
   font-weight: 400;
 }
@@ -1608,7 +1660,7 @@ async function submit() {
   gap: 3px;
 }
 .provider-warnings li {
-  color: var(--ui-warning);
+  color: #f0b458;
   font-size: 0.78rem;
 }
 .media-candidates {
@@ -1618,7 +1670,7 @@ async function submit() {
   margin-top: -6px;
 }
 .candidates-label {
-  color: var(--ui-dim);
+  color: #999;
   font-size: 0.78rem;
 }
 .candidates-grid {
@@ -1634,7 +1686,7 @@ async function submit() {
   border-radius: 6px;
   overflow: hidden;
   cursor: pointer;
-  background: var(--ui-surface);
+  background: #111;
   flex-shrink: 0;
 }
 .candidate-thumb img {
@@ -1644,18 +1696,18 @@ async function submit() {
   display: block;
 }
 .candidate-thumb.active {
-  border-color: var(--ui-accent-line);
+  border-color: #d68a34;
 }
 .banner-thumb {
   width: 120px;
   height: 45px;
 }
 .form-error {
-  color: var(--ui-error);
+  color: #fca5a5;
   font-size: 0.85rem;
-  background: color-mix(in srgb, var(--ui-error) 10%, transparent);
-  border: 1px solid color-mix(in srgb, var(--ui-error) 30%, transparent);
-  border-radius: var(--ui-radius-control);
+  background: rgba(220, 38, 38, 0.1);
+  border: 1px solid rgba(220, 38, 38, 0.3);
+  border-radius: 8px;
   padding: 10px 12px;
 }
 .modal-actions {
@@ -1663,14 +1715,14 @@ async function submit() {
   align-items: center;
   gap: 10px;
   padding: 14px 22px;
-  border-top: 1px solid var(--ui-border);
+  border-top: 1px solid #2a2a2a;
   flex-shrink: 0;
 }
 .modal-actions-spacer {
   flex: 1;
 }
 .step-count {
-  color: var(--ui-dim);
+  color: #888;
   font-size: 0.8rem;
   white-space: nowrap;
 }
@@ -1678,10 +1730,10 @@ async function submit() {
   white-space: nowrap;
 }
 .danger-button {
-  background: color-mix(in srgb, var(--ui-error) 15%, transparent);
-  color: var(--ui-error);
+  background: rgba(220, 38, 38, 0.15);
+  color: #fca5a5;
   border: none;
-  border-radius: var(--ui-radius-control);
+  border-radius: 8px;
   padding: 10px 20px;
   font-weight: 600;
   font-size: 0.9rem;
@@ -1689,12 +1741,12 @@ async function submit() {
   transition: background 0.15s ease;
 }
 .danger-button:hover {
-  background: color-mix(in srgb, var(--ui-error) 30%, transparent);
+  background: rgba(220, 38, 38, 0.3);
 }
 .primary-button,
 .secondary-button {
   border: none;
-  border-radius: var(--ui-radius-control);
+  border-radius: 8px;
   padding: 10px 20px;
   font-weight: 600;
   font-size: 0.9rem;
@@ -1704,11 +1756,11 @@ async function submit() {
     transform 0.05s ease;
 }
 .primary-button {
-  background: var(--ui-accent);
-  color: var(--ui-on-accent);
+  background: #d68a34;
+  color: #111;
 }
 .primary-button:hover:not(:disabled) {
-  filter: brightness(1.08);
+  background: #ffd83d;
 }
 .primary-button:active:not(:disabled) {
   transform: scale(0.98);
@@ -1718,15 +1770,17 @@ async function submit() {
   cursor: not-allowed;
 }
 .secondary-button {
-  background: color-mix(in srgb, var(--ui-text) 8%, transparent);
-  color: var(--ui-text);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
 }
 .secondary-button:hover {
-  background: color-mix(in srgb, var(--ui-text) 15%, transparent);
+  background: rgba(255, 255, 255, 0.15);
 }
 @media (max-width: 480px) {
-  .editor-body {
-    padding-inline: 0;
+  .modal-header,
+  .modal-body {
+    padding-left: 16px;
+    padding-right: 16px;
   }
   .modal-tabs {
     padding-left: 12px;

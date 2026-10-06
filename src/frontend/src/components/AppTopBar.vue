@@ -7,17 +7,10 @@
 // the bar reserves room for it, so it stays put even when the left side
 // wraps onto more lines on a narrow window.
 import AccountChip from "./AccountChip.vue";
-import { effectiveSidebarMode, navigationViewport } from "../state/sidebarMode";
 </script>
 
 <template>
-  <div
-    class="media-topbar"
-    :class="{
-      'with-menu-toggle':
-        effectiveSidebarMode === 'overlay' && navigationViewport !== 'phone',
-    }"
-  >
+  <div class="media-topbar">
     <div class="topbar-left"><slot /></div>
     <div v-if="$slots.actions" class="media-topbar-actions">
       <slot name="actions" />
@@ -30,25 +23,17 @@ import { effectiveSidebarMode, navigationViewport } from "../state/sidebarMode";
 .media-topbar {
   position: sticky;
   top: 0;
-  z-index: var(--ui-z-topbar);
+  z-index: 80;
   display: flex;
   align-items: center;
   gap: 16px;
   box-sizing: border-box;
   min-height: 68px;
-  padding: 12px var(--ui-edge-right) 12px var(--ui-edge-left);
-  background: color-mix(in srgb, var(--ui-bg) 94%, transparent);
+  padding: 10px 244px 10px 64px;
+  background: rgba(13, 13, 13, 0.94);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
-  border-bottom: 1px solid var(--ui-border-soft);
-}
-.media-topbar :deep(.account-chip) {
-  position: static;
-  margin-left: auto;
-  flex-shrink: 0;
-}
-.media-topbar.with-menu-toggle {
-  padding-left: max(72px, var(--ui-edge-left));
+  border-bottom: 1px solid #202020;
 }
 .topbar-left {
   display: flex;
@@ -68,54 +53,12 @@ import { effectiveSidebarMode, navigationViewport } from "../state/sidebarMode";
 }
 @media (max-width: 720px) {
   .media-topbar {
-    padding-left: var(--ui-edge-left);
+    padding-left: 60px;
   }
 }
-@media (max-width: 760px) {
+@media (max-width: 520px) {
   .media-topbar {
-    padding-right: var(--ui-edge-right);
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    gap: 6px;
-    padding-block: 8px;
-  }
-  .media-topbar :deep(.account-chip) {
-    display: none;
-  }
-  .topbar-left {
-    grid-column: 1;
-    grid-row: 1;
-  }
-  .topbar-left :deep(.seg-tab) {
-    padding-inline: 7px;
-    font-size: 0.75rem;
-  }
-  .media-topbar :deep(.seg) {
-    max-width: 100%;
-    flex-wrap: nowrap;
-    overflow-x: auto;
-  }
-  .media-topbar-actions {
-    grid-column: 1 / -1;
-    justify-content: flex-start;
-    margin-left: 0;
-    gap: 6px;
-  }
-  .media-topbar-actions :deep(.seg-tab) {
-    flex: 1;
-    min-width: 0;
-    padding-inline: 6px;
-    font-size: 0.75rem;
-  }
-  .media-topbar-actions :deep(.seg) {
-    flex: 1;
-    min-width: 0;
-  }
-  .media-topbar-actions :deep(.seg:not(:only-child):last-child) {
-    flex: 0 0 auto;
-  }
-  .media-topbar-actions :deep(.seg-tab svg) {
-    display: none;
+    padding-right: 116px;
   }
 }
 </style>

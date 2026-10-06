@@ -18,6 +18,7 @@ const settings = ref<PageSettings>(
 );
 const loaded = ref(false);
 const error = ref<string | null>(null);
+const savedNote = ref("");
 
 onMounted(async () => {
   try {
@@ -39,6 +40,8 @@ async function change(next: PageSettings) {
       settings.value = resolvePage(prefs.game_page, null);
       sharedPreferences.value = prefs;
     }
+    savedNote.value = "Saved";
+    setTimeout(() => (savedNote.value = ""), 1500);
   } catch (e) {
     error.value = e instanceof Error ? e.message : "Failed to save.";
     settings.value = previous;
@@ -48,14 +51,15 @@ async function change(next: PageSettings) {
 
 <template>
   <section class="settings-section">
-    <h2>Game page</h2>
+    <h2>Game Page</h2>
     <p class="section-hint">
       Choose what a game's page shows, for every game. Hide the tabs you never
       use, or set them to Auto so they appear once a game has something in them.
       A single game can override any of this from its Edit dialog, on the Page
       tab.
+      <span v-if="savedNote" class="saved">{{ savedNote }}</span>
     </p>
-    <p v-if="error" class="ui-error-box" role="alert">{{ error }}</p>
+    <p v-if="error" class="error">{{ error }}</p>
     <PageSettingsEditor
       v-if="loaded"
       :model-value="settings"
@@ -68,24 +72,23 @@ async function change(next: PageSettings) {
 .settings-section h2 {
   margin: 0 0 8px;
   padding-left: 12px;
-  border-left: 3px solid var(--ui-accent-text);
+  border-left: 3px solid #d68a34;
   font-size: 1rem;
-  color: var(--ui-text);
+  color: #fff;
 }
 .section-hint {
-  color: var(--ui-dim);
+  color: #999;
   font-size: 0.82rem;
   line-height: 1.6;
   margin: 0 0 20px;
 }
-.error {
-  color: var(--ui-error);
-  font-size: 0.85rem;
+.saved {
+  margin-left: 8px;
+  color: #d68a34;
+  font-weight: 700;
 }
-.settings-section h2 {
-  border: 0;
-  padding: 0;
-  font: var(--ui-weight-heading) var(--ui-font-heading)/1.4
-    var(--ui-font-family);
+.error {
+  color: #fca5a5;
+  font-size: 0.85rem;
 }
 </style>

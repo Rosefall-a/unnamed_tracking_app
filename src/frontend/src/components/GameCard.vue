@@ -4,11 +4,9 @@ import { useRouter } from "vue-router";
 import CheckIcon from "./CheckIcon.vue";
 import type { Game, GameStatus } from "../types/game";
 import { setFavorite, setStatus } from "../services/games";
-import { ref, computed, nextTick, onUnmounted, watch } from "vue";
+import { ref, computed, nextTick, onUnmounted } from "vue";
 import { computeScore } from "../utils/scoring";
 import { appearanceSettings } from "../state/appearance";
-import CompletionBadge from "./CompletionBadge.vue";
-import UiModal from "./UiModal.vue";
 
 const props = defineProps<{
   game: Game;
@@ -32,12 +30,6 @@ const score = computed(() => computeScore(props.game));
 // shared across every card via state/appearance.ts rather than fetched
 // per-card
 const localStatus = ref(props.game.status);
-watch(
-  () => props.game.status,
-  (status) => {
-    localStatus.value = status;
-  },
-);
 const isMastered = computed(() => localStatus.value === "mastered");
 const badgeStyle = computed(
   () => appearanceSettings.value?.completion_badge_style ?? "none",
@@ -64,15 +56,8 @@ const badgeCardStyle = computed(() => {
 });
 
 const menuOpen = ref(false);
-const actionsOpen = ref(false);
 const statusSubmenuOpen = ref(false);
 const localFavorite = ref(props.game.favorite);
-watch(
-  () => props.game.favorite,
-  (favorite) => {
-    localFavorite.value = favorite;
-  },
-);
 const favoriteSaving = ref(false);
 
 const coverRef = ref<HTMLElement | null>(null);
@@ -268,30 +253,35 @@ function copyFolderPath() {
           </svg>
         </div>
 
-        <CompletionBadge
+        <div
           v-if="
             showBadge &&
             (badgeStyle === 'ribbon' || badgeStyle === 'corner_badge')
           "
-          :badge-style="badgeStyle"
-          :placement="badgePlacement"
-          :color="badgeColor"
-          :image-url="badgeImageUrl"
-        />
+          class="completion-badge"
+          :class="[badgeStyle, badgePlacement]"
+          :style="{ '--badge-color': badgeColor }"
+        >
+          <img
+            v-if="badgeImageUrl"
+            :src="badgeImageUrl"
+            alt=""
+            class="completion-badge-image"
+          />
+          <svg
+            v-else
+            viewBox="0 0 24 24"
+            width="16"
+            height="16"
+            fill="currentColor"
+          >
+            <path
+              d="M12 2l2.4 6.6L21 9l-5 4.6L17.4 21 12 17.3 6.6 21 8 13.6 3 9l6.6-.4z"
+            />
+          </svg>
+        </div>
 
         <div v-if="!selectMode" class="cover-actions">
-          <button
-            type="button"
-            class="more-button"
-            :aria-label="`Actions for ${game.title}`"
-            @click.stop="actionsOpen = true"
-          >
-            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-              <circle cx="5" cy="12" r="2" />
-              <circle cx="12" cy="12" r="2" />
-              <circle cx="19" cy="12" r="2" />
-            </svg>
-          </button>
           <button
             type="button"
             class="favorite-button"
@@ -341,43 +331,6 @@ function copyFolderPath() {
           </button>
         </div>
       </div>
-
-      <UiModal
-        v-if="actionsOpen"
-        :title="`Actions for ${game.title}`"
-        @close="actionsOpen = false"
-      >
-        <div class="compact-card-actions">
-          <button
-            type="button"
-            class="secondary-button"
-            :disabled="favoriteSaving"
-            @click="toggleFavorite"
-          >
-            {{ localFavorite ? "Remove favorite" : "Add favorite" }}
-          </button>
-          <button
-            type="button"
-            class="secondary-button"
-            @click="
-              actionsOpen = false;
-              emit('add-to-collection', game);
-            "
-          >
-            Add to collection
-          </button>
-          <button
-            type="button"
-            class="secondary-button"
-            @click="
-              actionsOpen = false;
-              emit('edit', game);
-            "
-          >
-            Edit game
-          </button>
-        </div>
-      </UiModal>
 
       <Teleport to="body">
         <div v-if="menuOpen" class="menu-backdrop" @click="closeMenu"></div>
@@ -482,13 +435,11 @@ function copyFolderPath() {
   width: 200px;
   flex-shrink: 0;
   min-width: 0;
-  container-type: inline-size;
 }
 .game-card {
-  min-width: 0;
   position: relative;
   width: 100%;
-  border-radius: var(--ui-radius-row);
+  border-radius: 10px;
   transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
   will-change: transform;
   z-index: 1;
@@ -499,8 +450,17 @@ function copyFolderPath() {
   z-index: 10;
 }
 .game-card.keyboard-focused .cover {
-  outline: 3px solid var(--ui-accent-text);
+  outline: 3px solid #d68a34;
   outline-offset: 3px;
+}
+
+/* completion badge, "glow"/"border" style the whole card (via --badge-color,
+   set inline from Settings > Appearance); "ribbon"/"corner_badge" are
+   positioned elements inside .cover instead, see .completion-badge below */
+.game-card.badge-glow {
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--badge-color) 55%, transparent),
+    0 0 22px 2px color-mix(in srgb, var(--badge-color) 45%, transparent);
 }
 .game-card.badge-glow:hover,
 .game-card.badge-glow.menu-open {
@@ -518,16 +478,60 @@ function copyFolderPath() {
     0 0 0 2px var(--badge-color),
     0 24px 56px rgba(0, 0, 0, 0.5);
 }
+.completion-badge {
+  position: absolute;
+  z-index: 3;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--badge-color);
+  pointer-events: none;
+}
+.completion-badge.top-left {
+  top: 8px;
+  left: 8px;
+}
+.completion-badge.top-right {
+  top: 8px;
+  right: 8px;
+}
+.completion-badge.bottom-left {
+  bottom: 8px;
+  left: 8px;
+}
+.completion-badge.bottom-right {
+  bottom: 8px;
+  right: 8px;
+}
+.completion-badge.corner_badge {
+  background: rgba(20, 20, 20, 0.55);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--badge-color) 60%, transparent);
+}
+.completion-badge.ribbon {
+  width: 46px;
+  height: 46px;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.5));
+}
+.completion-badge-image {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
 .cover {
   position: relative;
   width: 100%;
   /* 2:3, matches SteamGridDB's Steam-vertical grid size (600x900) so
      cover art fills the box instead of getting cropped by object-fit */
   aspect-ratio: 2 / 3;
-  border-radius: var(--ui-radius-row);
+  border-radius: 10px;
   overflow: hidden;
   cursor: pointer;
-  background: var(--surface-2, var(--ui-surface-2));
+  background: var(--surface-2, #222222);
   border: 1px solid transparent;
   box-sizing: border-box;
   transition:
@@ -548,15 +552,11 @@ function copyFolderPath() {
   height: 20px;
   padding: 0 5px;
   border-radius: 5px;
-  background: var(
-    --accent-soft,
-    color-mix(in srgb, var(--ui-accent) 16%, transparent)
-  );
-  color: var(--accent, var(--ui-accent-text));
-  border: 1px solid
-    var(--accent-line, color-mix(in srgb, var(--ui-accent) 40%, transparent));
+  background: var(--accent-soft, rgba(214, 138, 52, 0.16));
+  color: var(--accent, #d68a34);
+  border: 1px solid var(--accent-line, rgba(214, 138, 52, 0.4));
   font-size: 0.68rem;
-  font-weight: var(--ui-weight-title);
+  font-weight: 800;
   font-variant-numeric: tabular-nums;
 }
 .cover-image {
@@ -568,7 +568,7 @@ function copyFolderPath() {
 }
 .game-card:hover .cover,
 .game-card.menu-open .cover {
-  border-color: var(--border, var(--ui-border));
+  border-color: var(--border, #2b2b2b);
   box-shadow: 0 14px 30px rgba(0, 0, 0, 0.45);
 }
 .game-card:hover .cover-image {
@@ -577,25 +577,25 @@ function copyFolderPath() {
 .select-checkbox {
   width: 26px;
   height: 26px;
-  border-radius: var(--ui-radius-control);
-  background: color-mix(in srgb, var(--ui-bg) 80%, transparent);
-  border: 1.5px solid color-mix(in srgb, var(--ui-text) 45%, transparent);
+  border-radius: 7px;
+  background: rgba(10, 10, 10, 0.8);
+  border: 1.5px solid rgba(255, 255, 255, 0.45);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  color: var(--accent, var(--ui-accent-text));
+  color: var(--accent, #d68a34);
   font-size: 0.85rem;
-  font-weight: var(--ui-weight-title);
+  font-weight: 800;
   position: absolute;
   top: 6px;
   left: 6px;
   z-index: 4;
 }
 .select-checkbox.checked {
-  background: var(--accent, var(--ui-accent-text));
-  border-color: var(--accent, var(--ui-accent-text));
-  color: var(--ui-on-accent);
+  background: var(--accent, #d68a34);
+  border-color: var(--accent, #d68a34);
+  color: #14100a;
 }
 .stale-indicator {
   position: absolute;
@@ -604,13 +604,13 @@ function copyFolderPath() {
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  background: color-mix(in srgb, var(--ui-error) 85%, transparent);
+  background: rgba(220, 38, 38, 0.85);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--ui-text);
+  color: #fff;
   z-index: 3;
 }
 .cover-actions {
@@ -624,7 +624,7 @@ function copyFolderPath() {
   align-items: center;
   gap: 6px;
   padding: 26px 8px 8px;
-  background: linear-gradient(to top, var(--ui-overlay), transparent);
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.65), transparent);
   opacity: 0;
   transform: translateY(6px);
   transition:
@@ -641,17 +641,16 @@ function copyFolderPath() {
 }
 .favorite-button,
 .collection-button,
-.edit-button,
-.more-button {
+.edit-button {
   width: 28px;
   height: 28px;
   padding: 0;
   border-radius: 50%;
-  border: 1px solid color-mix(in srgb, var(--ui-text) 16%, transparent);
-  background: color-mix(in srgb, var(--ui-popover) 96%, transparent);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(20, 20, 20, 0.6);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
-  color: var(--ui-text);
+  color: #fff;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -660,47 +659,19 @@ function copyFolderPath() {
 }
 .favorite-button svg,
 .collection-button svg,
-.edit-button svg,
-.more-button svg {
+.edit-button svg {
   width: 13px;
   height: 13px;
 }
 .favorite-button.active {
-  color: var(--ui-error);
-  border-color: var(--ui-error);
-  background: var(--ui-danger-soft);
+  color: #ff6f91;
+  border-color: rgba(255, 111, 145, 0.4);
+  background: rgba(224, 86, 122, 0.2);
 }
 .edit-button:hover,
 .favorite-button:hover,
 .collection-button:hover {
-  background: var(--ui-surface-2);
-}
-.more-button {
-  display: none;
-  width: 44px;
-  height: 44px;
-}
-.compact-card-actions {
-  display: grid;
-  gap: 12px;
-}
-.compact-card-actions button {
-  min-height: 44px;
-  background: var(--ui-surface-2);
-  color: var(--ui-text);
-  border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius-control);
-  padding: 10px 16px;
-  font: inherit;
-  cursor: pointer;
-}
-@container (max-width: 175px) {
-  .cover-actions > button:not(.more-button) {
-    display: none;
-  }
-  .cover-actions > .more-button {
-    display: flex;
-  }
+  background: rgba(60, 60, 60, 0.9);
 }
 .menu-backdrop {
   position: fixed;
@@ -710,11 +681,11 @@ function copyFolderPath() {
 .card-menu {
   position: fixed;
   width: 190px;
-  background: var(--ui-popover);
-  border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius-row);
+  background: #1e1e1e;
+  border: 1px solid #333;
+  border-radius: 10px;
   padding: 6px;
-  box-shadow: var(--ui-elevation);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
   z-index: 30;
   display: flex;
   flex-direction: column;
@@ -736,7 +707,7 @@ function copyFolderPath() {
   text-align: left;
   background: none;
   border: none;
-  color: var(--ui-text);
+  color: #ddd;
   padding: 8px 10px;
   font-size: 13px;
   border-radius: 6px;
@@ -744,29 +715,29 @@ function copyFolderPath() {
   text-transform: capitalize;
 }
 .menu-item:hover:not(.disabled) {
-  background: color-mix(in srgb, var(--ui-text) 8%, transparent);
-  color: var(--ui-text);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
 }
 .menu-item.disabled {
-  color: var(--ui-faint);
+  color: #555;
   cursor: not-allowed;
 }
 .menu-item.destructive {
-  color: var(--ui-error);
+  color: #f87171;
 }
 .menu-item.destructive:hover {
-  background: color-mix(in srgb, var(--ui-error) 15%, transparent);
+  background: rgba(220, 38, 38, 0.15);
 }
 .menu-item.active {
-  color: var(--ui-accent-text);
+  color: #d68a34;
   font-weight: 600;
 }
 .menu-item.back {
-  color: var(--ui-dim);
+  color: #999;
 }
 .menu-divider {
   height: 1px;
-  background: var(--ui-border);
+  background: #2a2a2a;
   margin: 4px 2px;
 }
 .card-info {
@@ -787,7 +758,7 @@ function copyFolderPath() {
   font-size: 0.85rem;
   font-weight: 700;
   line-height: 1.3;
-  color: var(--text, var(--ui-text));
+  color: var(--text, #f2f2f2);
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -799,7 +770,7 @@ function copyFolderPath() {
 .score-tag {
   font-size: 0.82rem;
   font-weight: 700;
-  color: var(--accent, var(--ui-accent-text));
+  color: var(--accent, #d68a34);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   text-align: right;
@@ -812,9 +783,9 @@ function copyFolderPath() {
   height: 20px;
   padding: 0 5px;
   border-radius: 5px;
-  background: var(--surface-2, var(--ui-surface-2));
-  border: 1px solid var(--border, var(--ui-border));
-  color: var(--text-faint, var(--ui-faint));
+  background: var(--surface-2, #222222);
+  border: 1px solid var(--border, #2b2b2b);
+  color: var(--text-faint, #666);
   font-weight: 600;
 }
 .meta-row {
@@ -825,7 +796,7 @@ function copyFolderPath() {
   margin-top: 2px;
   min-width: 0;
   font-size: 0.7rem;
-  color: var(--text-faint, var(--ui-faint));
+  color: var(--text-faint, #666);
 }
 .meta-row .status {
   text-transform: capitalize;
@@ -836,35 +807,5 @@ function copyFolderPath() {
   font-variant-numeric: tabular-nums;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-@media (hover: none) {
-  .cover-actions {
-    opacity: 1;
-    transform: none;
-    pointer-events: auto;
-  }
-  .favorite-button,
-  .collection-button,
-  .edit-button {
-    width: 44px;
-    height: 44px;
-  }
-  .favorite-button svg,
-  .collection-button svg,
-  .edit-button svg {
-    width: 18px;
-    height: 18px;
-  }
-}
-@media (max-width: 760px) {
-  @container (max-width: 140px) {
-    .cover {
-      max-height: 100px;
-    }
-    .title-row .score-tag,
-    .meta-row {
-      display: none;
-    }
-  }
 }
 </style>

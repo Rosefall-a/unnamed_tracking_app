@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, useId, onBeforeUnmount, nextTick } from "vue";
+import { ref, computed, watch } from "vue";
 
 const props = defineProps<{
   modelValue: string;
@@ -15,9 +15,7 @@ const emit = defineEmits<{ "update:modelValue": [value: string] }>();
 
 const query = ref("");
 const open = ref(false);
-const listId = useId();
-const activeIndex = ref(0);
-let blurTimer: ReturnType<typeof setTimeout> | undefined;
+const inputRef = ref<HTMLInputElement | null>(null);
 
 const displayLabel = computed(() =>
   props.modelValue === "all" ? (props.allLabel ?? "All") : props.modelValue,
@@ -41,58 +39,21 @@ const filteredExtraOptions = computed(() => {
   if (!q || !props.extraOptions) return [];
   return props.extraOptions.filter((o) => o.toLowerCase().includes(q));
 });
-const values = computed(() => [
-  "all",
-  ...filteredOptions.value,
-  ...filteredExtraOptions.value,
-]);
-watch(query, () => {
-  activeIndex.value = 0;
-});
-onBeforeUnmount(() => clearTimeout(blurTimer));
-
-async function onKeydown(event: KeyboardEvent) {
-  if (event.key === "Escape") {
-    event.preventDefault();
-    open.value = false;
-    query.value = "";
-  } else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-    event.preventDefault();
-    if (!open.value) {
-      open.value = true;
-      activeIndex.value = 0;
-    } else
-      activeIndex.value =
-        (activeIndex.value +
-          (event.key === "ArrowDown" ? 1 : -1) +
-          values.value.length) %
-        values.value.length;
-    await nextTick();
-    document
-      .getElementById(`${listId}-${activeIndex.value}`)
-      ?.scrollIntoView({ block: "nearest" });
-  } else if (event.key === "Enter" && open.value) {
-    event.preventDefault();
-    select(values.value[activeIndex.value] ?? "all");
-  }
-}
 
 function select(value: string) {
   emit("update:modelValue", value);
   query.value = "";
   open.value = false;
-  clearTimeout(blurTimer);
+  inputRef.value?.blur();
 }
 
 function onFocus() {
-  clearTimeout(blurTimer);
   open.value = true;
   query.value = "";
-  activeIndex.value = Math.max(0, values.value.indexOf(props.modelValue));
 }
 
 function onBlur() {
-  blurTimer = setTimeout(() => {
+  setTimeout(() => {
     open.value = false;
     query.value = "";
   }, 150);
@@ -102,62 +63,31 @@ function onBlur() {
 <template>
   <div class="combobox">
     <input
+      ref="inputRef"
       type="text"
       class="combobox-input"
       :placeholder="placeholder"
       :aria-label="placeholder"
-      role="combobox"
-      aria-autocomplete="list"
-      :aria-expanded="open"
-      :aria-controls="listId"
-      :aria-activedescendant="open ? `${listId}-${activeIndex}` : undefined"
       :value="open ? query : displayLabel"
-      @input="
-        open = true;
-        query = ($event.target as HTMLInputElement).value;
-      "
-      @keydown="onKeydown"
+      @input="query = ($event.target as HTMLInputElement).value"
       @focus="onFocus"
       @blur="onBlur"
     />
-    <div
-      v-if="open"
-      :id="listId"
-      class="combobox-menu"
-      role="listbox"
-      :aria-label="placeholder"
-    >
+    <div v-if="open" class="combobox-menu">
       <button
-        :id="`${listId}-0`"
         type="button"
         class="combobox-option"
-        role="option"
-        tabindex="-1"
-        :aria-selected="modelValue === 'all'"
-        :class="{
-          highlighted: activeIndex === 0,
-          active: modelValue === 'all',
-        }"
-        @pointerdown.prevent
-        @click="select('all')"
+        @mousedown.prevent="select('all')"
       >
         {{ allLabel ?? "All" }}
       </button>
       <button
-        v-for="(opt, index) in filteredOptions"
+        v-for="opt in filteredOptions"
         :key="opt"
-        :id="`${listId}-${index + 1}`"
         type="button"
         class="combobox-option"
-        role="option"
-        tabindex="-1"
-        :aria-selected="opt === modelValue"
-        :class="{
-          active: opt === modelValue,
-          highlighted: activeIndex === index + 1,
-        }"
-        @pointerdown.prevent
-        @click="select(opt)"
+        :class="{ active: opt === modelValue }"
+        @mousedown.prevent="select(opt)"
       >
         {{ opt }}
       </button>
@@ -165,20 +95,12 @@ function onBlur() {
         {{ extraLabel ?? "More" }}
       </div>
       <button
-        v-for="(opt, index) in filteredExtraOptions"
+        v-for="opt in filteredExtraOptions"
         :key="opt"
-        :id="`${listId}-${filteredOptions.length + index + 1}`"
         type="button"
         class="combobox-option"
-        role="option"
-        tabindex="-1"
-        :aria-selected="opt === modelValue"
-        :class="{
-          active: opt === modelValue,
-          highlighted: activeIndex === filteredOptions.length + index + 1,
-        }"
-        @pointerdown.prevent
-        @click="select(opt)"
+        :class="{ active: opt === modelValue }"
+        @mousedown.prevent="select(opt)"
       >
         {{ opt }}
       </button>
@@ -197,23 +119,23 @@ function onBlur() {
   position: relative;
 }
 .combobox-input {
-  min-height: var(--ui-control-height);
+  height: 40px;
   box-sizing: border-box;
   width: 160px;
-  max-width: 100%;
-  background: var(--ui-surface);
-  border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius-control);
-  color: var(--ui-text);
+  background: #111;
+  border: 1px solid #3a3a3a;
+  border-radius: 8px;
+  color: #fff;
   padding: 0 14px;
   font: inherit;
   font-size: 13px;
 }
 .combobox-input::placeholder {
-  color: var(--ui-faint);
+  color: #777;
 }
 .combobox-input:focus {
-  border-color: var(--ui-accent);
+  outline: none;
+  border-color: #d68a34;
 }
 .combobox-menu {
   position: absolute;
@@ -222,11 +144,10 @@ function onBlur() {
   width: 200px;
   max-height: 240px;
   overflow-y: auto;
-  box-sizing: border-box;
-  background: var(--ui-popover);
-  border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius-control);
-  box-shadow: var(--ui-elevation);
+  background: #1a1a1a;
+  border: 1px solid #333;
+  border-radius: 8px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
   z-index: 50;
   display: flex;
   flex-direction: column;
@@ -235,9 +156,7 @@ function onBlur() {
 .combobox-option {
   background: none;
   border: none;
-  color: var(--ui-text);
-  min-height: var(--ui-control-height);
-  flex-shrink: 0;
+  color: #ccc;
   text-align: left;
   padding: 8px 10px;
   border-radius: 6px;
@@ -245,22 +164,21 @@ function onBlur() {
   font-size: 13px;
   text-transform: capitalize;
 }
-.combobox-option:hover,
-.combobox-option.highlighted {
-  background: var(--ui-surface-2);
-  color: var(--ui-text);
+.combobox-option:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
 }
 .combobox-option.active {
-  background: var(--ui-accent-soft);
-  color: var(--ui-accent-text);
+  background: rgba(214, 138, 52, 0.18);
+  color: #d68a34;
 }
 .combobox-empty {
-  color: var(--ui-dim);
+  color: #666;
   font-size: 12px;
   padding: 8px 10px;
 }
 .combobox-group-label {
-  color: var(--ui-dim);
+  color: #666;
   font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.05em;

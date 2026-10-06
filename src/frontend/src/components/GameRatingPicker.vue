@@ -180,29 +180,29 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .rating-pill {
-  background-color: color-mix(in srgb, var(--ui-text) 6%, transparent);
+  background-color: rgba(255, 255, 255, 0.06);
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23d68a34' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 8px center;
   background-size: 12px;
-  border: 1px solid color-mix(in srgb, var(--ui-accent) 40%, transparent);
-  border-radius: var(--ui-radius-control);
+  border: 1px solid rgba(214, 138, 52, 0.4);
+  border-radius: 7px;
   line-height: 1.25;
   padding: 4px 26px 4px 11px;
   font-family: inherit;
   font-size: 0.78rem;
   font-weight: 600;
-  color: var(--ui-accent-text);
+  color: #d68a34;
   cursor: pointer;
   transition: background-color 0.15s ease;
 }
 .rating-pill:hover,
 .rating-pill.open {
-  background-color: color-mix(in srgb, var(--ui-accent) 16%, transparent);
+  background-color: rgba(214, 138, 52, 0.16);
 }
 .rating-pill.unrated {
-  color: var(--ui-dim);
-  border-color: color-mix(in srgb, var(--ui-text) 14%, transparent);
+  color: #9c9c9c;
+  border-color: rgba(255, 255, 255, 0.14);
 }
 .rating-panel {
   position: fixed;
@@ -213,12 +213,12 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  background: var(--ui-surface);
-  border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius-dialog);
+  background: #171717;
+  border: 1px solid #2b2b2b;
+  border-radius: 14px;
   padding: 12px;
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
-  font-family: var(--ui-font-family);
+  font-family: system-ui, sans-serif;
 }
 .panel-head {
   display: flex;
@@ -227,15 +227,15 @@ onBeforeUnmount(() => {
 }
 .panel-title {
   font-size: 0.72rem;
-  font-weight: var(--ui-weight-title);
+  font-weight: 800;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--ui-dim);
+  color: #9c9c9c;
 }
 .panel-total {
   font-size: 0.78rem;
   font-weight: 700;
-  color: var(--ui-accent-text);
+  color: #d68a34;
   font-variant-numeric: tabular-nums;
 }
 .field-grid {
@@ -252,19 +252,19 @@ onBeforeUnmount(() => {
 .field-label {
   font-size: 0.7rem;
   font-weight: 700;
-  color: var(--ui-dim);
+  color: #9c9c9c;
 }
 .score-input {
   box-sizing: border-box;
   width: 100%;
   height: 40px;
-  background: var(--ui-bg);
-  border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius-control);
-  color: var(--ui-accent-text);
+  background: #0d0d0d;
+  border: 1px solid #2b2b2b;
+  border-radius: 8px;
+  color: #d68a34;
   font: inherit;
   font-size: 1.1rem;
-  font-weight: var(--ui-weight-title);
+  font-weight: 800;
   text-align: center;
   font-variant-numeric: tabular-nums;
   transition: border-color 0.15s ease;
@@ -276,17 +276,17 @@ onBeforeUnmount(() => {
 }
 .score-input:focus {
   outline: none;
-  border-color: var(--ui-accent-text);
+  border-color: #d68a34;
 }
 .score-input.invalid {
-  border-color: var(--ui-error);
+  border-color: #e57373;
 }
 .hint {
   margin: 0;
   font-size: 0.72rem;
 }
 .hint.bad {
-  color: var(--ui-error);
+  color: #e57373;
 }
 .panel-actions {
   display: flex;
@@ -298,9 +298,9 @@ onBeforeUnmount(() => {
   height: 30px;
   padding: 0 14px;
   border: none;
-  border-radius: var(--ui-radius-control);
-  background: var(--ui-accent);
-  color: var(--ui-on-accent);
+  border-radius: 8px;
+  background: #d68a34;
+  color: #14100a;
   font-family: inherit;
   font-size: 0.8rem;
   font-weight: 700;
@@ -313,16 +313,16 @@ onBeforeUnmount(() => {
   height: 30px;
   padding: 0 10px;
   border: none;
-  border-radius: var(--ui-radius-control);
+  border-radius: 8px;
   background: none;
-  color: var(--ui-dim);
+  color: #9c9c9c;
   font-family: inherit;
   font-size: 0.8rem;
   font-weight: 700;
   cursor: pointer;
 }
 .clear-btn:hover {
-  color: var(--ui-error);
+  color: #e57373;
   background: rgba(229, 115, 115, 0.08);
 }
 .pop-enter-active,

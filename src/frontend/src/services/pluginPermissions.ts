@@ -1,5 +1,3 @@
-import { pluginRequestError } from "./apiError";
-
 export interface PluginPermissionRequest {
   id: string;
   plugin_id: string;
@@ -42,10 +40,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
   });
   if (!response.ok)
-    throw await pluginRequestError(
-      response,
-      "Plugin permissions request failed",
-    );
+    throw new Error("Plugin permissions request failed: " + response.status);
   return response.json() as Promise<T>;
 }
 export const fetchPluginPermissionRequests = () =>

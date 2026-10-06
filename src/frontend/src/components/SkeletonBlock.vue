@@ -12,19 +12,13 @@ withDefaults(
 <template>
   <div
     class="skeleton-block"
-    aria-hidden="true"
     :style="{ width, height, borderRadius: radius }"
   ></div>
 </template>
 
 <style scoped>
 .skeleton-block {
-  background: linear-gradient(
-    90deg,
-    var(--ui-surface-2) 25%,
-    var(--ui-border-soft) 37%,
-    var(--ui-surface-2) 63%
-  );
+  background: linear-gradient(90deg, #1c1c1c 25%, #262626 37%, #1c1c1c 63%);
   background-size: 400% 100%;
   animation: skeleton-shimmer 1.4s ease infinite;
 }

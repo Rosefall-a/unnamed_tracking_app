@@ -12,23 +12,8 @@ import {
   type UiDialog,
   type UiNavigationLocation,
   type UiPage,
-  type UiHomeWidget,
-  type UiTheme,
-  type UiShortcut,
-  pluginPathForPage,
-  dispatchPluginAction,
 } from "../services/pluginUi";
 import { reconcileNativePlugins, retainNativePlugins } from "./pluginNative";
-import { registerPluginShortcut, retainPluginShortcuts } from "./shortcuts";
-import { currentUser } from "./auth";
-import { useConfirm } from "./dialog";
-import {
-  pluginPlacementGroup,
-  SIDEBAR_BUILT_IN_GROUPS,
-  SETTINGS_BUILT_IN_GROUPS,
-  SETTINGS_PLACEMENT_CAPABILITIES,
-  type SettingsArea,
-} from "../utils/pluginPlacement";
 
 export interface PluginNavigationContribution {
   pluginId: string;
@@ -42,9 +27,6 @@ export interface PluginNavigationContribution {
   icon?: string;
   order: number;
   adminOnly: boolean;
-  area: SettingsArea;
-  group: string;
-  folders: string[];
   document: PluginUiDocument;
 }
 
@@ -55,9 +37,6 @@ export interface PluginSettingsContribution {
   label: string;
   icon?: string;
   order: number;
-  area: "account" | "preferences" | "administration";
-  group: string;
-  folders: string[];
   adminOnly: boolean;
   document: PluginUiDocument;
 }
@@ -69,7 +48,6 @@ export interface PluginSlotContribution {
   page: UiPage;
   order: number;
   document: PluginUiDocument;
-  widget?: UiHomeWidget;
 }
 
 export interface PluginOverlayContribution {
@@ -115,15 +93,6 @@ export interface PluginPageReplacementContribution {
   document: PluginUiDocument;
 }
 
-export interface PluginThemeContribution {
-  pluginId: string;
-  contributionId: string;
-  label: string;
-  description: string;
-  colors: UiTheme["colors"];
-  order: number;
-}
-
 export interface PluginContributions {
   navigation: PluginNavigationContribution[];
   settings: PluginSettingsContribution[];
@@ -134,12 +103,6 @@ export interface PluginContributions {
   routes: PluginRouteContribution[];
   replacements: PluginPageReplacementContribution[];
   documentReaders: PluginDocumentReaderContribution[];
-  themes: PluginThemeContribution[];
-  shortcuts: Array<{
-    pluginId: string;
-    document: PluginUiDocument;
-    shortcut: UiShortcut;
-  }>;
 }
 
 export interface PluginDocumentReaderContribution {
@@ -161,22 +124,9 @@ const emptyContributions = (): PluginContributions => ({
   routes: [],
   replacements: [],
   documentReaders: [],
-  themes: [],
-  shortcuts: [],
 });
 
 function hasCapability(plugin: PluginSummary, capability: string): boolean {
-  if (
-    plugin.legacy_compatibility &&
-    (capability.startsWith("frontend.placement.") ||
-      [
-        "frontend.native",
-        "frontend.themes",
-        "frontend.home.widgets",
-        "frontend.shortcuts",
-      ].includes(capability))
-  )
-    return false;
   return plugin.effective_capabilities.includes(capability);
 }
 
@@ -202,7 +152,6 @@ export function derivePluginContributions(
 ): PluginContributions {
   if (
     !pluginContributionsActive(plugin) ||
-    document.api_contract_version !== plugin.api_contract_version ||
     document.plugin_id !== plugin.plugin_id
   )
     return emptyContributions();
@@ -218,9 +167,6 @@ export function derivePluginContributions(
           label: page.navigation?.label ?? page.title,
           order: page.navigation?.order ?? 0,
           adminOnly: false,
-          area: "preferences" as const,
-          group: "Extensions",
-          folders: [],
           document,
         }))
     : [];
@@ -243,32 +189,6 @@ export function derivePluginContributions(
         icon: item.icon,
         order: item.order,
         adminOnly: item.visibility.admin_only,
-        area:
-          item.area ??
-          (item.visibility.admin_only ? "administration" : "preferences"),
-        group: pluginPlacementGroup(
-          item.group,
-          item.location === "settings.sidebar"
-            ? SETTINGS_BUILT_IN_GROUPS[
-                item.area ??
-                  (item.visibility.admin_only
-                    ? "administration"
-                    : "preferences")
-              ]
-            : SIDEBAR_BUILT_IN_GROUPS,
-          hasCapability(
-            plugin,
-            item.location === "settings.sidebar"
-              ? SETTINGS_PLACEMENT_CAPABILITIES[
-                  item.area ??
-                    (item.visibility.admin_only
-                      ? "administration"
-                      : "preferences")
-                ]
-              : "frontend.placement.sidebar",
-          ),
-        ),
-        folders: item.folders ?? [],
         document,
       })),
   ];
@@ -280,62 +200,26 @@ export function derivePluginContributions(
         label: item.label,
         icon: item.icon,
         order: item.order,
-        area:
-          item.area ??
-          (item.visibility.admin_only ? "administration" : "preferences"),
-        group: pluginPlacementGroup(
-          item.group,
-          SETTINGS_BUILT_IN_GROUPS[
-            item.area ??
-              (item.visibility.admin_only ? "administration" : "preferences")
-          ],
-          hasCapability(
-            plugin,
-            SETTINGS_PLACEMENT_CAPABILITIES[
-              item.area ??
-                (item.visibility.admin_only ? "administration" : "preferences")
-            ],
-          ),
-        ),
-        folders: item.folders ?? [],
-        adminOnly: item.visibility.admin_only || item.area === "administration",
+        adminOnly: item.visibility.admin_only,
         document,
       }))
     : [];
-  const slots: PluginSlotContribution[] = (document.extensions ?? []).flatMap(
-    (extension) => {
-      if (!hasCapability(plugin, extensionCapability(extension.slot)))
-        return [];
-      const page = document.pages.find((item) => item.id === extension.page_id);
-      return page
-        ? [
-            {
-              pluginId: plugin.plugin_id,
-              extensionId: extension.id,
-              slot: extension.slot,
-              page,
-              order: extension.order,
-              document,
-            },
-          ]
-        : [];
-    },
-  );
-  if (hasCapability(plugin, "frontend.home.widgets")) {
-    for (const widget of document.home_widgets ?? []) {
-      const page = document.pages.find((item) => item.id === widget.page_id);
-      if (!page) continue;
-      slots.push({
-        pluginId: plugin.plugin_id,
-        extensionId: widget.id,
-        slot: "home.after-widgets",
-        page,
-        order: widget.order,
-        document,
-        widget,
-      });
-    }
-  }
+  const slots = (document.extensions ?? []).flatMap((extension) => {
+    if (!hasCapability(plugin, extensionCapability(extension.slot))) return [];
+    const page = document.pages.find((item) => item.id === extension.page_id);
+    return page
+      ? [
+          {
+            pluginId: plugin.plugin_id,
+            extensionId: extension.id,
+            slot: extension.slot,
+            page,
+            order: extension.order,
+            document,
+          },
+        ]
+      : [];
+  });
   const overlays = hasCapability(plugin, "frontend.overlay")
     ? (document.overlays ?? []).flatMap((item) => {
         const page = document.pages.find(
@@ -434,16 +318,6 @@ export function derivePluginContributions(
       : [];
   });
   return {
-    themes: hasCapability(plugin, "frontend.themes")
-      ? (document.themes ?? []).map((theme) => ({
-          pluginId: plugin.plugin_id,
-          contributionId: theme.id,
-          label: theme.label,
-          description: theme.description,
-          colors: theme.colors,
-          order: theme.order,
-        }))
-      : [],
     navigation,
     settings,
     slots,
@@ -468,23 +342,9 @@ export function derivePluginContributions(
               order: item.order,
             }))
         : [],
-    shortcuts: hasCapability(plugin, "frontend.shortcuts")
-      ? (document.shortcuts ?? [])
-          .filter(
-            (item) =>
-              (!item.route_id || hasCapability(plugin, "frontend.routes")) &&
-              (!item.when_route_id || hasCapability(plugin, "frontend.routes")),
-          )
-          .map((shortcut) => ({
-            pluginId: plugin.plugin_id,
-            document,
-            shortcut,
-          }))
-      : [],
   };
 }
 
-const themeState = ref<PluginThemeContribution[]>([]);
 const navigationState = ref<PluginNavigationContribution[]>([]);
 const settingsState = ref<PluginSettingsContribution[]>([]);
 const slotState = ref<PluginSlotContribution[]>([]);
@@ -495,15 +355,10 @@ const routeState = ref<PluginRouteContribution[]>([]);
 const replacementState = ref<PluginPageReplacementContribution[]>([]);
 const documentReaderState = ref<PluginDocumentReaderContribution[]>([]);
 let refreshVersion = 0;
-let pendingRefresh: Promise<void> | undefined;
 const documentState = ref<Record<string, PluginUiDocument>>({});
 export const activePluginDocuments = shallowReadonly(documentState);
 
 function retainContributions(pluginIds: ReadonlySet<string>): void {
-  retainPluginShortcuts(pluginIds);
-  themeState.value = themeState.value.filter((item) =>
-    pluginIds.has(item.pluginId),
-  );
   navigationState.value = navigationState.value.filter((item) =>
     pluginIds.has(item.pluginId),
   );
@@ -544,7 +399,6 @@ function retainContributions(pluginIds: ReadonlySet<string>): void {
 
 export function clearPluginExtensions(): void {
   refreshVersion++;
-  pendingRefresh = undefined;
   retainContributions(new Set());
 }
 
@@ -552,7 +406,6 @@ function compareIds(first: string, second: string): number {
   return first < second ? -1 : first > second ? 1 : 0;
 }
 
-export const pluginThemes = shallowReadonly(themeState);
 export const pluginNavigation = shallowReadonly(navigationState);
 export const pluginSettingsSections = shallowReadonly(settingsState);
 export const pluginSlots = shallowReadonly(slotState);
@@ -590,21 +443,7 @@ export function comparePluginContributions(
   );
 }
 
-export function refreshPluginExtensions(
-  options: { background?: boolean } = {},
-): Promise<void> {
-  // Mounts and the five-second poll share a pending load. Otherwise a slow
-  // multi-plugin refresh is repeatedly invalidated before it can publish.
-  // Explicit manager mutations still start a fresh load to reflect revocation.
-  if (options.background && pendingRefresh) return pendingRefresh;
-  const refresh = loadPluginExtensions().finally(() => {
-    if (pendingRefresh === refresh) pendingRefresh = undefined;
-  });
-  pendingRefresh = refresh;
-  return refresh;
-}
-
-async function loadPluginExtensions(): Promise<void> {
+export async function refreshPluginExtensions(): Promise<void> {
   const version = ++refreshVersion;
   try {
     const plugins = await fetchPlugins();
@@ -617,11 +456,6 @@ async function loadPluginExtensions(): Promise<void> {
       enabled.map(async (plugin) => {
         try {
           const document = await fetchPluginUi(plugin.plugin_id);
-          if (document.api_contract_version !== plugin.api_contract_version) {
-            throw new Error(
-              "Plugin UI and manifest API contracts do not match.",
-            );
-          }
           return {
             document,
             contributions: derivePluginContributions(plugin, document),
@@ -646,19 +480,14 @@ async function loadPluginExtensions(): Promise<void> {
             {
               pluginId: plugin.plugin_id,
               version: plugin.version,
-              digest: plugin.digest,
               entry: nativeFrontend.entry,
               styles: nativeFrontend.styles,
               pageIds: document.pages.map((page) => page.id),
               actions: document.actions,
-              shortcutPermission: hasCapability(plugin, "frontend.shortcuts"),
             },
           ]
         : [];
     });
-    themeState.value = contributions
-      .flatMap((item) => item.themes)
-      .sort(comparePluginContributions);
     navigationState.value = contributions
       .flatMap((item) => item.navigation)
       .sort(comparePluginContributions);
@@ -721,66 +550,6 @@ async function loadPluginExtensions(): Promise<void> {
     documentReaderState.value = contributions
       .flatMap((item) => item.documentReaders)
       .sort(comparePluginContributions);
-    const shortcuts = contributions
-      .flatMap((item) => item.shortcuts)
-      .filter(
-        (item) =>
-          !item.shortcut.visibility.admin_only || currentUser.value?.is_admin,
-      );
-    retainPluginShortcuts(
-      new Set(
-        enabled
-          .filter((plugin) => hasCapability(plugin, "frontend.shortcuts"))
-          .map((plugin) => plugin.plugin_id),
-      ),
-      new Set(
-        shortcuts.map((item) => `plugin:${item.pluginId}:${item.shortcut.id}`),
-      ),
-    );
-    for (const { pluginId, document, shortcut } of shortcuts) {
-      const prefix = `/plugins/${pluginId}/`;
-      const routePath = (id: string) =>
-        document.routes?.find((item) => item.id === id)?.path;
-      const destination = shortcut.page_id
-        ? prefix + pluginPathForPage(document, shortcut.page_id)
-        : shortcut.route_id
-          ? prefix + routePath(shortcut.route_id)
-          : undefined;
-      registerPluginShortcut(
-        pluginId,
-        {
-          id: shortcut.id,
-          label: shortcut.label,
-          group: shortcut.group,
-          keys: shortcut.keys,
-          paths: shortcut.when_route_id
-            ? [prefix + routePath(shortcut.when_route_id)]
-            : undefined,
-          destination,
-          control: shortcut.control ?? undefined,
-        },
-        shortcut.action_id
-          ? async () => {
-              const action = document.actions.find(
-                (item) => item.id === shortcut.action_id,
-              )!;
-              if (
-                action.confirmation &&
-                !(await useConfirm()({ message: action.confirmation }))
-              )
-                return;
-              await dispatchPluginAction(
-                pluginId,
-                action.id,
-                {},
-                undefined,
-                Boolean(action.confirmation),
-              );
-            }
-          : undefined,
-        false,
-      );
-    }
     // Publish lifecycle removal before waiting on privileged plugin code.
     await reconcileNativePlugins(nativeSources);
   } catch {

@@ -4,40 +4,50 @@
    fields, chips, page titles, dialogs and messages are the same size,
    weight and color everywhere instead of being redefined page by page. */
 
+:root {
+  /* surfaces */
+  --ui-bg: #0d0d0d;
+  --ui-surface: #1a1a1a;
+  --ui-surface-2: #222222;
+  --ui-popover: #171717;
+  --ui-border-soft: #202020;
+  --ui-border: #2b2b2b;
+  /* color */
+  --ui-accent: #d68a34;
+  --ui-accent-soft: rgba(214, 138, 52, 0.16);
+  --ui-accent-line: rgba(214, 138, 52, 0.4);
+  --ui-on-accent: #14100a;
+  --ui-danger: #dc2626;
+  --ui-error: #e57373;
+  --ui-good: #6fbf73;
+  /* text: two tiers of muted */
+  --ui-text: #f2f2f2;
+  --ui-dim: #9c9c9c;
+  --ui-faint: #666666;
+  /* shape */
+  --ui-radius-control: 8px;
+  --ui-radius-row: 10px;
+  --ui-radius-card: 12px;
+  --ui-radius-dialog: 14px;
+  /* page gutters */
+  --ui-edge-left: 24px;
+  --ui-edge-right: 24px;
+  /* the big "add your first one" card on every empty gallery tab */
+  --ui-empty-min: 280px;
+  /* stacking */
+  --ui-z-drawer: 150;
+  --ui-z-modal: 300;
+  --ui-z-popover: 350;
+  --ui-z-dialog: 400;
+}
+
 /* ---- page shell ---- */
-body {
-  background: var(--ui-bg);
-  color: var(--ui-text);
-}
-/* Scroll containers inherit the active palette, including native plugin pages. */
-* {
-  scrollbar-width: thin;
-  scrollbar-color: var(--ui-border-strong) var(--ui-surface-2);
-}
-::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
-}
-::-webkit-scrollbar-track {
-  background: var(--ui-surface-2);
-}
-::-webkit-scrollbar-thumb {
-  background: var(--ui-border-strong);
-  border: 2px solid var(--ui-surface-2);
-  border-radius: var(--ui-radius-control);
-}
-::-webkit-scrollbar-thumb:hover {
-  background: var(--ui-dim);
-}
-::-webkit-scrollbar-corner {
-  background: var(--ui-surface-2);
-}
 .ui-page {
   position: relative;
   min-height: 100vh;
   background: var(--ui-bg);
   color: var(--ui-text);
-  font-family: var(--ui-font-family);
+  font-family: system-ui, sans-serif;
 }
 .ui-content {
   padding: 24px var(--ui-edge-right) 60px var(--ui-edge-left);
@@ -62,10 +72,8 @@ body {
 }
 .ui-head h1 {
   margin: 0;
-  font-size: var(--ui-font-title);
-  font-weight: var(--ui-weight-title);
-  line-height: 1.2;
-  letter-spacing: -0.035em;
+  font-size: 1.7rem;
+  font-weight: 800;
 }
 .ui-head .sub {
   margin-top: 4px;
@@ -86,7 +94,7 @@ body {
   justify-content: center;
   gap: 7px;
   box-sizing: border-box;
-  min-height: var(--ui-control-height);
+  height: 38px;
   padding: 0 18px;
   border: none;
   border-radius: var(--ui-radius-control);
@@ -119,14 +127,14 @@ body {
   filter: brightness(1.08);
 }
 .ui-btn-secondary {
-  background: var(--ui-surface-2);
-  color: var(--ui-text);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
 }
 .ui-btn-secondary:hover:not(:disabled) {
-  background: var(--ui-border-soft);
+  background: rgba(255, 255, 255, 0.13);
 }
 .ui-btn-secondary.on {
-  background: var(--ui-accent-soft);
+  background: rgba(214, 138, 52, 0.22);
   color: var(--ui-accent);
 }
 .ui-btn-danger {
@@ -138,11 +146,11 @@ body {
 }
 /* a quieter destructive action (Remove, Delete in a menu) */
 .ui-btn-danger-soft {
-  background: var(--ui-danger-soft);
-  color: var(--ui-error);
+  background: rgba(217, 111, 111, 0.12);
+  color: #d96f6f;
 }
 .ui-btn-danger-soft:hover:not(:disabled) {
-  background: var(--ui-danger-soft);
+  background: rgba(217, 111, 111, 0.2);
 }
 .ui-btn-ghost {
   background: none;
@@ -150,14 +158,14 @@ body {
   color: var(--ui-dim);
 }
 .ui-btn-ghost:hover:not(:disabled) {
-  border-color: var(--ui-border-strong);
-  color: var(--ui-text);
+  border-color: #3a3a3a;
+  color: #ccc;
 }
 
 /* ---- fields: 38px ---- */
 .ui-field {
   box-sizing: border-box;
-  min-height: var(--ui-control-height);
+  height: 38px;
   padding: 0 12px;
   background: var(--ui-surface);
   border: 1px solid var(--ui-border);
@@ -171,7 +179,7 @@ body {
   color: var(--ui-faint);
 }
 .ui-field:hover {
-  border-color: var(--ui-border-strong);
+  border-color: #3a3a3a;
 }
 .ui-field:focus {
   outline: none;
@@ -198,7 +206,7 @@ textarea.ui-field {
   align-items: center;
   gap: 6px;
   box-sizing: border-box;
-  min-height: var(--ui-control-height);
+  height: 28px;
   padding: 0 12px;
   border: 1px solid var(--ui-border);
   border-radius: 999px;
@@ -214,7 +222,7 @@ textarea.ui-field {
     color 0.15s ease;
 }
 .ui-chip:hover {
-  color: var(--ui-text);
+  color: #ccc;
 }
 .ui-chip.on {
   background: var(--ui-accent);
@@ -240,8 +248,8 @@ textarea.ui-field {
 .ui-error-box {
   color: var(--ui-error);
   font-size: 0.82rem;
-  background: var(--ui-danger-soft);
-  border: 1px solid var(--ui-error);
+  background: rgba(220, 38, 38, 0.1);
+  border: 1px solid rgba(220, 38, 38, 0.3);
   border-radius: var(--ui-radius-control);
   padding: 8px 12px;
   margin: 0 0 12px;
@@ -270,7 +278,7 @@ textarea.ui-field {
   border-radius: var(--ui-radius-dialog);
   box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
   color: var(--ui-text);
-  font-family: var(--ui-font-family);
+  font-family: system-ui, sans-serif;
 }
 .ui-modal h3 {
   margin: 0 0 8px;

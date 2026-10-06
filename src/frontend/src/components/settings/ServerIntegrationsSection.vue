@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from "vue";
-import PasswordInput from "../PasswordInput.vue";
 import {
   fetchDeploymentSettings,
   updateDeploymentSettings,
@@ -104,26 +103,15 @@ async function save() {
       <div class="grid">
         <label v-for="[key, label] in fields" :key="key"
           ><span>{{ label }}</span
-          ><PasswordInput
-            v-if="
+          ><input
+            v-model="providers[key]"
+            :type="
               key.includes('secret') ||
               key.includes('password') ||
               key.includes('api_key')
+                ? 'password'
+                : 'text'
             "
-            :model-value="providers[key] ?? ''"
-            mode="replace"
-            :placeholder="
-              deploymentSettings?.provider_locks[key]
-                ? 'Managed by deployment environment'
-                : configured[key]
-                  ? 'Already saved — enter a new value to replace it'
-                  : ''
-            "
-            :disabled="deploymentSettings?.provider_locks[key] ?? false"
-            @update:model-value="providers[key] = $event" /><input
-            v-else
-            v-model="providers[key]"
-            type="text"
             :placeholder="
               (deploymentSettings?.provider_locks[key] ?? false)
                 ? 'Managed by deployment environment'
@@ -155,8 +143,8 @@ async function save() {
         />
       </section>
       <p class="hint">
-        OpenID Connect / SSO has its own section so authentication settings can
-        be managed separately.
+        OpenID Connect / SSO has its own tab so authentication settings can be
+        managed separately.
       </p>
       <p v-if="error" class="error">{{ error }}</p>
       <p v-if="saved" class="success">Saved.</p>
@@ -174,7 +162,7 @@ async function save() {
   gap: 16px;
 }
 .hint {
-  color: var(--ui-dim);
+  color: #999;
   font-size: 13px;
   line-height: 1.5;
 }
@@ -187,59 +175,56 @@ async function save() {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  color: var(--ui-text);
+  color: #ccc;
   font-size: 13px;
 }
 .grid input {
-  background: var(--ui-bg);
-  border: 1px solid var(--ui-border-strong);
-  border-radius: var(--ui-radius-control);
-  color: var(--ui-text);
+  background: #111;
+  border: 1px solid #3a3a3a;
+  border-radius: 8px;
+  color: #fff;
   padding: 10px;
   font: inherit;
 }
 .grid input:focus {
   outline: none;
-  border-color: var(--ui-accent);
+  border-color: #d68a34;
 }
 h2 {
-  margin: 0 0 12px;
-  font: var(--ui-weight-heading) var(--ui-font-heading)/1.4
-    var(--ui-font-family);
-  color: var(--ui-text);
+  margin: 0;
+  color: #fff;
 }
 .proxy-section {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  border-top: 1px solid var(--ui-border);
+  border-top: 1px solid #333;
   padding-top: 18px;
 }
 .proxy-section h3 {
   margin: 0;
-  color: var(--ui-text);
+  color: #fff;
 }
 .proxy-section label {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  color: var(--ui-text);
+  color: #ccc;
   font-size: 13px;
 }
 .proxy-section label input {
-  background: var(--ui-surface);
-  border: 1px solid var(--ui-border-strong);
-  border-radius: var(--ui-radius-control);
-  color: var(--ui-text);
+  background: #111;
+  border: 1px solid #3a3a3a;
+  border-radius: 8px;
+  color: #fff;
   padding: 10px;
   font: inherit;
 }
 button {
   align-self: flex-start;
-  background: var(--ui-accent);
-  color: var(--ui-on-accent);
+  background: #d68a34;
   border: 0;
-  border-radius: var(--ui-radius-control);
+  border-radius: 8px;
   padding: 10px 14px;
   font-weight: 600;
   cursor: pointer;
@@ -248,10 +233,10 @@ button:disabled {
   opacity: 0.6;
 }
 .error {
-  color: var(--ui-error);
+  color: #fca5a5;
 }
 .success {
-  color: var(--ui-good);
+  color: #86efac;
 }
 @media (max-width: 760px) {
   .grid {

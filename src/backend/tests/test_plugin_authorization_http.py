@@ -8,7 +8,6 @@ No permission decision or grant lookup is mocked.
 import asyncio
 import io
 import json
-import zipfile
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
@@ -20,7 +19,6 @@ import pytest
 from fastapi import FastAPI
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
-
 from src.api.routes import auth, plugin_permissions, plugins
 from src.api.routes.plugin_manager import contributions as plugin_contributions
 from src.api.routes.plugin_manager import runtime as plugin_runtime
@@ -57,9 +55,6 @@ class PersistedDb:
 
     def add(self, row):
         self.session.add(row)
-
-    def get_bind(self):
-        return self.session.get_bind()
 
     async def commit(self):
         self.session.commit()
@@ -112,7 +107,6 @@ def boundary(monkeypatch):
         session.commit()
         installation_id = uuid4()
         plugin = {
-            "api_contract_version": "1.1.0",
             "plugin_id": "audit.plugin",
             "installation_id": str(installation_id),
             "enabled": True,
@@ -139,7 +133,6 @@ def boundary(monkeypatch):
             ],
         }
         document = {
-            "api_contract_version": "1.1.0",
             "plugin_id": "audit.plugin",
             "title": "Audit",
             "pages": [{"id": "page", "title": "Audit"}],
@@ -191,54 +184,6 @@ def boundary(monkeypatch):
             tokens=tokens,
         )
     engine.dispose()
-
-
-@pytest.mark.asyncio
-async def test_installed_documentation_is_readable_when_disabled_but_requires_authenticated_reader(
-    boundary,
-):
-    package = io.BytesIO()
-    with zipfile.ZipFile(package, "w") as archive:
-        archive.writestr("payload/README.md", "# Installed release\n\nPublic documentation.")
-    boundary.runtime.package_archive = AsyncMock(return_value=package.getvalue())
-    boundary.plugin.update(enabled=False, status="disabled")
-    async with httpx.AsyncClient(
-        transport=httpx.ASGITransport(app=boundary.app),
-        base_url="http://test",
-        cookies={session_cookie_name("test"): boundary.tokens[boundary.users[0].id]},
-    ) as client:
-        response = await client.get("/api/plugins/audit.plugin/details")
-        assert response.status_code == 200, response.text
-        assert response.json()["readme"].startswith("# Installed release")
-        assert response.headers["cache-control"] == "private, no-store"
-        boundary.users[0].is_admin = False
-        boundary.session.commit()
-        assert (await client.get("/api/plugins/audit.plugin/details")).status_code == 200
-        client.cookies.clear()
-        assert (await client.get("/api/plugins/audit.plugin/details")).status_code == 401
-
-
-@pytest.mark.asyncio
-async def test_limited_legacy_ui_preserves_pages_and_gateway_but_denies_native_ui(boundary):
-    boundary.plugin.update(api_contract_version="1.0.0", legacy_compatibility=True)
-    boundary.runtime.plugin_ui.return_value["api_contract_version"] = "1.0.0"
-    grant(boundary, "frontend.native")
-    grant(boundary, "sessions.read")
-    async with httpx.AsyncClient(
-        transport=httpx.ASGITransport(app=boundary.app),
-        base_url="http://test",
-        cookies={session_cookie_name("test"): boundary.tokens[boundary.users[0].id]},
-    ) as client:
-        response = await client.get("/api/plugins/audit.plugin/ui")
-        assert response.status_code == 200, response.text
-        assert response.json()["pages"][0]["id"] == "page"
-        assert response.json()["native_frontend"] is None
-        assert (
-            await client.get("/api/plugins/audit.plugin/native-frontend/native/index.js")
-        ).status_code == 403
-    assert (await request(boundary)).status_code == 200
-    boundary.plugin["enabled"] = False
-    assert (await request(boundary)).status_code == 409
 
 
 def grant(boundary, capability="sessions.read", **changes):
@@ -667,74 +612,6 @@ async def test_declarations_and_pending_request_never_grant_access(boundary):
 
 
 @pytest.mark.asyncio
-async def test_reject_and_reapprove_reuses_grant_without_duplicate_permissions(boundary):
-    boundary.plugin["permission_refs"] = [{"name": "sessions.read", "version": 1}]
-    original = grant(boundary)
-    for _ in range(3):
-        revoked = await request(boundary, f"/api/plugin-permissions/grants/{original.id}/revoke")
-        assert revoked.status_code == 200
-        assert (await request(boundary)).status_code == 403
-        values = {
-            "plugin_id": "audit.plugin",
-            "installation_id": str(boundary.installation_id),
-            "capability": "sessions.read",
-            "capability_version": 1,
-            "rationale": "Restore reviewed access",
-        }
-        proposal = await request(boundary, "/api/plugin-permissions/requests", **values)
-        repeated = await request(boundary, "/api/plugin-permissions/requests", **values)
-        assert proposal.status_code == repeated.status_code == 201
-        assert proposal.json()["id"] == repeated.json()["id"]
-        proposal_id = proposal.json()["id"]
-        allowed = await request(boundary, f"/api/plugin-permissions/requests/{proposal_id}/approve")
-        assert allowed.status_code == 201, allowed.text
-        assert allowed.json()["id"] == str(original.id)
-        assert (await request(boundary)).status_code == 200
-    assert len(boundary.session.scalars(select(PluginPermissionGrant)).all()) == 1
-
-
-@pytest.mark.asyncio
-async def test_revoke_covers_old_duplicates_without_revoking_another_users_scope(boundary):
-    original = grant(boundary)
-    duplicate = grant(boundary)
-    scoped = grant(boundary, user_id=boundary.users[1].id)
-    revoked = await request(boundary, f"/api/plugin-permissions/grants/{original.id}/revoke")
-    assert revoked.status_code == 200
-    boundary.session.scalars(
-        select(PluginPermissionGrant).execution_options(populate_existing=True)
-    ).all()
-    assert original.revoked_at is not None and duplicate.revoked_at is not None
-    assert scoped.revoked_at is None
-    assert (await request(boundary)).status_code == 403
-    boundary.current["user"] = boundary.users[1]
-    assert (await request(boundary)).status_code == 200
-
-
-@pytest.mark.asyncio
-async def test_reinstating_user_access_does_not_create_a_server_wide_grant(boundary):
-    boundary.plugin["permission_refs"] = [{"name": "sessions.read", "version": 1}]
-    original = grant(boundary, user_id=boundary.users[1].id, revoked_at=1)
-    proposal = PluginPermissionRequest(
-        plugin_id="audit.plugin",
-        installation_id=boundary.installation_id,
-        capability="sessions.read",
-        capability_version=1,
-        user_id=boundary.users[1].id,
-        rationale="Restore this user's scope",
-    )
-    boundary.session.add(proposal)
-    boundary.session.commit()
-    allowed = await request(boundary, f"/api/plugin-permissions/requests/{proposal.id}/approve")
-    assert allowed.status_code == 201, allowed.text
-    assert allowed.json()["id"] == str(original.id)
-    assert (await request(boundary)).status_code == 403
-    boundary.current["user"] = boundary.users[1]
-    assert (await request(boundary)).status_code == 200
-    rows = boundary.session.scalars(select(PluginPermissionGrant)).all()
-    assert len(rows) == 1 and rows[0].user_id == boundary.users[1].id
-
-
-@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "changes",
     [
@@ -817,9 +694,6 @@ async def test_http_revocation_immediately_stops_next_request(boundary):
         {"status": "failed"},
         {"health": "unhealthy"},
         {"status": "unknown"},
-        {"api_contract_version": "1.0.0"},
-        {"api_contract_version": "1.0.9"},
-        {"api_contract_version": None},
     ],
 )
 async def test_unavailable_installations_cannot_execute_any_entrypoint(boundary, state):
@@ -1134,12 +1008,7 @@ async def test_runtime_egress_requires_persisted_operation_grant(
         registry, "ui", lambda _id: {"actions": [{"id": "deliver", "handler": "entry:deliver"}]}
     )
     monkeypatch.setattr(
-        registry,
-        "package",
-        lambda _id: (
-            tmp_path,
-            {"api_contract_version": "1.1.0", "capabilities": [{"name": capability}]},
-        ),
+        registry, "package", lambda _id: (tmp_path, {"capabilities": [{"name": capability}]})
     )
     execute = SimpleNamespace(calls=0)
 
