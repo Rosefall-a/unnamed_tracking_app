@@ -1,0 +1,22 @@
+{
+  "real_downloaded_ci_packages": false,
+  "passed": [
+    "1440/light: direct card, update-control, settings and launcher drops; same-version cancel/apply; downgrade pins; active-dialog error; focused invalid-file warning; stable installation identity",
+    "390/dark: direct card, update-control, settings and launcher drops; same-version cancel/apply; downgrade pins; active-dialog error; focused invalid-file warning; stable installation identity",
+    "320/light: direct card, update-control, settings and launcher drops; same-version cancel/apply; downgrade pins; active-dialog error; focused invalid-file warning; stable installation identity",
+    "1920/dark: direct card, update-control, settings and launcher drops; same-version cancel/apply; downgrade pins; active-dialog error; focused invalid-file warning; stable installation identity"
+  ],
+  "screens": [
+    "plugin-same-version-confirmation-1440-light.png",
+    "plugin-downgrade-confirmation-1440-light.png",
+    "plugin-update-active-error-1440-light.png",
+    "plugin-drop-validation-1440-light.png",
+    "plugin-same-version-confirmation-390-dark.png",
+    "plugin-downgrade-confirmation-390-dark.png",
+    "plugin-update-active-error-390-dark.png",
+    "plugin-drop-validation-390-dark.png"
+  ],
+  "status": "passed",
+  "source_head": "8bfd2da1dac6eecd3fa6d82b0249a4f56230db11",
+  "fixture_note": "Locally built native UI API example plus private 1.1.9 version variant. Separate from downloaded CI artifact acceptance."
+}

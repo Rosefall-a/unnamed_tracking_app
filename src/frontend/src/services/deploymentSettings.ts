@@ -3,7 +3,7 @@ export interface OidcProviderSetting {
   slug: string;
   issuer_url: string;
   client_id: string;
-  client_secret?: string;
+  client_secret: string;
   scopes: string;
   redirect_uri: string | null;
   groups_claim: string;
@@ -21,6 +21,14 @@ export interface OidcProviderSetting {
 export interface DeploymentSettings {
   providers: Record<string, string | boolean | null>;
   provider_locks: Record<string, boolean>;
+  real_ip: {
+    header: string;
+    trusted_proxies: string;
+    locked: {
+      header: boolean;
+      trusted_proxies: boolean;
+    };
+  };
   oidc: {
     enabled: boolean;
     issuer_url: string | null;

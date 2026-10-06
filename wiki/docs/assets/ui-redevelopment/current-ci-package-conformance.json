@@ -1,0 +1,338 @@
+{
+  "status": "ready-for-browser-validation",
+  "host_url": "http://127.0.0.1:38945",
+  "host_head": "dd457b9d9ec7abc7e1b22655c3962b0a78616b23",
+  "companion_head": "34852cf935a3f3523bfcebbc909e991915c052a1",
+  "artifact_run": 37397408471,
+  "real_downloaded_ci_packages": true,
+  "network": "docker-internal",
+  "checks": [
+    "validated-plugin-distribution: exact CI artifact 11384595253 digest verified",
+    "unsigned-dist: exact CI artifact 11383661370 digest verified",
+    "Current production image restarts with preserved data and encoded database credentials; login and JSON 404 pass",
+    "Whole-server reduced-isolation approval survives production restart without NONBUBBLE_ENV",
+    "validated-plugin-distribution: example.discord-delivery-provider 1.2.0: actual consent, install and healthy worker",
+    "unsigned-dist: example.discord-delivery-provider 1.2.0: actual consent, install and healthy worker",
+    "validated-plugin-distribution: example.help-button 2.2.0: actual consent, install and healthy worker",
+    "unsigned-dist: example.help-button 2.2.0: actual consent, install and healthy worker",
+    "validated-plugin-distribution: example.home-widgets 1.0.0: actual consent, install and healthy worker",
+    "unsigned-dist: example.home-widgets 1.0.0: actual consent, install and healthy worker",
+    "validated-plugin-distribution: example.jellyfin-media-sync 3.2.0: actual consent, install and healthy worker",
+    "unsigned-dist: example.jellyfin-media-sync 3.2.0: actual consent, install and healthy worker",
+    "validated-plugin-distribution: example.metadata-curator 1.2.0: actual consent, install and healthy worker",
+    "unsigned-dist: example.metadata-curator 1.2.0: actual consent, install and healthy worker",
+    "validated-plugin-distribution: example.playtime-report 1.2.0: actual consent, install and healthy worker",
+    "unsigned-dist: example.playtime-report 1.2.0: actual consent, install and healthy worker",
+    "validated-plugin-distribution: example.recently-played-notifier 1.2.0: actual consent, install and healthy worker",
+    "unsigned-dist: example.recently-played-notifier 1.2.0: actual consent, install and healthy worker",
+    "validated-plugin-distribution: example.scoped-document-viewer 1.8.0: actual consent, install and healthy worker",
+    "unsigned-dist: example.scoped-document-viewer 1.8.0: actual consent, install and healthy worker",
+    "validated-plugin-distribution: example.self-service-session-manager 2.3.0: actual consent, install and healthy worker",
+    "unsigned-dist: example.self-service-session-manager 2.3.0: actual consent, install and healthy worker",
+    "validated-plugin-distribution: example.shortcut-playground 0.0.1: actual consent, install and healthy worker",
+    "unsigned-dist: example.shortcut-playground 0.0.1: actual consent, install and healthy worker",
+    "validated-plugin-distribution: example.theme-palettes 1.1.0: actual consent, install and healthy worker",
+    "unsigned-dist: example.theme-palettes 1.1.0: actual consent, install and healthy worker",
+    "validated-plugin-distribution: example.ui-api 1.2.0: actual consent, install and healthy worker",
+    "unsigned-dist: example.ui-api 1.2.0: actual consent, install and healthy worker",
+    "validated-plugin-distribution: example.ui-playground 1.2.0: actual consent, install and healthy worker",
+    "unsigned-dist: example.ui-playground 1.2.0: actual consent, install and healthy worker",
+    "validated-plugin-distribution: official.collectors-archive 0.0.2: actual consent, install and healthy worker",
+    "unsigned-dist: official.collectors-archive 0.0.2: actual consent, install and healthy worker",
+    "validated-plugin-distribution: official.jellyfin-media-sync 0.1.0: actual consent, install and healthy worker",
+    "unsigned-dist: official.jellyfin-media-sync 0.1.0: actual consent, install and healthy worker",
+    "validated-plugin-distribution: official.pwa 0.0.3: actual consent, install and healthy worker",
+    "unsigned-dist: official.pwa 0.0.3: actual consent, install and healthy worker",
+    "All 32 current CI package installs passed; sixteen unsigned production workers remain healthy"
+  ],
+  "packages": [
+    {
+      "artifact": "validated-plugin-distribution",
+      "artifact_id": 11384595253,
+      "plugin_id": "example.discord-delivery-provider",
+      "version": "1.2.0",
+      "sha256": "0b506b0e6b1ca538d82f564f2174cc120d0d6712460dce66c2a5d4ff2a4c3c86",
+      "status": "running",
+      "health": "healthy"
+    },
+    {
+      "artifact": "unsigned-dist",
+      "artifact_id": 11383661370,
+      "plugin_id": "example.discord-delivery-provider",
+      "version": "1.2.0",
+      "sha256": "557f62a935d8a0d596e23113d2f47f87a9c48de2766a84b6e6ce0d309a66c970",
+      "status": "running",
+      "health": "healthy"
+    },
+    {
+      "artifact": "validated-plugin-distribution",
+      "artifact_id": 11384595253,
+      "plugin_id": "example.help-button",
+      "version": "2.2.0",
+      "sha256": "c78c52358810c8c777fe3fc886cfba4987a80139d62b9e87d0b6ec95910f6b27",
+      "status": "running",
+      "health": "healthy"
+    },
+    {
+      "artifact": "unsigned-dist",
+      "artifact_id": 11383661370,
+      "plugin_id": "example.help-button",
+      "version": "2.2.0",
+      "sha256": "4090fa80b4eb1c49ec624035cff351c55947cdbf1661c84b9a925d14cbead210",
+      "status": "running",
+      "health": "healthy"
+    },
+    {
+      "artifact": "validated-plugin-distribution",
+      "artifact_id": 11384595253,
+      "plugin_id": "example.home-widgets",
+      "version": "1.0.0",
+      "sha256": "e3c66902f378d29e7c354ca8dcb31916df7240d86498529b29d48fe95a67c557",
+      "status": "running",
+      "health": "healthy"
+    },
+    {
+      "artifact": "unsigned-dist",
+      "artifact_id": 11383661370,
+      "plugin_id": "example.home-widgets",
+      "version": "1.0.0",
+      "sha256": "20603ee3e59770a4aef8739122ad1284054dfb9d9936af715d72f9c33c286b4b",
+      "status": "running",
+      "health": "healthy"
+    },
+    {
+      "artifact": "validated-plugin-distribution",
+      "artifact_id": 11384595253,
+      "plugin_id": "example.jellyfin-media-sync",
+      "version": "3.2.0",
+      "sha256": "01594e16833a3634005c6e91509447d8db39911b01789d879cb17ebb1d385886",
+      "status": "running",
+      "health": "healthy"
+    },
+    {
+      "artifact": "unsigned-dist",
+      "artifact_id": 11383661370,
+      "plugin_id": "example.jellyfin-media-sync",
+      "version": "3.2.0",
+      "sha256": "3cafbe7f0d03331a8ee3ffe1fec5a8337e0243c6d2dfb38f5aa2bd848a4533dc",
+      "status": "running",
+      "health": "healthy"
+    },
+    {
+      "artifact": "validated-plugin-distribution",
+      "artifact_id": 11384595253,
+      "plugin_id": "example.metadata-curator",
+      "version": "1.2.0",
+      "sha256": "9d2c71cedd7cdb9a6aa4db85c558ed08171573eb063ba26622154b1498cc7ee6",
+      "status": "running",
+      "health": "healthy"
+    },
+    {
+      "artifact": "unsigned-dist",
+      "artifact_id": 11383661370,
+      "plugin_id": "example.metadata-curator",
+      "version": "1.2.0",
+      "sha256": "18315cd18c078b305f6dc56b38f234cc6ac30d667c0f45a856bb931a792ddde1",
+      "status": "running",
+      "health": "healthy"
+    },
+    {
+      "artifact": "validated-plugin-distribution",
+      "artifact_id": 11384595253,
+      "plugin_id": "example.playtime-report",
+      "version": "1.2.0",
+      "sha256": "d49d3a098e07672f5c01e5d627bb6a0b825812dfd77ae3fcfff90076ca400d08",
+      "status": "running",
+      "health": "healthy"
+    },
+    {
+      "artifact": "unsigned-dist",
+      "artifact_id": 11383661370,
+      "plugin_id": "example.playtime-report",
+      "version": "1.2.0",
+      "sha256": "8a62503b834a923c4d14feace6b1b94effdbc84f3281492c717e9ea8fd3644e9",
+      "status": "running",
+      "health": "healthy"
+    },
+    {
+      "artifact": "validated-plugin-distribution",
+      "artifact_id": 11384595253,
+      "plugin_id": "example.recently-played-notifier",
+      "version": "1.2.0",
+      "sha256": "6abe77c89ff8c9009f0cffdc11639634577ce4a66160d37d19b5359e974cb92f",
+      "status": "running",
+      "health": "healthy"
+    },
+    {
+      "artifact": "unsigned-dist",
+      "artifact_id": 11383661370,
+      "plugin_id": "example.recently-played-notifier",
+      "version": "1.2.0",
+      "sha256": "bc20f19b1ef778a013424b9162a55c98e76488957bceedc06be7ab4a8a6d53d9",
+      "status": "running",
+      "health": "healthy"
+    },
+    {
+      "artifact": "validated-plugin-distribution",
+      "artifact_id": 11384595253,
+      "plugin_id": "example.scoped-document-viewer",
+      "version": "1.8.0",
+      "sha256": "6bd2331e6b83cc9485b12e8d4e00c32340227fba16b9508bd08f4825f05c3238",
+      "status": "running",
+      "health": "healthy"
+    },
+    {
+      "artifact": "unsigned-dist",
+      "artifact_id": 11383661370,
+      "plugin_id": "example.scoped-document-viewer",
+      "version": "1.8.0",
+      "sha256": "484df7a18f502b99c43a62f36a74d85a5b4150b422fec4174572d0ae9c7b4f27",
+      "status": "running",
+      "health": "healthy"
+    },
+    {
+      "artifact": "validated-plugin-distribution",
+      "artifact_id": 11384595253,
+      "plugin_id": "example.self-service-session-manager",
+      "version": "2.3.0",
+      "sha256": "de0514cc4ce7570bda842cd13badcf2c35a0cda66b0971f13e01d0310a98ae7d",
+      "status": "running",
+      "health": "healthy"
+    },
+    {
+      "artifact": "unsigned-dist",
+      "artifact_id": 11383661370,
+      "plugin_id": "example.self-service-session-manager",
+      "version": "2.3.0",
+      "sha256": "c5ed810b9ccea2a466ec446ce92859e0c8c98a909642c0996958aee965a06859",
+      "status": "running",
+      "health": "healthy"
+    },
+    {
+      "artifact": "validated-plugin-distribution",
+      "artifact_id": 11384595253,
+      "plugin_id": "example.shortcut-playground",
+      "version": "0.0.1",
+      "sha256": "e06f98bcfdbb6cd78d7375b86a02b7f7e385306f70f87af424ef6d50f510631d",
+      "status": "running",
+      "health": "healthy"
+    },
+    {
+      "artifact": "unsigned-dist",
+      "artifact_id": 11383661370,
+      "plugin_id": "example.shortcut-playground",
+      "version": "0.0.1",
+      "sha256": "3512266effea5738e482d6d372dd0219cd2ffc8e46aa20cf9597e58eebbea1eb",
+      "status": "running",
+      "health": "healthy"
+    },
+    {
+      "artifact": "validated-plugin-distribution",
+      "artifact_id": 11384595253,
+      "plugin_id": "example.theme-palettes",
+      "version": "1.1.0",
+      "sha256": "8ab5590d019a379f63f63748de2a97e5cd5f1a2903b1117069d68f2b44c454cf",
+      "status": "running",
+      "health": "healthy"
+    },
+    {
+      "artifact": "unsigned-dist",
+      "artifact_id": 11383661370,
+      "plugin_id": "example.theme-palettes",
+      "version": "1.1.0",
+      "sha256": "1ddf52f50483c553e7e5c6bc08b25953b3fd96e6653c7389db1458755997e816",
+      "status": "running",
+      "health": "healthy"
+    },
+    {
+      "artifact": "validated-plugin-distribution",
+      "artifact_id": 11384595253,
+      "plugin_id": "example.ui-api",
+      "version": "1.2.0",
+      "sha256": "ec6f084611676824c71da6c4f1d9fad972864b10048f5b5bd84b95555ba0fced",
+      "status": "running",
+      "health": "healthy"
+    },
+    {
+      "artifact": "unsigned-dist",
+      "artifact_id": 11383661370,
+      "plugin_id": "example.ui-api",
+      "version": "1.2.0",
+      "sha256": "b9f6dbc455b99fe00aaf6547e611186506e44cc9bab5ce5a9bb11e413e27c7ed",
+      "status": "running",
+      "health": "healthy"
+    },
+    {
+      "artifact": "validated-plugin-distribution",
+      "artifact_id": 11384595253,
+      "plugin_id": "example.ui-playground",
+      "version": "1.2.0",
+      "sha256": "cb40a9d349ab0b9bc0a3f2a6a7c2fef54e29e754a7fd00b76090789eec176690",
+      "status": "running",
+      "health": "healthy"
+    },
+    {
+      "artifact": "unsigned-dist",
+      "artifact_id": 11383661370,
+      "plugin_id": "example.ui-playground",
+      "version": "1.2.0",
+      "sha256": "584763372109d90824f0079a3a723ea108b612d6e84e7b91f48c08422ac7c46d",
+      "status": "running",
+      "health": "healthy"
+    },
+    {
+      "artifact": "validated-plugin-distribution",
+      "artifact_id": 11384595253,
+      "plugin_id": "official.collectors-archive",
+      "version": "0.0.2",
+      "sha256": "6e6e1521af9eff387a9988c5c48d3f272fc36f3eeb6015b9a79335160156e194",
+      "status": "running",
+      "health": "healthy"
+    },
+    {
+      "artifact": "unsigned-dist",
+      "artifact_id": 11383661370,
+      "plugin_id": "official.collectors-archive",
+      "version": "0.0.2",
+      "sha256": "88bf387828ea08cbd417e3c2e315c246fd0ebbf7b7853768bb7a9a055fb40c6b",
+      "status": "running",
+      "health": "healthy"
+    },
+    {
+      "artifact": "validated-plugin-distribution",
+      "artifact_id": 11384595253,
+      "plugin_id": "official.jellyfin-media-sync",
+      "version": "0.1.0",
+      "sha256": "8ebbc23132b4ee9e7bacecb508814e6ae9b7562ea19e083f09db738e86ab5ae0",
+      "status": "running",
+      "health": "healthy"
+    },
+    {
+      "artifact": "unsigned-dist",
+      "artifact_id": 11383661370,
+      "plugin_id": "official.jellyfin-media-sync",
+      "version": "0.1.0",
+      "sha256": "dc56884272a24a0a926a45726554182a4acd9dc9638f9eccce09410d84b169d4",
+      "status": "running",
+      "health": "healthy"
+    },
+    {
+      "artifact": "validated-plugin-distribution",
+      "artifact_id": 11384595253,
+      "plugin_id": "official.pwa",
+      "version": "0.0.3",
+      "sha256": "ef46f0ebe53fd7e746ad70364e15723c7b2adb6370f050ef4188de60d1c6bc62",
+      "status": "running",
+      "health": "healthy"
+    },
+    {
+      "artifact": "unsigned-dist",
+      "artifact_id": 11383661370,
+      "plugin_id": "official.pwa",
+      "version": "0.0.3",
+      "sha256": "59ec486be80910ac13d56f90237c98e1f714cd1f17b05978fafaeed3f75931c7",
+      "status": "running",
+      "health": "healthy"
+    }
+  ]
+}

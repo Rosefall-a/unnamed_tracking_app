@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Any, Callable, Literal
 
 from src.core.config import settings
 from src.core.crypto import decrypt_secret
-from src.features.metadata.games import gog, steam
+from src.features.metadata.games import gog, steam, steam_tags
 from src.features.metadata.games.giant_bomb import GiantBombClient
 from src.features.metadata.games.hltb import HLTBClient, HLTBError
 from src.features.metadata.games.igdb import IGDBClient
@@ -89,6 +89,10 @@ def _steam_result(item: dict[str, Any], details: dict[str, Any] | None) -> dict[
             "age_rating": f"{required_age}+" if required_age else None,
             "tags": genres,
             "features": features,
+            # kept so the player tags can be looked up for whichever result the
+            # Steam match ends up merged into (see _apply_steam_user_tags)
+            "steam_app_id": app_id,
+            "steam_genres": genres,
             "links": [
                 {"label": "Steam Store", "url": f"https://store.steampowered.com/app/{app_id}/"}
             ],
@@ -110,6 +114,26 @@ def _friendly_provider_error(name: str, message: str) -> str:
     return f"{name}: {message}"
 
 
+# how many results get their tags looked up: each is one more store page request
+_STEAM_TAG_LOOKUPS = 3
+
+
+def _apply_steam_user_tags(results: list[dict[str, Any]], enabled: bool) -> None:
+    """Give a result that matched a Steam game the genres its players voted on,
+    in place of the broad official ones, and drop the helper keys. A game whose
+    store page can't be read keeps the tags it already has."""
+    looked_up = 0
+    for result in results:
+        genres = result.pop("steam_genres", None) or []
+        app_id = result.get("steam_app_id")
+        if not enabled or not app_id or looked_up >= _STEAM_TAG_LOOKUPS:
+            continue
+        looked_up += 1
+        player_tags = steam_tags.fetch_player_tags(int(app_id))
+        if player_tags:
+            result["tags"] = steam_tags.pick_genre_tags(player_tags, genres)
+
+
 def _titles_match(a: str, b: str) -> bool:
     normalize = lambda s: "".join(ch.lower() for ch in s if ch.isalnum())  # noqa: E731
     return normalize(a) == normalize(b) and bool(normalize(a))
@@ -120,6 +144,13 @@ def _merge_or_append(results: list[dict[str, Any]], candidate: dict[str, Any]) -
     provider (e.g. RetroAchievements finding the same title Steam did) —
     merge onto the existing entry (filling only blanks) instead of creating
     a visually duplicate second result."""
+    if (
+        not isinstance(candidate, dict)
+        or not isinstance(candidate.get("title"), str)
+        or not candidate["title"].strip()
+    ):
+        # A malformed provider response must not abort an otherwise usable refresh.
+        return
     for existing in results:
         if _titles_match(existing["title"], candidate["title"]):
             for key, value in candidate.items():
@@ -150,6 +181,8 @@ class ProviderContext:
     # (which has DB access) and passed in, same pattern as steamgriddb_api_key
     igdb_client_id: str | None = None
     igdb_client_secret: str | None = None
+    # take the tags Steam players vote on as a Steam game's genres
+    steam_user_tags: bool = True
 
 
 ProviderRun = Callable[
@@ -500,6 +533,7 @@ DEFAULT_PREFERENCES: dict[str, Any] = {
     "provider_order": DEFAULT_PROVIDER_ORDER,
     "image_provider_order": DEFAULT_IMAGE_PROVIDER_ORDER,
     **{flag: True for flag, _ in _GATED_FIELDS.values()},
+    "steam_user_tags": True,
 }
 
 
@@ -518,6 +552,7 @@ def search_game_metadata(
     user: "User | None" = None,
     igdb_client_id: str | None = None,
     igdb_client_secret: str | None = None,
+    include_image_providers: bool = True,
 ) -> dict[str, Any]:
     """Search configured providers and return normalized creation-form data.
 
@@ -548,6 +583,7 @@ def search_game_metadata(
         steamgriddb_api_key=steamgriddb_api_key or settings.STEAMGRIDDB_API_KEY,
         igdb_client_id=igdb_client_id or settings.IGDB_CLIENT_ID,
         igdb_client_secret=igdb_client_secret or settings.IGDB_CLIENT_SECRET,
+        steam_user_tags=bool(preferences.get("steam_user_tags", True)),
     )
 
     results: list[dict[str, Any]] = []
@@ -569,9 +605,9 @@ def search_game_metadata(
     # priority; image-content enrichment (SteamGridDB/ScreenScraper) uses
     # image_provider_order instead — concatenated so both groups still run
     # together in one pass, each respecting its own list's order
-    enrichment_specs = _specs_for(provider_order, DATA_PROVIDER_NAMES, "enrichment") + _specs_for(
-        image_provider_order, IMAGE_PROVIDER_NAMES, "enrichment"
-    )
+    enrichment_specs = _specs_for(provider_order, DATA_PROVIDER_NAMES, "enrichment")
+    if include_image_providers:
+        enrichment_specs += _specs_for(image_provider_order, IMAGE_PROVIDER_NAMES, "enrichment")
 
     # Primary providers are independent of each other (none reads another's
     # results), so they're the real bottleneck when run one at a time —
@@ -632,6 +668,7 @@ def search_game_metadata(
             providers_used.append(spec.name)
         executor.shutdown(wait=False)
 
+    _apply_steam_user_tags(results, ctx.steam_user_tags)
     _strip_unsaved_fields(results, preferences)
 
     return {

@@ -1,7 +1,5 @@
 """Optional local GeoIP lookup support for session metadata."""
 
-# Optional database support intentionally fails closed when its dependency/data is absent.
-
 from __future__ import annotations
 
 import ipaddress
@@ -35,8 +33,6 @@ class GeoLocation:
 
 
 class GeoIpProvider:
-    # The provider intentionally caches three optional readers and their paths.
-    # pylint: disable=too-many-instance-attributes
     """Read a local MaxMind-compatible database without network access."""
 
     def __init__(
@@ -52,15 +48,23 @@ class GeoIpProvider:
         self._asn_reader = None
         self._loaded_asn_path: Path | None = None
 
+    def availability(self) -> dict[str, bool]:
+        """Report usable database kinds without exposing filesystem paths or readers."""
+        return {
+            "city": self._get_reader() is not None,
+            "country": self._get_country_reader() is not None,
+            "network": self._get_asn_reader() is not None,
+        }
+
     @staticmethod
     def _open(path: Path):
         if not path.is_file():
             return None
         try:
-            import maxminddb  # pylint: disable=import-outside-toplevel,import-error
+            import maxminddb
 
             return maxminddb.open_database(str(path))
-        except Exception:  # pylint: disable=broad-exception-caught
+        except Exception:
             logger.warning("GeoIP database is unavailable or invalid: %s", path, exc_info=True)
             return None
 
@@ -85,18 +89,6 @@ class GeoIpProvider:
         self._loaded_asn_path = self.asn_path if self._asn_reader is not None else None
         return self._asn_reader
 
-    def city_configured(self) -> bool:
-        """Return whether the city database is currently readable."""
-        return self._get_reader() is not None
-
-    def country_configured(self) -> bool:
-        """Return whether the country database is currently readable."""
-        return self._get_country_reader() is not None
-
-    def asn_configured(self) -> bool:
-        """Return whether the ASN database is currently readable."""
-        return self._get_asn_reader() is not None
-
     def reset(self) -> None:
         self._reader = None
         self._loaded_path = None
@@ -107,13 +99,11 @@ class GeoIpProvider:
 
     @staticmethod
     def _name(record, key: str) -> str | None:
-        """Read an English MaxMind name from a nested record."""
         value = record.get(key) if isinstance(record, dict) else None
         names = value.get("names") if isinstance(value, dict) else None
         return names.get("en") if isinstance(names, dict) else None
 
     @staticmethod
-    # pylint: disable=too-many-return-statements
     def _classify_special_network(
         address: ipaddress.IPv4Address | ipaddress.IPv6Address,
     ) -> tuple[str, str] | None:
@@ -139,7 +129,6 @@ class GeoIpProvider:
             return ("private", "Private/local address")
         return None
 
-    # pylint: disable=too-many-locals
     def lookup(self, ip: str | None) -> GeoLocation:
         """Return approximate location, or an empty value on any lookup failure."""
         if not ip:
@@ -188,7 +177,7 @@ class GeoIpProvider:
                 network_number=network_number,
                 network_organization=network_organization,
             )
-        except Exception:  # pylint: disable=broad-exception-caught
+        except Exception:
             logger.warning("GeoIP lookup failed", exc_info=True)
             return GeoLocation()
 

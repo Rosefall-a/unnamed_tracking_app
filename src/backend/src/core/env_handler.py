@@ -357,11 +357,7 @@ class EnvConfigHandler:
         primary_names = ("PRIMARY_USER_USERNAME", "PRIMARY_USER_EMAIL", "PRIMARY_USER_PASSWORD")
         primary_present = [bool(str(values.get(name) or "").strip()) for name in primary_names]
         if any(primary_present) and not all(primary_present):
-            missing = [
-                name
-                for name, present in zip(primary_names, primary_present, strict=True)
-                if not present
-            ]
+            missing = [name for name, present in zip(primary_names, primary_present) if not present]
             issues.append(
                 ConfigIssue(
                     "primary_user",

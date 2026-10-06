@@ -30,11 +30,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from src.api.routes.games import _DATA_ROOT, _get_game_or_404
+from src.core.app_integrations import get_upload_limits_mb
 from src.core.auth import get_current_user
-from src.core.config import settings
 from src.database.models.game_archive import GameArchive, GameArchiveVersion
 from src.database.models.user import User
 from src.database.session import get_db
+from src.features import game_notes
 from src.features.trash import archive_trash
 from src.features.trash.sweep import RETENTION_SECONDS
 from src.features.world_map import bluemap
@@ -145,6 +146,8 @@ def _archive_to_dict(
     return {
         "id": str(archive.id),
         "name": archive.name,
+        "note": archive.note,
+        "tags": archive.tags,
         "kind": archive.kind,
         "created_at": archive.created_at,
         "updated_at": archive.updated_at,
@@ -160,9 +163,11 @@ def _trash_entry(game_id: UUID, archive: GameArchive) -> dict:
 
 
 class RenameArchiveRequest(BaseModel):
-    """Payload used to rename an archive."""
+    """Whatever is sent is changed; what is left out stays as it is."""
 
-    name: str
+    name: str | None = None
+    note: str | None = None
+    tags: list[str] | None = None
 
 
 @router.get("/{game_id}/archives/{kind}")
@@ -232,9 +237,9 @@ async def create_archive(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Name is required.")
 
     limit_mb = (
-        settings.MAX_WORLD_SAVE_SIZE_MB
+        (await get_upload_limits_mb(db))["max_world_save_size_mb"]
         if kind == "world_save"
-        else settings.MAX_SAVE_ARCHIVE_SIZE_MB
+        else (await get_upload_limits_mb(db))["max_save_archive_size_mb"]
     )
 
     archive = GameArchive(id=uuid4(), game_id=game_id, kind=kind, name=name.strip())
@@ -276,9 +281,9 @@ async def add_archive_version(
         )
 
     limit_mb = (
-        settings.MAX_WORLD_SAVE_SIZE_MB
+        (await get_upload_limits_mb(db))["max_world_save_size_mb"]
         if archive.kind == "world_save"
-        else settings.MAX_SAVE_ARCHIVE_SIZE_MB
+        else (await get_upload_limits_mb(db))["max_save_archive_size_mb"]
     )
 
     dest_dir = _archive_dir(game.folder_location, archive.kind, archive.id, user_id=current_user.id)  # type: ignore[arg-type]
@@ -309,9 +314,15 @@ async def rename_archive(
 ) -> dict:
     """Rename an existing archive."""
     archive = await _get_archive_or_404(game_id, archive_id, db, current_user.id)
-    if not payload.name.strip():
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Name is required.")
-    archive.name = payload.name.strip()
+    changes = payload.model_dump(exclude_unset=True)
+    if "name" in changes:
+        if not (changes["name"] or "").strip():
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Name is required.")
+        archive.name = changes["name"].strip()
+    if "note" in changes:
+        archive.note = (changes["note"] or "").strip() or None
+    if "tags" in changes and changes["tags"] is not None:
+        archive.tags = game_notes.clean_tags(changes["tags"])
     await db.commit()
     await db.refresh(archive, attribute_names=["versions"])
     return _archive_to_dict(game_id, archive)

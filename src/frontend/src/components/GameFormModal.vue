@@ -1,14 +1,23 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from "vue";
+import { ref, computed, nextTick, onMounted, watch } from "vue";
+import UiModal from "./UiModal.vue";
 import {
   attachGameAssetFromUrl,
   createGame,
   fetchGames,
+  fetchGame,
+  rankMetadataResults,
   searchGameMetadata,
+  previewGameMetadataRefresh,
+  applyGameMetadataRefresh,
   updateGame,
   uploadGameAsset,
 } from "../services/games";
-import type { MetadataSearchResult } from "../services/games";
+import type {
+  MetadataSearchResult,
+  RefreshMetadataOptions,
+  RefreshMetadataPreview,
+} from "../services/games";
 import type {
   Game,
   GameStatus,
@@ -17,6 +26,18 @@ import type {
 } from "../types/game";
 import type { GameLink, GameOwnership } from "../types/game";
 import { currentUser } from "../state/auth";
+import { useConfirm } from "../state/dialog";
+import { lockedFieldLabels } from "../utils/lockedFields";
+
+const confirm = useConfirm();
+import PageSettingsEditor from "./PageSettingsEditor.vue";
+import { preferences } from "../state/preferences";
+import { resolvePage } from "../utils/gamePage";
+import type { PageOverrides, PageSettings } from "../utils/gamePage";
+import { fetchProviderCredentials } from "../services/settings";
+import { localDateInputToUnixSeconds, toLocalDateInput } from "../utils/dates";
+import { PRIORITY_OPTIONS, isFinished } from "../utils/priority";
+import { RETRO_PLATFORM_OPTIONS } from "../utils/platforms";
 
 const props = defineProps<{
   game?: Game | null;
@@ -27,6 +48,8 @@ const props = defineProps<{
 // GameDetail, CollectionDetail, HomeHub), so it works consistently
 // regardless of caller
 const availableParentGames = ref<Game[]>([]);
+// the ISO 4217 codes the API accepts (#11), so a typo can't fail the save
+const currencyCodes = ref<string[]>([]);
 onMounted(async () => {
   try {
     availableParentGames.value = (await fetchGames()).filter(
@@ -35,7 +58,50 @@ onMounted(async () => {
   } catch {
     // parent picker just stays empty, not worth failing the whole form
   }
+  if (import.meta.env.VITE_USE_MOCK_DATA === "true") return;
+  fetchProviderCredentials()
+    .then((status) => {
+      serverHasSteamgriddbKey.value = !!status.SteamGridDB?.server_configured;
+    })
+    .catch(() => {
+      // the hint just stays visible
+    });
+  try {
+    const response = await fetch("/api/currency-codes", {
+      credentials: "include",
+    });
+    if (response.ok) {
+      const body: { codes?: string[] } = await response.json();
+      currencyCodes.value = body.codes ?? [];
+    }
+  } catch {
+    // falls back to the free-text currency field
+  }
 });
+
+// suggestions only: any other system can still be typed in
+const PLATFORM_SUGGESTIONS = [
+  "PC",
+  "PlayStation 5",
+  "PlayStation 4",
+  "PlayStation 3",
+  "PS Vita",
+  "Xbox Series X|S",
+  "Xbox One",
+  "Xbox 360",
+  "Nintendo Switch",
+  "Nintendo Switch 2",
+  "Wii U",
+  "Wii",
+  "Nintendo 3DS",
+  "Nintendo DS",
+  "Steam Deck",
+  "Mac",
+  "Linux",
+  "Android",
+  "iOS",
+  ...RETRO_PLATFORM_OPTIONS,
+];
 
 const emit = defineEmits<{
   close: [];
@@ -56,17 +122,73 @@ const statuses: GameStatus[] = [
   "wishlist",
 ];
 
-const tabs = [
+const EDIT_TABS = [
   "General",
   "Ratings & Tags",
   "Media",
   "Links",
   "Ownership",
+  "Page",
 ] as const;
-const activeTab = ref<(typeof tabs)[number]>("General");
+type Tab = "Find" | (typeof EDIT_TABS)[number];
+// Adding a game is a step-by-step flow (#55): a skippable metadata search
+// first, then each tab in turn with Next, and Add Game only on the last one.
+// Editing keeps the tabs as a plain form with the search on General.
+const tabs = computed<Tab[]>(() =>
+  isEditing.value ? [...EDIT_TABS] : ["Find", ...EDIT_TABS],
+);
+const activeTab = ref<Tab>(isEditing.value ? "General" : "Find");
+const stepIndex = computed(() => tabs.value.indexOf(activeTab.value));
+const isLastStep = computed(() => stepIndex.value === tabs.value.length - 1);
+const metadataApplied = ref(false);
+
+// keep the current step's tab in view when the tab row scrolls (phones)
+const tabsEl = ref<HTMLElement | null>(null);
+watch(activeTab, () =>
+  nextTick(() =>
+    tabsEl.value
+      ?.querySelector(".modal-tab.active")
+      ?.scrollIntoView({ block: "nearest", inline: "nearest" }),
+  ),
+);
+
+function validateGeneral(): boolean {
+  if (!title.value.trim()) {
+    error.value = "Title is required.";
+    activeTab.value = "General";
+    return false;
+  }
+  if (!isEditing.value && !folderLocation.value.trim()) {
+    error.value = "Folder name is required.";
+    activeTab.value = "General";
+    return false;
+  }
+  return true;
+}
+
+function goToStep(offset: number) {
+  if (offset > 0 && activeTab.value === "General" && !validateGeneral()) return;
+  error.value = null;
+  const next = tabs.value[stepIndex.value + offset];
+  if (next) activeTab.value = next;
+}
+
+// Only the last step (or the edit form) has a submit button, so Enter in a
+// field can't create a half-filled game early; if a submit does arrive
+// before the last step it moves on instead
+function onFormSubmit() {
+  if (!isEditing.value && !isLastStep.value) {
+    goToStep(1);
+    return;
+  }
+  void submit();
+}
 
 const title = ref(props.game?.title ?? "");
-const sortTitle = ref("");
+// the saved custom sorting name, blank when the library sorts by the title
+const sortTitle = ref(props.game?.sortTitle ?? "");
+const platform = ref(props.game?.platform ?? "");
+const priority = ref(props.game?.priority ?? "");
 const folderLocation = ref(props.game?.folderLocation ?? "");
 const status = ref<GameStatus>(props.game?.status ?? "backlog");
 const developer = ref(props.game?.developer ?? "");
@@ -89,7 +211,10 @@ const RELATIONSHIP_TYPE_OPTIONS: {
 ];
 const source = ref(props.game?.source ?? "");
 const ageRating = ref(props.game?.ageRating ?? "");
-const timeToBeatHours = ref(
+// v-model on a type="number" input hands back a number once it's typed in,
+// a string otherwise, so this must never assume either (calling .trim() on
+// the number made every save with a typed-in time to beat throw)
+const timeToBeatHours = ref<string | number>(
   props.game?.timeToBeatHours != null ? String(props.game.timeToBeatHours) : "",
 );
 const region = ref(props.game?.region ?? "");
@@ -98,11 +223,20 @@ const achievementsProvider = ref<AchievementsProvider>(
   props.game?.achievementsProvider ?? null,
 );
 const releaseDate = ref(props.game?.releaseDate ?? "");
-const dateAdded = ref(
-  props.game?.dateAdded ?? new Date().toISOString().slice(0, 10),
-);
+// the local calendar day (what <input type="date"> shows), the stored value
+// is a full timestamp; only sent back if it was actually changed, so saving
+// the form doesn't reset the time a game was added to midnight
+const initialDateAdded = toLocalDateInput(props.game?.dateAdded ?? new Date());
+const dateAdded = ref(initialDateAdded);
 const description = ref(props.game?.description ?? "");
 const profilesEnabled = ref(props.game?.profilesEnabled ?? false);
+// this game's overrides of what its page shows (see Settings > Game Page)
+const pageOverrides = ref<PageOverrides>(
+  JSON.parse(JSON.stringify(props.game?.pageSettings ?? {})),
+);
+const pageDefaults = computed<PageSettings>(() =>
+  resolvePage(preferences.value.game_page, null),
+);
 const osrsStatsEnabled = ref(props.game?.osrsStatsEnabled ?? false);
 watch(profilesEnabled, (enabled) => {
   if (!enabled) osrsStatsEnabled.value = false;
@@ -150,33 +284,219 @@ const pickedKeyArtUrl = ref<string | null>(null);
 const pickedBannerUrl = ref<string | null>(null);
 const keyArtCandidates = ref<string[]>([]);
 const bannerCandidates = ref<string[]>([]);
+const metadataRefreshPreview = ref<RefreshMetadataPreview | null>(null);
+const refreshingMetadata = ref(false);
+const refreshMetadataError = ref<string | null>(null);
+const refreshMetadataIncludeArt = ref(true);
+const mediaSearchResults = ref<MetadataSearchResult[]>([]);
+const searchingMedia = ref(false);
+let metadataSearchTimer: ReturnType<typeof setTimeout> | null = null;
+let metadataSearchRequest = 0;
 
+const metadataFormDirty = computed(() => {
+  if (!isEditing.value || !props.game) return false;
+  return (
+    title.value !== props.game.title ||
+    description.value !== (props.game.description ?? "") ||
+    developer.value !== (props.game.developer ?? "") ||
+    publisher.value !== (props.game.publisher ?? "") ||
+    series.value !== (props.game.series ?? "") ||
+    ageRating.value !== (props.game.ageRating ?? "") ||
+    releaseDate.value !== (props.game.releaseDate ?? "") ||
+    String(timeToBeatHours.value) !==
+      String(props.game.timeToBeatHours ?? "") ||
+    tagsInput.value !== props.game.tags.join(", ") ||
+    featuresInput.value !== props.game.features.join(", ") ||
+    JSON.stringify(links.value) !== JSON.stringify(props.game.links) ||
+    !!coverFile.value ||
+    !!bannerFile.value ||
+    pickedKeyArtUrl.value !== null ||
+    pickedBannerUrl.value !== null
+  );
+});
+
+// a personal key, or a server-wide one that searches fall back to (#234)
+const serverHasSteamgriddbKey = ref(false);
 const hasSteamgriddbKey = computed(
-  () => !!currentUser.value?.steamgriddb_api_key,
+  () =>
+    !!currentUser.value?.steamgriddb_api_key ||
+    serverHasSteamgriddbKey.value ||
+    steamgriddbConfigured.value,
 );
 
-async function searchMetadata() {
-  if (metadataQuery.value.trim().length < 2) {
-    metadataMessage.value = "Enter at least two characters to search.";
+async function refreshMetadataFromEditor() {
+  if (!props.game || refreshingMetadata.value || saving.value) return;
+  refreshMetadataError.value = null;
+  metadataRefreshPreview.value = null;
+
+  if (metadataFormDirty.value) {
+    refreshMetadataError.value =
+      "Save or cancel your current metadata edits before repulling. This prevents the refresh from replacing unsaved changes.";
     return;
   }
+
+  refreshingMetadata.value = true;
+  const options: RefreshMetadataOptions = {
+    updateText: true,
+    fillMissingArt: refreshMetadataIncludeArt.value,
+    overwriteExistingArt: false,
+  };
+  try {
+    const preview = await previewGameMetadataRefresh(props.game, options);
+    metadataRefreshPreview.value = preview;
+    if (preview.status === "no-match") {
+      refreshMetadataError.value = preview.providerErrors.length
+        ? `No exact match was returned. Provider warnings: ${preview.providerErrors.join(" ")}`
+        : "No exact provider match was found for this game title.";
+      return;
+    }
+    if (preview.status === "error") {
+      refreshMetadataError.value =
+        "The metadata providers could not be reached. No changes were applied.";
+      return;
+    }
+    const locked = preview.skippedLockedFields.length
+      ? ` Locked fields were preserved: ${lockedFieldLabels(preview.skippedLockedFields).join(", ")}.`
+      : "";
+    const changes = preview.changedFields.length
+      ? preview.changedFields.join(", ")
+      : "no text fields";
+    const art = [
+      preview.wouldAddKeyArt ? "cover art" : "",
+      preview.wouldAddBanner ? "banner art" : "",
+    ].filter(Boolean);
+    const confirmed = await confirm({
+      title: `Repull from ${preview.provider ?? "metadata provider"}?`,
+      message: `This will update ${changes}${art.length ? ` and add ${art.join(" and ")}` : ""}. Nothing already stored as artwork will be replaced.${locked}`,
+      confirmLabel: "Apply refresh",
+    });
+    if (!confirmed) return;
+
+    const outcome = await applyGameMetadataRefresh(props.game, options);
+    if (outcome.status !== "updated") {
+      refreshMetadataError.value =
+        outcome.status === "no-match"
+          ? "The provider no longer returned an exact match. No changes were applied."
+          : "The metadata refresh failed. No changes were applied.";
+      return;
+    }
+    const updated = await fetchGame(props.game.id);
+    if (updated) {
+      title.value = updated.title;
+      description.value = updated.description ?? "";
+      developer.value = updated.developer ?? "";
+      publisher.value = updated.publisher ?? "";
+      series.value = updated.series ?? "";
+      ageRating.value = updated.ageRating ?? "";
+      releaseDate.value = updated.releaseDate ?? "";
+      timeToBeatHours.value =
+        updated.timeToBeatHours != null ? String(updated.timeToBeatHours) : "";
+      tagsInput.value = updated.tags.join(", ");
+      featuresInput.value = updated.features.join(", ");
+      links.value = [...updated.links];
+      metadataQuery.value = updated.title;
+      metadataRefreshPreview.value = null;
+      metadataMessage.value = `Updated from ${outcome.provider ?? "metadata provider"}.${outcome.skippedLockedFields.length ? ` Preserved locked fields: ${lockedFieldLabels(outcome.skippedLockedFields).join(", ")}.` : ""}`;
+      if (outcome.keyArtAdded) pickedKeyArtUrl.value = null;
+      if (outcome.bannerAdded) pickedBannerUrl.value = null;
+    }
+  } catch (err) {
+    refreshMetadataError.value =
+      err instanceof Error ? err.message : "Metadata refresh failed.";
+  } finally {
+    refreshingMetadata.value = false;
+  }
+}
+
+async function searchMetadata() {
+  const query = metadataQuery.value.trim();
+  if (query.length < 2) {
+    metadataResults.value = [];
+    metadataMessage.value = query
+      ? "Enter at least two characters to search."
+      : null;
+    searchingMetadata.value = false;
+    return;
+  }
+  const requestId = ++metadataSearchRequest;
   searchingMetadata.value = true;
   metadataMessage.value = null;
   providerWarnings.value = [];
   try {
-    const response = await searchGameMetadata(metadataQuery.value.trim());
-    metadataResults.value = response.results;
+    const response = await searchGameMetadata(query, { includeImages: false });
+    if (requestId !== metadataSearchRequest) return;
+    metadataResults.value = rankMetadataResults(
+      response.results.filter((result) => result.provider !== "SteamGridDB"),
+      query,
+    );
     steamgriddbConfigured.value = response.steamgriddb_configured;
     providerWarnings.value = response.provider_errors ?? [];
     if (!metadataResults.value.length)
       metadataMessage.value = "No games found.";
   } catch (err) {
+    if (requestId !== metadataSearchRequest) return;
     metadataMessage.value =
       err instanceof Error ? err.message : "Metadata search failed.";
   } finally {
-    searchingMetadata.value = false;
+    if (requestId === metadataSearchRequest) searchingMetadata.value = false;
   }
 }
+
+async function searchMedia() {
+  const query = title.value.trim() || metadataQuery.value.trim();
+  if (query.length < 2) {
+    metadataMessage.value = "Enter a game title before searching for artwork.";
+    return;
+  }
+  searchingMedia.value = true;
+  try {
+    const response = await searchGameMetadata(query, { includeImages: true });
+    mediaSearchResults.value = response.results.filter(
+      (result) =>
+        result.key_art_urls.length ||
+        result.banner_urls.length ||
+        result.key_art_url ||
+        result.banner_url,
+    );
+    const keyArt = [
+      ...mediaSearchResults.value.flatMap((result) => result.key_art_urls),
+      ...mediaSearchResults.value.map((result) => result.key_art_url),
+    ].filter((url): url is string => !!url);
+    const banners = [
+      ...mediaSearchResults.value.flatMap((result) => result.banner_urls),
+      ...mediaSearchResults.value.map((result) => result.banner_url),
+    ].filter((url): url is string => !!url);
+    keyArtCandidates.value = [...new Set(keyArt)];
+    bannerCandidates.value = [...new Set(banners)];
+    if (keyArtCandidates.value.length && !pickedKeyArtUrl.value) {
+      pickedKeyArtUrl.value = keyArtCandidates.value[0];
+    }
+    if (bannerCandidates.value.length && !pickedBannerUrl.value) {
+      pickedBannerUrl.value = bannerCandidates.value[0];
+    }
+    if (!mediaSearchResults.value.length) {
+      metadataMessage.value =
+        "No artwork was found from the configured media sources.";
+    } else {
+      metadataMessage.value = `Found artwork from ${mediaSearchResults.value.map((result) => result.provider).join(", ")}.`;
+    }
+  } catch (err) {
+    metadataMessage.value =
+      err instanceof Error ? err.message : "Media search failed.";
+  } finally {
+    searchingMedia.value = false;
+  }
+}
+
+watch(metadataQuery, () => {
+  if (metadataApplied.value) {
+    metadataApplied.value = false;
+    return;
+  }
+  if (activeTab.value !== "Find") return;
+  if (metadataSearchTimer) clearTimeout(metadataSearchTimer);
+  metadataSearchTimer = setTimeout(() => void searchMetadata(), 250);
+});
 
 function applyMetadata(result: MetadataSearchResult) {
   title.value = result.title;
@@ -204,8 +524,11 @@ function applyMetadata(result: MetadataSearchResult) {
   keyArtCandidates.value = result.key_art_urls;
   bannerCandidates.value = result.banner_urls;
   metadataResults.value = [];
+  mediaSearchResults.value = [];
   metadataQuery.value = result.title;
   metadataMessage.value = `Prefilled from ${result.provider}. Review the fields before saving.`;
+  metadataApplied.value = true;
+  if (!isEditing.value) activeTab.value = "General";
 }
 
 // when editing, the folder name is already real data, don't let the
@@ -235,16 +558,7 @@ function onBannerFileChange(e: Event) {
 }
 
 async function submit() {
-  if (!title.value.trim()) {
-    error.value = "Title is required.";
-    activeTab.value = "General";
-    return;
-  }
-  if (!isEditing.value && !folderLocation.value.trim()) {
-    error.value = "Folder name is required.";
-    activeTab.value = "General";
-    return;
-  }
+  if (!validateGeneral()) return;
 
   saving.value = true;
   error.value = null;
@@ -264,10 +578,16 @@ async function submit() {
       : null,
     releaseDate: releaseDate.value || null,
     dateAdded: dateAdded.value || null,
+    createdAt:
+      dateAdded.value && dateAdded.value !== initialDateAdded
+        ? localDateInputToUnixSeconds(dateAdded.value)
+        : null,
     completionDate: completionDate.value || null,
     source: source.value.trim() || null,
+    platform: platform.value.trim() || null,
+    priority: priority.value || null,
     ageRating: ageRating.value.trim() || null,
-    timeToBeatHours: timeToBeatHours.value.trim()
+    timeToBeatHours: String(timeToBeatHours.value).trim()
       ? Number(timeToBeatHours.value)
       : null,
     region: region.value.trim() || null,
@@ -299,6 +619,7 @@ async function submit() {
     favorite: props.game?.favorite ?? false,
     collections: props.game?.collections ?? [],
     profilesEnabled: profilesEnabled.value,
+    pageSettings: pageOverrides.value,
     osrsStatsEnabled: osrsStatsEnabled.value,
   };
 
@@ -339,16 +660,13 @@ async function submit() {
 </script>
 
 <template>
-  <div class="modal-backdrop" @click.self="emit('close')">
-    <div class="modal">
-      <div class="modal-header">
-        <h2>{{ isEditing ? "Edit Game" : "Add Game" }}</h2>
-        <button type="button" class="close-button" @click="emit('close')">
-          ✕
-        </button>
-      </div>
-
-      <nav class="modal-tabs">
+  <UiModal
+    :title="isEditing ? 'Edit Game' : 'Add Game'"
+    size="wide"
+    @close="emit('close')"
+  >
+    <div class="game-editor">
+      <nav ref="tabsEl" class="modal-tabs">
         <button
           v-for="tab in tabs"
           :key="tab"
@@ -361,10 +679,16 @@ async function submit() {
         </button>
       </nav>
 
-      <form class="modal-form" @submit.prevent="submit">
-        <div class="modal-body">
-          <div v-if="activeTab === 'General'" class="tab-panel">
-            <div class="metadata-search">
+      <form class="modal-form" @submit.prevent="onFormSubmit">
+        <div class="editor-body">
+          <div
+            v-if="activeTab === 'General' || activeTab === 'Find'"
+            class="tab-panel"
+          >
+            <div
+              v-if="activeTab === 'Find' || isEditing"
+              class="metadata-search"
+            >
               <div class="search-heading">
                 <strong>Find game metadata</strong>
                 <span
@@ -374,8 +698,10 @@ async function submit() {
               </div>
               <p v-if="!hasSteamgriddbKey" class="steamgriddb-hint">
                 Add your own SteamGridDB API key in
-                <router-link to="/settings" @click="emit('close')"
-                  >Settings</router-link
+                <router-link
+                  to="/settings?section=sources"
+                  @click="emit('close')"
+                  >Settings &rsaquo; Metadata/API</router-link
                 >
                 to also pull real cover and hero art automatically: without it,
                 only Steam's own (often lower-quality) images are used.
@@ -385,7 +711,8 @@ async function submit() {
                   v-model="metadataQuery"
                   type="search"
                   placeholder="Search by game title"
-                  @keyup.enter="searchMetadata"
+                  aria-label="Search game metadata by title"
+                  @keydown.enter.prevent="searchMetadata"
                 />
                 <button
                   type="button"
@@ -419,189 +746,236 @@ async function submit() {
                   {{ warning }}
                 </li>
               </ul>
+              <p v-if="activeTab === 'Find'" class="hint">
+                Pick a match to fill in the next steps for you, or skip this and
+                enter everything by hand.
+              </p>
             </div>
 
-            <div class="field-row">
-              <label class="field">
-                <span>Title</span>
-                <input
-                  v-model="title"
-                  type="text"
-                  required
-                  @blur="suggestFolderFromTitle"
-                />
-              </label>
-              <label class="field">
-                <span>Sorting Name</span>
-                <input
-                  v-model="sortTitle"
-                  type="text"
-                  placeholder="defaults to Title"
-                />
-              </label>
-            </div>
+            <template v-if="activeTab === 'General'">
+              <div class="field-row">
+                <label class="field">
+                  <span>Title</span>
+                  <input
+                    v-model="title"
+                    type="text"
+                    required
+                    @blur="suggestFolderFromTitle"
+                  />
+                </label>
+                <label class="field">
+                  <span>Sorting Name</span>
+                  <input
+                    v-model="sortTitle"
+                    type="text"
+                    placeholder="defaults to Title"
+                  />
+                </label>
+              </div>
 
-            <div class="field-row">
-              <label class="field">
-                <span>Folder name</span>
-                <input
-                  v-model="folderLocation"
-                  type="text"
-                  :required="!isEditing"
-                  pattern="[A-Za-z0-9_-]+"
-                  :placeholder="isEditing ? 'leave blank to keep current' : ''"
-                  @input="folderTouched = true"
-                />
-              </label>
-              <label class="field">
-                <span>Status</span>
-                <select v-model="status">
-                  <option v-for="s in statuses" :key="s" :value="s">
-                    {{ s }}
-                  </option>
-                </select>
-              </label>
-            </div>
+              <div class="field-row">
+                <label class="field">
+                  <span>Folder name</span>
+                  <input
+                    v-model="folderLocation"
+                    type="text"
+                    :required="!isEditing"
+                    pattern="[A-Za-z0-9_\-]+"
+                    title="Letters, numbers, underscores and hyphens only"
+                    :placeholder="
+                      isEditing ? 'leave blank to keep current' : ''
+                    "
+                    @input="folderTouched = true"
+                  />
+                </label>
+                <label class="field">
+                  <span>Status</span>
+                  <select v-model="status">
+                    <option v-for="s in statuses" :key="s" :value="s">
+                      {{ s }}
+                    </option>
+                  </select>
+                </label>
+              </div>
 
-            <div class="field-row">
-              <label class="field">
-                <span>Developer</span>
-                <input v-model="developer" type="text" />
-              </label>
-              <label class="field">
-                <span>Publisher</span>
-                <input v-model="publisher" type="text" />
-              </label>
-            </div>
+              <div class="field-row">
+                <label class="field">
+                  <span>Developer</span>
+                  <input v-model="developer" type="text" />
+                </label>
+                <label class="field">
+                  <span>Publisher</span>
+                  <input v-model="publisher" type="text" />
+                </label>
+              </div>
 
-            <div class="field-row">
-              <label class="field">
-                <span>Series</span>
-                <input v-model="series" type="text" />
-              </label>
-              <label class="field">
-                <span>Source</span>
-                <input
-                  v-model="source"
-                  type="text"
-                  placeholder="Steam, GOG, physical..."
-                />
-              </label>
-            </div>
+              <div class="field-row">
+                <label class="field">
+                  <span>Series</span>
+                  <input v-model="series" type="text" />
+                </label>
+                <label class="field">
+                  <span>Source</span>
+                  <input
+                    v-model="source"
+                    type="text"
+                    placeholder="Steam, GOG, physical..."
+                  />
+                </label>
+              </div>
 
-            <div class="field-row">
-              <label class="field">
-                <span>Parent game</span>
-                <select v-model="parentGameId">
-                  <option value="">None: this is its own game</option>
-                  <option
-                    v-for="g in availableParentGames"
-                    :key="g.id"
-                    :value="g.id"
-                  >
-                    {{ g.title }}
-                  </option>
-                </select>
-              </label>
-              <label class="field">
-                <span>Relationship</span>
-                <select v-model="relationshipType" :disabled="!parentGameId">
-                  <option value="">N/A</option>
-                  <option
-                    v-for="opt in RELATIONSHIP_TYPE_OPTIONS"
-                    :key="opt.value"
-                    :value="opt.value"
-                  >
-                    {{ opt.label }}
-                  </option>
-                </select>
-              </label>
-            </div>
-
-            <div class="field-row">
-              <label class="checkbox-field">
-                <input v-model="profilesEnabled" type="checkbox" />
-                <span>
-                  Track multiple accounts on this game
+              <div class="field-row">
+                <label class="field">
+                  <span>Platform</span>
+                  <input
+                    v-model="platform"
+                    type="text"
+                    list="game-platform-suggestions"
+                    placeholder="PC, PlayStation 5, Switch..."
+                  />
+                  <datalist id="game-platform-suggestions">
+                    <option
+                      v-for="option in PLATFORM_SUGGESTIONS"
+                      :key="option"
+                      :value="option"
+                    />
+                  </datalist>
+                </label>
+                <label class="field">
+                  <span>Priority</span>
+                  <select v-model="priority">
+                    <option value="">None</option>
+                    <option
+                      v-for="option in PRIORITY_OPTIONS"
+                      :key="option.value"
+                      :value="option.value"
+                    >
+                      {{ option.label }}
+                    </option>
+                  </select>
                   <small
-                    >Adds an account switcher with its own checklist and media
-                    for each account, useful for any game with multiple
-                    characters/accounts, not just OSRS.</small
+                    v-if="priority && isFinished(status)"
+                    class="field-hint"
+                    >Finished games are left out of priority sorting and the
+                    random picker.</small
                   >
-                </span>
-              </label>
-            </div>
+                </label>
+              </div>
 
-            <div v-if="profilesEnabled" class="field-row">
-              <label class="checkbox-field">
-                <input v-model="osrsStatsEnabled" type="checkbox" />
-                <span>
-                  Use OSRS stats (WiseOldMan)
-                  <small
-                    >Adds skill/boss syncing from wiseoldman.net, real skill
-                    icons, and dated stat history to each account. Only makes
-                    sense for Old School RuneScape.</small
-                  >
-                </span>
-              </label>
-            </div>
+              <div class="field-row">
+                <label class="field">
+                  <span>Parent game</span>
+                  <select v-model="parentGameId">
+                    <option value="">None: this is its own game</option>
+                    <option
+                      v-for="g in availableParentGames"
+                      :key="g.id"
+                      :value="g.id"
+                    >
+                      {{ g.title }}
+                    </option>
+                  </select>
+                </label>
+                <label class="field">
+                  <span>Relationship</span>
+                  <select v-model="relationshipType" :disabled="!parentGameId">
+                    <option value="">N/A</option>
+                    <option
+                      v-for="opt in RELATIONSHIP_TYPE_OPTIONS"
+                      :key="opt.value"
+                      :value="opt.value"
+                    >
+                      {{ opt.label }}
+                    </option>
+                  </select>
+                </label>
+              </div>
 
-            <div class="field-row">
+              <div class="field-row">
+                <label class="checkbox-field">
+                  <input v-model="profilesEnabled" type="checkbox" />
+                  <span>
+                    Track multiple accounts on this game
+                    <small
+                      >Adds an account switcher with its own checklist and media
+                      for each account, useful for any game with multiple
+                      characters/accounts, not just OSRS.</small
+                    >
+                  </span>
+                </label>
+              </div>
+
+              <div v-if="profilesEnabled" class="field-row">
+                <label class="checkbox-field">
+                  <input v-model="osrsStatsEnabled" type="checkbox" />
+                  <span>
+                    Use OSRS stats (WiseOldMan)
+                    <small
+                      >Adds skill/boss syncing from wiseoldman.net, real skill
+                      icons, and dated stat history to each account. Only makes
+                      sense for Old School RuneScape.</small
+                    >
+                  </span>
+                </label>
+              </div>
+
+              <div class="field-row">
+                <label class="field">
+                  <span>Age Rating</span>
+                  <input
+                    v-model="ageRating"
+                    type="text"
+                    placeholder="ESRB M, PEGI 18..."
+                  />
+                </label>
+                <label class="field">
+                  <span>Release Date</span>
+                  <input v-model="releaseDate" type="date" />
+                </label>
+              </div>
+
+              <div class="field-row">
+                <label class="field">
+                  <span>Time to Beat (hours)</span>
+                  <input
+                    v-model="timeToBeatHours"
+                    type="number"
+                    min="0"
+                    step="0.5"
+                    placeholder="e.g. 12.5"
+                  />
+                </label>
+              </div>
+
+              <div class="field-row">
+                <label class="field">
+                  <span>Region</span>
+                  <input
+                    v-model="region"
+                    type="text"
+                    placeholder="NA, PAL, JP..."
+                  />
+                </label>
+                <label class="field">
+                  <span>Language</span>
+                  <input
+                    v-model="language"
+                    type="text"
+                    placeholder="English, Japanese..."
+                  />
+                </label>
+              </div>
+
               <label class="field">
-                <span>Age Rating</span>
-                <input
-                  v-model="ageRating"
-                  type="text"
-                  placeholder="ESRB M, PEGI 18..."
-                />
+                <span>Date added to library</span>
+                <input v-model="dateAdded" type="date" />
               </label>
-              <label class="field">
-                <span>Release Date</span>
-                <input v-model="releaseDate" type="date" />
-              </label>
-            </div>
 
-            <div class="field-row">
               <label class="field">
-                <span>Time to Beat (hours)</span>
-                <input
-                  v-model="timeToBeatHours"
-                  type="number"
-                  min="0"
-                  step="0.5"
-                  placeholder="e.g. 12.5"
-                />
+                <span>Description</span>
+                <textarea v-model="description" rows="3"></textarea>
               </label>
-            </div>
-
-            <div class="field-row">
-              <label class="field">
-                <span>Region</span>
-                <input
-                  v-model="region"
-                  type="text"
-                  placeholder="NA, PAL, JP..."
-                />
-              </label>
-              <label class="field">
-                <span>Language</span>
-                <input
-                  v-model="language"
-                  type="text"
-                  placeholder="English, Japanese..."
-                />
-              </label>
-            </div>
-
-            <label class="field">
-              <span>Date added to library</span>
-              <input v-model="dateAdded" type="date" />
-            </label>
-
-            <label class="field">
-              <span>Description</span>
-              <textarea v-model="description" rows="3"></textarea>
-            </label>
+            </template>
           </div>
 
           <div v-else-if="activeTab === 'Ratings & Tags'" class="tab-panel">
@@ -665,18 +1039,77 @@ async function submit() {
                 placeholder="Achievements, Cloud Saves"
               />
             </label>
-
-            <label class="field">
-              <span>Achievement Tracking</span>
-              <select v-model="achievementsProvider">
-                <option :value="null">None</option>
-                <option value="native">Native</option>
-                <option value="retroachievements">RetroAchievements</option>
-              </select>
-            </label>
           </div>
 
           <div v-else-if="activeTab === 'Media'" class="tab-panel">
+            <div class="metadata-refresh-panel">
+              <div>
+                <strong>Repull metadata</strong>
+                <p class="hint">
+                  Re-fetch the current game title from your configured
+                  providers. Locked/manual fields are preserved; existing
+                  artwork is never replaced.
+                </p>
+              </div>
+              <label class="checkbox-field">
+                <input v-model="refreshMetadataIncludeArt" type="checkbox" />
+                <span>Add missing cover/banner art</span>
+              </label>
+              <button
+                type="button"
+                class="secondary-button"
+                :disabled="refreshingMetadata || saving"
+                @click="refreshMetadataFromEditor"
+              >
+                {{
+                  refreshingMetadata ? "Checking provider…" : "Repull Metadata"
+                }}
+              </button>
+              <p v-if="refreshMetadataError" class="form-error">
+                {{ refreshMetadataError }}
+              </p>
+              <p
+                v-if="
+                  metadataRefreshPreview &&
+                  metadataRefreshPreview.status === 'preview'
+                "
+                class="hint"
+              >
+                Preview:
+                {{
+                  metadataRefreshPreview.changedFields.length
+                    ? metadataRefreshPreview.changedFields.join(", ")
+                    : "no text changes"
+                }}<span
+                  v-if="metadataRefreshPreview.skippedLockedFields.length"
+                >
+                  · preserved
+                  {{ metadataRefreshPreview.skippedLockedFields.length }} locked
+                  field(s)</span
+                >.
+              </p>
+            </div>
+            <div class="media-search-panel">
+              <div>
+                <strong>Find artwork</strong>
+                <p class="hint">
+                  Search SteamGridDB and other configured media sources for
+                  cover and banner choices.
+                </p>
+              </div>
+              <button
+                type="button"
+                class="secondary-button"
+                :disabled="searchingMedia || saving"
+                @click="searchMedia"
+              >
+                {{ searchingMedia ? "Searching artwork…" : "Search artwork" }}
+              </button>
+              <p v-if="metadataMessage" class="hint" role="status">
+                {{ metadataMessage }}
+              </p>
+            </div>
+
             <label class="field">
               <span>Cover image (portrait)</span>
               <input
@@ -777,6 +1210,18 @@ async function submit() {
             </button>
           </div>
 
+          <div v-else-if="activeTab === 'Page'" class="tab-panel">
+            <p class="hint">
+              What this game's page shows. Anything left on Default follows
+              Settings > Game Page.
+            </p>
+            <PageSettingsEditor
+              :model-value="pageOverrides"
+              :defaults="pageDefaults"
+              @update:model-value="pageOverrides = $event as PageOverrides"
+            />
+          </div>
+
           <div v-else-if="activeTab === 'Ownership'" class="tab-panel">
             <label class="field">
               <span>Format</span>
@@ -807,7 +1252,17 @@ async function submit() {
               </label>
               <label class="field">
                 <span>Currency</span>
+                <select v-if="currencyCodes.length" v-model="priceCurrency">
+                  <option
+                    v-for="code in currencyCodes"
+                    :key="code"
+                    :value="code"
+                  >
+                    {{ code }}
+                  </option>
+                </select>
                 <input
+                  v-else
                   v-model="priceCurrency"
                   type="text"
                   placeholder="USD"
@@ -838,89 +1293,68 @@ async function submit() {
           >
             Delete Game
           </button>
+          <span v-if="!isEditing" class="step-count">
+            Step {{ stepIndex + 1 }} of {{ tabs.length }}
+          </span>
           <div class="modal-actions-spacer"></div>
           <button type="button" class="secondary-button" @click="emit('close')">
             Cancel
           </button>
-          <button type="submit" class="primary-button" :disabled="saving">
+          <template v-if="!isEditing">
+            <button
+              v-if="stepIndex > 0"
+              type="button"
+              class="secondary-button"
+              @click="goToStep(-1)"
+            >
+              Back
+            </button>
+            <button
+              v-if="!isLastStep"
+              type="button"
+              class="primary-button"
+              @click="goToStep(1)"
+            >
+              {{ activeTab === "Find" && !metadataApplied ? "Skip" : "Next" }}
+            </button>
+          </template>
+          <button
+            v-if="isEditing || isLastStep"
+            type="submit"
+            class="primary-button"
+            :disabled="saving"
+          >
             {{ saving ? "Saving…" : isEditing ? "Save Changes" : "Add Game" }}
           </button>
         </div>
       </form>
     </div>
-  </div>
+  </UiModal>
 </template>
 
 <style scoped>
-.modal-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.65);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 50;
-}
-.modal {
-  background: #1a1a1a;
-  border: 1px solid #2a2a2a;
-  border-radius: 14px;
+.game-editor {
   width: 100%;
-  max-width: 760px;
-  height: 640px;
-  max-height: 88vh;
-  display: flex;
-  flex-direction: column;
-  color: #fff;
-  font-family: system-ui, sans-serif;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
-}
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 18px 22px;
-  border-bottom: 1px solid #2a2a2a;
-  flex-shrink: 0;
-}
-.modal-header h2 {
-  margin: 0;
-  font-size: 1.2rem;
-}
-.close-button {
-  background: none;
-  border: none;
-  color: #999;
-  font-size: 15px;
-  cursor: pointer;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  transition:
-    background 0.15s ease,
-    color 0.15s ease;
-}
-.close-button:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: #fff;
+  min-width: 0;
 }
 .modal-tabs {
   display: flex;
   gap: 4px;
-  padding: 12px 20px 0;
-  border-bottom: 1px solid #2a2a2a;
+  padding: 0;
+  border-bottom: 1px solid var(--ui-border);
   flex-shrink: 0;
   overflow-x: auto;
 }
 .modal-tab {
   background: none;
   border: none;
-  color: #999;
+  color: var(--ui-dim);
   padding: 9px 16px;
+  min-height: var(--ui-control-height);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
-  border-radius: 8px 8px 0 0;
+  border-radius: var(--ui-radius-control) 8px 0 0;
   white-space: nowrap;
   border-bottom: 2px solid transparent;
   transition:
@@ -928,13 +1362,13 @@ async function submit() {
     background 0.15s ease;
 }
 .modal-tab:hover {
-  color: #ddd;
-  background: rgba(255, 255, 255, 0.05);
+  color: var(--ui-text);
+  background: color-mix(in srgb, var(--ui-text) 5%, transparent);
 }
 .modal-tab.active {
-  color: #fff;
-  background: rgba(214, 138, 52, 0.1);
-  border-bottom-color: #d68a34;
+  color: var(--ui-text);
+  background: color-mix(in srgb, var(--ui-accent) 10%, transparent);
+  border-bottom-color: var(--ui-accent-text);
 }
 .modal-form {
   display: flex;
@@ -942,8 +1376,8 @@ async function submit() {
   flex: 1;
   min-height: 0;
 }
-.modal-body {
-  padding: 20px 22px;
+.editor-body {
+  padding: 20px 0;
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -957,11 +1391,47 @@ async function submit() {
   gap: 14px;
   min-height: 380px;
 }
-.metadata-search {
-  border: 1px solid #3a3a3a;
-  border-radius: 8px;
+.metadata-refresh-panel {
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
   padding: 12px;
-  background: #151515;
+  background: var(--ui-surface);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.metadata-refresh-panel strong {
+  color: var(--ui-text);
+}
+.media-search-panel {
+  flex-wrap: wrap;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
+  padding: 12px;
+  background: var(--ui-surface-2);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.media-search-panel > div {
+  min-width: 0;
+}
+.media-search-panel strong {
+  color: var(--ui-text);
+}
+.media-search-panel .hint {
+  margin: 2px 0 0;
+}
+.metadata-refresh-panel .hint {
+  margin: 0;
+}
+
+.metadata-search {
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
+  padding: 12px;
+  background: var(--ui-surface);
 }
 .search-heading {
   display: flex;
@@ -971,21 +1441,21 @@ async function submit() {
 }
 .search-heading span,
 .metadata-result small {
-  color: #999;
+  color: var(--ui-dim);
   font-size: 0.78rem;
 }
 .steamgriddb-hint {
   margin: 0 0 10px;
   padding: 8px 10px;
-  background: rgba(214, 138, 52, 0.1);
-  border: 1px solid rgba(214, 138, 52, 0.3);
-  border-radius: 8px;
-  color: #ddd;
+  background: color-mix(in srgb, var(--ui-accent) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ui-accent) 30%, transparent);
+  border-radius: var(--ui-radius-control);
+  color: var(--ui-text);
   font-size: 0.78rem;
   line-height: 1.5;
 }
 .steamgriddb-hint a {
-  color: #d68a34;
+  color: var(--ui-accent-text);
   font-weight: 600;
   text-decoration: none;
 }
@@ -999,6 +1469,16 @@ async function submit() {
 .search-row input {
   flex: 1;
   min-width: 0;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
+  color: var(--ui-text);
+  padding: 9px 11px;
+  font: inherit;
+}
+.search-row input:focus {
+  outline: none;
+  border-color: var(--ui-accent-line);
 }
 .metadata-results {
   display: grid;
@@ -1013,30 +1493,34 @@ async function submit() {
   width: 100%;
   padding: 9px 10px;
   text-align: left;
-  color: #fff;
-  background: #202020;
-  border: 1px solid #3a3a3a;
+  color: var(--ui-text);
+  background: var(--ui-border);
+  border: 1px solid var(--ui-border);
   border-radius: 6px;
   cursor: pointer;
 }
 .metadata-result:hover {
-  border-color: #d68a34;
-  background: #282828;
+  border-color: var(--ui-accent-line);
+  background: var(--ui-surface-2);
 }
 .field {
   display: flex;
   flex-direction: column;
   gap: 6px;
   font-size: 0.85rem;
-  color: #ccc;
+  color: var(--ui-text);
   flex: 1;
+  min-width: 0;
+}
+.tab-panel > .field {
+  flex: none;
 }
 .checkbox-field {
   display: flex;
   align-items: flex-start;
   gap: 10px;
   font-size: 0.85rem;
-  color: #ccc;
+  color: var(--ui-text);
   flex: 1;
   cursor: pointer;
 }
@@ -1044,7 +1528,7 @@ async function submit() {
   margin-top: 3px;
   width: 16px;
   height: 16px;
-  accent-color: #d68a34;
+  accent-color: var(--ui-accent-text);
   flex-shrink: 0;
 }
 .checkbox-field span {
@@ -1053,17 +1537,17 @@ async function submit() {
   gap: 2px;
 }
 .checkbox-field small {
-  color: #888;
+  color: var(--ui-dim);
   font-size: 0.75rem;
   font-weight: 400;
 }
 .field input,
 .field select,
 .field textarea {
-  background: #111;
-  border: 1px solid #3a3a3a;
-  border-radius: 8px;
-  color: #fff;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
+  color: var(--ui-text);
   padding: 9px 11px;
   font: inherit;
   transition: border-color 0.15s ease;
@@ -1072,35 +1556,48 @@ async function submit() {
 .field select:focus,
 .field textarea:focus {
   outline: none;
-  border-color: #d68a34;
+  border-color: var(--ui-accent-line);
 }
 .field-row {
   display: flex;
+  flex-wrap: wrap;
   gap: 12px;
 }
-.ratings-row .field {
-  min-width: 0;
+.field-row > .field {
+  flex: 1 1 150px;
+}
+.ratings-row > .field {
+  flex-basis: 90px;
 }
 .link-row {
+  flex-wrap: nowrap;
   align-items: flex-end;
 }
+.link-row > .field {
+  flex-basis: 0;
+}
 .remove-button {
-  background: rgba(220, 38, 38, 0.15);
-  color: #fca5a5;
+  background: color-mix(in srgb, var(--ui-error) 15%, transparent);
+  color: var(--ui-error);
   border: none;
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   width: 38px;
   height: 38px;
   cursor: pointer;
   transition: background 0.15s ease;
 }
 .remove-button:hover {
-  background: rgba(220, 38, 38, 0.3);
+  background: color-mix(in srgb, var(--ui-error) 30%, transparent);
 }
 .hint {
-  color: #888;
+  color: var(--ui-dim);
   font-size: 0.8rem;
   margin: 0;
+}
+.field-hint {
+  color: var(--ui-dim);
+  font-size: 0.75rem;
+  font-weight: 400;
 }
 .provider-warnings {
   list-style: none;
@@ -1111,7 +1608,7 @@ async function submit() {
   gap: 3px;
 }
 .provider-warnings li {
-  color: #f0b458;
+  color: var(--ui-warning);
   font-size: 0.78rem;
 }
 .media-candidates {
@@ -1121,7 +1618,7 @@ async function submit() {
   margin-top: -6px;
 }
 .candidates-label {
-  color: #999;
+  color: var(--ui-dim);
   font-size: 0.78rem;
 }
 .candidates-grid {
@@ -1137,7 +1634,7 @@ async function submit() {
   border-radius: 6px;
   overflow: hidden;
   cursor: pointer;
-  background: #111;
+  background: var(--ui-surface);
   flex-shrink: 0;
 }
 .candidate-thumb img {
@@ -1147,18 +1644,18 @@ async function submit() {
   display: block;
 }
 .candidate-thumb.active {
-  border-color: #d68a34;
+  border-color: var(--ui-accent-line);
 }
 .banner-thumb {
   width: 120px;
   height: 45px;
 }
 .form-error {
-  color: #fca5a5;
+  color: var(--ui-error);
   font-size: 0.85rem;
-  background: rgba(220, 38, 38, 0.1);
-  border: 1px solid rgba(220, 38, 38, 0.3);
-  border-radius: 8px;
+  background: color-mix(in srgb, var(--ui-error) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ui-error) 30%, transparent);
+  border-radius: var(--ui-radius-control);
   padding: 10px 12px;
 }
 .modal-actions {
@@ -1166,17 +1663,25 @@ async function submit() {
   align-items: center;
   gap: 10px;
   padding: 14px 22px;
-  border-top: 1px solid #2a2a2a;
+  border-top: 1px solid var(--ui-border);
   flex-shrink: 0;
 }
 .modal-actions-spacer {
   flex: 1;
 }
+.step-count {
+  color: var(--ui-dim);
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+.modal-actions button {
+  white-space: nowrap;
+}
 .danger-button {
-  background: rgba(220, 38, 38, 0.15);
-  color: #fca5a5;
+  background: color-mix(in srgb, var(--ui-error) 15%, transparent);
+  color: var(--ui-error);
   border: none;
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   padding: 10px 20px;
   font-weight: 600;
   font-size: 0.9rem;
@@ -1184,12 +1689,12 @@ async function submit() {
   transition: background 0.15s ease;
 }
 .danger-button:hover {
-  background: rgba(220, 38, 38, 0.3);
+  background: color-mix(in srgb, var(--ui-error) 30%, transparent);
 }
 .primary-button,
 .secondary-button {
   border: none;
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   padding: 10px 20px;
   font-weight: 600;
   font-size: 0.9rem;
@@ -1199,11 +1704,11 @@ async function submit() {
     transform 0.05s ease;
 }
 .primary-button {
-  background: #d68a34;
-  color: #111;
+  background: var(--ui-accent);
+  color: var(--ui-on-accent);
 }
 .primary-button:hover:not(:disabled) {
-  background: #ffd83d;
+  filter: brightness(1.08);
 }
 .primary-button:active:not(:disabled) {
   transform: scale(0.98);
@@ -1213,10 +1718,31 @@ async function submit() {
   cursor: not-allowed;
 }
 .secondary-button {
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
+  background: color-mix(in srgb, var(--ui-text) 8%, transparent);
+  color: var(--ui-text);
 }
 .secondary-button:hover {
-  background: rgba(255, 255, 255, 0.15);
+  background: color-mix(in srgb, var(--ui-text) 15%, transparent);
+}
+@media (max-width: 480px) {
+  .editor-body {
+    padding-inline: 0;
+  }
+  .modal-tabs {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+  .modal-actions {
+    flex-wrap: wrap;
+    padding: 12px 16px;
+  }
+  .step-count {
+    flex-basis: 100%;
+  }
+  .modal-actions .primary-button,
+  .modal-actions .secondary-button,
+  .modal-actions .danger-button {
+    padding: 10px 14px;
+  }
 }
 </style>

@@ -2,20 +2,37 @@
 import { onMounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { startOidcLogin } from "../services/oidc";
+import { rememberReturnPath } from "../state/startup";
 
 const route = useRoute();
 const router = useRouter();
 
 onMounted(() => {
-  const provider = typeof route.params.provider === "string" ? route.params.provider.trim() : "";
+  const provider =
+    typeof route.params.provider === "string"
+      ? route.params.provider.trim()
+      : "";
   if (!provider || provider === "local" || provider === "oidcstart") {
     router.replace("/login");
     return;
   }
-  startOidcLogin(provider);
+  rememberReturnPath(route.query.return_to);
+  startOidcLogin(provider, true);
 });
 </script>
-<template><main class="oidc-start" aria-live="polite"><span>Starting sign-in…</span></main></template>
+<template>
+  <main class="oidc-start" aria-live="polite">
+    <span>Starting sign-in…</span>
+  </main>
+</template>
 <style scoped>
-.oidc-start{min-height:100vh;display:grid;place-items:center;background:#121212;color:#999;font-family:system-ui,sans-serif;font-size:13px}
+.oidc-start {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  background: var(--ui-bg);
+  color: var(--ui-dim);
+  font-family: var(--ui-font-family);
+  font-size: 13px;
+}
 </style>

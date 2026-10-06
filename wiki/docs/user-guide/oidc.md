@@ -67,11 +67,13 @@ If **Admin group** is configured, the application checks the configured groups c
 
 ## Environment-managed settings
 
-Deployments can supply supported OIDC values through environment configuration. Environment-managed values can be locked in the settings UI and cannot be overridden there.
+Deployments can supply supported OIDC values through environment configuration. Environment-managed values can be locked in the settings UI and cannot be overridden there. A saved client secret is never populated into the browser; when one is already configured, leave the client-secret field blank to keep it or enter a replacement.
 
 For ordinary application configuration, use **Settings → OIDC / SSO**.
 
 ## Troubleshooting
+
+The public sign-in page, `/login/local`, provider entry pages and callback error screens follow the device's saved theme and palette. A provider uses the app accent by default. Administrators can disable **Use app palette for this sign-in button** and choose a provider color; the host chooses readable black or white button text. Hidden providers remain accessible through their enabled `/login/{slug}` entrypoint. Disabling provider autostart prevents that direct entrypoint, while its explicitly enabled manual sign-in button still works. Saved issuer/credential changes take effect on subsequent sign-ins without a server restart.
 
 - **Callback rejected:** compare the identity provider callback with the exact URI shown in Settings.
 - **Provider unavailable:** check the issuer/discovery URL and client credentials.

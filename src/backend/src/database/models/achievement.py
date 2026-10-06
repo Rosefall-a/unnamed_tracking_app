@@ -5,7 +5,7 @@ import time
 from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
-from sqlalchemy import BigInteger, Boolean, ForeignKey, String, Text
+from sqlalchemy import BigInteger, Boolean, Float, ForeignKey, String, Text, text
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -37,6 +37,13 @@ class Achievement(Base):
     icon_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     unlocked: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     unlocked_at: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    # a spoiler until it is unlocked: Steam and PlayStation both flag these in
+    # what they send, and the page keeps them hidden until you reveal them
+    hidden: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
+    # the share of all players who have it (0-100), as the provider reports it
+    global_percent: Mapped[float | None] = mapped_column(Float, nullable=True)
     # "progression" | "missable" | "win_condition" | None — RetroAchievements
     # is the only provider that classifies achievements this way today
     tier: Mapped[str | None] = mapped_column(String(20), nullable=True)

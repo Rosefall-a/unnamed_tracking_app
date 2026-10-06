@@ -5,11 +5,11 @@ from __future__ import annotations
 import time
 from uuid import UUID
 
-from fastapi import APIRouter, Cookie, Depends, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.auth import get_current_admin, get_current_user, hash_token
+from src.core.auth import get_current_admin, get_current_user, hash_token, session_cookie_name
 from src.core.geoip import GeoIpProvider, geoip
 from src.core.session_manager import session_state
 from src.database.models.auth import UserSession
@@ -24,7 +24,7 @@ def view(
 ) -> dict:
     """Serialize a session without including either raw or hashed credentials."""
     state = session_state(session)
-    coordinates_available = geoip.city_configured()
+    coordinates_available = geoip._get_reader() is not None
     return {
         "id": str(session.id),
         "user_id": str(session.user_id),
@@ -71,9 +71,9 @@ async def revoke_session(db: AsyncSession, session_id: UUID, user_id: UUID | Non
 
 @router.get("/me")
 async def list_my_sessions(
+    request: Request,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
-    session_token: str | None = Cookie(default=None, alias="session"),
 ) -> list[dict]:
     """Return only the authenticated user's browser sessions."""
     rows = (
@@ -83,6 +83,7 @@ async def list_my_sessions(
             .order_by(UserSession.last_seen_at.desc())
         )
     ).all()
+    session_token = request.cookies.get(session_cookie_name(request.headers.get("host", "")))
     current_hash = hash_token(session_token) if session_token else None
     return [view(row, current_hash) for row in rows]
 
@@ -116,7 +117,6 @@ async def revoke_my_session(
 
 @router.get("/admin")
 async def list_all_sessions(
-    *,
     db: AsyncSession = Depends(get_db),
     admin: User = Depends(get_current_admin),
     user_id: UUID | None = Query(default=None),
@@ -207,32 +207,31 @@ async def geoip_status(admin: User = Depends(get_current_admin)) -> dict[str, ob
     """Return availability of each optional local GeoIP database."""
     del admin
     return {
-        "city": {"configured": geoip.city_configured(), "path": str(geoip.path)},
+        "city": {"configured": geoip._get_reader() is not None, "path": str(geoip.path)},
         "country": {
-            "configured": geoip.country_configured(),
+            "configured": geoip._get_country_reader() is not None,
             "path": str(geoip.country_path),
         },
-        "network": {"configured": geoip.asn_configured(), "path": str(geoip.asn_path)},
+        "network": {"configured": geoip._get_asn_reader() is not None, "path": str(geoip.asn_path)},
     }
 
 
 @router.post("/admin/geoip")
 async def upload_geoip(
-    *,
     file: UploadFile = File(...),
     kind: str = Query(default="city", pattern="^(city|country|network)$"),
     admin: User = Depends(get_current_admin),
 ) -> dict[str, object]:
     """Validate and atomically replace one optional local GeoIP database."""
     del admin
-    data = await file.read()
+    data = await file.read(256 * 1024 * 1024 + 1)
     if not data or len(data) > 256 * 1024 * 1024:
         raise HTTPException(400, "Invalid GeoIP database size.")
     paths = {"city": geoip.path, "country": geoip.country_path, "network": geoip.asn_path}
     validators = {
-        "city": lambda provider: provider.city_configured(),
-        "country": lambda provider: provider.country_configured(),
-        "network": lambda provider: provider.asn_configured(),
+        "city": lambda provider: provider._get_reader(),
+        "country": lambda provider: provider._get_country_reader(),
+        "network": lambda provider: provider._get_asn_reader(),
     }
     path = paths[kind]
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -250,7 +249,9 @@ async def upload_geoip(
             raise HTTPException(400, "Invalid or unsupported GeoIP database.")
         temporary.replace(path)
         geoip.reset()
+    except HTTPException:
+        raise
     except OSError as exc:
         temporary.unlink(missing_ok=True)
-        raise HTTPException(400, f"Could not store GeoIP database: {exc}") from exc
+        raise HTTPException(400, "Could not store GeoIP database.") from exc
     return {"configured": True, "kind": kind, "path": str(path)}

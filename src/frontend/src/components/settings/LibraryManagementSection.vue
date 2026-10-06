@@ -2,6 +2,8 @@
 import { ref, computed, onMounted } from "vue";
 import {
   fetchGames,
+  fetchAchievementsSummary,
+  refreshGameAchievements,
   refreshGameMetadata,
   previewGameMetadataRefresh,
   fetchGameTrash,
@@ -242,6 +244,72 @@ async function applyPreviewedRefresh() {
   }
 }
 
+// --- Achievements: re-reads every game's achievements from the service it
+// came from (Steam, PlayStation, RetroAchievements), one light call per game,
+// with no library sync. Only games that already have achievements are
+// refreshed. ---------------------------------------------------------------
+const refreshingAchievements = ref(false);
+const achievementProgress = ref({ done: 0, total: 0 });
+const achievementSummary = ref<{
+  games: number;
+  achievements: number;
+  unlocked: number;
+  hidden: number;
+  failed: number;
+  reason: string | null;
+} | null>(null);
+const achievementError = ref<string | null>(null);
+
+async function refreshAllAchievements() {
+  refreshingAchievements.value = true;
+  achievementSummary.value = null;
+  achievementError.value = null;
+  let taskId: string | null = null;
+  try {
+    const [allGames, withAchievements] = await Promise.all([
+      fetchGames(),
+      fetchAchievementsSummary(),
+    ]);
+    const targets = allGames.filter((g) => g.id in withAchievements);
+    achievementProgress.value = { done: 0, total: targets.length };
+    taskId = startTask("Refreshing achievements", targets.length);
+    const totals = { achievements: 0, unlocked: 0, hidden: 0, failed: 0 };
+    let reason: string | null = null;
+    let done = 0;
+    await runInBatches(targets, REFRESH_CONCURRENCY, async (game: Game) => {
+      try {
+        const result = await refreshGameAchievements(game.id);
+        totals.achievements += result.achievements;
+        totals.unlocked += result.unlocked;
+        totals.hidden += result.hidden;
+      } catch (err) {
+        totals.failed++;
+        // keep the first reason so a failure says why, instead of just a count
+        reason ??= err instanceof Error ? err.message : "Request failed";
+      }
+      done++;
+      achievementProgress.value.done = done;
+      if (taskId) updateTask(taskId, done);
+    });
+    achievementSummary.value = {
+      games: targets.length - totals.failed,
+      ...totals,
+      reason,
+    };
+    if (taskId)
+      completeTask(
+        taskId,
+        `${targets.length - totals.failed} refreshed, ${totals.failed} failed`,
+      );
+  } catch (err) {
+    achievementError.value =
+      err instanceof Error ? err.message : "Failed to refresh achievements";
+    if (taskId) errorTask(taskId, achievementError.value);
+  } finally {
+    refreshingAchievements.value = false;
+  }
+}
+
 // duplicate folder_location scan, entirely client-side against the already
 // fetched game list, no new backend endpoint needed
 const scanningDuplicates = ref(false);
@@ -389,6 +457,52 @@ async function restoreGameById(game: TrashedGame) {
     </div>
   </section>
 
+  <section class="settings-section">
+    <h2>Refresh Achievements</h2>
+    <p class="section-hint">
+      Re-reads the achievements of every game that has some, from the service
+      each one came from (Steam, PlayStation or RetroAchievements): names,
+      descriptions, icons, which are hidden, what you've unlocked and when, and
+      how many players have each. It doesn't sync your library or change
+      anything else about your games, and your notes and pins are kept.
+    </p>
+    <button
+      type="button"
+      class="secondary-button"
+      :disabled="refreshingAchievements"
+      @click="refreshAllAchievements"
+    >
+      {{
+        refreshingAchievements
+          ? `Refreshing… (${achievementProgress.done}/${achievementProgress.total})`
+          : "Refresh achievements"
+      }}
+    </button>
+    <div v-if="achievementError" class="form-error">{{ achievementError }}</div>
+    <div
+      v-if="!refreshingAchievements && achievementSummary"
+      class="refresh-summary"
+    >
+      <p>
+        {{ achievementSummary.games }} game{{
+          achievementSummary.games === 1 ? "" : "s"
+        }}
+        refreshed:
+        {{ achievementSummary.achievements.toLocaleString() }} achievements,
+        {{ achievementSummary.unlocked.toLocaleString() }} unlocked,
+        {{ achievementSummary.hidden.toLocaleString() }} hidden<template
+          v-if="achievementSummary.failed"
+        >
+          . {{ achievementSummary.failed }} failed<template
+            v-if="achievementSummary.reason"
+          >
+            ({{ achievementSummary.reason }})</template
+          ></template
+        >.
+      </p>
+    </div>
+  </section>
+
   <div
     v-if="showPreviewDialog"
     class="confirm-backdrop"
@@ -505,21 +619,20 @@ async function restoreGameById(game: TrashedGame) {
 
 <style scoped>
 .settings-section h2 {
-  margin: 0 0 8px;
-  padding-left: 12px;
-  border-left: 3px solid #d68a34;
-  font-size: 1rem;
-  color: #fff;
+  margin: 0 0 12px;
+  font: var(--ui-weight-heading) var(--ui-font-heading)/1.4
+    var(--ui-font-family);
+  color: var(--ui-text);
 }
 .section-hint {
-  color: #999;
+  color: var(--ui-dim);
   font-size: 0.82rem;
   line-height: 1.6;
   margin: 0 0 16px;
 }
 .settings-divider {
   height: 1px;
-  background: #2a2a2a;
+  background: var(--ui-border);
   margin: 24px 0;
 }
 .refresh-options {
@@ -532,34 +645,34 @@ async function restoreGameById(game: TrashedGame) {
   color: #f0b458;
 }
 .secondary-button {
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
+  background: color-mix(in srgb, var(--ui-text) 8%, transparent);
+  color: var(--ui-text);
   border: none;
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   padding: 10px 18px;
   font-weight: 600;
   cursor: pointer;
 }
 .secondary-button:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.14);
+  background: color-mix(in srgb, var(--ui-text) 14%, transparent);
 }
 .secondary-button:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
 .form-error {
-  color: #fca5a5;
+  color: var(--ui-error);
   font-size: 13px;
   background: rgba(220, 38, 38, 0.1);
   border: 1px solid rgba(220, 38, 38, 0.3);
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   padding: 8px 10px;
   margin-top: 10px;
 }
 .refresh-summary {
   margin-top: 14px;
   font-size: 0.82rem;
-  color: #ccc;
+  color: var(--ui-text);
 }
 .refresh-summary p {
   margin: 0 0 8px;
@@ -573,23 +686,23 @@ async function restoreGameById(game: TrashedGame) {
   gap: 4px;
   max-height: 160px;
   overflow-y: auto;
-  color: #999;
+  color: var(--ui-dim);
   font-size: 0.78rem;
 }
 
 .confirm-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.65);
+  background: color-mix(in srgb, var(--ui-bg) 65%, transparent);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 60;
 }
 .confirm-dialog {
-  background: #1a1a1a;
-  border: 1px solid #2a2a2a;
-  border-radius: 12px;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-card);
   padding: 22px;
   width: 100%;
   max-width: 360px;
@@ -597,11 +710,11 @@ async function restoreGameById(game: TrashedGame) {
 }
 .confirm-dialog h3 {
   margin: 0 0 8px;
-  color: #fff;
+  color: var(--ui-text);
 }
 .confirm-dialog p {
   margin: 0 0 16px;
-  color: #aaa;
+  color: var(--ui-dim);
   font-size: 13.5px;
 }
 .confirm-actions {
@@ -626,29 +739,29 @@ async function restoreGameById(game: TrashedGame) {
   display: flex;
   justify-content: space-between;
   gap: 12px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid #232323;
-  border-radius: 8px;
+  background: color-mix(in srgb, var(--ui-text) 3%, transparent);
+  border: 1px solid var(--ui-border-soft);
+  border-radius: var(--ui-radius-control);
   padding: 8px 10px;
   font-size: 12.5px;
 }
 .preview-change-title {
-  color: #fff;
+  color: var(--ui-text);
   font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .preview-change-fields {
-  color: #d68a34;
+  color: var(--ui-accent-text);
   text-align: right;
   flex-shrink: 0;
 }
 .primary-button {
-  background: #d68a34;
-  color: #111;
+  background: var(--ui-accent);
+  color: var(--ui-on-accent);
   border: none;
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   padding: 9px 16px;
   font-weight: 600;
   cursor: pointer;
@@ -658,7 +771,7 @@ async function restoreGameById(game: TrashedGame) {
   cursor: not-allowed;
 }
 .empty-hint {
-  color: #777;
+  color: var(--ui-faint);
   font-size: 0.82rem;
 }
 .trash-list {
@@ -674,20 +787,20 @@ async function restoreGameById(game: TrashedGame) {
   align-items: center;
   gap: 12px;
   padding: 8px 12px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid #232323;
-  border-radius: 8px;
+  background: color-mix(in srgb, var(--ui-text) 3%, transparent);
+  border: 1px solid var(--ui-border-soft);
+  border-radius: var(--ui-radius-control);
   font-size: 0.82rem;
 }
 .trash-name {
   flex: 1;
-  color: #ccc;
+  color: var(--ui-text);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .trash-meta {
-  color: #777;
+  color: var(--ui-faint);
   font-size: 0.76rem;
 }
 </style>

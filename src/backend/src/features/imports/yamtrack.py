@@ -116,7 +116,11 @@ def parse_yamtrack(raw: bytes) -> list[YamtrackGroup]:
         media_type = (row.get("media_type") or "").strip().lower()
         if not source or not media_id or not media_type:
             continue
-        if media_type not in {"movie", "tv", "anime", "season", "episode"}:
+        # Yamtrack anime imports are temporarily disabled until their data can be
+        # mapped reliably. Keep the rest of the CSV importable.
+        if media_type == "anime":
+            continue
+        if media_type not in {"movie", "tv", "season", "episode"}:
             continue
 
         key = (source.lower(), media_id)

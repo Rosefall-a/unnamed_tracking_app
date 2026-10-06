@@ -6,10 +6,11 @@
 // differently-styled feature.
 import { ref, computed, onMounted, watch } from "vue";
 import { useRouter } from "vue-router";
-import ListCard from "../components/ListCard.vue";
+import CollectionTile from "../components/CollectionTile.vue";
 import SegmentedTabs from "../components/SegmentedTabs.vue";
 import type { SegmentOption } from "../components/SegmentedTabs.vue";
 import { useConfirm } from "../state/dialog";
+import { useCardOrder, kindOptions as kindCounts } from "../utils/useCardOrder";
 import { preferences } from "../state/preferences";
 import ListFormModal from "../components/ListFormModal.vue";
 import MediaTopBar from "../components/MediaTopBar.vue";
@@ -71,11 +72,11 @@ async function onCreate(payload: {
     );
     lists.value.push(created);
     showCreate.value = false;
-    router.push(`/lists/${created.id}`);
+    router.push(`/media/collections/${created.id}`);
   } catch (e) {
     showCreate.value = false;
     createError.value =
-      e instanceof Error ? e.message : "Failed to create list.";
+      e instanceof Error ? e.message : "Failed to create collection.";
   }
 }
 
@@ -87,12 +88,6 @@ function inMyOrder(a: MediaListSummary, b: MediaListSummary): number {
     a.name.localeCompare(b.name)
   );
 }
-const myOrder = computed(() =>
-  [...lists.value].sort(
-    (a, b) => Number(b.pinned) - Number(a.pinned) || inMyOrder(a, b),
-  ),
-);
-
 const filtering = computed(
   () =>
     searchQuery.value.trim() !== "" ||
@@ -150,63 +145,17 @@ async function applyOrder(ordered: MediaListSummary[]) {
     await load();
   }
 }
-function groupOf(id: string): MediaListSummary[] {
-  const pinned = lists.value.find((l) => l.id === id)?.pinned ?? false;
-  return myOrder.value.filter((l) => l.pinned === pinned);
-}
-function canMove(id: string, direction: -1 | 1): boolean {
-  const group = groupOf(id);
-  const at = group.findIndex((l) => l.id === id);
-  return at + direction >= 0 && at + direction < group.length;
-}
-// the whole order with one group (pinned or not) replaced by `replacement`
-function withGroup(replacement: MediaListSummary[], pinned: boolean) {
-  const pinnedGroup = pinned
-    ? replacement
-    : myOrder.value.filter((l) => l.pinned);
-  const rest = pinned ? myOrder.value.filter((l) => !l.pinned) : replacement;
-  return [...pinnedGroup, ...rest];
-}
-async function moveList(id: string, direction: -1 | 1) {
-  const group = groupOf(id);
-  const at = group.findIndex((l) => l.id === id);
-  const to = at + direction;
-  if (at < 0 || to < 0 || to >= group.length) return;
-  const swapped = [...group];
-  [swapped[at], swapped[to]] = [swapped[to], swapped[at]];
-  await applyOrder(withGroup(swapped, group[0].pinned));
-}
-
-// dragging a card onto another one of the same group puts it in that place
-const dragId = ref<string | null>(null);
-const dropOn = ref<string | null>(null);
-function onDrop(targetId: string) {
-  const from = dragId.value;
-  dragId.value = dropOn.value = null;
-  if (!from || from === targetId) return;
-  const group = groupOf(from);
-  if (!group.some((l) => l.id === targetId)) return; // pinned and other lists stay apart
-  const moving = group.find((l) => l.id === from);
-  if (!moving) return;
-  const rest = group.filter((l) => l.id !== from);
-  rest.splice(
-    group.findIndex((l) => l.id === targetId),
-    0,
-    moving,
-  );
-  void applyOrder(withGroup(rest, moving.pinned));
-}
+const order = useCardOrder({
+  items: lists,
+  keyOf: (l) => l.id,
+  inMyOrder,
+  apply: applyOrder,
+});
 
 const smartCount = computed(() => lists.value.filter((l) => l.isSmart).length);
-const kindOptions = computed<SegmentOption[]>(() => [
-  { value: "all", label: "All", count: lists.value.length },
-  {
-    value: "manual",
-    label: "Manual",
-    count: lists.value.length - smartCount.value,
-  },
-  { value: "smart", label: "Smart", count: smartCount.value },
-]);
+const kindOptions = computed<SegmentOption[]>(() =>
+  kindCounts(lists.value.length, smartCount.value),
+);
 const TYPE_OPTIONS: SegmentOption[] = [
   { value: "all", label: "Any Type" },
   { value: "movie", label: "Movies" },
@@ -238,7 +187,7 @@ async function onEditSave(payload: {
 }
 
 function openList(id: string) {
-  router.push(`/lists/${id}`);
+  router.push(`/media/collections/${id}`);
 }
 
 const confirm = useConfirm();
@@ -266,15 +215,17 @@ async function deleteList(id: string) {
 
     <div class="ui-content">
       <div class="ui-head">
-        <h1>Lists</h1>
+        <h1>Collections</h1>
         <div class="header-actions">
           <input
             v-model="searchQuery"
             type="text"
             class="ui-field search-input"
-            placeholder="Search lists…"
+            placeholder="Search collections…"
+            aria-label="Search collections"
+            data-shortcut="search"
           />
-          <select v-model="sortBy" class="ui-field">
+          <select v-model="sortBy" class="ui-field" aria-label="Sort by">
             <option value="custom">My order</option>
             <option value="name">Name</option>
             <option value="count">Most titles</option>
@@ -284,8 +235,9 @@ async function deleteList(id: string) {
             type="button"
             class="ui-btn ui-btn-primary"
             @click="showCreate = true"
+            data-shortcut="create"
           >
-            + Create List
+            + Create Collection
           </button>
         </div>
       </div>
@@ -316,32 +268,41 @@ async function deleteList(id: string) {
 
       <template v-else>
         <div v-if="filteredLists.length" class="grid">
-          <ListCard
+          <CollectionTile
             v-for="list in filteredLists"
+            :id="list.id"
             :key="list.id"
-            :list="list"
+            :name="list.name"
+            :covers="list.previewPosters"
+            :count="list.itemCount"
+            count-noun="title"
+            noun="list"
+            :is-smart="list.isSmart"
+            :is-system="list.isSystem"
+            :description="list.description"
+            :pinned="list.pinned"
             :reorderable="reorderable"
-            :can-move-earlier="canMove(list.id, -1)"
-            :can-move-later="canMove(list.id, 1)"
-            :drag-over="dropOn === list.id && dragId !== list.id"
+            :can-move-earlier="order.canMove(list.id, -1)"
+            :can-move-later="order.canMove(list.id, 1)"
+            :drag-over="order.isDropTarget(list.id)"
             @open="openList"
             @edit="editList"
             @delete="deleteList"
             @pin="togglePin"
-            @move="moveList"
-            @dragstart="dragId = $event"
-            @dragover="dropOn = $event"
-            @drop="onDrop"
-            @dragend="dragId = dropOn = null"
+            @move="order.move"
+            @dragstart="order.dragKey.value = $event"
+            @dragover="order.dropOn.value = $event"
+            @drop="order.drop"
+            @dragend="order.endDrag"
           />
         </div>
         <p v-if="!filteredLists.length && filtering" class="ui-state">
-          No lists match the search and filters.
+          No collections match the search and filters.
         </p>
         <p v-else-if="!filteredLists.length" class="ui-state">
-          No lists yet: create one above, or use a movie/TV/anime page's list
-          button to start one. A smart list fills itself from a filter, like
-          every anime you rated 9 or higher.
+          No collections yet: create one above, or use a movie/TV/anime page's
+          collection button to start one. A smart list fills itself from a
+          filter, like every anime you rated 9 or higher.
         </p>
         <p v-else-if="sortBy === 'custom' && filtering" class="ui-state">
           Clear the search and filters to move lists around.
@@ -366,30 +327,6 @@ async function deleteList(id: string) {
   </main>
 </template>
 
-<style scoped>
-.header-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
-}
-/* as many 150px+ columns as fit, so cards stay one size at any window width */
-.grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: 20px 16px;
-}
-.grid :deep(.collection-card-wrap) {
-  width: auto;
-  min-width: 0;
-}
-.search-input {
-  width: 220px;
-}
-.filter-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px 14px;
-  margin-bottom: 20px;
-}
-</style>
+<style scoped src="../styles/shared/listIndex.css"></style>
+
+<style scoped></style>

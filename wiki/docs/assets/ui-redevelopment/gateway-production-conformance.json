@@ -1,0 +1,71 @@
+{
+  "host_source_head": "dd457b9d9ec7abc7e1b22655c3962b0a78616b23",
+  "phases": [
+    {
+      "phase": "missing",
+      "gateway_configured": false,
+      "configuration_source": "missing",
+      "checks": [
+        {
+          "plugin_id": "official.jellyfin-media-sync",
+          "action_id": "get-config",
+          "http_status": 503
+        },
+        {
+          "plugin_id": "example.self-service-session-manager",
+          "action_id": "list-sessions",
+          "http_status": 503
+        },
+        {
+          "plugin_id": "official.collectors-archive",
+          "action_id": "migration-status",
+          "http_status": 503
+        }
+      ]
+    },
+    {
+      "phase": "repaired",
+      "gateway_configured": true,
+      "configuration_source": "host",
+      "checks": [
+        {
+          "plugin_id": "official.jellyfin-media-sync",
+          "action_id": "get-config",
+          "http_status": 200
+        },
+        {
+          "plugin_id": "example.self-service-session-manager",
+          "action_id": "list-sessions",
+          "http_status": 200
+        },
+        {
+          "plugin_id": "official.collectors-archive",
+          "action_id": "migration-status",
+          "http_status": 200
+        }
+      ]
+    },
+    {
+      "phase": "runtime-restart",
+      "gateway_configured": true,
+      "configuration_source": "host",
+      "checks": [
+        {
+          "plugin_id": "official.jellyfin-media-sync",
+          "action_id": "get-config",
+          "http_status": 200
+        },
+        {
+          "plugin_id": "example.self-service-session-manager",
+          "action_id": "list-sessions",
+          "http_status": 200
+        },
+        {
+          "plugin_id": "official.collectors-archive",
+          "action_id": "migration-status",
+          "http_status": 200
+        }
+      ]
+    }
+  ]
+}

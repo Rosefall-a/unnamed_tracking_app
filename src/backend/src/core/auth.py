@@ -1,4 +1,3 @@
-# pylint: disable=missing-module-docstring,missing-function-docstring
 from __future__ import annotations
 
 import hashlib
@@ -7,8 +6,8 @@ import secrets
 import time
 from typing import Final
 
-from fastapi import Cookie, Depends, Header, HTTPException, status
-from sqlalchemy import delete, select
+from fastapi import Depends, HTTPException, Request, status
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.config import settings
@@ -22,20 +21,42 @@ _SCRYPT_N: Final = 2**14
 _SCRYPT_R: Final = 8
 _SCRYPT_P: Final = 1
 _DB_DEPENDENCY = Depends(get_db)
-SESSION_COOKIE: Final = "session"
+SESSION_COOKIE_PREFIX: Final = "session_"
 SESSION_TTL_SECONDS: Final = 30 * 24 * 60 * 60
 API_KEY_PREFIX: Final = "utk_"
 
+_password_policy_override: dict[str, int | bool] | None = None
+
+
+def password_policy() -> dict[str, int | bool]:
+    if _password_policy_override is not None:
+        return dict(_password_policy_override)
+    return {
+        "min_length": settings.PASSWORD_MIN_LENGTH,
+        "require_uppercase": settings.PASSWORD_REQUIRE_UPPERCASE,
+        "require_lowercase": settings.PASSWORD_REQUIRE_LOWERCASE,
+        "require_digit": settings.PASSWORD_REQUIRE_DIGIT,
+        "require_symbol": settings.PASSWORD_REQUIRE_SYMBOL,
+    }
+
+
+def set_password_policy_override(policy: dict[str, int | bool] | None) -> None:
+    global _password_policy_override
+    _password_policy_override = dict(policy) if policy is not None else None
+
 
 def validate_password(password: str) -> str:
-    """Validate the minimum password policy and return the original value."""
-    if len(password) < 9:
-        raise ValueError("Password must be at least 9 characters long.")
-    if not re.search(r"[A-Z]", password):
+    """Validate the configured password policy and return the original value."""
+    policy = password_policy()
+    if len(password) < policy["min_length"]:
+        raise ValueError(f"Password must be at least {policy['min_length']} characters long.")
+    if policy["require_uppercase"] and not re.search(r"[A-Z]", password):
         raise ValueError("Password must contain an uppercase letter.")
-    if not re.search(r"[a-z]", password):
+    if policy["require_lowercase"] and not re.search(r"[a-z]", password):
         raise ValueError("Password must contain a lowercase letter.")
-    if not re.search(r"[^A-Za-z0-9]", password):
+    if policy["require_digit"] and not re.search(r"\d", password):
+        raise ValueError("Password must contain a number.")
+    if policy["require_symbol"] and not re.search(r"[^A-Za-z0-9]", password):
         raise ValueError("Password must contain a symbol.")
     return password
 
@@ -82,45 +103,100 @@ def create_api_key() -> tuple[str, str, str]:
 
 
 async def revoke_session(db: AsyncSession, session_token: str) -> bool:
-    """Delete one opaque session using only the hash of its cookie value."""
+    """Revoke one browser session while preserving its audit metadata."""
     result = await db.execute(
-        delete(UserSession).where(UserSession.token_hash == hash_token(session_token))
+        update(UserSession)
+        .where(
+            UserSession.token_hash == hash_token(session_token), UserSession.revoked_at.is_(None)
+        )
+        .values(revoked_at=int(time.time()))
     )
     await db.commit()
     return bool(result.rowcount)
 
 
+def session_cookie_name(host: str) -> str:
+    """Return a stable cookie name scoped to one application host and port."""
+    normalized_host = host.strip().lower()
+    host_hash = hashlib.sha256(normalized_host.encode("utf-8")).hexdigest()[:16]
+    return f"{SESSION_COOKIE_PREFIX}{host_hash}"
+
+
+async def purge_expired_sessions(db: AsyncSession, now: int | None = None) -> int:
+    """Delete sessions past their expiry (#142/#150). Authentication already
+    ignores them, but nothing ever removed them, so the table only grew.
+    Never touches a session that is still valid."""
+    cutoff = int(time.time()) if now is None else now
+    result = await db.execute(delete(UserSession).where(UserSession.expires_at <= cutoff))
+    await db.commit()
+    return int(result.rowcount or 0)
+
+
 async def get_current_user(
+    request: Request,
     db: AsyncSession = _DB_DEPENDENCY,
-    authorization: str | None = Header(default=None),
-    session_token: str | None = Cookie(default=None, alias=SESSION_COOKIE),
 ) -> User:
     user: User | None = None
+    session_token = request.cookies.get(session_cookie_name(request.headers.get("host", "")))
+    authorization = request.headers.get("authorization")
     now = int(time.time())
 
-    if authorization and authorization.startswith("Bearer "):
-        api_key = authorization[7:].strip()
-        if api_key.startswith(API_KEY_PREFIX):
-            user = await db.scalar(
-                select(User)
-                .join(UserApiKey, UserApiKey.user_id == User.id)
-                .where(
-                    UserApiKey.key_hash == hash_token(api_key),
-                    UserApiKey.revoked_at.is_(None),
-                    User.is_active.is_(True),
-                )
+    if authorization:
+        if not authorization.startswith("Bearer "):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid authentication credentials.",
+                headers={"WWW-Authenticate": "Bearer"},
             )
-
-    if user is None and session_token:
+        api_key = authorization[7:].strip()
+        if api_key.startswith("utpm_"):
+            raise HTTPException(
+                status_code=403, detail="Plugin management tokens cannot access application APIs."
+            )
+        if not api_key.startswith(API_KEY_PREFIX):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid API key.",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        user = await db.scalar(
+            select(User)
+            .join(UserApiKey, UserApiKey.user_id == User.id)
+            .where(
+                UserApiKey.key_hash == hash_token(api_key),
+                UserApiKey.revoked_at.is_(None),
+                User.is_active.is_(True),
+            )
+        )
+        if user is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid or revoked API key.",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+    elif session_token:
         user = await db.scalar(
             select(User)
             .join(UserSession, UserSession.user_id == User.id)
             .where(
                 UserSession.token_hash == hash_token(session_token),
                 UserSession.expires_at > now,
+                UserSession.revoked_at.is_(None),
                 User.is_active.is_(True),
             )
         )
+
+        if user is not None:
+            await db.execute(
+                update(UserSession)
+                .where(
+                    UserSession.token_hash == hash_token(session_token),
+                    UserSession.revoked_at.is_(None),
+                    UserSession.last_seen_at <= now - 60,
+                )
+                .values(last_seen_at=now)
+            )
+            await db.commit()
 
     if user is None:
         raise HTTPException(
@@ -137,16 +213,19 @@ async def ensure_primary_user(db: AsyncSession) -> User:
     email = settings.PRIMARY_USER_EMAIL.strip().lower()
     if not username or not email or not settings.PRIMARY_USER_PASSWORD:
         raise RuntimeError("Primary user username, email, and password must be configured.")
-    try:
-        validate_password(settings.PRIMARY_USER_PASSWORD)
-    except ValueError as exc:
-        raise RuntimeError(f"Invalid primary user password: {exc}") from exc
 
     user = await db.scalar(select(User).where(User.username == username))
     if user is None:
         user = await db.scalar(select(User).where(User.email == email))
 
     if user is None:
+        # only a new account takes its password from the environment, so
+        # only then does the policy apply; checking it on every start made a
+        # later policy change crash startup for an account that already exists
+        try:
+            validate_password(settings.PRIMARY_USER_PASSWORD)
+        except ValueError as exc:
+            raise RuntimeError(f"Invalid primary user password: {exc}") from exc
         user = User(
             username=username,
             email=email,
@@ -168,7 +247,10 @@ async def ensure_primary_user(db: AsyncSession) -> User:
     return user
 
 
-async def get_current_admin(user: User = Depends(get_current_user)) -> User:
+_CURRENT_USER_DEPENDENCY = Depends(get_current_user)
+
+
+async def get_current_admin(user: User = _CURRENT_USER_DEPENDENCY) -> User:
     if not user.is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

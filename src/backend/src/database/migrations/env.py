@@ -15,9 +15,7 @@ from src.database.models import (
     anime,  # noqa: F401
     app_integration_settings,  # noqa: F401
     auth,  # noqa: F401
-    bounty,  # noqa: F401
     calendar_event,  # noqa: F401
-    card,  # noqa: F401
     game,  # noqa: F401
     game_archive,  # noqa: F401
     game_checklist_item,  # noqa: F401
@@ -29,25 +27,50 @@ from src.database.models import (
     job_setting,  # noqa: F401
     media_extras,  # noqa: F401
     media_item,  # noqa: F401
+    media_provider,  # noqa: F401
     movies,  # noqa: F401
     notification,  # noqa: F401
+    notification_delivery,  # noqa: F401
+    notification_provider_setting,  # noqa: F401
     oidc_provider,  # noqa: F401
     oidc_settings,  # noqa: F401
+    plugin_notification_provider,  # noqa: F401
+    plugin_permission_audit,  # noqa: F401
+    plugin_permissions,  # noqa: F401
     tv_show,  # noqa: F401
     user,  # noqa: F401
     user_appearance_settings,  # noqa: F401
     user_preferences,  # noqa: F401
     user_scan_settings,  # noqa: F401
 )
-from src.database.models import set as set_model  # noqa: F401
 
 config = context.config
-config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
+# Alembic's ConfigParser treats percent escapes as interpolation syntax. Escape
+# them in the stored option so SQLAlchemy receives the original encoded URL.
+config.set_main_option("sqlalchemy.url", settings.DATABASE_URL.replace("%", "%%"))
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 target_metadata = Base.metadata
+
+# Retired core records remain available to the public legacy export. Removing
+# their ORM models must not turn a future autogenerate into a destructive drop.
+_RETAINED_LIBRARY_TABLES = {
+    "cards",
+    "sets",
+    "bounties",
+    "bounty_objectives",
+    "bounty_evidence",
+    "bounty_journal_entries",
+    "bounty_point_transactions",
+}
+
+
+def include_object(object_, name, type_, reflected, compare_to):
+    return not (
+        type_ == "table" and reflected and compare_to is None and name in _RETAINED_LIBRARY_TABLES
+    )
 
 
 def run_migrations_offline() -> None:
@@ -56,6 +79,7 @@ def run_migrations_offline() -> None:
     context.configure(
         url=url,
         target_metadata=target_metadata,
+        include_object=include_object,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
     )
@@ -64,7 +88,9 @@ def run_migrations_offline() -> None:
 
 
 def do_run_migrations(connection) -> None:
-    context.configure(connection=connection, target_metadata=target_metadata)
+    context.configure(
+        connection=connection, target_metadata=target_metadata, include_object=include_object
+    )
     with context.begin_transaction():
         context.run_migrations()
 

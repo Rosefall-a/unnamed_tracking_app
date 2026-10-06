@@ -1,0 +1,77 @@
+"""Check the resolved Compose runtime flag and private gateway wiring."""
+
+from __future__ import annotations
+
+import json
+import os
+import re
+import subprocess
+import tempfile
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def main() -> None:
+    """Check defaults and explicit fallback without reading an operator's .env."""
+    environment = {key: value for key, value in os.environ.items() if key != "NONBUBBLE_ENV"}
+    with tempfile.TemporaryDirectory(prefix="uta-compose-check-") as directory:
+        env_file = Path(directory) / "compose.env"
+        for fallback in ("", "false", "true"):
+            env_file.write_text(
+                "POSTGRES_USER=test\nPOSTGRES_DB=test\nPOSTGRES_PASSWORD=compose-test-password\n"
+                "SECRET_KEY=compose-test-secret\nPRIMARY_USER_PASSWORD=Compose-test-password1!\n"
+                "PLUGIN_RUNTIME_TOKEN=compose-test-runtime-token-at-least-32-characters\n"
+                f"NONBUBBLE_ENV={fallback}\n",
+                encoding="utf-8",
+            )
+            for filename, gateway in (
+                ("compose.yaml", "http://backend:8000"),
+                ("example-docker-compose.yaml", "http://app"),
+                ("src/docker-container/compose.yaml", "http://app"),
+            ):
+                source = ROOT / filename
+                # Resolve service env_files from the same synthetic fixture. A
+                # clean CI checkout has no .env, and an operator's file must
+                # never be read by this configuration-only check.
+                document = re.sub(
+                    r"(?m)^(\s+- )\.env\s*$",
+                    lambda match: match[1] + json.dumps(str(env_file)),
+                    source.read_text(encoding="utf-8"),
+                )
+                result = subprocess.run(
+                    [
+                        "docker",
+                        "compose",
+                        "--env-file",
+                        str(env_file),
+                        "--project-directory",
+                        str(source.parent),
+                        "-f",
+                        "-",
+                        "config",
+                        "--no-env-resolution",
+                        "--format",
+                        "json",
+                    ],
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                    input=document,
+                    env=environment,
+                )
+                if result.returncode:
+                    raise RuntimeError(f"Compose check failed for {filename}: {result.stderr.strip()}")
+                service = json.loads(result.stdout)["services"]["plugin-runtime"]
+                resolved = service["environment"]
+                assert resolved.get("NONBUBBLE_ENV", "") == fallback, filename
+                assert resolved["PLUGIN_GATEWAY_URL"] == gateway, filename
+                assert service["read_only"] is True, filename
+                assert "ALL" in service["cap_drop"], filename
+    print(
+        "Nine Compose runtime configurations passed: explicit flag, gateway and container boundaries."
+    )
+
+
+if __name__ == "__main__":
+    main()

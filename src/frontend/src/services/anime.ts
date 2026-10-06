@@ -1,12 +1,16 @@
-import { failedRequest } from "./apiError";
-import type { PaginatedResponse } from "../types/pagination";
+import {
+  createMediaApi,
+  handle,
+  toNumberOrNull,
+  unixSecondsToIso,
+} from "./mediaApi";
+import type { TrashedMedia } from "./mediaApi";
 import type {
   Anime,
   AnimeEpisode,
   AnimeSeason,
   AnimeStatus,
 } from "../types/anime";
-
 
 // The exact shape FastAPI sends, snake_case, matching the Python model
 // field-for-field. Nothing outside this file should ever see raw backend
@@ -103,16 +107,6 @@ export const peekAllAnimes = (): Anime[] | null =>
 // every entity that passes through here is remembered for instant reopening
 function mapBackendAnime(raw: Parameters<typeof mapBackendAnimeRaw>[0]): Anime {
   return animeCache.put(mapBackendAnimeRaw(raw));
-}
-
-// Pydantic can serialize a Decimal as either a JSON number or a string
-// depending on config, handle both rather than assume one
-function toNumberOrNull(value: number | string | null): number | null {
-  return value === null ? null : Number(value);
-}
-
-function unixSecondsToIso(seconds: number): string {
-  return new Date(seconds * 1000).toISOString();
 }
 
 // backend sends "IN_PROGRESS", "WISHLIST", etc., frontend expects
@@ -213,59 +207,24 @@ export function mapBackendAnimeRaw(raw: BackendAnime): Anime {
   };
 }
 
-async function handle<T>(response: Response, action: string): Promise<T> {
-  if (!response.ok) {
-    console.warn(`Failed to ${action}: ${response.status}`);
-    throw await failedRequest(response);
-  }
-  return response.json();
-}
-
-export async function fetchAnimePage(
-  offset = 0,
-  limit = 100,
-  search = "",
-): Promise<{ items: Anime[]; total: number; offset: number; limit: number; statusCounts: Record<string, number> }> {
-  const params = new URLSearchParams({
-    skip: String(offset),
-    limit: String(limit),
-  });
-  if (search.trim()) params.set("search", search.trim());
-  const response = await fetch(`/api/anime/list?${params}`, {
-    credentials: "include",
-  });
-  const page = await handle<PaginatedResponse<BackendAnime>>(response, "fetch anime");
-  return {
-    items: page.items.map(mapBackendAnime),
-    total: page.total,
-    offset: page.offset,
-    limit: page.limit,
-    statusCounts: page.status_counts,
-  };
-}
-
-export async function fetchAnime(search = ""): Promise<Anime[]> {
-  const all: Anime[] = [];
-  let offset = 0;
-  const limit = 100;
-  while (true) {
-    const page = await fetchAnimePage(offset, limit, search);
-    all.push(...page.items);
-    if (all.length >= page.total || page.items.length === 0) break;
-    offset += page.items.length;
-  }
-  animeCache.markListLoaded();
-  return all;
-}
-
-export async function getAnime(id: string): Promise<Anime> {
-  const response = await fetch(`/api/anime/get/${id}`, {
-    credentials: "include",
-  });
-  const raw = await handle<BackendAnime>(response, `fetch anime ${id}`);
-  return mapBackendAnime(raw);
-}
-
+const api = createMediaApi<BackendAnime, Anime, AnimeInput>({
+  base: "/api/anime",
+  noun: "anime",
+  plural: "anime",
+  cache: animeCache,
+  map: mapBackendAnime,
+  toBody: inputToBody,
+});
+export const fetchAnimePage = api.fetchPage;
+export const fetchAnime = api.fetchAll;
+export const getAnime = api.get;
+export const createAnime = api.create;
+export const updateAnime = api.update;
+export const deleteAnime = api.remove;
+export type TrashedAnime = TrashedMedia;
+export const fetchAnimeTrash = api.fetchTrash;
+export const restoreAnime = api.restore;
+export const purgeAnime = api.purge;
 export interface SeasonInput {
   seasonNumber: number;
   name?: string | null;
@@ -408,77 +367,6 @@ function inputToBody(input: AnimeInput): Record<string, unknown> {
   if (input.status) body.status = denormalizeStatus(input.status);
   if (input.seasons) body.seasons = input.seasons.map(seasonInputToBody);
   return body;
-}
-
-export async function createAnime(input: AnimeInput): Promise<Anime> {
-  const response = await fetch("/api/anime/create", {
-    method: "POST",
-    credentials: "include",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(inputToBody(input)),
-  });
-  const raw = await handle<BackendAnime>(response, "create anime");
-  return mapBackendAnime(raw);
-}
-
-export async function updateAnime(
-  id: string,
-  input: AnimeInput,
-): Promise<Anime> {
-  const response = await fetch(`/api/anime/update/${id}`, {
-    method: "PATCH",
-    credentials: "include",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(inputToBody(input)),
-  });
-  const raw = await handle<BackendAnime>(response, `update anime ${id}`);
-  return mapBackendAnime(raw);
-}
-
-export async function deleteAnime(id: string): Promise<void> {
-  animeCache.remove(id);
-  const response = await fetch(`/api/anime/delete/${id}`, {
-    method: "DELETE",
-    credentials: "include",
-  });
-  if (!response.ok && response.status !== 204) {
-    throw new Error(`Failed to delete anime ${id}: ${response.status}`);
-  }
-}
-
-export interface TrashedAnime {
-  id: string;
-  title: string;
-  deleted_at: number;
-}
-
-export async function fetchAnimeTrash(): Promise<TrashedAnime[]> {
-  const response = await fetch("/api/anime/trash", { credentials: "include" });
-  if (!response.ok) {
-    throw new Error(`Failed to fetch deleted anime: ${response.status}`);
-  }
-  return await response.json();
-}
-
-export async function restoreAnime(id: string): Promise<Anime> {
-  const response = await fetch(`/api/anime/${id}/restore`, {
-    method: "POST",
-    credentials: "include",
-  });
-  if (!response.ok) {
-    throw new Error(`Failed to restore anime ${id}: ${response.status}`);
-  }
-  return mapBackendAnime(await response.json());
-}
-
-export async function purgeAnime(id: string): Promise<void> {
-  const response = await fetch(`/api/anime/${id}/purge`, {
-    method: "DELETE",
-    credentials: "include",
-  });
-  if (!response.ok && response.status !== 204) {
-    throw new Error(`Failed to purge anime ${id}: ${response.status}`);
-  }
 }
 
 export async function createSeason(

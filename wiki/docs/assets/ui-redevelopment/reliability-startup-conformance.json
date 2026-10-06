@@ -1,0 +1,26 @@
+{
+  "status": "ready-for-current-package-review",
+  "source_head": "688c1d66cc8bc7a67256e7b382c1a70faf02a350",
+  "images": {
+    "app": {
+      "tag": "uta-ui-production:688c1d66",
+      "id": "sha256:6f86bfd95deaa39d65f5057f5a5ee6c07dcf968ca9b45bd8f18a366b8f2ac5d4"
+    },
+    "runtime": {
+      "tag": "uta-plugin-runtime:688c1d66",
+      "id": "sha256:6be13e1b95757b568ab9bbfd4df3e0f4f16d0dc3600bbe5b742b2b19a7fef004"
+    }
+  },
+  "before_callback": {
+    "gateway_configured": false,
+    "provider_status": "running",
+    "provider_health": "healthy",
+    "provider_version": "1.2.1",
+    "provider_last_error": null
+  },
+  "passed": [
+    "Production startup, direct sign-in and JSON API errors pass",
+    "Server isolation approval and all persistent volumes are preserved",
+    "Runtime callback is accepted from the authenticated app; runtime URL and NONBUBBLE_ENV remain unset"
+  ]
+}

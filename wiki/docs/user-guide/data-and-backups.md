@@ -10,9 +10,9 @@ Automatic backups are per-user JSON snapshots containing games, movies, TV shows
 
 Up to **7** automatic backups are retained for each user:
 
-\`\`\`text
+```text
 /data/backups/<user-id>/
-\`\`\`
+```
 
 These are a rolling safety net, not a complete deployment backup.
 
@@ -20,9 +20,9 @@ These are a rolling safety net, not a complete deployment backup.
 
 The library export is a user-scoped JSON snapshot containing games, movies, TV shows and anime:
 
-\`\`\`http
+```http
 GET /api/export/library
-\`\`\`
+```
 
 ## Library import
 
@@ -35,7 +35,6 @@ It does **not** generically restore:
 - anime
 - screenshots or other folder assets
 - save archives
-- bounties
 
 Game folder-name collisions are given a new available folder name rather than overwriting an existing game.
 
@@ -45,11 +44,13 @@ Game assets and save archives are stored on disk under the owning user's directo
 
 A game's persistent directory is:
 
-\`\`\`text
+```text
 /data/users/<user-id>/games/<folder-location>/
-\`\`\`
+```
 
-Game assets use files such as \`key_art.png\`, \`banner.png\`, \`logo.png\`, and \`icon.png\`. Notes, screenshots and clips have their own directories.
+Game assets use files such as `key_art.png`, `banner.png`, `logo.png`, and `icon.png`. Notes, screenshots and clips have their own directories. Clip thumbnails are kept beside the clips.
+
+Notes are plain `.md` files. Their extra details (created date, pin, tags, the achievement they are tied to) and their saved versions are stored in PostgreSQL, so a note's history is part of the database, not the folder.
 
 
 ### Game note titles
@@ -64,7 +65,17 @@ Editing an existing note saves its current title normally. Renaming uses a dedic
 
 The Notes UI translates validation, conflict, loading, saving, deletion, and rename failures into user-facing messages rather than displaying raw backend status or JSON responses.
 
-Named save archives are stored under the game directory in \`saves/\` or \`world_saves/\`.
+Named save archives are stored under the game directory in `saves/` or `world_saves/`.
+
+## The image cache
+
+Smaller copies of artwork are kept in a cache folder for each user:
+
+```text
+/data/users/<user-id>/.cache/
+```
+
+`asset-previews/` holds resized copies of a game's banner and cover, and `media-images/` holds local copies of movie, TV and anime posters and backdrops. Everything in it can be rebuilt from the originals (or downloaded again), so it does not need to be backed up, and deleting it is safe. It is rebuilt as pictures are needed.
 
 ## Moving a deployment
 
@@ -73,4 +84,4 @@ A complete deployment therefore needs both:
 1. PostgreSQL data; and
 2. the persistent application data directory.
 
-A JSON library export does not reproduce all stored files, and copying only \`/data\` does not reproduce the PostgreSQL database.
+A JSON library export does not reproduce all stored files, and copying only `/data` does not reproduce the PostgreSQL database.

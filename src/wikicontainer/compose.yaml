@@ -1,0 +1,10 @@
+services:
+  wikicontainer:
+    build:
+      context: ../..
+      dockerfile: src/wikicontainer/Dockerfile
+    ports:
+      - "${WIKI_CONTAINER_PORT:-999}:8000"
+    volumes:
+      - ../../wiki:/wiki:ro
+    restart: unless-stopped

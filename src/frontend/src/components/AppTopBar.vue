@@ -1,24 +1,28 @@
 <script setup lang="ts">
 // The one sticky top bar every page in the Media area and the Calendar and
 // Statistics pages share: fixed minimum height, padding, border and the
-// profile chip live here once, so nothing shifts when you move between
+// account chip live here once, so nothing shifts when you move between
 // pages. Callers fill the left side (default slot) and, optionally, the
-// right-hand `actions` slot.
-import { currentUser } from "../state/auth";
+// right-hand `actions` slot. The chip is pinned to the bar's right edge and
+// the bar reserves room for it, so it stays put even when the left side
+// wraps onto more lines on a narrow window.
+import AccountChip from "./AccountChip.vue";
+import { effectiveSidebarMode, navigationViewport } from "../state/sidebarMode";
 </script>
 
 <template>
-  <div class="media-topbar">
+  <div
+    class="media-topbar"
+    :class="{
+      'with-menu-toggle':
+        effectiveSidebarMode === 'overlay' && navigationViewport !== 'phone',
+    }"
+  >
     <div class="topbar-left"><slot /></div>
     <div v-if="$slots.actions" class="media-topbar-actions">
       <slot name="actions" />
     </div>
-    <div v-if="currentUser" class="profile-chip">
-      <span class="profile-name">{{ currentUser.username }}</span>
-      <div class="profile-avatar">
-        {{ currentUser.username.slice(0, 2).toUpperCase() }}
-      </div>
-    </div>
+    <AccountChip />
   </div>
 </template>
 
@@ -26,17 +30,25 @@ import { currentUser } from "../state/auth";
 .media-topbar {
   position: sticky;
   top: 0;
-  z-index: 80;
+  z-index: var(--ui-z-topbar);
   display: flex;
   align-items: center;
   gap: 16px;
   box-sizing: border-box;
   min-height: 68px;
-  padding: 10px 16px 10px 64px;
-  background: rgba(13, 13, 13, 0.94);
+  padding: 12px var(--ui-edge-right) 12px var(--ui-edge-left);
+  background: color-mix(in srgb, var(--ui-bg) 94%, transparent);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
-  border-bottom: 1px solid #202020;
+  border-bottom: 1px solid var(--ui-border-soft);
+}
+.media-topbar :deep(.account-chip) {
+  position: static;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.media-topbar.with-menu-toggle {
+  padding-left: max(72px, var(--ui-edge-left));
 }
 .topbar-left {
   display: flex;
@@ -54,48 +66,56 @@ import { currentUser } from "../state/auth";
   min-width: 0;
   gap: 10px;
 }
-/* With no actions slot the chip still needs to sit at the far right */
-.profile-chip {
-  margin-left: auto;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  background: rgba(20, 20, 20, 0.55);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 999px;
-  padding: 6px 6px 6px 16px;
-}
-.media-topbar-actions + .profile-chip {
-  margin-left: 0;
-}
-.profile-avatar {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: #d68a34;
-  color: #111;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  font-weight: 700;
-}
-.profile-name {
-  color: #fff;
-  font-size: 13px;
-  font-weight: 600;
-}
 @media (max-width: 720px) {
   .media-topbar {
-    padding-left: 60px;
-    flex-wrap: wrap;
+    padding-left: var(--ui-edge-left);
   }
-  .profile-name {
+}
+@media (max-width: 760px) {
+  .media-topbar {
+    padding-right: var(--ui-edge-right);
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+    padding-block: 8px;
+  }
+  .media-topbar :deep(.account-chip) {
     display: none;
   }
-  .profile-chip {
-    padding-left: 6px;
+  .topbar-left {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .topbar-left :deep(.seg-tab) {
+    padding-inline: 7px;
+    font-size: 0.75rem;
+  }
+  .media-topbar :deep(.seg) {
+    max-width: 100%;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+  }
+  .media-topbar-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+    margin-left: 0;
+    gap: 6px;
+  }
+  .media-topbar-actions :deep(.seg-tab) {
+    flex: 1;
+    min-width: 0;
+    padding-inline: 6px;
+    font-size: 0.75rem;
+  }
+  .media-topbar-actions :deep(.seg) {
+    flex: 1;
+    min-width: 0;
+  }
+  .media-topbar-actions :deep(.seg:not(:only-child):last-child) {
+    flex: 0 0 auto;
+  }
+  .media-topbar-actions :deep(.seg-tab svg) {
+    display: none;
   }
 }
 </style>

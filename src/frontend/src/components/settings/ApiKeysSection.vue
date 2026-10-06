@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
+import PasswordInput from "../PasswordInput.vue";
 import {
   createApiKey,
   fetchApiKeys,
@@ -13,6 +14,7 @@ const isLoading = ref(true);
 const isCreating = ref(false);
 const error = ref("");
 const createdKey = ref("");
+const copyStatus = ref<"idle" | "copied" | "failed">("idle");
 
 async function loadKeys() {
   isLoading.value = true;
@@ -34,6 +36,7 @@ async function handleCreate() {
   isCreating.value = true;
   error.value = "";
   createdKey.value = "";
+  copyStatus.value = "idle";
   try {
     const result = await createApiKey(keyName);
     createdKey.value = result.api_key;
@@ -55,12 +58,34 @@ async function handleRevoke(key: ApiKeySummary) {
   }
 
   error.value = "";
+  const previousKeys = keys.value;
+  // Remove it immediately so a successful revoke cannot leave a stale active
+  // key visible while the server refresh completes.
+  keys.value = previousKeys.filter((candidate) => candidate.id !== key.id);
+
   try {
     await revokeApiKey(key.id);
-    keys.value = keys.value.filter((item) => item.id !== key.id);
+    // Refresh from the server so the UI reflects the persisted revocation.
+    // The backend only returns non-revoked keys, so a revoked key stays gone.
+    await loadKeys();
   } catch (err) {
+    keys.value = previousKeys;
     error.value =
       err instanceof Error ? err.message : "Failed to revoke API key.";
+  }
+}
+
+async function copyCreatedKey() {
+  if (!createdKey.value) return;
+  copyStatus.value = "idle";
+  try {
+    if (!navigator.clipboard?.writeText) {
+      throw new Error("Clipboard access is unavailable.");
+    }
+    await navigator.clipboard.writeText(createdKey.value);
+    copyStatus.value = "copied";
+  } catch {
+    copyStatus.value = "failed";
   }
 }
 
@@ -104,8 +129,30 @@ onMounted(loadKeys);
     <div v-if="createdKey" class="created-key">
       <strong>API key created</strong>
       <p>Copy this key now. It will not be shown again.</p>
-      <code>{{ createdKey }}</code>
-      <button type="button" class="secondary" @click="createdKey = ''">
+      <PasswordInput
+        v-model="createdKey"
+        mode="replace"
+        readonly
+        autocomplete="off"
+        input-aria-label="Generated API key"
+      />
+      <button type="button" class="primary-copy" @click="copyCreatedKey">
+        {{
+          copyStatus === "copied"
+            ? "Copied"
+            : copyStatus === "failed"
+              ? "Failed"
+              : "Copy key"
+        }}
+      </button>
+      <button
+        type="button"
+        class="secondary"
+        @click="
+          createdKey = '';
+          copyStatus = 'idle';
+        "
+      >
         Done
       </button>
     </div>
@@ -138,7 +185,7 @@ onMounted(loadKeys);
 
 <style scoped>
 .section {
-  color: #fff;
+  color: var(--ui-text);
 }
 
 .section-header {
@@ -146,8 +193,10 @@ onMounted(loadKeys);
 }
 
 h2 {
-  margin: 0 0 8px;
-  font-size: 1.35rem;
+  margin: 0 0 12px;
+  font: var(--ui-weight-heading) var(--ui-font-heading)/1.4
+    var(--ui-font-family);
+  color: var(--ui-text);
 }
 
 h3 {
@@ -157,17 +206,17 @@ h3 {
 
 p {
   margin: 0;
-  color: rgba(255, 255, 255, 0.68);
+  color: color-mix(in srgb, var(--ui-text) 68%, transparent);
   line-height: 1.5;
 }
 
 .notice {
   margin-bottom: 24px;
   padding: 12px 14px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.035);
-  color: rgba(255, 255, 255, 0.75);
+  border: 1px solid color-mix(in srgb, var(--ui-text) 10%, transparent);
+  border-radius: var(--ui-radius-control);
+  background: color-mix(in srgb, var(--ui-text) 3.5%, transparent);
+  color: color-mix(in srgb, var(--ui-text) 75%, transparent);
   font-size: 0.9rem;
 }
 
@@ -191,24 +240,24 @@ input {
   flex: 1;
   min-width: 0;
   padding: 10px 12px;
-  border: 1px solid #383838;
+  border: 1px solid var(--ui-border);
   border-radius: 7px;
-  background: #111;
-  color: #fff;
+  background: var(--ui-bg);
+  color: var(--ui-text);
   font: inherit;
 }
 
 input:focus {
   outline: none;
-  border-color: #666;
+  border-color: var(--ui-accent);
 }
 
 button {
   padding: 10px 14px;
   border: 0;
   border-radius: 7px;
-  background: #fff;
-  color: #111;
+  background: var(--ui-accent);
+  color: var(--ui-on-accent);
   font: inherit;
   font-weight: 600;
   cursor: pointer;
@@ -219,24 +268,33 @@ button:disabled {
   cursor: not-allowed;
 }
 
+.primary-copy {
+  margin-top: 12px;
+  margin-right: 8px;
+}
+
 .secondary {
   margin-top: 12px;
-  background: rgba(255, 255, 255, 0.1);
-  color: #fff;
+  background: color-mix(in srgb, var(--ui-text) 10%, transparent);
+  color: var(--ui-text);
 }
 
 .danger {
   border: 1px solid rgba(255, 143, 143, 0.25);
   background: transparent;
-  color: #ff8f8f;
+  color: var(--ui-error);
 }
 
 .created-key {
   margin-bottom: 32px;
   padding: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px solid color-mix(in srgb, var(--ui-text) 14%, transparent);
   border-radius: 9px;
-  background: rgba(255, 255, 255, 0.04);
+  background: color-mix(in srgb, var(--ui-text) 4%, transparent);
+}
+
+.created-key :deep(.password-input-field) {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 .created-key strong {
@@ -253,8 +311,8 @@ code {
   overflow-x: auto;
   padding: 12px;
   border-radius: 6px;
-  background: #0d0d0d;
-  color: #fff;
+  background: var(--ui-bg);
+  color: var(--ui-text);
   font:
     0.85rem/1.5 ui-monospace,
     SFMono-Regular,
@@ -277,7 +335,7 @@ code {
 }
 
 .key-list {
-  border-top: 1px solid #2a2a2a;
+  border-top: 1px solid var(--ui-border);
 }
 
 .key-row {
@@ -286,7 +344,7 @@ code {
   justify-content: space-between;
   gap: 16px;
   padding: 14px 0;
-  border-bottom: 1px solid #2a2a2a;
+  border-bottom: 1px solid var(--ui-border);
 }
 
 .key-row strong,
@@ -296,7 +354,7 @@ code {
 
 .key-row span {
   margin-top: 4px;
-  color: rgba(255, 255, 255, 0.5);
+  color: color-mix(in srgb, var(--ui-text) 50%, transparent);
   font-size: 0.82rem;
 }
 

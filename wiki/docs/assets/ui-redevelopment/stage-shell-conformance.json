@@ -1,0 +1,1176 @@
+{
+  "backend": "real",
+  "passed": [
+    "192 real Settings screen/theme/width/role cases",
+    "Uniform Settings titles",
+    "Phone modal focus, Escape and focus restoration",
+    "Zero phone sidebar offset",
+    "Member administration UI hidden and API denied",
+    "Persisted appearance and reduced motion",
+    "No JavaScript errors or page overflow"
+  ],
+  "screens": [
+    {
+      "role": "admin",
+      "theme": "light",
+      "width": 320,
+      "screen": "/settings"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "width": 320,
+      "screen": "/settings?area=account"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "width": 320,
+      "screen": "/settings?section=appearance"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "width": 320,
+      "screen": "/settings?section=profile"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "width": 320,
+      "screen": "/settings?section=interface"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "width": 320,
+      "screen": "/settings?section=admin"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "width": 390,
+      "screen": "/settings"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "width": 390,
+      "screen": "/settings?area=account"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "width": 390,
+      "screen": "/settings?section=appearance"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "width": 390,
+      "screen": "/settings?section=profile"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "width": 390,
+      "screen": "/settings?section=interface"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "width": 390,
+      "screen": "/settings?section=admin"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "width": 430,
+      "screen": "/settings"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "width": 430,
+      "screen": "/settings?area=account"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "width": 430,
+      "screen": "/settings?section=appearance"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "width": 430,
+      "screen": "/settings?section=profile"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "width": 430,
+      "screen": "/settings?section=interface"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "width": 430,
+      "screen": "/settings?section=admin"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "width": 768,
+      "screen": "/settings"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "width": 768,
+      "screen": "/settings?area=account"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "width": 768,
+      "screen": "/settings?section=appearance"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "width": 768,
+      "screen": "/settings?section=profile"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "width": 768,
+      "screen": "/settings?section=interface"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "width": 768,
+      "screen": "/settings?section=admin"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "width": 1024,
+      "screen": "/settings"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "width": 1024,
+      "screen": "/settings?area=account"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "width": 1024,
+      "screen": "/settings?section=appearance"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "width": 1024,
+      "screen": "/settings?section=profile"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "width": 1024,
+      "screen": "/settings?section=interface"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "width": 1024,
+      "screen": "/settings?section=admin"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "width": 1440,
+      "screen": "/settings"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "width": 1440,
+      "screen": "/settings?area=account"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "width": 1440,
+      "screen": "/settings?section=appearance"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "width": 1440,
+      "screen": "/settings?section=profile"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "width": 1440,
+      "screen": "/settings?section=interface"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "width": 1440,
+      "screen": "/settings?section=admin"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "width": 1920,
+      "screen": "/settings"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "width": 1920,
+      "screen": "/settings?area=account"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "width": 1920,
+      "screen": "/settings?section=appearance"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "width": 1920,
+      "screen": "/settings?section=profile"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "width": 1920,
+      "screen": "/settings?section=interface"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "width": 1920,
+      "screen": "/settings?section=admin"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "width": 2560,
+      "screen": "/settings"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "width": 2560,
+      "screen": "/settings?area=account"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "width": 2560,
+      "screen": "/settings?section=appearance"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "width": 2560,
+      "screen": "/settings?section=profile"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "width": 2560,
+      "screen": "/settings?section=interface"
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "width": 2560,
+      "screen": "/settings?section=admin"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "width": 320,
+      "screen": "/settings"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "width": 320,
+      "screen": "/settings?area=account"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "width": 320,
+      "screen": "/settings?section=appearance"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "width": 320,
+      "screen": "/settings?section=profile"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "width": 320,
+      "screen": "/settings?section=interface"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "width": 320,
+      "screen": "/settings?section=admin"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "width": 390,
+      "screen": "/settings"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "width": 390,
+      "screen": "/settings?area=account"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "width": 390,
+      "screen": "/settings?section=appearance"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "width": 390,
+      "screen": "/settings?section=profile"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "width": 390,
+      "screen": "/settings?section=interface"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "width": 390,
+      "screen": "/settings?section=admin"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "width": 430,
+      "screen": "/settings"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "width": 430,
+      "screen": "/settings?area=account"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "width": 430,
+      "screen": "/settings?section=appearance"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "width": 430,
+      "screen": "/settings?section=profile"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "width": 430,
+      "screen": "/settings?section=interface"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "width": 430,
+      "screen": "/settings?section=admin"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "width": 768,
+      "screen": "/settings"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "width": 768,
+      "screen": "/settings?area=account"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "width": 768,
+      "screen": "/settings?section=appearance"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "width": 768,
+      "screen": "/settings?section=profile"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "width": 768,
+      "screen": "/settings?section=interface"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "width": 768,
+      "screen": "/settings?section=admin"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "width": 1024,
+      "screen": "/settings"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "width": 1024,
+      "screen": "/settings?area=account"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "width": 1024,
+      "screen": "/settings?section=appearance"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "width": 1024,
+      "screen": "/settings?section=profile"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "width": 1024,
+      "screen": "/settings?section=interface"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "width": 1024,
+      "screen": "/settings?section=admin"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "width": 1440,
+      "screen": "/settings"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "width": 1440,
+      "screen": "/settings?area=account"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "width": 1440,
+      "screen": "/settings?section=appearance"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "width": 1440,
+      "screen": "/settings?section=profile"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "width": 1440,
+      "screen": "/settings?section=interface"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "width": 1440,
+      "screen": "/settings?section=admin"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "width": 1920,
+      "screen": "/settings"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "width": 1920,
+      "screen": "/settings?area=account"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "width": 1920,
+      "screen": "/settings?section=appearance"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "width": 1920,
+      "screen": "/settings?section=profile"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "width": 1920,
+      "screen": "/settings?section=interface"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "width": 1920,
+      "screen": "/settings?section=admin"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "width": 2560,
+      "screen": "/settings"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "width": 2560,
+      "screen": "/settings?area=account"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "width": 2560,
+      "screen": "/settings?section=appearance"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "width": 2560,
+      "screen": "/settings?section=profile"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "width": 2560,
+      "screen": "/settings?section=interface"
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "width": 2560,
+      "screen": "/settings?section=admin"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "width": 320,
+      "screen": "/settings"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "width": 320,
+      "screen": "/settings?area=account"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "width": 320,
+      "screen": "/settings?section=appearance"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "width": 320,
+      "screen": "/settings?section=profile"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "width": 320,
+      "screen": "/settings?section=interface"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "width": 320,
+      "screen": "/settings?section=admin"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "width": 390,
+      "screen": "/settings"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "width": 390,
+      "screen": "/settings?area=account"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "width": 390,
+      "screen": "/settings?section=appearance"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "width": 390,
+      "screen": "/settings?section=profile"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "width": 390,
+      "screen": "/settings?section=interface"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "width": 390,
+      "screen": "/settings?section=admin"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "width": 430,
+      "screen": "/settings"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "width": 430,
+      "screen": "/settings?area=account"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "width": 430,
+      "screen": "/settings?section=appearance"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "width": 430,
+      "screen": "/settings?section=profile"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "width": 430,
+      "screen": "/settings?section=interface"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "width": 430,
+      "screen": "/settings?section=admin"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "width": 768,
+      "screen": "/settings"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "width": 768,
+      "screen": "/settings?area=account"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "width": 768,
+      "screen": "/settings?section=appearance"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "width": 768,
+      "screen": "/settings?section=profile"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "width": 768,
+      "screen": "/settings?section=interface"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "width": 768,
+      "screen": "/settings?section=admin"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "width": 1024,
+      "screen": "/settings"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "width": 1024,
+      "screen": "/settings?area=account"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "width": 1024,
+      "screen": "/settings?section=appearance"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "width": 1024,
+      "screen": "/settings?section=profile"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "width": 1024,
+      "screen": "/settings?section=interface"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "width": 1024,
+      "screen": "/settings?section=admin"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "width": 1440,
+      "screen": "/settings"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "width": 1440,
+      "screen": "/settings?area=account"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "width": 1440,
+      "screen": "/settings?section=appearance"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "width": 1440,
+      "screen": "/settings?section=profile"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "width": 1440,
+      "screen": "/settings?section=interface"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "width": 1440,
+      "screen": "/settings?section=admin"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "width": 1920,
+      "screen": "/settings"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "width": 1920,
+      "screen": "/settings?area=account"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "width": 1920,
+      "screen": "/settings?section=appearance"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "width": 1920,
+      "screen": "/settings?section=profile"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "width": 1920,
+      "screen": "/settings?section=interface"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "width": 1920,
+      "screen": "/settings?section=admin"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "width": 2560,
+      "screen": "/settings"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "width": 2560,
+      "screen": "/settings?area=account"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "width": 2560,
+      "screen": "/settings?section=appearance"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "width": 2560,
+      "screen": "/settings?section=profile"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "width": 2560,
+      "screen": "/settings?section=interface"
+    },
+    {
+      "role": "member",
+      "theme": "light",
+      "width": 2560,
+      "screen": "/settings?section=admin"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "width": 320,
+      "screen": "/settings"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "width": 320,
+      "screen": "/settings?area=account"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "width": 320,
+      "screen": "/settings?section=appearance"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "width": 320,
+      "screen": "/settings?section=profile"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "width": 320,
+      "screen": "/settings?section=interface"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "width": 320,
+      "screen": "/settings?section=admin"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "width": 390,
+      "screen": "/settings"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "width": 390,
+      "screen": "/settings?area=account"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "width": 390,
+      "screen": "/settings?section=appearance"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "width": 390,
+      "screen": "/settings?section=profile"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "width": 390,
+      "screen": "/settings?section=interface"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "width": 390,
+      "screen": "/settings?section=admin"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "width": 430,
+      "screen": "/settings"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "width": 430,
+      "screen": "/settings?area=account"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "width": 430,
+      "screen": "/settings?section=appearance"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "width": 430,
+      "screen": "/settings?section=profile"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "width": 430,
+      "screen": "/settings?section=interface"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "width": 430,
+      "screen": "/settings?section=admin"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "width": 768,
+      "screen": "/settings"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "width": 768,
+      "screen": "/settings?area=account"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "width": 768,
+      "screen": "/settings?section=appearance"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "width": 768,
+      "screen": "/settings?section=profile"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "width": 768,
+      "screen": "/settings?section=interface"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "width": 768,
+      "screen": "/settings?section=admin"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "width": 1024,
+      "screen": "/settings"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "width": 1024,
+      "screen": "/settings?area=account"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "width": 1024,
+      "screen": "/settings?section=appearance"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "width": 1024,
+      "screen": "/settings?section=profile"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "width": 1024,
+      "screen": "/settings?section=interface"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "width": 1024,
+      "screen": "/settings?section=admin"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "width": 1440,
+      "screen": "/settings"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "width": 1440,
+      "screen": "/settings?area=account"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "width": 1440,
+      "screen": "/settings?section=appearance"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "width": 1440,
+      "screen": "/settings?section=profile"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "width": 1440,
+      "screen": "/settings?section=interface"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "width": 1440,
+      "screen": "/settings?section=admin"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "width": 1920,
+      "screen": "/settings"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "width": 1920,
+      "screen": "/settings?area=account"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "width": 1920,
+      "screen": "/settings?section=appearance"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "width": 1920,
+      "screen": "/settings?section=profile"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "width": 1920,
+      "screen": "/settings?section=interface"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "width": 1920,
+      "screen": "/settings?section=admin"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "width": 2560,
+      "screen": "/settings"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "width": 2560,
+      "screen": "/settings?area=account"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "width": 2560,
+      "screen": "/settings?section=appearance"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "width": 2560,
+      "screen": "/settings?section=profile"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "width": 2560,
+      "screen": "/settings?section=interface"
+    },
+    {
+      "role": "member",
+      "theme": "dark",
+      "width": 2560,
+      "screen": "/settings?section=admin"
+    }
+  ],
+  "widths": [
+    320,
+    390,
+    430,
+    768,
+    1024,
+    1440,
+    1920,
+    2560
+  ]
+}

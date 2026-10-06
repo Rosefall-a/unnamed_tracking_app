@@ -5,7 +5,8 @@ import time
 from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
-from sqlalchemy import BigInteger, ForeignKey, String
+from sqlalchemy import BigInteger, ForeignKey, String, Text
+from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -38,6 +39,9 @@ class GameArchive(Base):
     )
     kind: Mapped[str] = mapped_column(String(20), nullable=False)
     name: Mapped[str] = mapped_column(String(200), nullable=False)
+    # what the user wrote about it and how they sorted it, the same as a doc
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    tags: Mapped[list[str]] = mapped_column(ARRAY(String), nullable=False, default=list)
     created_at: Mapped[int] = mapped_column(BigInteger, nullable=False, default=time.time)
     updated_at: Mapped[int] = mapped_column(
         BigInteger, nullable=False, default=time.time, onupdate=time.time

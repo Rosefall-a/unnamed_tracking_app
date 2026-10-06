@@ -1,6 +1,6 @@
-# pylint: disable=missing-module-docstring,missing-function-docstring
 from __future__ import annotations
 
+import asyncio
 from io import BytesIO
 from pathlib import Path
 from typing import Literal
@@ -11,6 +11,7 @@ from sqlalchemy import select
 
 from src.database.models.game import Game
 from src.database.session import SessionLocal
+from src.helpers.asset_previews import make_standard_previews
 
 DATA_ROOT = Path("/data/users")
 
@@ -98,4 +99,6 @@ async def save_game_asset(
 
     output_path = output_dir / ASSET_FILENAMES[asset_kind]
     resized.save(output_path, format="PNG")
+    # the smaller copies the pages show, made now so no first visit waits for them
+    await asyncio.to_thread(make_standard_previews, output_path, asset_kind, str(game_id))
     return output_path

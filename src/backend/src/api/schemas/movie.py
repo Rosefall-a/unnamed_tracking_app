@@ -9,6 +9,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 
 from src.database.models.movies import MovieStatus
+from src.api.schemas.provider_identity import ProviderIDs
 
 # pylint: disable=duplicate-code
 
@@ -31,6 +32,7 @@ class MovieBase(BaseModel):
     age_rating: str | None = Field(default=None, max_length=20)
     tmdb_score: Decimal | None = Field(default=None, ge=0, le=10)
     source: str | None = Field(default=None, max_length=50)
+    provider_ids: ProviderIDs = Field(default_factory=dict)
     poster_url: str | None = None
     backdrop_url: str | None = None
 
@@ -38,6 +40,9 @@ class MovieBase(BaseModel):
     priority: str | None = Field(default=None, max_length=20)
     favorite: bool = False
     rewatches: int = Field(default=0, ge=0)
+    progress_minutes: int | None = Field(
+        default=None, ge=0, description="Minutes into the movie where you left off."
+    )
     note: str | None = None
     start_date: date | None = None
     end_date: date | None = None
@@ -58,6 +63,8 @@ class MovieCreate(MovieBase):
 
 class MovieUpdate(BaseModel):
     """Payload for partial updates — every field optional."""
+
+    provider_ids: ProviderIDs = Field(default_factory=dict)
 
     title: str | None = Field(default=None, min_length=1, max_length=500)
     sort_title: str | None = Field(default=None, max_length=500)
@@ -82,6 +89,9 @@ class MovieUpdate(BaseModel):
     priority: str | None = Field(default=None, max_length=20)
     favorite: bool | None = None
     rewatches: int | None = Field(default=None, ge=0)
+    progress_minutes: int | None = Field(
+        default=None, ge=0, description="Minutes into the movie where you left off."
+    )
     note: str | None = None
     start_date: date | None = None
     end_date: date | None = None

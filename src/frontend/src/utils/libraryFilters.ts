@@ -24,6 +24,7 @@ export interface LibraryFilters {
   minScore: number | null;
   yearFrom: string;
   yearTo: string;
+  statusBucket?: string;
 }
 
 export function matchesFilters(it: Filterable, f: LibraryFilters): boolean {

@@ -42,7 +42,7 @@ const max = computed(() => Math.max(1, ...props.rows.map((r) => r.value)));
   font-size: 0.8rem;
 }
 .bar-name {
-  color: #ddd;
+  color: var(--ui-text);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -50,7 +50,7 @@ const max = computed(() => Math.max(1, ...props.rows.map((r) => r.value)));
 .bar-track {
   height: 9px;
   border-radius: 999px;
-  background: #222;
+  background: var(--ui-surface-2);
   overflow: hidden;
 }
 .bar-fill {
@@ -58,17 +58,17 @@ const max = computed(() => Math.max(1, ...props.rows.map((r) => r.value)));
   height: 100%;
   border-radius: 999px;
   min-width: 3px;
-  background: linear-gradient(90deg, #d68a34, #e8a552);
+  background: linear-gradient(90deg, var(--ui-accent-text), var(--ui-accent));
 }
 .bar-value {
-  color: #9c9c9c;
+  color: var(--ui-dim);
   font-variant-numeric: tabular-nums;
   min-width: 2ch;
   text-align: right;
 }
 .bar-empty {
   margin: 0;
-  color: #666;
+  color: var(--ui-faint);
   font-size: 0.82rem;
 }
 </style>

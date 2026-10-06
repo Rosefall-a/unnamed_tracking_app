@@ -82,3 +82,25 @@ Keep pull requests focused on one change where practical.
 For bug fixes, include the related GitHub issue reference in the pull request so the issue can be automatically closed when the PR is merged.
 
 Document user-facing behavior changes in the wiki when they affect setup, configuration, deployment, or normal application usage.
+
+## Frontend checks
+
+The frontend CI runs, from `src/frontend`:
+
+- `npm run format` (Prettier; CI also runs `format:fix` and commits the result);
+- `npm run lint`;
+- `npm run typecheck` (vue-tsc; the production build runs the same check, so a type error also breaks the Docker image);
+- `npm run test`.
+
+## File size limits
+
+Source files are kept small enough to read:
+
+- Python modules (outside migrations) must be 1,000 lines or fewer. A module that opts out with `# pylint: disable=too-many-lines` is skipped.
+- Frontend files are limited to 2,000 lines by ESLint (`max-lines`). A short list of files that were already larger when the rule was added is exempted in `eslint.config.js`. Split those up and remove them from the list, rather than adding to it.
+
+If a file is near its limit, move cohesive pieces into their own modules or components.
+
+## Shell scripts and line endings
+
+Shell scripts under `src/docker-container/` must use LF line endings. A Windows checkout with `core.autocrlf` turns them into CRLF, which breaks them inside the Linux image (`exec ./entrypoint.sh: no such file or directory`). CI checks out with LF, but build the image from LF copies if you build it by hand on Windows.

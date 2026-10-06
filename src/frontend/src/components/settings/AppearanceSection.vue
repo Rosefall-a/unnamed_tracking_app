@@ -12,6 +12,23 @@ import type {
   BadgePlacement,
 } from "../../services/appearanceSettings";
 import { loadAppearanceSettings } from "../../state/appearance";
+import UiAppearanceSection from "./UiAppearanceSection.vue";
+import InterfaceSection from "./InterfaceSection.vue";
+import CompletionBadge from "../CompletionBadge.vue";
+
+const previewTitles = [
+  "Inventory Full Again",
+  "Side Quest: Laundry",
+  "Oops, All Side Quests",
+  "The Final Final Boss",
+  "Save Point Simulator",
+  "One More Turn, Honest",
+  "Loot Goblin Academy",
+  "Achievement: Went Outside",
+];
+const previewTitle =
+  previewTitles[Math.floor(Math.random() * previewTitles.length)]!;
+const previewCoverUrl = `/api/game/preview-cover?title=${encodeURIComponent(previewTitle)}`;
 
 const loading = ref(true);
 const saving = ref(false);
@@ -120,11 +137,14 @@ async function removeImage() {
 </script>
 
 <template>
+  <UiAppearanceSection />
+  <InterfaceSection />
   <section class="settings-section">
-    <h2>Appearance</h2>
+    <h2>Completed game badges</h2>
     <p class="section-hint">
       How a 100%-complete (Mastered) game's card is highlighted in your library.
-      Changes apply everywhere that card renders once saved.
+      Your saved badges follow your account. Other people's badges are
+      unaffected.
     </p>
 
     <p v-if="loading">Loading…</p>
@@ -141,8 +161,19 @@ async function removeImage() {
       <div v-if="style !== 'none'" class="field">
         <span>Color</span>
         <div class="color-row">
-          <input v-model="color" type="color" class="color-input" />
-          <input v-model="color" type="text" class="color-text" maxlength="7" />
+          <input
+            v-model="color"
+            type="color"
+            class="color-input"
+            aria-label="Badge color"
+          />
+          <input
+            v-model="color"
+            type="text"
+            class="color-text"
+            aria-label="Badge hex color"
+            maxlength="7"
+          />
         </div>
       </div>
 
@@ -209,31 +240,20 @@ async function removeImage() {
             :style="{ '--badge-color': color }"
           >
             <div class="preview-cover">
-              <div
+              <img
+                class="preview-art"
+                :src="previewCoverUrl"
+                :alt="`${previewTitle} default game cover`"
+              />
+              <CompletionBadge
                 v-if="usesPlacement"
-                class="preview-badge"
-                :class="[style, placement]"
-              >
-                <img
-                  v-if="imageUrl"
-                  :src="imageUrl"
-                  alt=""
-                  class="preview-badge-image"
-                />
-                <svg
-                  v-else
-                  viewBox="0 0 24 24"
-                  width="14"
-                  height="14"
-                  fill="currentColor"
-                >
-                  <path
-                    d="M12 2l2.4 6.6L21 9l-5 4.6L17.4 21 12 17.3 6.6 21 8 13.6 3 9l6.6-.4z"
-                  />
-                </svg>
-              </div>
+                :badge-style="style"
+                :placement="placement"
+                :color="color"
+                :image-url="imageUrl"
+              />
             </div>
-            <div class="preview-title">Mastered Game</div>
+            <div class="preview-title">{{ previewTitle }}</div>
           </div>
         </div>
       </div>
@@ -257,14 +277,13 @@ async function removeImage() {
 
 <style scoped>
 .settings-section h2 {
-  margin: 0 0 8px;
-  padding-left: 12px;
-  border-left: 3px solid #d68a34;
-  font-size: 1rem;
-  color: #fff;
+  margin: 0 0 12px;
+  font: var(--ui-weight-heading) var(--ui-font-heading)/1.4
+    var(--ui-font-family);
+  color: var(--ui-text);
 }
 .section-hint {
-  color: #999;
+  color: var(--ui-dim);
   font-size: 0.82rem;
   line-height: 1.6;
   margin: 0 0 16px;
@@ -275,11 +294,11 @@ async function removeImage() {
 .field > span {
   display: block;
   font-size: 0.85rem;
-  color: #ccc;
+  color: var(--ui-text);
   margin-bottom: 8px;
 }
 .field-sublabel {
-  color: #777;
+  color: var(--ui-faint);
   font-size: 0.76rem;
   line-height: 1.5;
   margin: 0 0 10px;
@@ -290,20 +309,20 @@ async function removeImage() {
   gap: 10px;
 }
 .color-input {
-  width: 40px;
-  height: 36px;
-  border: 1px solid #3a3a3a;
-  border-radius: 8px;
-  background: #111;
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--ui-border-strong);
+  border-radius: var(--ui-radius-control);
+  background: var(--ui-bg);
   padding: 2px;
   cursor: pointer;
 }
 .color-text {
   width: 100px;
-  background: #111;
-  border: 1px solid #3a3a3a;
-  border-radius: 8px;
-  color: #fff;
+  background: var(--ui-bg);
+  border: 1px solid var(--ui-border-strong);
+  border-radius: var(--ui-radius-control);
+  color: var(--ui-text);
   padding: 8px 10px;
   font: inherit;
   font-size: 0.85rem;
@@ -316,15 +335,15 @@ async function removeImage() {
 .image-preview {
   width: 44px;
   height: 44px;
-  border-radius: 8px;
-  background: #111;
-  border: 1px solid #3a3a3a;
+  border-radius: var(--ui-radius-control);
+  background: var(--ui-bg);
+  border: 1px solid var(--ui-border-strong);
   background-size: cover;
   background-position: center;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #666;
+  color: var(--ui-faint);
   flex-shrink: 0;
 }
 .upload-label {
@@ -337,20 +356,22 @@ async function removeImage() {
   display: flex;
 }
 .preview-card {
-  width: 140px;
-  border-radius: 10px;
+  width: 180px;
+  max-width: 100%;
+  border-radius: var(--ui-radius-control);
   padding: 6px;
-  background: #111;
+  background: var(--ui-bg);
 }
 .preview-cover {
   position: relative;
   aspect-ratio: 2 / 3;
   border-radius: 6px;
-  background: linear-gradient(135deg, #2a2a2a, #1a1a1a);
+  overflow: hidden;
+  background: var(--ui-surface);
   margin-bottom: 6px;
 }
 .preview-title {
-  color: #ccc;
+  color: var(--ui-text);
   font-size: 0.72rem;
   text-align: center;
 }
@@ -362,64 +383,35 @@ async function removeImage() {
 .preview-card.badge-border {
   box-shadow: 0 0 0 2px var(--badge-color);
 }
-.preview-badge {
-  position: absolute;
-  width: 22px;
-  height: 22px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--badge-color);
-}
-.preview-badge.top-left {
-  top: 6px;
-  left: 6px;
-}
-.preview-badge.top-right {
-  top: 6px;
-  right: 6px;
-}
-.preview-badge.bottom-left {
-  bottom: 6px;
-  left: 6px;
-}
-.preview-badge.bottom-right {
-  bottom: 6px;
-  right: 6px;
-}
-.preview-badge.corner_badge {
-  background: rgba(20, 20, 20, 0.55);
-  border-radius: 50%;
-  border: 1px solid color-mix(in srgb, var(--badge-color) 60%, transparent);
-}
-.preview-badge-image {
+.preview-art {
+  display: block;
   width: 100%;
   height: 100%;
-  object-fit: contain;
+  object-fit: cover;
 }
 .form-error {
-  color: #fca5a5;
+  color: var(--ui-error);
   font-size: 13px;
-  background: rgba(220, 38, 38, 0.1);
-  border: 1px solid rgba(220, 38, 38, 0.3);
-  border-radius: 8px;
+  background: var(--ui-danger-soft);
+  border: 1px solid color-mix(in srgb, var(--ui-error) 30%, transparent);
+  border-radius: var(--ui-radius-control);
   padding: 8px 10px;
   margin-bottom: 14px;
 }
 .form-success {
-  color: #86efac;
+  color: var(--ui-good);
   font-size: 13px;
-  background: rgba(34, 197, 94, 0.1);
-  border: 1px solid rgba(34, 197, 94, 0.3);
-  border-radius: 8px;
+  background: var(--ui-good-soft);
+  border: 1px solid color-mix(in srgb, var(--ui-good) 30%, transparent);
+  border-radius: var(--ui-radius-control);
   padding: 8px 10px;
   margin-bottom: 14px;
 }
 .primary-button {
-  background: #d68a34;
-  color: #111;
+  background: var(--ui-accent);
+  color: var(--ui-on-accent);
   border: none;
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   padding: 11px 20px;
   font-weight: 600;
   cursor: pointer;
@@ -429,16 +421,16 @@ async function removeImage() {
   cursor: not-allowed;
 }
 .secondary-button {
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
+  background: color-mix(in srgb, var(--ui-text) 8%, transparent);
+  color: var(--ui-text);
   border: none;
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   padding: 9px 14px;
   font-size: 0.82rem;
   font-weight: 600;
   cursor: pointer;
 }
 .secondary-button:hover {
-  background: rgba(255, 255, 255, 0.14);
+  background: color-mix(in srgb, var(--ui-text) 14%, transparent);
 }
 </style>

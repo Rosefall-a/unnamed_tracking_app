@@ -1,5 +1,10 @@
 <script setup lang="ts">
+import { localMediaImage } from "../utils/mediaImages";
+import { usePageTitle } from "../state/pageTitle";
 import MyNote from "../components/MyNote.vue";
+import MediaDetailHero from "../components/MediaDetailHero.vue";
+import MediaDetailTabs from "../components/MediaDetailTabs.vue";
+import ExpandableDescription from "../components/ExpandableDescription.vue";
 import { ref, computed, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import {
@@ -19,26 +24,28 @@ import MovieFormModal from "../components/MovieFormModal.vue";
 import RelationsGraph from "../components/RelationsGraph.vue";
 import type { ChainNode, BranchNode } from "../components/RelationsGraph.vue";
 import MediaPreviewModal from "../components/MediaPreviewModal.vue";
-import MediaExtrasPanel from "../components/MediaExtrasPanel.vue";
+import MediaProviderPanel from "../components/MediaProviderPanel.vue";
 import MediaTopBar from "../components/MediaTopBar.vue";
 import BackButton from "../components/BackButton.vue";
-import RatingPicker from "../components/RatingPicker.vue";
+import PluginExtensionSlot from "../components/plugins/PluginExtensionSlot.vue";
+import PluginContextualActions from "../components/plugins/PluginContextualActions.vue";
+import { statusBucket, bucketToReal } from "../utils/mediaStatus";
 import {
-  STATUS_BUCKETS,
-  statusBucket,
-  bucketToReal,
-} from "../utils/mediaStatus";
+  formatProgressMinutes,
+  parseProgressMinutes,
+  progressPercent,
+} from "../utils/watchProgress";
 
 const route = useRoute();
 const router = useRouter();
 const movieId = computed(() => route.params.id as string);
 
 const movie = ref<Movie | null>(null);
+usePageTitle(() => movie.value?.title);
 const loading = ref(true);
 const error = ref<string | null>(null);
 const showEditModal = ref(false);
 const activeTab = ref<"overview" | "related" | "recommended">("overview");
-const descriptionExpanded = ref(false);
 const statusBucketModel = computed({
   get: () => statusBucket(movie.value?.status ?? "wishlist"),
   set: (bucket: string) => {
@@ -114,6 +121,66 @@ async function onStatusChange() {
   }
 }
 
+// "Left off at" (#191): where you stopped in a movie you haven't finished
+const progressInput = ref("");
+const savingProgress = ref(false);
+const progressError = ref<string | null>(null);
+watch(
+  () => movie.value?.progressMinutes,
+  (minutes) => {
+    progressInput.value =
+      minutes === null || minutes === undefined
+        ? ""
+        : formatProgressMinutes(minutes);
+    progressError.value = null;
+  },
+  { immediate: true },
+);
+const showResumeRow = computed(
+  () =>
+    !!movie.value &&
+    (statusBucket(movie.value.status) !== "completed" ||
+      movie.value.progressMinutes !== null),
+);
+const progressPct = computed(() =>
+  movie.value
+    ? progressPercent(movie.value.progressMinutes, movie.value.runtimeMinutes)
+    : null,
+);
+
+async function saveProgress() {
+  // Enter then blur would otherwise send the same save twice
+  if (!movie.value || savingProgress.value) return;
+  const parsed = parseProgressMinutes(progressInput.value);
+  if (parsed !== null && Number.isNaN(parsed)) {
+    progressError.value = "Enter minutes (72) or hours:minutes (1:12).";
+    return;
+  }
+  const runtime = movie.value.runtimeMinutes;
+  const minutes =
+    parsed !== null && runtime ? Math.min(parsed, runtime) : parsed;
+  if (minutes === movie.value.progressMinutes) return;
+  // saving a position in a movie you hadn't started means you're watching it
+  const status =
+    minutes && statusBucket(movie.value.status) === "plan"
+      ? ("in progress" as MovieStatus)
+      : movie.value.status;
+  savingProgress.value = true;
+  progressError.value = null;
+  try {
+    movie.value = await updateMovie(movie.value.id, {
+      ...movieToInput(movie.value),
+      status,
+      progressMinutes: minutes || null,
+    });
+  } catch (e) {
+    progressError.value =
+      e instanceof Error ? e.message : "Couldn't save where you left off.";
+  } finally {
+    savingProgress.value = false;
+  }
+}
+
 function onSaved(saved: Movie) {
   movie.value = saved;
   showEditModal.value = false;
@@ -138,11 +205,15 @@ const nativeTitleLine = computed(() => {
   const credit = movie.value.director || movie.value.studios[0];
   return credit ? `Movie · ${credit}` : "Movie";
 });
-const heroBackdropUrl = computed(
-  () => movie.value?.backdropUrl ?? movie.value?.posterUrl ?? null,
-);
-const descriptionOverflows = computed(
-  () => (movie.value?.description?.length ?? 0) > 320,
+const heroBackdropUrl = computed(() =>
+  movie.value
+    ? localMediaImage(
+        "movie",
+        movie.value.id,
+        "hero",
+        movie.value.backdropUrl ?? movie.value.posterUrl,
+      )
+    : null,
 );
 
 // ---- related (real TMDB collection data) ----
@@ -313,6 +384,12 @@ async function addPreviewToLibrary() {
   }
 }
 
+const TABS: { key: "overview" | "related" | "recommended"; label: string }[] = [
+  { key: "overview", label: "Overview" },
+  { key: "related", label: "Related" },
+  { key: "recommended", label: "Recommended" },
+];
+
 function setTab(tab: "overview" | "related" | "recommended") {
   activeTab.value = tab;
   if (tab === "related") loadRelated();
@@ -362,6 +439,21 @@ async function onRatingChange(value: number | null) {
 
   <main v-else-if="movie" class="detail">
     <MediaTopBar active="movie" />
+    <PluginExtensionSlot
+      slot-id="media.detail.after-header"
+      :context="{
+        host_page: 'media.detail',
+        media_id: movie.id,
+        media_type: 'movie',
+      }"
+    />
+    <PluginContextualActions
+      :context="{
+        kind: 'media',
+        resource_id: String(movie.id),
+        resource_type: 'movie',
+      }"
+    />
 
     <BackButton class="back-spot" @click="goBack" />
 
@@ -373,116 +465,64 @@ async function onRatingChange(value: number | null) {
       @closed="showEditModal = false"
     />
 
-    <section class="hero" :class="{ 'no-poster': !heroBackdropUrl }">
-      <div
-        v-if="heroBackdropUrl"
-        class="hero-backdrop"
-        :class="{ 'is-poster': !movie.backdropUrl }"
-        :style="{ backgroundImage: `url(${heroBackdropUrl})` }"
-      ></div>
-      <div class="hero-overlay"></div>
-      <div class="hero-content">
-        <div
-          class="poster-card"
-          :style="
-            movie.posterUrl
-              ? { backgroundImage: `url(${movie.posterUrl})` }
-              : {}
-          "
-        >
-          <span v-if="!movie.posterUrl">{{ movie.title }}</span>
+    <MediaDetailHero
+      v-model:status="statusBucketModel"
+      :title="movie.title"
+      :native-title="nativeTitleLine"
+      :poster-url="
+        localMediaImage('movie', movie.id, 'poster', movie.posterUrl)
+      "
+      :hero-backdrop-url="heroBackdropUrl"
+      :has-backdrop="!!movie.backdropUrl"
+      :rating-overall="movie.ratingOverall"
+      :favorite="movie.favorite"
+      media-type="movie"
+      :media-id="movie.id"
+      :badges="[
+        ...(releaseYear ? [{ text: releaseYear }] : []),
+        ...(runtimeLabel ? [{ text: runtimeLabel }] : []),
+      ]"
+      @status-change="onStatusChange"
+      @rating-change="onRatingChange"
+      @edit="showEditModal = true"
+      @toggle-favorite="toggleFavorite"
+    >
+      <template #below-badges>
+        <div v-if="showResumeRow" class="resume-row">
+          <label class="resume-label" for="movie-left-off">Left off at</label>
+          <input
+            id="movie-left-off"
+            v-model="progressInput"
+            class="resume-input"
+            inputmode="numeric"
+            placeholder="h:mm"
+            aria-describedby="movie-left-off-hint"
+            @keydown.enter.prevent="saveProgress"
+            @blur="saveProgress"
+          />
+          <span v-if="movie.runtimeMinutes" class="resume-of"
+            >of {{ formatProgressMinutes(movie.runtimeMinutes) }}</span
+          >
+          <span
+            v-if="progressPct !== null"
+            class="resume-bar"
+            role="progressbar"
+            :aria-valuenow="progressPct"
+            aria-valuemin="0"
+            aria-valuemax="100"
+            aria-label="Watched so far"
+            ><span :style="{ width: `${progressPct}%` }"></span
+          ></span>
+          <span id="movie-left-off-hint" class="resume-hint">{{
+            savingProgress
+              ? "Saving…"
+              : (progressError ?? "Minutes or h:mm; blank clears it.")
+          }}</span>
         </div>
-        <div class="hero-text">
-          <div class="native-title">{{ nativeTitleLine }}</div>
-          <h1 class="title">{{ movie.title }}</h1>
-          <div class="badge-row">
-            <select
-              v-model="statusBucketModel"
-              class="badge status status-select"
-              title="Change status"
-              @change="onStatusChange"
-            >
-              <option
-                v-for="opt in STATUS_BUCKETS"
-                :key="opt.key"
-                :value="opt.key"
-              >
-                {{ opt.label }}
-              </option>
-            </select>
-            <RatingPicker
-              :model-value="movie.ratingOverall"
-              @change="onRatingChange"
-            />
-            <span v-if="releaseYear" class="badge">{{ releaseYear }}</span>
-            <span v-if="runtimeLabel" class="badge">{{ runtimeLabel }}</span>
-          </div>
-          <div class="action-row">
-            <button
-              class="edit-btn"
-              type="button"
-              @click="showEditModal = true"
-            >
-              ✎ Edit
-            </button>
-            <button
-              class="icon-btn"
-              :class="{ active: movie.favorite }"
-              type="button"
-              :title="
-                movie.favorite ? 'Remove from favorites' : 'Add to favorites'
-              "
-              @click="toggleFavorite"
-            >
-              <svg
-                viewBox="0 0 24 24"
-                width="16"
-                height="16"
-                :fill="movie.favorite ? 'currentColor' : 'none'"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <path
-                  d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.8 1-1a5.5 5.5 0 0 0 0-7.6z"
-                />
-              </svg>
-            </button>
-            <MediaExtrasPanel media-type="movie" :media-id="movie.id" />
-          </div>
-        </div>
-      </div>
-    </section>
+      </template>
+    </MediaDetailHero>
 
-    <div class="tabbar-wrap">
-      <div class="tabbar">
-        <button
-          type="button"
-          class="tab-btn"
-          :class="{ active: activeTab === 'overview' }"
-          @click="setTab('overview')"
-        >
-          Overview
-        </button>
-        <button
-          type="button"
-          class="tab-btn"
-          :class="{ active: activeTab === 'related' }"
-          @click="setTab('related')"
-        >
-          Related
-        </button>
-        <button
-          type="button"
-          class="tab-btn"
-          :class="{ active: activeTab === 'recommended' }"
-          @click="setTab('recommended')"
-        >
-          Recommended
-        </button>
-      </div>
-    </div>
+    <MediaDetailTabs :tabs="TABS" :active="activeTab" @select="setTab" />
 
     <div class="body">
       <div v-if="activeTab === 'overview'" class="tab-panel">
@@ -522,30 +562,24 @@ async function onRatingChange(value: number | null) {
         </div>
 
         <div v-if="movie.genres.length" class="chip-row">
-          <span v-for="g in movie.genres" :key="g" class="chip primary">{{
-            g
-          }}</span>
+          <router-link
+            v-for="g in movie.genres"
+            :key="g"
+            class="chip primary chip-link"
+            :to="{ path: '/movies', query: { genre: g } }"
+            :title="`All movies tagged ${g}`"
+            >{{ g }}</router-link
+          >
         </div>
         <div v-if="movie.tags.length" class="chip-row">
           <span v-for="t in movie.tags" :key="t" class="chip">{{ t }}</span>
         </div>
-        <div v-if="movie.description" class="description-block">
-          <p
-            class="description"
-            :class="{ clamped: descriptionOverflows && !descriptionExpanded }"
-          >
-            {{ movie.description }}
-          </p>
-          <button
-            v-if="descriptionOverflows"
-            type="button"
-            class="read-more-btn"
-            @click="descriptionExpanded = !descriptionExpanded"
-          >
-            {{ descriptionExpanded ? "Show less" : "Read more" }}
-          </button>
-        </div>
+        <ExpandableDescription
+          v-if="movie.description"
+          :text="movie.description"
+        />
         <MyNote :note="movie.note" @save="saveNote" />
+        <MediaProviderPanel media-type="movie" :media-id="movie.id" />
       </div>
 
       <div v-else-if="activeTab === 'related'" class="tab-panel">
@@ -639,374 +673,65 @@ async function onRatingChange(value: number | null) {
   </main>
 </template>
 
+<style scoped src="../styles/shared/mediaDetail.css"></style>
+
 <style scoped>
-.detail {
-  min-height: 100vh;
-  background: #0d0d0d;
-  color: #f2f2f2;
-  font-family: system-ui, sans-serif;
-  position: relative;
-}
-.loading-state,
-.error-state {
-  display: flex;
-  flex-direction: column;
-  color: #9c9c9c;
-}
-.loading-text {
-  flex: 1;
+.resume-row {
   display: flex;
   align-items: center;
-  justify-content: center;
-  margin: 0;
-}
-.hero {
-  position: relative;
-  background-size: cover;
-  background-position: center 25%;
-  background-color: #1a1a1a;
-  min-height: 440px;
-  display: flex;
-  align-items: flex-end;
-  overflow: hidden;
-}
-.hero.no-poster {
-  background: linear-gradient(160deg, #241a10, #0d0d0d 70%);
-}
-.hero-backdrop {
-  position: absolute;
-  inset: 0;
-  background-size: cover;
-  background-position: center 20%;
-  filter: brightness(0.55) saturate(1.15);
-  z-index: 0;
-}
-.hero-backdrop.is-poster {
-  inset: -30px;
-  filter: blur(18px) brightness(0.55) saturate(1.15);
-  transform: translateZ(0);
-}
-.hero-overlay {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  background:
-    linear-gradient(
-      180deg,
-      rgba(13, 13, 13, 0.25) 0%,
-      rgba(13, 13, 13, 0.55) 45%,
-      #0d0d0d 96%
-    ),
-    linear-gradient(
-      90deg,
-      rgba(13, 13, 13, 0.75) 0%,
-      rgba(13, 13, 13, 0.15) 40%
-    );
-}
-.hero-content {
-  position: relative;
-  z-index: 2;
-  width: 100%;
-  max-width: 1180px;
-  margin: 0 auto;
-  padding: 0 24px 28px;
-  display: flex;
-  align-items: flex-end;
-  gap: 26px;
-}
-.poster-card {
-  width: 190px;
-  aspect-ratio: 2 / 3;
-  flex-shrink: 0;
-  border-radius: 8px;
-  background-size: cover;
-  background-position: center;
-  background-color: #222222;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 24px 48px -14px rgba(0, 0, 0, 0.8);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.78rem;
-  font-weight: 700;
-  color: rgba(255, 255, 255, 0.3);
-  text-align: center;
-  padding: 10px;
-}
-.hero-text {
-  min-width: 0;
-  padding-bottom: 4px;
-}
-.native-title {
-  font-size: 0.82rem;
-  color: #666;
-  margin-bottom: 4px;
-  font-weight: 500;
-}
-.title {
-  font-weight: 800;
-  font-size: 2.5rem;
-  line-height: 1.05;
-  margin: 0 0 14px;
-  letter-spacing: -0.01em;
-  text-shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
-}
-.badge-row {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-bottom: 16px;
-}
-.badge {
-  line-height: 1.25;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 7px;
-  padding: 4px 11px;
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: #9c9c9c;
-  text-transform: capitalize;
-}
-.status-select {
-  appearance: none;
-  -webkit-appearance: none;
-  -moz-appearance: none;
-  border-color: rgba(214, 138, 52, 0.4);
-  color: #d68a34;
-  font-family: inherit;
-  cursor: pointer;
-  padding-right: 26px;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23d68a34' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 8px center;
-  background-size: 10px;
-}
-.action-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.edit-btn {
-  background: #d68a34;
-  border: none;
-  color: #14100a;
-  border-radius: 8px;
-  padding: 0 20px;
-  height: 38px;
-  font-family: inherit;
-  font-size: 0.86rem;
-  font-weight: 700;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.icon-btn {
-  width: 38px;
-  height: 38px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  color: #f2f2f2;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  flex-shrink: 0;
-}
-.icon-btn:hover {
-  border-color: rgba(214, 138, 52, 0.4);
-}
-.icon-btn.active {
-  color: #d68a34;
-  border-color: rgba(214, 138, 52, 0.4);
-  background: rgba(214, 138, 52, 0.16);
-}
-.tabbar-wrap {
-  max-width: 1180px;
-  margin: 22px auto 0;
-  padding: 0 24px;
-}
-.tabbar {
-  display: flex;
-  gap: 4px;
-  background: #1a1a1a;
-  border-radius: 10px;
-  width: fit-content;
-  max-width: 100%;
-  overflow-x: auto;
-  padding: 5px;
-}
-.tab-btn {
-  flex-shrink: 0;
-  white-space: nowrap;
-  background: transparent;
-  border: none;
-  color: #9c9c9c;
-  font-family: inherit;
-  font-size: 0.84rem;
-  font-weight: 600;
-  padding: 8px 18px;
-  border-radius: 7px;
-  cursor: pointer;
-}
-.tab-btn.active {
-  background: #d68a34;
-  color: #14100a;
-}
-.body {
-  position: relative;
-  max-width: 1180px;
-  margin: 0 auto;
-  padding: 22px 24px 60px;
-}
-.meta-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: 18px 24px;
-  margin-bottom: 24px;
-  padding-bottom: 24px;
-  border-bottom: 1px solid #202020;
-}
-.meta-item {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.meta-label {
-  font-size: 0.68rem;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-  color: #666;
-  font-weight: 700;
-}
-.meta-value {
-  font-size: 0.9rem;
-  color: #f2f2f2;
-  font-variant-numeric: tabular-nums;
-}
-.meta-value.accent {
-  color: #d68a34;
-  font-weight: 700;
-}
-.description-block {
-  margin-top: 22px;
-}
-.description {
-  font-size: 0.96rem;
-  line-height: 1.7;
-  color: #9c9c9c;
-  margin: 0;
-}
-.description.clamped {
-  display: -webkit-box;
-  -webkit-line-clamp: 4;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-.read-more-btn {
-  background: none;
-  border: none;
-  color: #d68a34;
-  font-family: inherit;
-  font-size: 0.82rem;
-  font-weight: 700;
-  cursor: pointer;
-  padding: 6px 0 0;
-}
-.read-more-btn:hover {
-  text-decoration: underline;
-}
-.chip-row {
-  display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin-bottom: 8px;
-}
-.chip {
-  background: #222222;
-  color: #9c9c9c;
-  border: 1px solid #2b2b2b;
-  border-radius: 999px;
-  padding: 5px 13px;
-  font-size: 0.78rem;
-  font-weight: 600;
-}
-.chip.primary {
-  background: rgba(214, 138, 52, 0.16);
-  color: #d68a34;
-  border-color: rgba(214, 138, 52, 0.4);
-}
-.section-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 14px;
-}
-.section-heading h2 {
-  font-weight: 800;
-  font-size: 1.05rem;
-  margin: 0;
-}
-.empty-state {
-  color: #666;
-  font-size: 0.85rem;
-}
-.error-text {
-  color: #e57373;
-}
-.poster-grid {
-  margin-top: 20px;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-  gap: 16px;
-}
-.poster-card-sm {
-  cursor: pointer;
-}
-.poster-card-sm-art {
-  aspect-ratio: 2 / 3;
-  border-radius: 8px;
-  background-size: cover;
-  background-position: center;
-  background-color: #222222;
-  border: 1px solid #2b2b2b;
-  transition: border-color 0.15s ease;
-}
-.poster-card-sm:hover .poster-card-sm-art {
-  border-color: rgba(214, 138, 52, 0.5);
-}
-.poster-card-sm-title {
-  margin-top: 6px;
+  margin: -6px 0 16px;
   font-size: 0.8rem;
-  font-weight: 700;
-  line-height: 1.3;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
+  color: var(--ui-dim);
+}
+
+.resume-label {
+  font-weight: 600;
+}
+
+.resume-input {
+  width: 70px;
+  height: 30px;
+  box-sizing: border-box;
+  padding: 0 8px;
+  background: color-mix(in srgb, var(--ui-text) 6%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ui-text) 10%, transparent);
+  border-radius: var(--ui-radius-control);
+  color: var(--ui-text);
+  font: inherit;
+}
+
+.resume-input:focus {
+  outline: none;
+  border-color: var(--ui-accent-line);
+}
+
+.resume-bar {
+  position: relative;
+  width: 120px;
+  height: 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ui-text) 10%, transparent);
   overflow: hidden;
 }
-.poster-card-sm-meta {
-  margin-top: 2px;
-  font-size: 0.7rem;
-  color: #666;
+
+.resume-bar > span {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--ui-accent);
 }
-@media (max-width: 640px) {
-  .hero-content {
-    flex-direction: column;
-    align-items: flex-start;
-  }
+
+.resume-hint {
+  color: var(--ui-faint);
+  font-size: 0.74rem;
 }
-/* Sits under the top bar and stays there while the page scrolls. It is sticky
-   rather than absolute so it never slides over the bar, and the negative
-   bottom margin gives back the room it takes so the hero does not move. */
-.detail > .back-spot {
-  display: flex;
-  width: 38px;
-  position: sticky;
-  top: 76px;
-  z-index: 79;
-  margin: 16px 0 -54px var(--ui-edge-left);
+
+.error-text {
+  color: var(--ui-error);
+}
+
+.poster-card-sm:hover .poster-card-sm-art {
+  border-color: color-mix(in srgb, var(--ui-accent) 50%, transparent);
 }
 </style>

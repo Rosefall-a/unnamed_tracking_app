@@ -1,0 +1,21 @@
+{
+  "backend": "real",
+  "passed": [
+    "Real preset/custom editor save, reload and account isolation",
+    "Preview menus and light/dark color sets without changing unsaved app appearance",
+    "System changes retain the chosen palette",
+    "Low contrast colors save with advisory guidance; arbitrary CSS still rejected",
+    "Portable palette download/import round trip; malformed imports preserve saved colors"
+  ],
+  "screens": [],
+  "widths": [
+    320,
+    390,
+    430,
+    768,
+    1024,
+    1440,
+    1920,
+    2560
+  ]
+}

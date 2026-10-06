@@ -1,0 +1,1120 @@
+{
+  "status": "passed",
+  "host_source_head": "47e93aeb9da1e77ff0d90f8a061a48a07dee338e",
+  "limitation": "Long account and brand labels are browser-only layout stress fixtures; authentication and plugin navigation use the real host.",
+  "measurements": [
+    {
+      "case": "chromium/pinned/1440x900/200",
+      "sidebar": {
+        "width": 198,
+        "scroll": 198,
+        "x": "visible"
+      },
+      "containers": [
+        {
+          "class": "nav-brand",
+          "width": 170,
+          "scroll": 170,
+          "height": 70,
+          "scrollHeight": 70,
+          "x": "visible",
+          "y": "visible"
+        },
+        {
+          "class": "nav-body",
+          "width": 178,
+          "scroll": 178,
+          "height": 702,
+          "scrollHeight": 702,
+          "x": "visible",
+          "y": "visible"
+        },
+        {
+          "class": "nav-scroll",
+          "width": 178,
+          "scroll": 178,
+          "height": 524,
+          "scrollHeight": 678,
+          "x": "hidden",
+          "y": "auto"
+        },
+        {
+          "class": "nav-footer",
+          "width": 178,
+          "scroll": 178,
+          "height": 167,
+          "scrollHeight": 167,
+          "x": "visible",
+          "y": "visible"
+        }
+      ]
+    },
+    {
+      "case": "chromium/pinned/1440x900/232",
+      "sidebar": {
+        "width": 230,
+        "scroll": 230,
+        "x": "visible"
+      },
+      "containers": [
+        {
+          "class": "nav-brand",
+          "width": 202,
+          "scroll": 202,
+          "height": 70,
+          "scrollHeight": 70,
+          "x": "visible",
+          "y": "visible"
+        },
+        {
+          "class": "nav-body",
+          "width": 210,
+          "scroll": 210,
+          "height": 714,
+          "scrollHeight": 714,
+          "x": "visible",
+          "y": "visible"
+        },
+        {
+          "class": "nav-scroll",
+          "width": 210,
+          "scroll": 210,
+          "height": 536,
+          "scrollHeight": 678,
+          "x": "hidden",
+          "y": "auto"
+        },
+        {
+          "class": "nav-footer",
+          "width": 210,
+          "scroll": 210,
+          "height": 167,
+          "scrollHeight": 167,
+          "x": "visible",
+          "y": "visible"
+        }
+      ]
+    },
+    {
+      "case": "chromium/pinned/1920x1050/440",
+      "sidebar": {
+        "width": 438,
+        "scroll": 438,
+        "x": "visible"
+      },
+      "containers": [
+        {
+          "class": "nav-brand",
+          "width": 410,
+          "scroll": 410,
+          "height": 46,
+          "scrollHeight": 46,
+          "x": "visible",
+          "y": "visible"
+        },
+        {
+          "class": "nav-body",
+          "width": 418,
+          "scroll": 418,
+          "height": 888,
+          "scrollHeight": 888,
+          "x": "visible",
+          "y": "visible"
+        },
+        {
+          "class": "nav-scroll",
+          "width": 418,
+          "scroll": 418,
+          "height": 709,
+          "scrollHeight": 709,
+          "x": "hidden",
+          "y": "auto"
+        },
+        {
+          "class": "nav-footer",
+          "width": 418,
+          "scroll": 418,
+          "height": 167,
+          "scrollHeight": 167,
+          "x": "visible",
+          "y": "visible"
+        }
+      ]
+    },
+    {
+      "case": "chromium/rail/1024x600/200",
+      "sidebar": {
+        "width": 198,
+        "scroll": 198,
+        "x": "visible"
+      },
+      "containers": [
+        {
+          "class": "nav-brand",
+          "width": 170,
+          "scroll": 170,
+          "height": 93,
+          "scrollHeight": 93,
+          "x": "visible",
+          "y": "visible"
+        },
+        {
+          "class": "nav-body",
+          "width": 178,
+          "scroll": 178,
+          "height": 379,
+          "scrollHeight": 857,
+          "x": "hidden",
+          "y": "auto"
+        },
+        {
+          "class": "nav-scroll",
+          "width": 178,
+          "scroll": 178,
+          "height": 678,
+          "scrollHeight": 678,
+          "x": "visible",
+          "y": "visible"
+        },
+        {
+          "class": "nav-footer",
+          "width": 178,
+          "scroll": 178,
+          "height": 167,
+          "scrollHeight": 167,
+          "x": "visible",
+          "y": "visible"
+        }
+      ]
+    },
+    {
+      "case": "chromium/rail/768x600/232",
+      "sidebar": {
+        "width": 230,
+        "scroll": 230,
+        "x": "visible"
+      },
+      "containers": [
+        {
+          "class": "nav-brand",
+          "width": 202,
+          "scroll": 202,
+          "height": 70,
+          "scrollHeight": 70,
+          "x": "visible",
+          "y": "visible"
+        },
+        {
+          "class": "nav-body",
+          "width": 210,
+          "scroll": 210,
+          "height": 414,
+          "scrollHeight": 857,
+          "x": "hidden",
+          "y": "auto"
+        },
+        {
+          "class": "nav-scroll",
+          "width": 210,
+          "scroll": 210,
+          "height": 678,
+          "scrollHeight": 678,
+          "x": "visible",
+          "y": "visible"
+        },
+        {
+          "class": "nav-footer",
+          "width": 210,
+          "scroll": 210,
+          "height": 167,
+          "scrollHeight": 167,
+          "x": "visible",
+          "y": "visible"
+        }
+      ]
+    },
+    {
+      "case": "chromium/overlay/1440x900/200",
+      "sidebar": {
+        "width": 198,
+        "scroll": 198,
+        "x": "visible"
+      },
+      "containers": [
+        {
+          "class": "nav-brand",
+          "width": 170,
+          "scroll": 170,
+          "height": 93,
+          "scrollHeight": 93,
+          "x": "visible",
+          "y": "visible"
+        },
+        {
+          "class": "nav-body",
+          "width": 178,
+          "scroll": 178,
+          "height": 679,
+          "scrollHeight": 679,
+          "x": "visible",
+          "y": "visible"
+        },
+        {
+          "class": "nav-scroll",
+          "width": 178,
+          "scroll": 178,
+          "height": 500,
+          "scrollHeight": 678,
+          "x": "hidden",
+          "y": "auto"
+        },
+        {
+          "class": "nav-footer",
+          "width": 178,
+          "scroll": 178,
+          "height": 167,
+          "scrollHeight": 167,
+          "x": "visible",
+          "y": "visible"
+        }
+      ]
+    },
+    {
+      "case": "chromium/overlay/768x600/200",
+      "sidebar": {
+        "width": 198,
+        "scroll": 198,
+        "x": "visible"
+      },
+      "containers": [
+        {
+          "class": "nav-brand",
+          "width": 170,
+          "scroll": 170,
+          "height": 93,
+          "scrollHeight": 93,
+          "x": "visible",
+          "y": "visible"
+        },
+        {
+          "class": "nav-body",
+          "width": 178,
+          "scroll": 178,
+          "height": 379,
+          "scrollHeight": 857,
+          "x": "hidden",
+          "y": "auto"
+        },
+        {
+          "class": "nav-scroll",
+          "width": 178,
+          "scroll": 178,
+          "height": 678,
+          "scrollHeight": 678,
+          "x": "visible",
+          "y": "visible"
+        },
+        {
+          "class": "nav-footer",
+          "width": 178,
+          "scroll": 178,
+          "height": 167,
+          "scrollHeight": 167,
+          "x": "visible",
+          "y": "visible"
+        }
+      ]
+    },
+    {
+      "case": "chromium/pinned/1024x350/200",
+      "sidebar": {
+        "width": 198,
+        "scroll": 198,
+        "x": "hidden"
+      },
+      "containers": [
+        {
+          "class": "nav-brand",
+          "width": 170,
+          "scroll": 170,
+          "height": 70,
+          "scrollHeight": 70,
+          "x": "visible",
+          "y": "visible"
+        },
+        {
+          "class": "nav-body",
+          "width": 178,
+          "scroll": 178,
+          "height": 857,
+          "scrollHeight": 857,
+          "x": "visible",
+          "y": "visible"
+        },
+        {
+          "class": "nav-scroll",
+          "width": 178,
+          "scroll": 178,
+          "height": 678,
+          "scrollHeight": 678,
+          "x": "visible",
+          "y": "visible"
+        },
+        {
+          "class": "nav-footer",
+          "width": 178,
+          "scroll": 178,
+          "height": 167,
+          "scrollHeight": 167,
+          "x": "visible",
+          "y": "visible"
+        }
+      ]
+    },
+    {
+      "case": "chromium/overlay/320x600/232",
+      "sidebar": {
+        "width": 298,
+        "scroll": 298,
+        "x": "visible"
+      },
+      "containers": [
+        {
+          "class": "nav-brand",
+          "width": 258,
+          "scroll": 258,
+          "height": 70,
+          "scrollHeight": 70,
+          "x": "visible",
+          "y": "visible"
+        },
+        {
+          "class": "nav-body",
+          "width": 266,
+          "scroll": 266,
+          "height": 322,
+          "scrollHeight": 935,
+          "x": "hidden",
+          "y": "auto"
+        },
+        {
+          "class": "nav-scroll",
+          "width": 266,
+          "scroll": 266,
+          "height": 786,
+          "scrollHeight": 786,
+          "x": "visible",
+          "y": "visible"
+        },
+        {
+          "class": "nav-footer",
+          "width": 266,
+          "scroll": 266,
+          "height": 137,
+          "scrollHeight": 137,
+          "x": "visible",
+          "y": "visible"
+        }
+      ]
+    },
+    {
+      "case": "chromium/overlay/390x600/232",
+      "sidebar": {
+        "width": 368,
+        "scroll": 368,
+        "x": "visible"
+      },
+      "containers": [
+        {
+          "class": "nav-brand",
+          "width": 328,
+          "scroll": 328,
+          "height": 46,
+          "scrollHeight": 46,
+          "x": "visible",
+          "y": "visible"
+        },
+        {
+          "class": "nav-body",
+          "width": 336,
+          "scroll": 336,
+          "height": 346,
+          "scrollHeight": 935,
+          "x": "hidden",
+          "y": "auto"
+        },
+        {
+          "class": "nav-scroll",
+          "width": 336,
+          "scroll": 336,
+          "height": 786,
+          "scrollHeight": 786,
+          "x": "visible",
+          "y": "visible"
+        },
+        {
+          "class": "nav-footer",
+          "width": 336,
+          "scroll": 336,
+          "height": 137,
+          "scrollHeight": 137,
+          "x": "visible",
+          "y": "visible"
+        }
+      ]
+    },
+    {
+      "case": "chromium/overlay/256x320/232",
+      "sidebar": {
+        "width": 234,
+        "scroll": 234,
+        "x": "hidden"
+      },
+      "containers": [
+        {
+          "class": "nav-brand",
+          "width": 194,
+          "scroll": 194,
+          "height": 93,
+          "scrollHeight": 93,
+          "x": "visible",
+          "y": "visible"
+        },
+        {
+          "class": "nav-body",
+          "width": 202,
+          "scroll": 202,
+          "height": 935,
+          "scrollHeight": 935,
+          "x": "hidden",
+          "y": "auto"
+        },
+        {
+          "class": "nav-scroll",
+          "width": 202,
+          "scroll": 202,
+          "height": 786,
+          "scrollHeight": 786,
+          "x": "visible",
+          "y": "visible"
+        },
+        {
+          "class": "nav-footer",
+          "width": 202,
+          "scroll": 202,
+          "height": 137,
+          "scrollHeight": 137,
+          "x": "visible",
+          "y": "visible"
+        }
+      ]
+    },
+    {
+      "case": "chromium/overlay/200x280/232",
+      "sidebar": {
+        "width": 178,
+        "scroll": 178,
+        "x": "hidden"
+      },
+      "containers": [
+        {
+          "class": "nav-brand",
+          "width": 138,
+          "scroll": 138,
+          "height": 162,
+          "scrollHeight": 162,
+          "x": "visible",
+          "y": "visible"
+        },
+        {
+          "class": "nav-body",
+          "width": 146,
+          "scroll": 147,
+          "height": 994,
+          "scrollHeight": 994,
+          "x": "hidden",
+          "y": "auto"
+        },
+        {
+          "class": "nav-scroll",
+          "width": 146,
+          "scroll": 147,
+          "height": 822,
+          "scrollHeight": 822,
+          "x": "visible",
+          "y": "visible"
+        },
+        {
+          "class": "nav-footer",
+          "width": 146,
+          "scroll": 146,
+          "height": 161,
+          "scrollHeight": 161,
+          "x": "visible",
+          "y": "visible"
+        }
+      ]
+    },
+    {
+      "case": "webkit/pinned/1440x900/200",
+      "sidebar": {
+        "width": 198,
+        "scroll": 198,
+        "x": "visible"
+      },
+      "containers": [
+        {
+          "class": "nav-brand",
+          "width": 170,
+          "scroll": 170,
+          "height": 70,
+          "scrollHeight": 70,
+          "x": "visible",
+          "y": "visible"
+        },
+        {
+          "class": "nav-body",
+          "width": 178,
+          "scroll": 178,
+          "height": 702,
+          "scrollHeight": 702,
+          "x": "visible",
+          "y": "visible"
+        },
+        {
+          "class": "nav-scroll",
+          "width": 178,
+          "scroll": 178,
+          "height": 524,
+          "scrollHeight": 678,
+          "x": "hidden",
+          "y": "auto"
+        },
+        {
+          "class": "nav-footer",
+          "width": 178,
+          "scroll": 178,
+          "height": 167,
+          "scrollHeight": 167,
+          "x": "visible",
+          "y": "visible"
+        }
+      ]
+    },
+    {
+      "case": "webkit/pinned/1440x900/232",
+      "sidebar": {
+        "width": 230,
+        "scroll": 230,
+        "x": "visible"
+      },
+      "containers": [
+        {
+          "class": "nav-brand",
+          "width": 202,
+          "scroll": 202,
+          "height": 70,
+          "scrollHeight": 70,
+          "x": "visible",
+          "y": "visible"
+        },
+        {
+          "class": "nav-body",
+          "width": 210,
+          "scroll": 210,
+          "height": 714,
+          "scrollHeight": 714,
+          "x": "visible",
+          "y": "visible"
+        },
+        {
+          "class": "nav-scroll",
+          "width": 210,
+          "scroll": 210,
+          "height": 536,
+          "scrollHeight": 678,
+          "x": "hidden",
+          "y": "auto"
+        },
+        {
+          "class": "nav-footer",
+          "width": 210,
+          "scroll": 210,
+          "height": 167,
+          "scrollHeight": 167,
+          "x": "visible",
+          "y": "visible"
+        }
+      ]
+    },
+    {
+      "case": "webkit/pinned/1920x1050/440",
+      "sidebar": {
+        "width": 438,
+        "scroll": 438,
+        "x": "visible"
+      },
+      "containers": [
+        {
+          "class": "nav-brand",
+          "width": 410,
+          "scroll": 410,
+          "height": 46,
+          "scrollHeight": 46,
+          "x": "visible",
+          "y": "visible"
+        },
+        {
+          "class": "nav-body",
+          "width": 418,
+          "scroll": 418,
+          "height": 888,
+          "scrollHeight": 888,
+          "x": "visible",
+          "y": "visible"
+        },
+        {
+          "class": "nav-scroll",
+          "width": 418,
+          "scroll": 418,
+          "height": 709,
+          "scrollHeight": 709,
+          "x": "hidden",
+          "y": "auto"
+        },
+        {
+          "class": "nav-footer",
+          "width": 418,
+          "scroll": 418,
+          "height": 167,
+          "scrollHeight": 167,
+          "x": "visible",
+          "y": "visible"
+        }
+      ]
+    },
+    {
+      "case": "webkit/rail/1024x600/200",
+      "sidebar": {
+        "width": 198,
+        "scroll": 198,
+        "x": "visible"
+      },
+      "containers": [
+        {
+          "class": "nav-brand",
+          "width": 170,
+          "scroll": 170,
+          "height": 93,
+          "scrollHeight": 93,
+          "x": "visible",
+          "y": "visible"
+        },
+        {
+          "class": "nav-body",
+          "width": 178,
+          "scroll": 178,
+          "height": 379,
+          "scrollHeight": 857,
+          "x": "hidden",
+          "y": "auto"
+        },
+        {
+          "class": "nav-scroll",
+          "width": 178,
+          "scroll": 178,
+          "height": 678,
+          "scrollHeight": 678,
+          "x": "visible",
+          "y": "visible"
+        },
+        {
+          "class": "nav-footer",
+          "width": 178,
+          "scroll": 178,
+          "height": 167,
+          "scrollHeight": 167,
+          "x": "visible",
+          "y": "visible"
+        }
+      ]
+    },
+    {
+      "case": "webkit/rail/768x600/232",
+      "sidebar": {
+        "width": 230,
+        "scroll": 230,
+        "x": "visible"
+      },
+      "containers": [
+        {
+          "class": "nav-brand",
+          "width": 202,
+          "scroll": 202,
+          "height": 70,
+          "scrollHeight": 70,
+          "x": "visible",
+          "y": "visible"
+        },
+        {
+          "class": "nav-body",
+          "width": 210,
+          "scroll": 210,
+          "height": 414,
+          "scrollHeight": 857,
+          "x": "hidden",
+          "y": "auto"
+        },
+        {
+          "class": "nav-scroll",
+          "width": 210,
+          "scroll": 210,
+          "height": 678,
+          "scrollHeight": 678,
+          "x": "visible",
+          "y": "visible"
+        },
+        {
+          "class": "nav-footer",
+          "width": 210,
+          "scroll": 210,
+          "height": 167,
+          "scrollHeight": 167,
+          "x": "visible",
+          "y": "visible"
+        }
+      ]
+    },
+    {
+      "case": "webkit/overlay/1440x900/200",
+      "sidebar": {
+        "width": 198,
+        "scroll": 198,
+        "x": "visible"
+      },
+      "containers": [
+        {
+          "class": "nav-brand",
+          "width": 170,
+          "scroll": 170,
+          "height": 93,
+          "scrollHeight": 93,
+          "x": "visible",
+          "y": "visible"
+        },
+        {
+          "class": "nav-body",
+          "width": 178,
+          "scroll": 178,
+          "height": 679,
+          "scrollHeight": 679,
+          "x": "visible",
+          "y": "visible"
+        },
+        {
+          "class": "nav-scroll",
+          "width": 178,
+          "scroll": 178,
+          "height": 500,
+          "scrollHeight": 678,
+          "x": "hidden",
+          "y": "auto"
+        },
+        {
+          "class": "nav-footer",
+          "width": 178,
+          "scroll": 178,
+          "height": 167,
+          "scrollHeight": 167,
+          "x": "visible",
+          "y": "visible"
+        }
+      ]
+    },
+    {
+      "case": "webkit/overlay/768x600/200",
+      "sidebar": {
+        "width": 198,
+        "scroll": 198,
+        "x": "visible"
+      },
+      "containers": [
+        {
+          "class": "nav-brand",
+          "width": 170,
+          "scroll": 170,
+          "height": 93,
+          "scrollHeight": 93,
+          "x": "visible",
+          "y": "visible"
+        },
+        {
+          "class": "nav-body",
+          "width": 178,
+          "scroll": 178,
+          "height": 379,
+          "scrollHeight": 857,
+          "x": "hidden",
+          "y": "auto"
+        },
+        {
+          "class": "nav-scroll",
+          "width": 178,
+          "scroll": 178,
+          "height": 678,
+          "scrollHeight": 678,
+          "x": "visible",
+          "y": "visible"
+        },
+        {
+          "class": "nav-footer",
+          "width": 178,
+          "scroll": 178,
+          "height": 167,
+          "scrollHeight": 167,
+          "x": "visible",
+          "y": "visible"
+        }
+      ]
+    },
+    {
+      "case": "webkit/pinned/1024x350/200",
+      "sidebar": {
+        "width": 198,
+        "scroll": 198,
+        "x": "hidden"
+      },
+      "containers": [
+        {
+          "class": "nav-brand",
+          "width": 170,
+          "scroll": 170,
+          "height": 70,
+          "scrollHeight": 70,
+          "x": "visible",
+          "y": "visible"
+        },
+        {
+          "class": "nav-body",
+          "width": 178,
+          "scroll": 178,
+          "height": 857,
+          "scrollHeight": 857,
+          "x": "visible",
+          "y": "visible"
+        },
+        {
+          "class": "nav-scroll",
+          "width": 178,
+          "scroll": 178,
+          "height": 678,
+          "scrollHeight": 678,
+          "x": "visible",
+          "y": "visible"
+        },
+        {
+          "class": "nav-footer",
+          "width": 178,
+          "scroll": 178,
+          "height": 167,
+          "scrollHeight": 167,
+          "x": "visible",
+          "y": "visible"
+        }
+      ]
+    },
+    {
+      "case": "webkit/overlay/320x600/232",
+      "sidebar": {
+        "width": 298,
+        "scroll": 298,
+        "x": "visible"
+      },
+      "containers": [
+        {
+          "class": "nav-brand",
+          "width": 258,
+          "scroll": 258,
+          "height": 70,
+          "scrollHeight": 70,
+          "x": "visible",
+          "y": "visible"
+        },
+        {
+          "class": "nav-body",
+          "width": 266,
+          "scroll": 266,
+          "height": 322,
+          "scrollHeight": 935,
+          "x": "hidden",
+          "y": "auto"
+        },
+        {
+          "class": "nav-scroll",
+          "width": 266,
+          "scroll": 266,
+          "height": 786,
+          "scrollHeight": 786,
+          "x": "visible",
+          "y": "visible"
+        },
+        {
+          "class": "nav-footer",
+          "width": 266,
+          "scroll": 266,
+          "height": 137,
+          "scrollHeight": 137,
+          "x": "visible",
+          "y": "visible"
+        }
+      ]
+    },
+    {
+      "case": "webkit/overlay/390x600/232",
+      "sidebar": {
+        "width": 368,
+        "scroll": 368,
+        "x": "visible"
+      },
+      "containers": [
+        {
+          "class": "nav-brand",
+          "width": 328,
+          "scroll": 328,
+          "height": 46,
+          "scrollHeight": 46,
+          "x": "visible",
+          "y": "visible"
+        },
+        {
+          "class": "nav-body",
+          "width": 336,
+          "scroll": 336,
+          "height": 346,
+          "scrollHeight": 935,
+          "x": "hidden",
+          "y": "auto"
+        },
+        {
+          "class": "nav-scroll",
+          "width": 336,
+          "scroll": 336,
+          "height": 786,
+          "scrollHeight": 786,
+          "x": "visible",
+          "y": "visible"
+        },
+        {
+          "class": "nav-footer",
+          "width": 336,
+          "scroll": 336,
+          "height": 137,
+          "scrollHeight": 137,
+          "x": "visible",
+          "y": "visible"
+        }
+      ]
+    },
+    {
+      "case": "webkit/overlay/256x320/232",
+      "sidebar": {
+        "width": 234,
+        "scroll": 234,
+        "x": "hidden"
+      },
+      "containers": [
+        {
+          "class": "nav-brand",
+          "width": 194,
+          "scroll": 194,
+          "height": 93,
+          "scrollHeight": 93,
+          "x": "visible",
+          "y": "visible"
+        },
+        {
+          "class": "nav-body",
+          "width": 202,
+          "scroll": 202,
+          "height": 935,
+          "scrollHeight": 935,
+          "x": "hidden",
+          "y": "auto"
+        },
+        {
+          "class": "nav-scroll",
+          "width": 202,
+          "scroll": 202,
+          "height": 786,
+          "scrollHeight": 786,
+          "x": "visible",
+          "y": "visible"
+        },
+        {
+          "class": "nav-footer",
+          "width": 202,
+          "scroll": 202,
+          "height": 137,
+          "scrollHeight": 137,
+          "x": "visible",
+          "y": "visible"
+        }
+      ]
+    },
+    {
+      "case": "webkit/overlay/200x280/232",
+      "sidebar": {
+        "width": 178,
+        "scroll": 178,
+        "x": "hidden"
+      },
+      "containers": [
+        {
+          "class": "nav-brand",
+          "width": 138,
+          "scroll": 138,
+          "height": 162,
+          "scrollHeight": 162,
+          "x": "visible",
+          "y": "visible"
+        },
+        {
+          "class": "nav-body",
+          "width": 146,
+          "scroll": 147,
+          "height": 994,
+          "scrollHeight": 994,
+          "x": "hidden",
+          "y": "auto"
+        },
+        {
+          "class": "nav-scroll",
+          "width": 146,
+          "scroll": 147,
+          "height": 822,
+          "scrollHeight": 822,
+          "x": "visible",
+          "y": "visible"
+        },
+        {
+          "class": "nav-footer",
+          "width": 146,
+          "scroll": 146,
+          "height": 161,
+          "scrollHeight": 161,
+          "x": "visible",
+          "y": "visible"
+        }
+      ]
+    }
+  ],
+  "captures": [
+    "sidebar-overlay-1440-webkit.png",
+    "sidebar-overlay-320-webkit.png"
+  ],
+  "layout_demo_overlays_disabled": [
+    "example.help-button",
+    "example.shortcut-playground",
+    "example.ui-playground"
+  ]
+}

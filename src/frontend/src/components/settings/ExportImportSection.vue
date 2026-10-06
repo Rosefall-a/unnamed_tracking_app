@@ -118,8 +118,8 @@ const SOURCES: {
     value: "yamtrack",
     label: "Yamtrack",
     accept: ".csv,text/csv",
-    what: "movies, TV shows and anime",
-    how: "Use Yamtrack's CSV export. Movies, TV shows and anime are grouped by Yamtrack's provider ID, with seasons and watched episodes restored under the correct parent.",
+    what: "movies and TV shows",
+    how: "Use Yamtrack's CSV export. Movies and TV shows are grouped by Yamtrack's provider ID, with seasons and watched episodes restored under the correct parent. Anime is currently not imported.",
   },
 ];
 const source = ref<ImportSource>("mal");
@@ -286,8 +286,8 @@ async function onFileSelected(e: Event) {
     <p class="section-hint">
       A portable JSON snapshot of your whole library (games, movies, TV shows
       and anime) for backups, or moving to a new server. Covers title data and
-      metadata only, not attached files (screenshots, saves, docs) or bounties.
-      Games, movies, TV shows and anime can each be brought back below.
+      metadata only, not attached files (screenshots, saves, docs). Games,
+      movies, TV shows and anime can each be brought back below.
     </p>
 
     <div v-if="backupStatus" class="tile backup-status-tile">
@@ -364,17 +364,31 @@ async function onFileSelected(e: Event) {
           Yamtrack imports directly and skips items already in your library.
         </template>
       </p>
+      <div v-if="source === 'yamtrack'" class="form-warning">
+        Anime from Yamtrack is currently not imported. Movies and TV shows will
+        still be imported.
+      </div>
       <div v-if="malError" class="form-error">{{ malError }}</div>
       <div v-if="yamtrackError" class="form-error">{{ yamtrackError }}</div>
       <div v-if="yamtrackResult" class="form-success">
-        Movies: {{ yamtrackResult.created.movies ?? 0 }} added,
-        TV shows: {{ yamtrackResult.created.tv_shows ?? 0 }} added,
-        anime: {{ yamtrackResult.created.anime ?? 0 }} added.
+        Movies: {{ yamtrackResult.created.movies ?? 0 }} added, TV shows:
+        {{ yamtrackResult.created.tv_shows ?? 0 }} added, anime:
+        {{ yamtrackResult.created.anime ?? 0 }} added.
         {{ yamtrackResult.seasons_created }} seasons and
         {{ yamtrackResult.episodes_created }} episodes imported.
-        <template v-if="yamtrackResult.skipped.movies || yamtrackResult.skipped.tv_shows || yamtrackResult.skipped.anime">
+        <template
+          v-if="
+            yamtrackResult.skipped.movies ||
+            yamtrackResult.skipped.tv_shows ||
+            yamtrackResult.skipped.anime
+          "
+        >
           Existing items skipped:
-          {{ (yamtrackResult.skipped.movies ?? 0) + (yamtrackResult.skipped.tv_shows ?? 0) + (yamtrackResult.skipped.anime ?? 0) }}.
+          {{
+            (yamtrackResult.skipped.movies ?? 0) +
+            (yamtrackResult.skipped.tv_shows ?? 0) +
+            (yamtrackResult.skipped.anime ?? 0)
+          }}.
         </template>
         <ul v-if="yamtrackResult.errors.length" class="import-errors">
           <li v-for="(err, i) in yamtrackResult.errors" :key="i">{{ err }}</li>
@@ -489,7 +503,13 @@ async function onFileSelected(e: Event) {
         </div>
       </div>
       <label v-else class="secondary-button upload-label">
-        {{ source === "yamtrack" ? "Choose Yamtrack CSV…" : malBusy ? "Reading…" : "Choose file…" }}
+        {{
+          source === "yamtrack"
+            ? "Choose Yamtrack CSV…"
+            : malBusy
+              ? "Reading…"
+              : "Choose file…"
+        }}
         <input
           type="file"
           :accept="sourceInfo.accept"
@@ -564,51 +584,50 @@ async function onFileSelected(e: Event) {
 
 <style scoped>
 .settings-section h2 {
-  margin: 0 0 8px;
-  padding-left: 12px;
-  border-left: 3px solid #d68a34;
-  font-size: 1rem;
-  color: #fff;
+  margin: 0 0 12px;
+  font: var(--ui-weight-heading) var(--ui-font-heading)/1.4
+    var(--ui-font-family);
+  color: var(--ui-text);
 }
 .section-hint {
-  color: #999;
+  color: var(--ui-dim);
   font-size: 0.82rem;
   line-height: 1.6;
   margin: 0 0 20px;
 }
 .tile {
-  background: #111;
-  border: 1px solid #2a2a2a;
-  border-radius: 10px;
+  background: var(--ui-bg);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
   padding: 18px 20px;
   margin-bottom: 16px;
 }
 .tile h3 {
   margin: 0 0 6px;
   font-size: 0.9rem;
-  color: #fff;
+  color: var(--ui-text);
 }
 .tile-desc {
-  color: #999;
+  color: var(--ui-dim);
   font-size: 0.8rem;
   line-height: 1.5;
   margin: 0 0 14px;
 }
 .backup-status-tile {
-  border-color: rgba(214, 138, 52, 0.3);
-  background: rgba(214, 138, 52, 0.04);
+  border-color: color-mix(in srgb, var(--ui-accent) 30%, transparent);
+  background: color-mix(in srgb, var(--ui-accent) 4%, transparent);
 }
 .backup-status-line {
   margin: 0;
-  color: #d68a34;
+  color: var(--ui-accent-text);
   font-size: 0.78rem;
   font-weight: 600;
 }
 .primary-button {
-  background: #d68a34;
-  color: #111;
+  background: var(--ui-accent);
+  color: var(--ui-on-accent);
   border: none;
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   padding: 11px 20px;
   font-weight: 600;
   cursor: pointer;
@@ -618,10 +637,10 @@ async function onFileSelected(e: Event) {
   cursor: not-allowed;
 }
 .secondary-button {
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
+  background: color-mix(in srgb, var(--ui-text) 8%, transparent);
+  color: var(--ui-text);
   border: none;
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   padding: 10px 16px;
   font-size: 0.82rem;
   font-weight: 600;
@@ -634,28 +653,37 @@ async function onFileSelected(e: Event) {
 .hidden-input {
   display: none;
 }
-.form-error {
-  color: #fca5a5;
+.form-warning {
+  color: #fcd34d;
   font-size: 13px;
-  background: rgba(220, 38, 38, 0.1);
-  border: 1px solid rgba(220, 38, 38, 0.3);
+  background: rgba(234, 179, 8, 0.1);
+  border: 1px solid rgba(234, 179, 8, 0.3);
   border-radius: 8px;
   padding: 8px 10px;
   margin-bottom: 12px;
 }
+.form-error {
+  color: var(--ui-error);
+  font-size: 13px;
+  background: rgba(220, 38, 38, 0.1);
+  border: 1px solid rgba(220, 38, 38, 0.3);
+  border-radius: var(--ui-radius-control);
+  padding: 8px 10px;
+  margin-bottom: 12px;
+}
 .form-success {
-  color: #86efac;
+  color: var(--ui-good);
   font-size: 13px;
   background: rgba(34, 197, 94, 0.1);
   border: 1px solid rgba(34, 197, 94, 0.3);
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   padding: 8px 10px;
   margin-bottom: 12px;
 }
 .import-errors {
   margin: 8px 0 0;
   padding-left: 18px;
-  color: #fca5a5;
+  color: var(--ui-error);
   font-size: 12px;
 }
 .mal-source {
@@ -678,12 +706,12 @@ async function onFileSelected(e: Event) {
   padding: 0;
   max-height: 360px;
   overflow-y: auto;
-  border: 1px solid #2a2a2a;
-  border-radius: 8px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
 }
 .mal-list > li {
   padding: 10px 12px;
-  border-bottom: 1px solid #1f1f1f;
+  border-bottom: 1px solid var(--ui-surface-2);
 }
 .mal-list > li:last-child {
   border-bottom: none;
@@ -693,7 +721,7 @@ async function onFileSelected(e: Event) {
   align-items: center;
   gap: 10px;
   cursor: pointer;
-  color: #fff;
+  color: var(--ui-text);
   font-size: 0.85rem;
 }
 .mal-title {
@@ -704,21 +732,21 @@ async function onFileSelected(e: Event) {
   white-space: nowrap;
 }
 .mal-choice {
-  color: #d68a34;
+  color: var(--ui-accent-text);
   font-size: 0.75rem;
 }
 .mal-diffs {
   list-style: none;
   margin: 6px 0 0 26px;
   padding: 0;
-  color: #999;
+  color: var(--ui-dim);
   font-size: 0.75rem;
   line-height: 1.5;
 }
 .mal-details {
   display: flex;
   gap: 8px;
-  color: #999;
+  color: var(--ui-dim);
   font-size: 0.8rem;
   line-height: 1.5;
 }

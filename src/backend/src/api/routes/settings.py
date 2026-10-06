@@ -4,17 +4,24 @@ per-user metadata-provider credentials, and read-only server config the
 frontend needs to display (e.g. upload limits)."""
 
 import asyncio
+import platform
+import sys
+import time
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from fastapi.responses import FileResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.schemas.appearance_settings import AppearanceSettingsRead, AppearanceSettingsUpdate
 from src.api.schemas.scan_settings import ScanSettingsRead, ScanSettingsUpdate
-from src.core.app_integrations import get_or_create_app_integration_settings
+from src.core.app_integrations import (
+    UPLOAD_LIMIT_FIELDS,
+    get_or_create_app_integration_settings,
+    get_upload_limits_mb,
+)
 from src.core.auth import get_current_admin, get_current_user
 from src.core.config import settings
 from src.core.crypto import decrypt_secret, encrypt_secret
@@ -43,6 +50,8 @@ router = APIRouter(
     tags=["settings"],
     dependencies=[Depends(get_current_user)],
 )
+
+_PROCESS_STARTED_AT = int(time.time())
 
 # provider key -> [(payload field name, User column name, is Fernet-encrypted)]
 PROVIDER_FIELD_MAP: dict[str, list[tuple[str, str, bool]]] = {
@@ -224,11 +233,12 @@ async def upload_badge_image(
             status_code=status.HTTP_400_BAD_REQUEST, detail="File must be an image."
         )
     data = await file.read()
-    max_bytes = settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024
+    limit_mb = (await get_upload_limits_mb(db))["max_upload_size_mb"]
+    max_bytes = limit_mb * 1024 * 1024
     if len(data) > max_bytes:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Image is larger than the {settings.MAX_UPLOAD_SIZE_MB} MB limit.",
+            detail=f"Image is larger than the {limit_mb} MB limit.",
         )
     try:
         save_badge_image(data, current_user.id)
@@ -269,11 +279,52 @@ async def get_badge_image(current_user: User = Depends(get_current_user)) -> Fil
     )
 
 
+@router.get("/system-info")
+async def get_system_info(admin: User = Depends(get_current_admin)) -> dict:
+    """Admin-only, for Settings > Administration > Dev Tools. Never
+    includes secrets or connection strings — just enough to sanity-check
+    which server you're talking to and correlate against timestamps
+    (notifications, activity log, calendar) that are all server time."""
+    del admin
+    now = int(time.time())
+    return {
+        "server_time": now,
+        "uptime_seconds": now - _PROCESS_STARTED_AT,
+        "debug": settings.DEBUG,
+        "python_version": sys.version.split()[0],
+        "platform": platform.platform(),
+    }
+
+
 @router.get("/upload-limits")
-async def get_upload_limits() -> dict[str, int]:
-    """Read-only — the effective max upload size, set server-wide via
-    MAX_UPLOAD_SIZE_MB. Not user-editable from Settings."""
-    return {"max_upload_size_mb": settings.MAX_UPLOAD_SIZE_MB}
+async def get_upload_limits(db: AsyncSession = Depends(get_db)) -> dict[str, int]:
+    """Effective upload caps; missing overrides fall back to their environment values."""
+    return await get_upload_limits_mb(db)
+
+
+class UploadLimitRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    max_upload_size_mb: int | None = Field(default=None, ge=1, le=2147483647, strict=True)
+    max_save_archive_size_mb: int | None = Field(default=None, ge=1, le=2147483647, strict=True)
+    max_clip_size_mb: int | None = Field(default=None, ge=1, le=2147483647, strict=True)
+    max_world_save_size_mb: int | None = Field(default=None, ge=1, le=2147483647, strict=True)
+
+
+@router.put("/upload-limit")
+async def update_upload_limit(
+    payload: UploadLimitRequest,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(get_current_admin),
+) -> dict[str, int]:
+    """Update only supplied caps. Null clears that override back to its environment value."""
+    del admin
+    row = await get_or_create_app_integration_settings(db)
+    for name in UPLOAD_LIMIT_FIELDS:
+        if name in payload.model_fields_set:
+            setattr(row, name, getattr(payload, name))
+    await db.commit()
+    return await get_upload_limits_mb(db)
 
 
 @router.get("/provider-credentials")
@@ -312,6 +363,27 @@ async def get_provider_credentials(
     result["ScreenScraper"]["app_configured"] = bool(
         settings.SCREENSCRAPER_DEVID and settings.SCREENSCRAPER_DEVPASSWORD
     )
+
+    # The personal SteamGridDB key lives on the profile rather than in
+    # PROVIDER_FIELD_MAP, but it's shown alongside the others.
+    result["SteamGridDB"] = {
+        "status": "configured" if current_user.steamgriddb_api_key else "not_configured"
+    }
+    # Whether a server-wide key (Settings > Server Integrations or the
+    # environment, already folded into `settings` at startup/save) covers a
+    # provider for anyone without a personal key. Without this the personal
+    # cards said "Not configured" while searches quietly used the server key,
+    # which made the two places look like unsynced duplicates (#234). Only a
+    # yes/no ever leaves the server.
+    server_keys = {
+        "SteamGridDB": bool(settings.STEAMGRIDDB_API_KEY),
+        "GiantBomb": bool(settings.GIANTBOMB_API_KEY),
+        "RetroAchievements": bool(settings.RETROACHIEVEMENTS_API_KEY),
+        "ScreenScraper": bool(settings.SCREENSCRAPER_SSID and settings.SCREENSCRAPER_SSPASSWORD),
+    }
+    for provider, configured in server_keys.items():
+        result.setdefault(provider, {"status": "not_configured"})
+        result[provider]["server_configured"] = configured
 
     # library-sync providers also report how much has actually been pulled
     # in — a persistent "N games, last synced ..." beats a toast that
