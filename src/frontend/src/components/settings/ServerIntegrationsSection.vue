@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from "vue";
+import PasswordInput from "../PasswordInput.vue";
 import {
   fetchDeploymentSettings,
   updateDeploymentSettings,
 } from "../../services/deploymentSettings";
+import TrustedProxyControls from "./TrustedProxyControls.vue";
 
 const fields = [
   ["steamgriddb_api_key", "SteamGridDB API key"],
@@ -25,12 +27,18 @@ const error = ref<string | null>(null);
 const saved = ref(false);
 const providers = reactive<Record<string, string>>({});
 const configured = reactive<Record<string, boolean>>({});
-const deploymentSettings = ref<Awaited<ReturnType<typeof fetchDeploymentSettings>> | null>(null);
+const deploymentSettings = ref<Awaited<
+  ReturnType<typeof fetchDeploymentSettings>
+> | null>(null);
+const realIpHeader = ref("");
+const realIpTrustedProxies = ref("");
 
 onMounted(async () => {
   try {
     const result = await fetchDeploymentSettings();
     deploymentSettings.value = result;
+    realIpHeader.value = result.real_ip.header;
+    realIpTrustedProxies.value = result.real_ip.trusted_proxies;
     for (const [key, value] of Object.entries(result.providers)) {
       if (key.endsWith("_configured"))
         configured[key.replace(/_configured$/, "")] = Boolean(value);
@@ -57,6 +65,10 @@ async function save() {
     const payload: Record<string, string> = {};
     for (const [key] of fields)
       if (providers[key]) payload[key] = providers[key];
+    if (!(deploymentSettings.value?.real_ip.locked.header ?? false))
+      payload.nginx_realip_header = realIpHeader.value;
+    if (!(deploymentSettings.value?.real_ip.locked.trusted_proxies ?? false))
+      payload.nginx_realip_trusted_proxies = realIpTrustedProxies.value;
     const result = await updateDeploymentSettings(payload);
     for (const [key, value] of Object.entries(result.providers))
       if (typeof value === "string") providers[key] = value;
@@ -81,22 +93,39 @@ async function save() {
       browser after saving. Values supplied by the deployment environment are
       managed there and cannot be replaced from this page.
     </p>
+    <p class="hint">
+      These are the server-wide defaults, used for everyone who hasn't saved
+      their own key under Settings &rsaquo; Metadata/API. A user's own key
+      always takes precedence for that user, which is why the same provider
+      appears in both places.
+    </p>
     <div v-if="loading">Loading…</div>
     <template v-else>
       <div class="grid">
         <label v-for="[key, label] in fields" :key="key"
           ><span>{{ label }}</span
-          ><input
-            v-model="providers[key]"
-            :type="
+          ><PasswordInput
+            v-if="
               key.includes('secret') ||
               key.includes('password') ||
               key.includes('api_key')
-                ? 'password'
-                : 'text'
             "
-             :placeholder="
-              deploymentSettings?.provider_locks[key] ?? false
+            :model-value="providers[key] ?? ''"
+            mode="replace"
+            :placeholder="
+              deploymentSettings?.provider_locks[key]
+                ? 'Managed by deployment environment'
+                : configured[key]
+                  ? 'Already saved — enter a new value to replace it'
+                  : ''
+            "
+            :disabled="deploymentSettings?.provider_locks[key] ?? false"
+            @update:model-value="providers[key] = $event" /><input
+            v-else
+            v-model="providers[key]"
+            type="text"
+            :placeholder="
+              (deploymentSettings?.provider_locks[key] ?? false)
                 ? 'Managed by deployment environment'
                 : configured[key]
                   ? 'Already saved — enter a new value to replace it'
@@ -105,9 +134,29 @@ async function save() {
             :disabled="deploymentSettings?.provider_locks[key] ?? false"
         /></label>
       </div>
+      <section class="proxy-section">
+        <h3>Client IP / reverse proxy</h3>
+        <p class="hint">
+          Nginx trusts only loopback by default. Add Cloudflare, local/private,
+          CGNAT/VPS, or custom ranges when they are actually proxy networks for
+          this deployment. Environment values take precedence and are locked.
+        </p>
+        <label
+          ><span>Real client IP header</span
+          ><input
+            v-model="realIpHeader"
+            :disabled="deploymentSettings?.real_ip.locked.header ?? false"
+        /></label>
+        <TrustedProxyControls
+          v-model="realIpTrustedProxies"
+          :disabled="
+            deploymentSettings?.real_ip.locked.trusted_proxies ?? false
+          "
+        />
+      </section>
       <p class="hint">
-        OpenID Connect / SSO has its own tab so authentication settings can be
-        managed separately.
+        OpenID Connect / SSO has its own section so authentication settings can
+        be managed separately.
       </p>
       <p v-if="error" class="error">{{ error }}</p>
       <p v-if="saved" class="success">Saved.</p>
@@ -125,7 +174,7 @@ async function save() {
   gap: 16px;
 }
 .hint {
-  color: #999;
+  color: var(--ui-dim);
   font-size: 13px;
   line-height: 1.5;
 }
@@ -138,30 +187,59 @@ async function save() {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  color: #ccc;
+  color: var(--ui-text);
   font-size: 13px;
 }
 .grid input {
-  background: #111;
-  border: 1px solid #3a3a3a;
-  border-radius: 8px;
-  color: #fff;
+  background: var(--ui-bg);
+  border: 1px solid var(--ui-border-strong);
+  border-radius: var(--ui-radius-control);
+  color: var(--ui-text);
   padding: 10px;
   font: inherit;
 }
 .grid input:focus {
   outline: none;
-  border-color: #d68a34;
+  border-color: var(--ui-accent);
 }
 h2 {
+  margin: 0 0 12px;
+  font: var(--ui-weight-heading) var(--ui-font-heading)/1.4
+    var(--ui-font-family);
+  color: var(--ui-text);
+}
+.proxy-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border-top: 1px solid var(--ui-border);
+  padding-top: 18px;
+}
+.proxy-section h3 {
   margin: 0;
-  color: #fff;
+  color: var(--ui-text);
+}
+.proxy-section label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--ui-text);
+  font-size: 13px;
+}
+.proxy-section label input {
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border-strong);
+  border-radius: var(--ui-radius-control);
+  color: var(--ui-text);
+  padding: 10px;
+  font: inherit;
 }
 button {
   align-self: flex-start;
-  background: #d68a34;
+  background: var(--ui-accent);
+  color: var(--ui-on-accent);
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   padding: 10px 14px;
   font-weight: 600;
   cursor: pointer;
@@ -170,10 +248,10 @@ button:disabled {
   opacity: 0.6;
 }
 .error {
-  color: #fca5a5;
+  color: var(--ui-error);
 }
 .success {
-  color: #86efac;
+  color: var(--ui-good);
 }
 @media (max-width: 760px) {
   .grid {

@@ -1,20 +1,27 @@
 <script setup lang="ts">
+import HeartIcon from "../HeartIcon.vue";
 import {
   ref,
   computed,
   reactive,
   watch,
   onMounted,
+  onActivated,
+  onDeactivated,
   onBeforeUnmount,
 } from "vue";
-import { useRouter } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import CheckIcon from "../CheckIcon.vue";
 import MediaTopBar from "../MediaTopBar.vue";
+import UiModal from "../UiModal.vue";
 import SegmentedTabs from "../SegmentedTabs.vue";
 import type { SegmentOption } from "../SegmentedTabs.vue";
 import { preferences } from "../../state/preferences";
 import { matchesFilters } from "../../utils/libraryFilters";
 import type { LibraryFilters } from "../../utils/libraryFilters";
+import { blurOnLeave } from "../../utils/blurOnLeave";
+import { PHONE_CARD_COLUMNS } from "../../utils/libraryLayout";
+import { quickTourActive } from "../../state/quickTour";
 import {
   STATUS_BUCKETS,
   statusBucket,
@@ -26,64 +33,18 @@ import {
 // Shows, and Anime without knowing about seasons, episode tables, or any
 // other per-entity detail — each Library.vue page adapts its real
 // entities into this shape and reacts to the events below.
-export interface LibraryCardVM {
-  id: string;
-  title: string;
-  poster: string | null;
-  status: string;
-  favorite: boolean;
-  score: number | null;
-  personalRank: number | null;
-  note: string | null;
-  genres: string[];
-  isEpisodic: boolean;
-  watched: number;
-  total: number | null;
-  progressLabel: string;
-  canAdvance: boolean;
-  // No real "currently airing" data source is wired up for any of the
-  // three entities yet (would need extending the TVmaze/AniList/TMDB
-  // clients) — the field and its always-rendered-but-invisible tag stay
-  // here so the capability and layout are ready the moment that data
-  // exists, matching the mockup exactly rather than dropping the feature.
-  airing?: boolean;
-  // The real sub-format (e.g. "TV", "Movie", "OVA") when the entity
-  // carries one — currently only Anime does (from AniList/Jikan). Falls
-  // back to the generic per-kind typeLabel below when absent.
-  format?: string | null;
-  // Release/first-air year, shown right under the format label — null
-  // when the underlying date is unknown.
-  releaseYear: string | null;
-  // when it was added to the library (ms), for sorting by recently added
-  addedAt?: number | null;
-  // other spellings of the title, so search finds any of them
-  altTitles?: string[];
-}
-
-export interface SearchResultVM {
-  title: string;
-  poster: string | null;
-  description: string | null;
-  episodeTotal: number | null;
-  releaseYear: string | null;
-}
-
-export interface QuickAddForm {
-  status: string;
-  watched: number;
-  seen: boolean;
-  score: number | null;
-  startDate: string | null;
-  endDate: string | null;
-}
-
-export interface EditForm {
-  status: string;
-  score: number | null;
-  watched: number;
-  totalEpisodes: number | null;
-  seen: boolean;
-}
+import type {
+  LibraryCardVM,
+  SearchResultVM,
+  QuickAddForm,
+  EditForm,
+} from "../../types/mediaLibrary";
+export type {
+  LibraryCardVM,
+  SearchResultVM,
+  QuickAddForm,
+  EditForm,
+} from "../../types/mediaLibrary";
 
 // The pill/tab labels shown everywhere in this view come from the shared
 // 5-value bucket set in utils/mediaStatus.ts — the pill's CSS modifier
@@ -96,6 +57,8 @@ const props = defineProps<{
   items: LibraryCardVM[];
   total: number;
   statusCounts: Record<string, number>;
+  // library-wide leaderboard positions from the server
+  scoreRanks?: Record<string, number>;
   loading: boolean;
   error: string | null;
   detailRoute: (id: string) => string;
@@ -117,20 +80,40 @@ const emit = defineEmits<{
   (e: "bulk-favorite", ids: string[]): void;
   (e: "bulk-delete", ids: string[]): void;
   (e: "search", query: string): void;
+  (
+    e: "filters-change",
+    filters: LibraryFilters & { statusBucket: string },
+  ): void;
   (e: "load-more"): void;
 }>();
 
 const router = useRouter();
+const route = useRoute();
 
 function maybeLoadMore() {
-  if (layout.value === "board" || props.loading || props.items.length >= props.total) return;
-  if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 1000) {
+  if (
+    layout.value === "board" ||
+    props.loading ||
+    props.items.length >= props.total ||
+    // what is already loaded is still being drawn a screenful at a time
+    renderLimit.value < filteredItems.value.length
+  )
+    return;
+  if (
+    window.innerHeight + window.scrollY >=
+    document.documentElement.scrollHeight - 1000
+  ) {
     emit("load-more");
   }
 }
-onMounted(() => window.addEventListener("scroll", maybeLoadMore, { passive: true }));
+onMounted(() =>
+  window.addEventListener("scroll", maybeLoadMore, { passive: true }),
+);
 onBeforeUnmount(() => window.removeEventListener("scroll", maybeLoadMore));
-watch(() => props.items.length, () => requestAnimationFrame(maybeLoadMore));
+watch(
+  () => props.items.length,
+  () => requestAnimationFrame(maybeLoadMore),
+);
 
 // The mockup's per-item "type" field (TV/Movie/OVA/Series/Anthology) has
 // no real per-item equivalent — none of the three entities carry a
@@ -191,21 +174,39 @@ const shelfCardMinWidth = computed(() => {
   if (shelfCardSize.value === "large") return "260px";
   return "200px";
 });
-// Board's cards are fixed-width flex items (each status is its own
-// horizontally-scrolling row) rather than a minmax grid, so the same S/M/L
-// preference maps to an explicit width instead.
-const boardCardWidth = computed(() => {
-  if (shelfCardSize.value === "compact") return "150px";
-  if (shelfCardSize.value === "large") return "260px";
-  return "196px";
+const viewportWidth = ref(window.innerWidth);
+const libraryToolsOpen = ref(false);
+const compactControls = computed(
+  () =>
+    viewportWidth.value <= 760 &&
+    !libraryToolsOpen.value &&
+    !selectMode.value &&
+    !quickTourActive.value,
+);
+const shelfGridColumns = computed(() =>
+  viewportWidth.value <= 760
+    ? `repeat(${PHONE_CARD_COLUMNS[shelfCardSize.value]}, minmax(0, 1fr))`
+    : `repeat(auto-fill, minmax(${shelfCardMinWidth.value}, 1fr))`,
+);
+// Board rows fill the available width. S/M/L controls the minimum desktop
+// card width; phones retain their distinct 3/2/1 column counts.
+const boardCardMinWidth = computed(() => {
+  if (shelfCardSize.value === "compact") return 150;
+  if (shelfCardSize.value === "large") return 260;
+  return 196;
 });
 const activeStatus = ref<string>("all");
 const searchQuery = ref("");
-let searchTimer: ReturnType<typeof setTimeout> | null = null;
-watch(searchQuery, (query) => {
-  if (searchTimer !== null) clearTimeout(searchTimer);
-  searchTimer = setTimeout(() => emit("search", query.trim()), 250);
-});
+let filterTimer: ReturnType<typeof setTimeout> | null = null;
+function emitFilters() {
+  if (filterTimer !== null) clearTimeout(filterTimer);
+  filterTimer = setTimeout(() => {
+    emit("filters-change", {
+      ...filters.value,
+      statusBucket: activeStatus.value,
+    });
+  }, 250);
+}
 type SortKey =
   | "rank"
   | "score"
@@ -279,6 +280,21 @@ const activeFilterCount = computed(
       yearFrom.value.trim() !== "" || yearTo.value.trim() !== "",
     ].filter(Boolean).length,
 );
+// A genre chip on a title's page links here as ?genre=Action. It shows exactly
+// that, not that on top of whatever filters were left on from last time.
+const BASE_PATH: Record<string, string> = {
+  movie: "/movies",
+  tv: "/tv",
+  anime: "/anime",
+};
+function applyLinkedFilter() {
+  if (route.path !== BASE_PATH[props.kind]) return;
+  const genre = route.query.genre;
+  if (typeof genre !== "string" || !genre) return;
+  clearFilters();
+  selectedGenres.value = new Set([genre]);
+  filtersOpen.value = true;
+}
 function clearFilters() {
   selectedGenres.value = new Set();
   selectedFormats.value = new Set();
@@ -290,6 +306,39 @@ function clearFilters() {
   yearFrom.value = "";
   yearTo.value = "";
 }
+
+applyLinkedFilter();
+// the library is kept alive, so a link can arrive while it already exists
+watch(() => route.fullPath, applyLinkedFilter);
+
+// ---- drawing a long library a screenful at a time ----
+// A shelf or list of hundreds of cards is slow to open if every one is drawn
+// at once, so the first screenfuls are drawn and a marker below them draws the
+// next batch as it nears the screen. Search, sort and filters start over.
+const RENDER_STEP = 48;
+const renderLimit = ref(RENDER_STEP);
+const moreSentinel = ref<HTMLElement | null>(null);
+const sentinelObserver =
+  typeof IntersectionObserver === "undefined"
+    ? null
+    : new IntersectionObserver(
+        (entries) => {
+          if (!entries.some((e) => e.isIntersecting)) return;
+          renderLimit.value += RENDER_STEP;
+          // asked again, so a marker still in view after the batch draws more
+          const el = moreSentinel.value;
+          if (el) {
+            sentinelObserver?.unobserve(el);
+            sentinelObserver?.observe(el);
+          }
+        },
+        { rootMargin: "800px" },
+      );
+watch(moreSentinel, (el, old) => {
+  if (old) sentinelObserver?.unobserve(old);
+  if (el) sentinelObserver?.observe(el);
+});
+onBeforeUnmount(() => sentinelObserver?.disconnect());
 
 // Every filter except the status tab (the Board shows the tabs as rows).
 const filters = computed<LibraryFilters>(() => ({
@@ -312,6 +361,11 @@ function matchesFilterState(it: LibraryCardVM): boolean {
 // everything that's been rated, highest score first. Nothing without a
 // score participates, so there's no ranking to show for it yet.
 const rankByItemId = computed(() => {
+  // The server ranks the whole library; the loaded items alone would give
+  // a title the wrong rank whenever it is paginated or searched.
+  if (props.scoreRanks && Object.keys(props.scoreRanks).length) {
+    return new Map(Object.entries(props.scoreRanks));
+  }
   const ranked = props.items
     .filter((it) => it.score !== null)
     .slice()
@@ -379,13 +433,25 @@ const filteredItems = computed(() => {
   }
   return sorted;
 });
+const renderedItems = computed(() =>
+  filteredItems.value.slice(0, renderLimit.value),
+);
+watch([searchQuery, sortKey, activeStatus, filters, layout], () => {
+  renderLimit.value = RENDER_STEP;
+});
 
 const boardPageStarts = reactive<Record<string, number>>({});
 const boardViewportWidth = ref(0);
-const boardContainer = ref<HTMLElement | null>(null);
+const libraryContainer = ref<HTMLElement | null>(null);
 const boardVisibleCount = computed(() => {
-  const cardWidth = shelfCardSize.value === "compact" ? 150 : shelfCardSize.value === "large" ? 260 : 196;
-  return Math.max(1, Math.floor((boardViewportWidth.value + 14) / (cardWidth + 14)) || 1);
+  if (viewportWidth.value <= 760)
+    return PHONE_CARD_COLUMNS[shelfCardSize.value];
+  return Math.max(
+    1,
+    Math.floor(
+      (boardViewportWidth.value + 14) / (boardCardMinWidth.value + 14),
+    ) || 1,
+  );
 });
 function resetBoardPages() {
   Object.keys(boardPageStarts).forEach((key) => delete boardPageStarts[key]);
@@ -396,20 +462,56 @@ function moveBoard(status: string, direction: -1 | 1, available: number) {
     boardPageStarts[status] = Math.max(0, current - available);
     return;
   }
-  if (current + available >= props.items.length && props.items.length < props.total) {
+  if (
+    current + available >= props.items.length &&
+    props.items.length < props.total
+  ) {
     emit("load-more");
   }
   boardPageStarts[status] = current + available;
 }
-watch([activeStatus, filters], resetBoardPages);
+watch([activeStatus, filters], () => {
+  resetBoardPages();
+  emitFilters();
+});
 watch(boardViewportWidth, resetBoardPages);
 function updateBoardViewport() {
-  boardViewportWidth.value = boardContainer.value?.clientWidth ?? 0;
+  viewportWidth.value = window.innerWidth;
+  const element = libraryContainer.value;
+  if (!element) return;
+  const style = getComputedStyle(element);
+  boardViewportWidth.value =
+    element.clientWidth -
+    parseFloat(style.paddingLeft) -
+    parseFloat(style.paddingRight);
 }
-onMounted(updateBoardViewport);
-watch(shelfCardSize, () => requestAnimationFrame(updateBoardViewport));
-window.addEventListener("resize", updateBoardViewport);
-onBeforeUnmount(() => window.removeEventListener("resize", updateBoardViewport));
+let measureFrame = 0;
+const libraryObserver = new ResizeObserver(() => {
+  cancelAnimationFrame(measureFrame);
+  measureFrame = requestAnimationFrame(updateBoardViewport);
+});
+onMounted(() => {
+  updateBoardViewport();
+  if (libraryContainer.value) libraryObserver.observe(libraryContainer.value);
+});
+onActivated(() => {
+  updateBoardViewport();
+  window.addEventListener("resize", updateBoardViewport);
+  if (libraryContainer.value) libraryObserver.observe(libraryContainer.value);
+});
+onDeactivated(() => {
+  window.removeEventListener("resize", updateBoardViewport);
+  libraryObserver.disconnect();
+  cancelAnimationFrame(measureFrame);
+});
+watch([shelfCardSize, layout], () =>
+  requestAnimationFrame(updateBoardViewport),
+);
+onBeforeUnmount(() => {
+  window.removeEventListener("resize", updateBoardViewport);
+  libraryObserver.disconnect();
+  cancelAnimationFrame(measureFrame);
+});
 
 const boardGroups = computed(() => {
   const statuses =
@@ -423,7 +525,12 @@ const boardGroups = computed(() => {
       );
       rowItems = rowItems.filter(matchesFilterState);
       const start = boardPageStarts[s.key] ?? 0;
-      return { status: s, rowItems, visibleItems: rowItems.slice(start, start + boardVisibleCount.value), start };
+      return {
+        status: s,
+        rowItems,
+        visibleItems: rowItems.slice(start, start + boardVisibleCount.value),
+        start,
+      };
     })
     .filter((g) => g.rowItems.length > 0);
 });
@@ -486,6 +593,13 @@ function handleCardClick(it: LibraryCardVM) {
 }
 
 // ---- notes modal ----
+const cardActionsOpen = ref(false);
+const cardActionsTarget = ref<LibraryCardVM | null>(null);
+function openCardActions(it: LibraryCardVM) {
+  cardActionsTarget.value = it;
+  cardActionsOpen.value = true;
+}
+
 const noteOpen = ref(false);
 const noteTargetId = ref<string | null>(null);
 const noteText = ref("");
@@ -715,7 +829,7 @@ defineExpose({ openQuickAdd });
 </script>
 
 <template>
-  <div class="lib-root">
+  <div class="lib-root" :class="{ 'compact-controls': compactControls }">
     <MediaTopBar :active="kind">
       <template #actions>
         <SegmentedTabs
@@ -727,7 +841,7 @@ defineExpose({ openQuickAdd });
       </template>
     </MediaTopBar>
 
-    <div class="lib-inner">
+    <div ref="libraryContainer" class="lib-inner">
       <div class="page-head">
         <div>
           <h1>
@@ -739,7 +853,17 @@ defineExpose({ openQuickAdd });
             {{ total }} {{ total === 1 ? "title" : "titles" }}
           </div>
         </div>
-        <div style="display: flex; gap: 8px">
+        <button
+          v-if="viewportWidth <= 760"
+          type="button"
+          class="btn-outline library-tools-toggle"
+          :aria-expanded="!compactControls"
+          :aria-label="compactControls ? 'Library controls' : 'Hide controls'"
+          @click="libraryToolsOpen = !libraryToolsOpen"
+        >
+          {{ compactControls ? "Controls" : "Hide controls" }}
+        </button>
+        <div class="head-actions" style="display: flex; gap: 8px">
           <button
             type="button"
             class="select-btn"
@@ -753,6 +877,7 @@ defineExpose({ openQuickAdd });
             class="add-btn"
             :disabled="selectMode"
             @click="openQuickAdd"
+            data-shortcut="create"
           >
             {{ addLabel }}
           </button>
@@ -792,9 +917,14 @@ defineExpose({ openQuickAdd });
             <circle cx="11" cy="11" r="7" />
             <line x1="21" y1="21" x2="16.65" y2="16.65" />
           </svg>
-          <input v-model="searchQuery" placeholder="Search your library..." />
+          <input
+            v-model="searchQuery"
+            data-shortcut="search"
+            placeholder="Search your library..."
+            aria-label="Search your library"
+          />
         </div>
-        <select v-model="sortKey" class="sort-select">
+        <select v-model="sortKey" class="sort-select" aria-label="Sort by">
           <option value="rank">Sort: Rank</option>
           <option value="score">Sort: Score, highest first</option>
           <option value="title">Sort: Title A–Z</option>
@@ -983,7 +1113,7 @@ defineExpose({ openQuickAdd });
             </div>
             <div class="list-rows">
               <div
-                v-for="it in filteredItems"
+                v-for="it in renderedItems"
                 :key="it.id"
                 class="list-row"
                 @click="handleCardClick(it)"
@@ -1027,27 +1157,7 @@ defineExpose({ openQuickAdd });
                     title="Favorite"
                     @click.stop="emit('toggle-favorite', it.id)"
                   >
-                    <svg
-                      v-if="it.favorite"
-                      viewBox="0 0 24 24"
-                      fill="currentColor"
-                      stroke="none"
-                    >
-                      <path
-                        d="M12 21s-7.5-4.9-10.2-9.4C.2 8.6 1.4 5 4.9 4.1c2-.5 3.9.3 5.1 2C11.2 4.4 13.1 3.6 15.1 4.1c3.5.9 4.7 4.5 3.1 7.5C15.5 16.1 12 21 12 21z"
-                      />
-                    </svg>
-                    <svg
-                      v-else
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2"
-                    >
-                      <path
-                        d="M12 21s-7.5-4.9-10.2-9.4C.2 8.6 1.4 5 4.9 4.1c2-.5 3.9.3 5.1 2C11.2 4.4 13.1 3.6 15.1 4.1c3.5.9 4.7 4.5 3.1 7.5C15.5 16.1 12 21 12 21z"
-                      />
-                    </svg>
+                    <HeartIcon :filled="it.favorite" />
                   </button>
                   <button
                     type="button"
@@ -1130,6 +1240,11 @@ defineExpose({ openQuickAdd });
               </div>
             </div>
           </div>
+          <div
+            v-if="renderLimit < filteredItems.length"
+            ref="moreSentinel"
+            class="render-sentinel"
+          ></div>
           <div v-if="items.length < total" class="load-more-indicator">
             {{ loading ? "Loading more…" : "Scroll for more" }}
           </div>
@@ -1144,14 +1259,15 @@ defineExpose({ openQuickAdd });
             v-else
             class="shelf-grid"
             :style="{
-              gridTemplateColumns: `repeat(auto-fill, minmax(${shelfCardMinWidth}, 1fr))`,
+              gridTemplateColumns: shelfGridColumns,
             }"
           >
             <div
-              v-for="it in filteredItems"
+              v-for="it in renderedItems"
               :key="it.id"
               class="shelf-card"
               @click="handleCardClick(it)"
+              @mouseleave="blurOnLeave"
             >
               <div class="shelf-art-wrap">
                 <div class="shelf-art">
@@ -1174,6 +1290,93 @@ defineExpose({ openQuickAdd });
                 <span v-if="computedRank(it)" class="shelf-rank rank-badge"
                   >#{{ computedRank(it) }}</span
                 >
+
+                <div v-if="!selectMode" class="sc-actions no-card-click">
+                  <button
+                    type="button"
+                    class="sc-action sc-more"
+                    :aria-label="`Actions for ${it.title}`"
+                    @click.stop="openCardActions(it)"
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="currentColor"
+                      aria-hidden="true"
+                    >
+                      <circle cx="5" cy="12" r="2" />
+                      <circle cx="12" cy="12" r="2" />
+                      <circle cx="19" cy="12" r="2" />
+                    </svg>
+                  </button>
+                  <button
+                    v-if="it.canAdvance"
+                    type="button"
+                    class="sc-action"
+                    title="Mark next episode watched"
+                    @click.stop="advanceEpisode(it)"
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2.5"
+                      stroke-linecap="round"
+                    >
+                      <line x1="12" y1="5" x2="12" y2="19" />
+                      <line x1="5" y1="12" x2="19" y2="12" />
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    class="sc-action"
+                    :class="{ active: it.favorite }"
+                    title="Favorite"
+                    @click.stop="emit('toggle-favorite', it.id)"
+                  >
+                    <HeartIcon :filled="it.favorite" />
+                  </button>
+                  <button
+                    type="button"
+                    class="sc-action"
+                    :class="{ active: it.note }"
+                    :title="it.note ? 'Edit note' : 'Add note'"
+                    @click.stop="openNote(it)"
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <path d="M14 3v4a1 1 0 0 0 1 1h4" />
+                      <path
+                        d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z"
+                      />
+                      <line x1="8" y1="13" x2="16" y2="13" />
+                      <line x1="8" y1="17" x2="13" y2="17" />
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    class="sc-action"
+                    title="Edit"
+                    @click.stop="openEdit(it)"
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <path d="M12 20h9" />
+                      <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                    </svg>
+                  </button>
+                </div>
               </div>
               <div class="shelf-body">
                 <div class="shelf-title-row">
@@ -1182,9 +1385,9 @@ defineExpose({ openQuickAdd });
                     {{ it.score ? `★ ${it.score}` : "–" }}
                   </div>
                 </div>
-                <div class="shelf-type">{{ it.format ?? typeLabel }}</div>
-                <div v-if="it.releaseYear" class="shelf-year">
-                  {{ it.releaseYear }}
+                <div class="shelf-meta-row">
+                  <span class="shelf-type">{{ it.format ?? typeLabel }}</span>
+                  <span class="shelf-sub">{{ it.progressLabel }}</span>
                 </div>
                 <div class="shelf-progress-row">
                   <div class="list-progress-track">
@@ -1193,113 +1396,18 @@ defineExpose({ openQuickAdd });
                       :style="{ width: progressPct(it) + '%' }"
                     ></div>
                   </div>
-                  <div class="shelf-progress-info">
-                    <span class="shelf-sub">{{ it.progressLabel }}</span>
-                    <button
-                      v-if="it.canAdvance"
-                      type="button"
-                      class="plus-btn no-card-click"
-                      title="Mark next episode watched"
-                      @click.stop="advanceEpisode(it)"
-                    >
-                      <svg
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2.5"
-                        stroke-linecap="round"
-                      >
-                        <line x1="12" y1="5" x2="12" y2="19" />
-                        <line x1="5" y1="12" x2="19" y2="12" />
-                      </svg>
-                    </button>
-                  </div>
                   <div v-if="it.airing" class="airing-tag">
                     <span class="dot"></span>Airing
-                  </div>
-                </div>
-                <div class="shelf-footer-row">
-                  <span class="pill" :class="statusBucket(it.status)">{{
-                    statusBucketLabel(it.status)
-                  }}</span>
-                  <div class="icon-cluster shelf-icon-cluster no-card-click">
-                    <button
-                      type="button"
-                      class="icon-btn"
-                      :class="{ active: it.favorite }"
-                      title="Favorite"
-                      @click.stop="emit('toggle-favorite', it.id)"
-                    >
-                      <svg
-                        v-if="it.favorite"
-                        viewBox="0 0 24 24"
-                        fill="currentColor"
-                        stroke="none"
-                      >
-                        <path
-                          d="M12 21s-7.5-4.9-10.2-9.4C.2 8.6 1.4 5 4.9 4.1c2-.5 3.9.3 5.1 2C11.2 4.4 13.1 3.6 15.1 4.1c3.5.9 4.7 4.5 3.1 7.5C15.5 16.1 12 21 12 21z"
-                        />
-                      </svg>
-                      <svg
-                        v-else
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2"
-                      >
-                        <path
-                          d="M12 21s-7.5-4.9-10.2-9.4C.2 8.6 1.4 5 4.9 4.1c2-.5 3.9.3 5.1 2C11.2 4.4 13.1 3.6 15.1 4.1c3.5.9 4.7 4.5 3.1 7.5C15.5 16.1 12 21 12 21z"
-                        />
-                      </svg>
-                    </button>
-                    <button
-                      type="button"
-                      class="icon-btn"
-                      :class="{ active: it.note }"
-                      :title="it.note ? 'Edit note' : 'Add note'"
-                      @click.stop="openNote(it)"
-                    >
-                      <svg
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                      >
-                        <path d="M14 3v4a1 1 0 0 0 1 1h4" />
-                        <path
-                          d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z"
-                        />
-                        <line x1="8" y1="13" x2="16" y2="13" />
-                        <line x1="8" y1="17" x2="13" y2="17" />
-                      </svg>
-                    </button>
-                    <button
-                      type="button"
-                      class="icon-btn"
-                      title="Edit"
-                      @click.stop="openEdit(it)"
-                    >
-                      <svg
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                      >
-                        <path d="M12 20h9" />
-                        <path
-                          d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"
-                        />
-                      </svg>
-                    </button>
                   </div>
                 </div>
               </div>
             </div>
           </div>
+          <div
+            v-if="renderLimit < filteredItems.length"
+            ref="moreSentinel"
+            class="render-sentinel"
+          ></div>
           <div v-if="items.length < total" class="load-more-indicator">
             {{ loading ? "Loading more…" : "Scroll for more" }}
           </div>
@@ -1319,16 +1427,35 @@ defineExpose({ openQuickAdd });
               <h2>{{ group.status.label }}</h2>
               <span class="n">{{ group.rowItems.length }}</span>
               <div class="board-nav">
-                <button type="button" :disabled="group.start === 0" @click="moveBoard(group.status.key, -1, boardVisibleCount)">‹</button>
-                <button type="button" :disabled="group.start + boardVisibleCount >= group.rowItems.length && items.length >= total" @click="moveBoard(group.status.key, 1, boardVisibleCount)">›</button>
+                <button
+                  type="button"
+                  :disabled="group.start === 0"
+                  @click="moveBoard(group.status.key, -1, boardVisibleCount)"
+                >
+                  ‹
+                </button>
+                <button
+                  type="button"
+                  :disabled="
+                    group.start + boardVisibleCount >= group.rowItems.length &&
+                    items.length >= total
+                  "
+                  @click="moveBoard(group.status.key, 1, boardVisibleCount)"
+                >
+                  ›
+                </button>
               </div>
             </div>
-            <div ref="boardContainer" class="board-shelf">
+            <div
+              class="board-shelf"
+              :style="{
+                gridTemplateColumns: `repeat(${boardVisibleCount}, minmax(0, 1fr))`,
+              }"
+            >
               <div
                 v-for="it in group.visibleItems"
                 :key="it.id"
                 class="board-card"
-                :style="{ width: boardCardWidth }"
                 @click="handleCardClick(it)"
               >
                 <div class="board-art-wrap">
@@ -1352,6 +1479,24 @@ defineExpose({ openQuickAdd });
                   <span v-if="computedRank(it)" class="board-rank rank-badge"
                     >#{{ computedRank(it) }}</span
                   >
+                  <div v-if="!selectMode" class="sc-actions no-card-click">
+                    <button
+                      type="button"
+                      class="sc-action sc-more"
+                      :aria-label="`Actions for ${it.title}`"
+                      @click.stop="openCardActions(it)"
+                    >
+                      <svg
+                        viewBox="0 0 24 24"
+                        fill="currentColor"
+                        aria-hidden="true"
+                      >
+                        <circle cx="5" cy="12" r="2" />
+                        <circle cx="12" cy="12" r="2" />
+                        <circle cx="19" cy="12" r="2" />
+                      </svg>
+                    </button>
+                  </div>
                 </div>
                 <div class="board-title-row">
                   <div class="board-title">{{ it.title }}</div>
@@ -1404,27 +1549,7 @@ defineExpose({ openQuickAdd });
                       title="Favorite"
                       @click.stop="emit('toggle-favorite', it.id)"
                     >
-                      <svg
-                        v-if="it.favorite"
-                        viewBox="0 0 24 24"
-                        fill="currentColor"
-                        stroke="none"
-                      >
-                        <path
-                          d="M12 21s-7.5-4.9-10.2-9.4C.2 8.6 1.4 5 4.9 4.1c2-.5 3.9.3 5.1 2C11.2 4.4 13.1 3.6 15.1 4.1c3.5.9 4.7 4.5 3.1 7.5C15.5 16.1 12 21 12 21z"
-                        />
-                      </svg>
-                      <svg
-                        v-else
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2"
-                      >
-                        <path
-                          d="M12 21s-7.5-4.9-10.2-9.4C.2 8.6 1.4 5 4.9 4.1c2-.5 3.9.3 5.1 2C11.2 4.4 13.1 3.6 15.1 4.1c3.5.9 4.7 4.5 3.1 7.5C15.5 16.1 12 21 12 21z"
-                        />
-                      </svg>
+                      <HeartIcon :filled="it.favorite" />
                     </button>
                     <button
                       type="button"
@@ -1479,12 +1604,66 @@ defineExpose({ openQuickAdd });
     </div>
 
     <!-- ===== Notes modal ===== -->
-    <div v-if="noteOpen" class="modal-overlay" @click.self="closeNote">
-      <div class="modal-card">
-        <h3>Notes</h3>
-        <div class="sub">Only visible to you.</div>
+    <UiModal
+      v-if="cardActionsOpen"
+      @close="cardActionsOpen = false"
+      :title="`Actions for ${cardActionsTarget?.title ?? 'media'}`"
+    >
+      <div v-if="cardActionsTarget" class="compact-card-actions">
+        <button
+          v-if="cardActionsTarget.canAdvance"
+          type="button"
+          class="btn-outline"
+          @click="
+            cardActionsOpen = false;
+            advanceEpisode(cardActionsTarget);
+          "
+        >
+          Mark next episode watched
+        </button>
+        <button
+          type="button"
+          class="btn-outline"
+          @click="
+            cardActionsOpen = false;
+            emit('toggle-favorite', cardActionsTarget.id);
+          "
+        >
+          {{ cardActionsTarget.favorite ? "Remove favorite" : "Add favorite" }}
+        </button>
+        <button
+          type="button"
+          class="btn-outline"
+          @click="
+            cardActionsOpen = false;
+            openNote(cardActionsTarget);
+          "
+        >
+          {{ cardActionsTarget.note ? "Edit note" : "Add note" }}
+        </button>
+        <button
+          type="button"
+          class="btn-outline"
+          @click="
+            cardActionsOpen = false;
+            openEdit(cardActionsTarget);
+          "
+        >
+          Edit media
+        </button>
+      </div>
+    </UiModal>
+
+    <UiModal
+      v-if="noteOpen"
+      title="Notes"
+      description="Only visible to you."
+      @close="closeNote"
+    >
+      <div class="media-modal-content">
         <textarea
           v-model="noteText"
+          aria-label="Personal media notes"
           placeholder="Nothing written yet: first impressions, things to remember, why you dropped it..."
         ></textarea>
         <div class="modal-actions">
@@ -1496,11 +1675,16 @@ defineExpose({ openQuickAdd });
           </button>
         </div>
       </div>
-    </div>
+    </UiModal>
 
     <!-- ===== "You finished it" rating prompt ===== -->
-    <div v-if="finishOpen" class="modal-overlay" @click.self="closeFinish">
-      <div class="modal-card finish-card">
+    <UiModal
+      v-if="finishOpen"
+      title="Rating"
+      description="Give it a rating, or skip for now."
+      @close="closeFinish"
+    >
+      <div class="media-modal-content finish-card">
         <div
           v-if="finishPoster"
           class="finish-poster"
@@ -1509,11 +1693,18 @@ defineExpose({ openQuickAdd });
         <div class="finish-body">
           <div class="finish-eyebrow">You finished it</div>
           <h3>{{ finishTitle }}</h3>
-          <div class="sub">Give it a rating, or skip for now.</div>
+
           <div class="decimal-rate finish-rate">
-            <button type="button" @click="stepFinishScore(-0.5)">−</button>
+            <button
+              type="button"
+              aria-label="Decrease rating"
+              @click="stepFinishScore(-0.5)"
+            >
+              −
+            </button>
             <input
               v-model.number="finishScore"
+              aria-label="Completion rating"
               type="number"
               min="0"
               max="10"
@@ -1521,7 +1712,13 @@ defineExpose({ openQuickAdd });
               placeholder="–"
             />
             <span class="of10">/ 10</span>
-            <button type="button" @click="stepFinishScore(0.5)">+</button>
+            <button
+              type="button"
+              aria-label="Increase rating"
+              @click="stepFinishScore(0.5)"
+            >
+              +
+            </button>
           </div>
           <div class="modal-actions">
             <button type="button" class="btn-outline" @click="closeFinish">
@@ -1533,13 +1730,16 @@ defineExpose({ openQuickAdd });
           </div>
         </div>
       </div>
-    </div>
+    </UiModal>
 
     <!-- ===== Small edit modal ===== -->
-    <div v-if="editOpen" class="modal-overlay" @click.self="closeEdit">
-      <div class="modal-card">
-        <h3>Edit</h3>
-        <div class="sub">Quick edit: status, rating, progress.</div>
+    <UiModal
+      v-if="editOpen"
+      title="Quick edit"
+      description="Update status, rating and progress."
+      @close="closeEdit"
+    >
+      <div class="media-modal-content">
         <div class="qa-field-grid">
           <label class="qa-field">
             <span>Status</span>
@@ -1589,32 +1789,23 @@ defineExpose({ openQuickAdd });
           </button>
         </div>
       </div>
-    </div>
+    </UiModal>
 
     <!-- ===== Quick Add ===== -->
-    <div v-if="quickAddOpen" class="modal-overlay" @click.self="closeQuickAdd">
-      <div class="modal-card qa-card">
+    <UiModal
+      v-if="quickAddOpen"
+      :title="addLabel.replace('+ ', '')"
+      description="Search, then pick the right result."
+      size="wide"
+      @close="closeQuickAdd"
+    >
+      <div class="media-modal-content qa-card">
         <div v-if="quickAddStep === 'search'">
-          <div class="qa-header">
-            <div class="qa-header-row">
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-              >
-                <circle cx="11" cy="11" r="7" />
-                <line x1="21" y1="21" x2="16.65" y2="16.65" />
-              </svg>
-              <h3>{{ addLabel.replace("+ ", "") }}</h3>
-            </div>
-            <div class="sub">Search, then pick the right result.</div>
-          </div>
           <div class="qa-body">
             <div class="qa-search-row">
               <input
                 v-model="quickAddQuery"
+                aria-label="Search media by title"
                 autofocus
                 placeholder="Search by title..."
                 @keyup.enter="runQuickAddSearch"
@@ -1775,1410 +1966,8 @@ defineExpose({ openQuickAdd });
           </div>
         </div>
       </div>
-    </div>
+    </UiModal>
   </div>
 </template>
 
-<style scoped>
-/* Ported 1:1 from the "Library Layouts" design mockup — same tokens,
-   same component shapes. */
-.lib-root {
-  --bg: #0d0d0d;
-  --surface: #1a1a1a;
-  --surface-2: #222222;
-  --border: #2b2b2b;
-  --border-soft: #202020;
-  --accent: #d68a34;
-  --accent-soft: rgba(214, 138, 52, 0.16);
-  --accent-line: rgba(214, 138, 52, 0.4);
-  --good: #6fbf73;
-  --good-soft: rgba(111, 191, 115, 0.16);
-  --hold: #7ba7d9;
-  --hold-soft: rgba(123, 167, 217, 0.16);
-  --dropped: #d96f6f;
-  --dropped-soft: rgba(217, 111, 111, 0.16);
-  --plan: #9d8cd9;
-  --plan-soft: rgba(157, 140, 217, 0.16);
-  --live: #e5484d;
-  --text: #f2f2f2;
-  --text-dim: #9c9c9c;
-  --text-faint: #666;
-  min-height: 100vh;
-  background: var(--bg);
-  color: var(--text);
-  font-family: system-ui, sans-serif;
-}
-.lib-root * {
-  box-sizing: border-box;
-}
-.lib-root svg {
-  display: block;
-}
-.lib-inner {
-  padding: 24px 24px 60px 48px;
-  box-sizing: border-box;
-}
-
-.page-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  flex-wrap: wrap;
-}
-.page-head h1 {
-  font-weight: 800;
-  font-size: 1.7rem;
-  margin: 0;
-}
-.page-head .sub {
-  color: var(--text-faint);
-  font-size: 0.85rem;
-  margin-top: 4px;
-}
-.add-btn {
-  background: var(--accent);
-  border: none;
-  color: #14100a;
-  border-radius: 8px;
-  padding: 0 18px;
-  height: 38px;
-  font-family: inherit;
-  font-size: 0.85rem;
-  font-weight: 700;
-  cursor: pointer;
-}
-.add-btn:disabled {
-  opacity: 0.35;
-  cursor: not-allowed;
-}
-.select-btn {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  color: var(--text-dim);
-  border-radius: 8px;
-  padding: 0 16px;
-  height: 38px;
-  font-family: inherit;
-  font-size: 0.85rem;
-  font-weight: 700;
-  cursor: pointer;
-}
-.select-btn.on {
-  background: var(--accent-soft);
-  border-color: var(--accent-line);
-  color: var(--accent);
-}
-
-.bulk-bar {
-  margin-top: 12px;
-  padding: 10px 16px;
-  background: var(--accent-soft);
-  border: 1px solid var(--accent-line);
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-.bulk-bar .count {
-  font-size: 0.85rem;
-  font-weight: 700;
-  color: var(--accent);
-  white-space: nowrap;
-}
-.bulk-bar select {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  color: var(--text);
-  border-radius: 7px;
-  padding: 7px 10px;
-  font-family: inherit;
-  font-size: 0.82rem;
-  cursor: pointer;
-}
-.bulk-bar .spacer {
-  flex: 1;
-}
-
-.toolbar {
-  margin-top: 16px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-.search-wrap {
-  position: relative;
-  flex: 1;
-  min-width: 200px;
-  max-width: 340px;
-}
-.search-wrap svg {
-  position: absolute;
-  left: 11px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 15px;
-  height: 15px;
-  color: var(--text-faint);
-  pointer-events: none;
-}
-.search-wrap input {
-  box-sizing: border-box;
-  height: 38px;
-  width: 100%;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  color: var(--text);
-  border-radius: 8px;
-  padding: 0 12px 0 34px;
-  font-family: inherit;
-  font-size: 0.85rem;
-}
-.search-wrap input:focus {
-  outline: none;
-  border-color: var(--accent-line);
-}
-.sort-select {
-  box-sizing: border-box;
-  height: 38px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  color: var(--text);
-  border-radius: 8px;
-  padding: 0 12px;
-  font-family: inherit;
-  font-size: 0.85rem;
-  cursor: pointer;
-}
-.filter-btn {
-  box-sizing: border-box;
-  height: 38px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  color: var(--text-dim);
-  border-radius: 8px;
-  padding: 0 14px;
-  font-family: inherit;
-  font-size: 0.85rem;
-  font-weight: 700;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.filter-btn.active-filter {
-  border-color: var(--accent-line);
-  color: var(--accent);
-}
-.filter-btn .count {
-  background: var(--accent);
-  color: #14100a;
-  border-radius: 999px;
-  font-size: 0.66rem;
-  font-weight: 800;
-  padding: 1px 6px;
-}
-.card-size-toggle {
-  display: flex;
-  gap: 2px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 3px;
-}
-.card-size-button {
-  background: none;
-  border: none;
-  color: var(--text-faint);
-  width: 26px;
-  height: 26px;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 0.7rem;
-  font-weight: 700;
-}
-.card-size-button:hover {
-  color: var(--text);
-  background: rgba(255, 255, 255, 0.06);
-}
-.card-size-button.active {
-  color: #14100a;
-  background: var(--accent);
-}
-.filter-panel {
-  margin-top: 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 14px 16px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-}
-.filter-group {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-.filter-label {
-  min-width: 56px;
-  font-size: 0.7rem;
-  font-weight: 800;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--text-dim);
-}
-.year-input {
-  box-sizing: border-box;
-  width: 84px;
-  height: 28px;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  color: var(--text);
-  padding: 0 10px;
-  font-size: 0.78rem;
-}
-.filter-dash {
-  font-size: 0.76rem;
-  color: var(--text-dim);
-}
-.match-mode {
-  margin-left: 6px;
-}
-.filter-foot {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding-top: 8px;
-  border-top: 1px solid var(--border-soft);
-}
-.filter-result {
-  font-size: 0.76rem;
-  color: var(--text-dim);
-}
-.filter-clear {
-  background: none;
-  border: none;
-  color: var(--accent);
-  font-size: 0.78rem;
-  font-weight: 700;
-  cursor: pointer;
-}
-.genre-chip {
-  box-sizing: border-box;
-  height: 28px;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  color: var(--text-dim);
-  border-radius: 999px;
-  padding: 0 12px;
-  font-size: 0.76rem;
-  font-weight: 700;
-  cursor: pointer;
-}
-.genre-chip.selected {
-  background: var(--accent-soft);
-  border-color: var(--accent-line);
-  color: var(--accent);
-}
-
-.status-tabs {
-  margin-top: 14px;
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-  border-bottom: 1px solid var(--border-soft);
-}
-.status-tab {
-  background: transparent;
-  border: none;
-  color: var(--text-dim);
-  font-family: inherit;
-  font-size: 0.82rem;
-  font-weight: 600;
-  padding: 10px 14px;
-  cursor: pointer;
-  border-bottom: 2px solid transparent;
-  display: flex;
-  align-items: center;
-  gap: 7px;
-}
-.status-tab.active {
-  color: var(--text);
-  border-bottom-color: var(--accent);
-}
-.status-tab .n {
-  font-variant-numeric: tabular-nums;
-  color: var(--text-faint);
-  font-weight: 500;
-}
-.status-tab.active .n {
-  color: var(--text-dim);
-}
-
-.body {
-  padding-top: 22px;
-}
-.empty-state {
-  color: var(--text-faint);
-  font-size: 0.9rem;
-  padding: 40px 0;
-  text-align: center;
-}
-.empty-state.error {
-  color: #e57373;
-}
-
-/* Solid-fill chips, same visual language as the app's own active-tab
-   buttons (the segmented tabs' active state: solid color, dark text) so
-   status reads as a confident, deliberate color instead of a faint tint
-   with a stray dot in front of it. */
-/* A small masked icon per status (currentColor-tinted, so one image works
-   for every state) reads faster than color alone and gives each status a
-   distinct silhouette instead of relying purely on hue. */
-.pill {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-  width: 128px;
-  font-size: 0.6875rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.01em;
-  padding: 5px 10px;
-  border-radius: 999px;
-  white-space: nowrap;
-  text-align: center;
-}
-.pill::before {
-  content: "";
-  width: 10px;
-  height: 10px;
-  flex-shrink: 0;
-  background: currentColor;
-  -webkit-mask-repeat: no-repeat;
-  mask-repeat: no-repeat;
-  -webkit-mask-position: center;
-  mask-position: center;
-  -webkit-mask-size: contain;
-  mask-size: contain;
-}
-.pill.watching {
-  background: var(--accent-soft);
-  color: var(--accent);
-}
-.pill.watching::before {
-  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M8 5v14l11-7z'/%3E%3C/svg%3E");
-  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M8 5v14l11-7z'/%3E%3C/svg%3E");
-}
-.pill.completed {
-  background: var(--good-soft);
-  color: var(--good);
-}
-.pill.completed::before {
-  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='4 12 9 17 20 6'/%3E%3C/svg%3E");
-  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='4 12 9 17 20 6'/%3E%3C/svg%3E");
-}
-.pill.hold {
-  background: var(--hold-soft);
-  color: var(--hold);
-}
-.pill.hold::before {
-  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='5' y='4' width='5' height='16'/%3E%3Crect x='14' y='4' width='5' height='16'/%3E%3C/svg%3E");
-  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='5' y='4' width='5' height='16'/%3E%3Crect x='14' y='4' width='5' height='16'/%3E%3C/svg%3E");
-}
-.pill.dropped {
-  background: var(--dropped-soft);
-  color: var(--dropped);
-}
-.pill.dropped::before {
-  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round'%3E%3Cline x1='5' y1='5' x2='19' y2='19'/%3E%3Cline x1='19' y1='5' x2='5' y2='19'/%3E%3C/svg%3E");
-  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round'%3E%3Cline x1='5' y1='5' x2='19' y2='19'/%3E%3Cline x1='19' y1='5' x2='5' y2='19'/%3E%3C/svg%3E");
-}
-.pill.plan {
-  background: var(--plan-soft);
-  color: var(--plan);
-}
-.pill.plan::before {
-  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6 3h12v18l-6-4-6 4z'/%3E%3C/svg%3E");
-  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6 3h12v18l-6-4-6 4z'/%3E%3C/svg%3E");
-}
-
-.airing-tag {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 0.68rem;
-  font-weight: 700;
-  color: var(--live);
-  margin-top: 3px;
-  height: 14px;
-}
-.airing-tag.invisible {
-  visibility: hidden;
-}
-.airing-tag .dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--live);
-  animation: pulse 1.6s ease-in-out infinite;
-}
-@keyframes pulse {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.35;
-  }
-}
-
-.rank-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 20px;
-  height: 20px;
-  padding: 0 5px;
-  border-radius: 5px;
-  background: var(--accent-soft);
-  color: var(--accent);
-  border: 1px solid var(--accent-line);
-  font-size: 0.68rem;
-  font-weight: 800;
-  font-variant-numeric: tabular-nums;
-}
-.rank-cell {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.rank-empty {
-  color: var(--text-faint);
-  font-size: 0.75rem;
-}
-.status-cell {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.icon-cluster {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
-}
-.icon-btn {
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  color: var(--text-faint);
-  width: 28px;
-  height: 28px;
-  border-radius: 7px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  flex-shrink: 0;
-}
-.icon-btn svg {
-  width: 12px;
-  height: 12px;
-}
-.icon-btn:hover {
-  border-color: var(--accent-line);
-  color: var(--text);
-}
-.icon-btn.active {
-  color: var(--accent);
-  border-color: var(--accent-line);
-  background: var(--accent-soft);
-}
-.plus-btn {
-  background: transparent;
-  border: 1.5px solid var(--accent-line);
-  color: var(--accent);
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  padding: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  flex-shrink: 0;
-}
-/* Reserves the plus button's own footprint even when it isn't rendered,
-   so the episode-count label's right edge stays put instead of drifting
-   further right on rows that have no advance button. */
-.plus-btn-spacer {
-  width: 26px;
-  flex-shrink: 0;
-}
-.plus-btn svg {
-  width: 12px;
-  height: 12px;
-  display: block;
-}
-.plus-btn:hover {
-  background: var(--accent);
-  color: #14100a;
-}
-.plus-btn:disabled {
-  opacity: 0.3;
-  cursor: default;
-  background: var(--surface-2);
-  border-color: var(--border);
-  color: var(--text-faint);
-}
-.score-tag {
-  font-size: 0.82rem;
-  font-weight: 700;
-  color: var(--accent);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-  text-align: right;
-}
-/* In the List row specifically, the score sits in its own centered grid
-   column (unlike Shelf/Board, where it's right-aligned inline next to the
-   title) — so it needs to line up under the "Score" header instead. */
-.list-row > .score-tag {
-  text-align: center;
-}
-.score-tag.empty {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 20px;
-  height: 20px;
-  padding: 0 5px;
-  border-radius: 5px;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  color: var(--text-faint);
-  font-weight: 600;
-}
-.select-checkbox {
-  width: 26px;
-  height: 26px;
-  border-radius: 7px;
-  background: rgba(10, 10, 10, 0.8);
-  border: 1.5px solid rgba(255, 255, 255, 0.45);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  color: var(--accent);
-  font-size: 0.85rem;
-  font-weight: 800;
-  position: absolute;
-  top: 6px;
-  left: 6px;
-  z-index: 4;
-}
-.select-checkbox.checked {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #14100a;
-}
-
-/* LIST */
-.list-scroll {
-  overflow-x: auto;
-}
-.list-row-header,
-.list-rows {
-  min-width: 870px;
-}
-.list-rows {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.list-row {
-  display: grid;
-  grid-template-columns:
-    76px minmax(180px, 1fr)
-    90px 170px 60px 46px 128px;
-  align-items: center;
-  gap: 20px;
-  background: var(--surface);
-  border: 1px solid var(--border-soft);
-  border-radius: 10px;
-  padding: 10px 16px;
-  cursor: pointer;
-  transition: border-color 0.15s ease;
-}
-.list-row:hover {
-  border-color: var(--accent-line);
-}
-.list-thumb-wrap {
-  position: relative;
-  width: 76px;
-}
-.list-thumb {
-  width: 76px;
-  aspect-ratio: 2 / 3;
-  border-radius: 6px;
-  background-color: var(--surface-2);
-  overflow: hidden;
-}
-.list-thumb img {
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-.list-title-col {
-  min-width: 0;
-}
-.list-title {
-  font-weight: 700;
-  font-size: 1.02rem;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  line-height: 1.3;
-}
-.list-type {
-  font-size: 0.72rem;
-  color: var(--text-faint);
-}
-/* One line: episode count, then the advance button, centered as a unit
-   under the "Progress" header — matching how Score/Rank/Status center
-   under their own headers. */
-.list-progress {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-}
-.list-progress-track {
-  flex: 1;
-  min-width: 40px;
-  height: 7px;
-  border-radius: 999px;
-  background: var(--border-soft);
-  overflow: hidden;
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.3);
-}
-.list-progress-fill {
-  height: 100%;
-  background: linear-gradient(90deg, var(--accent), #e8a552);
-  border-radius: 999px;
-}
-.list-progress-label {
-  font-size: 0.7rem;
-  color: var(--text-faint);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-/* Bigger in the List row specifically — with the bar gone, the count is
-   the only content in that cell, so it carries more visual weight. A
-   fixed width, right-aligned, means "37/37" and "0/6" both end at the
-   same x position instead of drifting depending on digit count. */
-.list-progress > .list-progress-label {
-  font-size: 0.95rem;
-  font-weight: 700;
-  color: var(--text);
-  width: 56px;
-  text-align: right;
-}
-.list-row-header {
-  display: grid;
-  grid-template-columns:
-    76px minmax(180px, 1fr)
-    90px 170px 60px 46px 128px;
-  gap: 20px;
-  padding: 0 16px 8px;
-  font-size: 0.66rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-faint);
-  font-weight: 700;
-}
-.list-row-header span:nth-child(4),
-.list-row-header span:nth-child(5),
-.list-row-header span:nth-child(6),
-.list-row-header span:nth-child(7) {
-  text-align: center;
-}
-
-/* SHELF */
-.shelf-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 14px;
-  align-items: stretch;
-}
-.shelf-card {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  cursor: pointer;
-}
-.shelf-art-wrap {
-  position: relative;
-  border-radius: 10px;
-  overflow: hidden;
-  border: 1px solid var(--border-soft);
-}
-.shelf-art {
-  aspect-ratio: 2 / 3;
-  background-color: var(--surface-2);
-  overflow: hidden;
-  transition: transform 0.2s ease;
-}
-.shelf-art img {
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-.shelf-art-wrap:hover .shelf-art {
-  transform: scale(1.04);
-}
-.shelf-rank {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  z-index: 2;
-}
-.shelf-body {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-width: 0;
-  margin-top: 6px;
-}
-.shelf-title-row {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 6px;
-}
-.shelf-title {
-  min-width: 0;
-  font-size: 0.85rem;
-  font-weight: 700;
-  line-height: 1.3;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  /* Reserved so every card in a row keeps its progress/status rows lined
-     up regardless of title length — a one-line title leaves blank space
-     here rather than everything below it drifting up. */
-  min-height: calc(1.3em * 2);
-}
-.shelf-type {
-  margin-top: 2px;
-  font-size: 0.7rem;
-  color: var(--text-faint);
-}
-.shelf-year {
-  margin-top: 1px;
-  font-size: 0.68rem;
-  color: var(--text-faint);
-  opacity: 0.75;
-}
-.shelf-progress-row {
-  margin-top: 4px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.shelf-progress-info {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 6px;
-  min-width: 0;
-}
-.shelf-sub {
-  font-size: 0.72rem;
-  color: var(--text-faint);
-  white-space: nowrap;
-  font-variant-numeric: tabular-nums;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.shelf-progress-info .plus-btn {
-  flex-shrink: 0;
-}
-/* Shared by Board: bar, then episode count, then the advance button, all
-   on one line — same order as the List layout's row. */
-.shelf-footer-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 6px 8px;
-  margin-top: 8px;
-}
-/* Shrunk a notch versus List's icon buttons so favorite/note/edit never
-   force a Shelf card wider than its own art — the footer still wraps to
-   a second line at the smallest card size rather than clipping. */
-.shelf-icon-cluster {
-  gap: 6px;
-}
-.shelf-icon-cluster .icon-btn {
-  width: 24px;
-  height: 24px;
-}
-.shelf-icon-cluster .icon-btn svg {
-  width: 11px;
-  height: 11px;
-}
-
-/* BOARD */
-.board-section {
-  margin-top: 24px;
-}
-.board-section:first-child {
-  margin-top: 16px;
-}
-.board-heading {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-  margin-bottom: 12px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--border-soft);
-}
-.board-nav {
-  margin-left: auto;
-  display: flex;
-  gap: 6px;
-}
-.board-nav button {
-  width: 30px;
-  height: 30px;
-  border: 1px solid var(--border-soft);
-  border-radius: 6px;
-  background: var(--surface-2);
-  color: var(--text);
-  cursor: pointer;
-}
-.board-nav button:disabled {
-  opacity: 0.35;
-  cursor: default;
-}
-.load-more-indicator {
-  padding: 14px;
-  text-align: center;
-  color: var(--text-faint);
-  font-size: 0.8rem;
-}
-.board-heading h2 {
-  font-size: 1rem;
-  font-weight: 800;
-  margin: 0;
-}
-.board-heading .n {
-  font-size: 0.78rem;
-  color: var(--text-faint);
-  font-variant-numeric: tabular-nums;
-}
-.board-shelf {
-  display: flex;
-  gap: 14px;
-  overflow: hidden;
-  padding-bottom: 8px;
-}
-.board-card {
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  background: var(--surface);
-  border: 1px solid var(--border-soft);
-  border-radius: 10px;
-  padding: 10px;
-  cursor: pointer;
-  transition: border-color 0.15s ease;
-}
-.board-card:hover {
-  border-color: var(--accent-line);
-}
-.board-art-wrap {
-  position: relative;
-  border-radius: 7px;
-  overflow: hidden;
-  margin-bottom: 8px;
-}
-.board-art {
-  aspect-ratio: 2 / 3;
-  background-color: var(--surface-2);
-  overflow: hidden;
-  transition: transform 0.2s ease;
-}
-.board-art img {
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-.board-art-wrap:hover .board-art {
-  transform: scale(1.04);
-}
-.board-rank {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  z-index: 2;
-}
-.board-title-row {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 6px;
-}
-.board-title {
-  min-width: 0;
-  font-size: 0.84rem;
-  font-weight: 700;
-  line-height: 1.3;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  min-height: calc(1.3em * 2);
-}
-.board-progress-row {
-  margin-top: 4px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.board-progress-info {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 6px;
-  min-width: 0;
-}
-.board-progress-info .plus-btn {
-  flex-shrink: 0;
-}
-.board-footer-row {
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  margin-top: 8px;
-}
-
-/* Top rated — the one Stats panel built from real artwork instead of
-   bars, so the page isn't wall-to-wall charts. */
-
-/* Modals */
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: var(--ui-z-modal);
-  background: rgba(0, 0, 0, 0.6);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-}
-.modal-card {
-  width: 100%;
-  max-width: 440px;
-  background: var(--ui-popover);
-  border: 1px solid var(--border);
-  border-radius: var(--ui-radius-dialog);
-  padding: 22px;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
-}
-.modal-card h3 {
-  margin: 0 0 4px;
-  font-size: 1.05rem;
-  font-weight: 800;
-}
-.modal-card .sub {
-  font-size: 0.78rem;
-  color: var(--text-faint);
-  margin-bottom: 14px;
-}
-.modal-card textarea {
-  width: 100%;
-  min-height: 100px;
-  resize: vertical;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  color: var(--text);
-  border-radius: 8px;
-  padding: 10px;
-  font-family: inherit;
-  font-size: 0.88rem;
-  line-height: 1.5;
-}
-.modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 14px;
-}
-.btn-outline {
-  background: transparent;
-  border: 1px solid var(--border);
-  color: var(--text-dim);
-  border-radius: 8px;
-  padding: 0 16px;
-  height: 36px;
-  font-family: inherit;
-  font-size: 0.82rem;
-  font-weight: 700;
-  cursor: pointer;
-}
-.btn-solid {
-  background: var(--accent);
-  border: none;
-  color: #14100a;
-  border-radius: 8px;
-  padding: 0 16px;
-  height: 36px;
-  font-family: inherit;
-  font-size: 0.82rem;
-  font-weight: 700;
-  cursor: pointer;
-}
-.btn-solid:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-.decimal-rate {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 16px;
-  margin: 10px 0 4px;
-}
-.decimal-rate button {
-  width: 38px;
-  height: 38px;
-  border-radius: 10px;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  color: var(--text);
-  font-size: 1.2rem;
-  font-weight: 700;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.decimal-rate button:hover {
-  border-color: var(--accent-line);
-  color: var(--accent);
-}
-.decimal-rate input {
-  width: 100px;
-  text-align: center;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  color: var(--accent);
-  border-radius: 10px;
-  padding: 8px 0;
-  font-family: inherit;
-  font-size: 1.6rem;
-  font-weight: 800;
-  font-variant-numeric: tabular-nums;
-}
-.decimal-rate input:focus {
-  outline: none;
-  border-color: var(--accent-line);
-}
-.decimal-rate .of10 {
-  color: var(--text-faint);
-  font-size: 0.9rem;
-}
-.finish-card {
-  max-width: 460px;
-  display: flex;
-  gap: 16px;
-  align-items: flex-start;
-}
-.finish-poster {
-  width: 88px;
-  aspect-ratio: 2 / 3;
-  border-radius: 10px;
-  background-size: cover;
-  background-position: center;
-  background-color: var(--surface-2);
-  flex-shrink: 0;
-  box-shadow: 0 12px 26px -10px rgba(0, 0, 0, 0.6);
-}
-.finish-body {
-  flex: 1;
-  min-width: 0;
-}
-.finish-eyebrow {
-  font-size: 0.68rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  font-weight: 800;
-  color: var(--accent);
-  margin-bottom: 4px;
-}
-.finish-card h3 {
-  margin: 0 0 4px;
-  font-size: 1.15rem;
-  font-weight: 800;
-}
-.finish-rate {
-  justify-content: flex-start;
-  margin: 16px 0 4px;
-}
-
-.qa-card {
-  max-width: 540px;
-  padding: 0;
-  overflow: hidden;
-}
-.qa-header {
-  padding: 22px 24px 18px;
-  border-bottom: 1px solid var(--border-soft);
-  background: linear-gradient(160deg, var(--accent-soft), transparent 70%);
-}
-.qa-search-foot {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 14px;
-}
-.qa-header-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.qa-header-row svg {
-  width: 20px;
-  height: 20px;
-  color: var(--accent);
-  flex-shrink: 0;
-}
-.qa-header h3 {
-  margin: 0;
-  font-size: 1.15rem;
-  font-weight: 800;
-}
-.qa-header .sub {
-  margin: 4px 0 0;
-}
-.qa-body {
-  padding: 20px 24px 24px;
-}
-.qa-search-row {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 16px;
-}
-.qa-search-row input {
-  flex: 1;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  color: var(--text);
-  border-radius: 9px;
-  padding: 11px 14px;
-  font-family: inherit;
-  font-size: 0.9rem;
-}
-.qa-search-row input:focus {
-  outline: none;
-  border-color: var(--accent-line);
-}
-.qa-results {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  max-height: 360px;
-  overflow-y: auto;
-}
-.qa-result {
-  display: grid;
-  grid-template-columns: 58px 1fr auto;
-  gap: 14px;
-  align-items: center;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 12px;
-  transition: border-color 0.15s ease;
-}
-.qa-result:hover {
-  border-color: var(--accent-line);
-}
-.qa-result-art {
-  width: 58px;
-  aspect-ratio: 2 / 3;
-  border-radius: 6px;
-  background-size: cover;
-  background-position: center;
-  background-color: var(--surface);
-  box-shadow: 0 8px 18px -6px rgba(0, 0, 0, 0.6);
-}
-.qa-result-titles {
-  min-width: 0;
-}
-.qa-result-english {
-  font-size: 0.94rem;
-  font-weight: 700;
-  margin: 1px 0 4px;
-}
-.qa-result-meta {
-  display: flex;
-  gap: 8px;
-  font-size: 0.74rem;
-  color: var(--text-faint);
-  margin: 0 0 4px;
-}
-.qa-result-desc {
-  font-size: 0.78rem;
-  color: var(--text-dim);
-  line-height: 1.45;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-.qa-add-btn {
-  background: var(--accent);
-  border: none;
-  color: #14100a;
-  border-radius: 8px;
-  padding: 0 18px;
-  height: 40px;
-  font-family: inherit;
-  font-size: 0.82rem;
-  font-weight: 700;
-  cursor: pointer;
-  white-space: nowrap;
-}
-.qa-add-btn:hover {
-  filter: brightness(1.08);
-}
-.qa-form-header {
-  display: flex;
-  gap: 14px;
-  align-items: center;
-  margin: -20px -24px 20px;
-  padding: 20px 24px;
-  background: var(--surface);
-  border-bottom: 1px solid var(--border-soft);
-}
-.qa-form-art {
-  width: 64px;
-  aspect-ratio: 2 / 3;
-  border-radius: 7px;
-  background-size: cover;
-  background-position: center;
-  background-color: var(--surface);
-  flex-shrink: 0;
-  box-shadow: 0 10px 22px -8px rgba(0, 0, 0, 0.6);
-}
-.qa-form-titles .qa-result-english {
-  font-size: 1.05rem;
-}
-.qa-section-label {
-  font-size: 0.7rem;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-  font-weight: 700;
-  color: var(--text-faint);
-  margin: 0 0 10px;
-}
-.qa-field-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 14px;
-  margin-bottom: 18px;
-}
-.qa-field {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.qa-field.full {
-  grid-column: 1 / -1;
-}
-.qa-field span {
-  font-size: 0.74rem;
-  color: var(--text-dim);
-  font-weight: 600;
-}
-.qa-field select,
-.qa-field input {
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  color: var(--text);
-  border-radius: 8px;
-  padding: 9px 11px;
-  font-family: inherit;
-  font-size: 0.86rem;
-}
-.qa-field select:focus,
-.qa-field input:focus {
-  outline: none;
-  border-color: var(--accent-line);
-}
-.qa-back-link {
-  background: none;
-  border: none;
-  color: var(--text-faint);
-  font-family: inherit;
-  font-size: 0.78rem;
-  cursor: pointer;
-  margin-bottom: 14px;
-  padding: 0;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-.qa-back-link:hover {
-  color: var(--accent);
-}
-
-/* phones and narrow windows: the seven-column list row can't fit, so it
-   collapses to poster + title with the status/progress/score tags stacked
-   underneath, and the padding meant for the sidebar gutter shrinks */
-@media (max-width: 720px) {
-  .lib-inner {
-    padding: 16px 14px 60px;
-  }
-  .page-head {
-    align-items: flex-start;
-  }
-  .list-row-header {
-    display: none;
-  }
-  .list-row-header,
-  .list-rows {
-    min-width: 0;
-  }
-  .list-row {
-    grid-template-columns: 56px minmax(0, 1fr);
-    gap: 6px 12px;
-  }
-  .list-row > *:nth-child(n + 3) {
-    grid-column: 2;
-    justify-self: start;
-  }
-  .list-thumb-wrap {
-    width: 56px;
-  }
-  .list-thumb {
-    width: 100%;
-  }
-  /* the columns are set inline from the card size, so this needs !important */
-  .shelf-grid {
-    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)) !important;
-  }
-}
-</style>
+<style scoped src="../../styles/pages/media-library.css" />

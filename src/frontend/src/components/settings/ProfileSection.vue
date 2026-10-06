@@ -1,6 +1,13 @@
 <script setup lang="ts">
-import { ref, computed, watch } from "vue";
+import { ref, computed, watch, onMounted } from "vue";
+import PasswordInput from "../PasswordInput.vue";
 import { currentUser, checkAuth } from "../../state/auth";
+import PasswordRequirements from "./PasswordRequirements.vue";
+import {
+  fetchPasswordPolicy,
+  passwordValidationErrors,
+  type PasswordPolicy,
+} from "../../services/passwordPolicy";
 import {
   updateProfile,
   uploadProfilePicture,
@@ -17,13 +24,27 @@ const avatarUrl = computed(() =>
 );
 const avatarFailed = ref(false);
 
-const username = ref(currentUser.value?.username ?? "");
-const email = ref(currentUser.value?.email ?? "");
+const username = ref("");
+const email = ref("");
+// filled (and refilled after a save) from the signed-in user rather than
+// captured once at setup, so the fields are never blank if this mounts
+// before the account has finished loading
+watch(
+  currentUser,
+  (u) => {
+    if (!u) return;
+    username.value = u.username;
+    email.value = u.email;
+  },
+  { immediate: true },
+);
 const currentPassword = ref("");
 const newPassword = ref("");
+const confirmPassword = ref("");
 const saving = ref(false);
 const saveError = ref<string | null>(null);
 const saveSuccess = ref(false);
+const passwordPolicy = ref<PasswordPolicy | null>(null);
 
 // otherwise "Profile updated." keeps showing after a successful save even
 // once the user starts typing something new, reading as if the in-progress
@@ -34,10 +55,32 @@ watch([username, email], () => {
   saveSuccess.value = false;
 });
 
+onMounted(async () => {
+  try {
+    passwordPolicy.value = await fetchPasswordPolicy();
+  } catch (err) {
+    saveError.value =
+      err instanceof Error ? err.message : "Failed to load password policy";
+  }
+});
+
 const uploading = ref(false);
 const uploadError = ref<string | null>(null);
 
 async function saveProfile() {
+  if (newPassword.value) {
+    const validationErrors = passwordPolicy.value
+      ? passwordValidationErrors(newPassword.value, passwordPolicy.value)
+      : ["Password requirements could not be loaded."];
+    if (validationErrors.length) {
+      saveError.value = validationErrors[0];
+      return;
+    }
+  }
+  if (newPassword.value && newPassword.value !== confirmPassword.value) {
+    saveError.value = "The new passwords do not match.";
+    return;
+  }
   if (newPassword.value && !currentPassword.value) {
     saveError.value = "Enter your current password to set a new one.";
     return;
@@ -57,6 +100,7 @@ async function saveProfile() {
     await checkAuth();
     currentPassword.value = "";
     newPassword.value = "";
+    confirmPassword.value = "";
     saveSuccess.value = true;
   } catch (err) {
     saveError.value =
@@ -106,18 +150,24 @@ async function onAvatarFileChange(e: Event) {
         {{ (currentUser?.username ?? "?").slice(0, 2).toUpperCase() }}
       </div>
 
-      <label v-if="!isMock" class="upload-label">
-        <input
-          type="file"
-          accept="image/*"
-          @change="onAvatarFileChange"
-          hidden
-        />
-        {{ uploading ? "Uploading…" : "Change picture" }}
-      </label>
-      <p v-if="isMock" class="mock-note">
-        Profile pictures aren't available in mock mode.
-      </p>
+      <div class="avatar-meta">
+        <div class="avatar-name">{{ currentUser?.username }}</div>
+        <div v-if="currentUser?.email" class="avatar-email">
+          {{ currentUser.email }}
+        </div>
+        <label v-if="!isMock" class="upload-label">
+          <input
+            type="file"
+            accept="image/*"
+            @change="onAvatarFileChange"
+            hidden
+          />
+          {{ uploading ? "Uploading…" : "Change picture" }}
+        </label>
+        <p v-if="isMock" class="mock-note">
+          Profile pictures aren't available in mock mode.
+        </p>
+      </div>
     </div>
 
     <div v-if="uploadError" class="form-error">{{ uploadError }}</div>
@@ -135,20 +185,36 @@ async function onAvatarFileChange(e: Event) {
 
       <label class="field">
         <span>New password (optional)</span>
-        <input
+        <PasswordInput
           v-model="newPassword"
-          type="password"
+          mode="new"
           autocomplete="new-password"
+        />
+      </label>
+
+      <PasswordRequirements
+        v-if="newPassword && passwordPolicy"
+        :password="newPassword"
+        :policy="passwordPolicy"
+      />
+
+      <label v-if="newPassword" class="field">
+        <span>Confirm new password</span>
+        <PasswordInput
+          v-model="confirmPassword"
+          mode="new"
+          autocomplete="new-password"
+          :required="true"
         />
       </label>
 
       <label v-if="newPassword" class="field">
         <span>Current password (required to set a new one)</span>
-        <input
+        <PasswordInput
           v-model="currentPassword"
-          type="password"
+          mode="new"
           autocomplete="current-password"
-          required
+          :required="true"
         />
       </label>
 
@@ -164,11 +230,10 @@ async function onAvatarFileChange(e: Event) {
 
 <style scoped>
 .settings-section h2 {
-  margin: 0 0 16px;
-  padding-left: 12px;
-  border-left: 3px solid #d68a34;
-  font-size: 1rem;
-  color: #fff;
+  margin: 0 0 12px;
+  font: var(--ui-weight-heading) var(--ui-font-heading)/1.4
+    var(--ui-font-family);
+  color: var(--ui-text);
 }
 .avatar-row {
   display: flex;
@@ -185,16 +250,33 @@ async function onAvatarFileChange(e: Event) {
   flex-shrink: 0;
 }
 .avatar-fallback {
-  background: #d68a34;
-  color: #111;
+  background: var(--ui-accent);
+  color: var(--ui-on-accent);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 20px;
   font-weight: 700;
 }
+.avatar-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.avatar-name {
+  color: var(--ui-text);
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+.avatar-email {
+  color: var(--ui-faint);
+  font-size: 0.82rem;
+  margin-bottom: 4px;
+}
 .upload-label {
-  color: #d68a34;
+  color: var(--ui-accent-text);
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
@@ -203,7 +285,7 @@ async function onAvatarFileChange(e: Event) {
   text-decoration: underline;
 }
 .mock-note {
-  color: #777;
+  color: var(--ui-faint);
   font-size: 13px;
   margin: 0;
 }
@@ -217,41 +299,41 @@ form {
   flex-direction: column;
   gap: 6px;
   font-size: 0.85rem;
-  color: #ccc;
+  color: var(--ui-text);
 }
 .field input {
-  background: #111;
-  border: 1px solid #3a3a3a;
-  border-radius: 8px;
-  color: #fff;
+  background: var(--ui-bg);
+  border: 1px solid var(--ui-border-strong);
+  border-radius: var(--ui-radius-control);
+  color: var(--ui-text);
   padding: 10px 12px;
   font: inherit;
 }
 .field input:focus {
   outline: none;
-  border-color: #d68a34;
+  border-color: var(--ui-accent);
 }
 .form-error {
-  color: #fca5a5;
+  color: var(--ui-error);
   font-size: 13px;
   background: rgba(220, 38, 38, 0.1);
   border: 1px solid rgba(220, 38, 38, 0.3);
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   padding: 8px 10px;
 }
 .form-success {
-  color: #86efac;
+  color: var(--ui-good);
   font-size: 13px;
   background: rgba(34, 197, 94, 0.1);
   border: 1px solid rgba(34, 197, 94, 0.3);
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   padding: 8px 10px;
 }
 .primary-button {
-  background: #d68a34;
-  color: #111;
+  background: var(--ui-accent);
+  color: var(--ui-on-accent);
   border: none;
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   padding: 11px;
   font-weight: 600;
   cursor: pointer;

@@ -1,0 +1,267 @@
+"""Authenticated HTTP transport from the application host to plugin-runtime."""
+
+from __future__ import annotations
+
+import base64
+import json
+import os
+from typing import Any
+from urllib.parse import quote
+
+import httpx
+from src.plugin_api.manager_state import manager_state
+
+_ACTION_REQUEST_TIMEOUT = 35.0  # Allow the isolated runner's 30-second wall limit to report.
+
+
+class PluginRuntimeUnavailable(RuntimeError):
+    """Raised when the isolated runtime cannot be reached."""
+
+
+class PluginRuntimeRequestError(RuntimeError):
+    """Raised when the runtime rejects a validly reached request."""
+
+    def __init__(self, message: str, *, status_code: int = 422, detail: str | None = None) -> None:
+        """Retain bounded public rejection details; legacy callers default to 422."""
+        self.status_code = status_code if 400 <= status_code < 500 else 422
+        self.detail = detail or message
+        super().__init__(message)
+
+
+class PluginRuntimeClient:
+    """Authenticated client for the isolated plugin runtime and broker."""
+
+    def __init__(self, base_url: str | None = None, token: str | None = None) -> None:
+        resolved_url = base_url or os.getenv("PLUGIN_RUNTIME_URL") or "http://plugin-runtime:8000"
+        resolved_token = token or os.getenv("PLUGIN_RUNTIME_TOKEN") or ""
+        self.base_url = resolved_url.rstrip("/")
+        self.token = resolved_token
+
+    def _headers(self) -> dict[str, str]:
+        """Authenticate transport and mirror the host administrator's isolation decision."""
+        if len(self.token) < 32:
+            raise PluginRuntimeUnavailable("plugin runtime credentials are not configured")
+        approved = manager_state().settings().get("reduced_isolation_acknowledged") is True
+        headers = {
+            "X-Plugin-Runtime-Token": self.token,
+            "X-Plugin-Reduced-Isolation-Acknowledged": str(approved).lower(),
+        }
+        gateway_url = os.getenv("PLUGIN_GATEWAY_URL", "").strip().rstrip("/")
+        if gateway_url:
+            headers["X-Plugin-Gateway-URL"] = gateway_url
+        return headers
+
+    async def _request(self, method: str, path: str, **kwargs: Any) -> Any:
+        """Send a runtime operation with current credentials and policy acknowledgement."""
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.request(
+                    method,
+                    f"{self.base_url}{path}",
+                    headers={**self._headers(), **kwargs.pop("headers", {})},
+                    **kwargs,
+                )
+        except httpx.HTTPError as exc:
+            raise PluginRuntimeUnavailable("plugin runtime is unavailable") from exc
+        if response.status_code >= 500:
+            try:
+                body = response.json()
+                detail = body.get("detail") if isinstance(body, dict) else None
+            except ValueError:
+                detail = None
+            raise PluginRuntimeUnavailable(
+                detail[:1024]
+                if isinstance(detail, str)
+                else f"plugin runtime returned {response.status_code}"
+            )
+        if response.status_code >= 400:
+            try:
+                body = response.json()
+                detail = body.get("detail") if isinstance(body, dict) else None
+            except ValueError:
+                detail = None
+            raise PluginRuntimeRequestError(
+                f"plugin runtime rejected the request ({response.status_code}): {response.text[:1024]}",
+                status_code=response.status_code,
+                detail=detail[:1024] if isinstance(detail, str) else None,
+            )
+        return response.json() if response.content else None
+
+    async def health(self) -> dict[str, Any]:
+        """Read runtime availability and the actual isolation mode."""
+        return await self._request("GET", "/health")
+
+    async def run_scheduled_task(
+        self, plugin_id: str, installation_id: str, task_id: str, trigger: str
+    ) -> dict[str, Any]:
+        """Dispatch an installation-bound task without accepting arbitrary actions or users."""
+        result = await self._request(
+            "POST",
+            f"/plugins/{quote(plugin_id, safe='')}/tasks/{quote(task_id, safe='')}",
+            json={"installation_id": installation_id, "trigger": trigger},
+            timeout=_ACTION_REQUEST_TIMEOUT,
+        )
+        if not isinstance(result, dict):
+            raise PluginRuntimeRequestError("plugin task returned an invalid response")
+        return result
+
+    async def plugins(self) -> list[dict[str, Any]]:
+        """List runtime installations and their lifecycle state."""
+        return await self._request("GET", "/plugins")
+
+    async def plugin_ui(self, plugin_id: str) -> dict[str, Any]:
+        """Read the package's declared UI document."""
+        return await self._request("GET", f"/plugins/{plugin_id}/ui")
+
+    async def logs(self, plugin_id: str) -> dict[str, Any]:
+        """Read the bounded structured event buffer for one plugin."""
+        return await self._request("GET", f"/plugins/{plugin_id}/logs")
+
+    async def frontend_asset(self, plugin_id: str, path: str) -> bytes:
+        """Retrieve a verified sandboxed frontend asset."""
+        data = await self._request("GET", f"/plugins/{plugin_id}/frontend/{path}")
+        return base64.b64decode(str(data["content"]))
+
+    async def pwa_asset(self, plugin_id: str, path: str) -> bytes:
+        """Retrieve a verified PWA asset from its declared package path."""
+        data = await self._request("GET", f"/plugins/{quote(plugin_id, safe='')}/pwa/{path}")
+        return base64.b64decode(str(data["content"]), validate=True)
+
+    async def native_frontend_asset(self, plugin_id: str, path: str) -> bytes:
+        """Retrieve a verified native frontend asset."""
+        data = await self._request("GET", f"/plugins/{plugin_id}/native-frontend/{path}")
+        return base64.b64decode(str(data["content"]))
+
+    async def start(self, plugin_id: str, user_id: str | None = None) -> None:
+        """Start a plugin with its authenticated host user context."""
+        payload = {"user_id": user_id} if user_id is not None else None
+        await self._request("POST", f"/plugins/{plugin_id}/start", json=payload)
+
+    async def stop(self, plugin_id: str) -> None:
+        """Disable the installation and stop its worker."""
+        await self._request("POST", f"/plugins/{plugin_id}/disable")
+
+    async def stop_runtime(self, plugin_id: str) -> None:
+        """Stop the worker while retaining the enabled installation."""
+        await self._request("POST", f"/plugins/{plugin_id}/stop")
+
+    async def finish_activation(self, plugin_id: str, operation_id: str, *, commit: bool) -> None:
+        """Commit an activation or restore its previous execution state."""
+        await self._request(
+            "PUT",
+            f"/plugins/{quote(plugin_id, safe='')}/activation",
+            json={"operation_id": operation_id, "commit": commit},
+        )
+
+    async def package_archive(self, plugin_id: str, history_id: str | None = None) -> bytes:
+        """Read the active package or a retained historical package."""
+        path = f"/plugins/{quote(plugin_id, safe='')}/archive"
+        if history_id:
+            path += f"/{quote(history_id, safe='')}"
+        data = await self._request("GET", path)
+        return base64.b64decode(data["package"], validate=True)
+
+    async def prune_history(
+        self, plugin_id: str, retain: int, history_id: str | None = None
+    ) -> None:
+        """Apply retention or remove one reviewed package snapshot."""
+        await self._request(
+            "PUT",
+            f"/plugins/{quote(plugin_id, safe='')}/history",
+            json={"retain": retain, "history_id": history_id},
+        )
+
+    async def purge_data(self, plugin_id: str) -> None:
+        """Remove plugin-owned persistent data through the runtime broker."""
+        await self._request("POST", f"/plugins/{quote(plugin_id, safe='')}/purge")
+
+    async def delete(self, plugin_id: str) -> None:
+        """Uninstall the package and its runtime-owned data."""
+        await self._request("DELETE", f"/plugins/{plugin_id}")
+
+    async def save_secret(self, plugin_id: str, key: str, value: str) -> None:
+        """Write one authorized plugin secret through the storage broker."""
+        await self._request(
+            "POST", f"/plugins/{plugin_id}/storage", json={"key": key, "value": value}
+        )
+
+    async def install_package(
+        self,
+        package: bytes,
+        filename: str,
+        *,
+        installation_id: str,
+        replace: bool = False,
+        source_metadata: dict[str, Any] | None = None,
+        trust_metadata: dict[str, Any] | None = None,
+        operation_id: str | None = None,
+        expected_version: str | None = None,
+    ) -> dict[str, Any]:
+        """Upload verified package bytes and activation metadata."""
+        return await self._request(
+            "PUT",
+            "/plugins/install/prepare" if operation_id else "/plugins/install",
+            content=package,
+            headers={
+                "Content-Type": "application/octet-stream",
+                "X-Plugin-Package-Name": filename,
+                "X-Plugin-Installation-ID": installation_id,
+                "X-Plugin-Replace": "true" if replace else "false",
+                "X-Plugin-Operation-ID": operation_id or "",
+                "X-Plugin-Expected-Version": expected_version or "",
+                "X-Plugin-Source": base64.urlsafe_b64encode(
+                    json.dumps(source_metadata or {}, separators=(",", ":")).encode("utf-8")
+                ).decode("ascii"),
+                "X-Plugin-Trust": base64.urlsafe_b64encode(
+                    json.dumps(trust_metadata or {}, separators=(",", ":")).encode("utf-8")
+                ).decode("ascii"),
+            },
+        )
+
+    async def finish_installation(self, plugin_id: str, operation_id: str, *, commit: bool) -> None:
+        """Publish a prepared package after grants commit, or restore its predecessor."""
+        await self._request(
+            "PUT",
+            f"/plugins/{quote(plugin_id, safe='')}/installation",
+            json={"operation_id": operation_id, "commit": commit},
+        )
+
+    async def plugin_health(self, plugin_id: str) -> bool:
+        """Read the supervised worker's affirmative readiness result."""
+        data = await self._request("GET", f"/plugins/{plugin_id}/health")
+        return bool(data.get("healthy"))
+
+    async def save_settings(self, plugin_id: str, values: dict[str, Any]) -> None:
+        """Persist the plugin's ordinary configuration."""
+        await self._request("PUT", f"/plugins/{plugin_id}/settings", json=values)
+
+    async def action(
+        self, plugin_id: str, action_id: str, values: dict[str, Any], *, user_id: str | None = None
+    ) -> dict[str, Any]:
+        """Execute one declared action within the isolated runner's wall limit."""
+        return await self._request(
+            "POST",
+            f"/plugins/{quote(plugin_id, safe='')}/actions/{quote(action_id, safe='')}",
+            json={"values": values, "user_id": user_id},
+            timeout=_ACTION_REQUEST_TIMEOUT,
+        )
+
+    async def route(
+        self,
+        plugin_id: str,
+        route_id: str,
+        request: dict[str, Any],
+        *,
+        user_id: str,
+    ) -> dict[str, Any]:
+        """Execute one declared backend route as the authenticated request user."""
+
+        result = await self._request(
+            "POST",
+            f"/plugins/{quote(plugin_id, safe='')}/routes/{quote(route_id, safe='')}",
+            json={"request": request, "user_id": user_id},
+            timeout=_ACTION_REQUEST_TIMEOUT,
+        )
+        if not isinstance(result, dict):
+            raise PluginRuntimeRequestError("plugin backend route returned an invalid response")
+        return result

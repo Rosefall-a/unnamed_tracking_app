@@ -29,6 +29,7 @@ function percent(done: number, total: number): number {
             v-if="task.status !== 'running'"
             type="button"
             class="task-toast-dismiss"
+            :aria-label="`Dismiss ${task.label}`"
             @click="dismissTask(task.id)"
           >
             ✕
@@ -103,17 +104,17 @@ function percent(done: number, total: number): number {
   width: 280px;
 }
 .task-toast {
-  background: #1a1a1a;
-  border: 1px solid #2a2a2a;
-  border-radius: 10px;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-row);
   padding: 12px 14px;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--ui-elevation);
 }
 .task-toast.done {
-  border-color: rgba(34, 197, 94, 0.35);
+  border-color: color-mix(in srgb, var(--ui-good) 40%, var(--ui-border));
 }
 .task-toast.error {
-  border-color: rgba(220, 38, 38, 0.35);
+  border-color: color-mix(in srgb, var(--ui-error) 40%, var(--ui-border));
 }
 .task-toast-header {
   display: flex;
@@ -122,38 +123,40 @@ function percent(done: number, total: number): number {
   margin-bottom: 8px;
 }
 .task-toast-label {
-  color: #fff;
+  color: var(--ui-text);
   font-size: 0.82rem;
   font-weight: 600;
 }
 .task-toast-dismiss {
+  width: 44px;
+  height: 44px;
   background: none;
   border: none;
-  color: #777;
+  color: var(--ui-faint);
   cursor: pointer;
   font-size: 12px;
   padding: 0;
 }
 .task-toast-dismiss:hover {
-  color: #fff;
+  color: var(--ui-text);
 }
 .task-toast-track {
-  background: #111;
+  background: var(--ui-surface);
   border-radius: 6px;
   height: 8px;
   overflow: hidden;
   margin-bottom: 6px;
 }
 .task-toast-fill {
-  background: #d68a34;
+  background: var(--ui-accent);
   height: 100%;
   transition: width 0.2s ease;
 }
 .task-toast.done .task-toast-fill {
-  background: #4ade80;
+  background: var(--ui-good);
 }
 .task-toast.error .task-toast-fill {
-  background: #f87171;
+  background: var(--ui-error);
 }
 .task-toast-fill.indeterminate {
   width: 40% !important;
@@ -169,31 +172,32 @@ function percent(done: number, total: number): number {
 }
 .task-toast-meta {
   font-size: 0.76rem;
-  color: #999;
+  color: var(--ui-dim);
 }
 .task-toast-error {
-  color: #fca5a5;
+  color: var(--ui-error);
 }
 .task-toast-speed {
-  color: #777;
+  color: var(--ui-faint);
 }
 .task-toast-retry {
+  min-height: 44px;
   margin-top: 8px;
-  background: rgba(220, 38, 38, 0.12);
-  border: 1px solid rgba(220, 38, 38, 0.35);
-  color: #fca5a5;
+  background: var(--ui-danger-soft);
+  border: 1px solid color-mix(in srgb, var(--ui-error) 40%, var(--ui-border));
+  color: var(--ui-error);
   border-radius: 6px;
   padding: 5px 10px;
   font-size: 0.76rem;
   cursor: pointer;
 }
 .task-toast-retry:hover {
-  background: rgba(220, 38, 38, 0.2);
+  background: var(--ui-danger-soft);
 }
 .task-toast-feed {
   margin-top: 8px;
   padding-top: 8px;
-  border-top: 1px solid #232323;
+  border-top: 1px solid var(--ui-border);
   /* bounded by task.feed.slice(-6) in the template, not by clipping height
      here: a fixed max-height + overflow:hidden was cutting lines off
      mid-character whenever the real rendered height came out a few pixels
@@ -207,7 +211,7 @@ function percent(done: number, total: number): number {
 .feed-line {
   font-size: 0.72rem;
   line-height: 1.4;
-  color: #aaa;
+  color: var(--ui-dim);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -220,5 +224,12 @@ function percent(done: number, total: number): number {
 .feed-item-enter-from {
   opacity: 0;
   transform: translateY(4px);
+}
+@media (max-width: 760px) {
+  .task-toast-stack {
+    bottom: calc(100px + env(safe-area-inset-bottom));
+    right: 16px;
+    width: min(280px, calc(100vw - 32px));
+  }
 }
 </style>

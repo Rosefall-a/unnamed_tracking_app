@@ -1,7 +1,24 @@
-// Server-side per-user preferences (calendar options, notification
-// toggles). Defaults live on the server; this only carries the shape.
+// Server-side per-user preferences. Defaults live on the server; this only carries the shape.
+import { DEFAULT_PAGE_SETTINGS } from "../utils/gamePage";
+import type { PageSettings } from "../utils/gamePage";
 
 export interface Preferences {
+  ui_theme: "system" | "light" | "dark";
+  ui_theme_package: string;
+  ui_palette: import("./uiPalette").PaletteId;
+  ui_custom_palette: import("./uiPalette").CustomPalette;
+  ui_density: "comfortable" | "compact";
+  ui_style: "archive-pocket";
+  ui_reduce_motion: boolean;
+  ui_high_contrast: boolean;
+  ui_welcome_completed: boolean;
+  keyboard_shortcuts_enabled: boolean;
+  keyboard_shortcut_overrides: Record<
+    string,
+    import("../state/shortcuts").ShortcutOverride
+  >;
+  home_widgets: string[];
+  home_widget_config: Record<string, import("./pluginUi").UiValues>;
   calendar_game_releases: boolean;
   calendar_game_history: boolean;
   calendar_default_view: "month" | "week" | "agenda";
@@ -20,9 +37,31 @@ export interface Preferences {
   lists_default_sort: "custom" | "name" | "count" | "recent";
   title_language: "english" | "romaji" | "native";
   stats_include_plan: boolean;
+  anilist_import_enabled: boolean;
+  anilist_import_username: string;
+  anilist_import_interval_minutes: number;
+  anilist_import_update_existing: boolean;
+  anilist_import_last_run_at: number | null;
+  // genres from the tags Steam players vote on, not just Steam's broad ones
+  steam_user_tags: boolean;
+  // what every game page shows; a game can override it
+  game_page: PageSettings;
 }
 
 export const DEFAULT_PREFERENCES: Preferences = {
+  ui_theme: "system",
+  ui_theme_package: "server",
+  ui_palette: "orange",
+  ui_custom_palette: {},
+  ui_density: "comfortable",
+  ui_style: "archive-pocket",
+  ui_reduce_motion: false,
+  ui_high_contrast: false,
+  ui_welcome_completed: false,
+  keyboard_shortcuts_enabled: true,
+  keyboard_shortcut_overrides: {},
+  home_widgets: [],
+  home_widget_config: {},
   calendar_game_releases: true,
   calendar_game_history: true,
   calendar_default_view: "month",
@@ -41,6 +80,13 @@ export const DEFAULT_PREFERENCES: Preferences = {
   lists_default_sort: "custom",
   title_language: "english",
   stats_include_plan: true,
+  anilist_import_enabled: false,
+  anilist_import_username: "",
+  anilist_import_interval_minutes: 1440,
+  anilist_import_update_existing: false,
+  anilist_import_last_run_at: null,
+  steam_user_tags: true,
+  game_page: DEFAULT_PAGE_SETTINGS,
 };
 
 export async function fetchPreferences(): Promise<Preferences> {
@@ -64,25 +110,40 @@ export async function updatePreferences(
   return { ...DEFAULT_PREFERENCES, ...(await response.json()) };
 }
 
-// Saves go one at a time, in the order they were made. Sent together, two
-// changes to the same setting can be handled out of order by the server, so
-// a quick double click could end on the wrong value. `latest` says nothing
-// newer is waiting, which is when the screen may take the server's answer.
 let saveQueue: Promise<unknown> = Promise.resolve();
 let saving = 0;
+let sessionGeneration = 0;
+
+// Discard queued work and late responses when authentication changes. An old
+// account's queued PATCH must never start with a new account's session cookie.
+export function invalidateQueuedPreferences(): void {
+  sessionGeneration++;
+  saveQueue = Promise.resolve();
+  saving = 0;
+}
+
 export function queuePreferences(
   changes: Partial<Preferences>,
 ): Promise<{ prefs: Preferences; latest: boolean }> {
   saving += 1;
-  const run = saveQueue.then(() => updatePreferences(changes));
+  const session = sessionGeneration;
+  const assertSession = () => {
+    if (session !== sessionGeneration)
+      throw new Error("Your session changed. Please try again.");
+  };
+  const run = saveQueue.then(() => {
+    assertSession();
+    return updatePreferences(changes);
+  });
   saveQueue = run.catch(() => undefined);
   return run.then(
     (prefs) => {
+      assertSession();
       saving -= 1;
       return { prefs, latest: saving === 0 };
     },
     (err) => {
-      saving -= 1;
+      if (session === sessionGeneration) saving -= 1;
       throw err;
     },
   );

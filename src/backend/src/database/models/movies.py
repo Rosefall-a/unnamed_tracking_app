@@ -15,7 +15,7 @@ from sqlalchemy import (
     String,
     Text,
 )
-from sqlalchemy.dialects.postgresql import ARRAY, UUID as PG_UUID
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.database.base import Base
@@ -65,6 +65,10 @@ class Movie(Base):
     # ------------------------------------------------------------------
     # Basic metadata
     # ------------------------------------------------------------------
+
+    provider_ids: Mapped[dict[str, str]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default="{}"
+    )
 
     title: Mapped[str] = mapped_column(
         String(500),
@@ -200,6 +204,12 @@ class Movie(Base):
     rewatches: Mapped[int] = mapped_column(
         nullable=False,
         default=0,
+    )
+
+    # where you left off in a movie you started but haven't finished, in
+    # minutes from the start; NULL when not started or already finished
+    progress_minutes: Mapped[int | None] = mapped_column(
+        nullable=True,
     )
 
     note: Mapped[str | None] = mapped_column(

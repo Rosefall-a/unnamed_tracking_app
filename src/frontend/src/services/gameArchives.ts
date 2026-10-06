@@ -17,6 +17,8 @@ export interface ArchiveVersion {
 export interface GameArchiveData {
   id: string;
   name: string;
+  note?: string | null;
+  tags?: string[];
   kind: ArchiveKind;
   created_at: number;
   updated_at: number;
@@ -69,11 +71,32 @@ function uploadWithProgress(
   });
 }
 
+// Mock mode keeps archives in memory for the session, like the media, so the
+// Saves tab can be tried without a backend.
+const mockArchives: GameArchiveData[] = [];
+function mockVersion(file: File): ArchiveVersion {
+  return {
+    id: crypto.randomUUID(),
+    filename: file.name,
+    size: file.size,
+    uploaded_at: Math.floor(Date.now() / 1000),
+    url: URL.createObjectURL(file),
+  };
+}
+
 export async function fetchArchives(
   gameId: string,
   kind: ArchiveKind,
 ): Promise<GameArchiveData[]> {
-  if (import.meta.env.VITE_USE_MOCK_DATA === "true") return [];
+  if (import.meta.env.VITE_USE_MOCK_DATA === "true")
+    // copies, like a real response, so a change shows up in the page
+    return mockArchives
+      .filter((a) => a.kind === kind)
+      .map((a) => ({
+        ...a,
+        tags: [...(a.tags ?? [])],
+        versions: [...a.versions],
+      }));
   const response = await fetch(`/api/game/${gameId}/archives/${kind}`, {
     credentials: "include",
   });
@@ -92,14 +115,17 @@ export async function createArchive(
   onProgress?: (fraction: number, speedLabel?: string) => void,
 ): Promise<GameArchiveData> {
   if (import.meta.env.VITE_USE_MOCK_DATA === "true") {
-    return {
+    const now = Math.floor(Date.now() / 1000);
+    const created: GameArchiveData = {
       id: crypto.randomUUID(),
       name,
       kind,
-      created_at: 0,
-      updated_at: 0,
-      versions: [],
+      created_at: now,
+      updated_at: now,
+      versions: [mockVersion(file)],
     };
+    mockArchives.push(created);
+    return created;
   }
   const form = new FormData();
   form.append("name", name);
@@ -120,14 +146,11 @@ export async function addArchiveVersion(
   onProgress?: (fraction: number, speedLabel?: string) => void,
 ): Promise<GameArchiveData> {
   if (import.meta.env.VITE_USE_MOCK_DATA === "true") {
-    return {
-      id: archiveId,
-      name: "",
-      kind: "save",
-      created_at: 0,
-      updated_at: 0,
-      versions: [],
-    };
+    const archive = mockArchives.find((a) => a.id === archiveId);
+    if (!archive) throw new Error("Archive not found");
+    archive.versions = [mockVersion(file), ...archive.versions];
+    archive.updated_at = Math.floor(Date.now() / 1000);
+    return { ...archive };
   }
   const form = new FormData();
   form.append("file", file);
@@ -140,20 +163,29 @@ export async function addArchiveVersion(
   );
 }
 
-export async function renameArchive(
+// Changes whatever is given (name, note, tags) and leaves the rest alone.
+export async function updateArchive(
   gameId: string,
   archiveId: string,
-  name: string,
+  patch: { name?: string; note?: string | null; tags?: string[] },
 ): Promise<GameArchiveData> {
+  if (import.meta.env.VITE_USE_MOCK_DATA === "true") {
+    const archive = mockArchives.find((a) => a.id === archiveId);
+    if (!archive) throw new Error("Archive not found");
+    if (patch.name !== undefined) archive.name = patch.name;
+    if (patch.note !== undefined) archive.note = patch.note;
+    if (patch.tags !== undefined) archive.tags = patch.tags;
+    return { ...archive };
+  }
   const response = await fetch(`/api/game/${gameId}/archives/${archiveId}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
-    body: JSON.stringify({ name }),
+    body: JSON.stringify(patch),
   });
   if (!response.ok)
     throw new Error(
-      `Failed to rename: ${response.status} ${response.statusText}`,
+      `Failed to save: ${response.status} ${response.statusText}`,
     );
   return await response.json();
 }
@@ -162,6 +194,11 @@ export async function deleteArchive(
   gameId: string,
   archiveId: string,
 ): Promise<void> {
+  if (import.meta.env.VITE_USE_MOCK_DATA === "true") {
+    const i = mockArchives.findIndex((a) => a.id === archiveId);
+    if (i !== -1) mockArchives.splice(i, 1);
+    return;
+  }
   const response = await fetch(`/api/game/${gameId}/archives/${archiveId}`, {
     method: "DELETE",
     credentials: "include",
@@ -260,7 +297,18 @@ export interface WorldMapEntry extends GameArchiveData {
 }
 
 export async function fetchWorldMaps(gameId: string): Promise<WorldMapEntry[]> {
-  if (import.meta.env.VITE_USE_MOCK_DATA === "true") return [];
+  if (import.meta.env.VITE_USE_MOCK_DATA === "true")
+    return mockArchives
+      .filter((a) => a.kind === "world_save")
+      .map((a) => ({
+        ...a,
+        tags: [...(a.tags ?? [])],
+        versions: [...a.versions],
+        status: "idle" as WorldMapStatus,
+        detail: null,
+        updated_at_status: null,
+        has_thumbnail: false,
+      }));
   const response = await fetch(`/api/game/${gameId}/world-map/worlds`, {
     credentials: "include",
   });

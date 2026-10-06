@@ -1,4 +1,3 @@
-from src.database.models.anime import AnimeStatus
 from src.database.models.movies import MovieStatus
 from src.database.models.tv_show import TVShowStatus
 from src.features.imports.yamtrack import build_yamtrack_item, parse_yamtrack
@@ -48,12 +47,9 @@ def test_yamtrack_movie_maps_tracking_fields():
     assert movie.note == "fun"
 
 
-def test_yamtrack_anime_is_supported():
+def test_yamtrack_anime_is_skipped():
     raw = b"""media_id,source,media_type,title,image,season_number,episode_number,score,status,notes,start_date,end_date,progress
 50265,mal,anime,SPYxFAMILY,https://example/poster.jpg,,,9,Completed,,,2026-01-01,12
 50265,mal,season,SPYxFAMILY,,1,,,Completed,,,2026-01-01,,12
 """
-    anime = build_yamtrack_item(parse_yamtrack(raw)[0])
-    assert anime.external_id == "50265"
-    assert anime.status is AnimeStatus.WATCHED
-    assert anime.seasons[0].episodes_watched == 12
+    assert parse_yamtrack(raw) == []

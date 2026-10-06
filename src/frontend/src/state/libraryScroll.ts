@@ -10,6 +10,28 @@ export function saveLibraryScroll(y: number): void {
   savedScrollY = y;
 }
 
+export function hasLibraryScroll(): boolean {
+  return savedScrollY > 0;
+}
+
 export function takeLibraryScroll(): number {
-  return savedScrollY;
+  const y = savedScrollY;
+  savedScrollY = 0;
+  return y;
+}
+
+export function isGameDetailPath(path: string): boolean {
+  return /^\/games\/[^/]+$/.test(path) && path !== "/games/collections";
+}
+
+export function captureLibraryNavigation(
+  toPath: string,
+  fromPath: string,
+  scrollY: number,
+): void {
+  if (fromPath === "/games" && isGameDetailPath(toPath)) {
+    saveLibraryScroll(scrollY);
+  } else if (!isGameDetailPath(fromPath)) {
+    saveLibraryScroll(0);
+  }
 }

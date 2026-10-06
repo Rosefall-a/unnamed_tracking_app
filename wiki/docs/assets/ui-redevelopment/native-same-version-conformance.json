@@ -1,0 +1,36 @@
+{
+  "status": "passed",
+  "kind": "real-local-host",
+  "real_downloaded_ci_package": false,
+  "plugin_id": "example.self-service-session-manager",
+  "version": "2.3.0",
+  "previous_digest": "80b063d62f987cbdd4b724074136453c9c0dd3a4ab5a450983d5e88f7d928e50",
+  "replacement_digest": "37fa8c1bf2b9e22ee16ca30b3ce63f7ccf89ad6ab1e1505415642234f80d7b38",
+  "installation_identity_retained": true,
+  "automatic_reloads": 2,
+  "passed": [
+    "Previously installed CI native code is loaded before replacing it",
+    "Same-version update retains installation identity and changes payload digest",
+    "An already open page automatically reloads without user refresh",
+    "New native JavaScript and CSS use the replacement digest",
+    "New accessible control and host theme radius are active"
+  ],
+  "resources": [
+    {
+      "url": "/api/plugins/example.self-service-session-manager/native-frontend/native/style.css?v=80b063d62f987cbdd4b724074136453c9c0dd3a4ab5a450983d5e88f7d928e50",
+      "status": 200
+    },
+    {
+      "url": "/api/plugins/example.self-service-session-manager/native-frontend/native/index.js?v=80b063d62f987cbdd4b724074136453c9c0dd3a4ab5a450983d5e88f7d928e50",
+      "status": 200
+    },
+    {
+      "url": "/api/plugins/example.self-service-session-manager/native-frontend/native/style.css?v=37fa8c1bf2b9e22ee16ca30b3ce63f7ccf89ad6ab1e1505415642234f80d7b38",
+      "status": 200
+    },
+    {
+      "url": "/api/plugins/example.self-service-session-manager/native-frontend/native/index.js?v=37fa8c1bf2b9e22ee16ca30b3ce63f7ccf89ad6ab1e1505415642234f80d7b38",
+      "status": 200
+    }
+  ]
+}

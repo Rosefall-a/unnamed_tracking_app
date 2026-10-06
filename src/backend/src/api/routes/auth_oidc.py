@@ -3,19 +3,19 @@ from __future__ import annotations
 import json
 import logging
 import secrets
-import time
+from typing import Annotated
 from urllib.parse import urlparse
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.responses import RedirectResponse
 
-from src.core.auth import SESSION_COOKIE, SESSION_TTL_SECONDS, hash_password, hash_token
+from src.core.auth import SESSION_TTL_SECONDS, hash_password, session_cookie_name
 from src.core.config import settings
 from src.core.crypto import decrypt_secret
 from src.core.oidc import OidcConfig, begin_oidc, oauth, register_oidc_provider
-from src.database.models.auth import UserSession
+from src.core.session_manager import create_session
 from src.database.models.oidc_settings import OidcSettings
 from src.database.models.user import User
 from src.database.session import get_db
@@ -82,7 +82,9 @@ async def _get_config(db, request: Request, slug="default", require_autostart=Fa
             if provider.get("slug") == slug and provider.get("client_secret"):
                 if require_autostart and provider.get("autostart_enabled", True) is False:
                     return None
-                return _config_from_provider(provider, str(request.url_for("oidc_callback_provider", provider_slug=slug)))
+                return _config_from_provider(
+                    provider, str(request.url_for("oidc_callback_provider", provider_slug=slug))
+                )
         return None
 
     environment_config = _env_config(request)
@@ -106,7 +108,7 @@ async def _get_config(db, request: Request, slug="default", require_autostart=Fa
 
 
 @router.get("/status")
-async def oidc_status(request: Request, db: AsyncSession = Depends(get_db)):
+async def oidc_status(request: Request, db: Annotated[AsyncSession, Depends(get_db)]):
     row = await db.scalar(select(OidcSettings).limit(1))
     config = await _get_config(db, request)
     providers = []
@@ -121,6 +123,8 @@ async def oidc_status(request: Request, db: AsyncSession = Depends(get_db)):
                     "slug": provider["slug"],
                     "button_text": provider.get("button_text") or "Continue with SSO",
                     "button_image_url": provider.get("button_image_url"),
+                    "button_color": provider.get("button_colour") or provider.get("button_color"),
+                    "autostart_enabled": provider.get("autostart_enabled", True) is not False,
                 }
             )
     if not providers and config:
@@ -154,20 +158,23 @@ async def oidc_status(request: Request, db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/login", name="oidc_login")
-async def oidc_login(request: Request, db: AsyncSession = Depends(get_db)):
+async def oidc_login(request: Request, db: Annotated[AsyncSession, Depends(get_db)]):
     config = await _get_config(db, request)
     if config is None:
-        raise HTTPException(404, "OIDC login is not configured.")
+        return RedirectResponse("/login?oidc_error=not_configured", 303)
     return await begin_oidc(request, config)
 
 
 @router.get("/login/{provider_slug}")
 async def oidc_provider_login(
-    provider_slug: str, request: Request, db: AsyncSession = Depends(get_db)
+    provider_slug: str,
+    request: Request,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    autostart: bool = True,
 ):
-    config = await _get_config(db, request, provider_slug, require_autostart=True)
+    config = await _get_config(db, request, provider_slug, require_autostart=autostart)
     if config is None:
-        raise HTTPException(404, "OIDC provider autostart is not enabled.")
+        return RedirectResponse("/login?oidc_error=not_configured", 303)
     return await begin_oidc(request, config)
 
 
@@ -284,18 +291,12 @@ async def _complete_callback(request, db, config, client_name):
         if config.admin_group:
             user.is_admin = is_admin
 
-    session_token = secrets.token_urlsafe(32)
-    db.add(
-        UserSession(
-            user_id=user.id,
-            token_hash=hash_token(session_token),
-            expires_at=int(time.time()) + SESSION_TTL_SECONDS,
-        )
-    )
+    session_context = await create_session(db, user, request)
+    session_token = session_context.token
     await db.commit()
     response = RedirectResponse("/login?oidc=success", 303)
     response.set_cookie(
-        key=SESSION_COOKIE,
+        key=session_cookie_name(request.headers.get("host", "")),
         value=session_token,
         max_age=SESSION_TTL_SECONDS,
         httponly=True,
@@ -307,7 +308,7 @@ async def _complete_callback(request, db, config, client_name):
 
 
 @router.get("/callback", name="oidc_callback")
-async def oidc_callback(request: Request, db: AsyncSession = Depends(get_db)):
+async def oidc_callback(request: Request, db: Annotated[AsyncSession, Depends(get_db)]):
     config = await _get_config(db, request)
     if config is None:
         return RedirectResponse("/login?oidc_error=not_configured", 303)
@@ -316,7 +317,7 @@ async def oidc_callback(request: Request, db: AsyncSession = Depends(get_db)):
 
 @router.get("/callback/{provider_slug}", name="oidc_callback_provider")
 async def oidc_callback_provider(
-    provider_slug: str, request: Request, db: AsyncSession = Depends(get_db)
+    provider_slug: str, request: Request, db: Annotated[AsyncSession, Depends(get_db)]
 ):
     config = await _get_config(db, request, provider_slug)
     if config is None:

@@ -1,34 +1,37 @@
 from __future__ import annotations
 
 import asyncio
-import secrets
 import shutil
 import time
 from pathlib import Path
 from uuid import UUID
 
-from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.auth import (
-    SESSION_COOKIE,
     SESSION_TTL_SECONDS,
     create_api_key,
     get_current_admin,
     get_current_user,
     hash_password,
     hash_token,
+    password_policy,
     revoke_session,
+    session_cookie_name,
+    set_password_policy_override,
     validate_password,
     verify_password,
 )
 from src.core.config import settings
 from src.core.crypto import encrypt_secret
-from src.database.models.auth import UserApiKey, UserSession
+from src.core.session_manager import create_session
+from src.database.models.auth import UserApiKey
 from src.database.models.user import User
+from src.database.models.app_integration_settings import AppIntegrationSettings
 from src.database.session import get_db
 from src.features.metadata.games.psn import PSNClient, PSNError
 
@@ -80,9 +83,66 @@ class UserProfileUpdateRequest(BaseModel):
         return validate_password(value) if value is not None else None
 
 
+
+@router.get("/password-policy")
+async def get_password_policy() -> dict[str, int | bool]:
+    """Return the effective local-password policy without exposing secrets."""
+    return password_policy()
+
+
+class PasswordPolicyUpdate(BaseModel):
+    min_length: int = Field(ge=1, le=1024)
+    require_uppercase: bool
+    require_lowercase: bool
+    require_digit: bool
+    require_symbol: bool
+
+
+@router.put("/password-policy")
+async def update_password_policy(
+    payload: PasswordPolicyUpdate,
+    admin: User = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, int | bool]:
+    del admin
+    from src.core.env_handler import EnvConfigHandler
+
+    handler = EnvConfigHandler()
+    if any(handler.has(name) for name in (
+        "PASSWORD_MIN_LENGTH",
+        "PASSWORD_REQUIRE_UPPERCASE",
+        "PASSWORD_REQUIRE_LOWERCASE",
+        "PASSWORD_REQUIRE_DIGIT",
+        "PASSWORD_REQUIRE_SYMBOL",
+    )):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Password policy is managed by the deployment environment and cannot be changed here.",
+        )
+
+    row = await db.scalar(select(AppIntegrationSettings).limit(1))
+    if row is None:
+        row = AppIntegrationSettings()
+        db.add(row)
+        await db.flush()
+
+    policy = payload.model_dump()
+    row.password_min_length = policy["min_length"]
+    row.password_require_uppercase = policy["require_uppercase"]
+    row.password_require_lowercase = policy["require_lowercase"]
+    row.password_require_digit = policy["require_digit"]
+    row.password_require_symbol = policy["require_symbol"]
+    await db.commit()
+    set_password_policy_override(policy)
+    return policy
+
+
 @router.post("/login")
 async def login(
-    payload: LoginRequest, response: Response, db: AsyncSession = Depends(get_db)
+    payload: LoginRequest,
+    request: Request,
+    response: Response,
+    db: AsyncSession = Depends(get_db),
 ) -> dict[str, str]:
     identifier = payload.username_or_email.strip()
     user = await db.scalar(
@@ -95,17 +155,11 @@ async def login(
     ):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials.")
 
-    session_token = secrets.token_urlsafe(32)
-    db.add(
-        UserSession(
-            user_id=user.id,
-            token_hash=hash_token(session_token),
-            expires_at=int(time.time()) + SESSION_TTL_SECONDS,
-        )
-    )
+    session_context = await create_session(db, user, request)
+    session_token = session_context.token
     await db.commit()
     response.set_cookie(
-        key=SESSION_COOKIE,
+        key=session_cookie_name(request.headers.get("host", "")),
         value=session_token,
         max_age=SESSION_TTL_SECONDS,
         httponly=True,
@@ -117,13 +171,14 @@ async def login(
 
 @router.post("/logout")
 async def logout(
+    request: Request,
     response: Response,
     db: AsyncSession = Depends(get_db),
-    session_token: str | None = Cookie(default=None, alias=SESSION_COOKIE),
 ) -> dict[str, str]:
+    session_token = request.cookies.get(session_cookie_name(request.headers.get("host", "")))
     if session_token:
         await revoke_session(db, session_token)
-    response.delete_cookie(SESSION_COOKIE)
+    response.delete_cookie(session_cookie_name(request.headers.get("host", "")))
     return {"status": "logged_out"}
 
 

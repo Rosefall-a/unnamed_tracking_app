@@ -104,7 +104,20 @@ Secret fields are not returned as plaintext by the setup configuration API.
 | `OIDC_DEFAULT_LOGIN_METHOD` | `local` | Default login choice: `local` or `sso`. |
 | `OIDC_LOGIN_BUTTON_TEXT` | `Continue with SSO` | Text used for the SSO login button. |
 
-OIDC issuer, client ID, and client secret become required when the OIDC section is selected. See [OIDC / SSO](../integrations/oidc.md) for the callback and account-linking behavior.
+OIDC issuer, client ID, and client secret become required when the OIDC section is selected. See [OIDC / SSO](../user-guide/oidc.md) for the callback and account-linking behavior.
+
+## Plugin Runtime
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `PLUGIN_RUNTIME_URL` | `http://plugin-runtime:8000` | Internal application-to-runtime URL. Do not publish it. |
+| `PLUGIN_RUNTIME_TOKEN` | — | Shared internal transport token; production values must be unique and at least 32 characters. |
+| `PLUGIN_GATEWAY_URL` | — | Internal app address reachable from plugin-runtime. An explicit runtime value wins; otherwise an explicitly configured app value is advertised over authenticated transport. Production Compose uses `http://app`, development uses `http://backend:8000`. |
+| `PLUGIN_TRUSTED_PUBLISHER_REGISTRY` | Built-in registry | Optional path to an additional reviewed publisher registry. |
+| `PLUGIN_CATALOG_URL` | Official repository `list.json` | Default official plugin catalogue URL. |
+| `PLUGIN_CATALOGUE_REGISTRY` | `/data/plugin-catalogues.json` | Persistent administrator-managed catalogue metadata. |
+| `PLUGIN_RUNTIME_DISCORD_EGRESS` | `false` in the runtime | Enables the runtime-owned, destination-validated Discord webhook sender used by the reference provider. It does not grant plugins direct networking. |
+| `NONBUBBLE_ENV` | `false` | Development-only escape hatch that disables per-plugin bubblewrap isolation. Never enable for untrusted production plugins. |
 
 ## Frontend development
 
@@ -149,3 +162,5 @@ The production Compose file builds `DATABASE_URL` from the PostgreSQL variables,
 Never commit real credentials to `example.env`, the wiki, or source control.
 
 For `SECRET_KEY`, omitting the variable is supported by the backend: a stable Fernet key is generated under `APP_DATA_DIR/config/fernet.key` with redundant copies and recovered on later starts. If you provide a deployment key, preserve it for the lifetime of the installation because existing encrypted values depend on it.
+
+The four `MAX_*_SIZE_MB` upload caps can also be overridden in **Settings → Administration → Limits**. These deployment-wide overrides take effect on new uploads immediately; resetting removes the overrides and returns to the environment values.

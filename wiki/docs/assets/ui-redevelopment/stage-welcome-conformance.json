@@ -1,0 +1,76 @@
+{
+  "backend": "real",
+  "passed": [
+    "Eight new-account light/dark phone/desktop welcome flows save personal choices once",
+    "Real cosmetic cookies restore sign-in appearance without localStorage or account data",
+    "A failed welcome save retains choices and completion stays false until a successful retry"
+  ],
+  "screens": [
+    {
+      "width": 320,
+      "theme": "light",
+      "first_login": true,
+      "welcome_once": true,
+      "cookie_only_sign_in": true
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "first_login": true,
+      "welcome_once": true,
+      "cookie_only_sign_in": true
+    },
+    {
+      "width": 1024,
+      "theme": "light",
+      "first_login": true,
+      "welcome_once": true,
+      "cookie_only_sign_in": true
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "first_login": true,
+      "welcome_once": true,
+      "cookie_only_sign_in": true
+    },
+    {
+      "width": 320,
+      "theme": "dark",
+      "first_login": true,
+      "welcome_once": true,
+      "cookie_only_sign_in": true
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "first_login": true,
+      "welcome_once": true,
+      "cookie_only_sign_in": true
+    },
+    {
+      "width": 1024,
+      "theme": "dark",
+      "first_login": true,
+      "welcome_once": true,
+      "cookie_only_sign_in": true
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "first_login": true,
+      "welcome_once": true,
+      "cookie_only_sign_in": true
+    }
+  ],
+  "widths": [
+    320,
+    390,
+    430,
+    768,
+    1024,
+    1440,
+    1920,
+    2560
+  ]
+}

@@ -1,0 +1,131 @@
+{
+  "backend": "real",
+  "passed": [
+    "16 real-backend startup connection failures recover without reloading, preserving route and theme",
+    "Automatic startup authentication recovery after the backend becomes available"
+  ],
+  "screens": [
+    {
+      "theme": "light",
+      "width": 320,
+      "screen": "/settings?section=appearance&source=startup-check",
+      "failed_request": "/api/setup/status",
+      "recovered_without_reload": true
+    },
+    {
+      "theme": "light",
+      "width": 320,
+      "screen": "/settings?section=appearance&source=startup-check",
+      "failed_request": "/api/auth/me",
+      "recovered_without_reload": true
+    },
+    {
+      "theme": "light",
+      "width": 390,
+      "screen": "/settings?section=appearance&source=startup-check",
+      "failed_request": "/api/setup/status",
+      "recovered_without_reload": true
+    },
+    {
+      "theme": "light",
+      "width": 390,
+      "screen": "/settings?section=appearance&source=startup-check",
+      "failed_request": "/api/auth/me",
+      "recovered_without_reload": true
+    },
+    {
+      "theme": "light",
+      "width": 1024,
+      "screen": "/settings?section=appearance&source=startup-check",
+      "failed_request": "/api/setup/status",
+      "recovered_without_reload": true
+    },
+    {
+      "theme": "light",
+      "width": 1024,
+      "screen": "/settings?section=appearance&source=startup-check",
+      "failed_request": "/api/auth/me",
+      "recovered_without_reload": true
+    },
+    {
+      "theme": "light",
+      "width": 1440,
+      "screen": "/settings?section=appearance&source=startup-check",
+      "failed_request": "/api/setup/status",
+      "recovered_without_reload": true
+    },
+    {
+      "theme": "light",
+      "width": 1440,
+      "screen": "/settings?section=appearance&source=startup-check",
+      "failed_request": "/api/auth/me",
+      "recovered_without_reload": true
+    },
+    {
+      "theme": "dark",
+      "width": 320,
+      "screen": "/settings?section=appearance&source=startup-check",
+      "failed_request": "/api/setup/status",
+      "recovered_without_reload": true
+    },
+    {
+      "theme": "dark",
+      "width": 320,
+      "screen": "/settings?section=appearance&source=startup-check",
+      "failed_request": "/api/auth/me",
+      "recovered_without_reload": true
+    },
+    {
+      "theme": "dark",
+      "width": 390,
+      "screen": "/settings?section=appearance&source=startup-check",
+      "failed_request": "/api/setup/status",
+      "recovered_without_reload": true
+    },
+    {
+      "theme": "dark",
+      "width": 390,
+      "screen": "/settings?section=appearance&source=startup-check",
+      "failed_request": "/api/auth/me",
+      "recovered_without_reload": true
+    },
+    {
+      "theme": "dark",
+      "width": 1024,
+      "screen": "/settings?section=appearance&source=startup-check",
+      "failed_request": "/api/setup/status",
+      "recovered_without_reload": true
+    },
+    {
+      "theme": "dark",
+      "width": 1024,
+      "screen": "/settings?section=appearance&source=startup-check",
+      "failed_request": "/api/auth/me",
+      "recovered_without_reload": true
+    },
+    {
+      "theme": "dark",
+      "width": 1440,
+      "screen": "/settings?section=appearance&source=startup-check",
+      "failed_request": "/api/setup/status",
+      "recovered_without_reload": true
+    },
+    {
+      "theme": "dark",
+      "width": 1440,
+      "screen": "/settings?section=appearance&source=startup-check",
+      "failed_request": "/api/auth/me",
+      "recovered_without_reload": true
+    }
+  ],
+  "widths": [
+    320,
+    390,
+    430,
+    768,
+    1024,
+    1440,
+    1920,
+    2560
+  ]
+}

@@ -1,25 +1,36 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
 import { useRouter } from "vue-router";
-import CollectionCard from "../components/CollectionCard.vue";
+import CollectionTile from "../components/CollectionTile.vue";
+import GameTopBar from "../components/GameTopBar.vue";
+import SegmentedTabs from "../components/SegmentedTabs.vue";
+import type { SegmentOption } from "../components/SegmentedTabs.vue";
 import { fetchGames } from "../services/games";
 import type { Game } from "../types/game";
-import { currentUser } from "../state/auth";
 import {
   smartCollections,
   addSmartCollection,
-  removeSmartCollection,
   matchesSmartCollection,
-  SMART_FIELD_LABELS,
+  FAVORITES_NAME,
 } from "../state/smartCollections";
-import type { SmartField } from "../state/smartCollections";
-import type { GameStatus } from "../types/game";
-import { useConfirm, usePrompt } from "../state/dialog";
+import CollectionFormModal from "../components/CollectionFormModal.vue";
+import type { CollectionFormPayload } from "../components/CollectionFormModal.vue";
+import {
+  collectionMeta,
+  setCollectionOrder,
+  updateMeta,
+} from "../state/collectionMeta";
+import {
+  saveCollectionEdit,
+  deleteCollectionFully,
+} from "../utils/collectionEdit";
+import { useConfirm } from "../state/dialog";
+import { useCardOrder, kindOptions as kindCounts } from "../utils/useCardOrder";
 
 const confirm = useConfirm();
-const prompt = usePrompt();
 
-type SortBy = "name" | "count";
+type SortBy = "custom" | "name" | "count";
+type KindFilter = "all" | "manual" | "smart";
 
 const router = useRouter();
 
@@ -27,7 +38,8 @@ const games = ref<Game[]>([]);
 const loading = ref(true);
 const error = ref<string | null>(null);
 const searchQuery = ref("");
-const sortBy = ref<SortBy>("name");
+const sortBy = ref<SortBy>("custom");
+const kindFilter = ref<KindFilter>("all");
 
 // Empty collections (no games assigned yet) have nowhere to live on the
 // backend, so they're tracked locally until a game is actually added to them.
@@ -66,28 +78,24 @@ function addCollectionName(trimmed: string): boolean {
   return true;
 }
 
-async function createCollection() {
+const showCreate = ref(false);
+function onCreate(payload: CollectionFormPayload) {
   createError.value = null;
-  const name = await prompt({
-    title: "New collection",
-    message:
-      'Name your new collection (use "Parent/Child" to nest it under another).',
-    confirmLabel: "Create",
+  if (payload.smart) {
+    addSmartCollection({
+      name: payload.name,
+      field: payload.smart.field,
+      value: payload.smart.value,
+    });
+  } else if (!addCollectionName(payload.name)) {
+    showCreate.value = false;
+    return;
+  }
+  updateMeta(payload.name, {
+    description: payload.description ?? undefined,
   });
-  if (!name || !name.trim()) return;
-  addCollectionName(name.trim());
-}
-
-// one-click starter suggestions, a blank "Create Collection" prompt gives
-// no sense of what a collection is even for, until you've made a few
-const STARTER_TEMPLATES = [
-  "Currently Playing",
-  "Backlog Priority",
-  "Co-op Games",
-];
-const showTemplates = ref(false);
-function useTemplate(name: string) {
-  if (addCollectionName(name)) showTemplates.value = false;
+  showCreate.value = false;
+  router.push(`/games/collections/${encodeURIComponent(payload.name)}`);
 }
 
 async function loadGames() {
@@ -107,6 +115,11 @@ interface CollectionSummary {
   name: string;
   games: Game[];
   isSmart?: boolean;
+  // kept by the app (Favorites): can't be edited or deleted
+  isSystem?: boolean;
+  description: string | null;
+  pinned: boolean;
+  position: number;
 }
 
 // which game's cover represents each collection, set from CollectionDetail.vue's
@@ -119,6 +132,16 @@ function loadCoverPicks(): Record<string, string> {
   } catch {
     return {};
   }
+}
+
+// description, pin and place in "My order" are kept locally per name
+function detailsOf(name: string) {
+  const meta = collectionMeta.value[name] ?? {};
+  return {
+    description: meta.description ?? null,
+    pinned: meta.pinned === true,
+    position: meta.position ?? Number.MAX_SAFE_INTEGER,
+  };
 }
 
 const collectionSummaries = computed<CollectionSummary[]>(() => {
@@ -146,49 +169,150 @@ const collectionSummaries = computed<CollectionSummary[]>(() => {
             ...list.slice(pickedIndex + 1),
           ]
         : list;
-    return { name, games: orderedGames };
+    return { name, games: orderedGames, ...detailsOf(name) };
   });
   const smart = smartCollections.value.map((rule) => ({
     name: rule.name,
     games: games.value.filter((g) => matchesSmartCollection(g, rule)),
     isSmart: true,
+    ...detailsOf(rule.name),
   }));
-  return [...manual, ...smart];
+  // Favorites is always there, unless the user has a collection by that name
+  const userHasFavorites =
+    map.has(FAVORITES_NAME) ||
+    smartCollections.value.some((c) => c.name === FAVORITES_NAME);
+  const system = userHasFavorites
+    ? []
+    : [
+        {
+          name: FAVORITES_NAME,
+          games: games.value.filter((g) => g.favorite),
+          isSmart: true,
+          isSystem: true,
+          ...detailsOf(FAVORITES_NAME),
+        },
+      ];
+  return [...manual, ...smart, ...system];
 });
 
 const filteredCollections = computed(() => {
   const q = searchQuery.value.trim().toLowerCase();
   let result = collectionSummaries.value;
+  if (kindFilter.value === "smart") result = result.filter((c) => c.isSmart);
+  if (kindFilter.value === "manual") result = result.filter((c) => !c.isSmart);
   if (q) {
     result = result.filter((c) => c.name.toLowerCase().includes(q));
   }
+  // pinned collections always come first, then the chosen sort within each
   return [...result].sort((a, b) => {
+    const pin = Number(b.pinned) - Number(a.pinned);
+    if (pin) return pin;
     if (sortBy.value === "count") return b.games.length - a.games.length;
+    if (sortBy.value === "custom") return inMyOrder(a, b);
     return a.name.localeCompare(b.name);
   });
 });
 
-function openCollection(name: string) {
-  router.push(`/collections/${encodeURIComponent(name)}`);
+function inMyOrder(a: CollectionSummary, b: CollectionSummary): number {
+  return (
+    a.position - b.position ||
+    Number(!!b.isSystem) - Number(!!a.isSystem) ||
+    a.name.localeCompare(b.name)
+  );
+}
+// moving cards only makes sense when every collection is in view, in your own order
+const reorderable = computed(
+  () => sortBy.value === "custom" && !filtering.value,
+);
+
+function togglePin(name: string) {
+  const current = collectionMeta.value[name]?.pinned === true;
+  updateMeta(name, { pinned: !current });
 }
 
-// --- smart collections -----------------------------------------------
-const STATUS_OPTIONS: GameStatus[] = [
-  "playing",
-  "beaten",
-  "mastered",
-  "played",
-  "on hold",
-  "dropped",
-  "backlog",
-  "wishlist",
-];
-const showSmartForm = ref(false);
-const smartName = ref("");
-const smartField = ref<SmartField>("status");
-const smartValue = ref("");
-const smartError = ref<string | null>(null);
+const order = useCardOrder({
+  items: collectionSummaries,
+  keyOf: (c) => c.name,
+  inMyOrder,
+  apply: (ordered) => setCollectionOrder(ordered.map((c) => c.name)),
+});
 
+// ---- edit / delete ----
+const editingName = ref<string | null>(null);
+const editingInfo = computed(() => {
+  const c = collectionSummaries.value.find((x) => x.name === editingName.value);
+  if (!c) return null;
+  const rule = smartCollections.value.find((r) => r.name === c.name);
+  return {
+    name: c.name,
+    description: c.description,
+    smart: rule ? { field: rule.field, value: rule.value } : null,
+  };
+});
+function editCollection(name: string) {
+  editingName.value = name;
+}
+async function onEditSave(payload: CollectionFormPayload) {
+  const target = collectionSummaries.value.find(
+    (c) => c.name === editingName.value,
+  );
+  editingName.value = null;
+  if (!target) return;
+  try {
+    await saveCollectionEdit({
+      oldName: target.name,
+      payload,
+      smartId: smartCollections.value.find((r) => r.name === target.name)?.id,
+      members: target.games,
+    });
+    manualCollectionNames.value = loadManualCollections();
+  } catch (e) {
+    error.value =
+      e instanceof Error ? e.message : "Failed to save the collection.";
+  }
+  await loadGames();
+}
+async function deleteCollection(name: string) {
+  const target = collectionSummaries.value.find((c) => c.name === name);
+  if (!target) return;
+  const rule = smartCollections.value.find((r) => r.name === name);
+  const ok = await confirm({
+    message: rule
+      ? `Delete "${name}"? This only removes the rule, no games are affected.`
+      : `Delete "${name}"? This removes it from every game, no games are deleted.`,
+    confirmLabel: "Delete collection",
+    danger: true,
+  });
+  if (!ok) return;
+  try {
+    await deleteCollectionFully({
+      name,
+      members: target.games,
+      smartId: rule?.id,
+    });
+    manualCollectionNames.value = loadManualCollections();
+  } catch (e) {
+    error.value =
+      e instanceof Error ? e.message : "Failed to delete the collection.";
+  }
+  await loadGames();
+}
+
+const smartCount = computed(
+  () => collectionSummaries.value.filter((c) => c.isSmart).length,
+);
+const kindOptions = computed<SegmentOption[]>(() =>
+  kindCounts(collectionSummaries.value.length, smartCount.value),
+);
+const filtering = computed(
+  () => searchQuery.value.trim() !== "" || kindFilter.value !== "all",
+);
+
+function openCollection(name: string) {
+  router.push(`/games/collections/${encodeURIComponent(name)}`);
+}
+
+// options offered by the create dialog's rule builder
 const sourceOptions = computed(() => {
   const set = new Set<string>();
   for (const g of games.value) if (g.source) set.add(g.source);
@@ -199,470 +323,120 @@ const tagOptions = computed(() => {
   for (const g of games.value) for (const t of g.tags) set.add(t);
   return [...set].sort();
 });
-
-function openSmartForm() {
-  smartName.value = "";
-  smartField.value = "status";
-  smartValue.value = "";
-  smartError.value = null;
-  showSmartForm.value = true;
-}
-
-function createSmartCollection() {
-  const name = smartName.value.trim();
-  if (!name) {
-    smartError.value = "Give it a name.";
-    return;
-  }
-  if (
-    collectionSummaries.value.some(
-      (c) => c.name.toLowerCase() === name.toLowerCase(),
-    )
-  ) {
-    smartError.value = `"${name}" already exists.`;
-    return;
-  }
-  if (smartField.value !== "favorite" && !smartValue.value.trim()) {
-    smartError.value = "Pick a value for the rule.";
-    return;
-  }
-  addSmartCollection({
-    name,
-    field: smartField.value,
-    value: smartValue.value.trim(),
-  });
-  showSmartForm.value = false;
-}
-
-async function deleteSmartCollection(id: string) {
-  const ok = await confirm({
-    title: "Delete smart collection",
-    message:
-      "Delete this smart collection? This only removes the rule, no games are affected.",
-    confirmLabel: "Delete",
-    danger: true,
-  });
-  if (ok) removeSmartCollection(id);
-}
-function smartIdForName(name: string): string | undefined {
-  return smartCollections.value.find((c) => c.name === name)?.id;
-}
 </script>
 
 <template>
-  <main class="collections-page">
-    <div v-if="currentUser" class="profile-chip">
-      <span class="profile-name">{{ currentUser.username }}</span>
-      <div class="profile-avatar">
-        {{ currentUser.username.slice(0, 2).toUpperCase() }}
-      </div>
-    </div>
+  <main class="ui-page">
+    <GameTopBar active="collections" />
 
-    <div class="content">
-      <div class="header-row">
+    <div class="ui-content">
+      <div class="ui-head">
         <h1>Collections</h1>
         <div class="header-actions">
           <input
             v-model="searchQuery"
             type="text"
-            class="search-input"
+            class="ui-field search-input"
+            data-shortcut="search"
             placeholder="Search collections…"
+            aria-label="Search collections"
           />
-          <select v-model="sortBy" class="filter-select">
+          <select v-model="sortBy" class="ui-field" aria-label="Sort by">
+            <option value="custom">My order</option>
             <option value="name">Name</option>
-            <option value="count">Most Games</option>
+            <option value="count">Most games</option>
           </select>
-          <div class="templates-wrap">
-            <button
-              type="button"
-              class="secondary-button"
-              @click="showTemplates = !showTemplates"
-            >
-              Starter templates
-            </button>
-            <div v-if="showTemplates" class="templates-dropdown">
-              <button
-                v-for="t in STARTER_TEMPLATES"
-                :key="t"
-                type="button"
-                class="template-item"
-                :disabled="
-                  collectionSummaries.some(
-                    (c) => c.name.toLowerCase() === t.toLowerCase(),
-                  )
-                "
-                @click="useTemplate(t)"
-              >
-                {{ t }}
-              </button>
-            </div>
-          </div>
-          <button type="button" class="secondary-button" @click="openSmartForm">
-            + Smart Collection
-          </button>
-          <button type="button" class="add-button" @click="createCollection">
+          <button
+            type="button"
+            class="ui-btn ui-btn-primary"
+            @click="showCreate = true"
+            data-tour="collection-create"
+            data-shortcut="create"
+            title="Create Collection · N"
+            aria-keyshortcuts="N"
+          >
             + Create Collection
           </button>
         </div>
       </div>
 
-      <p v-if="createError" class="error create-error">{{ createError }}</p>
+      <div class="filter-row">
+        <SegmentedTabs
+          :options="kindOptions"
+          :model-value="kindFilter"
+          aria-label="Filter by kind of collection"
+          @update:model-value="kindFilter = $event as KindFilter"
+        />
+      </div>
 
-      <p v-if="loading">Loading…</p>
-      <p v-else-if="error" class="error">{{ error }}</p>
+      <p v-if="createError" class="ui-error-box">{{ createError }}</p>
+
+      <p v-if="loading" class="ui-state">Loading…</p>
+      <p v-else-if="error" class="ui-state error">{{ error }}</p>
 
       <template v-else>
         <div v-if="filteredCollections.length" class="grid">
-          <CollectionCard
+          <CollectionTile
             v-for="col in filteredCollections"
+            :id="col.name"
             :key="col.name"
             :name="col.name"
-            :games="col.games"
+            :covers="col.games.slice(0, 4).map((g) => g.coverImageUrl)"
+            :count="col.games.length"
+            count-noun="game"
+            noun="collection"
+            nest-by-name
             :is-smart="col.isSmart"
+            :is-system="col.isSystem"
+            :description="col.description"
+            :pinned="col.pinned"
+            :reorderable="reorderable"
+            :can-move-earlier="order.canMove(col.name, -1)"
+            :can-move-later="order.canMove(col.name, 1)"
+            :drag-over="order.isDropTarget(col.name)"
             @open="openCollection"
-            @delete="deleteSmartCollection(smartIdForName(col.name)!)"
+            @edit="editCollection"
+            @delete="deleteCollection"
+            @pin="togglePin"
+            @move="order.move"
+            @dragstart="order.dragKey.value = $event"
+            @dragover="order.dropOn.value = $event"
+            @drop="order.drop"
+            @dragend="order.endDrag"
           />
         </div>
-        <p v-else class="empty-row">
+        <p v-if="!filteredCollections.length && filtering" class="ui-state">
+          No collections match the search and filters.
+        </p>
+        <p v-else-if="!filteredCollections.length" class="ui-state">
           No collections yet: create one above, or use a game's collection
-          button to start one.
+          button to start one. A smart collection fills itself from a rule, like
+          every game you've mastered.
         </p>
       </template>
     </div>
 
-    <div
-      v-if="showSmartForm"
-      class="confirm-backdrop"
-      @click.self="showSmartForm = false"
-    >
-      <div class="confirm-dialog">
-        <h3>New smart collection</h3>
-        <p class="dialog-hint">
-          Membership updates automatically as your library changes.
-        </p>
-        <label class="field-label">
-          Name
-          <input
-            v-model="smartName"
-            type="text"
-            class="dialog-input"
-            placeholder="e.g. Mastered Games"
-          />
-        </label>
-        <label class="field-label">
-          Rule
-          <select v-model="smartField" class="dialog-input">
-            <option
-              v-for="(label, key) in SMART_FIELD_LABELS"
-              :key="key"
-              :value="key"
-            >
-              {{ label }}
-            </option>
-          </select>
-        </label>
-        <label v-if="smartField === 'status'" class="field-label">
-          Value
-          <select v-model="smartValue" class="dialog-input">
-            <option value="">Select…</option>
-            <option v-for="s in STATUS_OPTIONS" :key="s" :value="s">
-              {{ s }}
-            </option>
-          </select>
-        </label>
-        <label v-else-if="smartField === 'playtime_hours'" class="field-label">
-          Hours
-          <input
-            v-model="smartValue"
-            type="number"
-            min="0"
-            class="dialog-input"
-            placeholder="e.g. 20"
-          />
-        </label>
-        <label v-else-if="smartField === 'tag'" class="field-label">
-          Tag
-          <input
-            v-model="smartValue"
-            type="text"
-            list="smart-tag-options"
-            class="dialog-input"
-            placeholder="e.g. RPG"
-          />
-          <datalist id="smart-tag-options">
-            <option v-for="t in tagOptions" :key="t" :value="t" />
-          </datalist>
-        </label>
-        <label v-else-if="smartField === 'source'" class="field-label">
-          Source
-          <input
-            v-model="smartValue"
-            type="text"
-            list="smart-source-options"
-            class="dialog-input"
-            placeholder="e.g. Steam"
-          />
-          <datalist id="smart-source-options">
-            <option v-for="s in sourceOptions" :key="s" :value="s" />
-          </datalist>
-        </label>
-        <div v-if="smartError" class="error create-error">{{ smartError }}</div>
-        <div class="confirm-actions">
-          <button
-            type="button"
-            class="secondary-button"
-            @click="showSmartForm = false"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            class="add-button"
-            @click="createSmartCollection"
-          >
-            Create
-          </button>
-        </div>
-      </div>
-    </div>
+    <CollectionFormModal
+      v-if="editingInfo"
+      :collection="editingInfo"
+      :existing-names="collectionSummaries.map((c) => c.name)"
+      :tag-options="tagOptions"
+      :source-options="sourceOptions"
+      @save="onEditSave"
+      @close="editingName = null"
+    />
+    <CollectionFormModal
+      v-if="showCreate"
+      :collection="null"
+      :existing-names="collectionSummaries.map((c) => c.name)"
+      :tag-options="tagOptions"
+      :source-options="sourceOptions"
+      @save="onCreate"
+      @close="showCreate = false"
+    />
   </main>
 </template>
 
-<style scoped>
-.collections-page {
-  position: relative;
-  padding: 84px 24px 24px;
-  font-family: system-ui, sans-serif;
-  background: #121212;
-  min-height: 100vh;
-  color: #fff;
-}
-.profile-chip {
-  position: fixed;
-  top: 16px;
-  right: 16px;
-  z-index: 100;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  background: rgba(20, 20, 20, 0.55);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  border-radius: 999px;
-  padding: 6px 6px 6px 16px;
-}
-.profile-avatar {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: #d68a34;
-  color: #111;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  font-weight: 700;
-}
-.profile-name {
-  color: #fff;
-  font-size: 13px;
-  font-weight: 600;
-}
-.header-row {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  align-items: center;
-  gap: 16px;
-  margin-bottom: 24px;
-}
-.header-row h1 {
-  margin: 0;
-  font-size: 1.6rem;
-  font-weight: 700;
-}
-.header-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
-}
-.search-input,
-.filter-select {
-  height: 40px;
-  box-sizing: border-box;
-  background: #111;
-  border: 1px solid #3a3a3a;
-  border-radius: 8px;
-  color: #fff;
-  padding: 0 14px;
-  font: inherit;
-  font-size: 13px;
-  transition: border-color 0.15s ease;
-}
-.search-input {
-  width: 220px;
-}
-.search-input:focus,
-.filter-select:focus {
-  outline: none;
-  border-color: #d68a34;
-}
-.filter-select:hover {
-  border-color: #4a4a4a;
-}
-.filter-select {
-  appearance: none;
-  -webkit-appearance: none;
-  padding-right: 34px;
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' stroke='%23999' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>");
-  background-repeat: no-repeat;
-  background-position: right 16px center;
-}
-.add-button {
-  height: 40px;
-  box-sizing: border-box;
-  background: #d68a34;
-  color: #111;
-  border: none;
-  border-radius: 8px;
-  padding: 0 18px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.templates-wrap {
-  position: relative;
-}
-.secondary-button {
-  height: 40px;
-  box-sizing: border-box;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid #3a3a3a;
-  border-radius: 8px;
-  color: #ccc;
-  padding: 0 16px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.secondary-button:hover {
-  border-color: #4a4a4a;
-  color: #fff;
-}
-.templates-dropdown {
-  position: absolute;
-  top: calc(100% + 6px);
-  right: 0;
-  width: 200px;
-  background: #1a1a1a;
-  border: 1px solid #2a2a2a;
-  border-radius: 8px;
-  padding: 6px;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
-  z-index: 20;
-}
-.template-item {
-  display: block;
-  width: 100%;
-  background: none;
-  border: none;
-  color: #eee;
-  font-size: 13px;
-  text-align: left;
-  padding: 8px;
-  border-radius: 6px;
-  cursor: pointer;
-}
-.template-item:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.06);
-}
-.template-item:disabled {
-  color: #555;
-  cursor: not-allowed;
-}
-/* fixed 10-per-row grid, column width only depends on the container, never
-   on how many collections there are, so adding one more just starts filling
-   the next row instead of resizing every existing card */
-.grid {
-  display: grid;
-  grid-template-columns: repeat(10, 1fr);
-  gap: 16px;
-}
-.grid :deep(.collection-card-wrap) {
-  width: auto;
-  min-width: 0;
-}
-.empty-row {
-  color: #777;
-  font-size: 14px;
-}
-.error {
-  color: #f87171;
-}
-.create-error {
-  font-size: 13px;
-  background: rgba(220, 38, 38, 0.1);
-  border: 1px solid rgba(220, 38, 38, 0.3);
-  border-radius: 8px;
-  padding: 8px 12px;
-  margin-bottom: 16px;
-}
-.confirm-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.65);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 200;
-}
-.confirm-dialog {
-  background: #1a1a1a;
-  border: 1px solid #2a2a2a;
-  border-radius: 12px;
-  padding: 22px;
-  width: 100%;
-  max-width: 360px;
-  max-height: 85vh;
-  overflow-y: auto;
-  box-sizing: border-box;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
-}
-.confirm-dialog h3 {
-  margin: 0 0 6px;
-  color: #fff;
-}
-.dialog-hint {
-  color: #999;
-  font-size: 12.5px;
-  margin: 0 0 16px;
-}
-.field-label {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  font-size: 0.82rem;
-  color: #ccc;
-  margin-bottom: 14px;
-}
-.dialog-input {
-  background: #111;
-  border: 1px solid #3a3a3a;
-  border-radius: 8px;
-  color: #fff;
-  padding: 9px 12px;
-  font: inherit;
-  font-size: 13px;
-}
-.dialog-input:focus {
-  outline: none;
-  border-color: #d68a34;
-}
-.confirm-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  margin-top: 6px;
-}
-</style>
+<style scoped src="../styles/shared/listIndex.css"></style>
+
+<style scoped></style>

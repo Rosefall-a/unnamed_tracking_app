@@ -52,7 +52,11 @@ export async function logout(): Promise<void> {
   if (import.meta.env.VITE_USE_MOCK_DATA === "true") {
     return;
   }
-  await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+  const response = await fetch("/api/auth/logout", {
+    method: "POST",
+    credentials: "include",
+  });
+  if (!response.ok) throw new Error("Could not sign out. Please try again.");
 }
 
 export async function fetchCurrentUser(): Promise<CurrentUser | null> {

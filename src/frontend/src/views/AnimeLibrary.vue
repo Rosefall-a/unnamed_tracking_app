@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
 import { useKeptAlive } from "../utils/useKeptAlive";
+import type { LibraryFilters } from "../utils/libraryFilters";
 import {
   fetchAnimePage,
   updateAnime,
@@ -12,6 +13,7 @@ import {
 } from "../services/anime";
 import type { SeasonUpdateInput } from "../services/anime";
 import type { Anime, AnimeStatus } from "../types/anime";
+import { localMediaImage } from "../utils/mediaImages";
 import MediaLibraryView from "../components/library/MediaLibraryView.vue";
 import { displayTitle } from "../utils/displayTitle";
 import { statusBucket, bucketToReal } from "../utils/mediaStatus";
@@ -88,7 +90,7 @@ function toVM(show: Anime): LibraryCardVM {
   return {
     id: show.id,
     title: displayTitle(show),
-    poster: show.posterUrl,
+    poster: localMediaImage("anime", show.id, "poster", show.posterUrl),
     status: show.status,
     favorite: show.favorite,
     score: show.ratingOverall,
@@ -119,18 +121,36 @@ const items = computed(() => shows.value.map(toVM));
 let loadRequest = 0;
 const total = ref(0);
 const statusCounts = ref<Record<string, number>>({});
+const scoreRanks = ref<Record<string, number>>({});
 const pageSize = 100;
 const currentSearch = ref("");
-async function load(search = "") {
-  currentSearch.value = search;
+const currentFilters = ref<LibraryFilters & { statusBucket: string }>({
+  search: "",
+  genres: [],
+  genreMatchAll: false,
+  formats: [],
+  onlyFavorites: false,
+  onlyUnrated: false,
+  onlyWithNote: false,
+  minScore: null,
+  yearFrom: "",
+  yearTo: "",
+  statusBucket: "all",
+});
+async function load(
+  filters: LibraryFilters & { statusBucket: string } = currentFilters.value,
+) {
+  currentFilters.value = filters;
+  currentSearch.value = filters.search;
   const request = ++loadRequest;
   if (!shows.value.length) loading.value = true;
   try {
-    const page = await fetchAnimePage(0, pageSize, search);
+    const page = await fetchAnimePage(0, pageSize, filters);
     if (request !== loadRequest) return;
     shows.value = page.items;
     total.value = page.total;
     statusCounts.value = page.statusCounts;
+    scoreRanks.value = page.scoreRanks;
   } catch (e) {
     error.value = e instanceof Error ? e.message : "Failed to load anime.";
   } finally {
@@ -141,7 +161,11 @@ async function loadMore() {
   if (loading.value || shows.value.length >= total.value) return;
   loading.value = true;
   try {
-    const page = await fetchAnimePage(shows.value.length, pageSize, currentSearch.value);
+    const page = await fetchAnimePage(
+      shows.value.length,
+      pageSize,
+      currentFilters.value,
+    );
     shows.value.push(...page.items);
   } catch (e) {
     error.value = e instanceof Error ? e.message : "Failed to load more anime.";
@@ -340,12 +364,13 @@ function detailRoute(id: string): string {
     :items="items"
     :total="total"
     :status-counts="statusCounts"
+    :score-ranks="scoreRanks"
     :loading="loading"
     :error="error"
     :detail-route="detailRoute"
     :search="search"
     :create-from-result="createFromResult"
-    @search="load"
+    @filters-change="load"
     @load-more="loadMore"
     @toggle-favorite="onToggleFavorite"
     @advance-episode="onAdvanceEpisode"
@@ -402,9 +427,16 @@ function detailRoute(id: string): string {
         </li>
       </ul>
       <div class="import-actions">
-        <button type="button" @click="showAniListImport = false">Close</button>
         <button
           type="button"
+          class="ui-btn ui-btn-secondary"
+          @click="showAniListImport = false"
+        >
+          Close
+        </button>
+        <button
+          type="button"
+          class="ui-btn ui-btn-primary"
           :disabled="aniListImporting || !aniListUsername.trim()"
           @click="importFromAniList"
         >
@@ -417,10 +449,10 @@ function detailRoute(id: string): string {
 
 <style scoped>
 .anilist-import-btn {
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  background: rgba(255, 255, 255, 0.06);
-  color: #ddd;
-  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--ui-text) 16%, transparent);
+  background: color-mix(in srgb, var(--ui-text) 6%, transparent);
+  color: var(--ui-text);
+  border-radius: var(--ui-radius-control);
   padding: 9px 13px;
   cursor: pointer;
 }
@@ -430,13 +462,13 @@ function detailRoute(id: string): string {
   z-index: 100;
   display: grid;
   place-items: center;
-  background: rgba(0, 0, 0, 0.7);
+  background: color-mix(in srgb, var(--ui-bg) 70%, transparent);
 }
 .import-modal {
   width: min(520px, calc(100vw - 32px));
-  background: #191919;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 12px;
+  background: var(--ui-surface);
+  border: 1px solid color-mix(in srgb, var(--ui-text) 12%, transparent);
+  border-radius: var(--ui-radius-card);
   padding: 22px;
   display: flex;
   flex-direction: column;
@@ -446,34 +478,34 @@ function detailRoute(id: string): string {
   margin: 0;
 }
 .import-modal p {
-  color: #aaa;
+  color: var(--ui-dim);
   margin: 0;
 }
 .import-input {
   width: 100%;
   box-sizing: border-box;
   padding: 10px;
-  border-radius: 7px;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  background: #111;
-  color: #fff;
+  border-radius: var(--ui-radius-control);
+  border: 1px solid color-mix(in srgb, var(--ui-text) 15%, transparent);
+  background: var(--ui-surface);
+  color: var(--ui-text);
 }
 .import-check {
   display: flex;
   gap: 8px;
   align-items: center;
-  color: #ddd;
+  color: var(--ui-text);
 }
 .import-error {
-  color: #e57373 !important;
+  color: var(--ui-error) !important;
 }
 .import-result {
-  color: #8bc98f !important;
+  color: var(--ui-good) !important;
 }
 .import-errors {
   max-height: 120px;
   overflow: auto;
-  color: #e57373;
+  color: var(--ui-error);
   margin: 0;
 }
 .import-actions {
@@ -481,9 +513,27 @@ function detailRoute(id: string): string {
   justify-content: flex-end;
   gap: 8px;
 }
-.import-actions button {
+.import-actions .btn-outline,
+.import-actions .btn-solid {
+  min-height: 44px;
+  font-family: inherit;
+  font-weight: var(--ui-weight-heading);
   padding: 8px 14px;
-  border-radius: 7px;
+  border-radius: var(--ui-radius-control);
   cursor: pointer;
+}
+.import-actions .btn-outline {
+  background: transparent;
+  border: 1px solid var(--ui-border);
+  color: var(--ui-text);
+}
+.import-actions .btn-solid {
+  background: var(--ui-accent);
+  border: none;
+  color: var(--ui-on-accent);
+}
+.import-actions .btn-solid:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 </style>

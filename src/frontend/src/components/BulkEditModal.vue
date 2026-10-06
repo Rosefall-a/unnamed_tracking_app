@@ -3,6 +3,7 @@ import { reactive, ref } from "vue";
 import { bulkUpdateGames } from "../services/games";
 import type { BulkEditFields } from "../services/games";
 import type { GameStatus } from "../types/game";
+import { PRIORITY_OPTIONS } from "../utils/priority";
 
 const props = defineProps<{
   gameIds: string[];
@@ -33,6 +34,8 @@ const apply = reactive({
   publisher: false,
   series: false,
   ageRating: false,
+  platform: false,
+  priority: false,
   tags: false,
   features: false,
 });
@@ -43,6 +46,8 @@ const developerValue = ref("");
 const publisherValue = ref("");
 const seriesValue = ref("");
 const ageRatingValue = ref("");
+const platformValue = ref("");
+const priorityValue = ref("");
 const tagsValue = ref("");
 const featuresValue = ref("");
 
@@ -66,6 +71,8 @@ async function submit() {
     if (apply.publisher) fields.publisher = publisherValue.value.trim() || null;
     if (apply.series) fields.series = seriesValue.value.trim() || null;
     if (apply.ageRating) fields.ageRating = ageRatingValue.value.trim() || null;
+    if (apply.platform) fields.platform = platformValue.value.trim() || null;
+    if (apply.priority) fields.priority = priorityValue.value || null;
     if (apply.tags)
       fields.tags = tagsValue.value
         .split(",")
@@ -118,6 +125,7 @@ async function submit() {
               v-model="statusValue"
               class="field-input"
               :disabled="!apply.status"
+              aria-label="New status"
             >
               <option v-for="s in statuses" :key="s" :value="s">{{ s }}</option>
             </select>
@@ -132,6 +140,7 @@ async function submit() {
               v-model="favoriteValue"
               class="field-input"
               :disabled="!apply.favorite"
+              aria-label="Favorite"
             >
               <option :value="true">Mark as favorite</option>
               <option :value="false">Remove from favorites</option>
@@ -148,6 +157,7 @@ async function submit() {
               type="text"
               class="field-input"
               :disabled="!apply.developer"
+              aria-label="New developer"
               placeholder="Developer name"
             />
           </div>
@@ -162,6 +172,7 @@ async function submit() {
               type="text"
               class="field-input"
               :disabled="!apply.publisher"
+              aria-label="New publisher"
               placeholder="Publisher name"
             />
           </div>
@@ -176,6 +187,7 @@ async function submit() {
               type="text"
               class="field-input"
               :disabled="!apply.series"
+              aria-label="New series"
               placeholder="Franchise name"
             />
           </div>
@@ -190,8 +202,46 @@ async function submit() {
               type="text"
               class="field-input"
               :disabled="!apply.ageRating"
+              aria-label="New age rating"
               placeholder="e.g. 17+"
             />
+          </div>
+
+          <div class="field-row">
+            <label class="field-check">
+              <input v-model="apply.platform" type="checkbox" />
+              <span>Platform</span>
+            </label>
+            <input
+              v-model="platformValue"
+              type="text"
+              class="field-input"
+              :disabled="!apply.platform"
+              aria-label="New platform"
+              placeholder="e.g. PC, Nintendo Switch (blank clears)"
+            />
+          </div>
+
+          <div class="field-row">
+            <label class="field-check">
+              <input v-model="apply.priority" type="checkbox" />
+              <span>Priority</span>
+            </label>
+            <select
+              v-model="priorityValue"
+              class="field-input"
+              :disabled="!apply.priority"
+              aria-label="New priority"
+            >
+              <option value="">None (clear)</option>
+              <option
+                v-for="option in PRIORITY_OPTIONS"
+                :key="option.value"
+                :value="option.value"
+              >
+                {{ option.label }}
+              </option>
+            </select>
           </div>
 
           <div class="field-row">
@@ -204,6 +254,7 @@ async function submit() {
               type="text"
               class="field-input"
               :disabled="!apply.tags"
+              aria-label="New tags"
               placeholder="Comma-separated: replaces existing tags"
             />
           </div>
@@ -218,6 +269,7 @@ async function submit() {
               type="text"
               class="field-input"
               :disabled="!apply.features"
+              aria-label="New features"
               placeholder="Comma-separated: replaces existing features"
             />
           </div>
@@ -246,23 +298,23 @@ async function submit() {
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.65);
+  background: var(--ui-overlay);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 70;
+  z-index: var(--ui-z-modal);
 }
 .modal {
-  background: #1a1a1a;
-  border: 1px solid #2a2a2a;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
   border-radius: 14px;
   width: 100%;
   max-width: 520px;
   max-height: 88vh;
   display: flex;
   flex-direction: column;
-  color: #fff;
-  font-family: system-ui, sans-serif;
+  color: var(--ui-text);
+  font-family: var(--ui-font-family);
   box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
 }
 .modal-header {
@@ -270,7 +322,7 @@ async function submit() {
   justify-content: space-between;
   align-items: center;
   padding: 18px 22px;
-  border-bottom: 1px solid #2a2a2a;
+  border-bottom: 1px solid var(--ui-border);
   flex-shrink: 0;
 }
 .modal-header h2 {
@@ -280,19 +332,19 @@ async function submit() {
 .close-button {
   background: none;
   border: none;
-  color: #999;
+  color: var(--ui-dim);
   font-size: 15px;
   cursor: pointer;
-  width: 32px;
-  height: 32px;
+  width: var(--ui-control-height);
+  height: var(--ui-control-height);
   border-radius: 50%;
   transition:
     background 0.15s ease,
     color 0.15s ease;
 }
 .close-button:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: #fff;
+  background: color-mix(in srgb, var(--ui-text) 10%, transparent);
+  color: var(--ui-text);
 }
 .modal-form {
   display: flex;
@@ -310,7 +362,7 @@ async function submit() {
   min-height: 0;
 }
 .hint {
-  color: #999;
+  color: var(--ui-dim);
   font-size: 12.5px;
   line-height: 1.5;
   margin: 0 0 4px;
@@ -325,12 +377,12 @@ async function submit() {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #ccc;
+  color: var(--ui-text);
   font-size: 13px;
   cursor: pointer;
 }
 .field-check input {
-  accent-color: #d68a34;
+  accent-color: var(--ui-accent-text);
   width: 15px;
   height: 15px;
   cursor: pointer;
@@ -338,10 +390,10 @@ async function submit() {
 .field-input {
   height: 36px;
   box-sizing: border-box;
-  background: #111;
-  border: 1px solid #3a3a3a;
-  border-radius: 8px;
-  color: #fff;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
+  color: var(--ui-text);
   padding: 0 12px;
   font: inherit;
   font-size: 13px;
@@ -352,14 +404,14 @@ async function submit() {
 }
 .field-input:focus:not(:disabled) {
   outline: none;
-  border-color: #d68a34;
+  border-color: var(--ui-accent-line);
 }
 .form-error {
-  color: #fca5a5;
+  color: var(--ui-error);
   font-size: 13px;
   background: rgba(220, 38, 38, 0.1);
   border: 1px solid rgba(220, 38, 38, 0.3);
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   padding: 8px 10px;
 }
 .modal-footer {
@@ -367,28 +419,28 @@ async function submit() {
   justify-content: flex-end;
   gap: 10px;
   padding: 16px 22px;
-  border-top: 1px solid #2a2a2a;
+  border-top: 1px solid var(--ui-border);
   flex-shrink: 0;
 }
 .primary-button,
 .secondary-button {
   border: none;
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   padding: 10px 18px;
   font-weight: 600;
   cursor: pointer;
   font-size: 13px;
 }
 .primary-button {
-  background: #d68a34;
-  color: #111;
+  background: var(--ui-accent);
+  color: var(--ui-on-accent);
 }
 .primary-button:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
 .secondary-button {
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
+  background: color-mix(in srgb, var(--ui-text) 8%, transparent);
+  color: var(--ui-text);
 }
 </style>

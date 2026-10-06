@@ -4,4 +4,5 @@ export interface PaginatedResponse<T> {
   offset: number;
   limit: number;
   status_counts: Record<string, number>;
+  score_ranks?: Record<string, number>;
 }

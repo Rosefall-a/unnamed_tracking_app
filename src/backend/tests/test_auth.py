@@ -4,9 +4,11 @@ import pytest
 
 from src.core.auth import (
     create_api_key,
+    get_current_user,
     hash_password,
     hash_token,
     revoke_session,
+    session_cookie_name,
     validate_password,
     verify_password,
 )
@@ -58,14 +60,15 @@ def test_api_key_contains_only_safe_persisted_derivatives() -> None:
 
 
 @pytest.mark.asyncio
-async def test_revoke_session_deletes_hash_and_commits() -> None:
+async def test_revoke_session_preserves_metadata_and_commits() -> None:
     db = AsyncMock()
     db.execute.return_value = Mock(rowcount=1)
 
     assert await revoke_session(db, "raw-browser-cookie") is True
 
     statement = db.execute.await_args.args[0]
-    assert "DELETE FROM user_sessions" in str(statement)
+    assert "UPDATE user_sessions" in str(statement)
+    assert "revoked_at" in str(statement)
     assert hash_token("raw-browser-cookie") in statement.compile().params.values()
     db.commit.assert_awaited_once()
 
@@ -77,3 +80,114 @@ async def test_revoke_session_is_idempotent() -> None:
 
     assert await revoke_session(db, "already-revoked") is False
     db.commit.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_revoked_api_key_cannot_fall_back_to_browser_session() -> None:
+    from fastapi import HTTPException
+    from starlette.requests import Request
+
+    api_key = "utk_revoked-key"
+    db = AsyncMock()
+    db.scalar.return_value = None
+    request = Request(
+        {
+            "type": "http",
+            "method": "GET",
+            "path": "/api/auth/me",
+            "headers": [
+                (b"host", b"localhost"),
+                (b"authorization", f"Bearer {api_key}".encode()),
+                (b"cookie", f"{session_cookie_name('localhost')}=still-valid".encode()),
+            ],
+        }
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        await get_current_user(request, db)
+
+    assert exc_info.value.status_code == 401
+    assert "revoked" in str(exc_info.value.detail).lower()
+    db.scalar.assert_awaited_once()
+
+
+def test_validation_errors_never_echo_submitted_values() -> None:
+    """A rejected request used to come back with the whole submitted body in
+    each error's `input`, plaintext password included (#118)."""
+    from fastapi.testclient import TestClient
+
+    from src.main import app
+
+    secret = "Hunter2-plaintext-secret!"
+    response = TestClient(app).post(
+        "/api/auth/login", json={"username": "someone", "password": secret, "remember": []}
+    )
+
+    assert response.status_code == 422
+    assert secret not in response.text
+    errors = response.json()["detail"]
+    assert errors and all(set(error) <= {"type", "loc", "msg"} for error in errors)
+    assert any(error["loc"][-1] == "username_or_email" for error in errors)
+
+
+async def test_existing_primary_user_is_not_checked_against_a_newer_password_policy(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The environment password only seeds a new account; a policy change
+    must not stop the app starting for an account that already exists."""
+    from src.core import auth
+    from src.database.models.user import User
+
+    monkeypatch.setattr(auth.settings, "PRIMARY_USER_USERNAME", "admin")
+    monkeypatch.setattr(auth.settings, "PRIMARY_USER_EMAIL", "admin@example.com")
+    monkeypatch.setattr(auth.settings, "PRIMARY_USER_PASSWORD", "weak")
+    existing = User(username="admin", email="admin@example.com", is_admin=True, is_active=True)
+    db = Mock()
+    db.scalar = AsyncMock(return_value=existing)
+
+    assert await auth.ensure_primary_user(db) is existing
+
+    db.scalar = AsyncMock(return_value=None)
+    with pytest.raises(RuntimeError, match="Invalid primary user password"):
+        await auth.ensure_primary_user(db)
+
+
+async def test_purge_expired_sessions_keeps_valid_ones() -> None:
+    import time
+    import uuid
+
+    from sqlalchemy import delete, select
+
+    from src.core.auth import purge_expired_sessions
+    from src.database.models.auth import UserSession
+    from src.database.models.user import User
+    from src.database.session import SessionLocal
+
+    now = int(time.time())
+    async with SessionLocal() as db:
+        user = User(
+            username=f"t_{uuid.uuid4().hex[:10]}",
+            email=f"{uuid.uuid4().hex[:10]}@example.test",
+            password_hash="x",
+        )
+        db.add(user)
+        await db.flush()
+        user_id = user.id
+        db.add_all(
+            [
+                UserSession(user_id=user_id, token_hash=uuid.uuid4().hex, expires_at=now - 10),
+                UserSession(user_id=user_id, token_hash=uuid.uuid4().hex, expires_at=now + 3600),
+            ]
+        )
+        await db.commit()
+        try:
+            assert await purge_expired_sessions(db, now=now) >= 1
+            remaining = (
+                await db.scalars(
+                    select(UserSession.expires_at).where(UserSession.user_id == user_id)
+                )
+            ).all()
+            assert remaining == [now + 3600]
+        finally:
+            await db.execute(delete(User).where(User.id == user_id))
+            await db.commit()

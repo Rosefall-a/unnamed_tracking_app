@@ -1,0 +1,314 @@
+{
+  "artifact_run": 37295244287,
+  "head": "0f3483c6d35790ffddca99b6e40d065b90674006",
+  "runtime_image": "uta-plugin-runtime:ci-artifacts-2693",
+  "passed": [
+    "validated-plugin-distribution: example.discord-delivery-provider 1.2.0: real consent/install/healthy startup",
+    "unsigned-dist: example.discord-delivery-provider 1.2.0: real consent/install/healthy startup",
+    "validated-plugin-distribution: example.help-button 2.2.0: real consent/install/healthy startup",
+    "unsigned-dist: example.help-button 2.2.0: real consent/install/healthy startup",
+    "validated-plugin-distribution: example.home-widgets 1.0.0: real consent/install/healthy startup",
+    "unsigned-dist: example.home-widgets 1.0.0: real consent/install/healthy startup",
+    "validated-plugin-distribution: example.jellyfin-media-sync 3.2.0: real consent/install/healthy startup",
+    "unsigned-dist: example.jellyfin-media-sync 3.2.0: real consent/install/healthy startup",
+    "validated-plugin-distribution: example.metadata-curator 1.2.0: real consent/install/healthy startup",
+    "unsigned-dist: example.metadata-curator 1.2.0: real consent/install/healthy startup",
+    "validated-plugin-distribution: example.playtime-report 1.2.0: real consent/install/healthy startup",
+    "unsigned-dist: example.playtime-report 1.2.0: real consent/install/healthy startup",
+    "validated-plugin-distribution: example.recently-played-notifier 1.2.0: real consent/install/healthy startup",
+    "unsigned-dist: example.recently-played-notifier 1.2.0: real consent/install/healthy startup",
+    "validated-plugin-distribution: example.scoped-document-viewer 1.8.0: real consent/install/healthy startup",
+    "unsigned-dist: example.scoped-document-viewer 1.8.0: real consent/install/healthy startup",
+    "validated-plugin-distribution: example.self-service-session-manager 2.3.0: real consent/install/healthy startup",
+    "unsigned-dist: example.self-service-session-manager 2.3.0: real consent/install/healthy startup",
+    "validated-plugin-distribution: example.shortcut-playground 0.0.1: real consent/install/healthy startup",
+    "unsigned-dist: example.shortcut-playground 0.0.1: real consent/install/healthy startup",
+    "validated-plugin-distribution: example.theme-palettes 1.1.0: real consent/install/healthy startup",
+    "unsigned-dist: example.theme-palettes 1.1.0: real consent/install/healthy startup",
+    "validated-plugin-distribution: example.ui-api 1.2.0: real consent/install/healthy startup",
+    "unsigned-dist: example.ui-api 1.2.0: real consent/install/healthy startup",
+    "validated-plugin-distribution: example.ui-playground 1.2.0: real consent/install/healthy startup",
+    "unsigned-dist: example.ui-playground 1.2.0: real consent/install/healthy startup",
+    "validated-plugin-distribution: official.collectors-archive 0.0.1: real consent/install/healthy startup",
+    "unsigned-dist: official.collectors-archive 0.0.1: real consent/install/healthy startup",
+    "validated-plugin-distribution: official.jellyfin-media-sync 0.1.0: real consent/install/healthy startup",
+    "unsigned-dist: official.jellyfin-media-sync 0.1.0: real consent/install/healthy startup",
+    "validated-plugin-distribution: official.pwa 0.0.2: real consent/install/healthy startup",
+    "unsigned-dist: official.pwa 0.0.2: real consent/install/healthy startup",
+    "Theme palette declarations and privileged native assets are available after CI package startup",
+    "Real failed Bubblewrap probe: Enable/Start/Retry return actionable JSON 422 and retained diagnostics",
+    "Recreating the production runtime with NONBUBBLE_ENV=true restores all sixteen healthy unsigned workers",
+    "Downloaded CI startup acceptance passed"
+  ],
+  "packages": [
+    {
+      "artifact": "validated-plugin-distribution",
+      "plugin_id": "example.discord-delivery-provider",
+      "version": "1.2.0",
+      "sha256": "503e4a471efd1754cf48904d582ba6562b2d76c553dec8046dc4efc329db756c",
+      "status": "running",
+      "health": "healthy"
+    },
+    {
+      "artifact": "unsigned-dist",
+      "plugin_id": "example.discord-delivery-provider",
+      "version": "1.2.0",
+      "sha256": "8f4391cda09d81006cbff042b2262d971127e0bf64351f6213cafc1b280ebdb2",
+      "status": "running",
+      "health": "healthy"
+    },
+    {
+      "artifact": "validated-plugin-distribution",
+      "plugin_id": "example.help-button",
+      "version": "2.2.0",
+      "sha256": "00108d4229526a250ae2005bd8aa8ca07a2f8d419f7ac7f72e344fe3dfe2ed87",
+      "status": "running",
+      "health": "healthy"
+    },
+    {
+      "artifact": "unsigned-dist",
+      "plugin_id": "example.help-button",
+      "version": "2.2.0",
+      "sha256": "04e9f0abe8230d0b62003e5bf344b2e4b2757804c7b5d7c3195d7960e75cc456",
+      "status": "running",
+      "health": "healthy"
+    },
+    {
+      "artifact": "validated-plugin-distribution",
+      "plugin_id": "example.home-widgets",
+      "version": "1.0.0",
+      "sha256": "74ee201f943577290c20e6a3d7437eebf403c0f1d444f6ed6c6a408c4d25e265",
+      "status": "running",
+      "health": "healthy"
+    },
+    {
+      "artifact": "unsigned-dist",
+      "plugin_id": "example.home-widgets",
+      "version": "1.0.0",
+      "sha256": "60400db84582a5c4d4339af1d5498375495d6cb17a0fc2d2ab8aa6935151199e",
+      "status": "running",
+      "health": "healthy"
+    },
+    {
+      "artifact": "validated-plugin-distribution",
+      "plugin_id": "example.jellyfin-media-sync",
+      "version": "3.2.0",
+      "sha256": "468a9bc3343c52bad29198587062bcbaeb305428979e292024a4061a8844ac60",
+      "status": "running",
+      "health": "healthy"
+    },
+    {
+      "artifact": "unsigned-dist",
+      "plugin_id": "example.jellyfin-media-sync",
+      "version": "3.2.0",
+      "sha256": "3e492f63e6bd158c0133f995c84efc7878f7d33165709c04d0ecf5e6dd7d40f5",
+      "status": "running",
+      "health": "healthy"
+    },
+    {
+      "artifact": "validated-plugin-distribution",
+      "plugin_id": "example.metadata-curator",
+      "version": "1.2.0",
+      "sha256": "d37808e603947ebc759301790e611bb13e6df008105ea47dfc0c5d25aff16378",
+      "status": "running",
+      "health": "healthy"
+    },
+    {
+      "artifact": "unsigned-dist",
+      "plugin_id": "example.metadata-curator",
+      "version": "1.2.0",
+      "sha256": "042e43029eac8f316d016dcd6ca4d30a161bcdf782cc3409ac9d7a24db24ae10",
+      "status": "running",
+      "health": "healthy"
+    },
+    {
+      "artifact": "validated-plugin-distribution",
+      "plugin_id": "example.playtime-report",
+      "version": "1.2.0",
+      "sha256": "208ea49547184957ee4e6d95332fcd4168d19729966d819aeae01efefccb783d",
+      "status": "running",
+      "health": "healthy"
+    },
+    {
+      "artifact": "unsigned-dist",
+      "plugin_id": "example.playtime-report",
+      "version": "1.2.0",
+      "sha256": "42dbbc81de04a83d7c4dd5346b1ea17ba03971c99da1b71b3c81de8a421854a2",
+      "status": "running",
+      "health": "healthy"
+    },
+    {
+      "artifact": "validated-plugin-distribution",
+      "plugin_id": "example.recently-played-notifier",
+      "version": "1.2.0",
+      "sha256": "78af1cd71c88c8558e85f360e13c923da3166ff18d4ce2589def7cab465ff469",
+      "status": "running",
+      "health": "healthy"
+    },
+    {
+      "artifact": "unsigned-dist",
+      "plugin_id": "example.recently-played-notifier",
+      "version": "1.2.0",
+      "sha256": "062c80cc485dd43294ff44077d2c5bda307f31e51632ef841452d5e22aee3120",
+      "status": "running",
+      "health": "healthy"
+    },
+    {
+      "artifact": "validated-plugin-distribution",
+      "plugin_id": "example.scoped-document-viewer",
+      "version": "1.8.0",
+      "sha256": "54074f8e968ab55f10f4d6023b262a47490b6831a164a26ca1c41bc5eaa3a8e3",
+      "status": "running",
+      "health": "healthy"
+    },
+    {
+      "artifact": "unsigned-dist",
+      "plugin_id": "example.scoped-document-viewer",
+      "version": "1.8.0",
+      "sha256": "033f11895b686eb086f8f8afd8a3e98b9051959e36de60aa09bd629cbedf0dea",
+      "status": "running",
+      "health": "healthy"
+    },
+    {
+      "artifact": "validated-plugin-distribution",
+      "plugin_id": "example.self-service-session-manager",
+      "version": "2.3.0",
+      "sha256": "41fc5ce898b623b4c945cced0eb5dee4300a2ccea860758afd803bfde85c5073",
+      "status": "running",
+      "health": "healthy"
+    },
+    {
+      "artifact": "unsigned-dist",
+      "plugin_id": "example.self-service-session-manager",
+      "version": "2.3.0",
+      "sha256": "2e990034ac0fae66bc9278750d48f3f829a30c6b4196c1212880b4072d4bd302",
+      "status": "running",
+      "health": "healthy"
+    },
+    {
+      "artifact": "validated-plugin-distribution",
+      "plugin_id": "example.shortcut-playground",
+      "version": "0.0.1",
+      "sha256": "643e45360de75a5570d41d35528b3097cf49ba2aac69d81a9a551a5e08027346",
+      "status": "running",
+      "health": "healthy"
+    },
+    {
+      "artifact": "unsigned-dist",
+      "plugin_id": "example.shortcut-playground",
+      "version": "0.0.1",
+      "sha256": "c41081d22d1aa86f751cb04d251dddf346b6d0d4a15b1011a1a2fb4bc33b2756",
+      "status": "running",
+      "health": "healthy"
+    },
+    {
+      "artifact": "validated-plugin-distribution",
+      "plugin_id": "example.theme-palettes",
+      "version": "1.1.0",
+      "sha256": "9056eddb27bcfacd8a34797797a5c6b0a5be1188ef51d7142a461bbb011963d5",
+      "status": "running",
+      "health": "healthy"
+    },
+    {
+      "artifact": "unsigned-dist",
+      "plugin_id": "example.theme-palettes",
+      "version": "1.1.0",
+      "sha256": "4db41f76d3ce3702338014b58f5f3248cca0735182544f176fdb78b3f470f081",
+      "status": "running",
+      "health": "healthy"
+    },
+    {
+      "artifact": "validated-plugin-distribution",
+      "plugin_id": "example.ui-api",
+      "version": "1.2.0",
+      "sha256": "89c1f8bf697d304de14212efbcca71632fa01d99e92fa2c2977311aa7d1a936b",
+      "status": "running",
+      "health": "healthy"
+    },
+    {
+      "artifact": "unsigned-dist",
+      "plugin_id": "example.ui-api",
+      "version": "1.2.0",
+      "sha256": "ba766d63409082d23a53560a4429b30ea7062f5c60357960bb6c3a81122a688d",
+      "status": "running",
+      "health": "healthy"
+    },
+    {
+      "artifact": "validated-plugin-distribution",
+      "plugin_id": "example.ui-playground",
+      "version": "1.2.0",
+      "sha256": "7bd4599f4a8abda346b663ce3afd1ef8e4d9703eb3d6f6b092d071b207c8ae3b",
+      "status": "running",
+      "health": "healthy"
+    },
+    {
+      "artifact": "unsigned-dist",
+      "plugin_id": "example.ui-playground",
+      "version": "1.2.0",
+      "sha256": "3008b77bd4c6d986fd71efbdcb98012d883f389bab45e49f14494ec2399dbcf7",
+      "status": "running",
+      "health": "healthy"
+    },
+    {
+      "artifact": "validated-plugin-distribution",
+      "plugin_id": "official.collectors-archive",
+      "version": "0.0.1",
+      "sha256": "fe7910c35b6df435e30c791b119fe3556dad38afcad9a8fc6ab3d027f57c211d",
+      "status": "running",
+      "health": "healthy"
+    },
+    {
+      "artifact": "unsigned-dist",
+      "plugin_id": "official.collectors-archive",
+      "version": "0.0.1",
+      "sha256": "00382213ad95fd8b115239070c85250c642a88e6f8abb9a3edd9294a657d2955",
+      "status": "running",
+      "health": "healthy"
+    },
+    {
+      "artifact": "validated-plugin-distribution",
+      "plugin_id": "official.jellyfin-media-sync",
+      "version": "0.1.0",
+      "sha256": "9187ac4d00f78835d0037ea66c9886a96dbcdcf824683a2fa36534a24b4c8ff8",
+      "status": "running",
+      "health": "healthy"
+    },
+    {
+      "artifact": "unsigned-dist",
+      "plugin_id": "official.jellyfin-media-sync",
+      "version": "0.1.0",
+      "sha256": "e9d51f4f63f57564cd58e5b453835be9fe3091085bda4a1dd6ee5e984ffa94cf",
+      "status": "running",
+      "health": "healthy"
+    },
+    {
+      "artifact": "validated-plugin-distribution",
+      "plugin_id": "official.pwa",
+      "version": "0.0.2",
+      "sha256": "04f135fd7fd96eda3b4ce5637efdc2aafc845311597574283d5e70a2f71cc860",
+      "status": "running",
+      "health": "healthy"
+    },
+    {
+      "artifact": "unsigned-dist",
+      "plugin_id": "official.pwa",
+      "version": "0.0.2",
+      "sha256": "e08a8c888b040fa0619fbbd87894ac998832e84da7195c0fbccb3e5260db763a",
+      "status": "running",
+      "health": "healthy"
+    }
+  ],
+  "reduced_runtime": {
+    "bubblewrap_available": false,
+    "sandbox_available": false,
+    "mechanism": "process",
+    "reduced_isolation_allowed": true
+  },
+  "blocked_runtime": {
+    "bubblewrap_available": false,
+    "sandbox_available": false,
+    "mechanism": "process",
+    "reduced_isolation_allowed": false
+  },
+  "status": "passed"
+}

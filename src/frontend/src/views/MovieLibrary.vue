@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
 import { useKeptAlive } from "../utils/useKeptAlive";
+import type { LibraryFilters } from "../utils/libraryFilters";
 import {
   fetchMoviesPage,
   updateMovie,
@@ -10,6 +11,7 @@ import {
   createMovie,
 } from "../services/movies";
 import type { Movie, MovieStatus } from "../types/movie";
+import { localMediaImage } from "../utils/mediaImages";
 import MediaLibraryView from "../components/library/MediaLibraryView.vue";
 import type {
   LibraryCardVM,
@@ -36,7 +38,7 @@ function toVM(m: Movie): LibraryCardVM {
   return {
     id: m.id,
     title: m.title,
-    poster: m.posterUrl,
+    poster: localMediaImage("movie", m.id, "poster", m.posterUrl),
     status: m.status,
     favorite: m.favorite,
     score: m.ratingOverall,
@@ -60,18 +62,36 @@ const items = computed(() => movies.value.map(toVM));
 let loadRequest = 0;
 const total = ref(0);
 const statusCounts = ref<Record<string, number>>({});
+const scoreRanks = ref<Record<string, number>>({});
 const pageSize = 100;
 const currentSearch = ref("");
-async function load(search = "") {
-  currentSearch.value = search;
+const currentFilters = ref<LibraryFilters & { statusBucket: string }>({
+  search: "",
+  genres: [],
+  genreMatchAll: false,
+  formats: [],
+  onlyFavorites: false,
+  onlyUnrated: false,
+  onlyWithNote: false,
+  minScore: null,
+  yearFrom: "",
+  yearTo: "",
+  statusBucket: "all",
+});
+async function load(
+  filters: LibraryFilters & { statusBucket: string } = currentFilters.value,
+) {
+  currentFilters.value = filters;
+  currentSearch.value = filters.search;
   const request = ++loadRequest;
   if (!movies.value.length) loading.value = true;
   try {
-    const page = await fetchMoviesPage(0, pageSize, search);
+    const page = await fetchMoviesPage(0, pageSize, filters);
     if (request !== loadRequest) return;
     movies.value = page.items;
     total.value = page.total;
     statusCounts.value = page.statusCounts;
+    scoreRanks.value = page.scoreRanks;
   } catch (e) {
     error.value = e instanceof Error ? e.message : "Failed to load movies.";
   } finally {
@@ -82,10 +102,15 @@ async function loadMore() {
   if (loading.value || movies.value.length >= total.value) return;
   loading.value = true;
   try {
-    const page = await fetchMoviesPage(movies.value.length, pageSize, currentSearch.value);
+    const page = await fetchMoviesPage(
+      movies.value.length,
+      pageSize,
+      currentFilters.value,
+    );
     movies.value.push(...page.items);
   } catch (e) {
-    error.value = e instanceof Error ? e.message : "Failed to load more movies.";
+    error.value =
+      e instanceof Error ? e.message : "Failed to load more movies.";
   } finally {
     loading.value = false;
   }
@@ -216,12 +241,13 @@ function detailRoute(id: string): string {
     :items="items"
     :total="total"
     :status-counts="statusCounts"
+    :score-ranks="scoreRanks"
     :loading="loading"
     :error="error"
     :detail-route="detailRoute"
     :search="search"
     :create-from-result="createFromResult"
-    @search="load"
+    @filters-change="load"
     @load-more="loadMore"
     @toggle-favorite="onToggleFavorite"
     @save-note="onSaveNote"
