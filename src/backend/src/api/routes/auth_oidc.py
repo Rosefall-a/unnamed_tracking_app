@@ -1,10 +1,12 @@
-# pylint: disable=line-too-long,missing-module-docstring,too-many-return-statements,missing-function-docstring,protected-access,too-many-locals,broad-exception-caught,too-many-branches
+"""Select configured OIDC providers and validate their identities before creating sessions."""
+
 from __future__ import annotations
 
 import json
 import logging
 import secrets
-from typing import Annotated
+from dataclasses import replace
+from typing import Annotated, Any
 from urllib.parse import urlparse
 
 from fastapi import APIRouter, Depends, Request
@@ -15,7 +17,7 @@ from starlette.responses import RedirectResponse
 from src.core.auth import SESSION_TTL_SECONDS, hash_password, session_cookie_name
 from src.core.config import settings
 from src.core.crypto import decrypt_secret
-from src.core.oidc import OidcConfig, begin_oidc, oauth, register_oidc_provider
+from src.core.oidc import OidcConfig, begin_oidc, env_oidc_config, oauth, register_oidc_provider
 from src.core.session_manager import create_session
 from src.database.models.oidc_settings import OidcSettings
 from src.database.models.user import User
@@ -25,24 +27,15 @@ router = APIRouter(prefix="/api/auth/oidc", tags=["auth"])
 logger = logging.getLogger(__name__)
 
 
-def _env_config(request: Request):
-    if not (settings.OIDC_ISSUER_URL and settings.OIDC_CLIENT_ID and settings.OIDC_CLIENT_SECRET):
+def _env_config(request: Request) -> OidcConfig | None:
+    config = env_oidc_config()
+    if config is None:
         return None
-    issuer = settings.OIDC_ISSUER_URL.strip()
-    return OidcConfig(
-        issuer_url=issuer,
-        client_id=settings.OIDC_CLIENT_ID,
-        client_secret=settings.OIDC_CLIENT_SECRET,
-        scopes=settings.OIDC_SCOPES,
-        redirect_uri=str(request.url_for("oidc_callback")),
-        groups_claim=settings.OIDC_GROUPS_CLAIM,
-        admin_group=settings.OIDC_ADMIN_GROUP,
-        user_match_field=getattr(settings, "OIDC_USER_MATCH_FIELD", "email"),
-        discovery_url=issuer if issuer.endswith("/.well-known/openid-configuration") else None,
-    )
+    # Preserve the route's callback URL, including when a deployment sets a redirect elsewhere.
+    return replace(config, redirect_uri=str(request.url_for("oidc_callback")))
 
 
-def _named_rows(row):
+def _named_rows(row: OidcSettings) -> list[dict[str, Any]]:
     try:
         data = json.loads(row.providers_json or "[]")
     except (TypeError, ValueError):
@@ -54,7 +47,7 @@ def _named_rows(row):
     ]
 
 
-def _config_from_provider(provider, redirect_uri: str):
+def _config_from_provider(provider: dict[str, Any], redirect_uri: str) -> OidcConfig:
     issuer = str(provider["issuer_url"]).strip()
     return OidcConfig(
         issuer_url=issuer,
@@ -74,19 +67,27 @@ def _config_from_provider(provider, redirect_uri: str):
     )
 
 
-async def _get_config(db, request: Request, slug="default", require_autostart=False):
+def _named_provider_config(
+    row: OidcSettings, request: Request, slug: str, require_autostart: bool
+) -> OidcConfig | None:
+    for provider in _named_rows(row):
+        if provider.get("slug") == slug and provider.get("client_secret"):
+            if require_autostart and provider.get("autostart_enabled", True) is False:
+                return None
+            return _config_from_provider(
+                provider, str(request.url_for("oidc_callback_provider", provider_slug=slug))
+            )
+    return None
+
+
+async def _get_config(
+    db: AsyncSession, request: Request, slug: str = "default", require_autostart: bool = False
+) -> OidcConfig | None:
     row = await db.scalar(select(OidcSettings).limit(1))
     if row and not row.enabled:
         return None
     if row and slug != "default":
-        for provider in _named_rows(row):
-            if provider.get("slug") == slug and provider.get("client_secret"):
-                if require_autostart and provider.get("autostart_enabled", True) is False:
-                    return None
-                return _config_from_provider(
-                    provider, str(request.url_for("oidc_callback_provider", provider_slug=slug))
-                )
-        return None
+        return _named_provider_config(row, request, slug, require_autostart)
 
     environment_config = _env_config(request)
     if environment_config is not None:
@@ -105,7 +106,7 @@ async def _get_config(db, request: Request, slug="default", require_autostart=Fa
             user_match_field=row.user_match_field or "email",
             allow_new_users=row.allow_new_users,
         )
-    return _env_config(request) if slug == "default" else None
+    return None
 
 
 @router.get("/status")
@@ -179,7 +180,7 @@ async def oidc_provider_login(
     return await begin_oidc(request, config)
 
 
-async def _fetch_oidc_token(request, client):
+async def _fetch_oidc_token(request: Request, client: Any) -> dict[str, Any]:
     params = {
         "code": request.query_params.get("code"),
         "state": request.query_params.get("state"),
@@ -191,7 +192,9 @@ async def _fetch_oidc_token(request, client):
     if not state_data:
         raise ValueError("Invalid OIDC state parameter")
     await client.framework.clear_state_data(request.session, state)
-    params = client._format_state_params(state_data, params)
+    # Authlib exposes this state restoration only through its private adapter; the custom
+    # invalid-JWKS fallback must preserve the same state/PKCE checks as its standard flow.
+    params = client._format_state_params(state_data, params)  # pylint: disable=protected-access
     token = await client.fetch_access_token(**params)
     if "id_token" not in token or "nonce" not in state_data:
         return token
@@ -207,7 +210,7 @@ async def _fetch_oidc_token(request, client):
     return token
 
 
-def _groups(claims, name):
+def _groups(claims: dict[str, Any], name: str) -> set[str]:
     value = claims.get(name)
     if isinstance(value, str):
         return {value}
@@ -216,39 +219,59 @@ def _groups(claims, name):
     return set()
 
 
-def _match_value(claims, field, email):
+def _match_value(claims: dict[str, Any], field: str, email: str) -> str:
     if field == "username":
         return str(claims.get("preferred_username") or claims.get("name") or "").strip()
     return email
 
 
-def _safe_username(value, email):
+def _safe_username(value: str, email: str) -> str:
     username = "".join(char for char in value.strip() if char.isalnum() or char in "._-")[:100]
     return username or email.split("@", 1)[0][:90] or f"user-{secrets.token_hex(4)}"
 
 
-async def _complete_callback(request, db, config, client_name):
-    register_oidc_provider(config, client_name)
-    client = oauth.create_client(client_name)
-    if client is None:
-        return RedirectResponse("/login?oidc_error=provider_unavailable", 303)
-    try:
-        token = await _fetch_oidc_token(request, client)
-        claims = dict(token.get("userinfo") or await client.userinfo(token=token))
-        claims.update({key: value for key, value in token.items() if key not in claims})
-    except Exception:
-        logger.exception("OIDC callback token/userinfo exchange failed")
-        return RedirectResponse("/login?oidc_error=authentication_failed", 303)
+async def _create_oidc_user(
+    db: AsyncSession,
+    claims: dict[str, Any],
+    email: str,
+    linked_subject: str,
+    *,
+    is_admin: bool,
+) -> User:
+    username = _safe_username(
+        str(claims.get("preferred_username") or claims.get("name") or ""), email
+    )
+    base = username
+    suffix = 1
+    while await db.scalar(select(User.id).where(User.username == username)) is not None:
+        suffix += 1
+        username = f"{base[: 100 - len(str(suffix)) - 1]}-{suffix}"
+    user = User(
+        username=username,
+        email=email,
+        password_hash=hash_password(secrets.token_urlsafe(48) + "A!a"),
+        is_active=True,
+        is_admin=is_admin,
+        oidc_subject=linked_subject,
+    )
+    db.add(user)
+    await db.flush()
+    return user
 
+
+async def _resolve_oidc_identity(
+    db: AsyncSession, config: OidcConfig, claims: dict[str, Any]
+) -> User | str:
+    """Resolve, provision, or reject an identity before any session is created."""
     subject = str(claims.get("sub", "")).strip()
     email = str(claims.get("email", "")).strip().lower()
     if not subject or not email:
-        return RedirectResponse("/login?oidc_error=identity_missing", 303)
+        return "identity_missing"
 
     field = config.user_match_field if config.user_match_field in {"email", "username"} else "email"
     match = _match_value(claims, field, email)
     if not match:
-        return RedirectResponse("/login?oidc_error=identity_missing", 303)
+        return "identity_missing"
 
     linked_subject = f"{config.slug}:{subject}"
     user = await db.scalar(select(User).where(User.oidc_subject == linked_subject))
@@ -263,34 +286,40 @@ async def _complete_callback(request, db, config, client_name):
     )
     if user is None:
         if not config.allow_new_users:
-            return RedirectResponse("/login?oidc_error=user_creation_disabled", 303)
-        username = _safe_username(
-            str(claims.get("preferred_username") or claims.get("name") or ""), email
-        )
-        base = username
-        suffix = 1
-        while await db.scalar(select(User.id).where(User.username == username)) is not None:
-            suffix += 1
-            username = f"{base[: 100 - len(str(suffix)) - 1]}-{suffix}"
-        user = User(
-            username=username,
-            email=email,
-            password_hash=hash_password(secrets.token_urlsafe(48) + "A!a"),
-            is_active=True,
-            is_admin=is_admin,
-            oidc_subject=linked_subject,
-        )
-        db.add(user)
-        await db.flush()
+            return "user_creation_disabled"
+        user = await _create_oidc_user(db, claims, email, linked_subject, is_admin=is_admin)
     else:
         if not user.is_active:
-            return RedirectResponse("/login?oidc_error=account_disabled", 303)
+            return "account_disabled"
         if user.oidc_subject and user.oidc_subject not in {linked_subject, subject}:
-            return RedirectResponse("/login?oidc_error=identity_conflict", 303)
+            return "identity_conflict"
         user.oidc_subject = linked_subject
         user.email = email
         if config.admin_group:
             user.is_admin = is_admin
+
+    return user
+
+
+async def _complete_callback(
+    request: Request, db: AsyncSession, config: OidcConfig, client_name: str
+) -> RedirectResponse:
+    register_oidc_provider(config, client_name)
+    client = oauth.create_client(client_name)
+    if client is None:
+        return RedirectResponse("/login?oidc_error=provider_unavailable", 303)
+    try:
+        token = await _fetch_oidc_token(request, client)
+        claims = dict(token.get("userinfo") or await client.userinfo(token=token))
+        claims.update({key: value for key, value in token.items() if key not in claims})
+    # Provider token/userinfo failures must return to sign-in without opening a session.
+    except Exception:  # pylint: disable=broad-exception-caught
+        logger.exception("OIDC callback token/userinfo exchange failed")
+        return RedirectResponse("/login?oidc_error=authentication_failed", 303)
+
+    user = await _resolve_oidc_identity(db, config, claims)
+    if isinstance(user, str):
+        return RedirectResponse(f"/login?oidc_error={user}", 303)
 
     session_context = await create_session(db, user, request)
     session_token = session_context.token
