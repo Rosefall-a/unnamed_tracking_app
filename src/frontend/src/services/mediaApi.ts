@@ -7,6 +7,7 @@
 import { failedRequest } from "./apiError";
 import type { EntityCache } from "../utils/entityCache";
 import type { PaginatedResponse } from "../types/pagination";
+import type { LibraryFilters } from "../utils/libraryFilters";
 
 export async function handle<T>(
   response: Response,
