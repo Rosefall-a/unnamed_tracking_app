@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
 import { useKeptAlive } from "../utils/useKeptAlive";
+import type { LibraryFilters } from "../utils/libraryFilters";
 import {
   fetchAnimePage,
   updateAnime,
@@ -123,12 +124,17 @@ const statusCounts = ref<Record<string, number>>({});
 const scoreRanks = ref<Record<string, number>>({});
 const pageSize = 100;
 const currentSearch = ref("");
-async function load(search = "") {
-  currentSearch.value = search;
+const currentFilters = ref<LibraryFilters & { statusBucket: string }>({
+  search: "", genres: [], genreMatchAll: false, formats: [], onlyFavorites: false,
+  onlyUnrated: false, onlyWithNote: false, minScore: null, yearFrom: "", yearTo: "", statusBucket: "all",
+});
+async function load(filters: LibraryFilters & { statusBucket: string } = currentFilters.value) {
+  currentFilters.value = filters;
+  currentSearch.value = filters.search;
   const request = ++loadRequest;
   if (!shows.value.length) loading.value = true;
   try {
-    const page = await fetchAnimePage(0, pageSize, search);
+    const page = await fetchAnimePage(0, pageSize, filters);
     if (request !== loadRequest) return;
     shows.value = page.items;
     total.value = page.total;
@@ -136,25 +142,17 @@ async function load(search = "") {
     scoreRanks.value = page.scoreRanks;
   } catch (e) {
     error.value = e instanceof Error ? e.message : "Failed to load anime.";
-  } finally {
-    loading.value = false;
-  }
+  } finally { loading.value = false; }
 }
 async function loadMore() {
   if (loading.value || shows.value.length >= total.value) return;
   loading.value = true;
   try {
-    const page = await fetchAnimePage(
-      shows.value.length,
-      pageSize,
-      currentSearch.value,
-    );
+    const page = await fetchAnimePage(shows.value.length, pageSize, currentFilters.value);
     shows.value.push(...page.items);
   } catch (e) {
     error.value = e instanceof Error ? e.message : "Failed to load more anime.";
-  } finally {
-    loading.value = false;
-  }
+  } finally { loading.value = false; }
 }
 onMounted(load);
 useKeptAlive(load);
@@ -353,7 +351,7 @@ function detailRoute(id: string): string {
     :detail-route="detailRoute"
     :search="search"
     :create-from-result="createFromResult"
-    @search="load"
+    @filters-change="load"
     @load-more="loadMore"
     @toggle-favorite="onToggleFavorite"
     @advance-episode="onAdvanceEpisode"

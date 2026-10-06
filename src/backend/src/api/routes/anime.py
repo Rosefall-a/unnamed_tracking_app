@@ -410,8 +410,25 @@ async def list_anime(
     search: str | None = Query(default=None, description="Case-insensitive title search"),
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=100, ge=1, le=200),
+    status_bucket: str | None = Query(default=None),
+    genre: list[str] = Query(default=[]),
+    genre_match_all: bool = Query(default=False),
+    format: list[str] = Query(default=[]),
+    only_unrated: bool = Query(default=False),
+    only_with_note: bool = Query(default=False),
+    min_score: float | None = Query(default=None, ge=0, le=10),
+    year_from: int | None = Query(default=None, ge=1, le=9999),
+    year_to: int | None = Query(default=None, ge=1, le=9999),
 )-> PaginatedResponse[AnimeLibraryRead]:
     """Return one page of the current user's anime and the total matching it."""
+    status_values = None
+    if status_bucket and status_bucket != "all":
+        status_values = {
+            "plan": {AnimeStatus.WISHLIST, AnimeStatus.WATCHLIST}, "hold": {AnimeStatus.BACKLOG},
+            "watching": {AnimeStatus.IN_PROGRESS, AnimeStatus.REWATCH},
+            "completed": {AnimeStatus.WATCHED, AnimeStatus.FAVORITE}, "dropped": {AnimeStatus.DROPPED},
+        }.get(status_bucket)
+        if status_values is None: raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid status bucket.")
     return await library_page(
         db,
         Anime,
@@ -421,6 +438,9 @@ async def list_anime(
         search_clause=title_search([Anime.title, Anime.title_english, Anime.title_romaji, Anime.title_native], search),
         skip=skip,
         limit=limit,
+        status_values=status_values, genres=genre, genre_match_all=genre_match_all,
+        formats=format, only_unrated=only_unrated, only_with_note=only_with_note,
+        min_score=min_score, year_column=Anime.first_air_date, year_from=year_from, year_to=year_to,
     )
 
 
