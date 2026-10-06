@@ -10,7 +10,7 @@ from fastapi import Response
 from src.api.routes import games, library_sync
 from src.api.schemas.game import GameCreate
 from src.database.session import SessionLocal
-from tests.test_game_files_flow import flow  # noqa: F401  (the fixture)
+from tests.test_game_files_flow import game_flow  # noqa: F401  (registers the "flow" fixture)
 
 
 async def _write(flow, name: str, content: str) -> dict:

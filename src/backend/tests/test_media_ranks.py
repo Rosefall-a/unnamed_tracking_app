@@ -4,7 +4,7 @@ from decimal import Decimal
 
 from src.database.models.movies import Movie
 from src.database.session import SessionLocal
-from tests.test_game_files_flow import flow  # noqa: F401  (the fixture)
+from tests.test_game_files_flow import game_flow  # noqa: F401  (registers the "flow" fixture)
 
 
 async def _add(user_id, title: str, rating: str | None) -> str:

@@ -20,7 +20,10 @@ from src.plugin_api.gateway_auth import (
 
 def make_auth(now: datetime | None = None) -> tuple[GatewayAuthenticator, datetime]:
     current = now or datetime(2026, 9, 29, 3, 0, tzinfo=timezone.utc)
-    clock = lambda: current
+
+    def clock() -> datetime:
+        return current
+
     return GatewayAuthenticator(
         ApplicationIdentity(),
         GatewayIdentity(),

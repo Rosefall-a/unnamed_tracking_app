@@ -12,9 +12,9 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from test_plugin_install_sources import (  # noqa: F401
     acquire,
-    gate,
     grants,
     package_bytes,
+    plugin_gate,
     seed_update,
 )
 

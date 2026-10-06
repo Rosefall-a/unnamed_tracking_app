@@ -7,7 +7,7 @@ from PIL import Image
 
 from src.api.routes import media_images
 from src.helpers import remote_images
-from tests.test_game_files_flow import flow  # noqa: F401  (the fixture)
+from tests.test_game_files_flow import game_flow  # noqa: F401  (registers the "flow" fixture)
 
 
 def _png(width: int = 1000, height: int = 1500) -> bytes:
@@ -31,7 +31,7 @@ def downloads(monkeypatch, tmp_path):
     return calls
 
 
-async def _create(flow, kind: str, **fields) -> str:  # noqa: F811
+async def _create(flow, kind: str, **fields) -> str:
     created = await flow.client.post(f"/api/{kind}/create", json={"title": "Heat", **fields})
     assert created.status_code == 201, created.text
     return created.json()["id"]

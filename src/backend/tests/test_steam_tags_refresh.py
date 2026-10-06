@@ -6,7 +6,7 @@ from sqlalchemy import select
 from src.database.models.game import Game
 from src.database.session import SessionLocal
 from src.features.metadata.games import steam, steam_tags
-from tests.test_game_files_flow import flow  # noqa: F401  (the fixture)
+from tests.test_game_files_flow import game_flow  # noqa: F401  (registers the "flow" fixture)
 from tests.test_steam_tags import ELDEN_RING
 
 

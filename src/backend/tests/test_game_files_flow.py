@@ -30,8 +30,8 @@ from src.main import app
 from tests.test_media_dates import _mp4_with_creation, utc
 
 
-@pytest.fixture
-async def flow(tmp_path, monkeypatch):
+@pytest.fixture(name="flow")
+async def game_flow(tmp_path, monkeypatch):
     monkeypatch.setattr(games, "_DATA_ROOT", tmp_path)
     monkeypatch.setattr(game_archives, "_DATA_ROOT", tmp_path)
     monkeypatch.setattr(game_notes_routes, "_DATA_ROOT", tmp_path)
