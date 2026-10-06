@@ -1,6 +1,5 @@
 """Pydantic schemas for games and game metadata."""
 
-# pylint: disable=line-too-long,missing-class-docstring,missing-function-docstring,duplicate-code
 from datetime import date
 from decimal import Decimal
 from typing import Literal
@@ -255,7 +254,11 @@ class GameRead(GameBase):
     )
     stale_since: int | None = Field(
         default=None,
-        description="Unix timestamp in seconds since a library sync last noticed this game missing from the account's owned-games list. NULL means currently present (or never synced). Never causes deletion by itself, set for the user to review.",
+        description=(
+            "Unix timestamp in seconds since a library sync last noticed this game missing "
+            "from the account's owned-games list. NULL means currently present (or never "
+            "synced). Never causes deletion by itself, set for the user to review."
+        ),
     )
 
 

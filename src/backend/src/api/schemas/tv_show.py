@@ -1,6 +1,5 @@
 """Pydantic schemas for TV show metadata."""
 
-# pylint: disable=duplicate-code,missing-class-docstring
 # These modules intentionally keep domain/provider-specific logic separate; similar
 # structures here represent parallel APIs rather than accidental copy/paste.
 
@@ -10,10 +9,13 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from src.api.schemas.episode import EpisodeReadBase, EpisodesBulkWatchedBase, EpisodeUpdateBase
 from src.api.schemas.provider_identity import ProviderIDs
 from src.database.models.tv_show import TVShowStatus
 
 
+# Preserve this media contract's field defaults and compatibility model names.
+# pylint: disable=duplicate-code
 class TVShowBase(BaseModel):
     """Fields shared by create and update payloads."""
 
@@ -52,6 +54,11 @@ class TVShowBase(BaseModel):
     personal_rank: int | None = None
 
 
+# pylint: enable=duplicate-code
+
+
+# Preserve this media contract's field defaults and compatibility model names.
+# pylint: disable=duplicate-code
 class SeasonInput(BaseModel):
     """One season to bulk-create alongside a show — used when a metadata
     search result already carries its full season list (TMDB's `/tv/{id}`
@@ -65,6 +72,11 @@ class SeasonInput(BaseModel):
     poster_url: str | None = None
 
 
+# pylint: enable=duplicate-code
+
+
+# Preserve this media contract's field defaults and compatibility model names.
+# pylint: disable=duplicate-code
 class TVShowCreate(TVShowBase):
     """Payload for creating a show. sort_title is derived if not given.
     `seasons`, if provided, is bulk-created in the same transaction."""
@@ -73,6 +85,11 @@ class TVShowCreate(TVShowBase):
     seasons: list[SeasonInput] = Field(default_factory=list)
 
 
+# pylint: enable=duplicate-code
+
+
+# Preserve this media contract's field defaults and compatibility model names.
+# pylint: disable=duplicate-code
 class TVShowUpdate(BaseModel):
     """Payload for partial updates — every field optional. Seasons are
     never touched here; they have their own nested CRUD endpoints."""
@@ -115,6 +132,11 @@ class TVShowUpdate(BaseModel):
     airing_interval_days: int | None = Field(default=None, ge=1, le=90)
 
 
+# pylint: enable=duplicate-code
+
+
+# Preserve this media contract's field defaults and compatibility model names.
+# pylint: disable=duplicate-code
 class SeasonCreate(BaseModel):
     season_number: int
     name: str | None = Field(default=None, max_length=200)
@@ -124,6 +146,11 @@ class SeasonCreate(BaseModel):
     status: TVShowStatus = TVShowStatus.WISHLIST
 
 
+# pylint: enable=duplicate-code
+
+
+# Preserve this media contract's field defaults and compatibility model names.
+# pylint: disable=duplicate-code
 class SeasonUpdate(BaseModel):
     """Partial update — every field optional, including progress."""
 
@@ -136,42 +163,41 @@ class SeasonUpdate(BaseModel):
     status: TVShowStatus | None = None
 
 
-class EpisodeUpdate(BaseModel):
+# pylint: enable=duplicate-code
+
+
+# Preserve this media contract's field defaults and compatibility model names.
+# pylint: disable=duplicate-code
+class EpisodeUpdate(EpisodeUpdateBase):
     """Partial update for a single episode — only the two fields a user
     can actually change; everything else is provider-synced."""
 
-    watched: bool | None = None
-    rating: Decimal | None = Field(default=None, ge=0, le=10)
-    note: str | None = Field(default=None, max_length=2000)
+
+# pylint: enable=duplicate-code
 
 
-class EpisodesBulkWatched(BaseModel):
+# Preserve this media contract's field defaults and compatibility model names.
+# pylint: disable=duplicate-code
+class EpisodesBulkWatched(EpisodesBulkWatchedBase):
     """Sets `watched` on a batch of episodes in one request — a range
     select or "mark watched up to here" shouldn't cost one round trip
     per episode, especially on a long-running show."""
 
-    episode_ids: list[UUID] = Field(min_length=1, max_length=2000)
-    watched: bool
+
+# pylint: enable=duplicate-code
 
 
-class EpisodeRead(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: UUID
-    season_id: UUID
-    episode_number: int
-    title: str | None
-    description: str | None
-    air_date: date | None
-    runtime_minutes: int | None
-    still_url: str | None
-    watched: bool
-    rating: Decimal | None
-    note: str | None = None
-    created_at: int
-    updated_at: int
+# Preserve this media contract's field defaults and compatibility model names.
+# pylint: disable=duplicate-code
+class EpisodeRead(EpisodeReadBase):
+    pass
 
 
+# pylint: enable=duplicate-code
+
+
+# Preserve this media contract's field defaults and compatibility model names.
+# pylint: disable=duplicate-code
 class SeasonRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -189,6 +215,11 @@ class SeasonRead(BaseModel):
     updated_at: int
 
 
+# pylint: enable=duplicate-code
+
+
+# Preserve this media contract's field defaults and compatibility model names.
+# pylint: disable=duplicate-code
 class TVShowReadBase(TVShowBase):
     """Full representation returned to clients, seasons included so the
     detail page loads everything in one request."""
@@ -208,6 +239,11 @@ class TVShowReadBase(TVShowBase):
     airing_interval_days: int | None = None
 
 
+# pylint: enable=duplicate-code
+
+
+# Preserve this media contract's field defaults and compatibility model names.
+# pylint: disable=duplicate-code
 class TVShowLibrarySeasonRead(BaseModel):
     """Season progress returned by library list endpoints; episode rows stay on detail endpoints."""
 
@@ -224,6 +260,9 @@ class TVShowLibrarySeasonRead(BaseModel):
     poster_url: str | None
     created_at: int
     updated_at: int
+
+
+# pylint: enable=duplicate-code
 
 
 class TVShowRead(TVShowReadBase):

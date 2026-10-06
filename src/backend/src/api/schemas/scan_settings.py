@@ -1,7 +1,6 @@
 """Pydantic schemas for scan and metadata import settings."""
 
 # The scan settings API intentionally mirrors adjacent settings schemas.
-# pylint: disable=duplicate-code
 from typing import Literal
 from uuid import UUID
 

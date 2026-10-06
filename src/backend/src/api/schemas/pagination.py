@@ -1,12 +1,9 @@
 """Shared response models for paginated library endpoints."""
 
-# Pylint associates the upload-route similarity with this shared schema module;
-# the routes intentionally retain separate media/game validation paths.
-# pylint: disable=duplicate-code
-
 from typing import Generic, TypeVar
 
 from pydantic import BaseModel, Field
+from sqlalchemy import select
 
 T = TypeVar("T")
 
@@ -27,8 +24,6 @@ class PaginatedResponse(BaseModel, Generic[T]):
 
 async def score_ranks(db, model, user_id) -> dict[str, int]:  # type: ignore[no-untyped-def]
     """Rank every rated, non-deleted row of ``model`` for the user."""
-    from sqlalchemy import select
-
     result = await db.execute(
         select(model.id)
         .where(
