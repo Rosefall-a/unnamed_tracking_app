@@ -105,3 +105,20 @@ checks. Frontend validation passes all 235 tests, forced type checking, lint,
 formatting and the production build. The independently run backend and runtime
 suites pass 1,084 tests with two existing skips, and 125 tests respectively;
 configured backend Pylint remains 9.11/10.
+
+## Production sidebar access and overflow
+
+Committed production image `47e93aeb` passes all 24 pinned, rail and overlay
+layouts in Chromium and WebKit, from 200 × 280 to 1920 × 1050 pixels. The resize
+handle stays inside the sidebar, sticky toolbars leave the hamburger accessible,
+and short menus scroll to their library, settings and account controls.
+
+The [sidebar report](../assets/ui-redevelopment/sidebar-conformance.json) records
+the exact source head and measurements. These are unmodified production checks,
+not injected prototype styles. Long brand/account labels are browser-only stress
+fixtures; authentication and installed navigation come from the real host.
+The reproducible checker is `tools/check_sidebar_layouts.mjs`.
+
+![Phone sidebar with long-label stress fixtures](../assets/ui-redevelopment/sidebar-overlay-320-webkit.png)
+
+![Desktop overlay sidebar with long-label stress fixtures](../assets/ui-redevelopment/sidebar-overlay-1440-webkit.png)
