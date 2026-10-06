@@ -44,7 +44,7 @@ async def library_page(  # pylint: disable=too-many-arguments,too-many-positiona
     year_from: int | None = None,
     year_to: int | None = None,
 ) -> PaginatedResponse[Any]:
-    """One page of a user's library, the total matching it, how many titles
+    """One page of a user's library, applying all active filters before pagination.\n\n    The total matching it, how many titles
     sit in each status, and every rated title's rank. The status counts
     follow the favorite flag and the search but not the status filter, so the
     tabs always show what each one would hold."""
