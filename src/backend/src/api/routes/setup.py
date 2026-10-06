@@ -95,11 +95,20 @@ def _persisted_values(app: AppIntegrationSettings, oidc: OidcSettings) -> dict[s
         "SCREENSCRAPER_SSPASSWORD": "screenscraper_sspassword",
         "XBOX_CLIENT_ID": "xbox_client_id",
         "XBOX_CLIENT_SECRET": "xbox_client_secret",
+        "NGINX_REALIP_HEADER": "nginx_realip_header",
+        "NGINX_REALIP_TRUSTED_PROXIES": "nginx_realip_trusted_proxies",
     }.items():
         value = getattr(app, attribute)
         if value:
             values[f"{spec_name}__configured"] = True
-            if spec_name in {"IGDB_CLIENT_ID", "SCREENSCRAPER_DEVID", "SCREENSCRAPER_SSID", "XBOX_CLIENT_ID"}:
+            if spec_name in {
+                "IGDB_CLIENT_ID",
+                "SCREENSCRAPER_DEVID",
+                "SCREENSCRAPER_SSID",
+                "XBOX_CLIENT_ID",
+                "NGINX_REALIP_HEADER",
+                "NGINX_REALIP_TRUSTED_PROXIES",
+            }:
                 values[spec_name] = value
 
     provider_name = "Provider 1"
@@ -179,6 +188,8 @@ async def _save_configuration(
         "SCREENSCRAPER_SSPASSWORD": "screenscraper_sspassword",
         "XBOX_CLIENT_ID": "xbox_client_id",
         "XBOX_CLIENT_SECRET": "xbox_client_secret",
+        "NGINX_REALIP_HEADER": "nginx_realip_header",
+        "NGINX_REALIP_TRUSTED_PROXIES": "nginx_realip_trusted_proxies",
     }
     for name, attribute in app_fields.items():
         if name not in values or handler.has(name):

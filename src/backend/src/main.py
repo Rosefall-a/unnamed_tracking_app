@@ -40,6 +40,7 @@ from src.api.routes import (
 )
 from src.api.routes.auth_oidc import router as auth_oidc_router
 from src.api.routes.deployment_settings import router as deployment_settings_router
+from src.api.routes.real_ip import router as real_ip_router
 from src.api.routes.setup import router as setup_router
 from src.api.routes.settings import get_or_create_app_integration_settings
 from src.api.routes.utils.misc import router as misc_router
@@ -98,6 +99,7 @@ app.include_router(auth_oidc_router)
 app.include_router(setup_router)
 app.include_router(settings.router)
 app.include_router(deployment_settings_router)
+app.include_router(real_ip_router)
 app.include_router(app_integrations.router)
 app.include_router(media.router)
 app.include_router(stats.router)
