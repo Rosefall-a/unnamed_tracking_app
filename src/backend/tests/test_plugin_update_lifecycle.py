@@ -112,7 +112,7 @@ async def test_unverified_update_re_reviews_every_permission(monkeypatch, tmp_pa
             del statement
             return Result()
 
-    monkeypatch.setattr(plugin_runtime, "_client", Runtime())
+    monkeypatch.setattr(plugin_runtime, "client", Runtime())
     _, _, delta, _, can_retain = await plugins._update_context(
         "example.update",
         inspected,
@@ -168,8 +168,8 @@ async def test_inline_changelog_is_returned_before_update(monkeypatch) -> None:
             "release_notes": "Security fixes",
         }
 
-    monkeypatch.setattr(plugin_runtime, "_client", Runtime())
-    monkeypatch.setattr(plugin_catalogues, "_check_plugin_update", fake_check)
+    monkeypatch.setattr(plugin_runtime, "client", Runtime())
+    monkeypatch.setattr(plugin_catalogues, "check_plugin_update", fake_check)
     changelog = await plugins.plugin_changelog("example.update", SimpleNamespace())
     assert changelog == {
         "plugin_id": "example.update",
@@ -197,7 +197,7 @@ async def test_catalogue_failure_updates_persistent_status(monkeypatch, tmp_path
         del url, json_document
         raise HTTPException(status_code=502, detail="network failure")
 
-    monkeypatch.setattr(plugin_acquisition, "_download_remote_file", fail_download)
+    monkeypatch.setattr(plugin_acquisition, "download_remote_file", fail_download)
     with pytest.raises(HTTPException):
         await plugins.plugin_catalog(
             source="https://catalogue.example/list.json",

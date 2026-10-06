@@ -170,7 +170,7 @@ def boundary(monkeypatch):
         async def database():
             yield db
 
-        monkeypatch.setattr(plugin_runtime, "_client", runtime)
+        monkeypatch.setattr(plugin_runtime, "client", runtime)
         monkeypatch.setenv("PLUGIN_RUNTIME_TOKEN", "x" * 32)
         app = FastAPI()
         app.include_router(auth.router)

@@ -257,7 +257,7 @@ class PluginInstaller:
         self.verifier = verifier
         self.password_verifier = password_verifier
 
-    def _inspect_snapshot(self, package: bytes) -> InspectedPackage:
+    def inspect_snapshot(self, package: bytes) -> InspectedPackage:
         with tempfile.TemporaryDirectory(prefix="plugin-candidate-") as directory:
             snapshot = Path(directory) / "package.utp"
             snapshot.write_bytes(package)
@@ -519,7 +519,7 @@ class PluginInstaller:
         """Validate, resolve, authorize, atomically install, then activate and check health."""
         if len(package) > self.verifier.max_package_bytes:
             raise InstallationError(413, "Plugin package exceeds the 64 MiB upload limit.")
-        inspected = await asyncio.to_thread(self._inspect_snapshot, package)
+        inspected = await asyncio.to_thread(self.inspect_snapshot, package)
         manifest = inspected.package.manifest
         if not inspected.trust.installable:
             error = InstallationError(

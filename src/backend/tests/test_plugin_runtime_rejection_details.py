@@ -5,7 +5,7 @@ from types import SimpleNamespace
 import httpx
 import pytest
 
-from src.api.routes.plugin_manager.runtime import _runtime_request_error
+from src.api.routes.plugin_manager.runtime import runtime_request_error
 from src.plugin_api import runtime_client
 
 
@@ -33,12 +33,12 @@ async def test_runtime_rejection_reaches_host_with_its_public_status(monkeypatch
     client = runtime_client.PluginRuntimeClient("http://isolated-runtime", "x" * 32)
     with pytest.raises(runtime_client.PluginRuntimeRequestError) as failure:
         await client.action("example.protocol", "list", {})
-    response = _runtime_request_error(failure.value)
+    response = runtime_request_error(failure.value)
     assert response.status_code == status and response.detail == detail
 
 
 def test_legacy_runtime_rejection_defaults_to_existing_policy_status():
-    response = _runtime_request_error(
+    response = runtime_request_error(
         runtime_client.PluginRuntimeRequestError("Runtime policy rejected the operation.")
     )
     assert response.status_code == 422 and "policy rejected" in response.detail

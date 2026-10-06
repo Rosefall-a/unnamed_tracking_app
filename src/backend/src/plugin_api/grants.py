@@ -92,6 +92,25 @@ async def effective_capabilities(
     return frozenset(expand_capabilities(granted)) - denied
 
 
+async def active_user_capabilities(
+    db: AsyncSession, plugin_id: str, installation_id: UUID, user_id: UUID
+) -> list[str]:
+    """List active v1 grants for this installation and account, excluding device scopes."""
+    rows = await db.execute(
+        select(
+            PluginPermissionGrant.capability,
+            PluginPermissionGrant.capability_version,
+        ).where(
+            PluginPermissionGrant.plugin_id == plugin_id,
+            PluginPermissionGrant.installation_id == installation_id,
+            PluginPermissionGrant.revoked_at.is_(None),
+            PluginPermissionGrant.device_id.is_(None),
+            or_(PluginPermissionGrant.user_id.is_(None), PluginPermissionGrant.user_id == user_id),
+        )
+    )
+    return [str(capability) for capability, version in rows if version == 1]
+
+
 async def has_capability_grant(
     db: AsyncSession,
     *,

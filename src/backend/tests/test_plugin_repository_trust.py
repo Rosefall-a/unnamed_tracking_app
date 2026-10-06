@@ -129,8 +129,8 @@ def test_signed_plugin_repo_artifact_is_forwarded_only_after_verification(
             pass
 
     runtime_client = RuntimeClient()
-    monkeypatch.setattr(plugin_runtime, "_client", runtime_client)
-    monkeypatch.setattr(plugin_acquisition, "_plugin_package_verifier", lambda: verifier)
+    monkeypatch.setattr(plugin_runtime, "client", runtime_client)
+    monkeypatch.setattr(plugin_acquisition, "plugin_package_verifier", lambda: verifier)
 
     source = package.read_bytes()
     upload = UploadFile(file=io.BytesIO(source), filename=package.name)

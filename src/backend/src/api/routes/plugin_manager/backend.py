@@ -147,7 +147,7 @@ async def _resolve_plugin_backend_route(
     """Resolve the single installation that owns a declared request path."""
 
     try:
-        installed_plugins = await runtime._client.plugins()
+        installed_plugins = await runtime.client.plugins()
         if scope is BackendRouteScope.HOST:
             validate_host_route_ownership(installed_plugins)
         resolved = resolve_backend_route(
@@ -161,9 +161,9 @@ async def _resolve_plugin_backend_route(
         logger.error("Plugin backend route ownership conflict: path=%s error=%s", route_path, exc)
         raise _backend_route_error(409, "conflict", str(exc), request_id) from exc
     except PluginRuntimeRequestError as exc:
-        raise runtime._runtime_request_error(exc) from exc
+        raise runtime.runtime_request_error(exc) from exc
     except PluginRuntimeUnavailable as exc:
-        raise runtime._runtime_error(exc) from exc
+        raise runtime.runtime_error(exc) from exc
     if resolved is None:
         raise _backend_route_error(404, "not_found", "Plugin backend route not found.", request_id)
     return resolved
@@ -268,7 +268,7 @@ async def _execute_plugin_backend_route(
     """Execute one bounded runtime handler and validate its JSON response."""
 
     route_request = await _backend_route_request(request, resolved.path_parameters, request_id)
-    route_request["current_session_id"] = await contributions._current_browser_session_id(
+    route_request["current_session_id"] = await contributions.current_browser_session_id(
         db, user.id, request
     )
     route_request["user"] = {
@@ -277,7 +277,7 @@ async def _execute_plugin_backend_route(
         "is_admin": bool(getattr(user, "is_admin", False)),
     }
     try:
-        raw_result = await runtime._client.route(
+        raw_result = await runtime.client.route(
             owner_id,
             resolved.route.id,
             route_request,
@@ -307,7 +307,7 @@ async def _execute_plugin_backend_route(
             502, "unavailable", "Plugin backend route is unavailable.", request_id
         ) from exc
     except PluginRuntimeUnavailable as exc:
-        raise runtime._runtime_error(exc) from exc
+        raise runtime.runtime_error(exc) from exc
     return result
 
 

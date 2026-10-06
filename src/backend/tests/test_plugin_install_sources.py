@@ -347,12 +347,12 @@ async def plugin_gate(monkeypatch, tmp_path):
         ),
     )
     runtime = Runtime()
-    monkeypatch.setattr(plugin_runtime, "_client", runtime)
+    monkeypatch.setattr(plugin_runtime, "client", runtime)
     verifier = PluginPackageVerifier(
         {"known": TrustedPublisher("known", key.public_key().public_bytes_raw(), "Gate publisher")},
         require_signature=False,
     )
-    monkeypatch.setattr(plugin_acquisition, "_plugin_package_verifier", lambda: verifier)
+    monkeypatch.setattr(plugin_acquisition, "plugin_package_verifier", lambda: verifier)
     app = FastAPI()
     app.include_router(plugins.router)
     async with Session(engine, expire_on_commit=False) as db:

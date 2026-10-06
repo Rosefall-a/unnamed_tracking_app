@@ -95,7 +95,7 @@ async def test_lifecycle_revokes_all_host_execution_boundaries(tmp_path, monkeyp
     worker = threading.Thread(target=server.serve_forever, daemon=True)
     worker.start()
     runtime_client = PluginRuntimeClient(f"http://127.0.0.1:{server.server_port}", token)
-    monkeypatch.setattr(plugin_runtime, "_client", runtime_client)
+    monkeypatch.setattr(plugin_runtime, "client", runtime_client)
     monkeypatch.setattr(providers, "PluginRuntimeClient", lambda: runtime_client)
     monkeypatch.setattr(plugin_contributions, "has_capability_grant", AsyncMock(return_value=True))
     monkeypatch.setattr(plugin_backend, "has_capability_grant", AsyncMock(return_value=True))

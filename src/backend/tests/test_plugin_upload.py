@@ -23,6 +23,33 @@ from src.plugin_api.manager_state import manager_state
 from src.plugin_api.updates import PluginPackageVerifier
 
 
+async def test_remote_install_releases_download_and_upload_when_commit_fails(monkeypatch, tmp_path):
+    from fastapi import HTTPException
+
+    path = tmp_path / "candidate.utp"
+    path.write_bytes(package_bytes())
+    uploads = []
+
+    async def download(_url):
+        return path, "candidate.utp", path.stat().st_size
+
+    async def fail_commit(upload, **_kwargs):
+        uploads.append(upload)
+        raise HTTPException(409, "Package changed during review")
+
+    monkeypatch.setattr(plugin_acquisition, "download_remote_file", download)
+    monkeypatch.setattr(plugin_acquisition, "commit_plugin_upload", fail_commit)
+    with pytest.raises(HTTPException, match="Package changed"):
+        await plugins.install_plugin_url(
+            plugins.PluginInstallUrl(url="https://example.com/candidate.utp"),
+            admin=object(),
+            db=object(),
+        )
+    assert not path.exists()
+    assert len(uploads) == 1
+    assert uploads[0].file.closed
+
+
 def package_bytes() -> bytes:
     files = {"plugin.py": b"def main():\n    pass\n"}
     digest = hashlib.sha256()
@@ -107,10 +134,10 @@ def test_database_commit_failure_never_activates_candidate(
     monkeypatch, failure, abort_preparation
 ) -> None:
     client = FakeClient()
-    monkeypatch.setattr(plugin_runtime, "_client", client)
+    monkeypatch.setattr(plugin_runtime, "client", client)
     monkeypatch.setattr(
         plugin_acquisition,
-        "_plugin_package_verifier",
+        "plugin_package_verifier",
         lambda: PluginPackageVerifier(require_signature=True),
     )
 
@@ -222,10 +249,10 @@ def dangerous_package_bytes() -> bytes:
 def test_upload_endpoint_verifies_and_forwards_utp(monkeypatch) -> None:
     client = FakeClient()
     payload = package_bytes()
-    monkeypatch.setattr(plugin_runtime, "_client", client)
+    monkeypatch.setattr(plugin_runtime, "client", client)
     monkeypatch.setattr(
         plugin_acquisition,
-        "_plugin_package_verifier",
+        "plugin_package_verifier",
         lambda: PluginPackageVerifier(require_signature=True),
     )
     upload = UploadFile(file=io.BytesIO(payload), filename="example-upload.utp")
@@ -264,10 +291,10 @@ def test_upload_endpoint_verifies_and_forwards_utp(monkeypatch) -> None:
 def test_upload_endpoint_accepts_ui_playground_frontend_manifest(monkeypatch) -> None:
     client = FakeClient()
     payload = frontend_package_bytes()
-    monkeypatch.setattr(plugin_runtime, "_client", client)
+    monkeypatch.setattr(plugin_runtime, "client", client)
     monkeypatch.setattr(
         plugin_acquisition,
-        "_plugin_package_verifier",
+        "plugin_package_verifier",
         lambda: PluginPackageVerifier(require_signature=True),
     )
     upload = UploadFile(
@@ -310,10 +337,10 @@ def test_upload_endpoint_accepts_ui_playground_frontend_manifest(monkeypatch) ->
 
 def test_upload_preview_is_static_and_lists_requested_permissions(monkeypatch) -> None:
     client = FakeClient()
-    monkeypatch.setattr(plugin_runtime, "_client", client)
+    monkeypatch.setattr(plugin_runtime, "client", client)
     monkeypatch.setattr(
         plugin_acquisition,
-        "_plugin_package_verifier",
+        "plugin_package_verifier",
         lambda: PluginPackageVerifier(require_signature=True),
     )
     upload = UploadFile(
@@ -357,7 +384,7 @@ def test_upload_preview_is_static_and_lists_requested_permissions(monkeypatch) -
 def test_dangerous_unsigned_grant_requires_password_reauthentication(monkeypatch) -> None:
     client = FakeClient()
     payload = dangerous_package_bytes()
-    monkeypatch.setattr(plugin_runtime, "_client", client)
+    monkeypatch.setattr(plugin_runtime, "client", client)
     admin = SimpleNamespace(
         id=uuid4(),
         password_hash=hash_password("Correct-password!"),
@@ -419,14 +446,14 @@ def test_upload_endpoint_accepts_zip_package() -> None:
             pass
 
     client = FakeClient()
-    original = plugin_runtime._client
-    plugin_runtime._client = client
+    original = plugin_runtime.client
+    plugin_runtime.client = client
     try:
         result = asyncio.run(
             plugins.install_plugin(upload, allow_untrusted=True, admin=object(), db=FakeDb())
         )
     finally:
-        plugin_runtime._client = original
+        plugin_runtime.client = original
     assert result["plugin_id"] == "example.upload"
     assert client.filename == "example.upload-1.0.0.utp"
 
@@ -445,14 +472,14 @@ def test_upload_endpoint_accepts_package_with_unusual_filename() -> None:
             pass
 
     client = FakeClient()
-    original = plugin_runtime._client
-    plugin_runtime._client = client
+    original = plugin_runtime.client
+    plugin_runtime.client = client
     try:
         result = asyncio.run(
             plugins.install_plugin(upload, allow_untrusted=True, admin=object(), db=FakeDb())
         )
     finally:
-        plugin_runtime._client = original
+        plugin_runtime.client = original
 
     assert result["plugin_id"] == "example.upload"
     assert client.filename == "example.upload-1.0.0.utp"
@@ -513,7 +540,7 @@ def test_remote_preview_uses_downloaded_package(monkeypatch) -> None:
         path = __import__("pathlib").Path(handle.name)
         return path, "example.zip", len(package)
 
-    monkeypatch.setattr(plugin_acquisition, "_download_remote_file", fake_download)
+    monkeypatch.setattr(plugin_acquisition, "download_remote_file", fake_download)
     result = asyncio.run(
         plugins.preview_plugin_install_url(
             plugins.PluginInstallUrl(url="https://example.com/example.zip"),
@@ -554,7 +581,7 @@ def test_catalog_entries_accept_explicit_source(monkeypatch) -> None:
         handle.close()
         return pathlib.Path(handle.name), "list.json", len(json.dumps(payload))
 
-    monkeypatch.setattr(plugin_acquisition, "_download_remote_file", fake_download)
+    monkeypatch.setattr(plugin_acquisition, "download_remote_file", fake_download)
     result = asyncio.run(
         plugins.plugin_catalog(
             source="https://example.com/list.json",
@@ -600,8 +627,8 @@ def test_upload_url_and_catalogue_converge_on_one_commit_path(monkeypatch) -> No
         handle.close()
         return __import__("pathlib").Path(handle.name), "candidate.bin", len(data)
 
-    monkeypatch.setattr(plugin_acquisition, "_install_plugin_package", fake_commit)
-    monkeypatch.setattr(plugin_acquisition, "_download_remote_file", fake_download)
+    monkeypatch.setattr(plugin_acquisition, "commit_plugin_upload", fake_commit)
+    monkeypatch.setattr(plugin_acquisition, "download_remote_file", fake_download)
     asyncio.run(
         plugins.install_plugin(
             UploadFile(file=io.BytesIO(payload), filename="candidate.bin"),

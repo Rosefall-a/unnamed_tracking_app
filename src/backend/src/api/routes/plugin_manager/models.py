@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from src.plugin_api.contracts import PluginDependency
 
@@ -48,15 +48,16 @@ class CatalogueIcon(BaseModel):
     path: str = Field(min_length=1, max_length=255)
     sha256: str = Field(pattern=r"^[0-9a-fA-F]{64}$")
 
-    @model_validator(mode="after")
-    def safe_path(self) -> "CatalogueIcon":
+    @field_validator("path")
+    @classmethod
+    def safe_path(cls, value: str) -> str:
         if (
-            "\\" in self.path
-            or self.path.startswith("/")
-            or any(part in {"", ".", ".."} for part in self.path.split("/"))
+            "\\" in value
+            or value.startswith("/")
+            or any(part in {"", ".", ".."} for part in value.split("/"))
         ):
             raise ValueError("Icon path must be a safe relative package path")
-        return self
+        return value
 
 
 class PluginCatalogRelease(BaseModel):

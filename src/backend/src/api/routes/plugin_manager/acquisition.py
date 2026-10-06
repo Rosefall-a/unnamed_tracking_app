@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import ipaddress
 import logging
@@ -9,6 +10,8 @@ import os
 import socket
 import tempfile
 import zipfile
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 from urllib.parse import urljoin, urlparse
@@ -54,7 +57,7 @@ from src.plugin_api.updates import (
     PluginPackageVerifier,
 )
 
-from . import catalogues, models, runtime, updates
+from . import models, runtime
 
 router = APIRouter(prefix="/api/plugins", tags=["plugins"])
 logger = logging.getLogger(__name__)
@@ -69,7 +72,7 @@ _REMOTE_FETCH_TIMEOUT = httpx.Timeout(20.0, connect=5.0)
 _MAX_REMOTE_REDIRECTS = 3
 
 
-def _plugin_package_verifier() -> PluginPackageVerifier:
+def plugin_package_verifier() -> PluginPackageVerifier:
     configured_path = os.getenv("PLUGIN_TRUSTED_PUBLISHER_REGISTRY")
     try:
         publishers = load_trusted_publishers(Path(configured_path) if configured_path else None)
@@ -78,7 +81,7 @@ def _plugin_package_verifier() -> PluginPackageVerifier:
     return PluginPackageVerifier(publishers=publishers, require_signature=False)
 
 
-async def _store_plugin_upload(file: StarletteUploadFile, prefix: str) -> tuple[Path, str, int]:
+async def store_plugin_upload(file: StarletteUploadFile, prefix: str) -> tuple[Path, str, int]:
     filename = file.filename or "plugin-package"
     with tempfile.NamedTemporaryFile(prefix=prefix, suffix=".utp", delete=False) as handle:
         path = Path(handle.name)
@@ -99,7 +102,7 @@ async def _store_plugin_upload(file: StarletteUploadFile, prefix: str) -> tuple[
     return path, filename, total
 
 
-def _validate_remote_url(raw_url: str) -> str:
+def validate_remote_url(raw_url: str) -> str:
     """Allow only public HTTP(S) destinations and standard web ports."""
     try:
         parsed = urlparse(raw_url)
@@ -142,11 +145,11 @@ def _validate_remote_url(raw_url: str) -> str:
     return parsed.geturl()
 
 
-async def _download_remote_file(
+async def download_remote_file(
     raw_url: str, *, json_document: bool = False
 ) -> tuple[Path, str, int]:
     """Download a bounded public resource without following unvalidated redirects."""
-    url = _validate_remote_url(raw_url)
+    url = validate_remote_url(raw_url)
     for _ in range(_MAX_REMOTE_REDIRECTS + 1):
         async with httpx.AsyncClient(
             timeout=_REMOTE_FETCH_TIMEOUT,
@@ -162,7 +165,7 @@ async def _download_remote_file(
                                 status_code=502,
                                 detail="Plugin download redirect has no destination.",
                             )
-                        url = _validate_remote_url(urljoin(url, location))
+                        url = validate_remote_url(urljoin(url, location))
                         continue
                     if response.status_code != 200:
                         raise HTTPException(
@@ -203,8 +206,8 @@ async def _download_remote_file(
     raise HTTPException(status_code=502, detail="Plugin download followed too many redirects.")
 
 
-def _inspect_install_candidate(path: Path) -> InspectedPackage:
-    verifier = _plugin_package_verifier()
+def inspect_install_candidate(path: Path) -> InspectedPackage:
+    verifier = plugin_package_verifier()
     try:
         return inspect_package(path, verifier)
     except (PackageFormatError, PackageVerificationError) as exc:
@@ -218,14 +221,14 @@ def _inspect_install_candidate(path: Path) -> InspectedPackage:
         ) from exc
 
 
-def _permission_key(name: str, version: int) -> str:
+def permission_key(name: str, version: int) -> str:
     return f"{name}:v{version}"
 
 
-def _permission_preview(permission: Any) -> dict[str, Any]:
+def permission_preview(permission: Any) -> dict[str, Any]:
     definition = capability_definition(permission.capability.name)
     return {
-        "key": _permission_key(
+        "key": permission_key(
             permission.capability.name.value,
             permission.capability.version,
         ),
@@ -241,7 +244,26 @@ def _permission_preview(permission: Any) -> dict[str, Any]:
     }
 
 
-def _install_preview(
+def _package_preview_assets(inspected: InspectedPackage) -> tuple[str | None, str | None]:
+    manifest = inspected.package.manifest
+    readme = None
+    icon = manifest.icon
+    if inspected.package.package_path.exists():
+        with zipfile.ZipFile(inspected.package.package_path) as archive:
+            for name, content_type in (
+                ("payload/icon.svg", "image/svg+xml"),
+                ("payload/icon.png", "image/png"),
+            ):
+                if name in archive.namelist() and archive.getinfo(name).file_size <= 256 * 1024:
+                    icon = f"data:{content_type};base64," + base64.b64encode(
+                        archive.read(name)
+                    ).decode("ascii")
+                    break
+            readme = package_readme(archive)
+    return icon, readme
+
+
+def install_preview(
     inspected: InspectedPackage,
     dependency_plan: DependencyPlan | None = None,
     *,
@@ -265,22 +287,7 @@ def _install_preview(
         allow_legacy=allow_legacy,
     )
     legacy = allow_legacy and is_legacy_contract(manifest.api_contract_version)
-    readme = None
-    icon = manifest.icon
-    if inspected.package.package_path.exists():
-        with zipfile.ZipFile(inspected.package.package_path) as archive:
-            import base64
-
-            for name, content_type in (
-                ("payload/icon.svg", "image/svg+xml"),
-                ("payload/icon.png", "image/png"),
-            ):
-                if name in archive.namelist() and archive.getinfo(name).file_size <= 256 * 1024:
-                    icon = f"data:{content_type};base64," + base64.b64encode(
-                        archive.read(name)
-                    ).decode("ascii")
-                    break
-            readme = package_readme(archive)
+    icon, readme = _package_preview_assets(inspected)
     dependency_items = (
         [
             {
@@ -347,7 +354,7 @@ def _install_preview(
         else not dependency_items,
         "dependency_order": list(dependency_plan.installation_order) if dependency_plan else [],
         "dependency_conflicts": list(dependency_plan.conflicts) if dependency_plan else [],
-        "permissions": [_permission_preview(permission) for permission in manifest.permissions],
+        "permissions": [permission_preview(permission) for permission in manifest.permissions],
         "requires_elevated_reauthentication": (
             not trust.is_verified
             and any(
@@ -372,11 +379,11 @@ async def _plan_candidate_dependencies(
     if not manifest.dependencies:
         return plan_dependencies(manifest, ())
     try:
-        installed = await runtime._client.plugins()
+        installed = await runtime.client.plugins()
     except PluginRuntimeRequestError as exc:
-        raise runtime._runtime_request_error(exc) from exc
+        raise runtime.runtime_request_error(exc) from exc
     except PluginRuntimeUnavailable as exc:
-        raise runtime._runtime_error(exc) from exc
+        raise runtime.runtime_error(exc) from exc
     return plan_dependencies(manifest, installed, available or ())
 
 
@@ -401,7 +408,7 @@ async def _resolve_plugin_upload(request: Request, file: UploadFile | None) -> S
     )
 
 
-async def _validate_catalogue_candidate(
+async def validate_catalogue_candidate(
     path: Path, inspected: InspectedPackage, request: models.PluginInstallUrl, admin: User
 ) -> list[models.PluginCatalogEntry]:
     """Bind every catalogue acquisition to its advertised identity and hashes."""
@@ -409,6 +416,10 @@ async def _validate_catalogue_candidate(
         return []
     if not request.catalogue_url:
         raise HTTPException(422, "Catalogue URL is required for a catalogue package.")
+    # Catalogue routes use the acquisition adapters; resolve their router only during a request.
+    # pylint: disable-next=import-outside-toplevel,cyclic-import
+    from . import catalogues
+
     entries = await catalogues.plugin_catalog(source=request.catalogue_url, user=admin)
     manifest = inspected.package.manifest
     entry = next((item for item in entries if item.plugin_id == manifest.plugin_id), None)
@@ -419,19 +430,20 @@ async def _validate_catalogue_candidate(
         if entry
         else None
     )
-    if (
-        release is None
-        or release.url != request.url
-        or release.digest
-        and release.digest.lower() != manifest.integrity.sha256.lower()
-        or release.package_sha256
-        and release.package_sha256.lower() != hashlib.sha256(path.read_bytes()).hexdigest()
-    ):
+    matches = release is not None and release.url == request.url
+    if release is not None and release.digest:
+        matches = matches and release.digest.lower() == manifest.integrity.sha256.lower()
+    if release is not None and release.package_sha256:
+        matches = (
+            matches
+            and release.package_sha256.lower() == hashlib.sha256(path.read_bytes()).hexdigest()
+        )
+    if not matches:
         raise HTTPException(409, "Catalogue release and package identity or hashes differ.")
     return entries
 
 
-def _acquisition_source(
+def acquisition_source(
     request: models.PluginInstallUrl,
     inspected: InspectedPackage,
     entries: list[models.PluginCatalogEntry],
@@ -463,17 +475,17 @@ async def preview_plugin_install_url(
     """Download and statically inspect a remote .utp/.zip package."""
     path: Path | None = None
     try:
-        path, filename, total = await _download_remote_file(request.url)
-        inspected = _inspect_install_candidate(path)
-        entries = await _validate_catalogue_candidate(path, inspected, request, admin)
+        path, filename, total = await download_remote_file(request.url)
+        inspected = inspect_install_candidate(path)
+        entries = await validate_catalogue_candidate(path, inspected, request, admin)
         available = [entry.model_dump() for entry in entries]
         dependencies = await _plan_candidate_dependencies(
             inspected.package.manifest,
             available=available,
         )
-        source = _acquisition_source(request, inspected, entries)
+        source = acquisition_source(request, inspected, entries)
         return {
-            **_install_preview(inspected, dependencies, source=source),
+            **install_preview(inspected, dependencies, source=source),
             "source_url": request.url,
             "download_filename": filename,
             "download_bytes": total,
@@ -481,6 +493,47 @@ async def preview_plugin_install_url(
     finally:
         if path is not None:
             path.unlink(missing_ok=True)
+
+
+@asynccontextmanager
+async def remote_package_upload(
+    request: models.PluginInstallUrl, admin: User
+) -> AsyncIterator[tuple[UploadFile, InspectedPackage, list[models.PluginCatalogEntry]]]:
+    """Bind remote bytes to catalogue metadata and release every temporary resource."""
+    path: Path | None = None
+    upload: UploadFile | None = None
+    try:
+        path, filename, _ = await download_remote_file(request.url)
+        inspected = inspect_install_candidate(path)
+        entries = await validate_catalogue_candidate(path, inspected, request, admin)
+        upload = UploadFile(path.open("rb"), filename=filename)
+        yield upload, inspected, entries
+    finally:
+        if upload is not None:
+            await upload.close()
+        if path is not None:
+            path.unlink(missing_ok=True)
+
+
+def remote_installation_consent(
+    request: models.PluginInstallUrl,
+    *,
+    allow_untrusted: bool,
+    approved_permissions: list[str] | None,
+    permissions_reviewed: bool = False,
+    version_change_confirmed: bool = False,
+    expected_installed_version: str | None = None,
+) -> InstallationConsent:
+    return installation_consent(
+        allow_untrusted=allow_untrusted,
+        approved_permissions=approved_permissions,
+        admin_password=request.admin_password,
+        confirm_dangerous=request.confirm_dangerous,
+        expected_digest=request.expected_digest,
+        permissions_reviewed=permissions_reviewed,
+        version_change_confirmed=version_change_confirmed,
+        expected_installed_version=expected_installed_version,
+    )
 
 
 @router.post("/install/url", status_code=201)
@@ -492,29 +545,16 @@ async def install_plugin_url(
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """Download a remote package and send it through the same install/consent path."""
-    path: Path | None = None
-    upload: UploadFile | None = None
-    try:
-        path, filename, _ = await _download_remote_file(request.url)
-        inspected = _inspect_install_candidate(path)
-        entries = await _validate_catalogue_candidate(path, inspected, request, admin)
-        upload = UploadFile(path.open("rb"), filename=filename)
-        return await _install_plugin_package(
+    async with remote_package_upload(request, admin) as (upload, inspected, entries):
+        return await commit_plugin_upload(
             upload,
-            allow_untrusted=allow_untrusted,
-            approved_permissions=approved_permissions,
-            admin_password=request.admin_password,
-            confirm_dangerous=request.confirm_dangerous,
-            expected_digest=request.expected_digest,
-            source_metadata=_acquisition_source(request, inspected, entries),
+            consent=remote_installation_consent(
+                request, allow_untrusted=allow_untrusted, approved_permissions=approved_permissions
+            ),
+            source_metadata=acquisition_source(request, inspected, entries),
             admin=admin,
             db=db,
         )
-    finally:
-        if upload is not None:
-            await upload.close()
-        if path is not None:
-            path.unlink(missing_ok=True)
 
 
 @router.post("/install/preview")
@@ -529,8 +569,8 @@ async def preview_plugin_install(
     resolved_file: StarletteUploadFile | None = None
     try:
         resolved_file = await _resolve_plugin_upload(request, file)
-        path, filename, total = await _store_plugin_upload(resolved_file, "plugin-preview-")
-        inspected = _inspect_install_candidate(path)
+        path, filename, total = await store_plugin_upload(resolved_file, "plugin-preview-")
+        inspected = inspect_install_candidate(path)
         dependencies = await _plan_candidate_dependencies(inspected.package.manifest)
         logger.info(
             "Plugin install preview validated: plugin_id=%s version=%s "
@@ -541,7 +581,7 @@ async def preview_plugin_install(
             total,
             inspected.trust.status.value,
         )
-        return _install_preview(inspected, dependencies)
+        return install_preview(inspected, dependencies)
     finally:
         if path is not None:
             path.unlink(missing_ok=True)
@@ -553,6 +593,7 @@ async def preview_plugin_install(
 async def install_plugin(
     file: UploadFile = File(...),
     allow_untrusted: bool = False,
+    *,
     approved_permissions: list[str] | None = Query(default=None),
     admin_password: str | None = Form(default=None),
     confirm_dangerous: bool = Query(default=False),
@@ -571,11 +612,11 @@ async def install_plugin(
     )
 
 
-def _plugin_installer() -> PluginInstaller:
-    return PluginInstaller(runtime._client, _plugin_package_verifier(), verify_password)
+def plugin_installer() -> PluginInstaller:
+    return PluginInstaller(runtime.client, plugin_package_verifier(), verify_password)
 
 
-async def _commit_plugin_upload(
+async def commit_plugin_upload(
     file: UploadFile,
     *,
     consent: InstallationConsent,
@@ -588,8 +629,8 @@ async def _commit_plugin_upload(
     """HTTP acquisition adapter; all policy and lifecycle decisions belong to the installer."""
     temporary_path: Path | None = None
     try:
-        temporary_path, _, _ = await _store_plugin_upload(file, "plugin-candidate-")
-        return await _plugin_installer().install(
+        temporary_path, _, _ = await store_plugin_upload(file, "plugin-candidate-")
+        return await plugin_installer().install(
             temporary_path.read_bytes(),
             consent=consent,
             admin=admin,
@@ -602,9 +643,13 @@ async def _commit_plugin_upload(
         detail = exc.detail
         if isinstance(detail, dict):
             if exc.plan is not None:
+                # Update review builds on install review; this error path runs after module setup.
+                # pylint: disable-next=import-outside-toplevel,cyclic-import
+                from . import updates
+
                 plan = exc.plan
                 preview = (
-                    updates._update_preview(
+                    updates.update_preview(
                         plan.inspected,
                         plan.installed,
                         plan.permissions,
@@ -613,11 +658,11 @@ async def _commit_plugin_upload(
                         source=source_metadata,
                     )
                     if plan.installed is not None
-                    else _install_preview(plan.inspected, plan.dependencies, source=source_metadata)
+                    else install_preview(plan.inspected, plan.dependencies, source=source_metadata)
                 )
                 detail = {**preview, **detail}
             elif exc.inspected is not None:
-                detail = {**_install_preview(exc.inspected), **detail}
+                detail = {**install_preview(exc.inspected), **detail}
         raise HTTPException(status_code=exc.status_code, detail=detail) from exc
     except (PackageFormatError, PackageVerificationError) as exc:
         raise HTTPException(
@@ -629,13 +674,39 @@ async def _commit_plugin_upload(
             },
         ) from exc
     except PluginRuntimeRequestError as exc:
-        raise runtime._runtime_request_error(exc) from exc
+        raise runtime.runtime_request_error(exc) from exc
     except PluginRuntimeUnavailable as exc:
-        raise runtime._runtime_error(exc) from exc
+        raise runtime.runtime_error(exc) from exc
     finally:
         if temporary_path is not None:
             temporary_path.unlink(missing_ok=True)
         await file.close()
+
+
+def installation_consent(
+    *,
+    allow_untrusted: bool,
+    approved_permissions: list[str] | None,
+    admin_password: str | None,
+    confirm_dangerous: bool,
+    expected_digest: str | None = None,
+    permissions_reviewed: bool = False,
+    version_change_confirmed: bool = False,
+    expected_installed_version: str | None = None,
+) -> InstallationConsent:
+    """Normalize the consent fields shared by uploaded and remote package requests."""
+    return InstallationConsent(
+        allow_untrusted=allow_untrusted,
+        approved_permissions=tuple(approved_permissions)
+        if isinstance(approved_permissions, list)
+        else (),
+        admin_password=admin_password,
+        confirm_dangerous=confirm_dangerous,
+        expected_digest=expected_digest,
+        permissions_reviewed=permissions_reviewed,
+        version_change_confirmed=version_change_confirmed,
+        expected_installed_version=expected_installed_version,
+    )
 
 
 async def _install_plugin_package(
@@ -650,13 +721,11 @@ async def _install_plugin_package(
     db: AsyncSession,
     expected_digest: str | None = None,
 ) -> dict[str, Any]:
-    return await _commit_plugin_upload(
+    return await commit_plugin_upload(
         file,
-        consent=InstallationConsent(
+        consent=installation_consent(
             allow_untrusted=allow_untrusted,
-            approved_permissions=tuple(approved_permissions)
-            if isinstance(approved_permissions, list)
-            else (),
+            approved_permissions=approved_permissions,
             admin_password=admin_password,
             confirm_dangerous=confirm_dangerous,
             expected_digest=expected_digest,

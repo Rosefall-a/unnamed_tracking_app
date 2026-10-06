@@ -40,7 +40,7 @@ def _catalogue_store_for(path: str, official_url: str) -> CatalogueStore:
     return CatalogueStore(Path(path), official_url)
 
 
-def _catalogue_store() -> CatalogueStore:
+def catalogue_store() -> CatalogueStore:
     configured_path = os.getenv("PLUGIN_CATALOGUE_REGISTRY", "/data/plugin-catalogues.json")
     return _catalogue_store_for(configured_path, _PLUGIN_CATALOG_URL)
 
@@ -69,17 +69,20 @@ def _catalog_entries(payload: Any, *, source_url: str | None = None) -> list[dic
                     and all(part not in {"", ".", ".."} for part in str(source_path).split("/"))
                     and "\\" not in source_path
                 ):
-                    entry.icon = acquisition._validate_remote_url(
+                    entry.icon = acquisition.validate_remote_url(
                         urljoin(source_url, source_path + "/" + packaged_icon.path)
                     )
             if not entry.compatibility:
-                entry.compatibility = f"SDK {raw_entry.get('sdk_version_range', '*')}; application {raw_entry.get('application_version_range', '*')}"
+                entry.compatibility = (
+                    f"SDK {raw_entry.get('sdk_version_range', '*')}; "
+                    f"application {raw_entry.get('application_version_range', '*')}"
+                )
             parse_semver(entry.version)
-            acquisition._validate_remote_url(entry.url)
+            acquisition.validate_remote_url(entry.url)
             versions: set[str] = set()
             for release in entry.releases:
                 parse_semver(release.version)
-                acquisition._validate_remote_url(release.url)
+                acquisition.validate_remote_url(release.url)
                 if release.version in versions:
                     raise ValueError("Catalogue release versions must be unique")
                 versions.add(release.version)
@@ -91,7 +94,7 @@ def _catalog_entries(payload: Any, *, source_url: str | None = None) -> list[dic
                     or release.package_sha256 != entry.package_sha256
                 ):
                     raise ValueError("Catalogue current release and history disagree")
-            publisher = acquisition._plugin_package_verifier().publishers.get(
+            publisher = acquisition.plugin_package_verifier().publishers.get(
                 str(entry.signing.get("key_id", ""))
             )
             entry.catalogue_channel = (
@@ -100,7 +103,7 @@ def _catalog_entries(payload: Any, *, source_url: str | None = None) -> list[dic
                 else "unverified"
             )
             if entry.changelog_url:
-                acquisition._validate_remote_url(entry.changelog_url)
+                acquisition.validate_remote_url(entry.changelog_url)
         except (ValidationError, ValueError, HTTPException) as exc:
             raise HTTPException(
                 status_code=502, detail="Plugin catalogue contains an invalid entry."
@@ -115,7 +118,7 @@ async def list_plugin_catalogues(
 ) -> list[dict[str, Any]]:
     del admin
     try:
-        return _catalogue_store().list()
+        return catalogue_store().list()
     except CatalogueStoreError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
@@ -126,9 +129,9 @@ async def create_plugin_catalogue(
     admin: User = Depends(get_plugin_manager_admin),
 ) -> dict[str, Any]:
     del admin
-    url = acquisition._validate_remote_url(payload.url)
+    url = acquisition.validate_remote_url(payload.url)
     try:
-        return _catalogue_store().add(
+        return catalogue_store().add(
             name=payload.name.strip(),
             url=url,
             enabled=payload.enabled,
@@ -147,11 +150,11 @@ async def update_plugin_catalogue(
     del admin
     changes = payload.model_dump(exclude_unset=True)
     if "url" in changes:
-        changes["url"] = acquisition._validate_remote_url(str(changes["url"]))
+        changes["url"] = acquisition.validate_remote_url(str(changes["url"]))
     if "name" in changes:
         changes["name"] = str(changes["name"]).strip()
     try:
-        return _catalogue_store().update(catalogue_id, **changes)
+        return catalogue_store().update(catalogue_id, **changes)
     except CatalogueStoreError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
@@ -163,7 +166,7 @@ async def delete_plugin_catalogue(
 ) -> Response:
     del admin
     try:
-        _catalogue_store().remove(catalogue_id)
+        catalogue_store().remove(catalogue_id)
     except CatalogueStoreError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     return Response(status_code=204)
@@ -178,33 +181,48 @@ async def plugin_catalog(
     catalog_url = source or _PLUGIN_CATALOG_URL
     path: Path | None = None
     configured = next(
-        (item for item in _catalogue_store().list() if item.get("url") == catalog_url),
+        (item for item in catalogue_store().list() if item.get("url") == catalog_url),
         None,
     )
     try:
-        path, _, _ = await acquisition._download_remote_file(catalog_url, json_document=True)
+        path, _, _ = await acquisition.download_remote_file(catalog_url, json_document=True)
         payload = json.loads(path.read_text(encoding="utf-8"))
         entries = [
             models.PluginCatalogEntry.model_validate(entry)
             for entry in _catalog_entries(payload, source_url=catalog_url)
         ]
         if configured is not None:
-            _catalogue_store().record_check(str(configured["id"]), None)
+            catalogue_store().record_check(str(configured["id"]), None)
         return entries
     except json.JSONDecodeError as exc:
         if configured is not None:
-            _catalogue_store().record_check(str(configured["id"]), "Catalogue is not valid JSON.")
+            catalogue_store().record_check(str(configured["id"]), "Catalogue is not valid JSON.")
         raise HTTPException(status_code=502, detail="Plugin catalogue is not valid JSON.") from exc
     except HTTPException as exc:
         if configured is not None:
-            _catalogue_store().record_check(str(configured["id"]), str(exc.detail)[:1000])
+            catalogue_store().record_check(str(configured["id"]), str(exc.detail)[:1000])
         raise
     finally:
         if path is not None:
             path.unlink(missing_ok=True)
 
 
-async def _check_plugin_update(
+async def _url_update_version(candidate_url: str, plugin_id: str) -> str:
+    path: Path | None = None
+    try:
+        path, _, _ = await acquisition.download_remote_file(candidate_url)
+        inspected = acquisition.inspect_install_candidate(path)
+        if inspected.package.manifest.plugin_id != plugin_id:
+            raise HTTPException(
+                status_code=409, detail="Update source returned a different plugin."
+            )
+        return inspected.package.manifest.version
+    finally:
+        if path is not None:
+            path.unlink(missing_ok=True)
+
+
+async def check_plugin_update(
     plugin: dict[str, Any],
     admin: User,
 ) -> dict[str, Any]:
@@ -231,18 +249,7 @@ async def _check_plugin_update(
         changelog_url = entry.changelog_url
     elif source_type == "url" and isinstance(source.get("url"), str):
         candidate_url = str(source["url"])
-        path: Path | None = None
-        try:
-            path, _, _ = await acquisition._download_remote_file(candidate_url)
-            inspected = acquisition._inspect_install_candidate(path)
-            if inspected.package.manifest.plugin_id != plugin_id:
-                raise HTTPException(
-                    status_code=409, detail="Update source returned a different plugin."
-                )
-            available_version = inspected.package.manifest.version
-        finally:
-            if path is not None:
-                path.unlink(missing_ok=True)
+        available_version = await _url_update_version(candidate_url, plugin_id)
         release_notes = source.get("release_notes")
         changelog_url = source.get("changelog_url")
     else:
@@ -275,7 +282,7 @@ async def _check_plugin_update(
     }
 
 
-async def _notify_plugin_update(
+async def notify_plugin_update(
     db: AsyncSession,
     update: dict[str, Any],
     *,
@@ -311,7 +318,8 @@ async def _notify_plugin_update(
                 media_id=uuid5(NAMESPACE_URL, f"urn:unnamed-tracking:plugin:{plugin_id}"),
                 title=f"Plugin update {'failed' if failed else 'available'}: {plugin_id}",
                 body=(
-                    f"Version {version} could not be activated. The previous package is retained; inspect Plugin Manager diagnostics."
+                    f"Version {version} could not be activated. The previous package is retained; "
+                    "inspect Plugin Manager diagnostics."
                     if failed
                     else f"Version {version} is available (installed: {update['current_version']})."
                 ),
@@ -328,9 +336,9 @@ async def check_plugin_updates(
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     updates: list[dict[str, Any]] = []
-    for plugin in await runtime._installed_plugins():
+    for plugin in await runtime.installed_plugins():
         try:
-            update = await _check_plugin_update(plugin, admin)
+            update = await check_plugin_update(plugin, admin)
         except HTTPException as exc:
             update = {
                 "plugin_id": plugin.get("plugin_id"),
@@ -340,7 +348,7 @@ async def check_plugin_updates(
             }
         updates.append(update)
         manager_state().patch(str(plugin["plugin_id"]), available_update=update)
-        await _notify_plugin_update(db, update)
+        await notify_plugin_update(db, update)
     await db.commit()
     return {
         "updates": updates,

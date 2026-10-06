@@ -115,7 +115,7 @@ def entry(**changes):
 
 
 def test_packaged_icons_release_hashes_tags_and_documentation_are_preserved(monkeypatch):
-    monkeypatch.setattr(plugin_acquisition, "_validate_remote_url", lambda url: url)
+    monkeypatch.setattr(plugin_acquisition, "validate_remote_url", lambda url: url)
     records = plugins._catalog_entries(
         {
             "version": 1,
@@ -159,7 +159,7 @@ def test_catalogue_rejects_unsafe_packaged_icon_paths(path):
 
 
 def test_old_catalogue_without_release_metadata_remains_supported(monkeypatch):
-    monkeypatch.setattr(plugin_acquisition, "_validate_remote_url", lambda url: url)
+    monkeypatch.setattr(plugin_acquisition, "validate_remote_url", lambda url: url)
     record = plugins._catalog_entries({"version": 1, "plugins": [entry()]})[0]
     assert record["version"] == "2.0.0"
     assert record["automatic_update"] is True
@@ -203,7 +203,7 @@ def test_catalogue_transport_model_remains_loadable_by_public_contract_tools(fla
     ],
 )
 def test_invalid_catalogue_history_is_rejected(monkeypatch, releases):
-    monkeypatch.setattr(plugin_acquisition, "_validate_remote_url", lambda url: url)
+    monkeypatch.setattr(plugin_acquisition, "validate_remote_url", lambda url: url)
     with pytest.raises(HTTPException):
         plugins._catalog_entries({"version": 1, "plugins": [entry(releases=releases)]})
 
@@ -264,11 +264,11 @@ async def test_retained_release_review_binds_package_and_derives_pin(tmp_path, m
 def test_catalogue_category_uses_scoped_registry_not_advertised_brand(
     monkeypatch, channel, allowed, expected
 ):
-    monkeypatch.setattr(plugin_acquisition, "_validate_remote_url", lambda url: url)
+    monkeypatch.setattr(plugin_acquisition, "validate_remote_url", lambda url: url)
     publisher = SimpleNamespace(channel=channel, allows_plugin=lambda plugin_id: allowed)
     monkeypatch.setattr(
         plugin_acquisition,
-        "_plugin_package_verifier",
+        "plugin_package_verifier",
         lambda: SimpleNamespace(publishers={"key": publisher} if channel else {}),
     )
     record = plugins._catalog_entries(

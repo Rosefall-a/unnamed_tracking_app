@@ -24,7 +24,7 @@ async def test_settings_save_during_runtime_outage_and_survive_reload(tmp_path, 
         plugins=AsyncMock(side_effect=PluginRuntimeUnavailable("offline")),
         prune_history=AsyncMock(),
     )
-    monkeypatch.setattr(plugin_runtime, "_client", runtime)
+    monkeypatch.setattr(plugin_runtime, "client", runtime)
     app = FastAPI()
     app.include_router(plugins.router)
     app.dependency_overrides[plugins.get_plugin_manager_admin] = lambda: SimpleNamespace()
@@ -56,7 +56,7 @@ async def test_connected_save_applies_history_limit(tmp_path, monkeypatch):
         plugins=AsyncMock(return_value=[{"plugin_id": "example.retained"}]),
         prune_history=AsyncMock(),
     )
-    monkeypatch.setattr(plugin_runtime, "_client", runtime)
+    monkeypatch.setattr(plugin_runtime, "client", runtime)
     result = await plugins.save_manager_settings(
         plugins.ManagerSettingsIn(retained_versions=2), SimpleNamespace()
     )
@@ -70,7 +70,7 @@ async def test_reduced_isolation_approval_is_admin_owned_and_persisted(tmp_path,
     monkeypatch.setattr(plugin_lifecycle, "manager_state", lambda: store)
     monkeypatch.setenv("PLUGIN_MANAGER_STATE_PATH", str(store.path))
     transport = SimpleNamespace(plugins=AsyncMock(return_value=[]), prune_history=AsyncMock())
-    monkeypatch.setattr(plugin_runtime, "_client", transport)
+    monkeypatch.setattr(plugin_runtime, "client", transport)
     app = FastAPI()
     app.include_router(plugins.router)
     actor = uuid4()

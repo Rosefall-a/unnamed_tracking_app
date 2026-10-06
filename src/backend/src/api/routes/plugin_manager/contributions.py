@@ -9,7 +9,7 @@ import os
 import secrets
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 from urllib.parse import quote
 from uuid import UUID, uuid4
 
@@ -87,13 +87,13 @@ async def plugin_frontend(
 ) -> Response:
     if not asset_path or ".." in Path(asset_path).parts:
         raise HTTPException(status_code=404, detail="Plugin frontend asset not found.")
-    await runtime._plugin_and_capabilities(plugin_id, db, user)
+    await runtime.plugin_and_capabilities(plugin_id, db, user)
     try:
-        content = await runtime._client.frontend_asset(quote(plugin_id, safe=""), asset_path)
+        content = await runtime.client.frontend_asset(quote(plugin_id, safe=""), asset_path)
     except PluginRuntimeRequestError as exc:
         raise HTTPException(status_code=404, detail="Plugin frontend asset not found.") from exc
     except PluginRuntimeUnavailable as exc:
-        raise runtime._runtime_error(exc) from exc
+        raise runtime.runtime_error(exc) from exc
     media_type = {".css": "text/css", ".js": "text/javascript", ".html": "text/html"}.get(
         Path(asset_path).suffix.lower(),
         mimetypes.guess_type(asset_path)[0] or "application/octet-stream",
@@ -101,24 +101,24 @@ async def plugin_frontend(
     csp = _PLUGIN_FRONTEND_CSP
     if media_type == "text/html":
         try:
-            ui = await runtime._client.plugin_ui(quote(plugin_id, safe=""))
+            ui = await runtime.client.plugin_ui(quote(plugin_id, safe=""))
         except PluginRuntimeRequestError as exc:
-            raise runtime._runtime_request_error(exc) from exc
+            raise runtime.runtime_request_error(exc) from exc
         except PluginRuntimeUnavailable as exc:
-            raise runtime._runtime_error(exc) from exc
+            raise runtime.runtime_error(exc) from exc
         frontend = ui.get("frontend", {})
         if frontend.get("inline_assets") is True and frontend.get("entry") == asset_path:
             nonce = secrets.token_urlsafe(24)
 
             async def load_asset(path: str) -> bytes:
-                return await runtime._client.frontend_asset(quote(plugin_id, safe=""), path)
+                return await runtime.client.frontend_asset(quote(plugin_id, safe=""), path)
 
             try:
                 content = await inline_frontend_assets(content, asset_path, nonce, load_asset)
             except (ValueError, PluginRuntimeRequestError) as exc:
                 raise HTTPException(422, "Invalid packaged frontend assets.") from exc
             except PluginRuntimeUnavailable as exc:
-                raise runtime._runtime_error(exc) from exc
+                raise runtime.runtime_error(exc) from exc
             csp = csp.replace("script-src 'self'", f"script-src 'nonce-{nonce}' 'self'")
     return Response(
         content=content,
@@ -141,7 +141,7 @@ async def plugin_document_download(
     user: User = _PLUGIN_USER,
 ) -> FileResponse:
     """Stream an owned original as an attachment, including unsupported preview types."""
-    _, capabilities = await runtime._plugin_and_capabilities(plugin_id, db, user)
+    _, capabilities = await runtime.plugin_and_capabilities(plugin_id, db, user)
     if "documents.read" not in capabilities:
         raise HTTPException(403, "Permission documents.read has not been granted.")
     row = await owned_document(db, user.id, document_id)
@@ -169,19 +169,19 @@ async def plugin_native_frontend(
 ) -> Response:
     if not asset_path or ".." in Path(asset_path).parts:
         raise HTTPException(status_code=404, detail="Plugin native frontend asset not found.")
-    _, capabilities = await runtime._plugin_and_capabilities(plugin_id, db, user)
+    _, capabilities = await runtime.plugin_and_capabilities(plugin_id, db, user)
     if Capability.FRONTEND_NATIVE.value not in capabilities:
         raise HTTPException(
             status_code=403, detail="Permission frontend.native has not been granted."
         )
     try:
-        content = await runtime._client.native_frontend_asset(quote(plugin_id, safe=""), asset_path)
+        content = await runtime.client.native_frontend_asset(quote(plugin_id, safe=""), asset_path)
     except PluginRuntimeRequestError as exc:
         raise HTTPException(
             status_code=404, detail="Plugin native frontend asset not found."
         ) from exc
     except PluginRuntimeUnavailable as exc:
-        raise runtime._runtime_error(exc) from exc
+        raise runtime.runtime_error(exc) from exc
     media_type = mimetypes.guess_type(asset_path)[0] or "application/octet-stream"
     return Response(
         content=content,
@@ -199,13 +199,13 @@ async def plugin_ui(
     db: AsyncSession = _PLUGIN_DB,
     user: User = _PLUGIN_USER,
 ) -> dict:
-    plugin, capabilities = await runtime._plugin_and_capabilities(plugin_id, db, user)
+    plugin, capabilities = await runtime.plugin_and_capabilities(plugin_id, db, user)
     try:
-        payload = await runtime._client.plugin_ui(quote(plugin_id, safe=""))
+        payload = await runtime.client.plugin_ui(quote(plugin_id, safe=""))
     except PluginRuntimeRequestError as exc:
-        raise runtime._runtime_request_error(exc) from exc
+        raise runtime.runtime_request_error(exc) from exc
     except PluginRuntimeUnavailable as exc:
-        raise runtime._runtime_error(exc) from exc
+        raise runtime.runtime_error(exc) from exc
     try:
         document = PluginUiDocument.model_validate(payload)
     except ValidationError as exc:
@@ -249,7 +249,7 @@ async def save_plugin_secret(
 ) -> dict[str, Any]:
     if not key or len(key) > 128 or "/" in key or ".." in key:
         raise HTTPException(status_code=400, detail="Invalid plugin secret key.")
-    plugin = await runtime._live_plugin(plugin_id)
+    plugin = await runtime.live_plugin(plugin_id)
     if not await has_capability_grant(
         db,
         plugin_id=plugin_id,
@@ -264,9 +264,9 @@ async def save_plugin_secret(
     if not isinstance(value, str) or not value:
         raise HTTPException(status_code=400, detail="Secret value must be a non-empty string.")
     try:
-        await runtime._client.save_secret(quote(plugin_id, safe=""), f"secrets/{key}", value)
+        await runtime.client.save_secret(quote(plugin_id, safe=""), f"secrets/{key}", value)
     except PluginRuntimeUnavailable as exc:
-        raise runtime._runtime_error(exc) from exc
+        raise runtime.runtime_error(exc) from exc
     logger.info(
         "Plugin secret updated: plugin_id=%s installation_id=%s key=%s user_id=%s",
         plugin_id,
@@ -284,7 +284,7 @@ async def save_plugin_settings(
     db: AsyncSession = _PLUGIN_DB,
     user: User = _PLUGIN_USER,
 ) -> dict:
-    plugin = await runtime._live_plugin(plugin_id)
+    plugin = await runtime.live_plugin(plugin_id)
     if not await has_capability_grant(
         db,
         plugin_id=plugin_id,
@@ -296,13 +296,13 @@ async def save_plugin_settings(
             status_code=403, detail="Permission plugin.settings has not been granted."
         )
     try:
-        await runtime._client.save_settings(quote(plugin_id, safe=""), payload)
+        await runtime.client.save_settings(quote(plugin_id, safe=""), payload)
     except PluginRuntimeUnavailable as exc:
-        raise runtime._runtime_error(exc) from exc
+        raise runtime.runtime_error(exc) from exc
     return {"plugin_id": plugin_id, "saved": True}
 
 
-async def _current_browser_session_id(
+async def current_browser_session_id(
     db: AsyncSession, user_id: UUID, request: Request
 ) -> str | None:
     """Resolve a non-secret session identifier from authenticated host cookies."""
@@ -327,11 +327,11 @@ async def plugin_geoip_upload(
     file: UploadFile = _GEOIP_UPLOAD_FILE,
     kind: str = Query(default="city", pattern="^(city|country|network)$"),
     confirmed: bool = Query(default=False),
-    db: AsyncSession = runtime._PLUGIN_DB,
-    admin: User = runtime._PLUGIN_ADMIN,
+    db: AsyncSession = runtime.PLUGIN_DB,
+    admin: User = runtime.PLUGIN_ADMIN,
 ) -> dict[str, object]:
     """Allow enabled plugins with a narrow grant to replace a local GeoIP database."""
-    plugin = await runtime._live_plugin(plugin_id)
+    plugin = await runtime.live_plugin(plugin_id)
     if not await has_capability_grant(
         db,
         plugin_id=plugin_id,
@@ -346,22 +346,16 @@ async def plugin_geoip_upload(
     return {"configured": result["configured"], "kind": kind}
 
 
-@router.post(
-    "/{plugin_id}/actions/{action_id}", dependencies=[Depends(runtime._private_plugin_response)]
-)
-async def plugin_action(
+async def _authorize_action(
     plugin_id: str,
     action_id: str,
     payload: models.PluginActionIn,
-    db: AsyncSession = _PLUGIN_DB,
-    user: User = _PLUGIN_USER,
     *,
-    request: Request,
-) -> dict:
-    """Authorize a declared action and supply host-owned authentication context."""
-    request_id = uuid4()
-    plugin = await runtime._live_plugin(plugin_id)
-    document = await runtime._client.plugin_ui(quote(plugin_id, safe=""))
+    db: AsyncSession,
+    plugin: dict[str, Any],
+    user: User,
+) -> tuple[dict[str, Any], UUID]:
+    document = await runtime.client.plugin_ui(quote(plugin_id, safe=""))
     action = next(
         (item for item in document.get("actions", []) if item.get("id") == action_id), None
     )
@@ -390,8 +384,20 @@ async def plugin_action(
             )
     if action.get("confirmation") and getattr(payload, "confirmed", False) is not True:
         raise HTTPException(status_code=409, detail="Explicit action confirmation is required.")
-    values = dict(payload.values)
-    values.pop("_plugin_context", None)
+    return document, installation_id
+
+
+async def _host_action_context(
+    plugin_id: str,
+    action_id: str,
+    payload: models.PluginActionIn,
+    *,
+    db: AsyncSession,
+    document: dict[str, Any],
+    installation_id: UUID,
+    user: User,
+    request: Request,
+) -> dict[str, Any]:
     context: dict[str, Any] = {
         "path": f"/plugins/{plugin_id}",
         "user_id": str(user.id),
@@ -448,18 +454,51 @@ async def plugin_action(
             context["resource_type"] = action_context.resource_type
     context["confirmed"] = getattr(payload, "confirmed", False)
     context["is_admin"] = bool(getattr(user, "is_admin", False))
-    session_id = await _current_browser_session_id(db, user.id, request)
+    session_id = await current_browser_session_id(db, user.id, request)
     if session_id:
         context["session_id"] = session_id
+    return context
+
+
+@router.post(
+    "/{plugin_id}/actions/{action_id}", dependencies=[Depends(runtime.private_plugin_response)]
+)
+async def plugin_action(
+    plugin_id: str,
+    action_id: str,
+    payload: models.PluginActionIn,
+    db: AsyncSession = _PLUGIN_DB,
+    user: User = _PLUGIN_USER,
+    *,
+    request: Request,
+) -> dict:
+    """Authorize a declared action and supply host-owned authentication context."""
+    request_id = uuid4()
+    plugin = await runtime.live_plugin(plugin_id)
+    document, installation_id = await _authorize_action(
+        plugin_id, action_id, payload, db=db, plugin=plugin, user=user
+    )
+    values = dict(payload.values)
+    values.pop("_plugin_context", None)
+    context = await _host_action_context(
+        plugin_id,
+        action_id,
+        payload,
+        db=db,
+        document=document,
+        installation_id=installation_id,
+        user=user,
+        request=request,
+    )
     values["_plugin_context"] = context
     try:
-        result = await runtime._client.action(
+        result = await runtime.client.action(
             quote(plugin_id, safe=""), quote(action_id, safe=""), values, user_id=str(user.id)
         )
     except PluginRuntimeRequestError as exc:
-        raise runtime._runtime_request_error(exc) from exc
+        raise runtime.runtime_request_error(exc) from exc
     except PluginRuntimeUnavailable as exc:
-        raise runtime._runtime_error(exc) from exc
+        raise runtime.runtime_error(exc) from exc
     logger.info(
         "Plugin action completed: request_id=%s plugin_id=%s installation_id=%s action_id=%s user_id=%s",
         request_id,
@@ -476,33 +515,13 @@ async def plugin_action(
     }
 
 
-@router.post(
-    "/runtime/gateway",
-    dependencies=[Depends(runtime._private_plugin_response)],
-    response_model=None,
-)
-async def plugin_gateway(
+async def _gateway_user_context(
+    db: AsyncSession,
     payload: models.PluginGatewayIn,
-    db: AsyncSession = _PLUGIN_DB,
-    runtime_token: str | None = Header(default=None, alias="X-Plugin-Runtime-Token"),
-) -> dict[str, Any] | JSONResponse:
-    def failure(status: int, code: ErrorCode, message: str) -> JSONResponse:
-        envelope = ErrorEnvelope(code=code, message=message[:1024], request_id=payload.request_id)
-        response = JSONResponse(
-            status_code=status,
-            content={"detail": message, "error": envelope.model_dump(mode="json")},
-        )
-        runtime._private_plugin_response(response)
-        return response
-
-    if not runtime_token_is_valid(runtime_token):
-        return failure(503, ErrorCode.UNAVAILABLE, "Plugin runtime gateway is not configured.")
-    if payload.api_version != "v1":
-        return failure(
-            409, ErrorCode.INCOMPATIBLE, "Unsupported Plugin API version; supported: v1."
-        )
+    failure: Callable[[int, ErrorCode, str], JSONResponse],
+) -> User | JSONResponse:
     try:
-        plugin = await runtime._live_plugin(payload.plugin_id, require_enabled=False)
+        plugin = await runtime.live_plugin(payload.plugin_id, require_enabled=False)
     except HTTPException as exc:
         code = ErrorCode.NOT_FOUND if exc.status_code == 404 else ErrorCode.UNAVAILABLE
         return failure(exc.status_code, code, str(exc.detail))
@@ -521,15 +540,14 @@ async def plugin_gateway(
     user = await db.scalar(select(User).where(User.id == payload.user_id, User.is_active.is_(True)))
     if user is None:
         return failure(403, ErrorCode.FORBIDDEN, "Active user context is required.")
-    logger.info(
-        "Plugin gateway dispatch: request_id=%s plugin_id=%s installation_id=%s method=%s capability=%s user_id=%s",
-        payload.request_id,
-        payload.plugin_id,
-        payload.installation_id,
-        payload.method,
-        payload.capability,
-        payload.user_id,
-    )
+    return user
+
+
+async def _dispatch_gateway(
+    db: AsyncSession,
+    payload: models.PluginGatewayIn,
+    failure: Callable[[int, ErrorCode, str], JSONResponse],
+) -> dict[str, Any] | JSONResponse:
     try:
         # Complete before the runtime bridge's ten-second transport deadline.
         async with asyncio.timeout(_GATEWAY_DISPATCH_TIMEOUT):
@@ -549,17 +567,59 @@ async def plugin_gateway(
         return failure(422, ErrorCode.INVALID_REQUEST, str(exc))
     except TimeoutError:
         return failure(504, ErrorCode.UNAVAILABLE, "Plugin gateway operation timed out.")
+    # Convert an unexpected host failure into the bounded gateway error contract.
+    # pylint: disable-next=broad-exception-caught
     except Exception:
         logger.exception("Plugin gateway failure: request_id=%s", payload.request_id)
         return failure(500, ErrorCode.INTERNAL, "Plugin gateway operation failed.")
     return {"api_version": "v1", "request_id": str(payload.request_id), "payload": result}
 
 
+@router.post(
+    "/runtime/gateway",
+    dependencies=[Depends(runtime.private_plugin_response)],
+    response_model=None,
+)
+async def plugin_gateway(
+    payload: models.PluginGatewayIn,
+    db: AsyncSession = _PLUGIN_DB,
+    runtime_token: str | None = Header(default=None, alias="X-Plugin-Runtime-Token"),
+) -> dict[str, Any] | JSONResponse:
+    def failure(status: int, code: ErrorCode, message: str) -> JSONResponse:
+        envelope = ErrorEnvelope(code=code, message=message[:1024], request_id=payload.request_id)
+        response = JSONResponse(
+            status_code=status,
+            content={"detail": message, "error": envelope.model_dump(mode="json")},
+        )
+        runtime.private_plugin_response(response)
+        return response
+
+    if not runtime_token_is_valid(runtime_token):
+        return failure(503, ErrorCode.UNAVAILABLE, "Plugin runtime gateway is not configured.")
+    if payload.api_version != "v1":
+        return failure(
+            409, ErrorCode.INCOMPATIBLE, "Unsupported Plugin API version; supported: v1."
+        )
+    user = await _gateway_user_context(db, payload, failure)
+    if isinstance(user, JSONResponse):
+        return user
+    logger.info(
+        "Plugin gateway dispatch: request_id=%s plugin_id=%s installation_id=%s method=%s capability=%s user_id=%s",
+        payload.request_id,
+        payload.plugin_id,
+        payload.installation_id,
+        payload.method,
+        payload.capability,
+        payload.user_id,
+    )
+    return await _dispatch_gateway(db, payload, failure)
+
+
 @router.get("/runtime/health")
-async def runtime_health(admin: User = runtime._PLUGIN_ADMIN) -> dict:
+async def runtime_health(admin: User = runtime.PLUGIN_ADMIN) -> dict:
     del admin
     try:
-        health = await runtime._client.health()
+        health = await runtime.client.health()
     except (PluginRuntimeUnavailable, PluginRuntimeRequestError) as exc:
         health = {
             "available": False,

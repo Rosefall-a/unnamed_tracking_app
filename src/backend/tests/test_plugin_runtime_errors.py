@@ -62,7 +62,7 @@ async def test_lifecycle_runtime_errors_are_visible(
         prune_history=AsyncMock(),
     )
     getattr(transport, failing_call).side_effect = error_type(message)
-    monkeypatch.setattr(runtime, "_client", transport)
+    monkeypatch.setattr(runtime, "client", transport)
     monkeypatch.setattr(lifecycle, "manager_state", lambda: ManagerState(tmp_path / "manager.json"))
     app = FastAPI()
     app.include_router(plugins.router)
