@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import time
 from uuid import UUID, uuid4
 
 from sqlalchemy import BigInteger, ForeignKey
@@ -8,7 +7,7 @@ from sqlalchemy.dialects.postgresql import JSON as PG_JSON
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
-from src.database.base import Base
+from src.database.base import Base, unix_timestamp
 
 
 class GameProfileStatSnapshot(Base):
@@ -40,5 +39,5 @@ class GameProfileStatSnapshot(Base):
     # history) — distinct from row-insert time, which SQLAlchemy/Postgres
     # never exposes here anyway since there's no separate created_at
     recorded_at: Mapped[int] = mapped_column(
-        BigInteger, nullable=False, default=time.time, index=True
+        BigInteger, nullable=False, default=unix_timestamp, index=True
     )

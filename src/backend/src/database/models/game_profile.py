@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import time
 from uuid import UUID, uuid4
 
 from sqlalchemy import BigInteger, ForeignKey, String, Text
@@ -8,7 +7,7 @@ from sqlalchemy.dialects.postgresql import JSON as PG_JSON
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
-from src.database.base import Base
+from src.database.base import Base, unix_timestamp
 
 
 # Repeated column declarations preserve this table's explicit schema contract.
@@ -44,5 +43,5 @@ class GameProfile(Base):
     # specific, unlike the rest of this model) — nullable since most
     # profiles on most games never use this
     wiseoldman_username: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    created_at: Mapped[int] = mapped_column(BigInteger, nullable=False, default=time.time)
+    created_at: Mapped[int] = mapped_column(BigInteger, nullable=False, default=unix_timestamp)
     deleted_at: Mapped[int | None] = mapped_column(BigInteger, nullable=True)

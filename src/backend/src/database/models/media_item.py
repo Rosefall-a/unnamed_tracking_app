@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import time
 from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
@@ -9,7 +8,7 @@ from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from src.database.base import Base
+from src.database.base import Base, unix_timestamp
 
 if TYPE_CHECKING:
     from src.database.models.achievement import Achievement
@@ -51,7 +50,7 @@ class MediaItem(Base):
     linked_achievement_id: Mapped[UUID | None] = mapped_column(
         PG_UUID(as_uuid=True), ForeignKey("achievements.id", ondelete="SET NULL"), nullable=True
     )
-    created_at: Mapped[int] = mapped_column(BigInteger, nullable=False, default=time.time)
+    created_at: Mapped[int] = mapped_column(BigInteger, nullable=False, default=unix_timestamp)
     # a name for the file inside the app; the file on disk keeps its own name
     title: Mapped[str | None] = mapped_column(String(200), nullable=True)
     # when it was really taken, and where that came from ("photo", "filename",

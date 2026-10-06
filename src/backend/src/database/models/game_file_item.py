@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import time
 from uuid import UUID, uuid4
 
 from sqlalchemy import BigInteger, ForeignKey, String, Text
@@ -8,7 +7,7 @@ from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
-from src.database.base import Base
+from src.database.base import Base, unix_timestamp
 
 
 # Repeated column declarations preserve this table's explicit schema contract.
@@ -34,7 +33,7 @@ class GameFileItem(Base):
     )
     kind: Mapped[str] = mapped_column(String(20), nullable=False)  # "doc" | "modpack"
     filename: Mapped[str] = mapped_column(String(500), nullable=False)
-    created_at: Mapped[int] = mapped_column(BigInteger, nullable=False, default=time.time)
+    created_at: Mapped[int] = mapped_column(BigInteger, nullable=False, default=unix_timestamp)
     # same in-app details as a MediaItem: a name that does not touch the file,
     # a note, tags, and when the file is from (see helpers/media_dates.py)
     title: Mapped[str | None] = mapped_column(String(200), nullable=True)

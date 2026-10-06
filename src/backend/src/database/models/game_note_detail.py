@@ -8,7 +8,7 @@ from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
-from src.database.base import Base
+from src.database.base import Base, unix_timestamp
 
 
 class GameNoteDetail(Base):
@@ -31,7 +31,7 @@ class GameNoteDetail(Base):
         index=True,
     )
     name: Mapped[str] = mapped_column(String(300), nullable=False)
-    created_at: Mapped[int] = mapped_column(BigInteger, nullable=False, default=time.time)
+    created_at: Mapped[int] = mapped_column(BigInteger, nullable=False, default=unix_timestamp)
     pinned: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     tags: Mapped[list[str]] = mapped_column(ARRAY(String), nullable=False, default=list)
     linked_achievement_id: Mapped[UUID | None] = mapped_column(

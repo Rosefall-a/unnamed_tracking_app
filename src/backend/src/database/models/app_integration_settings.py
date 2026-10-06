@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-import time
 from uuid import UUID, uuid4
 
 from sqlalchemy import BigInteger, Integer, LargeBinary, String, Text
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
-from src.database.base import Base
+from src.database.base import Base, unix_timestamp
 
 
 class AppIntegrationSettings(Base):
@@ -74,5 +73,5 @@ class AppIntegrationSettings(Base):
     nginx_realip_trusted_proxies: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     updated_at: Mapped[int] = mapped_column(
-        BigInteger, nullable=False, default=time.time, onupdate=time.time
+        BigInteger, nullable=False, default=unix_timestamp, onupdate=unix_timestamp
     )

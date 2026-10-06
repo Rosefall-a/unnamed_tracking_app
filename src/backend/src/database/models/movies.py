@@ -1,4 +1,3 @@
-import time
 from datetime import date
 from decimal import Decimal
 from enum import Enum
@@ -19,7 +18,7 @@ from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from src.database.base import Base
+from src.database.base import Base, unix_timestamp
 
 if TYPE_CHECKING:
     from src.database.models.user import User
@@ -271,12 +270,12 @@ class Movie(Base):
     created_at: Mapped[int] = mapped_column(
         BigInteger,
         nullable=False,
-        default=time.time,
+        default=unix_timestamp,
     )
 
     updated_at: Mapped[int] = mapped_column(
         BigInteger,
         nullable=False,
-        default=time.time,
-        onupdate=time.time,
+        default=unix_timestamp,
+        onupdate=unix_timestamp,
     )

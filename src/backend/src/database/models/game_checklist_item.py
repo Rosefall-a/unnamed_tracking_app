@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-import time
 from uuid import UUID, uuid4
 
 from sqlalchemy import BigInteger, Boolean, ForeignKey, Text
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
-from src.database.base import Base
+from src.database.base import Base, unix_timestamp
 
 
 # Repeated column declarations preserve this table's explicit schema contract.
@@ -42,5 +41,5 @@ class GameChecklistItem(Base):
     # instead of a separate table, so it can sit anywhere in the sort order
     is_header: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     sort_order: Mapped[float] = mapped_column(nullable=False, default=0.0)
-    created_at: Mapped[int] = mapped_column(BigInteger, nullable=False, default=time.time)
+    created_at: Mapped[int] = mapped_column(BigInteger, nullable=False, default=unix_timestamp)
     deleted_at: Mapped[int | None] = mapped_column(BigInteger, nullable=True)

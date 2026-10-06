@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-import time
 from uuid import UUID, uuid4
 
 from sqlalchemy import BigInteger, String
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
-from src.database.base import Base
+from src.database.base import Base, unix_timestamp
 
 
 class PluginPermissionAudit(Base):
@@ -29,4 +28,4 @@ class PluginPermissionAudit(Base):
     device_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True, index=True)
     decision: Mapped[str] = mapped_column(String(16), nullable=False)
     reason: Mapped[str] = mapped_column(String(512), nullable=False)
-    occurred_at: Mapped[int] = mapped_column(BigInteger, nullable=False, default=time.time)
+    occurred_at: Mapped[int] = mapped_column(BigInteger, nullable=False, default=unix_timestamp)

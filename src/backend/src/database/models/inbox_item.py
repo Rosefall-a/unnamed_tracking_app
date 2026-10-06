@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-import time
 from uuid import UUID, uuid4
 
 from sqlalchemy import BigInteger, ForeignKey, String
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
-from src.database.base import Base
+from src.database.base import Base, unix_timestamp
 
 
 class InboxItem(Base):
@@ -34,7 +33,7 @@ class InboxItem(Base):
     )
     kind: Mapped[str] = mapped_column(String(20), nullable=False)
     filename: Mapped[str] = mapped_column(String(500), nullable=False)
-    created_at: Mapped[int] = mapped_column(BigInteger, nullable=False, default=time.time)
+    created_at: Mapped[int] = mapped_column(BigInteger, nullable=False, default=unix_timestamp)
     # when it was really taken and where that came from, carried over to the
     # MediaItem when the file is assigned to a game (see helpers/media_dates.py)
     taken_at: Mapped[int | None] = mapped_column(BigInteger, nullable=True)

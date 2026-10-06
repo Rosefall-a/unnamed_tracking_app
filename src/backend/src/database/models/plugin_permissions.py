@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-import time
 from uuid import UUID, uuid4
 
 from sqlalchemy import JSON, BigInteger, ForeignKey, String
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
-from src.database.base import Base
+from src.database.base import Base, unix_timestamp
 
 
 class PluginLifecycleTransaction(Base):
@@ -40,7 +39,7 @@ class PluginPermissionRequest(Base):
         ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True
     )
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="pending")
-    requested_at: Mapped[int] = mapped_column(BigInteger, nullable=False, default=time.time)
+    requested_at: Mapped[int] = mapped_column(BigInteger, nullable=False, default=unix_timestamp)
     resolved_at: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     resolved_by: Mapped[UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
@@ -59,7 +58,7 @@ class PluginPermissionGrant(Base):
         ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True
     )
     device_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True, index=True)
-    granted_at: Mapped[int] = mapped_column(BigInteger, nullable=False, default=time.time)
+    granted_at: Mapped[int] = mapped_column(BigInteger, nullable=False, default=unix_timestamp)
     revoked_at: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     revoked_by_operation: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
 
@@ -76,6 +75,6 @@ class PluginClientIdentity(Base):
     device_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False, index=True)
     name: Mapped[str] = mapped_column(String(128), nullable=False)
     token_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
-    created_at: Mapped[int] = mapped_column(BigInteger, nullable=False, default=time.time)
+    created_at: Mapped[int] = mapped_column(BigInteger, nullable=False, default=unix_timestamp)
     last_seen_at: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     revoked_at: Mapped[int | None] = mapped_column(BigInteger, nullable=True)

@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-import time
 from uuid import UUID, uuid4
 
 from sqlalchemy import BigInteger, Boolean, String, Text
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
-from src.database.base import Base
+from src.database.base import Base, unix_timestamp
 
 
 class User(Base):
@@ -49,7 +48,7 @@ class User(Base):
     retroachievements_avatar_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     psn_online_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     psn_avatar_url: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[int] = mapped_column(BigInteger, nullable=False, default=time.time)
+    created_at: Mapped[int] = mapped_column(BigInteger, nullable=False, default=unix_timestamp)
     updated_at: Mapped[int] = mapped_column(
-        BigInteger, nullable=False, default=time.time, onupdate=time.time
+        BigInteger, nullable=False, default=unix_timestamp, onupdate=unix_timestamp
     )

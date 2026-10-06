@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-import time
 from uuid import UUID, uuid4
 
 from sqlalchemy import BigInteger, ForeignKey, String
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
-from src.database.base import Base
+from src.database.base import Base, unix_timestamp
 
 # "none" turns the badge off entirely — a 100% game just looks like any
 # other card. The rest are all rendered from the same {color, image,
@@ -56,10 +55,10 @@ class UserAppearanceSettings(Base):
     # everything else's uploaded art uses. NULL means "use the built-in
     # trophy icon".
     completion_badge_image_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    created_at: Mapped[int] = mapped_column(BigInteger, nullable=False, default=time.time)
+    created_at: Mapped[int] = mapped_column(BigInteger, nullable=False, default=unix_timestamp)
     updated_at: Mapped[int] = mapped_column(
         BigInteger,
         nullable=False,
-        default=time.time,
-        onupdate=time.time,
+        default=unix_timestamp,
+        onupdate=unix_timestamp,
     )

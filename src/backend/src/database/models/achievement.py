@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import time
 from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
@@ -8,7 +7,7 @@ from sqlalchemy import BigInteger, Boolean, Float, ForeignKey, String, Text, tex
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from src.database.base import Base
+from src.database.base import Base, unix_timestamp
 
 if TYPE_CHECKING:
     from src.database.models.game import Game
@@ -48,6 +47,6 @@ class Achievement(Base):
     # "progression" | "missable" | "win_condition" | None — RetroAchievements
     # is the only provider that classifies achievements this way today
     tier: Mapped[str | None] = mapped_column(String(20), nullable=True)
-    created_at: Mapped[int] = mapped_column(BigInteger, nullable=False, default=time.time)
+    created_at: Mapped[int] = mapped_column(BigInteger, nullable=False, default=unix_timestamp)
 
     game: Mapped["Game"] = relationship()

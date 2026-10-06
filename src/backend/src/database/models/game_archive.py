@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import time
 from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
@@ -9,7 +8,7 @@ from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from src.database.base import Base
+from src.database.base import Base, unix_timestamp
 
 if TYPE_CHECKING:
     from src.database.models.game import Game
@@ -43,9 +42,9 @@ class GameArchive(Base):
     # what the user wrote about it and how they sorted it, the same as a doc
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
     tags: Mapped[list[str]] = mapped_column(ARRAY(String), nullable=False, default=list)
-    created_at: Mapped[int] = mapped_column(BigInteger, nullable=False, default=time.time)
+    created_at: Mapped[int] = mapped_column(BigInteger, nullable=False, default=unix_timestamp)
     updated_at: Mapped[int] = mapped_column(
-        BigInteger, nullable=False, default=time.time, onupdate=time.time
+        BigInteger, nullable=False, default=unix_timestamp, onupdate=unix_timestamp
     )
     # set instead of deleting — the files move to a trash folder alongside
     # this, and a background sweep purges both after 7 days (see
@@ -76,7 +75,7 @@ class GameArchiveVersion(Base):
     )
     filename: Mapped[str] = mapped_column(String(500), nullable=False)
     size: Mapped[int] = mapped_column(BigInteger, nullable=False)
-    uploaded_at: Mapped[int] = mapped_column(BigInteger, nullable=False, default=time.time)
+    uploaded_at: Mapped[int] = mapped_column(BigInteger, nullable=False, default=unix_timestamp)
     deleted_at: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
 
     archive: Mapped["GameArchive"] = relationship(back_populates="versions")
