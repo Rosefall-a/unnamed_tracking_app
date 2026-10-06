@@ -10,7 +10,7 @@ main{width:100%;max-width:36rem;padding:clamp(20px,5vw,32px);background:var(--ui
 (() => {
   const root = document.documentElement;
   const system = matchMedia('(prefers-color-scheme: dark)');
-  let theme = 'system', appearance = null, stylesheet = null, packageId = null;
+  let theme = 'system', appearance = null, stylesheet = null, packageId = null, themeReady = false;
   const roles = ['background','surface','surface_alt','text','muted','accent','success','warning','error','info','purple'];
   try {
     const legacy = localStorage.getItem('ui-theme');
@@ -39,7 +39,9 @@ main{width:100%;max-width:36rem;padding:clamp(20px,5vw,32px);background:var(--ui
   const apply = () => {
     const mode = theme === 'system' ? (system.matches ? 'dark' : 'light') : theme;
     root.dataset.theme = mode;
-    if (appearance) {
+    if (themeReady) {
+      for (const token of ['bg','surface','text','dim','accent','on-accent']) root.style.removeProperty('--ui-'+token);
+    } else if (appearance) {
       const colors = appearance.colors[mode];
       root.dataset.palette = appearance.palette;
       for (const [token,role] of [['bg','background'],['surface','surface'],['text','text'],['dim',appearance.highContrast?'text':'muted'],['accent','accent']]) root.style.setProperty('--ui-'+token,colors[role]);
@@ -54,7 +56,8 @@ main{width:100%;max-width:36rem;padding:clamp(20px,5vw,32px);background:var(--ui
     const link = document.createElement('link');
     link.rel = 'stylesheet';
     link.href = stylesheet;
-    link.addEventListener('load', apply);
+    link.addEventListener('load', () => { themeReady = true; apply(); });
+    link.addEventListener('error', () => { themeReady = false; root.dataset.themePackage = 'native'; apply(); });
     document.head.append(link);
   }
   system.addEventListener('change',apply);

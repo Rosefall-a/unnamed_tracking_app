@@ -132,7 +132,7 @@ const serverName = computed(
         >
       </div>
     </div>
-    <slot v-if="!current && !themesError" />
+    <slot v-if="!current" />
   </section>
 </template>
 
