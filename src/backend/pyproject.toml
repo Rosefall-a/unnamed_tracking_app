@@ -20,7 +20,6 @@ ignore = ["__pycache__", "migrations"]
 
 [tool.pylint.messages_control]
 disable = [
-	"import-error",
     # Require useful documentation during review, rather than boilerplate on every symbol.
     "missing-module-docstring",
     "missing-class-docstring",
