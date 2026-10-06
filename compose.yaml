@@ -1,4 +1,16 @@
 services:
+  wikicontainer:
+    build:
+      context: .
+      dockerfile: src/wikicontainer/Dockerfile
+    ports:
+      - "${WIKI_CONTAINER_PORT:-999}:${WIKI_CONTAINER_BIND_PORT:-999}"
+    environment:
+      WIKI_CONTAINER_BIND_PORT: ${WIKI_CONTAINER_BIND_PORT:-999}
+    volumes:
+      - ./wiki:/wiki:ro
+    restart: unless-stopped
+
   db:
     image: postgres:18
     environment:
