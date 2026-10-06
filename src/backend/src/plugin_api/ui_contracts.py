@@ -1,18 +1,21 @@
-"""Declarative Plugin API v1 frontend models and contribution validation."""
+"""Declarative frontend wire contracts, independent of host rendering."""
 
 from __future__ import annotations
 
 import re
 from enum import StrEnum
-from typing import cast
+from typing import Annotated, Literal, cast
 
 from pydantic import Field, field_validator, model_validator
+
+from src.helpers.shortcut_keys import normalize_shortcut_key
 
 from .base_contracts import (
     CapabilityRef,
     ContractModel,
     PluginFrontendDeclaration,
     PluginNativeFrontendDeclaration,
+    parse_semver,
 )
 
 
@@ -268,7 +271,62 @@ class UiExtension(ContractModel):
     order: int = Field(default=0, ge=-1_000, le=1_000)
 
 
-class UiNavigationContribution(ContractModel):
+class UiHomeWidget(ContractModel):
+    """Account-selected Home content with optional phone layout and personal options."""
+
+    id: str = Field(min_length=1, max_length=128, pattern=r"^[a-z0-9][a-z0-9._-]*$")
+    title: str = Field(min_length=1, max_length=128)
+    description: str = Field(default="", max_length=512)
+    page_id: str = Field(min_length=1, max_length=128, pattern=r"^[a-z0-9][a-z0-9._-]*$")
+    mobile_page_id: str | None = Field(
+        default=None, min_length=1, max_length=128, pattern=r"^[a-z0-9][a-z0-9._-]*$"
+    )
+    order: int = Field(default=0, ge=-1_000, le=1_000)
+    configuration: tuple[UiField, ...] = Field(default=(), max_length=16)
+    visibility: UiVisibility = UiVisibility()
+
+    @model_validator(mode="after")
+    def validate_personal_options(self) -> "UiHomeWidget":
+        identifiers = [field.id for field in self.configuration]
+        if len(identifiers) != len(set(identifiers)):
+            raise ValueError("widget configuration fields must have unique identifiers")
+        if any(field.secret or field.type == UiFieldType.PASSWORD for field in self.configuration):
+            raise ValueError("personal widget configuration cannot contain secrets")
+        return self
+
+
+class UiPlacement(ContractModel):
+    """A visible header and up to three nested folders, never a permission path."""
+
+    group: str = Field(default="Extensions", min_length=1, max_length=64)
+    folders: tuple[Annotated[str, Field(min_length=1, max_length=64)], ...] = Field(
+        default=(), max_length=3
+    )
+
+    @field_validator("group")
+    @classmethod
+    def visible_group(cls, value: str) -> str:
+        if not value.strip() or any(ord(character) < 32 for character in value):
+            raise ValueError("Placement group must contain a visible label")
+        return value.strip()
+
+    @field_validator("folders")
+    @classmethod
+    def visible_folders(cls, values: tuple[str, ...]) -> tuple[str, ...]:
+        result = tuple(value.strip() for value in values)
+        if any(
+            not value
+            or value in {".", ".."}
+            or "/" in value
+            or "\\" in value
+            or any(ord(character) < 32 for character in value)
+            for value in result
+        ):
+            raise ValueError("Folders must contain visible individual labels")
+        return result
+
+
+class UiNavigationContribution(UiPlacement):
     """A first-class host navigation entry with one host-validated target."""
 
     id: str = Field(min_length=1, max_length=128, pattern=r"^[a-z0-9][a-z0-9._-]*$")
@@ -288,6 +346,7 @@ class UiNavigationContribution(ContractModel):
     )
     icon: str | None = Field(default=None, min_length=1, max_length=64)
     order: int = Field(default=0, ge=-1_000, le=1_000)
+    area: Literal["account", "preferences", "administration"] | None = None
     visibility: UiVisibility = UiVisibility()
 
     @model_validator(mode="after")
@@ -295,10 +354,14 @@ class UiNavigationContribution(ContractModel):
         targets = (self.page_id, self.route_id, self.settings_section_id, self.action_id)
         if sum(value is not None for value in targets) != 1:
             raise ValueError("navigation contribution must target exactly one destination")
+        if self.area is not None and self.location is not UiNavigationLocation.SETTINGS_SIDEBAR:
+            raise ValueError("Navigation area is only available in settings.sidebar")
+        if self.area == "administration" and not self.visibility.admin_only:
+            raise ValueError("Administration settings require administrator-only visibility")
         return self
 
 
-class UiSettingsContribution(ContractModel):
+class UiSettingsContribution(UiPlacement):
     """A plugin-provided Settings section, separate from plugin configuration."""
 
     id: str = Field(min_length=1, max_length=128, pattern=r"^[a-z0-9][a-z0-9._-]*$")
@@ -306,7 +369,14 @@ class UiSettingsContribution(ContractModel):
     page_id: str = Field(min_length=1, max_length=128, pattern=r"^[a-z0-9][a-z0-9._-]*$")
     icon: str | None = Field(default=None, min_length=1, max_length=64)
     order: int = Field(default=0, ge=-1_000, le=1_000)
+    area: Literal["account", "preferences", "administration"] | None = None
     visibility: UiVisibility = UiVisibility()
+
+    @model_validator(mode="after")
+    def require_administrator_visibility(self) -> "UiSettingsContribution":
+        if self.area == "administration" and not self.visibility.admin_only:
+            raise ValueError("Administration settings require administrator-only visibility")
+        return self
 
 
 class UiOverlayContribution(ContractModel):
@@ -369,10 +439,83 @@ class UiPageReplacement(ContractModel):
     order: int = Field(default=0, ge=-1_000, le=1_000)
 
 
+ThemeColor = Annotated[str, Field(pattern=r"^#[0-9a-fA-F]{6}$")]
+
+
+class UiThemeColors(ContractModel):
+    """Semantic color roles, never arbitrary stylesheets or executable assets."""
+
+    background: ThemeColor
+    surface: ThemeColor
+    surface_alt: ThemeColor
+    text: ThemeColor
+    muted: ThemeColor
+    accent: ThemeColor
+    success: ThemeColor
+    warning: ThemeColor
+    error: ThemeColor
+    info: ThemeColor
+    purple: ThemeColor
+
+
+class UiThemePalette(ContractModel):
+    """A theme supplies both modes so System can follow the device."""
+
+    light: UiThemeColors
+    dark: UiThemeColors
+
+
+class UiTheme(ContractModel):
+    """A named optional palette offered to each account in Appearance."""
+
+    id: str = Field(min_length=1, max_length=128, pattern=r"^[a-z0-9][a-z0-9._-]*$")
+    label: str = Field(min_length=1, max_length=128)
+    description: str = Field(default="", max_length=512)
+    colors: UiThemePalette
+    order: int = 0
+
+
+class UiShortcut(ContractModel):
+    """A permission-gated binding to a declared plugin target or visible page control."""
+
+    id: str = Field(min_length=1, max_length=128, pattern=r"^[a-z0-9][a-z0-9._-]*$")
+    label: str = Field(min_length=1, max_length=256)
+    group: str = Field(default="Extensions", min_length=1, max_length=128)
+    keys: tuple[str, ...] = Field(min_length=1, max_length=4)
+    page_id: str | None = Field(default=None, min_length=1, max_length=128)
+    route_id: str | None = Field(default=None, min_length=1, max_length=128)
+    action_id: str | None = Field(default=None, min_length=1, max_length=128)
+    control: Literal["search", "create"] | None = None
+    when_route_id: str | None = Field(default=None, min_length=1, max_length=128)
+    visibility: UiVisibility = Field(default_factory=UiVisibility)
+
+    @field_validator("keys")
+    @classmethod
+    def validate_keys(cls, value: tuple[str, ...]) -> tuple[str, ...]:
+        """Normalize combinations once before they reach the frontend dispatcher."""
+        return tuple(dict.fromkeys(normalize_shortcut_key(key) for key in value))
+
+    @model_validator(mode="after")
+    def require_target(self) -> "UiShortcut":
+        """Allow one executable target and keep page-control shortcuts local."""
+        if (
+            sum(
+                target is not None
+                for target in (self.page_id, self.route_id, self.action_id, self.control)
+            )
+            != 1
+        ):
+            raise ValueError("shortcut must target exactly one page, route, action or control")
+        if self.control is not None and self.when_route_id is None:
+            raise ValueError("control shortcuts must be scoped to a declared plugin route")
+        return self
+
+
 class PluginUiDocument(ContractModel):
     """Complete versioned UI document consumed by the native frontend host."""
 
     schema_version: UiSchemaVersion = UiSchemaVersion.V1
+    api_contract_version: str = "1.0.0"
     plugin_id: str = Field(min_length=1, max_length=128, pattern=r"^[a-z0-9][a-z0-9._-]*$")
     title: str = Field(min_length=1, max_length=256)
     frontend: PluginFrontendDeclaration | None = None
@@ -384,6 +527,8 @@ class PluginUiDocument(ContractModel):
     menus: tuple[UiMenuItem, ...] = ()
     pages: tuple[UiPage, ...] = ()
     extensions: tuple[UiExtension, ...] = ()
+    home_widgets: tuple[UiHomeWidget, ...] = Field(default=(), max_length=32)
+    themes: tuple[UiTheme, ...] = Field(default=(), max_length=32)
     navigation: tuple[UiNavigationContribution, ...] = ()
     settings_sections: tuple[UiSettingsContribution, ...] = ()
     overlays: tuple[UiOverlayContribution, ...] = ()
@@ -392,6 +537,14 @@ class PluginUiDocument(ContractModel):
     routes: tuple[UiPluginRoute, ...] = ()
     page_replacements: tuple[UiPageReplacement, ...] = ()
     document_readers: tuple[UiDocumentReader, ...] = ()
+    shortcuts: tuple[UiShortcut, ...] = Field(default=(), max_length=64)
+
+    @field_validator("api_contract_version")
+    @classmethod
+    def validate_contract_version(cls, value: str) -> str:
+        """Keep the minor UI/API boundary independent of the schema's wire major."""
+        parse_semver(value)
+        return value
 
     @model_validator(mode="after")
     def validate_references(self) -> "PluginUiDocument":
@@ -411,6 +564,13 @@ class PluginUiDocument(ContractModel):
         unique(dialog_ids, "dialog")
         unique(page_ids, "page")
         unique(extension_ids, "extension")
+        unique([item.id for item in self.home_widgets], "Home widget")
+        unique([item.id for item in self.themes], "theme")
+        home_extension_ids = {
+            item.id for item in self.extensions if item.slot == HostExtensionSlot.HOME_AFTER_WIDGETS
+        }
+        if any(item.id in home_extension_ids for item in self.home_widgets):
+            raise ValueError("Home widget identifiers cannot collide with Home extensions")
         unique([item.id for item in self.navigation], "navigation contribution")
         unique([item.id for item in self.settings_sections], "settings contribution")
         unique([item.id for item in self.overlays], "overlay contribution")
@@ -453,6 +613,11 @@ class PluginUiDocument(ContractModel):
             if page_id not in page_set:
                 raise ValueError(f"contribution {contribution_id} references an unknown page")
 
+        for widget in self.home_widgets:
+            require_page(widget.id, widget.page_id)
+            if widget.mobile_page_id is not None:
+                require_page(widget.id, widget.mobile_page_id)
+
         route_set = {item.id for item in self.routes}
         settings_contribution_set = {item.id for item in self.settings_sections}
         for navigation in self.navigation:
@@ -489,4 +654,26 @@ class PluginUiDocument(ContractModel):
                 raise ValueError(
                     f"contextual action {contextual_action.id} references an unknown action"
                 )
+        return self
+
+    @model_validator(mode="after")
+    def validate_shortcut_references(self) -> "PluginUiDocument":
+        """Keep bindings within the v1.1 document's declared pages, routes and actions."""
+        if self.shortcuts and parse_semver(self.api_contract_version) < (1, 1, 0):
+            raise ValueError("shortcut contributions require Plugin API v1.1")
+        if len({item.id for item in self.shortcuts}) != len(self.shortcuts):
+            raise ValueError("duplicate shortcut identifiers")
+        pages = {item.id for item in self.pages}
+        actions = {item.id for item in self.actions}
+        routes = {item.id for item in self.routes}
+        for shortcut in self.shortcuts:
+            if shortcut.page_id is not None and shortcut.page_id not in pages:
+                raise ValueError(f"shortcut {shortcut.id} references an unknown page")
+            if shortcut.action_id is not None and shortcut.action_id not in actions:
+                raise ValueError(f"shortcut {shortcut.id} references an unknown action")
+            if any(
+                identifier is not None and identifier not in routes
+                for identifier in (shortcut.route_id, shortcut.when_route_id)
+            ):
+                raise ValueError(f"shortcut {shortcut.id} references an unknown route")
         return self

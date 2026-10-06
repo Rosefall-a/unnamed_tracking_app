@@ -92,11 +92,11 @@ function shortMonth(key: string): string {
 // ---- chart inputs ----
 const STATUS_META: { key: keyof StatusCounts; label: string; color: string }[] =
   [
-    { key: "watching", label: "Watching", color: "#d68a34" },
-    { key: "completed", label: "Completed", color: "#6fbf73" },
-    { key: "hold", label: "On Hold", color: "#7ba7d9" },
-    { key: "dropped", label: "Dropped", color: "#d96f6f" },
-    { key: "plan", label: "Plan to Watch", color: "#9d8cd9" },
+    { key: "watching", label: "Watching", color: "var(--ui-accent)" },
+    { key: "completed", label: "Completed", color: "var(--ui-good)" },
+    { key: "hold", label: "On Hold", color: "var(--ui-info)" },
+    { key: "dropped", label: "Dropped", color: "var(--ui-error)" },
+    { key: "plan", label: "Plan to Watch", color: "var(--ui-purple)" },
   ];
 function statusSlices(s: StatusCounts, games = false) {
   return STATUS_META.map((m) => ({
@@ -812,12 +812,12 @@ const episodic = computed<EpisodicStats | null>(() => {
                   {
                     name: 'First watch',
                     value: stats.movie.minutes_first,
-                    color: '#d68a34',
+                    color: 'var(--ui-accent)',
                   },
                   {
                     name: 'Rewatches',
                     value: stats.movie.minutes_rewatch,
-                    color: '#7ba7d9',
+                    color: 'var(--ui-info)',
                   },
                 ]"
                 center-label="minutes"
@@ -951,12 +951,12 @@ const episodic = computed<EpisodicStats | null>(() => {
                   {
                     name: 'First watch',
                     value: episodic.minutes_first,
-                    color: '#d68a34',
+                    color: 'var(--ui-accent)',
                   },
                   {
                     name: 'Rewatches',
                     value: episodic.minutes_rewatch,
-                    color: '#7ba7d9',
+                    color: 'var(--ui-info)',
                   },
                 ]"
                 center-label="minutes"
@@ -1038,13 +1038,13 @@ const episodic = computed<EpisodicStats | null>(() => {
 }
 .stats-panels {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
   gap: 16px;
 }
 .stats-panel {
-  background: #1a1a1a;
-  border: 1px solid #202020;
-  border-radius: 12px;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-card);
   padding: 18px 20px;
   min-width: 0;
 }
@@ -1059,7 +1059,7 @@ const episodic = computed<EpisodicStats | null>(() => {
   margin: 0 0 18px;
   padding-left: 12px;
   font-size: 0.92rem;
-  font-weight: 800;
+  font-weight: var(--ui-weight-title);
 }
 .stats-panel h2::before {
   content: "";
@@ -1069,22 +1069,22 @@ const episodic = computed<EpisodicStats | null>(() => {
   bottom: 1px;
   width: 3px;
   border-radius: 999px;
-  background: #d68a34;
+  background: var(--ui-accent);
 }
 .note {
   margin: 12px 0 0;
   font-size: 0.78rem;
-  color: #9c9c9c;
+  color: var(--ui-dim);
 }
 .note.warn {
   margin: 0 0 16px;
-  color: #c9a66b;
+  color: var(--ui-warning);
 }
 .note.lead {
   margin: 0 0 12px;
 }
 .dim {
-  color: #666;
+  color: var(--ui-faint);
   font-size: 0.74rem;
 }
 .plain-list {
@@ -1106,7 +1106,7 @@ const episodic = computed<EpisodicStats | null>(() => {
   background: none;
   border: none;
   padding: 0;
-  color: #ddd;
+  color: var(--ui-text);
   font: inherit;
   text-align: left;
   cursor: pointer;
@@ -1115,11 +1115,11 @@ const episodic = computed<EpisodicStats | null>(() => {
   white-space: nowrap;
 }
 .plain-list button:hover {
-  color: #d68a34;
+  color: var(--ui-accent-text);
 }
 .progress-list {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
   gap: 10px 18px;
 }
 .progress-row {
@@ -1129,7 +1129,7 @@ const episodic = computed<EpisodicStats | null>(() => {
   padding: 6px;
   background: none;
   border: none;
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   text-align: left;
   color: inherit;
   font-family: inherit;
@@ -1137,14 +1137,14 @@ const episodic = computed<EpisodicStats | null>(() => {
   min-width: 0;
 }
 .progress-row:hover {
-  background: rgba(255, 255, 255, 0.04);
+  background: color-mix(in srgb, var(--ui-text) 4%, transparent);
 }
 .progress-art {
   width: 34px;
   height: 50px;
   border-radius: 5px;
   flex-shrink: 0;
-  background: #222 center / cover;
+  background: var(--ui-surface-2) center / cover;
 }
 .progress-main {
   flex: 1;
@@ -1163,18 +1163,18 @@ const episodic = computed<EpisodicStats | null>(() => {
 .progress-track {
   height: 6px;
   border-radius: 999px;
-  background: #222;
+  background: var(--ui-surface-2);
   overflow: hidden;
 }
 .progress-fill {
   display: block;
   height: 100%;
   border-radius: 999px;
-  background: linear-gradient(90deg, #d68a34, #e8a552);
+  background: linear-gradient(90deg, var(--ui-accent-text), var(--ui-accent));
 }
 .progress-count {
   font-size: 0.78rem;
-  color: #9c9c9c;
+  color: var(--ui-dim);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }

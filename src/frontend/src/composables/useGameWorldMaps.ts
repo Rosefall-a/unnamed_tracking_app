@@ -1,12 +1,11 @@
-import { ref, onUnmounted, type Ref } from "vue";
-import type { Game } from "../types/game";
+import { ref, onUnmounted } from "vue";
 import {
   createArchive,
   addArchiveVersion,
   fetchWorldMaps,
   renderWorldMap,
-  type WorldMapEntry,
 } from "../services/gameArchives";
+import type { GameArchiveData, WorldMapEntry } from "../services/gameArchives";
 import {
   startTask,
   updateTask,
@@ -14,12 +13,14 @@ import {
   errorTask,
   setTaskRetry,
 } from "../state/taskProgress";
+import type { Game } from "../types/game";
 import { usePrompt } from "../state/dialog";
+import type { Ref } from "vue";
 export function useGameWorldMaps(
   game: Ref<Game | null>,
   saveUploading: Ref<Set<string>>,
-  prompt: ReturnType<typeof usePrompt>,
   filesError: Ref<string | null>,
+  prompt: ReturnType<typeof usePrompt>,
 ) {
   // --- World Map (BlueMap render of a world_save archive) --------------------
   // a game (e.g. a modpack) can have several worlds, one card, many worlds,
@@ -97,7 +98,7 @@ export function useGameWorldMaps(
     await attempt();
   }
 
-  async function onAddWorldVersion(archive: WorldMapEntry, files: File[]) {
+  async function onAddWorldVersion(archive: GameArchiveData, files: File[]) {
     const file = files[0];
     if (!file || !game.value) return;
     const gameId = game.value.id;

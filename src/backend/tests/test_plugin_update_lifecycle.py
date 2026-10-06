@@ -11,6 +11,7 @@ from uuid import uuid4
 
 import pytest
 from fastapi import HTTPException
+
 from src.api.routes import plugins
 from src.api.routes.plugin_manager import acquisition as plugin_acquisition
 from src.api.routes.plugin_manager import catalogues as plugin_catalogues
@@ -27,6 +28,7 @@ def _unsigned_update(path: Path) -> None:
     digest.update(payload)
     digest.update(b"\0")
     manifest = {
+        "api_contract_version": "1.1.0",
         "manifest_version": 1,
         "plugin_id": "example.update",
         "name": "Update Example",

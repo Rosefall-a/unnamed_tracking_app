@@ -1,5 +1,10 @@
 <script setup lang="ts">
-import PasswordInput from "../PasswordInput.vue";
+import {
+  readPluginAppearance,
+  observePluginAppearance,
+} from "../../services/pluginAppearance";
+import PluginField from "./PluginField.vue";
+import { pluginShortcutEvent } from "../../services/pluginShortcutBridge";
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import {
   approvePluginAction,
@@ -20,6 +25,7 @@ const props = defineProps<{
   pageId?: string;
   embedded?: boolean;
   context?: Record<string, string | number | boolean>;
+  widgetConfig?: UiValues;
 }>();
 const emit = defineEmits<{
   action: [action: UiAction, values: UiValues];
@@ -30,6 +36,7 @@ const activePage = ref(props.pageId ?? props.document.pages[0]?.id ?? "");
 const values = ref<UiValues>(buildInitialValues(props.document));
 const submitted = ref(false);
 const iframe = ref<HTMLIFrameElement | null>(null);
+const iframeHeight = ref(520);
 const frontend = computed(() =>
   props.embedded ? undefined : props.document.frontend,
 );
@@ -95,6 +102,9 @@ function runAction(action: UiAction) {
   if (!approvePluginAction(action, window.confirm)) return;
   emit("action", action, {
     ...values.value,
+    ...(props.widgetConfig
+      ? { _widget_configuration: JSON.stringify(props.widgetConfig) }
+      : {}),
     _plugin_context: JSON.stringify({
       page_id: page.value?.id ?? "",
       page_title: page.value?.title ?? "",
@@ -183,10 +193,36 @@ async function handleFrontendMessage(event: MessageEvent) {
         String(data.document_id ?? ""),
       );
       result = { download_started: true };
+    } else if (method === "plugin.resize") {
+      if (typeof data.height !== "number" || !Number.isFinite(data.height))
+        throw new Error("Plugin frame height must be a finite number.");
+      iframeHeight.value = Math.min(
+        2400,
+        Math.max(320, Math.ceil(data.height)),
+      );
+      result = { height: iframeHeight.value };
+    } else if (method === "plugin.shortcut") {
+      const event = pluginShortcutEvent(data, window.location.pathname);
+      if (!event)
+        throw new Error(
+          "This host shortcut is disabled, conflicting or unavailable on this page.",
+        );
+      // The shared keyboard handler retains its modal and palette guards.
+      // The frame cannot request arbitrary paths or privileged operations.
+      window.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          ...event,
+          bubbles: true,
+        }),
+      );
+      result = { supported: true };
+    } else if (method === "plugin.theme") {
+      result = { ...readPluginAppearance() };
     } else if (method === "plugin.context") {
       result = {
         plugin_id: props.document.plugin_id,
         path: window.location.pathname,
+        appearance: readPluginAppearance(),
         ...props.context,
       };
     } else {
@@ -217,10 +253,24 @@ watch(
       activePage.value = pageId;
   },
 );
-onMounted(() => window.addEventListener("message", handleFrontendMessage));
-onBeforeUnmount(() =>
-  window.removeEventListener("message", handleFrontendMessage),
-);
+function sendAppearance() {
+  iframe.value?.contentWindow?.postMessage(
+    {
+      type: "plugin-appearance-changed",
+      appearance: readPluginAppearance(),
+    },
+    "*",
+  );
+}
+let stopAppearance = () => {};
+onMounted(() => {
+  window.addEventListener("message", handleFrontendMessage);
+  stopAppearance = observePluginAppearance(sendAppearance);
+});
+onBeforeUnmount(() => {
+  window.removeEventListener("message", handleFrontendMessage);
+  stopAppearance();
+});
 </script>
 
 <template>
@@ -265,10 +315,12 @@ onBeforeUnmount(() =>
     <div v-if="frontend" class="frontend-shell">
       <iframe
         ref="iframe"
+        :style="{ height: `${iframeHeight}px` }"
         :src="frontendUrl"
         :title="document.title + ' frontend'"
         sandbox="allow-scripts"
         loading="lazy"
+        @load="sendAppearance"
       ></iframe>
     </div>
     <p v-else-if="!page" class="empty">This plugin has no native pages.</p>
@@ -279,60 +331,13 @@ onBeforeUnmount(() =>
           <p v-if="section.description" class="muted">
             {{ section.description }}
           </p>
-          <label v-for="field in section.fields" :key="field.id">
-            <span>{{ field.label }}<b v-if="field.required"> *</b></span
-            ><small v-if="field.description">{{ field.description }}</small>
-            <select v-if="field.type === 'select'" v-model="values[field.id]">
-              <option
-                v-for="option in field.options"
-                :key="option.value"
-                :value="option.value"
-              >
-                {{ option.label }}
-              </option>
-            </select>
-            <select
-              v-else-if="field.type === 'multiselect'"
-              v-model="values[field.id]"
-              multiple
-            >
-              <option
-                v-for="option in field.options"
-                :key="option.value"
-                :value="option.value"
-              >
-                {{ option.label }}
-              </option>
-            </select>
-            <textarea
-              v-else-if="field.type === 'textarea'"
-              v-model="values[field.id] as string"
-            />
-            <input
-              v-else-if="field.type === 'boolean'"
-              v-model="values[field.id]"
-              type="checkbox"
-            />
-            <input
-              v-else-if="field.type === 'number'"
-              v-model.number="values[field.id]"
-              type="number"
-              :autocomplete="field.secret ? 'new-password' : 'off'"
-            />
-            <PasswordInput
-              v-else-if="field.type === 'password' || field.secret"
-              :model-value="String(values[field.id] ?? '')"
-              autocomplete="new-password"
-              @update:model-value="values[field.id] = $event"
-            />
-            <input
-              v-else
-              v-model="values[field.id]"
-              :type="field.type"
-              :autocomplete="field.secret ? 'new-password' : 'off'"
-            />
-            <em v-if="errorFor(field)" class="error">{{ errorFor(field) }}</em>
-          </label>
+          <PluginField
+            v-for="field in section.fields"
+            :key="field.id"
+            v-model="values[field.id]"
+            :field="field"
+            :error="errorFor(field)"
+          />
         </fieldset>
         <div v-for="table in tables" :key="table.id" class="table-block">
           <h3>{{ table.title }}</h3>
@@ -405,18 +410,30 @@ nav,
   gap: 8px;
 }
 button {
+  min-height: var(--ui-control-height);
+  padding: 10px 14px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
+  background: var(--ui-surface-2);
+  color: var(--ui-text);
+  font: inherit;
   cursor: pointer;
 }
 nav button.active {
+  color: var(--ui-accent-text);
+  background: var(--ui-accent-soft);
+  border-color: var(--ui-accent-line);
   font-weight: 700;
 }
 fieldset,
 .dialog,
 .table-block {
   display: grid;
+  min-width: 0;
+  overflow-x: auto;
   gap: 12px;
-  border: 1px solid #2a2a2a;
-  border-radius: 10px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-row);
   padding: 16px;
 }
 legend {
@@ -432,10 +449,10 @@ label > span {
 }
 small,
 .muted {
-  color: #999;
+  color: var(--ui-dim);
 }
 .error {
-  color: #e66;
+  color: var(--ui-error);
   font-style: normal;
 }
 table {
@@ -446,10 +463,10 @@ th,
 td {
   text-align: left;
   padding: 8px;
-  border-bottom: 1px solid #2a2a2a;
+  border-bottom: 1px solid var(--ui-border);
 }
 .empty {
-  color: #999;
+  color: var(--ui-dim);
 }
 .frontend-shell {
   min-height: 520px;
@@ -458,8 +475,8 @@ td {
   display: block;
   width: 100%;
   min-height: 520px;
-  border: 1px solid #2a2a2a;
-  border-radius: 10px;
-  background: #111;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-row);
+  background: var(--ui-surface-2);
 }
 </style>

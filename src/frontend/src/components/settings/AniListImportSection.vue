@@ -150,25 +150,24 @@ async function setCustomCadence(hours: number) {
 
 <style scoped>
 .settings-section h2 {
-  margin: 0 0 8px;
-  padding-left: 12px;
-  border-left: 3px solid #d68a34;
-  font-size: 1rem;
-  color: #fff;
+  margin: 0 0 12px;
+  font: var(--ui-weight-heading) var(--ui-font-heading)/1.4
+    var(--ui-font-family);
+  color: var(--ui-text);
 }
 .section-hint {
-  color: #9c9c9c;
+  color: var(--ui-dim);
   font-size: 0.82rem;
   line-height: 1.6;
   margin: 0 0 14px;
 }
 .saved {
-  color: #6fbf73;
+  color: var(--ui-good);
   margin-left: 8px;
   font-weight: 700;
 }
 .error {
-  color: #e57373;
+  color: var(--ui-error);
   font-size: 0.82rem;
 }
 .field {
@@ -177,16 +176,16 @@ async function setCustomCadence(hours: number) {
   gap: 8px;
   margin: 14px 0;
   font-size: 0.82rem;
-  color: #ccc;
+  color: var(--ui-text);
 }
 .field input {
   width: min(100%, 420px);
   box-sizing: border-box;
   padding: 9px 11px;
-  border: 1px solid #3a3a3a;
+  border: 1px solid var(--ui-border-strong);
   border-radius: 7px;
-  background: #111;
-  color: #eee;
+  background: var(--ui-bg);
+  color: var(--ui-text);
 }
 .custom-field {
   max-width: 420px;
@@ -194,10 +193,10 @@ async function setCustomCadence(hours: number) {
 .custom-button {
   align-self: flex-start;
   padding: 8px 12px;
-  border: 1px solid #444;
+  border: 1px solid var(--ui-border-strong);
   border-radius: 7px;
-  background: #222;
-  color: #ddd;
+  background: var(--ui-surface-2);
+  color: var(--ui-text);
   cursor: pointer;
 }
 .settings-section :deep(.toggle-button) {

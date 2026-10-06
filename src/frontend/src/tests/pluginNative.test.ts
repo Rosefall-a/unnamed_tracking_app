@@ -6,6 +6,7 @@ import {
   resetNativePluginsForTests,
   type NativePluginContext,
 } from "../state/pluginNative";
+import { keyboardShortcuts, runPluginShortcut } from "../state/shortcuts";
 
 const source = {
   pluginId: "example.native",
@@ -21,6 +22,108 @@ afterEach(() => {
 });
 
 describe("native plugin lifecycle", () => {
+  it("shows host guidance for native action and settings failures", async () => {
+    let context!: NativePluginContext;
+    await reconcileNativePlugins([source], async () => ({
+      activate(value) {
+        context = value;
+      },
+    }));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation(() =>
+        Promise.resolve(
+          new Response(
+            JSON.stringify({
+              detail:
+                "Plugin runtime is unavailable. Retry after it becomes ready.",
+            }),
+            { status: 503 },
+          ),
+        ),
+      ),
+    );
+    await expect(context.host.runAction("get-config")).rejects.toMatchObject({
+      status: 503,
+      message: expect.stringContaining("Plugin runtime is unavailable"),
+    });
+    await expect(context.host.saveSettings({ enabled: true })).rejects.toThrow(
+      "Plugin runtime is unavailable",
+    );
+  });
+  it("requires shortcut consent and cleans bindings on removal or failed activation", async () => {
+    let context!: NativePluginContext;
+    await reconcileNativePlugins([source], async () => ({
+      activate(value) {
+        context = value;
+      },
+    }));
+    const shortcut = { id: "demo", label: "Demo", keys: ["Alt+Shift+Q"] };
+    expect(() => context.host.registerShortcut(shortcut, () => {})).toThrow(
+      /frontend.shortcuts/,
+    );
+    let count = 0;
+    await reconcileNativePlugins(
+      [{ ...source, shortcutPermission: true }],
+      async () => ({
+        activate(value) {
+          context = value;
+          value.host.registerShortcut(shortcut, () => {
+            count++;
+          });
+        },
+      }),
+    );
+    await runPluginShortcut("plugin:example.native:demo");
+    expect(count).toBe(1);
+    await reconcileNativePlugins([]);
+    expect(
+      keyboardShortcuts.value.some((item) => item.pluginId === source.pluginId),
+    ).toBe(false);
+    expect(() => context.host.registerShortcut(shortcut, () => {})).toThrow(
+      /no longer active/,
+    );
+    await reconcileNativePlugins(
+      [{ ...source, shortcutPermission: true }],
+      async () => ({
+        activate(value) {
+          value.host.registerShortcut(shortcut, () => {});
+          throw new Error("Activation failed");
+        },
+      }),
+    );
+    expect(
+      keyboardShortcuts.value.some((item) => item.pluginId === source.pluginId),
+    ).toBe(false);
+  });
+  it("supports independently compiled Vue components through the public runtime", async () => {
+    let context!: NativePluginContext;
+    await reconcileNativePlugins([source], async () => ({
+      activate(value) {
+        context = value;
+        value.registerComponent(
+          "dashboard",
+          value.vue.defineComponent({
+            setup: () => () =>
+              value.vue.h(value.ui.PageHeader, { title: "Personal archive" }),
+          }),
+        );
+      },
+    }));
+    expect(Object.isFrozen(context.vue)).toBe(true);
+    expect(typeof context.vue.createElementVNode).toBe("function");
+    expect(typeof context.vue.onMounted).toBe("function");
+    expect(context.ui.UiModal).toBeDefined();
+    expect(context.ui.PasswordInput).toBeDefined();
+    context.host.registerNotificationProvider(async () => []);
+    expect(nativePluginComponent("example.native", "dashboard")).toBeDefined();
+    await reconcileNativePlugins([]);
+    expect(() => context.host.confirm({ message: "Still active?" })).toThrow();
+    expect(() => context.host.prompt({ message: "Still active?" })).toThrow();
+    expect(() =>
+      context.host.registerNotificationProvider(async () => []),
+    ).toThrow();
+  });
   it("requires host confirmation before sending a destructive action", async () => {
     const confirm = vi
       .fn()
@@ -65,6 +168,42 @@ describe("native plugin lifecycle", () => {
     await reconcileNativePlugins([source]);
     expect(reload).not.toHaveBeenCalled();
     await reconcileNativePlugins([]);
+    expect(reload).toHaveBeenCalledOnce();
+  });
+  it("loads changed native assets when a package is reapplied at the same version", async () => {
+    const cleanup = vi.fn();
+    const importer = vi.fn(async (url: string) => {
+      expect(url).toContain("/api/plugins/");
+      return {
+        activate(context: NativePluginContext) {
+          expect(context.version).toBe(source.version);
+          context.registerComponent("dashboard", { render: () => null });
+          context.onCleanup(cleanup);
+        },
+      };
+    });
+    const first = { ...source, digest: "a".repeat(64) };
+    const replacement = { ...source, digest: "b".repeat(64) };
+    await reconcileNativePlugins([first], importer);
+    const component = nativePluginComponent(source.pluginId, "dashboard");
+    await reconcileNativePlugins([first], importer);
+    expect(importer).toHaveBeenCalledTimes(1);
+    await reconcileNativePlugins([replacement], importer);
+    expect(importer).toHaveBeenCalledTimes(2);
+    expect(importer.mock.calls[0][0]).toContain(`?v=${first.digest}`);
+    expect(importer.mock.calls[1][0]).toContain(`?v=${replacement.digest}`);
+    expect(cleanup).toHaveBeenCalledOnce();
+    expect(nativePluginComponent(source.pluginId, "dashboard")).not.toBe(
+      component,
+    );
+  });
+  it("restarts the production realm after a same-version package replacement", async () => {
+    const reload = vi.fn();
+    vi.stubGlobal("window", { location: { reload } });
+    await reconcileNativePlugins([{ ...source, digest: "a".repeat(64) }]);
+    await reconcileNativePlugins([{ ...source, digest: "a".repeat(64) }]);
+    expect(reload).not.toHaveBeenCalled();
+    await reconcileNativePlugins([{ ...source, digest: "b".repeat(64) }]);
     expect(reload).toHaveBeenCalledOnce();
   });
   it("cancels an import when the plugin is removed before activation", async () => {

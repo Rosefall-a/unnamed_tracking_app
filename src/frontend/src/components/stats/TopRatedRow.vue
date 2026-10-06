@@ -56,10 +56,10 @@ defineEmits<{ open: [item: TopTitle] }>();
   top: 6px;
   left: 6px;
   z-index: 2;
-  background: rgba(10, 10, 10, 0.75);
-  color: #d68a34;
+  background: color-mix(in srgb, var(--ui-bg) 75%, transparent);
+  color: var(--ui-accent-text);
   font-size: 0.7rem;
-  font-weight: 800;
+  font-weight: var(--ui-weight-title);
   padding: 2px 6px;
   border-radius: 5px;
   font-variant-numeric: tabular-nums;
@@ -69,13 +69,13 @@ defineEmits<{ open: [item: TopTitle] }>();
   align-items: center;
   justify-content: center;
   aspect-ratio: 2 / 3;
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   background-size: cover;
   background-repeat: no-repeat;
   background-origin: border-box;
   background-clip: border-box;
   background-position: center;
-  background-color: #222222;
+  background-color: var(--ui-surface-2);
   border: 1px solid transparent;
   transition: transform 0.2s ease;
 }
@@ -84,8 +84,8 @@ defineEmits<{ open: [item: TopTitle] }>();
 }
 .toprated-initial {
   font-size: 1.6rem;
-  font-weight: 800;
-  color: #444;
+  font-weight: var(--ui-weight-title);
+  color: var(--ui-faint);
 }
 .toprated-title {
   display: -webkit-box;
@@ -102,7 +102,7 @@ defineEmits<{ open: [item: TopTitle] }>();
   margin-top: 2px;
   font-size: 0.74rem;
   font-weight: 700;
-  color: #d68a34;
+  color: var(--ui-accent-text);
   font-variant-numeric: tabular-nums;
 }
 </style>

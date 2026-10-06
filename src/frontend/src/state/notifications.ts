@@ -1,6 +1,7 @@
 // Episode/season/movie notifications from the server: the app's one
 // notification source. Persisted server-side, so they can be read/unread.
 import { ref } from "vue";
+import { notificationDestination } from "../utils/notificationPresentation";
 import {
   fetchMediaNotifications,
   markAllNotificationsRead,
@@ -48,11 +49,5 @@ export async function readAllMediaNotifications() {
 }
 
 export function mediaNotificationRoute(n: MediaNotification): string {
-  const base =
-    n.mediaType === "movie"
-      ? "/movies"
-      : n.mediaType === "tv"
-        ? "/tv"
-        : "/anime";
-  return `${base}/${n.mediaId}`;
+  return notificationDestination(n) ?? "/notifications";
 }

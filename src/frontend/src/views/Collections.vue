@@ -95,7 +95,7 @@ function onCreate(payload: CollectionFormPayload) {
     description: payload.description ?? undefined,
   });
   showCreate.value = false;
-  router.push(`/collections/${encodeURIComponent(payload.name)}`);
+  router.push(`/games/collections/${encodeURIComponent(payload.name)}`);
 }
 
 async function loadGames() {
@@ -309,7 +309,7 @@ const filtering = computed(
 );
 
 function openCollection(name: string) {
-  router.push(`/collections/${encodeURIComponent(name)}`);
+  router.push(`/games/collections/${encodeURIComponent(name)}`);
 }
 
 // options offered by the create dialog's rule builder
@@ -337,6 +337,7 @@ const tagOptions = computed(() => {
             v-model="searchQuery"
             type="text"
             class="ui-field search-input"
+            data-shortcut="search"
             placeholder="Search collections…"
             aria-label="Search collections"
           />
@@ -349,6 +350,10 @@ const tagOptions = computed(() => {
             type="button"
             class="ui-btn ui-btn-primary"
             @click="showCreate = true"
+            data-tour="collection-create"
+            data-shortcut="create"
+            title="Create Collection · N"
+            aria-keyshortcuts="N"
           >
             + Create Collection
           </button>

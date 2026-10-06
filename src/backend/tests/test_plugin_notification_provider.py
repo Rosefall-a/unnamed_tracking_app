@@ -27,6 +27,7 @@ async def test_provider_obtained_before_transition_cannot_deliver_afterward(monk
     )
     runtime = AsyncMock()
     installed = {
+        "api_contract_version": "1.1.0",
         "plugin_id": registration.plugin_id,
         "installation_id": str(registration.installation_id),
         "enabled": True,
@@ -107,6 +108,7 @@ async def test_plugin_provider_dispatches_minimized_delivery_contract(monkeypatc
     runtime = AsyncMock()
     runtime.plugins.return_value = [
         {
+            "api_contract_version": "1.1.0",
             "plugin_id": registration.plugin_id,
             "installation_id": str(registration.installation_id),
             "enabled": True,

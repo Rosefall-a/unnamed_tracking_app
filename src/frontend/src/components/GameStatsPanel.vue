@@ -798,14 +798,14 @@ const ICONS: Record<string, string> = {
 }
 .gs-label {
   font-size: 0.7rem;
-  font-weight: 800;
+  font-weight: var(--ui-weight-title);
   letter-spacing: 0.07em;
   text-transform: uppercase;
-  color: #777;
+  color: var(--ui-faint);
 }
 .gs-sub {
   font-size: 0.76rem;
-  color: #888;
+  color: var(--ui-dim);
 }
 
 .gs-summary {
@@ -819,15 +819,15 @@ const ICONS: Record<string, string> = {
   gap: 4px;
   min-width: 0;
   padding: 16px 18px;
-  background: #141414;
-  border: 1px solid #262626;
-  border-radius: 14px;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-surface-2);
+  border-radius: var(--ui-radius-dialog);
 }
 .gs-value {
   font-size: 1.7rem;
-  font-weight: 800;
+  font-weight: var(--ui-weight-title);
   line-height: 1.15;
-  color: #f2f2f2;
+  color: var(--ui-text);
   font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
 }
@@ -835,13 +835,13 @@ const ICONS: Record<string, string> = {
   margin-top: 6px;
   height: 4px;
   border-radius: 999px;
-  background: #262626;
+  background: var(--ui-surface-2);
   overflow: hidden;
 }
 .gs-meter span {
   display: block;
   height: 100%;
-  background: #d68a34;
+  background: var(--ui-accent);
   border-radius: 999px;
 }
 
@@ -860,7 +860,7 @@ const ICONS: Record<string, string> = {
 .gs-fact-value {
   font-size: 0.95rem;
   font-weight: 600;
-  color: #e8e8e8;
+  color: var(--ui-text);
   overflow-wrap: anywhere;
 }
 
@@ -868,10 +868,10 @@ const ICONS: Record<string, string> = {
 .gs-month-label {
   margin: 0 0 12px;
   font-size: 0.7rem;
-  font-weight: 800;
+  font-weight: var(--ui-weight-title);
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #777;
+  color: var(--ui-faint);
 }
 .gs-bars {
   display: flex;
@@ -894,18 +894,22 @@ const ICONS: Record<string, string> = {
 .gs-bar-fill {
   display: block;
   width: 100%;
-  background: linear-gradient(to top, rgba(214, 138, 52, 0.55), #d68a34);
+  background: linear-gradient(
+    to top,
+    color-mix(in srgb, var(--ui-accent) 55%, transparent),
+    var(--ui-accent-text)
+  );
   border-radius: 6px 6px 2px 2px;
 }
 .gs-bar-n {
   font-size: 0.7rem;
   font-weight: 700;
-  color: #d68a34;
+  color: var(--ui-accent-text);
   font-variant-numeric: tabular-nums;
 }
 .gs-bar-label {
   font-size: 0.68rem;
-  color: #777;
+  color: var(--ui-faint);
 }
 
 .gs-tl-head {
@@ -916,7 +920,7 @@ const ICONS: Record<string, string> = {
   gap: 12px;
   margin-bottom: 18px;
   padding-top: 24px;
-  border-top: 1px solid #262626;
+  border-top: 1px solid var(--ui-surface-2);
 }
 .gs-tl-head h2 {
   margin: 0;
@@ -929,7 +933,7 @@ const ICONS: Record<string, string> = {
 }
 .gs-note {
   margin: 0;
-  color: #777;
+  color: var(--ui-faint);
   font-size: 0.88rem;
 }
 .gs-month {
@@ -939,7 +943,7 @@ const ICONS: Record<string, string> = {
   list-style: none;
   margin: 0;
   padding: 0 0 0 18px;
-  border-left: 2px solid #232323;
+  border-left: 2px solid var(--ui-surface-2);
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -958,19 +962,19 @@ const ICONS: Record<string, string> = {
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  background: #1a1a1a;
-  border: 2px solid #232323;
-  color: #9c9c9c;
+  background: var(--ui-surface);
+  border: 2px solid var(--ui-surface-2);
+  color: var(--ui-dim);
   box-sizing: border-box;
 }
 .gs-entry.achievements .gs-dot {
-  color: #d68a34;
+  color: var(--ui-accent-text);
 }
 .gs-entry.metadata .gs-dot {
-  color: #7aa7d9;
+  color: var(--ui-info);
 }
 .gs-entry.media .gs-dot {
-  color: #7fc08a;
+  color: var(--ui-good);
 }
 .gs-row {
   width: 100%;
@@ -978,9 +982,9 @@ const ICONS: Record<string, string> = {
   align-items: center;
   gap: 14px;
   padding: 11px 14px;
-  background: #141414;
-  border: 1px solid #262626;
-  border-radius: 12px;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-surface-2);
+  border-radius: var(--ui-radius-card);
   color: inherit;
   font: inherit;
   text-align: left;
@@ -991,10 +995,10 @@ const ICONS: Record<string, string> = {
   cursor: default;
 }
 .gs-row:not(:disabled):hover {
-  border-color: #3a3a3a;
+  border-color: var(--ui-border-strong);
 }
 .gs-entry.open .gs-row {
-  border-color: rgba(214, 138, 52, 0.45);
+  border-color: color-mix(in srgb, var(--ui-accent) 45%, transparent);
   border-bottom-left-radius: 0;
   border-bottom-right-radius: 0;
 }
@@ -1008,12 +1012,12 @@ const ICONS: Record<string, string> = {
 .gs-row-title {
   font-size: 0.92rem;
   font-weight: 700;
-  color: #f2f2f2;
+  color: var(--ui-text);
   overflow-wrap: anywhere;
 }
 .gs-row-summary {
   font-size: 0.8rem;
-  color: #8c8c8c;
+  color: var(--ui-dim);
   overflow-wrap: anywhere;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -1028,12 +1032,12 @@ const ICONS: Record<string, string> = {
   align-items: flex-end;
   gap: 1px;
   font-size: 0.76rem;
-  color: #888;
+  color: var(--ui-dim);
   font-variant-numeric: tabular-nums;
 }
 .gs-chev {
   flex-shrink: 0;
-  color: #666;
+  color: var(--ui-faint);
   transition: transform 0.15s ease;
 }
 .gs-entry.open .gs-chev {
@@ -1044,8 +1048,8 @@ const ICONS: Record<string, string> = {
   flex-direction: column;
   gap: 8px;
   padding: 12px 14px 14px;
-  background: #101010;
-  border: 1px solid rgba(214, 138, 52, 0.45);
+  background: var(--ui-surface);
+  border: 1px solid color-mix(in srgb, var(--ui-accent) 45%, transparent);
   border-top: none;
   border-radius: 0 0 12px 12px;
 }
@@ -1057,20 +1061,20 @@ const ICONS: Record<string, string> = {
   font-size: 0.84rem;
 }
 .gs-change-label {
-  color: #888;
+  color: var(--ui-dim);
   font-weight: 600;
 }
 .gs-from {
-  color: #8c8c8c;
+  color: var(--ui-dim);
   text-decoration: line-through;
-  text-decoration-color: #444;
+  text-decoration-color: var(--ui-border-strong);
   overflow-wrap: anywhere;
 }
 .gs-arrow {
-  color: #666;
+  color: var(--ui-faint);
 }
 .gs-to {
-  color: #d68a34;
+  color: var(--ui-accent-text);
   overflow-wrap: anywhere;
 }
 .gs-ach {
@@ -1083,8 +1087,8 @@ const ICONS: Record<string, string> = {
   width: 34px;
   height: 34px;
   flex-shrink: 0;
-  border-radius: 7px;
-  background: #222 center / cover no-repeat;
+  border-radius: var(--ui-radius-control);
+  background: var(--ui-surface-2) center / cover no-repeat;
 }
 .gs-ach-name {
   flex: 1;
@@ -1096,7 +1100,7 @@ const ICONS: Record<string, string> = {
 .gs-ach-note {
   flex-shrink: 0;
   font-size: 0.74rem;
-  color: #888;
+  color: var(--ui-dim);
   text-align: right;
 }
 .gs-factrow {
@@ -1104,10 +1108,10 @@ const ICONS: Record<string, string> = {
   justify-content: space-between;
   gap: 16px;
   font-size: 0.84rem;
-  color: #888;
+  color: var(--ui-dim);
 }
 .gs-factrow strong {
-  color: #ddd;
+  color: var(--ui-text);
   text-transform: capitalize;
 }
 .gs-media {
@@ -1119,16 +1123,16 @@ const ICONS: Record<string, string> = {
   width: 110px;
   aspect-ratio: 16 / 9;
   object-fit: cover;
-  border-radius: 8px;
-  border: 1px solid #262626;
+  border-radius: var(--ui-radius-control);
+  border: 1px solid var(--ui-surface-2);
 }
 .gs-media-file {
   max-width: 220px;
   padding: 6px 10px;
-  border-radius: 8px;
-  background: #1a1a1a;
+  border-radius: var(--ui-radius-control);
+  background: var(--ui-surface);
   font-size: 0.78rem;
-  color: #bbb;
+  color: var(--ui-dim);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1136,7 +1140,7 @@ const ICONS: Record<string, string> = {
 .gs-more {
   align-self: center;
   font-size: 0.78rem;
-  color: #888;
+  color: var(--ui-dim);
 }
 
 @media (max-width: 760px) {

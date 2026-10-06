@@ -358,7 +358,7 @@ async function remove() {
 <style scoped>
 .hint {
   font-size: 0.78rem;
-  color: #999;
+  color: var(--ui-dim);
   margin: 0;
 }
 </style>

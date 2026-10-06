@@ -112,6 +112,7 @@ OIDC issuer, client ID, and client secret become required when the OIDC section 
 |---|---|---|
 | `PLUGIN_RUNTIME_URL` | `http://plugin-runtime:8000` | Internal application-to-runtime URL. Do not publish it. |
 | `PLUGIN_RUNTIME_TOKEN` | — | Shared internal transport token; production values must be unique and at least 32 characters. |
+| `PLUGIN_GATEWAY_URL` | — | Internal app address reachable from plugin-runtime. An explicit runtime value wins; otherwise an explicitly configured app value is advertised over authenticated transport. Production Compose uses `http://app`, development uses `http://backend:8000`. |
 | `PLUGIN_TRUSTED_PUBLISHER_REGISTRY` | Built-in registry | Optional path to an additional reviewed publisher registry. |
 | `PLUGIN_CATALOG_URL` | Official repository `list.json` | Default official plugin catalogue URL. |
 | `PLUGIN_CATALOGUE_REGISTRY` | `/data/plugin-catalogues.json` | Persistent administrator-managed catalogue metadata. |
@@ -161,3 +162,5 @@ The production Compose file builds `DATABASE_URL` from the PostgreSQL variables,
 Never commit real credentials to `example.env`, the wiki, or source control.
 
 For `SECRET_KEY`, omitting the variable is supported by the backend: a stable Fernet key is generated under `APP_DATA_DIR/config/fernet.key` with redundant copies and recovered on later starts. If you provide a deployment key, preserve it for the lifetime of the installation because existing encrypted values depend on it.
+
+The four `MAX_*_SIZE_MB` upload caps can also be overridden in **Settings → Administration → Limits**. These deployment-wide overrides take effect on new uploads immediately; resetting removes the overrides and returns to the environment values.

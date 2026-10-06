@@ -1,0 +1,14 @@
+{
+  "real_downloaded_ci_packages": false,
+  "passed": [
+    "Active and denied scopes are unique, risk-coloured, foldable and in stable order; diagnostics show newest sequences first and server isolation warnings stay on main Plugin Manager"
+  ],
+  "screens": [
+    "plugin-permission-groups-390-dark.png",
+    "plugin-diagnostics-newest-390-dark.png",
+    "plugin-permission-groups-1440-light.png",
+    "plugin-diagnostics-newest-1440-light.png"
+  ],
+  "package_source": "Owned installed native integration fixture",
+  "status": "passed"
+}

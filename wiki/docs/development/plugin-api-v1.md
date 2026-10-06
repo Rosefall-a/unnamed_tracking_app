@@ -1,5 +1,10 @@
 # Plugin API v1
 
+The redesigned host uses the explicit **v1.1.0 UI/API contract** while retaining
+the `v1` wire major. See [v1.1 migration](plugin-v1.1-migration.md) before updating
+an existing plugin or authoring a new one. A missing contract declaration remains
+v1.0.0 and cannot execute on this host.
+
 Plugin API v1 is the transport-neutral contract foundation for the Plugin Hub.
 
 ## Contract surface

@@ -1,11 +1,34 @@
 <script setup lang="ts">
 import { onMounted } from "vue";
-import { startOidcLogin } from "../services/oidc";
+import { useRoute, useRouter } from "vue-router";
+import { oidcLoginStatus, startOidcLogin } from "../services/oidc";
+import { rememberReturnPath } from "../state/startup";
 
-onMounted(() => startOidcLogin());
+const route = useRoute();
+const router = useRouter();
+onMounted(async () => {
+  try {
+    if (!(await oidcLoginStatus()).enabled) {
+      await router.replace({
+        path: "/login",
+        query: { oidc_error: "not_configured" },
+      });
+      return;
+    }
+    rememberReturnPath(route.query.return_to);
+    startOidcLogin();
+  } catch {
+    await router.replace({
+      path: "/login",
+      query: { oidc_error: "provider_unavailable" },
+    });
+  }
+});
 </script>
 
-<template><main class="oidc-start">Starting SSO…</main></template>
+<template>
+  <main class="oidc-start" aria-live="polite">Starting SSO…</main>
+</template>
 
 <style scoped>
 .oidc-start {
@@ -13,8 +36,8 @@ onMounted(() => startOidcLogin());
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #121212;
-  color: #aaa;
-  font-family: system-ui, sans-serif;
+  background: var(--ui-bg);
+  color: var(--ui-dim);
+  font-family: var(--ui-font-family);
 }
 </style>

@@ -20,7 +20,7 @@ Capabilities use a canonical hierarchy. An administrator can grant one leaf, suc
 The principal families are:
 
 - user data: `users`, `games`, `media`, `documents`, and `sessions`;
-- frontend: navigation locations, Settings sections, overlays/dialogs, page extensions, page-scoped replacements, plugin routes, and `frontend.native`;
+- frontend: navigation locations, Settings sections, overlays/dialogs, page extensions, page-scoped replacements, plugin routes, `frontend.shortcuts`, and `frontend.native`;
 - backend: namespaced plugin routes and privileged host routes;
 - notifications: sending notifications and registering/delivering through providers;
 - external access: `network.outbound`.
@@ -39,7 +39,7 @@ The principal families are:
 | `sessions.geoip.read` | `sessions.geoip.status` | Administrator-only City/Country/Network availability booleans; no filesystem paths. |
 | `sessions.geoip.configure` | Multipart capability endpoint | Administrator-only confirmed MMDB replacement, bounded to 256 MiB and validated by the host. |
 | `media.write` | `media.import` | Imports normalized movie metadata into the authenticated user media library; plugins never receive ORM objects. |
-| `tasks.background` | Plugin-owned background execution | Allows a plugin to remain active for approved background work; the host still controls process/resource limits. |
+| `tasks.background` | Approved background execution and v1.1 host schedules | Allows a plugin to remain active for approved work and expose explicitly declared Tasks jobs; schedule controls start off and live action grants and process limits still apply. |
 | `notifications.send` | `notifications.send` | Creates a user-scoped in-app notification; core then creates eligible provider delivery rows. |
 | `notification_providers.register` | `notification_providers.register`, `notification_providers.unregister` | Registers a provider ID namespaced below the plugin ID and one declared action ID. |
 | `notification_providers.deliver` | Core invokes the registered action | Allows minimized eligible delivery work after core preference/grant checks. It does not allow querying notification tables or controlling retries. |

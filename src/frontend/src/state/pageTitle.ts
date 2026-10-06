@@ -3,8 +3,7 @@
 // route's meta.title; a detail page can override it with the thing it shows.
 
 import { onBeforeUnmount, ref, watch } from "vue";
-
-export const APP_NAME = "Archive";
+import { branding } from "./branding";
 
 interface Override {
   owner: symbol;
@@ -24,7 +23,7 @@ export function formatDocumentTitle(
   unread = 0,
 ): string {
   const count = unread > 0 ? `(${unread > 99 ? "99+" : unread}) ` : "";
-  return `${count}${title ? `${title} | ` : ""}${APP_NAME}`;
+  return `${count}${title ? `${title} | ` : ""}${branding.value.app_name}`;
 }
 
 // Call from a page's setup to title the tab after what it shows, e.g. the

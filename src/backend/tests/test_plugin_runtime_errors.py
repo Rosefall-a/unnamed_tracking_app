@@ -8,8 +8,8 @@ import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 from src.api.routes import plugins
-from src.api.routes.plugin_manager import lifecycle as plugin_lifecycle
-from src.api.routes.plugin_manager import runtime as plugin_runtime
+from src.api.routes.plugin_manager import lifecycle, runtime
+from src.plugin_api.contracts import PLUGIN_API_CONTRACT_VERSION
 from src.plugin_api.manager_state import ManagerState
 from src.plugin_api.runtime_client import PluginRuntimeRequestError, PluginRuntimeUnavailable
 
@@ -48,7 +48,7 @@ async def test_lifecycle_runtime_errors_are_visible(
     installed = {
         "plugin_id": "example.error-report",
         "installation_id": str(uuid4()),
-        "api_contract_version": "1.0.0",
+        "api_contract_version": PLUGIN_API_CONTRACT_VERSION,
         "enabled": True,
         "compatible": True,
     }
@@ -61,10 +61,8 @@ async def test_lifecycle_runtime_errors_are_visible(
         prune_history=AsyncMock(),
     )
     getattr(transport, failing_call).side_effect = error_type(message)
-    monkeypatch.setattr(plugin_runtime, "_client", transport)
-    monkeypatch.setattr(
-        plugin_lifecycle, "manager_state", lambda: ManagerState(tmp_path / "manager.json")
-    )
+    monkeypatch.setattr(runtime, "_client", transport)
+    monkeypatch.setattr(lifecycle, "manager_state", lambda: ManagerState(tmp_path / "manager.json"))
     app = FastAPI()
     app.include_router(plugins.router)
     app.dependency_overrides[plugins.get_plugin_manager_admin] = lambda: SimpleNamespace(id=uuid4())

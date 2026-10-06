@@ -150,6 +150,9 @@ _LOW = frozenset(
         Capability.FRONTEND_CONTEXT_DOCUMENTS,
         Capability.FRONTEND_SETTINGS,
         Capability.FRONTEND_PAGE_EXTEND,
+        Capability.FRONTEND_HOME_WIDGETS,
+        Capability.FRONTEND_THEMES,
+        Capability.FRONTEND_SHORTCUTS,
         Capability.FRONTEND_ROUTES,
     }
 )
@@ -171,6 +174,14 @@ def _category(capability: Capability) -> str:
 
 
 def _title(capability: Capability) -> str:
+    placement_titles = {
+        Capability.FRONTEND_PLACEMENT_SIDEBAR: "Join built-in sidebar sections",
+        Capability.FRONTEND_PLACEMENT_ADMIN: "Join built-in administration settings",
+        Capability.FRONTEND_PLACEMENT_ACCOUNT: "Join built-in account settings",
+        Capability.FRONTEND_PLACEMENT_PREFERENCES: "Join built-in preferences",
+    }
+    if capability in placement_titles:
+        return placement_titles[capability]
     return capability.value.replace("_", " ").replace(".", " / ").title()
 
 
@@ -187,7 +198,11 @@ def capability_definition(capability: Capability | str) -> CapabilityDefinition:
     return CapabilityDefinition(
         capability=resolved,
         category=_category(resolved),
-        title=("Installable web application (site-wide)" if resolved is Capability.FRONTEND_PWA else _title(resolved)),
+        title=(
+            "Installable web application (site-wide)"
+            if resolved is Capability.FRONTEND_PWA
+            else _title(resolved)
+        ),
         parent=_PARENTS.get(resolved),
         risk=risk,
         highly_privileged=resolved in _CRITICAL,

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 // "Add games" / "Add titles": a searchable list of what is not in the
 // collection or list yet, one click each. Done closes it.
+import UiModal from "./UiModal.vue";
 import { vLazyBg } from "../directives/lazyBackground";
 
 defineProps<{
@@ -25,9 +26,8 @@ const emit = defineEmits<{
 </script>
 
 <template>
-  <div class="ui-backdrop" @click.self="emit('close')">
-    <div class="ui-modal add-modal">
-      <h3>{{ heading }}</h3>
+  <UiModal :title="heading" @close="emit('close')">
+    <div class="add-modal">
       <input
         v-model="search"
         type="text"
@@ -53,17 +53,17 @@ const emit = defineEmits<{
           Nothing left to add{{ search ? " for that search" : "" }}.
         </p>
       </div>
-      <div class="ui-modal-actions">
-        <button
-          type="button"
-          class="ui-btn ui-btn-primary"
-          @click="emit('close')"
-        >
-          Done
-        </button>
-      </div>
     </div>
-  </div>
+    <template #footer>
+      <button
+        type="button"
+        class="ui-btn ui-btn-primary"
+        @click="emit('close')"
+      >
+        Done
+      </button>
+    </template>
+  </UiModal>
 </template>
 
 <style scoped>
@@ -82,23 +82,23 @@ const emit = defineEmits<{
   gap: 10px;
   background: none;
   border: none;
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   padding: 6px;
-  color: #ddd;
+  color: var(--ui-text);
   text-align: left;
   font-family: inherit;
   cursor: pointer;
 }
 
 .add-row:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--ui-text) 6%, transparent);
 }
 
 .add-thumb {
   width: 30px;
   height: 44px;
   border-radius: 4px;
-  background: #262626 center / cover;
+  background: var(--ui-surface-2) center / cover;
   flex-shrink: 0;
 }
 
@@ -112,14 +112,14 @@ const emit = defineEmits<{
 }
 
 .add-kind {
-  color: #666;
+  color: var(--ui-faint);
   font-size: 0.7rem;
   text-transform: uppercase;
 }
 
 .add-plus {
-  color: #d68a34;
-  font-weight: 800;
+  color: var(--ui-accent-text);
+  font-weight: var(--ui-weight-title);
   font-size: 1.1rem;
   width: 20px;
   text-align: center;

@@ -1,12 +1,19 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import {
   managerEntries,
+  catalogueVersions,
+  pluginChannel,
   type ManagerView,
 } from "../../services/pluginManagerViews";
 import { refreshPluginExtensions } from "../../state/pluginExtensions";
+import UiModal from "../UiModal.vue";
 import PluginInstallConsentDialog from "../plugins/PluginInstallConsentDialog.vue";
 import PluginSettingsDialog from "../plugins/PluginSettingsDialog.vue";
+import PluginIsolationWarning from "../plugins/PluginIsolationWarning.vue";
+import PluginGatewayWarning from "../plugins/PluginGatewayWarning.vue";
+import PluginPackageDropZone from "../plugins/PluginPackageDropZone.vue";
+import PluginVersionConfirmationDialog from "../plugins/PluginVersionConfirmationDialog.vue";
 import {
   deletePlugin,
   deletePluginCatalogue,
@@ -17,6 +24,7 @@ import {
   fetchPluginCatalogues,
   fetchPluginLogs,
   fetchPlugins,
+  fetchPluginDetails,
   checkPluginUpdates,
   installPlugin,
   installPluginFromUrl,
@@ -66,12 +74,15 @@ const catalog = ref<PluginCatalogEntry[]>([]);
 const loading = ref(true);
 const cataloguesLoading = ref(false);
 const error = ref("");
+const operationError = ref("");
+const pendingVersionInstall = ref<PluginInstallConfirmation | null>(null);
 const action = ref("");
 const selectedFile = ref<File | null>(null);
 const installFile = ref<File | null>(null);
 const installUrl = ref<string | null>(null);
 const remoteUrl = ref("");
 const installPreview = ref<PluginInstallPreview | null>(null);
+const reviewView = ref<"overview" | "access">("access");
 const previewing = ref(false);
 const installing = ref(false);
 const installMessage = ref("");
@@ -81,6 +92,7 @@ const pluginDiagnostics = ref<PluginDiagnostics | null>(null);
 const pluginGrants = ref<PluginPermissionGrant[]>([]);
 const pluginRequests = ref<PluginPermissionRequest[]>([]);
 const popupLoading = ref(false);
+let popupGeneration = 0;
 const installOpen = ref(false);
 const catalogues = ref<PluginCatalogue[]>([]);
 const catalogueErrors = ref<string[]>([]);
@@ -91,19 +103,31 @@ const updateFile = ref<File | null>(null);
 const updateUrl = ref<string | null>(null);
 const replacement = ref(false);
 const updateSource = ref<Partial<PluginSourceMetadata>>({});
+watch(error, (value) => {
+  if (
+    value &&
+    !selected.value &&
+    !installOpen.value &&
+    !installPreview.value &&
+    !duplicate.value
+  )
+    operationError.value = value;
+});
 const availableUpdates = ref<Record<string, PluginUpdateCheck>>({});
 const checkingUpdates = ref(false);
 const view = ref<ManagerView>("Installed");
 const search = ref("");
 const tag = ref("");
+const channel = ref("");
+const selectedVersions = ref<Record<string, string>>({});
 const runtime = ref<RuntimeCapabilities | null>(null);
 const managerSettings = ref<ManagerSettings>({
   automatic_updates: false,
   retained_versions: 1,
 });
-const isolationOpen = ref(false);
-const isolationAcknowledged = ref(false);
-const isolationBusy = ref(false);
+const isolationWarning = ref<InstanceType<
+  typeof PluginIsolationWarning
+> | null>(null);
 let pendingIsolationInstall: PluginInstallConfirmation | null = null;
 const needsIsolationApproval = computed(
   () =>
@@ -112,33 +136,56 @@ const needsIsolationApproval = computed(
     !runtime.value?.reduced_isolation_allowed,
 );
 
-function closeIsolation() {
-  isolationOpen.value = false;
-  isolationAcknowledged.value = false;
-  pendingIsolationInstall = null;
-}
-
-async function setIsolationApproval(approved: boolean) {
-  isolationBusy.value = true;
-  error.value = "";
+async function approveReducedIsolation() {
+  managerSettingsBusy.value = true;
+  managerSettingsError.value = "";
   try {
     managerSettings.value = await saveManagerSettings({
-      reduced_isolation_acknowledged: approved,
+      reduced_isolation_acknowledged: true,
     });
     await load();
-    await refreshPluginExtensions();
+    isolationWarning.value?.close();
     const confirmation = pendingIsolationInstall;
-    closeIsolation();
-    if (approved && confirmation) await confirmInstall(confirmation);
+    pendingIsolationInstall = null;
+    if (confirmation) await confirmInstall(confirmation);
   } catch (err) {
-    error.value =
+    managerSettingsError.value =
       err instanceof Error
         ? err.message
         : "Reduced isolation approval could not be saved.";
   } finally {
-    isolationBusy.value = false;
+    managerSettingsBusy.value = false;
   }
 }
+
+async function withdrawReducedIsolation() {
+  managerSettingsBusy.value = true;
+  managerSettingsError.value = "";
+  try {
+    managerSettings.value = await saveManagerSettings({
+      reduced_isolation_acknowledged: false,
+    });
+    await load();
+    await refreshPluginExtensions();
+  } catch (err) {
+    managerSettingsError.value =
+      err instanceof Error
+        ? err.message
+        : "Reduced isolation approval could not be withdrawn.";
+  } finally {
+    managerSettingsBusy.value = false;
+  }
+}
+const managerSettingsLoaded = ref(false);
+const managerSettingsBusy = ref(false);
+const managerSettingsMessage = ref("");
+const managerSettingsError = ref("");
+const retainedVersionsValid = computed(
+  () =>
+    Number.isInteger(managerSettings.value.retained_versions) &&
+    managerSettings.value.retained_versions >= 1 &&
+    managerSettings.value.retained_versions <= 100,
+);
 const stagedTarget = ref<string | null>(null);
 const grantTarget = ref<string | null>(null);
 const duplicate = ref<PluginSummary | null>(null);
@@ -149,6 +196,7 @@ const entries = computed(() =>
     view.value,
     search.value,
     tag.value,
+    channel.value,
   ),
 );
 const tags = computed(() =>
@@ -166,13 +214,50 @@ const catalogueEntries = computed(() =>
     (item): item is PluginCatalogEntry => !("status" in item),
   ),
 );
+const catalogueGroups = computed(() =>
+  [
+    { id: "official", label: "Official plugins" },
+    { id: "demo", label: "Example plugins" },
+    { id: "community", label: "Community and unverified plugins" },
+  ]
+    .map((group) => ({
+      ...group,
+      entries: catalogueEntries.value.filter(
+        (entry) => pluginChannel(entry) === group.id,
+      ),
+    }))
+    .filter((group) => group.entries.length),
+);
 
 async function saveGlobalSettings() {
+  if (!retainedVersionsValid.value || managerSettingsBusy.value) return;
+  managerSettingsBusy.value = true;
+  managerSettingsMessage.value = "";
+  managerSettingsError.value = "";
   try {
-    managerSettings.value = await saveManagerSettings(managerSettings.value);
+    const saved = await saveManagerSettings(managerSettings.value);
+    managerSettings.value = saved;
+    managerSettingsMessage.value = saved.history_pruning_deferred
+      ? "Plugin Manager settings saved. Existing package history could not be trimmed while the runtime is unavailable. Future package operations use the saved limit."
+      : "Plugin Manager settings saved.";
   } catch (err) {
-    error.value =
+    managerSettingsError.value =
       err instanceof Error ? err.message : "Settings could not be saved.";
+  } finally {
+    managerSettingsBusy.value = false;
+  }
+}
+
+async function loadManagerSettings() {
+  managerSettingsError.value = "";
+  try {
+    managerSettings.value = await fetchManagerSettings();
+    managerSettingsLoaded.value = true;
+  } catch (err) {
+    managerSettingsError.value =
+      err instanceof Error
+        ? err.message
+        : "Plugin Manager settings could not be loaded.";
   }
 }
 
@@ -243,6 +328,7 @@ async function reviewGrant(key: string) {
   installPreview.value = {
     ...preview,
     operation: "update",
+    requires_version_confirmation: false,
     permissions: preview.permissions
       .filter((item) => item.key === key)
       .map((item) => ({ ...item, new: true })),
@@ -251,31 +337,44 @@ async function reviewGrant(key: string) {
 
 async function chooseDuplicate(choice: "update" | "reinstall" | "replace") {
   const plugin = duplicate.value;
-  duplicate.value = null;
   if (!plugin) return;
   if (choice === "reinstall") {
+    duplicate.value = null;
     cancelInstall();
     selected.value = plugin;
     await lifecycleOperation("reinstall");
     return;
   }
-  replacement.value = choice === "replace";
-  updateTarget.value = plugin;
-  updateFile.value = installFile.value;
-  updateUrl.value = installUrl.value;
-  updateSource.value = installSource.value;
-  installPreview.value = updateFile.value
-    ? await previewPluginUpdate(
-        plugin.plugin_id,
-        updateFile.value,
-        replacement.value ? "replace" : "update",
-      )
-    : await previewPluginUpdateUrl(
-        plugin.plugin_id,
-        updateUrl.value!,
-        installSource.value,
-        replacement.value ? "replace" : "update",
-      );
+  previewing.value = true;
+  error.value = "";
+  try {
+    replacement.value = choice === "replace";
+    updateTarget.value = plugin;
+    updateFile.value = installFile.value;
+    updateUrl.value = installUrl.value;
+    updateSource.value = installSource.value;
+    installPreview.value = updateFile.value
+      ? await previewPluginUpdate(
+          plugin.plugin_id,
+          updateFile.value,
+          replacement.value ? "replace" : "update",
+        )
+      : await previewPluginUpdateUrl(
+          plugin.plugin_id,
+          updateUrl.value!,
+          installSource.value,
+          replacement.value ? "replace" : "update",
+        );
+    duplicate.value = null;
+  } catch (failure) {
+    updateTarget.value = null;
+    error.value =
+      failure instanceof Error
+        ? failure.message
+        : "Plugin update preview failed.";
+  } finally {
+    previewing.value = false;
+  }
 }
 
 async function addCatalogEndpoint() {
@@ -347,10 +446,16 @@ async function loadCatalogues() {
   }
 }
 
+function discoverPlugins() {
+  view.value = "Discover";
+  search.value = "";
+  tag.value = "";
+  void loadCatalogues();
+}
+
 function openInstaller() {
   if (installing.value || previewing.value) return;
   installOpen.value = true;
-  void loadCatalogues();
 }
 
 function closeInstaller() {
@@ -399,6 +504,7 @@ async function run(id: string, operation: (id: string) => Promise<void>) {
   } catch (err) {
     const failure =
       err instanceof Error ? err.message : "Plugin action failed.";
+    // Refresh failed status and logs without clearing the operation's explanation.
     await load();
     if (selected.value?.plugin_id === id) await refreshPlugin();
     error.value = failure;
@@ -412,6 +518,13 @@ function selectFile(event: Event) {
   installMessage.value = "";
 }
 
+async function reviewDroppedPackage(file: File) {
+  if (installing.value || previewing.value) return;
+  selectedFile.value = file;
+  await previewSelected();
+  if (duplicate.value) await chooseDuplicate("update");
+}
+
 async function previewSelected() {
   if (!selectedFile.value || installing.value || previewing.value) return;
   previewing.value = true;
@@ -421,7 +534,9 @@ async function previewSelected() {
     installUrl.value = null;
     installSource.value = { type: "upload" };
     installFile.value = selectedFile.value;
+    reviewView.value = "access";
     installPreview.value = await previewPluginInstall(selectedFile.value);
+    installOpen.value = false;
     duplicate.value =
       plugins.value.find(
         (item) => item.plugin_id === installPreview.value?.plugin_id,
@@ -438,6 +553,7 @@ async function previewSelected() {
 async function previewRemoteUrl(
   url = remoteUrl.value,
   source: Partial<PluginSourceMetadata> = { type: "url" },
+  initialView: "overview" | "access" = "access",
 ) {
   if (installing.value || previewing.value) return;
   const normalized = url.trim();
@@ -447,9 +563,11 @@ async function previewRemoteUrl(
   installMessage.value = "";
   try {
     installFile.value = null;
+    reviewView.value = initialView;
     installUrl.value = normalized;
     installSource.value = source;
     installPreview.value = await previewPluginInstallUrl(normalized, source);
+    installOpen.value = false;
     duplicate.value =
       plugins.value.find(
         (item) => item.plugin_id === installPreview.value?.plugin_id,
@@ -464,14 +582,25 @@ async function previewRemoteUrl(
   }
 }
 
-async function previewCatalogEntry(entry: PluginCatalogEntry) {
+async function previewCatalogEntry(
+  entry: PluginCatalogEntry,
+  initialView: "overview" | "access" = "access",
+) {
   error.value = "";
-  await previewRemoteUrl(entry.url, {
-    type: "catalogue",
-    catalogue_url: entry.catalogue_url,
-    release_notes: entry.release_notes,
-    changelog_url: entry.changelog_url,
-  });
+  const release =
+    catalogueVersions(entry).find(
+      (item) => item.version === selectedVersions.value[entry.plugin_id],
+    ) ?? entry;
+  await previewRemoteUrl(
+    release.url,
+    {
+      type: "catalogue",
+      catalogue_url: entry.catalogue_url,
+      release_notes: release.release_notes,
+      changelog_url: entry.changelog_url,
+    },
+    initialView,
+  );
   if (installPreview.value) {
     installPreview.value.readme ??= entry.readme;
     installPreview.value.icon ??= entry.icon;
@@ -490,18 +619,34 @@ function cancelInstall() {
   stagedTarget.value = null;
   grantTarget.value = null;
   duplicate.value = null;
+  pendingVersionInstall.value = null;
+  replacement.value = false;
+  reviewView.value = "access";
 }
 
 async function confirmInstall(confirmation: PluginInstallConfirmation) {
   if (!installPreview.value) return;
+  const denyingStage =
+    stagedTarget.value &&
+    installPreview.value.new_permission_keys?.length &&
+    !confirmation.approvedPermissions.length;
+  if (
+    !grantTarget.value &&
+    !denyingStage &&
+    installPreview.value.requires_version_confirmation &&
+    !confirmation.versionChangeConfirmed
+  ) {
+    pendingVersionInstall.value = confirmation;
+    return;
+  }
   confirmation = {
     ...confirmation,
     expectedDigest: installPreview.value.digest,
+    expectedInstalledVersion: installPreview.value.installed_version,
   };
   if (needsIsolationApproval.value) {
     pendingIsolationInstall = confirmation;
-    isolationAcknowledged.value = false;
-    isolationOpen.value = true;
+    isolationWarning.value?.review();
     return;
   }
   installing.value = true;
@@ -516,6 +661,9 @@ async function confirmInstall(confirmation: PluginInstallConfirmation) {
           approved_permissions: confirmation.approvedPermissions,
           expected_digest: installPreview.value.digest,
           permissions_reviewed: Boolean(stagedTarget.value),
+          version_change_confirmed:
+            confirmation.versionChangeConfirmed ?? false,
+          expected_installed_version: confirmation.expectedInstalledVersion,
           confirmed: Boolean(
             stagedTarget.value &&
             installPreview.value.new_permission_keys?.length &&
@@ -602,16 +750,30 @@ async function confirmInstall(confirmation: PluginInstallConfirmation) {
 }
 
 async function openPlugin(plugin: PluginSummary) {
+  const generation = ++popupGeneration;
   selected.value = plugin;
   popupLoading.value = true;
   error.value = "";
   try {
-    const [ui, logs, grants, requests] = await Promise.all([
+    const [ui, logs, grants, requests, details] = await Promise.all([
       fetchPluginUi(plugin.plugin_id).catch(() => null),
       fetchPluginLogs(plugin.plugin_id).catch(() => null),
       fetchPluginPermissionGrants(),
       fetchPluginPermissionRequests(),
+      fetchPluginDetails(plugin.plugin_id).catch((err: unknown) => ({
+        readme: null,
+        documentation_error:
+          err instanceof Error
+            ? err.message
+            : "Unable to load installed documentation.",
+      })),
     ]);
+    if (
+      generation !== popupGeneration ||
+      selected.value?.plugin_id !== plugin.plugin_id
+    )
+      return;
+    selected.value = { ...plugin, ...details };
     pluginUi.value = ui;
     pluginDiagnostics.value = logs;
     pluginGrants.value = grants.filter(
@@ -625,11 +787,12 @@ async function openPlugin(plugin: PluginSummary) {
     error.value =
       err instanceof Error ? err.message : "Failed to open plugin settings.";
   } finally {
-    popupLoading.value = false;
+    if (generation === popupGeneration) popupLoading.value = false;
   }
 }
 
 function closePlugin() {
+  popupGeneration++;
   selected.value = null;
   pluginUi.value = null;
   pluginDiagnostics.value = null;
@@ -710,9 +873,16 @@ async function updateSelected(plugin: PluginSummary, event: Event) {
   const input = event.target as HTMLInputElement;
   const file = input.files?.[0];
   if (!file) return;
+  await reviewUpdatePackage(plugin, file);
+  input.value = "";
+}
+
+async function reviewUpdatePackage(plugin: PluginSummary, file: File) {
+  if (installing.value || previewing.value) return;
   previewing.value = true;
   error.value = "";
   try {
+    replacement.value = false;
     updateTarget.value = plugin;
     updateFile.value = file;
     updateUrl.value = null;
@@ -720,11 +890,11 @@ async function updateSelected(plugin: PluginSummary, event: Event) {
     installFile.value = file;
     installUrl.value = null;
     installPreview.value = await previewPluginUpdate(plugin.plugin_id, file);
+    selected.value = null;
   } catch (err) {
     error.value = err instanceof Error ? err.message : "Plugin update failed.";
   } finally {
     previewing.value = false;
-    input.value = "";
   }
 }
 
@@ -810,9 +980,7 @@ async function removePlugin(plugin: PluginSummary) {
 
 onMounted(() => {
   void load();
-  void fetchManagerSettings()
-    .then((value) => (managerSettings.value = value))
-    .catch(() => {});
+  void loadManagerSettings();
 });
 </script>
 
@@ -823,124 +991,162 @@ onMounted(() => {
       Browse plugins, review access, and manage installed releases and
       persistent data.
     </p>
-    <aside
-      v-if="
-        runtime &&
-        (runtime.available === false ||
-          (!runtime.sandbox_available &&
-            !runtime.reduced_isolation_env_override))
+    <PluginIsolationWarning
+      v-if="runtime"
+      ref="isolationWarning"
+      :runtime="runtime"
+      :busy="managerSettingsBusy"
+      :error="managerSettingsError"
+      @approve="approveReducedIsolation"
+      @cancel="pendingIsolationInstall = null"
+    />
+    <PluginGatewayWarning v-if="runtime" :runtime="runtime" />
+    <details
+      v-if="runtime"
+      class="manager-settings"
+      :open="
+        runtime.version_health === 'incompatible' ||
+        runtime.gateway_configured === false
       "
-      class="runtime-notice"
     >
-      <strong>{{
-        runtime.available === false
-          ? "Plugin runtime unavailable"
-          : runtime.bubblewrap_available
-            ? "Bubblewrap is usable"
-            : runtime.bubblewrap_available === null
-              ? "Runtime capability is unknown"
-              : "Bubblewrap is unavailable"
-      }}</strong>
-      <p>
-        {{
-          runtime.available === false
-            ? "Installed plugins remain listed. Runtime status and isolation cannot be checked until the runtime reconnects."
-            : runtime.sandbox_available
-              ? "Per-plugin namespace and filesystem isolation is available."
-              : "Per-plugin sandbox isolation is unavailable. Reduced isolation uses separate processes and available resource limits. Continue only where runtime policy permits."
-        }}
+      <summary>Plugin platform versions & health</summary>
+      <dl>
+        <div>
+          <dt>Version health</dt>
+          <dd>{{ runtime.version_health ?? "Not reported" }}</dd>
+        </div>
+        <div>
+          <dt>UI/API contract</dt>
+          <dd>
+            Host {{ runtime.host_api_contract_version ?? "Not reported" }} ·
+            Runtime {{ runtime.api_contract_version ?? "Not reported" }}
+          </dd>
+        </div>
+        <div>
+          <dt>Plugin SDK compatibility version</dt>
+          <dd>
+            Host {{ runtime.host_sdk_version ?? "Not reported" }} · Runtime
+            {{ runtime.sdk_version ?? "Not reported" }}
+          </dd>
+        </div>
+        <div>
+          <dt>Application compatibility version</dt>
+          <dd>
+            Host {{ runtime.host_application_version ?? "Not reported" }} ·
+            Runtime {{ runtime.application_version ?? "Not reported" }}
+          </dd>
+        </div>
+        <div>
+          <dt>Gateway protocol</dt>
+          <dd>
+            {{ runtime.api_version ?? "Not reported" }} ·
+            {{ runtime.plugin_transport ?? "Not reported" }}
+          </dd>
+        </div>
+        <div>
+          <dt>Gateway configuration</dt>
+          <dd>
+            {{
+              runtime.gateway_configured === true
+                ? "Configured"
+                : runtime.gateway_configured === false
+                  ? "Needs repair"
+                  : "Not reported"
+            }}
+            <template v-if="runtime.gateway_configured">
+              ·
+              {{
+                runtime.gateway_configuration_source === "host"
+                  ? "App service"
+                  : "Runtime service"
+              }}
+            </template>
+          </dd>
+        </div>
+      </dl>
+      <p class="muted">
+        Compatibility versions are the targets checked against plugin manifests.
+        Package release numbers and the gateway protocol are separate. Update
+        host and runtime together when these targets differ.
       </p>
-      <p v-if="runtime.reduced_isolation_acknowledged">
-        An administrator acknowledged reduced isolation for this server. This
-        warning remains visible while Bubblewrap is unavailable.
+      <p v-if="runtime.version_error" class="error" role="alert">
+        {{ runtime.version_error }}
       </p>
-      <button
-        v-if="needsIsolationApproval"
-        :disabled="isolationBusy"
-        @click="
-          isolationOpen = true;
-          isolationAcknowledged = false;
-        "
-      >
-        Review reduced isolation
-      </button>
-      <p v-if="runtime.last_error">{{ runtime.last_error }}</p>
-      <a
-        href="https://github.com/Rosefall-a/unnamed_tracking_app/blob/plugin-manager/wiki/docs/development/plugin-runtime.md"
-        target="_blank"
-        rel="noopener noreferrer"
-        >Runtime setup and Bubblewrap help</a
-      >
-    </aside>
-    <div
-      v-if="isolationOpen"
-      class="modal-backdrop"
-      @click.self="!isolationBusy && closeIsolation()"
-    >
-      <section
-        class="installer-dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="isolation-title"
-      >
-        <h2 id="isolation-title">Allow reduced plugin isolation</h2>
-        <p>
-          Bubblewrap is unavailable. Plugins will have fewer filesystem and
-          namespace restrictions. Package verification, permission checks and
-          available resource limits still apply.
-        </p>
-        <p>
-          This acknowledgement covers all plugins on this server and survives
-          restarts. NONBUBBLE_ENV is optional. Withdraw approval in Plugin
-          Manager settings to stop affected workers.
-        </p>
-        <label
-          ><input
-            v-model="isolationAcknowledged"
-            type="checkbox"
-            :disabled="isolationBusy"
-          />
-          I understand that reduced isolation is less secure.</label
+      <p v-if="runtime.version_health === 'unavailable'" class="error">
+        Version checks are unavailable until the plugin runtime reconnects.
+      </p>
+    </details>
+    <details class="manager-settings">
+      <summary>Plugin Manager settings</summary>
+      <p class="muted">
+        Control catalogue updates and retained package history for this server.
+      </p>
+      <p v-if="managerSettingsError" role="alert" class="error">
+        {{ managerSettingsError }}
+      </p>
+      <p v-if="managerSettingsMessage" role="status" class="success">
+        {{ managerSettingsMessage }}
+      </p>
+      <fieldset :disabled="!managerSettingsLoaded || managerSettingsBusy">
+        <div
+          v-if="managerSettings.reduced_isolation_acknowledged"
+          class="manager-setting"
         >
-        <p v-if="error" role="alert" class="error">{{ error }}</p>
-        <div class="actions">
-          <button :disabled="isolationBusy" @click="closeIsolation">
-            Cancel
-          </button>
-          <button
-            :disabled="isolationBusy || !isolationAcknowledged"
-            @click="setIsolationApproval(true)"
+          <span
+            ><strong>Reduced isolation acknowledged</strong
+            ><small
+              >Approval applies to this server. Withdrawing it stops plugins
+              when Bubblewrap is unavailable, unless the deployment override is
+              enabled.</small
+            ></span
           >
-            Acknowledge and allow plugins
+          <button type="button" @click="withdrawReducedIsolation">
+            Withdraw approval
           </button>
         </div>
-      </section>
-    </div>
-    <details>
-      <summary>Plugin Manager settings</summary>
-      <label
-        ><input
-          v-model="managerSettings.automatic_updates"
-          type="checkbox"
-          @change="saveGlobalSettings"
-        />
-        Automatic catalogue updates</label
-      >
-      <label
-        >Old package versions to retain
-        <input
-          v-model.number="managerSettings.retained_versions"
-          type="number"
-          min="1"
-          max="100"
-          @change="saveGlobalSettings"
-      /></label>
+        <label class="manager-setting"
+          ><input v-model="managerSettings.automatic_updates" type="checkbox" />
+          <span
+            ><strong>Automatic catalogue updates</strong
+            ><small
+              >Allow eligible catalogue releases to update automatically. New
+              permissions still require approval.</small
+            ></span
+          ></label
+        >
+        <label class="manager-setting"
+          ><span
+            ><strong>Old package versions to retain</strong
+            ><small
+              >Keep 1–100 package versions for rollback. Plugin data is stored
+              separately.</small
+            ></span
+          >
+          <input
+            v-model.number="managerSettings.retained_versions"
+            type="number"
+            min="1"
+            max="100"
+            aria-label="Old package versions to retain"
+        /></label>
+        <p v-if="!retainedVersionsValid" role="alert" class="error">
+          Enter a whole number from 1 to 100.
+        </p>
+        <button
+          type="button"
+          class="primary"
+          :disabled="!retainedVersionsValid"
+          @click="saveGlobalSettings"
+        >
+          {{ managerSettingsBusy ? "Saving…" : "Save manager settings" }}
+        </button>
+      </fieldset>
       <button
-        v-if="managerSettings.reduced_isolation_acknowledged"
-        :disabled="isolationBusy"
-        @click="setIsolationApproval(false)"
+        v-if="!managerSettingsLoaded"
+        type="button"
+        @click="loadManagerSettings"
       >
-        Withdraw approval
+        Retry loading settings
       </button>
     </details>
     <nav class="manager-tabs" aria-label="Plugin views">
@@ -948,8 +1154,7 @@ onMounted(() => {
         v-for="item in [
           'Installed',
           'Updates Available',
-          'Available to Install',
-          'All',
+          'Discover',
         ] as ManagerView[]"
         :key="item"
         :aria-pressed="view === item"
@@ -968,59 +1173,134 @@ onMounted(() => {
         <option value="">All tags</option>
         <option v-for="item in tags" :key="item">{{ item }}</option>
       </select>
+      <select v-model="channel" aria-label="Filter by plugin source">
+        <option value="">All sources</option>
+        <option value="official">Official</option>
+        <option value="demo">Examples</option>
+        <option value="community">Community / unverified</option>
+      </select>
     </div>
     <p v-for="error in catalogueErrors" :key="error" role="alert" class="muted">
       {{ error }}
     </p>
-    <div class="installer-launcher">
+    <PluginPackageDropZone
+      class="installer-launcher"
+      :busy="installing || previewing"
+      @package="reviewDroppedPackage"
+    >
       <button
         type="button"
         class="primary install-launcher"
+        v-if="view !== 'Discover'"
+        :disabled="installing || previewing"
+        @click="discoverPlugins"
+      >
+        Install a plugin
+      </button>
+      <button
+        type="button"
         :disabled="installing || previewing"
         @click="openInstaller"
       >
-        Install a plugin
+        Install package or URL
       </button>
       <button type="button" :disabled="checkingUpdates" @click="refreshUpdates">
         {{ checkingUpdates ? "Checking…" : "Check for updates" }}
       </button>
       <p class="muted">
-        Add a package, install from a URL, or browse enabled plugin catalogues.
+        Discover a plugin and review its access before installing. Use Updates
+        Available to review updates; click an installed plugin for
+        configuration, permissions and retained versions.
       </p>
       <p v-if="installMessage" class="success">{{ installMessage }}</p>
-    </div>
-    <Teleport to="body">
-      <div
-        v-if="installOpen"
-        class="modal-backdrop"
-        @click.self="closeInstaller"
-      >
-        <section
-          class="installer-dialog"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="plugin-installer-title"
+    </PluginPackageDropZone>
+    <details v-if="view === 'Discover'" class="catalogue discovery-sources">
+      <summary>Manage catalogues</summary>
+      <section>
+        <div class="catalogue-header">
+          <div>
+            <strong>Plugin catalogues</strong>
+            <p class="muted">
+              The official catalogue is enabled by default. Catalogue provenance
+              never replaces package signature verification.
+            </p>
+          </div>
+        </div>
+        <div
+          v-for="catalogueSource in catalogues"
+          :key="catalogueSource.id"
+          class="endpoint-row"
         >
-          <header class="dialog-header">
-            <div>
-              <p class="eyebrow">Plugin manager</p>
-              <h2 id="plugin-installer-title">Install a plugin</h2>
-              <p class="muted">Choose a package, URL, or enabled catalogue.</p>
-            </div>
-            <button
-              type="button"
-              :disabled="installing"
-              @click="closeInstaller"
-            >
-              Close
-            </button>
-          </header>
-          <details class="install-method">
+          <label
+            ><input
+              type="checkbox"
+              :checked="catalogueSource.enabled"
+              @change="
+                toggleCatalogEndpoint(
+                  catalogueSource,
+                  ($event.target as HTMLInputElement).checked,
+                )
+              "
+            />
+            {{ catalogueSource.name }} · priority
+            {{ catalogueSource.priority }}</label
+          >
+          <span class="muted">{{ catalogueSource.url }}</span>
+          <span v-if="catalogueSource.last_error" class="error">{{
+            catalogueSource.last_error
+          }}</span>
+          <button
+            v-if="catalogueSource.id !== 'official'"
+            type="button"
+            class="danger"
+            @click="removeCatalogEndpoint(catalogueSource)"
+          >
+            Remove
+          </button>
+        </div>
+        <div class="endpoint-add">
+          <input
+            v-model="newCatalogEndpoint"
+            type="url"
+            placeholder="https://example.com/list.json"
+            aria-label="New catalogue URL"
+            @keyup.enter="addCatalogEndpoint"
+          /><button
+            type="button"
+            :disabled="!newCatalogEndpoint.trim()"
+            @click="addCatalogEndpoint"
+          >
+            Add catalogue
+          </button>
+        </div>
+      </section>
+    </details>
+    <p v-if="view === 'Discover'" class="muted discovery-note">
+      Official plugins and examples are listed separately. Source categories use
+      the trusted publisher registry; package signatures, compatibility and
+      permissions are checked during review.
+    </p>
+    <UiModal
+      v-if="installOpen"
+      title="Install package or URL"
+      size="wide"
+      description="Review a local package or a public package URL before installing."
+      :dismissible="!installing"
+      @close="closeInstaller"
+    >
+      <section class="installer-dialog installer-browser">
+        <p v-if="error" class="error" role="alert">{{ error }}</p>
+        <div class="installer-methods">
+          <details class="install-method" open>
             <summary>Upload package</summary>
             <div>
-              <strong>Upload package</strong>
+              <p class="muted">
+                Choose a plugin package to review its publisher and requested
+                access.
+              </p>
               <input
                 id="plugin-package"
+                aria-label="Plugin package"
                 type="file"
                 accept="*/*"
                 @change="selectFile"
@@ -1037,12 +1317,13 @@ onMounted(() => {
           <details class="install-method">
             <summary>Install from URL</summary>
             <div>
-              <strong>Install from URL</strong>
+              <p class="muted">Enter the public URL of a plugin package.</p>
               <div class="url-row">
                 <input
                   v-model="remoteUrl"
                   type="url"
                   placeholder="https://example.com/plugin.utp"
+                  aria-label="Plugin package URL"
                   @keyup.enter="previewRemoteUrl()"
                 /><button
                   type="button"
@@ -1054,146 +1335,108 @@ onMounted(() => {
               </div>
             </div>
           </details>
-          <details class="catalogue">
-            <summary>Manage catalogues</summary>
-            <section>
-              <div class="catalogue-header">
-                <div>
-                  <strong>Plugin catalogues</strong>
-                  <p class="muted">
-                    The official catalogue is enabled by default. Catalogue
-                    provenance never replaces package signature verification.
-                  </p>
-                </div>
-              </div>
-              <div
-                v-for="catalogueSource in catalogues"
-                :key="catalogueSource.id"
-                class="endpoint-row"
-              >
-                <label
-                  ><input
-                    type="checkbox"
-                    :checked="catalogueSource.enabled"
-                    @change="
-                      toggleCatalogEndpoint(
-                        catalogueSource,
-                        ($event.target as HTMLInputElement).checked,
-                      )
-                    "
-                  />
-                  {{ catalogueSource.name }} · priority
-                  {{ catalogueSource.priority }}</label
-                >
-                <span class="muted">{{ catalogueSource.url }}</span>
-                <span v-if="catalogueSource.last_error" class="error">{{
-                  catalogueSource.last_error
-                }}</span>
-                <button
-                  v-if="catalogueSource.id !== 'official'"
-                  type="button"
-                  class="danger"
-                  @click="removeCatalogEndpoint(catalogueSource)"
-                >
-                  Remove
-                </button>
-              </div>
-              <div class="endpoint-add">
-                <input
-                  v-model="newCatalogEndpoint"
-                  type="url"
-                  placeholder="https://example.com/list.json"
-                  @keyup.enter="addCatalogEndpoint"
-                /><button
-                  type="button"
-                  :disabled="!newCatalogEndpoint.trim()"
-                  @click="addCatalogEndpoint"
-                >
-                  Add catalogue
-                </button>
-              </div>
-            </section>
-          </details>
-          <section class="catalogue">
-            <div class="catalogue-header">
-              <div>
-                <strong>Available plugins</strong>
-                <p class="muted">
-                  Packages from all enabled catalogues are shown together.
-                </p>
-              </div>
-              <button
-                type="button"
-                :disabled="previewing || installing"
-                @click="loadCatalogues"
-              >
-                Refresh
-              </button>
-            </div>
-            <div v-if="!catalog.length" class="muted">
-              No plugins are currently listed by the enabled catalogues.
-            </div>
-            <article
-              v-for="entry in catalog"
-              :key="entry.plugin_id"
-              class="catalogue-entry"
-            >
-              <div>
-                <strong>{{ entry.name }}</strong
-                ><span>{{ entry.plugin_id }} · v{{ entry.version }}</span>
-                <p>{{ entry.description }}</p>
-              </div>
-              <button
-                type="button"
-                :disabled="previewing"
-                @click="previewCatalogEntry(entry)"
-              >
-                Install
-              </button>
-            </article>
-          </section>
-        </section>
-      </div>
-    </Teleport>
+        </div>
+      </section>
+    </UiModal>
     <p v-if="loading">Loading plugins…</p>
     <p v-if="cataloguesLoading" class="muted">Refreshing catalogues…</p>
-    <p v-if="error" class="error">{{ error }}</p>
     <p v-if="!loading && !entries.length" class="muted">
-      No plugins match this view.
+      {{
+        view === "Installed" && !plugins.length
+          ? "No plugins installed yet. Choose Install a plugin to browse the catalogue, or install a package you already have."
+          : "No plugins match these filters."
+      }}
     </p>
     <div v-if="!loading && entries.length" class="list">
-      <article
-        v-for="entry in catalogueEntries"
-        :key="entry.plugin_id"
-        class="plugin"
-      >
-        <img
-          v-if="entry.icon"
-          :src="entry.icon"
-          alt=""
-          width="48"
-          height="48"
-        />
-        <h3>{{ entry.name }}</h3>
-        <p>{{ entry.description }}</p>
-        <p>
-          {{ entry.publisher ?? "Publisher information not supplied" }} · v{{
-            entry.version
-          }}
-          · {{ entry.compatibility ?? "Compatibility checked during review" }}
-        </p>
-        <p>{{ entry.tags?.join(" · ") }}</p>
-        <button
-          :disabled="previewing || installing"
-          @click="previewCatalogEntry(entry)"
+      <template v-for="group in catalogueGroups" :key="group.id">
+        <h3 class="catalogue-group-heading">{{ group.label }}</h3>
+        <article
+          v-for="entry in group.entries"
+          :key="entry.plugin_id"
+          class="plugin"
         >
-          Review plugin
-        </button>
-      </article>
-      <article
+          <img
+            v-if="entry.icon"
+            :src="entry.icon"
+            alt=""
+            width="48"
+            height="48"
+          />
+          <h3>
+            <button
+              class="plugin-title"
+              :disabled="previewing || installing"
+              @click="previewCatalogEntry(entry, 'overview')"
+            >
+              {{ entry.name }}<span aria-hidden="true"> →</span>
+            </button>
+          </h3>
+          <span class="source-category">{{
+            pluginChannel(entry) === "official"
+              ? "Official"
+              : pluginChannel(entry) === "demo"
+                ? "Example"
+                : "Community / unverified"
+          }}</span>
+          <p
+            v-if="
+              plugins.some((plugin) => plugin.plugin_id === entry.plugin_id)
+            "
+            class="muted"
+          >
+            Already installed · select a release to review an update or
+            replacement
+          </p>
+          <p>{{ entry.description }}</p>
+          <p>
+            {{ entry.publisher ?? "Publisher information not supplied" }} · v{{
+              entry.version
+            }}
+            · {{ entry.compatibility ?? "Compatibility checked during review" }}
+          </p>
+          <p>{{ entry.tags?.join(" · ") }}</p>
+          <label class="release-picker"
+            >Release
+            <select
+              :value="selectedVersions[entry.plugin_id] ?? entry.version"
+              :aria-label="`Release for ${entry.name}`"
+              @change="
+                selectedVersions[entry.plugin_id] = (
+                  $event.target as HTMLSelectElement
+                ).value
+              "
+            >
+              <option
+                v-for="release in catalogueVersions(entry)"
+                :key="release.version"
+                :value="release.version"
+              >
+                v{{ release.version
+                }}{{
+                  release.version === entry.version
+                    ? " · Latest"
+                    : " · Pins automatic updates"
+                }}
+              </option>
+            </select>
+          </label>
+          <button
+            :disabled="previewing || installing"
+            @click="previewCatalogEntry(entry)"
+          >
+            Review {{ selectedVersions[entry.plugin_id] ?? entry.version }}
+          </button>
+        </article>
+      </template>
+      <PluginPackageDropZone
         v-for="plugin in installedEntries"
         :key="plugin.plugin_id"
         class="plugin"
+        tag="article"
+        :busy="previewing || installing || action === plugin.plugin_id"
+        :label="`Update package for ${plugin.name}`"
+        :show-hint="false"
+        @package="reviewUpdatePackage(plugin, $event)"
       >
         <header>
           <div>
@@ -1204,7 +1447,11 @@ onMounted(() => {
               width="48"
               height="48"
             />
-            <h3>{{ plugin.name }}</h3>
+            <h3>
+              <button class="plugin-title" @click="openPlugin(plugin)">
+                {{ plugin.name }}<span aria-hidden="true"> →</span>
+              </button>
+            </h3>
             <span>{{ plugin.plugin_id }} · v{{ plugin.version }}</span>
           </div>
           <strong>{{ plugin.status }}</strong>
@@ -1223,6 +1470,9 @@ onMounted(() => {
           }}
           · {{ plugin.staged_update.status.replaceAll("_", " ") }} · Installed
           release remains v{{ plugin.version }}
+        </p>
+        <p v-if="plugin.version_pin" class="muted">
+          Pinned to v{{ plugin.version_pin }} · automatic updates disabled
         </p>
         <dl>
           <div>
@@ -1258,7 +1508,7 @@ onMounted(() => {
             :disabled="action === plugin.plugin_id"
             @click="openPlugin(plugin)"
           >
-            Manage plugin
+            Settings & access
           </button>
           <label class="file-button"
             >Upload update<input
@@ -1292,38 +1542,40 @@ onMounted(() => {
             Uninstall
           </button>
         </div>
-      </article>
+      </PluginPackageDropZone>
     </div>
 
     <PluginInstallConsentDialog
       v-if="installPreview && !duplicate"
       :preview="installPreview"
       :busy="installing"
+      :initial-view="reviewView"
+      :error="error"
       @cancel="cancelInstall"
       @confirm="confirmInstall"
     />
-    <Teleport to="body"
-      ><div v-if="duplicate" class="modal-backdrop">
-        <section
-          class="installer-dialog"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Plugin already installed"
-        >
-          <h2>{{ duplicate.name }} is already installed</h2>
-          <p>
-            Installed v{{ duplicate.version }}; selected v{{
-              installPreview?.version
-            }}. Choose the operation explicitly.
-          </p>
-          <button @click="chooseDuplicate('update')">Review update</button
-          ><button @click="chooseDuplicate('reinstall')">
-            Reinstall installed release, retaining data</button
-          ><button @click="chooseDuplicate('replace')">Replace package</button
-          ><button @click="cancelInstall">Cancel</button>
-        </section>
-      </div></Teleport
+    <UiModal
+      v-if="duplicate"
+      :title="`${duplicate.name} is already installed`"
+      :dismissible="!previewing"
+      @close="cancelInstall"
     >
+      <section class="installer-dialog">
+        <p v-if="error" class="error" role="alert">{{ error }}</p>
+        <p>
+          Installed v{{ duplicate.version }}; selected v{{
+            installPreview?.version
+          }}. Choose the operation explicitly.
+        </p>
+        <button :disabled="previewing" @click="chooseDuplicate('update')">
+          Review update</button
+        ><button :disabled="previewing" @click="chooseDuplicate('reinstall')">
+          Reinstall installed release, retaining data</button
+        ><button :disabled="previewing" @click="chooseDuplicate('replace')">
+          Replace package</button
+        ><button :disabled="previewing" @click="cancelInstall">Cancel</button>
+      </section>
+    </UiModal>
     <PluginSettingsDialog
       v-if="selected"
       :plugin="selected"
@@ -1332,7 +1584,7 @@ onMounted(() => {
       :requests="pluginRequests"
       :diagnostics="pluginDiagnostics"
       :loading="popupLoading"
-      :busy="action === selected.plugin_id"
+      :busy="action === selected.plugin_id || previewing || installing"
       :error="error"
       @close="closePlugin"
       @save="savePlugin"
@@ -1345,245 +1597,50 @@ onMounted(() => {
       @deny="resolveRequest($event, false)"
       @refresh="refreshPlugin"
       @update="reviewAvailableUpdate(selected)"
+      @update-package="reviewUpdatePackage(selected, $event)"
       @operation="lifecycleOperation"
       @auto-update="autoUpdateSelected"
       @grant="reviewGrant"
       @delete-history="deleteHistory"
     />
+    <PluginVersionConfirmationDialog
+      v-if="pendingVersionInstall && installPreview"
+      :installed="installPreview.installed_version ?? ''"
+      :candidate="installPreview.version"
+      :downgrade="installPreview.version_change === 'downgrade'"
+      @cancel="pendingVersionInstall = null"
+      @confirm="
+        () => {
+          const confirmation = pendingVersionInstall;
+          pendingVersionInstall = null;
+          if (confirmation)
+            confirmInstall({ ...confirmation, versionChangeConfirmed: true });
+        }
+      "
+    />
+    <UiModal
+      v-if="operationError"
+      title="Plugin operation failed"
+      @close="
+        operationError = '';
+        error = '';
+      "
+    >
+      <p class="error" role="alert">{{ operationError }}</p>
+      <template #footer
+        ><button
+          type="button"
+          class="ui-btn ui-btn-primary"
+          @click="
+            operationError = '';
+            error = '';
+          "
+        >
+          Close
+        </button></template
+      >
+    </UiModal>
   </section>
 </template>
 
-<style scoped>
-.plugin-manager {
-  color: var(--ui-text);
-}
-.runtime-notice a {
-  color: var(--ui-accent, #ffb765);
-}
-.manager-tabs,
-.manager-filters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin: 16px 0;
-}
-.manager-tabs [aria-pressed="true"] {
-  border-color: #d68a34;
-  color: #ffb765;
-}
-.runtime-notice {
-  border: 1px solid #625135;
-  padding: 16px;
-  border-radius: 10px;
-  margin: 16px 0;
-}
-.readme {
-  max-width: 75ch;
-  line-height: 1.65;
-  overflow-wrap: anywhere;
-}
-.installer-launcher {
-  display: grid;
-  gap: 16px;
-  margin: 16px 0 24px;
-  padding: 16px;
-  border: 1px solid #2a2a2a;
-  border-radius: 10px;
-}
-.success {
-  color: #8f8;
-}
-.install-launcher {
-  font-size: 1rem;
-}
-.modal-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: var(--ui-z-dialog);
-  display: grid;
-  place-items: center;
-  padding: 24px;
-  background: rgba(0, 0, 0, 0.72);
-}
-.installer-dialog {
-  width: min(760px, 100%);
-  max-height: 90vh;
-  overflow: auto;
-  box-sizing: border-box;
-  padding: 24px;
-  background: #151515;
-  color: #f4f4f4;
-  border: 1px solid #3b3b3b;
-  border-radius: 14px;
-  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.65);
-  display: grid;
-  gap: 18px;
-}
-.dialog-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-}
-.eyebrow {
-  margin: 0 0 4px;
-  color: #d68a34;
-  font-size: 0.75rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-.endpoint-row {
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  align-items: center;
-}
-.endpoint-add {
-  display: flex;
-  gap: 8px;
-}
-.endpoint-add input {
-  flex: 1;
-  min-width: 0;
-}
-.install-method,
-.catalogue {
-  display: grid;
-  gap: 8px;
-}
-.url-row,
-.catalogue-header,
-.catalogue-entry {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-.url-row input {
-  flex: 1;
-  min-width: 0;
-}
-.catalogue-header {
-  justify-content: space-between;
-}
-.catalogue-header p {
-  margin: 4px 0 0;
-}
-.catalogue-entry {
-  justify-content: space-between;
-  padding: 10px 0;
-  border-top: 1px solid #2a2a2a;
-}
-.catalogue-entry div {
-  min-width: 0;
-}
-.catalogue-entry span {
-  display: block;
-  color: #aaa;
-  font-size: 12px;
-}
-.catalogue-entry p {
-  margin: 4px 0 0;
-  color: #aaa;
-}
-code {
-  font-family: monospace;
-}
-h2 {
-  margin-top: 0;
-}
-.muted {
-  color: #aaa;
-}
-.error {
-  color: #f77;
-}
-.list {
-  display: grid;
-  gap: 14px;
-}
-.plugin {
-  border: 1px solid #2a2a2a;
-  border-radius: 10px;
-  padding: 16px;
-}
-.plugin header {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-}
-.plugin h3 {
-  margin: 0 0 4px;
-}
-.plugin header span,
-.plugin dd {
-  color: #aaa;
-}
-.plugin dl {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 24px;
-}
-.plugin dt {
-  font-size: 12px;
-  color: #777;
-}
-.plugin dd {
-  margin: 2px 0 0;
-}
-.actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-button,
-.file-button {
-  cursor: pointer;
-  font: inherit;
-  font-size: 0.875rem;
-  padding: 8px 12px;
-  color: var(--ui-text);
-  background: #242424;
-  border: 1px solid var(--ui-border);
-  border-radius: 8px;
-}
-button:hover,
-.file-button:hover {
-  border-color: var(--ui-accent);
-}
-button:disabled {
-  cursor: wait;
-  opacity: 0.55;
-}
-input:not([type="checkbox"]):not([type="file"]),
-select {
-  font: inherit;
-  padding: 8px 10px;
-  color: var(--ui-text);
-  background: #171717;
-  border: 1px solid var(--ui-border);
-  border-radius: 8px;
-  min-width: 0;
-}
-.manager-filters input {
-  flex: 1;
-}
-.primary {
-  background: var(--ui-accent-soft);
-  border-color: var(--ui-accent-line);
-}
-.plugin img {
-  border-radius: 8px;
-  margin-bottom: 8px;
-}
-.file-button {
-  display: inline-flex;
-  align-items: center;
-}
-.file-button input {
-  display: none;
-}
-.danger {
-  border-color: #a44;
-}
-</style>
+<style scoped src="../../styles/settings/plugin-manager.css"></style>

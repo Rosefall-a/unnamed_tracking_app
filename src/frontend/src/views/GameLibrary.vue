@@ -10,12 +10,16 @@ import FilterCombobox from "../components/FilterCombobox.vue";
 import CollectionPickerModal from "../components/CollectionPickerModal.vue";
 import GameTopBar from "../components/GameTopBar.vue";
 import SegmentedTabs from "../components/SegmentedTabs.vue";
-import { formatDisplayDate } from "../utils/dates";
-import { activePriority, priorityLabel } from "../utils/priority";
-import { computeScore } from "../utils/scoring";
 import type { ViewMode, CardDensity } from "../composables/useGameLibrary";
 import { useGameLibrary } from "../composables/useGameLibrary";
+import { computed, ref } from "vue";
+import { quickTourActive } from "../state/quickTour";
 const {
+  viewportWidth,
+  activePriority,
+  priorityLabel,
+  formatDisplayDate,
+  computeScore,
   games,
   loading,
   error,
@@ -111,10 +115,35 @@ const {
   rowVirtualizer,
   cardsInRow,
 } = useGameLibrary();
+const previewToolsOpen = ref(false);
+const compactControls = computed(
+  () =>
+    viewportWidth.value <= 760 &&
+    !previewToolsOpen.value &&
+    !quickTourActive.value &&
+    !selectMode.value,
+);
+const compactPreview = computed(
+  () => compactControls.value && viewMode.value === "detail",
+);
 </script>
 
 <template>
-  <main class="library" :class="{ locked: viewMode === 'detail' }">
+  <main
+    class="library"
+    :class="{
+      locked: viewMode === 'detail',
+      'compact-preview': compactPreview,
+      'compact-controls': compactControls,
+    }"
+    :data-shortcut-context="
+      viewMode === 'detail'
+        ? 'games.preview'
+        : viewMode === 'cards'
+          ? 'games.cards'
+          : undefined
+    "
+  >
     <GameTopBar active="games">
       <template #actions>
         <SegmentedTabs
@@ -134,6 +163,16 @@ const {
             {{ games.length }} {{ games.length === 1 ? "game" : "games" }}
           </div>
         </div>
+        <button
+          v-if="viewportWidth <= 760"
+          type="button"
+          class="secondary-button preview-tools-toggle"
+          :aria-expanded="!compactControls"
+          :aria-label="compactControls ? 'Library controls' : 'Hide controls'"
+          @click="previewToolsOpen = !previewToolsOpen"
+        >
+          {{ compactControls ? "Controls" : "Hide controls" }}
+        </button>
         <div class="head-actions">
           <div class="select-button-wrap">
             <button
@@ -147,19 +186,6 @@ const {
             >
               {{ selectMode ? "Done" : "Select" }}
             </button>
-            <div v-if="showBulkEditHint" class="first-use-hint">
-              <span
-                >Select games, then bulk-edit their status, tags, or collections
-                all at once.</span
-              >
-              <button
-                type="button"
-                class="first-use-hint-dismiss"
-                @click="dismissBulkEditHint"
-              >
-                Got it
-              </button>
-            </div>
           </div>
           <button
             type="button"
@@ -170,10 +196,29 @@ const {
           >
             Random
           </button>
-          <button type="button" class="add-btn" @click="openAddModal">
+          <button
+            type="button"
+            class="add-btn"
+            data-shortcut="create"
+            @click="openAddModal"
+          >
             + Add Game
           </button>
         </div>
+      </div>
+
+      <div v-if="showBulkEditHint && !compactControls" class="first-use-hint">
+        <span
+          >Select games, then bulk-edit their status, tags, or collections all
+          at once.</span
+        >
+        <button
+          type="button"
+          class="first-use-hint-dismiss"
+          @click="dismissBulkEditHint"
+        >
+          Got it
+        </button>
       </div>
 
       <div v-if="selectMode" class="bulk-toolbar">
@@ -234,6 +279,7 @@ const {
           </svg>
           <input
             ref="librarySearch"
+            data-shortcut="search"
             v-model="searchQuery"
             type="text"
             class="search-input"
@@ -284,6 +330,7 @@ const {
         <button
           type="button"
           class="filter-btn"
+          data-tour="games-filters"
           :class="{ 'active-filter': filterCount }"
           @click="showAdvancedFilters = !showAdvancedFilters"
         >
@@ -342,7 +389,11 @@ const {
         </div>
       </div>
 
-      <div v-if="showAdvancedFilters" class="advanced-panel">
+      <div
+        v-if="showAdvancedFilters"
+        class="advanced-panel"
+        data-tour="games-filter-panel"
+      >
         <div class="filter-group platform-genre-group">
           <FilterCombobox
             v-model="platformFilter"
@@ -573,7 +624,12 @@ const {
           Clear filters
         </button>
         <template v-else>
-          <button type="button" class="btn-solid" @click="openAddModal">
+          <button
+            type="button"
+            class="btn-solid"
+            data-shortcut="create"
+            @click="openAddModal"
+          >
             + Add Game
           </button>
           <ul class="empty-hint-list">

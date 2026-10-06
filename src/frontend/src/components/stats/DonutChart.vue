@@ -13,16 +13,12 @@ const props = defineProps<{
 }>();
 
 const PALETTE = [
-  "#d68a34",
-  "#6fbf73",
-  "#7ba7d9",
-  "#d96f6f",
-  "#9d8cd9",
-  "#e8a552",
-  "#5cc2b8",
-  "#c78fbf",
-  "#b5b35c",
-  "#8a8a8a",
+  "var(--ui-accent)",
+  "var(--ui-good)",
+  "var(--ui-info)",
+  "var(--ui-error)",
+  "var(--ui-purple)",
+  "var(--ui-warning)",
 ];
 const RADIUS = 46;
 const CIRC = 2 * Math.PI * RADIUS;
@@ -67,7 +63,7 @@ const arcs = computed(() => {
           cy="60"
           :r="RADIUS"
           fill="none"
-          stroke="#222"
+          stroke="var(--ui-surface-2)"
           stroke-width="16"
         />
         <circle
@@ -123,12 +119,12 @@ const arcs = computed(() => {
   flex-shrink: 0;
 }
 .donut-total {
-  fill: #f2f2f2;
+  fill: var(--ui-text);
   font-size: 20px;
-  font-weight: 800;
+  font-weight: var(--ui-weight-title);
 }
 .donut-caption {
-  fill: #666;
+  fill: var(--ui-faint);
   font-size: 8px;
   font-weight: 700;
   letter-spacing: 0.06em;
@@ -157,23 +153,23 @@ const arcs = computed(() => {
   border-radius: 3px;
 }
 .name {
-  color: #ddd;
+  color: var(--ui-text);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .num {
-  color: #ddd;
+  color: var(--ui-text);
   font-variant-numeric: tabular-nums;
 }
 .pct {
-  color: #9c9c9c;
+  color: var(--ui-dim);
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
 .donut-empty {
   margin: 0;
-  color: #666;
+  color: var(--ui-faint);
   font-size: 0.82rem;
 }
 </style>

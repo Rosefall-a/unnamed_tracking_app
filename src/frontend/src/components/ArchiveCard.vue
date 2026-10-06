@@ -254,18 +254,18 @@ async function copy() {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  background: #141414;
-  border: 1px solid #262626;
-  border-radius: 12px;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-surface-2);
+  border-radius: var(--ui-radius-card);
   overflow: hidden;
   transition: border-color 0.15s ease;
 }
 .ac:hover {
-  border-color: #3a3a3a;
+  border-color: var(--ui-border-strong);
 }
 .ac.selected {
-  border-color: #d68a34;
-  box-shadow: 0 0 0 1px #d68a34;
+  border-color: var(--ui-accent-text);
+  box-shadow: 0 0 0 1px var(--ui-accent-text);
 }
 .ac-thumb {
   position: relative;
@@ -290,11 +290,11 @@ async function copy() {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #d68a34;
+  color: var(--ui-accent-text);
   background: radial-gradient(
     circle at 50% 40%,
-    rgba(214, 138, 52, 0.18),
-    rgba(214, 138, 52, 0.05) 70%
+    color-mix(in srgb, var(--ui-accent) 18%, transparent),
+    color-mix(in srgb, var(--ui-accent) 5%, transparent) 70%
   );
 }
 .ac-art svg {
@@ -308,8 +308,8 @@ async function copy() {
   z-index: 1;
   padding: 2px 8px;
   border-radius: 6px;
-  background: rgba(15, 15, 15, 0.82);
-  color: #eee;
+  background: color-mix(in srgb, var(--ui-bg) 82%, transparent);
+  color: var(--ui-text);
   font-size: 0.7rem;
   font-weight: 700;
   pointer-events: none;
@@ -317,7 +317,7 @@ async function copy() {
 .ac-uploading {
   left: 8px;
   right: auto;
-  color: #d68a34;
+  color: var(--ui-accent-text);
 }
 .ac-progress {
   position: absolute;
@@ -325,14 +325,14 @@ async function copy() {
   right: 0;
   bottom: 0;
   height: 3px;
-  background: rgba(255, 255, 255, 0.12);
+  background: color-mix(in srgb, var(--ui-text) 12%, transparent);
   overflow: hidden;
 }
 .ac-progress span {
   display: block;
   width: 40%;
   height: 100%;
-  background: #d68a34;
+  background: var(--ui-accent);
   animation: ac-slide 1.2s ease-in-out infinite;
 }
 @keyframes ac-slide {
@@ -360,17 +360,17 @@ async function copy() {
   width: 22px;
   height: 22px;
   border-radius: 6px;
-  border: 2px solid rgba(255, 255, 255, 0.85);
-  background: rgba(15, 15, 15, 0.6);
-  color: #14100a;
+  border: 2px solid color-mix(in srgb, var(--ui-text) 85%, transparent);
+  background: color-mix(in srgb, var(--ui-bg) 60%, transparent);
+  color: var(--ui-on-accent);
   display: flex;
   align-items: center;
   justify-content: center;
   pointer-events: none;
 }
 .ac.selected .ac-check {
-  background: #d68a34;
-  border-color: #d68a34;
+  background: var(--ui-accent);
+  border-color: var(--ui-accent-text);
 }
 .ac-actions {
   position: absolute;
@@ -395,10 +395,10 @@ async function copy() {
 .ac-actions a {
   width: 28px;
   height: 28px;
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   border: none;
-  background: rgba(15, 15, 15, 0.78);
-  color: #eee;
+  background: color-mix(in srgb, var(--ui-bg) 78%, transparent);
+  color: var(--ui-text);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -409,16 +409,16 @@ async function copy() {
 }
 .ac-actions button:hover,
 .ac-actions a:hover {
-  background: #d68a34;
-  color: #14100a;
+  background: var(--ui-accent);
+  color: var(--ui-on-accent);
 }
 .ac-actions button:disabled {
   opacity: 0.5;
   cursor: default;
 }
 .ac-actions button:last-of-type:hover {
-  background: #d96f6f;
-  color: #fff;
+  background: var(--ui-error);
+  color: var(--ui-text);
 }
 .ac-body {
   min-height: 74px;
@@ -444,15 +444,15 @@ async function copy() {
   flex-wrap: wrap;
   gap: 5px 6px;
   font-size: 0.72rem;
-  color: #777;
+  color: var(--ui-faint);
   min-width: 0;
 }
 .ac-faint {
-  color: #666;
+  color: var(--ui-faint);
 }
 .ac-chip {
-  background: rgba(255, 255, 255, 0.07);
-  color: #aaa;
+  background: color-mix(in srgb, var(--ui-text) 7%, transparent);
+  color: var(--ui-dim);
   border-radius: 999px;
   padding: 1px 8px;
   font-size: 0.68rem;

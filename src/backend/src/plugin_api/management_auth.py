@@ -35,7 +35,7 @@ def management_scope(method: str, path: str) -> str | None:
         not parts
         or parts[0] in {"catalog", "catalogues", "manager-settings", "runtime"}
         or len(parts) == 2
-        and parts[1] in {"logs", "changelog", "detail"}
+        and parts[1] in {"logs", "changelog", "detail", "details"}
     ):
         return "plugins.read"
     if parts and parts[0] == "install":

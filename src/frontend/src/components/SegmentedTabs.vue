@@ -52,6 +52,7 @@ const emit = defineEmits<{ "update:modelValue": [value: string] }>();
         class="seg-tab"
         :class="{ active: modelValue === o.value }"
         :title="o.title"
+        :aria-pressed="modelValue === o.value"
         @click="emit('update:modelValue', o.value)"
       >
         <svg
@@ -87,10 +88,10 @@ const emit = defineEmits<{ "update:modelValue": [value: string] }>();
   justify-content: center;
   gap: 7px;
   box-sizing: border-box;
-  height: 30px;
+  min-height: var(--ui-control-height);
   padding: 0 14px;
   border: none;
-  border-radius: 7px;
+  border-radius: var(--ui-radius-control);
   background: transparent;
   color: var(--ui-dim);
   font-family: inherit;

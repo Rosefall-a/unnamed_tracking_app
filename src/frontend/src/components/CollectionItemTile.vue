@@ -38,6 +38,11 @@ const emit = defineEmits<{
 <template>
   <div
     class="item-card"
+    tabindex="0"
+    role="button"
+    :aria-label="`Open ${title}`"
+    @keydown.enter.self.prevent="emit('open')"
+    @keydown.space.self.prevent="emit('open')"
     :class="{ reordering: reorderMode, dragging }"
     :draggable="reorderMode"
     @click="emit('open')"
@@ -117,9 +122,9 @@ const emit = defineEmits<{
   position: relative;
   width: 100%;
   aspect-ratio: 2 / 3;
-  border-radius: 10px;
+  border-radius: var(--ui-radius-row);
   overflow: hidden;
-  background: #1a1a1a;
+  background: var(--ui-surface);
   transition:
     transform 0.32s cubic-bezier(0.22, 1, 0.36, 1),
     box-shadow 0.32s cubic-bezier(0.22, 1, 0.36, 1);
@@ -141,7 +146,7 @@ const emit = defineEmits<{
   background-size: cover;
   background-repeat: no-repeat;
   background-position: center;
-  background-color: #1c1c1c;
+  background-color: var(--ui-surface);
 }
 
 .tile-btn {
@@ -149,9 +154,9 @@ const emit = defineEmits<{
   height: 24px;
   border-radius: 50%;
   border: none;
-  background: rgba(20, 20, 20, 0.75);
+  background: color-mix(in srgb, var(--ui-bg) 75%, transparent);
   backdrop-filter: blur(4px);
-  color: #ccc;
+  color: var(--ui-text);
   font-size: 11px;
   cursor: pointer;
 }
@@ -166,7 +171,10 @@ const emit = defineEmits<{
   align-items: center;
   justify-content: space-between;
   padding: 6px;
-  background: linear-gradient(transparent, rgba(0, 0, 0, 0.85));
+  background: linear-gradient(
+    transparent,
+    color-mix(in srgb, var(--ui-bg) 85%, transparent)
+  );
 }
 
 .reorder-arrows button {
@@ -174,8 +182,8 @@ const emit = defineEmits<{
   height: 26px;
   border-radius: 50%;
   border: none;
-  background: rgba(255, 255, 255, 0.14);
-  color: #fff;
+  background: color-mix(in srgb, var(--ui-text) 14%, transparent);
+  color: var(--ui-text);
   font-size: 15px;
   cursor: pointer;
 }
@@ -187,7 +195,7 @@ const emit = defineEmits<{
 
 .reorder-pos {
   font-size: 12px;
-  font-weight: 800;
+  font-weight: var(--ui-weight-title);
   font-variant-numeric: tabular-nums;
 }
 
@@ -199,7 +207,7 @@ const emit = defineEmits<{
   margin: 0 0 6px;
   font-size: 14px;
   font-weight: 600;
-  color: #fff;
+  color: var(--ui-text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -217,35 +225,35 @@ const emit = defineEmits<{
 }
 
 .pill.watching {
-  background: rgba(214, 138, 52, 0.16);
-  color: #d68a34;
+  background: color-mix(in srgb, var(--ui-accent) 16%, transparent);
+  color: var(--ui-accent-text);
 }
 
 .pill.completed {
-  background: rgba(111, 191, 115, 0.16);
-  color: #6fbf73;
+  background: color-mix(in srgb, var(--ui-good) 16%, transparent);
+  color: var(--ui-good);
 }
 
 .pill.hold {
-  background: rgba(123, 167, 217, 0.16);
-  color: #7ba7d9;
+  background: color-mix(in srgb, var(--ui-info) 16%, transparent);
+  color: var(--ui-info);
 }
 
 .pill.dropped {
-  background: rgba(217, 111, 111, 0.16);
-  color: #d96f6f;
+  background: color-mix(in srgb, var(--ui-error) 16%, transparent);
+  color: var(--ui-error);
 }
 
 .pill.plan {
-  background: rgba(157, 140, 217, 0.16);
-  color: #9d8cd9;
+  background: color-mix(in srgb, var(--ui-purple) 16%, transparent);
+  color: var(--ui-purple);
 }
 .cover-mark {
   position: absolute;
   left: 8px;
   top: 8px;
   z-index: 2;
-  color: #d68a34;
+  color: var(--ui-accent-text);
   font-size: 14px;
   text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
 }
@@ -273,11 +281,29 @@ const emit = defineEmits<{
 }
 
 .tile-btn:hover {
-  color: #e57373;
+  color: var(--ui-error);
 }
 
 .tile-btn.star:hover,
 .tile-btn.on {
-  color: #d68a34;
+  color: var(--ui-accent-text);
+}
+.item-card:focus-visible {
+  outline: 2px solid var(--ui-accent-text);
+  outline-offset: 4px;
+  border-radius: var(--ui-radius-card);
+}
+.item-card:focus-within .tile-actions {
+  opacity: 1;
+}
+.tile-btn,
+.reorder-arrows button {
+  min-width: var(--ui-control-height);
+  min-height: var(--ui-control-height);
+}
+@media (hover: none), (max-width: 760px) {
+  .tile-actions {
+    opacity: 1;
+  }
 }
 </style>

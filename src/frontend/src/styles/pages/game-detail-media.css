@@ -1,3 +1,804 @@
+.game-detail-page .ach-big.ach-small {
+  font-size: 0.9rem;
+}
+
+.game-detail-page .ach-dim {
+  color: var(--ui-faint);
+}
+
+.game-detail-page .ach-lab {
+  margin-top: 3px;
+  font-size: 0.72rem;
+  color: var(--ui-faint);
+}
+
+.game-detail-page .ach-bar {
+  width: 72px;
+  height: 5px;
+  margin: 6px 0 0 auto;
+  border-radius: 999px;
+  background: var(--ui-border);
+  overflow: hidden;
+}
+
+.game-detail-page .ach-bar i {
+  display: block;
+  height: 100%;
+  background: var(--ui-accent);
+}
+
+.game-detail-page .ach-acts {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.game-detail-page .ach-btn {
+  padding: 6px 13px;
+  background: transparent;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
+  color: var(--ui-dim);
+  font: inherit;
+  font-size: 0.78rem;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.game-detail-page .ach-btn:hover {
+  color: var(--ui-text);
+}
+
+.game-detail-page .ach-btn-media {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.game-detail-page .ach-btn.on {
+  color: var(--ui-accent-text);
+  border-color: color-mix(in srgb, var(--ui-accent) 50%, transparent);
+}
+
+.game-detail-page .ach-media-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 14px 12px;
+  border-top: 1px solid var(--ui-surface-2);
+}
+
+.game-detail-page .ach-media-thumb {
+  width: 160px;
+  aspect-ratio: 16 / 9;
+  padding: 0;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
+  background: var(--ui-surface);
+  overflow: hidden;
+  cursor: pointer;
+  object-fit: cover;
+}
+
+.game-detail-page .ach-media-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.game-detail-page .ach-media-audio {
+  height: 36px;
+  max-width: 100%;
+}
+
+@media (max-width: 720px) {
+  .game-detail-page .ach-cols {
+    display: none;
+  }
+  .game-detail-page .ach-mobile-sort {
+    display: block;
+  }
+  .game-detail-page .ach-row {
+    grid-template-columns: 52px minmax(0, 1fr);
+    row-gap: 8px;
+    min-height: 0;
+  }
+  .game-detail-page .ach-icon {
+    width: 52px;
+    height: 52px;
+  }
+  .game-detail-page .ach-col,
+  .game-detail-page .ach-acts {
+    grid-column: 2;
+    justify-content: flex-start;
+    text-align: left;
+  }
+  .game-detail-page .ach-col {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+  }
+  .game-detail-page .ach-bar {
+    margin-left: 0;
+  }
+}
+
+.game-detail-page .notes-panel {
+  width: 100%;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 22px 24px 60px;
+  box-sizing: border-box;
+}
+
+.game-detail-page .account-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.game-detail-page .account-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: color-mix(in srgb, var(--ui-text) 6%, transparent);
+  border: 1px solid var(--ui-border-strong);
+  border-radius: 999px;
+  color: var(--ui-text);
+  padding: 6px 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.game-detail-page .account-chip:hover {
+  border-color: var(--ui-accent-text);
+}
+
+.game-detail-page .account-chip.active {
+  background: color-mix(in srgb, var(--ui-accent) 18%, transparent);
+  border-color: var(--ui-accent-text);
+  color: var(--ui-accent-text);
+}
+
+.game-detail-page .account-add {
+  display: flex;
+  gap: 6px;
+}
+
+.game-detail-page .account-add input {
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border-strong);
+  border-radius: 999px;
+  color: var(--ui-text);
+  padding: 6px 12px;
+  font-size: 0.8rem;
+  min-width: 200px;
+}
+
+.game-detail-page .checklist-card {
+  background: color-mix(in srgb, var(--ui-bg) 20%, transparent);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.game-detail-page .checklist-card h3 {
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--ui-text);
+}
+
+.game-detail-page .checklist-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.game-detail-page .checklist-progress-label {
+  font-size: 0.8rem;
+  color: var(--ui-dim);
+  font-weight: 600;
+}
+
+.game-detail-page .checklist-progress-bar {
+  height: 5px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ui-text) 8%, transparent);
+  overflow: hidden;
+}
+
+.game-detail-page .checklist-progress-fill {
+  height: 100%;
+  background: var(--ui-accent);
+  transition: width 0.2s ease;
+}
+
+.game-detail-page .checklist-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.game-detail-page .checklist-section-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--ui-border);
+}
+
+.game-detail-page .checklist-section-caret {
+  color: var(--ui-faint);
+  font-size: 0.7rem;
+  width: 10px;
+}
+
+.game-detail-page .checklist-section-title {
+  flex: 1;
+  color: var(--ui-text);
+  font-weight: 700;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.game-detail-page .checklist-section-count {
+  color: var(--ui-faint);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.game-detail-page .checklist-items {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.game-detail-page .checklist-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.game-detail-page .checklist-move-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.game-detail-page .checklist-move {
+  background: none;
+  border: none;
+  color: var(--ui-border-strong);
+  cursor: pointer;
+  font-size: 0.55rem;
+  line-height: 1;
+  padding: 1px 2px;
+}
+
+.game-detail-page .checklist-move:hover {
+  color: var(--ui-accent-text);
+}
+
+.game-detail-page .checklist-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  color: var(--ui-text);
+  cursor: pointer;
+}
+
+.game-detail-page .checklist-label span.done {
+  color: var(--ui-faint);
+  text-decoration: line-through;
+}
+
+.game-detail-page .checklist-edit-input {
+  flex: 1;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-accent-text);
+  border-radius: 6px;
+  color: var(--ui-text);
+  padding: 4px 8px;
+  font-size: 0.9rem;
+}
+
+.game-detail-page .checklist-remove {
+  background: none;
+  border: none;
+  color: var(--ui-faint);
+  cursor: pointer;
+  font-weight: 700;
+  padding: 0 4px;
+}
+
+.game-detail-page .checklist-remove:hover {
+  color: var(--ui-error);
+}
+
+.game-detail-page .checklist-add-row {
+  display: flex;
+  gap: 8px;
+}
+
+.game-detail-page .checklist-add {
+  display: flex;
+  gap: 8px;
+  flex: 1;
+}
+
+.game-detail-page .checklist-add input {
+  flex: 1;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border-strong);
+  border-radius: var(--ui-radius-control);
+  color: var(--ui-text);
+  padding: 8px 10px;
+}
+
+.game-detail-page .accounts-panel {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 22px 24px 60px;
+  box-sizing: border-box;
+}
+
+.game-detail-page .accounts-layout {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: 20px;
+  align-items: start;
+}
+
+.game-detail-page .accounts-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: color-mix(in srgb, var(--ui-bg) 20%, transparent);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
+  padding: 10px;
+  position: sticky;
+  top: 24px;
+}
+
+.game-detail-page .account-list-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  color: var(--ui-text);
+  padding: 9px 10px;
+  font-size: 0.85rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.game-detail-page .account-list-item:hover {
+  background: color-mix(in srgb, var(--ui-text) 5%, transparent);
+}
+
+.game-detail-page .account-list-item.active {
+  background: color-mix(in srgb, var(--ui-accent) 16%, transparent);
+  color: var(--ui-accent-text);
+  font-weight: 600;
+}
+
+.game-detail-page .account-list-meta {
+  color: var(--ui-dim);
+  font-size: 0.72rem;
+}
+
+.game-detail-page .accounts-sidebar .account-add {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  padding-top: 10px;
+  border-top: 1px solid var(--ui-border);
+}
+
+.game-detail-page .accounts-sidebar .account-add input {
+  flex: 1;
+  min-width: 0;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  color: var(--ui-text);
+  padding: 7px 8px;
+  font-size: 0.85rem;
+}
+
+.game-detail-page .accounts-sidebar .account-add input:focus {
+  outline: none;
+  background: color-mix(in srgb, var(--ui-text) 5%, transparent);
+}
+
+.game-detail-page .accounts-sidebar .account-add button {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 1px solid var(--ui-border-strong);
+  background: none;
+  color: var(--ui-text);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.game-detail-page .accounts-sidebar .account-add button:hover:not(:disabled) {
+  border-color: var(--ui-accent-text);
+  color: var(--ui-accent-text);
+}
+
+.game-detail-page .accounts-sidebar .account-add button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.game-detail-page .accounts-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+.game-detail-page .accounts-detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.game-detail-page .accounts-detail-header h2 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+.game-detail-page .accounts-detail-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.game-detail-page .account-note-card,
+.game-detail-page .account-stats-card,
+.game-detail-page .account-gallery-card {
+  background: color-mix(in srgb, var(--ui-bg) 20%, transparent);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.game-detail-page .account-note-card h3,
+.game-detail-page .account-stats-card h3,
+.game-detail-page .account-gallery-card h3 {
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--ui-text);
+}
+
+.game-detail-page .account-note-card textarea {
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border-strong);
+  border-radius: var(--ui-radius-control);
+  color: var(--ui-text);
+  padding: 10px;
+  font: inherit;
+  resize: vertical;
+}
+
+.game-detail-page .account-stats-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.game-detail-page .stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.game-detail-page .stat-grid.headline {
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  margin-bottom: 14px;
+}
+
+.game-detail-page .stat-group-heading {
+  margin: 4px 0 8px;
+  color: var(--ui-dim);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.game-detail-page .account-stat-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  background: color-mix(in srgb, var(--ui-text) 4%, transparent);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
+  padding: 8px 6px;
+  text-align: center;
+}
+
+.game-detail-page .account-stat-tile.headline {
+  padding: 14px 6px;
+  background: color-mix(in srgb, var(--ui-accent) 10%, transparent);
+  border-color: color-mix(in srgb, var(--ui-accent) 35%, transparent);
+}
+
+.game-detail-page .account-stat-tile.headline .stat-tile-value {
+  color: var(--ui-accent-text);
+  font-size: 1.3rem;
+}
+
+.game-detail-page .stat-tile-label {
+  color: var(--ui-dim);
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.game-detail-page .stat-tile-value {
+  color: var(--ui-text);
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+
+.game-detail-page .stat-tile-icon {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+
+.game-detail-page .account-stat-tile.headline .stat-tile-icon {
+  width: 26px;
+  height: 26px;
+}
+
+.game-detail-page .stat-tile-boss-icon {
+  color: var(--ui-dim);
+}
+
+.game-detail-page .account-history-card {
+  background: color-mix(in srgb, var(--ui-bg) 20%, transparent);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.game-detail-page .account-history-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: none;
+  border: none;
+  color: var(--ui-text);
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0;
+}
+
+.game-detail-page .account-history-caret {
+  color: var(--ui-faint);
+  font-size: 0.75rem;
+}
+
+.game-detail-page .wom-sync-row {
+  display: flex;
+  gap: 8px;
+}
+
+.game-detail-page .wom-sync-row input {
+  flex: 1;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border-strong);
+  border-radius: var(--ui-radius-control);
+  color: var(--ui-text);
+  padding: 8px 10px;
+}
+
+.game-detail-page .stat-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.game-detail-page .stat-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 6px;
+  align-items: center;
+}
+
+.game-detail-page .stat-row input {
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border-strong);
+  border-radius: 6px;
+  color: var(--ui-text);
+  padding: 6px 8px;
+  font-size: 0.85rem;
+}
+
+.game-detail-page .stat-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.game-detail-page .empty-state.small {
+  font-size: 0.78rem;
+  margin: 0;
+}
+
+.game-detail-page .stat-history-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.game-detail-page .stat-history-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.game-detail-page .stat-history-date {
+  color: var(--ui-dim);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.game-detail-page .stat-history-values {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.game-detail-page .stat-history-chip {
+  background: color-mix(in srgb, var(--ui-text) 6%, transparent);
+  color: var(--ui-text);
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 0.68rem;
+}
+
+.game-detail-page .stat-history-chip.gain {
+  background: color-mix(in srgb, var(--ui-good) 14%, transparent);
+  color: var(--ui-good);
+  font-weight: 600;
+}
+
+.game-detail-page .account-gallery-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.game-detail-page .account-gallery-kinds {
+  display: flex;
+  gap: 6px;
+}
+
+.game-detail-page .field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--ui-text);
+  font-size: 0.85rem;
+}
+
+.game-detail-page .field input {
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border-strong);
+  border-radius: var(--ui-radius-control);
+  color: var(--ui-text);
+  padding: 10px 12px;
+}
+
+.game-detail-page .field input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.game-detail-page .primary-button,
+.game-detail-page .small-button,
+.game-detail-page .danger-button {
+  border: none;
+  border-radius: var(--ui-radius-control);
+  cursor: pointer;
+  font-weight: 600;
+  transition: opacity 0.15s ease;
+}
+
+.game-detail-page .primary-button {
+  background: var(--ui-accent);
+  color: var(--ui-on-accent);
+  padding: 10px 12px;
+}
+
+.game-detail-page .small-button {
+  background: color-mix(in srgb, var(--ui-text) 8%, transparent);
+  color: var(--ui-text);
+  padding: 7px 10px;
+  font-size: 0.8rem;
+}
+
+.game-detail-page .danger-button {
+  background: color-mix(in srgb, var(--ui-error) 18%, transparent);
+  color: var(--ui-error);
+  padding: 8px 10px;
+}
+
+.game-detail-page .primary-button:disabled,
+.game-detail-page .danger-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.game-detail-page .note-error {
+  color: var(--ui-error);
+}
+
+.game-detail-page .field input:focus {
+  outline: none;
+  border-color: var(--ui-accent-text);
+}
+
+.game-detail-page .empty-state {
+  color: var(--ui-faint);
+  margin: 0;
+}
+
+.game-detail-page .empty-state.error {
+  color: var(--ui-error);
+}
+
 /* Screenshots / Clips / Saves / Docs / Stats / History */
 
 .game-detail-page .media-panel,
@@ -6,9 +807,9 @@
 .game-detail-page .stats-panel,
 .game-detail-page .history-panel {
   width: 100%;
-  max-width: 1600px;
+  max-width: 1180px;
   margin: 0 auto;
-  padding: 24px;
+  padding: 22px 24px 60px;
   box-sizing: border-box;
   position: relative;
   z-index: 1;
@@ -36,61 +837,6 @@
   margin-bottom: 16px;
 }
 
-.game-detail-page .history-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.game-detail-page .history-entry {
-  background: #1a1a1a;
-  border: 1px solid #2a2a2a;
-  border-radius: 10px;
-  padding: 12px 16px;
-}
-
-.game-detail-page .history-entry-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 6px;
-}
-
-.game-detail-page .history-field {
-  font-weight: 600;
-  color: #ccc;
-}
-
-.game-detail-page .history-date {
-  color: #777;
-  font-size: 0.8rem;
-}
-
-.game-detail-page .history-values {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 0.9rem;
-}
-
-.game-detail-page .history-values svg {
-  flex-shrink: 0;
-  color: #666;
-}
-
-.game-detail-page .history-old {
-  color: #999;
-  text-decoration: line-through;
-  text-decoration-color: #444;
-}
-
-.game-detail-page .history-new {
-  color: #d68a34;
-}
-
 .game-detail-page .upload-label {
   display: inline-flex;
   align-items: center;
@@ -102,22 +848,22 @@
 }
 
 .game-detail-page .section-hint {
-  color: #999;
+  color: var(--ui-dim);
   font-size: 0.85rem;
   margin: 0 0 16px;
 }
 
 .game-detail-page .empty-row {
-  color: #777;
+  color: var(--ui-faint);
   font-size: 14px;
 }
 
 .game-detail-page .form-error {
-  color: #fca5a5;
+  color: var(--ui-error);
   font-size: 13px;
-  background: rgba(220, 38, 38, 0.1);
-  border: 1px solid rgba(220, 38, 38, 0.3);
-  border-radius: 8px;
+  background: color-mix(in srgb, var(--ui-error) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ui-error) 30%, transparent);
+  border-radius: var(--ui-radius-control);
   padding: 8px 10px;
   margin-bottom: 14px;
 }
@@ -138,7 +884,7 @@
 .game-detail-page .lightbox-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.85);
+  background: color-mix(in srgb, var(--ui-bg) 85%, transparent);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -150,7 +896,7 @@
 .game-detail-page .lightbox-image {
   max-width: 100%;
   max-height: 100%;
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
 }
 
@@ -167,15 +913,15 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  background: rgba(0, 0, 0, 0.2);
-  border: 1px solid #2a2a2a;
-  border-radius: 8px;
+  background: color-mix(in srgb, var(--ui-bg) 20%, transparent);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
   padding: 12px 16px;
-  color: #999;
+  color: var(--ui-dim);
 }
 
 .game-detail-page .file-name {
-  color: #fff;
+  color: var(--ui-text);
   font-size: 0.9rem;
   text-decoration: none;
   flex: 1;
@@ -190,7 +936,7 @@
 
 .game-detail-page .world-map-panel h2 {
   margin: 0 0 4px;
-  color: #fff;
+  color: var(--ui-text);
 }
 
 .game-detail-page .world-map-uploads {
@@ -203,7 +949,7 @@
 .game-detail-page .world-map-upload-col h3 {
   margin: 0 0 8px;
   font-size: 0.85rem;
-  color: #ccc;
+  color: var(--ui-text);
 }
 
 /* Saves: named, versioned archives ---------------------------------------- */
@@ -215,9 +961,9 @@
 }
 
 .game-detail-page .archive-card {
-  background: rgba(0, 0, 0, 0.2);
-  border: 1px solid #2a2a2a;
-  border-radius: 10px;
+  background: color-mix(in srgb, var(--ui-bg) 20%, transparent);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-row);
   padding: 14px;
 }
 
@@ -229,7 +975,7 @@
 }
 
 .game-detail-page .archive-name {
-  color: #fff;
+  color: var(--ui-text);
   font-weight: 600;
   font-size: 0.92rem;
   overflow: hidden;
@@ -248,8 +994,8 @@
   height: 24px;
   border-radius: 6px;
   border: none;
-  background: rgba(255, 255, 255, 0.06);
-  color: #999;
+  background: color-mix(in srgb, var(--ui-text) 6%, transparent);
+  color: var(--ui-dim);
   cursor: pointer;
   font-size: 12px;
   display: flex;
@@ -258,12 +1004,12 @@
 }
 
 .game-detail-page .icon-button:hover {
-  background: rgba(255, 255, 255, 0.14);
-  color: #fff;
+  background: color-mix(in srgb, var(--ui-text) 14%, transparent);
+  color: var(--ui-text);
 }
 
 .game-detail-page .archive-meta {
-  color: #777;
+  color: var(--ui-faint);
   font-size: 0.76rem;
   margin: 4px 0 12px;
 }
@@ -278,7 +1024,7 @@
   list-style: none;
   margin: 12px 0 0;
   padding: 10px 0 0;
-  border-top: 1px solid #232323;
+  border-top: 1px solid var(--ui-surface-2);
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -302,20 +1048,20 @@
 .game-detail-page .trash-section {
   margin-top: 20px;
   padding-top: 14px;
-  border-top: 1px solid #2a2a2a;
+  border-top: 1px solid var(--ui-border);
 }
 
 .game-detail-page .trash-toggle {
   background: none;
   border: none;
-  color: #999;
+  color: var(--ui-dim);
   font-size: 0.82rem;
   cursor: pointer;
   padding: 0;
 }
 
 .game-detail-page .trash-toggle:hover {
-  color: #ccc;
+  color: var(--ui-text);
 }
 
 .game-detail-page .trash-list {
@@ -332,23 +1078,29 @@
   align-items: center;
   gap: 10px;
   padding: 8px 10px;
-  background: rgba(0, 0, 0, 0.2);
-  border: 1px solid #2a2a2a;
-  border-radius: 8px;
+  background: color-mix(in srgb, var(--ui-bg) 20%, transparent);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
   font-size: 0.82rem;
 }
 
 .game-detail-page .trash-name {
   flex: 1;
-  color: #ccc;
+  color: var(--ui-text);
 }
 
 .game-detail-page .trash-meta {
-  color: #777;
+  color: var(--ui-faint);
   font-size: 0.76rem;
 }
 
 /* World Map: card grid with thumbnails ------------------------------------- */
+
+.game-detail-page .modpack-block {
+  margin-top: 36px;
+  padding-top: 28px;
+  border-top: 1px solid var(--ui-surface-2);
+}
 
 .game-detail-page .world-map-grid {
   display: grid;
@@ -357,16 +1109,16 @@
 }
 
 .game-detail-page .world-map-card {
-  background: rgba(0, 0, 0, 0.2);
-  border: 1px solid #2a2a2a;
-  border-radius: 10px;
+  background: color-mix(in srgb, var(--ui-bg) 20%, transparent);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-row);
   overflow: hidden;
 }
 
 .game-detail-page .world-map-thumb {
   position: relative;
   aspect-ratio: 4 / 3;
-  background: #0c0f14;
+  background: var(--ui-surface-2);
   cursor: default;
 }
 
@@ -388,7 +1140,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #3a3a3a;
+  color: var(--ui-border-strong);
 }
 
 .game-detail-page .world-map-card-body {
@@ -398,20 +1150,20 @@
 .game-detail-page .world-map-status {
   display: block;
   font-size: 0.78rem;
-  color: #999;
+  color: var(--ui-dim);
   margin: 4px 0 10px;
 }
 
 .game-detail-page .world-map-status.error {
-  color: #fca5a5;
+  color: var(--ui-error);
 }
 
 .game-detail-page .world-map-status.done {
-  color: #86efac;
+  color: var(--ui-good);
 }
 
 .game-detail-page .world-map-status.rendering {
-  color: #d68a34;
+  color: var(--ui-accent-text);
 }
 
 .game-detail-page .world-map-card-actions {
@@ -427,7 +1179,7 @@
   bottom: 0;
   height: 4px;
   border-radius: 0;
-  background: rgba(0, 0, 0, 0.4);
+  background: color-mix(in srgb, var(--ui-bg) 40%, transparent);
   overflow: hidden;
 }
 
@@ -435,7 +1187,7 @@
   width: 30%;
   height: 100%;
   border-radius: 999px;
-  background: #d68a34;
+  background: var(--ui-accent);
   animation: world-map-scan 1.2s ease-in-out infinite;
 }
 
@@ -451,33 +1203,22 @@
 .game-detail-page .world-map-frame {
   width: 100%;
   height: 70vh;
-  border: 1px solid #2a2a2a;
-  border-radius: 10px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-row);
   margin-top: 16px;
-  background: #000;
+  background: var(--ui-surface);
 }
 
 .game-detail-page .file-size {
-  color: #777;
+  color: var(--ui-faint);
   font-size: 0.78rem;
   flex-shrink: 0;
-}
-
-.game-detail-page .file-download {
-  color: #93c5fd;
-  font-size: 0.8rem;
-  flex-shrink: 0;
-  text-decoration: none;
-}
-
-.game-detail-page .file-download:hover {
-  text-decoration: underline;
 }
 
 .game-detail-page .tile-remove-inline {
   background: none;
   border: none;
-  color: #777;
+  color: var(--ui-faint);
   cursor: pointer;
   font-size: 13px;
   padding: 2px 4px;
@@ -485,89 +1226,18 @@
 }
 
 .game-detail-page .tile-remove-inline:hover {
-  color: #fca5a5;
-}
-
-.game-detail-page .stats-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: 14px;
-}
-
-.game-detail-page .stat-tile {
-  background: rgba(0, 0, 0, 0.2);
-  border: 1px solid #2a2a2a;
-  border-radius: 10px;
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.game-detail-page .stat-label {
-  color: #999;
-  font-size: 0.76rem;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-}
-
-.game-detail-page .stat-value {
-  color: #fff;
-  font-size: 1.3rem;
-  font-weight: 700;
-  text-transform: capitalize;
+  color: var(--ui-error);
 }
 
 .game-detail-page .not-found {
   padding: 24px;
-  color: #fff;
-}
-
-.game-detail-page .note-rendered {
-  color: #ddd;
-  line-height: 1.6;
-  font-size: 14px;
-}
-
-.game-detail-page .note-rendered h1,
-.game-detail-page .note-rendered h2,
-.game-detail-page .note-rendered h3 {
-  color: #fff;
-  margin: 16px 0 8px;
-}
-
-.game-detail-page .note-rendered p {
-  margin: 0 0 10px;
-}
-
-.game-detail-page .note-rendered a {
-  color: #d68a34;
-}
-
-.game-detail-page .note-rendered code {
-  background: #111;
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-size: 13px;
-}
-
-.game-detail-page .note-rendered pre {
-  background: #111;
-  padding: 12px;
-  border-radius: 8px;
-  overflow-x: auto;
-}
-
-.game-detail-page .note-rendered ul,
-.game-detail-page .note-rendered ol {
-  padding-left: 20px;
-  margin: 0 0 10px;
+  color: var(--ui-text);
 }
 
 .game-detail-page .confirm-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.65);
+  background: color-mix(in srgb, var(--ui-bg) 65%, transparent);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -575,9 +1245,9 @@
 }
 
 .game-detail-page .confirm-dialog {
-  background: #1a1a1a;
-  border: 1px solid #2a2a2a;
-  border-radius: 12px;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-card);
   padding: 22px;
   width: 100%;
   max-width: 360px;
@@ -590,12 +1260,12 @@
 
 .game-detail-page .confirm-dialog p {
   margin: 0 0 16px;
-  color: #aaa;
+  color: var(--ui-dim);
   font-size: 14px;
 }
 
 .game-detail-page .confirm-error {
-  color: #fca5a5;
+  color: var(--ui-error);
   font-size: 13px;
   margin-bottom: 12px;
 }
@@ -612,6 +1282,6 @@
 }
 
 .game-detail-page .secondary-button {
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
+  background: color-mix(in srgb, var(--ui-text) 8%, transparent);
+  color: var(--ui-text);
 }

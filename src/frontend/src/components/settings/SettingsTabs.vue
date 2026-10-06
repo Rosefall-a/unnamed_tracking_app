@@ -31,14 +31,14 @@ defineEmits<{ "update:modelValue": [id: string] }>();
   flex-wrap: wrap;
   gap: 4px;
   margin: 0 0 22px;
-  border-bottom: 1px solid #2a2a2a;
+  border-bottom: 1px solid var(--ui-border);
 }
 .settings-tab {
   background: none;
   border: none;
   border-bottom: 2px solid transparent;
   margin-bottom: -1px;
-  color: #999;
+  color: var(--ui-dim);
   font: inherit;
   font-size: 0.9rem;
   font-weight: 600;
@@ -49,10 +49,10 @@ defineEmits<{ "update:modelValue": [id: string] }>();
     border-color 0.15s ease;
 }
 .settings-tab:hover {
-  color: #fff;
+  color: var(--ui-text);
 }
 .settings-tab.active {
-  color: #d68a34;
-  border-bottom-color: #d68a34;
+  color: var(--ui-accent-text);
+  border-bottom-color: var(--ui-accent);
 }
 </style>

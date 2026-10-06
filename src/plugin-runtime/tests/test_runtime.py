@@ -135,11 +135,22 @@ def _package_bytes(
     version: str = "1.0.0",
     inline_assets: object = False,
     distribution: dict | None = None,
+    api_contract_version: str | None = "1.1.0",
+    ui_contract_version: str | None = None,
 ) -> bytes:
     files = {
         "plugin.py": b"def main():\n    return None\n",
         "sdk/plugin_protocol.py": b"API_VERSION = 1\n",
     }
+    if ui_contract_version is not None:
+        files["ui.json"] = json.dumps(
+            {
+                "api_contract_version": ui_contract_version,
+                "schema_version": "v1",
+                "plugin_id": plugin_id,
+                "title": "Contract regression",
+            }
+        ).encode("utf-8")
     if distribution is not None:
         files["distribution.json"] = json.dumps(distribution).encode()
     if frontend:
@@ -154,6 +165,7 @@ def _package_bytes(
         digest.update(data)
         digest.update(b"\0")
     manifest = {
+        "api_contract_version": "1.1.0",
         "manifest_version": 1,
         "plugin_id": plugin_id,
         "name": "Upload Example",
@@ -166,6 +178,10 @@ def _package_bytes(
         "dependencies": [],
         "integrity": {"sha256": digest.hexdigest()},
     }
+    if api_contract_version is None:
+        manifest.pop("api_contract_version")
+    else:
+        manifest["api_contract_version"] = api_contract_version
     if frontend:
         manifest["frontend"] = {
             "entry": "frontend/index.html",
@@ -185,16 +201,110 @@ def _package_bytes(
     return output.getvalue()
 
 
+@pytest.mark.parametrize(
+    "contract", [None, "1.0.0", "1.0.9", "1.2.0", "1.01.0", "invalid"]
+)
+def test_v11_runtime_rejects_unmigrated_packages_before_publication(tmp_path, contract):
+    from runtime import PluginRegistry, PluginSupervisor
+
+    registry = PluginRegistry(
+        tmp_path / "plugins",
+        PluginSupervisor(tmp_path / "workers", tmp_path / "storage"),
+    )
+    with pytest.raises(RuntimePolicyError, match="contract"):
+        registry.install_package(
+            _package_bytes(api_contract_version=contract),
+            "legacy.utp",
+            installation_id=str(uuid.uuid4()),
+        )
+    assert registry.list() == []
+
+
+def test_v11_runtime_rejects_legacy_ui_in_new_manifest(tmp_path):
+    from runtime import PluginRegistry, PluginSupervisor
+
+    registry = PluginRegistry(
+        tmp_path / "plugins",
+        PluginSupervisor(tmp_path / "workers", tmp_path / "storage"),
+    )
+    with pytest.raises(
+        RuntimePolicyError, match="UI and manifest API contracts must match"
+    ):
+        registry.install_package(
+            _package_bytes(ui_contract_version="1.0.0"),
+            "mixed.utp",
+            installation_id=str(uuid.uuid4()),
+        )
+    assert registry.list() == []
+
+
+@pytest.mark.parametrize("contract", [None, "1.0.0", "1.0.9"])
+def test_v11_restart_restores_existing_legacy_plugin_with_warning_and_preserves_data(
+    tmp_path, monkeypatch, contract
+):
+    from runtime import PluginRegistry, PluginSupervisor
+
+    supervisor = PluginSupervisor(tmp_path / "workers", tmp_path / "storage")
+    registry = PluginRegistry(tmp_path / "plugins", supervisor)
+    plugin_id = "example.upload"
+    installation_id = str(uuid.uuid4())
+    registry.install_package(
+        _package_bytes(), "current.utp", installation_id=installation_id
+    )
+    package, manifest = registry.package(plugin_id)
+    if contract is None:
+        manifest.pop("api_contract_version")
+    else:
+        manifest["api_contract_version"] = contract
+    (package / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    registry._transition(
+        plugin_id, enabled=True, status="running", installation_id=installation_id
+    )
+    storage = supervisor._storage(plugin_id)
+    storage.put("saved/example", b"kept")
+    (package / ".settings.json").write_text('{"option":"kept"}', encoding="utf-8")
+    started, stopped = [], []
+    monkeypatch.setattr(supervisor, "running", lambda _: True)
+    monkeypatch.setattr(supervisor, "start", lambda *args: started.append(args))
+    monkeypatch.setattr(supervisor, "stop", lambda value: stopped.append(value))
+    restored = PluginRegistry(registry.root, supervisor)
+    restored.restore_enabled()
+    item = restored.list()[0]
+    assert item["status"] == "running"
+    assert item["compatible"] is True and item["enabled"] is True
+    assert item["legacy_compatibility"] is True
+    assert "old v1.0 UI" in item["compatibility_warning"]
+    assert item["installation_id"] == installation_id
+    assert not started and not stopped
+    assert storage.get("saved/example") == b"kept"
+    assert json.loads((package / ".settings.json").read_text()) == {"option": "kept"}
+    for method in (
+        "action",
+        "lifecycle.ready",
+        "settings.get",
+        "storage.get",
+        "capabilities.check",
+    ):
+        assert restored._execution_allowed(plugin_id, method) is True
+
+
 def test_installed_release_metadata_survives_registry_restart(tmp_path):
     from runtime import PluginRegistry, PluginSupervisor
 
     supervisor = PluginSupervisor(tmp_path / "workers", tmp_path / "storage")
     registry = PluginRegistry(tmp_path / "plugins", supervisor)
     registry.install_package(
-        _package_bytes(distribution={
-            "schema_version": 1, "version": "1.0.0", "tags": ["media", "integration"],
-            "automatic_update": False, "release_notes": "Manual release",
-        }), "release.utp", installation_id=str(uuid.uuid4()),
+        _package_bytes(
+            distribution={
+                "schema_version": 1,
+                "version": "1.0.0",
+                "tags": ["media", "integration"],
+                "automatic_update": False,
+                "release_notes": "Manual release",
+            }
+        ),
+        "release.utp",
+        installation_id=str(uuid.uuid4()),
     )
     restored = PluginRegistry(registry.root, supervisor).list()[0]
     assert restored["tags"] == ["media", "integration"]
@@ -622,6 +732,7 @@ def test_frontend_asset_is_namespaced(tmp_path, activate_registry) -> None:
     (package / "manifest.json").write_text(
         json.dumps(
             {
+                "api_contract_version": "1.1.0",
                 "plugin_id": "example.frontend",
                 "entrypoint": "plugin:main",
                 "frontend": {"entry": "frontend/index.html"},
@@ -652,6 +763,7 @@ def test_runtime_discord_action_reads_secret_from_private_storage(
     (package / "manifest.json").write_text(
         json.dumps(
             {
+                "api_contract_version": "1.1.0",
                 "plugin_id": "example.discord",
                 "entrypoint": "plugin:main",
                 "capabilities": [{"name": "notifications.send", "version": 1}],
@@ -669,6 +781,7 @@ def test_runtime_discord_action_reads_secret_from_private_storage(
     (package / "ui.json").write_text(
         json.dumps(
             {
+                "api_contract_version": "1.1.0",
                 "plugin_id": "example.discord",
                 "actions": [
                     {
@@ -699,8 +812,11 @@ def test_runtime_discord_action_reads_secret_from_private_storage(
     registry.supervisor.execute = FakeSupervisor().execute
     registry._save_state({"example.discord": {"enabled": True}})
     approved = []
-    monkeypatch.setattr(registry.supervisor, "_authorize_capability",
-                        lambda plugin_id, capability, **kwargs: approved.append(capability))
+    monkeypatch.setattr(
+        registry.supervisor,
+        "_authorize_capability",
+        lambda plugin_id, capability, **kwargs: approved.append(capability),
+    )
     monkeypatch.setenv("PLUGIN_RUNTIME_DISCORD_EGRESS", "true")
     delivered = []
     monkeypatch.setattr(
@@ -732,12 +848,19 @@ def test_runtime_action_returns_structured_provider_result(
     package = tmp_path / "plugins" / "example.provider"
     package.mkdir(parents=True)
     (package / "manifest.json").write_text(
-        json.dumps({"plugin_id": "example.provider", "entrypoint": "plugin:main"}),
+        json.dumps(
+            {
+                "api_contract_version": "1.1.0",
+                "plugin_id": "example.provider",
+                "entrypoint": "plugin:main",
+            }
+        ),
         encoding="utf-8",
     )
     (package / "ui.json").write_text(
         json.dumps(
             {
+                "api_contract_version": "1.1.0",
                 "plugin_id": "example.provider",
                 "actions": [{"id": "deliver", "handler": "plugin:deliver"}],
             }
@@ -774,6 +897,7 @@ def test_runtime_discord_provider_returns_core_delivery_result(
     (package / "manifest.json").write_text(
         json.dumps(
             {
+                "api_contract_version": "1.1.0",
                 "plugin_id": "example.provider",
                 "entrypoint": "plugin:main",
                 "capabilities": [
@@ -786,6 +910,7 @@ def test_runtime_discord_provider_returns_core_delivery_result(
     (package / "ui.json").write_text(
         json.dumps(
             {
+                "api_contract_version": "1.1.0",
                 "plugin_id": "example.provider",
                 "actions": [{"id": "deliver", "handler": "plugin:deliver"}],
             }
@@ -797,11 +922,16 @@ def test_runtime_discord_provider_returns_core_delivery_result(
     registry.supervisor._storage("example.provider").put(
         "secrets/discord_webhook", b"https://discord.com/api/webhooks/test/secret"
     )
-    registry.supervisor.execute = lambda *_args, **_kwargs: b'{"discord":true,"content":"hello"}'
+    registry.supervisor.execute = lambda *_args, **_kwargs: (
+        b'{"discord":true,"content":"hello"}'
+    )
     registry._save_state({"example.provider": {"enabled": True}})
     approved = []
-    monkeypatch.setattr(registry.supervisor, "_authorize_capability",
-                        lambda plugin_id, capability, **kwargs: approved.append(capability))
+    monkeypatch.setattr(
+        registry.supervisor,
+        "_authorize_capability",
+        lambda plugin_id, capability, **kwargs: approved.append(capability),
+    )
     delivered = []
     monkeypatch.setenv("PLUGIN_RUNTIME_DISCORD_EGRESS", "true")
     monkeypatch.setattr(
@@ -833,6 +963,7 @@ def test_action_handler_can_use_the_mediated_plugin_gateway(
     (package / "manifest.json").write_text(
         json.dumps(
             {
+                "api_contract_version": "1.1.0",
                 "plugin_id": "example.documents",
                 "entrypoint": "plugin:main",
                 "capabilities": [{"name": "documents.read", "version": 1}],
@@ -843,6 +974,7 @@ def test_action_handler_can_use_the_mediated_plugin_gateway(
     (package / "ui.json").write_text(
         json.dumps(
             {
+                "api_contract_version": "1.1.0",
                 "plugin_id": "example.documents",
                 "actions": [
                     {
@@ -911,12 +1043,19 @@ def test_runtime_rejects_actions_for_disabled_installed_plugin(tmp_path) -> None
     package = tmp_path / "plugins" / "example.provider"
     package.mkdir(parents=True)
     (package / "manifest.json").write_text(
-        json.dumps({"plugin_id": "example.provider", "entrypoint": "plugin:main"}),
+        json.dumps(
+            {
+                "api_contract_version": "1.1.0",
+                "plugin_id": "example.provider",
+                "entrypoint": "plugin:main",
+            }
+        ),
         encoding="utf-8",
     )
     (package / "ui.json").write_text(
         json.dumps(
             {
+                "api_contract_version": "1.1.0",
                 "plugin_id": "example.provider",
                 "actions": [{"id": "deliver", "handler": "plugin:deliver"}],
             }
@@ -936,7 +1075,9 @@ def test_runtime_rejects_actions_for_disabled_installed_plugin(tmp_path) -> None
         registry.action("example.provider", "deliver", {})
 
 
-def test_runtime_gateway_settings_use_active_package_path(tmp_path, monkeypatch) -> None:
+def test_runtime_gateway_settings_use_active_package_path(
+    tmp_path, monkeypatch
+) -> None:
     from runtime import PluginSupervisor
 
     package = tmp_path / "package"
@@ -952,8 +1093,11 @@ def test_runtime_gateway_settings_use_active_package_path(tmp_path, monkeypatch)
     )
     supervisor._package_paths["example.ui-api"] = package
     approved = []
-    monkeypatch.setattr(supervisor, "_authorize_capability",
-                        lambda plugin_id, capability, **kwargs: approved.append(capability))
+    monkeypatch.setattr(
+        supervisor,
+        "_authorize_capability",
+        lambda plugin_id, capability, **kwargs: approved.append(capability),
+    )
     assert supervisor._handle_gateway_request(
         "example.ui-api",
         {

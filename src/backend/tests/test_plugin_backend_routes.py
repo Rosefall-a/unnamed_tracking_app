@@ -9,6 +9,8 @@ from uuid import UUID, uuid4
 
 import pytest
 from fastapi import HTTPException
+from starlette.requests import Request
+
 from src.api.routes import plugins
 from src.api.routes.plugin_manager import backend as plugin_backend
 from src.api.routes.plugin_manager import runtime as plugin_runtime
@@ -18,7 +20,6 @@ from src.plugin_api.backend_routes import (
     validate_host_route_ownership,
 )
 from src.plugin_api.contracts import BackendRouteScope
-from starlette.requests import Request
 
 
 def route_declaration(
@@ -40,6 +41,7 @@ def route_declaration(
 
 def installed_plugin(**changes) -> dict:
     plugin = {
+        "api_contract_version": "1.1.0",
         "plugin_id": "example.routes",
         "installation_id": str(uuid4()),
         "enabled": True,

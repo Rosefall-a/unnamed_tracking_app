@@ -1,0 +1,102 @@
+{
+  "status": "passed",
+  "cases": [
+    {
+      "width": 390,
+      "palette": "orange",
+      "mode": "light",
+      "callback": "verified RS256",
+      "personal_preferences": "preserved"
+    },
+    {
+      "width": 390,
+      "palette": "orange",
+      "mode": "dark",
+      "callback": "verified RS256",
+      "personal_preferences": "preserved"
+    },
+    {
+      "width": 390,
+      "palette": "green",
+      "mode": "light",
+      "callback": "verified RS256",
+      "personal_preferences": "preserved"
+    },
+    {
+      "width": 390,
+      "palette": "green",
+      "mode": "dark",
+      "callback": "verified RS256",
+      "personal_preferences": "preserved"
+    },
+    {
+      "width": 390,
+      "palette": "custom",
+      "mode": "light",
+      "callback": "verified RS256",
+      "personal_preferences": "preserved"
+    },
+    {
+      "width": 390,
+      "palette": "custom",
+      "mode": "dark",
+      "callback": "verified RS256",
+      "personal_preferences": "preserved"
+    },
+    {
+      "width": 1440,
+      "palette": "orange",
+      "mode": "light",
+      "callback": "verified RS256",
+      "personal_preferences": "preserved"
+    },
+    {
+      "width": 1440,
+      "palette": "orange",
+      "mode": "dark",
+      "callback": "verified RS256",
+      "personal_preferences": "preserved"
+    },
+    {
+      "width": 1440,
+      "palette": "green",
+      "mode": "light",
+      "callback": "verified RS256",
+      "personal_preferences": "preserved"
+    },
+    {
+      "width": 1440,
+      "palette": "green",
+      "mode": "dark",
+      "callback": "verified RS256",
+      "personal_preferences": "preserved"
+    },
+    {
+      "width": 1440,
+      "palette": "custom",
+      "mode": "light",
+      "callback": "verified RS256",
+      "personal_preferences": "preserved"
+    },
+    {
+      "width": 1440,
+      "palette": "custom",
+      "mode": "dark",
+      "callback": "verified RS256",
+      "personal_preferences": "preserved"
+    }
+  ],
+  "passed": [
+    "12 real width/palette/mode OIDC flows",
+    "Named and hidden autostart, themed manual buttons, branded manual button with autostart disabled",
+    "Local sign-in fallback and invalid-state callback errors retain device colors",
+    "Verified nonce/state/RS256 identity exchange, authenticated return path and member authorization",
+    "Account preferences override the cosmetic device cache after sign-in"
+  ],
+  "screenshots": [
+    "oidc-login-390-light.png",
+    "oidc-login-390-dark.png",
+    "oidc-login-1440-light.png",
+    "oidc-login-1440-dark.png"
+  ]
+}

@@ -27,6 +27,8 @@ ANILIST_IMPORT_MAX_USERS_PER_TICK = 4
 
 @dataclass(frozen=True)
 class JobSpec:
+    """Execution adapter and schedule limits shared by built-in and plugin jobs."""
+
     id: str
     name: str
     description: str
@@ -38,6 +40,10 @@ class JobSpec:
     is_running: Callable[[], bool]
     summarize: Callable[[dict[str, Any]], str]
     manual_mode: str = "needed"
+    plugin_id: str | None = None
+    plugin_name: str | None = None
+    available: bool = True
+    unavailable_reason: str = ""
 
 
 def _summarize_refresh(r: dict[str, Any]) -> str:
@@ -157,12 +163,14 @@ JOBS: dict[str, JobSpec] = {
 
 
 def is_due(enabled: bool, last_run_at: int | None, interval_minutes: int, now: int) -> bool:
+    """A disabled schedule is never due, including before its first run."""
     if not enabled:
         return False
     return last_run_at is None or now - last_run_at >= interval_minutes * 60
 
 
 async def get_setting(db: AsyncSession, spec: JobSpec) -> JobSetting:
+    """Seed defaults once while retaining this job's administrator choices."""
     row = await db.get(JobSetting, spec.id)
     if row is None:
         row = JobSetting(
@@ -176,6 +184,7 @@ async def get_setting(db: AsyncSession, spec: JobSpec) -> JobSetting:
 
 
 async def describe(db: AsyncSession, spec: JobSpec) -> dict[str, Any]:
+    """Combine persistent history with live runtime availability for Tasks controls."""
     row = await get_setting(db, spec)
     return {
         "id": spec.id,
@@ -189,12 +198,17 @@ async def describe(db: AsyncSession, spec: JobSpec) -> dict[str, Any]:
         "last_result": row.last_result or {},
         "last_summary": spec.summarize(row.last_result or {}) if row.last_run_at else "",
         "running": spec.is_running(),
+        "plugin_id": spec.plugin_id,
+        "plugin_name": spec.plugin_name,
+        "available": spec.available,
+        "unavailable_reason": spec.unavailable_reason,
     }
 
 
-async def record_run(job_id: str, result: dict[str, Any]) -> None:
+async def record_run(job_id: str, result: dict[str, Any], *, spec: JobSpec | None = None) -> None:
+    """Persist bounded scalar results for built-in or installation-owned jobs."""
     async with SessionLocal() as db:
-        spec = JOBS[job_id]
+        spec = spec or JOBS[job_id]
         row = await get_setting(db, spec)
         row.last_run_at = int(time.time())
         row.last_result = {
@@ -243,6 +257,9 @@ async def _run_due_anilist_imports(now: int) -> None:
 
 
 async def run_jobs_loop() -> None:
+    """Run eligible schedules without blocking imports or notification delivery."""
+    from src.features.plugin_jobs import get_plugin_jobs
+
     while True:
         await asyncio.sleep(TICK_SECONDS)
         try:
@@ -251,10 +268,15 @@ async def run_jobs_loop() -> None:
             async with SessionLocal() as db:
                 await process_pending_deliveries(db)
                 due = []
-                for spec in JOBS.values():
+                for spec in [*JOBS.values(), *await get_plugin_jobs(db)]:
                     row = await get_setting(db, spec)
-                    if not spec.is_running() and is_due(
-                        row.enabled, row.last_run_at, row.interval_minutes, now
+                    if (
+                        spec.available
+                        and spec.min_interval_minutes
+                        <= row.interval_minutes
+                        <= spec.max_interval_minutes
+                        and not spec.is_running()
+                        and is_due(row.enabled, row.last_run_at, row.interval_minutes, now)
                     ):
                         due.append(spec)
                 await db.commit()

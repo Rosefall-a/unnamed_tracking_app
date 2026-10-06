@@ -150,7 +150,11 @@ def test_health_verification_observes_real_worker_startup_failure(tmp_path, monk
     registry = PluginRegistry(tmp_path / "plugins", supervisor)
     registry.install_package(_package_bytes(), "worker.utp", installation_id=str(uuid.uuid4()))
     package = registry.package("example.upload")[0]
-    command = "import time; time.sleep(0.1); raise SystemExit(9)" if exits else "import time; time.sleep(60)"
+    command = (
+        "import time; time.sleep(0.1); raise SystemExit(9)"
+        if exits
+        else "import time; time.sleep(60)"
+    )
     supervisor.start(runtime.PluginSpec("example.upload", (sys.executable, "-c", command)), package)
     try:
         assert registry.health("example.upload") is not exits
@@ -177,8 +181,14 @@ def test_runtime_exit_during_filesystem_switch_recovers_journal(tmp_path, monkey
     supervisor._storage(plugin).put("secrets/api-key", b"secret")
 
     def prepare():
-        registry.install_package(_package_bytes(version="2.0.0"), "second.utp", replace=True,
-                                 expected_version="1.0.0", installation_id=identity, operation_id=operation)
+        registry.install_package(
+            _package_bytes(version="2.0.0"),
+            "second.utp",
+            replace=True,
+            expected_version="1.0.0",
+            installation_id=identity,
+            operation_id=operation,
+        )
 
     if boundary in {"history", "rollback"}:
         prepare()
@@ -186,12 +196,14 @@ def test_runtime_exit_during_filesystem_switch_recovers_journal(tmp_path, monkey
     original_rename = Path.rename
     original_save = registry._save_state
     with monkeypatch.context() as interrupted:
+
         def rename(path, destination):
             if boundary == "before_publish" and path.name.startswith(".install-"):
                 raise SystemExit("runtime exited before candidate publication")
             result = original_rename(path, destination)
-            if ((boundary == "history" and path.name.startswith(".backup-"))
-                    or (boundary == "rollback" and Path(destination).name.startswith(".rejected-"))):
+            if (boundary == "history" and path.name.startswith(".backup-")) or (
+                boundary == "rollback" and Path(destination).name.startswith(".rejected-")
+            ):
                 raise SystemExit("runtime exited after package rename")
             return result
 

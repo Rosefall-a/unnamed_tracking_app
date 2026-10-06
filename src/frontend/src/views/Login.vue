@@ -4,12 +4,15 @@ import { useRoute, useRouter } from "vue-router";
 import { login } from "../services/auth";
 import {
   oidcLoginStatus,
+  oidcButtonStyle,
   startOidcLogin,
   type OidcLoginProvider,
 } from "../services/oidc";
 import { checkAuth } from "../state/auth";
 import PasswordInput from "../components/PasswordInput.vue";
 import { consumeReturnPath, rememberReturnPath } from "../state/startup";
+import AppBrand from "../components/AppBrand.vue";
+import { branding } from "../state/branding";
 
 const route = useRoute();
 const router = useRouter();
@@ -97,23 +100,15 @@ function sso(slug?: string) {
   }
 }
 function buttonStyle(provider: OidcLoginProvider) {
-  const hex = (provider.button_color || "#d68a34").slice(1);
-  const r = parseInt(hex.slice(0, 2), 16);
-  const g = parseInt(hex.slice(2, 4), 16);
-  const b = parseInt(hex.slice(4, 6), 16);
-  return {
-    backgroundColor: provider.button_color || "#d68a34",
-    borderColor: provider.button_color || "#d68a34",
-    color: 0.299 * r + 0.587 * g + 0.114 * b > 150 ? "#111" : "#fff",
-  };
+  return oidcButtonStyle(provider.button_color);
 }
 </script>
 <template>
   <main class="login-page">
     <form class="login-card" @submit.prevent="submit">
       <div class="login-brand">
-        <span class="brand-icon">🎮</span>
-        <h1>Archive</h1>
+        <AppBrand compact />
+        <h1>{{ branding.app_name }}</h1>
       </div>
       <p class="login-subtitle">Sign in to your library</p>
       <template v-if="localOnly"
@@ -269,23 +264,25 @@ function buttonStyle(provider: OidcLoginProvider) {
 </template>
 <style scoped>
 .login-page {
+  box-sizing: border-box;
+  padding: 24px 20px;
   min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #121212;
-  font-family: system-ui, sans-serif;
+  background: var(--ui-bg);
+  font-family: var(--ui-font-family);
   position: relative;
   overflow: hidden;
 }
 .login-page::before {
   content: "";
   position: absolute;
-  width: 600px;
-  height: 600px;
+  width: min(600px, 100%);
+  aspect-ratio: 1;
   background: radial-gradient(
     circle,
-    rgba(214, 138, 52, 0.18) 0%,
+    var(--ui-accent-soft) 0%,
     transparent 70%
   );
   top: 50%;
@@ -293,16 +290,17 @@ function buttonStyle(provider: OidcLoginProvider) {
   transform: translate(-50%, -50%);
 }
 .login-card {
+  box-sizing: border-box;
   position: relative;
   z-index: 1;
   width: 100%;
   max-width: 360px;
-  background: rgba(26, 26, 26, 0.9);
+  background: var(--ui-surface);
   backdrop-filter: blur(12px);
-  border: 1px solid #2a2a2a;
-  border-radius: 14px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-card);
   padding: 32px;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--ui-elevation);
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -318,12 +316,14 @@ function buttonStyle(provider: OidcLoginProvider) {
 }
 .login-brand h1 {
   margin: 0;
-  color: #fff;
+  color: var(--ui-text);
   font-size: 1.4rem;
+  overflow-wrap: anywhere;
+  min-width: 0;
 }
 .login-subtitle {
   margin: -8px 0 4px;
-  color: #999;
+  color: var(--ui-dim);
   font-size: 13px;
   text-align: center;
 }
@@ -332,46 +332,50 @@ function buttonStyle(provider: OidcLoginProvider) {
   flex-direction: column;
   gap: 6px;
   font-size: 0.85rem;
-  color: #ccc;
+  color: var(--ui-text);
 }
 .field input {
-  background: #111;
-  border: 1px solid #3a3a3a;
-  border-radius: 8px;
-  color: #fff;
+  min-width: 0;
+  min-height: var(--ui-control-height);
+  box-sizing: border-box;
+  background: var(--ui-bg);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
+  color: var(--ui-text);
   padding: 10px 12px;
   font: inherit;
 }
 .field input:focus {
-  outline: none;
-  border-color: #d68a34;
+  border-color: var(--ui-accent);
 }
 .password-toggle {
+  min-height: var(--ui-control-height);
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #aaa;
+  color: var(--ui-dim);
   font-size: 12px;
 }
 .login-error {
-  color: #fca5a5;
+  color: var(--ui-error);
   font-size: 13px;
-  background: rgba(220, 38, 38, 0.1);
-  border: 1px solid rgba(220, 38, 38, 0.3);
-  border-radius: 8px;
+  background: var(--ui-danger-soft);
+  border: 1px solid var(--ui-error);
+  border-radius: var(--ui-radius-control);
   padding: 8px 10px;
 }
 .login-button,
 .oidc-button {
+  min-height: var(--ui-control-height);
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   padding: 11px;
   font-weight: 600;
   cursor: pointer;
 }
 .login-button {
-  background: #d68a34;
-  color: #111;
+  background: var(--ui-accent);
+  color: var(--ui-on-accent);
 }
 .login-button:disabled,
 .oidc-button:disabled {
@@ -379,26 +383,26 @@ function buttonStyle(provider: OidcLoginProvider) {
   cursor: not-allowed;
 }
 .forgot-link {
-  color: #aaa;
+  color: var(--ui-dim);
   font-size: 12px;
   text-align: center;
   text-decoration: none;
 }
 .forgot-link:hover {
   text-decoration: underline;
-  color: #d68a34;
+  color: var(--ui-accent);
 }
 .oidc-button {
-  background: #2a2a2a;
-  color: #fff;
-  border: 1px solid #444;
+  background: var(--ui-accent);
+  color: var(--ui-on-accent);
+  border: 1px solid var(--ui-border-strong);
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 10px;
 }
 .oidc-button.primary {
-  color: #111;
+  color: var(--ui-on-accent);
 }
 .oidc-button img {
   width: 20px;
@@ -415,14 +419,14 @@ function buttonStyle(provider: OidcLoginProvider) {
   display: flex;
   align-items: center;
   gap: 10px;
-  color: #666;
+  color: var(--ui-faint);
   font-size: 12px;
 }
 .sso-divider::before,
 .sso-divider::after {
   content: "";
   height: 1px;
-  background: #333;
+  background: var(--ui-border);
   flex: 1;
 }
 .sso-divider span {
@@ -439,32 +443,32 @@ function buttonStyle(provider: OidcLoginProvider) {
   width: 38px;
   height: 38px;
   border-radius: 10px;
-  background: #242424;
-  border: 1px solid #3a3a3a;
+  background: var(--ui-accent-soft);
+  border: 1px solid var(--ui-border);
   display: grid;
   place-items: center;
-  color: #d68a34;
+  color: var(--ui-accent);
   font-size: 20px;
 }
 .sso-heading strong {
-  color: #fff;
+  color: var(--ui-text);
   font-size: 15px;
 }
 .sso-heading p {
   margin: 3px 0 0;
-  color: #999;
+  color: var(--ui-dim);
   font-size: 12px;
 }
 .local-credentials {
-  border-top: 1px solid #2f2f2f;
+  border-top: 1px solid var(--ui-border);
   padding-top: 14px;
-  color: #ccc;
+  color: var(--ui-text);
 }
 .local-credentials summary {
   cursor: pointer;
   list-style: none;
   text-align: center;
-  color: #aaa;
+  color: var(--ui-dim);
   font-size: 13px;
   padding: 8px 0;
 }
@@ -475,7 +479,7 @@ function buttonStyle(provider: OidcLoginProvider) {
   content: "▸";
   display: inline-block;
   margin-right: 7px;
-  color: #d68a34;
+  color: var(--ui-accent);
   transition: transform 0.15s ease;
 }
 .local-credentials[open] summary::before {

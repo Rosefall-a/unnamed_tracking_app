@@ -125,46 +125,56 @@ export async function updateScanSettings(
   return await response.json();
 }
 
-export async function fetchUploadLimits(): Promise<{
+export interface UploadLimits {
   max_upload_size_mb: number;
-}> {
-  if (import.meta.env.VITE_USE_MOCK_DATA === "true") {
-    return { max_upload_size_mb: 15 };
-  }
+  max_save_archive_size_mb: number;
+  max_clip_size_mb: number;
+  max_world_save_size_mb: number;
+}
+const defaultUploadLimits: UploadLimits = {
+  max_upload_size_mb: 15,
+  max_save_archive_size_mb: 4096,
+  max_clip_size_mb: 500,
+  max_world_save_size_mb: 2000,
+};
 
+export async function fetchUploadLimits(): Promise<UploadLimits> {
+  if (import.meta.env.VITE_USE_MOCK_DATA === "true")
+    return { ...defaultUploadLimits };
   const response = await fetch("/api/settings/upload-limits", {
     credentials: "include",
   });
-  if (!response.ok) {
-    throw new Error(
-      `Failed to fetch upload limits: ${response.status} ${response.statusText}`,
-    );
-  }
-  return await response.json();
+  if (!response.ok)
+    throw new Error(`Failed to fetch upload limits: ${response.status}`);
+  return response.json();
 }
 
-// Admin-only: overrides MAX_UPLOAD_SIZE_MB without touching the server's
-// environment. `null` clears the override and goes back to that default.
-export async function updateUploadLimit(
-  maxUploadSizeMb: number | null,
-): Promise<{ max_upload_size_mb: number }> {
+export async function updateUploadLimits(
+  values: Partial<Record<keyof UploadLimits, number | null>>,
+): Promise<UploadLimits> {
   if (import.meta.env.VITE_USE_MOCK_DATA === "true") {
-    return { max_upload_size_mb: maxUploadSizeMb ?? 15 };
+    const result = { ...defaultUploadLimits };
+    for (const key of Object.keys(values) as (keyof UploadLimits)[])
+      result[key] = values[key] ?? defaultUploadLimits[key];
+    return result;
   }
-
   const response = await fetch("/api/settings/upload-limit", {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
-    body: JSON.stringify({ max_upload_size_mb: maxUploadSizeMb }),
+    body: JSON.stringify(values),
   });
-  if (!response.ok) {
-    const message = await response.text();
+  if (!response.ok)
     throw new Error(
-      `Failed to update the upload limit: ${response.status} ${response.statusText} ${message}`,
+      `Failed to update upload limits: ${response.status} ${await response.text()}`,
     );
-  }
-  return await response.json();
+  return response.json();
+}
+
+export async function updateUploadLimit(
+  maxUploadSizeMb: number | null,
+): Promise<UploadLimits> {
+  return updateUploadLimits({ max_upload_size_mb: maxUploadSizeMb });
 }
 
 export interface SystemInfo {
@@ -457,6 +467,10 @@ export interface CleanupJob {
   lastSummary: string;
   lastResult: Record<string, number | string | boolean | null>;
   running: boolean;
+  pluginId: string | null;
+  pluginName: string | null;
+  available: boolean;
+  unavailableReason: string;
 }
 interface BackendJob {
   id: string;
@@ -470,6 +484,10 @@ interface BackendJob {
   last_summary: string;
   last_result: Record<string, number | string | boolean | null>;
   running: boolean;
+  plugin_id?: string | null;
+  plugin_name?: string | null;
+  available?: boolean;
+  unavailable_reason?: string;
 }
 function mapJob(j: BackendJob): CleanupJob {
   return {
@@ -484,6 +502,10 @@ function mapJob(j: BackendJob): CleanupJob {
     lastSummary: j.last_summary,
     lastResult: j.last_result,
     running: j.running,
+    pluginId: j.plugin_id ?? null,
+    pluginName: j.plugin_name ?? null,
+    available: j.available !== false,
+    unavailableReason: j.unavailable_reason ?? "",
   };
 }
 export async function fetchJobs(): Promise<CleanupJob[]> {
@@ -508,7 +530,7 @@ export async function updateJob(
     }),
   });
   if (!response.ok)
-    throw new Error(`Failed to save the job: ${response.status}`);
+    throw new Error(await jobErrorDetail(response, "Failed to save the job"));
   return mapJob(await response.json());
 }
 export async function runJobNow(id: string): Promise<void> {
@@ -517,5 +539,15 @@ export async function runJobNow(id: string): Promise<void> {
     credentials: "include",
   });
   if (!response.ok)
-    throw new Error(`Failed to start the job: ${response.status}`);
+    throw new Error(await jobErrorDetail(response, "Failed to start the job"));
+}
+
+async function jobErrorDetail(
+  response: Response,
+  fallback: string,
+): Promise<string> {
+  const body = await response.json().catch(() => null);
+  return typeof body?.detail === "string"
+    ? body.detail
+    : `${fallback}: ${response.status}`;
 }

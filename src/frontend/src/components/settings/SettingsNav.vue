@@ -1,12 +1,15 @@
 <script setup lang="ts">
+import NavFolderList from "../NavFolderList.vue";
 export interface SettingsSection {
   id: string;
   label: string;
   comingSoon?: boolean;
+  folders?: string[];
 }
 
 export interface SettingsGroup {
   label: string;
+  area: "preferences" | "account" | "administration";
   sections: SettingsSection[];
 }
 
@@ -22,6 +25,7 @@ const emit = defineEmits<{
 const ICON_PATHS: Record<string, string> = {
   profile: "M20 21a8 8 0 0 0-16 0 M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z",
   interface: "M3 4h18v12H3z M8 20h8 M12 16v4",
+  "app-installation": "M12 3v12 M7 10l5 5 5-5 M4 17v4h16v-4",
   upload: "M12 16V4 M6 10l6-6 6 6 M4 20h16",
   library:
     "M4 19V5a2 2 0 0 1 2-2h9l5 5v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z M9 3v6h6",
@@ -32,6 +36,8 @@ const ICON_PATHS: Record<string, string> = {
   oidc: "M12 2a5 5 0 0 1 5 5c0 2.2-1.4 4.1-3.4 4.7L15 15h4a2 2 0 0 1 2 2v5H3v-5a2 2 0 0 1 2-2h4l1.4-3.3A5 5 0 0 1 7 7a5 5 0 0 1 5-5Z",
   "server-integrations": "M4 7h16 M4 12h16 M4 17h16 M8 7v10 M16 7v10",
   plugins: "M4 5h16v14H4z M8 9h8 M8 13h5",
+  themes:
+    "M12 3a9 9 0 1 0 0 18h2a3 3 0 0 0 0-6h-1a2 2 0 0 1 0-4h4a4 4 0 0 0 0-8h-5Z M7 8h.01 M7 14h.01 M12 6h.01",
   "password-policy": "M12 2v20 M2 12h20",
   users:
     "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2 M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z M22 21v-2a4 4 0 0 0-3-3.87 M16 3.13a4 4 0 0 1 0 7.75",
@@ -59,35 +65,42 @@ function iconPath(id: string): string {
 </script>
 
 <template>
-  <nav class="settings-nav">
-    <div v-for="group in groups" :key="group.label" class="settings-nav-group">
+  <nav class="settings-nav" aria-label="Settings sections">
+    <div
+      v-for="group in groups"
+      :key="`${group.area}:${group.label}`"
+      class="settings-nav-group"
+    >
       <span class="settings-nav-group-label">{{ group.label }}</span>
-      <button
-        v-for="section in group.sections"
-        :key="section.id"
-        type="button"
-        class="settings-nav-item"
-        :class="{ active: activeSection === section.id }"
-        @click="emit('update:activeSection', section.id)"
-      >
-        <span class="settings-nav-item-main">
-          <svg
-            class="nav-icon"
-            viewBox="0 0 24 24"
-            width="16"
-            height="16"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
+      <NavFolderList :entries="group.sections" :active-ids="[activeSection]">
+        <template #default="{ entry: section }">
+          <button
+            type="button"
+            class="settings-nav-item"
+            :class="{ active: activeSection === section.id }"
+            :aria-current="activeSection === section.id ? 'page' : undefined"
+            @click="emit('update:activeSection', section.id)"
           >
-            <path :d="iconPath(section.id)" />
-          </svg>
-          <span>{{ section.label }}</span>
-        </span>
-        <span v-if="section.comingSoon" class="soon-badge">soon</span>
-      </button>
+            <span class="settings-nav-item-main">
+              <svg
+                class="nav-icon"
+                viewBox="0 0 24 24"
+                width="16"
+                height="16"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path :d="iconPath(section.id)" />
+              </svg>
+              <span>{{ section.label }}</span>
+            </span>
+            <span v-if="section.comingSoon" class="soon-badge">soon</span>
+          </button>
+        </template>
+      </NavFolderList>
     </div>
   </nav>
 </template>
@@ -97,7 +110,7 @@ function iconPath(id: string): string {
   display: flex;
   flex-direction: column;
   gap: 18px;
-  width: 220px;
+  width: 200px;
   flex-shrink: 0;
 }
 @media (max-width: 760px) {
@@ -111,9 +124,9 @@ function iconPath(id: string): string {
   gap: 2px;
 }
 .settings-nav-group-label {
-  color: #777;
+  color: var(--ui-faint);
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   padding: 0 12px 6px;
@@ -124,10 +137,11 @@ function iconPath(id: string): string {
   justify-content: space-between;
   gap: 8px;
   padding: 10px 12px;
-  border-radius: 8px;
+  border-radius: var(--ui-radius-row);
+  min-height: var(--ui-control-height);
   border: none;
   background: none;
-  color: #ccc;
+  color: var(--ui-dim);
   text-align: left;
   font-size: 14px;
   cursor: pointer;
@@ -145,17 +159,17 @@ function iconPath(id: string): string {
   opacity: 0.8;
 }
 .settings-nav-item:hover {
-  background: rgba(255, 255, 255, 0.06);
-  color: #fff;
+  background: var(--ui-surface-2);
+  color: var(--ui-text);
 }
 .settings-nav-item.active {
-  background: rgba(214, 138, 52, 0.14);
-  color: #d68a34;
+  background: var(--ui-accent-soft);
+  color: var(--ui-accent-text);
 }
 .soon-badge {
   font-size: 10px;
-  color: #777;
-  background: rgba(255, 255, 255, 0.06);
+  color: var(--ui-faint);
+  background: color-mix(in srgb, var(--ui-text) 6%, transparent);
   padding: 2px 6px;
   border-radius: 999px;
   flex-shrink: 0;

@@ -1,140 +1,138 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
-import { fetchUploadLimits, updateUploadLimit } from "../../services/settings";
-
-const loading = ref(true);
-const loadError = ref<string | null>(null);
-const effectiveMb = ref<number | null>(null);
-// what the admin's typing — separate from effectiveMb so a bad value being
-// edited doesn't flash the wrong number elsewhere while it's mid-edit
-const draftMb = ref("");
-
-const saving = ref(false);
-const saveError = ref<string | null>(null);
-const saveSuccess = ref(false);
-
-async function load() {
-  loading.value = true;
-  loadError.value = null;
+import { ref, onMounted, useId } from "vue";
+import {
+  fetchUploadLimits,
+  updateUploadLimits,
+  type UploadLimits,
+} from "../../services/settings";
+const fieldId = useId();
+const limits: { key: keyof UploadLimits; label: string; hint: string }[] = [
+  {
+    key: "max_upload_size_mb",
+    label: "Images & general files",
+    hint: "Cover art, banners, screenshots, documents and other general uploads.",
+  },
+  {
+    key: "max_save_archive_size_mb",
+    label: "Save archives",
+    hint: "Each version of a named game save archive.",
+  },
+  {
+    key: "max_clip_size_mb",
+    label: "Video clips",
+    hint: "Clips and soundtracks uploaded to a game or the media inbox.",
+  },
+  {
+    key: "max_world_save_size_mb",
+    label: "World saves & modpacks",
+    hint: "Each uploaded world save archive or modpack.",
+  },
+];
+const loading = ref(true),
+  saving = ref(false);
+const error = ref("");
+const success = ref("");
+const effective = ref<UploadLimits | null>(null);
+const drafts = ref<Partial<Record<keyof UploadLimits, string | number>>>({});
+function apply(values: UploadLimits) {
+  effective.value = values;
+  for (const { key } of limits) drafts.value[key] = String(values[key]);
+}
+onMounted(async () => {
   try {
-    const r = await fetchUploadLimits();
-    effectiveMb.value = r.max_upload_size_mb;
-    draftMb.value = String(r.max_upload_size_mb);
+    apply(await fetchUploadLimits());
   } catch (e) {
-    loadError.value =
-      e instanceof Error ? e.message : "Failed to load the current limit.";
+    error.value = e instanceof Error ? e.message : "Unable to load limits.";
   } finally {
     loading.value = false;
   }
-}
-onMounted(load);
-
-async function save() {
-  const n = Number(draftMb.value);
-  saveError.value = null;
-  saveSuccess.value = false;
-  if (!Number.isFinite(n) || n < 1) {
-    saveError.value = "Enter a whole number of at least 1 MB.";
-    return;
+});
+async function save(reset = false) {
+  error.value = "";
+  success.value = "";
+  const values: Partial<Record<keyof UploadLimits, number | null>> = {};
+  for (const { key, label } of limits) {
+    const raw = String(drafts.value[key] ?? "").trim();
+    const value = Number(raw);
+    if (
+      !reset &&
+      (!raw || !Number.isInteger(value) || value < 1 || value > 2147483647)
+    ) {
+      error.value = `${label}: enter a whole number from 1 to 2147483647 MB.`;
+      return;
+    }
+    values[key] = reset ? null : value;
   }
   saving.value = true;
   try {
-    const r = await updateUploadLimit(Math.round(n));
-    effectiveMb.value = r.max_upload_size_mb;
-    saveSuccess.value = true;
+    apply(await updateUploadLimits(values));
+    success.value = reset
+      ? "All limits reset to the server environment defaults."
+      : "Limits saved. New uploads use them immediately.";
   } catch (e) {
-    saveError.value = e instanceof Error ? e.message : "Failed to save.";
-  } finally {
-    saving.value = false;
-  }
-}
-
-async function resetToDefault() {
-  saving.value = true;
-  saveError.value = null;
-  saveSuccess.value = false;
-  try {
-    const r = await updateUploadLimit(null);
-    effectiveMb.value = r.max_upload_size_mb;
-    draftMb.value = String(r.max_upload_size_mb);
-    saveSuccess.value = true;
-  } catch (e) {
-    saveError.value = e instanceof Error ? e.message : "Failed to reset.";
+    error.value = e instanceof Error ? e.message : "Unable to save limits.";
   } finally {
     saving.value = false;
   }
 }
 </script>
-
 <template>
   <section class="settings-section">
-    <h2>Limits</h2>
+    <h2>Upload limits</h2>
     <p class="hint">
-      Server-wide caps, admin-only. Currently just the image/media upload size —
-      video clips and world saves keep their own larger caps and aren't editable
-      here yet.
+      Server-wide limits in megabytes. Each value overrides its environment
+      default; resetting uses the current server configuration.
     </p>
-
     <p v-if="loading" class="hint">Loading…</p>
-    <template v-else>
-      <p v-if="loadError" class="form-error">{{ loadError }}</p>
-      <template v-else>
-        <label class="field">
-          <span>Max upload size (MB)</span>
-          <div class="row">
-            <input
-              v-model="draftMb"
-              type="number"
-              min="1"
-              step="1"
-              inputmode="numeric"
-            />
-            <button
-              type="button"
-              class="primary-button"
-              :disabled="saving"
-              @click="save"
-            >
-              {{ saving ? "Saving…" : "Save" }}
-            </button>
-          </div>
-          <span class="field-hint">
-            Applies to cover art, banners, and general file uploads —
-            screenshots, docs, that sort of thing.
-          </span>
-        </label>
-
+    <form v-else-if="effective" @submit.prevent="save()">
+      <div v-for="limit in limits" :key="limit.key" class="field">
+        <label :for="`${fieldId}-${limit.key}`">{{ limit.label }} (MB)</label>
+        <input
+          :id="`${fieldId}-${limit.key}`"
+          :aria-describedby="`${fieldId}-${limit.key}-hint`"
+          v-model="drafts[limit.key]"
+          type="number"
+          min="1"
+          max="2147483647"
+          step="1"
+          inputmode="numeric"
+          required
+          :disabled="saving"
+        />
+        <span :id="`${fieldId}-${limit.key}-hint`" class="field-hint"
+          >{{ limit.hint }} <code>{{ limit.key.toUpperCase() }}</code></span
+        >
+      </div>
+      <div class="row">
+        <button type="submit" class="primary-button" :disabled="saving">
+          {{ saving ? "Saving…" : "Save limits" }}
+        </button>
         <button
           type="button"
           class="text-button"
           :disabled="saving"
-          @click="resetToDefault"
+          @click="save(true)"
         >
-          Reset to the server's .env default
+          Reset all to server defaults
         </button>
-
-        <div v-if="saveError" class="form-error">{{ saveError }}</div>
-        <div v-if="saveSuccess" class="form-success">
-          Saved. New uploads use this limit right away — nothing to restart.
-        </div>
-      </template>
-    </template>
+      </div>
+    </form>
+    <p v-if="error" class="form-error" role="alert">{{ error }}</p>
+    <p v-if="success" class="form-success" role="status">{{ success }}</p>
   </section>
 </template>
-
 <style scoped>
 .settings-section {
-  max-width: 480px;
+  max-width: 760px;
 }
 .settings-section h2 {
-  margin: 0 0 8px;
-  padding-left: 12px;
-  border-left: 3px solid #d68a34;
-  font-size: 1rem;
-  color: #fff;
+  margin: 0 0 12px;
+  font: var(--ui-weight-heading) var(--ui-font-heading)/1.4
+    var(--ui-font-family);
+  color: var(--ui-text);
 }
 .hint {
-  color: #888;
+  color: var(--ui-faint);
   font-size: 0.85rem;
   line-height: 1.5;
   margin: 0 0 18px;
@@ -144,7 +142,7 @@ async function resetToDefault() {
   flex-direction: column;
   gap: 6px;
   font-size: 0.85rem;
-  color: #ccc;
+  color: var(--ui-text);
   margin-bottom: 12px;
 }
 .row {
@@ -154,26 +152,25 @@ async function resetToDefault() {
 .field input {
   flex: 1;
   min-width: 0;
-  background: #111;
-  border: 1px solid #3a3a3a;
-  border-radius: 8px;
-  color: #fff;
+  background: var(--ui-bg);
+  border: 1px solid var(--ui-border-strong);
+  border-radius: var(--ui-radius-control);
+  color: var(--ui-text);
   padding: 10px 12px;
   font: inherit;
 }
 .field input:focus {
-  outline: none;
-  border-color: #d68a34;
+  border-color: var(--ui-accent);
 }
 .field-hint {
-  color: #777;
+  color: var(--ui-faint);
   font-size: 0.78rem;
 }
 .primary-button {
-  background: #d68a34;
-  color: #111;
+  background: var(--ui-accent);
+  color: var(--ui-on-accent);
   border: none;
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   padding: 0 18px;
   font-weight: 600;
   cursor: pointer;
@@ -186,7 +183,7 @@ async function resetToDefault() {
   background: none;
   border: none;
   padding: 0;
-  color: #d68a34;
+  color: var(--ui-accent-text);
   font-size: 0.82rem;
   cursor: pointer;
 }
@@ -200,20 +197,32 @@ async function resetToDefault() {
 }
 .form-error {
   margin-top: 12px;
-  color: #fca5a5;
+  color: var(--ui-error);
   font-size: 13px;
   background: rgba(220, 38, 38, 0.1);
   border: 1px solid rgba(220, 38, 38, 0.3);
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   padding: 8px 10px;
 }
 .form-success {
   margin-top: 12px;
-  color: #86efac;
+  color: var(--ui-good);
   font-size: 13px;
   background: rgba(34, 197, 94, 0.1);
   border: 1px solid rgba(34, 197, 94, 0.3);
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   padding: 8px 10px;
+}
+.row {
+  flex-wrap: wrap;
+}
+button,
+input {
+  min-height: var(--ui-control-height);
+}
+code {
+  display: block;
+  margin-top: 4px;
+  overflow-wrap: anywhere;
 }
 </style>

@@ -1,0 +1,35 @@
+{
+  "status": "passed",
+  "host_head": "e01f28c330ba25f9c3c2cab3ba039a03bce436b9",
+  "production_image": "uta-ui-production:e01f28c3",
+  "browser": "webkit",
+  "metadata": "Intercepted external-provider response; actual compiled production UI",
+  "passed": [
+    "Scoped Game/Media Collections, legacy redirects, selected top tab and viewport fit light/320",
+    "Live metadata search excludes artwork provider; explicit artwork search includes it, errors stay in the active themed dialog and sizing fits light/320",
+    "Scoped Game/Media Collections, legacy redirects, selected top tab and viewport fit dark/320",
+    "Live metadata search excludes artwork provider; explicit artwork search includes it, errors stay in the active themed dialog and sizing fits dark/320",
+    "Scoped Game/Media Collections, legacy redirects, selected top tab and viewport fit light/390",
+    "Live metadata search excludes artwork provider; explicit artwork search includes it, errors stay in the active themed dialog and sizing fits light/390",
+    "Scoped Game/Media Collections, legacy redirects, selected top tab and viewport fit dark/390",
+    "Live metadata search excludes artwork provider; explicit artwork search includes it, errors stay in the active themed dialog and sizing fits dark/390",
+    "Scoped Game/Media Collections, legacy redirects, selected top tab and viewport fit light/1440",
+    "Live metadata search excludes artwork provider; explicit artwork search includes it, errors stay in the active themed dialog and sizing fits light/1440",
+    "Scoped Game/Media Collections, legacy redirects, selected top tab and viewport fit dark/1440",
+    "Live metadata search excludes artwork provider; explicit artwork search includes it, errors stay in the active themed dialog and sizing fits dark/1440"
+  ],
+  "captures": [
+    "scoped-media-collections-320-light.png",
+    "metadata-artwork-320-light.png",
+    "scoped-media-collections-320-dark.png",
+    "metadata-artwork-320-dark.png",
+    "scoped-media-collections-390-light.png",
+    "metadata-artwork-390-light.png",
+    "scoped-media-collections-390-dark.png",
+    "metadata-artwork-390-dark.png",
+    "scoped-media-collections-1440-light.png",
+    "metadata-artwork-1440-light.png",
+    "scoped-media-collections-1440-dark.png",
+    "metadata-artwork-1440-dark.png"
+  ]
+}

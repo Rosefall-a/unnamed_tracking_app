@@ -13,6 +13,7 @@ from src.api.routes import (
     api_keys,
     app_integrations,
     auth,
+    branding,
     calendar_events,
     calendar_feed,
     default_game_assets,
@@ -49,6 +50,7 @@ from src.api.routes.plugins import router as plugins_router
 from src.api.routes.real_ip import router as real_ip_router
 from src.api.routes.settings import get_or_create_app_integration_settings
 from src.api.routes.setup import router as setup_router
+from src.api.routes.themes import router as themes_router
 from src.api.routes.utils.misc import router as misc_router
 from src.core.auth import ensure_primary_user, set_password_policy_override
 from src.core.config import settings as app_settings
@@ -107,6 +109,8 @@ app.include_router(auth.router)
 app.include_router(auth_oidc_router)
 app.include_router(setup_router)
 app.include_router(settings.router)
+app.include_router(branding.router)
+app.include_router(themes_router)
 app.include_router(deployment_settings_router)
 app.include_router(plugin_permissions_router)
 app.include_router(plugins_router)

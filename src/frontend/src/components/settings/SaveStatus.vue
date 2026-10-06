@@ -5,6 +5,7 @@ import { saveState } from "../../state/saveStatus";
 const label = computed(() => {
   if (saveState.value === "saving") return "Saving…";
   if (saveState.value === "saved") return "All changes saved";
+  if (saveState.value === "settled") return "Saved";
   if (saveState.value === "error") return "Couldn't save. Try again";
   return "";
 });
@@ -31,32 +32,29 @@ const label = computed(() => {
   border-radius: 999px;
   font-size: 12.5px;
   font-weight: 600;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid #2a2a2a;
-  color: #aaa;
+  background: color-mix(in srgb, var(--ui-text) 5%, transparent);
+  border: 1px solid var(--ui-border);
+  color: var(--ui-dim);
 }
 .dot {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: #888;
+  background: var(--ui-dim);
 }
 .save-status.saving .dot {
-  background: #d68a34;
+  background: var(--ui-accent);
   animation: pulse 1s ease-in-out infinite;
 }
-.save-status.saved {
-  color: #86efac;
-}
 .save-status.saved .dot {
-  background: #4ade80;
+  background: var(--ui-good);
 }
 .save-status.error {
-  color: #fca5a5;
-  border-color: rgba(220, 38, 38, 0.35);
+  color: var(--ui-error);
+  border-color: color-mix(in srgb, var(--ui-error) 35%, var(--ui-border));
 }
 .save-status.error .dot {
-  background: #f87171;
+  background: var(--ui-error);
 }
 @keyframes pulse {
   50% {

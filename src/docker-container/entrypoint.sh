@@ -213,7 +213,10 @@ if ! nginx -s reload; then
 fi
 
 attempt=1
-while ! curl -fsS http://127.0.0.1/ >/dev/null 2>&1; do
+# Reload is asynchronous: startup workers can still answer HTTP 200. Publish
+# READY only after a request returns the actual compiled application document.
+while ! { curl -fsS http://127.0.0.1/ -o "$STATUS_DIR/frontend-probe.html" &&
+  cmp -s /srv/frontend/index.html "$STATUS_DIR/frontend-probe.html"; } 2>/dev/null; do
   log "Frontend not ready (attempt $attempt)"
   if [ "$attempt" -ge 15 ]; then fail_startup "FRONTEND_FAILED" "Nginx could not serve the production frontend. See Docker stderr for Nginx diagnostics." "ready" "ready" "ready" "failed"; fi
   attempt=$((attempt + 1)); sleep 1

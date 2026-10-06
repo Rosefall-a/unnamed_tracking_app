@@ -26,6 +26,8 @@ nav:
   - User Guide:
       - Overview: user-guide/index.md
       - Authentication: user-guide/authentication.md
+      - Appearance & Navigation: user-guide/appearance-and-navigation.md
+      - Your Home: user-guide/home.md
       - OpenID Connect / SSO: user-guide/oidc.md
       - Data, Exports & Backups: user-guide/data-and-backups.md
       - Plugins: user-guide/plugins.md
@@ -48,8 +50,10 @@ nav:
   - Administration:
       - Overview: administration/index.md
       - Users: administration/users.md
+      - App Branding: administration/branding.md
       - Scheduled Tasks: administration/tasks.md
       - Plugins: administration/plugins.md
+      - Installed Themes: administration/themes.md
   - Deployment:
       - Overview: deployment/index.md
       - Production Docker Image: deployment/production-docker.md
@@ -58,9 +62,14 @@ nav:
   - Development:
       - Overview: development/index.md
       - Architecture: development/architecture.md
+      - UI Redevelopment Checkpoint: development/ui-redevelopment.md
+      - UI PR Integration Review: development/ui-pr-integration-review.md
+      - Final Main UI Integration: development/final-main-ui-integration.md
+      - Remaining UI Merge Checks: development/ui-merge-checklist.md
       - API: development/api.md
       - API Examples: development/api-examples.md
       - Plugin API v1: development/plugin-api-v1.md
+      - Plugin v1.1 Migration: development/plugin-v1.1-migration.md
       - Plugin Platform Architecture: development/plugin-platform.md
       - Third-party Plugin Development: development/plugin-development.md
       - Plugin Capability APIs: development/plugin-capabilities.md
@@ -75,6 +84,10 @@ nav:
       - Plugin Runtime Isolation: development/plugin-runtime.md
       - Plugin Storage: development/plugin-storage.md
       - Plugin UI Protocol: development/plugin-ui.md
+      - Native Plugin Layout Review: development/native-plugin-review.md
+      - Games and Media Migration Review: development/games-ui-migration.md
+      - Plugin Palettes & Appearance: development/plugin-themes.md
+      - Plugin Home Widgets: development/plugin-home-widgets.md
       - Custom Plugin Frontend Sandbox: development/plugin-ui-sandbox.md
       - Plugin Notification Providers: development/notification-providers.md
       - Reference Plugins: development/reference-plugins.md

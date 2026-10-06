@@ -18,6 +18,7 @@ import {
   pluginPageReplacements,
   pluginDocumentReaders,
   documentReaderUrl,
+  pluginThemes,
 } from "../state/pluginExtensions";
 import { nativePluginComponent } from "../state/pluginNative";
 import type { PluginUiDocument } from "../services/pluginUi";
@@ -49,6 +50,7 @@ afterEach(() => {
 });
 
 const plugin: PluginSummary = {
+  api_contract_version: "1.1.0",
   plugin_id: "example.plugin",
   name: "Example",
   version: "1.0.0",
@@ -86,6 +88,7 @@ const plugin: PluginSummary = {
 };
 
 const document: PluginUiDocument = {
+  api_contract_version: "1.1.0",
   schema_version: "v1",
   plugin_id: plugin.plugin_id,
   title: "Example",
@@ -166,6 +169,170 @@ const document: PluginUiDocument = {
 };
 
 describe("plugin extension registry", () => {
+  it("requires the specific placement scope to join each built-in settings area", () => {
+    for (const [area, group, scope] of [
+      ["account", "Account", "frontend.placement.settings.account"],
+      ["preferences", "Library", "frontend.placement.settings.preferences"],
+      [
+        "administration",
+        "Server management",
+        "frontend.placement.settings.admin",
+      ],
+    ] as const) {
+      const placed: PluginUiDocument = {
+        ...document,
+        settings_sections: [
+          {
+            ...document.settings_sections![0]!,
+            area,
+            group,
+            folders: ["Services", "Advanced"],
+            visibility: { admin_only: area === "administration" },
+          },
+        ],
+      };
+      expect(derivePluginContributions(plugin, placed).settings[0]?.group).toBe(
+        "Extensions",
+      );
+      expect(
+        derivePluginContributions(
+          {
+            ...plugin,
+            effective_capabilities: [
+              ...plugin.effective_capabilities,
+              "frontend.placement.sidebar",
+            ],
+          },
+          placed,
+        ).settings[0]?.group,
+      ).toBe("Extensions");
+      expect(
+        derivePluginContributions(
+          {
+            ...plugin,
+            effective_capabilities: [...plugin.effective_capabilities, scope],
+          },
+          placed,
+        ).settings[0],
+      ).toMatchObject({ area, group, folders: ["Services", "Advanced"] });
+    }
+  });
+  it("requires sidebar placement approval separately from navigation registration", () => {
+    const placed: PluginUiDocument = {
+      ...document,
+      navigation: [
+        {
+          ...document.navigation![0]!,
+          group: "Your library",
+          folders: ["Games", "Challenges"],
+        },
+      ],
+    };
+    expect(
+      derivePluginContributions(plugin, placed).navigation.at(-1)?.group,
+    ).toBe("Extensions");
+    expect(
+      derivePluginContributions(
+        {
+          ...plugin,
+          effective_capabilities: [
+            ...plugin.effective_capabilities,
+            "frontend.placement.sidebar",
+          ],
+        },
+        placed,
+      ).navigation.at(-1),
+    ).toMatchObject({
+      group: "Your library",
+      folders: ["Games", "Challenges"],
+    });
+  });
+  it("retains declared settings placement and conservatively restricts Administration", () => {
+    for (const area of ["account", "preferences", "administration"] as const) {
+      const placed: PluginUiDocument = {
+        ...document,
+        settings_sections: [
+          {
+            ...document.settings_sections![0]!,
+            area,
+            group: "Documents",
+          },
+        ],
+      };
+      expect(
+        derivePluginContributions(plugin, placed).settings[0],
+      ).toMatchObject({
+        area,
+        group: "Documents",
+        adminOnly: area === "administration",
+      });
+    }
+  });
+  it("registers Home widgets only with their grant and withdraws them after revocation", async () => {
+    const widgetDocument: PluginUiDocument = {
+      ...document,
+      native_frontend: undefined,
+      home_widgets: [
+        {
+          id: "progress",
+          title: "Progress",
+          description: "Personal summary",
+          page_id: "dashboard",
+          configuration: [],
+          order: 2,
+          visibility: { admin_only: false },
+        },
+      ],
+    };
+    let current = {
+      ...plugin,
+      effective_capabilities: ["frontend.home.widgets"],
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => ({
+        ok: true,
+        json: async () => (url.endsWith("/ui") ? widgetDocument : [current]),
+      })),
+    );
+    expect(
+      derivePluginContributions(plugin, widgetDocument).slots.some(
+        (item) => item.extensionId === "progress",
+      ),
+    ).toBe(false);
+    await refreshPluginExtensions();
+    expect(pluginSlots.value.map((item) => item.extensionId)).toEqual([
+      "progress",
+    ]);
+    expect(pluginSlots.value[0]?.widget?.title).toBe("Progress");
+    current = { ...current, effective_capabilities: [] };
+    await refreshPluginExtensions();
+    expect(pluginSlots.value).toEqual([]);
+    current = {
+      ...current,
+      effective_capabilities: ["frontend.home.widgets"],
+      enabled: false,
+    };
+    await refreshPluginExtensions();
+    expect(activePluginDocuments.value).toEqual({});
+  });
+  it("blocks all legacy contributions even when stale metadata says running", () => {
+    for (const version of [undefined, "1.0.0", "1.0.9"]) {
+      const result = derivePluginContributions(
+        { ...plugin, api_contract_version: version },
+        document,
+      );
+      expect(Object.values(result).every((items) => items.length === 0)).toBe(
+        true,
+      );
+    }
+    const oldDocument = { ...document, api_contract_version: undefined };
+    expect(
+      Object.values(derivePluginContributions(plugin, oldDocument)).every(
+        (items) => items.length === 0,
+      ),
+    ).toBe(true);
+  });
   it("registers game document readers only with both grants and removes stale defaults", async () => {
     const readerDocument: PluginUiDocument = {
       ...document,
@@ -306,6 +473,74 @@ describe("plugin extension registry", () => {
     expect(native.activate).not.toHaveBeenCalled();
   });
 
+  it("publishes a slow initial load when background mounts and polls overlap", async () => {
+    let finish!: (response: Response) => void;
+    const fetcher = vi.fn(async (url: string) =>
+      url === "/api/plugins"
+        ? new Response(JSON.stringify([plugin]))
+        : new Promise<Response>((resolve) => {
+            finish = resolve;
+          }),
+    );
+    vi.stubGlobal("fetch", fetcher);
+    const first = refreshPluginExtensions({ background: true });
+    await vi.waitFor(() => expect(finish).toBeDefined());
+    const overlapping = Array.from({ length: 6 }, () =>
+      refreshPluginExtensions({ background: true }),
+    );
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    finish(new Response(JSON.stringify(document)));
+    await Promise.all([first, ...overlapping]);
+    expect(activePluginDocuments.value[plugin.plugin_id]).toEqual(document);
+    expect(native.activate).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not share a pending background load across an account change", async () => {
+    let finish!: (response: Response) => void;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) =>
+        url === "/api/plugins"
+          ? new Response(JSON.stringify([plugin]))
+          : new Promise<Response>((resolve) => {
+              finish = resolve;
+            }),
+      ),
+    );
+    const stale = refreshPluginExtensions({ background: true });
+    await vi.waitFor(() => expect(finish).toBeDefined());
+    clearPluginExtensions();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify([]))),
+    );
+    await refreshPluginExtensions({ background: true });
+    finish(new Response(JSON.stringify(document)));
+    await stale;
+    expect(activePluginDocuments.value).toEqual({});
+    expect(native.activate).not.toHaveBeenCalled();
+  });
+
+  it("refuses to load native code from a legacy UI document", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async (url: string) =>
+          new Response(
+            JSON.stringify(
+              url === "/api/plugins"
+                ? [plugin]
+                : { ...document, api_contract_version: undefined },
+            ),
+          ),
+      ),
+    );
+    await refreshPluginExtensions();
+    expect(pluginNavigation.value).toEqual([]);
+    expect(activePluginDocuments.value).toEqual({});
+    expect(native.activate).not.toHaveBeenCalled();
+  });
+
   it("namespaces IDs and selects replacements independently of discovery order", async () => {
     const first = { ...plugin, plugin_id: "a.plugin" };
     const second = { ...plugin, plugin_id: "z.plugin" };
@@ -378,6 +613,8 @@ describe("plugin extension registry", () => {
     expect(contributions.settings[0]).toMatchObject({
       pluginId: plugin.plugin_id,
       label: "Example settings",
+      area: "preferences",
+      group: "Extensions",
       pageId: "dashboard",
     });
     expect(contributions.replacements[0]).toMatchObject({
@@ -515,4 +752,51 @@ describe("plugin extension registry", () => {
     expect(denied.slots).toEqual([]);
     expect(denied.overlays).toEqual([]);
   });
+});
+
+it("only exposes plugin palettes under their independent grant", async () => {
+  const { ORANGE_PALETTE } = await import("../services/uiPalette");
+  const themed = {
+    ...document,
+    themes: [
+      {
+        id: "blue",
+        label: "Blue",
+        description: "Demo",
+        colors: ORANGE_PALETTE,
+        order: 0,
+      },
+    ],
+  };
+  expect(derivePluginContributions(plugin, themed).themes).toEqual([]);
+  const granted = {
+    ...plugin,
+    effective_capabilities: [
+      ...plugin.effective_capabilities,
+      "frontend.themes",
+    ],
+  };
+  expect(derivePluginContributions(granted, themed).themes[0]).toMatchObject({
+    pluginId: plugin.plugin_id,
+    contributionId: "blue",
+    label: "Blue",
+  });
+  let active = granted;
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(
+      async (url: string) =>
+        new Response(JSON.stringify(url.endsWith("/ui") ? themed : [active]), {
+          status: 200,
+        }),
+    ),
+  );
+  await refreshPluginExtensions();
+  expect(pluginThemes.value).toHaveLength(1);
+  active = {
+    ...granted,
+    effective_capabilities: plugin.effective_capabilities,
+  };
+  await refreshPluginExtensions();
+  expect(pluginThemes.value).toEqual([]);
 });

@@ -9,6 +9,15 @@ import pytest
 from fastapi import Depends, FastAPI
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
+from test_plugin_install_sources import (  # noqa: F401
+    acquire,
+    gate,
+    grants,
+    package_bytes,
+    seed_update,
+)
+
 from src.api.routes import plugins
 from src.api.routes.plugin_manager import acquisition as plugin_acquisition
 from src.api.routes.plugin_manager import catalogues as plugin_catalogues
@@ -20,18 +29,6 @@ from src.plugin_api.management_auth import MANAGEMENT_SCOPES, get_plugin_manager
 from src.plugin_api.manager_state import ManagerState, manager_state
 from src.plugin_api.recovery import recover_transactions
 from src.plugin_api.runtime_client import PluginRuntimeUnavailable
-from test_plugin_install_sources import (  # noqa: F401
-    acquire,
-    grants,
-    package_bytes,
-    seed_update,
-)
-from test_plugin_install_sources import (
-    gate as gate,
-)
-
-_MANAGER_ADMIN_DEPENDENCY = Depends(get_plugin_manager_admin)
-_CURRENT_USER_DEPENDENCY = Depends(get_current_user)
 
 
 async def install(gate, permissions=()):
@@ -86,11 +83,21 @@ async def test_package_lifecycles_preserve_integration_data_and_identity(gate):
     rollback = await gate.client.post(f"/api/plugins/{gate.plugin_id}/rollback", json={})
     assert rollback.status_code == 200, rollback.text
     assert gate.registry.package(gate.plugin_id)[1]["version"] == "1.0.0"
+    pinned = manager_state().read()["plugins"][gate.plugin_id]
+    assert pinned["version_pin"] == "1.0.0"
+    assert pinned["automatic_updates"] == "disabled"
     reinstall = await gate.client.post(f"/api/plugins/{gate.plugin_id}/reinstall", json={})
     assert reinstall.status_code == 200, reinstall.text
+    assert manager_state().read()["plugins"][gate.plugin_id]["version_pin"] == "1.0.0"
     assert gate.registry.package(gate.plugin_id)[1]["version"] == "1.0.0"
     assert UUID(gate.registry.list()[0]["installation_id"]) == installation_id
     assert_owned_data(gate)
+    resume = await gate.client.put(
+        f"/api/plugins/{gate.plugin_id}/auto-update", json={"mode": "follow"}
+    )
+    assert resume.status_code == 200
+    assert resume.json()["version_pin"] is None
+    assert resume.json()["automatic_updates"] == "follow"
     assert (await gate.client.delete(f"/api/plugins/{gate.plugin_id}")).status_code == 204
     assert gate.registry.list() == []
     assert gate.plugin_id not in manager_state().read()["plugins"]
@@ -479,7 +486,7 @@ async def test_management_tokens_are_granular_and_cannot_access_application_data
     app.dependency_overrides[plugins.get_db] = lambda: gate.db
 
     @app.get("/api/private")
-    async def private(user=_CURRENT_USER_DEPENDENCY):
+    async def private(user=Depends(get_current_user)):
         return {"username": user.username}
 
     async with AsyncClient(
@@ -520,7 +527,7 @@ async def test_each_management_scope_authorizes_only_its_operation_family(
     app = FastAPI()
     app.dependency_overrides[plugins.get_db] = lambda: gate.db
 
-    async def operation(admin=_MANAGER_ADMIN_DEPENDENCY):
+    async def operation(admin=Depends(get_plugin_manager_admin)):
         return {"authorized": True}
 
     app.add_api_route(path, operation, methods=[method])
@@ -561,7 +568,7 @@ async def test_operation_tokens_need_permission_scope_to_approve_grants(
     app = FastAPI()
     app.dependency_overrides[plugins.get_db] = lambda: gate.db
 
-    async def operation(admin=_MANAGER_ADMIN_DEPENDENCY):
+    async def operation(admin=Depends(get_plugin_manager_admin)):
         return {"authorized": True}
 
     app.add_api_route(path.split("?", 1)[0], operation, methods=["POST"])
@@ -578,3 +585,87 @@ async def test_operation_tokens_need_permission_scope_to_approve_grants(
         ) as client:
             assert (await client.post(path, json=approval)).status_code == expected
             assert (await client.post(path.split("?", 1)[0], json={})).status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_historical_catalogue_install_pins_until_explicit_opt_in(gate, monkeypatch):
+    import hashlib
+    import io
+    import zipfile
+
+    payload = package_bytes(gate.plugin_id, trust="trusted", key=gate.key)
+    with zipfile.ZipFile(io.BytesIO(payload)) as archive:
+        manifest = json.loads(archive.read("manifest.json"))
+
+    async def catalogue(**kwargs):
+        return [
+            plugins.PluginCatalogEntry(
+                plugin_id=gate.plugin_id,
+                name="History",
+                version="3.0.0",
+                url="https://packages.example/latest",
+                releases=[
+                    plugins.PluginCatalogRelease(
+                        version="2.0.0",
+                        url="https://packages.example/download",
+                        sha256=manifest["integrity"]["sha256"],
+                        package_sha256=hashlib.sha256(payload).hexdigest(),
+                    )
+                ],
+            )
+        ]
+
+    monkeypatch.setattr(plugin_catalogues, "plugin_catalog", catalogue)
+    store = manager_state()
+    store.settings({"automatic_updates": True})
+    response = await acquire(gate, "catalogue", payload)
+    assert response.status_code == 201, response.text
+    record = store.read()["plugins"][gate.plugin_id]
+    assert record["version"] == record["version_pin"] == "2.0.0"
+    assert record["automatic_updates"] == "disabled"
+    assert record["source"]["latest_version"] == "3.0.0"
+    inventory = store.reconcile(gate.registry.list())
+    assert inventory[0]["version_pin"] == "2.0.0"
+    # Manually reviewing the latest package clears a stale pin without opting
+    # the administrator back into automatic updates.
+    latest = await acquire(
+        gate,
+        "update",
+        package_bytes(gate.plugin_id, version="3.0.0", trust="trusted", key=gate.key),
+    )
+    assert latest.status_code == 200, latest.text
+    record = store.read()["plugins"][gate.plugin_id]
+    assert record["version_pin"] is None
+    assert record["automatic_updates"] == "disabled"
+    resume = await gate.client.put(
+        f"/api/plugins/{gate.plugin_id}/auto-update", json={"mode": "enabled"}
+    )
+    assert resume.status_code == 200
+    assert resume.json()["automatic_updates"] == "enabled"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failure", ["commit", "health"])
+async def test_failed_replacement_restores_existing_version_pin(gate, failure):
+    await install(gate)
+    store = manager_state()
+    store.patch(gate.plugin_id, version_pin="1.0.0", automatic_updates="disabled")
+    if failure == "commit":
+        gate.runtime.fail_commit = True
+    else:
+        gate.runtime.healthy = False
+    if failure == "commit":
+        with pytest.raises(IntegrityError):
+            await acquire(
+                gate, "update", package_bytes(gate.plugin_id, trust="trusted", key=gate.key)
+            )
+        gate.runtime.fail_commit = False
+    else:
+        response = await acquire(
+            gate, "update", package_bytes(gate.plugin_id, trust="trusted", key=gate.key)
+        )
+        assert response.status_code == 200, response.text
+        assert response.json()["status"] == "rolled_back"
+    record = store.read()["plugins"][gate.plugin_id]
+    assert record["version"] == record["version_pin"] == "1.0.0"
+    assert record["automatic_updates"] == "disabled"

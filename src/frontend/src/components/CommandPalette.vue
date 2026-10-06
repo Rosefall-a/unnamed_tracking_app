@@ -4,8 +4,18 @@ import { useRouter } from "vue-router";
 import { fetchGames, searchNotes } from "../services/games";
 import type { NoteSearchHit } from "../services/games";
 import type { Game } from "../types/game";
+import { searchPluginRecords } from "../state/pluginSearch";
 import { isCommandPaletteOpen } from "../state/commandPalette";
 import { smartCollections } from "../state/smartCollections";
+import { fetchMoviesPage } from "../services/movies";
+import { fetchTVShowsPage } from "../services/tvShows";
+import { fetchAnimePage } from "../services/anime";
+import { currentUser } from "../state/auth";
+import {
+  pluginNavigation,
+  pluginSettingsSections,
+} from "../state/pluginExtensions";
+import UiModal from "./UiModal.vue";
 
 const router = useRouter();
 
@@ -13,38 +23,55 @@ const open = isCommandPaletteOpen;
 const query = ref("");
 const inputRef = ref<HTMLInputElement | null>(null);
 
-// fetched lazily on first open, then reused for the rest of the session,
-// this is a jump-to tool, not a live search index, so a slightly stale
-// list (a game added a minute ago) is an acceptable tradeoff for not
-// re-fetching the whole library every keystroke
-let gamesCache: Game[] | null = null;
+const gamesCache = ref<Game[]>([]);
 const loaded = ref(false);
+const loadError = ref("");
+const mediaResults = ref<Result[]>([]);
+const pluginResults = ref<Result[]>([]);
+const mediaLoading = ref(false);
+let loadGeneration = 0;
+let mediaGeneration = 0;
+let mediaTimer: ReturnType<typeof setTimeout> | undefined;
+let pluginTimer: ReturnType<typeof setTimeout> | undefined;
+let pluginGeneration = 0;
 
 async function ensureLoaded() {
-  if (loaded.value) return;
-  try {
-    gamesCache = await fetchGames();
-  } catch {
-    gamesCache = gamesCache ?? [];
-  } finally {
-    loaded.value = true;
-  }
+  const generation = ++loadGeneration;
+  loadError.value = "";
+  const [games] = await Promise.allSettled([fetchGames()]);
+  if (generation !== loadGeneration) return;
+  if (games.status === "fulfilled") gamesCache.value = games.value;
+  if (games.status === "rejected")
+    loadError.value =
+      "Some library results could not be loaded. Try again when connected.";
+  loaded.value = true;
 }
 
 interface Result {
   key: string;
-  kind: "game" | "collection" | "page" | "note";
+  kind:
+    | "game"
+    | "movie"
+    | "tv"
+    | "anime"
+    | "collection"
+    | "bounty"
+    | "page"
+    | "note";
   label: string;
   sublabel?: string;
   action: () => void;
 }
 
-const SETTINGS_SHORTCUTS: { label: string; section: string }[] = [
+const SETTINGS_SHORTCUTS: {
+  label: string;
+  section: string;
+  adminOnly?: boolean;
+}[] = [
   { label: "Profile", section: "profile" },
-  { label: "User Interface", section: "interface" },
-  { label: "Game Page", section: "game-page" },
-  { label: "Appearance", section: "appearance" },
-  { label: "Upload", section: "upload" },
+  { label: "Appearance & interface", section: "appearance" },
+  { label: "App installation", section: "app-installation" },
+  { label: "Game page", section: "game-page" },
   { label: "Notifications", section: "notifications" },
   { label: "Calendar", section: "calendar" },
   { label: "Keyboard Shortcuts", section: "shortcuts" },
@@ -53,19 +80,41 @@ const SETTINGS_SHORTCUTS: { label: string; section: string }[] = [
   { label: "Media Trash", section: "media-trash" },
   { label: "Metadata", section: "metadata" },
   { label: "Metadata API keys", section: "sources" },
-  { label: "Server Stats", section: "stats" },
+  { label: "Storage & usage", section: "stats" },
   { label: "Export / Import", section: "export" },
+  { label: "API Keys", section: "api-keys" },
+  { label: "Users", section: "users", adminOnly: true },
+  { label: "Single sign-on", section: "oidc", adminOnly: true },
+  { label: "Password policy", section: "password-policy", adminOnly: true },
+  {
+    label: "Server integrations",
+    section: "server-integrations",
+    adminOnly: true,
+  },
+  { label: "Limits", section: "limits", adminOnly: true },
+  { label: "App branding", section: "branding", adminOnly: true },
+  { label: "Plugins", section: "plugins", adminOnly: true },
+  { label: "Background tasks", section: "tasks", adminOnly: true },
 ];
 
 const PAGE_SHORTCUTS: { label: string; to: string }[] = [
   { label: "Home", to: "/" },
   { label: "Games", to: "/games" },
-  { label: "Collections", to: "/games/collections" },
+  { label: "Game collections", to: "/games/collections" },
+  { label: "Movies", to: "/movies" },
+  { label: "TV shows", to: "/tv" },
+  { label: "Anime", to: "/anime" },
+  { label: "Media collections", to: "/media/collections" },
+  { label: "Calendar", to: "/calendar" },
+  { label: "Statistics", to: "/statistics" },
+  { label: "Notifications", to: "/notifications" },
+  { label: "Settings", to: "/settings" },
+  { label: "Upload", to: "/upload" },
 ];
 
 const collectionNames = computed(() => {
   const set = new Set<string>();
-  for (const g of gamesCache ?? []) for (const c of g.collections) set.add(c);
+  for (const g of gamesCache.value) for (const c of g.collections) set.add(c);
   for (const c of smartCollections.value) set.add(c.name);
   return [...set].sort();
 });
@@ -109,7 +158,7 @@ const results = computed<Result[]>(() => {
     return out;
   }
 
-  const games = (gamesCache ?? [])
+  const games = gamesCache.value
     .filter((g) => g.title.toLowerCase().includes(q))
     .slice(0, 6);
   for (const g of games) {
@@ -146,7 +195,11 @@ const results = computed<Result[]>(() => {
     });
   }
 
+  out.push(...mediaResults.value);
+  out.push(...pluginResults.value);
+
   for (const s of SETTINGS_SHORTCUTS) {
+    if (s.adminOnly && !currentUser.value?.is_admin) continue;
     if (s.label.toLowerCase().includes(q)) {
       out.push({
         key: "settings:" + s.section,
@@ -156,6 +209,48 @@ const results = computed<Result[]>(() => {
         action: () => go(`/settings?section=${s.section}`),
       });
     }
+  }
+
+  for (const item of pluginSettingsSections.value) {
+    if (
+      (item.adminOnly && !currentUser.value?.is_admin) ||
+      !item.label.toLowerCase().includes(q)
+    )
+      continue;
+    out.push({
+      key: "plugin-settings:" + item.contributionId,
+      kind: "page",
+      label: item.label,
+      sublabel: "Extension settings",
+      action: () =>
+        go(`/settings?section=${encodeURIComponent(item.contributionId)}`),
+    });
+  }
+  for (const item of pluginNavigation.value) {
+    if (
+      (item.adminOnly && !currentUser.value?.is_admin) ||
+      item.action ||
+      !item.label.toLowerCase().includes(q)
+    )
+      continue;
+    if (
+      item.location !== "main.sidebar" &&
+      item.location !== "settings.sidebar" &&
+      item.location !== "administration"
+    )
+      continue;
+    if (item.location === "administration" && !currentUser.value?.is_admin)
+      continue;
+    const destination = item.settingsSectionId
+      ? `/settings?section=${encodeURIComponent(item.settingsSectionId)}`
+      : `/plugins/${encodeURIComponent(item.pluginId)}/${(item.routePath || item.pageId || "").split("/").map(encodeURIComponent).join("/")}`;
+    out.push({
+      key: "plugin-navigation:" + item.contributionId,
+      kind: "page",
+      label: item.label,
+      sublabel: "Extension",
+      action: () => go(destination),
+    });
   }
   for (const p of PAGE_SHORTCUTS) {
     if (p.label.toLowerCase().includes(q)) {
@@ -187,40 +282,127 @@ function close() {
   noteHits.value = [];
 }
 
-async function openPalette() {
-  open.value = true;
-  void ensureLoaded();
-  await nextTick();
-  inputRef.value?.focus();
-}
+watch(
+  open,
+  async (value) => {
+    if (!value) {
+      query.value = "";
+      return;
+    }
+    void ensureLoaded();
+    await nextTick();
+    inputRef.value?.focus();
+  },
+  { immediate: true },
+);
 
-function isTypingTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false;
-  const tag = target.tagName;
-  return (
-    tag === "INPUT" ||
-    tag === "TEXTAREA" ||
-    tag === "SELECT" ||
-    target.isContentEditable
-  );
+watch(
+  () => currentUser.value?.id,
+  () => {
+    ++loadGeneration;
+    ++mediaGeneration;
+    ++pluginGeneration;
+    clearTimeout(mediaTimer);
+    clearTimeout(pluginTimer);
+    gamesCache.value = [];
+    mediaResults.value = [];
+    pluginResults.value = [];
+    loaded.value = false;
+    loadError.value = "";
+    mediaLoading.value = false;
+    close();
+  },
+);
+
+function searchMedia(value: string) {
+  const generation = ++mediaGeneration;
+  clearTimeout(mediaTimer);
+  mediaResults.value = [];
+  const search = value.trim();
+  mediaLoading.value = Boolean(search);
+  if (!search) return;
+  mediaTimer = setTimeout(async () => {
+    const sources = [
+      {
+        kind: "movie" as const,
+        label: "Movie",
+        path: "/movies",
+        fetch: fetchMoviesPage,
+      },
+      {
+        kind: "tv" as const,
+        label: "TV show",
+        path: "/tv",
+        fetch: fetchTVShowsPage,
+      },
+      {
+        kind: "anime" as const,
+        label: "Anime",
+        path: "/anime",
+        fetch: fetchAnimePage,
+      },
+    ];
+    const responses = await Promise.allSettled(
+      sources.map((source) => source.fetch(0, 6, search)),
+    );
+    if (generation !== mediaGeneration) return;
+    mediaResults.value = responses.flatMap((response, index) => {
+      if (response.status !== "fulfilled") return [];
+      const source = sources[index]!;
+      return response.value.items.map((item) => ({
+        key: source.kind + ":" + item.id,
+        kind: source.kind,
+        label: item.title,
+        sublabel: source.label,
+        action: () => go(`${source.path}/${item.id}`),
+      }));
+    });
+    mediaLoading.value = false;
+    if (responses.some((response) => response.status === "rejected"))
+      loadError.value =
+        "Some library results could not be loaded. Try again when connected.";
+  }, 160);
+}
+function searchPlugins(value: string) {
+  const generation = ++pluginGeneration;
+  clearTimeout(pluginTimer);
+  pluginResults.value = [];
+  if (!value.trim()) return;
+  pluginTimer = setTimeout(async () => {
+    const matches = await searchPluginRecords(value.trim());
+    if (generation !== pluginGeneration) return;
+    pluginResults.value = matches.map((item) => ({
+      key: `plugin-record:${item.pluginId}:${item.id}`,
+      kind: "page",
+      label: item.label,
+      sublabel: item.description ?? "Extension",
+      action: () => go(item.path),
+    }));
+  }, 160);
+}
+watch(query, (value) => {
+  searchMedia(value);
+  searchPlugins(value);
+});
+
+function retrySearch() {
+  void ensureLoaded();
+  searchMedia(query.value);
+  searchPlugins(query.value);
 }
 
 function onGlobalKeydown(e: KeyboardEvent) {
-  const isMeta = e.metaKey || e.ctrlKey;
-  if (isMeta && e.key.toLowerCase() === "k") {
-    e.preventDefault();
-    if (open.value) close();
-    else void openPalette();
-    return;
-  }
+  if (e.defaultPrevented) return;
   if (!open.value) return;
+  if (e.key !== "Escape" && e.target !== inputRef.value) return;
   if (e.key === "Escape") {
+    e.preventDefault();
     close();
   } else if (e.key === "ArrowDown") {
     e.preventDefault();
     activeIndex.value = Math.min(
       activeIndex.value + 1,
-      results.value.length - 1,
+      Math.max(0, results.value.length - 1),
     );
   } else if (e.key === "ArrowUp") {
     e.preventDefault();
@@ -228,35 +410,59 @@ function onGlobalKeydown(e: KeyboardEvent) {
   } else if (e.key === "Enter") {
     e.preventDefault();
     results.value[activeIndex.value]?.action();
-  } else if (e.key === "Tab" && !isTypingTarget(e.target)) {
-    // no-op, the palette owns focus while open
-    e.preventDefault();
   }
 }
 
 onMounted(() => window.addEventListener("keydown", onGlobalKeydown));
-onUnmounted(() => window.removeEventListener("keydown", onGlobalKeydown));
+onUnmounted(() => {
+  window.removeEventListener("keydown", onGlobalKeydown);
+  clearTimeout(mediaTimer);
+  clearTimeout(pluginTimer);
+  ++loadGeneration;
+  ++mediaGeneration;
+  ++pluginGeneration;
+  open.value = false;
+});
 
 const KIND_ICON: Record<Result["kind"], string> = {
   game: "🎮",
+  movie: "🎬",
+  tv: "📺",
+  anime: "🎞",
   collection: "📁",
+  bounty: "🎯",
   note: "📝",
   page: "→",
 };
 </script>
 
 <template>
-  <div v-if="open" class="palette-backdrop" @click.self="close">
+  <UiModal
+    v-if="open"
+    title="Search library"
+    data-tour="library-search"
+    @close="close"
+  >
     <div class="palette">
       <input
         ref="inputRef"
+        data-tour="palette-search"
         v-model="query"
         type="text"
+        aria-label="Search library"
         class="palette-input"
-        placeholder="Jump to a game, note, collection, or settings section…"
+        placeholder="Search games, media, notes, collections and pages…"
       />
+      <p v-if="loadError" role="status" class="palette-empty">
+        {{ loadError }}
+        <button type="button" class="ui-btn ui-btn-ghost" @click="retrySearch">
+          Retry
+        </button>
+      </p>
       <div v-if="!loaded" class="palette-loading">Loading…</div>
-      <div v-else-if="!results.length" class="palette-empty">No matches.</div>
+      <div v-else-if="!results.length" class="palette-empty">
+        {{ mediaLoading ? "Searching media…" : "No matches." }}
+      </div>
       <div v-else class="palette-results">
         <button
           v-for="(r, i) in results"
@@ -280,27 +486,11 @@ const KIND_ICON: Record<Result["kind"], string> = {
         <span><kbd>Esc</kbd> close</span>
       </div>
     </div>
-  </div>
+  </UiModal>
 </template>
 
 <style scoped>
-.palette-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.55);
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding-top: 12vh;
-  z-index: 300;
-}
 .palette {
-  width: 560px;
-  max-width: calc(100vw - 40px);
-  background: #1a1a1a;
-  border: 1px solid #2a2a2a;
-  border-radius: 12px;
-  box-shadow: 0 32px 80px rgba(0, 0, 0, 0.6);
   overflow: hidden;
 }
 .palette-input {
@@ -308,8 +498,8 @@ const KIND_ICON: Record<Result["kind"], string> = {
   box-sizing: border-box;
   background: none;
   border: none;
-  border-bottom: 1px solid #2a2a2a;
-  color: #fff;
+  border-bottom: 1px solid var(--ui-border);
+  color: var(--ui-text);
   padding: 16px 18px;
   font: inherit;
   font-size: 15px;
@@ -319,7 +509,7 @@ const KIND_ICON: Record<Result["kind"], string> = {
 }
 .palette-loading,
 .palette-empty {
-  color: #777;
+  color: var(--ui-dim);
   font-size: 13px;
   padding: 20px 18px;
 }
@@ -335,16 +525,17 @@ const KIND_ICON: Record<Result["kind"], string> = {
   width: 100%;
   background: none;
   border: none;
-  color: #eee;
+  color: var(--ui-text);
   text-align: left;
   padding: 9px 10px;
-  border-radius: 8px;
+  min-height: var(--ui-control-height);
+  border-radius: var(--ui-radius-control);
   cursor: pointer;
   font-size: 13.5px;
 }
 .palette-item.active {
-  background: rgba(214, 138, 52, 0.16);
-  color: #fff;
+  background: var(--ui-accent-soft);
+  color: var(--ui-text);
 }
 .palette-item-icon {
   font-size: 14px;
@@ -359,29 +550,29 @@ const KIND_ICON: Record<Result["kind"], string> = {
   text-overflow: ellipsis;
 }
 .palette-item-sub {
-  color: #999;
+  color: var(--ui-dim);
   font-size: 11px;
   text-transform: capitalize;
   flex-shrink: 0;
 }
 .palette-item.active .palette-item-sub {
-  color: #d68a34;
+  color: var(--ui-accent);
 }
 .palette-footer {
   display: flex;
   gap: 16px;
   padding: 10px 16px;
-  border-top: 1px solid #2a2a2a;
-  color: #666;
+  border-top: 1px solid var(--ui-border);
+  color: var(--ui-dim);
   font-size: 11px;
 }
 .palette-footer kbd {
-  background: #111;
-  border: 1px solid #3a3a3a;
+  background: var(--ui-surface-2);
+  border: 1px solid var(--ui-border-strong);
   border-radius: 4px;
   padding: 1px 5px;
   font-family: ui-monospace, monospace;
-  color: #999;
+  color: var(--ui-dim);
   margin-right: 4px;
 }
 </style>

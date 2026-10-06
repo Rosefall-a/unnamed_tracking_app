@@ -34,7 +34,7 @@ const overflows = computed(() => props.text.length > 320);
 .description {
   font-size: 0.96rem;
   line-height: 1.7;
-  color: #9c9c9c;
+  color: var(--ui-dim);
   margin: 0;
 }
 
@@ -48,7 +48,7 @@ const overflows = computed(() => props.text.length > 320);
 .read-more-btn {
   background: none;
   border: none;
-  color: #d68a34;
+  color: var(--ui-accent-text);
   font-family: inherit;
   font-size: 0.82rem;
   font-weight: 700;

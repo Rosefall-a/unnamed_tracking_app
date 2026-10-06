@@ -19,7 +19,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
-from typing import Any, Iterable, Mapping
+from typing import Any
 from urllib.parse import quote
 from uuid import UUID, uuid4
 
@@ -42,15 +42,27 @@ from .capabilities import (
     capability_definition,
     package_identity_can_retain_grants,
 )
+from .compatibility import legacy_plugin_allowed
 from .contracts import (
+    PLUGIN_API_CONTRACT_VERSION,
     BackendRouteScope,
     CapabilityRef,
     CompatibilityStatus,
-    PluginManifest,
     PluginPackageIdentity,
     evaluate_manifest_compatibility,
     parse_semver,
-    version_satisfies,
+)
+from .dependency_plan import (
+    DependencyPlan as DependencyPlan,
+)
+from .dependency_plan import (
+    DependencyPlanItem as DependencyPlanItem,
+)
+from .dependency_plan import (
+    DependencyState as DependencyState,
+)
+from .dependency_plan import (
+    plan_dependencies as plan_dependencies,
 )
 from .lifecycle_lock import serialized_lifecycle
 from .manager_state import manager_state
@@ -74,6 +86,8 @@ class PackageTrustStatus(StrEnum):
 
 @dataclass(frozen=True, slots=True)
 class PackageTrust:
+    """Signature verification and publisher evidence kept separate from consent."""
+
     status: PackageTrustStatus
     signature_present: bool
     signature_verified: bool
@@ -89,51 +103,16 @@ class PackageTrust:
 
     @property
     def is_verified(self) -> bool:
+        """Whether this package can retain grants for the same verified publisher."""
         return self.status is PackageTrustStatus.TRUSTED
 
 
 @dataclass(frozen=True, slots=True)
 class InspectedPackage:
+    """Verified archive bytes paired with their independently evaluated trust."""
+
     package: VerifiedPackage
     trust: PackageTrust
-
-
-class DependencyState(StrEnum):
-    SATISFIED = "satisfied"
-    MISSING = "missing"
-    INCOMPATIBLE = "incompatible"
-    OPTIONAL_MISSING = "optional_missing"
-    OPTIONAL_INCOMPATIBLE = "optional_incompatible"
-    AVAILABLE = "available"
-
-
-@dataclass(frozen=True, slots=True)
-class DependencyPlanItem:
-    plugin_id: str
-    version_range: str
-    optional: bool
-    state: DependencyState
-    installed_version: str | None = None
-    available_version: str | None = None
-    source_url: str | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class DependencyPlan:
-    items: tuple[DependencyPlanItem, ...]
-    installation_order: tuple[str, ...]
-    conflicts: tuple[str, ...]
-
-    @property
-    def ready(self) -> bool:
-        blocking = {
-            DependencyState.MISSING,
-            DependencyState.INCOMPATIBLE,
-            DependencyState.AVAILABLE,
-        }
-        return not self.conflicts and not any(
-            item.state in blocking and not item.optional for item in self.items
-        )
 
 
 def inspect_package(
@@ -230,140 +209,6 @@ def inspect_package(
     )
 
 
-def _summary_version(summary: Mapping[str, Any] | None) -> str | None:
-    if summary is None:
-        return None
-    value = summary.get("version")
-    return str(value) if isinstance(value, str) else None
-
-
-def _dependencies(summary: Mapping[str, Any]) -> Iterable[Mapping[str, Any]]:
-    value = summary.get("dependencies", ())
-    if not isinstance(value, (list, tuple)):
-        return ()
-    return (item for item in value if isinstance(item, Mapping))
-
-
-def plan_dependencies(
-    manifest: PluginManifest,
-    installed: Iterable[Mapping[str, Any]],
-    available: Iterable[Mapping[str, Any]] = (),
-) -> DependencyPlan:
-    """Resolve one candidate against installed and source-advertised versions."""
-    installed_by_id = {
-        str(item.get("plugin_id")): item
-        for item in installed
-        if item.get("plugin_id") and not item.get("installation_pending")
-    }
-    available_by_id = {
-        str(item.get("plugin_id")): item for item in available if item.get("plugin_id")
-    }
-    items: list[DependencyPlanItem] = []
-    conflicts: list[str] = []
-
-    for dependency in manifest.dependencies:
-        installed_item = installed_by_id.get(dependency.plugin_id)
-        installed_version = _summary_version(installed_item)
-        available_item = available_by_id.get(dependency.plugin_id)
-        available_version = _summary_version(available_item)
-        source_url = (
-            str(available_item.get("url"))
-            if available_item is not None and isinstance(available_item.get("url"), str)
-            else None
-        )
-        if installed_version and version_satisfies(installed_version, dependency.version_range):
-            state = DependencyState.SATISFIED
-        elif installed_version:
-            state = (
-                DependencyState.OPTIONAL_INCOMPATIBLE
-                if dependency.optional
-                else DependencyState.INCOMPATIBLE
-            )
-        elif available_version and version_satisfies(available_version, dependency.version_range):
-            state = DependencyState.AVAILABLE
-        else:
-            state = (
-                DependencyState.OPTIONAL_MISSING if dependency.optional else DependencyState.MISSING
-            )
-        if state is DependencyState.INCOMPATIBLE:
-            conflicts.append(
-                f"{dependency.plugin_id} {installed_version} does not satisfy "
-                f"{dependency.version_range}"
-            )
-        items.append(
-            DependencyPlanItem(
-                plugin_id=dependency.plugin_id,
-                version_range=dependency.version_range,
-                optional=dependency.optional,
-                state=state,
-                installed_version=installed_version,
-                available_version=available_version,
-                source_url=source_url,
-            )
-        )
-
-    graph: dict[str, tuple[str, ...]] = {
-        plugin_id: tuple(
-            str(item.get("plugin_id"))
-            for item in _dependencies(summary)
-            if not bool(item.get("optional")) and item.get("plugin_id")
-        )
-        for plugin_id, summary in available_by_id.items()
-    }
-    graph.update(
-        {
-            plugin_id: tuple(
-                str(item.get("plugin_id"))
-                for item in _dependencies(summary)
-                if not bool(item.get("optional")) and item.get("plugin_id")
-            )
-            for plugin_id, summary in installed_by_id.items()
-        }
-    )
-    graph[manifest.plugin_id] = tuple(
-        dependency.plugin_id for dependency in manifest.dependencies if not dependency.optional
-    )
-    visiting: set[str] = set()
-    visited: set[str] = set()
-    order: list[str] = []
-
-    def visit(plugin_id: str, path: tuple[str, ...]) -> None:
-        if plugin_id in visiting:
-            cycle = " -> ".join((*path, plugin_id))
-            conflicts.append(f"dependency cycle detected: {cycle}")
-            return
-        if plugin_id in visited:
-            return
-        visiting.add(plugin_id)
-        for dependency_id in graph.get(plugin_id, ()):
-            if dependency_id in graph:
-                visit(dependency_id, (*path, plugin_id))
-        visiting.remove(plugin_id)
-        visited.add(plugin_id)
-        order.append(plugin_id)
-
-    visit(manifest.plugin_id, ())
-    # Check transitive dependencies and reverse constraints on an update, not
-    # just the candidate's direct declarations. Available packages are preview
-    # hints; they cannot satisfy the installed graph before activation.
-    versions = {plugin_id: _summary_version(item) for plugin_id, item in installed_by_id.items()}
-    versions[manifest.plugin_id] = manifest.version
-    for owner_id, summary in installed_by_id.items():
-        if owner_id == manifest.plugin_id:
-            continue
-        for summary_dependency in _dependencies(summary):
-            dependency_id = str(summary_dependency.get("plugin_id", ""))
-            if bool(summary_dependency.get("optional")):
-                continue
-            if owner_id not in visited and dependency_id != manifest.plugin_id:
-                continue
-            version = versions.get(dependency_id)
-            version_range = str(summary_dependency.get("version_range", "*"))
-            if version is None or not version_satisfies(version, version_range):
-                conflicts.append(f"{owner_id} requires {dependency_id} matching {version_range}")
-    return DependencyPlan(tuple(items), tuple(order), tuple(dict.fromkeys(conflicts)))
-
-
 class InstallationError(ValueError):
     """An installation policy rejection, translated to HTTP only by the routes."""
 
@@ -385,11 +230,13 @@ class InstallationConsent:
     confirm_dangerous: bool = False
     expected_digest: str | None = None
     permissions_reviewed: bool = False
+    version_change_confirmed: bool = False
+    expected_installed_version: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
 class InstallationPlan:
-    """Validated package, dependency and grant decisions for one installation."""
+    """Identity, dependency and grant decisions recomputed before activation."""
 
     inspected: InspectedPackage
     installation_id: UUID
@@ -436,13 +283,29 @@ class PluginInstaller:
         db: AsyncSession,
         *,
         operation: str = "update",
+        allow_non_newer: bool = False,
+        expected_installed_version: str | None = None,
     ) -> InstallationPlan:
         """Compare only this installation's identity, declarations and grants."""
         manifest = inspected.package.manifest
+        installed_plugins = await self.runtime.plugins()
+        installed = next(
+            (item for item in installed_plugins if item.get("plugin_id") == plugin_id), None
+        )
+        if installed is None or not installed.get("installation_id"):
+            raise InstallationError(409, "Plugin installation identity is missing.")
+        if (
+            expected_installed_version is not None
+            and installed.get("version") != expected_installed_version
+        ):
+            raise InstallationError(
+                409, "The installed plugin changed after review. Review the package again."
+            )
         compatibility = evaluate_manifest_compatibility(
             manifest,
-            os.getenv("PLUGIN_SDK_VERSION", "1.0.0"),
+            os.getenv("PLUGIN_SDK_VERSION", PLUGIN_API_CONTRACT_VERSION),
             os.getenv("PLUGIN_APPLICATION_VERSION", "1.0.0"),
+            allow_legacy=legacy_plugin_allowed(manifest.plugin_id, installed),
         )
         if compatibility.status != CompatibilityStatus.COMPATIBLE:
             raise InstallationError(409, f"Package is not installable: {compatibility.reason}")
@@ -450,16 +313,15 @@ class PluginInstaller:
             raise InstallationError(
                 400, "Updated package plugin ID does not match the installed plugin."
             )
-        installed_plugins = await self.runtime.plugins()
-        installed = next(
-            (item for item in installed_plugins if item.get("plugin_id") == plugin_id), None
-        )
-        if installed is None or not installed.get("installation_id"):
-            raise InstallationError(409, "Plugin installation identity is missing.")
-        if operation == "update" and parse_semver(manifest.version) <= parse_semver(
-            str(installed.get("version", "0.0.0"))
+        if (
+            operation == "update"
+            and not allow_non_newer
+            and parse_semver(manifest.version)
+            <= parse_semver(str(installed.get("version", "0.0.0")))
         ):
-            raise InstallationError(409, "Plugin update version must be newer.")
+            raise InstallationError(
+                409, "Confirm applying the same version or a downgrade after reviewing the package."
+            )
         if operation == "reinstall" and (
             manifest.version != installed.get("version")
             or manifest.integrity.sha256 != installed.get("digest")
@@ -623,11 +485,18 @@ class PluginInstaller:
                 409, "The remote plugin changed after preview; review it again before installing."
             )
         if update_plugin_id is not None:
-            plan = await self.plan_update(update_plugin_id, inspected, db, operation=operation)
+            plan = await self.plan_update(
+                update_plugin_id,
+                inspected,
+                db,
+                operation=operation,
+                allow_non_newer=consent.version_change_confirmed,
+                expected_installed_version=consent.expected_installed_version,
+            )
         else:
             compatibility = evaluate_manifest_compatibility(
                 manifest,
-                os.getenv("PLUGIN_SDK_VERSION", "1.0.0"),
+                os.getenv("PLUGIN_SDK_VERSION", PLUGIN_API_CONTRACT_VERSION),
                 os.getenv("PLUGIN_APPLICATION_VERSION", "1.0.0"),
             )
             if compatibility.status != CompatibilityStatus.COMPATIBLE:
@@ -696,7 +565,7 @@ class PluginInstaller:
                     "status": "awaiting_permissions",
                     "healthy": plan.installed.get("health") == "healthy",
                 }
-        return await self._commit(plan, package, consent, admin, db, source, dangerous)
+        return await self._commit(plan, package, consent, admin, db, source, dangerous, operation)
 
     async def _commit(
         self,
@@ -707,6 +576,7 @@ class PluginInstaller:
         db: AsyncSession,
         source: dict[str, Any] | None,
         dangerous: list[str],
+        operation: str,
     ) -> dict[str, Any]:
         manifest = plan.inspected.package.manifest
         trust = plan.inspected.trust
@@ -714,6 +584,25 @@ class PluginInstaller:
         now = int(time.time())
         approved = set(consent.approved_permissions)
         replacing = plan.installed is not None
+        previous = {
+            **manager_state().read()["plugins"].get(plugin_id, {}),
+            **(plan.installed or {}),
+        }
+        selected_source = source or previous.get("source", {"type": "upload"})
+        latest = selected_source.get("latest_version")
+        older = bool(latest and parse_semver(manifest.version) < parse_semver(latest))
+        if previous.get("version"):
+            older = older or parse_semver(manifest.version) < parse_semver(previous["version"])
+        pin = manifest.version if older or operation == "rollback" else None
+        if (
+            previous.get("version") == manifest.version
+            and previous.get("version_pin") == manifest.version
+        ):
+            pin = manifest.version
+        update_policy = {
+            "version_pin": pin,
+            "automatic_updates": "disabled" if pin else previous.get("automatic_updates", "follow"),
+        }
         operation_id = str(uuid4())
         prepared = False
         commit_attempted = False
@@ -802,9 +691,13 @@ class PluginInstaller:
                 plugin_id,
                 **{
                     **(plan.installed or {}),
+                    **update_policy,
                     "plugin_id": plugin_id,
                     "name": manifest.name,
                     "version": manifest.version,
+                    "api_contract_version": manifest.api_contract_version,
+                    "sdk_version_range": manifest.sdk_version_range,
+                    "application_version_range": manifest.application_version_range,
                     "description": manifest.description,
                     "installation_id": str(plan.installation_id),
                     "digest": manifest.integrity.sha256,
@@ -812,7 +705,7 @@ class PluginInstaller:
                     "permission_refs": [
                         p.capability.model_dump(mode="json") for p in manifest.permissions
                     ],
-                    "source": source or (plan.installed or {}).get("source", {"type": "upload"}),
+                    "source": selected_source,
                     "trust": options["trust_metadata"],
                     "status": "stopped",
                     "enabled": False,
@@ -857,7 +750,10 @@ class PluginInstaller:
                 try:
                     await self.runtime.finish_installation(plugin_id, operation_id, commit=False)
                     if plan.installed:
-                        manager_state().patch(plugin_id, **plan.installed)
+                        manager_state().patch(
+                            plugin_id,
+                            **{"version_pin": None, "automatic_updates": "follow", **previous},
+                        )
                     else:
                         manager_state().remove(plugin_id)
                 except (PluginRuntimeRequestError, PluginRuntimeUnavailable):
@@ -873,7 +769,9 @@ class PluginInstaller:
 
         status = result.get("status", "updated" if replacing else "installed")
         healthy = False
-        if plan.installed is None or plan.installed.get("enabled"):
+        if plan.installed is None or plan.installed.get(
+            "activation_requested", plan.installed.get("enabled")
+        ):
             try:
                 encoded = quote(plugin_id, safe="")
                 if manifest.dependencies:
@@ -914,6 +812,8 @@ class PluginInstaller:
             await self.runtime.finish_activation(plugin_id, operation_id, commit=False)
             manager_state().patch(
                 plugin_id,
+                version_pin=previous.get("version_pin"),
+                automatic_updates=previous.get("automatic_updates", "follow"),
                 last_update_error="Candidate failed startup/health; previous release restored.",
             )
             status = "rolled_back"

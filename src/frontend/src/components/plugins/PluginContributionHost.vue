@@ -7,8 +7,12 @@ import type {
   UiValues,
 } from "../../services/pluginUi";
 import { dispatchPluginAction } from "../../services/pluginUi";
+import { pluginRequestError } from "../../services/apiError";
 import { approvePluginAction } from "../../services/pluginUi";
-import { nativePluginComponents } from "../../state/pluginNative";
+import {
+  nativePluginComponents,
+  nativePluginFailures,
+} from "../../state/pluginNative";
 import { activePluginDocuments } from "../../state/pluginExtensions";
 import PluginUiHost from "./PluginUiHost.vue";
 
@@ -19,8 +23,9 @@ const props = defineProps<{
   context?: Record<string, string | number | boolean>;
   embedded?: boolean;
   actionContext?: PluginActionContext;
+  widgetConfig?: UiValues;
 }>();
-const emit = defineEmits<{ navigate: [pageId: string] }>();
+const emit = defineEmits<{ navigate: [pageId: string]; failed: [] }>();
 
 const failed = ref(false);
 const active = computed(() =>
@@ -28,6 +33,9 @@ const active = computed(() =>
 );
 const component = computed(
   () => nativePluginComponents.value[`${props.pluginId}:${props.pageId}`],
+);
+const activationFailed = computed(() =>
+  Boolean(nativePluginFailures.value[props.pluginId]),
 );
 
 watch(
@@ -37,6 +45,7 @@ watch(
 
 onErrorCaptured(() => {
   failed.value = true;
+  emit("failed");
   return false;
 });
 
@@ -50,7 +59,11 @@ async function save(values: UiValues) {
       body: JSON.stringify(values),
     },
   );
-  if (!response.ok) throw new Error("Plugin settings could not be saved.");
+  if (!response.ok)
+    throw await pluginRequestError(
+      response,
+      "Plugin settings could not be saved",
+    );
 }
 
 async function run(action: UiAction, values: UiValues) {
@@ -81,7 +94,11 @@ const nativeHost = computed(() => ({
 </script>
 
 <template>
-  <p v-if="active && failed" class="plugin-failure" role="status">
+  <p
+    v-if="active && (failed || activationFailed)"
+    class="plugin-failure"
+    role="status"
+  >
     This plugin contribution failed and was removed from the page.
   </p>
   <component
@@ -92,6 +109,7 @@ const nativeHost = computed(() => ({
     :page-id="pageId"
     :context="context ?? {}"
     :host="nativeHost"
+    :widget-config="widgetConfig ?? {}"
   />
   <PluginUiHost
     v-else-if="active"
@@ -99,6 +117,7 @@ const nativeHost = computed(() => ({
     :page-id="pageId"
     :context="context"
     :embedded="embedded"
+    :widget-config="widgetConfig"
     @save="save"
     @action="run"
     @navigate="emit('navigate', $event)"
@@ -108,8 +127,8 @@ const nativeHost = computed(() => ({
 <style scoped>
 .plugin-failure {
   padding: 12px;
-  border: 1px solid rgba(255, 122, 122, 0.35);
-  border-radius: 8px;
-  color: #ffb0b0;
+  border: 1px solid var(--ui-error);
+  border-radius: var(--ui-radius-control);
+  color: var(--ui-error);
 }
 </style>

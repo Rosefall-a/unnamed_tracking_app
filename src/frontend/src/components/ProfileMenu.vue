@@ -11,6 +11,7 @@ import { useRouter } from "vue-router";
 import { openTopbarPopover } from "../state/topbarPopover";
 import { currentUser } from "../state/auth";
 import { logout } from "../services/auth";
+import { useConfirm } from "../state/dialog";
 
 defineProps<{ initials: string }>();
 
@@ -18,6 +19,9 @@ const router = useRouter();
 const root = ref<HTMLElement | null>(null);
 const triggerBtn = ref<HTMLElement | null>(null);
 const open = ref(false);
+const confirm = useConfirm();
+const signingOut = ref(false);
+const logoutError = ref("");
 
 const PANEL_WIDTH = 172;
 const panelStyle = ref<{ top: string; left: string }>({
@@ -69,10 +73,30 @@ function goSettings() {
 }
 
 async function handleLogout() {
+  if (signingOut.value) return;
+  signingOut.value = true;
   open.value = false;
-  await logout();
-  currentUser.value = null;
-  router.push("/login");
+  logoutError.value = "";
+  try {
+    if (
+      !(await confirm({
+        title: "Sign out?",
+        message: "You'll need to sign in again to access your library.",
+        confirmLabel: "Sign out",
+      }))
+    )
+      return;
+    await logout();
+    currentUser.value = null;
+    await router.push("/login");
+  } catch {
+    logoutError.value = "Could not sign out. Please try again.";
+    positionPanel();
+    open.value = true;
+    openTopbarPopover.value = "profile";
+  } finally {
+    signingOut.value = false;
+  }
 }
 
 function onDocumentClick(e: MouseEvent) {
@@ -179,9 +203,13 @@ onBeforeUnmount(() => {
           Settings
         </button>
         <div class="profile-menu-divider"></div>
+        <p v-if="logoutError" role="alert" class="profile-menu-item danger">
+          {{ logoutError }}
+        </p>
         <button
           type="button"
           class="profile-menu-item danger"
+          :disabled="signingOut"
           @click="handleLogout"
         >
           <svg
@@ -226,8 +254,8 @@ onBeforeUnmount(() => {
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: #d68a34;
-  color: #111;
+  background: var(--ui-accent);
+  color: var(--ui-on-accent);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -241,8 +269,8 @@ onBeforeUnmount(() => {
   width: 15px;
   height: 15px;
   border-radius: 50%;
-  background: #2a2a2a;
-  border: 2px solid #171717;
+  background: var(--ui-border);
+  border: 2px solid var(--ui-surface);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -250,7 +278,7 @@ onBeforeUnmount(() => {
 }
 .profile-menu-trigger:hover .profile-menu-chevron-badge,
 .profile-menu-trigger.active .profile-menu-chevron-badge {
-  background: #3a3a3a;
+  background: var(--ui-border-strong);
 }
 .profile-menu-chevron {
   transition: transform 0.15s ease;
@@ -269,8 +297,8 @@ onBeforeUnmount(() => {
   width: 172px;
   max-width: calc(100vw - 32px);
   box-sizing: border-box;
-  background: #171717;
-  border: 1px solid #2b2b2b;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
   border-radius: 12px;
   padding: 6px;
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
@@ -282,24 +310,24 @@ onBeforeUnmount(() => {
   left: var(--caret-offset, 20px);
   width: 11px;
   height: 11px;
-  background: #171717;
-  border-left: 1px solid #2b2b2b;
-  border-top: 1px solid #2b2b2b;
+  background: var(--ui-surface);
+  border-left: 1px solid var(--ui-border);
+  border-top: 1px solid var(--ui-border);
   border-radius: 2px;
   transform: rotate(45deg);
 }
 .profile-menu-panel .profile-menu-divider {
   height: 1px;
-  background: #232323;
+  background: var(--ui-border-soft);
   margin: 4px 4px;
 }
 .profile-menu-panel .profile-menu-head {
   padding: 7px 8px 8px;
-  border-bottom: 1px solid #232323;
+  border-bottom: 1px solid var(--ui-border-soft);
   margin-bottom: 4px;
 }
 .profile-menu-panel .profile-menu-name {
-  color: #eee;
+  color: var(--ui-text);
   font-size: 13px;
   font-weight: 700;
   white-space: nowrap;
@@ -307,7 +335,7 @@ onBeforeUnmount(() => {
   text-overflow: ellipsis;
 }
 .profile-menu-panel .profile-menu-email {
-  color: #888;
+  color: var(--ui-faint);
   font-size: 11.5px;
   white-space: nowrap;
   overflow: hidden;
@@ -322,17 +350,17 @@ onBeforeUnmount(() => {
   background: none;
   border: none;
   padding: 8px 8px;
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   text-align: left;
-  color: #eee;
+  color: var(--ui-text);
   font: inherit;
   font-size: 13px;
   cursor: pointer;
 }
 .profile-menu-panel .profile-menu-item:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--ui-text) 6%, transparent);
 }
 .profile-menu-panel .profile-menu-item.danger {
-  color: #e08585;
+  color: var(--ui-error);
 }
 </style>

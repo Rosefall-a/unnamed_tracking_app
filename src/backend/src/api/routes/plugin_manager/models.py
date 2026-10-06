@@ -30,6 +30,8 @@ class PluginActionIn(PluginSettingsIn):
 
 
 class PluginInstallUrl(BaseModel):
+    """Remote source and administrator consent, bound to reviewed package bytes."""
+
     url: str = Field(min_length=1, max_length=2048)
     expected_digest: str | None = Field(default=None, min_length=64, max_length=64)
     source_type: str = Field(default="url", pattern=r"^(url|catalogue)$")
@@ -38,6 +40,8 @@ class PluginInstallUrl(BaseModel):
     changelog_url: str | None = Field(default=None, max_length=2048)
     admin_password: str | None = Field(default=None, min_length=1, max_length=1024)
     confirm_dangerous: bool = False
+    version_change_confirmed: bool = Field(default=False, strict=True)
+    expected_installed_version: str | None = Field(default=None, min_length=1, max_length=64)
 
 
 class CatalogueIcon(BaseModel):
@@ -53,6 +57,18 @@ class CatalogueIcon(BaseModel):
         ):
             raise ValueError("Icon path must be a safe relative package path")
         return self
+
+
+class PluginCatalogRelease(BaseModel):
+    """One bounded advertised package version, inspected separately before installation."""
+
+    model_config = {"populate_by_name": True}
+    version: str = Field(min_length=1, max_length=64)
+    url: str = Field(min_length=1, max_length=2048)
+    digest: str | None = Field(default=None, alias="sha256", pattern=r"^[0-9a-fA-F]{64}$")
+    package_sha256: str | None = Field(default=None, pattern=r"^[0-9a-fA-F]{64}$")
+    release_notes: str | None = Field(default=None, max_length=4000)
+    automatic_update: bool = True
 
 
 class PluginCatalogEntry(BaseModel):
@@ -85,6 +101,10 @@ class PluginCatalogEntry(BaseModel):
     documentation: dict[str, object] = Field(default_factory=dict)
     build: dict[str, object] = Field(default_factory=dict)
     automatic_update: bool = True
+    releases: tuple[PluginCatalogRelease, ...] = Field(default=(), max_length=256)
+    catalogue_channel: str = Field(
+        default="unverified", pattern=r"^(official|demo|community|unverified)$"
+    )
 
 
 class PluginBackendRouteResponse(BaseModel):
@@ -111,7 +131,7 @@ class PluginCatalogueUpdate(BaseModel):
 
 
 class ManagerSettingsIn(BaseModel):
-    """Host-owned manager policy; approval identity is recorded by the server."""
+    """Editable manager policy; the host records the approving administrator."""
 
     model_config = ConfigDict(extra="forbid")
     automatic_updates: bool | None = None
@@ -124,7 +144,7 @@ class AutoUpdateIn(BaseModel):
 
 
 class PackageOperationIn(BaseModel):
-    """Explicit lifecycle decisions bound to the reviewed package payload."""
+    """Explicit lifecycle decisions for a reviewed installed or retained package."""
 
     expected_digest: str | None = Field(default=None, pattern=r"^[0-9a-fA-F]{64}$")
     approved_permissions: list[str] = Field(default_factory=list)
@@ -134,6 +154,8 @@ class PackageOperationIn(BaseModel):
     admin_password: str | None = None
     purge: bool = False
     confirmed: bool = False
+    version_change_confirmed: bool = Field(default=False, strict=True)
+    expected_installed_version: str | None = Field(default=None, min_length=1, max_length=64)
     history_id: UUID | None = None
 
 

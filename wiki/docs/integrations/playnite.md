@@ -146,3 +146,9 @@ Artwork uploads are treated as per-game warnings by the extension. Check the Pla
 ### Synchronization is slow
 
 Initial synchronization is per-game and can upload cover and banner artwork. Use **Preview sync** before a large upload and **Cancel** if a manual synchronization needs to stop.
+
+## Optional plugin download and preconfiguration
+
+A plugin settings page could provide the extension download and server URL setup guidance. Fully preconfigured .pext downloads are not a straightforward packaging change: the current extension persists settings through Playnite and has no per-server package bootstrap input. It uses a personal utk_ application API key rather than the Plugin API gateway; utpm_ management tokens are rejected by application endpoints.
+
+Preconfiguration would require an explicit extension bootstrap, private per-user credential delivery and review of installation/signing behavior. Do not embed credentials in repository packages, catalogues, download URLs or shared archives. This investigation therefore records the feasible setup-helper boundary without introducing an unreviewed authentication path. The existing manual extension setup above remains supported.

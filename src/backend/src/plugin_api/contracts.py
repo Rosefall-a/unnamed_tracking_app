@@ -1,4 +1,8 @@
-"""Stable public Plugin API v1 exports and compatibility decisions."""
+"""Stable public Plugin API contract exports and compatibility decisions.
+
+Core and frontend models have separate owners; consumers continue importing
+this facade so the versioned API and schema references remain unchanged.
+"""
 
 from __future__ import annotations
 
@@ -7,6 +11,9 @@ from typing import Any
 
 from .base_contracts import (
     API_VERSION as API_VERSION,
+)
+from .base_contracts import (
+    PLUGIN_API_CONTRACT_VERSION as PLUGIN_API_CONTRACT_VERSION,
 )
 from .base_contracts import (
     SEMVER_RE as SEMVER_RE,
@@ -117,6 +124,9 @@ from .base_contracts import (
     PluginPwaDeclaration as PluginPwaDeclaration,
 )
 from .base_contracts import (
+    PluginScheduledTask as PluginScheduledTask,
+)
+from .base_contracts import (
     PluginUiDeclaration as PluginUiDeclaration,
 )
 from .base_contracts import (
@@ -164,88 +174,107 @@ from .base_contracts import (
 from .base_contracts import (
     version_satisfies as version_satisfies,
 )
-from .frontend_contracts import (
+from .ui_contracts import (
     HostExtensionSlot as HostExtensionSlot,
 )
-from .frontend_contracts import (
+from .ui_contracts import (
     HostPage as HostPage,
 )
-from .frontend_contracts import (
+from .ui_contracts import (
     PluginUiDocument as PluginUiDocument,
 )
-from .frontend_contracts import (
+from .ui_contracts import (
+    ThemeColor as ThemeColor,
+)
+from .ui_contracts import (
     UiAction as UiAction,
 )
-from .frontend_contracts import (
+from .ui_contracts import (
     UiContextLocation as UiContextLocation,
 )
-from .frontend_contracts import (
+from .ui_contracts import (
     UiContextualAction as UiContextualAction,
 )
-from .frontend_contracts import (
+from .ui_contracts import (
     UiDialog as UiDialog,
 )
-from .frontend_contracts import (
+from .ui_contracts import (
     UiDialogContribution as UiDialogContribution,
 )
-from .frontend_contracts import (
+from .ui_contracts import (
     UiDocumentReader as UiDocumentReader,
 )
-from .frontend_contracts import (
+from .ui_contracts import (
     UiExtension as UiExtension,
 )
-from .frontend_contracts import (
+from .ui_contracts import (
     UiField as UiField,
 )
-from .frontend_contracts import (
+from .ui_contracts import (
     UiFieldType as UiFieldType,
 )
-from .frontend_contracts import (
+from .ui_contracts import (
+    UiHomeWidget as UiHomeWidget,
+)
+from .ui_contracts import (
     UiMenuItem as UiMenuItem,
 )
-from .frontend_contracts import (
+from .ui_contracts import (
     UiNavigationContribution as UiNavigationContribution,
 )
-from .frontend_contracts import (
+from .ui_contracts import (
     UiNavigationLocation as UiNavigationLocation,
 )
-from .frontend_contracts import (
+from .ui_contracts import (
     UiOption as UiOption,
 )
-from .frontend_contracts import (
+from .ui_contracts import (
     UiOverlayContribution as UiOverlayContribution,
 )
-from .frontend_contracts import (
+from .ui_contracts import (
     UiPage as UiPage,
 )
-from .frontend_contracts import (
+from .ui_contracts import (
     UiPageNavigation as UiPageNavigation,
 )
-from .frontend_contracts import (
+from .ui_contracts import (
     UiPageReplacement as UiPageReplacement,
 )
-from .frontend_contracts import (
+from .ui_contracts import (
+    UiPlacement as UiPlacement,
+)
+from .ui_contracts import (
     UiPluginRoute as UiPluginRoute,
 )
-from .frontend_contracts import (
+from .ui_contracts import (
     UiSchemaVersion as UiSchemaVersion,
 )
-from .frontend_contracts import (
+from .ui_contracts import (
     UiSettingsContribution as UiSettingsContribution,
 )
-from .frontend_contracts import (
+from .ui_contracts import (
     UiSettingsSection as UiSettingsSection,
 )
-from .frontend_contracts import (
+from .ui_contracts import UiShortcut as UiShortcut
+from .ui_contracts import (
     UiTable as UiTable,
 )
-from .frontend_contracts import (
+from .ui_contracts import (
     UiTableColumn as UiTableColumn,
 )
-from .frontend_contracts import (
+from .ui_contracts import (
+    UiTheme as UiTheme,
+)
+from .ui_contracts import (
+    UiThemeColors as UiThemeColors,
+)
+from .ui_contracts import (
+    UiThemePalette as UiThemePalette,
+)
+from .ui_contracts import (
     UiValidation as UiValidation,
 )
-from .frontend_contracts import (
+from .ui_contracts import (
     UiVisibility as UiVisibility,
 )
 
@@ -266,31 +295,58 @@ class CompatibilityDecision(ContractModel):
     action: str
 
 
+def plugin_contract_compatibility_reason(
+    declared_version: str,
+    host_version: str = PLUGIN_API_CONTRACT_VERSION,
+    *,
+    allow_legacy: bool = False,
+) -> str | None:
+    """New plugins require v1.1; explicitly eligible old installations use a limited adapter."""
+    declared = parse_semver(declared_version)
+    host = parse_semver(host_version)
+    if host >= (1, 1, 0) and declared[:2] == (1, 0):
+        if allow_legacy:
+            return None
+        return (
+            f"Plugin API contract {declared_version} is v1.0-only. "
+            "Limited compatibility is available for shipped examples and already-installed plugins. "
+            f"New plugins must target a supported v1.1 contract ({host_version})."
+        )
+    if declared[0] != host[0] or declared > host:
+        return f"Plugin API contract {declared_version} is not supported by this host ({host_version})."
+    return None
+
+
 def evaluate_manifest_compatibility(
     manifest: PluginManifest,
     sdk_version: str,
     application_version: str,
+    *,
+    allow_legacy: bool | None = None,
 ) -> CompatibilityDecision:
     """Classify a manifest without executing plugin code."""
+    from .compatibility import legacy_plugin_allowed, manifest_compatibility_checks
+
     try:
-        sdk_ok = version_satisfies(sdk_version, manifest.sdk_version_range)
-        app_ok = version_satisfies(application_version, manifest.application_version_range)
+        checks = manifest_compatibility_checks(
+            manifest,
+            sdk_version,
+            application_version,
+            allow_legacy=legacy_plugin_allowed(manifest.plugin_id)
+            if allow_legacy is None
+            else allow_legacy,
+        )
     except ValueError as exc:
         return CompatibilityDecision(
             status=CompatibilityStatus.INVALID,
             reason=str(exc),
             action="reject",
         )
-    if not sdk_ok:
+    failures = [item["reason"] for item in checks if item["status"] == "incompatible"]
+    if failures:
         return CompatibilityDecision(
             status=CompatibilityStatus.INCOMPATIBLE,
-            reason="plugin SDK version is outside the declared compatibility range",
-            action="quarantine",
-        )
-    if not app_ok:
-        return CompatibilityDecision(
-            status=CompatibilityStatus.INCOMPATIBLE,
-            reason="application version is outside the declared compatibility range",
+            reason=" ".join(failures),
             action="quarantine",
         )
     return CompatibilityDecision(
@@ -403,6 +459,7 @@ def resolve_plugin_dependencies(
 
 __all__ = [
     "API_VERSION",
+    "PLUGIN_API_CONTRACT_VERSION",
     "ApiVersion",
     "Capability",
     "CapabilityRef",
@@ -437,6 +494,7 @@ __all__ = [
     "StorageRequirements",
     "IntegrityMetadata",
     "PluginManifest",
+    "PluginScheduledTask",
     "UiSchemaVersion",
     "UiFieldType",
     "UiValidation",
@@ -450,6 +508,7 @@ __all__ = [
     "UiMenuItem",
     "UiPage",
     "PluginUiDocument",
+    "UiPlacement",
     "PluginFrontendDeclaration",
     "PluginNativeFrontendDeclaration",
     "PluginPwaDeclaration",
@@ -463,6 +522,11 @@ __all__ = [
     "UiContextualAction",
     "UiDialogContribution",
     "UiExtension",
+    "UiHomeWidget",
+    "UiShortcut",
+    "UiTheme",
+    "UiThemeColors",
+    "UiThemePalette",
     "UiNavigationContribution",
     "UiNavigationLocation",
     "UiOverlayContribution",
@@ -474,6 +538,7 @@ __all__ = [
     "CompatibilityStatus",
     "CompatibilityDecision",
     "evaluate_manifest_compatibility",
+    "plugin_contract_compatibility_reason",
     "migrate_manifest_data",
     "DependencyResolutionError",
     "resolve_plugin_dependencies",

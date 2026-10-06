@@ -103,12 +103,14 @@ export async function refreshPwa() {
       return;
     }
     if (!window.isSecureContext || !("serviceWorker" in navigator)) {
+      pwaState.installable = false;
       pwaState.message =
         "PWA installation requires HTTPS and a supported browser.";
       return;
     }
     const existing = await navigator.serviceWorker.getRegistration("/");
     if (existing?.active && !owned(existing.active)) {
+      pwaState.installable = false;
       pwaState.message =
         "Another service worker controls this site. PWA activation is unavailable.";
       return;
@@ -129,11 +131,13 @@ export async function refreshPwa() {
       await registration.update();
     }
     generation = status.generation || "";
+    pwaState.installable = Boolean(promptEvent);
     pwaState.message = "";
   } catch {
     // A transient outage is not affirmative disablement. Preserve the neutral
     // offline page and let the ordinary application retain its session policy.
     pwaState.available = false;
+    pwaState.installable = false;
     pwaState.message =
       "PWA installation is currently unavailable. Reconnect and try again.";
   } finally {
@@ -145,10 +149,12 @@ export function startPwa() {
   if (started) return;
   started = true;
   window.addEventListener("beforeinstallprompt", (event) => {
-    if (!pwaState.enabled) return;
+    // The browser can emit its one prompt before the initial status request
+    // finishes. Keep it queued, but expose it only after provider validation.
     event.preventDefault();
     promptEvent = event as InstallEvent;
-    pwaState.installable = true;
+    pwaState.installable =
+      pwaState.enabled && pwaState.available && !pwaState.message;
   });
   window.addEventListener("appinstalled", () => {
     promptEvent = undefined;
@@ -172,7 +178,8 @@ export function startPwa() {
           .then(async (response) => {
             if (!response.ok || !(await response.json()).enabled || reloading)
               return;
-            if (!owned(navigator.serviceWorker.controller)) return;
+            if (!owned(navigator.serviceWorker.controller) || !navigator.onLine)
+              return;
             if (dirty) pwaState.updatePending = true;
             else if (document.readyState === "complete") reloadPwa();
           })
@@ -191,7 +198,13 @@ export function reloadPwa() {
 }
 
 export async function installPwa() {
-  if (!promptEvent) return;
+  if (
+    !promptEvent ||
+    !pwaState.enabled ||
+    !pwaState.available ||
+    !pwaState.installable
+  )
+    return;
   try {
     await promptEvent.prompt();
     await promptEvent.userChoice;

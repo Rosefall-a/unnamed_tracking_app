@@ -1,0 +1,986 @@
+{
+  "backend": "real",
+  "passed": [
+    "160 real content page/theme/width/role cases",
+    "Four preserved Games views at all eight widths in both themes",
+    "Shared page title typography",
+    "Native collection/card/bounty dialogs contain focus, fit viewport and restore focus on Escape",
+    "Keyboard filter selection and Escape retain input focus",
+    "Phone Games list retains every field and action without horizontal scrolling",
+    "Real phone set, bounty and eligible-game card creation",
+    "Actual smart collection creation, keyboard open/deep link and separate keyboard deletion",
+    "No JavaScript errors or document/page overflow"
+  ],
+  "screens": [
+    {
+      "width": 320,
+      "theme": "light",
+      "role": "admin",
+      "screen": "Games"
+    },
+    {
+      "width": 320,
+      "theme": "light",
+      "role": "admin",
+      "screen": "Collections"
+    },
+    {
+      "width": 320,
+      "theme": "light",
+      "role": "admin",
+      "screen": "Cards"
+    },
+    {
+      "width": 320,
+      "theme": "light",
+      "role": "admin",
+      "screen": "Sets"
+    },
+    {
+      "width": 320,
+      "theme": "light",
+      "role": "admin",
+      "screen": "Bounties"
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "role": "admin",
+      "screen": "Games"
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "role": "admin",
+      "screen": "Collections"
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "role": "admin",
+      "screen": "Cards"
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "role": "admin",
+      "screen": "Sets"
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "role": "admin",
+      "screen": "Bounties"
+    },
+    {
+      "width": 430,
+      "theme": "light",
+      "role": "admin",
+      "screen": "Games"
+    },
+    {
+      "width": 430,
+      "theme": "light",
+      "role": "admin",
+      "screen": "Collections"
+    },
+    {
+      "width": 430,
+      "theme": "light",
+      "role": "admin",
+      "screen": "Cards"
+    },
+    {
+      "width": 430,
+      "theme": "light",
+      "role": "admin",
+      "screen": "Sets"
+    },
+    {
+      "width": 430,
+      "theme": "light",
+      "role": "admin",
+      "screen": "Bounties"
+    },
+    {
+      "width": 768,
+      "theme": "light",
+      "role": "admin",
+      "screen": "Games"
+    },
+    {
+      "width": 768,
+      "theme": "light",
+      "role": "admin",
+      "screen": "Collections"
+    },
+    {
+      "width": 768,
+      "theme": "light",
+      "role": "admin",
+      "screen": "Cards"
+    },
+    {
+      "width": 768,
+      "theme": "light",
+      "role": "admin",
+      "screen": "Sets"
+    },
+    {
+      "width": 768,
+      "theme": "light",
+      "role": "admin",
+      "screen": "Bounties"
+    },
+    {
+      "width": 1024,
+      "theme": "light",
+      "role": "admin",
+      "screen": "Games"
+    },
+    {
+      "width": 1024,
+      "theme": "light",
+      "role": "admin",
+      "screen": "Collections"
+    },
+    {
+      "width": 1024,
+      "theme": "light",
+      "role": "admin",
+      "screen": "Cards"
+    },
+    {
+      "width": 1024,
+      "theme": "light",
+      "role": "admin",
+      "screen": "Sets"
+    },
+    {
+      "width": 1024,
+      "theme": "light",
+      "role": "admin",
+      "screen": "Bounties"
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "role": "admin",
+      "screen": "Games"
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "role": "admin",
+      "screen": "Collections"
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "role": "admin",
+      "screen": "Cards"
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "role": "admin",
+      "screen": "Sets"
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "role": "admin",
+      "screen": "Bounties"
+    },
+    {
+      "width": 1920,
+      "theme": "light",
+      "role": "admin",
+      "screen": "Games"
+    },
+    {
+      "width": 1920,
+      "theme": "light",
+      "role": "admin",
+      "screen": "Collections"
+    },
+    {
+      "width": 1920,
+      "theme": "light",
+      "role": "admin",
+      "screen": "Cards"
+    },
+    {
+      "width": 1920,
+      "theme": "light",
+      "role": "admin",
+      "screen": "Sets"
+    },
+    {
+      "width": 1920,
+      "theme": "light",
+      "role": "admin",
+      "screen": "Bounties"
+    },
+    {
+      "width": 2560,
+      "theme": "light",
+      "role": "admin",
+      "screen": "Games"
+    },
+    {
+      "width": 2560,
+      "theme": "light",
+      "role": "admin",
+      "screen": "Collections"
+    },
+    {
+      "width": 2560,
+      "theme": "light",
+      "role": "admin",
+      "screen": "Cards"
+    },
+    {
+      "width": 2560,
+      "theme": "light",
+      "role": "admin",
+      "screen": "Sets"
+    },
+    {
+      "width": 2560,
+      "theme": "light",
+      "role": "admin",
+      "screen": "Bounties"
+    },
+    {
+      "width": 320,
+      "theme": "dark",
+      "role": "admin",
+      "screen": "Games"
+    },
+    {
+      "width": 320,
+      "theme": "dark",
+      "role": "admin",
+      "screen": "Collections"
+    },
+    {
+      "width": 320,
+      "theme": "dark",
+      "role": "admin",
+      "screen": "Cards"
+    },
+    {
+      "width": 320,
+      "theme": "dark",
+      "role": "admin",
+      "screen": "Sets"
+    },
+    {
+      "width": 320,
+      "theme": "dark",
+      "role": "admin",
+      "screen": "Bounties"
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "role": "admin",
+      "screen": "Games"
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "role": "admin",
+      "screen": "Collections"
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "role": "admin",
+      "screen": "Cards"
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "role": "admin",
+      "screen": "Sets"
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "role": "admin",
+      "screen": "Bounties"
+    },
+    {
+      "width": 430,
+      "theme": "dark",
+      "role": "admin",
+      "screen": "Games"
+    },
+    {
+      "width": 430,
+      "theme": "dark",
+      "role": "admin",
+      "screen": "Collections"
+    },
+    {
+      "width": 430,
+      "theme": "dark",
+      "role": "admin",
+      "screen": "Cards"
+    },
+    {
+      "width": 430,
+      "theme": "dark",
+      "role": "admin",
+      "screen": "Sets"
+    },
+    {
+      "width": 430,
+      "theme": "dark",
+      "role": "admin",
+      "screen": "Bounties"
+    },
+    {
+      "width": 768,
+      "theme": "dark",
+      "role": "admin",
+      "screen": "Games"
+    },
+    {
+      "width": 768,
+      "theme": "dark",
+      "role": "admin",
+      "screen": "Collections"
+    },
+    {
+      "width": 768,
+      "theme": "dark",
+      "role": "admin",
+      "screen": "Cards"
+    },
+    {
+      "width": 768,
+      "theme": "dark",
+      "role": "admin",
+      "screen": "Sets"
+    },
+    {
+      "width": 768,
+      "theme": "dark",
+      "role": "admin",
+      "screen": "Bounties"
+    },
+    {
+      "width": 1024,
+      "theme": "dark",
+      "role": "admin",
+      "screen": "Games"
+    },
+    {
+      "width": 1024,
+      "theme": "dark",
+      "role": "admin",
+      "screen": "Collections"
+    },
+    {
+      "width": 1024,
+      "theme": "dark",
+      "role": "admin",
+      "screen": "Cards"
+    },
+    {
+      "width": 1024,
+      "theme": "dark",
+      "role": "admin",
+      "screen": "Sets"
+    },
+    {
+      "width": 1024,
+      "theme": "dark",
+      "role": "admin",
+      "screen": "Bounties"
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "role": "admin",
+      "screen": "Games"
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "role": "admin",
+      "screen": "Collections"
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "role": "admin",
+      "screen": "Cards"
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "role": "admin",
+      "screen": "Sets"
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "role": "admin",
+      "screen": "Bounties"
+    },
+    {
+      "width": 1920,
+      "theme": "dark",
+      "role": "admin",
+      "screen": "Games"
+    },
+    {
+      "width": 1920,
+      "theme": "dark",
+      "role": "admin",
+      "screen": "Collections"
+    },
+    {
+      "width": 1920,
+      "theme": "dark",
+      "role": "admin",
+      "screen": "Cards"
+    },
+    {
+      "width": 1920,
+      "theme": "dark",
+      "role": "admin",
+      "screen": "Sets"
+    },
+    {
+      "width": 1920,
+      "theme": "dark",
+      "role": "admin",
+      "screen": "Bounties"
+    },
+    {
+      "width": 2560,
+      "theme": "dark",
+      "role": "admin",
+      "screen": "Games"
+    },
+    {
+      "width": 2560,
+      "theme": "dark",
+      "role": "admin",
+      "screen": "Collections"
+    },
+    {
+      "width": 2560,
+      "theme": "dark",
+      "role": "admin",
+      "screen": "Cards"
+    },
+    {
+      "width": 2560,
+      "theme": "dark",
+      "role": "admin",
+      "screen": "Sets"
+    },
+    {
+      "width": 2560,
+      "theme": "dark",
+      "role": "admin",
+      "screen": "Bounties"
+    },
+    {
+      "width": 320,
+      "theme": "light",
+      "role": "member",
+      "screen": "Games"
+    },
+    {
+      "width": 320,
+      "theme": "light",
+      "role": "member",
+      "screen": "Collections"
+    },
+    {
+      "width": 320,
+      "theme": "light",
+      "role": "member",
+      "screen": "Cards"
+    },
+    {
+      "width": 320,
+      "theme": "light",
+      "role": "member",
+      "screen": "Sets"
+    },
+    {
+      "width": 320,
+      "theme": "light",
+      "role": "member",
+      "screen": "Bounties"
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "role": "member",
+      "screen": "Games"
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "role": "member",
+      "screen": "Collections"
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "role": "member",
+      "screen": "Cards"
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "role": "member",
+      "screen": "Sets"
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "role": "member",
+      "screen": "Bounties"
+    },
+    {
+      "width": 430,
+      "theme": "light",
+      "role": "member",
+      "screen": "Games"
+    },
+    {
+      "width": 430,
+      "theme": "light",
+      "role": "member",
+      "screen": "Collections"
+    },
+    {
+      "width": 430,
+      "theme": "light",
+      "role": "member",
+      "screen": "Cards"
+    },
+    {
+      "width": 430,
+      "theme": "light",
+      "role": "member",
+      "screen": "Sets"
+    },
+    {
+      "width": 430,
+      "theme": "light",
+      "role": "member",
+      "screen": "Bounties"
+    },
+    {
+      "width": 768,
+      "theme": "light",
+      "role": "member",
+      "screen": "Games"
+    },
+    {
+      "width": 768,
+      "theme": "light",
+      "role": "member",
+      "screen": "Collections"
+    },
+    {
+      "width": 768,
+      "theme": "light",
+      "role": "member",
+      "screen": "Cards"
+    },
+    {
+      "width": 768,
+      "theme": "light",
+      "role": "member",
+      "screen": "Sets"
+    },
+    {
+      "width": 768,
+      "theme": "light",
+      "role": "member",
+      "screen": "Bounties"
+    },
+    {
+      "width": 1024,
+      "theme": "light",
+      "role": "member",
+      "screen": "Games"
+    },
+    {
+      "width": 1024,
+      "theme": "light",
+      "role": "member",
+      "screen": "Collections"
+    },
+    {
+      "width": 1024,
+      "theme": "light",
+      "role": "member",
+      "screen": "Cards"
+    },
+    {
+      "width": 1024,
+      "theme": "light",
+      "role": "member",
+      "screen": "Sets"
+    },
+    {
+      "width": 1024,
+      "theme": "light",
+      "role": "member",
+      "screen": "Bounties"
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "role": "member",
+      "screen": "Games"
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "role": "member",
+      "screen": "Collections"
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "role": "member",
+      "screen": "Cards"
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "role": "member",
+      "screen": "Sets"
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "role": "member",
+      "screen": "Bounties"
+    },
+    {
+      "width": 1920,
+      "theme": "light",
+      "role": "member",
+      "screen": "Games"
+    },
+    {
+      "width": 1920,
+      "theme": "light",
+      "role": "member",
+      "screen": "Collections"
+    },
+    {
+      "width": 1920,
+      "theme": "light",
+      "role": "member",
+      "screen": "Cards"
+    },
+    {
+      "width": 1920,
+      "theme": "light",
+      "role": "member",
+      "screen": "Sets"
+    },
+    {
+      "width": 1920,
+      "theme": "light",
+      "role": "member",
+      "screen": "Bounties"
+    },
+    {
+      "width": 2560,
+      "theme": "light",
+      "role": "member",
+      "screen": "Games"
+    },
+    {
+      "width": 2560,
+      "theme": "light",
+      "role": "member",
+      "screen": "Collections"
+    },
+    {
+      "width": 2560,
+      "theme": "light",
+      "role": "member",
+      "screen": "Cards"
+    },
+    {
+      "width": 2560,
+      "theme": "light",
+      "role": "member",
+      "screen": "Sets"
+    },
+    {
+      "width": 2560,
+      "theme": "light",
+      "role": "member",
+      "screen": "Bounties"
+    },
+    {
+      "width": 320,
+      "theme": "dark",
+      "role": "member",
+      "screen": "Games"
+    },
+    {
+      "width": 320,
+      "theme": "dark",
+      "role": "member",
+      "screen": "Collections"
+    },
+    {
+      "width": 320,
+      "theme": "dark",
+      "role": "member",
+      "screen": "Cards"
+    },
+    {
+      "width": 320,
+      "theme": "dark",
+      "role": "member",
+      "screen": "Sets"
+    },
+    {
+      "width": 320,
+      "theme": "dark",
+      "role": "member",
+      "screen": "Bounties"
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "role": "member",
+      "screen": "Games"
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "role": "member",
+      "screen": "Collections"
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "role": "member",
+      "screen": "Cards"
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "role": "member",
+      "screen": "Sets"
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "role": "member",
+      "screen": "Bounties"
+    },
+    {
+      "width": 430,
+      "theme": "dark",
+      "role": "member",
+      "screen": "Games"
+    },
+    {
+      "width": 430,
+      "theme": "dark",
+      "role": "member",
+      "screen": "Collections"
+    },
+    {
+      "width": 430,
+      "theme": "dark",
+      "role": "member",
+      "screen": "Cards"
+    },
+    {
+      "width": 430,
+      "theme": "dark",
+      "role": "member",
+      "screen": "Sets"
+    },
+    {
+      "width": 430,
+      "theme": "dark",
+      "role": "member",
+      "screen": "Bounties"
+    },
+    {
+      "width": 768,
+      "theme": "dark",
+      "role": "member",
+      "screen": "Games"
+    },
+    {
+      "width": 768,
+      "theme": "dark",
+      "role": "member",
+      "screen": "Collections"
+    },
+    {
+      "width": 768,
+      "theme": "dark",
+      "role": "member",
+      "screen": "Cards"
+    },
+    {
+      "width": 768,
+      "theme": "dark",
+      "role": "member",
+      "screen": "Sets"
+    },
+    {
+      "width": 768,
+      "theme": "dark",
+      "role": "member",
+      "screen": "Bounties"
+    },
+    {
+      "width": 1024,
+      "theme": "dark",
+      "role": "member",
+      "screen": "Games"
+    },
+    {
+      "width": 1024,
+      "theme": "dark",
+      "role": "member",
+      "screen": "Collections"
+    },
+    {
+      "width": 1024,
+      "theme": "dark",
+      "role": "member",
+      "screen": "Cards"
+    },
+    {
+      "width": 1024,
+      "theme": "dark",
+      "role": "member",
+      "screen": "Sets"
+    },
+    {
+      "width": 1024,
+      "theme": "dark",
+      "role": "member",
+      "screen": "Bounties"
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "role": "member",
+      "screen": "Games"
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "role": "member",
+      "screen": "Collections"
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "role": "member",
+      "screen": "Cards"
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "role": "member",
+      "screen": "Sets"
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "role": "member",
+      "screen": "Bounties"
+    },
+    {
+      "width": 1920,
+      "theme": "dark",
+      "role": "member",
+      "screen": "Games"
+    },
+    {
+      "width": 1920,
+      "theme": "dark",
+      "role": "member",
+      "screen": "Collections"
+    },
+    {
+      "width": 1920,
+      "theme": "dark",
+      "role": "member",
+      "screen": "Cards"
+    },
+    {
+      "width": 1920,
+      "theme": "dark",
+      "role": "member",
+      "screen": "Sets"
+    },
+    {
+      "width": 1920,
+      "theme": "dark",
+      "role": "member",
+      "screen": "Bounties"
+    },
+    {
+      "width": 2560,
+      "theme": "dark",
+      "role": "member",
+      "screen": "Games"
+    },
+    {
+      "width": 2560,
+      "theme": "dark",
+      "role": "member",
+      "screen": "Collections"
+    },
+    {
+      "width": 2560,
+      "theme": "dark",
+      "role": "member",
+      "screen": "Cards"
+    },
+    {
+      "width": 2560,
+      "theme": "dark",
+      "role": "member",
+      "screen": "Sets"
+    },
+    {
+      "width": 2560,
+      "theme": "dark",
+      "role": "member",
+      "screen": "Bounties"
+    }
+  ],
+  "widths": [
+    320,
+    390,
+    430,
+    768,
+    1024,
+    1440,
+    1920,
+    2560
+  ]
+}

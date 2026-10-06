@@ -64,3 +64,20 @@ export function friendlyError(status: number, body: string): string {
 export async function failedRequest(response: Response): Promise<Error> {
   return new Error(friendlyError(response.status, await response.text()));
 }
+
+// Plugin failures include capability and compatibility guidance from the host.
+// Only show the reviewed detail message, never validation input or raw bodies.
+export async function pluginRequestError(
+  response: Response,
+  action: string,
+): Promise<Error> {
+  const detail = serverDetail(
+    await response
+      .clone()
+      .text()
+      .catch(() => ""),
+  );
+  return new Error(
+    `${action} (${response.status})${detail ? `: ${detail}` : "."}`,
+  );
+}

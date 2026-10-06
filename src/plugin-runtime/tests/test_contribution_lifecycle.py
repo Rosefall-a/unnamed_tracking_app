@@ -77,6 +77,7 @@ def test_disable_blocks_gateway_requests_before_process_cleanup(tmp_path, monkey
     package = tmp_path / "packages" / "contract"
     package.mkdir(parents=True)
     manifest = {
+        "api_contract_version": "1.1.0",
         "plugin_id": "contract",
         "entrypoint": "contract:main",
         "integrity": {"sha256": PluginRegistry.digest(package)},
@@ -108,6 +109,11 @@ def test_disable_blocks_gateway_requests_before_process_cleanup(tmp_path, monkey
 
 
 def test_starting_allows_local_bootstrap_but_not_contributions(tmp_path):
+    package = tmp_path / "packages" / "contract"
+    package.mkdir(parents=True)
+    (package / "manifest.json").write_text(json.dumps({
+        "api_contract_version": "1.1.0", "plugin_id": "contract", "entrypoint": "contract:main",
+    }), encoding="utf-8")
     supervisor = PluginSupervisor(
         root=tmp_path / "work", storage_root=tmp_path / "storage"
     )

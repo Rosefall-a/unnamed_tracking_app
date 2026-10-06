@@ -14,6 +14,7 @@ import zipfile
 from pathlib import Path
 
 import pytest
+
 from src.plugin_api.publisher_trust import load_trusted_publishers
 from src.plugin_api.updates import PackageVerificationError, PluginPackageVerifier
 
@@ -69,6 +70,7 @@ def test_signed_plugin_repo_artifact_is_forwarded_only_after_verification(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     from fastapi import UploadFile
+
     from src.api.routes import plugins
     from src.api.routes.plugin_manager import acquisition as plugin_acquisition
     from src.api.routes.plugin_manager import runtime as plugin_runtime
@@ -135,6 +137,7 @@ def test_signed_plugin_repo_artifact_is_forwarded_only_after_verification(
     result = asyncio.run(plugins.install_plugin(upload, admin=object(), db=FakeDb()))
     assert result["status"] == "running"
     assert runtime_client.package_bytes == source
+    forwarded = runtime_client.package_bytes
 
     tampered = tmp_path / "tampered.utp"
     _write_modified_package(package, tampered)
@@ -142,4 +145,4 @@ def test_signed_plugin_repo_artifact_is_forwarded_only_after_verification(
     with pytest.raises(Exception) as error:
         asyncio.run(plugins.install_plugin(upload, admin=object(), db=FakeDb()))
     assert getattr(error.value, "status_code", None) == 400
-    assert runtime_client.package_bytes == source
+    assert runtime_client.package_bytes == forwarded
