@@ -58,6 +58,7 @@ export async function checkAppearanceWelcome({ browser, admin, origin, evidenceR
           await page.waitForURL(origin + "/");
           await guide.getByRole("button", { name: "End tour", exact: true }).click();
           await guide.waitFor({ state: "detached" });
+          await page.waitForLoadState("networkidle");
           await page.goto(origin + "/settings?section=appearance");
         }
         const saved = await (await context.request.get(origin + "/api/preferences")).json();
@@ -73,9 +74,11 @@ export async function checkAppearanceWelcome({ browser, admin, origin, evidenceR
         const cache = JSON.parse(decodeURIComponent(cookie.value));
         assert.equal(cache.theme, mode); assert.equal(cache.density, "compact");
         assert(!cookie.value.includes(username) && !cookie.value.includes("welcome"));
+        await page.waitForLoadState("networkidle");
         await page.reload();
         await page.getByRole("heading", { name: "Appearance & interface", level: 1 }).waitFor();
         assert.equal(await page.getByRole("dialog", { name: "Make yourself at home" }).count(), 0);
+        await page.waitForLoadState("networkidle");
         await context.request.post(origin + "/api/auth/logout");
         // Remove localStorage to prove sign-in appearance comes from the cookie.
         await page.evaluate(() => localStorage.clear());

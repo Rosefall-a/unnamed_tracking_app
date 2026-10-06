@@ -86,6 +86,11 @@ export async function checkDetailUi({ admin, member, origin, evidenceRoot, repor
             let titleStyle;
             for (const [section, title] of [["users", "Users"], ["oidc", "Single sign-on"], ["server-integrations", "Server integrations"], ["limits", "Limits"], ["dev-tools", "Developer tools"], ["plugins", "Plugins"]]) {
               await page.goto(origin + `/settings?section=${section}`); await page.getByRole("heading", { name: title, level: 1, exact: true }).waitFor();
+              if (section === "server-integrations") {
+                await page.locator(".proxy-controls .preset-buttons button").first().waitFor();
+                assert.equal(await page.locator(".proxy-controls .error").count(), 0, "Trusted proxy presets load through the real API before leaving the page");
+                assert(await page.locator(".password-input-field[type=password]").count() > 0, "Server integration secrets use native password controls");
+              }
               const style = await page.locator(".page-header h1").evaluate(element => { const s = getComputedStyle(element); return [s.fontSize,s.fontWeight,s.lineHeight]; });
               titleStyle ??= style; assert.deepEqual(style, titleStyle); await noOverflow(page, `administration/${section}/${width}`);
             }
