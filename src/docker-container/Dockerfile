@@ -35,9 +35,10 @@ COPY src/docker-container/startup /srv/startup
 COPY src/docker-container/tests /opt/production-tests
 COPY src/docker-container/entrypoint.sh ./entrypoint.sh
 COPY src/docker-container/nginx/render-config.sh /usr/local/bin/render-production-nginx
+COPY src/docker-container/realip-config.sh /usr/local/bin/fetch-realip-config.sh
 
 RUN mkdir -p /run/unnamed-tracking /var/log/nginx \
-    && chmod +x ./entrypoint.sh /usr/local/bin/render-production-nginx \
+    && chmod +x ./entrypoint.sh /usr/local/bin/render-production-nginx /usr/local/bin/fetch-realip-config.sh \
     && chmod 0755 /run/unnamed-tracking
 
 EXPOSE 80 443

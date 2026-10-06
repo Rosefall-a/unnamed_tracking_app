@@ -621,6 +621,8 @@
   gap: 8px;
 }
 .list-row {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 76px;
   display: grid;
   grid-template-columns:
     76px minmax(180px, 1fr)

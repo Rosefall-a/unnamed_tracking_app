@@ -215,7 +215,13 @@ function copyFolderPath() {
         @touchmove="onTouchMove"
         @touchend="onTouchEnd"
       >
-        <img class="cover-image" :src="game.coverImageUrl" alt="" />
+        <img
+          class="cover-image"
+          :src="game.coverImageUrl"
+          alt=""
+          loading="lazy"
+          decoding="async"
+        />
         <div
           v-if="selectMode"
           class="select-checkbox"
@@ -526,7 +532,7 @@ function copyFolderPath() {
   overflow: hidden;
   cursor: pointer;
   background: var(--surface-2, #222222);
-  border: 1px solid var(--border-soft, #202020);
+  border: 1px solid transparent;
   box-sizing: border-box;
   transition:
     box-shadow 0.28s ease,

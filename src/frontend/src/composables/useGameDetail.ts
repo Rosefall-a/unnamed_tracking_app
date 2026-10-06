@@ -32,6 +32,7 @@ import {
 } from "../services/media";
 import type {
   MediaItem,
+  MediaItemUpdate,
   GameFile,
   GameFileKind,
   TrashedMediaItem,
@@ -60,7 +61,7 @@ import {
   fetchArchives,
   createArchive,
   addArchiveVersion,
-  renameArchive,
+  updateArchive,
   deleteArchive,
   deleteArchiveVersion,
   fetchArchiveTrash,
@@ -1291,28 +1292,17 @@ export function useGameDetail() {
     }
   }
 
-  async function saveMediaItem(
-    item: MediaItem,
-    tags: string[],
-    note: string | null,
-    linkedAchievementId: string | null,
-    profileId: string | null,
-  ) {
+  async function saveMediaItem(item: MediaItem, patch: MediaItemUpdate) {
     if (!game.value) return;
     try {
-      const updated = await updateMediaItem(game.value.id, item.id, {
-        tags,
-        note,
-        linked_achievement_id: linkedAchievementId,
-        profile_id: profileId,
-      });
+      const updated = await updateMediaItem(game.value.id, item.id, patch);
       const index = mediaItems.value.findIndex((m) => m.id === item.id);
       if (index !== -1) mediaItems.value[index] = updated;
       // the item may have just moved out of the Accounts tab's currently
       // selected scope (or into it), refetch so the gallery reflects that
       if (
         activeTab.value === "Accounts" &&
-        (activeProfileId.value !== null || profileId !== null)
+        (activeProfileId.value !== null || patch.profile_id != null)
       ) {
         await reloadMediaForCurrentTab();
       }
@@ -1622,7 +1612,7 @@ export function useGameDetail() {
     });
     if (!name || !name.trim() || name.trim() === archive.name) return;
     try {
-      await renameArchive(game.value.id, archive.id, name.trim());
+      await updateArchive(game.value.id, archive.id, { name: name.trim() });
       if (isWorld) await refreshWorldMaps();
       else await refreshSaveArchives();
     } catch (err) {

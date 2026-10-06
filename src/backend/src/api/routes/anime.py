@@ -14,9 +14,17 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
-from sqlalchemy import func, or_, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.api.routes.media_common import (
+    library_page,
+    purge_row,
+    restore_row,
+    soft_delete,
+    title_search,
+    trash_listing,
+)
 from src.api.schemas.pagination import PaginatedResponse
 from src.api.schemas.anime import (
     AnimeCreate,
@@ -404,44 +412,15 @@ async def list_anime(
     limit: int = Query(default=100, ge=1, le=200),
 ) -> PaginatedResponse[AnimeLibraryRead]:
     """Return one page of the current user's anime and the total matching it."""
-    stmt = select(Anime).where(Anime.user_id == current_user.id, Anime.deleted_at.is_(None))
-
-    if status_filter is not None:
-        stmt = stmt.where(Anime.status == status_filter)
-    if favorite is not None:
-        stmt = stmt.where(Anime.favorite == favorite)
-    if search:
-        pattern = f"%{search.strip()}%"
-        stmt = stmt.where(
-            or_(
-                Anime.title.ilike(pattern),
-                Anime.title_english.ilike(pattern),
-                Anime.title_romaji.ilike(pattern),
-                Anime.title_native.ilike(pattern),
-            )
-        )
-
-    status_count_stmt = select(Anime.status, func.count()).where(
-        Anime.user_id == current_user.id, Anime.deleted_at.is_(None)
-    )
-    if favorite is not None:
-        status_count_stmt = status_count_stmt.where(Anime.favorite == favorite)
-    if search:
-        status_count_stmt = status_count_stmt.where(Anime.title.ilike(f"%{search}%"))
-    status_counts_result = await db.execute(status_count_stmt.group_by(Anime.status))
-    status_counts = {status.value: count for status, count in status_counts_result.all()}
-
-    total = await db.scalar(select(func.count()).select_from(stmt.subquery()))
-    stmt = stmt.order_by(Anime.sort_title).offset(skip).limit(limit)
-
-    result = await db.execute(stmt)
-    items = list(result.scalars().unique().all())
-    return PaginatedResponse(
-        items=items,
-        total=total or 0,
-        offset=skip,
+    return await library_page(
+        db,
+        Anime,
+        current_user.id,
+        status_filter=status_filter,
+        favorite=favorite,
+        search_clause=title_search([Anime.title, Anime.title_english, Anime.title_romaji, Anime.title_native], search),
+        skip=skip,
         limit=limit,
-        status_counts=status_counts,
     )
 
 
@@ -499,8 +478,7 @@ async def delete_anime(
 ) -> None:
     """Soft-delete an anime entry by ID (its seasons stay attached, hidden along with it)."""
     show = await _get_show_or_404(show_id, db, current_user.id)
-    show.deleted_at = int(time.time())
-    await db.commit()
+    await soft_delete(db, show)
 
 
 @router.get("/trash")
@@ -512,16 +490,7 @@ async def list_anime_trash(
     runs against these — unlike Game's on-disk folders, an entry is just
     a row (plus its seasons/episodes), so there's nothing to clean up
     and it stays here until an admin either restores it or purges it."""
-    result = await db.execute(
-        select(Anime)
-        .where(Anime.user_id == current_user.id, Anime.deleted_at.is_not(None))
-        .order_by(Anime.deleted_at.desc())
-    )
-    trashed = []
-    for show in result.scalars().all():
-        assert show.deleted_at is not None  # guaranteed by the deleted_at.is_not(None) filter above
-        trashed.append({"id": str(show.id), "title": show.title, "deleted_at": show.deleted_at})
-    return trashed
+    return await trash_listing(db, Anime, current_user.id)
 
 
 @router.post("/{show_id}/restore", response_model=AnimeRead)
@@ -531,10 +500,7 @@ async def restore_anime(
     current_user: User = Depends(get_current_user),
 ) -> Anime:
     show = await _get_show_or_404(show_id, db, current_user.id, include_deleted=True)
-    if show.deleted_at is None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Entry isn't deleted.")
-    show.deleted_at = None
-    await db.commit()
+    await restore_row(db, show, "Entry")
     return await _get_show_or_404(show_id, db, current_user.id)
 
 
@@ -548,10 +514,7 @@ async def purge_anime(
     seasons/episodes. Only reachable from trash — an entry still active
     must be soft-deleted first."""
     show = await _get_show_or_404(show_id, db, current_user.id, include_deleted=True)
-    if show.deleted_at is None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Entry isn't deleted.")
-    await db.delete(show)
-    await db.commit()
+    await purge_row(db, show, "Entry")
 
 
 @router.post("/{show_id}/seasons", response_model=AnimeRead, status_code=status.HTTP_201_CREATED)
