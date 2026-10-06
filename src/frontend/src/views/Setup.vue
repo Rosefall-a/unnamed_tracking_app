@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import TrustedProxyControls from "../components/settings/TrustedProxyControls.vue";
 import { computed, onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import {
@@ -11,6 +12,9 @@ import {
   type SetupSection,
 } from "../services/setup";
 import { currentUser, checkAuth } from "../state/auth";
+import PasswordInput from "../components/PasswordInput.vue";
+import PasswordRequirements from "../components/settings/PasswordRequirements.vue";
+import { fetchPasswordPolicy, passwordValidationErrors, type PasswordPolicy } from "../services/passwordPolicy";
 import { consumeReturnPath } from "../state/startup";
 
 const route = useRoute();
@@ -24,6 +28,7 @@ const loading = ref(true);
 const saving = ref(false);
 const error = ref<string | null>(null);
 const saved = ref(false);
+const passwordPolicy = ref<PasswordPolicy | null>(null);
 
 const sections = computed(() =>
   (configuration.value?.sections ?? []).filter((section) => section.visible),
@@ -185,10 +190,12 @@ function initialize(config: SetupConfiguration) {
 
 onMounted(async () => {
   try {
-    const [status, config] = await Promise.all([
+    const [status, config, policy] = await Promise.all([
       fetchSetupStatus(),
       fetchSetupConfiguration(),
+      fetchPasswordPolicy(),
     ]);
+    passwordPolicy.value = policy;
 
     if (!status.setup_required && status.startup_mode === "development") {
       await checkAuth();
@@ -333,6 +340,19 @@ async function submit() {
         error.value = `“${field.label}” is required before continuing.`;
         return;
       }
+    }
+  }
+
+  const passwordField = sections.value
+    .find((section) => section.id === "first_admin")
+    ?.fields.find((field) => field.name === "PRIMARY_USER_PASSWORD");
+  const password = passwordField ? textFieldValue(passwordField) : "";
+  if (password && passwordPolicy.value) {
+    const validationErrors = passwordValidationErrors(password, passwordPolicy.value);
+    if (validationErrors.length) {
+      currentSection.value = "first_admin";
+      error.value = validationErrors[0];
+      return;
     }
   }
 
@@ -538,6 +558,23 @@ async function submit() {
                     "
                   />
 
+                  <PasswordInput
+                    v-else-if="field.type === 'secret'"
+                    :model-value="String(fieldValue(field) ?? '')"
+                    :placeholder="fieldPlaceholder(field)"
+                    :required="fieldRequired(field) && !field.configured"
+                    :disabled="field.locked || (field.generated && field.configured)"
+                    :mode="field.configured ? 'replace' : 'new'"
+                    autocomplete="new-password"
+                    @update:model-value="setField(field, $event)"
+                  />
+
+                  <TrustedProxyControls
+                    v-else-if="field.name === 'NGINX_REALIP_TRUSTED_PROXIES'"
+                    :model-value="textFieldValue(field)"
+                    :disabled="field.locked"
+                    @update:model-value="setField(field, $event)"
+                  />
                   <input
                     v-else
                     :value="inputValue(field)"
@@ -552,9 +589,13 @@ async function submit() {
                     "
                   />
 
-                  <small v-if="field.description">{{
-                    field.description
-                  }}</small>
+                  <PasswordRequirements
+                    v-if="field.name === 'PRIMARY_USER_PASSWORD' && passwordPolicy"
+                    :password="String(fieldValue(field) ?? '')"
+                    :policy="passwordPolicy"
+                  />
+
+                  <small v-if="field.description">{{ field.description }}</small>
                   <small v-if="field.hint">{{ field.hint }}</small>
                   <small
                     v-if="field.env_only && !field.configured"

@@ -13,20 +13,22 @@ from src.api.routes import (
     api_keys,
     anime,
     auth,
-    bounties,
     calendar_events,
     calendar_feed,
-    cards,
     default_game_assets,
     export_import,
     game_archives,
+    game_notes,
+    game_page,
     games,
     jobs,
     library_sync,
     media,
     media_extras,
     media_io,
+    media_images,
     media_lists,
+    steam_tags_refresh,
     media_stats,
     notifications,
     preferences,
@@ -36,13 +38,13 @@ from src.api.routes import (
     tv_shows,
     users,
 )
-from src.api.routes import set as set_routes
 from src.api.routes.auth_oidc import router as auth_oidc_router
 from src.api.routes.deployment_settings import router as deployment_settings_router
+from src.api.routes.real_ip import router as real_ip_router
 from src.api.routes.setup import router as setup_router
 from src.api.routes.settings import get_or_create_app_integration_settings
 from src.api.routes.utils.misc import router as misc_router
-from src.core.auth import ensure_primary_user
+from src.core.auth import ensure_primary_user, set_password_policy_override
 from src.core.config import settings as app_settings
 from src.core.provider_credentials import apply_deployment_provider_credentials
 from src.database.session import SessionLocal
@@ -88,6 +90,8 @@ app.include_router(movies.router)
 app.include_router(tv_shows.router)
 app.include_router(anime.router)
 app.include_router(game_archives.router)
+app.include_router(game_notes.router)
+app.include_router(game_page.router)
 app.include_router(users.router)
 app.include_router(api_keys.router)
 app.include_router(auth.router)
@@ -95,15 +99,17 @@ app.include_router(auth_oidc_router)
 app.include_router(setup_router)
 app.include_router(settings.router)
 app.include_router(deployment_settings_router)
+app.include_router(real_ip_router)
 app.include_router(app_integrations.router)
 app.include_router(media.router)
 app.include_router(stats.router)
 app.include_router(library_sync.router)
-app.include_router(bounties.router)
 app.include_router(export_import.router)
 app.include_router(jobs.router)
 app.include_router(media_io.router)
 app.include_router(media_extras.router)
+app.include_router(media_images.router)
+app.include_router(steam_tags_refresh.router)
 app.include_router(media_lists.router)
 app.include_router(notifications.router)
 app.include_router(media_stats.router)
@@ -111,8 +117,6 @@ app.include_router(preferences.router)
 app.include_router(calendar_events.router)
 app.include_router(calendar_feed.authed_router)
 app.include_router(calendar_feed.public_router)
-app.include_router(set_routes.router)
-app.include_router(cards.router)
 app.include_router(misc_router)
 
 
@@ -126,6 +130,14 @@ async def bootstrap_primary_user() -> None:
         ):
             await ensure_primary_user(db)
         app_integrations_row = await get_or_create_app_integration_settings(db)
+        if app_integrations_row.password_min_length is not None:
+            set_password_policy_override({
+                "min_length": app_integrations_row.password_min_length,
+                "require_uppercase": bool(app_integrations_row.password_require_uppercase),
+                "require_lowercase": bool(app_integrations_row.password_require_lowercase),
+                "require_digit": bool(app_integrations_row.password_require_digit),
+                "require_symbol": bool(app_integrations_row.password_require_symbol),
+            })
         apply_deployment_provider_credentials(app_integrations_row)
 
 

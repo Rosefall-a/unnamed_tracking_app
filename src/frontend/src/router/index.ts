@@ -1,6 +1,5 @@
 import { createRouter, createWebHistory } from "vue-router";
 import { currentUser, authChecked, authCheckFailed, checkAuth } from "../state/auth";
-import { saveLibraryScroll } from "../state/libraryScroll";
 import { appearanceLoaded, loadAppearanceSettings } from "../state/appearance";
 import { fetchSetupStatus } from "../services/setup";
 import {
@@ -21,7 +20,7 @@ declare module "vue-router" {
 const router = createRouter({
   history: createWebHistory(),
   scrollBehavior(to, _from, savedPosition) {
-    if (to.path === "/games") return false;
+    if (to.path === "/games") return { top: 0 };
     if (savedPosition) return savedPosition;
     return { top: 0 };
   },
@@ -53,40 +52,10 @@ const router = createRouter({
     { path: "/upload", redirect: "/settings?section=upload" },
     { path: "/inbox", redirect: "/settings?section=upload" },
     {
-      path: "/bounties",
-      name: "bounties",
-      meta: { title: "Bounties" },
-      component: () => import("../views/Bounties.vue"),
-    },
-    {
       path: "/games/:id",
       name: "game-detail",
       meta: { title: "Game" },
       component: () => import("../views/GameDetail.vue"),
-    },
-    {
-      path: "/cards",
-      name: "card-collection",
-      meta: { title: "Cards" },
-      component: () => import("../views/CardCollection.vue"),
-    },
-    {
-      path: "/cards/:cardId",
-      name: "card-detail",
-      meta: { title: "Card" },
-      component: () => import("../views/CardDetail.vue"),
-    },
-    {
-      path: "/sets",
-      name: "set-list",
-      meta: { title: "Sets" },
-      component: () => import("../views/SetList.vue"),
-    },
-    {
-      path: "/sets/:id",
-      name: "set-detail",
-      meta: { title: "Set" },
-      component: () => import("../views/SetDetail.vue"),
     },
     {
       path: "/movies",
@@ -214,9 +183,7 @@ function setupRedirect(toPath: string) {
     : { path: "/setup" };
 }
 
-router.beforeEach(async (to, from) => {
-  if (from.path === "/games") saveLibraryScroll(window.scrollY);
-
+router.beforeEach(async (to) => {
   if (setupState === "unknown") {
     setStartupState("checking");
     try {

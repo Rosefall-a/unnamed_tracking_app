@@ -1,5 +1,10 @@
-import { failedRequest } from "./apiError";
-import type { PaginatedResponse } from "../types/pagination";
+import {
+  createMediaApi,
+  handle,
+  toNumberOrNull,
+  unixSecondsToIso,
+} from "./mediaApi";
+import type { TrashedMedia } from "./mediaApi";
 import type { Episode, Season, TVShow, TVShowStatus } from "../types/tv_show";
 
 // The exact shape FastAPI sends, snake_case, matching the Python model
@@ -93,16 +98,6 @@ function mapBackendTVShow(
   return tvShowCache.put(mapBackendTVShowRaw(raw));
 }
 
-// Pydantic can serialize a Decimal as either a JSON number or a string
-// depending on config, handle both rather than assume one
-function toNumberOrNull(value: number | string | null): number | null {
-  return value === null ? null : Number(value);
-}
-
-function unixSecondsToIso(seconds: number): string {
-  return new Date(seconds * 1000).toISOString();
-}
-
 // backend sends "IN_PROGRESS", "WISHLIST", etc., frontend expects
 // 'in progress', 'wishlist' (lowercase, spaces not underscores)
 function normalizeStatus(raw: string): TVShowStatus {
@@ -193,66 +188,24 @@ export function mapBackendTVShowRaw(raw: BackendTVShow): TVShow {
   };
 }
 
-async function handle<T>(response: Response, action: string): Promise<T> {
-  if (!response.ok) {
-    console.warn(`Failed to ${action}: ${response.status}`);
-    throw await failedRequest(response);
-  }
-  return response.json();
-}
-
-export async function fetchTVShowsPage(
-  offset = 0,
-  limit = 100,
-  search = "",
-): Promise<{
-  items: TVShow[];
-  total: number;
-  offset: number;
-  limit: number;
-  statusCounts: Record<string, number>;
-}> {
-  const params = new URLSearchParams({
-    skip: String(offset),
-    limit: String(limit),
-  });
-  if (search.trim()) params.set("search", search.trim());
-  const response = await fetch(`/api/tv/list?${params}`, {
-    credentials: "include",
-  });
-  const page = await handle<PaginatedResponse<BackendTVShow>>(
-    response,
-    "fetch TV shows",
-  );
-  return {
-    items: page.items.map(mapBackendTVShow),
-    total: page.total,
-    offset: page.offset,
-    limit: page.limit,
-    statusCounts: page.status_counts,
-  };
-}
-
-export async function fetchTVShows(search = ""): Promise<TVShow[]> {
-  const all: TVShow[] = [];
-  let offset = 0;
-  const limit = 100;
-  while (true) {
-    const page = await fetchTVShowsPage(offset, limit, search);
-    all.push(...page.items);
-    if (all.length >= page.total || page.items.length === 0) break;
-    offset += page.items.length;
-  }
-  tvShowCache.markListLoaded();
-  return all;
-}
-
-export async function getTVShow(id: string): Promise<TVShow> {
-  const response = await fetch(`/api/tv/get/${id}`, { credentials: "include" });
-  const raw = await handle<BackendTVShow>(response, `fetch TV show ${id}`);
-  return mapBackendTVShow(raw);
-}
-
+const api = createMediaApi<BackendTVShow, TVShow, TVShowInput>({
+  base: "/api/tv",
+  noun: "TV show",
+  plural: "TV shows",
+  cache: tvShowCache,
+  map: mapBackendTVShow,
+  toBody: inputToBody,
+});
+export const fetchTVShowsPage = api.fetchPage;
+export const fetchTVShows = api.fetchAll;
+export const getTVShow = api.get;
+export const createTVShow = api.create;
+export const updateTVShow = api.update;
+export const deleteTVShow = api.remove;
+export type TrashedTVShow = TrashedMedia;
+export const fetchTVShowTrash = api.fetchTrash;
+export const restoreTVShow = api.restore;
+export const purgeTVShow = api.purge;
 export interface SeasonInput {
   seasonNumber: number;
   name?: string | null;
@@ -381,77 +334,6 @@ function inputToBody(input: TVShowInput): Record<string, unknown> {
   if (input.status) body.status = denormalizeStatus(input.status);
   if (input.seasons) body.seasons = input.seasons.map(seasonInputToBody);
   return body;
-}
-
-export async function createTVShow(input: TVShowInput): Promise<TVShow> {
-  const response = await fetch("/api/tv/create", {
-    method: "POST",
-    credentials: "include",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(inputToBody(input)),
-  });
-  const raw = await handle<BackendTVShow>(response, "create TV show");
-  return mapBackendTVShow(raw);
-}
-
-export async function updateTVShow(
-  id: string,
-  input: TVShowInput,
-): Promise<TVShow> {
-  const response = await fetch(`/api/tv/update/${id}`, {
-    method: "PATCH",
-    credentials: "include",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(inputToBody(input)),
-  });
-  const raw = await handle<BackendTVShow>(response, `update TV show ${id}`);
-  return mapBackendTVShow(raw);
-}
-
-export async function deleteTVShow(id: string): Promise<void> {
-  tvShowCache.remove(id);
-  const response = await fetch(`/api/tv/delete/${id}`, {
-    method: "DELETE",
-    credentials: "include",
-  });
-  if (!response.ok && response.status !== 204) {
-    throw new Error(`Failed to delete TV show ${id}: ${response.status}`);
-  }
-}
-
-export interface TrashedTVShow {
-  id: string;
-  title: string;
-  deleted_at: number;
-}
-
-export async function fetchTVShowTrash(): Promise<TrashedTVShow[]> {
-  const response = await fetch("/api/tv/trash", { credentials: "include" });
-  if (!response.ok) {
-    throw new Error(`Failed to fetch deleted shows: ${response.status}`);
-  }
-  return await response.json();
-}
-
-export async function restoreTVShow(id: string): Promise<TVShow> {
-  const response = await fetch(`/api/tv/${id}/restore`, {
-    method: "POST",
-    credentials: "include",
-  });
-  if (!response.ok) {
-    throw new Error(`Failed to restore show ${id}: ${response.status}`);
-  }
-  return mapBackendTVShow(await response.json());
-}
-
-export async function purgeTVShow(id: string): Promise<void> {
-  const response = await fetch(`/api/tv/${id}/purge`, {
-    method: "DELETE",
-    credentials: "include",
-  });
-  if (!response.ok && response.status !== 204) {
-    throw new Error(`Failed to purge show ${id}: ${response.status}`);
-  }
 }
 
 export async function createSeason(

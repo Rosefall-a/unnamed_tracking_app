@@ -1,6 +1,7 @@
 """Regression tests for game-note title validation and conflict-safe operations."""
 
 from pathlib import Path
+from types import SimpleNamespace
 from uuid import UUID
 
 import pytest
@@ -24,8 +25,24 @@ class FakeUser:
 
 
 class FakeDB:
-    async def scalar(self, _statement):
-        return FakeGame()
+    async def scalar(self, statement):
+        # no saved versions yet; anything else is the game (or its note row)
+        return None if "game_note_versions" in str(statement) else FakeGame()
+
+    async def scalars(self, _statement):
+        return SimpleNamespace(all=lambda: [])
+
+    async def execute(self, _statement) -> None:
+        pass
+
+    async def commit(self) -> None:
+        pass
+
+    async def flush(self) -> None:
+        pass
+
+    def add(self, _row) -> None:
+        pass
 
 
 @pytest.fixture
