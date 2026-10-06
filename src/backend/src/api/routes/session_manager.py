@@ -24,7 +24,7 @@ def view(
 ) -> dict:
     """Serialize a session without including either raw or hashed credentials."""
     state = session_state(session)
-    coordinates_available = geoip._get_reader() is not None
+    coordinates_available = geoip.availability()["city"]
     return {
         "id": str(session.id),
         "user_id": str(session.user_id),
@@ -119,6 +119,7 @@ async def revoke_my_session(
 async def list_all_sessions(
     db: AsyncSession = Depends(get_db),
     admin: User = Depends(get_current_admin),
+    *,
     user_id: UUID | None = Query(default=None),
     q: str | None = Query(default=None, max_length=200),
     state: str | None = Query(default=None, pattern="^(active|expired|revoked)$"),
@@ -206,13 +207,14 @@ async def revoke_admin_session(
 async def geoip_status(admin: User = Depends(get_current_admin)) -> dict[str, object]:
     """Return availability of each optional local GeoIP database."""
     del admin
+    available = geoip.availability()
     return {
-        "city": {"configured": geoip._get_reader() is not None, "path": str(geoip.path)},
+        "city": {"configured": available["city"], "path": str(geoip.path)},
         "country": {
-            "configured": geoip._get_country_reader() is not None,
+            "configured": available["country"],
             "path": str(geoip.country_path),
         },
-        "network": {"configured": geoip._get_asn_reader() is not None, "path": str(geoip.asn_path)},
+        "network": {"configured": available["network"], "path": str(geoip.asn_path)},
     }
 
 
@@ -228,29 +230,21 @@ async def upload_geoip(
     if not data or len(data) > 256 * 1024 * 1024:
         raise HTTPException(400, "Invalid GeoIP database size.")
     paths = {"city": geoip.path, "country": geoip.country_path, "network": geoip.asn_path}
-    validators = {
-        "city": lambda provider: provider._get_reader(),
-        "country": lambda provider: provider._get_country_reader(),
-        "network": lambda provider: provider._get_asn_reader(),
-    }
     path = paths[kind]
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix(path.suffix + ".tmp")
     try:
         temporary.write_bytes(data)
-        validator = validators[kind]
         probe = GeoIpProvider(
             str(temporary) if kind == "city" else str(geoip.path),
             str(temporary) if kind == "country" else str(geoip.country_path),
             str(temporary) if kind == "network" else str(geoip.asn_path),
         )
-        if validator(probe) is None:
+        if not probe.availability()[kind]:
             temporary.unlink(missing_ok=True)
             raise HTTPException(400, "Invalid or unsupported GeoIP database.")
         temporary.replace(path)
         geoip.reset()
-    except HTTPException:
-        raise
     except OSError as exc:
         temporary.unlink(missing_ok=True)
         raise HTTPException(400, "Could not store GeoIP database.") from exc
