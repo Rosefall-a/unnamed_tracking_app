@@ -76,11 +76,16 @@ async function setCustomCadence(hours: number) {
       import only reads AniList and never changes it.
       <span v-if="saved" class="saved">Saved</span>
     </p>
+    <p class="import-warning" role="alert">
+      AniList anime imports are temporarily disabled while the importer is being
+      fixed. Changing these settings will not import anime until imports are
+      enabled again.
+    </p>
     <p v-if="error" class="error">{{ error }}</p>
     <ToggleButton
       :model-value="prefs.anilist_import_enabled"
       label="Automatic AniList import"
-      :disabled="!loaded"
+      :disabled="true"
       @update:model-value="change({ anilist_import_enabled: $event })"
     >
       <strong>Automatic import</strong>: periodically sync the public list below
@@ -93,7 +98,7 @@ async function setCustomCadence(hours: number) {
         :value="prefs.anilist_import_username"
         maxlength="100"
         placeholder="Your AniList username"
-        :disabled="!loaded"
+        :disabled="true"
         @change="
           change({
             anilist_import_username: ($event.target as HTMLInputElement).value,
@@ -126,7 +131,7 @@ async function setCustomCadence(hours: number) {
         min="1"
         max="720"
         :value="customHours"
-        :disabled="!loaded"
+        :disabled="true"
         @change="
           setCustomCadence(Number(($event.target as HTMLInputElement).value))
         "
@@ -135,15 +140,15 @@ async function setCustomCadence(hours: number) {
     <ToggleButton
       :model-value="prefs.anilist_import_update_existing"
       label="Update existing titles"
-      :disabled="!loaded"
+      :disabled="true"
       @update:model-value="change({ anilist_import_update_existing: $event })"
     >
       <strong>Update existing titles</strong>: apply AniList list changes to
       titles already in the library
     </ToggleButton>
     <p class="section-hint">
-      The scheduler runs in the app background once a minute. Imports are
-      bounded so a large multi-user deployment cannot monopolize the worker.
+      The scheduler runs in the app background once a minute. AniList anime
+      imports are currently disabled.
     </p>
   </section>
 </template>
@@ -166,6 +171,16 @@ async function setCustomCadence(hours: number) {
   color: #6fbf73;
   margin-left: 8px;
   font-weight: 700;
+}
+.import-warning {
+  padding: 10px 12px;
+  border: 1px solid rgba(214, 138, 52, 0.35);
+  border-radius: 7px;
+  background: rgba(214, 138, 52, 0.1);
+  color: #d6a15d;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  margin: 0 0 14px;
 }
 .error {
   color: #e57373;
