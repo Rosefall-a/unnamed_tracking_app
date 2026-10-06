@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Iterable
 from enum import StrEnum
 from typing import Annotated, Literal, cast
 
@@ -98,34 +99,36 @@ class UiField(ContractModel):
         if self.secret and self.default is not None:
             raise ValueError("secret fields cannot expose default values")
         if self.default is not None:
-            expected = {
-                UiFieldType.TEXT: (str,),
-                UiFieldType.TEXTAREA: (str,),
-                UiFieldType.PASSWORD: (str,),
-                UiFieldType.NUMBER: (int, float),
-                UiFieldType.BOOLEAN: (bool,),
-                UiFieldType.SELECT: (str,),
-                UiFieldType.MULTISELECT: (tuple,),
-            }[self.type]
-            if self.type is UiFieldType.NUMBER:
-                valid_number = isinstance(self.default, (int, float)) and not isinstance(
-                    self.default, bool
-                )
-                if not valid_number:
-                    raise ValueError(f"default value does not match field type {self.type.value}")
-            elif not isinstance(self.default, expected):
-                raise ValueError(f"default value does not match field type {self.type.value}")
-            if self.type is UiFieldType.MULTISELECT:
-                default_values = cast(tuple[str, ...], self.default)
-                if not all(isinstance(value, str) for value in default_values):
-                    raise ValueError("multiselect defaults must contain only strings")
-                if any(value not in option_values for value in default_values):
-                    raise ValueError("default value must use declared options")
-            elif self.type is UiFieldType.SELECT:
-                default_value = cast(str, self.default)
-                if default_value not in option_values:
-                    raise ValueError("default value must use declared options")
+            self._validate_default(self.default, option_values)
         return self
+
+    def _validate_default(self, default: object, option_values: list[str]) -> None:
+        """Validate a default's type and declared options independently of field metadata."""
+        expected = {
+            UiFieldType.TEXT: (str,),
+            UiFieldType.TEXTAREA: (str,),
+            UiFieldType.PASSWORD: (str,),
+            UiFieldType.NUMBER: (int, float),
+            UiFieldType.BOOLEAN: (bool,),
+            UiFieldType.SELECT: (str,),
+            UiFieldType.MULTISELECT: (tuple,),
+        }[self.type]
+        if self.type is UiFieldType.NUMBER:
+            valid_number = isinstance(default, (int, float)) and not isinstance(default, bool)
+            if not valid_number:
+                raise ValueError(f"default value does not match field type {self.type.value}")
+        elif not isinstance(default, expected):
+            raise ValueError(f"default value does not match field type {self.type.value}")
+        if self.type is UiFieldType.MULTISELECT:
+            default_values = cast(tuple[str, ...], default)
+            if not all(isinstance(value, str) for value in default_values):
+                raise ValueError("multiselect defaults must contain only strings")
+            if any(value not in option_values for value in default_values):
+                raise ValueError("default value must use declared options")
+        elif self.type is UiFieldType.SELECT:
+            default_value = cast(str, default)
+            if default_value not in option_values:
+                raise ValueError("default value must use declared options")
 
 
 class UiSettingsSection(ContractModel):
@@ -511,6 +514,17 @@ class UiShortcut(ContractModel):
         return self
 
 
+def _require_unique(values: Iterable[str], kind: str) -> None:
+    identifiers = tuple(values)
+    if len(identifiers) != len(set(identifiers)):
+        raise ValueError(f"duplicate {kind} identifiers")
+
+
+def _require_page(contribution_id: str, page_id: str, pages: set[str]) -> None:
+    if page_id not in pages:
+        raise ValueError(f"contribution {contribution_id} references an unknown page")
+
+
 class PluginUiDocument(ContractModel):
     """Complete versioned UI document consumed by the native frontend host."""
 
@@ -548,49 +562,55 @@ class PluginUiDocument(ContractModel):
 
     @model_validator(mode="after")
     def validate_references(self) -> "PluginUiDocument":
-        def unique(values: list[str], kind: str) -> None:
-            if len(values) != len(set(values)):
-                raise ValueError(f"duplicate {kind} identifiers")
+        """Check identifiers, page contents and contribution targets in declaration order."""
+        self._validate_identifiers()
+        self._validate_page_references()
+        self._validate_navigation_references()
+        self._validate_contribution_targets()
+        return self
 
-        setting_ids = [item.id for item in self.settings]
-        action_ids = [item.id for item in self.actions]
-        table_ids = [item.id for item in self.tables]
-        dialog_ids = [item.id for item in self.dialogs]
-        page_ids = [item.id for item in self.pages]
-        extension_ids = [item.id for item in self.extensions]
-        unique(setting_ids, "setting")
-        unique(action_ids, "action")
-        unique(table_ids, "table")
-        unique(dialog_ids, "dialog")
-        unique(page_ids, "page")
-        unique(extension_ids, "extension")
-        unique([item.id for item in self.home_widgets], "Home widget")
-        unique([item.id for item in self.themes], "theme")
+    def _validate_identifiers(self) -> None:
+        for values, kind in (
+            ((item.id for item in self.settings), "setting"),
+            ((item.id for item in self.actions), "action"),
+            ((item.id for item in self.tables), "table"),
+            ((item.id for item in self.dialogs), "dialog"),
+            ((item.id for item in self.pages), "page"),
+            ((item.id for item in self.extensions), "extension"),
+            ((item.id for item in self.home_widgets), "Home widget"),
+            ((item.id for item in self.themes), "theme"),
+        ):
+            _require_unique(values, kind)
         home_extension_ids = {
             item.id for item in self.extensions if item.slot == HostExtensionSlot.HOME_AFTER_WIDGETS
         }
         if any(item.id in home_extension_ids for item in self.home_widgets):
             raise ValueError("Home widget identifiers cannot collide with Home extensions")
-        unique([item.id for item in self.navigation], "navigation contribution")
-        unique([item.id for item in self.settings_sections], "settings contribution")
-        unique([item.id for item in self.overlays], "overlay contribution")
-        unique([item.id for item in self.dialog_contributions], "dialog contribution")
-        unique([item.id for item in self.contextual_actions], "contextual action")
-        unique([item.id for item in self.routes], "plugin route")
-        unique([item.path.strip("/") for item in self.routes], "plugin route path")
+        for values, kind in (
+            ((item.id for item in self.navigation), "navigation contribution"),
+            ((item.id for item in self.settings_sections), "settings contribution"),
+            ((item.id for item in self.overlays), "overlay contribution"),
+            ((item.id for item in self.dialog_contributions), "dialog contribution"),
+            ((item.id for item in self.contextual_actions), "contextual action"),
+            ((item.id for item in self.routes), "plugin route"),
+            ((item.path.strip("/") for item in self.routes), "plugin route path"),
+        ):
+            _require_unique(values, kind)
+        page_ids = {item.id for item in self.pages}
         for route in self.routes:
             if any(part == "" for part in route.path.split("/")):
                 raise ValueError("plugin route path cannot contain empty segments")
             if route.path in page_ids and route.page_id != route.path:
                 raise ValueError("plugin route path conflicts with a page identifier")
-        unique([item.id for item in self.page_replacements], "page replacement")
-        unique([item.id for item in self.document_readers], "document reader")
+        _require_unique((item.id for item in self.page_replacements), "page replacement")
+        _require_unique((item.id for item in self.document_readers), "document reader")
 
-        action_set = set(action_ids)
-        table_set = set(table_ids)
-        dialog_set = set(dialog_ids)
-        setting_set = set(setting_ids)
-        page_set = set(page_ids)
+    def _validate_page_references(self) -> None:
+        action_set = {item.id for item in self.actions}
+        table_set = {item.id for item in self.tables}
+        dialog_set = {item.id for item in self.dialogs}
+        setting_set = {item.id for item in self.settings}
+        page_set = {item.id for item in self.pages}
         for menu in self.menus:
             if menu.page_id is not None and menu.page_id not in page_set:
                 raise ValueError(f"menu references unknown page: {menu.page_id}")
@@ -609,20 +629,19 @@ class PluginUiDocument(ContractModel):
             if extension.page_id not in page_set:
                 raise ValueError(f"extension {extension.id} references an unknown page")
 
-        def require_page(contribution_id: str, page_id: str) -> None:
-            if page_id not in page_set:
-                raise ValueError(f"contribution {contribution_id} references an unknown page")
-
+    def _validate_navigation_references(self) -> None:
+        page_set = {item.id for item in self.pages}
+        action_set = {item.id for item in self.actions}
         for widget in self.home_widgets:
-            require_page(widget.id, widget.page_id)
+            _require_page(widget.id, widget.page_id, page_set)
             if widget.mobile_page_id is not None:
-                require_page(widget.id, widget.mobile_page_id)
+                _require_page(widget.id, widget.mobile_page_id, page_set)
 
         route_set = {item.id for item in self.routes}
         settings_contribution_set = {item.id for item in self.settings_sections}
         for navigation in self.navigation:
             if navigation.page_id is not None:
-                require_page(navigation.id, navigation.page_id)
+                _require_page(navigation.id, navigation.page_id, page_set)
             if navigation.route_id is not None and navigation.route_id not in route_set:
                 raise ValueError(f"navigation {navigation.id} references an unknown plugin route")
             if (
@@ -634,16 +653,20 @@ class PluginUiDocument(ContractModel):
                 )
             if navigation.action_id is not None and navigation.action_id not in action_set:
                 raise ValueError(f"navigation {navigation.id} references an unknown action")
-        for settings_section in self.settings_sections:
-            require_page(settings_section.id, settings_section.page_id)
-        for overlay in self.overlays:
-            require_page(overlay.id, overlay.page_id)
-        for route in self.routes:
-            require_page(route.id, route.page_id)
-        for replacement in self.page_replacements:
-            require_page(replacement.id, replacement.page_id)
-        for reader in self.document_readers:
-            require_page(reader.id, reader.page_id)
+
+    def _validate_contribution_targets(self) -> None:
+        page_set = {item.id for item in self.pages}
+        action_set = {item.id for item in self.actions}
+        dialog_set = {item.id for item in self.dialogs}
+        for contributions in (
+            self.settings_sections,
+            self.overlays,
+            self.routes,
+            self.page_replacements,
+            self.document_readers,
+        ):
+            for contribution in contributions:
+                _require_page(contribution.id, contribution.page_id, page_set)
         for dialog_contribution in self.dialog_contributions:
             if dialog_contribution.dialog_id not in dialog_set:
                 raise ValueError(
@@ -654,7 +677,6 @@ class PluginUiDocument(ContractModel):
                 raise ValueError(
                     f"contextual action {contextual_action.id} references an unknown action"
                 )
-        return self
 
     @model_validator(mode="after")
     def validate_shortcut_references(self) -> "PluginUiDocument":
