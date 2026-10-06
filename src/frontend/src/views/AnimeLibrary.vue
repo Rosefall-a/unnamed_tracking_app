@@ -423,7 +423,8 @@ function detailRoute(id: string): string {
         >
           {{ aniListImporting ? "Importing…" : "Import" }}
         </button>
-      </div>    </div>
+      </div>
+    </div>
   </div>
 </template>
 
