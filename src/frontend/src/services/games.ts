@@ -471,12 +471,13 @@ export interface MetadataSearchResponse {
 
 export async function searchGameMetadata(
   query: string,
+  options: { includeImages?: boolean } = {},
 ): Promise<MetadataSearchResponse> {
   if (import.meta.env.VITE_USE_MOCK_DATA === "true") {
     return { results: [], steamgriddb_configured: false, provider_errors: [] };
   }
   const response = await fetch(
-    `/api/game/metadata/search?query=${encodeURIComponent(query)}`,
+    `/api/game/metadata/search?query=${encodeURIComponent(query)}&include_images=${options.includeImages !== false}`,
     {
       credentials: "include",
     },

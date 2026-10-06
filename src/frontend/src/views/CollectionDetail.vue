@@ -312,7 +312,9 @@ async function onEdit(payload: CollectionFormPayload) {
       members: collectionGames.value,
     });
     if (payload.name !== oldName) {
-      await router.replace(`/collections/${encodeURIComponent(payload.name)}`);
+      await router.replace(
+        `/games/collections/${encodeURIComponent(payload.name)}`,
+      );
     }
   } catch (err) {
     error.value =
@@ -325,7 +327,7 @@ function goBack() {
   if (window.history.length > 1) {
     router.back();
   } else {
-    router.push("/collections");
+    router.push("/games/collections");
   }
 }
 
@@ -340,7 +342,7 @@ async function deleteSmartRule() {
   if (!ok) return;
   removeSmartCollection(smartRule.value.id);
   forgetCollectionKeys(collectionName.value);
-  router.push("/collections");
+  router.push("/games/collections");
 }
 
 const deletingCollection = ref(false);
@@ -360,7 +362,7 @@ async function deleteCollection() {
       await removeGameFromCollection(game.id, collectionName.value);
     }
     forgetCollectionKeys(collectionName.value);
-    router.push("/collections");
+    router.push("/games/collections");
   } catch (err) {
     error.value =
       err instanceof Error ? err.message : "Failed to delete collection";
@@ -391,7 +393,7 @@ async function deleteCollection() {
           nestedParent
             ? {
                 label: nestedParent,
-                to: `/collections/${encodeURIComponent(nestedParent)}`,
+                to: `/games/collections/${encodeURIComponent(nestedParent)}`,
               }
             : null
         "

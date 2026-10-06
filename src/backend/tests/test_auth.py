@@ -4,9 +4,11 @@ import pytest
 
 from src.core.auth import (
     create_api_key,
+    get_current_user,
     hash_password,
     hash_token,
     revoke_session,
+    session_cookie_name,
     validate_password,
     verify_password,
 )
@@ -78,6 +80,35 @@ async def test_revoke_session_is_idempotent() -> None:
 
     assert await revoke_session(db, "already-revoked") is False
     db.commit.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_revoked_api_key_cannot_fall_back_to_browser_session() -> None:
+    from fastapi import HTTPException
+    from starlette.requests import Request
+
+    api_key = "utk_revoked-key"
+    db = AsyncMock()
+    db.scalar.return_value = None
+    request = Request(
+        {
+            "type": "http",
+            "method": "GET",
+            "path": "/api/auth/me",
+            "headers": [
+                (b"host", b"localhost"),
+                (b"authorization", f"Bearer {api_key}".encode()),
+                (b"cookie", f"{session_cookie_name('localhost')}=still-valid".encode()),
+            ],
+        }
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        await get_current_user(request, db)
+
+    assert exc_info.value.status_code == 401
+    assert "revoked" in str(exc_info.value.detail).lower()
+    db.scalar.assert_awaited_once()
 
 
 def test_validation_errors_never_echo_submitted_values() -> None:

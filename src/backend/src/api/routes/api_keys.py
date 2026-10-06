@@ -10,16 +10,21 @@ from src.database.models.user import User
 from src.database.session import get_db
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
+_CURRENT_USER_DEPENDENCY = Depends(get_current_user)
+_DB_DEPENDENCY = Depends(get_db)
 
 
 @router.get("/api-keys")
 async def list_user_api_keys(
-    user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    user: User = _CURRENT_USER_DEPENDENCY,
+    db: AsyncSession = _DB_DEPENDENCY,
 ) -> list[dict[str, str | int | list[str] | None]]:
     keys = await db.scalars(
         select(UserApiKey)
-        .where(UserApiKey.user_id == user.id)
+        .where(
+            UserApiKey.user_id == user.id,
+            UserApiKey.revoked_at.is_(None),
+        )
         .order_by(UserApiKey.created_at.desc())
     )
     return [

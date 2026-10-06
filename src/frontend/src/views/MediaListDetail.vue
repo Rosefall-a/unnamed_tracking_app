@@ -133,7 +133,7 @@ function goBack() {
   if (window.history.length > 1) {
     router.back();
   } else {
-    router.push("/lists");
+    router.push("/media/collections");
   }
 }
 
@@ -218,7 +218,7 @@ async function deleteList() {
   deletingList.value = true;
   try {
     await deleteMediaList(list.value.id);
-    router.push("/lists");
+    router.push("/media/collections");
   } catch (e) {
     error.value = e instanceof Error ? e.message : "Failed to delete list.";
     deletingList.value = false;
