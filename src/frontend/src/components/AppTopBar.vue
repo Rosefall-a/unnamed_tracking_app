@@ -7,10 +7,17 @@
 // the bar reserves room for it, so it stays put even when the left side
 // wraps onto more lines on a narrow window.
 import AccountChip from "./AccountChip.vue";
+import { effectiveSidebarMode, navigationViewport } from "../state/sidebarMode";
 </script>
 
 <template>
-  <div class="media-topbar">
+  <div
+    class="media-topbar"
+    :class="{
+      'with-menu-toggle':
+        effectiveSidebarMode === 'overlay' && navigationViewport !== 'phone',
+    }"
+  >
     <div class="topbar-left"><slot /></div>
     <div v-if="$slots.actions" class="media-topbar-actions">
       <slot name="actions" />
@@ -39,6 +46,9 @@ import AccountChip from "./AccountChip.vue";
   position: static;
   margin-left: auto;
   flex-shrink: 0;
+}
+.media-topbar.with-menu-toggle {
+  padding-left: max(72px, var(--ui-edge-left));
 }
 .topbar-left {
   display: flex;

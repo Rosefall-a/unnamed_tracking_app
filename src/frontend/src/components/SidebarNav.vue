@@ -927,7 +927,7 @@ dialog.navigation {
   position: fixed;
   top: 16px;
   left: 16px;
-  z-index: var(--ui-z-topbar);
+  z-index: calc(var(--ui-z-topbar) + 1);
   width: 40px;
   height: 40px;
   border-radius: 14px;
@@ -966,6 +966,34 @@ dialog.navigation {
 }
 .mobile-tabs {
   display: none;
+}
+@media (max-height: 600px) {
+  .nav-body {
+    overflow-y: auto;
+    overflow-x: hidden;
+    overscroll-behavior: contain;
+  }
+  .nav-scroll {
+    flex: none;
+    overflow: visible;
+  }
+  .nav-footer {
+    flex-shrink: 0;
+  }
+}
+@media (max-height: 400px) {
+  .navigation {
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+  .nav-brand,
+  .nav-search {
+    flex-shrink: 0;
+  }
+  .nav-body {
+    flex: none;
+    overflow: visible;
+  }
 }
 @media (max-width: 760px) {
   .navigation.phone-navigation {
