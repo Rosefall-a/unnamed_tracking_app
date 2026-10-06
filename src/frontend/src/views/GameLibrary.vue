@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { sizedAssetUrl } from "../utils/gameImages";
 import HeartIcon from "../components/HeartIcon.vue";
 import { ref, computed, onMounted, onUnmounted, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
@@ -13,6 +14,7 @@ import { formatDisplayDate } from "../utils/dates";
 import FilterCombobox from "../components/FilterCombobox.vue";
 import {
   fetchGames,
+  peekAllGames,
   deleteGame,
   setFavorite,
   fetchAchievementsSummary,
@@ -540,11 +542,31 @@ if (
 ) {
   sortBy.value = querySort as SortBy;
 }
-// arriving from Server Stats' tag chart (?tag=Name)
-const queryTag = route.query.tag;
-if (typeof queryTag === "string" && queryTag) {
-  genreFilter.value = queryTag;
+// arriving from a link (Server Stats' tag chart, or a genre, developer,
+// publisher, platform or series on a game's page): ?tag= ?company= ?platform=
+// ?series=. It shows exactly that, not that on top of whatever filters were
+// left on from last time.
+function applyLinkedFilter() {
+  if (route.path !== "/games") return;
+  const pick = (key: string) => {
+    const v = route.query[key];
+    return typeof v === "string" && v ? v : null;
+  };
+  const tag = pick("tag");
+  const company = pick("company");
+  const platform = pick("platform");
+  const series = pick("series");
+  if (!tag && !company && !platform && !series) return;
+  clearAllFilters();
+  if (tag) genreFilter.value = tag;
+  if (company) companyFilter.value = company;
+  if (platform) platformFilter.value = platform;
+  if (series) franchiseFilter.value = series;
+  showAdvancedFilters.value = true;
 }
+applyLinkedFilter();
+// the library is kept alive, so a link can arrive while it already exists
+watch(() => route.fullPath, applyLinkedFilter);
 
 const platformOptions = computed(() => {
   const set = new Set<string>(PLATFORM_OPTIONS);
@@ -615,18 +637,34 @@ function setView(mode: ViewMode) {
 // collection changes) that can overlap
 let loadGamesToken = 0;
 
+function selectFirstForDetailView() {
+  if (viewMode.value === "detail" && !selectedGame.value && games.value.length)
+    selectedGame.value = games.value[0];
+}
+
 async function loadGames() {
   const token = ++loadGamesToken;
-  loading.value = true;
+  // A library seen earlier in this visit is drawn at once and refreshed
+  // behind it, instead of a "Loading…" screen on every return to the page.
+  const seen = games.value.length ? null : peekAllGames();
+  if (seen) {
+    games.value = seen;
+    selectFirstForDetailView();
+    loading.value = false;
+  } else if (!games.value.length) {
+    loading.value = true;
+  }
   try {
-    const fetched = await fetchGames();
+    // the completion numbers are best-effort, a failed summary fetch just
+    // means no completion badges, not a broken library page, and it is asked
+    // for alongside the games rather than after them
+    const [fetched, summary] = await Promise.all([
+      fetchGames(),
+      fetchAchievementsSummary().catch(() => null),
+    ]);
     if (token !== loadGamesToken) return;
     games.value = fetched;
-    // best-effort, a failed summary fetch just means no completion badges,
-    // not a broken library page
-    try {
-      const summary = await fetchAchievementsSummary();
-      if (token !== loadGamesToken) return;
+    if (summary) {
       for (const game of games.value) {
         const entry = summary[game.id];
         if (!entry) continue;
@@ -635,16 +673,8 @@ async function loadGames() {
           ? Math.round((entry.unlocked / entry.total) * 100)
           : 0;
       }
-    } catch {
-      // ignore
     }
-    if (
-      viewMode.value === "detail" &&
-      !selectedGame.value &&
-      games.value.length
-    ) {
-      selectedGame.value = games.value[0];
-    }
+    selectFirstForDetailView();
   } catch (err) {
     if (token !== loadGamesToken) return;
     error.value = err instanceof Error ? err.message : "Failed to load games";
@@ -1808,7 +1838,13 @@ function cardsInRow(rowIndex: number): Game[] {
             @click="selectMode ? toggleSelect(game) : openGame(game)"
           >
             <div class="list-thumb-wrap">
-              <img class="list-cover" :src="game.coverImageUrl" alt="" />
+              <img
+                class="list-cover"
+                :src="game.coverImageUrl"
+                alt=""
+                loading="lazy"
+                decoding="async"
+              />
               <div
                 v-if="selectMode"
                 class="select-checkbox"
@@ -1921,7 +1957,13 @@ function cardsInRow(rowIndex: number): Game[] {
               :class="{ active: selectedGame?.id === game.id }"
               @click="selectedGame = game"
             >
-              <img class="detail-list-thumb" :src="game.coverImageUrl" alt="" />
+              <img
+                class="detail-list-thumb"
+                :src="game.coverImageUrl"
+                alt=""
+                loading="lazy"
+                decoding="async"
+              />
               <span>{{ game.title }}</span>
             </button>
           </div>
@@ -1935,7 +1977,7 @@ function cardsInRow(rowIndex: number): Game[] {
               <div
                 class="preview-banner"
                 :style="{
-                  backgroundImage: `url(${selectedGame.bannerImageUrl})`,
+                  backgroundImage: `url(${sizedAssetUrl(selectedGame.bannerImageUrl, 800)})`,
                 }"
               >
                 <div class="preview-banner-overlay"></div>
@@ -3007,6 +3049,10 @@ function cardsInRow(rowIndex: number): Game[] {
   color: var(--accent);
 }
 .list-row {
+  /* a row below the fold is not drawn until it is near, which keeps a long
+     list quick to open */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 76px;
   padding: 10px 16px;
   background: var(--surface);
   border: 1px solid var(--border-soft);
@@ -3276,6 +3322,7 @@ function cardsInRow(rowIndex: number): Game[] {
   height: 260px;
   background-color: var(--surface-2);
   background-size: cover;
+  background-repeat: no-repeat;
   background-position: center;
 }
 .preview-banner-overlay {

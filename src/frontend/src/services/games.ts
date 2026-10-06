@@ -1,5 +1,9 @@
 import { mockGames } from "../data/mockGames";
 import { failedRequest } from "./apiError";
+import { normalizeKind } from "../utils/achievements";
+import { createEntityCache } from "../utils/entityCache";
+import { POSTER_WIDTH, sizedAssetUrl } from "../utils/gameImages";
+import type { ContentCounts, PageOverrides } from "../utils/gamePage";
 import type {
   Achievement,
   AchievementsProvider,
@@ -55,6 +59,7 @@ export interface BackendGame {
   last_played_at: number | null;
   stale_since: number | null;
   profiles_enabled: boolean;
+  page_settings?: PageOverrides | null;
   osrs_stats_enabled: boolean;
   collections: string[];
   links: GameLink[];
@@ -106,7 +111,12 @@ export function mapBackendGame(raw: BackendGame): Game {
     title: raw.title,
     // placeholders, the backend has no artwork yet
     coverColor: "#2a2a2a",
-    coverImageUrl: `/api/game/${raw.id}/assets/key_art`,
+    // every place a cover is shown is a card or a poster well under 400 px
+    // wide, and the stored cover is a PNG of up to a megabyte
+    coverImageUrl: sizedAssetUrl(
+      `/api/game/${raw.id}/assets/key_art`,
+      POSTER_WIDTH,
+    ),
     bannerImageUrl: `/api/game/${raw.id}/assets/banner`,
     status: normalizeStatus(raw.status),
     ratingOverall: toNumberOrNull(raw.rating_overall),
@@ -130,6 +140,7 @@ export function mapBackendGame(raw: BackendGame): Game {
     lastPlayedAt: unixSecondsToIso(raw.last_played_at),
     staleSince: unixSecondsToIso(raw.stale_since),
     profilesEnabled: raw.profiles_enabled,
+    pageSettings: raw.page_settings ?? null,
     osrsStatsEnabled: raw.osrs_stats_enabled,
     completionDate: unixSecondsToDateInput(raw.completion_date),
     folderLocation: raw.folder_location,
@@ -179,6 +190,29 @@ export function mapBackendGame(raw: BackendGame): Game {
   };
 }
 
+// Every game this page has seen, so opening one can draw at once from what the
+// library already fetched and refresh quietly behind it.
+const gameCache = createEntityCache<Game>();
+export const peekGame = gameCache.peek;
+// Every game, if a full list has been fetched this visit, so the library can
+// draw at once and refresh behind it.
+export const peekAllGames = (): Game[] | null =>
+  gameCache.listLoaded() ? gameCache.all() : null;
+function rememberGame(game: Game): Game {
+  const before = gameCache.peek(game.id);
+  // what a visit to the page loaded for this game (the achievements) is not
+  // in the list, so keep it until the next visit replaces it
+  if (before && !game.achievements.length && before.achievements.length) {
+    game.achievements = before.achievements;
+  }
+  // likewise the completion numbers the library fills in from its summary
+  if (before && !game.achievementTotal && before.achievementTotal) {
+    game.achievementTotal = before.achievementTotal;
+    game.achievementPercent = before.achievementPercent;
+  }
+  return gameCache.put(game);
+}
+
 // /api/game/list caps a single page at 200, page through until a page
 // comes back short, otherwise only the first 50 (the endpoint's default)
 // ever reached the library view once a synced library grew past that.
@@ -205,7 +239,9 @@ export async function fetchGames(): Promise<Game[]> {
     if (page.length < GAMES_PAGE_SIZE) break;
     skip += GAMES_PAGE_SIZE;
   }
-  return all.map(mapBackendGame);
+  const games = all.map(mapBackendGame).map(rememberGame);
+  gameCache.markListLoaded();
+  return games;
 }
 
 interface BackendAchievement {
@@ -216,6 +252,12 @@ interface BackendAchievement {
   icon_url: string | null;
   unlocked: boolean;
   unlocked_at: number | null;
+  // not sent yet; read when the backend starts storing them
+  tier?: string | null;
+  hidden?: boolean | null;
+  global_percent?: number | null;
+  progress_current?: number | null;
+  progress_target?: number | null;
 }
 
 export interface FieldChange {
@@ -236,7 +278,32 @@ export async function fetchGameFieldChanges(
   id: string,
 ): Promise<FieldChange[]> {
   if (import.meta.env.VITE_USE_MOCK_DATA === "true") {
-    return [];
+    // a few sample entries so the timeline can be tried without a backend
+    const at = (days: number, hour = 12) =>
+      new Date(Date.now() - days * 86_400_000 + hour * 3_600_000)
+        .toISOString()
+        .slice(0, 19);
+    const row = (
+      n: number,
+      fieldName: string,
+      oldValue: string | null,
+      newValue: string | null,
+      days: number,
+    ): FieldChange => ({
+      id: `mock-${id}-${n}`,
+      fieldName,
+      oldValue,
+      newValue,
+      changedAt: at(days),
+    });
+    return [
+      row(1, "status", "BACKLOG", "PLAYING", 40),
+      row(2, "purchase_price", "59.99", "39.99", 31),
+      row(3, "developer", null, "FromSoftware", 12),
+      row(4, "publisher", null, "Bandai Namco", 12),
+      row(5, "tags", "Action", "Action, RPG, Open World", 12),
+      row(6, "status", "PLAYING", "BEATEN", 3),
+    ];
   }
   const response = await fetch(`/api/game/${id}/field-changes`, {
     credentials: "include",
@@ -260,7 +327,7 @@ export async function fetchGameAchievements(
   id: string,
 ): Promise<Achievement[]> {
   if (import.meta.env.VITE_USE_MOCK_DATA === "true") {
-    return [];
+    return mockGames.find((g) => g.id === id)?.achievements ?? [];
   }
   const response = await fetch(`/api/game/${id}/achievements`, {
     credentials: "include",
@@ -275,7 +342,15 @@ export async function fetchGameAchievements(
     id: a.id,
     name: a.name,
     description: a.description,
+    unlocked: a.unlocked,
     unlockedAt: a.unlocked ? unixSecondsToIso(a.unlocked_at) : null,
+    provider: a.provider,
+    iconUrl: a.icon_url,
+    kind: normalizeKind(a.tier),
+    hidden: a.hidden ?? false,
+    rarityPercent: a.global_percent ?? null,
+    progressCurrent: a.progress_current ?? null,
+    progressTarget: a.progress_target ?? null,
   }));
 }
 
@@ -304,6 +379,30 @@ export async function fetchAchievementsSummary(): Promise<
   return await response.json();
 }
 
+// Re-reads one game's achievements from the service it came from (Steam,
+// PlayStation or RetroAchievements): what each is, whether it's hidden, what
+// you've unlocked and when, and how many players have it. The backend does that
+// for just this game, with no library sync.
+export interface AchievementsRefresh {
+  provider: string;
+  achievements: number;
+  unlocked: number;
+  hidden: number;
+}
+export async function refreshGameAchievements(
+  gameId: string,
+): Promise<AchievementsRefresh> {
+  if (import.meta.env.VITE_USE_MOCK_DATA === "true") {
+    return { provider: "Mock", achievements: 0, unlocked: 0, hidden: 0 };
+  }
+  const response = await fetch(
+    `/api/library-sync/games/${gameId}/achievements`,
+    { method: "POST", credentials: "include" },
+  );
+  if (!response.ok) throw await failedRequest(response);
+  return await response.json();
+}
+
 export async function fetchGame(id: string): Promise<Game | null> {
   if (import.meta.env.VITE_USE_MOCK_DATA === "true") {
     return mockGames.find((g) => g.id === id) ?? null;
@@ -318,7 +417,7 @@ export async function fetchGame(id: string): Promise<Game | null> {
     );
   }
   const raw: BackendGame = await response.json();
-  return mapBackendGame(raw);
+  return rememberGame(mapBackendGame(raw));
 }
 
 // every game whose parentGameId points at this one, e.g. Minecraft's
@@ -723,6 +822,8 @@ export interface NewGameInput {
   favorite: boolean;
   collections: string[];
   profilesEnabled: boolean;
+  // undefined leaves the saved overrides alone; {} clears them
+  pageSettings?: PageOverrides | null;
   osrsStatsEnabled: boolean;
 }
 
@@ -848,6 +949,12 @@ export async function updateGame(
       lastPlayedAt: mockGames[index].lastPlayedAt,
       staleSince: mockGames[index].staleSince,
       profilesEnabled: input.profilesEnabled,
+      pageSettings:
+        input.pageSettings === undefined
+          ? mockGames[index].pageSettings
+          : input.pageSettings && Object.keys(input.pageSettings).length
+            ? input.pageSettings
+            : null,
       osrsStatsEnabled: input.osrsStatsEnabled,
       completionDate: input.completionDate,
       tags: input.tags,
@@ -876,6 +983,9 @@ export async function updateGame(
     favorite: input.favorite,
     profiles_enabled: input.profilesEnabled,
     osrs_stats_enabled: input.osrsStatsEnabled,
+    ...(input.pageSettings !== undefined
+      ? { page_settings: input.pageSettings ?? {} }
+      : {}),
     description: input.description,
     developer: input.developer,
     publisher: input.publisher,
@@ -942,6 +1052,96 @@ const mockNotesStore = new Map<string, Map<string, string>>();
 function getMockNoteMap(gameId: string): Map<string, string> {
   if (!mockNotesStore.has(gameId)) mockNotesStore.set(gameId, new Map());
   return mockNotesStore.get(gameId)!;
+}
+
+// When each mock note was last written, so the mock Notes tab can sort and
+// show "edited" times like the real one.
+const mockNoteTimes = new Map<string, number>();
+function touchMockNote(gameId: string, name: string) {
+  mockNoteTimes.set(`${gameId}/${name}`, Math.floor(Date.now() / 1000));
+}
+
+// Mock details for notes: when each was created, its pin, tags and link.
+interface MockNoteDetails {
+  created_at: number;
+  pinned: boolean;
+  tags: string[];
+  linked_achievement_id: string | null;
+}
+const mockNoteDetails = new Map<string, MockNoteDetails>();
+const mockNoteVersions = new Map<
+  string,
+  { saved_at: number; content: string }[]
+>();
+function mockDetails(gameId: string, name: string): MockNoteDetails {
+  const key = `${gameId}/${name}`;
+  let d = mockNoteDetails.get(key);
+  if (!d) {
+    d = {
+      created_at: mockNoteTimes.get(key) ?? Math.floor(Date.now() / 1000),
+      pinned: false,
+      tags: [],
+      linked_achievement_id: null,
+    };
+    mockNoteDetails.set(key, d);
+  }
+  return d;
+}
+function countTasks(text: string): [number, number] {
+  const marks = [...text.matchAll(/^\s*[-*+]\s+\[( |x|X)\]\s/gm)];
+  return [marks.filter((m) => m[1] !== " ").length, marks.length];
+}
+function mockSummary(
+  gameId: string,
+  name: string,
+  text: string,
+): GameNoteSummary {
+  const d = mockDetails(gameId, name);
+  const [done, total] = countTasks(text);
+  return {
+    name,
+    created_at: d.created_at,
+    updated_at: mockNoteTimes.get(`${gameId}/${name}`) ?? d.created_at,
+    pinned: d.pinned,
+    tags: [...d.tags],
+    linked_achievement_id: d.linked_achievement_id,
+    tasks_done: done,
+    tasks_total: total,
+    size: text.length,
+    words: text.split(/\s+/).filter(Boolean).length,
+    preview: text.slice(0, 600),
+  };
+}
+
+// A note as the Notes tab lists it: the name, when it was last edited, how
+// long it is, and the start of it for the card preview.
+export interface GameNoteSummary {
+  name: string;
+  created_at: number;
+  updated_at: number;
+  pinned: boolean;
+  tags: string[];
+  linked_achievement_id: string | null;
+  tasks_done: number;
+  tasks_total: number;
+  size: number;
+  words: number;
+  preview: string;
+}
+
+export async function listGameNoteSummaries(
+  gameId: string,
+): Promise<GameNoteSummary[]> {
+  if (import.meta.env.VITE_USE_MOCK_DATA === "true") {
+    return [...getMockNoteMap(gameId).entries()].map(([name, text]) =>
+      mockSummary(gameId, name, text),
+    );
+  }
+  const response = await fetch(`/api/game/${gameId}/notes-summary`, {
+    credentials: "include",
+  });
+  if (!response.ok) throw new Error("The game notes could not be loaded.");
+  return (await response.json()).notes ?? [];
 }
 
 export async function listGameNotes(gameId: string): Promise<string[]> {
@@ -1014,6 +1214,8 @@ export async function createGameNote(
         `A note titled "${noteName}" already exists. Choose a different title or cancel the operation.`,
       );
     notes.set(noteName, content);
+    touchMockNote(gameId, noteName);
+    mockDetails(gameId, noteName);
     return { game_id: gameId, note_name: noteName, status: "saved" };
   }
   const response = await fetch(
@@ -1039,7 +1241,19 @@ export async function saveGameNote(
     const notes = getMockNoteMap(gameId);
     if (!notes.has(noteName))
       throw new Error(`The note "${noteName}" no longer exists.`);
+    const before = notes.get(noteName) ?? "";
+    if (before !== content) {
+      const key = `${gameId}/${noteName}`;
+      const list = mockNoteVersions.get(key) ?? [];
+      if (list[0]?.content !== before)
+        list.unshift({
+          saved_at: Math.floor(Date.now() / 1000),
+          content: before,
+        });
+      mockNoteVersions.set(key, list.slice(0, 30));
+    }
     notes.set(noteName, content);
+    touchMockNote(gameId, noteName);
     return { game_id: gameId, note_name: noteName, status: "saved" };
   }
   const response = await fetch(
@@ -1074,6 +1288,15 @@ export async function renameGameNote(
     if (noteName !== newName) {
       notes.delete(noteName);
       notes.set(newName, content);
+      touchMockNote(gameId, newName);
+      const from = `${gameId}/${noteName}`;
+      const to = `${gameId}/${newName}`;
+      const d = mockNoteDetails.get(from);
+      if (d) mockNoteDetails.set(to, d);
+      mockNoteDetails.delete(from);
+      const v = mockNoteVersions.get(from);
+      if (v) mockNoteVersions.set(to, v);
+      mockNoteVersions.delete(from);
     }
     return { game_id: gameId, note_name: newName, status: "saved" };
   }
@@ -1097,6 +1320,8 @@ export async function deleteGameNote(
 ): Promise<GameNoteActionResponse> {
   if (import.meta.env.VITE_USE_MOCK_DATA === "true") {
     getMockNoteMap(gameId).delete(noteName);
+    mockNoteDetails.delete(`${gameId}/${noteName}`);
+    mockNoteVersions.delete(`${gameId}/${noteName}`);
     return { game_id: gameId, note_name: noteName, status: "deleted" };
   }
 
@@ -1113,6 +1338,276 @@ export async function deleteGameNote(
   }
 
   return await response.json();
+}
+
+async function noteJson<T>(response: Response, fallback: string): Promise<T> {
+  if (!response.ok) {
+    let detail = "";
+    try {
+      const body = await response.json();
+      detail =
+        typeof body.detail === "string"
+          ? body.detail
+          : (body.detail?.message ?? "");
+    } catch {
+      // keep the fallback
+    }
+    throw new Error(detail || fallback);
+  }
+  return (await response.json()) as T;
+}
+
+export interface NoteDetailsUpdate {
+  pinned?: boolean;
+  tags?: string[];
+  linked_achievement_id?: string | null;
+}
+
+// pin, tags and the achievement a note is about
+export async function updateNoteDetails(
+  gameId: string,
+  noteName: string,
+  patch: NoteDetailsUpdate,
+): Promise<GameNoteSummary> {
+  if (import.meta.env.VITE_USE_MOCK_DATA === "true") {
+    const d = mockDetails(gameId, noteName);
+    if (patch.pinned !== undefined) d.pinned = patch.pinned;
+    if (patch.tags)
+      d.tags = [...new Set(patch.tags.map((t) => t.trim()))].filter(Boolean);
+    if ("linked_achievement_id" in patch)
+      d.linked_achievement_id = patch.linked_achievement_id ?? null;
+    return mockSummary(
+      gameId,
+      noteName,
+      getMockNoteMap(gameId).get(noteName) ?? "",
+    );
+  }
+  const response = await fetch(
+    `/api/game/${gameId}/notes/${encodeURIComponent(noteName)}/details`,
+    {
+      method: "PATCH",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    },
+  );
+  return noteJson(response, "The note could not be updated.");
+}
+
+export async function duplicateNote(
+  gameId: string,
+  noteName: string,
+): Promise<GameNoteSummary> {
+  if (import.meta.env.VITE_USE_MOCK_DATA === "true") {
+    const notes = getMockNoteMap(gameId);
+    let copy = `${noteName} copy`;
+    for (let n = 2; notes.has(copy); n++) copy = `${noteName} copy ${n}`;
+    notes.set(copy, notes.get(noteName) ?? "");
+    touchMockNote(gameId, copy);
+    const source = mockDetails(gameId, noteName);
+    const d = mockDetails(gameId, copy);
+    d.tags = [...source.tags];
+    d.linked_achievement_id = source.linked_achievement_id;
+    return mockSummary(gameId, copy, notes.get(copy) ?? "");
+  }
+  const response = await fetch(
+    `/api/game/${gameId}/notes/${encodeURIComponent(noteName)}/duplicate`,
+    { method: "POST", credentials: "include" },
+  );
+  return noteJson(response, "The note could not be duplicated.");
+}
+
+export interface MovedNote {
+  game_id: string;
+  game_title: string;
+  note: GameNoteSummary;
+}
+
+export async function moveNote(
+  gameId: string,
+  noteName: string,
+  targetGameId: string,
+): Promise<MovedNote> {
+  if (import.meta.env.VITE_USE_MOCK_DATA === "true") {
+    const from = getMockNoteMap(gameId);
+    const to = getMockNoteMap(targetGameId);
+    let name = noteName;
+    for (let n = 2; to.has(name); n++) name = `${noteName} ${n}`;
+    to.set(name, from.get(noteName) ?? "");
+    touchMockNote(targetGameId, name);
+    const d = mockDetails(gameId, noteName);
+    mockNoteDetails.set(`${targetGameId}/${name}`, {
+      ...d,
+      linked_achievement_id: null,
+    });
+    from.delete(noteName);
+    mockNoteDetails.delete(`${gameId}/${noteName}`);
+    const target = mockGames.find((g) => g.id === targetGameId);
+    return {
+      game_id: targetGameId,
+      game_title: target?.title ?? "",
+      note: mockSummary(targetGameId, name, to.get(name) ?? ""),
+    };
+  }
+  const response = await fetch(
+    `/api/game/${gameId}/notes/${encodeURIComponent(noteName)}/move`,
+    {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ target_game_id: targetGameId }),
+    },
+  );
+  return noteJson(response, "The note could not be moved.");
+}
+
+export interface NoteVersion {
+  id: string;
+  saved_at: number;
+  words: number;
+  preview: string;
+}
+
+export async function listNoteVersions(
+  gameId: string,
+  noteName: string,
+): Promise<NoteVersion[]> {
+  if (import.meta.env.VITE_USE_MOCK_DATA === "true") {
+    return (mockNoteVersions.get(`${gameId}/${noteName}`) ?? []).map(
+      (v, i) => ({
+        id: String(i),
+        saved_at: v.saved_at,
+        words: v.content.split(/\s+/).filter(Boolean).length,
+        preview: v.content.slice(0, 200),
+      }),
+    );
+  }
+  const response = await fetch(
+    `/api/game/${gameId}/notes/${encodeURIComponent(noteName)}/versions`,
+    { credentials: "include" },
+  );
+  return (
+    await noteJson<{ versions: NoteVersion[] }>(
+      response,
+      "History could not be loaded.",
+    )
+  ).versions;
+}
+
+export async function fetchNoteVersion(
+  gameId: string,
+  noteName: string,
+  versionId: string,
+): Promise<string> {
+  if (import.meta.env.VITE_USE_MOCK_DATA === "true") {
+    return (
+      mockNoteVersions.get(`${gameId}/${noteName}`)?.[Number(versionId)]
+        ?.content ?? ""
+    );
+  }
+  const response = await fetch(
+    `/api/game/${gameId}/notes/${encodeURIComponent(noteName)}/versions/${versionId}`,
+    { credentials: "include" },
+  );
+  return (
+    await noteJson<{ content: string }>(
+      response,
+      "That version could not be loaded.",
+    )
+  ).content;
+}
+
+export async function restoreNoteVersion(
+  gameId: string,
+  noteName: string,
+  versionId: string,
+): Promise<void> {
+  if (import.meta.env.VITE_USE_MOCK_DATA === "true") {
+    const key = `${gameId}/${noteName}`;
+    const list = mockNoteVersions.get(key) ?? [];
+    const chosen = list[Number(versionId)];
+    if (!chosen) return;
+    const notes = getMockNoteMap(gameId);
+    list.unshift({
+      saved_at: Math.floor(Date.now() / 1000),
+      content: notes.get(noteName) ?? "",
+    });
+    notes.set(noteName, chosen.content);
+    touchMockNote(gameId, noteName);
+    mockNoteVersions.set(key, list.slice(0, 30));
+    return;
+  }
+  const response = await fetch(
+    `/api/game/${gameId}/notes/${encodeURIComponent(noteName)}/versions/${versionId}/restore`,
+    { method: "POST", credentials: "include" },
+  );
+  await noteJson(response, "That version could not be restored.");
+}
+
+export interface NoteSearchHit {
+  game_id: string;
+  game_title: string;
+  name: string;
+  snippet: string;
+  updated_at: number;
+  pinned: boolean;
+}
+
+// notes from every game whose name or text contains the query
+export async function searchNotes(query: string): Promise<NoteSearchHit[]> {
+  const q = query.trim();
+  if (!q) return [];
+  if (import.meta.env.VITE_USE_MOCK_DATA === "true") {
+    const hits: NoteSearchHit[] = [];
+    for (const [gameId, notes] of mockNotesStore) {
+      for (const [name, text] of notes) {
+        const at = text.toLowerCase().indexOf(q.toLowerCase());
+        if (at === -1 && !name.toLowerCase().includes(q.toLowerCase()))
+          continue;
+        hits.push({
+          game_id: gameId,
+          game_title: mockGames.find((g) => g.id === gameId)?.title ?? "",
+          name,
+          snippet: text
+            .slice(Math.max(0, at - 40), at + 100)
+            .replace(/\n/g, " "),
+          updated_at: mockNoteTimes.get(`${gameId}/${name}`) ?? 0,
+          pinned: mockDetails(gameId, name).pinned,
+        });
+      }
+    }
+    return hits;
+  }
+  const response = await fetch(
+    `/api/game/notes/search?q=${encodeURIComponent(q)}`,
+    { credentials: "include" },
+  );
+  return (
+    await noteJson<{ notes: NoteSearchHit[] }>(response, "Search failed.")
+  ).notes;
+}
+
+// How much is in a game, which is what a tab set to Auto looks at.
+export async function fetchContentCounts(
+  gameId: string,
+): Promise<ContentCounts> {
+  if (import.meta.env.VITE_USE_MOCK_DATA === "true") {
+    const game = mockGames.find((g) => g.id === gameId);
+    return {
+      achievements: game?.achievements.length ?? 0,
+      screenshots: 0,
+      clips: 0,
+      soundtrack: 0,
+      saves: 0,
+      worlds: 0,
+      docs: 0,
+      notes: getMockNoteMap(gameId).size,
+    };
+  }
+  const response = await fetch(`/api/game/${gameId}/content-counts`, {
+    credentials: "include",
+  });
+  return noteJson(response, "The game could not be read.");
 }
 
 export interface GameAssetUploadResponse {
@@ -1169,6 +1664,40 @@ export async function attachGameAssetFromUrl(
   }
 
   return await response.json();
+}
+
+export interface GameRatings {
+  ratingOverall: number | null;
+  ratingStory: number | null;
+  ratingGameplay: number | null;
+  ratingSound: number | null;
+}
+
+export async function setRatings(
+  gameId: string,
+  ratings: GameRatings,
+): Promise<Game> {
+  if (import.meta.env.VITE_USE_MOCK_DATA === "true") {
+    const index = mockGames.findIndex((g) => g.id === gameId);
+    if (index === -1) throw new Error(`Game ${gameId} not found`);
+    mockGames[index] = { ...mockGames[index], ...ratings };
+    return mockGames[index];
+  }
+
+  const response = await fetch(`/api/game/update/${gameId}`, {
+    method: "PATCH",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      rating_overall: ratings.ratingOverall,
+      rating_story: ratings.ratingStory,
+      rating_gameplay: ratings.ratingGameplay,
+      rating_soundtrack: ratings.ratingSound,
+    }),
+  });
+  if (!response.ok) throw await failedRequest(response);
+  const raw: BackendGame = await response.json();
+  return mapBackendGame(raw);
 }
 
 export async function setFavorite(

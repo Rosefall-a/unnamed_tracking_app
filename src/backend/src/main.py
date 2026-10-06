@@ -18,13 +18,17 @@ from src.api.routes import (
     default_game_assets,
     export_import,
     game_archives,
+    game_notes,
+    game_page,
     games,
     jobs,
     library_sync,
     media,
     media_extras,
     media_io,
+    media_images,
     media_lists,
+    steam_tags_refresh,
     media_stats,
     notifications,
     preferences,
@@ -36,6 +40,7 @@ from src.api.routes import (
 )
 from src.api.routes.auth_oidc import router as auth_oidc_router
 from src.api.routes.deployment_settings import router as deployment_settings_router
+from src.api.routes.real_ip import router as real_ip_router
 from src.api.routes.setup import router as setup_router
 from src.api.routes.settings import get_or_create_app_integration_settings
 from src.api.routes.utils.misc import router as misc_router
@@ -85,6 +90,8 @@ app.include_router(movies.router)
 app.include_router(tv_shows.router)
 app.include_router(anime.router)
 app.include_router(game_archives.router)
+app.include_router(game_notes.router)
+app.include_router(game_page.router)
 app.include_router(users.router)
 app.include_router(api_keys.router)
 app.include_router(auth.router)
@@ -92,6 +99,7 @@ app.include_router(auth_oidc_router)
 app.include_router(setup_router)
 app.include_router(settings.router)
 app.include_router(deployment_settings_router)
+app.include_router(real_ip_router)
 app.include_router(app_integrations.router)
 app.include_router(media.router)
 app.include_router(stats.router)
@@ -100,6 +108,8 @@ app.include_router(export_import.router)
 app.include_router(jobs.router)
 app.include_router(media_io.router)
 app.include_router(media_extras.router)
+app.include_router(media_images.router)
+app.include_router(steam_tags_refresh.router)
 app.include_router(media_lists.router)
 app.include_router(notifications.router)
 app.include_router(media_stats.router)

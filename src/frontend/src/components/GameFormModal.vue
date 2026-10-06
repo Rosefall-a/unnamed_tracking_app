@@ -18,6 +18,10 @@ import type {
 } from "../types/game";
 import type { GameLink, GameOwnership } from "../types/game";
 import { currentUser } from "../state/auth";
+import PageSettingsEditor from "./PageSettingsEditor.vue";
+import { preferences } from "../state/preferences";
+import { resolvePage } from "../utils/gamePage";
+import type { PageOverrides, PageSettings } from "../utils/gamePage";
 import { fetchProviderCredentials } from "../services/settings";
 import { localDateInputToUnixSeconds, toLocalDateInput } from "../utils/dates";
 import { PRIORITY_OPTIONS, isFinished } from "../utils/priority";
@@ -112,6 +116,7 @@ const EDIT_TABS = [
   "Media",
   "Links",
   "Ownership",
+  "Page",
 ] as const;
 type Tab = "Find" | (typeof EDIT_TABS)[number];
 // Adding a game is a step-by-step flow (#55): a skippable metadata search
@@ -213,6 +218,13 @@ const initialDateAdded = toLocalDateInput(props.game?.dateAdded ?? new Date());
 const dateAdded = ref(initialDateAdded);
 const description = ref(props.game?.description ?? "");
 const profilesEnabled = ref(props.game?.profilesEnabled ?? false);
+// this game's overrides of what its page shows (see Settings > Game Page)
+const pageOverrides = ref<PageOverrides>(
+  JSON.parse(JSON.stringify(props.game?.pageSettings ?? {})),
+);
+const pageDefaults = computed<PageSettings>(() =>
+  resolvePage(preferences.value.game_page, null),
+);
 const osrsStatsEnabled = ref(props.game?.osrsStatsEnabled ?? false);
 watch(profilesEnabled, (enabled) => {
   if (!enabled) osrsStatsEnabled.value = false;
@@ -414,6 +426,7 @@ async function submit() {
     favorite: props.game?.favorite ?? false,
     collections: props.game?.collections ?? [],
     profilesEnabled: profilesEnabled.value,
+    pageSettings: pageOverrides.value,
     osrsStatsEnabled: osrsStatsEnabled.value,
   };
 
@@ -937,6 +950,18 @@ async function submit() {
             <button type="button" class="secondary-button" @click="addLink">
               + Add Link
             </button>
+          </div>
+
+          <div v-else-if="activeTab === 'Page'" class="tab-panel">
+            <p class="hint">
+              What this game's page shows. Anything left on Default follows
+              Settings > Game Page.
+            </p>
+            <PageSettingsEditor
+              :model-value="pageOverrides"
+              :defaults="pageDefaults"
+              @update:model-value="pageOverrides = $event as PageOverrides"
+            />
           </div>
 
           <div v-else-if="activeTab === 'Ownership'" class="tab-panel">

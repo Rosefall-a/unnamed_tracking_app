@@ -21,6 +21,14 @@ export interface OidcProviderSetting {
 export interface DeploymentSettings {
   providers: Record<string, string | boolean | null>;
   provider_locks: Record<string, boolean>;
+  real_ip: {
+    header: string;
+    trusted_proxies: string;
+    locked: {
+      header: boolean;
+      trusted_proxies: boolean;
+    };
+  };
   oidc: {
     enabled: boolean;
     issuer_url: string | null;

@@ -115,9 +115,12 @@ const emit = defineEmits<{
   flex-shrink: 0;
   border-radius: 8px;
   background-size: cover;
+  background-repeat: no-repeat;
+  background-origin: border-box;
+  background-clip: border-box;
   background-position: center;
   background-color: #222222;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid transparent;
   display: flex;
   align-items: center;
   justify-content: center;
