@@ -287,6 +287,10 @@ const metadataRefreshPreview = ref<RefreshMetadataPreview | null>(null);
 const refreshingMetadata = ref(false);
 const refreshMetadataError = ref<string | null>(null);
 const refreshMetadataIncludeArt = ref(true);
+const mediaSearchResults = ref<MetadataSearchResult[]>([]);
+const searchingMedia = ref(false);
+let metadataSearchTimer: ReturnType<typeof setTimeout> | null = null;
+let metadataSearchRequest = 0;
 
 
 const metadataFormDirty = computed(() => {
@@ -404,28 +408,90 @@ async function refreshMetadataFromEditor() {
 }
 
 async function searchMetadata() {
-  if (metadataQuery.value.trim().length < 2) {
-    metadataMessage.value = "Enter at least two characters to search.";
+  const query = metadataQuery.value.trim();
+  if (query.length < 2) {
+    metadataResults.value = [];
+    metadataMessage.value = query ? "Enter at least two characters to search." : null;
+    searchingMetadata.value = false;
     return;
   }
+  const requestId = ++metadataSearchRequest;
   searchingMetadata.value = true;
   metadataMessage.value = null;
   providerWarnings.value = [];
   try {
-    const query = metadataQuery.value.trim();
-    const response = await searchGameMetadata(query);
-    metadataResults.value = rankMetadataResults(response.results, query);
+    const response = await searchGameMetadata(query, { includeImages: false });
+    if (requestId !== metadataSearchRequest) return;
+    metadataResults.value = rankMetadataResults(
+      response.results.filter((result) => result.provider !== "SteamGridDB"),
+      query,
+    );
     steamgriddbConfigured.value = response.steamgriddb_configured;
     providerWarnings.value = response.provider_errors ?? [];
-    if (!metadataResults.value.length)
-      metadataMessage.value = "No games found.";
+    if (!metadataResults.value.length) metadataMessage.value = "No games found.";
   } catch (err) {
+    if (requestId !== metadataSearchRequest) return;
     metadataMessage.value =
       err instanceof Error ? err.message : "Metadata search failed.";
   } finally {
-    searchingMetadata.value = false;
+    if (requestId === metadataSearchRequest) searchingMetadata.value = false;
   }
 }
+
+async function searchMedia() {
+  const query = title.value.trim() || metadataQuery.value.trim();
+  if (query.length < 2) {
+    metadataMessage.value = "Enter a game title before searching for artwork.";
+    return;
+  }
+  searchingMedia.value = true;
+  try {
+    const response = await searchGameMetadata(query, { includeImages: true });
+    mediaSearchResults.value = response.results.filter(
+      (result) =>
+        result.key_art_urls.length ||
+        result.banner_urls.length ||
+        result.key_art_url ||
+        result.banner_url,
+    );
+    const keyArt = [
+      ...mediaSearchResults.value.flatMap((result) => result.key_art_urls),
+      ...mediaSearchResults.value.map((result) => result.key_art_url),
+    ].filter((url): url is string => !!url);
+    const banners = [
+      ...mediaSearchResults.value.flatMap((result) => result.banner_urls),
+      ...mediaSearchResults.value.map((result) => result.banner_url),
+    ].filter((url): url is string => !!url);
+    keyArtCandidates.value = [...new Set(keyArt)];
+    bannerCandidates.value = [...new Set(banners)];
+    if (keyArtCandidates.value.length && !pickedKeyArtUrl.value) {
+      pickedKeyArtUrl.value = keyArtCandidates.value[0];
+    }
+    if (bannerCandidates.value.length && !pickedBannerUrl.value) {
+      pickedBannerUrl.value = bannerCandidates.value[0];
+    }
+    if (!mediaSearchResults.value.length) {
+      metadataMessage.value = "No artwork was found from the configured media sources.";
+    } else {
+      metadataMessage.value = `Found artwork from ${mediaSearchResults.value.map((result) => result.provider).join(", ")}.`;
+    }
+  } catch (err) {
+    metadataMessage.value =
+      err instanceof Error ? err.message : "Media search failed.";
+  } finally {
+    searchingMedia.value = false;
+  }
+}
+
+watch(metadataQuery, () => {
+  if (metadataApplied.value) {
+    metadataApplied.value = false;
+    return;
+  }
+  if (activeTab.value !== "Find") return;
+  if (metadataSearchTimer) clearTimeout(metadataSearchTimer);
+  metadataSearchTimer = setTimeout(() => void searchMetadata(), 250);
+});
 
 function applyMetadata(result: MetadataSearchResult) {
   title.value = result.title;
@@ -453,6 +519,7 @@ function applyMetadata(result: MetadataSearchResult) {
   keyArtCandidates.value = result.key_art_urls;
   bannerCandidates.value = result.banner_urls;
   metadataResults.value = [];
+  mediaSearchResults.value = [];
   metadataQuery.value = result.title;
   metadataMessage.value = `Prefilled from ${result.provider}. Review the fields before saving.`;
   metadataApplied.value = true;
@@ -997,6 +1064,22 @@ async function submit() {
                 Preview: {{ metadataRefreshPreview.changedFields.length ? metadataRefreshPreview.changedFields.join(", ") : "no text changes" }}<span v-if="metadataRefreshPreview.skippedLockedFields.length"> · preserved {{ metadataRefreshPreview.skippedLockedFields.length }} locked field(s)</span>.
               </p>
             </div>
+            <div class="media-search-panel">
+              <div>
+                <strong>Find artwork</strong>
+                <p class="hint">Search SteamGridDB and other configured media sources for cover and banner choices.</p>
+              </div>
+              <button
+                type="button"
+                class="secondary-button"
+                :disabled="searchingMedia || saving"
+                @click="searchMedia"
+              >
+                {{ searchingMedia ? "Searching artwork…" : "Search artwork" }}
+              </button>
+              <p v-if="mediaSearchResults.length" class="hint">{{ mediaSearchResults.map((result) => result.provider).join(" · ") }}</p>
+            </div>
+
             <label class="field">
               <span>Cover image (portrait)</span>
               <input
@@ -1335,6 +1418,19 @@ async function submit() {
   gap: 10px;
 }
 .metadata-refresh-panel strong { color: #fff; }
+.media-search-panel {
+  border: 1px solid #3a3a3a;
+  border-radius: 8px;
+  padding: 12px;
+  background: #151515;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.media-search-panel > div { min-width: 0; }
+.media-search-panel strong { color: #fff; }
+.media-search-panel .hint { margin: 2px 0 0; }
 .metadata-refresh-panel .hint { margin: 0; }
 
 .metadata-search {

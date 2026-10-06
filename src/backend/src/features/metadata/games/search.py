@@ -546,6 +546,7 @@ def search_game_metadata(
     steamgriddb_api_key: str | None = None,
     preferences: dict[str, Any] | None = None,
     user: "User | None" = None,
+    include_image_providers: bool = True,
     igdb_client_id: str | None = None,
     igdb_client_secret: str | None = None,
 ) -> dict[str, Any]:
@@ -600,9 +601,11 @@ def search_game_metadata(
     # priority; image-content enrichment (SteamGridDB/ScreenScraper) uses
     # image_provider_order instead — concatenated so both groups still run
     # together in one pass, each respecting its own list's order
-    enrichment_specs = _specs_for(provider_order, DATA_PROVIDER_NAMES, "enrichment") + _specs_for(
-        image_provider_order, IMAGE_PROVIDER_NAMES, "enrichment"
-    )
+    enrichment_specs = _specs_for(provider_order, DATA_PROVIDER_NAMES, "enrichment")
+    if include_image_providers:
+        enrichment_specs += _specs_for(
+            image_provider_order, IMAGE_PROVIDER_NAMES, "enrichment"
+        )
 
     # Primary providers are independent of each other (none reads another's
     # results), so they're the real bottleneck when run one at a time —
