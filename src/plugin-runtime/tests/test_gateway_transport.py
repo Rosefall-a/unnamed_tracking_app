@@ -88,6 +88,7 @@ sys.exit(1)
         ("forbidden", 403),
         ("not_found", 404),
         ("invalid_request", 400),
+        ("unavailable", 503),
         ("internal", 422),
         ({}, 422),
     ),
