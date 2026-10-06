@@ -76,7 +76,7 @@ async function onCreate(payload: {
   } catch (e) {
     showCreate.value = false;
     createError.value =
-      e instanceof Error ? e.message : "Failed to create list.";
+      e instanceof Error ? e.message : "Failed to create collection.";
   }
 }
 
@@ -215,14 +215,14 @@ async function deleteList(id: string) {
 
     <div class="ui-content">
       <div class="ui-head">
-        <h1>Lists</h1>
+        <h1>Collections</h1>
         <div class="header-actions">
           <input
             v-model="searchQuery"
             type="text"
             class="ui-field search-input"
-            placeholder="Search lists…"
-            aria-label="Search lists"
+            placeholder="Search collections…"
+            aria-label="Search collections"
             data-shortcut="search"
           />
           <select v-model="sortBy" class="ui-field" aria-label="Sort by">
@@ -237,7 +237,7 @@ async function deleteList(id: string) {
             @click="showCreate = true"
             data-shortcut="create"
           >
-            + Create List
+            + Create Collection
           </button>
         </div>
       </div>
@@ -297,12 +297,12 @@ async function deleteList(id: string) {
           />
         </div>
         <p v-if="!filteredLists.length && filtering" class="ui-state">
-          No lists match the search and filters.
+          No collections match the search and filters.
         </p>
         <p v-else-if="!filteredLists.length" class="ui-state">
-          No lists yet: create one above, or use a movie/TV/anime page's list
-          button to start one. A smart list fills itself from a filter, like
-          every anime you rated 9 or higher.
+          No collections yet: create one above, or use a movie/TV/anime page's
+          collection button to start one. A smart list fills itself from a
+          filter, like every anime you rated 9 or higher.
         </p>
         <p v-else-if="sortBy === 'custom' && filtering" class="ui-state">
           Clear the search and filters to move lists around.

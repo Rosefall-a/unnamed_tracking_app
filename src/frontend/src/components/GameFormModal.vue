@@ -1105,12 +1105,8 @@ async function submit() {
               >
                 {{ searchingMedia ? "Searching artwork…" : "Search artwork" }}
               </button>
-              <p v-if="mediaSearchResults.length" class="hint">
-                {{
-                  mediaSearchResults
-                    .map((result) => result.provider)
-                    .join(" · ")
-                }}
+              <p v-if="metadataMessage" class="hint" role="status">
+                {{ metadataMessage }}
               </p>
             </div>
 

@@ -101,7 +101,7 @@ function submit() {
 
 <template>
   <UiModal
-    :title="editing ? 'Edit list' : 'Create a list'"
+    :title="editing ? 'Edit collection' : 'Create a collection'"
     @close="emit('close')"
   >
     <form @submit.prevent="submit">
