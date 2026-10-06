@@ -7,8 +7,9 @@ from decimal import Decimal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
-from src.api.schemas.provider_identity import ProviderIDs
 
+from src.api.schemas.provider_identity import ProviderIDs
+from src.api.schemas.title_protection import TitleProtectionUpdate
 from src.database.models.anime import AnimeStatus
 
 
@@ -77,7 +78,7 @@ class AnimeCreate(AnimeBase):
     seasons: list[SeasonInput] | None = None
 
 
-class AnimeUpdate(BaseModel):
+class AnimeUpdate(TitleProtectionUpdate):
     """Payload for partial updates — every field optional. Seasons are
     never touched here; they have their own nested CRUD endpoints."""
 

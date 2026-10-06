@@ -18,6 +18,7 @@ import type {
 // field-for-field. This is deliberately a separate type from `Game`:
 // nothing outside this file should ever see raw backend data directly.
 export interface BackendGame {
+  locked_fields?: string[];
   id: string;
   title: string;
   sort_title: string;
@@ -107,6 +108,7 @@ function denormalizeStatus(status: GameStatus): string {
 
 export function mapBackendGame(raw: BackendGame): Game {
   return {
+    lockedFields: raw.locked_fields ?? [],
     id: raw.id,
     title: raw.title,
     // placeholders, the backend has no artwork yet
@@ -658,6 +660,7 @@ export async function previewGameMetadataRefresh(
 
 export interface NewGameInput {
   title: string;
+  titleLock?: boolean;
   // undefined leaves the saved sorting name alone, null resets it to the title
   sortTitle?: string | null;
   // undefined leaves the saved value alone on update
@@ -850,6 +853,7 @@ export async function updateGame(
   // that impossible). Fields the caller leaves undefined are left alone.
   const body: Record<string, unknown> = {
     title: input.title,
+    title_lock: input.titleLock,
     status: denormalizeStatus(input.status),
     favorite: input.favorite,
     profiles_enabled: input.profilesEnabled,

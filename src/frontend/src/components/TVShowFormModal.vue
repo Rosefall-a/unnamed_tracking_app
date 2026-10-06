@@ -19,6 +19,8 @@ import MediaMetadataSearch from "./MediaMetadataSearch.vue";
 import { useMetadataSearch } from "../utils/useMetadataSearch";
 import { splitList } from "../utils/formLists";
 
+import { useTitleProtection } from "../utils/titleProtection";
+
 const props = defineProps<{
   show?: TVShow | null;
 }>();
@@ -60,6 +62,11 @@ const statusBucketModel = computed({
 // created alongside it so the user doesn't have to type each season in
 // by hand. Never used on edit (seasons are managed from the detail page).
 const stagedSeasons = ref<SeasonInput[]>([]);
+const { titleProtected, titleLockOverride } = useTitleProtection(
+  () => props.show,
+  () => fields.value.title,
+);
+
 const saving = ref(false);
 const deleting = ref(false);
 const error = ref<string | null>(null);
@@ -99,7 +106,7 @@ watch(() => props.show, loadFromShow, { immediate: true });
 
 function applyMetadata(result: TVShowMetadataResult) {
   const locked = new Set(props.show?.lockedFields ?? []);
-  if (!locked.has("title")) fields.value.title = result.title;
+  if (!titleProtected.value) fields.value.title = result.title;
   if (!locked.has("description"))
     fields.value.description = result.description ?? "";
   if (!locked.has("first_air_date"))
@@ -164,6 +171,7 @@ async function submit() {
   try {
     const input = {
       title: fields.value.title.trim(),
+      titleLock: props.show ? titleLockOverride.value : undefined,
       description: fields.value.description.trim() || null,
       firstAirDate: fields.value.firstAirDate || null,
       episodeRuntimeMinutes: fields.value.episodeRuntimeMinutes,
@@ -248,6 +256,11 @@ async function remove() {
         class="text-input"
         placeholder="Breaking Bad"
       />
+    </label>
+
+    <label v-if="props.show" class="field checkbox-field">
+      <input v-model="titleProtected" type="checkbox" />
+      <span>Protect title from metadata updates</span>
     </label>
 
     <label class="field">

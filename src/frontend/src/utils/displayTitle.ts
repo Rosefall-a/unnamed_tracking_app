@@ -12,8 +12,10 @@ const ORDER = {
 } as const;
 
 export function displayTitle(
-  show: Pick<Anime, "title" | "titleEnglish" | "titleRomaji" | "titleNative">,
+  show: Pick<Anime, "title" | "titleEnglish" | "titleRomaji" | "titleNative"> &
+    Partial<Pick<Anime, "lockedFields">>,
 ): string {
+  if (show.lockedFields?.includes("title")) return show.title;
   for (const key of ORDER[preferences.value.title_language] ?? ORDER.english) {
     const value = show[key];
     if (value) return value;

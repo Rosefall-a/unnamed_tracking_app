@@ -26,6 +26,39 @@ User API keys are created for individual accounts and can be revoked. The backen
 
 The game API and other authenticated routes resolve the caller from either the bearer API key or the normal session cookie.
 
+## Title protection
+
+`PATCH /api/game/update/{id}`, `/api/movie/update/{id}`, `/api/tv/update/{id}`,
+and `/api/anime/update/{id}` accept an optional JSON boolean `title_lock`:
+
+- Omitted: preserve existing protection. A manual title change still automatically locks it.
+- `true`: protect the title, including when its text is unchanged.
+- `false`: remove protection. A title change and protection change in the same request are atomic.
+
+Protection is stored in `locked_fields` as `"title"`. Providers, imports, and
+background metadata updates preserve protected fields. Only a valid application
+sign-in session (password or OIDC) may explicitly change protection or edit an
+already-protected title. API keys may still edit an unprotected title; that edit
+automatically protects it. Sending an unchanged title with an ordinary update is allowed.
+
+**Title protection is enforced by the backend. An API client cannot remove
+protection or modify a protected title merely by supplying `title_lock=false`
+or another request parameter.** These attempts return `403 Forbidden`. API-key
+authentication takes precedence even when a valid session cookie is also supplied.
+User-Agent, Origin, Referer, and client-defined UI headers grant no authority.
+
+Plugin credentials do not establish application sign-in sessions. Existing
+`media.write` and `api.full` grants do not authorize protected-title management:
+direct plugin sync title edits are forbidden, while metadata enrichment preserves
+the title. There is currently no plugin protected-metadata capability.
+
+For new mutation paths, use the shared metadata locking service. Ordinary edits
+must pass the authenticated actor to `apply_updates_with_locking`; provider and
+import updates must use `apply_metadata_updates`. Load existing rows under a
+database row lock before checking protection, so a concurrent UI save cannot
+leave a worker using stale lock state. Never assign a persisted library title
+directly or accept a replacement `locked_fields` list from a caller.
+
 ## User preferences
 
 User preferences are exposed through the existing preferences API. The AniList automatic-import feature adds these per-user fields:

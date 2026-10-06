@@ -4,7 +4,9 @@ import hashlib
 import re
 import secrets
 import time
-from typing import Final
+from dataclasses import dataclass
+from typing import Final, Literal
+from uuid import UUID
 
 from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy import delete, select, update
@@ -24,6 +26,20 @@ _DB_DEPENDENCY = Depends(get_db)
 SESSION_COOKIE_PREFIX: Final = "session_"
 SESSION_TTL_SECONDS: Final = 30 * 24 * 60 * 60
 API_KEY_PREFIX: Final = "utk_"
+
+
+@dataclass(frozen=True)
+class AuthenticatedActor:
+    """Credential provenance established by authentication, never by the client."""
+
+    user_id: UUID
+    credential_kind: Literal["session", "api_key", "plugin"]
+
+    @property
+    def can_manage_protected_metadata(self) -> bool:
+        """Only a validated application sign-in session can manage protection."""
+        return self.credential_kind == "session"
+
 
 _password_policy_override: dict[str, int | bool] | None = None
 
@@ -204,6 +220,9 @@ async def get_current_user(
             detail="Authentication required.",
             headers={"WWW-Authenticate": "Bearer"},
         )
+    request.state.authenticated_actor = AuthenticatedActor(
+        user.id, "api_key" if authorization else "session"
+    )
     return user
 
 
@@ -248,6 +267,17 @@ async def ensure_primary_user(db: AsyncSession) -> User:
 
 
 _CURRENT_USER_DEPENDENCY = Depends(get_current_user)
+
+
+async def get_current_actor(
+    request: Request, user: User = _CURRENT_USER_DEPENDENCY
+) -> AuthenticatedActor:
+    """Retain credential provenance while keeping existing user dependencies."""
+    actor = getattr(request.state, "authenticated_actor", None)
+    if isinstance(actor, AuthenticatedActor) and actor.user_id == user.id:
+        return actor
+    # An internal caller/overridden user dependency is not a browser sign-in.
+    return AuthenticatedActor(user.id, "api_key")
 
 
 async def get_current_admin(user: User = _CURRENT_USER_DEPENDENCY) -> User:

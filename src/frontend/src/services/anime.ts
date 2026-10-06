@@ -245,6 +245,7 @@ function seasonInputToBody(input: SeasonInput): Record<string, unknown> {
 
 export interface AnimeInput {
   title: string;
+  titleLock?: boolean;
   description?: string | null;
   firstAirDate?: string | null;
   episodeRuntimeMinutes?: number | null;
@@ -330,6 +331,7 @@ export function animeToInput(show: Anime): AnimeInput {
 function inputToBody(input: AnimeInput): Record<string, unknown> {
   const body: Record<string, unknown> = {
     title: input.title,
+    title_lock: input.titleLock,
     description: input.description ?? null,
     first_air_date: input.firstAirDate ?? null,
     episode_runtime_minutes: input.episodeRuntimeMinutes ?? null,
