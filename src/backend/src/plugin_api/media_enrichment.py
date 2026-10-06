@@ -10,6 +10,7 @@ import hashlib
 import json
 import math
 import time
+from dataclasses import dataclass
 from datetime import date
 from typing import Annotated, Any, Literal
 from urllib.parse import urlsplit
@@ -230,34 +231,15 @@ def _apply_metadata(media: Any, item: EnrichmentInput) -> None:
     media.provider_ids = {**(media.provider_ids or {}), **item.provider_ids}
 
 
-async def dispatch_enrichment(
-    db: AsyncSession, *, plugin_id: str, user_id: UUID, payload: dict[str, Any]
-) -> dict[str, Any]:
-    """Serialize matching per user; apply a replay-safe provider transaction."""
-    item = EnrichmentInput.model_validate(payload)
-    await db.execute(
-        text("SELECT pg_advisory_xact_lock(:key)"),
-        {"key": int.from_bytes(hashlib.sha256(user_id.bytes).digest()[:8], "big", signed=True)},
-    )
-    link = await db.scalar(
-        select(MediaProviderLink)
-        .where(
-            MediaProviderLink.user_id == user_id,
-            MediaProviderLink.plugin_id == plugin_id,
-            MediaProviderLink.source == item.source,
-            MediaProviderLink.source_scope == item.source_scope,
-            MediaProviderLink.external_id == item.external_id,
-        )
-        .with_for_update()
-    )
+async def _resolve_identity(
+    db: AsyncSession,
+    item: EnrichmentInput,
+    *,
+    link: MediaProviderLink | None,
+    plugin_id: str,
+    user_id: UUID,
+) -> UUID | dict[str, Any]:
     identity = media_identity(plugin_id, user_id, item)
-    if item.availability_only:
-        if link is None:
-            return {"conflict": "unknown_identity"}
-        link.available = item.available
-        link.updated_at = int(time.time())
-        await db.commit()
-        return {"id": str(link.media_id), "created": False, "revision": link.applied_revision}
     if link:
         if link.media_type != item.media_type:
             return {
@@ -295,18 +277,32 @@ async def dispatch_enrichment(
                     "candidates": [{"id": str(candidate.id), "title": candidate.title}],
                 }
             identity = candidate.id
-    media = await _load_media(db, item.media_type, identity, user_id)
-    if media is not None and media.deleted_at is not None:
-        return {"id": str(identity), "conflict": "locally_deleted"}
-    digest = hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
-    if link and link.data.get("digest") == digest:
-        return {
-            "id": str(identity),
-            "created": False,
-            "replayed": True,
-            "revision": link.applied_revision,
-        }
-    previous = link.data if link else {}
+    return identity
+
+
+async def _update_availability(
+    db: AsyncSession, link: MediaProviderLink | None, item: EnrichmentInput
+) -> dict[str, Any]:
+    if link is None:
+        return {"conflict": "unknown_identity"}
+    link.available = item.available
+    link.updated_at = int(time.time())
+    await db.commit()
+    return {"id": str(link.media_id), "created": False, "revision": link.applied_revision}
+
+
+@dataclass(frozen=True)
+class _WatchPlan:
+    payload: dict[str, Any]
+    snapshot: dict[str, Any]
+    digest: str
+    update: bool
+    previous_revision: str | None
+
+
+def _prepare_watch(
+    item: EnrichmentInput, previous: dict[str, Any], media: Any, link: MediaProviderLink | None
+) -> _WatchPlan:
     watch = _watch_data(item, previous.get("watch", {}))
     all_progress = {
         **previous.get("episode_progress", {}),
@@ -327,22 +323,23 @@ async def dispatch_enrichment(
     if item.force_watch:
         expected = watch_revision(media, item.media_type) if media else None
     core_payload = {
-        key: value for key, value in item.model_dump().items() if key in MediaSyncInput.model_fields
+        key: value
+        for key, value in item.model_dump().items()
+        if key in MediaSyncInput.model_fields.keys()
     }
     core_payload["expected_revision"] = expected
     before_revision = watch_revision(media, item.media_type) if media else None
-    related = list(
-        (
-            await db.scalars(
-                select(MediaProviderLink).where(
-                    MediaProviderLink.user_id == user_id,
-                    MediaProviderLink.media_id == identity,
-                    MediaProviderLink.media_type == item.media_type,
-                )
-            )
-        ).all()
-    )
     core_payload["in_progress"] = watch["in_progress"]
+    return _WatchPlan(core_payload, watch, watch_digest, update_watch, before_revision)
+
+
+def _merge_watch_sources(
+    core_payload: dict[str, Any],
+    related: list[MediaProviderLink],
+    link: MediaProviderLink | None,
+    media: Any,
+    item: EnrichmentInput,
+) -> None:
     for other in related:
         if other is link or not other.available:
             continue
@@ -370,32 +367,17 @@ async def dispatch_enrichment(
             }
             for episode in core_payload["episodes"]:
                 episode["watched"] |= watched.get((episode["season"], episode["number"]), False)
-    result = await dispatch_media_sync(
-        db,
-        plugin_id=plugin_id,
-        user_id=user_id,
-        payload=core_payload,
-        options=ResolvedSync(
-            identity=identity,
-            enrich=True,
-            update_watch=update_watch,
-            commit=False,
-            episode_ids={
-                key: UUID(value) for key, value in previous.get("episode_ids", {}).items()
-            },
-        ),
-    )
-    if result.get("conflict"):
-        return result
-    media = await _load_media(db, item.media_type, identity, user_id)
-    if update_watch and core_payload["in_progress"]:
-        media.status = type(media.status).IN_PROGRESS
-        result["status"] = media.status.value
-        result["revision"] = watch_revision(media, item.media_type)
-    for other in related:
-        if update_watch and other is not link and other.applied_revision == before_revision:
-            other.applied_revision = result["revision"]
-    _apply_metadata(media, item)
+
+
+async def _ensure_link(
+    db: AsyncSession,
+    item: EnrichmentInput,
+    link: MediaProviderLink | None,
+    *,
+    user_id: UUID,
+    plugin_id: str,
+    identity: UUID,
+) -> MediaProviderLink:
     if link is None:
         link = MediaProviderLink(
             user_id=user_id,
@@ -409,6 +391,19 @@ async def dispatch_enrichment(
         )
         db.add(link)
         await db.flush()
+    return link
+
+
+def _save_link_snapshot(
+    link: MediaProviderLink,
+    item: EnrichmentInput,
+    media: Any,
+    previous: dict[str, Any],
+    *,
+    digest: str,
+    watch_plan: _WatchPlan,
+    revision: str,
+) -> None:
     link.available = item.available
     previous_episodes = (link.data or {}).get("episode_progress", {})
     episode_ids = dict(previous.get("episode_ids", {}))
@@ -423,7 +418,7 @@ async def dispatch_enrichment(
                 episode_ids[episode.external_id] = numbered[(episode.season, episode.number)]
     link.data = {
         "digest": digest,
-        "watch": watch,
+        "watch": watch_plan.snapshot,
         "metadata": item.metadata,
         "playback": item.playback.model_dump() if item.playback else None,
         "episode_progress": {
@@ -435,14 +430,22 @@ async def dispatch_enrichment(
         "title": item.title,
     }
     if item.inventory_complete:
-        link.data = {**link.data, "finalized_watch": watch_digest}
+        link.data = {**link.data, "finalized_watch": watch_plan.digest}
     elif previous.get("finalized_watch"):
         link.data = {**link.data, "finalized_watch": previous["finalized_watch"]}
     link.updated_at = int(time.time())
-    if update_watch:
-        link.applied_revision = result["revision"]
-    if item.playback and item.media_type == "movie":
-        media.rewatches = max(media.rewatches or 0, max(0, item.playback.play_count - 1))
+    if watch_plan.update:
+        link.applied_revision = revision
+
+
+async def _save_history(
+    db: AsyncSession,
+    link: MediaProviderLink,
+    item: EnrichmentInput,
+    *,
+    user_id: UUID,
+    identity: UUID,
+) -> None:
     for event in item.history:
         stored = await db.scalar(
             select(MediaPlaybackEvent).where(
@@ -457,5 +460,125 @@ async def dispatch_enrichment(
             db.add(stored)
         else:
             stored.duration_seconds = event.duration_seconds
+
+
+async def _apply_enrichment(
+    db: AsyncSession,
+    item: EnrichmentInput,
+    *,
+    plugin_id: str,
+    user_id: UUID,
+    link: MediaProviderLink | None,
+    identity: UUID,
+    media: Any,
+    digest: str,
+) -> dict[str, Any]:
+    previous = link.data if link else {}
+    watch_plan = _prepare_watch(item, previous, media, link)
+    related = list(
+        (
+            await db.scalars(
+                select(MediaProviderLink).where(
+                    MediaProviderLink.user_id == user_id,
+                    MediaProviderLink.media_id == identity,
+                    MediaProviderLink.media_type == item.media_type,
+                )
+            )
+        ).all()
+    )
+    _merge_watch_sources(watch_plan.payload, related, link, media, item)
+    result = await dispatch_media_sync(
+        db,
+        plugin_id=plugin_id,
+        user_id=user_id,
+        payload=watch_plan.payload,
+        options=ResolvedSync(
+            identity=identity,
+            enrich=True,
+            update_watch=watch_plan.update,
+            commit=False,
+            episode_ids={
+                key: UUID(value) for key, value in previous.get("episode_ids", {}).items()
+            },
+        ),
+    )
+    if result.get("conflict"):
+        return result
+    media = await _load_media(db, item.media_type, identity, user_id)
+    if watch_plan.update and watch_plan.payload["in_progress"]:
+        media.status = type(media.status).IN_PROGRESS
+        result["status"] = media.status.value
+        result["revision"] = watch_revision(media, item.media_type)
+    for other in related:
+        if (
+            watch_plan.update
+            and other is not link
+            and other.applied_revision == watch_plan.previous_revision
+        ):
+            other.applied_revision = result["revision"]
+    _apply_metadata(media, item)
+    link = await _ensure_link(
+        db, item, link, user_id=user_id, plugin_id=plugin_id, identity=identity
+    )
+    _save_link_snapshot(
+        link,
+        item,
+        media,
+        previous,
+        digest=digest,
+        watch_plan=watch_plan,
+        revision=result["revision"],
+    )
+    if item.playback and item.media_type == "movie":
+        media.rewatches = max(media.rewatches or 0, 0, item.playback.play_count - 1)
+    await _save_history(db, link, item, user_id=user_id, identity=identity)
     await db.commit()
     return result
+
+
+async def dispatch_enrichment(
+    db: AsyncSession, *, plugin_id: str, user_id: UUID, payload: dict[str, Any]
+) -> dict[str, Any]:
+    """Serialize matching per user; apply a replay-safe provider transaction."""
+    item = EnrichmentInput.model_validate(payload)
+    await db.execute(
+        text("SELECT pg_advisory_xact_lock(:key)"),
+        {"key": int.from_bytes(hashlib.sha256(user_id.bytes).digest()[:8], "big", signed=True)},
+    )
+    link = await db.scalar(
+        select(MediaProviderLink)
+        .where(
+            MediaProviderLink.user_id == user_id,
+            MediaProviderLink.plugin_id == plugin_id,
+            MediaProviderLink.source == item.source,
+            MediaProviderLink.source_scope == item.source_scope,
+            MediaProviderLink.external_id == item.external_id,
+        )
+        .with_for_update()
+    )
+    if item.availability_only:
+        return await _update_availability(db, link, item)
+    identity = await _resolve_identity(db, item, link=link, plugin_id=plugin_id, user_id=user_id)
+    if isinstance(identity, dict):
+        return identity
+    media = await _load_media(db, item.media_type, identity, user_id)
+    if media is not None and media.deleted_at is not None:
+        return {"id": str(identity), "conflict": "locally_deleted"}
+    digest = hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
+    if link and link.data.get("digest") == digest:
+        return {
+            "id": str(identity),
+            "created": False,
+            "replayed": True,
+            "revision": link.applied_revision,
+        }
+    return await _apply_enrichment(
+        db,
+        item,
+        plugin_id=plugin_id,
+        user_id=user_id,
+        link=link,
+        identity=identity,
+        media=media,
+        digest=digest,
+    )
