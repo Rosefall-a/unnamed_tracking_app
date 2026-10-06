@@ -15,6 +15,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy import delete, or_, select
 from sqlalchemy import update as sql_update
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from src.core.auth import get_current_admin, hash_token
 from src.database.models.auth import UserApiKey
 from src.database.models.plugin_notification_provider import PluginNotificationProviderRegistration
@@ -150,6 +151,7 @@ async def _perform_package_operation(
             consent=InstallationConsent(
                 approved_permissions=tuple(payload.approved_permissions),
                 expected_digest=payload.expected_digest,
+                permissions_reviewed=payload.permissions_reviewed,
                 allow_untrusted=payload.allow_untrusted,
                 confirm_dangerous=payload.confirm_dangerous,
                 admin_password=payload.admin_password,

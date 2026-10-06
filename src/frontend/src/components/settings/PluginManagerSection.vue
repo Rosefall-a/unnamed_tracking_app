@@ -494,6 +494,10 @@ function cancelInstall() {
 
 async function confirmInstall(confirmation: PluginInstallConfirmation) {
   if (!installPreview.value) return;
+  confirmation = {
+    ...confirmation,
+    expectedDigest: installPreview.value.digest,
+  };
   if (needsIsolationApproval.value) {
     pendingIsolationInstall = confirmation;
     isolationAcknowledged.value = false;
@@ -511,6 +515,7 @@ async function confirmInstall(confirmation: PluginInstallConfirmation) {
         {
           approved_permissions: confirmation.approvedPermissions,
           expected_digest: installPreview.value.digest,
+          permissions_reviewed: Boolean(stagedTarget.value),
           confirmed: Boolean(
             stagedTarget.value &&
             installPreview.value.new_permission_keys?.length &&

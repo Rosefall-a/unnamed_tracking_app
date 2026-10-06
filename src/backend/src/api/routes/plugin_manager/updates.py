@@ -8,6 +8,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from src.database.models.user import User
 from src.database.session import get_db
 from src.plugin_api.installer import (
@@ -246,7 +247,9 @@ async def update_plugin_url(
     admin: User = _PLUGIN_ADMIN,
     db: AsyncSession = _PLUGIN_DB,
     operation: Literal["update", "replace"] = "update",
+    permissions_reviewed: bool = False,
 ) -> dict[str, Any]:
+    """Apply inspected remote bytes with the administrator's selected permissions."""
     temporary_path: Path | None = None
     upload: UploadFile | None = None
     try:
@@ -263,6 +266,7 @@ async def update_plugin_url(
             admin_password=request.admin_password,
             confirm_dangerous=request.confirm_dangerous,
             expected_digest=request.expected_digest,
+            permissions_reviewed=permissions_reviewed,
             source_metadata={
                 "type": request.source_type,
                 "url": request.url,
@@ -291,7 +295,10 @@ async def update_plugin(
     admin: User = _PLUGIN_ADMIN,
     db: AsyncSession = _PLUGIN_DB,
     operation: Literal["update", "replace"] = "update",
+    permissions_reviewed: bool = False,
+    expected_digest: str | None = Form(default=None, min_length=64, max_length=64),
 ) -> dict[str, Any]:
+    """Activate a digest-bound reviewed upload or stage pending permission decisions."""
     return await _update_plugin_package(
         plugin_id,
         file,
@@ -300,6 +307,8 @@ async def update_plugin(
         approved_permissions=approved_permissions,
         admin_password=admin_password,
         confirm_dangerous=confirm_dangerous,
+        permissions_reviewed=permissions_reviewed,
+        expected_digest=expected_digest if isinstance(expected_digest, str) else None,
         source_metadata=None,
         admin=admin,
         db=db,
@@ -319,6 +328,7 @@ async def _update_plugin_package(
     db: AsyncSession,
     expected_digest: str | None = None,
     operation: str = "update",
+    permissions_reviewed: bool = False,
 ) -> dict[str, Any]:
     return await acquisition._commit_plugin_upload(
         file,
@@ -330,6 +340,7 @@ async def _update_plugin_package(
             admin_password=admin_password,
             confirm_dangerous=confirm_dangerous,
             expected_digest=expected_digest,
+            permissions_reviewed=permissions_reviewed,
         ),
         source_metadata=source_metadata,
         admin=admin,

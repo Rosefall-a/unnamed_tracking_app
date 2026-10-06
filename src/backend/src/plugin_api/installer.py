@@ -30,9 +30,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database.models.plugin_permission_audit import PluginPermissionAudit
 from src.database.models.plugin_permissions import (
+    PluginLifecycleTransaction,
     PluginPermissionGrant,
     PluginPermissionRequest,
-    PluginLifecycleTransaction,
 )
 
 from .backend_routes import BackendRouteConflictError, validate_host_route_ownership
@@ -45,16 +45,16 @@ from .capabilities import (
 from .contracts import (
     BackendRouteScope,
     CapabilityRef,
+    CompatibilityStatus,
     PluginManifest,
     PluginPackageIdentity,
+    evaluate_manifest_compatibility,
     parse_semver,
     version_satisfies,
-    evaluate_manifest_compatibility,
-    CompatibilityStatus,
 )
-from .runtime_client import PluginRuntimeClient, PluginRuntimeRequestError, PluginRuntimeUnavailable
-from .manager_state import manager_state
 from .lifecycle_lock import serialized_lifecycle
+from .manager_state import manager_state
+from .runtime_client import PluginRuntimeClient, PluginRuntimeRequestError, PluginRuntimeUnavailable
 from .updates import (
     PackageVerificationError,
     PluginPackageVerifier,
@@ -181,7 +181,10 @@ def inspect_package(
         publisher: TrustedPublisher | None = verifier.publishers.get(key_id)
         if publisher is not None:
             publisher.verifier().verify(
-                signature_bytes, f"plugin-package-v{candidate.signing_version}:{candidate.payload_digest}".encode("ascii")
+                signature_bytes,
+                f"plugin-package-v{candidate.signing_version}:{candidate.payload_digest}".encode(
+                    "ascii"
+                ),
             )
     except (ValueError, binascii.Error, InvalidSignature, PackageVerificationError):
         return InspectedPackage(
@@ -220,7 +223,9 @@ def inspect_package(
             publisher_key_id=key_id,
             publisher_identity=publisher.publisher or None,
             warning=None,
-            publisher_channel=publisher.channel if candidate.signing_version == 2 or publisher.channel != "official" else "community",
+            publisher_channel=publisher.channel
+            if candidate.signing_version == 2 or publisher.channel != "official"
+            else "community",
         ),
     )
 
@@ -379,10 +384,13 @@ class InstallationConsent:
     admin_password: str | None = None
     confirm_dangerous: bool = False
     expected_digest: str | None = None
+    permissions_reviewed: bool = False
 
 
 @dataclass(frozen=True, slots=True)
 class InstallationPlan:
+    """Validated package, dependency and grant decisions for one installation."""
+
     inspected: InspectedPackage
     installation_id: UUID
     dependencies: DependencyPlan
@@ -552,6 +560,8 @@ class PluginInstaller:
         approved = set(consent.approved_permissions)
         if not approved.issubset(new_keys):
             raise InstallationError(400, "Consent contains an undeclared or unchanged permission.")
+        if consent.permissions_reviewed and not consent.expected_digest:
+            raise InstallationError(400, "Permission review requires the reviewed package digest.")
         dangerous = [
             permission_key(ref)
             for ref in plan.permissions.newly_requested_grants
@@ -664,7 +674,9 @@ class PluginInstaller:
             raise
         if plan.installed is not None:
             new_keys = {permission_key(ref) for ref in plan.permissions.newly_requested_grants}
-            if not new_keys.issubset(set(consent.approved_permissions)):
+            if not consent.permissions_reviewed and not new_keys.issubset(
+                set(consent.approved_permissions)
+            ):
                 manager_state().stage(
                     manifest.plugin_id,
                     package,
