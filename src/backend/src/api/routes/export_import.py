@@ -1,14 +1,10 @@
 # pylint: disable=duplicate-code
 # pylint: disable=missing-class-docstring,missing-function-docstring,broad-exception-caught
 """Library export/import, a portable JSON snapshot of a user's data, for
-backups or moving to a new server. Export covers games, movies, TV shows,
-and anime; import (re-creating rows from a snapshot) still only handles
-games — movies/TV/anime each have their own creation quirks (seasons,
-episodes, per-provider ids) that make a safe generic importer a real
-separate effort, not a silent gap. Folder assets, screenshots and saves
+backups or moving to a new server. Both directions cover games, movies,
+TV shows and anime, including their tracked seasons and episodes.
+Folder assets, screenshots and saves
 aren't included in either direction."""
-
-import time
 
 from fastapi import APIRouter, Depends, status
 from pydantic import BaseModel
@@ -17,15 +13,10 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.routes.games import _derive_sort_title, _validate_game_relationship
-from src.api.schemas.anime import AnimeRead
-from src.api.schemas.game import GameCreate, GameRead
-from src.api.schemas.movie import MovieRead
-from src.api.schemas.tv_show import TVShowRead
+from src.api.schemas.game import GameCreate
+from src.api.schemas.library_export import LibraryExport
 from src.core.auth import get_current_user
-from src.database.models.anime import Anime
 from src.database.models.game import Game, GameLink
-from src.database.models.movies import Movie
-from src.database.models.tv_show import TVShow
 from src.database.models.user import User
 from src.database.session import get_db
 from src.features.backup.scheduler import (
@@ -33,19 +24,10 @@ from src.features.backup.scheduler import (
     BACKUP_INTERVAL_SECONDS,
     BACKUPS_TO_KEEP_PER_USER,
 )
+from src.features.imports.library_export import build_library_export
 from src.helpers.save_game_asset import create_game_folder
 
 router = APIRouter(prefix="/api", tags=["export"], dependencies=[Depends(get_current_user)])
-
-
-class LibraryExport(BaseModel):
-    format_version: int = 2
-    exported_at: int
-    game_count: int
-    games: list[GameRead]
-    movies: list[MovieRead] = []
-    tv_shows: list[TVShowRead] = []
-    anime: list[AnimeRead] = []
 
 
 @router.get("/export/library", response_model=LibraryExport)
@@ -53,58 +35,7 @@ async def export_library(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> LibraryExport:
-    games = list(
-        (
-            await db.execute(
-                select(Game)
-                .where(Game.user_id == current_user.id, Game.deleted_at.is_(None))
-                .order_by(Game.sort_title)
-            )
-        )
-        .scalars()
-        .all()
-    )
-    movies = list(
-        (
-            await db.execute(
-                select(Movie)
-                .where(Movie.user_id == current_user.id, Movie.deleted_at.is_(None))
-                .order_by(Movie.sort_title)
-            )
-        )
-        .scalars()
-        .all()
-    )
-    tv_shows = list(
-        (
-            await db.execute(
-                select(TVShow)
-                .where(TVShow.user_id == current_user.id, TVShow.deleted_at.is_(None))
-                .order_by(TVShow.sort_title)
-            )
-        )
-        .scalars()
-        .all()
-    )
-    anime = list(
-        (
-            await db.execute(
-                select(Anime)
-                .where(Anime.user_id == current_user.id, Anime.deleted_at.is_(None))
-                .order_by(Anime.sort_title)
-            )
-        )
-        .scalars()
-        .all()
-    )
-    return LibraryExport(  # type: ignore[arg-type]
-        exported_at=int(time.time()),
-        game_count=len(games),
-        games=games,
-        movies=movies,
-        tv_shows=tv_shows,
-        anime=anime,
-    )
+    return await build_library_export(db, current_user.id)
 
 
 class BackupStatus(BaseModel):

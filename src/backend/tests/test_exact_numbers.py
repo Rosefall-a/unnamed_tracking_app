@@ -1081,6 +1081,55 @@ async def test_details_fill_only_blank_fields_and_report_what_was_not_found():
 
 # ----------------------------------------------------- restoring an own export
 @pytest.mark.asyncio
+async def test_scheduled_backups_match_manual_exports_and_keep_seven_snapshots(
+    monkeypatch, tmp_path
+):
+    import json
+    import time
+
+    from src.api.routes.export_import import export_library
+    from src.features.backup import scheduler
+
+    monkeypatch.setattr(scheduler, "_BACKUP_ROOT", tmp_path)
+    async with SessionLocal() as db:
+        user = None
+        try:
+            user = await _user(db)
+            db.add(
+                Movie(
+                    user_id=user.scratch_id,
+                    title="Backed up film",
+                    sort_title="backed up film",
+                    status=MovieStatus.WATCHED,
+                )
+            )
+            db.add(
+                Movie(
+                    user_id=user.scratch_id,
+                    title="Trashed film",
+                    sort_title="trashed film",
+                    deleted_at=1,
+                )
+            )
+            await db.commit()
+            paths = []
+            for index in range(9):
+                monkeypatch.setattr(time, "time", lambda value=1_800_000_000 + index: value)
+                path = await scheduler.run_backup_for_user(user.scratch_id)
+                assert path is not None
+                paths.append(path)
+            assert not paths[0].exists() and not paths[1].exists()
+            assert all(path.is_file() for path in paths[2:])
+            payload = json.loads(paths[-1].read_text())
+            manual = (await export_library(db, user)).model_dump(mode="json")
+            assert payload == manual
+            assert [movie["title"] for movie in payload["movies"]] == ["Backed up film"]
+        finally:
+            if user is not None:
+                await _cleanup(db, user)
+
+
+@pytest.mark.asyncio
 async def test_a_library_export_restores_movies_shows_and_anime_with_progress_and_is_safe_twice():
     import json
 
