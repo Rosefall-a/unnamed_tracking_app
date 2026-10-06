@@ -131,6 +131,8 @@ def read_representation(
     max_bytes == 0 means unlimited for callers that explicitly opt in;
     legacy callers retain the original 5 MiB ceiling.
     """
+    # The size contract accepts only plain integers, including zero, but never booleans.
+    # pylint: disable-next=unidiomatic-typecheck
     if type(max_bytes) is not int or max_bytes < 0:
         raise DocumentAccessError("invalid", "Invalid document size limit.", 400)
     try:
@@ -178,6 +180,61 @@ def read_representation(
     return data, media_type, document_format, hashlib.sha256(data).hexdigest()
 
 
+def _office_entry_name(entry: zipfile.ZipInfo, names: set[str]) -> str:
+    name = unquote(entry.filename).replace("\\", "/")
+    parts = name.lower().split("/")
+    if any(
+        (
+            name.startswith("/"),
+            ":" in name,
+            "\x00" in name,
+            ".." in parts,
+            name.casefold() in names,
+            entry.flag_bits & 1,
+            entry.compress_type not in {0, 8},
+            bool(
+                {"vbaproject.bin", "basic", "scripts", "embeddings", "activex"}.intersection(parts)
+            ),
+            (entry.external_attr >> 16) & 0o170000 == 0o120000,
+        )
+    ):
+        raise ValueError("unsafe or active archive entry")
+    return name
+
+
+def _validate_office_xml(content: bytes, name: str) -> None:
+    # Decode before checking declarations: UTF-16 must not evade the DTD guard.
+    if content.startswith((b"\xff\xfe", b"\xfe\xff")):
+        xml = content.decode("utf-16")
+    else:
+        xml = content.decode("utf-8-sig")
+    if re.search(r"<!\s*(?:DOCTYPE|ENTITY)", xml, re.IGNORECASE):
+        raise ValueError("XML entities are unsupported")
+    tree = ElementTree.fromstring(xml)
+    if sum(1 for _ in tree.iter()) > 50_000:
+        raise ValueError("too many XML nodes")
+    if name.lower() == "[content_types].xml" and "macroenabled" in xml.lower():
+        raise ValueError("macros are unsupported")
+    if any(
+        node.tag.rsplit("}", 1)[-1] in {"script", "event-listener", "encryption-data"}
+        for node in tree.iter()
+    ):
+        raise ValueError("active office content")
+
+
+def _validate_office_type(archive: zipfile.ZipFile, names: set[str], suffix: str) -> None:
+    if suffix in {".odt", ".odp"}:
+        if archive.read("mimetype").decode() != OFFICE_TYPES[suffix]:
+            raise ValueError("incorrect OpenDocument type")
+        required = "content.xml"
+    else:
+        required = "word/document.xml" if suffix == ".docx" else "ppt/presentation.xml"
+        if "[content_types].xml" not in names:
+            raise ValueError("missing content types")
+    if required not in names:
+        raise ValueError("missing main document")
+
+
 def validate_office_archive(data: bytes, suffix: str) -> None:
     """Validate bounded, inactive office containers; never extract them to disk."""
     try:
@@ -188,24 +245,7 @@ def validate_office_archive(data: bytes, suffix: str) -> None:
             names: set[str] = set()
             total = 0
             for entry in entries:
-                name = unquote(entry.filename).replace("\\", "/")
-                parts = name.lower().split("/")
-                if (
-                    name.startswith("/")
-                    or ":" in name
-                    or "\x00" in name
-                    or ".." in parts
-                    or name.casefold() in names
-                    or entry.flag_bits & 1
-                    or entry.compress_type not in {0, 8}
-                    or "vbaproject.bin" in parts
-                    or "basic" in parts
-                    or "scripts" in parts
-                    or "embeddings" in parts
-                    or "activex" in parts
-                    or (entry.external_attr >> 16) & 0o170000 == 0o120000
-                ):
-                    raise ValueError("unsafe or active archive entry")
+                name = _office_entry_name(entry, names)
                 names.add(name.casefold())
                 total += entry.file_size
                 limit = (
@@ -224,34 +264,8 @@ def validate_office_archive(data: bytes, suffix: str) -> None:
                 if len(content) != entry.file_size:
                     raise ValueError("invalid archive size")
                 if name.lower().endswith((".xml", ".rels")):
-                    # Decode before checking declarations: UTF-16 must not evade the DTD guard.
-                    if content.startswith((b"\xff\xfe", b"\xfe\xff")):
-                        xml = content.decode("utf-16")
-                    else:
-                        xml = content.decode("utf-8-sig")
-                    if re.search(r"<!\s*(?:DOCTYPE|ENTITY)", xml, re.IGNORECASE):
-                        raise ValueError("XML entities are unsupported")
-                    tree = ElementTree.fromstring(xml)
-                    if sum(1 for _ in tree.iter()) > 50_000:
-                        raise ValueError("too many XML nodes")
-                    if name.lower() == "[content_types].xml" and "macroenabled" in xml.lower():
-                        raise ValueError("macros are unsupported")
-                    if any(
-                        node.tag.rsplit("}", 1)[-1]
-                        in {"script", "event-listener", "encryption-data"}
-                        for node in tree.iter()
-                    ):
-                        raise ValueError("active office content")
-            if suffix in {".odt", ".odp"}:
-                if archive.read("mimetype").decode() != OFFICE_TYPES[suffix]:
-                    raise ValueError("incorrect OpenDocument type")
-                required = "content.xml"
-            else:
-                required = "word/document.xml" if suffix == ".docx" else "ppt/presentation.xml"
-                if "[content_types].xml" not in names:
-                    raise ValueError("missing content types")
-            if required not in names:
-                raise ValueError("missing main document")
+                    _validate_office_xml(content, name)
+            _validate_office_type(archive, names, suffix)
     except (
         ValueError,
         KeyError,

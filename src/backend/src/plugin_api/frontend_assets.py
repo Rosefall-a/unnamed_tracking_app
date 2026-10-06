@@ -22,14 +22,16 @@ class _Assets(HTMLParser):
     def asset(self, source: str, kind: str) -> None:
         url = urlsplit(source)
         decoded = unquote(url.path)
-        if (
-            url.scheme
-            or url.netloc
-            or url.query
-            or url.fragment
-            or decoded.startswith("/")
-            or "\\" in decoded
-            or ".." in decoded.split("/")
+        if any(
+            (
+                url.scheme,
+                url.netloc,
+                url.query,
+                url.fragment,
+                decoded.startswith("/"),
+                "\\" in decoded,
+                ".." in decoded.split("/"),
+            )
         ):
             raise ValueError("inline assets must be relative package paths")
         path = posixpath.normpath(posixpath.join(posixpath.dirname(self.entry), decoded))
