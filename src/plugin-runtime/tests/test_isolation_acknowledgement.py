@@ -13,6 +13,7 @@ from test_runtime import _package_bytes
 
 
 def test_admin_acknowledgement_starts_real_worker_and_survives_restart(tmp_path, monkeypatch):
+    """Persist an explicit administrator decision without an environment flag."""
     monkeypatch.delenv("NONBUBBLE_ENV", raising=False)
     supervisor = PluginSupervisor(tmp_path / "work", tmp_path / "storage")
     supervisor.isolation["bubblewrap_available"] = False
@@ -37,12 +38,20 @@ def test_admin_acknowledgement_starts_real_worker_and_survives_restart(tmp_path,
 def test_withdrawing_acknowledgement_stops_workers_and_preserves_installation(
     tmp_path, monkeypatch
 ):
+    """Withdraw isolation approval while a real supervised process remains alive."""
     monkeypatch.delenv("NONBUBBLE_ENV", raising=False)
     supervisor = PluginSupervisor(tmp_path / "work", tmp_path / "storage")
     supervisor.isolation["bubblewrap_available"] = False
     registry = PluginRegistry(tmp_path / "plugins", supervisor)
     registry.install_package(_package_bytes(), "worker.utp", installation_id=str(uuid4()))
     registry.acknowledge_reduced_isolation(True)
+    # The upload fixture's entrypoint returns immediately. This check needs an
+    # actual persistent process so it can observe withdrawal, not normal exit.
+    monkeypatch.setattr(
+        registry,
+        "_command",
+        lambda _manifest: (sys.executable, "-c", "import time; time.sleep(60)"),
+    )
     registry.start("example.upload")
     try:
         assert supervisor.running("example.upload")
@@ -57,6 +66,7 @@ def test_withdrawing_acknowledgement_stops_workers_and_preserves_installation(
 
 
 def test_acknowledged_fallback_loads_package_modules_for_actions(tmp_path, monkeypatch):
+    """Retain package imports when executing an approved fallback action."""
     monkeypatch.delenv("NONBUBBLE_ENV", raising=False)
     package = tmp_path / "package"
     package.mkdir()
@@ -70,7 +80,8 @@ def test_acknowledged_fallback_loads_package_modules_for_actions(tmp_path, monke
             (
                 sys.executable,
                 "-c",
-                "import action_module,json; print(json.dumps({'plugin_action_result': {'value': action_module.VALUE}}))",
+                "import action_module,json; "
+                "print(json.dumps({'plugin_action_result': {'value': action_module.VALUE}}))",
             ),
         ),
         package,
@@ -81,6 +92,7 @@ def test_acknowledged_fallback_loads_package_modules_for_actions(tmp_path, monke
 
 
 def test_acknowledgement_keeps_bubblewrap_when_usable(tmp_path, monkeypatch):
+    """Prefer the full sandbox even when fallback has been approved."""
     monkeypatch.delenv("NONBUBBLE_ENV", raising=False)
     supervisor = PluginSupervisor(tmp_path / "work", tmp_path / "storage")
     supervisor.isolation["bubblewrap_available"] = True
@@ -94,6 +106,7 @@ def test_acknowledgement_keeps_bubblewrap_when_usable(tmp_path, monkeypatch):
 
 
 def test_public_health_cannot_approve_isolation_without_runtime_credentials(tmp_path, monkeypatch):
+    """Require the private runtime credential before changing isolation policy."""
     token = "runtime-test-credential-" + "a" * 32
     monkeypatch.setenv("PLUGIN_RUNTIME_TOKEN", token)
     monkeypatch.delenv("NONBUBBLE_ENV", raising=False)
@@ -130,7 +143,7 @@ def test_public_health_cannot_approve_isolation_without_runtime_credentials(tmp_
 
         monkeypatch.setattr(registry, "acknowledge_reduced_isolation", fail_policy)
         with pytest.raises(HTTPError) as failure:
-            urlopen(
+            with urlopen(
                 Request(
                     url,
                     headers={
@@ -139,7 +152,8 @@ def test_public_health_cannot_approve_isolation_without_runtime_credentials(tmp_
                     },
                 ),
                 timeout=5,
-            )
+            ):
+                pytest.fail("An unwritable isolation policy unexpectedly succeeded")
         assert failure.value.code == 503
         assert "policy storage is read-only" in json.loads(failure.value.read())["detail"]
     finally:
