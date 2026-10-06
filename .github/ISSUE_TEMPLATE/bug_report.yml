@@ -7,7 +7,8 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thanks for taking the time to report a bug. Please provide enough detail to reproduce and investigate the problem.
+        Search existing issues first. Include a small reproduction and the exact version you tested.
+        Report host application and plugin manager/runtime problems here. Problems within an individual plugin belong in that plugin's repository.
 
   - type: textarea
     id: what-happened
@@ -37,14 +38,41 @@ body:
       required: true
 
   - type: textarea
+    id: version
+    attributes:
+      label: Application version
+      description: Release/version, commit SHA, or exact Docker image tag. If this is a regression, include the last working version if known.
+      placeholder: "Version or SHA: ...\nLast working version (if known): ..."
+    validations:
+      required: true
+
+  - type: dropdown
+    id: deployment
+    attributes:
+      label: How are you running the application?
+      options:
+        - Production Docker image
+        - Development Docker Compose stack
+        - Local source checkout
+        - Another setup (describe below)
+    validations:
+      required: true
+
+  - type: textarea
     id: environment
     attributes:
       label: Environment / context
-      description: Include relevant versions, browser, operating system, deployment details, or other context.
+      description: Browser and OS, relevant configuration, and whether this affects one user or everyone. For plugin problems, include the plugin ID/version and runtime mode.
 
   - type: textarea
     id: logs
     attributes:
-      label: Logs or screenshots
-      description: Add relevant logs, screenshots, or other useful evidence. Please remove sensitive information.
-      render: shell
+      label: Relevant logs
+      description: Include the error and surrounding lines. For CI failures, link the failed run/job. Remove passwords, tokens, and personal data.
+      render: text
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots or other evidence
+      description: Attach images for UI problems or link a small reproduction. Avoid screenshots containing credentials or private data.

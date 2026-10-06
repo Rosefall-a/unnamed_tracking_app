@@ -7,13 +7,14 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thanks for suggesting an improvement. Please focus on the problem the feature would solve and how you would like it to work.
+        Search existing requests first. Explain who needs the change, the problem it solves, and the expected behavior.
+        Features for individual plugins belong in their plugin repository; host Plugin API and plugin management requests belong here.
 
   - type: textarea
     id: problem
     attributes:
       label: Problem / use case
-      description: What problem would this feature solve, or what use case would it support?
+      description: Who is affected, what are they trying to do, and what prevents them from doing it today?
     validations:
       required: true
 
@@ -24,6 +25,13 @@ body:
       description: Describe the behavior or experience you would like to see.
     validations:
       required: true
+
+  - type: textarea
+    id: success
+    attributes:
+      label: What would success look like?
+      description: Give one or two observable outcomes or examples. Mention compatibility or accessibility needs where relevant.
+      placeholder: "A user can ...\nExisting ... continues to work."
 
   - type: textarea
     id: alternatives
