@@ -5,29 +5,36 @@ import { activePriority, priorityLabel } from "../utils/priority";
 import { computed, ref, watch, onMounted, onUnmounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import {
-  createGameNote,
   deleteGame,
-  deleteGameNote,
   fetchGame,
   fetchGameVariants,
   fetchGameAchievements,
+  fetchContentCounts,
+  peekGame,
   fetchGameFieldChanges,
-  fetchGameNote,
   fetchGames,
-  renameGameNote,
-  listGameNotes,
-  saveGameNote,
   setFavorite,
+  setRatings,
+  setStatus,
   setResumeNote,
   setPlaytimeSeconds,
 } from "../services/games";
-import type { FieldChange } from "../services/games";
+import type { FieldChange, GameRatings } from "../services/games";
 import { peekAdjacentGameId } from "../state/libraryNav";
+import {
+  HERO_WIDTH,
+  POSTER_WIDTH,
+  preloadImage,
+  sizedAssetUrl,
+} from "../utils/gameImages";
 import {
   uploadGameScreenshots,
   listGameScreenshots,
   deleteGameScreenshot,
   updateMediaItem,
+  updateGameFile,
+  detectMediaDates,
+  saveClipThumbnail,
   uploadGameFiles,
   listGameFiles,
   deleteGameFile,
@@ -38,7 +45,10 @@ import {
 } from "../services/media";
 import type {
   MediaItem,
+  FileDetails,
+  MediaItemUpdate,
   GameFile,
+  GameFileUpdate,
   GameFileKind,
   TrashedMediaItem,
   TrashedGameFile,
@@ -66,7 +76,7 @@ import {
   fetchArchives,
   createArchive,
   addArchiveVersion,
-  renameArchive,
+  updateArchive,
   deleteArchive,
   deleteArchiveVersion,
   fetchWorldMaps,
@@ -83,9 +93,21 @@ import type {
   TrashedArchive,
 } from "../services/gameArchives";
 import UploadDropzone from "../components/UploadDropzone.vue";
-import ViewUploadSidebar from "../components/ViewUploadSidebar.vue";
 import SkeletonBlock from "../components/SkeletonBlock.vue";
 import MediaTile from "../components/MediaTile.vue";
+import GameMediaPanel from "../components/GameMediaPanel.vue";
+import { isGuess, unlockSeconds } from "../utils/mediaDate";
+import { normalizePlatformFamily } from "../utils/platforms";
+import { frameFromSource } from "../utils/videoThumbnail";
+import GameArchivesPanel from "../components/GameArchivesPanel.vue";
+import ArchiveCard from "../components/ArchiveCard.vue";
+import ArchiveEditDialog from "../components/ArchiveEditDialog.vue";
+import GameNotesPanel from "../components/GameNotesPanel.vue";
+import { preferences, preferencesLoaded } from "../state/preferences";
+import { OPTIONAL_TABS, resolvePage, planTabs } from "../utils/gamePage";
+import type { OptionalTab } from "../utils/gamePage";
+import type { ContentCounts } from "../utils/gamePage";
+import GameStatsPanel from "../components/GameStatsPanel.vue";
 import {
   startTask,
   updateTask,
@@ -94,13 +116,27 @@ import {
   addFeedItem,
   setTaskRetry,
 } from "../state/taskProgress";
-import type { Achievement, AchievementTier, Game } from "../types/game";
+import type { Achievement, Game, GameStatus } from "../types/game";
 import GameFormModal from "../components/GameFormModal.vue";
-import CollectionPickerModal from "../components/CollectionPickerModal.vue";
+import GameRatingPicker from "../components/GameRatingPicker.vue";
+import GameCollectionsButton from "../components/GameCollectionsButton.vue";
 import BackButton from "../components/BackButton.vue";
-import AccountChip from "../components/AccountChip.vue";
+import GameTopBar from "../components/GameTopBar.vue";
+import HeartIcon from "../components/HeartIcon.vue";
+import SegmentedTabs from "../components/SegmentedTabs.vue";
+import type { SegmentOption } from "../components/SegmentedTabs.vue";
+import {
+  isUnlocked,
+  formatPercent,
+  unlockedOn,
+  KIND_LABEL,
+} from "../utils/achievements";
+import {
+  loadAchievementLocal,
+  saveAchievementLocal,
+} from "../state/achievementLocal";
+import type { AchievementLocal } from "../state/achievementLocal";
 import { computeScore } from "../utils/scoring";
-import { marked } from "marked";
 import DOMPurify from "dompurify";
 import { useConfirm, usePrompt } from "../state/dialog";
 
@@ -128,124 +164,6 @@ const deleting = ref(false);
 const deleteError = ref<string | null>(null);
 const showDeleteConfirm = ref(false);
 
-const noteNames = ref<string[]>([]);
-const noteMode = ref<"list" | "view" | "editor">("list");
-const viewingNoteName = ref<string | null>(null);
-const viewingNoteContent = ref("");
-const editingNoteName = ref<string | null>(null);
-const draftName = ref("");
-const draftContent = ref("");
-const noteLoading = ref(false);
-const noteSaving = ref(false);
-const noteError = ref<string | null>(null);
-
-const hasDraft = computed(
-  () =>
-    editingNoteName.value === null &&
-    (draftName.value.trim() !== "" || draftContent.value.trim() !== ""),
-);
-
-const renderedNoteHtml = computed(
-  () => marked.parse(viewingNoteContent.value || "") as string,
-);
-
-function startNewNote() {
-  if (!hasDraft.value) {
-    draftName.value = "";
-    draftContent.value = "";
-  }
-  editingNoteName.value = null;
-  noteMode.value = "editor";
-}
-
-async function viewNote(noteName: string) {
-  if (!game.value) return;
-  viewingNoteName.value = noteName;
-  noteLoading.value = true;
-  noteError.value = null;
-  try {
-    viewingNoteContent.value = await fetchGameNote(game.value.id, noteName);
-    noteMode.value = "view";
-  } catch (err) {
-    noteError.value =
-      err instanceof Error ? err.message : "Failed to load note";
-  } finally {
-    noteLoading.value = false;
-  }
-}
-
-function editFromView() {
-  if (!viewingNoteName.value) return;
-  editingNoteName.value = viewingNoteName.value;
-  draftName.value = viewingNoteName.value;
-  draftContent.value = viewingNoteContent.value;
-  noteMode.value = "editor";
-}
-
-function backToList() {
-  noteMode.value = "list";
-  viewingNoteName.value = null;
-}
-
-async function saveDraft() {
-  if (!game.value) return;
-  const newName = draftName.value.trim();
-  if (!newName) {
-    noteError.value = "Enter a note name first.";
-    return;
-  }
-
-  noteSaving.value = true;
-  noteError.value = null;
-
-  try {
-    if (editingNoteName.value) {
-      const originalName = editingNoteName.value;
-      await saveGameNote(game.value.id, originalName, draftContent.value);
-      if (originalName !== newName) {
-        await renameGameNote(game.value.id, originalName, newName);
-      }
-    } else {
-      await createGameNote(game.value.id, newName, draftContent.value);
-    }
-    editingNoteName.value = null;
-    draftName.value = "";
-    draftContent.value = "";
-    noteMode.value = "list";
-    await loadNotes();
-  } catch (err) {
-    noteError.value =
-      err instanceof Error ? err.message : "Failed to save note";
-  } finally {
-    noteSaving.value = false;
-  }
-}
-
-async function deleteNote(noteName: string) {
-  if (!game.value) return;
-
-  noteSaving.value = true;
-  noteError.value = null;
-
-  try {
-    await deleteGameNote(game.value.id, noteName);
-    if (
-      viewingNoteName.value === noteName ||
-      editingNoteName.value === noteName
-    ) {
-      noteMode.value = "list";
-      viewingNoteName.value = null;
-      editingNoteName.value = null;
-    }
-    await loadNotes();
-  } catch (err) {
-    noteError.value =
-      err instanceof Error ? err.message : "Failed to delete note";
-  } finally {
-    noteSaving.value = false;
-  }
-}
-
 // Steam's "About This Game" section is rich HTML (headers, screenshots,
 // gifs), sanitize it instead of stripping it down to plain text so that
 // content survives
@@ -253,6 +171,11 @@ const descriptionHtml = computed(() => {
   if (!game.value?.description) return "";
   return DOMPurify.sanitize(game.value.description);
 });
+
+const descriptionExpanded = ref(false);
+const descriptionOverflows = computed(
+  () => descriptionHtml.value.replace(/<[^>]*>/g, "").length > 320,
+);
 
 // resolved separately from game.value.parentGameId (which is only an id),
 // see loadGame()
@@ -833,9 +756,115 @@ watch(activeProfileId, () => {
   void reloadMediaForCurrentTab();
 });
 
+// Opening a game: forget what belonged to the one before, and have whichever
+// tab is showing start loading its own things.
+function resetForGame() {
+  mediaItems.value = [];
+  mediaLoadedFor.value = null;
+  mediaTrash.value = [];
+  showMediaTrash.value = false;
+  fieldChanges.value = [];
+  fieldChangesError.value = null;
+  docsFiles.value = [];
+  modpackFiles.value = [];
+  filesLoaded.value = { doc: null, modpack: null };
+  docsTrash.value = [];
+  modpackTrash.value = [];
+  showDocsTrash.value = false;
+  showModpackTrash.value = false;
+  saveArchives.value = [];
+  saveArchivesLoaded.value = false;
+  saveTrash.value = [];
+  showSaveTrash.value = false;
+  stopWorldMapPolling();
+  worldMaps.value = [];
+  worldMapsLoaded.value = false;
+  worldTrash.value = [];
+  showWorldTrash.value = false;
+  activeMapArchiveId.value = null;
+  profiles.value = [];
+  profilesLoadedFor.value = null;
+  activeProfileId.value = null;
+  checklistItems.value = [];
+  if (
+    activeTab.value === "Screenshots" ||
+    activeTab.value === "Clips" ||
+    activeTab.value === "Soundtrack"
+  ) {
+    void loadProfiles();
+    void loadMedia();
+    void refreshMediaTrash();
+  }
+  if (activeTab.value === "Accounts") {
+    void loadProfiles();
+    void loadChecklist();
+    void reloadMediaForCurrentTab();
+  }
+  if (activeTab.value === "Saves") {
+    void refreshSaveArchives();
+    void refreshSaveTrash();
+  }
+  if (activeTab.value === "Docs") {
+    void loadGameFiles("doc");
+    void refreshFileTrash("doc");
+  }
+  if (activeTab.value === "World Map") {
+    void loadGameFiles("modpack");
+    void refreshFileTrash("modpack");
+    void refreshWorldMaps();
+    void refreshWorldTrash();
+  }
+}
+
 async function loadGame(id: string) {
-  loading.value = true;
   error.value = null;
+  // the hero picture is big, so it starts downloading now rather than once the
+  // game's details have come back
+  preloadImage(sizedAssetUrl(`/api/game/${id}/assets/banner`, HERO_WIDTH));
+  preloadImage(sizedAssetUrl(`/api/game/${id}/assets/key_art`, POSTER_WIDTH));
+  // true when this only refreshes the game already on screen (after an edit)
+  const refresh = game.value?.id === id;
+  // everything the page fills in on its own is asked for at once, so none of
+  // it waits for the game or for each other
+  let achievements: Achievement[] | null = null;
+  const applyAchievements = () => {
+    if (route.params.id !== id || !game.value || !achievements) return;
+    game.value.achievements = achievements;
+    game.value.achievementTotal = achievements.length;
+    game.value.achievementPercent = achievements.length
+      ? Math.round(
+          (achievements.filter(isUnlocked).length / achievements.length) * 100,
+        )
+      : 0;
+  };
+  void fetchGameAchievements(id)
+    .then((list) => {
+      achievements = list;
+      applyAchievements();
+    })
+    .catch(() => {
+      // achievements are a nice-to-have overlay, a failure here
+      // shouldn't block the rest of the game page from rendering
+    });
+  if (!refresh) variants.value = [];
+  void fetchGameVariants(id)
+    .then((list) => {
+      if (route.params.id === id) variants.value = list;
+    })
+    .catch(() => {
+      // variants section just doesn't show, not worth failing the page
+    });
+
+  // a game seen before is on screen straight away, and refreshed behind it
+  const seen = refresh ? undefined : peekGame(id);
+  if (seen) {
+    game.value = seen;
+    resetForGame();
+    parentGameTitle.value = null;
+    loading.value = false;
+  } else if (!refresh) {
+    loading.value = true;
+  }
   try {
     const fetched = await fetchGame(id);
     // the route can change again while this was in flight (fast
@@ -844,98 +873,26 @@ async function loadGame(id: string) {
     // must not overwrite the newer one that may have already loaded
     if (route.params.id !== id) return;
     game.value = fetched;
-    if (game.value) {
-      try {
-        const achievements = await fetchGameAchievements(id);
-        if (route.params.id !== id) return;
-        game.value.achievements = achievements;
-        game.value.achievementTotal = achievements.length;
-        game.value.achievementPercent = achievements.length
-          ? Math.round(
-              (achievements.filter((a) => a.unlockedAt !== null).length /
-                achievements.length) *
-                100,
-            )
-          : 0;
-      } catch {
-        // achievements are a nice-to-have overlay, a failure here
-        // shouldn't block the rest of the game page from rendering
-      }
-      mediaItems.value = [];
-      mediaLoadedFor.value = null;
-      mediaTrash.value = [];
-      showMediaTrash.value = false;
-      fieldChanges.value = [];
-      fieldChangesError.value = null;
-      docsFiles.value = [];
-      modpackFiles.value = [];
-      filesLoaded.value = { doc: null, modpack: null };
-      docsTrash.value = [];
-      modpackTrash.value = [];
-      showDocsTrash.value = false;
-      showModpackTrash.value = false;
-      saveArchives.value = [];
-      saveArchivesLoaded.value = false;
-      saveTrash.value = [];
-      showSaveTrash.value = false;
-      stopWorldMapPolling();
-      worldMaps.value = [];
-      worldMapsLoaded.value = false;
-      worldTrash.value = [];
-      showWorldTrash.value = false;
-      activeMapArchiveId.value = null;
-      profiles.value = [];
-      profilesLoadedFor.value = null;
-      activeProfileId.value = null;
-      checklistItems.value = [];
-      if (
-        activeTab.value === "Screenshots" ||
-        activeTab.value === "Clips" ||
-        activeTab.value === "Soundtrack"
-      ) {
-        void loadProfiles();
-        void loadMedia();
-        void refreshMediaTrash();
-      }
-      if (activeTab.value === "Accounts") {
-        void loadProfiles();
-        void loadChecklist();
-        void reloadMediaForCurrentTab();
-      }
-      if (activeTab.value === "Saves") {
-        void refreshSaveArchives();
-        void refreshSaveTrash();
-      }
-      if (activeTab.value === "Docs") {
-        void loadGameFiles("doc");
-        void refreshFileTrash("doc");
-      }
-      if (activeTab.value === "World Map") {
-        void loadGameFiles("modpack");
-        void refreshFileTrash("modpack");
-        void refreshWorldMaps();
-        void refreshWorldTrash();
-      }
-
+    if (fetched && !seen && !refresh) {
+      resetForGame();
       parentGameTitle.value = null;
-      if (game.value.parentGameId) {
-        try {
-          const parent = await fetchGame(game.value.parentGameId);
-          parentGameTitle.value = parent?.title ?? null;
-        } catch {
+    }
+    applyAchievements();
+    if (fetched?.parentGameId) {
+      const parentId = fetched.parentGameId;
+      void fetchGame(parentId)
+        .then((parent) => {
+          if (route.params.id === id)
+            parentGameTitle.value = parent?.title ?? null;
+        })
+        .catch(() => {
           // breadcrumb just doesn't show a name, not worth failing the page
-        }
-      }
-
-      variants.value = [];
-      try {
-        variants.value = await fetchGameVariants(id);
-      } catch {
-        // variants section just doesn't show, not worth failing the page
-      }
+        });
     }
   } catch (err) {
-    error.value = err instanceof Error ? err.message : "Failed to load game";
+    // with the game already showing, a failed refresh is not worth an error page
+    if (!seen && !refresh)
+      error.value = err instanceof Error ? err.message : "Failed to load game";
   } finally {
     loading.value = false;
   }
@@ -1045,12 +1002,7 @@ function isTypingTarget(target: EventTarget | null): boolean {
 }
 function onDetailKeydown(e: KeyboardEvent) {
   if (isTypingTarget(e.target)) return;
-  if (
-    showEditModal.value ||
-    showDeleteConfirm.value ||
-    showCollectionPicker.value
-  )
-    return;
+  if (showEditModal.value || showDeleteConfirm.value) return;
   if (!game.value) return;
   if (e.key === "j" || e.key === "k") {
     const nextId = peekAdjacentGameId(game.value.id, e.key === "j" ? 1 : -1);
@@ -1074,10 +1026,45 @@ async function toggleFavorite() {
   }
 }
 
-const showCollectionPicker = ref(false);
+const STATUS_OPTIONS: GameStatus[] = [
+  "playing",
+  "beaten",
+  "mastered",
+  "played",
+  "on hold",
+  "dropped",
+  "backlog",
+  "wishlist",
+];
+async function changeStatus(next: GameStatus) {
+  if (!game.value || next === game.value.status) return;
+  const previous = game.value.status;
+  game.value.status = next;
+  try {
+    await setStatus(game.value.id, next);
+  } catch {
+    game.value.status = previous;
+  }
+}
 
-async function onCollectionAdded() {
-  await loadGame(route.params.id as string);
+function onCollectionsChanged(collections: string[]) {
+  if (game.value) game.value.collections = collections;
+}
+
+async function onRatingsChange(ratings: GameRatings) {
+  if (!game.value) return;
+  const previous = {
+    ratingOverall: game.value.ratingOverall,
+    ratingStory: game.value.ratingStory,
+    ratingGameplay: game.value.ratingGameplay,
+    ratingSound: game.value.ratingSound,
+  };
+  Object.assign(game.value, ratings);
+  try {
+    await setRatings(game.value.id, ratings);
+  } catch {
+    Object.assign(game.value, previous);
+  }
 }
 
 function onDeleteFromModal() {
@@ -1101,78 +1088,130 @@ async function confirmDelete() {
   }
 }
 
-async function loadNotes() {
-  if (!game.value) {
-    noteNames.value = [];
-    return;
-  }
-  noteLoading.value = true;
-  noteError.value = null;
-  try {
-    noteNames.value = await listGameNotes(game.value.id);
-  } catch (err) {
-    noteError.value =
-      err instanceof Error ? err.message : "Failed to load notes";
-  } finally {
-    noteLoading.value = false;
-  }
-}
-
 // re-fetches automatically if you ever navigate from one game's page
 // straight to another, not just on the first load
-watch(() => route.params.id as string, loadGame, { immediate: true });
-watch(
-  () => game.value?.id,
-  () => {
-    if (game.value) {
-      void loadNotes();
-    }
-  },
-);
-
+watch(() => route.params.id as string, loadGame);
 const recentActivity = computed(() => game.value?.lastPlayedAt ?? null);
 
 const tally = computed(() => (game.value ? computeScore(game.value) : null));
 
-const statsPlaytimeMinutes = computed(() =>
-  game.value
-    ? game.value.platforms.reduce((sum, p) => sum + p.playtimeMinutes, 0)
-    : 0,
-);
-const statsPlaytimeLabel = computed(() => {
-  const minutes = statsPlaytimeMinutes.value;
-  const hours = Math.floor(minutes / 60);
-  const mins = minutes % 60;
-  if (hours === 0) return `${mins}m`;
-  return `${hours}h ${mins}m`;
-});
-const unlockedAchievements = computed(
-  () => game.value?.achievements.filter((a) => a.unlockedAt !== null) ?? [],
-);
-const firstUnlockedAt = computed(() => {
-  const dates = unlockedAchievements.value
-    .map((a) => a.unlockedAt)
-    .filter((d): d is string => d !== null);
-  return dates.length
-    ? dates.reduce((earliest, d) => (d < earliest ? d : earliest))
-    : null;
-});
-const lastUnlockedAt = computed(() => {
-  const dates = unlockedAchievements.value
-    .map((a) => a.unlockedAt)
-    .filter((d): d is string => d !== null);
-  return dates.length
-    ? dates.reduce((latest, d) => (d > latest ? d : latest))
-    : null;
-});
-function formatStatsDate(iso: string | null): string {
-  if (!iso) return "N/A";
-  return formatDisplayDate(iso, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
+// the developer and publisher sit by the title, the way Media shows an
+// alternate name, instead of in the details
+const heroCredits = computed(() => [
+  ...new Set(
+    [game.value?.developer, game.value?.publisher].filter(
+      (x): x is string => !!x,
+    ),
+  ),
+]);
+
+// A genre, developer, publisher, platform or series is a link to the library
+// with that filter on: click FromSoftware and see all their games.
+type LibraryFilter = "tag" | "company" | "platform" | "series";
+function libraryLink(filter: LibraryFilter, value: string) {
+  return {
+    path: "/games",
+    query: {
+      [filter]: filter === "platform" ? normalizePlatformFamily(value) : value,
+    },
+  };
 }
+
+// The parts of the score you have rated, named, in the order they're listed
+// elsewhere. Whole numbers show without a ".0".
+const ratingParts = computed(() => {
+  const g = game.value;
+  if (!g || pageSettings.value.hide_rating) return [];
+  const shown = (n: number) => String(Number(n.toFixed(1)));
+  return [
+    { name: "Atmosphere", value: g.ratingOverall },
+    { name: "Story", value: g.ratingStory },
+    { name: "Gameplay", value: g.ratingGameplay },
+    { name: "Sound", value: g.ratingSound },
+  ]
+    .filter((r): r is { name: string; value: number } => r.value !== null)
+    .map((r) => ({ name: r.name, value: shown(r.value) }));
+});
+
+// Where this game sits among everything you have rated, highest score first,
+// the same ranking the library shows. Only for a game that has a score.
+const libraryRank = computed(() => {
+  const g = game.value;
+  if (!g || !tally.value || !libraryGames.value.length) return null;
+  const others = libraryGames.value
+    .filter((x) => x.id !== g.id)
+    .map((x) => computeScore(x)?.sum)
+    .filter((sum): sum is number => typeof sum === "number");
+  return 1 + others.filter((sum) => sum > tally.value!.sum).length;
+});
+
+// The few figures worth seeing first, like the row at the top of a Media
+// title: the first five of these that apply, in this order. Score, rank and
+// playtime always show, with a dash when empty. Everything else is under "More details".
+type TabName = (typeof tabs)[number];
+const overviewFacts = computed(() => {
+  const g = game.value;
+  if (!g) return [];
+  const facts: {
+    label: string;
+    value: string;
+    accent?: boolean;
+    muted?: boolean;
+    tab?: TabName;
+  }[] = [];
+  // your verdict first (score and where it ranks), then how you played it;
+  // the individual ratings get their own row under these
+  if (!pageSettings.value.hide_rating) {
+    facts.push(
+      tally.value
+        ? {
+            label: "Your score",
+            value: tally.value.sum.toFixed(1),
+            accent: true,
+          }
+        : { label: "Your score", value: "–", muted: true },
+    );
+    facts.push(
+      libraryRank.value !== null
+        ? { label: "Rank", value: `#${libraryRank.value}` }
+        : { label: "Rank", value: "–", muted: true },
+    );
+  }
+  const minutes = g.platforms.reduce((sum, p) => sum + p.playtimeMinutes, 0);
+  facts.push(
+    minutes > 0
+      ? { label: "Playtime", value: formatPlaytime(minutes) }
+      : { label: "Playtime", value: "–", muted: true },
+  );
+  if (g.achievementTotal > 0 && achievementsOn.value)
+    facts.push({
+      label: "Achievements",
+      value: `${g.achievementPercent}%`,
+      tab: "Achievements",
+    });
+  // the furthest you are through it on any platform
+  const completions = g.platforms
+    .map((p) => p.completionPercent)
+    .filter((c): c is number => c !== null);
+  if (completions.length)
+    facts.push({
+      label: "Completion",
+      value: `${Math.max(...completions)}%`,
+    });
+  if (g.platforms.length)
+    facts.push({
+      label: g.platforms.length === 1 ? "Platform" : "Platforms",
+      value: g.platforms.map((p) => p.platform).join(", "),
+    });
+  return facts.slice(0, 5);
+});
+
+// only the main genres up top; the rest of the tags are under "More details"
+const MAIN_TAG_COUNT = 6;
+const mainTags = computed(
+  () => game.value?.tags.slice(0, MAIN_TAG_COUNT) ?? [],
+);
+const moreTags = computed(() => game.value?.tags.slice(MAIN_TAG_COUNT) ?? []);
 
 const tabs = [
   "Overview",
@@ -1186,7 +1225,6 @@ const tabs = [
   "Notes",
   "Accounts",
   "Stats",
-  "History",
 ] as const;
 const activeTab = ref<(typeof tabs)[number]>("Overview");
 
@@ -1199,12 +1237,88 @@ const isMinecraftGame = computed(() => {
   const parentTitle = parentGameTitle.value ?? "";
   return /minecraft/i.test(title) || /minecraft/i.test(parentTitle);
 });
-const visibleTabs = computed(() =>
+// ---- what this page shows: the defaults from Settings, then this game's own
+// overrides. A tab can be shown, hidden, or shown once it has something in it.
+const contentCounts = ref<ContentCounts | null>(null);
+async function refreshCounts() {
+  if (!game.value) return;
+  const id = game.value.id;
+  try {
+    const counts = await fetchContentCounts(id);
+    if (game.value?.id === id) contentCounts.value = counts;
+  } catch {
+    // the tabs just stay as they are until the next try
+  }
+}
+const pageSettings = computed(() =>
+  resolvePage(preferences.value.game_page, game.value?.pageSettings),
+);
+const baseTabs = computed(() =>
   tabs.filter(
     (tab) =>
       (tab !== "World Map" || isMinecraftGame.value) &&
       (tab !== "Accounts" || game.value?.profilesEnabled),
   ),
+);
+const tabPlan = computed(() =>
+  game.value
+    ? planTabs(
+        baseTabs.value,
+        pageSettings.value,
+        contentCounts.value,
+        game.value,
+        activeTab.value,
+      )
+    : { visible: [...baseTabs.value] as string[], more: [] as string[] },
+);
+const visibleTabs = computed(
+  () => tabPlan.value.visible as (typeof tabs)[number][],
+);
+const moreTabs = computed(() => tabPlan.value.more as (typeof tabs)[number][]);
+const showMoreTabs = ref(false);
+function closeMoreTabs() {
+  showMoreTabs.value = false;
+}
+onMounted(() => document.addEventListener("click", closeMoreTabs));
+onUnmounted(() => document.removeEventListener("click", closeMoreTabs));
+function openMoreTab(tab: (typeof tabs)[number]) {
+  showMoreTabs.value = false;
+  activeTab.value = tab;
+}
+// With no Achievements tab there is nothing to tie things to or count, so
+// everything that depends on achievements steps aside too.
+const achievementsOn = computed(() => {
+  const mode = pageSettings.value.tabs.Achievements;
+  if (mode === "hide") return false;
+  if (mode === "show") return true;
+  return !!game.value && game.value.achievementTotal > 0;
+});
+const tieAchievements = computed(() =>
+  achievementsOn.value ? (game.value?.achievements ?? []) : [],
+);
+
+// Opens on the tab the page settings name (or the one a link asked for), once
+// for each game, when both the game and the settings have arrived.
+let openedFor: string | null = null;
+watch(
+  () => [game.value?.id, preferencesLoaded.value] as const,
+  ([id, ready]) => {
+    if (!id || !ready || openedFor === id) return;
+    openedFor = id;
+    void refreshCounts();
+    const asked = route.query.tab as string | undefined;
+    const wanted = asked ?? pageSettings.value.default_tab;
+    const hidden =
+      (OPTIONAL_TABS as readonly string[]).includes(wanted) &&
+      pageSettings.value.tabs[wanted as OptionalTab] === "hide";
+    if (
+      (tabs as readonly string[]).includes(wanted) &&
+      !(hidden && !asked) &&
+      baseTabs.value.includes(wanted as (typeof tabs)[number])
+    )
+      activeTab.value = wanted as (typeof tabs)[number];
+  },
+  { immediate: true },
 );
 
 // Screenshots/Clips/Soundtrack/Saves/Docs/World Map all share the same
@@ -1280,10 +1394,36 @@ async function loadMedia(profileId?: string | null, unscopedOnly = false) {
   }
 }
 
+// media tied to an achievement shows on that achievement's row, so the
+// Achievements tab needs the media list too
+const mediaByAchievement = computed(() => {
+  const map = new Map<string, MediaItem[]>();
+  for (const m of mediaItems.value) {
+    if (!m.linked_achievement_id) continue;
+    const list = map.get(m.linked_achievement_id) ?? [];
+    list.push(m);
+    map.set(m.linked_achievement_id, list);
+  }
+  return map;
+});
+const achMediaOpen = ref<string | null>(null);
+function toggleAchMedia(a: Achievement) {
+  achMediaOpen.value = achMediaOpen.value === a.id ? null : a.id;
+}
+
 watch(activeTab, (tab) => {
+  if (
+    tab === "Achievements" &&
+    game.value &&
+    mediaLoadedFor.value !== game.value.id
+  ) {
+    void loadMedia();
+  }
   if (tab === "Screenshots" || tab === "Clips" || tab === "Soundtrack") {
     void loadProfiles();
-    void loadMedia();
+    // Screenshots, Clips and Soundtrack are one list, so it is loaded once for
+    // the game and switching between them does not reload (and flash) it
+    if (!game.value || mediaLoadedFor.value !== game.value.id) void loadMedia();
     void refreshMediaTrash();
   }
   if (tab === "Accounts") {
@@ -1308,6 +1448,7 @@ const uploadingMedia = ref(false);
 async function onMediaFilesSelected(files: File[]) {
   if (!files.length || !game.value) return;
   const gameId = game.value.id;
+  mediaError.value = null;
   uploadingMedia.value = true;
   const taskId = startTask(
     `Uploading ${files.length} file${files.length === 1 ? "" : "s"}`,
@@ -1341,6 +1482,9 @@ async function onMediaFilesSelected(files: File[]) {
         completeTask(taskId, summary);
       }
       await reloadMediaForCurrentTab();
+      // clips get their preview picture now, from the file in hand, so it is
+      // saved before anyone has to load the video to see it
+      void makeClipThumbnails(files, results);
     } catch (err) {
       // a network blip shouldn't force re-picking files from scratch
       errorTask(taskId, err instanceof Error ? err.message : "Upload failed");
@@ -1350,6 +1494,40 @@ async function onMediaFilesSelected(files: File[]) {
     }
   };
   await attempt();
+}
+
+function openAchievement(achievementId: string) {
+  if (game.value)
+    router.push(`/games/${game.value.id}/achievements/${achievementId}`);
+}
+
+const thumbnailing = new Set<string>();
+function applyClip(updated: MediaItem) {
+  const i = mediaItems.value.findIndex((m) => m.id === updated.id);
+  if (i !== -1) mediaItems.value[i] = updated;
+}
+async function keepThumbnail(item: MediaItem, blob: Blob, duration: number) {
+  if (!game.value || thumbnailing.has(item.id)) return;
+  thumbnailing.add(item.id);
+  try {
+    applyClip(await saveClipThumbnail(game.value.id, item.id, blob, duration));
+  } catch {
+    // the picture is a nicety; the clip still plays and will be tried again
+    thumbnailing.delete(item.id);
+  }
+}
+async function makeClipThumbnails(
+  files: File[],
+  results: { filename: string; status: string; kind?: string }[],
+) {
+  for (let i = 0; i < results.length; i++) {
+    const r = results[i];
+    if (r.status !== "saved" || r.kind !== "clip") continue;
+    const item = mediaItems.value.find((m) => m.filename === r.filename);
+    if (!item || item.thumbnail_url) continue;
+    const frame = await frameFromSource(files[i]);
+    if (frame) await keepThumbnail(item, frame.blob, frame.duration);
+  }
 }
 
 async function removeMedia(item: MediaItem) {
@@ -1404,34 +1582,98 @@ async function restoreMediaItem(item: TrashedMediaItem) {
   }
 }
 
-async function saveMediaItem(
-  item: MediaItem,
-  tags: string[],
-  note: string | null,
-  linkedAchievementId: string | null,
-  profileId: string | null,
-) {
+async function saveMediaItem(item: MediaItem, patch: MediaItemUpdate) {
   if (!game.value) return;
   try {
-    const updated = await updateMediaItem(game.value.id, item.id, {
-      tags,
-      note,
-      linked_achievement_id: linkedAchievementId,
-      profile_id: profileId,
-    });
+    const updated = await updateMediaItem(game.value.id, item.id, patch);
     const index = mediaItems.value.findIndex((m) => m.id === item.id);
     if (index !== -1) mediaItems.value[index] = updated;
     // the item may have just moved out of the Accounts tab's currently
     // selected scope (or into it), refetch so the gallery reflects that
     if (
       activeTab.value === "Accounts" &&
-      (activeProfileId.value !== null || profileId !== null)
+      "profile_id" in patch &&
+      (activeProfileId.value !== null || patch.profile_id !== null)
     ) {
       await reloadMediaForCurrentTab();
     }
   } catch (err) {
     mediaError.value = err instanceof Error ? err.message : "Failed to save";
   }
+}
+
+async function bulkSaveMedia(
+  updates: { id: string; patch: MediaItemUpdate }[],
+) {
+  if (!game.value) return;
+  const gameId = game.value.id;
+  try {
+    const updated = await Promise.all(
+      updates.map((u) => updateMediaItem(gameId, u.id, u.patch)),
+    );
+    for (const u of updated) {
+      const index = mediaItems.value.findIndex((m) => m.id === u.id);
+      if (index !== -1) mediaItems.value[index] = u;
+    }
+  } catch (err) {
+    mediaError.value = err instanceof Error ? err.message : "Failed to save";
+  }
+}
+
+async function bulkDeleteMedia(items: MediaItem[]) {
+  for (const item of items) await removeMedia(item);
+}
+
+// Finds the real date for the given files. The file's own data and name come
+// first; a file that has neither takes the unlock time of the achievement it is
+// tied to, as long as its current date is only a guess. Resolves with where
+// the date came from, per file.
+async function detectDates(
+  ids: string[],
+): Promise<Map<string, "file" | "achievement" | "none">> {
+  const outcome = new Map<string, "file" | "achievement" | "none">();
+  for (const id of ids) outcome.set(id, "none");
+  if (!game.value) return outcome;
+  try {
+    const found = await detectMediaDates(game.value.id, ids);
+    for (const u of found) {
+      const index = mediaItems.value.findIndex((m) => m.id === u.id);
+      if (index !== -1) mediaItems.value[index] = u;
+      outcome.set(u.id, "file");
+    }
+    for (const id of ids) {
+      if (outcome.get(id) === "file") continue;
+      const item = mediaItems.value.find((m) => m.id === id);
+      if (!item?.linked_achievement_id || !isGuess(item)) continue;
+      const when = unlockSeconds(
+        game.value.achievements.find(
+          (a) => a.id === item.linked_achievement_id,
+        ),
+      );
+      if (when === null) continue;
+      await saveMediaItem(item, {
+        taken_at: when,
+        taken_source: "achievement",
+      });
+      outcome.set(id, "achievement");
+    }
+  } catch (err) {
+    mediaError.value =
+      err instanceof Error ? err.message : "Failed to detect dates";
+  }
+  return outcome;
+}
+async function detectOne(item: FileDetails) {
+  return (await detectDates([item.id])).get(item.id) ?? "none";
+}
+async function detectMany(ids: string[]) {
+  const outcome = await detectDates(ids);
+  const values = [...outcome.values()];
+  const file = values.filter((v) => v === "file").length;
+  const achievement = values.filter((v) => v === "achievement").length;
+  const none = values.length - file - achievement;
+  if (!none) return;
+  mediaError.value = `${none} file${none === 1 ? " has" : "s have"} no date in ${none === 1 ? "it" : "them"} and no unlocked achievement to take one from. Set those by hand.`;
 }
 
 // --- Docs / Modpack ---------------------------------------------------------
@@ -1469,6 +1711,7 @@ async function loadGameFiles(kind: FlatFileKind) {
 }
 
 watch(activeTab, (tab) => {
+  void refreshCounts();
   if (tab === "Docs") {
     void loadGameFiles("doc");
     void refreshFileTrash("doc");
@@ -1483,8 +1726,9 @@ watch(activeTab, (tab) => {
     void refreshWorldMaps();
     void refreshWorldTrash();
   }
-  if (tab === "History") {
+  if (tab === "Stats") {
     void loadFieldChanges();
+    if (game.value && mediaLoadedFor.value !== game.value.id) void loadMedia();
   }
 });
 
@@ -1504,27 +1748,6 @@ async function loadFieldChanges() {
     fieldChangesLoading.value = false;
   }
 }
-const FIELD_CHANGE_LABELS: Record<string, string> = {
-  developer: "Developer",
-  publisher: "Publisher",
-  series: "Series",
-  tags: "Tags",
-  features: "Features",
-  description: "Description",
-  age_rating: "Age rating",
-  release_date: "Release date",
-  time_to_beat_hours: "Time to beat",
-};
-function formatFieldChangeDate(iso: string): string {
-  return new Date(iso).toLocaleString(undefined, {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
-
 async function onGameFilesSelected(files: File[], kind: FlatFileKind) {
   if (!files.length || !game.value) return;
   const gameId = game.value.id;
@@ -1570,11 +1793,48 @@ async function onGameFilesSelected(files: File[], kind: FlatFileKind) {
   await attempt();
 }
 
-async function removeGameFile(kind: FlatFileKind, file: GameFile) {
+async function saveGameFile(
+  kind: FlatFileKind,
+  file: FileDetails,
+  patch: MediaItemUpdate,
+) {
+  if (!game.value) return;
+  try {
+    // only the fields that changed: a missing key means "leave it alone"
+    const changes: GameFileUpdate = {};
+    if ("title" in patch) changes.title = patch.title;
+    if ("note" in patch) changes.note = patch.note;
+    if ("tags" in patch) changes.tags = patch.tags;
+    if ("taken_at" in patch) {
+      changes.taken_at = patch.taken_at;
+      changes.taken_source = patch.taken_source;
+    }
+    const updated = await updateGameFile(game.value.id, kind, file.id, changes);
+    const list = filesRefFor(kind);
+    const index = list.value.findIndex((f) => f.id === updated.id);
+    if (index !== -1) list.value[index] = updated;
+  } catch (err) {
+    filesError.value = err instanceof Error ? err.message : "Failed to save";
+  }
+}
+
+async function bulkSaveFiles(
+  kind: FlatFileKind,
+  updates: { id: string; patch: MediaItemUpdate }[],
+) {
+  for (const u of updates) {
+    const file = filesRefFor(kind).value.find((f) => f.id === u.id);
+    if (file) await saveGameFile(kind, file, u.patch);
+  }
+}
+
+async function removeGameFile(kind: FlatFileKind, file: FileDetails) {
   if (!game.value) return;
   try {
     await deleteGameFile(game.value.id, kind, file.filename);
-    filesRefFor(kind).value = filesRefFor(kind).value.filter((f) => f !== file);
+    filesRefFor(kind).value = filesRefFor(kind).value.filter(
+      (f) => f.filename !== file.filename,
+    );
     await refreshFileTrash(kind);
   } catch (err) {
     filesError.value = err instanceof Error ? err.message : "Failed to delete";
@@ -1634,7 +1894,6 @@ function formatArchiveDate(unixSeconds: number): string {
 // --- Saves (named, versioned archives) --------------------------------------
 const saveArchives = ref<GameArchiveData[]>([]);
 const saveArchivesLoaded = ref(false);
-const expandedSaveId = ref<string | null>(null);
 const saveUploading = ref<Set<string>>(new Set()); // archive id, or '' for "new save"
 
 async function refreshSaveArchives() {
@@ -1708,21 +1967,56 @@ async function onAddSaveVersion(archive: GameArchiveData, files: File[]) {
   await attempt();
 }
 
-async function onRenameArchive(archive: GameArchiveData, isWorld: boolean) {
+// The save or world being edited. Held by id, so the dialog reads the current
+// copy from the list and shows a version as soon as it is added or removed.
+const editingArchive = ref<{ id: string; isWorld: boolean } | null>(null);
+const editingArchiveLive = computed(() => {
+  const e = editingArchive.value;
+  if (!e) return null;
+  const list: GameArchiveData[] = e.isWorld
+    ? worldMaps.value
+    : saveArchives.value;
+  return list.find((a) => a.id === e.id) ?? null;
+});
+function openArchiveEdit(archive: GameArchiveData, isWorld: boolean) {
+  editingArchive.value = { id: archive.id, isWorld };
+}
+
+async function saveArchiveDetails(
+  archive: GameArchiveData,
+  isWorld: boolean,
+  patch: { name?: string; note?: string | null; tags?: string[] },
+) {
   if (!game.value) return;
-  const name = await prompt({
-    title: "Rename",
-    message: "Name",
-    defaultValue: archive.name,
-    confirmLabel: "Rename",
-  });
-  if (!name || !name.trim() || name.trim() === archive.name) return;
   try {
-    await renameArchive(game.value.id, archive.id, name.trim());
+    await updateArchive(game.value.id, archive.id, patch);
     if (isWorld) await refreshWorldMaps();
     else await refreshSaveArchives();
   } catch (err) {
-    filesError.value = err instanceof Error ? err.message : "Failed to rename";
+    filesError.value = err instanceof Error ? err.message : "Failed to save";
+  }
+}
+
+async function bulkDeleteArchives(items: GameArchiveData[], isWorld: boolean) {
+  if (!game.value || !items.length) return;
+  const ok = await confirm({
+    title: "Move to trash",
+    message: `Move ${items.length} ${isWorld ? "world" : "save"}${items.length === 1 ? "" : "s"} to trash? ${items.length === 1 ? "It stays" : "They stay"} recoverable for 7 days, then ${items.length === 1 ? "is" : "are"} purged for good.`,
+    confirmLabel: "Move to trash",
+    danger: true,
+  });
+  if (!ok) return;
+  try {
+    for (const archive of items) await deleteArchive(game.value.id, archive.id);
+    if (isWorld) {
+      await refreshWorldMaps();
+      await refreshWorldTrash();
+    } else {
+      await refreshSaveArchives();
+      await refreshSaveTrash();
+    }
+  } catch (err) {
+    filesError.value = err instanceof Error ? err.message : "Failed to delete";
   }
 }
 
@@ -1776,10 +2070,6 @@ async function refreshWorldTrash() {
   } catch {
     // same as above
   }
-}
-
-function daysUntil(unixSeconds: number): number {
-  return Math.max(0, Math.ceil((unixSeconds - Date.now() / 1000) / 86400));
 }
 
 async function onRestoreArchive(archive: TrashedArchive, isWorld: boolean) {
@@ -1900,7 +2190,7 @@ async function onNewWorldSelected(files: File[]) {
   await attempt();
 }
 
-async function onAddWorldVersion(archive: WorldMapEntry, files: File[]) {
+async function onAddWorldVersion(archive: GameArchiveData, files: File[]) {
   const file = files[0];
   if (!file || !game.value) return;
   const gameId = game.value.id;
@@ -1949,50 +2239,260 @@ function viewWorldMap(archiveId: string) {
 
 onUnmounted(stopWorldMapPolling);
 
-function displayFileName(filename: string): string {
-  // strip the random 8-char dedupe prefix save_media_bytes adds
-  const parts = filename.split("_");
-  return parts.length > 1 ? parts.slice(1).join("_") : filename;
+// ---- achievements tab ----
+// A hidden achievement's description isn't something the services publish
+// until it's unlocked, so say that instead of leaving a blank.
+function descriptionOf(a: Achievement): string {
+  if (a.description) return a.description;
+  if (a.hidden) {
+    return isUnlocked(a)
+      ? "No description is available for this hidden achievement."
+      : "This one is hidden, so its description isn't available until you unlock it.";
+  }
+  return "";
 }
+type AchFilter = "all" | "unlocked" | "locked" | "hidden" | "pinned";
+type AchSortKey = "unlocked" | "rarity" | "name";
+const achFilter = ref<AchFilter>("all");
+const achSortKey = ref<AchSortKey>("unlocked");
+const achSortDir = ref<"asc" | "desc">("desc");
+const achProvider = ref("all");
+const achSearch = ref("");
+const achLocal = ref<AchievementLocal>({ pins: [], notes: {}, overall: "" });
+const revealedIds = ref<Set<string>>(new Set());
+const noteOpen = ref<string | null>(null);
+const noteDraft = ref("");
+const overallOpen = ref(false);
+const overallDraft = ref("");
 
-function sortedAchievements(achievements: Achievement[]) {
-  return [...achievements].sort((a, b) => {
-    if (a.unlockedAt === null && b.unlockedAt === null) return 0;
-    if (a.unlockedAt === null) return 1;
-    if (b.unlockedAt === null) return -1;
-    return b.unlockedAt.localeCompare(a.unlockedAt);
-  });
-}
-
-function deriveTier(achievement: Achievement): AchievementTier {
-  if (achievement.tierOverride) return achievement.tierOverride;
-  const rarity = achievement.rarityPercent;
-  if (rarity === null || rarity === undefined) return "bronze";
-  if (rarity <= 20) return "gold";
-  if (rarity <= 50) return "silver";
-  return "bronze";
-}
-
-const isPlatinumEarned = computed(
-  () =>
-    !!game.value &&
-    game.value.achievements.length > 0 &&
-    game.value.achievements.every((a) => a.unlockedAt !== null),
+watch(
+  () => game.value?.id,
+  (id) => {
+    achLocal.value = id
+      ? loadAchievementLocal(id)
+      : { pins: [], notes: {}, overall: "" };
+    revealedIds.value = new Set();
+    achProvider.value = "all";
+    noteOpen.value = null;
+    overallOpen.value = false;
+  },
+  { immediate: true },
 );
 
-const trophyCounts = computed(() => {
-  const counts = { bronze: 0, silver: 0, gold: 0 };
-  if (!game.value) return counts;
-  for (const a of game.value.achievements) {
-    if (a.unlockedAt !== null) counts[deriveTier(a)]++;
+function persistAch() {
+  if (game.value) saveAchievementLocal(game.value.id, achLocal.value);
+}
+const isPinned = (a: Achievement) => achLocal.value.pins.includes(a.id);
+function togglePin(a: Achievement) {
+  const pins = achLocal.value.pins;
+  achLocal.value = {
+    ...achLocal.value,
+    pins: isPinned(a) ? pins.filter((id) => id !== a.id) : [...pins, a.id],
+  };
+  persistAch();
+}
+// a hidden achievement stays hidden until it's unlocked or you reveal it
+const isHiddenLocked = (a: Achievement) =>
+  !!a.hidden && !isUnlocked(a) && !revealedIds.value.has(a.id);
+function revealAchievement(a: Achievement) {
+  revealedIds.value = new Set(revealedIds.value).add(a.id);
+}
+function hideAchievement(a: Achievement) {
+  const next = new Set(revealedIds.value);
+  next.delete(a.id);
+  revealedIds.value = next;
+}
+function toggleNote(a: Achievement) {
+  if (noteOpen.value === a.id) {
+    noteOpen.value = null;
+    return;
   }
-  return counts;
+  noteOpen.value = a.id;
+  noteDraft.value = achLocal.value.notes[a.id] ?? "";
+}
+function saveNote(a: Achievement) {
+  const text = noteDraft.value.trim();
+  const notes = { ...achLocal.value.notes };
+  if (text) notes[a.id] = text;
+  else delete notes[a.id];
+  achLocal.value = { ...achLocal.value, notes };
+  persistAch();
+  noteOpen.value = null;
+}
+function clearNote(a: Achievement) {
+  noteDraft.value = "";
+  saveNote(a);
+}
+function toggleOverall() {
+  overallOpen.value = !overallOpen.value;
+  if (overallOpen.value) overallDraft.value = achLocal.value.overall;
+}
+function saveOverall() {
+  achLocal.value = { ...achLocal.value, overall: overallDraft.value.trim() };
+  persistAch();
+  overallOpen.value = false;
+}
+
+const unlockedCount = computed(
+  () => game.value?.achievements.filter(isUnlocked).length ?? 0,
+);
+const achFilterOptions = computed<SegmentOption[]>(() => {
+  const list = game.value?.achievements ?? [];
+  return [
+    { value: "all", label: "All", count: list.length },
+    { value: "unlocked", label: "Unlocked", count: unlockedCount.value },
+    {
+      value: "locked",
+      label: "Locked",
+      count: list.length - unlockedCount.value,
+    },
+    {
+      value: "hidden",
+      label: "Hidden",
+      count: list.filter((a) => a.hidden && !isUnlocked(a)).length,
+    },
+    { value: "pinned", label: "Pinned", count: list.filter(isPinned).length },
+  ];
 });
 
-function formatUnlockedAt(dateStr: string) {
-  const d = new Date(dateStr);
-  return `${d.toLocaleDateString()} ${d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
+// Clicking a column header sorts by it; clicking it again flips the order.
+// A new column starts the way people usually want it: newest unlocks first,
+// rarest first, A to Z.
+function sortBy(key: AchSortKey) {
+  if (achSortKey.value === key) {
+    achSortDir.value = achSortDir.value === "asc" ? "desc" : "asc";
+  } else {
+    achSortKey.value = key;
+    achSortDir.value = key === "unlocked" ? "desc" : "asc";
+  }
 }
+const sortMark = (key: AchSortKey) =>
+  achSortKey.value === key ? (achSortDir.value === "asc" ? "▲" : "▼") : "";
+const ariaSort = (key: AchSortKey) =>
+  achSortKey.value === key
+    ? achSortDir.value === "asc"
+      ? "ascending"
+      : "descending"
+    : "none";
+// the same four orders as one dropdown, for screens too narrow for headers
+const MOBILE_SORTS: Record<string, [AchSortKey, "asc" | "desc"]> = {
+  recent: ["unlocked", "desc"],
+  rarest: ["rarity", "asc"],
+  easiest: ["rarity", "desc"],
+  name: ["name", "asc"],
+};
+const mobileSort = computed({
+  get: () =>
+    Object.entries(MOBILE_SORTS).find(
+      ([, [k, d]]) => k === achSortKey.value && d === achSortDir.value,
+    )?.[0] ?? "",
+  set: (v: string) => {
+    const pick = MOBILE_SORTS[v];
+    if (pick) [achSortKey.value, achSortDir.value] = pick;
+  },
+});
+
+// unlocked ones come before locked ones, then by when (newest or oldest first)
+function byUnlocked(a: Achievement, b: Achievement, dir: number): number {
+  const ua = isUnlocked(a);
+  const ub = isUnlocked(b);
+  if (ua !== ub) return ua ? -1 : 1;
+  if (!ua) return 0;
+  if (a.unlockedAt && b.unlockedAt)
+    return dir * a.unlockedAt.localeCompare(b.unlockedAt);
+  if (a.unlockedAt) return -1;
+  if (b.unlockedAt) return 1;
+  return 0;
+}
+// no percent known sorts last either way round
+function byRarity(a: Achievement, b: Achievement, dir: number): number {
+  const pa = a.rarityPercent ?? null;
+  const pb = b.rarityPercent ?? null;
+  if (pa === null && pb === null) return 0;
+  if (pa === null) return 1;
+  if (pb === null) return -1;
+  return dir * (pa - pb);
+}
+
+// the platforms its achievements come from, for the filter that only shows
+// when a game has achievements from more than one
+const achProviders = computed(() => [
+  ...new Set(
+    (game.value?.achievements ?? [])
+      .map((a) => a.provider)
+      .filter((x): x is string => !!x),
+  ),
+]);
+
+const shownAchievements = computed(() => {
+  const q = achSearch.value.trim().toLowerCase();
+  const list = (game.value?.achievements ?? []).filter((a) => {
+    const unlocked = isUnlocked(a);
+    if (achProvider.value !== "all" && a.provider !== achProvider.value)
+      return false;
+    if (achFilter.value === "unlocked" && !unlocked) return false;
+    if (achFilter.value === "locked" && unlocked) return false;
+    if (achFilter.value === "hidden" && !(a.hidden && !unlocked)) return false;
+    if (achFilter.value === "pinned" && !isPinned(a)) return false;
+    if (q) {
+      // a hidden achievement's text isn't searchable, so a search can't spoil it
+      if (isHiddenLocked(a)) return false;
+      return (
+        a.name.toLowerCase().includes(q) ||
+        (a.description ?? "").toLowerCase().includes(q)
+      );
+    }
+    return true;
+  });
+  const dir = achSortDir.value === "asc" ? 1 : -1;
+  const compare = (a: Achievement, b: Achievement) => {
+    if (achSortKey.value === "rarity") return byRarity(a, b, dir);
+    if (achSortKey.value === "name") {
+      // a hidden one sorts under its placeholder, so its place can't give it away
+      const label = (x: Achievement) =>
+        isHiddenLocked(x) ? "Hidden achievement" : x.name;
+      return dir * label(a).localeCompare(label(b));
+    }
+    return byUnlocked(a, b, dir);
+  };
+  // pinned always float to the top, whatever the sort
+  return [...list].sort(
+    (a, b) => Number(isPinned(b)) - Number(isPinned(a)) || compare(a, b),
+  );
+});
+
+// A few figures about your own progress, each only when there is real data
+// behind it: nothing here is estimated.
+const achStats = computed(() => {
+  const list = game.value?.achievements ?? [];
+  const done = list.filter(isUnlocked);
+  const stats: { label: string; value: string }[] = [];
+  if (list.length)
+    stats.push({
+      label: "complete",
+      value: `${Math.round((done.length / list.length) * 100)}%`,
+    });
+  const percents = done
+    .map((a) => a.rarityPercent)
+    .filter((p): p is number => typeof p === "number");
+  if (percents.length)
+    stats.push({
+      label: "rarest unlock",
+      value: formatPercent(Math.min(...percents)),
+    });
+  const times = done.map((a) => a.unlockedAt).filter((t): t is string => !!t);
+  if (times.length) {
+    const last = times.reduce((m, t) => (t > m ? t : m));
+    stats.push({
+      label: "last unlock",
+      value: new Date(last).toLocaleDateString(),
+    });
+    const weekAgo = Date.now() - 7 * 86_400_000;
+    const week = times.filter((t) => new Date(t).getTime() >= weekAgo).length;
+    if (week) stats.push({ label: "in the past 7 days", value: String(week) });
+  }
+  return stats;
+});
 
 function formatPlaytime(minutes: number) {
   if (minutes === 0) return "Not played yet";
@@ -2000,48 +2500,68 @@ function formatPlaytime(minutes: number) {
   const mins = minutes % 60;
   return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
 }
+
+// Last, so everything the first load touches has been set up by now.
+void loadGame(route.params.id as string);
 </script>
 
 <template>
-  <main v-if="loading" class="detail loading-state">
-    <div class="detail-skeleton">
-      <SkeletonBlock height="320px" radius="0" />
-      <div class="detail-skeleton-body">
-        <SkeletonBlock width="45%" height="28px" />
-        <div class="detail-skeleton-pills">
-          <SkeletonBlock width="80px" height="24px" radius="999px" />
-          <SkeletonBlock width="100px" height="24px" radius="999px" />
-          <SkeletonBlock width="70px" height="24px" radius="999px" />
+  <main v-if="loading" class="detail loading-state" aria-busy="true">
+    <GameTopBar active="games" />
+    <!-- the shape of the real page: hero with poster, title, badges and
+         buttons, then the tabs, then the first block of content -->
+    <section class="hero">
+      <div class="hero-overlay"></div>
+      <div class="hero-content">
+        <SkeletonBlock width="212px" height="307px" radius="8px" />
+        <div class="hero-text detail-skeleton-text">
+          <SkeletonBlock width="30%" height="12px" />
+          <SkeletonBlock width="60%" height="40px" />
+          <div class="detail-skeleton-row">
+            <SkeletonBlock
+              v-for="w in [64, 96, 80, 72]"
+              :key="w"
+              :width="`${w}px`"
+              height="24px"
+              radius="999px"
+            />
+          </div>
+          <div class="detail-skeleton-row">
+            <SkeletonBlock width="88px" height="36px" radius="8px" />
+            <SkeletonBlock width="36px" height="36px" radius="8px" />
+            <SkeletonBlock width="36px" height="36px" radius="8px" />
+          </div>
         </div>
-        <div class="detail-skeleton-tabs">
-          <SkeletonBlock
-            v-for="i in 6"
-            :key="i"
-            width="70px"
-            height="30px"
-            radius="8px"
-          />
-        </div>
-        <SkeletonBlock height="140px" />
       </div>
+    </section>
+    <div class="tabbar-wrap">
+      <SkeletonBlock width="470px" height="44px" radius="10px" />
+    </div>
+    <div class="detail-skeleton-body">
+      <div class="detail-skeleton-row">
+        <SkeletonBlock
+          v-for="i in 4"
+          :key="i"
+          width="120px"
+          height="44px"
+          radius="8px"
+        />
+      </div>
+      <SkeletonBlock height="14px" />
+      <SkeletonBlock height="14px" width="92%" />
+      <SkeletonBlock height="14px" width="70%" />
     </div>
   </main>
 
   <main v-else-if="error" class="detail error-state">
+    <GameTopBar active="games" />
     <p>{{ error }}</p>
   </main>
 
   <main v-else-if="game" class="detail">
-    <!-- heavily blurred, dimmed copy of the cover image behind the whole page,
-         separate from the sharp version used in .hero itself -->
-    <div
-      class="ambient-bg"
-      :style="{ backgroundImage: `url(${game.bannerImageUrl})` }"
-    ></div>
+    <GameTopBar active="games" />
 
-    <BackButton fixed @click="goBackToLibrary" />
-
-    <AccountChip fixed />
+    <BackButton class="back-spot" @click="goBackToLibrary" />
 
     <GameFormModal
       v-if="showEditModal"
@@ -2051,11 +2571,23 @@ function formatPlaytime(minutes: number) {
       @delete="onDeleteFromModal"
     />
 
-    <CollectionPickerModal
-      v-if="showCollectionPicker"
-      :game="game"
-      @close="showCollectionPicker = false"
-      @added="onCollectionAdded"
+    <ArchiveEditDialog
+      v-if="editingArchive && editingArchiveLive"
+      :archive="editingArchiveLive"
+      :noun="editingArchive.isWorld ? 'world' : 'save'"
+      :uploading="saveUploading.has(editingArchive.id)"
+      @close="editingArchive = null"
+      @save="
+        (a, patch) => saveArchiveDetails(a, editingArchive!.isWorld, patch)
+      "
+      @delete="onDeleteArchive($event, editingArchive!.isWorld)"
+      @add-version="
+        (a, files) =>
+          editingArchive!.isWorld
+            ? onAddWorldVersion(a, files)
+            : onAddSaveVersion(a, files)
+      "
+      @delete-version="(a, v) => onDeleteVersion(a, v, editingArchive!.isWorld)"
     />
 
     <div
@@ -2087,325 +2619,392 @@ function formatPlaytime(minutes: number) {
       </div>
     </div>
 
-    <section
-      class="hero"
-      :style="{ backgroundImage: `url(${game.bannerImageUrl})` }"
-    >
+    <section class="hero">
+      <div
+        class="hero-backdrop"
+        :style="{
+          backgroundImage: `url(${sizedAssetUrl(game.bannerImageUrl, HERO_WIDTH)})`,
+        }"
+      ></div>
       <div class="hero-overlay"></div>
-      <div class="hero-actions">
-        <button
-          class="hero-icon-button"
-          type="button"
-          title="Add to collection"
-          @click="showCollectionPicker = true"
+      <div class="hero-content">
+        <div
+          class="poster-card"
+          :style="
+            game.coverImageUrl
+              ? {
+                  backgroundImage: `url(${sizedAssetUrl(game.coverImageUrl, POSTER_WIDTH)})`,
+                }
+              : {}
+          "
         >
-          <svg
-            viewBox="0 0 24 24"
-            width="16"
-            height="16"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
+          <span v-if="!game.coverImageUrl">{{ game.title }}</span>
+        </div>
+        <div class="hero-text">
+          <router-link
+            v-if="game.parentGameId"
+            :to="`/games/${game.parentGameId}`"
+            class="parent-breadcrumb"
           >
-            <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
-          </svg>
-        </button>
-        <button
-          class="hero-icon-button"
-          :class="{ active: game.favorite }"
-          type="button"
-          :title="game.favorite ? 'Remove from favorites' : 'Add to favorites'"
-          @click="toggleFavorite"
-        >
-          <svg
-            viewBox="0 0 24 24"
-            width="16"
-            height="16"
-            :fill="game.favorite ? 'currentColor' : 'none'"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
+            {{ parentGameTitle ?? "…" }}
+            <span v-if="game.relationshipType" class="relationship-tag">{{
+              RELATIONSHIP_LABELS[game.relationshipType] ??
+              game.relationshipType
+            }}</span>
+            →
+          </router-link>
+          <div
+            v-if="heroCredits.length && !pageSettings.hide_credits"
+            class="native-title"
           >
-            <path
-              d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.8 1-1a5.5 5.5 0 0 0 0-7.6z"
-            />
-          </svg>
-        </button>
-        <button class="edit-button" type="button" @click="showEditModal = true">
-          Edit
-        </button>
-      </div>
-      <div class="hero-inner">
-        <router-link
-          v-if="game.parentGameId"
-          :to="`/games/${game.parentGameId}`"
-          class="parent-breadcrumb"
-        >
-          {{ parentGameTitle ?? "…" }}
-          <span v-if="game.relationshipType" class="relationship-tag">{{
-            RELATIONSHIP_LABELS[game.relationshipType] ?? game.relationshipType
-          }}</span>
-          →
-        </router-link>
-        <h1>{{ game.title }}</h1>
-        <div class="badges">
-          <span class="badge status-badge">{{ game.status }}</span>
-          <span v-if="tally" class="badge rating-badge">
-            ★ {{ tally.sum.toFixed(1) }}
-          </span>
-          <span v-if="game.dateAdded" class="badge">
-            {{ new Date(game.dateAdded).toLocaleDateString() }}
-          </span>
-          <span v-if="game.platforms.length" class="badge">{{
-            game.platforms[0].platform
-          }}</span>
-          <button
-            v-if="game.achievementTotal > 0"
-            type="button"
-            class="badge achievement-progress-badge"
-            title="Jump to Achievements"
-            @click="activeTab = 'Achievements'"
-          >
-            <svg
-              viewBox="0 0 24 24"
-              width="13"
-              height="13"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
+            <template v-for="(name, i) in heroCredits" :key="name">
+              <span v-if="i" class="credit-dot"> · </span>
+              <router-link
+                class="filter-link"
+                :to="libraryLink('company', name)"
+                :title="`All games by ${name}`"
+                >{{ name }}</router-link
+              >
+            </template>
+          </div>
+          <h1 class="title">{{ game.title }}</h1>
+          <div class="badge-row">
+            <select
+              :value="game.status"
+              class="badge status status-select"
+              title="Change status"
+              @change="
+                changeStatus(
+                  ($event.target as HTMLSelectElement).value as GameStatus,
+                )
+              "
             >
-              <path d="M8 4h8v5a4 4 0 0 1-8 0z" />
-              <path d="M8 4H5a2 2 0 0 0 0 4h1.5M16 4h3a2 2 0 0 1 0 4h-1.5" />
-              <path d="M12 13v3" />
-              <path d="M9 20h6" />
-              <path d="M10 16.5h4l.8 3.5H9.2z" />
-            </svg>
-            {{ game.achievementPercent }}%
-          </button>
-          <span
-            v-if="game.staleSince"
-            class="badge stale-badge"
-            :title="`Last sync (${new Date(game.staleSince).toLocaleDateString()}) no longer saw this in your ${game.source} library.`"
-          >
-            Not currently in your {{ game.source }} library
-          </span>
+              <option v-for="s in STATUS_OPTIONS" :key="s" :value="s">
+                {{ s }}
+              </option>
+            </select>
+            <GameRatingPicker
+              v-if="!pageSettings.hide_rating"
+              :model-value="{
+                ratingOverall: game.ratingOverall,
+                ratingStory: game.ratingStory,
+                ratingGameplay: game.ratingGameplay,
+                ratingSound: game.ratingSound,
+              }"
+              @change="onRatingsChange"
+            />
+            <span
+              v-if="game.dateAdded && !pageSettings.hide_date_badge"
+              class="badge"
+            >
+              {{ new Date(game.dateAdded).toLocaleDateString() }}
+            </span>
+            <router-link
+              v-if="game.platforms.length && !pageSettings.hide_platform_badge"
+              class="badge filter-badge"
+              :to="libraryLink('platform', game.platforms[0].platform)"
+              :title="`All ${normalizePlatformFamily(game.platforms[0].platform)} games`"
+              >{{ game.platforms[0].platform }}</router-link
+            >
+            <button
+              v-if="game.achievementTotal > 0 && achievementsOn"
+              type="button"
+              class="badge achievement-progress-badge"
+              title="Jump to Achievements"
+              @click="activeTab = 'Achievements'"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                width="13"
+                height="13"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M8 4h8v5a4 4 0 0 1-8 0z" />
+                <path d="M8 4H5a2 2 0 0 0 0 4h1.5M16 4h3a2 2 0 0 1 0 4h-1.5" />
+                <path d="M12 13v3" />
+                <path d="M9 20h6" />
+                <path d="M10 16.5h4l.8 3.5H9.2z" />
+              </svg>
+              {{ game.achievementPercent }}%
+            </button>
+            <span
+              v-if="game.staleSince"
+              class="badge stale-badge"
+              :title="`Last sync (${new Date(game.staleSince).toLocaleDateString()}) no longer saw this in your ${game.source} library.`"
+            >
+              Not currently in your {{ game.source }} library
+            </span>
+          </div>
+          <div class="action-row">
+            <button
+              class="edit-btn"
+              type="button"
+              @click="showEditModal = true"
+            >
+              ✎ Edit
+            </button>
+            <button
+              v-if="!pageSettings.hide_favorite"
+              class="icon-btn"
+              :class="{ active: game.favorite }"
+              type="button"
+              :title="
+                game.favorite ? 'Remove from favorites' : 'Add to favorites'
+              "
+              @click="toggleFavorite"
+            >
+              <HeartIcon :filled="game.favorite" />
+            </button>
+            <GameCollectionsButton
+              v-if="!pageSettings.hide_collections"
+              :game="game"
+              @changed="onCollectionsChanged"
+            />
+          </div>
         </div>
       </div>
     </section>
 
-    <nav class="tabs">
-      <button
-        v-for="tab in visibleTabs"
-        :key="tab"
-        type="button"
-        class="tab"
-        :class="{ active: activeTab === tab }"
-        @click="activeTab = tab"
-      >
-        {{ tab }}
-      </button>
-    </nav>
+    <div class="tabbar-wrap">
+      <nav class="tabbar">
+        <button
+          v-for="tab in visibleTabs"
+          :key="tab"
+          type="button"
+          class="tab-btn"
+          :class="{ active: activeTab === tab }"
+          @click="activeTab = tab"
+        >
+          {{ tab }}
+        </button>
+        <div v-if="moreTabs.length" class="tab-more">
+          <button
+            type="button"
+            class="tab-btn tab-more-btn"
+            title="Tabs with nothing in them yet"
+            aria-haspopup="menu"
+            :aria-expanded="showMoreTabs"
+            @click.stop="showMoreTabs = !showMoreTabs"
+          >
+            +
+          </button>
+          <ul v-if="showMoreTabs" class="tab-more-menu" role="menu">
+            <li v-for="tab in moreTabs" :key="tab">
+              <button type="button" role="menuitem" @click="openMoreTab(tab)">
+                {{ tab }}
+              </button>
+            </li>
+          </ul>
+        </div>
+      </nav>
+    </div>
 
     <section v-if="activeTab === 'Overview'" class="overview">
-      <div class="overview-main">
-        <div class="resume-note-card">
-          <div class="resume-note-header">
-            <h3>Where I left off</h3>
+      <div v-if="overviewFacts.length" class="meta-block">
+        <div v-if="overviewFacts.length" class="meta-grid">
+          <div
+            v-for="fact in overviewFacts"
+            :key="fact.label"
+            class="meta-item"
+          >
+            <span class="meta-label">{{ fact.label }}</span>
             <button
-              v-if="!resumeNoteEditing"
+              v-if="fact.tab"
               type="button"
-              class="text-button"
-              @click="startEditResumeNote"
+              class="meta-value meta-link"
+              :class="{ accent: fact.accent, muted: fact.muted }"
+              :title="`Open ${fact.tab}`"
+              @click="activeTab = fact.tab"
             >
-              {{ game.resumeNote ? "Edit" : "+ Add note" }}
+              {{ fact.value }}
             </button>
-          </div>
-          <template v-if="resumeNoteEditing">
-            <textarea
-              v-model="resumeNoteDraft"
-              class="resume-note-textarea"
-              rows="3"
-              placeholder="e.g. Just beat the third boss, about to start the desert region…"
-            ></textarea>
-            <div v-if="resumeNoteError" class="form-error-inline">
-              {{ resumeNoteError }}
-            </div>
-            <div class="resume-note-actions">
-              <button
-                type="button"
-                class="secondary-button"
-                @click="resumeNoteEditing = false"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                class="primary-button"
-                :disabled="resumeNoteSaving"
-                @click="saveResumeNote"
-              >
-                {{ resumeNoteSaving ? "Saving…" : "Save" }}
-              </button>
-            </div>
-          </template>
-          <p v-else-if="game.resumeNote" class="resume-note-text">
-            {{ game.resumeNote }}
-          </p>
-          <p v-else class="resume-note-empty">
-            Nothing noted yet. Jot down what to do next time you pick this up.
-          </p>
-        </div>
-
-        <div v-if="descriptionHtml" class="description-wrap">
-          <div class="description-html" v-html="descriptionHtml"></div>
-        </div>
-
-        <div v-if="variants.length" class="variants-section">
-          <h3 class="variants-heading">Variants</h3>
-          <div class="variants-row">
-            <router-link
-              v-for="variant in variants"
-              :key="variant.id"
-              :to="`/games/${variant.id}`"
-              class="variant-card"
+            <span
+              v-else
+              class="meta-value"
+              :class="{ accent: fact.accent, muted: fact.muted }"
+              >{{ fact.value }}</span
             >
-              <img :src="variant.coverImageUrl" alt="" class="variant-cover" />
-              <span class="variant-title">{{ variant.title }}</span>
-              <span v-if="variant.relationshipType" class="relationship-tag">
-                {{
-                  RELATIONSHIP_LABELS[variant.relationshipType] ??
-                  variant.relationshipType
-                }}
-              </span>
-            </router-link>
-          </div>
-        </div>
-
-        <div v-if="similarGames.length" class="similar-games-section">
-          <h3 class="variants-heading">Similar games in your library</h3>
-          <div class="variants-row">
-            <router-link
-              v-for="g in similarGames"
-              :key="g.id"
-              :to="`/games/${g.id}`"
-              class="variant-card"
-            >
-              <img :src="g.coverImageUrl" alt="" class="variant-cover" />
-              <span class="variant-title">{{ g.title }}</span>
-            </router-link>
-          </div>
-        </div>
-
-        <div
-          class="rating-breakdown"
-          v-if="
-            game.ratingOverall !== null ||
-            game.ratingStory !== null ||
-            game.ratingGameplay !== null ||
-            game.ratingSound !== null
-          "
-        >
-          <div v-if="game.ratingOverall !== null" class="rating-item">
-            <span class="rating-label">Atmosphere</span>
-            <span class="rating-score"
-              >★ {{ game.ratingOverall.toFixed(1) }}</span
-            >
-          </div>
-          <div v-if="game.ratingStory !== null" class="rating-item">
-            <span class="rating-label">Story</span>
-            <span class="rating-score"
-              >★ {{ game.ratingStory.toFixed(1) }}</span
-            >
-          </div>
-          <div v-if="game.ratingGameplay !== null" class="rating-item">
-            <span class="rating-label">Gameplay</span>
-            <span class="rating-score"
-              >★ {{ game.ratingGameplay.toFixed(1) }}</span
-            >
-          </div>
-          <div v-if="game.ratingSound !== null" class="rating-item">
-            <span class="rating-label">Sound</span>
-            <span class="rating-score"
-              >★ {{ game.ratingSound.toFixed(1) }}</span
-            >
-          </div>
-          <div v-if="tally" class="rating-item">
-            <span class="rating-label">Score</span>
-            <span class="rating-score">{{ tally.sum.toFixed(1) }}</span>
           </div>
         </div>
       </div>
 
-      <aside class="details-panel">
-        <h3 class="panel-title">Details</h3>
-        <div class="detail-row">
-          <span class="detail-label">Developer</span>
-          <span class="detail-value">{{ game.developer ?? "N/A" }}</span>
+      <div v-if="mainTags.length" class="chip-row">
+        <router-link
+          v-for="tag in mainTags"
+          :key="tag"
+          class="chip primary chip-link"
+          :to="libraryLink('tag', tag)"
+          :title="`All ${tag} games`"
+          >{{ tag }}</router-link
+        >
+      </div>
+
+      <div v-if="descriptionHtml" class="description-block">
+        <div
+          class="description description-html"
+          :class="{ clamped: descriptionOverflows && !descriptionExpanded }"
+          v-html="descriptionHtml"
+        ></div>
+        <button
+          v-if="descriptionOverflows"
+          type="button"
+          class="read-more-btn"
+          @click="descriptionExpanded = !descriptionExpanded"
+        >
+          {{ descriptionExpanded ? "Show less" : "Read more" }}
+        </button>
+      </div>
+
+      <section
+        class="my-note"
+        :class="{ empty: !game.resumeNote && !resumeNoteEditing }"
+      >
+        <template v-if="resumeNoteEditing">
+          <header class="note-head">
+            <h3>Where I left off</h3>
+          </header>
+          <textarea
+            v-model="resumeNoteDraft"
+            class="note-input"
+            rows="3"
+            placeholder="e.g. Just beat the third boss, about to start the desert region…"
+            aria-label="Where I left off"
+          ></textarea>
+          <p v-if="resumeNoteError" class="note-error">
+            {{ resumeNoteError }}
+          </p>
+          <div class="note-actions">
+            <button
+              type="button"
+              class="btn-solid"
+              :disabled="resumeNoteSaving"
+              @click="saveResumeNote"
+            >
+              {{ resumeNoteSaving ? "Saving…" : "Save" }}
+            </button>
+            <button
+              type="button"
+              class="btn-text muted"
+              @click="resumeNoteEditing = false"
+            >
+              Cancel
+            </button>
+          </div>
+        </template>
+        <template v-else-if="game.resumeNote">
+          <header class="note-head">
+            <h3>Where I left off</h3>
+            <span class="note-private">Only you can see this</span>
+            <button type="button" class="btn-text" @click="startEditResumeNote">
+              Edit
+            </button>
+          </header>
+          <p class="note-text">{{ game.resumeNote }}</p>
+        </template>
+        <template v-else>
+          <button type="button" class="btn-text" @click="startEditResumeNote">
+            + Add a note on where you left off
+          </button>
+          <span class="note-private">Only you can see this</span>
+        </template>
+      </section>
+
+      <div v-if="variants.length" class="related-section">
+        <div class="section-heading">
+          <h2>Variants</h2>
         </div>
-        <div class="detail-row">
-          <span class="detail-label">Publisher</span>
-          <span class="detail-value">{{ game.publisher ?? "N/A" }}</span>
+        <div class="poster-grid">
+          <router-link
+            v-for="variant in variants"
+            :key="variant.id"
+            :to="`/games/${variant.id}`"
+            class="poster-card-sm"
+          >
+            <div
+              class="poster-card-sm-art"
+              :style="
+                variant.coverImageUrl
+                  ? {
+                      backgroundImage: `url(${sizedAssetUrl(variant.coverImageUrl, POSTER_WIDTH)})`,
+                    }
+                  : {}
+              "
+            ></div>
+            <div class="poster-card-sm-title">{{ variant.title }}</div>
+            <div v-if="variant.relationshipType" class="poster-card-sm-meta">
+              {{
+                RELATIONSHIP_LABELS[variant.relationshipType] ??
+                variant.relationshipType
+              }}
+            </div>
+          </router-link>
         </div>
-        <div class="detail-row">
-          <span class="detail-label">Series</span>
-          <span class="detail-value">{{ game.series ?? "N/A" }}</span>
+      </div>
+
+      <div v-if="similarGames.length" class="related-section">
+        <div class="section-heading">
+          <h2>Similar games in your library</h2>
         </div>
-        <div v-if="game.releaseDate" class="detail-row">
-          <span class="detail-label">Release Date</span>
-          <span class="detail-value">{{
-            formatDisplayDate(game.releaseDate)
-          }}</span>
+        <div class="poster-grid">
+          <router-link
+            v-for="g in similarGames"
+            :key="g.id"
+            :to="`/games/${g.id}`"
+            class="poster-card-sm"
+          >
+            <div
+              class="poster-card-sm-art"
+              :style="
+                g.coverImageUrl
+                  ? {
+                      backgroundImage: `url(${sizedAssetUrl(g.coverImageUrl, POSTER_WIDTH)})`,
+                    }
+                  : {}
+              "
+            ></div>
+            <div class="poster-card-sm-title">{{ g.title }}</div>
+          </router-link>
         </div>
-        <div class="detail-row">
-          <span class="detail-label">Date Added</span>
-          <span class="detail-value">
-            {{
-              game.dateAdded
-                ? new Date(game.dateAdded).toLocaleDateString()
-                : "N/A"
-            }}
-          </span>
-        </div>
-        <div class="detail-row">
-          <span class="detail-label">Recent Activity</span>
-          <span class="detail-value">
-            {{
-              recentActivity
-                ? new Date(recentActivity).toLocaleDateString()
-                : "N/A"
-            }}
-          </span>
-        </div>
-        <div class="detail-row">
-          <span class="detail-label">Platforms</span>
-          <ul class="platforms">
+      </div>
+
+      <details class="more-details">
+        <summary>More details</summary>
+
+        <div v-if="game.platforms.length" class="more-block">
+          <h3 class="more-title">Platforms</h3>
+          <ul class="platform-list">
             <li
               v-for="p in game.platforms"
               :key="p.platform"
-              class="platform-row"
+              class="platform-item"
             >
-              <div class="platform-line">
+              <div class="platform-top">
                 <span class="platform-name">{{ p.platform }}</span>
-                <span class="platform-meta">
-                  {{ formatPlaytime(p.playtimeMinutes)
-                  }}<span v-if="p.completionPercent !== null">
-                    · {{ p.completionPercent }}%</span
-                  >
-                </span>
+                <span class="platform-hours">{{
+                  formatPlaytime(p.playtimeMinutes)
+                }}</span>
               </div>
-              <div v-if="p.lastPlayedAt" class="platform-last-played">
-                last played {{ new Date(p.lastPlayedAt).toLocaleDateString() }}
+              <div
+                v-if="p.completionPercent !== null || p.lastPlayedAt"
+                class="platform-sub"
+              >
+                <span v-if="p.completionPercent !== null"
+                  >{{ p.completionPercent }}% complete</span
+                >
+                <span v-if="p.lastPlayedAt"
+                  >last played
+                  {{ new Date(p.lastPlayedAt).toLocaleDateString() }}</span
+                >
               </div>
             </li>
           </ul>
           <button
             type="button"
-            class="text-button log-playtime-button"
+            class="read-more-btn"
             :disabled="loggingPlaytime"
             title="Log a session just played, without editing the total by hand"
             @click="logPlaytime(30)"
@@ -2413,314 +3012,489 @@ function formatPlaytime(minutes: number) {
             + Log 30 min just played
           </button>
         </div>
-        <div v-if="game.tags.length" class="detail-row">
-          <span class="detail-label">Tags</span>
-          <span class="feature-pills">
-            <span v-for="tag in game.tags" :key="tag" class="feature-pill">{{
-              tag
-            }}</span>
-          </span>
+
+        <div v-if="ratingParts.length" class="more-block">
+          <h3 class="more-title">Your ratings</h3>
+          <div class="kv-grid">
+            <div v-for="part in ratingParts" :key="part.name" class="kv-row">
+              <span class="kv-label">{{ part.name }}</span>
+              <span class="kv-value accent">{{ part.value }}</span>
+            </div>
+          </div>
         </div>
-        <div v-if="game.features.length" class="detail-row">
-          <span class="detail-label">Features</span>
-          <span class="feature-pills">
-            <span v-for="f in game.features" :key="f" class="feature-pill">{{
+
+        <div v-if="moreTags.length || game.features.length" class="more-block">
+          <h3 class="more-title">Tags and features</h3>
+          <div class="chip-row">
+            <router-link
+              v-for="tag in moreTags"
+              :key="tag"
+              class="chip chip-link"
+              :to="libraryLink('tag', tag)"
+              :title="`All ${tag} games`"
+              >{{ tag }}</router-link
+            >
+            <span v-for="f in game.features" :key="f" class="chip">{{
               f
-            }}</span>
-          </span>
-        </div>
-        <div v-if="game.source" class="detail-row">
-          <span class="detail-label">Source</span>
-          <span class="detail-value">{{ game.source }}</span>
-        </div>
-        <div v-if="activePriority(game) !== null" class="detail-row">
-          <span class="detail-label">Priority</span>
-          <span class="detail-value">{{
-            priorityLabel(activePriority(game)!)
-          }}</span>
-        </div>
-        <div v-if="game.ageRating" class="detail-row">
-          <span class="detail-label">Age Rating</span>
-          <span class="detail-value">{{ game.ageRating }}</span>
-        </div>
-        <div v-if="game.timeToBeatHours" class="detail-row">
-          <span class="detail-label">Time to Beat</span>
-          <span class="detail-value">{{ game.timeToBeatHours }}h</span>
-        </div>
-        <div v-if="game.region" class="detail-row">
-          <span class="detail-label">Region</span>
-          <span class="detail-value">{{ game.region }}</span>
-        </div>
-        <div v-if="game.language" class="detail-row">
-          <span class="detail-label">Language</span>
-          <span class="detail-value">{{ game.language }}</span>
-        </div>
-        <div v-if="game.achievementsProvider" class="detail-row">
-          <span class="detail-label">Achievement Tracking</span>
-          <span class="detail-value">{{
-            game.achievementsProvider === "retroachievements"
-              ? "RetroAchievements"
-              : "Native"
-          }}</span>
-        </div>
-        <div v-if="game.links.length" class="detail-row">
-          <span class="detail-label">Links</span>
-          <ul class="links-list">
-            <li v-for="link in game.links" :key="link.url">
-              <a :href="link.url" target="_blank" rel="noopener noreferrer">{{
-                link.label
-              }}</a>
-            </li>
-          </ul>
-        </div>
-        <div
-          v-if="
-            game.ownership.format ||
-            game.ownership.purchaseDate ||
-            game.ownership.price !== null
-          "
-          class="detail-row"
-        >
-          <span class="detail-label">Ownership</span>
-          <div class="ownership-info">
-            <span v-if="game.ownership.format" class="ownership-format">{{
-              game.ownership.format
-            }}</span>
-            <span v-if="game.ownership.purchaseDate">
-              Purchased
-              {{ formatDisplayDate(game.ownership.purchaseDate) }}
-            </span>
-            <span v-if="game.ownership.price !== null">
-              {{ game.ownership.priceCurrency ?? "USD" }}
-              {{ game.ownership.price.toFixed(2) }}
-            </span>
-            <span v-if="game.ownership.condition">{{
-              game.ownership.condition
             }}</span>
           </div>
         </div>
-        <div v-if="game.folderLocation" class="detail-row">
-          <span class="detail-label">Folder</span>
-          <span class="detail-value">{{ game.folderLocation }}</span>
+
+        <div class="more-block">
+          <h3 class="more-title">Library</h3>
+          <div class="kv-grid">
+            <div v-if="game.series" class="kv-row">
+              <span class="kv-label">Series</span>
+              <router-link
+                class="kv-value filter-link"
+                :to="libraryLink('series', game.series)"
+                :title="`All games in ${game.series}`"
+                >{{ game.series }}</router-link
+              >
+            </div>
+            <div v-if="game.dateAdded" class="kv-row">
+              <span class="kv-label">Added</span>
+              <span class="kv-value">{{
+                new Date(game.dateAdded).toLocaleDateString()
+              }}</span>
+            </div>
+            <div v-if="recentActivity" class="kv-row">
+              <span class="kv-label">Last played</span>
+              <span class="kv-value">{{
+                new Date(recentActivity).toLocaleDateString()
+              }}</span>
+            </div>
+            <div v-if="game.source" class="kv-row">
+              <span class="kv-label">Source</span>
+              <span class="kv-value">{{ game.source }}</span>
+            </div>
+            <div v-if="activePriority(game) !== null" class="kv-row">
+              <span class="kv-label">Priority</span>
+              <span class="kv-value">{{
+                priorityLabel(activePriority(game)!)
+              }}</span>
+            </div>
+            <div v-if="game.ageRating" class="kv-row">
+              <span class="kv-label">Age rating</span>
+              <span class="kv-value">{{ game.ageRating }}</span>
+            </div>
+            <div v-if="game.region" class="kv-row">
+              <span class="kv-label">Region</span>
+              <span class="kv-value">{{ game.region }}</span>
+            </div>
+            <div v-if="game.language" class="kv-row">
+              <span class="kv-label">Language</span>
+              <span class="kv-value">{{ game.language }}</span>
+            </div>
+            <div v-if="game.achievementsProvider" class="kv-row">
+              <span class="kv-label">Achievements via</span>
+              <span class="kv-value">{{
+                game.achievementsProvider === "retroachievements"
+                  ? "RetroAchievements"
+                  : "Native"
+              }}</span>
+            </div>
+            <div
+              v-if="
+                game.ownership.format ||
+                game.ownership.purchaseDate ||
+                game.ownership.price !== null
+              "
+              class="kv-row stack"
+            >
+              <span class="kv-label">Ownership</span>
+              <span class="kv-value ownership-info">
+                <span v-if="game.ownership.format" class="ownership-format">{{
+                  game.ownership.format
+                }}</span>
+                <span v-if="game.ownership.purchaseDate">
+                  Purchased
+                  {{ formatDisplayDate(game.ownership.purchaseDate) }}
+                </span>
+                <span v-if="game.ownership.price !== null">
+                  {{ game.ownership.priceCurrency ?? "USD" }}
+                  {{ game.ownership.price.toFixed(2) }}
+                </span>
+                <span v-if="game.ownership.condition">{{
+                  game.ownership.condition
+                }}</span>
+              </span>
+            </div>
+            <div v-if="game.links.length" class="kv-row stack">
+              <span class="kv-label">Links</span>
+              <ul class="links-list">
+                <li v-for="link in game.links" :key="link.url">
+                  <a
+                    :href="link.url"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    >{{ link.label }}</a
+                  >
+                </li>
+              </ul>
+            </div>
+            <div v-if="game.folderLocation" class="kv-row stack">
+              <span class="kv-label">Folder</span>
+              <span class="kv-value folder-value">{{
+                game.folderLocation
+              }}</span>
+            </div>
+          </div>
         </div>
-      </aside>
+      </details>
     </section>
 
     <section v-else-if="activeTab === 'Achievements'" class="achievements">
-      <div class="achievements-header">
-        <h2>Achievements</h2>
-        <span class="percent">{{ game.achievementPercent }}%</span>
-      </div>
-
-      <div class="trophy-summary">
-        <div class="trophy-count">
-          <span
-            class="trophy-badge trophy-badge-platinum"
-            :class="{ dim: !isPlatinumEarned }"
-          ></span>
-          <span>{{ isPlatinumEarned ? 1 : 0 }}</span>
-        </div>
-        <div class="trophy-count">
-          <span class="trophy-badge trophy-badge-gold"></span>
-          <span>{{ trophyCounts.gold }}</span>
-        </div>
-        <div class="trophy-count">
-          <span class="trophy-badge trophy-badge-silver"></span>
-          <span>{{ trophyCounts.silver }}</span>
-        </div>
-        <div class="trophy-count">
-          <span class="trophy-badge trophy-badge-bronze"></span>
-          <span>{{ trophyCounts.bronze }}</span>
-        </div>
-      </div>
-
-      <ul class="achievement-list">
-        <li
-          v-for="achievement in sortedAchievements(game.achievements)"
-          :key="achievement.id"
+      <div class="ach-head">
+        <h2 class="ach-title">Achievements</h2>
+        <span class="ach-count"
+          >{{ unlockedCount }} / {{ game.achievements.length }}</span
         >
-          <router-link
-            :to="{
-              name: 'achievement-detail',
-              params: { gameId: game.id, achievementId: achievement.id },
+        <div class="ach-tools">
+          <input
+            v-model="achSearch"
+            type="text"
+            class="ui-field ach-search"
+            placeholder="Search achievements…"
+            aria-label="Search achievements"
+          />
+          <select
+            v-if="achProviders.length > 1"
+            v-model="achProvider"
+            class="ui-field ach-sort"
+            aria-label="Filter by platform"
+          >
+            <option value="all">All platforms</option>
+            <option v-for="pr in achProviders" :key="pr" :value="pr">
+              {{ pr }}
+            </option>
+          </select>
+          <select
+            v-model="mobileSort"
+            class="ui-field ach-sort ach-mobile-sort"
+            aria-label="Sort achievements"
+          >
+            <option value="recent">Recently unlocked</option>
+            <option value="rarest">Rarest first</option>
+            <option value="easiest">Easiest first</option>
+            <option value="name">A to Z</option>
+          </select>
+          <button
+            type="button"
+            class="ui-btn ui-btn-secondary ui-btn-sm"
+            :class="{ on: overallOpen || !!achLocal.overall }"
+            @click="toggleOverall"
+          >
+            Overall notes
+          </button>
+        </div>
+      </div>
+
+      <div v-if="overallOpen" class="ach-overall">
+        <textarea
+          v-model="overallDraft"
+          class="ach-textarea"
+          rows="3"
+          placeholder="Plans, routes and reminders for hunting this game"
+          aria-label="Overall achievement notes"
+        ></textarea>
+        <div class="ach-note-actions">
+          <button
+            type="button"
+            class="ui-btn ui-btn-primary ui-btn-sm"
+            @click="saveOverall"
+          >
+            Save
+          </button>
+          <button
+            type="button"
+            class="ui-btn ui-btn-ghost ui-btn-sm"
+            @click="overallOpen = false"
+          >
+            Cancel
+          </button>
+          <span class="ach-hint">Only you can see this</span>
+        </div>
+      </div>
+
+      <div v-if="achStats.length" class="ach-stats">
+        <span v-for="st in achStats" :key="st.label"
+          ><b>{{ st.value }}</b> {{ st.label }}</span
+        >
+      </div>
+
+      <SegmentedTabs
+        v-if="game.achievements.length"
+        :options="achFilterOptions"
+        :model-value="achFilter"
+        aria-label="Filter achievements"
+        @update:model-value="achFilter = $event as AchFilter"
+      />
+
+      <p v-if="!game.achievements.length" class="ach-empty">
+        No achievements yet. They appear here after a library sync for Steam,
+        PlayStation or RetroAchievements.
+      </p>
+      <p v-else-if="!shownAchievements.length" class="ach-empty">
+        Nothing matches that search or filter.
+      </p>
+
+      <div
+        v-if="game.achievements.length && shownAchievements.length"
+        class="ach-cols"
+        role="row"
+      >
+        <span></span>
+        <button
+          type="button"
+          class="ach-colbtn left"
+          :aria-sort="ariaSort('name')"
+          @click="sortBy('name')"
+        >
+          Achievement <i>{{ sortMark("name") }}</i>
+        </button>
+        <button
+          type="button"
+          class="ach-colbtn"
+          :aria-sort="ariaSort('rarity')"
+          @click="sortBy('rarity')"
+        >
+          <i>{{ sortMark("rarity") }}</i> Players
+        </button>
+        <button
+          type="button"
+          class="ach-colbtn"
+          :aria-sort="ariaSort('unlocked')"
+          @click="sortBy('unlocked')"
+        >
+          <i>{{ sortMark("unlocked") }}</i> Unlocked
+        </button>
+        <span></span>
+      </div>
+      <ul v-if="shownAchievements.length" class="ach-list">
+        <li v-for="a in shownAchievements" :key="a.id" class="ach-item">
+          <div
+            class="ach-row"
+            :class="{
+              done: isUnlocked(a),
+              lock: !isUnlocked(a),
+              pin: isPinned(a),
             }"
-            class="achievement-row"
-            :class="{ unlocked: achievement.unlockedAt !== null }"
           >
             <div
-              class="achievement-icon"
+              class="ach-icon"
               :style="
-                achievement.hidden && achievement.unlockedAt === null
-                  ? {}
-                  : { backgroundImage: `url(${game.coverImageUrl})` }
+                a.iconUrl && !isHiddenLocked(a)
+                  ? { backgroundImage: `url(${a.iconUrl})` }
+                  : {}
               "
-            >
-              <span
-                class="achievement-badge"
-                :class="
-                  achievement.unlockedAt !== null
-                    ? `badge-${deriveTier(achievement)}`
-                    : 'badge-locked'
-                "
-              >
-                <template
-                  v-if="achievement.hidden && achievement.unlockedAt === null"
-                  >?</template
-                >
-              </span>
-            </div>
+            ></div>
 
-            <div class="achievement-info">
-              <template
-                v-if="achievement.hidden && achievement.unlockedAt === null"
-              >
-                <span class="achievement-name">Hidden Trophy</span>
-                <span class="achievement-description"
-                  >Unlock this achievement to reveal it.</span
+            <div class="ach-main">
+              <div class="ach-name">
+                <span v-if="isHiddenLocked(a)" class="ach-hidden-name"
+                  >Hidden achievement</span
                 >
-              </template>
-              <template v-else>
-                <span class="achievement-name">{{ achievement.name }}</span>
+                <router-link
+                  v-else
+                  :to="{
+                    name: 'achievement-detail',
+                    params: { gameId: game.id, achievementId: a.id },
+                  }"
+                  class="ach-link"
+                  >{{ a.name }}</router-link
+                >
                 <span
-                  v-if="achievement.description"
-                  class="achievement-description"
-                  >{{ achievement.description }}</span
+                  v-if="a.kind && !isHiddenLocked(a)"
+                  class="ach-tag"
+                  :class="a.kind"
+                  >{{ KIND_LABEL[a.kind] }}</span
                 >
-              </template>
-
-              <div
-                v-if="achievement.unlockedAt !== null"
-                class="achievement-unlocked-at"
-              >
-                Unlocked {{ formatUnlockedAt(achievement.unlockedAt) }}
               </div>
-              <div
-                v-else-if="
-                  achievement.progressCurrent != null &&
-                  achievement.progressTarget
-                "
-                class="achievement-progress"
-              >
-                <div class="progress-bar">
-                  <div
-                    class="progress-fill"
-                    :style="{
-                      width: `${Math.min(100, (achievement.progressCurrent / achievement.progressTarget) * 100)}%`,
-                    }"
-                  ></div>
-                </div>
-                <span class="progress-label"
-                  >{{ achievement.progressCurrent }} /
-                  {{ achievement.progressTarget }}</span
-                >
+              <div class="ach-desc">
+                <template v-if="isHiddenLocked(a)">
+                  Details for this achievement will be revealed once unlocked.
+                  <button
+                    type="button"
+                    class="ach-reveal"
+                    @click="revealAchievement(a)"
+                  >
+                    Show
+                  </button>
+                </template>
+                <template v-else>
+                  {{ descriptionOf(a) }}
+                  <button
+                    v-if="a.hidden && !isUnlocked(a)"
+                    type="button"
+                    class="ach-reveal"
+                    @click="hideAchievement(a)"
+                  >
+                    Hide
+                  </button>
+                </template>
               </div>
             </div>
-          </router-link>
+
+            <div class="ach-col">
+              <template v-if="a.rarityPercent != null">
+                <div class="ach-big">{{ formatPercent(a.rarityPercent) }}</div>
+                <div class="ach-lab">of players</div>
+              </template>
+              <div v-else class="ach-big ach-dim">–</div>
+            </div>
+
+            <div class="ach-col">
+              <template v-if="isUnlocked(a)">
+                <template v-if="a.unlockedAt">
+                  <div class="ach-big ach-small">
+                    {{ unlockedOn(a.unlockedAt).date }}
+                  </div>
+                  <div class="ach-lab">{{ unlockedOn(a.unlockedAt).time }}</div>
+                </template>
+                <div v-else class="ach-big ach-small">Unlocked</div>
+              </template>
+              <template
+                v-else-if="a.progressCurrent != null && a.progressTarget"
+              >
+                <div class="ach-big ach-small">
+                  {{ a.progressCurrent }} / {{ a.progressTarget }}
+                </div>
+                <div class="ach-bar">
+                  <i
+                    :style="{
+                      width: `${Math.min(100, (a.progressCurrent / a.progressTarget) * 100)}%`,
+                    }"
+                  ></i>
+                </div>
+              </template>
+              <div v-else class="ach-big ach-small ach-dim">Locked</div>
+            </div>
+
+            <div class="ach-acts">
+              <button
+                type="button"
+                class="ach-btn"
+                :class="{ on: isPinned(a) }"
+                :aria-pressed="isPinned(a)"
+                @click="togglePin(a)"
+              >
+                {{ isPinned(a) ? "Pinned" : "Pin" }}
+              </button>
+              <button
+                type="button"
+                class="ach-btn"
+                :class="{ on: !!achLocal.notes[a.id] || noteOpen === a.id }"
+                @click="toggleNote(a)"
+              >
+                {{ achLocal.notes[a.id] ? "Note · 1" : "Note" }}
+              </button>
+              <button
+                v-if="mediaByAchievement.get(a.id)?.length"
+                type="button"
+                class="ach-btn ach-btn-media"
+                :class="{ on: achMediaOpen === a.id }"
+                :title="`${mediaByAchievement.get(a.id)!.length} tied to this achievement`"
+                @click="toggleAchMedia(a)"
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  width="14"
+                  height="14"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <rect x="3" y="4" width="18" height="16" rx="2" />
+                  <circle cx="9" cy="10" r="1.6" />
+                  <path d="M21 16l-5-5-8 9" />
+                </svg>
+                {{ mediaByAchievement.get(a.id)!.length }}
+              </button>
+            </div>
+          </div>
+
+          <div v-if="achMediaOpen === a.id" class="ach-media-strip">
+            <template v-for="m in mediaByAchievement.get(a.id)" :key="m.id">
+              <button
+                v-if="m.kind === 'screenshot'"
+                type="button"
+                class="ach-media-thumb"
+                :title="m.note ?? 'View screenshot'"
+                @click="lightboxUrl = m.url"
+              >
+                <img :src="m.url" alt="" loading="lazy" />
+              </button>
+              <video
+                v-else-if="m.kind === 'clip'"
+                class="ach-media-thumb"
+                :src="m.url"
+                controls
+                preload="metadata"
+              ></video>
+              <audio
+                v-else
+                class="ach-media-audio"
+                :src="m.url"
+                controls
+                preload="metadata"
+              ></audio>
+            </template>
+          </div>
+
+          <div v-if="noteOpen === a.id" class="ach-note-box">
+            <textarea
+              v-model="noteDraft"
+              class="ach-textarea"
+              rows="2"
+              placeholder="How you got it, or how you plan to"
+              :aria-label="`Note on ${a.name}`"
+            ></textarea>
+            <div class="ach-note-actions">
+              <button
+                type="button"
+                class="ui-btn ui-btn-primary ui-btn-sm"
+                @click="saveNote(a)"
+              >
+                Save
+              </button>
+              <button
+                type="button"
+                class="ui-btn ui-btn-ghost ui-btn-sm"
+                @click="noteOpen = null"
+              >
+                Cancel
+              </button>
+              <button
+                v-if="achLocal.notes[a.id]"
+                type="button"
+                class="ui-btn ui-btn-ghost ui-btn-sm"
+                @click="clearNote(a)"
+              >
+                Delete note
+              </button>
+            </div>
+          </div>
         </li>
       </ul>
+      <div
+        v-if="lightboxUrl"
+        class="lightbox-backdrop"
+        @click="lightboxUrl = null"
+      >
+        <img :src="lightboxUrl" alt="" class="lightbox-image" />
+      </div>
     </section>
 
     <section v-else-if="activeTab === 'Notes'" class="notes-panel">
-      <div v-if="noteMode === 'list'" class="notes-list-view">
-        <div class="notes-header-row">
-          <h2>Notes</h2>
-          <button type="button" class="primary-button" @click="startNewNote">
-            {{ hasDraft ? "Continue Draft" : "New Note" }}
-          </button>
-        </div>
-
-        <div v-if="noteError" class="note-error">{{ noteError }}</div>
-
-        <p v-if="noteLoading" class="empty-state">Loading…</p>
-        <p v-else-if="!noteNames.length" class="empty-state">No notes yet.</p>
-        <ul v-else class="notes-list">
-          <li
-            v-for="note in noteNames"
-            :key="note"
-            class="notes-list-row"
-            @click="void viewNote(note)"
-          >
-            <span class="note-name">{{ note }}</span>
-            <div class="notes-list-actions">
-              <button
-                type="button"
-                class="danger-button"
-                :disabled="noteSaving"
-                @click.stop="void deleteNote(note)"
-              >
-                Delete
-              </button>
-            </div>
-          </li>
-        </ul>
-      </div>
-
-      <div v-else-if="noteMode === 'view'" class="notes-editor">
-        <div class="notes-editor-card">
-          <div class="notes-toolbar">
-            <button type="button" class="small-button" @click="backToList">
-              ← Back
-            </button>
-            <span class="selected-note">{{ viewingNoteName }}</span>
-            <button type="button" class="small-button" @click="editFromView">
-              Edit
-            </button>
-          </div>
-
-          <div v-if="noteLoading" class="empty-state">Loading…</div>
-          <div v-else class="note-rendered" v-html="renderedNoteHtml"></div>
-
-          <div v-if="noteError" class="note-error">{{ noteError }}</div>
-        </div>
-      </div>
-
-      <div v-else class="notes-editor">
-        <div class="notes-editor-card">
-          <div class="notes-toolbar">
-            <button type="button" class="small-button" @click="backToList">
-              ← Back
-            </button>
-          </div>
-
-          <label class="field">
-            <span>Note name</span>
-            <input
-              v-model="draftName"
-              type="text"
-              placeholder="Meeting notes"
-              autocomplete="off"
-            />
-          </label>
-
-          <textarea
-            v-model="draftContent"
-            placeholder="Write markdown here…"
-            spellcheck="true"
-          ></textarea>
-
-          <div v-if="noteError" class="note-error">{{ noteError }}</div>
-
-          <div class="notes-editor-actions">
-            <button type="button" class="small-button" @click="backToList">
-              Cancel
-            </button>
-            <button
-              type="button"
-              class="primary-button"
-              :disabled="noteSaving || !draftName.trim()"
-              @click="void saveDraft()"
-            >
-              {{
-                noteSaving
-                  ? "Saving…"
-                  : editingNoteName
-                    ? "Save changes"
-                    : "Create note"
-              }}
-            </button>
-          </div>
-        </div>
-      </div>
+      <GameNotesPanel
+        :game-id="game.id"
+        :achievements="tieAchievements"
+        :open-note="(route.query.note as string | undefined) ?? null"
+        @open-achievement="openAchievement"
+      />
     </section>
 
     <section v-else-if="activeTab === 'Accounts'" class="accounts-panel">
@@ -3031,7 +3805,7 @@ function formatPlaytime(minutes: number) {
                 v-for="item in accountMediaFiltered"
                 :key="item.id"
                 :item="item"
-                :achievements="game.achievements"
+                :achievements="tieAchievements"
                 :profiles="profiles"
                 @preview="onPreviewMedia($event.url)"
                 @delete="removeMedia"
@@ -3293,736 +4067,201 @@ function formatPlaytime(minutes: number) {
       "
       class="media-panel"
     >
-      <h2>{{ activeTab }}</h2>
-      <div class="panel-body">
-        <ViewUploadSidebar v-model="panelMode" />
-        <div class="panel-content">
-          <template v-if="panelMode === 'upload'">
-            <UploadDropzone
-              :accept="
-                activeTab === 'Screenshots'
-                  ? 'image/*'
-                  : activeTab === 'Clips'
-                    ? 'video/*'
-                    : 'audio/*'
-              "
-              :uploading="uploadingMedia"
-              :title="`Drop ${activeTab.toLowerCase()} here`"
-              :hint="`Drag and drop ${activeTab === 'Soundtrack' ? 'audio' : activeTab.toLowerCase()}, or click to browse`"
-              @files-selected="onMediaFilesSelected"
-              @drop-error="onDropError"
-            />
-            <div v-if="mediaError" class="form-error">{{ mediaError }}</div>
-          </template>
-
-          <template v-else>
-            <p v-if="mediaLoading">Loading…</p>
-            <p
-              v-else-if="
-                (activeTab === 'Screenshots' && !screenshots.length) ||
-                (activeTab === 'Clips' && !clips.length) ||
-                (activeTab === 'Soundtrack' && !soundtrackItems.length)
-              "
-              class="empty-row"
-            >
-              No {{ activeTab.toLowerCase() }} yet: switch to Upload to add
-              some.
-            </p>
-            <div v-else class="media-grid">
-              <MediaTile
-                v-for="item in activeTab === 'Screenshots'
-                  ? screenshots
-                  : activeTab === 'Clips'
-                    ? clips
-                    : soundtrackItems"
-                :key="item.id"
-                :item="item"
-                :achievements="game.achievements"
-                :profiles="game.profilesEnabled ? profiles : undefined"
-                @preview="onPreviewMedia($event.url)"
-                @delete="removeMedia"
-                @save="saveMediaItem"
-              />
-            </div>
-
-            <div v-if="activeTabTrash.length" class="trash-section">
-              <button
-                type="button"
-                class="trash-toggle"
-                @click="showMediaTrash = !showMediaTrash"
-              >
-                {{ showMediaTrash ? "▾" : "▸" }} Recently deleted ({{
-                  activeTabTrash.length
-                }})
-              </button>
-              <ul v-if="showMediaTrash" class="trash-list">
-                <li
-                  v-for="item in activeTabTrash"
-                  :key="item.id"
-                  class="trash-row"
-                >
-                  <span class="trash-name">{{
-                    item.filename.split("_").slice(1).join("_")
-                  }}</span>
-                  <span class="trash-meta"
-                    >purges in {{ daysUntil(item.purge_at) }}d</span
-                  >
-                  <button
-                    type="button"
-                    class="secondary-button small"
-                    @click="restoreMediaItem(item)"
-                  >
-                    Restore
-                  </button>
-                </li>
-              </ul>
-            </div>
-          </template>
-        </div>
-      </div>
-      <div
-        v-if="lightboxUrl"
-        class="lightbox-backdrop"
-        @click="lightboxUrl = null"
-      >
-        <img :src="lightboxUrl" alt="" class="lightbox-image" />
-      </div>
+      <GameMediaPanel
+        :kind="
+          activeTab === 'Screenshots'
+            ? 'screenshot'
+            : activeTab === 'Clips'
+              ? 'clip'
+              : 'soundtrack'
+        "
+        :items="
+          activeTab === 'Screenshots'
+            ? screenshots
+            : activeTab === 'Clips'
+              ? clips
+              : soundtrackItems
+        "
+        :trash="activeTabTrash"
+        :achievements="tieAchievements"
+        :profiles="game.profilesEnabled ? profiles : undefined"
+        :loading="mediaLoadedFor !== game.id && !mediaError"
+        :uploading="uploadingMedia"
+        :error="mediaError"
+        @files="onMediaFilesSelected"
+        @delete="removeMedia"
+        :detect="detectOne"
+        @save="saveMediaItem"
+        @bulk-save="bulkSaveMedia"
+        @bulk-delete="bulkDeleteMedia"
+        @bulk-detect="detectMany"
+        @restore="restoreMediaItem"
+        @open-achievement="openAchievement"
+        @thumbnail="keepThumbnail"
+        @problem="mediaError = $event"
+      />
     </section>
 
     <section v-else-if="activeTab === 'Saves'" class="files-panel">
-      <h2>Saves</h2>
-      <div class="panel-body">
-        <ViewUploadSidebar v-model="panelMode" />
-        <div class="panel-content">
-          <template v-if="panelMode === 'upload'">
-            <UploadDropzone
-              accept="*/*"
-              :uploading="saveUploading.has('')"
-              title="Drop a new save here"
-              hint="You'll be asked to name it: one game can hold as many named saves as you want"
-              @files-selected="onNewSaveSelected"
-              @drop-error="onDropError"
-            />
-            <div v-if="filesError" class="form-error">{{ filesError }}</div>
-          </template>
-
-          <template v-else>
-            <p
-              v-if="!saveArchives.length && saveArchivesLoaded"
-              class="empty-row"
-            >
-              No saves yet: switch to Upload to add one.
-            </p>
-            <div v-else class="archive-grid">
-              <div
-                v-for="archive in saveArchives"
-                :key="archive.id"
-                class="archive-card"
-              >
-                <div class="archive-card-header">
-                  <span class="archive-name">{{ archive.name }}</span>
-                  <div class="archive-card-actions">
-                    <button
-                      type="button"
-                      class="icon-button"
-                      title="Rename"
-                      @click="onRenameArchive(archive, false)"
-                    >
-                      ✎
-                    </button>
-                    <button
-                      type="button"
-                      class="icon-button"
-                      title="Delete"
-                      @click="onDeleteArchive(archive, false)"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                </div>
-                <p class="archive-meta">
-                  {{ archive.versions.length }} version{{
-                    archive.versions.length === 1 ? "" : "s"
-                  }}
-                  · latest
-                  {{
-                    archive.versions[0]
-                      ? formatArchiveDate(archive.versions[0].uploaded_at)
-                      : "N/A"
-                  }}
-                </p>
-                <div class="archive-actions-row">
-                  <a
-                    v-if="archive.versions[0]"
-                    :href="archive.versions[0].url"
-                    class="secondary-button small"
-                    >Download latest</a
-                  >
-                  <label class="secondary-button small upload-label">
-                    {{
-                      saveUploading.has(archive.id)
-                        ? "Uploading…"
-                        : "Add new version"
-                    }}
-                    <input
-                      type="file"
-                      class="hidden-input"
-                      :disabled="saveUploading.has(archive.id)"
-                      @change="
-                        onAddSaveVersion(
-                          archive,
-                          Array.from(
-                            ($event.target as HTMLInputElement).files ?? [],
-                          ),
-                        )
-                      "
-                    />
-                  </label>
-                  <button
-                    v-if="archive.versions.length > 1"
-                    type="button"
-                    class="secondary-button small"
-                    @click="
-                      expandedSaveId =
-                        expandedSaveId === archive.id ? null : archive.id
-                    "
-                  >
-                    {{
-                      expandedSaveId === archive.id ? "Hide history" : "History"
-                    }}
-                  </button>
-                </div>
-                <ul
-                  v-if="expandedSaveId === archive.id"
-                  class="archive-history"
-                >
-                  <li
-                    v-for="version in archive.versions.slice(1)"
-                    :key="version.id"
-                    class="archive-history-row"
-                  >
-                    <a :href="version.url" class="file-name">{{
-                      formatArchiveDate(version.uploaded_at)
-                    }}</a>
-                    <span class="file-size">{{
-                      formatFileSize(version.size)
-                    }}</span>
-                    <button
-                      type="button"
-                      class="tile-remove-inline"
-                      title="Delete this version"
-                      @click="onDeleteVersion(archive, version, false)"
-                    >
-                      ✕
-                    </button>
-                  </li>
-                </ul>
-              </div>
-            </div>
-          </template>
-
-          <div v-if="saveTrash.length" class="trash-section">
-            <button
-              type="button"
-              class="trash-toggle"
-              @click="showSaveTrash = !showSaveTrash"
-            >
-              {{ showSaveTrash ? "▾" : "▸" }} Recently deleted ({{
-                saveTrash.length
-              }})
-            </button>
-            <ul v-if="showSaveTrash" class="trash-list">
-              <li
-                v-for="archive in saveTrash"
-                :key="archive.id"
-                class="trash-row"
-              >
-                <span class="trash-name">{{ archive.name }}</span>
-                <span class="trash-meta"
-                  >purges in {{ daysUntil(archive.purge_at) }}d</span
-                >
-                <button
-                  type="button"
-                  class="secondary-button small"
-                  @click="onRestoreArchive(archive, false)"
-                >
-                  Restore
-                </button>
-              </li>
-            </ul>
-          </div>
-        </div>
-      </div>
+      <GameArchivesPanel
+        title="Saves"
+        plural="saves"
+        singular="save"
+        hint="Drop a save here or click to browse. You'll be asked to name it: one game can hold as many named saves as you want."
+        :archives="saveArchives"
+        :trash="saveTrash"
+        :loaded="saveArchivesLoaded"
+        :uploading="saveUploading.has('')"
+        :error="filesError"
+        @files="onNewSaveSelected"
+        @bulk-delete="bulkDeleteArchives($event, false)"
+        @restore="onRestoreArchive($event, false)"
+        @problem="filesError = $event"
+      >
+        <template #card="{ archive, selecting, selected, toggle }">
+          <ArchiveCard
+            :archive="archive"
+            kind="save"
+            :selecting="selecting"
+            :selected="selected"
+            :uploading="saveUploading.has(archive.id)"
+            @toggle="toggle"
+            @edit="openArchiveEdit($event, false)"
+            @delete="onDeleteArchive($event, false)"
+            @add-version="onAddSaveVersion"
+          />
+        </template>
+      </GameArchivesPanel>
     </section>
 
     <section v-else-if="activeTab === 'Docs'" class="files-panel">
-      <h2>Docs</h2>
-      <div class="panel-body">
-        <ViewUploadSidebar v-model="panelMode" />
-        <div class="panel-content">
-          <template v-if="panelMode === 'upload'">
-            <UploadDropzone
-              accept="*/*"
-              :uploading="uploadingFiles"
-              title="Drop documents here"
-              hint="Any file format: drag and drop, or click to browse"
-              @files-selected="onGameFilesSelected($event, 'doc')"
-              @drop-error="onDropError"
-            />
-            <p class="section-hint">
-              Manuals, walkthroughs, strategy guides: any file format.
-            </p>
-            <div v-if="filesError" class="form-error">{{ filesError }}</div>
-          </template>
-
-          <template v-else>
-            <p v-if="!docsFiles.length" class="empty-row">
-              No docs yet: switch to Upload to add one.
-            </p>
-            <ul v-else class="file-list">
-              <li
-                v-for="file in docsFiles"
-                :key="file.filename"
-                class="file-row"
-              >
-                <svg
-                  viewBox="0 0 24 24"
-                  width="16"
-                  height="16"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                >
-                  <path
-                    d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"
-                  />
-                  <path d="M14 2v6h6" />
-                </svg>
-                <a
-                  :href="file.url"
-                  class="file-name"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  >{{ displayFileName(file.filename) }}</a
-                >
-                <span class="file-size">{{ formatFileSize(file.size) }}</span>
-                <button
-                  type="button"
-                  class="tile-remove-inline"
-                  title="Delete"
-                  @click="removeGameFile('doc', file)"
-                >
-                  ✕
-                </button>
-              </li>
-            </ul>
-          </template>
-
-          <div v-if="docsTrash.length" class="trash-section">
-            <button
-              type="button"
-              class="trash-toggle"
-              @click="showDocsTrash = !showDocsTrash"
-            >
-              {{ showDocsTrash ? "▾" : "▸" }} Recently deleted ({{
-                docsTrash.length
-              }})
-            </button>
-            <ul v-if="showDocsTrash" class="trash-list">
-              <li
-                v-for="file in docsTrash"
-                :key="file.filename"
-                class="trash-row"
-              >
-                <span class="trash-name">{{
-                  displayFileName(file.filename)
-                }}</span>
-                <span class="trash-meta"
-                  >purges in {{ daysUntil(file.purge_at) }}d</span
-                >
-                <button
-                  type="button"
-                  class="secondary-button small"
-                  @click="restoreFileItem('doc', file)"
-                >
-                  Restore
-                </button>
-              </li>
-            </ul>
-          </div>
-        </div>
-      </div>
+      <GameMediaPanel
+        kind="doc"
+        :items="docsFiles"
+        :trash="docsTrash"
+        :loading="filesLoaded.doc === null"
+        :uploading="uploadingFiles"
+        :error="filesError"
+        @files="onGameFilesSelected($event, 'doc')"
+        @delete="removeGameFile('doc', $event)"
+        @save="(item, patch) => saveGameFile('doc', item, patch)"
+        @bulk-save="bulkSaveFiles('doc', $event)"
+        @bulk-delete="(items) => items.forEach((f) => removeGameFile('doc', f))"
+        @restore="restoreFileItem('doc', $event as TrashedGameFile)"
+        @problem="filesError = $event"
+      />
     </section>
 
     <section v-else-if="activeTab === 'World Map'" class="world-map-panel">
-      <h2>World Map</h2>
-      <div class="panel-body">
-        <ViewUploadSidebar v-model="panelMode" />
-        <div class="panel-content">
-          <template v-if="panelMode === 'upload'">
-            <div class="world-map-uploads">
-              <div class="world-map-upload-col">
-                <h3>New World</h3>
-                <UploadDropzone
-                  accept="*/*"
-                  :uploading="saveUploading.has('')"
-                  title="Drop a world save .zip here"
-                  hint="Zip the world folder (the one containing level.dat): you'll be asked to name it"
-                  @files-selected="onNewWorldSelected"
-                  @drop-error="onDropError"
-                />
-              </div>
-
-              <div class="world-map-upload-col">
-                <h3>Modpack</h3>
-                <UploadDropzone
-                  accept="*/*"
-                  :uploading="uploadingFiles"
-                  title="Drop your modpack .zip here"
-                  hint="Optional: kept alongside for reference, not tied to a specific world"
-                  @files-selected="onGameFilesSelected($event, 'modpack')"
-                  @drop-error="onDropError"
-                />
-                <ul v-if="modpackFiles.length" class="file-list">
-                  <li
-                    v-for="file in modpackFiles"
-                    :key="file.filename"
-                    class="file-row"
-                  >
-                    <a
-                      :href="file.url"
-                      class="file-name"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      >{{ displayFileName(file.filename) }}</a
-                    >
-                    <span class="file-size">{{
-                      formatFileSize(file.size)
-                    }}</span>
-                    <button
-                      type="button"
-                      class="tile-remove-inline"
-                      title="Delete"
-                      @click="removeGameFile('modpack', file)"
-                    >
-                      ✕
-                    </button>
-                  </li>
-                </ul>
-                <div v-if="modpackTrash.length" class="trash-section">
-                  <button
-                    type="button"
-                    class="trash-toggle"
-                    @click="showModpackTrash = !showModpackTrash"
-                  >
-                    {{ showModpackTrash ? "▾" : "▸" }} Recently deleted ({{
-                      modpackTrash.length
-                    }})
-                  </button>
-                  <ul v-if="showModpackTrash" class="trash-list">
-                    <li
-                      v-for="file in modpackTrash"
-                      :key="file.filename"
-                      class="trash-row"
-                    >
-                      <span class="trash-name">{{
-                        displayFileName(file.filename)
-                      }}</span>
-                      <span class="trash-meta"
-                        >purges in {{ daysUntil(file.purge_at) }}d</span
-                      >
-                      <button
-                        type="button"
-                        class="secondary-button small"
-                        @click="restoreFileItem('modpack', file)"
-                      >
-                        Restore
-                      </button>
-                    </li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-            <div v-if="filesError" class="form-error">{{ filesError }}</div>
-          </template>
-
-          <template v-else>
-            <div v-if="worldMaps.length" class="world-map-grid">
-              <div
-                v-for="world in worldMaps"
-                :key="world.id"
-                class="world-map-card"
-                :class="{ rendering: world.status === 'rendering' }"
-              >
-                <div
-                  class="world-map-thumb"
-                  @click="
-                    world.has_thumbnail ? viewWorldMap(world.id) : undefined
-                  "
-                >
-                  <img
-                    v-if="world.has_thumbnail"
-                    :src="worldMapThumbnailUrl(game.id, world.id)"
-                    alt=""
-                  />
-                  <div v-else class="world-map-thumb-placeholder">
-                    <svg
-                      viewBox="0 0 24 24"
-                      width="28"
-                      height="28"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="1.5"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    >
-                      <path d="M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3z" />
-                      <path d="M9 3v15M15 6v15" />
-                    </svg>
-                  </div>
-                  <div
-                    v-if="world.status === 'rendering'"
-                    class="world-map-progress"
-                  >
-                    <div class="world-map-progress-fill"></div>
-                  </div>
-                </div>
-                <div class="world-map-card-body">
-                  <div class="archive-card-header">
-                    <span class="archive-name">{{ world.name }}</span>
-                    <div class="archive-card-actions">
-                      <button
-                        type="button"
-                        class="icon-button"
-                        title="Rename"
-                        @click="onRenameArchive(world, true)"
-                      >
-                        ✎
-                      </button>
-                      <button
-                        type="button"
-                        class="icon-button"
-                        title="Delete"
-                        @click="onDeleteArchive(world, true)"
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  </div>
-                  <span class="world-map-status" :class="world.status">{{
-                    world.detail || world.status
-                  }}</span>
-                  <div class="world-map-card-actions">
-                    <button
-                      type="button"
-                      class="secondary-button small"
-                      :disabled="
-                        worldMapStarting.has(world.id) ||
-                        world.status === 'rendering'
-                      "
-                      @click="startWorldMapRender(world.id)"
-                    >
-                      {{
-                        world.status === "rendering"
-                          ? "Rendering…"
-                          : world.has_thumbnail
-                            ? "Re-render"
-                            : "Render Map"
-                      }}
-                    </button>
-                    <button
-                      v-if="world.has_thumbnail"
-                      type="button"
-                      class="primary-button small"
-                      @click="viewWorldMap(world.id)"
-                    >
-                      View Map
-                    </button>
-                    <label class="secondary-button small upload-label">
-                      {{
-                        saveUploading.has(world.id)
-                          ? "Uploading…"
-                          : "New version"
-                      }}
-                      <input
-                        type="file"
-                        class="hidden-input"
-                        :disabled="saveUploading.has(world.id)"
-                        @change="
-                          onAddWorldVersion(
-                            world,
-                            Array.from(
-                              ($event.target as HTMLInputElement).files ?? [],
-                            ),
-                          )
-                        "
-                      />
-                    </label>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <p v-else-if="worldMapsLoaded" class="empty-row">
-              No worlds yet: switch to Upload to add a world save.
-            </p>
-
-            <div v-if="worldTrash.length" class="trash-section">
+      <GameArchivesPanel
+        scoped
+        title="Worlds"
+        plural="worlds"
+        singular="world"
+        hint="Zip the world folder (the one containing level.dat), then drop it here. You'll be asked to name it."
+        :archives="worldMaps"
+        :trash="worldTrash"
+        :loaded="worldMapsLoaded"
+        :uploading="saveUploading.has('')"
+        :error="filesError"
+        @files="onNewWorldSelected"
+        @bulk-delete="bulkDeleteArchives($event, true)"
+        @restore="onRestoreArchive($event, true)"
+        @problem="filesError = $event"
+      >
+        <template #card="{ archive: world, selecting, selected, toggle }">
+          <ArchiveCard
+            :archive="world"
+            kind="world"
+            :selecting="selecting"
+            :selected="selected"
+            :uploading="saveUploading.has(world.id)"
+            :thumbnail-url="
+              world.has_thumbnail
+                ? worldMapThumbnailUrl(game.id, world.id)
+                : null
+            "
+            :rendering="world.status === 'rendering'"
+            @toggle="toggle"
+            @open="viewWorldMap($event.id)"
+            @edit="openArchiveEdit($event, true)"
+            @delete="onDeleteArchive($event, true)"
+            @add-version="onAddWorldVersion"
+          >
+            <span class="world-map-status" :class="world.status">{{
+              world.detail || world.status
+            }}</span>
+            <div class="world-map-card-actions">
               <button
                 type="button"
-                class="trash-toggle"
-                @click="showWorldTrash = !showWorldTrash"
+                class="secondary-button small"
+                :disabled="
+                  worldMapStarting.has(world.id) || world.status === 'rendering'
+                "
+                @click="startWorldMapRender(world.id)"
               >
-                {{ showWorldTrash ? "▾" : "▸" }} Recently deleted ({{
-                  worldTrash.length
-                }})
+                {{
+                  world.status === "rendering"
+                    ? "Rendering…"
+                    : world.has_thumbnail
+                      ? "Re-render"
+                      : "Render Map"
+                }}
               </button>
-              <ul v-if="showWorldTrash" class="trash-list">
-                <li
-                  v-for="world in worldTrash"
-                  :key="world.id"
-                  class="trash-row"
-                >
-                  <span class="trash-name">{{ world.name }}</span>
-                  <span class="trash-meta"
-                    >purges in {{ daysUntil(world.purge_at) }}d</span
-                  >
-                  <button
-                    type="button"
-                    class="secondary-button small"
-                    @click="onRestoreArchive(world, true)"
-                  >
-                    Restore
-                  </button>
-                </li>
-              </ul>
+              <button
+                v-if="world.has_thumbnail"
+                type="button"
+                class="primary-button small"
+                @click="viewWorldMap(world.id)"
+              >
+                View Map
+              </button>
             </div>
+          </ArchiveCard>
+        </template>
+        <template #after>
+          <iframe
+            v-if="activeMapArchiveId"
+            :src="worldMapViewUrl(game.id, activeMapArchiveId)"
+            class="world-map-frame"
+            title="World map"
+          ></iframe>
+        </template>
+      </GameArchivesPanel>
 
-            <iframe
-              v-if="activeMapArchiveId"
-              :src="worldMapViewUrl(game.id, activeMapArchiveId)"
-              class="world-map-frame"
-              title="World map"
-            ></iframe>
-          </template>
-        </div>
+      <div class="modpack-block">
+        <GameMediaPanel
+          scoped
+          kind="modpack"
+          :items="modpackFiles"
+          :trash="modpackTrash"
+          :loading="filesLoaded.modpack === null"
+          :uploading="uploadingFiles"
+          :error="null"
+          @files="onGameFilesSelected($event, 'modpack')"
+          @delete="removeGameFile('modpack', $event)"
+          @save="(item, patch) => saveGameFile('modpack', item, patch)"
+          @bulk-save="bulkSaveFiles('modpack', $event)"
+          @bulk-delete="
+            (items) => items.forEach((f) => removeGameFile('modpack', f))
+          "
+          @restore="restoreFileItem('modpack', $event as TrashedGameFile)"
+          @problem="filesError = $event"
+        />
       </div>
     </section>
 
     <section v-else-if="activeTab === 'Stats'" class="stats-panel">
-      <h2>Stats</h2>
-      <div class="stats-grid">
-        <div class="stat-tile">
-          <span class="stat-label">Total playtime</span>
-          <span class="stat-value">{{ statsPlaytimeLabel }}</span>
-        </div>
-        <div class="stat-tile">
-          <span class="stat-label">Achievements</span>
-          <span class="stat-value">
-            {{
-              game.achievementTotal
-                ? `${unlockedAchievements.length} / ${game.achievementTotal}`
-                : "N/A"
-            }}
-          </span>
-        </div>
-        <div class="stat-tile">
-          <span class="stat-label">Completion</span>
-          <span class="stat-value">{{
-            game.achievementTotal ? `${game.achievementPercent}%` : "N/A"
-          }}</span>
-        </div>
-        <div class="stat-tile">
-          <span class="stat-label">Rating</span>
-          <span class="stat-value">{{
-            tally ? `${tally.sum.toFixed(1)} / ${tally.max}` : "N/A"
-          }}</span>
-        </div>
-        <div class="stat-tile">
-          <span class="stat-label">Status</span>
-          <span class="stat-value">{{ game.status }}</span>
-        </div>
-        <div class="stat-tile">
-          <span class="stat-label">Source</span>
-          <span class="stat-value">{{ game.source || "N/A" }}</span>
-        </div>
-        <div class="stat-tile">
-          <span class="stat-label">Date added</span>
-          <span class="stat-value">{{ formatStatsDate(game.dateAdded) }}</span>
-        </div>
-        <div class="stat-tile">
-          <span class="stat-label">Last played</span>
-          <span class="stat-value">{{
-            formatStatsDate(game.lastPlayedAt)
-          }}</span>
-        </div>
-        <div class="stat-tile">
-          <span class="stat-label">First achievement</span>
-          <span class="stat-value">{{ formatStatsDate(firstUnlockedAt) }}</span>
-        </div>
-        <div class="stat-tile">
-          <span class="stat-label">Latest achievement</span>
-          <span class="stat-value">{{ formatStatsDate(lastUnlockedAt) }}</span>
-        </div>
-        <div class="stat-tile">
-          <span class="stat-label">Purchase date</span>
-          <span class="stat-value">{{
-            formatStatsDate(game.ownership.purchaseDate)
-          }}</span>
-        </div>
-        <div v-if="game.completionDate" class="stat-tile">
-          <span class="stat-label">100% completed</span>
-          <span class="stat-value">{{
-            formatStatsDate(game.completionDate)
-          }}</span>
-        </div>
-      </div>
-    </section>
-
-    <section v-else-if="activeTab === 'History'" class="history-panel">
-      <h2>Metadata History</h2>
-      <p v-if="fieldChangesLoading" class="empty-state">Loading…</p>
-      <p v-else-if="fieldChangesError" class="empty-state">
-        {{ fieldChangesError }}
-      </p>
-      <p v-else-if="!fieldChanges.length" class="empty-state">
-        No metadata changes yet. Edits from the game form or a metadata refresh
-        show up here.
-      </p>
-      <ul v-else class="history-list">
-        <li
-          v-for="change in fieldChanges"
-          :key="change.id"
-          class="history-entry"
-        >
-          <div class="history-entry-head">
-            <span class="history-field">{{
-              FIELD_CHANGE_LABELS[change.fieldName] || change.fieldName
-            }}</span>
-            <span class="history-date">{{
-              formatFieldChangeDate(change.changedAt)
-            }}</span>
-          </div>
-          <div class="history-values">
-            <span class="history-old">{{ change.oldValue || "Empty" }}</span>
-            <svg
-              viewBox="0 0 24 24"
-              width="14"
-              height="14"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <path d="M5 12h14" />
-              <path d="M13 6l6 6-6 6" />
-            </svg>
-            <span class="history-new">{{ change.newValue || "Empty" }}</span>
-          </div>
-        </li>
-      </ul>
+      <GameStatsPanel
+        :show-achievements="achievementsOn"
+        :show-rating="!pageSettings.hide_rating"
+        :hide-history="pageSettings.hide_history"
+        :game="game"
+        :changes="fieldChanges"
+        :media="mediaItems"
+        :loading="fieldChangesLoading"
+        :error="fieldChangesError"
+      />
     </section>
   </main>
 
@@ -4035,34 +4274,123 @@ function formatPlaytime(minutes: number) {
 .detail {
   position: relative;
   font-family: system-ui, sans-serif;
-  color: #fff;
+  color: #f2f2f2;
   min-height: 100vh;
-  background: #121212;
-  overflow: hidden;
+  background: #0d0d0d;
+  /* clip, not hidden: hidden would turn this into a scroll container and stop
+     the top bar sticking */
+  overflow-x: clip;
 }
 .detail-skeleton-body {
-  padding: 24px;
+  max-width: 1180px;
+  margin: 22px auto 0;
+  padding: 0 24px 40px;
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 14px;
 }
-.detail-skeleton-pills,
-.detail-skeleton-tabs {
+.detail-skeleton-text {
+  flex: 1;
+  max-width: 560px;
   display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.detail-skeleton-row {
+  display: flex;
+  flex-wrap: wrap;
   gap: 10px;
 }
-.ambient-bg {
-  position: fixed;
+.loading-state .tabbar-wrap {
+  max-width: 1180px;
+}
+.hero {
+  position: relative;
+  background-color: #1a1a1a;
+  min-height: 440px;
+  display: flex;
+  align-items: flex-end;
+  overflow: hidden;
+}
+.hero-backdrop {
+  position: absolute;
   inset: 0;
   background-size: cover;
-  background-position: center;
-  filter: blur(80px);
-  opacity: 0.25;
-  transform: scale(1.2);
+  background-repeat: no-repeat;
+  background-position: center 20%;
+  filter: brightness(0.55) saturate(1.15);
   z-index: 0;
 }
-.hero,
-.tabs,
+.hero-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(13, 13, 13, 0.25) 0%,
+      rgba(13, 13, 13, 0.55) 45%,
+      #0d0d0d 96%
+    ),
+    linear-gradient(
+      90deg,
+      rgba(13, 13, 13, 0.75) 0%,
+      rgba(13, 13, 13, 0.15) 40%
+    );
+}
+.hero-content {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 0 24px 28px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: flex-end;
+  gap: 26px;
+}
+.poster-card {
+  width: 190px;
+  aspect-ratio: 2 / 3;
+  flex-shrink: 0;
+  border-radius: 8px;
+  background-size: cover;
+  background-repeat: no-repeat;
+  background-origin: border-box;
+  background-clip: border-box;
+  background-position: center;
+  background-color: #222222;
+  border: 1px solid transparent;
+  box-shadow: 0 24px 48px -14px rgba(0, 0, 0, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.3);
+  text-align: center;
+  padding: 10px;
+}
+.hero-text {
+  min-width: 0;
+  padding-bottom: 4px;
+}
+.native-title {
+  font-size: 0.82rem;
+  color: #666;
+  margin-bottom: 4px;
+  font-weight: 500;
+}
+.title {
+  font-weight: 800;
+  font-size: 2.5rem;
+  line-height: 1.05;
+  margin: 0 0 14px;
+  letter-spacing: -0.01em;
+  text-shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
+}
 .overview,
 .achievements,
 .notes-panel,
@@ -4074,48 +4402,22 @@ function formatPlaytime(minutes: number) {
   position: relative;
   z-index: 1;
 }
-.hero {
-  position: relative;
-  background-size: cover;
-  background-position: center;
-  min-height: 360px;
-  display: flex;
-  align-items: flex-end;
-}
-.hero-overlay {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    180deg,
-    rgba(18, 18, 18, 0) 40%,
-    rgba(18, 18, 18, 0.85) 85%,
-    #121212 100%
-  );
-}
-.hero-inner {
-  position: relative;
-  z-index: 1;
-  width: 100%;
-  max-width: 1600px;
-  margin: 0 auto;
-  /* clear of the floating menu/back buttons */
-  padding: 72px 24px 28px;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 18px;
-}
-.hero-inner h1 {
-  margin: 0;
-  font-size: 2.4rem;
-  /* the inherited line height is a fixed 23px */
-  line-height: 1.15;
-  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.6);
-}
-@media (max-width: 600px) {
-  .hero-inner h1 {
-    font-size: 1.8rem;
+@media (max-width: 640px) {
+  .hero-content {
+    flex-direction: column;
+    align-items: flex-start;
   }
+}
+/* Sits under the top bar and stays there while the page scrolls. It is sticky
+   rather than absolute so it never slides over the bar, and the negative
+   bottom margin gives back the room it takes so the hero does not move. */
+.detail > .back-spot {
+  display: flex;
+  width: 38px;
+  position: sticky;
+  top: 76px;
+  z-index: 79;
+  margin: 16px 0 -54px var(--ui-edge-left);
 }
 .parent-breadcrumb {
   display: flex;
@@ -4140,70 +4442,86 @@ function formatPlaytime(minutes: number) {
   text-transform: uppercase;
   letter-spacing: 0.03em;
 }
-.variants-section,
-.similar-games-section {
-  margin-bottom: 24px;
-}
-.variants-heading {
-  margin: 0 0 10px;
-  font-size: 0.85rem;
-  color: #999;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-.variants-row {
-  display: flex;
-  gap: 12px;
-  overflow-x: auto;
-  padding-bottom: 4px;
-}
-.variant-card {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  width: 110px;
-  flex-shrink: 0;
-  text-decoration: none;
-  padding: 8px;
-  border-radius: 10px;
-  transition: background 0.15s ease;
-}
-.variant-card:hover {
-  background: rgba(255, 255, 255, 0.06);
-}
-.variant-cover {
-  width: 90px;
-  height: 135px;
-  object-fit: cover;
-  border-radius: 6px;
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
-}
-.variant-title {
-  color: #fff;
-  font-size: 0.76rem;
-  font-weight: 600;
-  text-align: center;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 100%;
-}
-.badges {
+.badge-row {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+  margin-bottom: 16px;
 }
 .badge {
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 999px;
-  padding: 4px 14px;
-  font-size: 13px;
+  line-height: 1.25;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 7px;
+  padding: 4px 11px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #9c9c9c;
   text-transform: capitalize;
-  color: #ddd;
 }
-.rating-badge {
+.status-select option {
+  background: #171717;
+  color: #f2f2f2;
+}
+.status-select {
+  color-scheme: dark;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  border-color: rgba(214, 138, 52, 0.4);
   color: #d68a34;
+  font-family: inherit;
+  cursor: pointer;
+  padding-right: 26px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23d68a34' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  background-size: 10px;
+}
+.action-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.edit-btn {
+  background: #d68a34;
+  border: none;
+  color: #14100a;
+  border-radius: 8px;
+  padding: 0 20px;
+  height: 38px;
+  font-family: inherit;
+  font-size: 0.86rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.icon-btn {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #f2f2f2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.icon-btn svg {
+  width: 16px;
+  height: 16px;
+}
+.icon-btn:hover {
+  border-color: rgba(214, 138, 52, 0.4);
+}
+.icon-btn.active {
+  color: #d68a34;
+  border-color: rgba(214, 138, 52, 0.4);
+  background: rgba(214, 138, 52, 0.16);
 }
 .stale-badge {
   background: rgba(220, 38, 38, 0.18);
@@ -4213,10 +4531,10 @@ function formatPlaytime(minutes: number) {
 .achievement-progress-badge {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 5px;
-  border: none;
   cursor: pointer;
-  font: inherit;
+  font-family: inherit;
   text-transform: none;
 }
 .achievement-progress-badge svg {
@@ -4227,136 +4545,93 @@ function formatPlaytime(minutes: number) {
   background: rgba(214, 138, 52, 0.22);
   color: #d68a34;
 }
-.hero-actions {
-  position: absolute;
-  bottom: 20px;
-  right: 24px;
-  z-index: 2;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  opacity: 0;
-  transition: opacity 0.2s ease;
-}
-.hero:hover .hero-actions {
-  opacity: 1;
-}
-.hero-icon-button {
-  background: rgba(0, 0, 0, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  color: #fff;
-  border-radius: 50%;
-  width: 34px;
-  height: 34px;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition:
-    background 0.15s ease,
-    color 0.15s ease;
-}
-.hero-icon-button:hover {
-  background: rgba(0, 0, 0, 0.7);
-}
-.hero-icon-button.active {
-  color: #d68a34;
-  border-color: rgba(214, 138, 52, 0.5);
-}
-.edit-button {
-  background: rgba(0, 0, 0, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  color: #fff;
-  border-radius: 999px;
-  padding: 8px 20px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.15s ease;
-}
-.edit-button:hover {
-  background: rgba(0, 0, 0, 0.7);
-}
 .meta {
   text-transform: capitalize;
   color: #ddd;
 }
-.tabs {
+.tab-more {
+  position: relative;
+  flex-shrink: 0;
+}
+.tab-more-btn {
+  min-width: 36px;
+  font-size: 1.05rem;
+  line-height: 1;
+}
+.tab-more-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 60;
+  min-width: 150px;
+  list-style: none;
+  margin: 0;
+  padding: 6px;
+  background: #171717;
+  border: 1px solid #2b2b2b;
+  border-radius: 12px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+}
+.tab-more-menu button {
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: #ddd;
+  font-family: inherit;
+  font-size: 0.84rem;
+  text-align: left;
+  cursor: pointer;
+}
+.tab-more-menu button:hover {
+  background: rgba(255, 255, 255, 0.07);
+}
+.tabbar-wrap {
+  position: relative;
+  z-index: 1;
+  max-width: 1180px;
+  margin: 22px auto 0;
+  padding: 0 24px;
+  box-sizing: border-box;
+}
+.tabbar {
   display: flex;
   gap: 4px;
-  width: 100%;
-  max-width: 1600px;
-  margin: 16px auto 0;
-  padding: 8px 16px;
-  box-sizing: border-box;
-  background: rgba(0, 0, 0, 0.25);
-  border: 1px solid #2a2a2a;
-  border-radius: 8px;
-  /* a screen too narrow for every tab scrolls the bar instead of silently
-     clipping the later ones, this was previously invisible rather than
-     reachable at all below ~840px wide */
+  background: #1a1a1a;
+  border-radius: 10px;
+  width: fit-content;
+  max-width: 100%;
   overflow-x: auto;
+  padding: 5px;
   scrollbar-width: none;
-  -ms-overflow-style: none;
-  overflow-x: auto;
 }
-.tabs::-webkit-scrollbar {
+.tabbar::-webkit-scrollbar {
   display: none;
 }
-.tab {
-  background: rgba(255, 255, 255, 0.06);
-  border: none;
-  color: #ccc;
-  padding: 8px 18px;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  border-radius: 999px;
-  white-space: nowrap;
+.tab-btn {
   flex-shrink: 0;
-  transition:
-    background 0.15s ease,
-    color 0.15s ease;
+  white-space: nowrap;
+  background: transparent;
+  border: none;
+  color: #9c9c9c;
+  font-family: inherit;
+  font-size: 0.84rem;
+  font-weight: 600;
+  padding: 8px 18px;
+  border-radius: 7px;
+  cursor: pointer;
 }
-.tab:hover {
-  background: #3a3a3a;
-  color: #fff;
-}
-.tab.active {
+.tab-btn.active {
   background: #d68a34;
-  color: #121212;
+  color: #14100a;
 }
 .overview {
   width: 100%;
-  max-width: 1600px;
+  max-width: 1180px;
   margin: 0 auto;
-  padding: 24px;
+  padding: 22px 24px 60px;
   box-sizing: border-box;
-  display: grid;
-  grid-template-columns: 1fr 340px;
-  gap: 24px;
-  align-items: start;
-}
-@media (max-width: 860px) {
-  /* the details sidebar has real, sometimes long content (platforms,
-     ownership, links), stacking it below the description keeps it
-     reachable instead of squeezed into a column with no room */
-  .overview {
-    grid-template-columns: 1fr;
-    padding: 16px;
-  }
-  .details-panel {
-    margin-right: 0;
-  }
-  /* grid items default to min-width:auto (their content's natural size),
-     without overriding it, a single wide descendant anywhere inside these
-     two (a media row, a long link, a table) forces the "1fr" track back
-     out to that descendant's width instead of actually shrinking to fit */
-  .overview-main,
-  .details-panel {
-    min-width: 0;
-  }
 }
 .text-button {
   background: none;
@@ -4385,67 +4660,144 @@ function formatPlaytime(minutes: number) {
   display: block;
   margin-top: 4px;
 }
-.resume-note-card {
-  max-width: 720px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid #2a2a2a;
-  border-radius: 10px;
-  padding: 14px 16px;
-  margin-bottom: 20px;
+.my-note {
+  margin-top: 26px;
+  padding-top: 22px;
+  border-top: 1px solid #1f1f1f;
 }
-.resume-note-header {
+.my-note.empty {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 8px;
+  align-items: baseline;
+  gap: 12px;
 }
-.resume-note-header h3 {
-  margin: 0;
-  font-size: 14px;
-  color: #fff;
+.note-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 0 0 10px;
 }
-.resume-note-text {
-  color: #ddd;
-  font-size: 13.5px;
-  line-height: 1.6;
+.note-head h3 {
   margin: 0;
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: #f2f2f2;
+}
+.note-private {
+  flex: 1;
+  font-size: 0.72rem;
+  color: #666;
+}
+.note-text {
+  margin: 0;
+  font-size: 0.96rem;
+  line-height: 1.7;
+  color: #d0d0d0;
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
-.resume-note-empty {
-  color: #777;
-  font-size: 13px;
-  margin: 0;
-}
-.resume-note-textarea {
+.note-input {
+  display: block;
   width: 100%;
   box-sizing: border-box;
-  background: #111;
-  border: 1px solid #3a3a3a;
-  border-radius: 8px;
-  color: #f5f5f5;
-  padding: 10px 12px;
-  font: inherit;
-  font-size: 13.5px;
+  min-height: 84px;
   resize: vertical;
-}
-.resume-note-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  margin-top: 10px;
-}
-.description-wrap {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  max-width: 720px;
-  padding-left: 16px;
-  border-left: 3px solid #d68a34;
-}
-.description-html {
-  color: #ddd;
-  font-size: 16px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid #2a2a2a;
+  background: #1a1a1a;
+  color: #f2f2f2;
+  font: inherit;
+  font-size: 0.96rem;
   line-height: 1.7;
+}
+.note-input::placeholder {
+  color: #666;
+}
+.note-input:focus {
+  outline: none;
+  border-color: rgba(214, 138, 52, 0.7);
+}
+.note-error {
+  color: #e57373;
+  font-size: 0.8rem;
+  margin: 8px 0 0;
+}
+.note-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 12px;
+}
+.btn-text {
+  background: none;
+  border: none;
+  /* larger tap target without moving the text */
+  padding: 6px 4px;
+  margin: -6px -4px;
+  color: #d68a34;
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.btn-text:hover {
+  color: #e8a552;
+}
+.btn-text.muted {
+  color: #9c9c9c;
+}
+.btn-text.muted:hover {
+  color: #f2f2f2;
+}
+.btn-solid {
+  background: #d68a34;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 18px;
+  color: #14100a;
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+.btn-solid:hover {
+  background: #e29a48;
+}
+.btn-solid:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.description-block {
+  margin-top: 22px;
+}
+.description {
+  font-size: 0.96rem;
+  line-height: 1.7;
+  color: #9c9c9c;
+  margin: 0;
+}
+.description.clamped {
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.read-more-btn {
+  background: none;
+  border: none;
+  color: #d68a34;
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 6px 0 0;
+}
+.read-more-btn:hover {
+  text-decoration: underline;
+}
+.read-more-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 .description-html :deep(img),
 .description-html :deep(video) {
@@ -4461,7 +4813,7 @@ function formatPlaytime(minutes: number) {
   margin: 18px 0 6px;
   font-size: 15px;
   font-weight: 700;
-  color: #fff;
+  color: #f2f2f2;
 }
 .description-html :deep(p) {
   margin: 0 0 12px;
@@ -4473,107 +4825,145 @@ function formatPlaytime(minutes: number) {
   padding-left: 20px;
   margin: 0 0 12px;
 }
-.rating-breakdown {
-  display: flex;
-  gap: 12px;
-  margin-top: 24px;
-  flex-wrap: wrap;
-}
-.rating-item {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid #232323;
-  border-radius: 10px;
-  padding: 12px 18px;
-  min-width: 90px;
-}
-.rating-label {
-  color: #999;
-  font-size: 13px;
-}
-.rating-score {
-  color: #d68a34;
-  font-size: 18px;
-  font-weight: 600;
-}
-.details-panel {
-  border: 1px solid #2a2a2a;
-  border-radius: 12px;
-  padding: 6px 18px 16px;
-  background: rgba(0, 0, 0, 0.3);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
-  margin-right: -24px;
-}
-.panel-title {
-  margin: 14px 0 6px;
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: #777;
-  font-weight: 700;
-}
-.detail-row {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 8px 0;
-  font-size: 14px;
+/* Media's row of small label/value pairs: fixed-width columns that start at
+   the left, so a long value never stretches a cell and leaves a gap. */
+.meta-block {
+  margin-bottom: 24px;
+  padding-bottom: 24px;
   border-bottom: 1px solid #202020;
 }
-.detail-row:last-child {
-  border-bottom: none;
+.meta-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, 132px);
+  gap: 18px 40px;
 }
-.detail-label {
-  color: #999;
+@media (max-width: 640px) {
+  .meta-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px 20px;
+  }
 }
-.detail-value {
-  color: #fff;
-}
-.feature-pills {
+.meta-item {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
 }
-.feature-pill {
-  background: #2a2a2a;
-  padding: 3px 8px;
-  border-radius: 999px;
-  font-size: 11px;
-  color: #ccc;
+.meta-label {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: #666;
+  font-weight: 700;
 }
-.platforms {
-  list-style: none;
+.meta-value {
+  font-size: 0.9rem;
+  color: #f2f2f2;
+  font-variant-numeric: tabular-nums;
+}
+.meta-value.accent {
+  color: #d68a34;
+  font-weight: 700;
+}
+.meta-value.muted {
+  color: #666;
+}
+.meta-link {
+  background: none;
+  border: none;
   padding: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
 }
-.platform-row {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
+.meta-link:hover {
+  text-decoration: underline;
 }
-.platform-line {
+.more-details {
+  margin-top: 28px;
+  padding-top: 16px;
+  border-top: 1px solid #202020;
+}
+.more-details > summary {
+  cursor: pointer;
+  list-style: none;
+  color: #d68a34;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+.more-details > summary::-webkit-details-marker {
+  display: none;
+}
+.more-details > summary::before {
+  content: "▸ ";
+}
+.more-details[open] > summary::before {
+  content: "▾ ";
+}
+.more-block {
+  margin-top: 20px;
+}
+.more-title {
+  margin: 0 0 8px;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: #666;
+  font-weight: 700;
+}
+.more-details .read-more-btn {
+  display: block;
+  padding-top: 10px;
+}
+.kv-row {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  gap: 8px;
-  font-size: 14px;
+  gap: 16px;
+  padding: 9px 0;
+  border-bottom: 1px solid #202020;
+  font-size: 0.88rem;
 }
-.platform-name {
-  color: #fff;
-  font-weight: 600;
+.kv-row:last-child {
+  border-bottom: none;
 }
-.platform-meta {
-  color: #999;
-  white-space: nowrap;
+.kv-row.stack {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
 }
-.platform-last-played {
-  color: #666;
-  font-size: 12px;
+.kv-label {
+  color: #9c9c9c;
+  flex-shrink: 0;
+}
+.kv-value {
+  color: #f2f2f2;
+  text-align: right;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+.kv-row.stack .kv-value {
+  text-align: left;
+}
+.kv-value.accent {
+  color: #d68a34;
+  font-weight: 700;
+}
+.kv-row.total {
+  font-weight: 700;
+}
+.folder-value {
+  font-size: 0.8rem;
+}
+.ownership-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ownership-format {
+  text-transform: capitalize;
+  font-weight: 700;
 }
 .links-list {
   list-style: none;
@@ -4585,230 +4975,528 @@ function formatPlaytime(minutes: number) {
 }
 .links-list a {
   color: #d68a34;
-  font-size: 14px;
+  font-size: 0.88rem;
   text-decoration: none;
 }
 .links-list a:hover {
   text-decoration: underline;
 }
-.ownership-info {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  color: #ddd;
-  font-size: 14px;
-}
-.ownership-format {
-  text-transform: capitalize;
-  color: #fff;
-  font-weight: 600;
-}
-.trophy-summary {
-  display: flex;
-  gap: 20px;
-  margin: 16px 0 24px;
-}
-.trophy-count {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: #ccc;
-  font-size: 14px;
-  font-weight: 600;
-}
-.trophy-badge {
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  display: inline-block;
-}
-.trophy-badge-bronze {
-  background: #b06a35;
-  border: 2px solid #7a4a25;
-}
-.trophy-badge-silver {
-  background: #b8b8b8;
-  border: 2px solid #7a7a7a;
-}
-.trophy-badge-gold {
-  background: #d4af37;
-  border: 2px solid #9a7a1a;
-}
-.trophy-badge-platinum {
-  background: #a8b8c8;
-  border: 2px solid #6a7a8a;
-}
-.trophy-badge.dim {
-  background: #2a2a2a;
-  border-color: #3a3a3a;
-}
-.achievement-list {
+.platform-list {
   list-style: none;
   padding: 0;
-  margin-top: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+  margin: 0;
 }
-.achievement-row {
+.platform-item {
+  padding: 9px 0;
+  border-bottom: 1px solid #202020;
+}
+.platform-top {
   display: flex;
-  gap: 14px;
-  padding: 12px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid #232323;
-  border-radius: 10px;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+}
+.platform-name {
+  color: #f2f2f2;
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+.platform-hours {
+  color: #f2f2f2;
+  font-size: 0.88rem;
+  font-variant-numeric: tabular-nums;
+}
+.platform-sub {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+  margin-top: 2px;
+  font-size: 0.74rem;
+  color: #666;
+}
+.kv-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  column-gap: 32px;
+}
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.chip {
+  background: #222222;
+  color: #9c9c9c;
+  border: 1px solid #2b2b2b;
+  border-radius: 999px;
+  padding: 5px 13px;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+.filter-link {
+  color: inherit;
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition:
+    color 0.15s ease,
+    border-color 0.15s ease;
+}
+.filter-link:hover,
+.filter-link:focus-visible {
+  color: #d68a34;
+  border-bottom-color: rgba(214, 138, 52, 0.5);
+  outline: none;
+}
+.credit-dot {
+  opacity: 0.6;
+}
+.badge.filter-badge {
+  text-decoration: none;
+  transition:
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+.badge.filter-badge:hover,
+.badge.filter-badge:focus-visible {
+  color: #d68a34;
+  border-color: rgba(214, 138, 52, 0.5);
+  outline: none;
+}
+.chip.chip-link {
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+.chip.chip-link:hover,
+.chip.chip-link:focus-visible {
+  border-color: rgba(214, 138, 52, 0.6);
+  color: #fff;
+  outline: none;
+}
+.chip.primary {
+  background: rgba(214, 138, 52, 0.16);
+  color: #d68a34;
+  border-color: rgba(214, 138, 52, 0.4);
+}
+.related-section {
+  margin-top: 28px;
+}
+.section-heading {
+  display: flex;
   align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+.section-heading h2 {
+  font-weight: 800;
+  font-size: 1.05rem;
+  margin: 0;
+}
+.poster-grid {
+  margin-top: 20px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 16px;
+}
+.poster-card-sm {
+  cursor: pointer;
   text-decoration: none;
   color: inherit;
 }
-.achievement-icon {
-  position: relative;
-  width: 56px;
-  height: 56px;
-  border-radius: 10px;
+.poster-card-sm-art {
+  aspect-ratio: 2 / 3;
+  border-radius: 8px;
   background-size: cover;
+  background-repeat: no-repeat;
+  background-origin: border-box;
+  background-clip: border-box;
   background-position: center;
-  background-color: #1a1a1a;
-  flex-shrink: 0;
+  background-color: #222222;
+  border: 1px solid transparent;
+  transition: border-color 0.15s ease;
 }
-.achievement-row:not(.unlocked) .achievement-icon {
-  filter: grayscale(100%) brightness(0.5);
+.poster-card-sm:hover .poster-card-sm-art {
+  border-color: rgba(214, 138, 52, 0.5);
 }
-.achievement-badge {
-  position: absolute;
-  bottom: -6px;
-  right: -6px;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
+.poster-card-sm-title {
+  margin-top: 6px;
+  font-size: 0.8rem;
   font-weight: 700;
-  color: #1a1a1a;
-  border: 2px solid #121212;
-}
-.badge-bronze {
-  background: #b06a35;
-}
-.badge-silver {
-  background: #b8b8b8;
-}
-.badge-gold {
-  background: #d4af37;
-}
-.badge-locked {
-  background: #3a3a3a;
-  color: #888;
-}
-.achievement-info {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.achievement-name {
-  color: #fff;
-  font-weight: 600;
-  font-size: 15px;
-}
-.achievement-row:not(.unlocked) .achievement-name {
-  color: #999;
-}
-.achievement-description {
-  color: #999;
-  font-size: 13px;
-}
-.achievement-unlocked-at {
-  color: #d68a34;
-  font-size: 12px;
-  margin-top: 4px;
-}
-.achievement-progress {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 4px;
-}
-.progress-bar {
-  flex: 1;
-  max-width: 160px;
-  height: 6px;
-  background: #2a2a2a;
-  border-radius: 3px;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
 }
-.progress-fill {
-  height: 100%;
-  background: #d68a34;
+.poster-card-sm-meta {
+  margin-top: 2px;
+  font-size: 0.7rem;
+  color: #666;
 }
-.progress-label {
-  color: #999;
-  font-size: 12px;
-  white-space: nowrap;
+.achievements {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 22px 24px 60px;
+  box-sizing: border-box;
 }
-.achievements-header {
+.ach-head {
   display: flex;
   align-items: center;
   gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
 }
-.percent {
+.ach-title {
+  font-weight: 800;
+  font-size: 1.25rem;
+  margin: 0;
+}
+.ach-count {
+  margin-right: auto;
+  font-size: 1rem;
+  color: #9c9c9c;
+  font-variant-numeric: tabular-nums;
+}
+.ach-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.ach-search {
+  width: 220px;
+  height: 34px;
+}
+.ach-sort {
+  height: 34px;
+}
+.ach-overall,
+.ach-note-box {
+  margin: 0 0 12px;
+  padding: 12px;
+  background: #1a1a1a;
+  border: 1px solid #202020;
+  border-radius: 10px;
+}
+.ach-note-box {
+  margin: 4px 0 0;
+}
+.ach-textarea {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  padding: 8px 10px;
+  background: #0d0d0d;
+  border: 1px solid #2b2b2b;
+  border-radius: 8px;
+  color: #f2f2f2;
+  font: inherit;
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+.ach-textarea::placeholder {
+  color: #666;
+}
+.ach-textarea:focus {
+  outline: none;
+  border-color: rgba(214, 138, 52, 0.7);
+}
+.ach-note-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+.ach-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 22px;
+  margin: 0 0 12px;
+  font-size: 0.85rem;
+  color: #666;
+}
+.ach-stats b {
+  color: #f2f2f2;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.ach-cols {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) 96px 120px 200px;
+  column-gap: 20px;
+  align-items: center;
+  margin: 14px 0 0;
+  padding: 0 19px 0 13px;
+}
+.ach-colbtn {
+  padding: 4px 0;
+  background: none;
+  border: none;
+  color: #666;
+  font: inherit;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  text-align: right;
+  cursor: pointer;
+}
+.ach-colbtn.left {
+  text-align: left;
+}
+.ach-colbtn:hover,
+.ach-colbtn[aria-sort="ascending"],
+.ach-colbtn[aria-sort="descending"] {
   color: #d68a34;
+}
+.ach-colbtn i {
+  font-style: normal;
+  font-size: 0.6rem;
+}
+.ach-mobile-sort {
+  display: none;
+}
+.ach-hint {
+  margin-left: auto;
+  font-size: 0.72rem;
+  color: #666;
+}
+.ach-empty {
+  margin: 0;
+  padding: 24px 0;
+  color: #666;
+  font-size: 0.85rem;
+}
+.ach-list {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+.ach-row {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) 96px 120px 200px;
+  column-gap: 20px;
+  align-items: center;
+  min-height: 88px;
+  padding: 12px 18px 12px 12px;
+  background: #1a1a1a;
+  border: 1px solid #202020;
+  border-radius: 12px;
+  transition: border-color 0.15s ease;
+}
+.ach-row:hover {
+  border-color: rgba(214, 138, 52, 0.4);
+}
+.ach-row.done {
+  background: #16201a;
+  border-color: #22352a;
+}
+.ach-row.pin {
+  border-color: rgba(214, 138, 52, 0.5);
+}
+.ach-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 10px;
+  background-color: #2a2a2a;
+  background-size: cover;
+  background-repeat: no-repeat;
+  background-position: center;
+}
+.ach-row.lock .ach-icon {
+  background-color: #1f1f1f;
+  filter: grayscale(1) brightness(0.6);
+}
+.ach-main {
+  min-width: 0;
+}
+.ach-name {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-weight: 700;
+  font-size: 1.05rem;
+  line-height: 1.3;
+}
+.ach-link {
+  color: #f2f2f2;
+  text-decoration: none;
+}
+.ach-link:hover {
+  color: #d68a34;
+}
+.ach-row.lock .ach-link,
+.ach-hidden-name {
+  color: #9c9c9c;
+}
+.ach-tag {
+  padding: 2px 9px;
+  border-radius: 5px;
+  background: #262626;
+  color: #9c9c9c;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1.5;
+}
+.ach-tag.missable {
+  background: rgba(217, 111, 111, 0.14);
+  color: #d96f6f;
+}
+.ach-tag.win_condition {
+  background: rgba(214, 138, 52, 0.14);
+  color: #d68a34;
+}
+.ach-desc {
+  margin-top: 3px;
+  font-size: 0.88rem;
+  line-height: 1.5;
+  color: #9c9c9c;
+}
+.ach-reveal {
+  padding: 0;
+  background: none;
+  border: none;
+  color: #d68a34;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.ach-col {
+  text-align: right;
+}
+.ach-big {
+  font-size: 1.05rem;
+  font-weight: 700;
+  line-height: 1.25;
+  font-variant-numeric: tabular-nums;
+}
+.ach-big.ach-small {
+  font-size: 0.9rem;
+}
+.ach-dim {
+  color: #666;
+}
+.ach-lab {
+  margin-top: 3px;
+  font-size: 0.72rem;
+  color: #666;
+}
+.ach-bar {
+  width: 72px;
+  height: 5px;
+  margin: 6px 0 0 auto;
+  border-radius: 999px;
+  background: #2a2a2a;
+  overflow: hidden;
+}
+.ach-bar i {
+  display: block;
+  height: 100%;
+  background: #d68a34;
+}
+.ach-acts {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.ach-btn {
+  padding: 6px 13px;
+  background: transparent;
+  border: 1px solid #2b2b2b;
+  border-radius: 7px;
+  color: #9c9c9c;
+  font: inherit;
+  font-size: 0.78rem;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.ach-btn:hover {
+  color: #f2f2f2;
+}
+.ach-btn-media {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 10px;
+  font-variant-numeric: tabular-nums;
+}
+.ach-btn.on {
+  color: #d68a34;
+  border-color: rgba(214, 138, 52, 0.5);
+}
+.ach-media-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 14px 12px;
+  border-top: 1px solid #232323;
+}
+.ach-media-thumb {
+  width: 160px;
+  aspect-ratio: 16 / 9;
+  padding: 0;
+  border: 1px solid #2b2b2b;
+  border-radius: 8px;
+  background: #000;
+  overflow: hidden;
+  cursor: pointer;
+  object-fit: cover;
+}
+.ach-media-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.ach-media-audio {
+  height: 36px;
+  max-width: 100%;
+}
+@media (max-width: 720px) {
+  .ach-cols {
+    display: none;
+  }
+  .ach-mobile-sort {
+    display: block;
+  }
+  .ach-row {
+    grid-template-columns: 52px minmax(0, 1fr);
+    row-gap: 8px;
+    min-height: 0;
+  }
+  .ach-icon {
+    width: 52px;
+    height: 52px;
+  }
+  .ach-col,
+  .ach-acts {
+    grid-column: 2;
+    justify-content: flex-start;
+    text-align: left;
+  }
+  .ach-col {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+  }
+  .ach-bar {
+    margin-left: 0;
+  }
 }
 .notes-panel {
   width: 100%;
-  max-width: 1600px;
+  max-width: 1180px;
   margin: 0 auto;
-  padding: 24px;
+  padding: 22px 24px 60px;
   box-sizing: border-box;
-}
-.notes-list-view {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-.notes-header-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-.notes-header-row h2 {
-  margin: 0;
-  font-size: 1.1rem;
-}
-.notes-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.notes-list-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  background: rgba(0, 0, 0, 0.2);
-  border: 1px solid #2a2a2a;
-  border-radius: 8px;
-  padding: 12px 16px;
-  cursor: pointer;
-  transition:
-    background 0.15s ease,
-    border-color 0.15s ease;
-}
-.notes-list-row:hover {
-  background: rgba(255, 255, 255, 0.05);
-  border-color: #3a3a3a;
-}
-.note-name {
-  color: #fff;
-  font-weight: 600;
-}
-.notes-list-actions {
-  display: flex;
-  gap: 8px;
 }
 .account-bar {
   display: flex;
@@ -5002,9 +5690,9 @@ function formatPlaytime(minutes: number) {
   padding: 8px 10px;
 }
 .accounts-panel {
-  max-width: 1100px;
+  max-width: 1180px;
   margin: 0 auto;
-  padding: 24px;
+  padding: 22px 24px 60px;
   box-sizing: border-box;
 }
 .accounts-layout {
@@ -5369,58 +6057,12 @@ function formatPlaytime(minutes: number) {
   opacity: 0.5;
   cursor: not-allowed;
 }
-.notes-editor {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  max-width: 100%;
-}
-.notes-editor-card {
-  background: rgba(0, 0, 0, 0.2);
-  border: 1px solid #2a2a2a;
-  border-radius: 12px;
-  padding: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-.notes-toolbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 8px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid #2a2a2a;
-}
-.selected-note {
-  color: #fff;
-  font-weight: 600;
-  font-size: 1.05rem;
-}
-.field input:focus,
-.notes-editor textarea:focus {
-  outline: none;
-  border-color: #d68a34;
-}
-.notes-editor textarea {
-  width: 100%;
-  min-height: 420px;
-  box-sizing: border-box;
-  border: 1px solid #3a3a3a;
-  border-radius: 10px;
-  background: #111;
-  color: #f5f5f5;
-  resize: vertical;
-  padding: 14px;
-  font: inherit;
-}
-.notes-editor-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-}
 .note-error {
   color: #fca5a5;
+}
+.field input:focus {
+  outline: none;
+  border-color: #d68a34;
 }
 .empty-state {
   color: #777;
@@ -5437,9 +6079,9 @@ function formatPlaytime(minutes: number) {
 .stats-panel,
 .history-panel {
   width: 100%;
-  max-width: 1600px;
+  max-width: 1180px;
   margin: 0 auto;
-  padding: 24px;
+  padding: 22px 24px 60px;
   box-sizing: border-box;
   position: relative;
   z-index: 1;
@@ -5461,52 +6103,6 @@ function formatPlaytime(minutes: number) {
 .stats-panel h2,
 .history-panel h2 {
   margin-bottom: 16px;
-}
-.history-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.history-entry {
-  background: #1a1a1a;
-  border: 1px solid #2a2a2a;
-  border-radius: 10px;
-  padding: 12px 16px;
-}
-.history-entry-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 6px;
-}
-.history-field {
-  font-weight: 600;
-  color: #ccc;
-}
-.history-date {
-  color: #777;
-  font-size: 0.8rem;
-}
-.history-values {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 0.9rem;
-}
-.history-values svg {
-  flex-shrink: 0;
-  color: #666;
-}
-.history-old {
-  color: #999;
-  text-decoration: line-through;
-  text-decoration-color: #444;
-}
-.history-new {
-  color: #d68a34;
 }
 .upload-label {
   display: inline-flex;
@@ -5731,6 +6327,11 @@ function formatPlaytime(minutes: number) {
 }
 
 /* World Map: card grid with thumbnails ------------------------------------- */
+.modpack-block {
+  margin-top: 36px;
+  padding-top: 28px;
+  border-top: 1px solid #262626;
+}
 .world-map-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
@@ -5839,69 +6440,9 @@ function formatPlaytime(minutes: number) {
 .tile-remove-inline:hover {
   color: #fca5a5;
 }
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: 14px;
-}
-.stat-tile {
-  background: rgba(0, 0, 0, 0.2);
-  border: 1px solid #2a2a2a;
-  border-radius: 10px;
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.stat-label {
-  color: #999;
-  font-size: 0.76rem;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-}
-.stat-value {
-  color: #fff;
-  font-size: 1.3rem;
-  font-weight: 700;
-  text-transform: capitalize;
-}
 .not-found {
   padding: 24px;
   color: #fff;
-}
-.note-rendered {
-  color: #ddd;
-  line-height: 1.6;
-  font-size: 14px;
-}
-.note-rendered :deep(h1),
-.note-rendered :deep(h2),
-.note-rendered :deep(h3) {
-  color: #fff;
-  margin: 16px 0 8px;
-}
-.note-rendered :deep(p) {
-  margin: 0 0 10px;
-}
-.note-rendered :deep(a) {
-  color: #d68a34;
-}
-.note-rendered :deep(code) {
-  background: #111;
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-size: 13px;
-}
-.note-rendered :deep(pre) {
-  background: #111;
-  padding: 12px;
-  border-radius: 8px;
-  overflow-x: auto;
-}
-.note-rendered :deep(ul),
-.note-rendered :deep(ol) {
-  padding-left: 20px;
-  margin: 0 0 10px;
 }
 .confirm-backdrop {
   position: fixed;

@@ -3,6 +3,7 @@ import { ref } from "vue";
 import SettingsTabs from "./SettingsTabs.vue";
 import MetadataSourcesSection from "./MetadataSourcesSection.vue";
 import ScanSettingsSection from "./ScanSettingsSection.vue";
+import SteamTagsSection from "./SteamTagsSection.vue";
 import MediaRefreshSection from "./MediaRefreshSection.vue";
 
 const props = defineProps<{ initialTab?: string }>();
@@ -21,7 +22,10 @@ const tab = ref(
   <div>
     <SettingsTabs v-model="tab" :tabs="TABS" />
     <MetadataSourcesSection v-if="tab === 'sources'" />
-    <ScanSettingsSection v-else-if="tab === 'scan'" />
+    <template v-else-if="tab === 'scan'">
+      <ScanSettingsSection />
+      <SteamTagsSection />
+    </template>
     <MediaRefreshSection v-else />
   </div>
 </template>
