@@ -71,9 +71,12 @@ defineEmits<{ open: [item: TopTitle] }>();
   aspect-ratio: 2 / 3;
   border-radius: 8px;
   background-size: cover;
+  background-repeat: no-repeat;
+  background-origin: border-box;
+  background-clip: border-box;
   background-position: center;
   background-color: #222222;
-  border: 1px solid #202020;
+  border: 1px solid transparent;
   transition: transform 0.2s ease;
 }
 .toprated-card:hover .toprated-art {

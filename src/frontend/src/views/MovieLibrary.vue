@@ -10,6 +10,7 @@ import {
   createMovie,
 } from "../services/movies";
 import type { Movie, MovieStatus } from "../types/movie";
+import { localMediaImage } from "../utils/mediaImages";
 import MediaLibraryView from "../components/library/MediaLibraryView.vue";
 import type {
   LibraryCardVM,
@@ -36,7 +37,7 @@ function toVM(m: Movie): LibraryCardVM {
   return {
     id: m.id,
     title: m.title,
-    poster: m.posterUrl,
+    poster: localMediaImage("movie", m.id, "poster", m.posterUrl),
     status: m.status,
     favorite: m.favorite,
     score: m.ratingOverall,
@@ -60,6 +61,7 @@ const items = computed(() => movies.value.map(toVM));
 let loadRequest = 0;
 const total = ref(0);
 const statusCounts = ref<Record<string, number>>({});
+const scoreRanks = ref<Record<string, number>>({});
 const pageSize = 100;
 const currentSearch = ref("");
 async function load(search = "") {
@@ -72,6 +74,7 @@ async function load(search = "") {
     movies.value = page.items;
     total.value = page.total;
     statusCounts.value = page.statusCounts;
+    scoreRanks.value = page.scoreRanks;
   } catch (e) {
     error.value = e instanceof Error ? e.message : "Failed to load movies.";
   } finally {
@@ -221,6 +224,7 @@ function detailRoute(id: string): string {
     :items="items"
     :total="total"
     :status-counts="statusCounts"
+    :score-ranks="scoreRanks"
     :loading="loading"
     :error="error"
     :detail-route="detailRoute"

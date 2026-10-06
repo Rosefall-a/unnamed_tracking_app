@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from "vue";
 import { useRouter } from "vue-router";
-import { fetchGames } from "../services/games";
+import { fetchGames, searchNotes } from "../services/games";
+import type { NoteSearchHit } from "../services/games";
 import type { Game } from "../types/game";
 import { isCommandPaletteOpen } from "../state/commandPalette";
 import { smartCollections } from "../state/smartCollections";
@@ -32,7 +33,7 @@ async function ensureLoaded() {
 
 interface Result {
   key: string;
-  kind: "game" | "collection" | "page";
+  kind: "game" | "collection" | "page" | "note";
   label: string;
   sublabel?: string;
   action: () => void;
@@ -41,6 +42,7 @@ interface Result {
 const SETTINGS_SHORTCUTS: { label: string; section: string }[] = [
   { label: "Profile", section: "profile" },
   { label: "User Interface", section: "interface" },
+  { label: "Game Page", section: "game-page" },
   { label: "Appearance", section: "appearance" },
   { label: "Upload", section: "upload" },
   { label: "Notifications", section: "notifications" },
@@ -66,6 +68,29 @@ const collectionNames = computed(() => {
   for (const g of gamesCache ?? []) for (const c of g.collections) set.add(c);
   for (const c of smartCollections.value) set.add(c.name);
   return [...set].sort();
+});
+
+// Notes from every game, looked up on the server as you type. Only the latest
+// answer is kept, so a slow reply to an older query never replaces a newer one.
+const noteHits = ref<NoteSearchHit[]>([]);
+let noteTimer: number | undefined;
+let noteQuery = 0;
+watch(query, (value) => {
+  window.clearTimeout(noteTimer);
+  const q = value.trim();
+  if (q.length < 2) {
+    noteHits.value = [];
+    return;
+  }
+  const ticket = ++noteQuery;
+  noteTimer = window.setTimeout(async () => {
+    try {
+      const hits = await searchNotes(q);
+      if (ticket === noteQuery) noteHits.value = hits;
+    } catch {
+      if (ticket === noteQuery) noteHits.value = [];
+    }
+  }, 220);
 });
 
 const results = computed<Result[]>(() => {
@@ -94,6 +119,17 @@ const results = computed<Result[]>(() => {
       label: g.title,
       sublabel: g.status,
       action: () => go(`/games/${g.id}`),
+    });
+  }
+
+  for (const n of noteHits.value.slice(0, 5)) {
+    out.push({
+      key: `note:${n.game_id}:${n.name}`,
+      kind: "note",
+      label: n.name,
+      sublabel: `Note in ${n.game_title}${n.snippet ? ` · ${n.snippet.slice(0, 70)}` : ""}`,
+      action: () =>
+        go(`/games/${n.game_id}?tab=Notes&note=${encodeURIComponent(n.name)}`),
     });
   }
 
@@ -148,6 +184,7 @@ function go(to: string) {
 function close() {
   open.value = false;
   query.value = "";
+  noteHits.value = [];
 }
 
 async function openPalette() {
@@ -203,6 +240,7 @@ onUnmounted(() => window.removeEventListener("keydown", onGlobalKeydown));
 const KIND_ICON: Record<Result["kind"], string> = {
   game: "🎮",
   collection: "📁",
+  note: "📝",
   page: "→",
 };
 </script>
@@ -215,7 +253,7 @@ const KIND_ICON: Record<Result["kind"], string> = {
         v-model="query"
         type="text"
         class="palette-input"
-        placeholder="Jump to a game, collection, or settings section…"
+        placeholder="Jump to a game, note, collection, or settings section…"
       />
       <div v-if="!loaded" class="palette-loading">Loading…</div>
       <div v-else-if="!results.length" class="palette-empty">No matches.</div>

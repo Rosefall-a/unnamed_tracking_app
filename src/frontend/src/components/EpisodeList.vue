@@ -768,6 +768,7 @@ function goToPage(p: number) {
   aspect-ratio: 16 / 9;
   border-radius: 7px;
   background-size: cover;
+  background-repeat: no-repeat;
   background-position: center;
   background-color: #222222;
   flex-shrink: 0;
