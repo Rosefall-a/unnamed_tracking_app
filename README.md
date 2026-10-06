@@ -1,5 +1,7 @@
 # Wiki page https://rosefall-a.github.io/unnamed_tracking_app/
 
+Still a WIP, but new features are decently uptodate
+
 
 # Running the API
 
