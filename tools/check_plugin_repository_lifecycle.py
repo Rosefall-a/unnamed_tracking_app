@@ -58,6 +58,7 @@ def wait_until(predicate, timeout=30):
 
 
 def configure_downloads(work):
+    """Substitute only fixture acquisition at the host's current download boundary."""
     sys.path.insert(0, str(HOST / "src/backend"))
     from src.api.routes.plugin_manager import acquisition
 
