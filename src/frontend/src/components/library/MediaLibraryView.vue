@@ -464,7 +464,6 @@ watch([searchQuery, sortKey, activeStatus, filters, layout], () => {
 
 const boardPageStarts = reactive<Record<string, number>>({});
 const boardViewportWidth = ref(0);
-const boardViewport = ref<HTMLElement | null>(null);
 const boardVisibleCount = computed(() =>
   Math.max(
     1,
@@ -493,10 +492,13 @@ function moveBoard(status: string, direction: -1 | 1, available: number) {
 watch([activeStatus, filters], () => { resetBoardPages(); emitFilters(); });
 watch(boardViewportWidth, resetBoardPages);
 function updateBoardViewport() {
-  boardViewportWidth.value = boardViewport.value?.clientWidth ?? 0;
+  const shelf = document.querySelector<HTMLElement>(".board-shelf");
+  boardViewportWidth.value = shelf?.clientWidth ?? 0;
 }
 onMounted(updateBoardViewport);
-watch(shelfCardSize, () => requestAnimationFrame(updateBoardViewport));
+watch([shelfCardSize, layout], () =>
+  requestAnimationFrame(updateBoardViewport),
+);
 window.addEventListener("resize", updateBoardViewport);
 onBeforeUnmount(() =>
   window.removeEventListener("resize", updateBoardViewport),
@@ -1372,12 +1374,11 @@ defineExpose({ openQuickAdd });
           <p v-if="!boardGroups.length" class="empty-state">
             Nothing matches. Try a different filter or search.
           </p>
-          <div ref="boardViewport" class="board-viewport">
-            <div
-              v-for="group in boardGroups"
-              :key="group.status.key"
-              class="board-section"
-            >
+          <div
+            v-for="group in boardGroups"
+            :key="group.status.key"
+            class="board-section"
+          >
             <div class="board-heading">
               <h2>{{ group.status.label }}</h2>
               <span class="n">{{ group.rowItems.length }}</span>
@@ -1534,7 +1535,6 @@ defineExpose({ openQuickAdd });
                   </div>
                 </div>
               </div>
-            </div>
           </div>
         </template>
       </div>
@@ -2784,10 +2784,6 @@ defineExpose({ openQuickAdd });
 }
 
 /* BOARD */
-.board-viewport {
-  width: 100%;
-  min-width: 0;
-}
 .board-section {
   margin-top: 24px;
 }
