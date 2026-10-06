@@ -1,11 +1,16 @@
 """API routes for managing games, notes, and game artwork."""
+# pylint: disable=too-many-lines
 
 import asyncio
+import io
 import os
 import re
 import time
+from datetime import UTC, datetime
+from decimal import Decimal
+from enum import Enum
 from pathlib import Path
-from typing import Literal
+from typing import Literal, cast
 from urllib.parse import urlparse
 from uuid import UUID
 
@@ -18,12 +23,14 @@ from fastapi import (
     Form,
     HTTPException,
     Query,
+    Request,
     Response,
     UploadFile,
     status,
 )
 from fastapi.responses import FileResponse
-from pydantic import BaseModel
+from PIL import Image, UnidentifiedImageError
+from pydantic import BaseModel, Field
 from sqlalchemy import Integer, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -43,29 +50,45 @@ from src.core.app_integrations import get_max_upload_size_mb
 from src.core.auth import get_current_user
 from src.core.config import settings
 from src.core.integrations import resolve_integrations
+from src.core.preferences import load_preferences
 from src.database.models.achievement import Achievement
 from src.database.models.game import Game, GameLink, GameStatus
 from src.database.models.game_checklist_item import GameChecklistItem
 from src.database.models.game_field_change import GameFieldChange
 from src.database.models.game_file_item import GameFileItem
+from src.database.models.game_note_detail import GameNoteDetail
 from src.database.models.game_profile import GameProfile
 from src.database.models.game_profile_stat_snapshot import GameProfileStatSnapshot
 from src.database.models.media_item import MediaItem
 from src.database.models.user import User
 from src.database.models.user_scan_settings import UserScanSettings
 from src.database.session import get_db
+from src.features import game_notes
 from src.features.metadata.games import wiseoldman
 from src.features.metadata.games.search import search_game_metadata
+from src.features.metadata.locked_fields import apply_updates_with_locking
 from src.features.trash.game_trash import move_game_to_trash, restore_game_from_trash
 from src.features.trash.media_trash import move_media_file_to_trash, restore_media_file_from_trash
 from src.features.trash.sweep import RETENTION_SECONDS
 from src.helpers.media import MediaKind, classify_media, list_media, media_subdir, save_media_bytes
+from src.helpers.media_dates import detect_date, detect_from_stored
+from src.helpers.range_response import ranged_file_response
 from src.helpers.save_game_asset import (
     ASSET_FILENAMES,
     AssetKind,
     create_game_folder,
     save_game_asset,
 )
+
+_QUERY_DEFAULT = Query(..., min_length=2, max_length=100)
+_LIMIT_DEFAULT = Query(default=8, ge=1, le=20)
+_FILES_DEFAULT = File(None, alias="files")
+_FILE_DEFAULT = File(None, alias="file")
+_UNSCOPED_ONLY_DEFAULT = Query(False, description="Only items with no profile_id set.")
+_FAVORITE_DEFAULT = Query(default=None)
+_SEARCH_DEFAULT = Query(default=None, description="Case-insensitive title search")
+_SKIP_DEFAULT = Query(default=0, ge=0)
+_LIMIT_DEFAULT_2 = Query(default=50, ge=1, le=200)
 
 router = APIRouter(
     prefix="/api/game",
@@ -79,9 +102,14 @@ _LEADING_ARTICLE = re.compile(r"^(a|an|the)\s+", flags=re.IGNORECASE)
 
 _DB_DEPENDENCY = Depends(get_db)
 _CURRENT_USER_DEPENDENCY = Depends(get_current_user)
+# one instance per field name: FastAPI names a File() after the first
+# parameter it is used on, so sharing one made `files` demand a field "file"
 _FILE_UPLOAD = File(...)
+_FILES_UPLOAD = File(...)
 _BODY_DOTDOTDOT = Body(...)
 _NONE_FORM = Form(None)
+_MODIFIED_FORM = Form(None)
+_FILE_MODIFIED_FORM = Form(None)
 _NONE_QUERY_STATUS = Query(default=None, alias="status")
 
 
@@ -109,6 +137,14 @@ class AssetUrlRequest(BaseModel):
     url: str
 
 
+class MetadataRefreshRequest(BaseModel):
+    dry_run: bool = False
+    update_text: bool = True
+    fill_missing_art: bool = True
+    overwrite_existing_art: bool = False
+    expected_updated_at: int | None = None
+
+
 ALLOWED_ASSET_KINDS = {"key_art", "banner", "logo", "icon"}
 
 
@@ -134,8 +170,8 @@ def _scan_settings_to_preferences(scan_settings: UserScanSettings) -> dict:
 
 @router.get("/metadata/search", response_model=MetadataSearchResponse)
 async def search_metadata(
-    query: str = Query(..., min_length=2, max_length=100),
-    limit: int = Query(default=8, ge=1, le=20),
+    query: str = _QUERY_DEFAULT,
+    limit: int = _LIMIT_DEFAULT,
     db: AsyncSession = _DB_DEPENDENCY,
     current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> dict:
@@ -147,6 +183,9 @@ async def search_metadata(
     """
     scan_settings = await get_or_create_scan_settings(current_user.id, db)
     preferences = _scan_settings_to_preferences(scan_settings)
+    preferences["steam_user_tags"] = (await load_preferences(db, current_user.id))[
+        "steam_user_tags"
+    ]
     app_integrations = resolve_integrations(await get_or_create_app_integration_settings(db))
     try:
         result = await asyncio.to_thread(
@@ -237,12 +276,24 @@ FIELD_CHANGE_TRACKED_FIELDS = {
     "age_rating",
     "release_date",
     "time_to_beat_hours",
+    # what the history timeline shows as "changed status" and "changed price"
+    "status",
+    "purchase_price",
+    "purchase_price_currency_code",
+    "purchase_date",
 }
 
 
-def _field_change_value_to_text(value: object) -> str | None:
+def _field_change_value_to_text(value: object, field: str = "") -> str | None:
     if value is None:
         return None
+    if isinstance(value, Enum):
+        return str(value.value)
+    if isinstance(value, Decimal | float):
+        # 59.9 and Decimal("59.90") are the same price, not a change
+        return f"{Decimal(str(value)).normalize():f}"
+    if isinstance(value, int) and not isinstance(value, bool) and field.endswith("_date"):
+        return datetime.fromtimestamp(value, UTC).strftime("%Y-%m-%d")
     if isinstance(value, list):
         return ", ".join(str(v) for v in value) if value else None
     return str(value)
@@ -251,8 +302,8 @@ def _field_change_value_to_text(value: object) -> str | None:
 def _record_field_changes(game: Game, updates: dict, db: AsyncSession) -> None:
     now = int(time.time())
     for field in FIELD_CHANGE_TRACKED_FIELDS & updates.keys():
-        old_text = _field_change_value_to_text(getattr(game, field))
-        new_text = _field_change_value_to_text(updates[field])
+        old_text = _field_change_value_to_text(getattr(game, field), field)
+        new_text = _field_change_value_to_text(updates[field], field)
         if old_text == new_text:
             continue
         db.add(
@@ -436,6 +487,11 @@ async def list_game_achievements(
             "icon_url": a.icon_url,
             "unlocked": a.unlocked,
             "unlocked_at": a.unlocked_at,
+            "hidden": a.hidden,
+            "global_percent": a.global_percent,
+            # how the provider classifies it (RetroAchievements only): one of
+            # progression, missable or win_condition
+            "tier": a.tier,
         }
         for a in result.scalars().all()
     ]
@@ -579,15 +635,104 @@ def _media_item_to_dict(item: MediaItem, game_id: UUID) -> dict:
         else None,
         "profile_id": str(item.profile_id) if item.profile_id else None,
         "created_at": item.created_at,
+        "title": item.title,
+        "taken_at": item.taken_at,
+        "taken_source": item.taken_source,
+        "thumbnail_url": f"/api/game/{game_id}/thumbnails/{item.id}"
+        if item.thumb_filename
+        else None,
+        "duration": item.duration,
     }
+
+
+_THUMB_MAX_WIDTH = 640
+_THUMB_UPLOAD = File(...)
+_THUMB_DURATION = Form(None)
+
+
+def _thumb_dir(game: Game) -> Path:
+    return _DATA_ROOT / str(game.user_id) / "games" / (game.folder_location or "") / "thumbs"
+
+
+@router.post("/{game_id}/thumbnails/{media_id}")
+async def save_clip_thumbnail(
+    game_id: UUID,
+    media_id: UUID,
+    file: UploadFile = _THUMB_UPLOAD,
+    duration: float | None = _THUMB_DURATION,
+    db: AsyncSession = _DB_DEPENDENCY,
+    current_user: User = _CURRENT_USER_DEPENDENCY,
+) -> dict:
+    """Keep a clip's preview picture, made in the browser when it was uploaded
+    (or the first time it was shown), so it never has to be made again. The
+    picture is shrunk and saved as a JPEG; the clip's length is kept with it."""
+    game = await _get_game_or_404(game_id, db, current_user.id)
+    item = await db.scalar(
+        select(MediaItem).where(
+            MediaItem.id == media_id,
+            MediaItem.game_id == game_id,
+            MediaItem.kind == "clip",
+            MediaItem.deleted_at.is_(None),
+        )
+    )
+    if item is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Clip not found.")
+    data = await file.read()
+    if len(data) > 5 * 1024 * 1024:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="Thumbnail is too large."
+        )
+    try:
+        with Image.open(io.BytesIO(data)) as image:
+            picture = image.convert("RGB")
+    except (UnidentifiedImageError, OSError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="That is not a picture."
+        ) from exc
+    if picture.width > _THUMB_MAX_WIDTH:
+        picture = picture.resize(
+            (_THUMB_MAX_WIDTH, max(1, round(picture.height * _THUMB_MAX_WIDTH / picture.width)))
+        )
+    directory = _thumb_dir(game)
+    directory.mkdir(parents=True, exist_ok=True)
+    name = f"{item.id}.jpg"
+    picture.save(directory / name, "JPEG", quality=80)
+    item.thumb_filename = name
+    if duration is not None and duration > 0:
+        item.duration = float(duration)
+    await db.commit()
+    return _media_item_to_dict(item, game_id)
+
+
+@router.get("/{game_id}/thumbnails/{media_id}", response_class=FileResponse)
+async def get_clip_thumbnail(
+    game_id: UUID,
+    media_id: UUID,
+    db: AsyncSession = _DB_DEPENDENCY,
+    current_user: User = _CURRENT_USER_DEPENDENCY,
+) -> FileResponse:
+    game = await _get_game_or_404(game_id, db, current_user.id)
+    item = await db.scalar(
+        select(MediaItem).where(MediaItem.id == media_id, MediaItem.game_id == game_id)
+    )
+    path = _thumb_dir(game) / item.thumb_filename if item and item.thumb_filename else None
+    if path is None or not path.is_file():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No thumbnail yet.")
+    # the picture for a given clip never changes, so the browser may keep it
+    return FileResponse(
+        path,
+        media_type="image/jpeg",
+        headers={"Cache-Control": "private, max-age=31536000, immutable"},
+    )
 
 
 @router.post("/{game_id}/screenshots")
 async def upload_game_screenshots(
     game_id: UUID,
-    files: list[UploadFile] | None = File(None),
-    file: UploadFile | None = File(None),
+    files: list[UploadFile] | None = _FILES_DEFAULT,
+    file: UploadFile | None = _FILE_DEFAULT,
     profile_id: UUID | None = _NONE_FORM,
+    last_modified: list[int] | None = _MODIFIED_FORM,
     db: AsyncSession = _DB_DEPENDENCY,
     current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> dict[str, list[dict]]:
@@ -620,7 +765,7 @@ async def upload_game_screenshots(
         )
 
     results: list[dict] = []
-    for file in uploads:
+    for index, file in enumerate(uploads):
         kind = classify_media(file.content_type, file.filename or "")
         if kind is None:
             results.append(
@@ -656,8 +801,21 @@ async def upload_game_screenshots(
             _DATA_ROOT / str(game.user_id) / "games" / game.folder_location / media_subdir(kind)
         )
         saved_path = save_media_bytes(data, dest_dir, file.filename or "file")
+        taken_at, taken_source = detect_date(
+            data,
+            file.filename or "",
+            kind,
+            last_modified[index] if last_modified and index < len(last_modified) else None,
+        )
         db.add(
-            MediaItem(game_id=game_id, kind=kind, filename=saved_path.name, profile_id=profile_id)
+            MediaItem(
+                game_id=game_id,
+                kind=kind,
+                filename=saved_path.name,
+                profile_id=profile_id,
+                taken_at=taken_at,
+                taken_source=taken_source,
+            )
         )
         results.append({"filename": saved_path.name, "status": "saved", "kind": kind})
 
@@ -669,7 +827,7 @@ async def upload_game_screenshots(
 async def list_game_screenshots(
     game_id: UUID,
     profile_id: UUID | None = _NONE_FORM,
-    unscoped_only: bool = Query(False, description="Only items with no profile_id set."),
+    unscoped_only: bool = _UNSCOPED_ONLY_DEFAULT,
     db: AsyncSession = _DB_DEPENDENCY,
     current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> dict[str, list[dict]]:
@@ -685,12 +843,13 @@ async def list_game_screenshots(
 
 @router.get("/{game_id}/screenshots/{kind}/{filename}", response_class=FileResponse)
 async def get_game_screenshot(
+    request: Request,
     game_id: UUID,
     kind: MediaKind,
     filename: str,
     db: AsyncSession = _DB_DEPENDENCY,
     current_user: User = _CURRENT_USER_DEPENDENCY,
-) -> FileResponse:
+) -> Response:
     game = await _get_game_or_404(game_id, db, current_user.id)
     path = (
         _DATA_ROOT
@@ -702,7 +861,11 @@ async def get_game_screenshot(
     )
     if not path.is_file():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Media file not found.")
-    return FileResponse(path)
+    return ranged_file_response(request, path)
+
+
+class DetectDatesRequest(BaseModel):
+    ids: list[UUID]
 
 
 class MediaItemUpdate(BaseModel):
@@ -710,6 +873,44 @@ class MediaItemUpdate(BaseModel):
     note: str | None = None
     linked_achievement_id: UUID | None = None
     profile_id: UUID | None = None
+    title: str | None = Field(default=None, max_length=200)
+    taken_at: int | None = None
+    # "achievement" when the date was copied from an achievement's unlock time
+    taken_source: Literal["manual", "achievement"] | None = None
+
+
+@router.post("/{game_id}/screenshots/detect-dates")
+async def detect_media_dates(
+    game_id: UUID,
+    payload: DetectDatesRequest,
+    db: AsyncSession = _DB_DEPENDENCY,
+    current_user: User = _CURRENT_USER_DEPENDENCY,
+) -> dict[str, list[dict]]:
+    """Re-read the date from the files themselves (photo data, then the file
+    name) for the chosen items. Files with nothing to read keep their date, so
+    a date you set by hand is only replaced when the file really has one."""
+    game = await _get_game_or_404(game_id, db, current_user.id)
+    items = (
+        await db.scalars(
+            select(MediaItem).where(
+                MediaItem.game_id == game_id,
+                MediaItem.id.in_(payload.ids),
+                MediaItem.deleted_at.is_(None),
+            )
+        )
+    ).all()
+    game_dir = _DATA_ROOT / str(game.user_id) / "games" / (game.folder_location or "")
+    changed: list[dict] = []
+    for item in items:
+        found = detect_from_stored(
+            game_dir / media_subdir(cast(MediaKind, item.kind)) / item.filename, item.kind
+        )
+        if found is None:
+            continue
+        item.taken_at, item.taken_source = found
+        changed.append(_media_item_to_dict(item, game_id))
+    await db.commit()
+    return {"media": changed}
 
 
 @router.patch("/{game_id}/screenshots/{media_id}")
@@ -726,8 +927,15 @@ async def update_media_item(
     )
     if item is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Media item not found.")
-    for field, value in payload.model_dump(exclude_unset=True).items():
+    changes = payload.model_dump(exclude_unset=True)
+    if "title" in changes and changes["title"] is not None:
+        changes["title"] = changes["title"].strip() or None
+    source = changes.pop("taken_source", None)
+    for field, value in changes.items():
         setattr(item, field, value)
+    if "taken_at" in changes:
+        # a date typed in by hand, or cleared back to the upload date
+        item.taken_source = (source or "manual") if changes["taken_at"] is not None else None
     await db.commit()
     await db.refresh(item)
     return _media_item_to_dict(item, game_id)
@@ -859,12 +1067,30 @@ async def _sync_game_file_items(game_id: UUID, game_dir: Path, db: AsyncSession)
         await db.commit()
 
 
+def _game_file_to_dict(item: GameFileItem, game_id: UUID, game_dir: Path) -> dict:
+    path = game_dir / _game_file_subdir(cast(GameFileKind, item.kind)) / item.filename
+    return {
+        "id": str(item.id),
+        "filename": item.filename,
+        "kind": item.kind,
+        "size": path.stat().st_size if path.is_file() else 0,
+        "url": f"/api/game/{game_id}/files/{item.kind}/{item.filename}",
+        "created_at": item.created_at,
+        "title": item.title,
+        "note": item.note,
+        "tags": item.tags,
+        "taken_at": item.taken_at,
+        "taken_source": item.taken_source,
+    }
+
+
 @router.post("/{game_id}/files/{kind}")
 async def upload_game_files(
     game_id: UUID,
     kind: GameFileKind,
-    files: list[UploadFile] | None = File(None),
-    file: UploadFile | None = File(None),
+    files: list[UploadFile] | None = _FILES_DEFAULT,
+    file: UploadFile | None = _FILE_DEFAULT,
+    last_modified: list[int] | None = _FILE_MODIFIED_FORM,
     db: AsyncSession = _DB_DEPENDENCY,
     current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> dict[str, list[dict]]:
@@ -894,7 +1120,7 @@ async def upload_game_files(
             detail="At least one file is required.",
         )
     results: list[dict] = []
-    for file in uploads:
+    for index, file in enumerate(uploads):
         data = await file.read()
         if len(data) > max_bytes:
             results.append(
@@ -913,7 +1139,21 @@ async def upload_game_files(
             / _game_file_subdir(kind)
         )
         saved_path = save_media_bytes(data, dest_dir, file.filename or "file")
-        db.add(GameFileItem(game_id=game_id, kind=kind, filename=saved_path.name))
+        taken_at, taken_source = detect_date(
+            data,
+            file.filename or "",
+            "doc",
+            last_modified[index] if last_modified and index < len(last_modified) else None,
+        )
+        db.add(
+            GameFileItem(
+                game_id=game_id,
+                kind=kind,
+                filename=saved_path.name,
+                taken_at=taken_at,
+                taken_source=taken_source,
+            )
+        )
         results.append({"filename": saved_path.name, "status": "saved", "size": len(data)})
 
     await db.commit()
@@ -942,18 +1182,50 @@ async def list_game_files(
         .order_by(GameFileItem.filename)
     )
     return {
-        "files": [
-            {
-                "id": str(item.id),
-                "filename": item.filename,
-                "size": (game_dir / _game_file_subdir(kind) / item.filename).stat().st_size
-                if (game_dir / _game_file_subdir(kind) / item.filename).is_file()
-                else 0,
-                "url": f"/api/game/{game_id}/files/{kind}/{item.filename}",
-            }
-            for item in result.scalars().all()
-        ]
+        "files": [_game_file_to_dict(item, game_id, game_dir) for item in result.scalars().all()]
     }
+
+
+class GameFileUpdate(BaseModel):
+    title: str | None = Field(default=None, max_length=200)
+    note: str | None = None
+    tags: list[str] | None = None
+    taken_at: int | None = None
+    taken_source: Literal["manual", "achievement"] | None = None
+
+
+@router.patch("/{game_id}/files/{kind}/by-id/{item_id}")
+async def update_game_file(
+    game_id: UUID,
+    kind: GameFileKind,
+    item_id: UUID,
+    payload: GameFileUpdate,
+    db: AsyncSession = _DB_DEPENDENCY,
+    current_user: User = _CURRENT_USER_DEPENDENCY,
+) -> dict:
+    game = await _get_game_or_404(game_id, db, current_user.id)
+    item = await db.scalar(
+        select(GameFileItem).where(
+            GameFileItem.id == item_id,
+            GameFileItem.game_id == game_id,
+            GameFileItem.kind == kind,
+            GameFileItem.deleted_at.is_(None),
+        )
+    )
+    if item is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found.")
+    changes = payload.model_dump(exclude_unset=True)
+    if "title" in changes and changes["title"] is not None:
+        changes["title"] = changes["title"].strip() or None
+    source = changes.pop("taken_source", None)
+    for field, value in changes.items():
+        setattr(item, field, value)
+    if "taken_at" in changes:
+        item.taken_source = (source or "manual") if changes["taken_at"] is not None else None
+    await db.commit()
+    await db.refresh(item)
+    game_dir = _DATA_ROOT / str(game.user_id) / "games" / (game.folder_location or "")
+    return _game_file_to_dict(item, game_id, game_dir)
 
 
 @router.get("/{game_id}/files/{kind}/trash")
@@ -978,6 +1250,7 @@ async def list_game_file_trash(
         assert item.deleted_at is not None  # guaranteed by the deleted_at.is_not(None) filter above
         files.append(
             {
+                "id": str(item.id),
                 "filename": item.filename,
                 "deleted_at": item.deleted_at,
                 "purge_at": item.deleted_at + RETENTION_SECONDS,
@@ -1099,6 +1372,8 @@ async def create_game_note(
                 "message": f'A note titled "{normalized_name}" already exists.',
             },
         ) from exc
+    await game_notes.ensure_row(db, game_id, normalized_name)
+    await db.commit()
     return {
         "game_id": str(game_id),
         "note_name": normalized_name,
@@ -1125,7 +1400,14 @@ async def update_game_note(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=f'Note "{normalized_name}" was not found.'
         )
+    previous = note_path.read_text(encoding="utf-8", errors="replace")
+    row = await game_notes.ensure_row(
+        db, game_id, normalized_name, created_at=int(note_path.stat().st_mtime)
+    )
+    if previous != payload.content:
+        await game_notes.record_version(db, row, previous)
     note_path.write_text(payload.content, encoding="utf-8")
+    await db.commit()
     return {
         "game_id": str(game_id),
         "note_name": normalized_name,
@@ -1187,6 +1469,8 @@ async def rename_game_note(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="The note could not be renamed.",
         ) from exc
+    await game_notes.rename_row(db, game_id, source_name, destination_name)
+    await db.commit()
     return {
         "game_id": str(game_id),
         "note_name": destination_name,
@@ -1224,6 +1508,55 @@ async def list_game_notes(
         path.stem for path in notes_dir.iterdir() if path.is_file() and path.suffix.lower() == ".md"
     )
     return {"notes": note_names}
+
+
+def _note_summary(path: Path, row: GameNoteDetail | None = None) -> dict:
+    """What a note card shows: its name, when it was created and last edited,
+    how long it is, checklist progress, the start of it, and its pin, tags and
+    achievement. Text comes from the file; the rest from its details row."""
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        text = ""
+    stat = path.stat()
+    done, total = game_notes.task_counts(text)
+    return {
+        "name": path.stem,
+        "created_at": row.created_at if row else int(stat.st_mtime),
+        "updated_at": int(stat.st_mtime),
+        "size": stat.st_size,
+        "words": len(text.split()),
+        "preview": text[:600],
+        "tasks_done": done,
+        "tasks_total": total,
+        "pinned": row.pinned if row else False,
+        "tags": row.tags if row else [],
+        "linked_achievement_id": str(row.linked_achievement_id)
+        if row and row.linked_achievement_id
+        else None,
+    }
+
+
+@router.get("/{game_id}/notes-summary")
+async def list_game_note_summaries(
+    game_id: UUID,
+    db: AsyncSession = _DB_DEPENDENCY,
+    current_user: User = _CURRENT_USER_DEPENDENCY,
+) -> dict[str, list[dict]]:
+    """The notes with their edit time, length and a preview, for the Notes tab."""
+    game = await _get_game_or_404(game_id, db, current_user.id)
+    if not game.folder_location:
+        return {"notes": []}
+    notes_dir = _DATA_ROOT / str(game.user_id) / "games" / game.folder_location / "notes"
+    if not notes_dir.exists():
+        return {"notes": []}
+    rows = await game_notes.sync_rows(db, game_id, notes_dir)
+    paths = [p for p in notes_dir.iterdir() if p.is_file() and p.suffix.lower() == ".md"]
+    return {
+        "notes": [
+            _note_summary(p, rows.get(p.stem)) for p in sorted(paths, key=lambda p: p.stem.lower())
+        ]
+    }
 
 
 @router.get(
@@ -1278,6 +1611,8 @@ async def delete_game_note(
         )
 
     note_path.unlink()
+    await game_notes.delete_row(db, game_id, _normalize_note_name(note_name))
+    await db.commit()
     return {
         "game_id": str(game_id),
         "note_name": _normalize_note_name(note_name),
@@ -1596,7 +1931,7 @@ class ChecklistItemUpdate(BaseModel):
 async def list_game_checklist(
     game_id: UUID,
     profile_id: UUID | None = _NONE_FORM,
-    unscoped_only: bool = Query(False, description="Only items with no profile_id set."),
+    unscoped_only: bool = _UNSCOPED_ONLY_DEFAULT,
     db: AsyncSession = _DB_DEPENDENCY,
     current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> dict[str, list[dict]]:
@@ -1873,10 +2208,10 @@ async def list_games(
     db: AsyncSession = _DB_DEPENDENCY,
     current_user: User = _CURRENT_USER_DEPENDENCY,
     status_filter: GameStatus | None = _NONE_QUERY_STATUS,
-    favorite: bool | None = Query(default=None),
-    search: str | None = Query(default=None, description="Case-insensitive title search"),
-    skip: int = Query(default=0, ge=0),
-    limit: int = Query(default=50, ge=1, le=200),
+    favorite: bool | None = _FAVORITE_DEFAULT,
+    search: str | None = _SEARCH_DEFAULT,
+    skip: int = _SKIP_DEFAULT,
+    limit: int = _LIMIT_DEFAULT_2,
 ) -> list[Game]:
     """Return games filtered by status, favorite flag, or title search."""
     stmt = select(Game).where(Game.user_id == current_user.id, Game.deleted_at.is_(None))
@@ -1981,6 +2316,7 @@ async def update_game(
         game.links = [GameLink(label=link["label"], url=link["url"]) for link in new_links]
 
     _record_field_changes(game, updates, db)
+    apply_updates_with_locking(game, updates, frozenset(_GAME_METADATA_FIELDS))
 
     for field, value in updates.items():
         setattr(game, field, value)
@@ -2005,6 +2341,260 @@ async def update_game(
         raise _duplicate_folder_error(game.folder_location) from exc
 
     return game
+
+
+_GAME_METADATA_FIELDS = frozenset(
+    {
+        "title",
+        "description",
+        "developer",
+        "publisher",
+        "series",
+        "tags",
+        "features",
+        "age_rating",
+        "release_date",
+        "time_to_beat_hours",
+        "links",
+    }
+)
+
+
+def _normalize_metadata_title(title: str) -> str:
+    return title.replace("™", "").replace("®", "").replace("©", "").strip().lower()
+
+
+def _metadata_value_is_present(value: object) -> bool:
+    return value is not None and value != "" and value != []
+
+
+@router.post("/{game_id}/metadata/refresh")
+async def refresh_game_metadata(
+    game_id: UUID,
+    payload: MetadataRefreshRequest,
+    db: AsyncSession = _DB_DEPENDENCY,
+    current_user: User = _CURRENT_USER_DEPENDENCY,
+) -> dict:
+    """Preview or apply a metadata-provider refresh for one game.
+
+    Provider lookup uses the same configured game metadata registry as the
+    existing search flow. Applying is server-side so authorization, locks,
+    history, artwork protection, and stale-editor detection cannot be bypassed
+    by a client replaying a provider result.
+    """
+    game = await _get_game_or_404(game_id, db, current_user.id)
+    scan_settings = await get_or_create_scan_settings(current_user.id, db)
+    preferences = _scan_settings_to_preferences(scan_settings)
+    app_integrations = resolve_integrations(await get_or_create_app_integration_settings(db))
+
+    try:
+        result = await asyncio.to_thread(
+            search_game_metadata,
+            game.title,
+            8,
+            current_user.steamgriddb_api_key,
+            preferences,
+            current_user,
+            app_integrations.igdb_client_id,
+            app_integrations.igdb_client_secret,
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Metadata providers could not be reached: {exc}",
+        ) from exc
+
+    providers = result.get("providers", [])
+    provider_errors = result.get("provider_errors", [])
+    if providers:
+        last_used = dict(scan_settings.provider_last_used)
+        now = int(time.time())
+        for provider_name in providers:
+            last_used[provider_name] = now
+        scan_settings.provider_last_used = last_used
+
+    match = next(
+        (
+            candidate
+            for candidate in result.get("results", [])
+            if isinstance(candidate, dict)
+            and _normalize_metadata_title(str(candidate.get("title") or ""))
+            == _normalize_metadata_title(game.title)
+        ),
+        None,
+    )
+    if match is None:
+        await db.commit()
+        return {
+            "status": "no-match",
+            "provider": None,
+            "provider_errors": provider_errors,
+            "changed_fields": [],
+            "skipped_locked_fields": [],
+            "would_add_key_art": False,
+            "would_add_banner": False,
+            "game_updated_at": game.updated_at,
+        }
+
+    field_values: dict[str, object] = {
+        "title": match.get("title"),
+        "description": match.get("description"),
+        "developer": match.get("developer"),
+        "publisher": match.get("publisher"),
+        "series": match.get("series"),
+        "tags": match.get("tags"),
+        "features": match.get("features"),
+        "age_rating": match.get("age_rating"),
+        "release_date": match.get("release_date"),
+        "time_to_beat_hours": match.get("time_to_beat_hours"),
+        "links": match.get("links"),
+    }
+    gated_flags = {
+        "developer": "save_developer",
+        "publisher": "save_publisher",
+        "series": "save_series",
+        "tags": "save_tags",
+        "features": "save_features",
+        "description": "save_description",
+        "age_rating": "save_age_rating",
+        "release_date": "save_release_date",
+        "time_to_beat_hours": "save_time_to_beat",
+    }
+    updates: dict[str, object] = {}
+    skipped_locked: list[str] = []
+    for field, fresh in field_values.items():
+        if (
+            field != "title"
+            and gated_flags.get(field)
+            and not preferences.get(gated_flags[field], True)
+        ):
+            continue
+        if not _metadata_value_is_present(fresh):
+            continue
+        if field in game.locked_fields:
+            skipped_locked.append(field)
+            continue
+        current = getattr(game, field)
+        if fresh != current:
+            updates[field] = fresh
+
+    changed_fields = sorted(updates)
+    key_art_url = match.get("key_art_url")
+    banner_url = match.get("banner_url")
+    game_dir = _DATA_ROOT / str(game.user_id) / "games" / game.folder_location
+    key_art_exists = (game_dir / ASSET_FILENAMES["key_art"]).is_file()
+    banner_exists = (game_dir / ASSET_FILENAMES["banner"]).is_file()
+    would_add_key_art = bool(
+        payload.fill_missing_art
+        and key_art_url
+        and (payload.overwrite_existing_art or not key_art_exists)
+    )
+    would_add_banner = bool(
+        payload.fill_missing_art
+        and banner_url
+        and (payload.overwrite_existing_art or not banner_exists)
+    )
+
+    if payload.dry_run:
+        # A preview records no game changes, but the existing provider-last-used
+        # telemetry may be updated as part of the provider lookup.
+        await db.commit()
+        return {
+            "status": "preview",
+            "provider": match.get("provider"),
+            "provider_errors": provider_errors,
+            "changed_fields": changed_fields,
+            "skipped_locked_fields": sorted(set(skipped_locked)),
+            "would_add_key_art": would_add_key_art,
+            "would_add_banner": would_add_banner,
+            "game_updated_at": game.updated_at,
+        }
+
+    if payload.expected_updated_at is not None:
+        # The preview may have been open while another tab or sync changed the game.
+        # Re-read under a row lock before applying so two concurrent refreshes cannot
+        # both pass the same stale timestamp.
+        await db.rollback()
+        locked_game = await db.scalar(
+            select(Game)
+            .where(Game.id == game_id, Game.user_id == current_user.id, Game.deleted_at.is_(None))
+            .with_for_update()
+        )
+        if locked_game is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail=f"Game {game_id} not found"
+            )
+        if locked_game.updated_at != payload.expected_updated_at:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Game changed after the metadata preview. Refresh the editor and try again.",
+            )
+        game = locked_game
+        # Recompute from the freshly locked row. Locks and configured save_* flags
+        # may have changed while the preview was open, so do not trust preview data.
+        updates = {}
+        skipped_locked = []
+        for field, fresh in field_values.items():
+            if (
+                field != "title"
+                and gated_flags.get(field)
+                and not preferences.get(gated_flags[field], True)
+            ):
+                continue
+            if not _metadata_value_is_present(fresh):
+                continue
+            if field in game.locked_fields:
+                skipped_locked.append(field)
+                continue
+            if getattr(game, field) != fresh:
+                updates[field] = fresh
+        changed_fields = sorted(updates)
+        key_art_exists = (game_dir / ASSET_FILENAMES["key_art"]).is_file()
+        banner_exists = (game_dir / ASSET_FILENAMES["banner"]).is_file()
+
+    if payload.update_text:
+        _record_field_changes(game, updates, db)
+        for field, value in updates.items():
+            setattr(game, field, value)
+
+    if payload.fill_missing_art:
+
+        async def _download_art(url: str) -> bytes:
+            response = await asyncio.to_thread(requests.get, url, timeout=20)
+            response.raise_for_status()
+            return response.content
+
+        if key_art_url and (payload.overwrite_existing_art or not key_art_exists):
+            try:
+                await save_game_asset(await _download_art(str(key_art_url)), game.id, "key_art")
+            except Exception as exc:  # noqa: BLE001 — one image must not cancel text metadata
+                provider_errors.append(
+                    f"{match.get('provider', 'Metadata')}: cover art could not be downloaded: {exc}"
+                )
+            else:
+                would_add_key_art = True
+        if banner_url and (payload.overwrite_existing_art or not banner_exists):
+            try:
+                await save_game_asset(await _download_art(str(banner_url)), game.id, "banner")
+            except Exception as exc:  # noqa: BLE001 — one image must not cancel text metadata
+                provider_errors.append(
+                    f"{match.get('provider', 'Metadata')}: banner art could not be downloaded: {exc}"
+                )
+            else:
+                would_add_banner = True
+
+    await db.commit()
+    await db.refresh(game)
+    return {
+        "status": "updated",
+        "provider": match.get("provider"),
+        "provider_errors": provider_errors,
+        "changed_fields": changed_fields,
+        "skipped_locked_fields": sorted(set(skipped_locked)),
+        "would_add_key_art": would_add_key_art,
+        "would_add_banner": would_add_banner,
+        "game_updated_at": game.updated_at,
+    }
 
 
 @router.get("/{game_id}/field-changes", response_model=list[GameFieldChangeRead])

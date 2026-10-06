@@ -70,11 +70,84 @@ Interface.
 a picker. Narrow it down by status, platform, genre, the most hours to beat
 and priority, then **Pick a game**. With **Favour higher-priority games** on,
 a priority 1 game is five times as likely as one with no priority. **Pick
-again** never repeats the last pick while there's another choice. The
-filters are remembered in your browser.
+again** never repeats the last pick while there's another choice; when only
+one game matches, the picker says so. The filters are remembered in your
+browser.
+
+Genre filters, here and in the Games library, match a game whichever
+metadata provider named its genre. IGDB, for example, has no "Action" genre
+and files Devil May Cry under "Hack and slash/Beat 'em up", which still
+counts as Action; "Role-playing (RPG)" counts as RPG and "Platform" as
+Platformer. Letter case doesn't matter.
 
 ## Bulk edit
 
 **Select** games in the library, then **Bulk Edit** to set status, favorite,
 developer, publisher, series, age rating, platform, priority, tags or
 features on all of them at once. Only the fields you tick are changed.
+
+## A game's page
+
+Clicking a game opens its page. The header holds the cover, title, status,
+score, favorite heart and collections button, and below it are the tabs:
+
+- **Overview**: the description, ratings, platforms, links and where you left
+  off.
+- **Achievements**, **Screenshots**, **Clips**, **Soundtrack**, **Saves**,
+  **Docs** and **Notes**. See [Game Media and Files](game-media.md) and
+  [Game Notes](game-notes.md).
+- **Stats**: playtime and dates, with a history timeline underneath.
+
+Which tabs and header parts show is up to you. See
+[Game Page Settings](game-page-settings.md).
+
+A game you have already seen in the library opens straight away and refreshes
+in the background.
+
+### Clickable details
+
+The developer, publisher, platform, tags and series on a game's page are
+links. Clicking one opens the library filtered to every game with the same
+value, so clicking a developer lists all of its games. It shows only that
+filter, not on top of the ones left on from last time.
+
+### Genres from Steam tags
+
+A Steam game's genres can come from the tags Steam players vote on instead of
+only Steam's broad official genres, so Elden Ring shows Souls-like, Open World,
+Dark Fantasy, RPG, Difficult and Action RPG rather than just Action and RPG. See
+[Steam tags as genres](../integrations/metadata.md#steam-tags-as-genres).
+
+## Achievements
+
+Steam, PlayStation and RetroAchievements achievements are synced into the
+game.
+
+- **Hidden achievements** are flagged by the provider and shown as a spoiler
+  until you unlock them. Steam only publishes a hidden achievement's
+  description after you unlock it, so locked ones stay blank. Descriptions of
+  the ones you have unlocked are read from your public Steam profile, which
+  needs your game details set to public. Refresh the game's achievements, or
+  run the library sync again, to fill them in.
+- **Of players** shows how many players have each achievement (Steam's global
+  percentage, PlayStation's earned rate, or RetroAchievements' count).
+- Screenshots, clips and notes can be tied to an achievement, and the
+  achievement's page lists what is tied to it.
+
+## Stats and history
+
+The Stats tab shows playtime, achievements, score and dates. Below the numbers
+is the game's story as a timeline. Each entry has a date and a one line
+summary, and opens to show the details. Entries cover being added to the
+library, being purchased, achievements unlocked, metadata updated, a price or
+status change, and media added. Things that happened together are grouped. The
+timeline can be switched off in the page settings while the numbers stay.
+
+## The library at a glance
+
+The library has card, list and shelf layouts. Covers are small local copies
+rather than the full artwork, and they load lazily: only the games near the
+screen fetch their picture, and the list layouts skip drawing rows that are far
+off screen. A library of hundreds of games opens quickly and loads more as you
+scroll. See [Artwork](../development/architecture.md#artwork-and-local-image-copies)
+for how the copies are made.

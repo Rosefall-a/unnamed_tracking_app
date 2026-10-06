@@ -30,7 +30,7 @@ from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path, PurePosixPath
 from typing import Any, Callable
-from urllib.error import HTTPError
+from urllib.error import HTTPError, URLError
 from urllib.parse import unquote, urlsplit
 from urllib.request import Request, urlopen
 from uuid import UUID, uuid4
@@ -104,6 +104,54 @@ class RuntimeGatewayError(RuntimePolicyError):
     def __init__(self, envelope: dict[str, Any]) -> None:
         self.envelope = envelope
         super().__init__(f"plugin gateway request failed: {envelope['message']}")
+
+    @property
+    def status_code(self) -> int:
+        """Retain recognized public failures without exposing internal transport status."""
+        code = self.envelope.get("code")
+        if not isinstance(code, str):
+            return 422
+        return {
+            "invalid_request": 400,
+            "forbidden": 403,
+            "not_found": 404,
+            "conflict": 409,
+            "unavailable": 503,
+        }.get(code, 422)
+
+
+def gateway_transport_message(exc: Exception) -> str:
+    """Classify transport failures without exposing URLs, credentials or payloads."""
+    reason = exc.reason if isinstance(exc, URLError) else exc
+    if isinstance(reason, TimeoutError):
+        return (
+            "Plugin gateway timed out. Check host/runtime connectivity and server load."
+        )
+    if isinstance(reason, ConnectionRefusedError):
+        return "Plugin gateway connection was refused. Check the gateway URL and host readiness."
+    if isinstance(reason, (json.JSONDecodeError, UnicodeError)):
+        return "Plugin gateway returned invalid JSON. Check the gateway URL and proxy routing."
+    return "Plugin gateway is unavailable. Check the gateway URL and host/runtime connectivity."
+
+
+def validated_gateway_url(value: str) -> str:
+    """Accept a bounded broker address without credentials or request parameters."""
+    if len(value) > 2048 or any(character.isspace() for character in value):
+        raise ValueError("invalid gateway address")
+    parsed = urlsplit(value)
+    if (
+        parsed.scheme not in {"http", "https"}
+        or not parsed.hostname
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.query
+        or parsed.fragment
+    ):
+        raise ValueError("invalid gateway address")
+    # Access validates malformed/out-of-range port declarations too.
+    if parsed.port is not None and not 1 <= parsed.port <= 65535:
+        raise ValueError("invalid gateway port")
+    return value.rstrip("/")
 
 
 def gateway_error_response(exc: Exception, request: Any) -> dict[str, Any]:
@@ -192,9 +240,10 @@ class PluginSupervisor:
     ) -> None:
         self.root = root
         self.storage_root = storage_root
-        self.gateway_url = (gateway_url or os.getenv("PLUGIN_GATEWAY_URL", "")).rstrip(
-            "/"
+        self.gateway_url = (
+            (gateway_url or os.getenv("PLUGIN_GATEWAY_URL", "")).strip().rstrip("/")
         )
+        self.gateway_configuration_source = "runtime" if self.gateway_url else "missing"
         self.gateway_token = gateway_token or os.getenv("PLUGIN_RUNTIME_TOKEN", "")
         self.root.mkdir(mode=0o700, parents=True, exist_ok=True)
         self._processes: dict[str, subprocess.Popen[bytes]] = {}
@@ -209,11 +258,48 @@ class PluginSupervisor:
         self._package_paths: dict[str, Path] = {}
         self._package_manifests: dict[str, dict[str, Any]] = {}
         self._lock = threading.RLock()
+        self.reduced_isolation_acknowledged = False
         self.isolation: dict[str, Any] = {
             "bubblewrap_available": None,
             "sandbox_available": False,
             "mechanism": "unprobed",
             "reduced_isolation_allowed": self._nonbubble_enabled(),
+        }
+
+    def configure_host_gateway(self, value: str) -> None:
+        """Use an authenticated host callback only without a runtime-local override."""
+        with self._lock:
+            if self.gateway_configuration_source == "runtime":
+                return
+            self.gateway_url = validated_gateway_url(value)
+            self.gateway_configuration_source = "host"
+
+    def gateway_health(self) -> dict[str, Any]:
+        """Report configuration problems without disclosing the broker or its token."""
+        error = None
+        if not self.gateway_url:
+            error = (
+                "plugin gateway is not configured: set PLUGIN_GATEWAY_URL on the runtime "
+                "or app service to the app's internal address, then recreate that service. "
+                "Production Compose uses http://app; development uses http://backend:8000."
+            )
+        else:
+            try:
+                validated_gateway_url(self.gateway_url)
+            except ValueError:
+                error = (
+                    "PLUGIN_GATEWAY_URL must be an HTTP(S) app address without credentials, "
+                    "query parameters or a fragment. Correct it and recreate the service."
+                )
+        if len(self.gateway_token) < 32:
+            error = (
+                "plugin gateway is not configured: set the same PLUGIN_RUNTIME_TOKEN of "
+                "at least 32 characters on the app and runtime, then recreate both services."
+            )
+        return {
+            "gateway_configured": error is None,
+            "gateway_configuration_source": self.gateway_configuration_source,
+            "gateway_error": error,
         }
 
     def probe_isolation(self) -> dict[str, Any]:
@@ -232,12 +318,15 @@ class PluginSupervisor:
         except (OSError, subprocess.TimeoutExpired) as exc:
             available = False
             error = self._redact(str(exc))
-        reduced = self._nonbubble_enabled()
+        forced = self._nonbubble_enabled()
+        reduced = forced or (not available and self.reduced_isolation_acknowledged)
         self.isolation = {
             "bubblewrap_available": available,
-            "sandbox_available": available and not reduced,
-            "mechanism": "bubblewrap" if available and not reduced else "process",
+            "sandbox_available": available and not forced,
+            "mechanism": "bubblewrap" if available and not forced else "process",
             "reduced_isolation_allowed": reduced,
+            "reduced_isolation_acknowledged": self.reduced_isolation_acknowledged,
+            "reduced_isolation_env_override": forced,
             "last_error": error,
         }
         return dict(self.isolation)
@@ -454,6 +543,7 @@ class PluginSupervisor:
             }, user_id=target)
         local_capability = {
             "storage.put": "plugin.storage",
+            "storage.compare_and_swap": "plugin.storage",
             "storage.get": "plugin.storage",
             "storage.delete": "plugin.storage",
             "storage.keys": "plugin.storage",
@@ -487,6 +577,17 @@ class PluginSupervisor:
         if method == "storage.get":
             value = self._storage(plugin_id).get(str(payload.get("key", "")))
             return {"payload": {"value": None if value is None else value.decode()}}
+        if method == "storage.compare_and_swap":
+            expected, value = payload.get("expected"), payload.get("value")
+            if (expected is not None and not isinstance(expected, str)) or (
+                value is not None and not isinstance(value, str)
+            ):
+                raise RuntimePolicyError("storage compare-and-swap values must be strings or null")
+            return {"payload": {"swapped": self._storage(plugin_id).compare_and_swap(
+                str(payload.get("key", "")),
+                None if expected is None else expected.encode(),
+                None if value is None else value.encode(),
+            )}}
         if method == "storage.delete":
             return {
                 "payload": {
@@ -503,8 +604,16 @@ class PluginSupervisor:
                              if not key.startswith("host/")]
                 }
             }
-        if not self.gateway_url or len(self.gateway_token) < 32:
-            raise RuntimePolicyError("plugin gateway is not configured")
+        configuration = self.gateway_health()
+        if not configuration["gateway_configured"]:
+            raise RuntimeGatewayError(
+                {
+                    "api_version": "v1",
+                    "request_id": request["request_id"],
+                    "code": "unavailable",
+                    "message": configuration["gateway_error"],
+                }
+            )
         resolved_user_id = user_id or self._user_ids.get(plugin_id)
         if not resolved_user_id:
             raise RuntimePolicyError(
@@ -569,7 +678,7 @@ class PluginSupervisor:
                     "api_version": "v1",
                     "request_id": request["request_id"],
                     "code": "unavailable",
-                    "message": "Plugin gateway is unavailable.",
+                    "message": gateway_transport_message(exc),
                 }
             ) from exc
         if not isinstance(data, dict):
@@ -634,11 +743,18 @@ class PluginSupervisor:
             "on",
         }
 
+    def _reduced_isolation_allowed(self) -> bool:
+        return self._nonbubble_enabled() or (
+            self.isolation.get("bubblewrap_available") is False
+            and self.reduced_isolation_acknowledged
+        )
+
+
     def _sandbox_command(
         self, spec: PluginSpec, workdir: Path, package_dir: Path
     ) -> list[str]:
-        if self._nonbubble_enabled():
-            # Development escape hatch for hosts where bubblewrap is unavailable.
+        if self._reduced_isolation_allowed():
+            # Explicit fallback for hosts where bubblewrap is unavailable.
             # The Docker/container boundary and resource limits still apply, but
             # the per-plugin bwrap namespace/filesystem boundary is intentionally
             # disabled.
@@ -646,7 +762,8 @@ class PluginSupervisor:
         if self.isolation.get("bubblewrap_available") is False:
             raise RuntimePolicyError(
                 "Bubblewrap is unavailable. Repair namespace support or explicitly "
-                "allow reduced isolation with NONBUBBLE_ENV=true."
+                "acknowledge reduced isolation in Plugin Manager. NONBUBBLE_ENV=true "
+                "is an optional deployment override."
             )
         # Create the mask target even before settings have ever been saved.
         # Otherwise a later host write would become visible through /plugin.
@@ -744,11 +861,11 @@ class PluginSupervisor:
                 process = _WORKER_LAUNCHER.submit(
                     subprocess.Popen,
                     self._sandbox_command(spec, workdir, package_dir),
-                    cwd=package_dir if self._nonbubble_enabled() else workdir,
+                    cwd=package_dir if self._reduced_isolation_allowed() else workdir,
                     env=environment
                     | {
                         "HOME": str(package_dir)
-                        if self._nonbubble_enabled()
+                        if self._reduced_isolation_allowed()
                         else "/plugin"
                     },
                     start_new_session=True,
@@ -809,11 +926,11 @@ class PluginSupervisor:
                     raise RuntimePolicyError("plugin contributions are not active")
                 process = subprocess.Popen(
                     self._sandbox_command(spec, workdir, package_dir),
-                    cwd=package_dir if self._nonbubble_enabled() else workdir,
+                    cwd=package_dir if self._reduced_isolation_allowed() else workdir,
                     env={
                         "PATH": "/usr/local/bin:/usr/bin:/bin",
                         "HOME": str(package_dir)
-                        if self._nonbubble_enabled()
+                        if self._reduced_isolation_allowed()
                         else "/plugin",
                         "PLUGIN_DATA_DIR": "/plugin-data",
                         "TMPDIR": "/tmp",
@@ -853,6 +970,7 @@ class PluginSupervisor:
 
             deadline = time.monotonic() + timeout
             output: bytes | None = None
+            gateway_failure: RuntimeGatewayError | None = None
             stdout_closed = False
             while time.monotonic() < deadline:
                 try:
@@ -899,7 +1017,11 @@ class PluginSupervisor:
                             spec.plugin_id, message, user_id=user_id
                         )
                     )
+                    gateway_failure = None
                 except Exception as exc:
+                    gateway_failure = (
+                        exc if isinstance(exc, RuntimeGatewayError) else None
+                    )
                     self._log(
                         spec.plugin_id,
                         f"Gateway request failed: {exc}",
@@ -924,6 +1046,8 @@ class PluginSupervisor:
                         metadata={"timeout_seconds": timeout},
                     )
                     raise RuntimePolicyError("plugin action timed out")
+                if gateway_failure is not None:
+                    raise gateway_failure
                 raise RuntimePolicyError("plugin action did not return a result")
             process.stdin.close()
             return_code = process.wait(timeout=max(0.01, deadline - time.monotonic()))
@@ -1075,7 +1199,45 @@ class PluginRegistry:
         self.supervisor.execution_allowed = self._execution_allowed
         self._installation_lock = self._operation_lock
         self.root.mkdir(mode=0o750, parents=True, exist_ok=True)
+        self.policy_path = root / ".runtime-isolation.json"
+        if self.policy_path.is_symlink():
+            raise RuntimePolicyError("runtime isolation policy must not be a symlink")
+        if self.policy_path.exists():
+            policy = json.loads(self.policy_path.read_text(encoding="utf-8"))
+            if not isinstance(policy, dict) or type(policy.get("acknowledged")) is not bool:
+                raise RuntimePolicyError("runtime isolation acknowledgement is invalid")
+            self.supervisor.reduced_isolation_acknowledged = policy["acknowledged"]
         self._recover_publication()
+
+    def acknowledge_reduced_isolation(self, acknowledged: bool) -> None:
+        """Mirror an authenticated host administrator decision for runtime restart."""
+        with self._operation_lock:
+            if self.supervisor.reduced_isolation_acknowledged is acknowledged:
+                return
+            temporary = self.policy_path.with_suffix(".tmp")
+            with temporary.open("w", encoding="utf-8") as handle:
+                json.dump({"acknowledged": acknowledged}, handle)
+                handle.flush()
+                os.fsync(handle.fileno())
+            temporary.chmod(0o600)
+            temporary.replace(self.policy_path)
+            self.supervisor.reduced_isolation_acknowledged = acknowledged
+            unavailable = self.supervisor.isolation.get("bubblewrap_available") is False
+            forced = self.supervisor._nonbubble_enabled()
+            self.supervisor.isolation.update(
+                reduced_isolation_allowed=forced or (unavailable and acknowledged),
+                reduced_isolation_acknowledged=acknowledged,
+                reduced_isolation_env_override=forced,
+            )
+            if unavailable and not acknowledged and not forced:
+                for plugin_id, item in self._state().items():
+                    if isinstance(item, dict) and item.get("enabled") and item.get("status") == "running":
+                        self._transition(
+                            plugin_id, status="failed",
+                            last_error="Reduced isolation approval was withdrawn. Review Plugin Manager.",
+                        )
+                self.supervisor.stop_all()
+
 
     def _transaction_backup(
         self, plugin_id: str, pending: dict[str, Any]
@@ -1438,6 +1600,12 @@ class PluginRegistry:
         ):
             self._transition(plugin_id, status="failed")
             self.supervisor.stop(plugin_id)
+        last_exit_code = self.supervisor.exit_code(plugin_id)
+        worker_error = (
+            f"Plugin worker exited with status {last_exit_code}. Open Diagnostics for recent events."
+            if status == "failed" and last_exit_code is not None
+            else None
+        )
         return {
             "plugin_id": plugin_id,
             "name": data.get("name", plugin_id),
@@ -1489,15 +1657,14 @@ class PluginRegistry:
             if running
             else (
                 "unhealthy"
-                if self.supervisor.exit_code(plugin_id) not in (None, 0)
+                if last_exit_code not in (None, 0)
                 else "unknown"
             ),
             "logs_available": bool(self.supervisor.logs(plugin_id)),
-            "last_exit_code": self.supervisor.exit_code(plugin_id),
+            "last_exit_code": last_exit_code,
             "status": status,
-            "last_error": raw_state.get("last_error")
-            if isinstance(raw_state, dict)
-            else None,
+            "last_error": (raw_state.get("last_error") if isinstance(raw_state, dict) else None)
+            or worker_error,
             "runtime": dict(self.supervisor.isolation),
             "pending_transaction": (
                 {"phase": "prepared", **raw_state["pending_installation"]}
@@ -2260,6 +2427,16 @@ class PluginRegistry:
                     status="failed",
                     last_error=self.supervisor._redact(str(exc)),
                 )
+                self.supervisor._log(
+                    plugin_id,
+                    f"Plugin startup failed: {exc}",
+                    level="error",
+                    event="runtime.start_failed",
+                    metadata={
+                        "isolation": self.supervisor.isolation.get("mechanism"),
+                        "reduced_isolation_allowed": self.supervisor._reduced_isolation_allowed(),
+                    },
+                )
                 self.supervisor.stop(plugin_id)
                 raise
             self._transition(plugin_id, status="running", last_error=None)
@@ -2303,16 +2480,16 @@ class PluginRegistry:
             self.supervisor.stop(plugin_id)
 
     def diagnostics(self, plugin_id: str) -> dict[str, Any]:
-        self.package(plugin_id)
-        running = self.supervisor.running(plugin_id)
+        """Report canonical lifecycle status and bounded, redacted worker events."""
+        item = self._item(self.package(plugin_id)[0])
         return {
             "plugin_id": plugin_id,
-            "status": "running" if running else "stopped",
-            "last_exit_code": self.supervisor.exit_code(plugin_id),
+            "status": item["status"],
+            "last_exit_code": item["last_exit_code"],
             "events": self.supervisor.logs(plugin_id),
             "runtime": self.supervisor.isolation,
-            "process_running": running,
-            "last_error": self._state().get(plugin_id, {}).get("last_error"),
+            "process_running": item["health"] == "healthy",
+            "last_error": item["last_error"],
         }
 
     def storage_put(self, plugin_id: str, key: str, value: str) -> None:
@@ -2588,11 +2765,31 @@ class PluginRegistry:
 class RuntimeHandler(BaseHTTPRequestHandler):
     server_version = "UnnamedTrackingPluginRuntime/1.0"
 
-    def _authorized(self) -> bool:
-        if self.path.split("?", 1)[0] == "/health":
-            return True
+    def _authorize(self) -> bool:
         token = os.environ.get("PLUGIN_RUNTIME_TOKEN", "")
-        return len(token) >= 32 and self.headers.get("X-Plugin-Runtime-Token") == token
+        authenticated = len(token) >= 32 and self.headers.get("X-Plugin-Runtime-Token") == token
+        if authenticated:
+            gateway_url = self.headers.get("X-Plugin-Gateway-URL")
+            if gateway_url:
+                try:
+                    self.server.registry.supervisor.configure_host_gateway(gateway_url)
+                except ValueError:
+                    self._json(422, {"detail": "App PLUGIN_GATEWAY_URL is invalid."})
+                    return False
+            acknowledgement = self.headers.get("X-Plugin-Reduced-Isolation-Acknowledged")
+            if acknowledgement is not None:
+                if acknowledgement not in {"true", "false"}:
+                    self._json(422, {"detail": "invalid reduced isolation acknowledgement"})
+                    return False
+                try:
+                    self.server.registry.acknowledge_reduced_isolation(acknowledgement == "true")
+                except (OSError, RuntimePolicyError) as exc:
+                    self._json(503, {"detail": f"runtime isolation approval could not be applied: {exc}"})
+                    return False
+        if authenticated or self.path.split("?", 1)[0] == "/health":
+            return True
+        self._json(401, {"detail": "runtime authentication required"})
+        return False
 
     def _json(self, status: int, payload: Any) -> None:
         body = json.dumps(payload, default=str).encode()
@@ -2606,8 +2803,7 @@ class RuntimeHandler(BaseHTTPRequestHandler):
         return [unquote(x) for x in self.path.split("?", 1)[0].split("/") if x]
 
     def do_GET(self) -> None:
-        if not self._authorized():
-            self._json(401, {"detail": "runtime authentication required"})
+        if not self._authorize():
             return
         parts = self._parts()
         try:
@@ -2621,6 +2817,7 @@ class RuntimeHandler(BaseHTTPRequestHandler):
                         "supported_api_versions": ["v1"],
                         "transport": "http",
                         "plugin_transport": "json-lines",
+                        **self.server.registry.supervisor.gateway_health(),
                         **self.server.registry.supervisor.isolation,
                     },
                 )
@@ -2661,8 +2858,7 @@ class RuntimeHandler(BaseHTTPRequestHandler):
             self._json(422, {"detail": str(exc)})
 
     def do_POST(self) -> None:
-        if not self._authorized():
-            self._json(401, {"detail": "runtime authentication required"})
+        if not self._authorize():
             return
         parts = self._parts()
         try:
@@ -2728,12 +2924,16 @@ class RuntimeHandler(BaseHTTPRequestHandler):
             self._json(404, {"detail": "not found"})
         except KeyError:
             self._json(404, {"detail": "plugin not found"})
+        except RuntimeGatewayError as exc:
+            self._json(
+                exc.status_code,
+                {"detail": PluginSupervisor._redact(exc.envelope["message"])[:1024]},
+            )
         except (RuntimePolicyError, ValueError, json.JSONDecodeError) as exc:
             self._json(422, {"detail": str(exc)})
 
     def do_PUT(self) -> None:
-        if not self._authorized():
-            self._json(401, {"detail": "runtime authentication required"})
+        if not self._authorize():
             return
         parts = self._parts()
         if parts in (["plugins", "install"], ["plugins", "install", "prepare"]):
@@ -2816,8 +3016,7 @@ class RuntimeHandler(BaseHTTPRequestHandler):
             except (RuntimePolicyError, ValueError, OSError) as exc:
                 self._json(422, {"detail": str(exc)})
             return
-        if not self._authorized():
-            self._json(401, {"detail": "runtime authentication required"})
+        if not self._authorize():
             return
         parts = self._parts()
         if len(parts) != 3 or parts[0] != "plugins" or parts[2] != "settings":
@@ -2834,8 +3033,7 @@ class RuntimeHandler(BaseHTTPRequestHandler):
             self._json(422, {"detail": str(exc)})
 
     def do_DELETE(self) -> None:
-        if not self._authorized():
-            self._json(401, {"detail": "runtime authentication required"})
+        if not self._authorize():
             return
         parts = self._parts()
         if len(parts) == 2 and parts[0] == "plugins":

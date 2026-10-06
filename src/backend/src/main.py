@@ -9,47 +9,48 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.sessions import SessionMiddleware
 
 from src.api.routes import (
-    app_integrations,
-    api_keys,
     anime,
+    api_keys,
+    app_integrations,
     auth,
-    bounties,
     calendar_events,
     calendar_feed,
-    cards,
     default_game_assets,
     export_import,
     game_archives,
+    game_notes,
+    game_page,
     games,
     jobs,
     library_sync,
     media,
     media_extras,
-    media_provider,
+    media_images,
     media_io,
     media_lists,
+    media_provider,
     media_stats,
+    movies,
     notification_providers,
     notifications,
     preferences,
     session_manager,
-    movies,
     settings,
     stats,
+    steam_tags_refresh,
     tv_shows,
     users,
 )
-from src.api.routes import set as set_routes
 from src.api.routes.auth_oidc import router as auth_oidc_router
 from src.api.routes.deployment_settings import router as deployment_settings_router
 from src.api.routes.plugin_permissions import router as plugin_permissions_router
 from src.api.routes.plugins import host_router as plugin_host_routes
 from src.api.routes.plugins import router as plugins_router
-from src.plugin_api.pwa import router as pwa_router
-from src.api.routes.setup import router as setup_router
+from src.api.routes.real_ip import router as real_ip_router
 from src.api.routes.settings import get_or_create_app_integration_settings
+from src.api.routes.setup import router as setup_router
 from src.api.routes.utils.misc import router as misc_router
-from src.core.auth import ensure_primary_user
+from src.core.auth import ensure_primary_user, set_password_policy_override
 from src.core.config import settings as app_settings
 from src.core.provider_credentials import apply_deployment_provider_credentials
 from src.core.session_manager import purge_old_sessions
@@ -58,6 +59,7 @@ from src.features.backup.scheduler import run_backup_loop
 from src.features.jobs import run_jobs_loop
 from src.features.trash.sweep import run_sweep_loop
 from src.plugin_api.backend_routes import reserve_host_routes
+from src.plugin_api.pwa import router as pwa_router
 
 app = FastAPI(
     title="My API", docs_url="/api/docs", redoc_url="/api/redoc", openapi_url="/api/openapi.json"
@@ -97,6 +99,8 @@ app.include_router(movies.router)
 app.include_router(tv_shows.router)
 app.include_router(anime.router)
 app.include_router(game_archives.router)
+app.include_router(game_notes.router)
+app.include_router(game_page.router)
 app.include_router(users.router)
 app.include_router(api_keys.router)
 app.include_router(auth.router)
@@ -107,16 +111,18 @@ app.include_router(deployment_settings_router)
 app.include_router(plugin_permissions_router)
 app.include_router(plugins_router)
 app.include_router(pwa_router)
+app.include_router(real_ip_router)
 app.include_router(app_integrations.router)
 app.include_router(media.router)
 app.include_router(stats.router)
 app.include_router(library_sync.router)
-app.include_router(bounties.router)
 app.include_router(export_import.router)
 app.include_router(jobs.router)
 app.include_router(media_io.router)
 app.include_router(media_extras.router)
 app.include_router(media_provider.router)
+app.include_router(media_images.router)
+app.include_router(steam_tags_refresh.router)
 app.include_router(media_lists.router)
 app.include_router(notifications.router)
 app.include_router(notification_providers.router)
@@ -126,8 +132,6 @@ app.include_router(preferences.router)
 app.include_router(calendar_events.router)
 app.include_router(calendar_feed.authed_router)
 app.include_router(calendar_feed.public_router)
-app.include_router(set_routes.router)
-app.include_router(cards.router)
 app.include_router(misc_router)
 
 
@@ -141,6 +145,16 @@ async def bootstrap_primary_user() -> None:
         ):
             await ensure_primary_user(db)
         app_integrations_row = await get_or_create_app_integration_settings(db)
+        if app_integrations_row.password_min_length is not None:
+            set_password_policy_override(
+                {
+                    "min_length": app_integrations_row.password_min_length,
+                    "require_uppercase": bool(app_integrations_row.password_require_uppercase),
+                    "require_lowercase": bool(app_integrations_row.password_require_lowercase),
+                    "require_digit": bool(app_integrations_row.password_require_digit),
+                    "require_symbol": bool(app_integrations_row.password_require_symbol),
+                }
+            )
         apply_deployment_provider_credentials(app_integrations_row)
 
 
@@ -173,9 +187,10 @@ async def start_session_retention_loop() -> None:
 @app.on_event("startup")
 async def start_jobs_loop() -> None:
     # scheduled jobs (see features/jobs.py), including the airing check
+    import logging
+
     from src.plugin_api.recovery import recover_transactions
     from src.plugin_api.runtime_client import PluginRuntimeClient, PluginRuntimeUnavailable
-    import logging
 
     # Runtime starts alongside the host. No package can auto-start while pending;
     # retry this reconciliation when the runtime becomes reachable.

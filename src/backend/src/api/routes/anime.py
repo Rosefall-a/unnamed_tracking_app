@@ -14,10 +14,18 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
-from sqlalchemy import func, or_, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.schemas.pagination import PaginatedResponse
+from src.api.routes.media_common import (
+    library_page,
+    purge_row,
+    restore_row,
+    soft_delete,
+    title_search,
+    trash_listing,
+)
+from src.api.routes.media_extras import log_activity, status_change_detail
 from src.api.schemas.anime import (
     AnimeCreate,
     AnimeLibraryRead,
@@ -28,16 +36,17 @@ from src.api.schemas.anime import (
     SeasonCreate,
     SeasonUpdate,
 )
-from src.api.routes.media_extras import log_activity, status_change_detail
+from src.api.schemas.pagination import PaginatedResponse
 from src.core.app_integrations import get_or_create_app_integration_settings
 from src.core.auth import get_current_user
 from src.core.integrations import resolve_integrations
 from src.core.titles import apply_alt_titles
-from src.features.metadata.anime.alt_titles import fill_missing_titles
 from src.database.models.anime import Anime, AnimeEpisode, AnimeSeason, AnimeStatus
 from src.database.models.media_extras import ActivityEventType
 from src.database.models.user import User
 from src.database.session import SessionLocal, get_db
+from src.features.episode_progress import apply_counter, counter_from_flags, materialize_progress
+from src.features.metadata.anime.alt_titles import fill_missing_titles
 from src.features.metadata.anime.anilist import RELATIONS_CACHE_VERSION, AniListClient, AniListError
 from src.features.metadata.anime.episode_sync import (
     backfill_from_tmdb,
@@ -49,10 +58,28 @@ from src.features.metadata.anime.search import (
     get_anime_metadata_by_anilist_id,
     search_anime_metadata,
 )
-from src.features.episode_progress import apply_counter, counter_from_flags, materialize_progress
 from src.features.metadata.locked_fields import apply_updates_with_locking
-from src.features.notifications import record_sequel_announcements
 from src.features.metadata.refresh import quick_check_anime_season, refresh_anime_season_now
+from src.features.notifications import record_sequel_announcements
+
+_DB_DEFAULT = Depends(get_db)
+_CURRENT_USER_DEFAULT = Depends(get_current_user)
+_QUERY_DEFAULT = Query(..., min_length=2, max_length=100, alias="query")
+_LIMIT_DEFAULT = Query(default=8, ge=1, le=20, alias="limit")
+_STATUS_FILTER_DEFAULT = Query(default=None, alias="status")
+_FAVORITE_DEFAULT = Query(default=None, alias="favorite")
+_SEARCH_DEFAULT = Query(default=None, description="Case-insensitive title search", alias="search")
+_SKIP_DEFAULT = Query(default=0, ge=0, alias="skip")
+_LIMIT_DEFAULT_2 = Query(default=100, ge=1, le=200, alias="limit")
+_STATUS_BUCKET_DEFAULT = Query(default=None, alias="status_bucket")
+_GENRE_DEFAULT = Query(default=[], alias="genre")
+_GENRE_MATCH_ALL_DEFAULT = Query(default=False, alias="genre_match_all")
+_FORMAT_DEFAULT = Query(default=[], alias="format")
+_ONLY_UNRATED_DEFAULT = Query(default=False, alias="only_unrated")
+_ONLY_WITH_NOTE_DEFAULT = Query(default=False, alias="only_with_note")
+_MIN_SCORE_DEFAULT = Query(default=None, ge=0, le=10, alias="min_score")
+_YEAR_FROM_DEFAULT = Query(default=None, ge=1, le=9999, alias="year_from")
+_YEAR_TO_DEFAULT = Query(default=None, ge=1, le=9999, alias="year_to")
 
 router = APIRouter(prefix="/api/anime", tags=["anime"], dependencies=[Depends(get_current_user)])
 logger = logging.getLogger(__name__)
@@ -139,8 +166,8 @@ class AniListImportResult(BaseModel):
 @router.post("/import/anilist", response_model=AniListImportResult)
 async def import_anilist_library(
     payload: AniListImportRequest,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = _DB_DEFAULT,
+    current_user: User = _CURRENT_USER_DEFAULT,
 ) -> AniListImportResult:
     """Import a public AniList anime list without modifying AniList."""
     from src.features.metadata.anime.anilist_import import AniListImportClient
@@ -164,8 +191,8 @@ async def import_anilist_library(
                 skipped += 1
                 continue
 
-            def parsed(key: str):
-                value = entry[key]
+            def parsed(key: str, record: dict[str, Any] = entry) -> date | None:
+                value = record[key]
                 return date.fromisoformat(value) if value else None
 
             season: AnimeSeason | None = None
@@ -256,9 +283,9 @@ async def import_anilist_library(
 
 @router.get("/metadata/search", response_model=AnimeMetadataSearchResponse)
 async def search_metadata(
-    query: str = Query(..., min_length=2, max_length=100),
-    limit: int = Query(default=8, ge=1, le=20),
-    current_user: User = Depends(get_current_user),
+    query: str = _QUERY_DEFAULT,
+    limit: int = _LIMIT_DEFAULT,
+    current_user: User = _CURRENT_USER_DEFAULT,
 ) -> dict:
     """Search AniList and Jikan (MyAnimeList) for data that can prefill a
     new entry. Both are public/keyless — no app-wide credentials needed,
@@ -276,8 +303,8 @@ async def search_metadata(
 
 @router.post("/fill-titles")
 async def fill_alternate_titles(
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = _DB_DEFAULT,
+    current_user: User = _CURRENT_USER_DEFAULT,
 ) -> dict:
     """Looks up the English, romaji and Japanese spelling of every anime of
     yours that has none stored yet (see alt_titles.fill_missing_titles). The
@@ -289,7 +316,7 @@ async def fill_alternate_titles(
 @router.get("/metadata/by-id/{anilist_id}", response_model=dict | None)
 async def get_metadata_by_id(
     anilist_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: User = _CURRENT_USER_DEFAULT,
 ) -> dict | None:
     """Looks up one exact AniList entry by id, in the same shape
     `/metadata/search` returns per result — used when adding a title from
@@ -311,8 +338,8 @@ async def get_metadata_by_id(
 @router.post("/create", response_model=AnimeRead, status_code=status.HTTP_201_CREATED)
 async def create_anime(
     payload: AnimeCreate,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = _DB_DEFAULT,
+    current_user: User = _CURRENT_USER_DEFAULT,
 ) -> Anime:
     """Create an anime entry, optionally bulk-creating its seasons in the
     same transaction. If `seasons` is omitted entirely (not just an empty
@@ -373,8 +400,8 @@ async def create_anime(
 @router.post("/{show_id}/refresh-airing", response_model=AnimeRead)
 async def refresh_airing(
     show_id: UUID,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = _DB_DEFAULT,
+    current_user: User = _CURRENT_USER_DEFAULT,
 ) -> Anime:
     """Runs the airing check for just this title right now (the background
     loop only comes around every 30 minutes) — updates the next-episode
@@ -395,61 +422,66 @@ async def refresh_airing(
 
 @router.get("/list", response_model=PaginatedResponse[AnimeLibraryRead])
 async def list_anime(
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-    status_filter: AnimeStatus | None = Query(default=None, alias="status"),
-    favorite: bool | None = Query(default=None),
-    search: str | None = Query(default=None, description="Case-insensitive title search"),
-    skip: int = Query(default=0, ge=0),
-    limit: int = Query(default=100, ge=1, le=200),
+    db: AsyncSession = _DB_DEFAULT,
+    current_user: User = _CURRENT_USER_DEFAULT,
+    status_filter: AnimeStatus | None = _STATUS_FILTER_DEFAULT,
+    favorite: bool | None = _FAVORITE_DEFAULT,
+    search: str | None = _SEARCH_DEFAULT,
+    skip: int = _SKIP_DEFAULT,
+    limit: int = _LIMIT_DEFAULT_2,
+    status_bucket: str | None = _STATUS_BUCKET_DEFAULT,
+    genre: list[str] = _GENRE_DEFAULT,
+    genre_match_all: bool = _GENRE_MATCH_ALL_DEFAULT,
+    format: list[str] = _FORMAT_DEFAULT,
+    only_unrated: bool = _ONLY_UNRATED_DEFAULT,
+    only_with_note: bool = _ONLY_WITH_NOTE_DEFAULT,
+    min_score: float | None = _MIN_SCORE_DEFAULT,
+    year_from: int | None = _YEAR_FROM_DEFAULT,
+    year_to: int | None = _YEAR_TO_DEFAULT,
 ) -> PaginatedResponse[AnimeLibraryRead]:
     """Return one page of the current user's anime and the total matching it."""
-    stmt = select(Anime).where(Anime.user_id == current_user.id, Anime.deleted_at.is_(None))
-
-    if status_filter is not None:
-        stmt = stmt.where(Anime.status == status_filter)
-    if favorite is not None:
-        stmt = stmt.where(Anime.favorite == favorite)
-    if search:
-        pattern = f"%{search.strip()}%"
-        stmt = stmt.where(
-            or_(
-                Anime.title.ilike(pattern),
-                Anime.title_english.ilike(pattern),
-                Anime.title_romaji.ilike(pattern),
-                Anime.title_native.ilike(pattern),
+    status_values = None
+    if status_bucket and status_bucket != "all":
+        status_values = {
+            "plan": {AnimeStatus.WISHLIST, AnimeStatus.WATCHLIST},
+            "hold": {AnimeStatus.BACKLOG},
+            "watching": {AnimeStatus.IN_PROGRESS, AnimeStatus.REWATCH},
+            "completed": {AnimeStatus.WATCHED, AnimeStatus.FAVORITE},
+            "dropped": {AnimeStatus.DROPPED},
+        }.get(status_bucket)
+        if status_values is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid status bucket."
             )
-        )
-
-    status_count_stmt = select(Anime.status, func.count()).where(
-        Anime.user_id == current_user.id, Anime.deleted_at.is_(None)
-    )
-    if favorite is not None:
-        status_count_stmt = status_count_stmt.where(Anime.favorite == favorite)
-    if search:
-        status_count_stmt = status_count_stmt.where(Anime.title.ilike(f"%{search}%"))
-    status_counts_result = await db.execute(status_count_stmt.group_by(Anime.status))
-    status_counts = {status.value: count for status, count in status_counts_result.all()}
-
-    total = await db.scalar(select(func.count()).select_from(stmt.subquery()))
-    stmt = stmt.order_by(Anime.sort_title).offset(skip).limit(limit)
-
-    result = await db.execute(stmt)
-    items = list(result.scalars().unique().all())
-    return PaginatedResponse(
-        items=items,
-        total=total or 0,
-        offset=skip,
+    return await library_page(
+        db,
+        Anime,
+        current_user.id,
+        status_filter=status_filter,
+        favorite=favorite,
+        search_clause=title_search(
+            [Anime.title, Anime.title_english, Anime.title_romaji, Anime.title_native], search
+        ),
+        skip=skip,
         limit=limit,
-        status_counts=status_counts,
+        status_values=status_values,
+        genres=genre,
+        genre_match_all=genre_match_all,
+        formats=format,
+        only_unrated=only_unrated,
+        only_with_note=only_with_note,
+        min_score=min_score,
+        year_column=Anime.first_air_date,
+        year_from=year_from,
+        year_to=year_to,
     )
 
 
 @router.get("/get/{show_id}", response_model=AnimeRead)
 async def get_anime(
     show_id: UUID,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = _DB_DEFAULT,
+    current_user: User = _CURRENT_USER_DEFAULT,
 ) -> Anime:
     """Return one anime by ID, with its seasons."""
     return await _get_show_or_404(show_id, db, current_user.id)
@@ -459,8 +491,8 @@ async def get_anime(
 async def update_anime(
     show_id: UUID,
     payload: AnimeUpdate,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = _DB_DEFAULT,
+    current_user: User = _CURRENT_USER_DEFAULT,
 ) -> Anime:
     """Update an anime entry and keep its derived sort title synchronized."""
     show = await _get_show_or_404(show_id, db, current_user.id)
@@ -494,72 +526,56 @@ async def update_anime(
 @router.delete("/delete/{show_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_anime(
     show_id: UUID,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = _DB_DEFAULT,
+    current_user: User = _CURRENT_USER_DEFAULT,
 ) -> None:
     """Soft-delete an anime entry by ID (its seasons stay attached, hidden along with it)."""
     show = await _get_show_or_404(show_id, db, current_user.id)
-    show.deleted_at = int(time.time())
-    await db.commit()
+    await soft_delete(db, show)
 
 
 @router.get("/trash")
 async def list_anime_trash(
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = _DB_DEFAULT,
+    current_user: User = _CURRENT_USER_DEFAULT,
 ) -> list[dict]:
     """Deleted anime entries, most recently deleted first. No purge job
     runs against these — unlike Game's on-disk folders, an entry is just
     a row (plus its seasons/episodes), so there's nothing to clean up
     and it stays here until an admin either restores it or purges it."""
-    result = await db.execute(
-        select(Anime)
-        .where(Anime.user_id == current_user.id, Anime.deleted_at.is_not(None))
-        .order_by(Anime.deleted_at.desc())
-    )
-    trashed = []
-    for show in result.scalars().all():
-        assert show.deleted_at is not None  # guaranteed by the deleted_at.is_not(None) filter above
-        trashed.append({"id": str(show.id), "title": show.title, "deleted_at": show.deleted_at})
-    return trashed
+    return await trash_listing(db, Anime, current_user.id)
 
 
 @router.post("/{show_id}/restore", response_model=AnimeRead)
 async def restore_anime(
     show_id: UUID,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = _DB_DEFAULT,
+    current_user: User = _CURRENT_USER_DEFAULT,
 ) -> Anime:
     show = await _get_show_or_404(show_id, db, current_user.id, include_deleted=True)
-    if show.deleted_at is None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Entry isn't deleted.")
-    show.deleted_at = None
-    await db.commit()
+    await restore_row(db, show, "Entry")
     return await _get_show_or_404(show_id, db, current_user.id)
 
 
 @router.delete("/{show_id}/purge", status_code=status.HTTP_204_NO_CONTENT)
 async def purge_anime(
     show_id: UUID,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = _DB_DEFAULT,
+    current_user: User = _CURRENT_USER_DEFAULT,
 ) -> None:
     """Permanently removes an already-deleted anime entry and its
     seasons/episodes. Only reachable from trash — an entry still active
     must be soft-deleted first."""
     show = await _get_show_or_404(show_id, db, current_user.id, include_deleted=True)
-    if show.deleted_at is None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Entry isn't deleted.")
-    await db.delete(show)
-    await db.commit()
+    await purge_row(db, show, "Entry")
 
 
 @router.post("/{show_id}/seasons", response_model=AnimeRead, status_code=status.HTTP_201_CREATED)
 async def create_season(
     show_id: UUID,
     payload: SeasonCreate,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = _DB_DEFAULT,
+    current_user: User = _CURRENT_USER_DEFAULT,
 ) -> Anime:
     show = await _get_show_or_404(show_id, db, current_user.id)
     db.add(AnimeSeason(**payload.model_dump(), show_id=show.id))
@@ -572,8 +588,8 @@ async def update_season(
     show_id: UUID,
     season_id: UUID,
     payload: SeasonUpdate,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = _DB_DEFAULT,
+    current_user: User = _CURRENT_USER_DEFAULT,
 ) -> Anime:
     show = await _get_show_or_404(show_id, db, current_user.id)
     season = await _get_season_or_404(season_id, show_id, db)
@@ -608,8 +624,8 @@ async def update_season(
 async def delete_season(
     show_id: UUID,
     season_id: UUID,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = _DB_DEFAULT,
+    current_user: User = _CURRENT_USER_DEFAULT,
 ) -> Anime:
     await _get_show_or_404(show_id, db, current_user.id)
     season = await _get_season_or_404(season_id, show_id, db)
@@ -644,8 +660,8 @@ async def _get_episode_or_404(episode_id: UUID, season_id: UUID, db: AsyncSessio
 async def list_episodes(
     show_id: UUID,
     season_id: UUID,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = _DB_DEFAULT,
+    current_user: User = _CURRENT_USER_DEFAULT,
 ) -> Anime:
     """Return the season's episodes, syncing them in on the very first
     request. Fetches from every provider with a known id (Jikan, AniList,
@@ -703,8 +719,8 @@ async def bulk_set_episodes_watched(
     show_id: UUID,
     season_id: UUID,
     payload: EpisodesBulkWatched,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = _DB_DEFAULT,
+    current_user: User = _CURRENT_USER_DEFAULT,
 ) -> Anime:
     """Sets `watched` on a whole batch of episodes in one request — a
     shift-click range select or "mark watched up to here" would
@@ -748,8 +764,8 @@ async def update_episode(
     season_id: UUID,
     episode_id: UUID,
     payload: EpisodeUpdate,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = _DB_DEFAULT,
+    current_user: User = _CURRENT_USER_DEFAULT,
 ) -> Anime:
     show = await _get_show_or_404(show_id, db, current_user.id)
     season = await _get_season_or_404(season_id, show_id, db)
@@ -853,8 +869,8 @@ async def _get_or_refresh_anime_relations(show: Anime, db: AsyncSession) -> dict
 @router.get("/{show_id}/relations")
 async def get_anime_relations(
     show_id: UUID,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = _DB_DEFAULT,
+    current_user: User = _CURRENT_USER_DEFAULT,
 ) -> dict:
     """The full prequel/sequel chain this entry belongs to, plus every
     other relation (adaptation, side story, source manga/novel, etc.)
@@ -881,8 +897,8 @@ async def get_anime_relations(
 @router.get("/{show_id}/recommended")
 async def get_anime_recommended(
     show_id: UUID,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = _DB_DEFAULT,
+    current_user: User = _CURRENT_USER_DEFAULT,
 ) -> dict:
     """Reuses the same cached fetch `/relations` populates — AniList
     returns both a title's relations and its recommendations in one

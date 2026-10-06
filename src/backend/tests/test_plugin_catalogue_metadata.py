@@ -9,9 +9,11 @@ import zipfile
 from types import SimpleNamespace
 
 import pytest
-from pydantic import BaseModel, Field
 from fastapi import HTTPException
+from pydantic import BaseModel, Field
 from src.api.routes import plugins
+from src.api.routes.plugin_manager import acquisition as plugin_acquisition
+from src.api.routes.plugin_manager import catalogues as plugin_catalogues
 from src.plugin_api.installer import inspect_package
 from src.plugin_api.updates import (
     PackageFormatError,
@@ -88,7 +90,7 @@ async def test_catalogue_acquisition_rejects_mismatched_release(tmp_path, monkey
     async def catalogue(**kwargs):
         return [plugins.PluginCatalogEntry.model_validate(advertised)]
 
-    monkeypatch.setattr(plugins, "plugin_catalog", catalogue)
+    monkeypatch.setattr(plugin_catalogues, "plugin_catalog", catalogue)
     request = plugins.PluginInstallUrl(
         url="https://packages.example/plugin.utp",
         source_type="catalogue",
@@ -110,7 +112,7 @@ def entry(**changes):
 
 
 def test_packaged_icons_release_hashes_tags_and_documentation_are_preserved(monkeypatch):
-    monkeypatch.setattr(plugins, "_validate_remote_url", lambda url: url)
+    monkeypatch.setattr(plugin_acquisition, "_validate_remote_url", lambda url: url)
     records = plugins._catalog_entries(
         {
             "version": 1,
@@ -154,7 +156,7 @@ def test_catalogue_rejects_unsafe_packaged_icon_paths(path):
 
 
 def test_old_catalogue_without_release_metadata_remains_supported(monkeypatch):
-    monkeypatch.setattr(plugins, "_validate_remote_url", lambda url: url)
+    monkeypatch.setattr(plugin_acquisition, "_validate_remote_url", lambda url: url)
     record = plugins._catalog_entries({"version": 1, "plugins": [entry()]})[0]
     assert record["version"] == "2.0.0"
     assert record["automatic_update"] is True

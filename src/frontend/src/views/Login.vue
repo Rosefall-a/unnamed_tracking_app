@@ -8,6 +8,7 @@ import {
   type OidcLoginProvider,
 } from "../services/oidc";
 import { checkAuth } from "../state/auth";
+import PasswordInput from "../components/PasswordInput.vue";
 import { consumeReturnPath, rememberReturnPath } from "../state/startup";
 
 const route = useRoute();
@@ -15,7 +16,6 @@ const router = useRouter();
 const localOnly = route.path === "/login/local";
 const usernameOrEmail = ref("");
 const password = ref("");
-const showPassword = ref(false);
 const error = ref<string | null>(null);
 const loading = ref(false);
 const oidcAvailable = ref(false);
@@ -126,14 +126,12 @@ function buttonStyle(provider: OidcLoginProvider) {
             required /></label
         ><label class="field"
           ><span>Password</span
-          ><input
+          ><PasswordInput
             v-model="password"
-            :type="showPassword ? 'text' : 'password'"
+            mode="new"
             autocomplete="current-password"
-            required /></label
-        ><label class="password-toggle"
-          ><input v-model="showPassword" type="checkbox" /> Show password</label
-        >
+            required
+        /></label>
         <div v-if="error" class="login-error">{{ error }}</div>
         <button type="submit" class="login-button" :disabled="loading">
           {{ loading ? "Signing in…" : "Sign in" }}</button
@@ -154,14 +152,12 @@ function buttonStyle(provider: OidcLoginProvider) {
             required /></label
         ><label class="field"
           ><span>Password</span
-          ><input
+          ><PasswordInput
             v-model="password"
-            :type="showPassword ? 'text' : 'password'"
+            mode="new"
             autocomplete="current-password"
-            required /></label
-        ><label class="password-toggle"
-          ><input v-model="showPassword" type="checkbox" /> Show password</label
-        >
+            required
+        /></label>
         <div v-if="error" class="login-error">{{ error }}</div>
         <button
           type="submit"
@@ -249,13 +245,10 @@ function buttonStyle(provider: OidcLoginProvider) {
                 autocomplete="username" /></label
             ><label class="field"
               ><span>Password</span
-              ><input
+              ><PasswordInput
                 v-model="password"
-                :type="showPassword ? 'text' : 'password'"
+                mode="new"
                 autocomplete="current-password" /></label
-            ><label class="password-toggle"
-              ><input v-model="showPassword" type="checkbox" /> Show
-              password</label
             ><button
               type="submit"
               class="login-button"

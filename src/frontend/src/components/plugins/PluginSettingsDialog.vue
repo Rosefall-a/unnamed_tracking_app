@@ -20,6 +20,7 @@ const props = defineProps<{
   diagnostics: PluginDiagnostics | null;
   loading: boolean;
   busy: boolean;
+  error?: string;
 }>();
 const emit = defineEmits<{
   close: [];
@@ -100,6 +101,75 @@ watch(
           </button>
         </header>
 
+        <div class="actions" aria-label="Plugin controls">
+          <button
+            v-if="
+              plugin.available_update?.update_available || plugin.staged_update
+            "
+            :disabled="busy"
+            @click="emit('update')"
+          >
+            Review update
+            {{
+              plugin.available_update?.available_version ??
+              plugin.staged_update?.available_version
+            }}
+          </button>
+          <button
+            v-if="plugin.enabled"
+            :disabled="busy"
+            @click="
+              emit('operation', plugin.status === 'running' ? 'stop' : 'start')
+            "
+          >
+            {{ plugin.status === "running" ? "Stop" : "Start" }}
+          </button>
+          <button :disabled="busy" @click="emit('operation', 'reinstall')">
+            Reinstall this release
+          </button>
+          <button
+            class="danger"
+            :disabled="busy"
+            @click="emit('operation', 'reinstall', true)"
+          >
+            Reinstall and purge data
+          </button>
+          <button
+            class="danger"
+            :disabled="busy"
+            @click="emit('operation', 'uninstall')"
+          >
+            Uninstall and purge data
+          </button>
+          <button
+            v-if="plugin.enabled"
+            type="button"
+            :disabled="busy"
+            @click="emit('disable')"
+          >
+            Disable
+          </button>
+          <button
+            v-else
+            type="button"
+            :disabled="busy || !plugin.compatible"
+            class="primary"
+            @click="emit('enable')"
+          >
+            Enable
+          </button>
+          <button
+            v-if="plugin.status === 'failed' || plugin.status === 'quarantined'"
+            type="button"
+            :disabled="busy"
+            @click="emit('retry')"
+          >
+            Retry
+          </button>
+        </div>
+
+        <p v-if="error" class="operation-error" role="alert">{{ error }}</p>
+
         <nav aria-label="Plugin settings sections">
           <button
             v-for="item in [
@@ -144,78 +214,6 @@ watch(
                 </dd>
               </div>
             </dl>
-            <div class="actions">
-              <button
-                v-if="
-                  plugin.available_update?.update_available ||
-                  plugin.staged_update
-                "
-                :disabled="busy"
-                @click="emit('update')"
-              >
-                Review update
-                {{
-                  plugin.available_update?.available_version ??
-                  plugin.staged_update?.available_version
-                }}
-              </button>
-              <button
-                v-if="plugin.enabled"
-                :disabled="busy"
-                @click="
-                  emit(
-                    'operation',
-                    plugin.status === 'running' ? 'stop' : 'start',
-                  )
-                "
-              >
-                {{ plugin.status === "running" ? "Stop" : "Start" }}
-              </button>
-              <button :disabled="busy" @click="emit('operation', 'reinstall')">
-                Reinstall this release
-              </button>
-              <button
-                class="danger"
-                :disabled="busy"
-                @click="emit('operation', 'reinstall', true)"
-              >
-                Reinstall and purge data
-              </button>
-              <button
-                class="danger"
-                :disabled="busy"
-                @click="emit('operation', 'uninstall')"
-              >
-                Uninstall and purge data
-              </button>
-              <button
-                v-if="plugin.enabled"
-                type="button"
-                :disabled="busy"
-                @click="emit('disable')"
-              >
-                Disable
-              </button>
-              <button
-                v-else
-                type="button"
-                :disabled="busy || !plugin.compatible"
-                class="primary"
-                @click="emit('enable')"
-              >
-                Enable
-              </button>
-              <button
-                v-if="
-                  plugin.status === 'failed' || plugin.status === 'quarantined'
-                "
-                type="button"
-                :disabled="busy"
-                @click="emit('retry')"
-              >
-                Retry
-              </button>
-            </div>
           </section>
 
           <section v-else-if="tab === 'settings'" class="panel">
@@ -402,7 +400,7 @@ watch(
                   }}
                 </dd>
               </div>
-              <div>
+              <div class="last-error">
                 <dt>Last error</dt>
                 <dd>
                   {{
@@ -585,8 +583,20 @@ nav button.active {
   color: #fecaca;
 }
 .diagnostic-summary {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
   gap: 24px;
+}
+.diagnostic-summary > div {
+  min-width: 0;
+}
+.diagnostic-summary .last-error {
+  grid-column: 1 / -1;
+}
+.diagnostic-summary .last-error dd {
+  max-height: 12rem;
+  overflow: auto;
+  overflow-wrap: anywhere;
 }
 .diagnostic-summary dd {
   margin: 2px 0 0;
@@ -643,5 +653,20 @@ button:disabled {
   .overview-grid {
     grid-template-columns: 1fr;
   }
+}
+
+.dialog-header > div {
+  min-width: 0;
+}
+.dialog-header > button {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+.operation-error {
+  color: #fecaca;
+  padding: 14px;
+  background: #3b1f1f;
+  border: 1px solid #8b3434;
+  border-radius: 8px;
 }
 </style>

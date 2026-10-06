@@ -15,6 +15,7 @@ import type { SettingsGroup } from "../components/settings/SettingsNav.vue";
 import SaveStatus from "../components/settings/SaveStatus.vue";
 import ProfileSection from "../components/settings/ProfileSection.vue";
 import InterfaceSection from "../components/settings/InterfaceSection.vue";
+import GamePageSection from "../components/settings/GamePageSection.vue";
 import AppearanceSection from "../components/settings/AppearanceSection.vue";
 import UploadSection from "../components/settings/UploadSection.vue";
 import LibrarySettings from "../components/settings/LibrarySettings.vue";
@@ -38,6 +39,7 @@ import {
   pageReplacementConflicts,
   refreshPluginExtensions,
 } from "../state/pluginExtensions";
+import PasswordPolicySection from "../components/settings/PasswordPolicySection.vue";
 import AccountChip from "../components/AccountChip.vue";
 import BackButton from "../components/BackButton.vue";
 
@@ -69,6 +71,7 @@ const coreSectionIds = new Set([
   "server-integrations",
   "users",
   "plugins",
+  "password-policy",
   "stats",
   "tasks",
   "logs",
@@ -148,6 +151,7 @@ const groups = computed<SettingsGroup[]>(() => {
       label: "Preferences",
       sections: [
         { id: "interface", label: "User Interface" },
+        { id: "game-page", label: "Game Page" },
         { id: "appearance", label: "Appearance" },
         { id: "notifications", label: "Notifications" },
         { id: "calendar", label: "Calendar" },
@@ -172,6 +176,7 @@ const groups = computed<SettingsGroup[]>(() => {
         ? [
             { id: "admin", label: "Administration" },
             { id: "plugins", label: "Plugins" },
+            { id: "password-policy", label: "Password policy" },
             { id: "tasks", label: "Tasks" },
             { id: "logs", label: "Logs", comingSoon: true },
           ]
@@ -300,6 +305,7 @@ watch(activeSection, async () => {
         <div ref="card" class="settings-card">
           <ProfileSection v-if="activeSection === 'profile'" />
           <InterfaceSection v-else-if="activeSection === 'interface'" />
+          <GamePageSection v-else-if="activeSection === 'game-page'" />
           <AppearanceSection v-else-if="activeSection === 'appearance'" />
           <CalendarNotificationsSection
             v-else-if="activeSection === 'notifications'"
@@ -324,6 +330,12 @@ watch(activeSection, async () => {
           <PluginManagerSection
             v-else-if="activeSection === 'plugins' && currentUser?.is_admin"
           />
+          <PasswordPolicySection
+            v-else-if="
+              activeSection === 'password-policy' && currentUser?.is_admin
+            "
+          />
+          <StatsSection v-else-if="activeSection === 'stats'" />
           <template v-else-if="activeSection === 'export'">
             <ExportImportSection />
             <AniListImportSection />
@@ -333,7 +345,6 @@ watch(activeSection, async () => {
             :key="'metadata' + initialTab"
             :initial-tab="initialTab"
           />
-          <StatsSection v-else-if="activeSection === 'stats'" />
           <AdminSettings
             v-else-if="activeSection === 'admin' && currentUser?.is_admin"
             :key="'admin' + initialTab"

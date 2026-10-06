@@ -29,7 +29,7 @@ fallback runtime token. Set `PLUGIN_RUNTIME_DEV_TOKEN` to test a specific
 local token. Deployments must always set a unique `PLUGIN_RUNTIME_TOKEN`;
 `src/docker-container/compose.yaml` rejects a missing value before startup.
 
-## Development fallback: `NONBUBBLE_ENV`
+## Reduced isolation and administrator acknowledgement
 
 At startup the runtime executes a real Bubblewrap namespace probe. Its health
 response reports probe status, Bubblewrap usability, active isolation mechanism,
@@ -37,10 +37,19 @@ sandbox availability, reduced-isolation policy and probe error. Plugin Settings
 displays this report when first opened; details and diagnostics show process
 status and errors. An unavailable runtime is never reported as fully isolated.
 
-A failed probe blocks plugin start unless the existing explicit fallback is
-enabled. Administrators can continue inspecting Plugin Manager and using the
-core application and follow its help link here. Fallback reports reduced
-process isolation even if the Bubblewrap binary itself is usable.
+A failed probe does not require an environment-variable change. An administrator
+can select **Review reduced isolation** in Plugin Manager, read the explanation,
+and acknowledge that plugins will run with weaker isolation. The decision applies
+to this server, persists across host/runtime restarts, and leaves a warning visible
+while Bubblewrap is unavailable. Installing a reviewed package can open this
+acknowledgement before activation; unsigned-package consent remains separate.
+
+The host owns the decision and sends it through authenticated runtime requests.
+The runtime retains an internal mirror for restart recovery. Unauthenticated
+health requests cannot approve isolation. Working Bubblewrap remains in use even
+after approval. **Withdraw approval** in Plugin Manager settings stops workers
+when Bubblewrap is unavailable and no deployment override is enabled; packages,
+data, permissions and enablement are preserved for later recovery.
 
 Inspect probe stderr and runtime container logs, ensure Bubblewrap is installed
 in the image, and check host user-namespace and container security policies.
@@ -54,7 +63,51 @@ If bubblewrap cannot run in a development/test environment, set `NONBUBBLE_ENV=t
 
 This is a **development troubleshooting escape hatch, not a production security mode**. Do not enable it when running untrusted plugins. Remove the variable or set it to a false value to restore normal bubblewrap isolation. Accepted true values are `1`, `true`, `yes`, and `on`, case-insensitive.
 
-For repository-root Docker Compose development, add `NONBUBBLE_ENV: "true"` under `plugin-runtime.environment`, then recreate the runtime container.
+All supplied Compose configurations pass `NONBUBBLE_ENV` from the Compose `.env`
+to the **plugin-runtime** service. Set `NONBUBBLE_ENV=true` there and recreate
+that service with `docker compose up -d --force-recreate plugin-runtime` (include
+your usual `-f`/`--env-file` arguments). Setting the variable only on the app
+container, or restarting an existing runtime without recreating it, does not
+change the runtime's environment. The default remains disabled.
+
+Plugin Settings → Diagnostics displays the runtime's effective fallback state
+alongside Bubblewrap usability and active isolation. A failed probe remains
+visible as a diagnostic when fallback is explicitly enabled, but does not block
+worker startup. Start, Enable and Retry failures return the runtime's explanation
+inside the dialog; they do not become an unexplained HTTP 500.
+
+Unhandled gateway rejections also retain their public explanation through the
+isolated action process and host HTTP adapter. Known permission, validation,
+missing-resource and conflict codes keep their corresponding 4xx status, rather
+than becoming a generic "action did not return a result" error. Plugin-handled
+failures and successful retries still return the plugin's result; timeouts and
+unrelated process failures keep their own diagnostics. Public details are bounded
+and runtime secrets are redacted.
+
+## Gateway configuration
+
+The runtime needs a private `PLUGIN_GATEWAY_URL` pointing back to the app. The
+supplied production configurations use `http://app` through Nginx; development
+uses `http://backend:8000`. Custom deployments must use an address reachable from
+the runtime container, with the app and runtime on a shared private network.
+`localhost` inside the runtime refers to the runtime, not the app container.
+
+An explicit runtime callback takes precedence. When it is omitted, an app with
+`PLUGIN_GATEWAY_URL` configured advertises that address over the authenticated
+private transport. Anonymous health requests cannot set or replace it. No address
+is inferred from browser headers, and no transport credential is passed to plugin
+workers. Both services still need the same `PLUGIN_RUNTIME_TOKEN`, at least 32
+characters long. Addresses must use HTTP(S), without embedded credentials, query
+parameters or fragments.
+
+If both services omit the callback, native Jellyfin, Session Manager and Archive
+actions cannot obtain host authorization. Runtime health reports the missing configuration, and actions return a service
+failure with repair guidance rather than a generic 422. Set the callback on either service and recreate that
+service; refresh Plugin Manager to check **Gateway configuration**. An older
+runtime must be upgraded with the host to support app-advertised callbacks.
+Configured health means the address/token format is valid; a real action is still
+needed to validate routing, matching credentials and permissions. Connection
+refusal, timeout and invalid JSON have their own bounded diagnostics.
 
 ## Per-plugin process isolation
 
@@ -190,6 +243,19 @@ Frontend code communicates with the host through a small validated postMessage b
 
 The existing ui.json declarative UI remains supported for lightweight plugins. A plugin with a frontend declaration uses its own frontend instead of the declarative renderer.
 
+## Action and backend transport deadlines
+
+Native actions and declared backend routes share the isolated runner's bounded
+30-second execution limit. Their host HTTP deadline is 35 seconds so a valid
+operation can finish or report its own timeout. Lightweight health and inventory
+requests retain their shorter deadline. A slow configuration refresh therefore
+does not incorrectly report an offline runtime after ten seconds.
+
+Gateway transport diagnostics distinguish a timeout, a refused connection and an
+invalid JSON response. They retain the request correlation and suggest checking
+host readiness, server load or proxy routing without exposing exception payloads,
+credentials or private URLs.
+
 ## Plugin secrets and persistent data
 
 Frontend secrets must not be placed in ordinary settings or browser storage. The host exposes a plugin-scoped secret write operation that requires the plugin.storage permission. The value is written through the runtime's namespaced PluginStorage implementation under secrets/<key>.
@@ -207,4 +273,8 @@ them through the authorized broker; credentials must not be ordinary action
 arguments or browser-local storage. Runtime-mediated Discord delivery performs
 its own grant, URL and message checks.
 
-NONBUBBLE_ENV=true intentionally weakens this filesystem boundary for development troubleshooting, so it must not be used as a production security mode.
+`NONBUBBLE_ENV=true` remains an optional deployment override. It permits process
+isolation and suppresses the prominent warning; diagnostics still report the
+actual mode. It is not required when an administrator has acknowledged reduced
+isolation through Plugin Manager, and it does not provide Bubblewrap's namespace
+or filesystem guarantees.

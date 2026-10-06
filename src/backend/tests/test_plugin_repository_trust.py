@@ -14,7 +14,6 @@ import zipfile
 from pathlib import Path
 
 import pytest
-
 from src.plugin_api.publisher_trust import load_trusted_publishers
 from src.plugin_api.updates import PackageVerificationError, PluginPackageVerifier
 
@@ -70,8 +69,9 @@ def test_signed_plugin_repo_artifact_is_forwarded_only_after_verification(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     from fastapi import UploadFile
-
     from src.api.routes import plugins
+    from src.api.routes.plugin_manager import acquisition as plugin_acquisition
+    from src.api.routes.plugin_manager import runtime as plugin_runtime
     from src.database.models import achievement as _achievement  # noqa: F401
 
     plugin_repository = _plugin_repository()
@@ -127,8 +127,8 @@ def test_signed_plugin_repo_artifact_is_forwarded_only_after_verification(
             pass
 
     runtime_client = RuntimeClient()
-    monkeypatch.setattr(plugins, "_client", runtime_client)
-    monkeypatch.setattr(plugins, "_plugin_package_verifier", lambda: verifier)
+    monkeypatch.setattr(plugin_runtime, "_client", runtime_client)
+    monkeypatch.setattr(plugin_acquisition, "_plugin_package_verifier", lambda: verifier)
 
     source = package.read_bytes()
     upload = UploadFile(file=io.BytesIO(source), filename=package.name)

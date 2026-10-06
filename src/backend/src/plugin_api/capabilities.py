@@ -78,6 +78,7 @@ _FULL_API_IMPLIED = frozenset(
         Capability.GAMES,
         Capability.GAMES_READ,
         Capability.GAMES_WRITE,
+        Capability.LIBRARY_LEGACY_READ,
         Capability.MEDIA,
         Capability.MEDIA_READ,
         Capability.MEDIA_WRITE,
@@ -156,7 +157,7 @@ _LOW = frozenset(
 
 def _category(capability: Capability) -> str:
     value = capability.value
-    if value.startswith(("users", "games", "media", "documents", "sessions")):
+    if value.startswith(("users", "games", "media", "documents", "sessions", "library")):
         return "User data"
     if value.startswith("frontend"):
         return "Frontend"

@@ -54,12 +54,21 @@ try {
       await route.continue();
     });
   }
+  const runtimeResponse = page.waitForResponse(response => response.url().endsWith("/api/plugins/runtime/health"));
   await page.goto(origin + "/settings?section=plugins");
   await page.getByRole("button", { name: "All", exact: true }).waitFor();
-  await page.getByText(
-    phase === "offline" ? "Plugin runtime unavailable" : "Per-plugin sandbox isolation is unavailable.",
-    { exact: false },
-  ).waitFor();
+  const response = await runtimeResponse;
+  assert.equal(response.status(), 200);
+  const health = await response.json();
+  assert.equal(health.available, phase !== "offline");
+  if (phase === "offline") {
+    await page.getByText("Plugin runtime unavailable", { exact: false }).waitFor();
+  } else if (!health.sandbox_available && !health.reduced_isolation_env_override) {
+    await page.getByText("Per-plugin sandbox isolation is unavailable.", { exact: false }).waitFor();
+  } else {
+    assert.equal(await page.locator(".runtime-notice").count(), 0,
+      "Usable isolation or the explicit environment override suppresses the isolation warning");
+  }
   if (phase === "install") {
     await page.getByRole("button", { name: "Available to Install", exact: true }).click();
     await page.getByRole("searchbox", { name: "Filter plugins" }).fill("Jellyfin");

@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import json
-import secrets
-import time
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
@@ -15,22 +13,24 @@ from src.core.auth import (
     SESSION_TTL_SECONDS,
     get_current_admin,
     hash_password,
-    hash_token,
     session_cookie_name,
+    set_password_policy_override,
     validate_password,
 )
 from src.core.config import settings
+from src.core.config_registry import CONFIG_REGISTRY
 from src.core.crypto import encrypt_secret
 from src.core.env_handler import EnvConfigHandler
 from src.core.provider_credentials import apply_deployment_provider_credentials
-from src.core.config_registry import CONFIG_REGISTRY
+from src.core.session_manager import create_session
 from src.database.models.app_integration_settings import AppIntegrationSettings
-from src.database.models.auth import UserSession
 from src.database.models.game import Game
 from src.database.models.oidc_settings import OidcSettings
 from src.database.models.user import User
 from src.database.session import get_db
-from src.core.session_manager import create_session
+
+_DB_DEFAULT = Depends(get_db)
+_ADMIN_DEFAULT = Depends(get_current_admin)
 
 router = APIRouter(prefix="/api/setup", tags=["setup"])
 
@@ -95,6 +95,8 @@ def _persisted_values(app: AppIntegrationSettings, oidc: OidcSettings) -> dict[s
         "SCREENSCRAPER_SSPASSWORD": "screenscraper_sspassword",
         "XBOX_CLIENT_ID": "xbox_client_id",
         "XBOX_CLIENT_SECRET": "xbox_client_secret",
+        "NGINX_REALIP_HEADER": "nginx_realip_header",
+        "NGINX_REALIP_TRUSTED_PROXIES": "nginx_realip_trusted_proxies",
     }.items():
         value = getattr(app, attribute)
         if value:
@@ -104,6 +106,8 @@ def _persisted_values(app: AppIntegrationSettings, oidc: OidcSettings) -> dict[s
                 "SCREENSCRAPER_DEVID",
                 "SCREENSCRAPER_SSID",
                 "XBOX_CLIENT_ID",
+                "NGINX_REALIP_HEADER",
+                "NGINX_REALIP_TRUSTED_PROXIES",
             }:
                 values[spec_name] = value
 
@@ -118,6 +122,11 @@ def _persisted_values(app: AppIntegrationSettings, oidc: OidcSettings) -> dict[s
         pass
     values.update(
         {
+            "PASSWORD_MIN_LENGTH": app.password_min_length,
+            "PASSWORD_REQUIRE_UPPERCASE": app.password_require_uppercase,
+            "PASSWORD_REQUIRE_LOWERCASE": app.password_require_lowercase,
+            "PASSWORD_REQUIRE_DIGIT": app.password_require_digit,
+            "PASSWORD_REQUIRE_SYMBOL": app.password_require_symbol,
             "OIDC_PROVIDER_NAME": provider_name,
             "OIDC_PROVIDER_SLUG": provider_slug,
             "OIDC_ISSUER_URL": oidc.issuer_url,
@@ -181,6 +190,8 @@ async def _save_configuration(
         "SCREENSCRAPER_SSPASSWORD": "screenscraper_sspassword",
         "XBOX_CLIENT_ID": "xbox_client_id",
         "XBOX_CLIENT_SECRET": "xbox_client_secret",
+        "NGINX_REALIP_HEADER": "nginx_realip_header",
+        "NGINX_REALIP_TRUSTED_PROXIES": "nginx_realip_trusted_proxies",
     }
     for name, attribute in app_fields.items():
         if name not in values or handler.has(name):
@@ -190,6 +201,30 @@ async def _save_configuration(
             continue
         spec = next(spec for spec in CONFIG_REGISTRY if spec.name == name)
         setattr(app, attribute, encrypt_secret(str(value)) if spec.secret else str(value))
+
+    password_fields = {
+        "PASSWORD_MIN_LENGTH": ("password_min_length", int),
+        "PASSWORD_REQUIRE_UPPERCASE": ("password_require_uppercase", bool),
+        "PASSWORD_REQUIRE_LOWERCASE": ("password_require_lowercase", bool),
+        "PASSWORD_REQUIRE_DIGIT": ("password_require_digit", bool),
+        "PASSWORD_REQUIRE_SYMBOL": ("password_require_symbol", bool),
+    }
+    for name, (attribute, converter) in password_fields.items():
+        if name not in values or handler.has(name):
+            continue
+        value = values[name]
+        if value is None or value == "":
+            continue
+        try:
+            converted = converter(value)
+        except (TypeError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail=f"Invalid value for {name}.") from exc
+        if name == "PASSWORD_MIN_LENGTH" and not 1 <= converted <= 1024:
+            raise HTTPException(
+                status_code=400,
+                detail="Password minimum length must be between 1 and 1024.",
+            )
+        setattr(app, attribute, converted)
 
     oidc_env_complete = all(
         handler.has(name) for name in ("OIDC_ISSUER_URL", "OIDC_CLIENT_ID", "OIDC_CLIENT_SECRET")
@@ -289,13 +324,13 @@ async def _save_configuration(
 
 @router.get("/configuration")
 async def setup_configuration(
-    request: Request, db: AsyncSession = Depends(get_db)
+    request: Request, db: AsyncSession = _DB_DEFAULT
 ) -> dict[str, object]:
     return await _configuration(db, request)
 
 
 @router.get("/status")
-async def setup_status(db: AsyncSession = Depends(get_db)) -> dict[str, bool | str]:
+async def setup_status(db: AsyncSession = _DB_DEFAULT) -> dict[str, bool | str]:
     has_user = await db.scalar(select(User.id).limit(1)) is not None
     handler = EnvConfigHandler()
     return {
@@ -309,8 +344,8 @@ async def setup_status(db: AsyncSession = Depends(get_db)) -> dict[str, bool | s
 async def update_setup_configuration(
     payload: SetupRequest,
     request: Request,
-    db: AsyncSession = Depends(get_db),
-    admin: User = Depends(get_current_admin),
+    db: AsyncSession = _DB_DEFAULT,
+    admin: User = _ADMIN_DEFAULT,
 ) -> dict[str, object]:
     del admin
     selected = set(payload.sections)
@@ -318,7 +353,24 @@ async def update_setup_configuration(
         db, payload.configuration, selected, str(request.url_for("oidc_callback"))
     )
     await db.commit()
-    apply_deployment_provider_credentials(await _app_row(db))
+    app = await _app_row(db)
+    if (
+        app.password_min_length is not None
+        and app.password_require_uppercase is not None
+        and app.password_require_lowercase is not None
+        and app.password_require_digit is not None
+        and app.password_require_symbol is not None
+    ):
+        set_password_policy_override(
+            {
+                "min_length": app.password_min_length,
+                "require_uppercase": app.password_require_uppercase,
+                "require_lowercase": app.password_require_lowercase,
+                "require_digit": app.password_require_digit,
+                "require_symbol": app.password_require_symbol,
+            }
+        )
+    apply_deployment_provider_credentials(app)
     return await _configuration(db, request)
 
 
@@ -327,7 +379,7 @@ async def setup_admin(
     payload: SetupRequest,
     request: Request,
     response: Response,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = _DB_DEFAULT,
 ) -> dict[str, str | bool]:
     await db.execute(text("SELECT pg_advisory_xact_lock(hashtext('unnamed_tracking_app_setup'))"))
 
