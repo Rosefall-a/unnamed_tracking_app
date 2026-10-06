@@ -105,24 +105,24 @@ class _Show:
 
 def test_first_episode_is_a_season_start_and_later_ones_are_episodes():
     prefs = dict(DEFAULTS)
-    first = _episode_row("anime", _Show(), 1, 1, 1_700_000_000, prefs)
-    later = _episode_row("anime", _Show(), 1, 5, 1_700_000_000, prefs)
+    first = _episode_row("anime", _Show(), 1, 1, 1_700_000_000, prefs=prefs)
+    later = _episode_row("anime", _Show(), 1, 5, 1_700_000_000, prefs=prefs)
     assert first and first["kind"] == "season_started"
     assert later and later["kind"] == "episode_aired" and later["body"] == "Episode 5 aired"
     assert later["event_at"] == 1_700_000_000  # the exact time, untouched
 
 
 def test_tv_later_seasons_name_the_season():
-    row = _episode_row("tv", _Show(), 3, 4, 1_700_000_000, dict(DEFAULTS))
+    row = _episode_row("tv", _Show(), 3, 4, 1_700_000_000, prefs=dict(DEFAULTS))
     assert row and row["body"] == "Season 3 episode 4 aired"
 
 
 def test_notification_toggles_switch_each_kind_off():
     prefs = {**DEFAULTS, "notify_episode_aired": False}
-    assert _episode_row("anime", _Show(), 1, 5, 1, prefs) is None
-    assert _episode_row("anime", _Show(), 1, 1, 1, prefs) is not None
+    assert _episode_row("anime", _Show(), 1, 5, 1, prefs=prefs) is None
+    assert _episode_row("anime", _Show(), 1, 1, 1, prefs=prefs) is not None
     prefs = {**DEFAULTS, "notify_season_started": False}
-    assert _episode_row("anime", _Show(), 1, 1, 1, prefs) is None
+    assert _episode_row("anime", _Show(), 1, 1, 1, prefs=prefs) is None
 
 
 class _FakeResponse:

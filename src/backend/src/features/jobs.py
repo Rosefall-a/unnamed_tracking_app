@@ -1,5 +1,3 @@
-# pylint: disable=missing-class-docstring,missing-function-docstring,too-many-instance-attributes,global-statement,broad-exception-caught
-
 """Cleanup jobs: recurring work an administrator can switch on, schedule and
 run by hand.
 
@@ -40,6 +38,9 @@ ANILIST_IMPORT_MAX_USERS_PER_TICK = 4
 
 @dataclass(frozen=True)
 class JobSpec:
+    # This descriptor is the Tasks UI/scheduling record, including its execution callbacks.
+    # pylint: disable=too-many-instance-attributes
+
     """Execution adapter and schedule limits shared by built-in and plugin jobs."""
 
     id: str
@@ -77,25 +78,24 @@ def _summarize_airing(r: dict[str, Any]) -> str:
     return ", ".join(parts)
 
 
-_airing_running = False
-_plugin_updates_running = False
+_running = {"airing_check": False, "plugin_updates": False}
 
 
 def _plugin_updates_is_running() -> bool:
-    return _plugin_updates_running
+    return _running["plugin_updates"]
 
 
 def _start_plugin_updates(_mode: str) -> dict[str, Any]:
-    global _plugin_updates_running
-    if not _plugin_updates_running:
-        _plugin_updates_running = True
+    if not _running["plugin_updates"]:
+        _running["plugin_updates"] = True
         asyncio.get_running_loop().create_task(_run_plugin_updates())
     return {"running": True}
 
 
 async def _run_plugin_updates() -> None:
-    global _plugin_updates_running
-    from src.api.routes.plugins import run_automatic_plugin_updates
+    # Keep importing job descriptors independent of Plugin Manager router initialization.
+    # pylint: disable-next=import-outside-toplevel
+    from src.api.routes.plugin_manager.lifecycle import run_automatic_plugin_updates
 
     try:
         async with SessionLocal() as db:
@@ -104,34 +104,36 @@ async def _run_plugin_updates() -> None:
             )
             result = await run_automatic_plugin_updates(db, admin) if admin else {"checked": 0}
         await record_run("plugin_updates", result)
+    # An unexpected worker failure must not terminate the remaining scheduled work.
+    # pylint: disable-next=broad-exception-caught
     except Exception:
         logger.exception("Scheduled plugin updates failed")
     finally:
-        _plugin_updates_running = False
+        _running["plugin_updates"] = False
 
 
 def _airing_is_running() -> bool:
-    return _airing_running
+    return _running["airing_check"]
 
 
 def _start_airing(mode: str) -> dict[str, Any]:
     """Runs one airing check in the background. Scheduled runs only ask about
     shows that are due; "Run now" (mode "all") asks about every airing show."""
-    global _airing_running
-    if not _airing_running:
-        _airing_running = True
+    if not _running["airing_check"]:
+        _running["airing_check"] = True
         asyncio.get_running_loop().create_task(_run_airing(force=mode == "all"))
     return {"running": True}
 
 
 async def _run_airing(force: bool) -> None:
-    global _airing_running
     try:
         await record_run("airing_check", await check_airing_episodes(force=force))
+    # An unexpected worker failure must not terminate the remaining scheduled work.
+    # pylint: disable-next=broad-exception-caught
     except Exception:
         logger.exception("The airing check failed")
     finally:
-        _airing_running = False
+        _running["airing_check"] = False
 
 
 JOBS: dict[str, JobSpec] = {
@@ -267,12 +269,16 @@ async def _run_due_anilist_imports(now: int) -> None:
                     pref.data = {**pref.data, "anilist_import_last_run_at": now}
                     await db.commit()
             logger.info("Scheduled AniList import for user %s: %s", user.id, result)
+        # An unexpected worker failure must not terminate the remaining scheduled work.
+        # pylint: disable-next=broad-exception-caught
         except Exception:
             logger.exception("Scheduled AniList import failed for user %s", user.id)
 
 
 async def run_jobs_loop() -> None:
     """Run eligible schedules without blocking imports or notification delivery."""
+    # Plugin adapters import JobSpec/record_run from this registry; load them after initialization.
+    # pylint: disable-next=import-outside-toplevel
     from src.features.plugin_jobs import get_plugin_jobs
 
     while True:
@@ -298,5 +304,7 @@ async def run_jobs_loop() -> None:
             for spec in due:
                 logger.info("Starting the scheduled job %s", spec.id)
                 spec.start("needed")
+        # An unexpected worker failure must not terminate the remaining scheduled work.
+        # pylint: disable-next=broad-exception-caught
         except Exception:
             logger.exception("The jobs loop failed; it will try again")

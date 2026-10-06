@@ -1,4 +1,3 @@
-# pylint: disable=too-many-positional-arguments,too-many-locals
 """Builds notifications from real, exact data. Nothing here estimates: an
 episode notification exists only because a provider gave that episode an
 air time (or the show's confirmed next-episode time) that has now passed,
@@ -12,8 +11,10 @@ makes running it any number of times safe."""
 from __future__ import annotations
 
 import time
+from collections.abc import Sequence
+from dataclasses import dataclass
 from datetime import date, datetime, timezone
-from typing import Any
+from typing import Any, cast
 from uuid import UUID
 
 from sqlalchemy import delete, select
@@ -70,6 +71,7 @@ def _episode_row(
     season_number: int | None,
     episode_number: int,
     air_at: int,
+    *,
     prefs: dict[str, Any],
 ) -> dict[str, Any] | None:
     started = episode_number == 1
@@ -102,85 +104,102 @@ def _episode_row(
     }
 
 
-async def generate_for_user(db: AsyncSession, user_id: UUID) -> int:
-    """Creates any notifications that are due. Returns how many were new."""
-    prefs = await load_preferences(db, user_id)
-    now = int(time.time())
-    since = now - WINDOW_SECONDS
+@dataclass(frozen=True)
+class _EpisodeSource:
+    media_type: str
+    show_model: type[Anime] | type[TVShow]
+    season_model: type[AnimeSeason] | type[TVSeason]
+    episode_model: type[AnimeEpisode] | type[TVEpisode]
+    status_enum: type[AnimeStatus] | type[TVShowStatus]
+
+
+_EPISODE_SOURCES = (
+    _EpisodeSource("anime", Anime, AnimeSeason, AnimeEpisode, AnimeStatus),
+    _EpisodeSource("tv", TVShow, TVSeason, TVEpisode, TVShowStatus),
+)
+
+
+async def _exact_episode_notifications(
+    db: AsyncSession,
+    user_id: UUID,
+    prefs: dict[str, Any],
+    window: tuple[int, int],
+    source: _EpisodeSource,
+) -> tuple[list[dict[str, Any]], set[tuple[Any, int]]]:
+    """Episodes with their own exact air time establish the fallback deduplication set."""
     rows: list[dict[str, Any]] = []
-
-    # a notification older than the chosen retention is cleared (0 = keep).
-    # Only ones older than the "just aired" window are removed, so a cleared
-    # one can never be generated again and come straight back.
-    retention_days = int(prefs["notification_retention_days"])
-    if retention_days:
-        cutoff = min(now - retention_days * 86400, since)
-        await db.execute(
-            delete(Notification).where(
-                Notification.user_id == user_id, Notification.event_at < cutoff
-            )
+    buckets = list(prefs["notify_statuses"])
+    ep_stmt = (
+        select(
+            source.show_model,
+            source.season_model.season_number,
+            source.episode_model.episode_number,
+            source.episode_model.air_at,
         )
+        .join(source.season_model, source.season_model.show_id == source.show_model.id)
+        .join(source.episode_model, source.episode_model.season_id == source.season_model.id)
+        .where(
+            source.show_model.user_id == user_id,
+            source.show_model.deleted_at.is_(None),
+            source.show_model.status.in_(tracked_statuses(source.status_enum, buckets)),
+            source.episode_model.air_at.is_not(None),
+            source.episode_model.air_at.between(window[0], window[1]),
+        )
+    )
+    seen_numbers: set[tuple[Any, int]] = set()
+    for show, season_number, episode_number, air_at in (await db.execute(ep_stmt)).all():
+        seen_numbers.add((show.id, episode_number))
+        row = _episode_row(
+            source.media_type, show, season_number, episode_number, air_at, prefs=prefs
+        )
+        if row:
+            rows.append(row)
+    return rows, seen_numbers
 
-    kinds: list[tuple[str, Any, Any, Any, Any]] = [
-        ("anime", Anime, AnimeSeason, AnimeEpisode, AnimeStatus),
-        ("tv", TVShow, TVSeason, TVEpisode, TVShowStatus),
-    ]
+
+async def _next_episode_notifications(
+    db: AsyncSession,
+    user_id: UUID,
+    prefs: dict[str, Any],
+    window: tuple[int, int],
+    source: _EpisodeSource,
+    *,
+    seen_numbers: set[tuple[Any, int]],
+) -> list[dict[str, Any]]:
+    """Use a confirmed next-episode time when no timed episode row already covers it."""
+    rows: list[dict[str, Any]] = []
+    buckets = list(prefs["notify_statuses"])
+    next_stmt = select(source.show_model).where(
+        source.show_model.user_id == user_id,
+        source.show_model.deleted_at.is_(None),
+        source.show_model.status.in_(tracked_statuses(source.status_enum, buckets)),
+        source.show_model.next_episode_air_at.is_not(None),
+        source.show_model.next_episode_air_at.between(window[0], window[1]),
+        source.show_model.next_episode_number.is_not(None),
+    )
+    # SQLAlchemy infers the shared Base for a union of model classes; this source selects shows.
+    for show in cast(Sequence[Anime | TVShow], (await db.execute(next_stmt)).scalars().all()):
+        number = show.next_episode_number
+        air_at = show.next_episode_air_at
+        if number is None or air_at is None or (show.id, number) in seen_numbers:
+            continue
+        season_number = max((s.season_number for s in show.seasons), default=1)
+        row = _episode_row(source.media_type, show, season_number, number, air_at, prefs=prefs)
+        if row:
+            rows.append(row)
+    return rows
+
+
+async def _movie_notifications(
+    db: AsyncSession, user_id: UUID, prefs: dict[str, Any], window: tuple[int, int]
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
     buckets = list(prefs["notify_statuses"])
     kinds_on = set(prefs["notify_media_types"])
-    for media_type, show_model, season_model, episode_model, status_enum in kinds:
-        if media_type not in kinds_on or not buckets:
-            continue
-        # 1) episodes with their own exact air time
-        ep_stmt = (
-            select(
-                show_model,
-                season_model.season_number,
-                episode_model.episode_number,
-                episode_model.air_at,
-            )
-            .join(season_model, season_model.show_id == show_model.id)
-            .join(episode_model, episode_model.season_id == season_model.id)
-            .where(
-                show_model.user_id == user_id,
-                show_model.deleted_at.is_(None),
-                show_model.status.in_(tracked_statuses(status_enum, buckets)),
-                episode_model.air_at.is_not(None),
-                episode_model.air_at.between(since, now),
-            )
-        )
-        seen_numbers: set[tuple[Any, int]] = set()
-        for show, season_number, episode_number, air_at in (await db.execute(ep_stmt)).all():
-            seen_numbers.add((show.id, episode_number))
-            row = _episode_row(media_type, show, season_number, episode_number, air_at, prefs)
-            if row:
-                rows.append(row)
-
-        # 2) a confirmed next-episode time that has now passed, for shows
-        # whose episode rows carry no air time of their own
-        next_stmt = select(show_model).where(
-            show_model.user_id == user_id,
-            show_model.deleted_at.is_(None),
-            show_model.status.in_(tracked_statuses(status_enum, buckets)),
-            show_model.next_episode_air_at.is_not(None),
-            show_model.next_episode_air_at.between(since, now),
-            show_model.next_episode_number.is_not(None),
-        )
-        for show in (await db.execute(next_stmt)).scalars().all():
-            number = show.next_episode_number
-            if number is None or (show.id, number) in seen_numbers:
-                continue
-            season_number = max((s.season_number for s in show.seasons), default=1)
-            row = _episode_row(
-                media_type, show, season_number, number, show.next_episode_air_at, prefs
-            )
-            if row:
-                rows.append(row)
-
-    # 3) movies that have come out
     movie_statuses = tracked_statuses(MovieStatus, [b for b in buckets if b != "watching"])
     if prefs["notify_movie_released"] and "movie" in kinds_on and movie_statuses:
         today = date.today()
-        first_day = date.fromtimestamp(since)
+        first_day = date.fromtimestamp(window[0])
         movie_stmt = select(Movie).where(
             Movie.user_id == user_id,
             Movie.deleted_at.is_(None),
@@ -204,6 +223,42 @@ async def generate_for_user(db: AsyncSession, user_id: UUID) -> int:
                 }
             )
 
+    return rows
+
+
+async def generate_for_user(db: AsyncSession, user_id: UUID) -> int:
+    """Creates any notifications that are due. Returns how many were new."""
+    prefs = await load_preferences(db, user_id)
+    now = int(time.time())
+    since = now - WINDOW_SECONDS
+    rows: list[dict[str, Any]] = []
+
+    # a notification older than the chosen retention is cleared (0 = keep).
+    # Only ones older than the "just aired" window are removed, so a cleared
+    # one can never be generated again and come straight back.
+    retention_days = int(prefs["notification_retention_days"])
+    if retention_days:
+        cutoff = min(now - retention_days * 86400, since)
+        await db.execute(
+            delete(Notification).where(
+                Notification.user_id == user_id, Notification.event_at < cutoff
+            )
+        )
+
+    window = (since, now)
+    for source in _EPISODE_SOURCES:
+        if source.media_type not in prefs["notify_media_types"] or not prefs["notify_statuses"]:
+            continue
+        exact_rows, seen_numbers = await _exact_episode_notifications(
+            db, user_id, prefs, window, source
+        )
+        rows.extend(exact_rows)
+        rows.extend(
+            await _next_episode_notifications(
+                db, user_id, prefs, window, source, seen_numbers=seen_numbers
+            )
+        )
+    rows.extend(await _movie_notifications(db, user_id, prefs, window))
     created = await _insert(db, user_id, rows)
     await db.commit()
     return created
