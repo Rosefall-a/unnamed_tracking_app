@@ -32,8 +32,13 @@ ELDEN_RING = [
 
 
 def _page(tags: list[tuple[str, int]]) -> str:
-    payload = [{"tagid": i, "name": name, "count": votes, "browseable": True} for i, (name, votes) in enumerate(tags)]
-    return f"<html><script>InitAppTagModal( 1245620, {json.dumps(payload)}, [], 'x' );</script></html>"
+    payload = [
+        {"tagid": i, "name": name, "count": votes, "browseable": True}
+        for i, (name, votes) in enumerate(tags)
+    ]
+    return (
+        f"<html><script>InitAppTagModal( 1245620, {json.dumps(payload)}, [], 'x' );</script></html>"
+    )
 
 
 def test_tags_are_read_from_the_store_page_most_voted_first() -> None:
@@ -41,16 +46,34 @@ def test_tags_are_read_from_the_store_page_most_voted_first() -> None:
     assert steam_tags.parse_tags(_page(shuffled)) == ELDEN_RING
 
 
-@pytest.mark.parametrize("html", ["", "<html>no tags here</html>", "InitAppTagModal( 1, [not json], [" + "]"])
+@pytest.mark.parametrize(
+    "html", ["", "<html>no tags here</html>", "InitAppTagModal( 1, [not json], [" + "]"]
+)
 def test_a_page_without_readable_tags_gives_none(html: str) -> None:
     assert steam_tags.parse_tags(html) == []
 
 
 @pytest.mark.parametrize(
     "tag",
-    ["Singleplayer", "Multiplayer", "Co-op", "Online Co-Op", "Local Co-Op", "PvP", "Controller",
-     "Full controller support", "Steam Achievements", "Great Soundtrack", "Violent", "Family Friendly",
-     "Early Access", "Free to Play", "VR", "3D", "Local Multiplayer"],
+    [
+        "Singleplayer",
+        "Multiplayer",
+        "Co-op",
+        "Online Co-Op",
+        "Local Co-Op",
+        "PvP",
+        "Controller",
+        "Full controller support",
+        "Steam Achievements",
+        "Great Soundtrack",
+        "Violent",
+        "Family Friendly",
+        "Early Access",
+        "Free to Play",
+        "VR",
+        "3D",
+        "Local Multiplayer",
+    ],
 )
 def test_tags_that_are_not_genres_are_dropped(tag: str) -> None:
     assert steam_tags.is_genre_tag(tag) is False
@@ -58,7 +81,17 @@ def test_tags_that_are_not_genres_are_dropped(tag: str) -> None:
 
 @pytest.mark.parametrize(
     "tag",
-    ["Souls-like", "Open World", "Dark Fantasy", "RPG", "Difficult", "Action", "Metroidvania", "MMORPG", "Roguelike Deckbuilder"],
+    [
+        "Souls-like",
+        "Open World",
+        "Dark Fantasy",
+        "RPG",
+        "Difficult",
+        "Action",
+        "Metroidvania",
+        "MMORPG",
+        "Roguelike Deckbuilder",
+    ],
 )
 def test_genre_tags_are_kept(tag: str) -> None:
     assert steam_tags.is_genre_tag(tag) is True
@@ -66,15 +99,32 @@ def test_genre_tags_are_kept(tag: str) -> None:
 
 def test_elden_ring_gets_its_real_genres_instead_of_just_action_rpg() -> None:
     picked = steam_tags.pick_genre_tags(ELDEN_RING, ["Action", "RPG"])
-    assert picked[:6] == ["Souls-like", "Open World", "Dark Fantasy", "RPG", "Difficult", "Action RPG"]
-    for noise in ("Multiplayer", "Singleplayer", "Online Co-Op", "Co-op", "PvP", "Great Soundtrack", "Violent"):
+    assert picked[:6] == [
+        "Souls-like",
+        "Open World",
+        "Dark Fantasy",
+        "RPG",
+        "Difficult",
+        "Action RPG",
+    ]
+    for noise in (
+        "Multiplayer",
+        "Singleplayer",
+        "Online Co-Op",
+        "Co-op",
+        "PvP",
+        "Great Soundtrack",
+        "Violent",
+    ):
         assert noise not in picked
     # Action and RPG are there once each, not repeated from the official genres
     assert picked.count("RPG") == 1 and picked.count("Action") == 1
 
 
 def test_official_genres_not_among_the_player_tags_are_added() -> None:
-    picked = steam_tags.pick_genre_tags([("Souls-like", 900), ("RPG", 500)], ["Action", "RPG", "Adventure"])
+    picked = steam_tags.pick_genre_tags(
+        [("Souls-like", 900), ("RPG", 500)], ["Action", "RPG", "Adventure"]
+    )
     assert picked == ["Souls-like", "RPG", "Action", "Adventure"]
 
 
@@ -135,8 +185,12 @@ def test_an_unreadable_store_page_keeps_the_existing_tags(monkeypatch) -> None:
 
 def test_only_the_first_few_results_cost_a_store_request(monkeypatch) -> None:
     asked: list[int] = []
-    monkeypatch.setattr(steam_tags, "fetch_player_tags", lambda app_id: asked.append(app_id) or ELDEN_RING)
-    results = [_result(i, f"Game {i}", []) for i in range(1, 8)] + [{"title": "No Steam", "tags": ["X"]}]
+    monkeypatch.setattr(
+        steam_tags, "fetch_player_tags", lambda app_id: asked.append(app_id) or ELDEN_RING
+    )
+    results = [_result(i, f"Game {i}", []) for i in range(1, 8)] + [
+        {"title": "No Steam", "tags": ["X"]}
+    ]
     search._apply_steam_user_tags(results, enabled=True)
     assert asked == [1, 2, 3]
 

@@ -110,7 +110,11 @@ async def test_title_and_date_can_be_set_and_cleared() -> None:
             finally:
                 games.create_game_folder = real_create  # type: ignore[assignment]
             item = MediaItem(
-                game_id=game.id, kind="screenshot", filename="a_b.png", taken_at=100, taken_source="file"
+                game_id=game.id,
+                kind="screenshot",
+                filename="a_b.png",
+                taken_at=100,
+                taken_source="file",
             )
             db.add(item)
             await db.commit()
@@ -150,7 +154,9 @@ def _mp4_with_creation(unix: int, *, big: bool = False) -> bytes:
     mvhd = struct.pack(">I4s", 8 + len(body), b"mvhd") + body
     moov = struct.pack(">I4s", 8 + len(mvhd), b"moov") + mvhd
     ftyp = struct.pack(">I4s", 16, b"ftyp") + b"isom\x00\x00\x00\x00"
-    return ftyp + b"\x00\x00\x00\x10mdat" + b"\x00" * 8 + moov  # moov after the media, as in many files
+    return (
+        ftyp + b"\x00\x00\x00\x10mdat" + b"\x00" * 8 + moov
+    )  # moov after the media, as in many files
 
 
 def test_video_creation_time_is_read_from_the_mp4_header() -> None:
@@ -218,7 +224,11 @@ async def test_detect_endpoint_reads_dates_from_stored_files(tmp_path, monkeypat
             (folder / "bbbbbbbb_shot.jpg").write_bytes(b"x")
             (folder / "cccccccc_2026-01-02.jpg").write_bytes(b"x")
             rows = {}
-            for name in ("aaaaaaaa_20260515191011_1.jpg", "bbbbbbbb_shot.jpg", "cccccccc_2026-01-02.jpg"):
+            for name in (
+                "aaaaaaaa_20260515191011_1.jpg",
+                "bbbbbbbb_shot.jpg",
+                "cccccccc_2026-01-02.jpg",
+            ):
                 item = MediaItem(game_id=game.id, kind="screenshot", filename=name)
                 db.add(item)
                 rows[name] = item
@@ -230,7 +240,9 @@ async def test_detect_endpoint_reads_dates_from_stored_files(tmp_path, monkeypat
             )
             found = {m["filename"]: m for m in out["media"]}
             assert set(found) == {"aaaaaaaa_20260515191011_1.jpg", "cccccccc_2026-01-02.jpg"}
-            assert found["aaaaaaaa_20260515191011_1.jpg"]["taken_at"] == utc(2026, 5, 15, 19, 10, 11)
+            assert found["aaaaaaaa_20260515191011_1.jpg"]["taken_at"] == utc(
+                2026, 5, 15, 19, 10, 11
+            )
             assert found["aaaaaaaa_20260515191011_1.jpg"]["taken_source"] == "filename"
             assert found["cccccccc_2026-01-02.jpg"]["taken_at"] == utc(2026, 1, 2)
     finally:

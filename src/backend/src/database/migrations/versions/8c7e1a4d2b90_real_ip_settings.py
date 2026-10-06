@@ -25,5 +25,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.execute("ALTER TABLE app_integration_settings DROP COLUMN IF EXISTS nginx_realip_trusted_proxies")
+    op.execute(
+        "ALTER TABLE app_integration_settings DROP COLUMN IF EXISTS nginx_realip_trusted_proxies"
+    )
     op.execute("ALTER TABLE app_integration_settings DROP COLUMN IF EXISTS nginx_realip_header")

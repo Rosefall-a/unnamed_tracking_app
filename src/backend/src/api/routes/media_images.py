@@ -57,7 +57,9 @@ async def get_media_image(
     if not url:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No such image.")
 
-    target = cache_path(_DATA_ROOT / str(current_user.id) / ".cache", media_type, str(item_id), which, url)
+    target = cache_path(
+        _DATA_ROOT / str(current_user.id) / ".cache", media_type, str(item_id), which, url
+    )
     if not target.is_file():
         try:
             await asyncio.to_thread(fetch_and_store, url, target, _WIDTHS[which])

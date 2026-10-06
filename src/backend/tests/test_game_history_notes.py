@@ -44,14 +44,20 @@ async def test_status_and_price_changes_are_recorded(monkeypatch) -> None:
         owner = SimpleNamespace(id=user_id)
         async with SessionLocal() as db:
             game = await games.create_game(
-                GameCreate(title="History", folder_location="History", purchase_price=Decimal("59.90")),
+                GameCreate(
+                    title="History", folder_location="History", purchase_price=Decimal("59.90")
+                ),
                 Response(),
                 db,
                 owner,
             )
             await games.update_game(
                 game.id,
-                GameUpdate(status=GameStatus.PLAYING, purchase_price=Decimal("59.9"), purchase_date=1778803200),
+                GameUpdate(
+                    status=GameStatus.PLAYING,
+                    purchase_price=Decimal("59.9"),
+                    purchase_date=1778803200,
+                ),
                 db,
                 owner,
             )
@@ -82,7 +88,9 @@ async def test_note_summaries_carry_edit_time_length_and_preview(tmp_path, monke
             )
             notes = tmp_path / str(user_id) / "games" / "Notes" / "notes"
             notes.mkdir(parents=True)
-            (notes / "Boss tips.md").write_text("# Margit\nDodge late.\n" + "word " * 200, encoding="utf-8")
+            (notes / "Boss tips.md").write_text(
+                "# Margit\nDodge late.\n" + "word " * 200, encoding="utf-8"
+            )
             (notes / "Build.md").write_text("Strength build", encoding="utf-8")
             (notes / "ignore.txt").write_text("not a note", encoding="utf-8")
             out = await games.list_game_note_summaries(game.id, db, owner)

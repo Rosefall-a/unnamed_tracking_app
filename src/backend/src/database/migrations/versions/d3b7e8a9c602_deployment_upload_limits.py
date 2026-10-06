@@ -38,4 +38,6 @@ def downgrade() -> None:
     """Remove only the new overrides; keep branding and integrations."""
     op.execute("ALTER TABLE app_integration_settings DROP COLUMN IF EXISTS max_world_save_size_mb")
     op.execute("ALTER TABLE app_integration_settings DROP COLUMN IF EXISTS max_clip_size_mb")
-    op.execute("ALTER TABLE app_integration_settings DROP COLUMN IF EXISTS max_save_archive_size_mb")
+    op.execute(
+        "ALTER TABLE app_integration_settings DROP COLUMN IF EXISTS max_save_archive_size_mb"
+    )

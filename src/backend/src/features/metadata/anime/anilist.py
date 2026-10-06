@@ -5,6 +5,7 @@ import time
 from typing import Any
 import requests
 from src.features.metadata.rate_limit import throttle
+
 _URL = "https://graphql.anilist.co"
 _TAG_RE = re.compile(r"<[^>]+>")
 # AniList's public API rate limit is low and shared across every client
@@ -90,13 +91,16 @@ query ($idMal: Int) {{
 }}
 """
 
+
 class AniListError(RuntimeError):
     """Raised when AniList responds unsuccessfully."""
+
 
 def _clean_description(value: str | None) -> str | None:
     if not value:
         return None
     return _TAG_RE.sub("", value).strip() or None
+
 
 def _format_date(start_date: dict[str, Any] | None) -> str | None:
     if not start_date or not start_date.get("year"):
@@ -105,6 +109,7 @@ def _format_date(start_date: dict[str, Any] | None) -> str | None:
     month = start_date.get("month") or 1
     day = start_date.get("day") or 1
     return f"{year:04d}-{month:02d}-{day:02d}"
+
 
 # AniList's MediaFormat enum -> the friendly label Jikan already returns
 # directly, so both providers normalize to the same vocabulary.
@@ -118,10 +123,12 @@ _FORMAT_LABELS = {
     "MUSIC": "Music",
 }
 
+
 def _format_label(raw: str | None) -> str | None:
     if not raw:
         return None
     return _FORMAT_LABELS.get(raw, raw.title())
+
 
 # Up to 50 entries by MyAnimeList id in one request, so filling in a whole
 # imported list takes a handful of calls instead of one per title.
@@ -160,6 +167,7 @@ query ($ids: [Int], $perPage: Int) {
 """
 _BATCH_SIZE = 50
 
+
 def _map_media_entry(entry: dict[str, Any]) -> dict[str, Any]:
     """Normalizes one `_MEDIA_FIELDS`-shaped node into the search-result
     dict shape — shared by `search()` (a page of these) and `get_by_id()`
@@ -189,6 +197,7 @@ def _map_media_entry(entry: dict[str, Any]) -> dict[str, Any]:
         "url": entry.get("siteUrl"),
     }
 
+
 def _node_to_dict(node: dict[str, Any]) -> dict[str, Any]:
     node_title = node.get("title") or {}
     cover = node.get("coverImage") or {}
@@ -200,6 +209,7 @@ def _node_to_dict(node: dict[str, Any]) -> dict[str, Any]:
         "episode_count": node.get("episodes"),
         "year": (node.get("startDate") or {}).get("year"),
     }
+
 
 # AniList's own RelationType enum -> a short human label for the graph
 # edge (e.g. "Sequel", "Side story") rather than the raw SCREAMING_SNAKE
@@ -252,6 +262,7 @@ query ($id: Int) {
 # what Jikan would have given us, instead of keeping the number baked in.
 _EPISODE_TITLE_RE = re.compile(r"^Episode\s+\d+\s*-\s*(.+)$", re.IGNORECASE)
 
+
 def _blank_episode(
     episode_number: int, still_url: str | None = None, title: str | None = None
 ) -> dict[str, Any]:
@@ -263,6 +274,7 @@ def _blank_episode(
         "runtime_minutes": None,
         "still_url": still_url,
     }
+
 
 def _parse_streaming_episodes(streaming: list[dict[str, Any]]) -> list[dict[str, Any]]:
     results = []
@@ -281,6 +293,7 @@ def _parse_streaming_episodes(streaming: list[dict[str, Any]]) -> list[dict[str,
         results.append(_blank_episode(i, still_url=entry.get("thumbnail"), title=title))
     return results
 
+
 def _aired_total(media: dict[str, Any]) -> int | None:
     """How many episodes have actually aired so far. A season can have a
     confirmed total episode count (e.g. 14) while still airing weekly
@@ -295,6 +308,7 @@ def _aired_total(media: dict[str, Any]) -> int | None:
         return media["episodes"]
     return None
 
+
 def _pad_to_aired_total(results: list[dict[str, Any]], aired_total: int | None) -> None:
     """Fill in plain numbered placeholders for every episode number up to
     `aired_total` that streamingEpisodes didn't cover, in place."""
@@ -305,6 +319,7 @@ def _pad_to_aired_total(results: list[dict[str, Any]], aired_total: int | None) 
         if n not in known:
             results.append(_blank_episode(n))
     results.sort(key=lambda r: r["episode_number"])
+
 
 _RELATIONS_QUERY = """
 query ($search: String) {

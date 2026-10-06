@@ -97,9 +97,7 @@ async def record_version(db: AsyncSession, row: GameNoteDetail, previous_text: s
     if newest is not None and newest.content == previous_text:
         return
     # milliseconds, so two saves in the same second still order correctly
-    db.add(
-        GameNoteVersion(note_id=row.id, content=previous_text, saved_at=int(time.time() * 1000))
-    )
+    db.add(GameNoteVersion(note_id=row.id, content=previous_text, saved_at=int(time.time() * 1000)))
     await db.flush()
     keep = (
         await db.scalars(
@@ -126,7 +124,5 @@ async def rename_row(db: AsyncSession, game_id: UUID, old: str, new: str) -> Non
 
 async def delete_row(db: AsyncSession, game_id: UUID, name: str) -> None:
     await db.execute(
-        delete(GameNoteDetail).where(
-            GameNoteDetail.game_id == game_id, GameNoteDetail.name == name
-        )
+        delete(GameNoteDetail).where(GameNoteDetail.game_id == game_id, GameNoteDetail.name == name)
     )

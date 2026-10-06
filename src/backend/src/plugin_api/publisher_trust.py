@@ -67,9 +67,20 @@ def load_trusted_publishers(path: Path | None = None) -> dict[str, TrustedPublis
         if entry.get("channel", "community") not in {"official", "demo", "community"}:
             raise PublisherTrustError("invalid publisher channel")
         legacy = entry.get("legacy_manifest_hashes", {})
-        if not isinstance(legacy, dict) or len(legacy) > 2048 or any(
-            not re.fullmatch(r"[a-f0-9]{64}", key) or not isinstance(value, list) or not value or len(value) > 128
-            or any(not isinstance(pin, str) or not re.fullmatch(r"[a-f0-9]{64}", pin) for pin in value) for key, value in legacy.items()
+        if (
+            not isinstance(legacy, dict)
+            or len(legacy) > 2048
+            or any(
+                not re.fullmatch(r"[a-f0-9]{64}", key)
+                or not isinstance(value, list)
+                or not value
+                or len(value) > 128
+                or any(
+                    not isinstance(pin, str) or not re.fullmatch(r"[a-f0-9]{64}", pin)
+                    for pin in value
+                )
+                for key, value in legacy.items()
+            )
         ):
             raise PublisherTrustError("invalid legacy manifest review pins")
         publishers[key_id] = TrustedPublisher(

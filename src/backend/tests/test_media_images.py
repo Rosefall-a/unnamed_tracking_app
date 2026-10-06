@@ -59,7 +59,12 @@ async def test_backdrop_keeps_its_own_size(flow, downloads) -> None:
 
 
 async def test_hero_uses_the_backdrop_or_else_the_poster(flow, downloads) -> None:
-    both = await _create(flow, "movie", poster_url="https://img.example.test/p.jpg", backdrop_url="https://img.example.test/b.jpg")
+    both = await _create(
+        flow,
+        "movie",
+        poster_url="https://img.example.test/p.jpg",
+        backdrop_url="https://img.example.test/b.jpg",
+    )
     poster_only = await _create(flow, "movie", poster_url="https://img.example.test/only-p.jpg")
     await flow.client.get(f"/api/media-image/movie/{both}/hero")
     await flow.client.get(f"/api/media-image/movie/{poster_only}/hero")
@@ -69,7 +74,9 @@ async def test_hero_uses_the_backdrop_or_else_the_poster(flow, downloads) -> Non
 async def test_changing_the_address_makes_a_fresh_copy(flow, downloads) -> None:
     item = await _create(flow, "movie", poster_url="https://img.example.test/old.jpg")
     await flow.client.get(f"/api/media-image/movie/{item}/poster")
-    await flow.client.patch(f"/api/movie/update/{item}", json={"poster_url": "https://img.example.test/new.jpg"})
+    await flow.client.patch(
+        f"/api/movie/update/{item}", json={"poster_url": "https://img.example.test/new.jpg"}
+    )
     await flow.client.get(f"/api/media-image/movie/{item}/poster")
     assert downloads == ["https://img.example.test/old.jpg", "https://img.example.test/new.jpg"]
     folder = media_images._DATA_ROOT / str(flow.user_id) / ".cache" / "media-images" / "movie"
@@ -78,7 +85,9 @@ async def test_changing_the_address_makes_a_fresh_copy(flow, downloads) -> None:
 
 async def test_a_failed_download_sends_the_browser_to_the_original(flow, downloads) -> None:
     item = await _create(flow, "movie", poster_url="https://img.example.test/broken.jpg")
-    response = await flow.client.get(f"/api/media-image/movie/{item}/poster", follow_redirects=False)
+    response = await flow.client.get(
+        f"/api/media-image/movie/{item}/poster", follow_redirects=False
+    )
     assert response.status_code == 307
     assert response.headers["location"] == "https://img.example.test/broken.jpg"
 
@@ -108,7 +117,9 @@ def test_only_public_hosts_are_fetched(host: str, public: bool) -> None:
     assert remote_images.is_public_host(host) is public
 
 
-@pytest.mark.parametrize("url", ["file:///etc/passwd", "ftp://example.com/a.png", "http://127.0.0.1/a.png", "https:///x"])
+@pytest.mark.parametrize(
+    "url", ["file:///etc/passwd", "ftp://example.com/a.png", "http://127.0.0.1/a.png", "https:///x"]
+)
 def test_unsafe_addresses_are_refused(url: str) -> None:
     with pytest.raises(remote_images.RemoteImageError):
         remote_images.download_image(url)

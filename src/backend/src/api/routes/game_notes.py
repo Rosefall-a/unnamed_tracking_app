@@ -45,7 +45,9 @@ def _existing_note(game: Game, note_name: str) -> tuple[str, Path]:
     name = _normalize_note_name(note_name)
     path = _notes_dir(game) / f"{name}.md"
     if not path.is_file():
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f'Note "{name}" was not found.')
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=f'Note "{name}" was not found.'
+        )
     return name, path
 
 

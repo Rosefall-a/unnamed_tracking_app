@@ -57,7 +57,11 @@ async def flow(tmp_path, monkeypatch):
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         yield SimpleNamespace(
-            client=client, game=f"/api/game/{game_id}", game_id=game_id, user_id=user_id, tmp=tmp_path
+            client=client,
+            game=f"/api/game/{game_id}",
+            game_id=game_id,
+            user_id=user_id,
+            tmp=tmp_path,
         )
     app.dependency_overrides.pop(get_current_user, None)
     async with SessionLocal() as db:
@@ -101,11 +105,20 @@ async def test_screenshots_clips_and_soundtrack_upload_list_edit_and_detect(flow
     track = by_kind["soundtrack"]
     edited = await flow.client.patch(
         f"{flow.game}/screenshots/{track['id']}",
-        json={"title": "Main theme", "note": "Plays at the start", "tags": ["ost"], "taken_at": utc(2025, 12, 25)},
+        json={
+            "title": "Main theme",
+            "note": "Plays at the start",
+            "tags": ["ost"],
+            "taken_at": utc(2025, 12, 25),
+        },
     )
     assert edited.status_code == 200, edited.text
     body = edited.json()
-    assert (body["title"], body["note"], body["tags"]) == ("Main theme", "Plays at the start", ["ost"])
+    assert (body["title"], body["note"], body["tags"]) == (
+        "Main theme",
+        "Plays at the start",
+        ["ost"],
+    )
     assert (body["taken_at"], body["taken_source"]) == (utc(2025, 12, 25), "manual")
 
     from_achievement = await flow.client.patch(
@@ -161,7 +174,12 @@ async def test_docs_upload_edit_delete_and_restore(flow) -> None:
 
     patched = await flow.client.patch(
         f"{flow.game}/files/doc/by-id/{guide['id']}",
-        json={"title": "Elden Ring boss guide", "note": "Pages 4 to 9", "tags": ["guide", "bosses"], "taken_at": utc(2026, 4, 1)},
+        json={
+            "title": "Elden Ring boss guide",
+            "note": "Pages 4 to 9",
+            "tags": ["guide", "bosses"],
+            "taken_at": utc(2026, 4, 1),
+        },
     )
     assert patched.status_code == 200, patched.text
     assert patched.json()["title"] == "Elden Ring boss guide"
@@ -178,9 +196,9 @@ async def test_docs_upload_edit_delete_and_restore(flow) -> None:
     assert deleted.status_code == 200
     trash = (await flow.client.get(f"{flow.game}/files/doc/trash")).json()["files"]
     assert len(trash) == 1 and trash[0]["id"] == guide["id"]
-    assert [f["filename"] for f in (await flow.client.get(f"{flow.game}/files/doc")).json()["files"]] == [
-        by_name["map.zip"]["filename"]
-    ]
+    assert [
+        f["filename"] for f in (await flow.client.get(f"{flow.game}/files/doc")).json()["files"]
+    ] == [by_name["map.zip"]["filename"]]
 
     restored = await flow.client.post(f"{flow.game}/files/doc/{guide['filename']}/restore")
     assert restored.status_code == 200, restored.text
@@ -213,7 +231,10 @@ async def test_saves_are_named_archives_with_versions(flow) -> None:
     listed = (await flow.client.get(f"{flow.game}/archives/save")).json()
     assert [a["name"] for a in listed] == ["Before the final boss"]
 
-    assert (await flow.client.delete(f"{flow.game}/archives/{archive['id']}")).status_code in (200, 204)
+    assert (await flow.client.delete(f"{flow.game}/archives/{archive['id']}")).status_code in (
+        200,
+        204,
+    )
     trash = (await flow.client.get(f"{flow.game}/archives/save/trash")).json()
     assert [t["name"] for t in trash] == ["Before the final boss"]
     restored = await flow.client.post(f"{flow.game}/archives/{archive['id']}/restore")
@@ -266,9 +287,14 @@ async def test_a_clip_keeps_its_thumbnail_and_length(flow) -> None:
     await flow.client.post(
         f"{flow.game}/screenshots", files=[("files", ("shot.png", png.getvalue(), "image/png"))]
     )
-    shot = [m for m in (await flow.client.get(f"{flow.game}/screenshots")).json()["media"] if m["kind"] == "screenshot"][0]
+    shot = [
+        m
+        for m in (await flow.client.get(f"{flow.game}/screenshots")).json()["media"]
+        if m["kind"] == "screenshot"
+    ][0]
     wrong = await flow.client.post(
-        f"{flow.game}/thumbnails/{shot['id']}", files={"file": ("f.png", png.getvalue(), "image/png")}
+        f"{flow.game}/thumbnails/{shot['id']}",
+        files={"file": ("f.png", png.getvalue(), "image/png")},
     )
     assert wrong.status_code == 404
 
@@ -291,9 +317,13 @@ async def test_a_save_can_carry_a_note_and_tags(flow) -> None:
     assert body["note"] == "Before the final boss" and body["tags"] == ["boss", "backup"]
     assert body["name"] == "Main character"  # left out, so left alone
 
-    renamed = await flow.client.patch(f"{flow.game}/archives/{archive['id']}", json={"name": "Final boss"})
+    renamed = await flow.client.patch(
+        f"{flow.game}/archives/{archive['id']}", json={"name": "Final boss"}
+    )
     assert renamed.json()["name"] == "Final boss" and renamed.json()["tags"] == ["boss", "backup"]
-    assert (await flow.client.patch(f"{flow.game}/archives/{archive['id']}", json={"name": " "})).status_code == 400
+    assert (
+        await flow.client.patch(f"{flow.game}/archives/{archive['id']}", json={"name": " "})
+    ).status_code == 400
     cleared = await flow.client.patch(f"{flow.game}/archives/{archive['id']}", json={"note": ""})
     assert cleared.json()["note"] is None
 
@@ -314,7 +344,9 @@ async def test_banner_preview_is_a_small_cached_jpeg(flow) -> None:
     assert shrunk.width == 800 and len(small.content) < len(full.content) / 4
 
     # the second ask is served from the cache folder, not made again
-    cached = list((flow.tmp / str(flow.user_id) / ".cache" / "asset-previews").rglob("banner-800.jpg"))
+    cached = list(
+        (flow.tmp / str(flow.user_id) / ".cache" / "asset-previews").rglob("banner-800.jpg")
+    )
     assert len(cached) == 1
     first_mtime = cached[0].stat().st_mtime_ns
     await flow.client.get(f"{flow.game}/assets/banner", params={"w": 800})

@@ -38,9 +38,11 @@ def place_navigation(
         required = Capability.FRONTEND_PLACEMENT_SIDEBAR
     else:
         return item
-    return item.model_copy(update={
-        "group": placement_group(item.group, groups, required.value in capabilities),
-    })
+    return item.model_copy(
+        update={
+            "group": placement_group(item.group, groups, required.value in capabilities),
+        }
+    )
 
 
 def place_settings(
@@ -48,9 +50,12 @@ def place_settings(
 ) -> UiSettingsContribution:
     """A grant covers every built-in header and folder within its settings area."""
     area = item.area or ("administration" if item.visibility.admin_only else "preferences")
-    return item.model_copy(update={
-        "group": placement_group(
-            item.group, SETTINGS_GROUPS[area],
-            SETTINGS_PLACEMENT_CAPABILITIES[area].value in capabilities,
-        ),
-    })
+    return item.model_copy(
+        update={
+            "group": placement_group(
+                item.group,
+                SETTINGS_GROUPS[area],
+                SETTINGS_PLACEMENT_CAPABILITIES[area].value in capabilities,
+            ),
+        }
+    )

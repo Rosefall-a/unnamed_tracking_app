@@ -68,7 +68,11 @@ async def test_search_treats_wildcards_as_plain_text(flow, kind: str, payload: d
     await flow.client.post(f"{api}/create", json=payload)
     await flow.client.post(f"{api}/create", json={**payload, "title": "100% Wolf_Man"})
 
-    for text, expected in (("%", ["100% Wolf_Man"]), ("_", ["100% Wolf_Man"]), ("100%", ["100% Wolf_Man"])):
+    for text, expected in (
+        ("%", ["100% Wolf_Man"]),
+        ("_", ["100% Wolf_Man"]),
+        ("100%", ["100% Wolf_Man"]),
+    ):
         found = (await flow.client.get(f"{api}/list", params={"search": text})).json()
         assert [r["title"] for r in found["items"]] == expected, text
 

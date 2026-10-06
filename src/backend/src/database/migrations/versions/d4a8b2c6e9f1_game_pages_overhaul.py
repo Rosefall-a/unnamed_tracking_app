@@ -51,7 +51,9 @@ def upgrade() -> None:
     h.add_column_if_missing("media_items", sa.Column("title", sa.String(200), nullable=True))
     h.add_column_if_missing("media_items", sa.Column("taken_at", sa.BigInteger(), nullable=True))
     h.add_column_if_missing("media_items", sa.Column("taken_source", sa.String(20), nullable=True))
-    h.add_column_if_missing("media_items", sa.Column("thumb_filename", sa.String(300), nullable=True))
+    h.add_column_if_missing(
+        "media_items", sa.Column("thumb_filename", sa.String(300), nullable=True)
+    )
     h.add_column_if_missing("media_items", sa.Column("duration", sa.Float(), nullable=True))
     h.add_column_if_missing("inbox_items", sa.Column("taken_at", sa.BigInteger(), nullable=True))
     h.add_column_if_missing("inbox_items", sa.Column("taken_source", sa.String(20), nullable=True))
@@ -60,7 +62,9 @@ def upgrade() -> None:
     h.add_column_if_missing("game_file_items", sa.Column("title", sa.String(200), nullable=True))
     h.add_column_if_missing("game_file_items", sa.Column("note", sa.Text(), nullable=True))
     h.add_column_if_missing("game_file_items", _tags_column())
-    h.add_column_if_missing("game_file_items", sa.Column("taken_at", sa.BigInteger(), nullable=True))
+    h.add_column_if_missing(
+        "game_file_items", sa.Column("taken_at", sa.BigInteger(), nullable=True)
+    )
     h.add_column_if_missing(
         "game_file_items", sa.Column("taken_source", sa.String(20), nullable=True)
     )
@@ -120,10 +124,14 @@ def downgrade() -> None:
         " DROP COLUMN IF EXISTS taken_at, DROP COLUMN IF EXISTS tags,"
         " DROP COLUMN IF EXISTS note, DROP COLUMN IF EXISTS title"
     )
-    op.execute("ALTER TABLE inbox_items DROP COLUMN IF EXISTS taken_source, DROP COLUMN IF EXISTS taken_at")
+    op.execute(
+        "ALTER TABLE inbox_items DROP COLUMN IF EXISTS taken_source, DROP COLUMN IF EXISTS taken_at"
+    )
     op.execute(
         "ALTER TABLE media_items DROP COLUMN IF EXISTS duration,"
         " DROP COLUMN IF EXISTS thumb_filename, DROP COLUMN IF EXISTS taken_source,"
         " DROP COLUMN IF EXISTS taken_at, DROP COLUMN IF EXISTS title"
     )
-    op.execute("ALTER TABLE achievements DROP COLUMN IF EXISTS global_percent, DROP COLUMN IF EXISTS hidden")
+    op.execute(
+        "ALTER TABLE achievements DROP COLUMN IF EXISTS global_percent, DROP COLUMN IF EXISTS hidden"
+    )

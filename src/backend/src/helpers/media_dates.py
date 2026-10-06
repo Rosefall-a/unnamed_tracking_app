@@ -29,9 +29,7 @@ from typing import Literal
 
 from PIL import ExifTags, Image, UnidentifiedImageError
 
-DateSource = Literal[
-    "photo", "video", "filename", "file", "uploaded", "manual", "achievement"
-]
+DateSource = Literal["photo", "video", "filename", "file", "uploaded", "manual", "achievement"]
 
 # an earlier "year" than this is a counter or a version number, not a date
 _MIN_YEAR = 1995
@@ -42,9 +40,7 @@ _FULL = re.compile(
     r"(?<!\d)(?P<y>(?:19|20)\d{2})[-_.]?(?P<mo>[01]\d)[-_.]?(?P<d>[0-3]\d)"
     r"[-_ T.]?(?P<h>[0-2]\d)[-_.:]?(?P<mi>[0-5]\d)[-_.:]?(?P<s>[0-5]\d)(?!\d)"
 )
-_DAY = re.compile(
-    r"(?<!\d)(?P<y>(?:19|20)\d{2})[-_.](?P<mo>[01]\d)[-_.](?P<d>[0-3]\d)(?!\d)"
-)
+_DAY = re.compile(r"(?<!\d)(?P<y>(?:19|20)\d{2})[-_.](?P<mo>[01]\d)[-_.](?P<d>[0-3]\d)(?!\d)")
 
 
 def _to_unix(y: int, mo: int, d: int, h: int = 0, mi: int = 0, s: int = 0) -> int | None:

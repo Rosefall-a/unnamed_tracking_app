@@ -22,26 +22,36 @@ def _entries():
     when = 1_800_000_000
     return [
         {
-            "media_type": "movie", "media_id": uuid4(),
-            "title": "A, release; special", "next_episode_number": None,
-            "air_at": when, "kind": "release",
+            "media_type": "movie",
+            "media_id": uuid4(),
+            "title": "A, release; special",
+            "next_episode_number": None,
+            "air_at": when,
+            "kind": "release",
         },
         {
-            "media_type": "tv", "media_id": uuid4(),
-            "title": "Episode show", "next_episode_number": 4,
-            "air_at": when + 3600, "kind": "episode", "is_projected": False,
+            "media_type": "tv",
+            "media_id": uuid4(),
+            "title": "Episode show",
+            "next_episode_number": 4,
+            "air_at": when + 3600,
+            "kind": "episode",
+            "is_projected": False,
         },
         {
-            "media_type": "anime", "media_id": uuid4(),
-            "title": "Projected show", "next_episode_number": 5,
-            "air_at": when + 7200, "kind": "episode", "is_projected": True,
+            "media_type": "anime",
+            "media_id": uuid4(),
+            "title": "Projected show",
+            "next_episode_number": 5,
+            "air_at": when + 7200,
+            "kind": "episode",
+            "is_projected": True,
         },
     ]
 
 
 def _uids(ics: str) -> list[str]:
     return [line.removeprefix("UID:") for line in ics.splitlines() if line.startswith("UID:")]
-
 
 
 class _FakeResult:
@@ -71,7 +81,9 @@ class _FakeDb:
 async def test_feed_preferences_match_calendar_semantics(monkeypatch):
     import src.api.routes.calendar_feed as feed_module
 
-    user = User(id=uuid4(), username="calendar-test", email="calendar@example.test", password_hash="x")
+    user = User(
+        id=uuid4(), username="calendar-test", email="calendar@example.test", password_hash="x"
+    )
     captured = {}
 
     async def fake_preferences(_db, _user_id):
@@ -85,11 +97,36 @@ async def test_feed_preferences_match_calendar_semantics(monkeypatch):
         captured["days"] = days
         captured["game_releases"] = game_releases
         entries = [
-            {"media_type": "tv", "media_id": uuid4(), "title": "Confirmed", "next_episode_number": 1, "air_at": 1, "kind": "episode", "is_projected": False},
-            {"media_type": "tv", "media_id": uuid4(), "title": "Estimated", "next_episode_number": 2, "air_at": 2, "kind": "episode", "is_projected": True},
+            {
+                "media_type": "tv",
+                "media_id": uuid4(),
+                "title": "Confirmed",
+                "next_episode_number": 1,
+                "air_at": 1,
+                "kind": "episode",
+                "is_projected": False,
+            },
+            {
+                "media_type": "tv",
+                "media_id": uuid4(),
+                "title": "Estimated",
+                "next_episode_number": 2,
+                "air_at": 2,
+                "kind": "episode",
+                "is_projected": True,
+            },
         ]
         if game_releases:
-            entries.append({"media_type": "game", "media_id": uuid4(), "title": "Game", "next_episode_number": None, "air_at": 1, "kind": "release"})
+            entries.append(
+                {
+                    "media_type": "game",
+                    "media_id": uuid4(),
+                    "title": "Game",
+                    "next_episode_number": None,
+                    "air_at": 1,
+                    "kind": "release",
+                }
+            )
         return entries
 
     monkeypatch.setattr(feed_module, "load_preferences", fake_preferences)
@@ -106,7 +143,9 @@ async def test_feed_preferences_match_calendar_semantics(monkeypatch):
 async def test_feed_keeps_estimated_entries_when_preference_is_enabled(monkeypatch):
     import src.api.routes.calendar_feed as feed_module
 
-    user = User(id=uuid4(), username="calendar-test", email="calendar@example.test", password_hash="x")
+    user = User(
+        id=uuid4(), username="calendar-test", email="calendar@example.test", password_hash="x"
+    )
 
     async def fake_preferences(_db, _user_id):
         return {
@@ -117,7 +156,15 @@ async def test_feed_keeps_estimated_entries_when_preference_is_enabled(monkeypat
 
     async def fake_entries(_db, _user_id, days, game_releases=False):
         return [
-            {"media_type": "tv", "media_id": uuid4(), "title": "Estimated", "next_episode_number": 2, "air_at": 2, "kind": "episode", "is_projected": True},
+            {
+                "media_type": "tv",
+                "media_id": uuid4(),
+                "title": "Estimated",
+                "next_episode_number": 2,
+                "air_at": 2,
+                "kind": "episode",
+                "is_projected": True,
+            },
         ]
 
     monkeypatch.setattr(feed_module, "load_preferences", fake_preferences)
@@ -135,12 +182,19 @@ def test_ics_escape_cannot_inject_properties_and_escapes_ical_text():
 
 def test_build_ics_contains_valid_core_properties_for_release_episode_and_manual_events():
     manual = CalendarEvent(
-        id=uuid4(), user_id=uuid4(), title="Manual, reminder; party",
-        event_date=date(2026, 10, 3), event_time=None, note="Bring snacks, please; thanks",
+        id=uuid4(),
+        user_id=uuid4(),
+        title="Manual, reminder; party",
+        event_date=date(2026, 10, 3),
+        event_time=None,
+        note="Bring snacks, please; thanks",
     )
     timed_manual = CalendarEvent(
-        id=uuid4(), user_id=manual.user_id, title="Timed meeting",
-        event_date=date(2026, 10, 4), event_time="19:30",
+        id=uuid4(),
+        user_id=manual.user_id,
+        title="Timed meeting",
+        event_date=date(2026, 10, 4),
+        event_time="19:30",
     )
     ics = _build_ics(_entries(), [manual, timed_manual])
     assert ics.endswith("END:VCALENDAR\r\n")
@@ -159,7 +213,6 @@ def test_build_ics_contains_valid_core_properties_for_release_episode_and_manual
     assert all("UID:" in event for event in ics.split("BEGIN:VEVENT")[1:])
     assert len(_uids(ics)) == 5
     assert len(set(_uids(ics))) == 5
-
 
 
 def test_ics_fixture_has_well_formed_vcalendar_and_vevent_boundaries():
@@ -187,7 +240,11 @@ def test_ics_uids_are_stable_for_the_same_source_entries():
 @pytest.mark.asyncio
 async def test_feed_token_creation_and_regeneration_invalidate_the_old_secret():
     async with SessionLocal() as db:
-        user = User(username=f"ics_{uuid4().hex[:10]}", email=f"{uuid4().hex[:10]}@example.test", password_hash="x")
+        user = User(
+            username=f"ics_{uuid4().hex[:10]}",
+            email=f"{uuid4().hex[:10]}@example.test",
+            password_hash="x",
+        )
         db.add(user)
         await db.commit()
         await db.refresh(user)
@@ -214,7 +271,12 @@ async def test_feed_token_creation_and_regeneration_invalidate_the_old_secret():
 @pytest.mark.asyncio
 async def test_unknown_and_inactive_feed_tokens_are_rejected():
     async with SessionLocal() as db:
-        user = User(username=f"ics_{uuid4().hex[:10]}", email=f"{uuid4().hex[:10]}@example.test", password_hash="x", calendar_token=uuid4().hex)
+        user = User(
+            username=f"ics_{uuid4().hex[:10]}",
+            email=f"{uuid4().hex[:10]}@example.test",
+            password_hash="x",
+            calendar_token=uuid4().hex,
+        )
         db.add(user)
         await db.commit()
         token = user.calendar_token
@@ -235,8 +297,18 @@ async def test_unknown_and_inactive_feed_tokens_are_rejected():
 @pytest.mark.asyncio
 async def test_feed_includes_only_the_owner_manual_events():
     async with SessionLocal() as db:
-        owner = User(username=f"ics_{uuid4().hex[:10]}", email=f"{uuid4().hex[:10]}@example.test", password_hash="x", calendar_token=uuid4().hex)
-        other = User(username=f"ics_{uuid4().hex[:10]}", email=f"{uuid4().hex[:10]}@example.test", password_hash="x", calendar_token=uuid4().hex)
+        owner = User(
+            username=f"ics_{uuid4().hex[:10]}",
+            email=f"{uuid4().hex[:10]}@example.test",
+            password_hash="x",
+            calendar_token=uuid4().hex,
+        )
+        other = User(
+            username=f"ics_{uuid4().hex[:10]}",
+            email=f"{uuid4().hex[:10]}@example.test",
+            password_hash="x",
+            calendar_token=uuid4().hex,
+        )
         db.add_all([owner, other])
         await db.flush()
         db.add(CalendarEvent(user_id=owner.id, title="Owner event", event_date=date.today()))
