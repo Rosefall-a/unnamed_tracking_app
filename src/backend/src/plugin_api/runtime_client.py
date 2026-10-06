@@ -42,10 +42,14 @@ class PluginRuntimeClient:
         if len(self.token) < 32:
             raise PluginRuntimeUnavailable("plugin runtime credentials are not configured")
         approved = manager_state().settings().get("reduced_isolation_acknowledged") is True
-        return {
+        headers = {
             "X-Plugin-Runtime-Token": self.token,
             "X-Plugin-Reduced-Isolation-Acknowledged": str(approved).lower(),
         }
+        gateway_url = os.getenv("PLUGIN_GATEWAY_URL", "").strip().rstrip("/")
+        if gateway_url:
+            headers["X-Plugin-Gateway-URL"] = gateway_url
+        return headers
 
     async def _request(self, method: str, path: str, **kwargs: Any) -> Any:
         """Send a runtime operation with current credentials and policy acknowledgement."""
@@ -60,8 +64,15 @@ class PluginRuntimeClient:
         except httpx.HTTPError as exc:
             raise PluginRuntimeUnavailable("plugin runtime is unavailable") from exc
         if response.status_code >= 500:
+            try:
+                body = response.json()
+                detail = body.get("detail") if isinstance(body, dict) else None
+            except ValueError:
+                detail = None
             raise PluginRuntimeUnavailable(
-                f"plugin runtime returned {response.status_code}: {response.text[:1024]}"
+                detail[:1024]
+                if isinstance(detail, str)
+                else f"plugin runtime returned {response.status_code}"
             )
         if response.status_code >= 400:
             try:

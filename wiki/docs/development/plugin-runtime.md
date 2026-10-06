@@ -91,10 +91,31 @@ failures and successful retries still return the plugin's result; timeouts and
 unrelated process failures keep their own diagnostics. Public details are bounded
 and runtime secrets are redacted.
 
-The runtime also needs its private `PLUGIN_GATEWAY_URL`. The supplied production
-configurations use `http://app` through Nginx; development uses
-`http://backend:8000`. This broker address and its transport token are never
-passed to plugin workers.
+## Gateway configuration
+
+The runtime needs a private `PLUGIN_GATEWAY_URL` pointing back to the app. The
+supplied production configurations use `http://app` through Nginx; development
+uses `http://backend:8000`. Custom deployments must use an address reachable from
+the runtime container, with the app and runtime on a shared private network.
+`localhost` inside the runtime refers to the runtime, not the app container.
+
+An explicit runtime callback takes precedence. When it is omitted, an app with
+`PLUGIN_GATEWAY_URL` configured advertises that address over the authenticated
+private transport. Anonymous health requests cannot set or replace it. No address
+is inferred from browser headers, and no transport credential is passed to plugin
+workers. Both services still need the same `PLUGIN_RUNTIME_TOKEN`, at least 32
+characters long. Addresses must use HTTP(S), without embedded credentials, query
+parameters or fragments.
+
+If both services omit the callback, native Jellyfin, Session Manager and Archive
+actions cannot obtain host authorization. Plugin Manager prominently reports the
+missing configuration, and actions return a service failure with repair guidance
+rather than a generic 422. Set the callback on either service and recreate that
+service; refresh Plugin Manager to check **Gateway configuration**. An older
+runtime must be upgraded with the host to support app-advertised callbacks.
+Configured health means the address/token format is valid; a real action is still
+needed to validate routing, matching credentials and permissions. Connection
+refusal, timeout and invalid JSON have their own bounded diagnostics.
 
 ## Per-plugin process isolation
 

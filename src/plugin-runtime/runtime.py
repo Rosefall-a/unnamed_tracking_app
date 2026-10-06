@@ -142,6 +142,7 @@ class RuntimeGatewayError(RuntimePolicyError):
             "forbidden": 403,
             "not_found": 404,
             "conflict": 409,
+            "unavailable": 503,
         }.get(code, 422)
 
 
@@ -157,6 +158,26 @@ def gateway_transport_message(exc: Exception) -> str:
     if isinstance(reason, (json.JSONDecodeError, UnicodeError)):
         return "Plugin gateway returned invalid JSON. Check the gateway URL and proxy routing."
     return "Plugin gateway is unavailable. Check the gateway URL and host/runtime connectivity."
+
+
+def validated_gateway_url(value: str) -> str:
+    """Accept a bounded broker address without credentials or request parameters."""
+    if len(value) > 2048 or any(character.isspace() for character in value):
+        raise ValueError("invalid gateway address")
+    parsed = urlsplit(value)
+    if (
+        parsed.scheme not in {"http", "https"}
+        or not parsed.hostname
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.query
+        or parsed.fragment
+    ):
+        raise ValueError("invalid gateway address")
+    # Access validates malformed/out-of-range port declarations too.
+    if parsed.port is not None and not 1 <= parsed.port <= 65535:
+        raise ValueError("invalid gateway port")
+    return value.rstrip("/")
 
 
 def gateway_error_response(exc: Exception, request: Any) -> dict[str, Any]:
@@ -245,9 +266,10 @@ class PluginSupervisor:
     ) -> None:
         self.root = root
         self.storage_root = storage_root
-        self.gateway_url = (gateway_url or os.getenv("PLUGIN_GATEWAY_URL", "")).rstrip(
-            "/"
+        self.gateway_url = (
+            (gateway_url or os.getenv("PLUGIN_GATEWAY_URL", "")).strip().rstrip("/")
         )
+        self.gateway_configuration_source = "runtime" if self.gateway_url else "missing"
         self.gateway_token = gateway_token or os.getenv("PLUGIN_RUNTIME_TOKEN", "")
         self.root.mkdir(mode=0o700, parents=True, exist_ok=True)
         self._processes: dict[str, subprocess.Popen[bytes]] = {}
@@ -268,6 +290,42 @@ class PluginSupervisor:
             "sandbox_available": False,
             "mechanism": "unprobed",
             "reduced_isolation_allowed": self._nonbubble_enabled(),
+        }
+
+    def configure_host_gateway(self, value: str) -> None:
+        """Use an authenticated host callback only without a runtime-local override."""
+        with self._lock:
+            if self.gateway_configuration_source == "runtime":
+                return
+            self.gateway_url = validated_gateway_url(value)
+            self.gateway_configuration_source = "host"
+
+    def gateway_health(self) -> dict[str, Any]:
+        """Report configuration problems without disclosing the broker or its token."""
+        error = None
+        if not self.gateway_url:
+            error = (
+                "plugin gateway is not configured: set PLUGIN_GATEWAY_URL on the runtime "
+                "or app service to the app's internal address, then recreate that service. "
+                "Production Compose uses http://app; development uses http://backend:8000."
+            )
+        else:
+            try:
+                validated_gateway_url(self.gateway_url)
+            except ValueError:
+                error = (
+                    "PLUGIN_GATEWAY_URL must be an HTTP(S) app address without credentials, "
+                    "query parameters or a fragment. Correct it and recreate the service."
+                )
+        if len(self.gateway_token) < 32:
+            error = (
+                "plugin gateway is not configured: set the same PLUGIN_RUNTIME_TOKEN of "
+                "at least 32 characters on the app and runtime, then recreate both services."
+            )
+        return {
+            "gateway_configured": error is None,
+            "gateway_configuration_source": self.gateway_configuration_source,
+            "gateway_error": error,
         }
 
     def probe_isolation(self) -> dict[str, Any]:
@@ -619,8 +677,16 @@ class PluginSupervisor:
                     ]
                 }
             }
-        if not self.gateway_url or len(self.gateway_token) < 32:
-            raise RuntimePolicyError("plugin gateway is not configured")
+        configuration = self.gateway_health()
+        if not configuration["gateway_configured"]:
+            raise RuntimeGatewayError(
+                {
+                    "api_version": "v1",
+                    "request_id": request["request_id"],
+                    "code": "unavailable",
+                    "message": configuration["gateway_error"],
+                }
+            )
         resolved_user_id = user_id or self._user_ids.get(plugin_id)
         if not resolved_user_id:
             raise RuntimePolicyError(
@@ -2920,6 +2986,13 @@ class RuntimeHandler(BaseHTTPRequestHandler):
             len(token) >= 32 and self.headers.get("X-Plugin-Runtime-Token") == token
         )
         if authenticated:
+            gateway_url = self.headers.get("X-Plugin-Gateway-URL")
+            if gateway_url:
+                try:
+                    self.server.registry.supervisor.configure_host_gateway(gateway_url)
+                except ValueError:
+                    self._json(422, {"detail": "App PLUGIN_GATEWAY_URL is invalid."})
+                    return False
             acknowledgement = self.headers.get(
                 "X-Plugin-Reduced-Isolation-Acknowledged"
             )
@@ -2979,6 +3052,7 @@ class RuntimeHandler(BaseHTTPRequestHandler):
                         "supported_api_versions": ["v1"],
                         "transport": "http",
                         "plugin_transport": "json-lines",
+                        **self.server.registry.supervisor.gateway_health(),
                         **self.server.registry.supervisor.isolation,
                     },
                 )

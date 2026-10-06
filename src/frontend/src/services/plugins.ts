@@ -82,6 +82,9 @@ export interface RuntimeCapabilities {
   supported_api_versions?: string[];
   transport?: string;
   plugin_transport?: string;
+  gateway_configured?: boolean;
+  gateway_configuration_source?: "runtime" | "host" | "missing";
+  gateway_error?: string | null;
   bubblewrap_available: boolean | null;
   sandbox_available: boolean;
   mechanism: string;

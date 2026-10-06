@@ -11,6 +11,7 @@ import UiModal from "../UiModal.vue";
 import PluginInstallConsentDialog from "../plugins/PluginInstallConsentDialog.vue";
 import PluginSettingsDialog from "../plugins/PluginSettingsDialog.vue";
 import PluginIsolationWarning from "../plugins/PluginIsolationWarning.vue";
+import PluginGatewayWarning from "../plugins/PluginGatewayWarning.vue";
 import PluginPackageDropZone from "../plugins/PluginPackageDropZone.vue";
 import PluginVersionConfirmationDialog from "../plugins/PluginVersionConfirmationDialog.vue";
 import {
@@ -998,10 +999,14 @@ onMounted(() => {
       @approve="approveReducedIsolation"
       @cancel="pendingIsolationInstall = null"
     />
+    <PluginGatewayWarning v-if="runtime" :runtime="runtime" />
     <details
       v-if="runtime"
       class="manager-settings"
-      :open="runtime.version_health === 'incompatible'"
+      :open="
+        runtime.version_health === 'incompatible' ||
+        runtime.gateway_configured === false
+      "
     >
       <summary>Plugin platform versions & health</summary>
       <dl>
@@ -1035,6 +1040,26 @@ onMounted(() => {
           <dd>
             {{ runtime.api_version ?? "Not reported" }} ·
             {{ runtime.plugin_transport ?? "Not reported" }}
+          </dd>
+        </div>
+        <div>
+          <dt>Gateway configuration</dt>
+          <dd>
+            {{
+              runtime.gateway_configured === true
+                ? "Configured"
+                : runtime.gateway_configured === false
+                  ? "Needs repair"
+                  : "Not reported"
+            }}
+            <template v-if="runtime.gateway_configured">
+              ·
+              {{
+                runtime.gateway_configuration_source === "host"
+                  ? "App service"
+                  : "Runtime service"
+              }}
+            </template>
           </dd>
         </div>
       </dl>
