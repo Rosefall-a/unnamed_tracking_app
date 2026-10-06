@@ -7,12 +7,13 @@ import { useRouter } from "vue-router";
 import UiModal from "./UiModal.vue";
 
 import type { Game, GameStatus } from "../types/game";
-import { GENRE_OPTIONS } from "../utils/genres";
+import { genreOptionsFor } from "../utils/genres";
 import { normalizePlatformFamily, PLATFORM_OPTIONS } from "../utils/platforms";
 import { activePriority, priorityLabel } from "../utils/priority";
 import {
   DEFAULT_PICKER_FILTERS,
   matchesPickerFilters,
+  parseMaxHours,
   pickRandomGame,
 } from "../utils/randomPicker";
 import type { PickerFilters } from "../utils/randomPicker";
@@ -67,11 +68,9 @@ const platformOptions = computed(() => {
   );
   return Array.from(set).sort();
 });
-const genreOptions = computed(() => {
-  const set = new Set<string>(GENRE_OPTIONS);
-  props.games.forEach((g) => g.tags.forEach((t) => set.add(t)));
-  return Array.from(set).sort();
-});
+const genreOptions = computed(() =>
+  genreOptionsFor(props.games.map((g) => g.tags)),
+);
 
 const matchCount = computed(
   () =>
@@ -88,9 +87,8 @@ function toggleStatus(status: GameStatus) {
 const maxHoursInput = computed({
   get: () =>
     filters.value.maxHours === null ? "" : String(filters.value.maxHours),
-  set: (value: string) => {
-    const hours = Number(value);
-    filters.value.maxHours = value.trim() && hours > 0 ? hours : null;
+  set: (value: string | number) => {
+    filters.value.maxHours = parseMaxHours(value);
   },
 });
 const maxPriorityInput = computed({
@@ -238,6 +236,10 @@ const pickedPriority = computed(() =>
                 · priority {{ priorityLabel(pickedPriority) }}</template
               >
             </span>
+            <span v-if="matchCount === 1" class="picked-only">
+              The only game that matches these filters, so picking again lands
+              here too.
+            </span>
             <button
               type="button"
               class="ui-btn ui-btn-primary ui-btn-sm"
@@ -368,6 +370,10 @@ const pickedPriority = computed(() =>
   color: var(--ui-dim);
   font-size: 0.8rem;
   text-transform: capitalize;
+}
+.picked-only {
+  color: var(--ui-dim);
+  font-size: 0.8rem;
 }
 .picker-actions {
   position: sticky;

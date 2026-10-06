@@ -71,8 +71,15 @@ being sorted on go last. The default sort is set under Settings › Appearance &
 a picker. Narrow it down by status, platform, genre, the most hours to beat
 and priority, then **Pick a game**. With **Favour higher-priority games** on,
 a priority 1 game is five times as likely as one with no priority. **Pick
-again** never repeats the last pick while there's another choice. The
-filters are remembered in your browser.
+again** never repeats the last pick while there's another choice; when only
+one game matches, the picker says so. The filters are remembered in your
+browser.
+
+Genre filters, here and in the Games library, match a game whichever
+metadata provider named its genre. IGDB, for example, has no "Action" genre
+and files Devil May Cry under "Hack and slash/Beat 'em up", which still
+counts as Action; "Role-playing (RPG)" counts as RPG and "Platform" as
+Platformer. Letter case doesn't matter.
 
 ## Bulk edit
 

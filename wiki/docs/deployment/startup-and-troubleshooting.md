@@ -1,6 +1,6 @@
 # Startup and Troubleshooting
 
-The production container separates startup diagnostics from the normal application frontend. Nginx can continue serving the diagnostic layer when application startup fails.
+The production container keeps startup diagnostics available without turning the startup page into a raw log viewer. The page is intentionally concise: it reports lifecycle state and a short failure explanation, while detailed logs remain operator-facing diagnostics.
 
 ## Startup sequence
 
@@ -24,9 +24,40 @@ The Docker healthcheck reads the file-backed startup status rather than treating
 
 A backend crash after readiness changes the status to `BACKEND_CRASHED` and makes the healthcheck fail while keeping diagnostics available.
 
-## Failure states
+## Startup page
 
-Startup records:
+The static startup page reports application starting, database state, migration state, backend state, frontend state, application ready, and application failed. Normal startup does not render backend, migration, Nginx, or Docker log output. On failure the spinner is replaced by a failure indicator and a concise diagnostic message.
+
+Raw logs are intentionally not rendered by default: they are useful for operators but noisy for normal startup. The startup page does not add a reload button or other log-management controls.
+
+## Detailed diagnostics
+
+Use the container logging facilities first:
+
+```text
+docker logs <container>
+docker logs -f <container>
+```
+
+Docker exposes container stdout/stderr through docker logs. The production entrypoint writes lifecycle messages there and Nginx errors are directed to stderr. Detailed backend output is retained at /run/unnamed-tracking/backend.log; migration output is retained at /run/unnamed-tracking/migration.log.
+
+If detailed file contents are needed, use the retained files inside the running container:
+
+```text
+docker exec <container> cat /run/unnamed-tracking/backend.log
+docker exec <container> cat /run/unnamed-tracking/migration.log
+```
+
+They can also be copied out:
+
+```text
+docker cp <container>:/run/unnamed-tracking/backend.log ./backend.log
+docker cp <container>:/run/unnamed-tracking/migration.log ./migration.log
+```
+
+Do not inspect Docker's internal logging-driver files directly.
+
+## Failure states
 
 - `CONFIGURATION_FAILED`
 - `DATABASE_FAILED`
@@ -36,12 +67,13 @@ Startup records:
 - `FRONTEND_FAILED`
 - `BACKEND_CRASHED`
 
+## Diagnostic endpoints
+
 Inspect:
 
 ```text
 /_startup/status.json
 /_startup/details.txt
-/_startup/backend.log
 ```
 
 These are operational diagnostics, not durable log storage.
@@ -88,3 +120,7 @@ API requests during startup return HTTP 503 with a JSON explanation and `Retry-A
 Docker stop sends SIGTERM to PID 1. PID 1 forwards shutdown to FastAPI, waits for it, and then asks Nginx to quit. If shutdown behavior is incorrect in a deployment, inspect the container logs for the entrypoint’s shutdown messages.
 
 The production smoke test validates database startup, migrations, compiled frontend/API handoff, authentication, controlled failures and shutdown.
+
+## Secrets
+
+Backend and migration logs pass through credential redaction before private retention and Docker forwarding. Public startup endpoints contain concise lifecycle status and operator log paths, without publishing raw log files.

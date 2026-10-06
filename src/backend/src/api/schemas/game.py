@@ -5,12 +5,12 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from src.core.page_settings import validate_page_settings
 from src.database.models.game import (
     FOLDER_NAME_MAX_LENGTH,
     FOLDER_NAME_PATTERN,
     GameStatus,
 )
-from src.core.page_settings import validate_page_settings
 from src.helpers.currency_codes import CURRENCY_CODES
 
 GameRelationshipType = Literal[
@@ -78,6 +78,7 @@ class GameBase(BaseModel):
     @classmethod
     def _check_page_settings(cls, value: dict | None) -> dict | None:
         return validate_page_settings(value, partial=True) or None if value is not None else None
+
     notes: str | None = None
     resume_note: str | None = Field(default=None, max_length=2_000)
     playtime_seconds: int = Field(default=0, ge=0)
@@ -174,6 +175,7 @@ class GameUpdate(BaseModel):
     @classmethod
     def _check_page_settings(cls, value: dict | None) -> dict | None:
         return validate_page_settings(value, partial=True) or None if value is not None else None
+
     notes: str | None = None
     resume_note: str | None = Field(default=None, max_length=2_000)
     playtime_seconds: int | None = Field(default=None, ge=0)
@@ -241,6 +243,7 @@ class GameRead(GameBase):
     id: UUID
     user_id: UUID
     sort_title: str
+    locked_fields: list[str] = Field(default_factory=list)
     created_at: int = Field(description="Unix timestamp in seconds when the game was created.")
     updated_at: int = Field(description="Unix timestamp in seconds when the game was last updated.")
     last_played_at: int | None = Field(

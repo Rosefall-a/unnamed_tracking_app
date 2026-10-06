@@ -5,12 +5,19 @@ import {
   attachGameAssetFromUrl,
   createGame,
   fetchGames,
+  fetchGame,
   rankMetadataResults,
   searchGameMetadata,
+  previewGameMetadataRefresh,
+  applyGameMetadataRefresh,
   updateGame,
   uploadGameAsset,
 } from "../services/games";
-import type { MetadataSearchResult } from "../services/games";
+import type {
+  MetadataSearchResult,
+  RefreshMetadataOptions,
+  RefreshMetadataPreview,
+} from "../services/games";
 import type {
   Game,
   GameStatus,
@@ -19,6 +26,10 @@ import type {
 } from "../types/game";
 import type { GameLink, GameOwnership } from "../types/game";
 import { currentUser } from "../state/auth";
+import { useConfirm } from "../state/dialog";
+import { lockedFieldLabels } from "../utils/lockedFields";
+
+const confirm = useConfirm();
 import PageSettingsEditor from "./PageSettingsEditor.vue";
 import { preferences } from "../state/preferences";
 import { resolvePage } from "../utils/gamePage";
@@ -273,6 +284,32 @@ const pickedKeyArtUrl = ref<string | null>(null);
 const pickedBannerUrl = ref<string | null>(null);
 const keyArtCandidates = ref<string[]>([]);
 const bannerCandidates = ref<string[]>([]);
+const metadataRefreshPreview = ref<RefreshMetadataPreview | null>(null);
+const refreshingMetadata = ref(false);
+const refreshMetadataError = ref<string | null>(null);
+const refreshMetadataIncludeArt = ref(true);
+
+const metadataFormDirty = computed(() => {
+  if (!isEditing.value || !props.game) return false;
+  return (
+    title.value !== props.game.title ||
+    description.value !== (props.game.description ?? "") ||
+    developer.value !== (props.game.developer ?? "") ||
+    publisher.value !== (props.game.publisher ?? "") ||
+    series.value !== (props.game.series ?? "") ||
+    ageRating.value !== (props.game.ageRating ?? "") ||
+    releaseDate.value !== (props.game.releaseDate ?? "") ||
+    String(timeToBeatHours.value) !==
+      String(props.game.timeToBeatHours ?? "") ||
+    tagsInput.value !== props.game.tags.join(", ") ||
+    featuresInput.value !== props.game.features.join(", ") ||
+    JSON.stringify(links.value) !== JSON.stringify(props.game.links) ||
+    !!coverFile.value ||
+    !!bannerFile.value ||
+    pickedKeyArtUrl.value !== null ||
+    pickedBannerUrl.value !== null
+  );
+});
 
 // a personal key, or a server-wide one that searches fall back to (#234)
 const serverHasSteamgriddbKey = ref(false);
@@ -282,6 +319,90 @@ const hasSteamgriddbKey = computed(
     serverHasSteamgriddbKey.value ||
     steamgriddbConfigured.value,
 );
+
+async function refreshMetadataFromEditor() {
+  if (!props.game || refreshingMetadata.value || saving.value) return;
+  refreshMetadataError.value = null;
+  metadataRefreshPreview.value = null;
+
+  if (metadataFormDirty.value) {
+    refreshMetadataError.value =
+      "Save or cancel your current metadata edits before repulling. This prevents the refresh from replacing unsaved changes.";
+    return;
+  }
+
+  refreshingMetadata.value = true;
+  const options: RefreshMetadataOptions = {
+    updateText: true,
+    fillMissingArt: refreshMetadataIncludeArt.value,
+    overwriteExistingArt: false,
+  };
+  try {
+    const preview = await previewGameMetadataRefresh(props.game, options);
+    metadataRefreshPreview.value = preview;
+    if (preview.status === "no-match") {
+      refreshMetadataError.value = preview.providerErrors.length
+        ? `No exact match was returned. Provider warnings: ${preview.providerErrors.join(" ")}`
+        : "No exact provider match was found for this game title.";
+      return;
+    }
+    if (preview.status === "error") {
+      refreshMetadataError.value =
+        "The metadata providers could not be reached. No changes were applied.";
+      return;
+    }
+    const locked = preview.skippedLockedFields.length
+      ? ` Locked fields were preserved: ${lockedFieldLabels(preview.skippedLockedFields).join(", ")}.`
+      : "";
+    const changes = preview.changedFields.length
+      ? preview.changedFields.join(", ")
+      : "no text fields";
+    const art = [
+      preview.wouldAddKeyArt ? "cover art" : "",
+      preview.wouldAddBanner ? "banner art" : "",
+    ].filter(Boolean);
+    const confirmed = await confirm({
+      title: `Repull from ${preview.provider ?? "metadata provider"}?`,
+      message: `This will update ${changes}${art.length ? ` and add ${art.join(" and ")}` : ""}. Nothing already stored as artwork will be replaced.${locked}`,
+      confirmLabel: "Apply refresh",
+    });
+    if (!confirmed) return;
+
+    const outcome = await applyGameMetadataRefresh(props.game, options);
+    if (outcome.status !== "updated") {
+      refreshMetadataError.value =
+        outcome.status === "no-match"
+          ? "The provider no longer returned an exact match. No changes were applied."
+          : "The metadata refresh failed. No changes were applied.";
+      return;
+    }
+    const updated = await fetchGame(props.game.id);
+    if (updated) {
+      title.value = updated.title;
+      description.value = updated.description ?? "";
+      developer.value = updated.developer ?? "";
+      publisher.value = updated.publisher ?? "";
+      series.value = updated.series ?? "";
+      ageRating.value = updated.ageRating ?? "";
+      releaseDate.value = updated.releaseDate ?? "";
+      timeToBeatHours.value =
+        updated.timeToBeatHours != null ? String(updated.timeToBeatHours) : "";
+      tagsInput.value = updated.tags.join(", ");
+      featuresInput.value = updated.features.join(", ");
+      links.value = [...updated.links];
+      metadataQuery.value = updated.title;
+      metadataRefreshPreview.value = null;
+      metadataMessage.value = `Updated from ${outcome.provider ?? "metadata provider"}.${outcome.skippedLockedFields.length ? ` Preserved locked fields: ${lockedFieldLabels(outcome.skippedLockedFields).join(", ")}.` : ""}`;
+      if (outcome.keyArtAdded) pickedKeyArtUrl.value = null;
+      if (outcome.bannerAdded) pickedBannerUrl.value = null;
+    }
+  } catch (err) {
+    refreshMetadataError.value =
+      err instanceof Error ? err.message : "Metadata refresh failed.";
+  } finally {
+    refreshingMetadata.value = false;
+  }
+}
 
 async function searchMetadata() {
   if (metadataQuery.value.trim().length < 2) {
@@ -850,6 +971,53 @@ async function submit() {
           </div>
 
           <div v-else-if="activeTab === 'Media'" class="tab-panel">
+            <div class="metadata-refresh-panel">
+              <div>
+                <strong>Repull metadata</strong>
+                <p class="hint">
+                  Re-fetch the current game title from your configured
+                  providers. Locked/manual fields are preserved; existing
+                  artwork is never replaced.
+                </p>
+              </div>
+              <label class="checkbox-field">
+                <input v-model="refreshMetadataIncludeArt" type="checkbox" />
+                <span>Add missing cover/banner art</span>
+              </label>
+              <button
+                type="button"
+                class="secondary-button"
+                :disabled="refreshingMetadata || saving"
+                @click="refreshMetadataFromEditor"
+              >
+                {{
+                  refreshingMetadata ? "Checking provider…" : "Repull Metadata"
+                }}
+              </button>
+              <p v-if="refreshMetadataError" class="form-error">
+                {{ refreshMetadataError }}
+              </p>
+              <p
+                v-if="
+                  metadataRefreshPreview &&
+                  metadataRefreshPreview.status === 'preview'
+                "
+                class="hint"
+              >
+                Preview:
+                {{
+                  metadataRefreshPreview.changedFields.length
+                    ? metadataRefreshPreview.changedFields.join(", ")
+                    : "no text changes"
+                }}<span
+                  v-if="metadataRefreshPreview.skippedLockedFields.length"
+                >
+                  · preserved
+                  {{ metadataRefreshPreview.skippedLockedFields.length }} locked
+                  field(s)</span
+                >.
+              </p>
+            </div>
             <label class="field">
               <span>Cover image (portrait)</span>
               <input
@@ -1131,6 +1299,22 @@ async function submit() {
   gap: 14px;
   min-height: 380px;
 }
+.metadata-refresh-panel {
+  border: 1px solid #3a3a3a;
+  border-radius: 8px;
+  padding: 12px;
+  background: #151515;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.metadata-refresh-panel strong {
+  color: #fff;
+}
+.metadata-refresh-panel .hint {
+  margin: 0;
+}
+
 .metadata-search {
   border: 1px solid var(--ui-border);
   border-radius: var(--ui-radius-control);
@@ -1281,7 +1465,7 @@ async function submit() {
   flex-basis: 0;
 }
 .remove-button {
-  background: rgba(220, 38, 38, 0.15);
+  background: color-mix(in srgb, var(--ui-error) 15%, transparent);
   color: var(--ui-error);
   border: none;
   border-radius: var(--ui-radius-control);
@@ -1291,7 +1475,7 @@ async function submit() {
   transition: background 0.15s ease;
 }
 .remove-button:hover {
-  background: rgba(220, 38, 38, 0.3);
+  background: color-mix(in srgb, var(--ui-error) 30%, transparent);
 }
 .hint {
   color: var(--ui-dim);
@@ -1312,7 +1496,7 @@ async function submit() {
   gap: 3px;
 }
 .provider-warnings li {
-  color: #f0b458;
+  color: var(--ui-warning);
   font-size: 0.78rem;
 }
 .media-candidates {
@@ -1357,8 +1541,8 @@ async function submit() {
 .form-error {
   color: var(--ui-error);
   font-size: 0.85rem;
-  background: rgba(220, 38, 38, 0.1);
-  border: 1px solid rgba(220, 38, 38, 0.3);
+  background: color-mix(in srgb, var(--ui-error) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ui-error) 30%, transparent);
   border-radius: var(--ui-radius-control);
   padding: 10px 12px;
 }
@@ -1382,7 +1566,7 @@ async function submit() {
   white-space: nowrap;
 }
 .danger-button {
-  background: rgba(220, 38, 38, 0.15);
+  background: color-mix(in srgb, var(--ui-error) 15%, transparent);
   color: var(--ui-error);
   border: none;
   border-radius: var(--ui-radius-control);
@@ -1393,7 +1577,7 @@ async function submit() {
   transition: background 0.15s ease;
 }
 .danger-button:hover {
-  background: rgba(220, 38, 38, 0.3);
+  background: color-mix(in srgb, var(--ui-error) 30%, transparent);
 }
 .primary-button,
 .secondary-button {
