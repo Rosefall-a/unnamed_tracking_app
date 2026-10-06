@@ -4,7 +4,6 @@ Same rules as the MyAnimeList import: a title already on the site (same kind,
 same title, same year when both have one) is kept exactly as it is unless the
 user picks it, and taking the file's data changes only what the file states.
 Metadata from TMDB only fills blank fields."""
-# pylint: disable=missing-class-docstring,missing-function-docstring,unused-argument
 
 from __future__ import annotations
 
@@ -159,12 +158,14 @@ class OmdbLookup:
         self.client = client
 
     def search(self, title: str, limit: int = 1, year: int | None = None) -> list[dict[str, Any]]:
+        del limit  # The compatible lookup returns at most one exact match.
         found = self.client.lookup(title, year, "movie")
         return [found] if found else []
 
     def search_tv(
         self, title: str, limit: int = 1, year: int | None = None
     ) -> list[dict[str, Any]]:
+        del limit  # The compatible lookup returns at most one exact match.
         found = self.client.lookup(title, year, "tv")
         return [found] if found else []
 

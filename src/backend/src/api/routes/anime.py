@@ -46,6 +46,7 @@ from src.database.models.media_extras import ActivityEventType
 from src.database.models.user import User
 from src.database.session import SessionLocal, get_db
 from src.features.episode_progress import apply_counter, counter_from_flags, materialize_progress
+from src.features.imports.anilist import import_anilist_library as apply_anilist_import
 from src.features.metadata.anime.alt_titles import fill_missing_titles
 from src.features.metadata.anime.anilist import RELATIONS_CACHE_VERSION, AniListClient, AniListError
 from src.features.metadata.anime.episode_sync import (
@@ -170,115 +171,13 @@ async def import_anilist_library(
     current_user: User = _CURRENT_USER_DEFAULT,
 ) -> AniListImportResult:
     """Import a public AniList anime list without modifying AniList."""
-    from src.features.metadata.anime.anilist_import import AniListImportClient
-
     try:
-        entries = await asyncio.to_thread(AniListImportClient().fetch_user_anime, payload.username)
+        result = await apply_anilist_import(
+            db, current_user.id, payload.username, payload.update_existing
+        )
     except AniListError as exc:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
-    created = updated = skipped = 0
-    errors: list[str] = []
-    for entry in entries:
-        try:
-            show = await db.scalar(
-                select(Anime).where(
-                    Anime.user_id == current_user.id,
-                    Anime.anilist_id == entry["anilist_id"],
-                    Anime.deleted_at.is_(None),
-                )
-            )
-            if show is not None and not payload.update_existing:
-                skipped += 1
-                continue
-
-            def parsed(key: str, record: dict[str, Any] = entry) -> date | None:
-                value = record[key]
-                return date.fromisoformat(value) if value else None
-
-            season: AnimeSeason | None = None
-            if show is None:
-                show = Anime(
-                    user_id=current_user.id,
-                    title=entry["title"],
-                    sort_title=_derive_sort_title(entry["title"]),
-                    description=entry["description"],
-                    first_air_date=parsed("first_air_date"),
-                    episode_runtime_minutes=entry["episode_runtime_minutes"],
-                    studios=entry["studios"],
-                    countries=entry["countries"],
-                    languages=[],
-                    genres=entry["genres"],
-                    tags=[],
-                    features=[],
-                    format=entry["format"],
-                    anilist_score=entry["anilist_score"],
-                    anilist_id=entry["anilist_id"],
-                    poster_url=entry["poster_url"],
-                    backdrop_url=entry["backdrop_url"],
-                    status=entry["status"],
-                    priority=entry["priority"],
-                    rewatches=entry["repeat"],
-                    note=entry["note"],
-                    start_date=parsed("start_date"),
-                    end_date=parsed("end_date"),
-                    rating_overall=entry["rating_overall"],
-                )
-                db.add(show)
-                await db.flush()
-                season = AnimeSeason(
-                    show_id=show.id,
-                    season_number=1,
-                    episode_count=entry["episode_count"],
-                    episodes_watched=entry["progress"],
-                    status=entry["status"],
-                )
-                db.add(season)
-                created += 1
-            else:
-                show.sort_title = _derive_sort_title(entry["title"])
-                for field in (
-                    "title",
-                    "description",
-                    "first_air_date",
-                    "episode_runtime_minutes",
-                    "studios",
-                    "countries",
-                    "genres",
-                    "format",
-                    "anilist_score",
-                    "poster_url",
-                    "backdrop_url",
-                    "status",
-                    "priority",
-                    "rewatches",
-                    "note",
-                    "start_date",
-                    "end_date",
-                    "rating_overall",
-                ):
-                    setattr(
-                        show,
-                        field,
-                        parsed(field)
-                        if field in ("first_air_date", "start_date", "end_date")
-                        else entry[field],
-                    )
-                season = show.seasons[0] if show.seasons else None
-                if season is None:
-                    season = AnimeSeason(show_id=show.id, season_number=1)
-                    db.add(season)
-                season.episode_count = entry["episode_count"]
-                season.episodes_watched = entry["progress"]
-                season.status = entry["status"]
-                updated += 1
-            await db.commit()
-        except Exception as exc:
-            await db.rollback()
-            skipped += 1
-            errors.append(f"{entry.get('title', 'Unknown title')}: {exc}")
-    return AniListImportResult(
-        fetched=len(entries), created=created, updated=updated, skipped=skipped, errors=errors[:20]
-    )
+    return AniListImportResult(**result)
 
 
 @router.get("/metadata/search", response_model=AnimeMetadataSearchResponse)

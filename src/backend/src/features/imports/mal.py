@@ -9,7 +9,6 @@ existing metadata refresh fills the rest in afterwards.
 A "Completed" entry that lists no watched episodes is taken as fully watched,
 which is what Completed means on MAL, and is counted in the result so it is
 never silent."""
-# pylint: disable=missing-class-docstring,too-many-instance-attributes,missing-function-docstring
 
 from __future__ import annotations
 
@@ -56,6 +55,9 @@ class MalImportError(ValueError):
 
 @dataclass
 class MalEntry:
+    # This record preserves the thirteen independent fields in a MAL list entry.
+    # pylint: disable=too-many-instance-attributes
+
     mal_id: str
     title: str
     format: str | None

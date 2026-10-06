@@ -8,17 +8,18 @@ other rows (a linked movie or show would point at a stranger's row on
 another server). A title already in the library, same name and same year, is
 skipped and never overwritten, so restoring twice or onto a live library is
 safe. One bad entry is reported and skipped without stopping the rest."""
-# pylint: disable=missing-function-docstring,too-many-locals,broad-exception-caught
 
 from __future__ import annotations
 
 import datetime as dt
 import enum
+from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from typing import Any, TypeAlias
 
 from sqlalchemy import Date, Numeric, select
 from sqlalchemy import Enum as SAEnum
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import class_mapper
 
@@ -118,47 +119,67 @@ def _add_children(
             season.episodes.append(episode_model(**_fields(episode_model, ep)))
 
 
+@dataclass(frozen=True)
+class _RestorePlan:
+    key: str
+    model: MediaModel
+    date_field: str
+    season_model: type | None = None
+    episode_model: type | None = None
+
+
+async def _restore_entries(
+    db: AsyncSession,
+    user_id: Any,
+    entries: list[dict[str, Any]],
+    plan: _RestorePlan,
+    errors: list[str],
+) -> tuple[int, int]:
+    seen = await _existing(db, plan.model, user_id, plan.date_field)
+    created = skipped = 0
+    for raw in entries[:MAX_ENTRIES]:
+        title = raw.get("title") if isinstance(raw, dict) else None
+        if not isinstance(title, str) or not title.strip():
+            errors.append(f"{plan.key}: an entry has no title")
+            continue
+        try:
+            fields = _fields(plan.model, raw)
+            identity = (title.lower(), _year(fields.get(plan.date_field)))
+            if identity in seen:
+                skipped += 1
+                continue
+            async with db.begin_nested():
+                item = plan.model(user_id=user_id, **fields)
+                db.add(item)
+                await db.flush()
+                if plan.season_model is not None and plan.episode_model is not None:
+                    _add_children(
+                        db, item.id, raw.get("seasons") or [], plan.season_model, plan.episode_model
+                    )
+                    await db.flush()
+            seen.add(identity)
+            created += 1
+        except (SQLAlchemyError, ValueError, TypeError, KeyError, AttributeError) as exc:
+            skipped += 1
+            errors.append(f"{title}: {exc}")
+    return created, skipped
+
+
 async def restore_media(db: AsyncSession, user_id: Any, payload: dict[str, Any]) -> dict[str, Any]:
     result: dict[str, Any] = {"created": {}, "skipped": {}, "errors": []}
-    plan = (
-        ("movies", Movie, "release_date", None, None),
-        ("tv_shows", TVShow, "first_air_date", TVSeason, TVEpisode),
-        ("anime", Anime, "first_air_date", AnimeSeason, AnimeEpisode),
+    plans = (
+        _RestorePlan("movies", Movie, "release_date"),
+        _RestorePlan("tv_shows", TVShow, "first_air_date", TVSeason, TVEpisode),
+        _RestorePlan("anime", Anime, "first_air_date", AnimeSeason, AnimeEpisode),
     )
-    for key, model, date_field, season_model, episode_model in plan:
-        entries = payload.get(key) or []
+    for plan in plans:
+        entries = payload.get(plan.key) or []
         if not isinstance(entries, list):
-            result["errors"].append(f"{key}: expected a list")
+            result["errors"].append(f"{plan.key}: expected a list")
             continue
-        seen = await _existing(db, model, user_id, date_field)
-        created = skipped = 0
-        for raw in entries[:MAX_ENTRIES]:
-            title = raw.get("title") if isinstance(raw, dict) else None
-            if not isinstance(title, str) or not title.strip():
-                result["errors"].append(f"{key}: an entry has no title")
-                continue
-            try:
-                fields = _fields(model, raw)
-                identity = (title.lower(), _year(fields.get(date_field)))
-                if identity in seen:
-                    skipped += 1
-                    continue
-                async with db.begin_nested():
-                    item = model(user_id=user_id, **fields)
-                    db.add(item)
-                    await db.flush()
-                    if season_model is not None and episode_model is not None:
-                        _add_children(
-                            db, item.id, raw.get("seasons") or [], season_model, episode_model
-                        )
-                        await db.flush()
-                seen.add(identity)
-                created += 1
-            except Exception as exc:  # noqa: BLE001, one bad entry must not stop the rest
-                skipped += 1
-                result["errors"].append(f"{title}: {exc}")
-        result["created"][key] = created
-        result["skipped"][key] = skipped
+        created, skipped = await _restore_entries(db, user_id, entries, plan, result["errors"])
+        result["created"][plan.key] = created
+        result["skipped"][plan.key] = skipped
     await db.commit()
     result["errors"] = result["errors"][:30]
     return result

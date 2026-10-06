@@ -11,7 +11,6 @@ was rated or marked watched has its seasons filled in from TMDB and counted as
 fully watched, which is stated in the result, because a rating on its own does
 not say how far someone got. Posters, genres and the like come from TMDB by
 title and year afterwards, and only fill fields that are still blank."""
-# pylint: disable=missing-class-docstring,too-many-instance-attributes,missing-function-docstring,too-many-locals,too-many-branches,broad-exception-caught
 
 from __future__ import annotations
 
@@ -36,6 +35,9 @@ class ListImportError(ValueError):
 
 @dataclass
 class ImportedTitle:
+    # A parsed export row keeps its ten independent source fields.
+    # pylint: disable=too-many-instance-attributes
+
     kind: str  # "movie" | "tv"
     title: str
     year: int | None
@@ -89,70 +91,83 @@ def _files(raw: bytes, filename: str) -> dict[str, bytes]:
     return {filename.lower(): raw}
 
 
+def _letterboxd_entry(
+    titles: dict[tuple[str, int | None], ImportedTitle], row: dict[str, str]
+) -> ImportedTitle | None:
+    name = row.get("Name") or ""
+    if not name:
+        return None
+    year = _year(row.get("Year", ""))
+    key = (name.lower(), year)
+    if key not in titles:
+        titles[key] = ImportedTitle("movie", name, year, "WATCHLIST")
+    return titles[key]
+
+
+def _letterboxd_rows(
+    files: dict[str, bytes], base: str, *, zipped: bool
+) -> list[dict[str, str]] | None:
+    # in the zip the files have exact names (custom lists live under
+    # lists/); a single uploaded file is recognised by its name
+    for name, data in files.items():
+        leaf = name.rsplit("/", 1)[-1]
+        if "lists/" in name:
+            continue
+        if (leaf == f"{base}.csv") if zipped else (base in leaf):
+            return _rows(data)
+    return None
+
+
+def _letterboxd_score(value: str) -> Decimal | None:
+    try:
+        return Decimal(value) * 2 if value else None
+    except ArithmeticError:
+        return None
+
+
+def _apply_letterboxd_diary(
+    titles: dict[tuple[str, int | None], ImportedTitle], diary: list[dict[str, str]] | None
+) -> None:
+    for row in diary or []:
+        if item := _letterboxd_entry(titles, row):
+            item.status = "WATCHED"
+            item.rating = item.rating or _letterboxd_score(row.get("Rating", ""))
+            if row.get("Rewatch", "").lower() == "yes":
+                item.rewatches += 1
+            seen = _day(row.get("Watched Date", ""))
+            if seen and (item.watched_on is None or seen > item.watched_on):
+                item.watched_on = seen
+
+
 def parse_letterboxd(raw: bytes, filename: str = "") -> list[ImportedTitle]:
     zipped = raw[:2] == b"PK"
     files = _files(raw, filename)
     titles: dict[tuple[str, int | None], ImportedTitle] = {}
 
-    def entry(row: dict[str, str]) -> ImportedTitle | None:
-        name = row.get("Name") or ""
-        if not name:
-            return None
-        year = _year(row.get("Year", ""))
-        key = (name.lower(), year)
-        if key not in titles:
-            titles[key] = ImportedTitle("movie", name, year, "WATCHLIST")
-        return titles[key]
-
-    def find(base: str) -> list[dict[str, str]] | None:
-        # in the zip the files have exact names (custom lists live under
-        # lists/); a single uploaded file is recognised by its name
-        for name, data in files.items():
-            leaf = name.rsplit("/", 1)[-1]
-            if "lists/" in name:
-                continue
-            if (leaf == f"{base}.csv") if zipped else (base in leaf):
-                return _rows(data)
-        return None
-
-    def score(value: str) -> Decimal | None:
-        try:
-            return Decimal(value) * 2 if value else None
-        except ArithmeticError:
-            return None
-
     watchlist, watched, ratings, diary = (
-        find("watchlist"),
-        find("watched"),
-        find("ratings"),
-        find("diary"),
+        _letterboxd_rows(files, "watchlist", zipped=zipped),
+        _letterboxd_rows(files, "watched", zipped=zipped),
+        _letterboxd_rows(files, "ratings", zipped=zipped),
+        _letterboxd_rows(files, "diary", zipped=zipped),
     )
     if all(x is None for x in (watchlist, watched, ratings, diary)) and not zipped:
         watched = _rows(
             next(iter(files.values()))
         )  # an unrecognised single file: taken as films watched
     for row in watchlist or []:
-        entry(row)
+        _letterboxd_entry(titles, row)
     for row in watched or []:
-        if item := entry(row):
+        if item := _letterboxd_entry(titles, row):
             item.status = "WATCHED"
     for row in ratings or []:
-        if item := entry(row):
+        if item := _letterboxd_entry(titles, row):
             item.status = "WATCHED"
-            item.rating = score(row.get("Rating", "")) or item.rating
-    for row in diary or []:
-        if item := entry(row):
-            item.status = "WATCHED"
-            item.rating = item.rating or score(row.get("Rating", ""))
-            if row.get("Rewatch", "").lower() == "yes":
-                item.rewatches += 1
-            seen = _day(row.get("Watched Date", ""))
-            if seen and (item.watched_on is None or seen > item.watched_on):
-                item.watched_on = seen
+            item.rating = _letterboxd_score(row.get("Rating", "")) or item.rating
+    _apply_letterboxd_diary(titles, diary)
     for name, data in files.items():
         if name.endswith("likes/films.csv"):
             for row in _rows(data):
-                if item := entry(row):
+                if item := _letterboxd_entry(titles, row):
                     item.favorite = True
     if not titles:
         raise ListImportError(
@@ -269,7 +284,9 @@ def lookup_tmdb(
         search = client.search if kind == "movie" else client.search_tv
         try:
             found = search(title, 1, year) or (search(title, 1) if year else [])
-        except Exception:  # noqa: BLE001, one failed lookup must not stop the rest
+        # Keep a faulty external provider adapter from dropping the rest of the import.
+        # pylint: disable-next=broad-exception-caught
+        except Exception:
             return job, None
         return job, found[0] if found else None
 

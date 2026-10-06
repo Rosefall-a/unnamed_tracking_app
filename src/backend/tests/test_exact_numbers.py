@@ -1107,8 +1107,8 @@ async def test_a_library_export_restores_movies_shows_and_anime_with_progress_an
                     genres=["Drama"],
                     tags=[],
                     features=[],
-                    director=[],
-                    writer=[],
+                    director=None,
+                    writer=None,
                     locked_fields=[],
                     rewatches=1,
                 )

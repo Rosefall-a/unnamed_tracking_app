@@ -4,7 +4,6 @@ Yamtrack exports one parent row plus optional season and episode rows for the
 same media_id. The importer groups those rows before creating library items so
 season/episode records never become duplicate shows.
 """
-# pylint: disable=line-too-long,missing-class-docstring,missing-function-docstring,too-many-locals,too-many-branches
 
 from __future__ import annotations
 
@@ -15,7 +14,7 @@ from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
-from src.api.routes.anime import _derive_sort_title
+from src.core.titles import derive_sort_title
 from src.database.models.anime import Anime, AnimeEpisode, AnimeSeason, AnimeStatus
 from src.database.models.movies import Movie, MovieStatus
 from src.database.models.tv_show import TVEpisode, TVSeason, TVShow, TVShowStatus
@@ -90,6 +89,42 @@ def _watched(row: dict[str, str]) -> bool:
     )
 
 
+def _group_yamtrack_row(groups: dict[tuple[str, str], YamtrackGroup], row: dict[str, str]) -> None:
+    source = (row.get("source") or "").strip()
+    media_id = (row.get("media_id") or "").strip()
+    media_type = (row.get("media_type") or "").strip().lower()
+    if not source or not media_id or not media_type:
+        return
+    # Yamtrack anime imports are temporarily disabled until their data can be
+    # mapped reliably. Keep the rest of the CSV importable.
+    if media_type == "anime":
+        return
+    if media_type not in {"movie", "tv", "season", "episode"}:
+        return
+
+    key = (source.lower(), media_id)
+    group = groups.get(key)
+    if group is None:
+        base_type = media_type if media_type in {"movie", "tv", "anime"} else "tv"
+        group = groups[key] = YamtrackGroup(source, media_id, base_type)
+
+    if media_type in {"movie", "tv", "anime"}:
+        if group.parent is None:
+            group.parent = row
+        return
+
+    season_number = _int(row.get("season_number"))
+    if season_number is None:
+        return
+    season = group.seasons.setdefault(season_number, {"row": None, "episodes": {}})
+    if media_type == "season":
+        season["row"] = row
+    else:
+        episode_number = _int(row.get("episode_number"))
+        if episode_number is not None:
+            season["episodes"][episode_number] = row
+
+
 def parse_yamtrack(raw: bytes) -> list[YamtrackGroup]:
     if len(raw) > MAX_BYTES:
         raise ValueError("The Yamtrack export is too large.")
@@ -111,39 +146,7 @@ def parse_yamtrack(raw: bytes) -> list[YamtrackGroup]:
         rows += 1
         if rows > MAX_ROWS:
             raise ValueError(f"The Yamtrack export contains more than {MAX_ROWS} rows.")
-        source = (row.get("source") or "").strip()
-        media_id = (row.get("media_id") or "").strip()
-        media_type = (row.get("media_type") or "").strip().lower()
-        if not source or not media_id or not media_type:
-            continue
-        # Yamtrack anime imports are temporarily disabled until their data can be
-        # mapped reliably. Keep the rest of the CSV importable.
-        if media_type == "anime":
-            continue
-        if media_type not in {"movie", "tv", "season", "episode"}:
-            continue
-
-        key = (source.lower(), media_id)
-        group = groups.get(key)
-        if group is None:
-            base_type = media_type if media_type in {"movie", "tv", "anime"} else "tv"
-            group = groups[key] = YamtrackGroup(source, media_id, base_type)
-
-        if media_type in {"movie", "tv", "anime"}:
-            if group.parent is None:
-                group.parent = row
-            continue
-
-        season_number = _int(row.get("season_number"))
-        if season_number is None:
-            continue
-        season = group.seasons.setdefault(season_number, {"row": None, "episodes": {}})
-        if media_type == "season":
-            season["row"] = row
-        else:
-            episode_number = _int(row.get("episode_number"))
-            if episode_number is not None:
-                season["episodes"][episode_number] = row
+        _group_yamtrack_row(groups, row)
 
     return [g for g in groups.values() if g.parent is not None]
 
@@ -187,7 +190,7 @@ def _parent_fields(group: YamtrackGroup) -> dict[str, Any]:
     row = group.parent or {}
     return {
         "title": row.get("title") or f"Yamtrack {group.media_id}",
-        "sort_title": _derive_sort_title(row.get("title") or f"Yamtrack {group.media_id}"),
+        "sort_title": derive_sort_title(row.get("title") or f"Yamtrack {group.media_id}"),
         "source": group.source,
         "external_id": group.media_id,
         "status": row.get("status"),

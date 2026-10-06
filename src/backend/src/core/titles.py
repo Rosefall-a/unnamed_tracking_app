@@ -6,7 +6,10 @@ user's `title_language` preference decides which one is displayed. If the
 preferred spelling is not known for a title, the next best is used and
 finally `title`, so a title is never blank."""
 
+import re
 from typing import Any
+
+_LEADING_ARTICLE = re.compile(r"^(a|an|the)\s+", flags=re.IGNORECASE)
 
 _ORDER = {
     "english": ("title_english", "title_romaji", "title_native"),
@@ -14,6 +17,11 @@ _ORDER = {
     "native": ("title_native", "title_romaji", "title_english"),
 }
 ALT_FIELDS = ("title_english", "title_romaji", "title_native")
+
+
+def derive_sort_title(title: str) -> str:
+    """Use the library's article-insensitive ordering for imported and edited titles."""
+    return _LEADING_ARTICLE.sub("", title).strip().lower()
 
 
 def display_title(item: Any, language: str) -> str:
