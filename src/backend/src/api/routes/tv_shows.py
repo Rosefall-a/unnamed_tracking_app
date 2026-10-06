@@ -7,16 +7,23 @@
 import asyncio
 import logging
 import re
-import time
 from datetime import date
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.schemas.pagination import PaginatedResponse, score_ranks
+from src.api.routes.media_common import (
+    library_page,
+    purge_row,
+    restore_row,
+    soft_delete,
+    title_search,
+    trash_listing,
+)
+from src.api.schemas.pagination import PaginatedResponse
 from src.api.schemas.tv_show import (
     EpisodesBulkWatched,
     EpisodeUpdate,
@@ -209,38 +216,17 @@ async def list_shows(
     limit: int = Query(default=100, ge=1, le=200),
 ) -> PaginatedResponse[TVShowLibraryRead]:
     """Return one page of the current user's shows and the total matching it."""
-    stmt = select(TVShow).where(TVShow.user_id == current_user.id, TVShow.deleted_at.is_(None))
-
-    if status_filter is not None:
-        stmt = stmt.where(TVShow.status == status_filter)
-    if favorite is not None:
-        stmt = stmt.where(TVShow.favorite == favorite)
-    if search:
-        stmt = stmt.where(TVShow.title.ilike(f"%{search}%"))
-
-    status_count_stmt = select(TVShow.status, func.count()).where(
-        TVShow.user_id == current_user.id, TVShow.deleted_at.is_(None)
-    )
-    if favorite is not None:
-        status_count_stmt = status_count_stmt.where(TVShow.favorite == favorite)
-    if search:
-        status_count_stmt = status_count_stmt.where(TVShow.title.ilike(f"%{search}%"))
-    status_counts_result = await db.execute(status_count_stmt.group_by(TVShow.status))
-    status_counts = {status.value: count for status, count in status_counts_result.all()}
-
-    total = await db.scalar(select(func.count()).select_from(stmt.subquery()))
-    stmt = stmt.order_by(TVShow.sort_title).offset(skip).limit(limit)
-
-    result = await db.execute(stmt)
-    items = list(result.scalars().unique().all())
-    return PaginatedResponse(
-        items=items,
-        total=total or 0,
-        offset=skip,
+    return await library_page(
+        db,
+        TVShow,
+        current_user.id,
+        status_filter=status_filter,
+        favorite=favorite,
+        search_clause=title_search([TVShow.title], search),
+        skip=skip,
         limit=limit,
-        status_counts=status_counts,
-        score_ranks=await score_ranks(db, TVShow, current_user.id),
     )
+
 
 @router.get("/get/{show_id}", response_model=TVShowRead)
 async def get_show(
@@ -301,8 +287,7 @@ async def delete_show(
 ) -> None:
     """Soft-delete a show by ID (its seasons stay attached, hidden along with it)."""
     show = await _get_show_or_404(show_id, db, current_user.id)
-    show.deleted_at = int(time.time())
-    await db.commit()
+    await soft_delete(db, show)
 
 
 @router.get("/trash")
@@ -314,16 +299,7 @@ async def list_show_trash(
     against these — unlike Game's on-disk folders, a show is just a row
     (plus its seasons/episodes), so there's nothing to clean up and it
     stays here until an admin either restores it or purges it for good."""
-    result = await db.execute(
-        select(TVShow)
-        .where(TVShow.user_id == current_user.id, TVShow.deleted_at.is_not(None))
-        .order_by(TVShow.deleted_at.desc())
-    )
-    trashed = []
-    for show in result.scalars().all():
-        assert show.deleted_at is not None  # guaranteed by the deleted_at.is_not(None) filter above
-        trashed.append({"id": str(show.id), "title": show.title, "deleted_at": show.deleted_at})
-    return trashed
+    return await trash_listing(db, TVShow, current_user.id)
 
 
 @router.post("/{show_id}/restore", response_model=TVShowRead)
@@ -333,10 +309,7 @@ async def restore_show(
     current_user: User = Depends(get_current_user),
 ) -> TVShow:
     show = await _get_show_or_404(show_id, db, current_user.id, include_deleted=True)
-    if show.deleted_at is None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Show isn't deleted.")
-    show.deleted_at = None
-    await db.commit()
+    await restore_row(db, show, "Show")
     return await _get_show_or_404(show_id, db, current_user.id)
 
 
@@ -350,10 +323,7 @@ async def purge_show(
     episodes. Only reachable from trash — a show still active must be
     soft-deleted first."""
     show = await _get_show_or_404(show_id, db, current_user.id, include_deleted=True)
-    if show.deleted_at is None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Show isn't deleted.")
-    await db.delete(show)
-    await db.commit()
+    await purge_row(db, show, "Show")
 
 
 @router.post("/{show_id}/seasons", response_model=TVShowRead, status_code=status.HTTP_201_CREATED)

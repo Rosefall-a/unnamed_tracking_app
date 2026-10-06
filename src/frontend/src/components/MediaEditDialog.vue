@@ -1,4 +1,4 @@
-<script setup lang="ts">
+<script setup lang="ts" generic="T extends FileDetails">
 // Edit one uploaded file (a screenshot, clip, track or doc). The preview and
 // the file's facts sit on the left; the details sit on the right in three
 // groups: what it is (title, note), when it is from (date), and what it is
@@ -25,17 +25,17 @@ import type { Achievement } from "../types/game";
 import type { GameProfile } from "../services/gameProfiles";
 
 const props = defineProps<{
-  item: FileDetails;
+  item: T;
   achievements?: Achievement[];
   profiles?: GameProfile[];
   // re-reads the date from the file; true when it found one
-  detect?: (item: FileDetails) => Promise<"file" | "achievement" | "none">;
+  detect?: (item: T) => Promise<"file" | "achievement" | "none">;
 }>();
 
 const emit = defineEmits<{
   close: [];
-  save: [item: FileDetails, patch: MediaItemUpdate];
-  delete: [item: FileDetails];
+  save: [item: T, patch: MediaItemUpdate];
+  delete: [item: T];
 }>();
 
 const list = computed(() => props.achievements ?? []);

@@ -10,7 +10,6 @@ import {
   createMovie,
 } from "../services/movies";
 import type { Movie, MovieStatus } from "../types/movie";
-import { fetchRemaining } from "../utils/loadPages";
 import MediaLibraryView from "../components/library/MediaLibraryView.vue";
 import type {
   LibraryCardVM,
@@ -94,25 +93,6 @@ async function loadMore() {
   } catch (e) {
     error.value =
       e instanceof Error ? e.message : "Failed to load more movies.";
-  } finally {
-    loading.value = false;
-  }
-}
-// Sorting and filtering need every title, so this fetches the rest at once.
-async function loadAll() {
-  if (loading.value || movies.value.length >= total.value) return;
-  loading.value = true;
-  const request = loadRequest;
-  try {
-    const rest = await fetchRemaining(
-      (offset, limit) => fetchMoviesPage(offset, limit, currentSearch.value),
-      movies.value.length,
-      total.value,
-    );
-    if (request !== loadRequest) return;
-    movies.value.push(...rest);
-  } catch (e) {
-    error.value = e instanceof Error ? e.message : "Failed to load all movies.";
   } finally {
     loading.value = false;
   }
@@ -251,7 +231,6 @@ function detailRoute(id: string): string {
     :create-from-result="createFromResult"
     @search="load"
     @load-more="loadMore"
-    @load-all="loadAll"
     @toggle-favorite="onToggleFavorite"
     @save-note="onSaveNote"
     @save-edit="onSaveEdit"

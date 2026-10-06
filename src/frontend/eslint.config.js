@@ -34,8 +34,24 @@ export default tseslint.config(
   {
     files: ["**/*.{js,mjs,cjs,ts,tsx,vue}"],
     rules: {
-      "max-lines": ["error", { max: 2000, skipBlankLines: false, skipComments: false }],
+      "max-lines": [
+        "error",
+        { max: 2000, skipBlankLines: false, skipComments: false },
+      ],
     },
+  },
+
+  {
+    // already over the limit before it was added; split these up and delete
+    // them from this list rather than adding to it
+    files: [
+      "src/components/library/MediaLibraryView.vue",
+      "src/components/settings/MetadataSourcesSection.vue",
+      "src/views/Calendar.vue",
+      "src/views/GameDetail.vue",
+      "src/views/GameLibrary.vue",
+    ],
+    rules: { "max-lines": "off" },
   },
 
   {

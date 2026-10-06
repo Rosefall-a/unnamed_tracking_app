@@ -306,15 +306,15 @@ function daysLeft(purgeAt: number): number {
               <span class="ga-add-sub">Drop, paste, or click to browse</span>
             </span>
           </button>
-          <slot
-            v-for="a in visible"
-            :key="a.id"
-            name="card"
-            :archive="a"
-            :selecting="selecting"
-            :selected="picked.has(a.id)"
-            :toggle="() => toggle(a.id)"
-          />
+          <template v-for="a in visible" :key="a.id">
+            <slot
+              name="card"
+              :archive="a"
+              :selecting="selecting"
+              :selected="picked.has(a.id)"
+              :toggle="() => toggle(a.id)"
+            />
+          </template>
         </div>
         <div v-if="!visible.length" class="ga-none">
           <span>Nothing matches.</span>

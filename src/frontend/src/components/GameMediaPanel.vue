@@ -1,4 +1,11 @@
-<script setup lang="ts">
+<script
+  setup
+  lang="ts"
+  generic="
+    T extends FileDetails,
+    TR extends { id: string; filename: string; purge_at: number }
+  "
+>
 // One screen for a game's Screenshots, Clips, Soundtrack, Docs or Modpack: the
 // gallery is the page, and adding is part of it. Drop files anywhere over the
 // page, press Add, or paste an image with Ctrl+V. An empty tab shows one big
@@ -33,18 +40,13 @@ import type {
 import type { Achievement } from "../types/game";
 import type { GameProfile } from "../services/gameProfiles";
 
-type MediaItem = FileDetails;
+type MediaItem = T;
 type Kind = MediaKind | GameFileKind;
-interface TrashedFile {
-  id: string;
-  filename: string;
-  purge_at: number;
-}
 
 const props = defineProps<{
   kind: Kind;
-  items: MediaItem[];
-  trash: TrashedFile[];
+  items: T[];
+  trash: TR[];
   achievements?: Achievement[];
   profiles?: GameProfile[];
   loading: boolean;
@@ -62,7 +64,7 @@ const emit = defineEmits<{
   "bulk-save": [updates: { id: string; patch: MediaItemUpdate }[]];
   "bulk-delete": [items: MediaItem[]];
   "bulk-detect": [ids: string[]];
-  restore: [item: TrashedFile];
+  restore: [item: TR];
   "open-achievement": [achievementId: string];
   thumbnail: [item: MediaItem, blob: Blob, duration: number];
   problem: [message: string];
@@ -283,7 +285,7 @@ function haystack(i: MediaItem): string {
     originalName(i.filename),
     i.note ?? "",
     i.tags.join(" "),
-    achievementName(i.linked_achievement_id) ?? "",
+    achievementName(i.linked_achievement_id ?? null) ?? "",
   ]
     .join(" ")
     .toLowerCase();

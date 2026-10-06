@@ -27,6 +27,9 @@ export interface FileDetails {
   linked_achievement_id?: string | null;
   // which GameProfile (e.g. an OSRS account) this belongs to, if any
   profile_id?: string | null;
+  // present only from the library-wide gallery endpoint
+  game_id?: string;
+  game_title?: string;
 }
 
 export interface MediaItem extends FileDetails {

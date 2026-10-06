@@ -7,6 +7,10 @@
 import { computed, ref, onMounted, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import BackButton from "../components/BackButton.vue";
+import CollectionDetailHeader from "../components/CollectionDetailHeader.vue";
+import CollectionItemTile from "../components/CollectionItemTile.vue";
+import CollectionAddDialog from "../components/CollectionAddDialog.vue";
+import { useReorderGrid } from "../utils/useReorderGrid";
 import GameTopBar from "../components/GameTopBar.vue";
 import {
   fetchGames,
@@ -41,7 +45,7 @@ const error = ref<string | null>(null);
 const collectionName = computed(() =>
   decodeURIComponent(route.params.name as string),
 );
-// same "Parent/Child" naming convention as CollectionCard.vue
+// same "Parent/Child" naming convention as CollectionTile.vue
 const nestedParent = computed(() => {
   const idx = collectionName.value.indexOf("/");
   return idx === -1 ? null : collectionName.value.slice(0, idx);
@@ -163,40 +167,27 @@ function openGame(game: Game) {
 }
 
 // ---- reordering ----
-const reorderMode = ref(false);
-const dragIndex = ref<number | null>(null);
-
-function toggleReorder() {
-  reorderMode.value = !reorderMode.value;
-  if (reorderMode.value) sortMode.value = "manual";
-}
-function moveItem(from: number, to: number) {
-  const ids = collectionGames.value.map((g) => g.id);
-  if (to < 0 || to >= ids.length || from === to) return;
-  const [moved] = ids.splice(from, 1);
-  ids.splice(to, 0, moved);
-  gameOrder.value = ids;
-}
 function persistOrder() {
   if (gameOrder.value) saveOrder(gameOrder.value);
 }
-function onDragStart(index: number, event: DragEvent) {
-  dragIndex.value = index;
-  if (event.dataTransfer) event.dataTransfer.effectAllowed = "move";
-}
-function onDragOver(index: number) {
-  if (dragIndex.value === null || dragIndex.value === index) return;
-  moveItem(dragIndex.value, index);
-  dragIndex.value = index;
-}
-function onDragEnd() {
-  if (dragIndex.value !== null) persistOrder();
-  dragIndex.value = null;
-}
-function nudge(index: number, delta: number) {
-  moveItem(index, index + delta);
-  persistOrder();
-}
+const {
+  reorderMode,
+  dragIndex,
+  toggleReorder,
+  onDragStart,
+  onDragOver,
+  onDragEnd,
+  nudge,
+} = useReorderGrid<Game>({
+  getItems: () => collectionGames.value,
+  setItems: (next) => {
+    gameOrder.value = next.map((g) => g.id);
+  },
+  persist: persistOrder,
+  onEnter: () => {
+    sortMode.value = "manual";
+  },
+});
 
 // ---- cover ----
 // which game's cover represents this collection on the Collections grid,
@@ -393,81 +384,31 @@ async function deleteCollection() {
 
     <div v-else class="ui-content">
       <BackButton class="back-spot" @click="goBack" />
-      <div class="header-row">
-        <h1>
-          <router-link
-            v-if="nestedParent"
-            :to="`/collections/${encodeURIComponent(nestedParent)}`"
-            class="parent-crumb"
-            >{{ nestedParent }} ›</router-link
-          >
-          {{ collectionDisplayName }}
-        </h1>
-        <span class="count-badge"
-          >{{ collectionGames.length }} game{{
-            collectionGames.length === 1 ? "" : "s"
-          }}</span
-        >
-        <span
-          v-if="isSmart"
-          class="smart-pill"
-          title="Fills itself from a filter"
-          >Smart</span
-        >
-        <div class="header-spacer"></div>
-        <select
-          v-model="sortMode"
-          class="ui-field"
-          :disabled="reorderMode"
-          title="Sort"
-        >
-          <option v-if="!isSmart" value="manual">Manual order</option>
-          <option value="title">Title</option>
-          <option value="status">Status</option>
-        </select>
-        <button
-          v-if="!isSmart && collectionGames.length > 1"
-          type="button"
-          class="ui-btn ui-btn-secondary"
-          :class="{ on: reorderMode }"
-          @click="toggleReorder"
-        >
-          {{ reorderMode ? "Done" : "Reorder" }}
-        </button>
-        <button
-          v-if="!isSmart"
-          type="button"
-          class="ui-btn ui-btn-primary"
-          @click="openAdd"
-        >
-          + Add Games
-        </button>
-        <button
-          v-if="!isSystem"
-          type="button"
-          class="ui-btn ui-btn-secondary"
-          @click="showEdit = true"
-        >
-          Edit
-        </button>
-        <button
-          v-if="!isSmart"
-          type="button"
-          class="ui-btn ui-btn-danger"
-          :disabled="deletingCollection"
-          @click="deleteCollection"
-        >
-          {{ deletingCollection ? "Deleting…" : "Delete" }}
-        </button>
-        <button
-          v-else-if="!isSystem"
-          type="button"
-          class="ui-btn ui-btn-danger"
-          @click="deleteSmartRule"
-        >
-          Delete
-        </button>
-      </div>
+      <CollectionDetailHeader
+        v-model:sort-mode="sortMode"
+        :title="collectionDisplayName"
+        :crumb="
+          nestedParent
+            ? {
+                label: nestedParent,
+                to: `/collections/${encodeURIComponent(nestedParent)}`,
+              }
+            : null
+        "
+        :count-text="`${collectionGames.length} game${collectionGames.length === 1 ? '' : 's'}`"
+        :is-smart="isSmart"
+        :reorder-mode="reorderMode"
+        :can-reorder="!isSmart && collectionGames.length > 1"
+        :can-add="!isSmart"
+        add-label="+ Add Games"
+        :can-edit="!isSystem"
+        :can-delete="!isSystem"
+        :deleting="!isSmart && deletingCollection"
+        @reorder="toggleReorder"
+        @add="openAdd"
+        @edit="showEdit = true"
+        @delete="isSmart ? deleteSmartRule() : deleteCollection()"
+      />
       <p v-if="description" class="subtitle">{{ description }}</p>
       <p v-if="smartRule" class="subtitle rule-line">
         Matches: {{ describeSmartCollection(smartRule) }}
@@ -478,77 +419,33 @@ async function deleteCollection() {
       </p>
 
       <div v-if="shownGames.length" class="grid">
-        <div
+        <CollectionItemTile
           v-for="(game, index) in shownGames"
           :key="game.id"
-          class="item-card"
-          :class="{ reordering: reorderMode, dragging: dragIndex === index }"
-          :draggable="reorderMode"
-          @click="openGame(game)"
+          :title="game.title"
+          :poster-url="game.coverImageUrl"
+          :status-label="game.status"
+          :status-class="statusTone(game.status)"
+          :index="index"
+          :count="shownGames.length"
+          :reorder-mode="reorderMode"
+          :dragging="dragIndex === index"
+          :star-on="coverGameId === game.id"
+          :star-title="
+            coverGameId === game.id
+              ? 'Collection cover'
+              : 'Use as the collection cover'
+          "
+          remove-title="Remove from collection"
+          :can-remove="!isSmart"
+          @open="openGame(game)"
+          @nudge="nudge(index, $event)"
+          @cover="setCoverPick(game.id)"
+          @remove="removeItem(game)"
           @dragstart="onDragStart(index, $event)"
-          @dragover.prevent="onDragOver(index)"
+          @dragover="onDragOver(index)"
           @dragend="onDragEnd"
-        >
-          <div class="item-cover">
-            <div
-              class="item-poster"
-              :style="
-                game.coverImageUrl
-                  ? { backgroundImage: `url(${game.coverImageUrl})` }
-                  : {}
-              "
-            ></div>
-            <div v-if="reorderMode" class="reorder-arrows">
-              <button
-                type="button"
-                :disabled="index === 0"
-                title="Move earlier"
-                @click.stop="nudge(index, -1)"
-              >
-                ‹
-              </button>
-              <span class="reorder-pos">{{ index + 1 }}</span>
-              <button
-                type="button"
-                :disabled="index === shownGames.length - 1"
-                title="Move later"
-                @click.stop="nudge(index, 1)"
-              >
-                ›
-              </button>
-            </div>
-            <div v-else class="tile-actions">
-              <button
-                type="button"
-                class="tile-btn star"
-                :class="{ on: coverGameId === game.id }"
-                :title="
-                  coverGameId === game.id
-                    ? 'Collection cover'
-                    : 'Use as the collection cover'
-                "
-                @click.stop="setCoverPick(game.id)"
-              >
-                ★
-              </button>
-              <button
-                v-if="!isSmart"
-                type="button"
-                class="tile-btn"
-                title="Remove from collection"
-                @click.stop="removeItem(game)"
-              >
-                ✕
-              </button>
-            </div>
-          </div>
-          <div class="card-info">
-            <h3 class="title">{{ game.title }}</h3>
-            <span class="pill" :class="statusTone(game.status)">{{
-              game.status
-            }}</span>
-          </div>
-        </div>
+        />
       </div>
       <p v-else-if="isSmart" class="ui-state">
         Nothing matches this collection's rule right now. Games appear here as
@@ -570,324 +467,23 @@ async function deleteCollection() {
       @close="showEdit = false"
     />
 
-    <div v-if="showAdd" class="ui-backdrop" @click.self="showAdd = false">
-      <div class="ui-modal add-modal">
-        <h3>Add games</h3>
-        <input
-          v-model="addSearch"
-          type="text"
-          class="ui-field"
-          placeholder="Search your library…"
-          autofocus
-        />
-        <p v-if="addError" class="ui-error-box">{{ addError }}</p>
-        <div class="add-results">
-          <button
-            v-for="g in addResults"
-            :key="g.id"
-            type="button"
-            class="add-row"
-            @click="addGame(g)"
-          >
-            <span
-              class="add-thumb"
-              :style="
-                g.coverImageUrl
-                  ? { backgroundImage: `url(${g.coverImageUrl})` }
-                  : {}
-              "
-            ></span>
-            <span class="add-title">{{ g.title }}</span>
-            <span class="add-kind">{{ g.status }}</span>
-            <span class="add-plus">+</span>
-          </button>
-          <p v-if="!addResults.length" class="ui-state">
-            Nothing left to add{{ addSearch ? " for that search" : "" }}.
-          </p>
-        </div>
-        <div class="ui-modal-actions">
-          <button
-            type="button"
-            class="ui-btn ui-btn-primary"
-            @click="showAdd = false"
-          >
-            Done
-          </button>
-        </div>
-      </div>
-    </div>
+    <CollectionAddDialog
+      v-if="showAdd"
+      v-model:search="addSearch"
+      heading="Add games"
+      :results="
+        addResults.map((g) => ({
+          key: g.id,
+          title: g.title,
+          thumbUrl: g.coverImageUrl,
+          kind: g.status,
+        }))
+      "
+      :error="addError"
+      @add="(id) => addGame(addResults.find((g) => g.id === id)!)"
+      @close="showAdd = false"
+    />
   </main>
 </template>
 
-<style scoped>
-.header-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px 12px;
-  margin-bottom: 8px;
-}
-.header-spacer {
-  flex: 1;
-}
-.header-row h1 {
-  margin: 0 4px 0 0;
-  font-size: 1.7rem;
-  font-weight: 800;
-}
-.parent-crumb {
-  color: #666;
-  font-size: 1.1rem;
-  font-weight: 600;
-  text-decoration: none;
-  margin-right: 4px;
-}
-.parent-crumb:hover {
-  color: #d68a34;
-}
-.count-badge {
-  color: #9c9c9c;
-  font-size: 13px;
-  background: rgba(255, 255, 255, 0.06);
-  padding: 4px 12px;
-  border-radius: 999px;
-}
-.smart-pill {
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: #d68a34;
-  background: rgba(214, 138, 52, 0.14);
-  padding: 4px 10px;
-  border-radius: 999px;
-}
-.subtitle {
-  margin: 0 0 8px;
-  color: #9c9c9c;
-  font-size: 0.88rem;
-}
-.rule-line {
-  color: #b9a37f;
-}
-.hint {
-  margin: 0 0 4px;
-  color: #d68a34;
-  font-size: 0.8rem;
-}
-.grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: 16px;
-  margin-top: 24px;
-}
-.item-card {
-  cursor: pointer;
-}
-.item-card.reordering {
-  cursor: grab;
-}
-.item-card.dragging {
-  opacity: 0.4;
-}
-.item-cover {
-  position: relative;
-  width: 100%;
-  aspect-ratio: 2 / 3;
-  border-radius: 10px;
-  overflow: hidden;
-  background: #1a1a1a;
-  transition:
-    transform 0.32s cubic-bezier(0.22, 1, 0.36, 1),
-    box-shadow 0.32s cubic-bezier(0.22, 1, 0.36, 1);
-}
-.item-card:hover .item-cover {
-  transform: scale(1.07) translateY(-4px);
-  box-shadow: 0 24px 56px rgba(0, 0, 0, 0.5);
-}
-.item-card.reordering:hover .item-cover {
-  transform: none;
-  box-shadow: none;
-}
-.item-poster {
-  width: 100%;
-  height: 100%;
-  background-size: cover;
-  background-repeat: no-repeat;
-  background-position: center;
-  background-color: #1c1c1c;
-}
-.tile-actions {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  z-index: 2;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-/* the buttons appear on hover, except the star that is currently the cover,
-   which stays lit so the cover is always visible */
-.tile-btn {
-  opacity: 0;
-  transition: opacity 0.15s ease;
-}
-.item-card:hover .tile-btn,
-.tile-btn.on {
-  opacity: 1;
-}
-.tile-btn {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  border: none;
-  background: rgba(20, 20, 20, 0.75);
-  backdrop-filter: blur(4px);
-  color: #ccc;
-  font-size: 11px;
-  cursor: pointer;
-}
-.tile-btn:hover {
-  color: #e57373;
-}
-.tile-btn.star:hover,
-.tile-btn.on {
-  color: #d68a34;
-}
-.reorder-arrows {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 2;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 6px;
-  background: linear-gradient(transparent, rgba(0, 0, 0, 0.85));
-}
-.reorder-arrows button {
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  border: none;
-  background: rgba(255, 255, 255, 0.14);
-  color: #fff;
-  font-size: 15px;
-  cursor: pointer;
-}
-.reorder-arrows button:disabled {
-  opacity: 0.3;
-  cursor: default;
-}
-.reorder-pos {
-  font-size: 12px;
-  font-weight: 800;
-  font-variant-numeric: tabular-nums;
-}
-.card-info {
-  padding: 10px 2px 0;
-}
-.title {
-  margin: 0 0 6px;
-  font-size: 14px;
-  font-weight: 600;
-  color: #fff;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.pill {
-  display: inline-flex;
-  align-items: center;
-  font-size: 10.5px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
-  padding: 3px 9px;
-  border-radius: 999px;
-}
-.pill.watching {
-  background: rgba(214, 138, 52, 0.16);
-  color: #d68a34;
-}
-.pill.completed {
-  background: rgba(111, 191, 115, 0.16);
-  color: #6fbf73;
-}
-.pill.hold {
-  background: rgba(123, 167, 217, 0.16);
-  color: #7ba7d9;
-}
-.pill.dropped {
-  background: rgba(217, 111, 111, 0.16);
-  color: #d96f6f;
-}
-.pill.plan {
-  background: rgba(157, 140, 217, 0.16);
-  color: #9d8cd9;
-}
-
-/* add-games dialog */
-.add-results {
-  overflow-y: auto;
-  min-height: 120px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.add-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  background: none;
-  border: none;
-  border-radius: 8px;
-  padding: 6px;
-  color: #ddd;
-  text-align: left;
-  font-family: inherit;
-  cursor: pointer;
-}
-.add-row:hover {
-  background: rgba(255, 255, 255, 0.06);
-}
-.add-thumb {
-  width: 30px;
-  height: 44px;
-  border-radius: 4px;
-  background: #262626 center / cover;
-  flex-shrink: 0;
-}
-.add-title {
-  flex: 1;
-  min-width: 0;
-  font-size: 0.86rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.add-kind {
-  color: #666;
-  font-size: 0.7rem;
-  text-transform: uppercase;
-}
-.add-plus {
-  color: #d68a34;
-  font-weight: 800;
-  font-size: 1.1rem;
-  width: 20px;
-  text-align: center;
-}
-.back-spot {
-  margin-bottom: 14px;
-}
-.add-modal {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-.add-modal h3 {
-  margin: 0;
-}
-</style>
+<style scoped src="../styles/shared/listDetail.css"></style>

@@ -1,4 +1,4 @@
-<script setup lang="ts">
+<script setup lang="ts" generic="T extends FileDetails">
 // One uploaded file in a gallery. As a card (screenshots, clips) it is a
 // 16:9 preview with the achievement it belongs to laid over the corner and
 // a short caption underneath. As a row (soundtrack) it is a line with an
@@ -16,7 +16,7 @@ import type { Achievement } from "../types/game";
 import type { GameProfile } from "../services/gameProfiles";
 
 const props = defineProps<{
-  item: FileDetails;
+  item: T;
   achievements?: Achievement[];
   showGameTitle?: boolean;
   row?: boolean;
@@ -24,7 +24,7 @@ const props = defineProps<{
   selecting?: boolean;
   selected?: boolean;
   // re-reads the date from the file, offered in the edit dialog
-  detect?: (item: FileDetails) => Promise<"file" | "achievement" | "none">;
+  detect?: (item: T) => Promise<"file" | "achievement" | "none">;
   // only passed when the game has "Track multiple accounts" enabled, lets
   // an already-uploaded screenshot be moved to a different account after
   // the fact instead of only being assignable at upload time
@@ -32,15 +32,15 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  delete: [item: FileDetails];
-  save: [item: FileDetails, patch: MediaItemUpdate];
-  preview: [item: FileDetails];
-  toggle: [item: FileDetails];
-  copy: [item: FileDetails];
-  download: [item: FileDetails];
+  delete: [item: T];
+  save: [item: T, patch: MediaItemUpdate];
+  preview: [item: T];
+  toggle: [item: T];
+  copy: [item: T];
+  download: [item: T];
   "open-achievement": [achievementId: string];
   // a preview picture made for a clip that had none, to be saved
-  thumbnail: [item: FileDetails, blob: Blob, duration: number];
+  thumbnail: [item: T, blob: Blob, duration: number];
 }>();
 
 const editing = ref(false);

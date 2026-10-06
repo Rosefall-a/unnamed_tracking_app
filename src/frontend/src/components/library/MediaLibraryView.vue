@@ -122,7 +122,6 @@ const emit = defineEmits<{
   (e: "bulk-delete", ids: string[]): void;
   (e: "search", query: string): void;
   (e: "load-more"): void;
-  (e: "load-all"): void;
 }>();
 
 const router = useRouter();
@@ -435,33 +434,6 @@ function moveBoard(status: string, direction: -1 | 1, available: number) {
   }
   boardPageStarts[status] = current + available;
 }
-// Sorting and filtering happen here, over the items that are loaded. Only the
-// title order matches the server's pages, so anything else needs the whole
-// library loaded or titles further down (like a 10/10 starting with M) would
-// be missing from the result.
-watch(
-  [
-    () => props.items.length,
-    () => props.loading,
-    sortKey,
-    activeStatus,
-    filters,
-  ],
-  () => {
-    const needsAll =
-      sortKey.value !== "title" ||
-      activeStatus.value !== "all" ||
-      activeFilterCount.value > 0;
-    if (
-      needsAll &&
-      !props.loading &&
-      !props.error &&
-      props.items.length < props.total
-    )
-      emit("load-all");
-  },
-  { immediate: true },
-);
 watch([activeStatus, filters], resetBoardPages);
 watch(boardViewportWidth, resetBoardPages);
 function updateBoardViewport() {

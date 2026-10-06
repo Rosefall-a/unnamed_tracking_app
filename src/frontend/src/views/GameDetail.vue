@@ -2148,7 +2148,7 @@ async function onNewWorldSelected(files: File[]) {
   await attempt();
 }
 
-async function onAddWorldVersion(archive: WorldMapEntry, files: File[]) {
+async function onAddWorldVersion(archive: GameArchiveData, files: File[]) {
   const file = files[0];
   if (!file || !game.value) return;
   const gameId = game.value.id;

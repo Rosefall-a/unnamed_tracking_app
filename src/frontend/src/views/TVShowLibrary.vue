@@ -12,7 +12,6 @@ import {
 } from "../services/tvShows";
 import type { SeasonUpdateInput } from "../services/tvShows";
 import type { TVShow, TVShowStatus } from "../types/tv_show";
-import { fetchRemaining } from "../utils/loadPages";
 import MediaLibraryView from "../components/library/MediaLibraryView.vue";
 import { statusBucket, bucketToReal } from "../utils/mediaStatus";
 import type {
@@ -106,26 +105,6 @@ async function loadMore() {
   } catch (e) {
     error.value =
       e instanceof Error ? e.message : "Failed to load more TV shows.";
-  } finally {
-    loading.value = false;
-  }
-}
-// Sorting and filtering need every title, so this fetches the rest at once.
-async function loadAll() {
-  if (loading.value || shows.value.length >= total.value) return;
-  loading.value = true;
-  const request = loadRequest;
-  try {
-    const rest = await fetchRemaining(
-      (offset, limit) => fetchTVShowsPage(offset, limit, currentSearch.value),
-      shows.value.length,
-      total.value,
-    );
-    if (request !== loadRequest) return;
-    shows.value.push(...rest);
-  } catch (e) {
-    error.value =
-      e instanceof Error ? e.message : "Failed to load all TV shows.";
   } finally {
     loading.value = false;
   }
@@ -333,7 +312,6 @@ function detailRoute(id: string): string {
     :create-from-result="createFromResult"
     @search="load"
     @load-more="loadMore"
-    @load-all="loadAll"
     @toggle-favorite="onToggleFavorite"
     @advance-episode="onAdvanceEpisode"
     @save-note="onSaveNote"

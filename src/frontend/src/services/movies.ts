@@ -1,5 +1,10 @@
-import { failedRequest } from "./apiError";
-import type { PaginatedResponse } from "../types/pagination";
+import {
+  createMediaApi,
+  handle,
+  toNumberOrNull,
+  unixSecondsToIso,
+} from "./mediaApi";
+import type { TrashedMedia } from "./mediaApi";
 import type { Movie, MovieStatus } from "../types/movie";
 
 // The exact shape FastAPI sends, snake_case, matching the Python model
@@ -55,16 +60,6 @@ function mapBackendMovie(raw: Parameters<typeof mapBackendMovieRaw>[0]): Movie {
   return movieCache.put(mapBackendMovieRaw(raw));
 }
 
-// Pydantic can serialize a Decimal as either a JSON number or a string
-// depending on config, handle both rather than assume one
-function toNumberOrNull(value: number | string | null): number | null {
-  return value === null ? null : Number(value);
-}
-
-function unixSecondsToIso(seconds: number): string {
-  return new Date(seconds * 1000).toISOString();
-}
-
 // backend sends "IN_PROGRESS", "WISHLIST", etc., frontend expects
 // 'in progress', 'wishlist' (lowercase, spaces not underscores)
 function normalizeStatus(raw: string): MovieStatus {
@@ -116,70 +111,24 @@ export function mapBackendMovieRaw(raw: BackendMovie): Movie {
   };
 }
 
-async function handle<T>(response: Response, action: string): Promise<T> {
-  if (!response.ok) {
-    console.warn(`Failed to ${action}: ${response.status}`);
-    throw await failedRequest(response);
-  }
-  return response.json();
-}
-
-export async function fetchMoviesPage(
-  offset = 0,
-  limit = 100,
-  search = "",
-): Promise<{
-  items: Movie[];
-  total: number;
-  offset: number;
-  limit: number;
-  statusCounts: Record<string, number>;
-  scoreRanks: Record<string, number>;
-}> {
-  const params = new URLSearchParams({
-    skip: String(offset),
-    limit: String(limit),
-  });
-  if (search.trim()) params.set("search", search.trim());
-  const response = await fetch(`/api/movie/list?${params}`, {
-    credentials: "include",
-  });
-  const page = await handle<PaginatedResponse<BackendMovie>>(
-    response,
-    "fetch movies",
-  );
-  return {
-    items: page.items.map(mapBackendMovie),
-    total: page.total,
-    offset: page.offset,
-    limit: page.limit,
-    statusCounts: page.status_counts,
-    scoreRanks: page.score_ranks ?? {},
-  };
-}
-
-export async function fetchMovies(search = ""): Promise<Movie[]> {
-  const all: Movie[] = [];
-  let offset = 0;
-  const limit = 100;
-  while (true) {
-    const page = await fetchMoviesPage(offset, limit, search);
-    all.push(...page.items);
-    if (all.length >= page.total || page.items.length === 0) break;
-    offset += page.items.length;
-  }
-  movieCache.markListLoaded();
-  return all;
-}
-
-export async function getMovie(id: string): Promise<Movie> {
-  const response = await fetch(`/api/movie/get/${id}`, {
-    credentials: "include",
-  });
-  const raw = await handle<BackendMovie>(response, `fetch movie ${id}`);
-  return mapBackendMovie(raw);
-}
-
+const api = createMediaApi<BackendMovie, Movie, MovieInput>({
+  base: "/api/movie",
+  noun: "movie",
+  plural: "movies",
+  cache: movieCache,
+  map: mapBackendMovie,
+  toBody: inputToBody,
+});
+export const fetchMoviesPage = api.fetchPage;
+export const fetchMovies = api.fetchAll;
+export const getMovie = api.get;
+export const createMovie = api.create;
+export const updateMovie = api.update;
+export const deleteMovie = api.remove;
+export type TrashedMovie = TrashedMedia;
+export const fetchMovieTrash = api.fetchTrash;
+export const restoreMovie = api.restore;
+export const purgeMovie = api.purge;
 // Round-trips a loaded Movie back into MovieInput shape — used when a
 // caller needs to change one field (e.g. toggling favorite from the
 // detail page) without reopening the full edit form, since updateMovie
@@ -287,77 +236,6 @@ function inputToBody(input: MovieInput): Record<string, unknown> {
   if (input.progressMinutes !== undefined)
     body.progress_minutes = input.progressMinutes;
   return body;
-}
-
-export async function createMovie(input: MovieInput): Promise<Movie> {
-  const response = await fetch("/api/movie/create", {
-    method: "POST",
-    credentials: "include",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(inputToBody(input)),
-  });
-  const raw = await handle<BackendMovie>(response, "create movie");
-  return mapBackendMovie(raw);
-}
-
-export async function updateMovie(
-  id: string,
-  input: MovieInput,
-): Promise<Movie> {
-  const response = await fetch(`/api/movie/update/${id}`, {
-    method: "PATCH",
-    credentials: "include",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(inputToBody(input)),
-  });
-  const raw = await handle<BackendMovie>(response, `update movie ${id}`);
-  return mapBackendMovie(raw);
-}
-
-export async function deleteMovie(id: string): Promise<void> {
-  movieCache.remove(id);
-  const response = await fetch(`/api/movie/delete/${id}`, {
-    method: "DELETE",
-    credentials: "include",
-  });
-  if (!response.ok && response.status !== 204) {
-    throw new Error(`Failed to delete movie ${id}: ${response.status}`);
-  }
-}
-
-export interface TrashedMovie {
-  id: string;
-  title: string;
-  deleted_at: number;
-}
-
-export async function fetchMovieTrash(): Promise<TrashedMovie[]> {
-  const response = await fetch("/api/movie/trash", { credentials: "include" });
-  if (!response.ok) {
-    throw new Error(`Failed to fetch deleted movies: ${response.status}`);
-  }
-  return await response.json();
-}
-
-export async function restoreMovie(id: string): Promise<Movie> {
-  const response = await fetch(`/api/movie/${id}/restore`, {
-    method: "POST",
-    credentials: "include",
-  });
-  if (!response.ok) {
-    throw new Error(`Failed to restore movie ${id}: ${response.status}`);
-  }
-  return mapBackendMovie(await response.json());
-}
-
-export async function purgeMovie(id: string): Promise<void> {
-  const response = await fetch(`/api/movie/${id}/purge`, {
-    method: "DELETE",
-    credentials: "include",
-  });
-  if (!response.ok && response.status !== 204) {
-    throw new Error(`Failed to purge movie ${id}: ${response.status}`);
-  }
 }
 
 // A raw metadata search result, straight from whichever provider (TMDB or

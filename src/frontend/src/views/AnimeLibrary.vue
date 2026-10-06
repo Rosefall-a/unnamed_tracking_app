@@ -12,7 +12,6 @@ import {
 } from "../services/anime";
 import type { SeasonUpdateInput } from "../services/anime";
 import type { Anime, AnimeStatus } from "../types/anime";
-import { fetchRemaining } from "../utils/loadPages";
 import MediaLibraryView from "../components/library/MediaLibraryView.vue";
 import { displayTitle } from "../utils/displayTitle";
 import { statusBucket, bucketToReal } from "../utils/mediaStatus";
@@ -152,25 +151,6 @@ async function loadMore() {
     shows.value.push(...page.items);
   } catch (e) {
     error.value = e instanceof Error ? e.message : "Failed to load more anime.";
-  } finally {
-    loading.value = false;
-  }
-}
-// Sorting and filtering need every title, so this fetches the rest at once.
-async function loadAll() {
-  if (loading.value || shows.value.length >= total.value) return;
-  loading.value = true;
-  const request = loadRequest;
-  try {
-    const rest = await fetchRemaining(
-      (offset, limit) => fetchAnimePage(offset, limit, currentSearch.value),
-      shows.value.length,
-      total.value,
-    );
-    if (request !== loadRequest) return;
-    shows.value.push(...rest);
-  } catch (e) {
-    error.value = e instanceof Error ? e.message : "Failed to load all anime.";
   } finally {
     loading.value = false;
   }
@@ -374,7 +354,6 @@ function detailRoute(id: string): string {
     :create-from-result="createFromResult"
     @search="load"
     @load-more="loadMore"
-    @load-all="loadAll"
     @toggle-favorite="onToggleFavorite"
     @advance-episode="onAdvanceEpisode"
     @save-note="onSaveNote"
