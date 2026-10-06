@@ -642,3 +642,49 @@ progress.
 ![Purple Blocks on a small phone](../assets/ui-redevelopment/theme-appearance-320-light.png)
 
 ![Themed sign-in](../assets/ui-redevelopment/theme-sign-in-390-dark.png)
+
+## Production PWA and host upgrade checkpoint
+
+Collector's Archive was also rechecked on the upgraded production container
+using its latest `ec372bf` CI package, with SHA-256
+`b121fc283239774528a02f0e2b4a8a58aaafccee39661ea8769dbe1b67b17da6`.
+The [updated report](../assets/ui-redevelopment/collector-ui-conformance.json)
+records all real import/edit/reward/ownership/search/Home/reminder and
+disable/re-enable checks passing, with 24 loaded page captures across both
+themes and four phone/desktop widths.
+
+![Current CI Bounties on a phone](../assets/ui-redevelopment/collector-loaded-bounties-390-dark.png)
+
+![Current CI Cards on desktop](../assets/ui-redevelopment/collector-loaded-cards-1440-light.png)
+
+The [production PWA report](../assets/ui-redevelopment/pwa-production-conformance.json)
+uses the downloaded unsigned `official.pwa` version `0.0.3` from companion
+commit `ec372bf` and the final Forest/Purple Blocks CI theme packages. Installation
+stays in Preferences. The actual manifest, icons, root worker, public theme CSS,
+offline reconnect page, disable/re-enable and explicit permission
+withdrawal/restoration pass on the production container. Browser checks cover
+320, 390, 768 and 1440 pixels and find no private API or account data in caches.
+Headless validation supplies the browser install event; the physical operating
+system's installation surface remains a manual check.
+
+The offline page's policy now permits same-origin theme stylesheets. Its cache
+generation includes the host-owned worker, reconnect page and policy, so a host
+upgrade replaces stale cached headers even when the installed plugin version
+does not change. The [existing-browser upgrade report](../assets/ui-redevelopment/pwa-host-upgrade-conformance.json)
+records automatic retirement of the previous cache, the new policy and retained
+sign-in across an actual production image replacement. Transient connectivity
+loss still retains the neutral reconnect page. Withdrawal removes only this
+provider's caches and registration; an unrelated cache survives.
+
+Four backend regressions cover the served policy and generation changes. A
+separate runtime CI race was corrected by keeping the test's real supervised
+worker alive until isolation acknowledgement is withdrawn. All 130 UI-branch
+runtime tests and 115 Plugin Manager runtime tests pass. The edited test passes
+Ruff and the Pylint score gate at 9.78/10 without suppressing warnings. Both host
+branches contain the correction; the UI branch includes Plugin Manager's head.
+
+![Production installation settings](../assets/ui-redevelopment/pwa-production-settings-1440-light.png)
+
+![Purple Blocks reconnect page on a small phone](../assets/ui-redevelopment/pwa-production-offline-320-light.png)
+
+![Forest reconnect page in dark mode](../assets/ui-redevelopment/pwa-production-offline-390-dark.png)
