@@ -1,14 +1,16 @@
-# pylint: disable=missing-function-docstring,too-many-locals,not-callable,duplicate-code
 """API routes for the Server Stats dashboard — everything computed live
 from the caller's own library, no caching/background jobs."""
 
 import asyncio
 import time
 from pathlib import Path
+from typing import Any
+from uuid import UUID
 
 from fastapi import APIRouter, Depends
-from sqlalchemy import case, extract, func, select
+from sqlalchemy import Result, Select, case, extract, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql.functions import count as sql_count
 
 from src.core.auth import get_current_user
 from src.database.models.achievement import Achievement
@@ -54,23 +56,20 @@ def _folder_size_bytes(folder_location: str | None) -> int:
     return total
 
 
-@router.get("/overview")
-async def get_stats_overview(
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> dict:
-    user_filter = Game.user_id == current_user.id
+def _overview_queries(user_id: UUID) -> dict[str, Select[Any]]:
+    """All dashboard queries stay scoped to the caller and run on one session."""
+    user_filter = Game.user_id == user_id
 
     totals_stmt = select(
-        func.count(Game.id),
-        func.count(Game.id).filter(Game.favorite.is_(True)),
+        sql_count(Game.id),
+        sql_count(Game.id).filter(Game.favorite.is_(True)),
         func.coalesce(func.sum(Game.playtime_seconds), 0),
         func.coalesce(func.sum(Game.purchase_price), 0),
         func.avg(Game.rating_overall),
     ).where(user_filter)
 
-    status_stmt = select(Game.status, func.count(Game.id)).where(user_filter).group_by(Game.status)
-    source_stmt = select(Game.source, func.count(Game.id)).where(user_filter).group_by(Game.source)
+    status_stmt = select(Game.status, sql_count(Game.id)).where(user_filter).group_by(Game.status)
+    source_stmt = select(Game.source, sql_count(Game.id)).where(user_filter).group_by(Game.source)
     most_played_stmt = (
         select(Game.id, Game.title, Game.playtime_seconds)
         .where(user_filter, Game.playtime_seconds > 0)
@@ -80,7 +79,7 @@ async def get_stats_overview(
     recent_stmt = (
         select(
             func.date_trunc("month", func.to_timestamp(Game.created_at)).label("month"),
-            func.count(Game.id),
+            sql_count(Game.id),
         )
         .where(user_filter)
         .group_by("month")
@@ -91,7 +90,7 @@ async def get_stats_overview(
     # rating histogram — bucketed into 1-point bins, 0-10
     rating_bucket = func.floor(Game.rating_overall).label("bucket")
     rating_histogram_stmt = (
-        select(rating_bucket, func.count(Game.id))
+        select(rating_bucket, sql_count(Game.id))
         .where(user_filter, Game.rating_overall.is_not(None))
         .group_by(rating_bucket)
         .order_by(rating_bucket)
@@ -100,80 +99,96 @@ async def get_stats_overview(
     # top tags — one row per (game, tag) via unnest, then count
     tag_column = func.unnest(Game.tags).label("tag")
     top_tags_stmt = (
-        select(tag_column, func.count().label("tag_count"))
+        select(tag_column, sql_count().label("tag_count"))
         .where(user_filter)
         .group_by(tag_column)
-        .order_by(func.count().desc())
+        .order_by(sql_count().desc())
         .limit(10)
     )
 
     release_year_stmt = (
-        select(extract("year", Game.release_date).label("year"), func.count(Game.id))
+        select(extract("year", Game.release_date).label("year"), sql_count(Game.id))
         .where(user_filter, Game.release_date.is_not(None))
         .group_by("year")
         .order_by("year")
     )
 
     format_case = case((Game.physical_condition.is_not(None), "Physical"), else_="Digital")
-    format_stmt = select(format_case, func.count(Game.id)).where(user_filter).group_by(format_case)
+    format_stmt = select(format_case, sql_count(Game.id)).where(user_filter).group_by(format_case)
 
-    # NOTE: a single AsyncSession can't run concurrent statements — these
-    # run sequentially, not via asyncio.gather, despite all being cheap
-    # aggregate queries that would otherwise be a good gather() candidate.
-    totals_result = await db.execute(totals_stmt)
-    status_result = await db.execute(status_stmt)
-    source_result = await db.execute(source_stmt)
-    most_played_result = await db.execute(most_played_stmt)
-    recent_result = await db.execute(recent_stmt)
-    folders_result = await db.execute(folders_stmt)
-    rating_histogram_result = await db.execute(rating_histogram_stmt)
-    top_tags_result = await db.execute(top_tags_stmt)
-    release_year_result = await db.execute(release_year_stmt)
-    format_result = await db.execute(format_stmt)
+    return {
+        "totals": totals_stmt,
+        "status": status_stmt,
+        "source": source_stmt,
+        "most_played": most_played_stmt,
+        "recent": recent_stmt,
+        "folders": folders_stmt,
+        "rating_histogram": rating_histogram_stmt,
+        "top_tags": top_tags_stmt,
+        "release_year": release_year_stmt,
+        "format": format_stmt,
+    }
 
-    total_games, favorite_count, total_playtime_seconds, total_spent, average_rating = (
-        totals_result.one()
-    )
 
-    folder_locations = [row[0] for row in folders_result.all()]
-    storage_used_bytes = await asyncio.gather(
-        *(asyncio.to_thread(_folder_size_bytes, folder) for folder in folder_locations)
-    )
+def _overview_payload(results: dict[str, Result[Any]], storage_used_bytes: int) -> dict:
+    """Format database aggregates without mixing query execution into serialization."""
+    total_games, favorite_count, total_playtime_seconds, total_spent, average_rating = results[
+        "totals"
+    ].one()
 
     return {
         "total_games": total_games,
         "favorite_count": favorite_count,
         "total_playtime_seconds": int(total_playtime_seconds),
-        "storage_used_bytes": sum(storage_used_bytes),
+        "storage_used_bytes": storage_used_bytes,
         "total_spent": float(total_spent),
         "average_rating": float(average_rating) if average_rating is not None else None,
         "status_breakdown": [
             {"label": status.value if hasattr(status, "value") else status, "count": count}
-            for status, count in status_result.all()
+            for status, count in results["status"].all()
         ],
         "source_breakdown": [
-            {"label": source or "Unknown", "count": count} for source, count in source_result.all()
+            {"label": source or "Unknown", "count": count}
+            for source, count in results["source"].all()
         ],
         "most_played": [
             {"id": str(game_id), "title": title, "playtime_seconds": seconds}
-            for game_id, title, seconds in most_played_result.all()
+            for game_id, title, seconds in results["most_played"].all()
         ],
         "recently_added": [
             {"month": month.strftime("%Y-%m"), "count": count}
-            for month, count in recent_result.all()
+            for month, count in results["recent"].all()
         ],
         "rating_histogram": [
             {"label": f"{int(bucket)}-{int(bucket) + 1}", "count": count}
-            for bucket, count in rating_histogram_result.all()
+            for bucket, count in results["rating_histogram"].all()
         ],
-        "top_tags": [{"label": tag, "count": count} for tag, count in top_tags_result.all() if tag],
+        "top_tags": [
+            {"label": tag, "count": count} for tag, count in results["top_tags"].all() if tag
+        ],
         "release_year_breakdown": [
-            {"label": str(int(year)), "count": count} for year, count in release_year_result.all()
+            {"label": str(int(year)), "count": count}
+            for year, count in results["release_year"].all()
         ],
         "format_breakdown": [
-            {"label": label, "count": count} for label, count in format_result.all()
+            {"label": label, "count": count} for label, count in results["format"].all()
         ],
     }
+
+
+@router.get("/overview")
+async def get_stats_overview(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    queries = _overview_queries(current_user.id)
+    # An AsyncSession runs these sequentially; only independent filesystem reads run concurrently.
+    results = {name: await db.execute(statement) for name, statement in queries.items()}
+    folder_locations = [row[0] for row in results["folders"].all()]
+    storage_used_bytes = await asyncio.gather(
+        *(asyncio.to_thread(_folder_size_bytes, folder) for folder in folder_locations)
+    )
+    return _overview_payload(results, sum(storage_used_bytes))
 
 
 @router.get("/weekly-digest")
@@ -187,19 +202,19 @@ async def get_weekly_digest(
     week_ago = int(time.time()) - 7 * 86_400
     user_filter = Game.user_id == current_user.id
 
-    games_played_stmt = select(func.count(Game.id)).where(
+    games_played_stmt = select(sql_count(Game.id)).where(
         user_filter, Game.last_played_at.is_not(None), Game.last_played_at >= week_ago
     )
-    games_added_stmt = select(func.count(Game.id)).where(user_filter, Game.created_at >= week_ago)
+    games_added_stmt = select(sql_count(Game.id)).where(user_filter, Game.created_at >= week_ago)
     achievements_stmt = (
-        select(func.count(Achievement.id))
+        select(sql_count(Achievement.id))
         .join(Game, Achievement.game_id == Game.id)
         .where(
             user_filter, Achievement.unlocked_at.is_not(None), Achievement.unlocked_at >= week_ago
         )
     )
     metadata_changes_stmt = (
-        select(func.count(GameFieldChange.id))
+        select(sql_count(GameFieldChange.id))
         .join(Game, GameFieldChange.game_id == Game.id)
         .where(user_filter, GameFieldChange.changed_at >= week_ago)
     )
