@@ -78,10 +78,21 @@ const scoreRanks = ref<Record<string, number>>({});
 const pageSize = 100;
 const currentSearch = ref("");
 const currentFilters = ref<LibraryFilters & { statusBucket: string }>({
-  search: "", genres: [], genreMatchAll: false, formats: [], onlyFavorites: false,
-  onlyUnrated: false, onlyWithNote: false, minScore: null, yearFrom: "", yearTo: "", statusBucket: "all",
+  search: "",
+  genres: [],
+  genreMatchAll: false,
+  formats: [],
+  onlyFavorites: false,
+  onlyUnrated: false,
+  onlyWithNote: false,
+  minScore: null,
+  yearFrom: "",
+  yearTo: "",
+  statusBucket: "all",
 });
-async function load(filters: LibraryFilters & { statusBucket: string } = currentFilters.value) {
+async function load(
+  filters: LibraryFilters & { statusBucket: string } = currentFilters.value,
+) {
   currentFilters.value = filters;
   currentSearch.value = filters.search;
   const request = ++loadRequest;
@@ -95,17 +106,26 @@ async function load(filters: LibraryFilters & { statusBucket: string } = current
     scoreRanks.value = page.scoreRanks;
   } catch (e) {
     error.value = e instanceof Error ? e.message : "Failed to load TV shows.";
-  } finally { loading.value = false; }
+  } finally {
+    loading.value = false;
+  }
 }
 async function loadMore() {
   if (loading.value || shows.value.length >= total.value) return;
   loading.value = true;
   try {
-    const page = await fetchTVShowsPage(shows.value.length, pageSize, currentFilters.value);
+    const page = await fetchTVShowsPage(
+      shows.value.length,
+      pageSize,
+      currentFilters.value,
+    );
     shows.value.push(...page.items);
   } catch (e) {
-    error.value = e instanceof Error ? e.message : "Failed to load more TV shows.";
-  } finally { loading.value = false; }
+    error.value =
+      e instanceof Error ? e.message : "Failed to load more TV shows.";
+  } finally {
+    loading.value = false;
+  }
 }
 onMounted(load);
 useKeptAlive(load);

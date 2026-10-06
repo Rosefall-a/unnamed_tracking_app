@@ -25,7 +25,9 @@ describe("startup state", () => {
   });
 
   it("distinguishes confirmed setup from an available configured backend", () => {
-    expect(classifySetupStatus({ setup_required: true })).toBe("setup-required");
+    expect(classifySetupStatus({ setup_required: true })).toBe(
+      "setup-required",
+    );
     expect(classifySetupStatus({ setup_required: false })).toBe("ready");
   });
 

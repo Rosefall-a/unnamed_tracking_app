@@ -97,6 +97,8 @@ The backend startup process also applies pending migrations. Keep the migration 
 
 For migration changes, test both a fresh database and an existing database where practical.
 
+The main/plugin-manager reconciliation uses `b8c7d6e5f403` to join both published histories into one head. It performs no additional schema operations; the missing predecessor migrations run normally. Continue new migrations from that head. Plugin permission, notification, session, lifecycle, and provider-history migrations use the existing create-if-missing helpers so adoption can safely rerun them without deleting persisted plugin records.
+
 ### What happens on start
 
 Both the development backend container and the production image run `python -m src.database.migrate` before the API starts. It waits for the database, takes a lock so two starting containers never migrate at once, then decides what to do from the version the database records:

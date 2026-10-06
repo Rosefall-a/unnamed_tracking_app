@@ -30,7 +30,13 @@ async def test_login_uses_different_cookie_names_for_different_ports() -> None:
     db.commit = AsyncMock()
     db.add = Mock()
 
-    with patch("src.api.routes.auth.verify_password", return_value=True):
+    with (
+        patch("src.api.routes.auth.verify_password", return_value=True),
+        patch(
+            "src.api.routes.auth.create_session",
+            new=AsyncMock(return_value=SimpleNamespace(token="browser-token")),
+        ),
+    ):
         first_response = Response()
         await login(
             LoginRequest(username_or_email="admin", password="Correct!9"),
@@ -88,6 +94,4 @@ async def test_logout_deletes_the_request_host_cookie() -> None:
         db,
     )
 
-    assert response.headers["set-cookie"].startswith(
-        f"{session_cookie_name('localhost:8080')}="
-    )
+    assert response.headers["set-cookie"].startswith(f"{session_cookie_name('localhost:8080')}=")

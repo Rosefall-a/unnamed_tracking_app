@@ -94,4 +94,3 @@ SMOKE_IMAGE=unnamed_tracking_app:runtime-smoke \
 ```
 
 The harness requires Docker Compose and writes diagnostics to `SMOKE_ARTIFACT_DIR` when set.
-

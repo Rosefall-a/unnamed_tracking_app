@@ -39,12 +39,14 @@ import type {
 } from "../services/media";
 import type { Achievement } from "../types/game";
 import type { GameProfile } from "../services/gameProfiles";
+import { documentReaderUrl } from "../state/pluginExtensions";
 
 type MediaItem = T;
 type Kind = MediaKind | GameFileKind;
 
 const props = defineProps<{
   kind: Kind;
+  gameId?: string;
   items: T[];
   trash: TR[];
   achievements?: Achievement[];
@@ -761,6 +763,11 @@ onBeforeUnmount(() => {
             v-for="item in visible"
             :key="item.id"
             :item="item"
+            :reader-url="
+              kind === 'doc' && gameId
+                ? documentReaderUrl(gameId, item)
+                : undefined
+            "
             :selecting="selecting"
             :selected="picked.has(item.id)"
             :detect="detect"

@@ -1,18 +1,17 @@
 import { ref } from "vue";
 
 export type StartupState =
-  | "checking"
-  | "unavailable"
-  | "setup-required"
-  | "auth-required"
-  | "ready";
+  "checking" | "unavailable" | "setup-required" | "auth-required" | "ready";
 
 export const startupState = ref<StartupState>("checking");
 export const startupError = ref<string | null>(null);
 
 const RETURN_PATH_KEY = "unnamedTracking.startupReturnPath";
 
-export function setStartupState(state: StartupState, error: string | null = null) {
+export function setStartupState(
+  state: StartupState,
+  error: string | null = null,
+) {
   startupState.value = state;
   startupError.value = error;
 }
@@ -69,6 +68,8 @@ export function consumeReturnPath(queryValue: unknown): string | null {
   }
 }
 
-export function classifySetupStatus(status: { setup_required: boolean }): StartupState {
+export function classifySetupStatus(status: {
+  setup_required: boolean;
+}): StartupState {
   return status.setup_required ? "setup-required" : "ready";
 }

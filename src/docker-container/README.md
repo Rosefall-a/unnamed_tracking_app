@@ -78,4 +78,4 @@ Certificate rotation does not require rebuilding the image: replace the mounted 
 
 Production sizing depends on the number of users, scheduled jobs, metadata work, media operations, and PostgreSQL workload. Start with at least 2 CPU cores and 2 GiB RAM for a small deployment and monitor actual CPU, memory, database, and disk usage before tightening limits. PostgreSQL and application workloads should be sized independently when traffic grows.
 
-Runtime smoke testing of PostgreSQL, migrations, frontend/API handoff, and controlled shutdown is tracked separately in #206.
+Run `src/docker-container/smoke/run.sh` against the built image to validate PostgreSQL, migrations, JSON startup responses, frontend/API handoff, authentication and controlled shutdown.

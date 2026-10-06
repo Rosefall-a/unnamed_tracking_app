@@ -513,7 +513,8 @@ export function rankMetadataResults<T extends { title: string }>(
     .map(({ result }) => result);
 }
 
-export type RefreshMetadataResult = "updated" | "preview" | "no-match" | "error";
+export type RefreshMetadataResult =
+  "updated" | "preview" | "no-match" | "error";
 
 export interface RefreshMetadataOutcome {
   status: RefreshMetadataResult;

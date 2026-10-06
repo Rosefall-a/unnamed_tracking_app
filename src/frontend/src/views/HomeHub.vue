@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import PluginExtensionSlot from "../components/plugins/PluginExtensionSlot.vue";
+import { pluginSlots } from "../state/pluginExtensions";
 import { ref, computed, onMounted, onUnmounted, nextTick } from "vue";
 import GameCard from "../components/GameCard.vue";
 import GameFormModal from "../components/GameFormModal.vue";
@@ -10,6 +12,10 @@ import type { Game } from "../types/game";
 import { currentUser } from "../state/auth";
 import { fetchWeeklyDigest } from "../services/stats";
 import type { WeeklyDigest } from "../services/stats";
+
+const hasHomeOverride = computed(() =>
+  pluginSlots.value.some((item) => item.slot === "home.replace"),
+);
 
 const games = ref<Game[]>([]);
 const loading = ref(true);
@@ -344,7 +350,12 @@ function scrollShelf(e: MouseEvent, dir: 1 | -1) {
 </script>
 
 <template>
-  <main class="home">
+  <PluginExtensionSlot
+    v-if="hasHomeOverride"
+    slot-id="home.replace"
+    :context="{ host_page: 'home' }"
+  />
+  <main v-else class="home">
     <AccountChip fixed />
 
     <div
@@ -590,6 +601,11 @@ function scrollShelf(e: MouseEvent, dir: 1 | -1) {
           </div>
         </router-link>
       </section>
+
+      <PluginExtensionSlot
+        slot-id="home.after-widgets"
+        :context="{ host_page: 'home' }"
+      />
 
       <p v-if="loading">Loading…</p>
       <p v-else-if="error" class="error">{{ error }}</p>

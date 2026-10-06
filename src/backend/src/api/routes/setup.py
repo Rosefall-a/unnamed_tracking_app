@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import json
-import secrets
-import time
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
@@ -15,22 +13,24 @@ from src.core.auth import (
     SESSION_TTL_SECONDS,
     get_current_admin,
     hash_password,
-    hash_token,
-    set_password_policy_override,
     session_cookie_name,
+    set_password_policy_override,
     validate_password,
 )
 from src.core.config import settings
+from src.core.config_registry import CONFIG_REGISTRY
 from src.core.crypto import encrypt_secret
 from src.core.env_handler import EnvConfigHandler
 from src.core.provider_credentials import apply_deployment_provider_credentials
-from src.core.config_registry import CONFIG_REGISTRY
+from src.core.session_manager import create_session
 from src.database.models.app_integration_settings import AppIntegrationSettings
-from src.database.models.auth import UserSession
 from src.database.models.game import Game
 from src.database.models.oidc_settings import OidcSettings
 from src.database.models.user import User
 from src.database.session import get_db
+
+_DB_DEFAULT = Depends(get_db)
+_ADMIN_DEFAULT = Depends(get_current_admin)
 
 router = APIRouter(prefix="/api/setup", tags=["setup"])
 
@@ -120,26 +120,28 @@ def _persisted_values(app: AppIntegrationSettings, oidc: OidcSettings) -> dict[s
             provider_slug = str(providers[0].get("slug") or provider_slug)
     except (TypeError, ValueError):
         pass
-    values.update({
-        "PASSWORD_MIN_LENGTH": app.password_min_length,
-        "PASSWORD_REQUIRE_UPPERCASE": app.password_require_uppercase,
-        "PASSWORD_REQUIRE_LOWERCASE": app.password_require_lowercase,
-        "PASSWORD_REQUIRE_DIGIT": app.password_require_digit,
-        "PASSWORD_REQUIRE_SYMBOL": app.password_require_symbol,
-        "OIDC_PROVIDER_NAME": provider_name,
-        "OIDC_PROVIDER_SLUG": provider_slug,
-        "OIDC_ISSUER_URL": oidc.issuer_url,
-        "OIDC_CLIENT_ID": oidc.client_id,
-        "OIDC_CLIENT_SECRET__configured": bool(oidc.client_secret),
-        "OIDC_REDIRECT_URI": oidc.redirect_uri,
-        "OIDC_SCOPES": oidc.scopes,
-        "OIDC_GROUPS_CLAIM": oidc.groups_claim,
-        "OIDC_ADMIN_GROUP": oidc.admin_group,
-        "OIDC_USER_MATCH_FIELD": oidc.user_match_field,
-        "OIDC_ALLOW_NEW_USERS": oidc.allow_new_users,
-        "OIDC_DEFAULT_LOGIN_METHOD": oidc.default_login_method,
-        "OIDC_LOGIN_BUTTON_TEXT": oidc.login_button_text,
-    })
+    values.update(
+        {
+            "PASSWORD_MIN_LENGTH": app.password_min_length,
+            "PASSWORD_REQUIRE_UPPERCASE": app.password_require_uppercase,
+            "PASSWORD_REQUIRE_LOWERCASE": app.password_require_lowercase,
+            "PASSWORD_REQUIRE_DIGIT": app.password_require_digit,
+            "PASSWORD_REQUIRE_SYMBOL": app.password_require_symbol,
+            "OIDC_PROVIDER_NAME": provider_name,
+            "OIDC_PROVIDER_SLUG": provider_slug,
+            "OIDC_ISSUER_URL": oidc.issuer_url,
+            "OIDC_CLIENT_ID": oidc.client_id,
+            "OIDC_CLIENT_SECRET__configured": bool(oidc.client_secret),
+            "OIDC_REDIRECT_URI": oidc.redirect_uri,
+            "OIDC_SCOPES": oidc.scopes,
+            "OIDC_GROUPS_CLAIM": oidc.groups_claim,
+            "OIDC_ADMIN_GROUP": oidc.admin_group,
+            "OIDC_USER_MATCH_FIELD": oidc.user_match_field,
+            "OIDC_ALLOW_NEW_USERS": oidc.allow_new_users,
+            "OIDC_DEFAULT_LOGIN_METHOD": oidc.default_login_method,
+            "OIDC_LOGIN_BUTTON_TEXT": oidc.login_button_text,
+        }
+    )
     return values
 
 
@@ -225,8 +227,7 @@ async def _save_configuration(
         setattr(app, attribute, converted)
 
     oidc_env_complete = all(
-        handler.has(name)
-        for name in ("OIDC_ISSUER_URL", "OIDC_CLIENT_ID", "OIDC_CLIENT_SECRET")
+        handler.has(name) for name in ("OIDC_ISSUER_URL", "OIDC_CLIENT_ID", "OIDC_CLIENT_SECRET")
     )
     oidc_selected = "oidc" in selected_sections
 
@@ -277,7 +278,9 @@ async def _save_configuration(
         if not value
     ]
     if missing:
-        raise HTTPException(400, "OIDC requires an issuer URL, client ID, and client secret when enabled.")
+        raise HTTPException(
+            400, "OIDC requires an issuer URL, client ID, and client secret when enabled."
+        )
 
     # A provider is only enabled after all required credentials have been
     # resolved. This prevents an empty setup OIDC row from being treated as
@@ -292,36 +295,42 @@ async def _save_configuration(
     except (TypeError, ValueError):
         providers = []
     providers = [
-        item for item in providers
+        item
+        for item in providers
         if isinstance(item, dict)
         and item.get("slug") != (values.get("OIDC_PROVIDER_SLUG") or "provider-1")
     ]
-    providers.insert(0, {
-        "name": values.get("OIDC_PROVIDER_NAME") or "Provider 1",
-        "slug": values.get("OIDC_PROVIDER_SLUG") or "provider-1",
-        "issuer_url": oidc.issuer_url,
-        "client_id": oidc.client_id,
-        "client_secret": oidc.client_secret,
-        "scopes": oidc.scopes or "openid profile email",
-        "groups_claim": oidc.groups_claim or "groups",
-        "admin_group": oidc.admin_group,
-        "user_match_field": oidc.user_match_field or "email",
-        "allow_new_users": oidc.allow_new_users,
-        "button_text": oidc.login_button_text or "Continue with SSO",
-        "enabled": True,
-        "show_on_login": True,
-        "autostart_enabled": True,
-    })
+    providers.insert(
+        0,
+        {
+            "name": values.get("OIDC_PROVIDER_NAME") or "Provider 1",
+            "slug": values.get("OIDC_PROVIDER_SLUG") or "provider-1",
+            "issuer_url": oidc.issuer_url,
+            "client_id": oidc.client_id,
+            "client_secret": oidc.client_secret,
+            "scopes": oidc.scopes or "openid profile email",
+            "groups_claim": oidc.groups_claim or "groups",
+            "admin_group": oidc.admin_group,
+            "user_match_field": oidc.user_match_field or "email",
+            "allow_new_users": oidc.allow_new_users,
+            "button_text": oidc.login_button_text or "Continue with SSO",
+            "enabled": True,
+            "show_on_login": True,
+            "autostart_enabled": True,
+        },
+    )
     oidc.providers_json = json.dumps(providers)
 
 
 @router.get("/configuration")
-async def setup_configuration(request: Request, db: AsyncSession = Depends(get_db)) -> dict[str, object]:
+async def setup_configuration(
+    request: Request, db: AsyncSession = _DB_DEFAULT
+) -> dict[str, object]:
     return await _configuration(db, request)
 
 
 @router.get("/status")
-async def setup_status(db: AsyncSession = Depends(get_db)) -> dict[str, bool | str]:
+async def setup_status(db: AsyncSession = _DB_DEFAULT) -> dict[str, bool | str]:
     has_user = await db.scalar(select(User.id).limit(1)) is not None
     handler = EnvConfigHandler()
     return {
@@ -335,12 +344,14 @@ async def setup_status(db: AsyncSession = Depends(get_db)) -> dict[str, bool | s
 async def update_setup_configuration(
     payload: SetupRequest,
     request: Request,
-    db: AsyncSession = Depends(get_db),
-    admin: User = Depends(get_current_admin),
+    db: AsyncSession = _DB_DEFAULT,
+    admin: User = _ADMIN_DEFAULT,
 ) -> dict[str, object]:
     del admin
     selected = set(payload.sections)
-    await _save_configuration(db, payload.configuration, selected, str(request.url_for("oidc_callback")))
+    await _save_configuration(
+        db, payload.configuration, selected, str(request.url_for("oidc_callback"))
+    )
     await db.commit()
     app = await _app_row(db)
     if (
@@ -350,13 +361,15 @@ async def update_setup_configuration(
         and app.password_require_digit is not None
         and app.password_require_symbol is not None
     ):
-        set_password_policy_override({
-            "min_length": app.password_min_length,
-            "require_uppercase": app.password_require_uppercase,
-            "require_lowercase": app.password_require_lowercase,
-            "require_digit": app.password_require_digit,
-            "require_symbol": app.password_require_symbol,
-        })
+        set_password_policy_override(
+            {
+                "min_length": app.password_min_length,
+                "require_uppercase": app.password_require_uppercase,
+                "require_lowercase": app.password_require_lowercase,
+                "require_digit": app.password_require_digit,
+                "require_symbol": app.password_require_symbol,
+            }
+        )
     apply_deployment_provider_credentials(app)
     return await _configuration(db, request)
 
@@ -366,12 +379,14 @@ async def setup_admin(
     payload: SetupRequest,
     request: Request,
     response: Response,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = _DB_DEFAULT,
 ) -> dict[str, str | bool]:
     await db.execute(text("SELECT pg_advisory_xact_lock(hashtext('unnamed_tracking_app_setup'))"))
 
     if await db.scalar(select(User.id).limit(1)) is not None:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Setup is already complete.")
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="Setup is already complete."
+        )
 
     handler = EnvConfigHandler()
     values = dict(payload.configuration)
@@ -379,8 +394,12 @@ async def setup_admin(
     # The browser only submits editable fields. Deployment values therefore
     # come directly from EnvConfigHandler and cannot be replaced by the UI.
     admin_values = handler.bootstrap_primary_user()
-    username = (payload.username or values.get("PRIMARY_USER_USERNAME") or admin_values["username"]).strip()
-    email = (payload.email or values.get("PRIMARY_USER_EMAIL") or admin_values["email"]).strip().lower()
+    username = (
+        payload.username or values.get("PRIMARY_USER_USERNAME") or admin_values["username"]
+    ).strip()
+    email = (
+        (payload.email or values.get("PRIMARY_USER_EMAIL") or admin_values["email"]).strip().lower()
+    )
     password = payload.password or values.get("PRIMARY_USER_PASSWORD") or admin_values["password"]
 
     if not username or not email or not password:
@@ -390,8 +409,7 @@ async def setup_admin(
     # and will enable OIDC after complete provider credentials are saved.
     selected = set(payload.sections)
     oidc_env_complete = all(
-        handler.has(name)
-        for name in ("OIDC_ISSUER_URL", "OIDC_CLIENT_ID", "OIDC_CLIENT_SECRET")
+        handler.has(name) for name in ("OIDC_ISSUER_URL", "OIDC_CLIENT_ID", "OIDC_CLIENT_SECRET")
     )
     if oidc_env_complete:
         selected.add("oidc")
@@ -412,19 +430,15 @@ async def setup_admin(
         await db.flush()
         await db.execute(update(Game).where(Game.user_id.is_(None)).values(user_id=user.id))
 
-        session_token = secrets.token_urlsafe(32)
-        db.add(
-            UserSession(
-                user_id=user.id,
-                token_hash=hash_token(session_token),
-                expires_at=int(time.time()) + SESSION_TTL_SECONDS,
-            )
-        )
+        session_context = await create_session(db, user, request)
+        session_token = session_context.token
         await db.commit()
         await db.refresh(user)
     except IntegrityError as exc:
         await db.rollback()
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Username or email already exists.") from exc
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="Username or email already exists."
+        ) from exc
 
     response.set_cookie(
         key=session_cookie_name(request.headers.get("host", "")),

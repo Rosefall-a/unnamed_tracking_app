@@ -26,7 +26,9 @@ const error = ref<string | null>(null);
 const saved = ref(false);
 const providers = reactive<Record<string, string>>({});
 const configured = reactive<Record<string, boolean>>({});
-const deploymentSettings = ref<Awaited<ReturnType<typeof fetchDeploymentSettings>> | null>(null);
+const deploymentSettings = ref<Awaited<
+  ReturnType<typeof fetchDeploymentSettings>
+> | null>(null);
 const realIpHeader = ref("");
 const realIpTrustedProxies = ref("");
 
@@ -122,9 +124,23 @@ async function save() {
       </div>
       <section class="proxy-section">
         <h3>Client IP / reverse proxy</h3>
-        <p class="hint">Nginx trusts only loopback by default. Add Cloudflare, local/private, CGNAT/VPS, or custom ranges when they are actually proxy networks for this deployment. Environment values take precedence and are locked.</p>
-        <label><span>Real client IP header</span><input v-model="realIpHeader" :disabled="deploymentSettings?.real_ip.locked.header ?? false" /></label>
-        <TrustedProxyControls v-model="realIpTrustedProxies" :disabled="deploymentSettings?.real_ip.locked.trusted_proxies ?? false" />
+        <p class="hint">
+          Nginx trusts only loopback by default. Add Cloudflare, local/private,
+          CGNAT/VPS, or custom ranges when they are actually proxy networks for
+          this deployment. Environment values take precedence and are locked.
+        </p>
+        <label
+          ><span>Real client IP header</span
+          ><input
+            v-model="realIpHeader"
+            :disabled="deploymentSettings?.real_ip.locked.header ?? false"
+        /></label>
+        <TrustedProxyControls
+          v-model="realIpTrustedProxies"
+          :disabled="
+            deploymentSettings?.real_ip.locked.trusted_proxies ?? false
+          "
+        />
       </section>
       <p class="hint">
         OpenID Connect / SSO has its own tab so authentication settings can be
@@ -178,10 +194,32 @@ h2 {
   margin: 0;
   color: #fff;
 }
-.proxy-section{display:flex;flex-direction:column;gap:12px;border-top:1px solid #333;padding-top:18px}
-.proxy-section h3{margin:0;color:#fff}
-.proxy-section label{display:flex;flex-direction:column;gap:6px;color:#ccc;font-size:13px}
-.proxy-section label input{background:#111;border:1px solid #3a3a3a;border-radius:8px;color:#fff;padding:10px;font:inherit}
+.proxy-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border-top: 1px solid #333;
+  padding-top: 18px;
+}
+.proxy-section h3 {
+  margin: 0;
+  color: #fff;
+}
+.proxy-section label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: #ccc;
+  font-size: 13px;
+}
+.proxy-section label input {
+  background: #111;
+  border: 1px solid #3a3a3a;
+  border-radius: 8px;
+  color: #fff;
+  padding: 10px;
+  font: inherit;
+}
 button {
   align-self: flex-start;
   background: #d68a34;

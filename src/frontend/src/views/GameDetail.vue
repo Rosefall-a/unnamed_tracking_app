@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import PluginExtensionSlot from "../components/plugins/PluginExtensionSlot.vue";
+import PluginContextualActions from "../components/plugins/PluginContextualActions.vue";
 import { usePageTitle } from "../state/pageTitle";
 import { formatDisplayDate } from "../utils/dates";
 import { activePriority, priorityLabel } from "../utils/priority";
@@ -2559,6 +2561,13 @@ void loadGame(route.params.id as string);
   </main>
 
   <main v-else-if="game" class="detail">
+    <PluginExtensionSlot
+      slot-id="game.overview.after-header"
+      :context="{ host_page: 'game.overview', game_id: game.id }"
+    />
+    <PluginContextualActions
+      :context="{ kind: 'game', resource_id: game.id }"
+    />
     <GameTopBar active="games" />
 
     <BackButton class="back-spot" @click="goBackToLibrary" />
@@ -4135,8 +4144,16 @@ void loadGame(route.params.id as string);
     </section>
 
     <section v-else-if="activeTab === 'Docs'" class="files-panel">
+      <PluginExtensionSlot
+        slot-id="game.documents.after-header"
+        :context="{ host_page: 'game.documents', game_id: game.id }"
+      />
+      <PluginContextualActions
+        :context="{ kind: 'game', resource_id: game.id }"
+      />
       <GameMediaPanel
         kind="doc"
+        :game-id="game.id"
         :items="docsFiles"
         :trash="docsTrash"
         :loading="filesLoaded.doc === null"

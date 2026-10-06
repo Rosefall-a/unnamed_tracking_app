@@ -365,7 +365,8 @@ async function onFileSelected(e: Event) {
         </template>
       </p>
       <div v-if="source === 'yamtrack'" class="form-warning">
-        Anime from Yamtrack is currently not imported. Movies and TV shows will still be imported.
+        Anime from Yamtrack is currently not imported. Movies and TV shows will
+        still be imported.
       </div>
       <div v-if="malError" class="form-error">{{ malError }}</div>
       <div v-if="yamtrackError" class="form-error">{{ yamtrackError }}</div>

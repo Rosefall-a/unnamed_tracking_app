@@ -3,7 +3,11 @@ import { ref, computed, watch, onMounted } from "vue";
 import PasswordInput from "../PasswordInput.vue";
 import { currentUser, checkAuth } from "../../state/auth";
 import PasswordRequirements from "./PasswordRequirements.vue";
-import { fetchPasswordPolicy, passwordValidationErrors, type PasswordPolicy } from "../../services/passwordPolicy";
+import {
+  fetchPasswordPolicy,
+  passwordValidationErrors,
+  type PasswordPolicy,
+} from "../../services/passwordPolicy";
 import {
   updateProfile,
   uploadProfilePicture,
@@ -52,8 +56,12 @@ watch([username, email], () => {
 });
 
 onMounted(async () => {
-  try { passwordPolicy.value = await fetchPasswordPolicy(); }
-  catch (err) { saveError.value = err instanceof Error ? err.message : "Failed to load password policy"; }
+  try {
+    passwordPolicy.value = await fetchPasswordPolicy();
+  } catch (err) {
+    saveError.value =
+      err instanceof Error ? err.message : "Failed to load password policy";
+  }
 });
 
 const uploading = ref(false);
@@ -177,7 +185,11 @@ async function onAvatarFileChange(e: Event) {
 
       <label class="field">
         <span>New password (optional)</span>
-        <PasswordInput v-model="newPassword" mode="new" autocomplete="new-password" />
+        <PasswordInput
+          v-model="newPassword"
+          mode="new"
+          autocomplete="new-password"
+        />
       </label>
 
       <PasswordRequirements
@@ -188,7 +200,12 @@ async function onAvatarFileChange(e: Event) {
 
       <label v-if="newPassword" class="field">
         <span>Confirm new password</span>
-        <PasswordInput v-model="confirmPassword" mode="new" autocomplete="new-password" :required="true" />
+        <PasswordInput
+          v-model="confirmPassword"
+          mode="new"
+          autocomplete="new-password"
+          :required="true"
+        />
       </label>
 
       <label v-if="newPassword" class="field">
