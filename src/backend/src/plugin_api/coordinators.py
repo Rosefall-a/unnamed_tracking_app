@@ -42,6 +42,9 @@ class NotificationResult(CoordinatorModel):
 class NotificationProvider(Protocol):
     """Plugin implementation of the core notification-provider seam."""
 
+    # Each provider protocol deliberately exposes one extension operation.
+    # pylint: disable=too-few-public-methods
+
     api_version: str
 
     async def send(self, request: NotificationRequest) -> NotificationResult:
@@ -67,6 +70,9 @@ class MetadataCandidate(CoordinatorModel):
 
 class MetadataProvider(Protocol):
     """Plugin implementation of the core metadata-provider seam."""
+
+    # Each provider protocol deliberately exposes one extension operation.
+    # pylint: disable=too-few-public-methods
 
     api_version: str
 

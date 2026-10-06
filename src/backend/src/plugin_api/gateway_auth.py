@@ -140,6 +140,9 @@ class InMemoryCredentialStore:
 class GatewayAuthenticator:
     """Authenticate the core application to one explicitly identified gateway."""
 
+    # Identity, credential storage, key material, and lifetime policies remain explicit.
+    # pylint: disable=too-many-instance-attributes
+
     def __init__(
         self,
         application: ApplicationIdentity,

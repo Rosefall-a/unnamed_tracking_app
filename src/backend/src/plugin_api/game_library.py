@@ -7,8 +7,9 @@ from urllib.parse import quote
 from uuid import UUID
 
 from fastapi.encoders import jsonable_encoder
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql.functions import count
 
 from src.database.models.achievement import Achievement
 from src.database.models.game import Game
@@ -94,8 +95,8 @@ async def dispatch_game_library(
                     await db.execute(
                         select(
                             Achievement.game_id,
-                            func.count(),
-                            func.count().filter(Achievement.unlocked.is_(True)),
+                            count(),
+                            count().filter(Achievement.unlocked.is_(True)),
                         )
                         .where(Achievement.game_id.in_(ids))
                         .group_by(Achievement.game_id)

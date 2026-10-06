@@ -25,6 +25,7 @@ from .contracts import (
     PluginManifest,
     PluginUiDeclaration,
     StorageRequirements,
+    evaluate_manifest_compatibility,
     plugin_contract_compatibility_reason,
     resolve_plugin_dependencies,
 )
@@ -95,11 +96,17 @@ class RuntimeController(Protocol):
 class PackageInstaller(Protocol):
     """Installation boundary; package extraction never executes plugin code."""
 
+    # This protocol describes one independently replaceable lifecycle operation.
+    # pylint: disable=too-few-public-methods
+
     async def install(self, package_path: Path, manifest: PluginManifest) -> Path: ...
 
 
 class PluginStorageCleanup(Protocol):
     """Authoritative owner of a plugin installation namespace."""
+
+    # This protocol describes one independently replaceable lifecycle operation.
+    # pylint: disable=too-few-public-methods
 
     def uninstall(self, plugin_id: str) -> None | Awaitable[None]: ...
 
@@ -107,17 +114,26 @@ class PluginStorageCleanup(Protocol):
 class PackageVerifier(Protocol):
     """Integrity boundary for plugin artifacts."""
 
+    # This protocol describes one independently replaceable lifecycle operation.
+    # pylint: disable=too-few-public-methods
+
     def verify(self, package_path: Path, expected_sha256: str) -> bool: ...
 
 
 class PackageRemover(Protocol):
     """Removal boundary for installed plugin artifacts."""
 
+    # This protocol describes one independently replaceable lifecycle operation.
+    # pylint: disable=too-few-public-methods
+
     async def remove(self, package_path: Path) -> None: ...
 
 
 class StorageRemover(Protocol):
     """Removal boundary for plugin-owned persistent storage."""
+
+    # This protocol describes one independently replaceable lifecycle operation.
+    # pylint: disable=too-few-public-methods
 
     async def remove(self, plugin_id: str) -> None: ...
 
@@ -138,6 +154,8 @@ class Sha256PackageVerifier:
         """Inspect a signed v1 archive using the host publisher-trust policy."""
         publishers = self.publishers
         if publishers is None:
+            # Trust loading depends on updates; defer it until the verifier is initialized.
+            # pylint: disable-next=import-outside-toplevel
             from .publisher_trust import load_trusted_publishers
 
             publishers = load_trusted_publishers()
@@ -172,6 +190,9 @@ class Sha256PackageVerifier:
 class NoopPackageInstaller:
     """Development/test installer for already-isolated package directories."""
 
+    # The installer adapter implements only the installation protocol.
+    # pylint: disable=too-few-public-methods
+
     async def install(self, package_path: Path, manifest: PluginManifest) -> Path:
         del manifest
         return package_path
@@ -203,6 +224,9 @@ class PluginHealth:
 class PluginRecord:
     """Mutable manager state; never exposed directly to plugins."""
 
+    # The record keeps the complete persisted lifecycle state for one installation.
+    # pylint: disable=too-many-instance-attributes
+
     manifest: PluginManifest
     package_path: Path
     state: LifecycleState = LifecycleState.DISCOVERED
@@ -217,6 +241,9 @@ class PluginRecord:
 
 class PluginLifecycleManager:
     """Coordinate safe plugin lifecycle without making core startup fragile."""
+
+    # The coordinator owns its injected lifecycle services and shared operation state.
+    # pylint: disable=too-many-instance-attributes
 
     def __init__(
         self,
@@ -253,7 +280,7 @@ class PluginLifecycleManager:
         return datetime.now(timezone.utc)
 
     def _log(
-        self, level: str, event: str, plugin_id: str | None, message: str, failure_count: int = 0
+        self, level: str, event: str, plugin_id: str | None, message: str, *, failure_count: int = 0
     ) -> None:
         self._logs.append(
             LifecycleLog(self._now(), level, event, plugin_id, message, failure_count)
@@ -286,24 +313,7 @@ class PluginLifecycleManager:
         if not isinstance(self.verifier, Sha256PackageVerifier):
             raise RuntimeError("package discovery requires the production package verifier")
         verified = self.verifier.inspect(package_path)
-        from .contracts import evaluate_manifest_compatibility
-
-        decision = evaluate_manifest_compatibility(
-            verified.manifest, self.sdk_version, self.application_version
-        )
-        if decision.status == CompatibilityStatus.INVALID:
-            raise ValueError(decision.reason)
-        state = (
-            LifecycleState.INCOMPATIBLE
-            if decision.status == CompatibilityStatus.INCOMPATIBLE
-            else LifecycleState.DISCOVERED
-        )
-        record = PluginRecord(
-            manifest=verified.manifest,
-            package_path=package_path,
-            state=state,
-            last_error=decision.reason if state == LifecycleState.INCOMPATIBLE else None,
-        )
+        record = self._manifest_record(verified.manifest, package_path)
         self._records[record.manifest.plugin_id] = record
         self._log(
             "info", "package_discovered", record.manifest.plugin_id, "verified package discovered"
@@ -312,8 +322,9 @@ class PluginLifecycleManager:
 
     def _validate_manifest(self, data: dict, package_path: Path) -> PluginRecord:
         manifest = PluginManifest.model_validate(data)
-        from .contracts import evaluate_manifest_compatibility
+        return self._manifest_record(manifest, package_path)
 
+    def _manifest_record(self, manifest: PluginManifest, package_path: Path) -> PluginRecord:
         decision = evaluate_manifest_compatibility(
             manifest, self.sdk_version, self.application_version
         )
@@ -382,6 +393,8 @@ class PluginLifecycleManager:
             return record
         try:
             record.package_path = await self.installer.install(record.package_path, record.manifest)
+        # Adapter/runtime failures must be recorded without escaping lifecycle containment.
+        # pylint: disable-next=broad-exception-caught
         except Exception as exc:
             self._record_failure(record, "install_failed", f"plugin installation failed: {exc}")
             if record.state != LifecycleState.QUARANTINED:
@@ -415,6 +428,8 @@ class PluginLifecycleManager:
                 result = cleanup(plugin_id)
                 if result is not None:
                     await result
+            # Adapter/runtime failures must be recorded without escaping lifecycle containment.
+            # pylint: disable-next=broad-exception-caught
             except Exception as exc:
                 self._log(
                     "error",
@@ -509,10 +524,14 @@ class PluginLifecycleManager:
             record.started_at = self._now()
             record.last_error = None
             self._log("info", "started", plugin_id, "plugin is running")
+        # Adapter/runtime failures must be recorded without escaping lifecycle containment.
+        # pylint: disable-next=broad-exception-caught
         except Exception as exc:
             self._record_failure(record, "start_failed", f"plugin failed to start: {exc}")
             try:
                 await self.runtime.stop(plugin_id)
+            # Adapter/runtime failures must be recorded without escaping lifecycle containment.
+            # pylint: disable-next=broad-exception-caught
             except Exception as cleanup_error:
                 self._log("error", "start_cleanup_failed", plugin_id, str(cleanup_error))
         return record
@@ -528,6 +547,8 @@ class PluginLifecycleManager:
         record.state = LifecycleState.STOPPING
         try:
             await self.runtime.stop(plugin_id)
+        # Adapter/runtime failures must be recorded without escaping lifecycle containment.
+        # pylint: disable-next=broad-exception-caught
         except Exception as exc:
             self._record_failure(record, "stop_failed", f"plugin failed to stop: {exc}")
             if quarantined:
@@ -574,6 +595,8 @@ class PluginLifecycleManager:
         for plugin_id in order:
             try:
                 await self.start(plugin_id)
+            # Adapter/runtime failures must be recorded without escaping lifecycle containment.
+            # pylint: disable-next=broad-exception-caught
             except Exception as exc:
                 self._record_failure(self._records[plugin_id], "startup_contained", str(exc))
         return self.records()
@@ -590,6 +613,8 @@ class PluginLifecycleManager:
             return self.health(plugin_id)
         try:
             healthy = await self.runtime.health(plugin_id)
+        # Adapter/runtime failures must be recorded without escaping lifecycle containment.
+        # pylint: disable-next=broad-exception-caught
         except Exception as exc:
             healthy = False
             record.last_error = f"health check failed: {exc}"
@@ -606,6 +631,8 @@ class PluginLifecycleManager:
                 record.state = LifecycleState.STOPPING
                 try:
                     await self.runtime.stop(plugin_id)
+                # Adapter/runtime failures must be recorded without escaping lifecycle containment.
+                # pylint: disable-next=broad-exception-caught
                 except Exception as exc:
                     record.state = LifecycleState.QUARANTINED
                     record.last_error = f"plugin quarantine stop failed: {exc}"
@@ -614,7 +641,7 @@ class PluginLifecycleManager:
                         "quarantine_stop_failed",
                         plugin_id,
                         record.last_error,
-                        record.consecutive_failures,
+                        failure_count=record.consecutive_failures,
                     )
                 else:
                     record.state = LifecycleState.QUARANTINED
@@ -623,17 +650,24 @@ class PluginLifecycleManager:
                         "quarantined",
                         plugin_id,
                         "plugin quarantined and stopped after repeated failures",
-                        record.consecutive_failures,
+                        failure_count=record.consecutive_failures,
                     )
             else:
                 record.state = LifecycleState.UNHEALTHY
                 self._log(
-                    "error", "unhealthy", plugin_id, record.last_error, record.consecutive_failures
+                    "error",
+                    "unhealthy",
+                    plugin_id,
+                    record.last_error,
+                    failure_count=record.consecutive_failures,
                 )
         return self.health(plugin_id)
 
     async def health_check_all(self) -> tuple[PluginHealth, ...]:
-        return tuple([await self.health_check(plugin_id) for plugin_id in sorted(self._records)])
+        checks = []
+        for plugin_id in sorted(self._records):
+            checks.append(await self.health_check(plugin_id))
+        return tuple(checks)
 
     async def recover(self, plugin_id: str) -> PluginRecord:
         """Clear quarantine after administrator review without changing grants."""
@@ -666,7 +700,7 @@ class PluginLifecycleManager:
                 "quarantined",
                 record.manifest.plugin_id,
                 "plugin quarantined after repeated failures",
-                record.consecutive_failures,
+                failure_count=record.consecutive_failures,
             )
         else:
             if event == "unhealthy":
@@ -676,7 +710,11 @@ class PluginLifecycleManager:
             elif event == "stop_failed":
                 record.state = LifecycleState.FAILED_STOP
             self._log(
-                "error", event, record.manifest.plugin_id, message, record.consecutive_failures
+                "error",
+                event,
+                record.manifest.plugin_id,
+                message,
+                failure_count=record.consecutive_failures,
             )
 
     def _get(self, plugin_id: str) -> PluginRecord:

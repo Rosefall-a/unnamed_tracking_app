@@ -37,6 +37,9 @@ class ValidationGatewayError(RuntimeError):
 class ValidationGateway:
     """In-memory gateway harness exposing only Plugin API v1 contracts."""
 
+    # The harness stores independent public contract resources and grants.
+    # pylint: disable=too-many-instance-attributes
+
     grants: tuple[PermissionGrant, ...]
     notifications: dict[str, NotificationProvider] = field(default_factory=dict)
     metadata: dict[str, MetadataProvider] = field(default_factory=dict)
@@ -50,7 +53,7 @@ class ValidationGateway:
         default_factory=lambda: defaultdict(list), init=False, repr=False
     )
 
-    def _authorize(self, context: RequestContext, capability: Capability) -> None:
+    def authorize(self, context: RequestContext, capability: Capability) -> None:
         requested = context.requested_capability
         if requested.name is not capability:
             raise ValidationGatewayError(
@@ -63,7 +66,7 @@ class ValidationGateway:
     async def send_notification(
         self, context: RequestContext, request: NotificationRequest
     ) -> NotificationResult:
-        self._authorize(context, Capability.NOTIFICATIONS_SEND)
+        self.authorize(context, Capability.NOTIFICATIONS_SEND)
         provider = self.notifications.get(context.plugin.plugin_id)
         if provider is None:
             raise ValidationGatewayError("notification provider is not registered")
@@ -72,14 +75,14 @@ class ValidationGateway:
     async def search_metadata(
         self, context: RequestContext, request: MetadataProviderRequest
     ) -> list[MetadataCandidate]:
-        self._authorize(context, Capability.GAMES_READ)
+        self.authorize(context, Capability.GAMES_READ)
         provider = self.metadata.get(context.plugin.plugin_id)
         if provider is None:
             raise ValidationGatewayError("metadata provider is not registered")
         return await provider.search(request)
 
     def subscribe(self, context: RequestContext, subscription: EventSubscription) -> None:
-        self._authorize(context, Capability.EVENTS_SUBSCRIBE)
+        self.authorize(context, Capability.EVENTS_SUBSCRIBE)
         self.subscriptions[context.plugin.plugin_id] = subscription
         self._event_rate[context.plugin.plugin_id] = []
 
@@ -100,7 +103,7 @@ class ValidationGateway:
             self.events[plugin_id].append(event)
 
     def storage_put(self, context: RequestContext, key: str, value: bytes) -> None:
-        self._authorize(context, Capability.PLUGIN_STORAGE)
+        self.authorize(context, Capability.PLUGIN_STORAGE)
         self.storage[context.plugin.plugin_id][key] = bytes(value)
 
     def revoke(self, context: RequestContext) -> None:
@@ -120,15 +123,15 @@ class ValidationGateway:
         )
 
     def settings_put(self, context: RequestContext, key: str, value: str) -> None:
-        self._authorize(context, Capability.PLUGIN_SETTINGS)
+        self.authorize(context, Capability.PLUGIN_SETTINGS)
         self.settings[context.plugin.plugin_id][key] = value
 
     def settings_get(self, context: RequestContext, key: str) -> str | None:
-        self._authorize(context, Capability.PLUGIN_SETTINGS)
+        self.authorize(context, Capability.PLUGIN_SETTINGS)
         return self.settings[context.plugin.plugin_id].get(key)
 
     def storage_get(self, context: RequestContext, key: str) -> bytes | None:
-        self._authorize(context, Capability.PLUGIN_STORAGE)
+        self.authorize(context, Capability.PLUGIN_STORAGE)
         return self.storage[context.plugin.plugin_id].get(key)
 
 
@@ -229,7 +232,7 @@ class PlayniteValidationPlugin:
 
     async def sync_game(self, user_id: UUID, game: GameRepresentation) -> GameRepresentation:
         context = self.context(Capability.GAMES_WRITE, user_id)
-        self.gateway._authorize(context, Capability.GAMES_WRITE)
+        self.gateway.authorize(context, Capability.GAMES_WRITE)
         return game
 
 

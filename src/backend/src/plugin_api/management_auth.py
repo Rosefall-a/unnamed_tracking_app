@@ -31,6 +31,10 @@ def management_scope(method: str, path: str) -> str | None:
         return "plugins.read" if method == "GET" else "plugins.permissions"
     if not path.startswith("/api/plugins"):
         return None
+    return _plugin_management_scope(method, parts)
+
+
+def _plugin_management_scope(method: str, parts: list[str]) -> str | None:
     if method == "GET" and (
         not parts
         or parts[0] in {"catalog", "catalogues", "manager-settings", "runtime"}
@@ -40,15 +44,17 @@ def management_scope(method: str, path: str) -> str | None:
         return "plugins.read"
     if parts and parts[0] == "install":
         return "plugins.install"
-    if parts and parts[0] in {"updates", "manager-settings", "catalogues"}:
-        return "plugins.update"
-    if len(parts) >= 2 and parts[1] in {
-        "update",
-        "rollback",
-        "history",
-        "reinstall",
-        "auto-update",
-    }:
+    if (parts and parts[0] in {"updates", "manager-settings", "catalogues"}) or (
+        len(parts) >= 2
+        and parts[1]
+        in {
+            "update",
+            "rollback",
+            "history",
+            "reinstall",
+            "auto-update",
+        }
+    ):
         return "plugins.update"
     if len(parts) >= 2 and parts[1] == "permissions":
         return "plugins.permissions"

@@ -14,6 +14,8 @@ _host_routes: tuple[tuple[str, frozenset[str]], ...] = ()
 
 def reserve_host_routes(routes: Iterable[tuple[str, frozenset[str]]]) -> None:
     """Record the real host router's paths for installation conflict validation."""
+    # Startup records the authoritative host router once for conflict checks.
+    # pylint: disable-next=global-statement
     global _host_routes
     _host_routes = tuple(sorted(routes, key=lambda item: item[0]))
 

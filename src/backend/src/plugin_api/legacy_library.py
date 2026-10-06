@@ -15,7 +15,7 @@ from uuid import UUID
 
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy import MetaData, Table, inspect, select
-from sqlalchemy.engine import Connection
+from sqlalchemy.engine import Connection, RowMapping
 from sqlalchemy.ext.asyncio import AsyncSession
 
 LEGACY_TABLES = frozenset(
@@ -39,15 +39,9 @@ def _reflect(connection: Connection, name: str) -> Table | None:
     return Table(name, MetaData(), autoload_with=connection, resolve_fks=False)
 
 
-async def export_legacy_records(
-    db: AsyncSession, *, user_id: UUID, payload: dict[str, Any]
-) -> dict[str, Any]:
-    """Export one deterministic page; never update or delete legacy records."""
-    name = str(payload.get("table", ""))
-    if name not in LEGACY_TABLES:
-        raise ValueError("unsupported legacy library table")
-    offset = max(0, int(payload.get("offset", 0)))
-    limit = max(1, min(int(payload.get("limit", 25)), 50))
+async def _legacy_rows(
+    db: AsyncSession, user_id: UUID, name: str, offset: int, limit: int
+) -> list[RowMapping]:
     connection = await db.connection()
     source = await connection.run_sync(_reflect, name)
     rows = []
@@ -63,6 +57,39 @@ async def export_legacy_records(
             select(source).where(owned).order_by(source.c.id).offset(offset).limit(limit + 1)
         )
         rows = list((await db.execute(statement)).mappings().all())
+    return rows
+
+
+def _legacy_record_chunk(
+    encoded: bytes, record_id: object, payload: dict[str, Any]
+) -> dict[str, Any]:
+    chunk_offset = int(payload.get("chunk_offset", 0))
+    if chunk_offset < 0 or chunk_offset >= len(encoded):
+        raise ValueError("invalid legacy record chunk offset")
+    digest = hashlib.sha256(encoded).hexdigest()
+    if payload.get("sha256") not in (None, digest):
+        raise ValueError("legacy record changed during import; restart this record")
+    end = min(len(encoded), chunk_offset + CHUNK_BYTES)
+    return {
+        "record_id": str(record_id),
+        "sha256": digest,
+        "offset": chunk_offset,
+        "next_offset": end if end < len(encoded) else None,
+        "total_bytes": len(encoded),
+        "base64": base64.b64encode(encoded[chunk_offset:end]).decode("ascii"),
+    }
+
+
+async def export_legacy_records(
+    db: AsyncSession, *, user_id: UUID, payload: dict[str, Any]
+) -> dict[str, Any]:
+    """Export one deterministic page; never update or delete legacy records."""
+    name = str(payload.get("table", ""))
+    if name not in LEGACY_TABLES:
+        raise ValueError("unsupported legacy library table")
+    offset = max(0, int(payload.get("offset", 0)))
+    limit = max(1, min(int(payload.get("limit", 25)), 50))
+    rows = await _legacy_rows(db, user_id, name, offset, limit)
     records: list[dict[str, Any]] = []
     page_bytes = 0
     for row in rows[:limit]:
@@ -72,27 +99,15 @@ async def export_legacy_records(
         if size > MAX_PAGE_BYTES:
             if records:
                 break
-            chunk_offset = int(payload.get("chunk_offset", 0))
-            if chunk_offset < 0 or chunk_offset >= size:
-                raise ValueError("invalid legacy record chunk offset")
-            digest = hashlib.sha256(encoded).hexdigest()
-            if payload.get("sha256") not in (None, digest):
-                raise ValueError("legacy record changed during import; restart this record")
-            end = min(size, chunk_offset + CHUNK_BYTES)
+            chunk = _legacy_record_chunk(encoded, record["id"], payload)
+            complete = chunk["next_offset"] is None
             return {
                 "format_version": 1,
                 "table": name,
                 "records": [],
-                "chunk": {
-                    "record_id": str(record["id"]),
-                    "sha256": digest,
-                    "offset": chunk_offset,
-                    "next_offset": end if end < size else None,
-                    "total_bytes": size,
-                    "base64": base64.b64encode(encoded[chunk_offset:end]).decode("ascii"),
-                },
-                "next_offset": offset + (end == size),
-                "complete": end == size and len(rows) == 1,
+                "chunk": chunk,
+                "next_offset": offset + complete,
+                "complete": complete and len(rows) == 1,
             }
         if page_bytes + size > MAX_PAGE_BYTES:
             break

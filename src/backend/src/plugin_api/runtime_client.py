@@ -32,6 +32,9 @@ class PluginRuntimeRequestError(RuntimeError):
 class PluginRuntimeClient:
     """Authenticated client for the isolated plugin runtime and broker."""
 
+    # Public methods mirror the distinct operations of the versioned runtime contract.
+    # pylint: disable=too-many-public-methods
+
     def __init__(self, base_url: str | None = None, token: str | None = None) -> None:
         resolved_url = base_url or os.getenv("PLUGIN_RUNTIME_URL") or "http://plugin-runtime:8000"
         resolved_token = token or os.getenv("PLUGIN_RUNTIME_TOKEN") or ""
