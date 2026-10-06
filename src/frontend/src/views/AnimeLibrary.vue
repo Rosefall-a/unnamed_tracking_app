@@ -487,9 +487,28 @@ function detailRoute(id: string): string {
   justify-content: flex-end;
   gap: 8px;
 }
-.import-actions button {
-  padding: 8px 14px;
-  border-radius: 7px;
+.import-actions .btn-outline,
+.import-actions .btn-solid {
+  height: 36px;
+  padding: 0 16px;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
   cursor: pointer;
+}
+.import-actions .btn-outline {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+}
+.import-actions .btn-solid {
+  background: var(--accent);
+  border: none;
+  color: #14100a;
+}
+.import-actions .btn-solid:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 </style>
