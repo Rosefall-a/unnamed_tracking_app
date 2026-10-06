@@ -1,6 +1,6 @@
 # UI redevelopment: audit and design checkpoint
 
-Status: **implemented; final CI verification in progress**. The interface uses Pocket's floating sidebar and touch-first mobile surfaces with Archive's desktop Home and overall structure. Page titles, spacing and controls use shared rules. The three original concepts remain available for future style/layout alternatives.
+Status: **implemented; main integration prepared for review**. Current validation and remaining checks are in [final integration](final-main-ui-integration.md) and [the merge checklist](ui-merge-checklist.md). The interface uses Pocket's floating sidebar and touch-first mobile surfaces with Archive's desktop Home and overall structure. Page titles, spacing and controls use shared rules. The three original concepts remain available for future style/layout alternatives.
 
 This page retains chronological checkpoints. Counts and work-in-progress notes in earlier sections describe those stages; use the latest integration summary below and the paired Draft PR updates for current validation.
 
@@ -106,7 +106,7 @@ At the initial audit, the two official previews remained unreleased pending thei
 
 Use the [interactive concept gallery](../assets/ui-redevelopment/concepts.html). These share feature scope but differ in layout and interaction.
 
-For reference before this Draft PR is merged, [download the portable gallery ZIP](https://raw.githubusercontent.com/Rosefall-a/unnamed_tracking_app/feat/ui-ux-redevelopment/wiki/docs/assets/ui-redevelopment/concept-reference.zip). Extract it and open `concepts.html`; no server or account is needed. The [local archive](../assets/ui-redevelopment/concept-reference.zip) and [instructions](../assets/ui-redevelopment/concept-reference.md) remain versioned with both original sources. The gallery can also be served by the wiki after merge.
+For reference before this PR is merged, [download the portable gallery ZIP](https://raw.githubusercontent.com/Rosefall-a/unnamed_tracking_app/feat/ui-ux-redevelopment/wiki/docs/assets/ui-redevelopment/concept-reference.zip). Extract it and open `concepts.html`; no server or account is needed. The [local archive](../assets/ui-redevelopment/concept-reference.zip) and [instructions](../assets/ui-redevelopment/concept-reference.md) remain versioned with both original sources. The gallery can also be served by the wiki after merge.
 
 | Direction | Desktop | Mobile | Tradeoff |
 | --- | --- | --- | --- |

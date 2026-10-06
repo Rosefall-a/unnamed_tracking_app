@@ -65,6 +65,7 @@ nav:
       - UI Redevelopment Checkpoint: development/ui-redevelopment.md
       - UI PR Integration Review: development/ui-pr-integration-review.md
       - Final Main UI Integration: development/final-main-ui-integration.md
+      - Remaining UI Merge Checks: development/ui-merge-checklist.md
       - API: development/api.md
       - API Examples: development/api-examples.md
       - Plugin API v1: development/plugin-api-v1.md

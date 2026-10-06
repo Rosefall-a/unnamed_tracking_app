@@ -1,65 +1,103 @@
-# Final feature-main integration review
+# Final main integration and merge readiness
 
-The UI branch includes final feature-main `58070fbb` through Plugin Manager
-`74823d4`, with native interface integration `31491feb`. Later main bug fixes
-are deferred at the user's request. Both published migration histories upgrade
-to the generated, schema-neutral head `b57b38daf5b5`.
+Main `6244677ae8612e96f6e07be70dd8ed5d491b1257` (#423) is included in
+Plugin Manager `9a3964dbc018522a312bec65445b071a111815ae`, which is included in
+native UI merge `b76811db6d7859b014a90043c7e4293a123718d2`.
+Presentation follow-up `e01f28c3` aligns collection labels and shows artwork
+search feedback in the active dialog.
 
-## Preserved behavior
+Both required merge trees are clean. Merge host [#305](https://github.com/Rosefall-a/unnamed_tracking_app/pull/305)
+into main first, then [#398](https://github.com/Rosefall-a/unnamed_tracking_app/pull/398).
+The UI PR remains based on Plugin Manager for review. Host PRs have not been
+automatically merged. Normal review and branch protection still apply.
 
-The new shared game/media detail structure, configurable game-page tabs,
-profiles, achievements, notes, file/archive editors and collection tiles are
-retained. Game detail now uses focused models and panels instead of one large
-component. Native dialogs, semantic colors, permission-controlled plugin slots
-and phone S/M/L layouts remain in place.
+## Preserved features
 
-Metadata repull respects manual locks; library filtering stays on the server;
-random-picker hour and genre filters retain their fixes. Trusted real-IP
-controls, safe migration recovery, startup JSON responses and redacted operator
-logs are integrated. Cards, Sets and Bounties are preserved in the official
-Collector's Archive plugin, rather than restored as core routes.
+Pocket navigation/mobile controls and Archive desktop/Home remain intact.
+Shared game/media detail models, game-page tabs, profiles, achievements, notes,
+file/archive editors, server filtering, collections and metadata locks are retained.
+Scoped Game/Media Collections have legacy redirects; shortcuts, tour, Home and
+sidebar use their canonical paths. The scoped collection index is explicitly
+excluded from game-detail scroll restoration and shortcuts.
 
-## Accepted production evidence
+Incoming live metadata search excludes the artwork provider; explicit artwork
+search uses image sources and reports results/errors in its active native dialog.
+Board rows fill available width while preserving measured container sizing and
+phone S/M/L columns of 3/2/1. AniList buttons and the temporary Yamtrack anime
+import warning are retained.
 
-| Check | Result |
+Revoked API keys are removed from the visible inventory and cannot fall back to
+a valid browser cookie. Session audit metadata/last-seen updates and the plugin
+management-token boundary are preserved. Existing secret controls, semantic
+themes, native dialogs, placement grants and the production JSON/upload fixes
+remain in place.
+
+Cards, Sets and Bounties are together in official Collector's Archive. They are
+not restored as core routes/tables. The published database histories upgrade to
+one generated, schema-neutral head `b57b38daf5b5`.
+
+## Source validation
+
+| Check | Accepted result |
 | --- | --- |
-| Frontend | 255 tests; full lint, format, Vue types and build pass |
-| Source size | 376 frontend files fit the 2,000-line maximum without exceptions |
-| Backend | 1,255 tests pass; two existing skips; mypy passes 230 source files |
-| Configured Pylint | 9.17/10, passing the existing threshold |
-| Production startup | JSON 503 with Retry-After, upgraded database, direct sign-in, JSON 404 and private-log denial pass |
-| Installed plugins | All 16 unsigned packages retain identity and recover healthy |
-| Native plugin pages | 20 loaded settings layouts and flat Archive placement pass at 320/390/1440/1920 pixels |
-| Libraries | 198 Chromium cases across eight widths, all game/media modes and both themes |
+| Native UI frontend | 260 tests; full ESLint, Prettier, Vue types and production build |
+| UI source size | All 376 files fit the 2,000-line maximum without exceptions |
+| Native UI backend | 1,256 tests; two existing skips; mypy over 230 source files |
+| Plugin Manager | 1,016 backend tests; two existing skips; mypy over 219 files; 120 frontend tests and full frontend checks |
+| Python quality | Touched Python passes Ruff/format; configured Pylint 9.17/10 on both branches |
+| Merge relationships | Main is an ancestor of Plugin Manager; Plugin Manager is an ancestor of UI; both merge trees exit 0 |
 
-The actual app container was built from committed `31491feb`. Runtime source
-did not change; its retained production image is `688c1d66`. Current plugins
-are the already-accepted companion `f858db6` CI packages. These identities are
-recorded in the [startup report](../assets/ui-redevelopment/final-main/production-startup-conformance.json)
-and [native report](../assets/ui-redevelopment/final-main/native/native-current-conformance.json).
+The full backend run is from `b76811db`; `e01f28c3` changes only three frontend
+presentation files, whose complete frontend checks were repeated.
 
-The [library report](../assets/ui-redevelopment/final-main/layouts/library-layout-conformance.json)
-checks distinct phone columns, available-height previews, touch actions,
-themed cards and warm Games/Media navigation. Core checks use a separate clean
-production fixture, preserving the installed-plugin fixture's data and grants.
+## Actual production evidence
 
-![Games library on desktop](../assets/ui-redevelopment/final-main/layouts/library-game-shelves-1440-light.png)
+The review apps use committed production source, separate labelled clean-core
+and installed-plugin fixtures, and the retained runtime `688c1d66`. Companion
+packages are the actual validated unsigned CI distributions from `f858db6`.
 
-![Games preview on a phone](../assets/ui-redevelopment/final-main/layouts/library-game-preview-390-dark.png)
+| Check | Provenance |
+| --- | --- |
+| Direct login, startup and retained data/grants | Final app upgrade to `e01f28c3`; all 16 installed plugins retain identities/grants |
+| Revoked-key/cookie boundary, JSON 404 and private-log denial | Eight actual API checks at `b76811db` |
+| WebKit library layouts | 198 loaded cases at `b76811db`, including all modes, phone densities and touch navigation |
+| WebKit guided tour | Required shortcuts/dialogs and touch alternatives at `b76811db` |
+| Native settings and flat Archive placement | 20 loaded settings layouts plus placement captures at `b76811db` |
+| Scoped collection and metadata/artwork dialogs | 12 WebKit checks at `e01f28c3`; external metadata responses are intercepted fixtures |
 
-![Native Jellyfin administration](../assets/ui-redevelopment/final-main/native/native-current-jellyfin-admin-1440-light.png)
+Current reports and images are in [merge-readiness evidence](../assets/ui-redevelopment/merge-readiness/README.md).
+Metadata UI fixtures validate the compiled frontend and request separation,
+not live IGDB/SteamGridDB availability.
 
-![Native Document Browser settings on a phone](../assets/ui-redevelopment/final-main/native/native-current-reader-settings-390-dark.png)
+![Scoped Media Collections on a phone](../assets/ui-redevelopment/merge-readiness/scoped-media-collections-390-dark.png)
 
-## Reproduction and remaining acceptance
+![Native artwork dialog on a phone](../assets/ui-redevelopment/merge-readiness/metadata-artwork-390-dark.png)
 
-The public `tools/check_ui_redevelopment.mjs` harness accepts
-`UI_REVIEW_PRODUCTION_ORIGIN` for an actual production frontend and
-`UI_REVIEW_HOST_HEAD` for provenance. Use the same backend origin and a
-disposable, empty plugin inventory for its core stages. Unknown stages fail
-early. `tools/check_native_plugin_ui.mjs` checks installed native integrations;
-Collector's Archive retains its separate official-plugin CRUD/layout suite.
+![Native Jellyfin administration](../assets/ui-redevelopment/merge-readiness/native-current-jellyfin-admin-1440-light.png)
 
-Full current detail/save workflows, WebKit review, combined contribution
-withdrawal/restore, offline/startup journeys and coordinated PR readiness
-remain under acceptance. This milestone is not a final completion statement.
+![Native Document Browser settings](../assets/ui-redevelopment/merge-readiness/native-current-reader-settings-390-dark.png)
+
+Earlier production evidence is preserved with its original source identities
+under [final-main](../assets/ui-redevelopment/final-main/production-startup-conformance.json). It includes the
+352-case detail review, real save workflows, startup/welcome/search/appearance,
+and PWA offline-theme/permission journeys. Those are historical acceptance,
+not silently relabelled as final-head reruns.
+
+## Remaining work and coordinated repositories
+
+The user requested efficient merge preparation and an explicit export of residual
+work. [Remaining acceptance checks](ui-merge-checklist.md) records unfinished
+browser/device verification. The observed existing-session Archive re-enable
+problem is [issue #430](https://github.com/Rosefall-a/unnamed_tracking_app/issues/430);
+a fresh browser restores its native interface without losing data or grants.
+
+Maintained [plugins #39](https://github.com/Rosefall-a/unnamed_tracking_app_plugins/pull/39),
+[template #2](https://github.com/Rosefall-a/plugins-template/pull/2),
+[PWA #4](https://github.com/Rosefall-a/unnamed-tracking-mobile-app/pull/4) and
+[themes #1](https://github.com/Rosefall-a/unnamed_tracking_app_themes/pull/1)
+are ready for review with passing current CI and documented host dependencies.
+
+See the [current open-PR integration review](ui-pr-integration-review.md) for
+unrelated branches. The [portable concept gallery](../assets/ui-redevelopment/concepts.html)
+and [reference ZIP](../assets/ui-redevelopment/concept-reference.zip) remain
+available for future Archive/Pocket/Studio styles.
