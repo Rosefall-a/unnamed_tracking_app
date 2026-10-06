@@ -54,7 +54,8 @@ async def refresh_steam_tags(
             continue
         try:
             details = await asyncio.to_thread(steam.get_app_details, app_id)
-        except Exception:  # noqa: BLE001 - the official genres are an extra
+        # Official genres are optional enrichment; player tags still apply if this lookup fails.
+        except Exception:  # pylint: disable=broad-exception-caught
             details = None
         picked = steam_tags.pick_genre_tags(player_tags, steam_tags.official_genre_names(details))
         have = {tag.lower() for tag in picked}

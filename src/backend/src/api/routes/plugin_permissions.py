@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.api.routes.plugin_manager.runtime import live_plugin
 from src.core.auth import get_current_user
 from src.database.models.plugin_permissions import (
     PluginClientIdentity,
@@ -34,9 +35,7 @@ async def _declared_permission(
     plugin_id: str, installation_id: UUID, capability: str, version: int
 ) -> dict:
     """Validate a requested capability against the current installation's declaration."""
-    from src.api.routes.plugins import _live_plugin
-
-    plugin = await _live_plugin(plugin_id, require_enabled=False)
+    plugin = await live_plugin(plugin_id, require_enabled=False)
     if plugin.get("installation_id") != str(installation_id) or not any(
         ref.get("name") == capability and ref.get("version") == version
         for ref in plugin.get("permission_refs", [])

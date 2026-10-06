@@ -27,6 +27,7 @@ from src.core.auth import (
 )
 from src.core.config import settings
 from src.core.crypto import encrypt_secret
+from src.core.env_handler import EnvConfigHandler
 from src.core.session_manager import create_session
 from src.database.models.app_integration_settings import AppIntegrationSettings
 from src.database.models.auth import UserApiKey
@@ -103,8 +104,6 @@ async def update_password_policy(
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, int | bool]:
     del admin
-    from src.core.env_handler import EnvConfigHandler
-
     handler = EnvConfigHandler()
     if any(
         handler.has(name)

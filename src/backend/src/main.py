@@ -1,6 +1,7 @@
-# pylint: disable=missing-module-docstring,missing-function-docstring
-# app/main.py
+"""Compose the host HTTP routes and start its existing background services."""
+
 import asyncio
+import logging
 
 from fastapi import FastAPI, Request
 from fastapi.encoders import jsonable_encoder
@@ -63,6 +64,8 @@ from src.features.jobs import run_jobs_loop
 from src.features.trash.sweep import run_sweep_loop
 from src.plugin_api.backend_routes import reserve_host_routes
 from src.plugin_api.pwa import router as pwa_router
+from src.plugin_api.recovery import recover_transactions
+from src.plugin_api.runtime_client import PluginRuntimeClient, PluginRuntimeUnavailable
 
 app = FastAPI(
     title="My API", docs_url="/api/docs", redoc_url="/api/redoc", openapi_url="/api/openapi.json"
@@ -181,9 +184,8 @@ async def start_session_retention_loop() -> None:
             try:
                 async with SessionLocal() as db:
                     await purge_old_sessions(db)
-            except Exception:
-                import logging
-
+            # A cleanup failure is reported without stopping future retention passes.
+            except Exception:  # pylint: disable=broad-exception-caught
                 logging.getLogger(__name__).exception("Session retention cleanup failed")
 
     asyncio.create_task(loop())
@@ -192,10 +194,6 @@ async def start_session_retention_loop() -> None:
 @app.on_event("startup")
 async def start_jobs_loop() -> None:
     # scheduled jobs (see features/jobs.py), including the airing check
-    import logging
-
-    from src.plugin_api.recovery import recover_transactions
-    from src.plugin_api.runtime_client import PluginRuntimeClient, PluginRuntimeUnavailable
 
     # Runtime starts alongside the host. No package can auto-start while pending;
     # retry this reconciliation when the runtime becomes reachable.
@@ -207,7 +205,8 @@ async def start_jobs_loop() -> None:
                 break
             except PluginRuntimeUnavailable:
                 await asyncio.sleep(5)
-            except Exception:
+            # Recovery reports each failed attempt before retrying the runtime connection.
+            except Exception:  # pylint: disable=broad-exception-caught
                 logging.getLogger(__name__).exception("Plugin transaction recovery failed")
                 await asyncio.sleep(5)
         await run_jobs_loop()
